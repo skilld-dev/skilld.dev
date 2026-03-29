@@ -1,0 +1,131 @@
+<script setup lang="ts">
+useSeoMeta({
+  title: 'Accessibility — skilld',
+  description: 'Accessibility statement for skilld.dev. Our approach to building an inclusive experience.',
+})
+</script>
+
+<template>
+  <main class="mx-auto max-w-3xl px-4 sm:px-6 py-12 md:py-16">
+    <article>
+      <header>
+        <h1 class="font-mono text-2xl sm:text-3xl font-medium tracking-tight">
+          Accessibility
+        </h1>
+        <p class="mt-3 text-sm text-[var(--ui-text-muted)] leading-relaxed">
+          skilld.dev is committed to providing an accessible experience for everyone.
+        </p>
+      </header>
+
+      <section
+        class="mt-10"
+        aria-labelledby="approach-heading"
+      >
+        <h2
+          id="approach-heading"
+          class="section-label mb-4"
+        >
+          Our approach
+        </h2>
+        <p class="text-sm text-[var(--ui-text-muted)] leading-relaxed">
+          We build skilld.dev with accessibility as a core requirement, not an afterthought.
+          Our target is WCAG 2.1 AA conformance across all pages and interactions.
+        </p>
+      </section>
+
+      <section
+        class="mt-10"
+        aria-labelledby="measures-heading"
+      >
+        <h2
+          id="measures-heading"
+          class="section-label mb-4"
+        >
+          What we do
+        </h2>
+        <ul class="space-y-2 text-sm text-[var(--ui-text-muted)] leading-relaxed">
+          <li class="flex items-start gap-2">
+            <span
+              class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
+              aria-hidden="true"
+            />
+            <span><strong class="text-[var(--ui-text)]">Semantic HTML</strong> with proper landmarks, headings, and document structure</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span
+              class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
+              aria-hidden="true"
+            />
+            <span><strong class="text-[var(--ui-text)]">ARIA attributes</strong> for interactive elements, live regions, and dynamic content</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span
+              class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
+              aria-hidden="true"
+            />
+            <span><strong class="text-[var(--ui-text)]">Keyboard navigation</strong> with skip links, focus indicators, and global shortcuts</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span
+              class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
+              aria-hidden="true"
+            />
+            <span><strong class="text-[var(--ui-text)]">Color contrast</strong> meeting WCAG AA ratios with enhanced high contrast mode support</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span
+              class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
+              aria-hidden="true"
+            />
+            <span><strong class="text-[var(--ui-text)]">Reduced motion</strong> respecting user preferences for animations and transitions</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span
+              class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
+              aria-hidden="true"
+            />
+            <span><strong class="text-[var(--ui-text)]">Automated testing</strong> with axe-core audits to catch regressions</span>
+          </li>
+        </ul>
+      </section>
+
+      <section
+        class="mt-10"
+        aria-labelledby="limitations-heading"
+      >
+        <h2
+          id="limitations-heading"
+          class="section-label mb-4"
+        >
+          Known limitations
+        </h2>
+        <p class="text-sm text-[var(--ui-text-muted)] leading-relaxed">
+          skilld.dev is under active development. Some pages and features may not yet meet our accessibility goals.
+          We are working to address these as the platform grows.
+        </p>
+      </section>
+
+      <section
+        class="mt-10"
+        aria-labelledby="feedback-heading"
+      >
+        <h2
+          id="feedback-heading"
+          class="section-label mb-4"
+        >
+          Feedback
+        </h2>
+        <p class="text-sm text-[var(--ui-text-muted)] leading-relaxed">
+          If you encounter an accessibility barrier on skilld.dev, please
+          <a
+            href="https://github.com/harlan-zw/skilld/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-[var(--ui-text)] underline underline-offset-2 hover:text-[var(--color-primary-500)]"
+          >open an issue on GitHub</a>.
+          We take all feedback seriously and will work to resolve issues promptly.
+        </p>
+      </section>
+    </article>
+  </main>
+</template>

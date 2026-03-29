@@ -1,0 +1,109 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Darken primary-500 from rose default for WCAG AA contrast with white text */
+  --color-primary-500: oklch(0.555 0.225 17.32);
+}
+
+:root {
+  --ui-bg: oklch(0.98 0.005 60);
+  --ui-bg-muted: oklch(0.95 0.008 60);
+  --ui-bg-elevated: oklch(1 0 0);
+  --ui-text: oklch(0.18 0.01 60);
+  --ui-text-muted: oklch(0.45 0.01 60);
+  --ui-text-inverted: oklch(1 0 0);
+  --ui-border: oklch(0.88 0.008 60);
+  --ui-border-muted: oklch(0.92 0.005 60);
+  --ui-radius: 0.5rem;
+}
+
+.dark {
+  --ui-bg: oklch(0.14 0.008 60);
+  --ui-bg-muted: oklch(0.18 0.01 60);
+  --ui-bg-elevated: oklch(0.22 0.012 60);
+  --ui-text: oklch(0.93 0.008 60);
+  --ui-text-muted: oklch(0.62 0.01 60);
+  --ui-text-inverted: oklch(1 0 0);
+  --ui-border: oklch(0.26 0.012 60);
+  --ui-border-muted: oklch(0.22 0.008 60);
+}
+
+/* High contrast mode */
+@media (prefers-contrast: more) {
+  :root {
+    --ui-text: oklch(0 0 0);
+    --ui-text-muted: oklch(0.3 0.01 60);
+    --ui-border: oklch(0.7 0.01 60);
+    --ui-border-muted: oklch(0.78 0.008 60);
+  }
+
+  .dark {
+    --ui-text: oklch(1 0 0);
+    --ui-text-muted: oklch(0.78 0.01 60);
+    --ui-border: oklch(0.4 0.015 60);
+    --ui-border-muted: oklch(0.34 0.012 60);
+  }
+}
+
+/* Focus indicators */
+:focus-visible,
+:-moz-focusring {
+  outline: 2px solid var(--color-primary-500) !important;
+  outline-offset: 2px !important;
+}
+
+/* Reduced motion: disable transitions and animations */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Skip link: visible only on focus */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 100;
+  padding: 0.5rem 1rem;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ui-text);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* Warm surface utilities */
+.surface-warm {
+  background: oklch(0.16 0.01 60);
+  border: 1px solid oklch(0.24 0.012 60);
+}
+
+.surface-warm-elevated {
+  background: oklch(0.20 0.014 60);
+  border: 1px solid oklch(0.28 0.014 60);
+}
+
+/* Section label — editorial small caps */
+.section-label {
+  @apply font-mono text-xs uppercase tracking-widest text-[var(--ui-text-muted)];
+}
+
+/* Data label — inline metric display */
+.data-label {
+  @apply font-mono text-xs text-[var(--ui-text-muted)] tabular-nums;
+}

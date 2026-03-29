@@ -1,0 +1,45 @@
+export default {
+  ui: {
+    colors: {
+      primary: 'rose',
+      neutral: 'stone',
+    },
+    button: {
+      slots: {
+        base: 'font-mono',
+      },
+      defaultVariants: {
+        color: 'primary',
+        variant: 'solid',
+      },
+    },
+    card: {
+      slots: {
+        root: 'rounded-lg border border-[var(--ui-border)] transition-colors duration-200',
+        header: 'p-4',
+        body: 'p-4',
+      },
+      variants: {
+        variant: {
+          outline: {
+            root: 'hover:border-[var(--ui-text-muted)]',
+          },
+        },
+      },
+    },
+    badge: {
+      slots: {
+        base: 'font-mono',
+      },
+      defaultVariants: {
+        variant: 'subtle',
+        size: 'xs',
+      },
+    },
+    input: {
+      defaultVariants: {
+        variant: 'outline',
+      },
+    },
+  },
+}

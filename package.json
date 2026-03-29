@@ -1,0 +1,62 @@
+{
+  "name": "skilld-dev",
+  "type": "module",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "description": "Curated agent skills from trusted open-source developers",
+  "author": {
+    "name": "Harlan Wilton",
+    "email": "harlan@harlanzw.com",
+    "url": "https://harlanzw.com/"
+  },
+  "license": "MIT",
+  "engines": { "node": ">=22.0.0" },
+  "scripts": {
+    "dev": "nuxi dev",
+    "build": "nuxi prepare && nuxi build",
+    "preview": "nuxi preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@atproto/api": "catalog:",
+    "@atproto/oauth-client-node": "catalog:",
+    "@iconify-json/lucide": "catalog:",
+    "@iconify-json/simple-icons": "catalog:",
+    "@nuxt/fonts": "catalog:",
+    "@nuxt/ui": "catalog:",
+    "@nuxtjs/seo": "catalog:",
+    "@resvg/resvg-js": "catalog:",
+    "@vueuse/core": "catalog:",
+    "@vueuse/nuxt": "catalog:",
+    "motion-v": "catalog:",
+    "nuxt": "catalog:",
+    "nuxt-og-image": "catalog:",
+    "tailwindcss": "catalog:"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "catalog:",
+    "@nuxt/a11y": "catalog:",
+    "@nuxt/eslint": "catalog:",
+    "@nuxt/test-utils": "catalog:",
+    "@nuxtjs/html-validator": "catalog:",
+    "@vue/test-utils": "catalog:",
+    "axe-core": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-harlanzw": "catalog:",
+    "happy-dom": "catalog:",
+    "lint-staged": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vue-tsc": "catalog:"
+  },
+  "lint-staged": {
+    "*.{js,ts,mjs,cjs,vue}": [
+      "pnpm exec eslint --fix"
+    ]
+  }
+}
