@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:",
+    "@cloudflare/workers-types": "^4.20260329.1",
     "@nuxt/a11y": "catalog:",
     "@nuxt/eslint": "catalog:",
     "@nuxt/test-utils": "catalog:",
@@ -61,9 +62,11 @@
     "eslint-plugin-harlanzw": "catalog:",
     "happy-dom": "catalog:",
     "lint-staged": "catalog:",
+    "nitro-cloudflare-dev": "^0.2.2",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "vue-tsc": "catalog:"
+    "vue-tsc": "catalog:",
+    "wrangler": "^4.78.0"
   },
   "lint-staged": {
     "*.{js,ts,mjs,cjs,vue}": [

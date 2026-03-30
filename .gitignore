@@ -22,6 +22,10 @@ logs
 .wrangler
 wrangler.toml
 
+# Skills registry (regenerated from mastra-ai/skills-api)
+server/data/scraped-skills.json
+server/data/skills-registry.json
+
 # Playwright
 playwright-report/
 test-results/

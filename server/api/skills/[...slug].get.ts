@@ -1,6 +1,7 @@
 import { getPublicAgent } from '../../utils/atproto/agent'
 import { getAllCurators } from '../../utils/atproto/curator-index'
 import { COLLECTION_NSID, parseCollectionRecord } from '../../utils/atproto/lexicons/collection'
+import { findSkill } from '../../utils/skills-registry'
 
 interface CuratorEndorsement {
   did: string
@@ -20,14 +21,7 @@ export default defineEventHandler(async (event) => {
   if (!slug)
     throw createError({ statusCode: 400, message: 'Missing skill slug' })
 
-  const skills = await getSkillsFromSitemap()
-
-  const skill = skills.find((s) => {
-    const fullSlug = s.repo === 'skills'
-      ? `${s.owner}/${s.name}`
-      : `${s.owner}/${s.repo}/${s.name}`
-    return fullSlug === slug || s.slug === slug
-  })
+  const skill = await findSkill(event, slug)
 
   if (!skill)
     throw createError({ statusCode: 404, message: 'Skill not found' })
@@ -47,7 +41,8 @@ export default defineEventHandler(async (event) => {
     owner: skill.owner,
     repo: skill.repo,
     name: skill.name,
-    url: skill.url,
+    displayName: skill.displayName,
+    installs: skill.installs,
     githubUrl,
     content,
     curators,

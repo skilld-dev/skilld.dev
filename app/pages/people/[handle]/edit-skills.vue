@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { CollectionSkill } from '../../../../server/utils/atproto/lexicons/collection'
-import type { SitemapSkill } from '../../../../server/utils/skills-sitemap'
+import type { RegistrySkill } from '../../../../server/utils/skills-registry'
 import { Reorder } from 'motion-v'
 import { PERSONAL_COLLECTION_SLUG } from '~/composables/useOnboarding'
+
+type SearchSkill = RegistrySkill & { official?: boolean }
 
 const route = useRoute()
 const handle = computed(() => route.params.handle as string)
@@ -30,14 +32,46 @@ const searchQuery = ref('')
 const debouncedQuery = refDebounced(searchQuery, 200)
 const showSuggestions = ref(false)
 
-const suggestions = ref<{ items: SitemapSkill[] } | null>(null)
+const suggestions = ref<{ items: SearchSkill[] } | null>(null)
+
+// Map of packageName -> { owner, repo, official } for selected skills resolved from search
+const skillMeta = ref<Map<string, { owner: string, repo: string, official: boolean }>>(new Map())
+
+// Hydrate metadata for skills loaded from PDS
+async function hydrateSkillMeta(packageNames: string[]) {
+  const missing = packageNames.filter(n => !skillMeta.value.has(n))
+  if (!missing.length)
+    return
+  const results = await Promise.allSettled(
+    missing.map(name =>
+      $fetch<{ items: SearchSkill[] }>('/api/skills', { query: { q: name, limit: 1 } }),
+    ),
+  )
+  for (let i = 0; i < missing.length; i++) {
+    const r = results[i]!
+    if (r.status !== 'fulfilled')
+      continue
+    const match = r.value.items.find(s => s.name === missing[i])
+    if (match)
+      skillMeta.value.set(missing[i]!, { owner: match.owner, repo: match.repo, official: !!match.official })
+  }
+}
+
+// Hydrate on initial load and when synced from server
+if (skills.value.length)
+  hydrateSkillMeta(skills.value.map(s => s.packageName))
+
+watch(personalCollection, (pc) => {
+  if (pc?.record.skills.length)
+    hydrateSkillMeta(pc.record.skills.map(s => s.packageName))
+})
 
 watch(debouncedQuery, async (q) => {
   if (q.length < 2) {
     suggestions.value = null
     return
   }
-  suggestions.value = await $fetch<{ items: SitemapSkill[] }>('/api/skills', {
+  suggestions.value = await $fetch<{ items: SearchSkill[] }>('/api/skills', {
     query: { q, limit: 8 },
   })
 })
@@ -49,22 +83,49 @@ const filteredSuggestions = computed(() => {
   return suggestions.value.items.filter(s => !existing.has(s.name))
 })
 
-function selectSuggestion(skill: SitemapSkill) {
+function selectSuggestion(skill: SearchSkill) {
   if (!skills.value.some(s => s.packageName === skill.name)) {
     skills.value.push({ packageName: skill.name })
+    skillMeta.value.set(skill.name, { owner: skill.owner, repo: skill.repo, official: !!skill.official })
   }
   searchQuery.value = ''
   showSuggestions.value = false
   nextTick(() => document.getElementById('skill-search-input')?.focus())
 }
 
+const GITHUB_SKILL_RE = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)(?:\/tree\/[^/]+\/(.+))?/
+
+function parseGitHubUrl(input: string): { owner: string, repo: string, path?: string } | null {
+  const m = input.match(GITHUB_SKILL_RE)
+  if (!m)
+    return null
+  return { owner: m[1]!, repo: m[2]!, path: m[3] }
+}
+
+function githubUrl(owner: string, repo: string): string {
+  return `https://github.com/${owner}/${repo}`
+}
+
 function addManualSkill() {
-  const pkg = searchQuery.value.trim()
-  if (!pkg)
+  const raw = searchQuery.value.trim()
+  if (!raw)
     return
-  if (skills.value.some(s => s.packageName === pkg))
+
+  const gh = parseGitHubUrl(raw)
+  if (gh) {
+    // Derive skill name from GitHub URL path or repo name
+    const name = gh.path || gh.repo
+    if (skills.value.some(s => s.packageName === name))
+      return
+    skills.value.push({ packageName: name })
+    skillMeta.value.set(name, { owner: gh.owner, repo: gh.repo, official: false })
+    searchQuery.value = ''
     return
-  skills.value.push({ packageName: pkg })
+  }
+
+  if (skills.value.some(s => s.packageName === raw))
+    return
+  skills.value.push({ packageName: raw })
   searchQuery.value = ''
 }
 
@@ -92,6 +153,14 @@ function startEditReason(index: number) {
 function commitReason(index: number) {
   updateReason(index, reasonInput.value.trim())
   editingReason.value = null
+}
+
+function formatInstalls(n: number): string {
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000)
+    return `${(n / 1_000).toFixed(0)}k`
+  return String(n)
 }
 
 const hasChanges = computed(() => {
@@ -204,7 +273,7 @@ useSeoMeta({
             <UInput
               id="skill-search-input"
               v-model="searchQuery"
-              placeholder="Search skills (e.g. vue, nuxt, tailwindcss)"
+              placeholder="Search skills or paste a GitHub URL"
               icon="i-lucide-search"
               class="flex-1 font-mono"
               @focus="showSuggestions = true"
@@ -232,8 +301,17 @@ useSeoMeta({
               class="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-muted"
               @mousedown.prevent="selectSuggestion(suggestion)"
             >
-              <span class="font-mono text-sm">{{ suggestion.name }}</span>
-              <span class="text-xs text-muted">{{ suggestion.owner }}{{ suggestion.repo !== 'skills' ? `/${suggestion.repo}` : '' }}</span>
+              <img
+                v-if="suggestion.official"
+                :src="`https://github.com/${suggestion.owner}.png?size=32`"
+                :alt="`${suggestion.owner}`"
+                class="size-4 shrink-0 rounded-full"
+              >
+              <span class="font-mono text-sm">{{ suggestion.displayName || suggestion.name }}</span>
+              <span class="ml-auto flex items-center gap-2 text-xs text-muted font-mono">
+                <span v-if="suggestion.installs" class="tabular-nums">{{ formatInstalls(suggestion.installs) }}</span>
+                <span>{{ suggestion.owner }}/{{ suggestion.repo }}</span>
+              </span>
             </button>
           </div>
         </div>
@@ -279,9 +357,23 @@ useSeoMeta({
               />
 
               <div class="min-w-0 flex-1">
-                <p class="font-mono text-sm font-medium">
-                  {{ skill.packageName }}
-                </p>
+                <div class="flex items-center gap-2">
+                  <img
+                    v-if="skillMeta.get(skill.packageName)?.official"
+                    :src="`https://github.com/${skillMeta.get(skill.packageName)!.owner}.png?size=32`"
+                    :alt="skillMeta.get(skill.packageName)!.owner"
+                    class="size-4 shrink-0 rounded-full"
+                  >
+                  <p class="font-mono text-sm font-medium">
+                    {{ skill.packageName }}
+                  </p>
+                </div>
+                <a
+                  v-if="skillMeta.get(skill.packageName)"
+                  :href="githubUrl(skillMeta.get(skill.packageName)!.owner, skillMeta.get(skill.packageName)!.repo)"
+                  target="_blank"
+                  class="mt-0.5 block text-xs text-muted font-mono hover:text-default"
+                >{{ skillMeta.get(skill.packageName)!.owner }}/{{ skillMeta.get(skill.packageName)!.repo }}</a>
 
                 <!-- Inline reason editor -->
                 <div
@@ -365,9 +457,9 @@ useSeoMeta({
           />
         </div>
 
-        <!-- Install command preview -->
+        <!-- Install command preview (only after published) -->
         <div
-          v-if="skills.length"
+          v-if="personalCollection"
           class="mt-6 rounded-lg border border-default p-3"
         >
           <p class="section-label mb-2">

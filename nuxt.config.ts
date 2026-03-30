@@ -11,6 +11,7 @@ export default defineNuxtConfig({
     'motion-v/nuxt',
     '@vueuse/nuxt',
     './modules/oauth',
+    'nitro-cloudflare-dev',
   ],
 
   scripts: {
@@ -59,6 +60,9 @@ export default defineNuxtConfig({
       wrangler: {
         name: 'skilld-dev',
         compatibility_flags: ['nodejs_compat', 'no_nodejs_compat_v2'],
+        d1_databases: [
+          { binding: 'DB', database_name: 'skilld-db', database_id: process.env.D1_DATABASE_ID || 'local' },
+        ],
         durable_objects: {
           bindings: [
             { name: '$DurableObject', class_name: '$DurableObject' },
