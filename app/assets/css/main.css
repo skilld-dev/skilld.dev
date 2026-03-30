@@ -52,9 +52,9 @@
   }
 }
 
-/* Focus indicators */
-:focus-visible,
-:-moz-focusring {
+/* Focus indicators — skip elements that already have Nuxt UI ring styles */
+:focus-visible:not(input, textarea, select, [role="combobox"], [role="listbox"], [role="switch"]),
+:-moz-focusring:not(input, textarea, select, [role="combobox"], [role="listbox"], [role="switch"]) {
   outline: 2px solid var(--color-primary-500) !important;
   outline-offset: 2px !important;
 }

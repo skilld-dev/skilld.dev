@@ -179,13 +179,16 @@ async function handlePublish() {
   if (!skills.value.length)
     return
 
-  await publish({
+  const result = await publish({
     name: 'My Skills',
     slug: PERSONAL_COLLECTION_SLUG,
     description: `Skills curated by @${handle.value}`,
     skills: skills.value,
     stacks: personalCollection.value?.record.stacks ?? [],
-  })
+  }).catch(() => null)
+
+  if (!result)
+    return
 
   justPublished.value = true
   setTimeout(() => {

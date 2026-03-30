@@ -89,7 +89,10 @@ async function handleSubmit() {
     description: state.description,
     skills: state.skills.map(packageName => ({ packageName })),
     stacks: state.stacks,
-  }, { shareOnBluesky: state.shareOnBluesky })
+  }, { shareOnBluesky: state.shareOnBluesky }).catch(() => null)
+
+  if (!result)
+    return
 
   emit('published', { uri: result.uri, rkey: state.slug, postUri: result.postUri })
 }

@@ -4,7 +4,7 @@ import type { OAuthClientMetadata } from 'atproto-oauth-client-cloudflare-worker
 import { clientUri } from '#oauth/config'
 import { WorkersOAuthClient } from 'atproto-oauth-client-cloudflare-workers'
 
-export const scope = 'atproto'
+export const scope = 'atproto transition:generic'
 
 export function getOauthClientMetadata(): OAuthClientMetadata {
   const redirect_uri = `${clientUri}/api/auth/atproto` as `https://${string}`
