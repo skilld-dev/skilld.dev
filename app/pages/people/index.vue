@@ -127,6 +127,8 @@ const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], 
               :alt="`Avatar for ${curator.displayName || curator.handle}`"
               width="40"
               height="40"
+              loading="lazy"
+              decoding="async"
               class="size-10 rounded-full"
             >
             <div

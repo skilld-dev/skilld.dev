@@ -107,6 +107,8 @@ function relativeTime(iso: string): string {
           :alt="reply.author.displayName ?? reply.author.handle"
           width="28"
           height="28"
+          loading="lazy"
+          decoding="async"
           class="size-7 shrink-0 rounded-full"
         >
         <div

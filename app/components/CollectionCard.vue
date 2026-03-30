@@ -86,6 +86,8 @@ async function toggleSave() {
           :alt="`Avatar for ${collection.curator.name}`"
           width="20"
           height="20"
+          loading="lazy"
+          decoding="async"
           class="size-5 rounded-full"
         >
         <span class="text-xs">{{ collection.curator.name }}</span>

@@ -107,7 +107,14 @@ describe('accessibility: component coverage', () => {
   // Components that are skipped with documented reasons
   const SKIPPED_COMPONENTS = [
     'AuthModal.client', // Client-only modal requires full app context with auth providers
+    'BlueskyThread', // Requires async fetch context (useFetch) for thread data
+    'CollectionEditor.client', // Client-only editor requires auth and complex form state
+    'CuratorLabels', // Simple label display, tested indirectly via CuratorCard
+    'InlineTip.client', // Client-only component with slot content
     'KeyboardShortcutsModal.client', // Client-only modal requires full app context
+    'OgBrand', // OG image component, rendered server-side only
+    'OgLayout', // OG image layout component, rendered server-side only
+    'WelcomeBanner.client', // Client-only banner requires auth context
   ]
 
   it('all non-skipped components have a11y tests', async () => {

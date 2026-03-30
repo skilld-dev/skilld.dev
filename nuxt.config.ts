@@ -96,9 +96,13 @@ export default defineNuxtConfig({
   },
 
   fonts: {
+    defaults: {
+      subsets: ['latin'],
+      preload: true,
+    },
     families: [
-      { name: 'Plus Jakarta Sans', provider: 'google' },
-      { name: 'IBM Plex Mono', provider: 'google' },
+      { name: 'Plus Jakarta Sans', provider: 'google', weights: [400, 500, 600], styles: ['normal'] },
+      { name: 'IBM Plex Mono', provider: 'google', weights: [400, 500, 600], styles: ['normal'] },
     ],
   },
 

@@ -1,63 +1,50 @@
 <script setup lang="ts">
-const LEADING_AT_RE = /^@/
+import { isValidHandle } from '@atproto/syntax'
 
 const { user, isAuthenticated, isLoading, login, logout } = useAuth()
 const { stage, allUnlocked, unlockAll } = useOnboarding()
 
 const open = defineModel<boolean>('open', { default: false })
-const username = ref('')
-const customHandle = ref('')
-const customDomain = ref(false)
+const handleInput = ref('')
 const error = ref('')
 const submitting = ref(false)
 
 function handleConnect() {
-  let resolved: string
+  const value = handleInput.value.trim()
+  if (!value)
+    return
 
-  if (customDomain.value) {
-    resolved = customHandle.value.trim().toLowerCase().replace(LEADING_AT_RE, '')
-    if (!resolved) {
-      error.value = 'Enter your handle'
-      return
-    }
-    if (!resolved.includes('.')) {
-      error.value = 'Enter a full handle like yourname.example.com'
-      return
-    }
+  if (value.startsWith('https://') || isValidHandle(value) || value.includes('.')) {
+    error.value = ''
+    submitting.value = true
+    login(value, window.location.pathname)
   }
   else {
-    const name = username.value.trim().toLowerCase().replace(LEADING_AT_RE, '')
-    if (!name) {
-      error.value = 'Enter your username'
-      return
-    }
-    if (name.includes('.')) {
-      error.value = 'Just the username, without .bsky.social'
-      return
-    }
-    resolved = `${name}.bsky.social`
+    error.value = 'Enter a valid AT Protocol handle or PDS URL'
   }
+}
 
-  error.value = ''
+function handleBlueskySignIn() {
   submitting.value = true
-  login(resolved, window.location.pathname)
+  login('https://bsky.social', window.location.pathname)
+}
+
+function handleCreateAccount() {
+  navigateTo('https://bsky.app', { external: true, open: { target: '_blank' } })
 }
 
 function handleDisconnect() {
   logout()
-  username.value = ''
-  customHandle.value = ''
+  handleInput.value = ''
 }
 
-watch([username, customHandle], () => {
+watch(handleInput, (val) => {
   if (error.value)
     error.value = ''
+  const normalized = val.trim().toLowerCase().replace(/@/g, '')
+  if (normalized !== val)
+    handleInput.value = normalized
 })
-
-function toggleCustomDomain() {
-  customDomain.value = !customDomain.value
-  error.value = ''
-}
 </script>
 
 <template>
@@ -73,6 +60,7 @@ function toggleCustomDomain() {
             Connected
           </p>
           <div class="flex items-center gap-3 rounded-lg border border-default p-4">
+            <span class="size-3 rounded-full bg-green-500 shrink-0" aria-hidden="true" />
             <img
               v-if="user.avatar"
               :src="user.avatar"
@@ -92,30 +80,37 @@ function toggleCustomDomain() {
               />
             </div>
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium truncate">
+              <p class="font-mono text-xs text-muted">
                 @{{ user.handle }}
-              </p>
-              <p class="font-mono text-xs text-muted truncate">
-                {{ user.did }}
               </p>
             </div>
           </div>
-          <div class="mt-4 flex items-center justify-between">
+
+          <div class="mt-4 flex flex-col gap-3">
+            <UButton
+              :to="`/people/${user.handle}`"
+              label="View Profile"
+              color="neutral"
+              variant="outline"
+              block
+              @click="open = false"
+            />
+            <UButton
+              label="Disconnect"
+              color="neutral"
+              variant="ghost"
+              block
+              @click="handleDisconnect"
+            />
+          </div>
+
+          <div v-if="!allUnlocked && stage !== 'curator'" class="mt-3 text-center">
             <button
-              v-if="!allUnlocked && stage !== 'curator'"
-              class="text-xs text-muted hover:text-default"
+              class="text-xs text-muted hover:text-default transition-colors"
               @click="unlockAll"
             >
               Stop showing tips
             </button>
-            <span v-else />
-            <UButton
-              label="Disconnect"
-              color="neutral"
-              variant="outline"
-              size="sm"
-              @click="handleDisconnect"
-            />
           </div>
         </div>
 
@@ -140,42 +135,26 @@ function toggleCustomDomain() {
           >
             <UFormField :error="error">
               <label
-                for="bluesky-handle"
-                class="sr-only"
-              >{{ customDomain ? 'Handle' : 'Username' }}</label>
-
-              <!-- Simple mode: username + .bsky.social suffix -->
-              <UInput
-                v-if="!customDomain"
-                id="bluesky-handle"
-                v-model="username"
-                placeholder="yourname"
-                icon="i-lucide-at-sign"
-                size="lg"
-                class="font-mono"
-                :disabled="submitting"
-                :aria-invalid="!!error"
-                :aria-describedby="error ? 'handle-error' : undefined"
+                for="handle-input"
+                class="block font-mono text-xs text-muted uppercase tracking-wider mb-1.5"
               >
-                <template #trailing>
-                  <span class="text-muted text-sm font-mono select-none">.bsky.social</span>
-                </template>
-              </UInput>
-
-              <!-- Custom domain mode: full handle -->
+                Handle or PDS URL
+              </label>
               <UInput
-                v-else
-                id="bluesky-handle"
-                v-model="customHandle"
-                placeholder="yourname.example.com"
+                id="handle-input"
+                v-model="handleInput"
+                placeholder="you.bsky.social or https://pds.example.com"
                 icon="i-lucide-at-sign"
                 size="lg"
                 class="font-mono"
                 :disabled="submitting"
                 :aria-invalid="!!error"
                 :aria-describedby="error ? 'handle-error' : undefined"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
               />
-
               <p
                 v-if="error"
                 id="handle-error"
@@ -186,40 +165,59 @@ function toggleCustomDomain() {
               </p>
             </UFormField>
 
+            <details class="text-sm">
+              <summary class="text-muted hover:text-default transition-colors cursor-pointer">
+                What is the Atmosphere?
+              </summary>
+              <p class="mt-3 text-sm text-muted leading-relaxed">
+                skilld.dev is built on the <a href="https://atproto.com" target="_blank" class="text-default hover:text-primary transition-colors">AT Protocol</a>,
+                the same open network that powers <a href="https://bsky.app" target="_blank" class="text-default hover:text-primary transition-colors">Bluesky</a>
+                and <a href="https://tangled.org" target="_blank" class="text-default hover:text-primary transition-colors">Tangled</a>.
+                Your identity and data live on your Personal Data Server, not on skilld.dev.
+              </p>
+            </details>
+
             <UButton
               type="submit"
               label="Connect"
               block
               size="lg"
               :loading="submitting"
-              :disabled="isLoading"
+              :disabled="!handleInput.trim()"
               trailing-icon="i-lucide-arrow-right"
             />
           </form>
 
-          <div class="mt-3 flex items-center justify-between">
-            <button
-              class="font-mono text-xs text-muted hover:text-default transition-colors"
-              type="button"
-              @click="toggleCustomDomain"
-            >
-              {{ customDomain ? 'Use bsky.social' : 'Custom domain?' }}
-            </button>
-            <UButton
-              to="https://bsky.app"
-              target="_blank"
-              label="Create account"
-              color="neutral"
-              variant="link"
-              size="xs"
-              class="font-mono"
-              trailing-icon="i-lucide-external-link"
-            />
+          <UButton
+            label="Create account"
+            color="neutral"
+            variant="outline"
+            block
+            size="lg"
+            class="mt-3"
+            trailing-icon="i-lucide-external-link"
+            @click="handleCreateAccount"
+          />
+
+          <div class="relative my-4">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-default" />
+            </div>
+            <div class="relative flex justify-center text-xs">
+              <span class="bg-default px-2 text-muted font-mono">or</span>
+            </div>
           </div>
 
-          <p class="mt-4 text-xs text-muted leading-relaxed">
-            skilld.dev uses the <a href="https://atproto.com" target="_blank" class="text-default hover:text-primary transition-colors">AT Protocol</a> for authentication. Your data stays on your Personal Data Server.
-          </p>
+          <UButton
+            label="Sign in with Bluesky"
+            color="neutral"
+            variant="soft"
+            block
+            size="lg"
+            icon="i-simple-icons-bluesky"
+            :loading="submitting"
+            @click="handleBlueskySignIn"
+          />
         </div>
 
         <UButton

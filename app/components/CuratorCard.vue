@@ -24,6 +24,8 @@ const { curator } = defineProps<{
         :alt="curator.name"
         width="36"
         height="36"
+        loading="lazy"
+        decoding="async"
         class="size-9 rounded-full"
       >
       <div class="min-w-0 flex-1">
