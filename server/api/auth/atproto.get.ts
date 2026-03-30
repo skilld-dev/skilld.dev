@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const query = getQuery(event)
-  const session = await useSession(event, { password: config.sessionPassword as string })
+  const session = await getUserSession(event)
 
   if (query.handle) {
     // Initiate auth flow

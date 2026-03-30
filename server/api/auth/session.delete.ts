@@ -3,7 +3,7 @@ export default defineEventHandler(async (event) => {
   if (!config.sessionPassword)
     return 'No session'
 
-  const session = await useSession(event, { password: config.sessionPassword as string })
+  const session = await getUserSession(event)
   await session.clear()
   return 'Session cleared'
 })

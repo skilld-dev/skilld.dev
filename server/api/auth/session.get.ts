@@ -3,6 +3,6 @@ export default defineEventHandler(async (event) => {
   if (!config.sessionPassword)
     return null
 
-  const session = await useSession(event, { password: config.sessionPassword as string })
+  const session = await getUserSession(event)
   return session.data?.public ?? null
 })

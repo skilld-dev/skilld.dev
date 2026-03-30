@@ -6,11 +6,7 @@ import { Agent } from '@atproto/api'
  * Restores the OAuth session from storage and returns an Agent bound to their PDS.
  */
 export async function getAuthenticatedAgent(event: H3Event): Promise<{ agent: Agent, did: string }> {
-  const config = useRuntimeConfig(event)
-  if (!config.sessionPassword)
-    throw createError({ statusCode: 500, message: 'Missing session configuration' })
-
-  const session = await useSession(event, { password: config.sessionPassword as string })
+  const session = await getUserSession(event)
   const did = session.data?.public?.did as string | undefined
   if (!did)
     throw createError({ statusCode: 401, message: 'Not authenticated' })
