@@ -32,6 +32,15 @@ export default defineNuxtConfig({
     description: 'Curated agent skills from trusted open-source developers',
   },
 
+  app: {
+    head: {
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+      ],
+    },
+  },
+
   colorMode: {
     preference: 'dark',
     fallback: 'dark',
