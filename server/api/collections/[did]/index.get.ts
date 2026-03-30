@@ -1,4 +1,3 @@
-import { getPublicAgent } from '../../../utils/atproto/agent'
 import { getCachedCollections } from '../../../utils/atproto/collections'
 
 export default defineEventHandler(async (event) => {
@@ -6,6 +5,5 @@ export default defineEventHandler(async (event) => {
   if (!did)
     throw createError({ statusCode: 400, message: 'Missing DID parameter' })
 
-  const agent = getPublicAgent()
-  return getCachedCollections(agent, did)
+  return getCachedCollections(did)
 })

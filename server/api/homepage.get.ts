@@ -1,5 +1,4 @@
 import type { IndexedCurator } from '../utils/atproto/curator-index'
-import { getPublicAgent } from '../utils/atproto/agent'
 import { listCollectionRecords } from '../utils/atproto/collections'
 import { getAllCurators } from '../utils/atproto/curator-index'
 
@@ -31,15 +30,14 @@ export default defineEventHandler(async (event) => {
   const curators = await getAllCurators(getDB(event))
 
   // Fetch collections from each curator's PDS (cap at 10 curators for performance)
-  const agent = getPublicAgent()
   const collections: HomepageCollection[] = []
 
   const topCurators = curators
     .sort((a, b) => b.lastPublished.localeCompare(a.lastPublished))
     .slice(0, 10)
 
-  await Promise.all(topCurators.map(async (curator) => {
-    const records = await listCollectionRecords(agent, curator.did, 5).catch(() => [])
+  const results = await Promise.allSettled(topCurators.map(async (curator) => {
+    const records = await listCollectionRecords(curator.did, 5)
 
     for (const { record } of records) {
       collections.push({
@@ -58,6 +56,11 @@ export default defineEventHandler(async (event) => {
       })
     }
   }))
+
+  for (const result of results) {
+    if (result.status === 'rejected')
+      console.warn('[homepage] Failed to fetch curator collections:', result.reason)
+  }
 
   // Sort collections by curator recency
   collections.sort((a, b) => {

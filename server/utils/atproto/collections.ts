@@ -5,6 +5,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { Agent } from '@atproto/api'
 import type { CollectionRecord } from './lexicons/collection'
+import { getPdsAgent } from './agent'
 import { COLLECTION_NSID, parseCollectionRecord } from './lexicons/collection'
 
 const CACHE_PREFIX = 'collections'
@@ -26,8 +27,10 @@ export function rkeyFromUri(uri: string): string {
   return uri.split('/').pop()!
 }
 
-/** List and parse all collection records for a DID. */
-export async function listCollectionRecords(agent: Agent, did: string, limit = 100): Promise<ParsedCollectionRecord[]> {
+/** List and parse all collection records for a DID. Resolves the user's PDS automatically. */
+export async function listCollectionRecords(did: string, limit = 100): Promise<ParsedCollectionRecord[]> {
+  const agent = await getPdsAgent(did)
+
   const res = await agent.com.atproto.repo.listRecords({
     repo: did,
     collection: COLLECTION_NSID,
@@ -45,13 +48,13 @@ export async function listCollectionRecords(agent: Agent, did: string, limit = 1
 }
 
 /** Get cached collections for a curator, or fetch and cache them. */
-export async function getCachedCollections(agent: Agent, did: string): Promise<CachedCollections> {
+export async function getCachedCollections(did: string): Promise<CachedCollections> {
   const cacheKey = `${CACHE_PREFIX}:${did}`
   const cached = await useStorage('cache').getItem<CachedCollections>(cacheKey)
   if (cached)
     return cached
 
-  const collections = await listCollectionRecords(agent, did)
+  const collections = await listCollectionRecords(did)
   const result: CachedCollections = {
     collections,
     fetchedAt: new Date().toISOString(),
@@ -71,12 +74,13 @@ export async function bustCollectionsCache(did: string) {
  * Fetches profile + remaining collection count, then upserts or removes the curator.
  */
 export async function syncCuratorAfterChange(db: D1Database, agent: Agent, did: string) {
-  const [profile, collections] = await Promise.all([
-    agent.getProfile({ actor: did }).catch(() => null),
-    listCollectionRecords(agent, did).catch(() => []),
+  const [profileRes, collections] = await Promise.allSettled([
+    agent.getProfile({ actor: did }),
+    listCollectionRecords(did),
   ])
 
-  const count = collections.length
+  const profile = profileRes.status === 'fulfilled' ? profileRes.value : null
+  const count = collections.status === 'fulfilled' ? collections.value.length : 0
 
   if (count > 0) {
     await upsertCurator(db, {

@@ -1,24 +1,20 @@
 <script setup lang="ts">
-withDefaults(
-  defineProps<{
-    size?: number
-  }>(),
-  {
-    size: 32,
-  },
-)
+const { size = 32 } = defineProps<{
+  size?: number
+}>()
 </script>
 
 <template>
-  <div class="flex items-center gap-3">
-    <div
-      :style="{
-        width: '4px',
-        height: `${size}px`,
-        borderRadius: '2px',
-        background: 'oklch(0.555 0.225 17.32)',
-      }"
-    />
+  <div class="flex items-center" :style="{ gap: `${size * 0.12}px` }">
+    <svg
+      :width="size"
+      :height="size"
+      viewBox="0 0 160 160"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M80 34 L135 104 L121 104 L80 52 L39 104 L25 104 Z" fill="#fb7185" />
+    </svg>
     <span
       class="font-mono font-semibold tracking-tight"
       :style="{ fontSize: `${size}px`, lineHeight: 1 }"

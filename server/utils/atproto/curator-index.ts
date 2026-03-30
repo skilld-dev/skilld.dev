@@ -184,10 +184,16 @@ export async function rebuildIndex(db: D1Database): Promise<{ refreshed: number,
   let removed = 0
 
   await Promise.all(curators.map(async (curator) => {
-    const [profile, collections] = await Promise.all([
-      agent.getProfile({ actor: curator.did }).catch(() => null),
-      listCollectionRecords(agent, curator.did).catch(() => []),
+    const [profileRes, collectionsRes] = await Promise.allSettled([
+      agent.getProfile({ actor: curator.did }),
+      listCollectionRecords(curator.did),
     ])
+
+    const profile = profileRes.status === 'fulfilled' ? profileRes.value : null
+    const collections = collectionsRes.status === 'fulfilled' ? collectionsRes.value : []
+
+    if (collectionsRes.status === 'rejected')
+      console.warn(`[rebuildIndex] Failed to fetch collections for ${curator.did}:`, collectionsRes.reason)
 
     const count = collections.length
 

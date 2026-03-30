@@ -1,4 +1,3 @@
-import { getPublicAgent } from '../../utils/atproto/agent'
 import { listCollectionRecords } from '../../utils/atproto/collections'
 import { getAllCurators } from '../../utils/atproto/curator-index'
 import { findSkill } from '../../utils/skills-registry'
@@ -63,11 +62,10 @@ async function getEndorsementsForSkill(db: D1Database, skillName: string): Promi
 
 async function buildEndorsementMap(db: D1Database): Promise<Record<string, CuratorEndorsement[]>> {
   const curators = await getAllCurators(db)
-  const agent = getPublicAgent()
   const map: Record<string, CuratorEndorsement[]> = {}
 
-  await Promise.all(curators.map(async (curator) => {
-    const records = await listCollectionRecords(agent, curator.did).catch(() => [])
+  const results = await Promise.allSettled(curators.map(async (curator) => {
+    const records = await listCollectionRecords(curator.did)
 
     for (const { record } of records) {
       for (const skill of record.skills) {
@@ -86,6 +84,11 @@ async function buildEndorsementMap(db: D1Database): Promise<Record<string, Curat
       }
     }
   }))
+
+  for (const result of results) {
+    if (result.status === 'rejected')
+      console.warn('[endorsement-map] Failed to fetch curator collections:', result.reason)
+  }
 
   return map
 }

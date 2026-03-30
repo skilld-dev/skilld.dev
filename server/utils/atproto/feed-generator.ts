@@ -4,7 +4,6 @@
  */
 
 /// <reference types="@cloudflare/workers-types" />
-import { getPublicAgent } from './agent'
 import { listCollectionRecords } from './collections'
 import { getAllCurators } from './curator-index'
 
@@ -24,13 +23,12 @@ export async function getCollectionsFeedSkeleton(db: D1Database, opts?: { limit?
   const cursorTime = opts?.cursor ? new Date(opts.cursor).getTime() : Infinity
 
   const curators = await getAllCurators(db)
-  const agent = getPublicAgent()
 
   // Gather all collection records with postRefs
   const entries: Array<{ postUri: string, updatedAt: string }> = []
 
-  await Promise.all(curators.map(async (curator) => {
-    const records = await listCollectionRecords(agent, curator.did, 20).catch(() => [])
+  const results = await Promise.allSettled(curators.map(async (curator) => {
+    const records = await listCollectionRecords(curator.did, 20)
 
     for (const { record } of records) {
       if (!record.postRef)
@@ -42,6 +40,11 @@ export async function getCollectionsFeedSkeleton(db: D1Database, opts?: { limit?
       }
     }
   }))
+
+  for (const result of results) {
+    if (result.status === 'rejected')
+      console.warn('[feed-generator] Failed to fetch curator collections:', result.reason)
+  }
 
   // Sort by most recent
   entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))

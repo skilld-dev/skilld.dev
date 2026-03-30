@@ -22,3 +22,28 @@ export async function getAuthenticatedAgent(event: H3Event): Promise<{ agent: Ag
 export function getPublicAgent(): Agent {
   return new Agent('https://public.api.bsky.app')
 }
+
+/**
+ * Resolve a DID to its PDS endpoint and return an Agent pointed at that PDS.
+ * Required for repo operations (listRecords, getRecord) which aren't available
+ * on the Bluesky public AppView.
+ */
+export async function getPdsAgent(did: string): Promise<Agent> {
+  const cacheKey = `pds-url:${did}`
+  const cached = await useStorage('cache').getItem<string>(cacheKey)
+  if (cached)
+    return new Agent(cached)
+
+  const res = await $fetch<{ service?: { id: string, serviceEndpoint: string }[] }>(
+    did.startsWith('did:plc:')
+      ? `https://plc.directory/${did}`
+      : `https://${did.replace('did:web:', '')}/.well-known/did.json`,
+  )
+
+  const pds = res.service?.find(s => s.id === '#atproto_pds')
+  if (!pds?.serviceEndpoint)
+    throw createError({ statusCode: 502, message: `Could not resolve PDS for ${did}` })
+
+  await useStorage('cache').setItem(cacheKey, pds.serviceEndpoint, { ttl: 60 * 60 })
+  return new Agent(pds.serviceEndpoint)
+}
