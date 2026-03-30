@@ -63,7 +63,7 @@ function toggleCustomDomain() {
 <template>
   <UModal
     v-model:open="open"
-    :aria-label="isAuthenticated ? 'Account settings' : 'Connect with Bluesky'"
+    :aria-label="isAuthenticated ? 'Account settings' : 'Connect with your Atmosphere account'"
   >
     <template #content>
       <div class="relative p-6 sm:p-8">
@@ -125,13 +125,13 @@ function toggleCustomDomain() {
             id="auth-modal-title"
             class="font-mono text-lg font-medium"
           >
-            Connect with Bluesky
+            Connect with your Atmosphere account
           </h2>
           <p
             id="auth-modal-description"
             class="mt-2 text-sm text-muted leading-relaxed"
           >
-            Sign in with your Bluesky account to publish and share your skills.
+            Sign in with your Atmosphere account to publish and share your skills.
           </p>
 
           <form
@@ -142,7 +142,7 @@ function toggleCustomDomain() {
               <label
                 for="bluesky-handle"
                 class="sr-only"
-              >{{ customDomain ? 'Bluesky handle' : 'Bluesky username' }}</label>
+              >{{ customDomain ? 'Handle' : 'Username' }}</label>
 
               <!-- Simple mode: username + .bsky.social suffix -->
               <UInput

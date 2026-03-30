@@ -12,9 +12,11 @@ defineOgImage('Page.takumi', {
 const search = ref('')
 const debouncedSearch = refDebounced(search, 300)
 
+const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch('/api/official-repos', {
   query: { q: debouncedSearch },
   watch: [debouncedSearch],
+  lazy: !isBot.value,
 })
 </script>
 

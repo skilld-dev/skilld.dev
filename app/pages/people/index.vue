@@ -11,7 +11,10 @@ defineOgImage('Page.takumi', {
   description: 'Developers who curate agent skill collections on skilld.',
 }, { alt: 'Curators directory on skilld' })
 
-const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], total: number }>('/api/social/curators')
+const { isBot } = useBotDetection()
+const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], total: number }>('/api/social/curators', {
+  lazy: !isBot.value,
+})
 </script>
 
 <template>

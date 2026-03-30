@@ -4,17 +4,18 @@ import { PERSONAL_COLLECTION_SLUG } from '~/composables/useOnboarding'
 const route = useRoute()
 const handle = computed(() => route.params.handle as string)
 
+const { isBot } = useBotDetection()
 const { user, isAuthenticated } = useAuth()
 const isOwnProfile = computed(() => isAuthenticated.value && user.value?.handle === handle.value)
 
 // SSR-friendly profile resolution via server endpoint
 const { data: resolvedProfile, status: profileStatus, error: profileError } = useFetch(
   () => `/api/resolve/${handle.value}`,
-  { watch: [handle] },
+  { watch: [handle], lazy: !isBot.value },
 )
 
 const did = computed(() => resolvedProfile.value?.did)
-const { data: collectionsData, status: collectionsStatus } = useCollections(did)
+const { data: collectionsData, status: collectionsStatus } = useCollections(did, { lazy: !isBot.value })
 const { copy: copyInstall } = useClipboard({ source: computed(() => `skilld add @${handle.value}`) })
 
 // Split personal vs named collections
@@ -25,14 +26,7 @@ const namedCollections = computed(() =>
   collectionsData.value?.collections.filter(c => c.rkey !== PERSONAL_COLLECTION_SLUG) ?? [],
 )
 
-// Fetch curator labels from index
-const { data: curatorsData } = useFetch('/api/social/curators')
-const curatorLabels = computed(() => {
-  if (!did.value || !curatorsData.value)
-    return []
-  const match = curatorsData.value.curators.find((c: { did: string }) => c.did === did.value)
-  return match?.labels ?? []
-})
+const curatorLabels = computed(() => resolvedProfile.value?.labels ?? [])
 
 useSeoMeta({
   title: () => resolvedProfile.value?.displayName

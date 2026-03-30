@@ -34,6 +34,7 @@
     "@iconify-json/lucide": "catalog:",
     "@iconify-json/simple-icons": "catalog:",
     "@nuxt/fonts": "catalog:",
+    "@nuxt/scripts": "catalog:",
     "@nuxt/ui": "catalog:",
     "@nuxtjs/seo": "catalog:",
     "@resvg/resvg-js": "catalog:",

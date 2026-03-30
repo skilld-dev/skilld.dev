@@ -2,8 +2,6 @@ shellEmulator: true
 
 trustPolicy: no-downgrade
 
-overrides:
-  vite: ^8.0.3
 catalog:
   '@antfu/eslint-config': ^7.7.3
   '@atproto/api': ^0.19.5
@@ -13,14 +11,15 @@ catalog:
   '@nuxt/a11y': 1.0.0-alpha.1
   '@nuxt/eslint': ^1.15.2
   '@nuxt/fonts': ^0.14.0
+  '@nuxt/scripts': ^1.0.0-beta.32
   '@nuxt/test-utils': ^4.0.0
   '@nuxt/ui': ^4.6.0
   '@nuxtjs/html-validator': ^2.1.0
   '@nuxtjs/seo': ^5.1.0
   '@playwright/test': ^1.58.2
   '@resvg/resvg-js': ^2.6.2
-  '@takumi-rs/core': ^0.73.1
-  '@takumi-rs/wasm': ^0.73.1
+  '@takumi-rs/core': ^1.0.0-rc.8
+  '@takumi-rs/wasm': ^1.0.0-rc.8
   '@vue/test-utils': ^2.4.6
   '@vueuse/core': ^14.2.1
   '@vueuse/nuxt': ^14.2.1
@@ -38,11 +37,10 @@ catalog:
   vitest: ^4.1.2
   vue-tsc: ^3.2.6
 
+trustPolicyIgnoreAfter: 262800
 ignoredBuiltDependencies:
   - '@parcel/watcher'
   - '@tailwindcss/oxide'
   - esbuild
   - unrs-resolver
   - vue-demi
-
-trustPolicyIgnoreAfter: 262800

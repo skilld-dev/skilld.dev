@@ -39,7 +39,7 @@ async function onPublished({ rkey }: { uri: string, rkey: string }) {
           aria-hidden="true"
         />
         <p class="mt-3 text-sm">
-          Sign in with Bluesky to create collections.
+          Sign in with your Atmosphere account to create collections.
         </p>
         <UButton
           to="/"

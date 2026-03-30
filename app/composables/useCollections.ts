@@ -11,22 +11,23 @@ interface CollectionsResponse {
   fetchedAt: string
 }
 
-export function useCollections(did: MaybeRefOrGetter<string | null | undefined>) {
+export function useCollections(did: MaybeRefOrGetter<string | null | undefined>, options?: { lazy?: boolean }) {
   const resolvedDid = computed(() => toValue(did))
 
   return useFetch<CollectionsResponse>(() =>
     resolvedDid.value ? `/api/collections/${resolvedDid.value}` : null!, {
     watch: [resolvedDid],
     immediate: !!toValue(did),
+    lazy: options?.lazy,
   })
 }
 
-export function useCollection(did: MaybeRefOrGetter<string>, rkey: MaybeRefOrGetter<string>) {
+export function useCollection(did: MaybeRefOrGetter<string>, rkey: MaybeRefOrGetter<string>, options?: { lazy?: boolean }) {
   const resolvedDid = computed(() => toValue(did))
   const resolvedRkey = computed(() => toValue(rkey))
 
   return useFetch<{ uri: string, cid: string, record: CollectionRecord }>(
     () => `/api/collections/${resolvedDid.value}/${resolvedRkey.value}`,
-    { watch: [resolvedDid, resolvedRkey] },
+    { watch: [resolvedDid, resolvedRkey], lazy: options?.lazy },
   )
 }

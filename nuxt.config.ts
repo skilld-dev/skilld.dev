@@ -4,6 +4,7 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@nuxt/ui',
     '@nuxt/fonts',
+    '@nuxt/scripts',
     '@nuxtjs/seo',
     '@nuxt/a11y',
     '@nuxtjs/html-validator',
@@ -11,6 +12,15 @@ export default defineNuxtConfig({
     '@vueuse/nuxt',
     './modules/oauth',
   ],
+
+  scripts: {
+    registry: {
+      cloudflareWebAnalytics: {
+        token: 'fefd4b7eafe04d5f81621e43e5d5ef80',
+        trigger: 'server',
+      },
+    },
+  },
 
   devtools: { enabled: true },
 
@@ -68,6 +78,10 @@ export default defineNuxtConfig({
   },
   future: {
     compatibilityVersion: 5,
+  },
+
+  experimental: {
+    viteEnvironmentApi: false,
   },
 
   compatibilityDate: '2026-03-03',

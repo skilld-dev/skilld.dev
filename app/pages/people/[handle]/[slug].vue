@@ -8,16 +8,18 @@ const isOwner = computed(() => isAuthenticated.value && user.value?.handle === h
 const { remove, deleting } = useCollectionMutations()
 const { copy, copied } = useClipboard()
 
+const { isBot } = useBotDetection()
+
 // SSR-friendly handle resolution
 const { data: profile, status: profileStatus } = useFetch(
   () => `/api/resolve/${handle.value}`,
-  { watch: [handle] },
+  { watch: [handle], lazy: !isBot.value },
 )
 
 const did = computed(() => profile.value?.did ?? '')
 const resolving = computed(() => profileStatus.value === 'pending')
 
-const { data, status, error } = useCollection(did, slug)
+const { data, status, error } = useCollection(did, slug, { lazy: !isBot.value })
 
 const installCmd = computed(() => `skilld add @${handle.value}/${slug.value}`)
 

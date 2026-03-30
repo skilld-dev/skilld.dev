@@ -168,7 +168,7 @@ useSeoMeta({
           Edit skills
         </h1>
         <p class="mt-3 text-sm">
-          Sign in with Bluesky to edit your skills.
+          Sign in with your Atmosphere account to edit your skills.
         </p>
         <UButton
           to="/"

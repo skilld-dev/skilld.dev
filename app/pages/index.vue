@@ -248,7 +248,7 @@ function toggleCollection(slug: string) {
           No curators yet. Be the first to share your skills.
         </p>
         <UButton
-          label="Connect with Bluesky"
+          label="Connect with your Atmosphere account"
           icon="i-lucide-cloud"
           size="sm"
           class="mt-4"
@@ -461,7 +461,7 @@ function toggleCollection(slug: string) {
           </p>
           <div class="mt-5 flex items-center justify-center gap-3">
             <UButton
-              label="Connect with Bluesky"
+              label="Connect with your Atmosphere account"
               icon="i-lucide-cloud"
               trailing-icon="i-lucide-arrow-right"
               size="sm"

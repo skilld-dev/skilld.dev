@@ -5,9 +5,10 @@ const slug = computed(() => {
   return Array.isArray(params) ? params.join('/') : params
 })
 
+const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch(
   () => `/api/skills/${slug.value}`,
-  { watch: [slug] },
+  { watch: [slug], lazy: !isBot.value },
 ) as ReturnType<typeof useFetch<{ content: string | null, curators: { did: string, handle: string, displayName?: string, avatar?: string, collectionName: string, collectionSlug: string, reason?: string }[], url: string, repo: string, owner: string, name: string, githubUrl: string }>>
 
 const { copy, copied } = useClipboard()

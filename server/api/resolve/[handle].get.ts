@@ -1,4 +1,6 @@
+import type { CuratorLabel } from '../../utils/atproto/curator-index'
 import { getPublicAgent } from '../../utils/atproto/agent'
+import { getCuratorsByDids } from '../../utils/atproto/curator-index'
 import { isProfileFlagged } from '../../utils/atproto/moderation'
 
 const CACHE_PREFIX = 'resolve:profile'
@@ -10,6 +12,7 @@ interface CachedProfile {
   displayName?: string
   avatar?: string
   description?: string
+  labels: CuratorLabel[]
 }
 
 export default defineEventHandler(async (event) => {
@@ -31,12 +34,16 @@ export default defineEventHandler(async (event) => {
   if (isProfileFlagged(res.data))
     throw createError({ statusCode: 403, message: 'This account is not available' })
 
+  // Look up curator labels from the index
+  const [curator] = await getCuratorsByDids([res.data.did])
+
   const profile: CachedProfile = {
     did: res.data.did,
     handle: res.data.handle,
     displayName: res.data.displayName,
     avatar: res.data.avatar,
     description: res.data.description,
+    labels: curator?.labels ?? [],
   }
 
   await useStorage('data').setItem(cacheKey, profile, { ttl: CACHE_TTL })

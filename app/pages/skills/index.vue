@@ -13,9 +13,11 @@ const search = ref('')
 const page = ref(1)
 const debouncedSearch = refDebounced(search, 300)
 
+const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch('/api/skills', {
   query: { q: debouncedSearch, page, limit: 60 },
   watch: [debouncedSearch, page],
+  lazy: !isBot.value,
 })
 
 watch(debouncedSearch, () => {
