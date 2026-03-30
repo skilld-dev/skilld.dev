@@ -8,6 +8,6 @@ export default defineEventHandler(async (event) => {
   if (!config.adminSecret || auth !== `Bearer ${config.adminSecret}`)
     throw createError({ statusCode: 403, message: 'Forbidden' })
 
-  const result = await rebuildIndex()
+  const result = await rebuildIndex(getDB(event))
   return result
 })

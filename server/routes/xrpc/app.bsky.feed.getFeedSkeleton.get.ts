@@ -15,5 +15,5 @@ export default defineEventHandler(async (event) => {
   const limit = Math.min(Number(query.limit) || 30, 50)
   const cursor = query.cursor as string | undefined
 
-  return getCollectionsFeedSkeleton({ limit, cursor })
+  return getCollectionsFeedSkeleton(getDB(event), { limit, cursor })
 })

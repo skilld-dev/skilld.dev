@@ -1,5 +1,5 @@
-/// <reference types="@cloudflare/workers-types" />
 import type { H3Event } from 'h3'
+import { getDB } from './db'
 
 export interface RegistrySkill {
   name: string
@@ -17,10 +17,6 @@ interface SkillRow {
   display_name: string
   installs: number
   slug: string
-}
-
-function getDB(event: H3Event) {
-  return event.context.cloudflare.env.DB as D1Database
 }
 
 function rowToSkill(row: SkillRow): RegistrySkill {

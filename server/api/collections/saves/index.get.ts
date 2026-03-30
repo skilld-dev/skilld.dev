@@ -1,4 +1,5 @@
 import { getAuthenticatedAgent } from '../../../utils/atproto/agent'
+import { rkeyFromUri } from '../../../utils/atproto/collections'
 import { parseSaveRecord, SAVE_NSID } from '../../../utils/atproto/lexicons/save'
 
 /** List all saved collections for the authenticated user. */
@@ -19,7 +20,7 @@ export default defineEventHandler(async (event) => {
     for (const record of res.data.records) {
       const parsed = parseSaveRecord(record.value)
       if (parsed) {
-        const rkey = record.uri.split('/').pop()!
+        const rkey = rkeyFromUri(record.uri)
         saves.push({
           uri: record.uri,
           rkey,

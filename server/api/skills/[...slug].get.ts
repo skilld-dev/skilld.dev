@@ -1,6 +1,6 @@
 import { getPublicAgent } from '../../utils/atproto/agent'
+import { listCollectionRecords } from '../../utils/atproto/collections'
 import { getAllCurators } from '../../utils/atproto/curator-index'
-import { COLLECTION_NSID, parseCollectionRecord } from '../../utils/atproto/lexicons/collection'
 import { findSkill } from '../../utils/skills-registry'
 
 interface CuratorEndorsement {
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   // Fetch SKILL.md and curator endorsements in parallel
   const [content, curators] = await Promise.all([
     $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => null),
-    getEndorsementsForSkill(skill.name),
+    getEndorsementsForSkill(getDB(event), skill.name),
   ])
 
   return {
@@ -49,45 +49,35 @@ export default defineEventHandler(async (event) => {
   }
 })
 
-async function getEndorsementsForSkill(skillName: string): Promise<CuratorEndorsement[]> {
+async function getEndorsementsForSkill(db: D1Database, skillName: string): Promise<CuratorEndorsement[]> {
   // Check for cached endorsement map
-  let endorsementMap = await useStorage('data').getItem<Record<string, CuratorEndorsement[]>>(ENDORSEMENTS_CACHE_KEY)
+  let endorsementMap = await useStorage('cache').getItem<Record<string, CuratorEndorsement[]>>(ENDORSEMENTS_CACHE_KEY)
 
   if (!endorsementMap) {
-    endorsementMap = await buildEndorsementMap()
-    await useStorage('data').setItem(ENDORSEMENTS_CACHE_KEY, endorsementMap, { ttl: ENDORSEMENTS_CACHE_TTL })
+    endorsementMap = await buildEndorsementMap(db)
+    await useStorage('cache').setItem(ENDORSEMENTS_CACHE_KEY, endorsementMap, { ttl: ENDORSEMENTS_CACHE_TTL })
   }
 
   return endorsementMap[skillName] ?? []
 }
 
-async function buildEndorsementMap(): Promise<Record<string, CuratorEndorsement[]>> {
-  const curators = await getAllCurators()
+async function buildEndorsementMap(db: D1Database): Promise<Record<string, CuratorEndorsement[]>> {
+  const curators = await getAllCurators(db)
   const agent = getPublicAgent()
   const map: Record<string, CuratorEndorsement[]> = {}
 
   await Promise.all(curators.map(async (curator) => {
-    const res = await agent.com.atproto.repo.listRecords({
-      repo: curator.did,
-      collection: COLLECTION_NSID,
-      limit: 100,
-    }).catch(() => null)
+    const records = await listCollectionRecords(agent, curator.did).catch(() => [])
 
-    if (!res?.data.records)
-      return
-
-    for (const record of res.data.records) {
-      const val = parseCollectionRecord(record.value)
-      if (!val)
-        continue
-      for (const skill of val.skills) {
+    for (const { record } of records) {
+      for (const skill of record.skills) {
         const endorsement: CuratorEndorsement = {
           did: curator.did,
           handle: curator.handle,
           displayName: curator.displayName,
           avatar: curator.avatar,
-          collectionName: val.name,
-          collectionSlug: val.slug,
+          collectionName: record.name,
+          collectionSlug: record.slug,
           reason: skill.reason,
         }
         if (!map[skill.packageName])

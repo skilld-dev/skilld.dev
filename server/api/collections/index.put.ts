@@ -2,10 +2,8 @@ import type { PostReference } from '../../utils/atproto/lexicons/collection'
 // @ts-expect-error virtual file from oauth module
 import { clientUri } from '#oauth/config'
 import { getAuthenticatedAgent } from '../../utils/atproto/agent'
-import { upsertCurator } from '../../utils/atproto/curator-index'
+import { bustCollectionsCache, syncCuratorAfterChange } from '../../utils/atproto/collections'
 import { COLLECTION_NSID, toCollectionRecord, validateCollectionInput } from '../../utils/atproto/lexicons/collection'
-
-const CACHE_PREFIX = 'collections'
 
 export default defineEventHandler(async (event) => {
   const { agent, did } = await getAuthenticatedAgent(event)
@@ -37,15 +35,8 @@ export default defineEventHandler(async (event) => {
     postRef: existingPostRef,
   })
 
-  // Fetch profile and collections in parallel for curator index
-  const [profile, allCollections] = await Promise.all([
-    agent.getProfile({ actor: did }).catch(() => null),
-    agent.com.atproto.repo.listRecords({
-      repo: did,
-      collection: COLLECTION_NSID,
-      limit: 100,
-    }).catch(() => null),
-  ])
+  // Fetch profile for Bluesky post URL
+  const profile = await agent.getProfile({ actor: did }).catch(() => null)
 
   // Post to Bluesky: new collection gets a fresh post, updates reply to the original
   let postRef: PostReference | undefined
@@ -106,17 +97,8 @@ export default defineEventHandler(async (event) => {
     record: record as unknown as Record<string, unknown>,
   })
 
-  // Bust cache for this curator
-  await useStorage('data').removeItem(`${CACHE_PREFIX}:${did}`)
-
-  // Update curator index
-  await upsertCurator({
-    did,
-    handle: profile?.data.handle ?? did,
-    displayName: profile?.data.displayName,
-    avatar: profile?.data.avatar,
-    collectionCount: (allCollections?.data.records.length ?? 0) + (isUpdate ? 0 : 1),
-  })
+  await bustCollectionsCache(did)
+  await syncCuratorAfterChange(getDB(event), agent, did)
 
   return {
     uri: result.data.uri,

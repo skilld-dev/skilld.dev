@@ -60,6 +60,10 @@ export default defineNuxtConfig({
       wrangler: {
         name: 'skilld-dev',
         compatibility_flags: ['nodejs_compat', 'no_nodejs_compat_v2'],
+        kv_namespaces: [
+          { binding: 'KV_CACHE', id: '187e636458cb49faa2ae14743adc7736' },
+          { binding: 'KV_DATA', id: 'cf3d794a55f84192a30f520686e1d932' },
+        ],
         d1_databases: [
           { binding: 'DB', database_name: 'skilld-db', database_id: 'a5e53f35-f5e5-4987-8c67-c0175addc7cc' },
         ],
@@ -74,6 +78,16 @@ export default defineNuxtConfig({
         observability: {
           logs: { enabled: true, head_sampling_rate: 1, invocation_logs: true },
         },
+      },
+    },
+    storage: {
+      data: {
+        driver: 'cloudflare-kv-binding',
+        binding: 'KV_DATA',
+      },
+      cache: {
+        driver: 'cloudflare-kv-binding',
+        binding: 'KV_CACHE',
       },
     },
     experimental: {

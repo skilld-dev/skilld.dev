@@ -1,9 +1,9 @@
 import { getPublicAgent } from '../../utils/atproto/agent'
+import { listCollectionRecords } from '../../utils/atproto/collections'
 import { getAllCurators } from '../../utils/atproto/curator-index'
-import { COLLECTION_NSID, parseCollectionRecord } from '../../utils/atproto/lexicons/collection'
 
-export default defineSitemapEventHandler(async () => {
-  const curators = await getAllCurators()
+export default defineSitemapEventHandler(async (event) => {
+  const curators = await getAllCurators(getDB(event))
   const agent = getPublicAgent()
 
   const entries: { loc: string, changefreq: 'daily' | 'weekly' }[] = []
@@ -11,20 +11,8 @@ export default defineSitemapEventHandler(async () => {
   await Promise.all(curators.map(async (curator) => {
     entries.push({ loc: `/people/${curator.handle}`, changefreq: 'daily' })
 
-    const res = await agent.com.atproto.repo.listRecords({
-      repo: curator.did,
-      collection: COLLECTION_NSID,
-      limit: 100,
-    }).catch(() => null)
-
-    if (!res?.data.records)
-      return
-
-    for (const r of res.data.records) {
-      const record = parseCollectionRecord(r.value)
-      if (!record)
-        continue
-      const rkey = r.uri.split('/').pop()!
+    const records = await listCollectionRecords(agent, curator.did).catch(() => [])
+    for (const { rkey } of records) {
       entries.push({ loc: `/people/${curator.handle}/${rkey}`, changefreq: 'weekly' })
     }
   }))

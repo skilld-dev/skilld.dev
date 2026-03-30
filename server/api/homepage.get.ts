@@ -1,7 +1,7 @@
 import type { IndexedCurator } from '../utils/atproto/curator-index'
 import { getPublicAgent } from '../utils/atproto/agent'
+import { listCollectionRecords } from '../utils/atproto/collections'
 import { getAllCurators } from '../utils/atproto/curator-index'
-import { COLLECTION_NSID, parseCollectionRecord } from '../utils/atproto/lexicons/collection'
 
 const CACHE_KEY = 'homepage:data'
 const CACHE_TTL = 60 * 5 // 5 minutes
@@ -23,12 +23,12 @@ interface HomepageData {
   fetchedAt: string
 }
 
-export default defineEventHandler(async () => {
-  const cached = await useStorage('data').getItem<HomepageData>(CACHE_KEY)
+export default defineEventHandler(async (event) => {
+  const cached = await useStorage('cache').getItem<HomepageData>(CACHE_KEY)
   if (cached)
     return cached
 
-  const curators = await getAllCurators()
+  const curators = await getAllCurators(getDB(event))
 
   // Fetch collections from each curator's PDS (cap at 10 curators for performance)
   const agent = getPublicAgent()
@@ -39,26 +39,16 @@ export default defineEventHandler(async () => {
     .slice(0, 10)
 
   await Promise.all(topCurators.map(async (curator) => {
-    const res = await agent.com.atproto.repo.listRecords({
-      repo: curator.did,
-      collection: COLLECTION_NSID,
-      limit: 5,
-    }).catch(() => null)
+    const records = await listCollectionRecords(agent, curator.did, 5).catch(() => [])
 
-    if (!res?.data.records)
-      return
-
-    for (const record of res.data.records) {
-      const val = parseCollectionRecord(record.value)
-      if (!val)
-        continue
+    for (const { record } of records) {
       collections.push({
-        name: val.name,
-        slug: val.slug,
-        description: val.description,
-        skillCount: val.skills.length,
-        skills: val.skills.map(s => s.packageName),
-        stacks: val.stacks,
+        name: record.name,
+        slug: record.slug,
+        description: record.description,
+        skillCount: record.skills.length,
+        skills: record.skills.map(s => s.packageName),
+        stacks: record.stacks,
         curator: {
           did: curator.did,
           handle: curator.handle,
@@ -89,6 +79,6 @@ export default defineEventHandler(async () => {
     fetchedAt: new Date().toISOString(),
   }
 
-  await useStorage('data').setItem(CACHE_KEY, result, { ttl: CACHE_TTL })
+  await useStorage('cache').setItem(CACHE_KEY, result, { ttl: CACHE_TTL })
   return result
 })

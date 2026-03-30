@@ -1,8 +1,6 @@
 import { getAuthenticatedAgent } from '../../utils/atproto/agent'
-import { removeCuratorIfEmpty, upsertCurator } from '../../utils/atproto/curator-index'
+import { bustCollectionsCache, syncCuratorAfterChange } from '../../utils/atproto/collections'
 import { COLLECTION_NSID } from '../../utils/atproto/lexicons/collection'
-
-const CACHE_PREFIX = 'collections'
 
 export default defineEventHandler(async (event) => {
   const rkey = getRouterParam(event, 'rkey')
@@ -17,29 +15,8 @@ export default defineEventHandler(async (event) => {
     rkey,
   })
 
-  // Bust cache
-  await useStorage('data').removeItem(`${CACHE_PREFIX}:${did}`)
-
-  // Update curator index
-  const remaining = await agent.com.atproto.repo.listRecords({
-    repo: did,
-    collection: COLLECTION_NSID,
-    limit: 1,
-  }).catch(() => null)
-
-  if (remaining?.data.records.length) {
-    const profile = await agent.getProfile({ actor: did }).catch(() => null)
-    await upsertCurator({
-      did,
-      handle: profile?.data.handle ?? did,
-      displayName: profile?.data.displayName,
-      avatar: profile?.data.avatar,
-      collectionCount: remaining.data.records.length,
-    })
-  }
-  else {
-    await removeCuratorIfEmpty(did)
-  }
+  await bustCollectionsCache(did)
+  await syncCuratorAfterChange(getDB(event), agent, did)
 
   return { deleted: true }
 })

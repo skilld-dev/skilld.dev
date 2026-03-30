@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Missing handle parameter' })
 
   const cacheKey = `${CACHE_PREFIX}:${handle}`
-  const cached = await useStorage('data').getItem<CachedProfile>(cacheKey)
+  const cached = await useStorage('cache').getItem<CachedProfile>(cacheKey)
   if (cached)
     return cached
 
@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, message: 'This account is not available' })
 
   // Look up curator labels from the index
-  const [curator] = await getCuratorsByDids([res.data.did])
+  const [curator] = await getCuratorsByDids(getDB(event), [res.data.did])
 
   const profile: CachedProfile = {
     did: res.data.did,
@@ -46,6 +46,6 @@ export default defineEventHandler(async (event) => {
     labels: curator?.labels ?? [],
   }
 
-  await useStorage('data').setItem(cacheKey, profile, { ttl: CACHE_TTL })
+  await useStorage('cache').setItem(cacheKey, profile, { ttl: CACHE_TTL })
   return profile
 })

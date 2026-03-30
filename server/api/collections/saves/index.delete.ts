@@ -1,4 +1,5 @@
 import { getAuthenticatedAgent } from '../../../utils/atproto/agent'
+import { rkeyFromUri } from '../../../utils/atproto/collections'
 import { SAVE_NSID } from '../../../utils/atproto/lexicons/save'
 
 /** Unsave a collection. Accepts { subjectUri } to find and delete the save record. */
@@ -25,7 +26,7 @@ export default defineEventHandler(async (event) => {
   if (!saveRecord)
     throw createError({ statusCode: 404, message: 'Save not found' })
 
-  const rkey = saveRecord.uri.split('/').pop()!
+  const rkey = rkeyFromUri(saveRecord.uri)
 
   await agent.com.atproto.repo.deleteRecord({
     repo: did,

@@ -1,13 +1,13 @@
 /**
- * Curator index stored in Nitro storage. Tracks who has published collections via skilld.
+ * Curator index stored in D1. Tracks who has published collections via skilld.
  * Includes rebuild capability from network state and handle/profile refresh.
  */
 
+/// <reference types="@cloudflare/workers-types" />
 import { getPublicAgent } from './agent'
-import { COLLECTION_NSID } from './lexicons/collection'
+import { listCollectionRecords } from './collections'
 import { isProfileFlagged } from './moderation'
 
-const STORAGE_KEY = 'skilld:curators'
 const REFRESH_INTERVAL = 60 * 60 * 1000 // 1 hour
 
 export type CuratorLabel = 'early-curator' | 'prolific' | 'verified-maintainer'
@@ -24,68 +24,134 @@ export interface IndexedCurator {
   lastProfileRefresh?: string
 }
 
-interface CuratorIndex {
-  curators: Record<string, IndexedCurator>
-  updatedAt: string
+interface CuratorRow {
+  did: string
+  handle: string
+  display_name: string | null
+  avatar: string | null
+  collection_count: number
+  first_published: string
+  last_published: string
+  labels: string
+  last_profile_refresh: string | null
 }
 
-async function getIndex(): Promise<CuratorIndex> {
-  return await useStorage('data').getItem<CuratorIndex>(STORAGE_KEY) ?? {
-    curators: {},
-    updatedAt: new Date().toISOString(),
+function rowToCurator(row: CuratorRow): IndexedCurator {
+  return {
+    did: row.did,
+    handle: row.handle,
+    displayName: row.display_name ?? undefined,
+    avatar: row.avatar ?? undefined,
+    collectionCount: row.collection_count,
+    firstPublished: row.first_published,
+    lastPublished: row.last_published,
+    labels: JSON.parse(row.labels) as CuratorLabel[],
+    lastProfileRefresh: row.last_profile_refresh ?? undefined,
   }
 }
 
-async function saveIndex(index: CuratorIndex) {
-  index.updatedAt = new Date().toISOString()
-  await useStorage('data').setItem(STORAGE_KEY, index)
-}
-
 /** Register or update a curator after they publish a collection. */
-export async function upsertCurator(curator: {
+export async function upsertCurator(db: D1Database, curator: {
   did: string
   handle: string
   displayName?: string
   avatar?: string
   collectionCount: number
 }) {
-  const index = await getIndex()
-  const existing = index.curators[curator.did]
-  const now = new Date().toISOString()
+  const [countRes, existingRes] = await db.batch([
+    db.prepare('SELECT COUNT(*) as total FROM curators'),
+    db.prepare('SELECT labels FROM curators WHERE did = ?').bind(curator.did),
+  ]) as [D1Result<{ total: number }>, D1Result<{ labels: string }>]
+
+  const isEarlyAdopter = (countRes.results[0]?.total ?? 0) < 50
+  const existingLabels = existingRes.results[0]
+    ? JSON.parse(existingRes.results[0].labels) as CuratorLabel[]
+    : undefined
 
   const labels = computeLabels({
     collectionCount: curator.collectionCount,
-    isEarlyAdopter: Object.keys(index.curators).length < 50,
-    existingLabels: existing?.labels,
+    isEarlyAdopter,
+    existingLabels,
   })
 
-  index.curators[curator.did] = {
-    did: curator.did,
-    handle: curator.handle,
-    displayName: curator.displayName,
-    avatar: curator.avatar,
-    collectionCount: curator.collectionCount,
-    firstPublished: existing?.firstPublished ?? now,
-    lastPublished: now,
-    labels,
-  }
+  const now = new Date().toISOString()
 
-  await saveIndex(index)
+  await db.prepare(`
+    INSERT INTO curators (did, handle, display_name, avatar, collection_count, first_published, last_published, labels)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(did) DO UPDATE SET
+      handle = excluded.handle,
+      display_name = excluded.display_name,
+      avatar = excluded.avatar,
+      collection_count = excluded.collection_count,
+      last_published = excluded.last_published,
+      labels = excluded.labels
+  `).bind(
+    curator.did,
+    curator.handle,
+    curator.displayName ?? null,
+    curator.avatar ?? null,
+    curator.collectionCount,
+    now,
+    now,
+    JSON.stringify(labels),
+  ).run()
 }
 
 /** Remove a curator if they have no remaining collections. */
-export async function removeCuratorIfEmpty(did: string) {
-  const index = await getIndex()
-  if (index.curators[did]?.collectionCount === 0) {
-    delete index.curators[did]
-    await saveIndex(index)
-  }
+export async function removeCuratorIfEmpty(db: D1Database, did: string) {
+  await db.prepare('DELETE FROM curators WHERE did = ? AND collection_count = 0')
+    .bind(did)
+    .run()
 }
 
 /** Get all known curators. */
-export async function getAllCurators(): Promise<IndexedCurator[]> {
-  const index = await getIndex()
-  return Object.values(index.curators)
+export async function getAllCurators(db: D1Database): Promise<IndexedCurator[]> {
+  const res = await db.prepare('SELECT * FROM curators').all<CuratorRow>()
+  return (res.results ?? []).map(rowToCurator)
+}
+
+/** Get curators matching a set of DIDs. */
+export async function getCuratorsByDids(db: D1Database, dids: string[]): Promise<IndexedCurator[]> {
+  if (!dids.length)
+    return []
+  const placeholders = dids.map(() => '?').join(',')
+  const res = await db.prepare(`SELECT * FROM curators WHERE did IN (${placeholders})`)
+    .bind(...dids)
+    .all<CuratorRow>()
+  return (res.results ?? []).map(rowToCurator)
+}
+
+/** Manually add a label to a curator (admin operation). */
+export async function addCuratorLabel(db: D1Database, did: string, label: CuratorLabel) {
+  const row = await db.prepare('SELECT labels FROM curators WHERE did = ?')
+    .bind(did)
+    .first<{ labels: string }>()
+  if (!row)
+    return
+  const labels: CuratorLabel[] = JSON.parse(row.labels)
+  if (labels.includes(label))
+    return
+  labels.push(label)
+  await db.prepare('UPDATE curators SET labels = ? WHERE did = ?')
+    .bind(JSON.stringify(labels), did)
+    .run()
+}
+
+/** Manually remove a label from a curator (admin operation). */
+export async function removeCuratorLabel(db: D1Database, did: string, label: CuratorLabel) {
+  const row = await db.prepare('SELECT labels FROM curators WHERE did = ?')
+    .bind(did)
+    .first<{ labels: string }>()
+  if (!row)
+    return
+  const labels: CuratorLabel[] = JSON.parse(row.labels)
+  const filtered = labels.filter(l => l !== label)
+  if (filtered.length === labels.length)
+    return
+  await db.prepare('UPDATE curators SET labels = ? WHERE did = ?')
+    .bind(JSON.stringify(filtered), did)
+    .run()
 }
 
 /** Compute labels based on curator activity. */
@@ -96,11 +162,9 @@ function computeLabels(opts: {
 }): CuratorLabel[] {
   const labels = new Set<CuratorLabel>(opts.existingLabels ?? [])
 
-  // Early curator: one of the first 50 curators to publish
   if (opts.isEarlyAdopter)
     labels.add('early-curator')
 
-  // Prolific: 5+ collections
   if (opts.collectionCount >= 5)
     labels.add('prolific')
   else labels.delete('prolific')
@@ -109,122 +173,100 @@ function computeLabels(opts: {
   return [...labels]
 }
 
-/** Manually add a label to a curator (admin operation). */
-export async function addCuratorLabel(did: string, label: CuratorLabel) {
-  const index = await getIndex()
-  const curator = index.curators[did]
-  if (!curator)
-    return
-  if (!curator.labels.includes(label)) {
-    curator.labels.push(label)
-    await saveIndex(index)
-  }
-}
-
-/** Manually remove a label from a curator (admin operation). */
-export async function removeCuratorLabel(did: string, label: CuratorLabel) {
-  const index = await getIndex()
-  const curator = index.curators[did]
-  if (!curator)
-    return
-  curator.labels = curator.labels.filter(l => l !== label)
-  await saveIndex(index)
-}
-
-/** Get curators matching a set of DIDs. */
-export async function getCuratorsByDids(dids: string[]): Promise<IndexedCurator[]> {
-  const index = await getIndex()
-  const didSet = new Set(dids)
-  return Object.values(index.curators).filter(c => didSet.has(c.did))
-}
-
 /**
  * Rebuild the curator index from network state.
  * Re-fetches profiles and collection counts for all known curators.
  * Removes curators with zero collections or flagged profiles.
  */
-export async function rebuildIndex(): Promise<{ refreshed: number, removed: number }> {
-  const index = await getIndex()
+export async function rebuildIndex(db: D1Database): Promise<{ refreshed: number, removed: number }> {
+  const curators = await getAllCurators(db)
   const agent = getPublicAgent()
-  const dids = Object.keys(index.curators)
   let removed = 0
 
-  await Promise.all(dids.map(async (did) => {
+  await Promise.all(curators.map(async (curator) => {
     const [profile, collections] = await Promise.all([
-      agent.getProfile({ actor: did }).catch(() => null),
-      agent.com.atproto.repo.listRecords({
-        repo: did,
-        collection: COLLECTION_NSID,
-        limit: 100,
-      }).catch(() => null),
+      agent.getProfile({ actor: curator.did }).catch(() => null),
+      listCollectionRecords(agent, curator.did).catch(() => []),
     ])
 
-    const count = collections?.data.records.length ?? 0
+    const count = collections.length
 
-    // Remove curators with no collections or flagged profiles
     if (count === 0 || (profile?.data && isProfileFlagged(profile.data))) {
-      delete index.curators[did]
+      await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
       removed++
       return
     }
 
-    const existing = index.curators[did]!
-    existing.handle = profile?.data.handle ?? existing.handle
-    existing.displayName = profile?.data.displayName
-    existing.avatar = profile?.data.avatar
-    existing.collectionCount = count
-    existing.lastProfileRefresh = new Date().toISOString()
-    existing.labels = computeLabels({
+    const labels = computeLabels({
       collectionCount: count,
-      isEarlyAdopter: existing.labels.includes('early-curator'),
-      existingLabels: existing.labels,
+      isEarlyAdopter: curator.labels.includes('early-curator'),
+      existingLabels: curator.labels,
     })
+
+    await db.prepare(`
+      UPDATE curators SET
+        handle = ?,
+        display_name = ?,
+        avatar = ?,
+        collection_count = ?,
+        labels = ?,
+        last_profile_refresh = ?
+      WHERE did = ?
+    `).bind(
+      profile?.data.handle ?? curator.handle,
+      profile?.data.displayName ?? null,
+      profile?.data.avatar ?? null,
+      count,
+      JSON.stringify(labels),
+      new Date().toISOString(),
+      curator.did,
+    ).run()
   }))
 
-  await saveIndex(index)
-  return { refreshed: dids.length - removed, removed }
+  return { refreshed: curators.length - removed, removed }
 }
 
 /**
  * Refresh stale curator profiles (handle changes, avatar updates, moderation flags).
  * Only refreshes curators whose profile data is older than the refresh interval.
  */
-export async function refreshStaleCurators(): Promise<number> {
-  const index = await getIndex()
+export async function refreshStaleCurators(db: D1Database): Promise<number> {
+  const staleThreshold = new Date(Date.now() - REFRESH_INTERVAL).toISOString()
+
+  const res = await db.prepare(
+    'SELECT * FROM curators WHERE last_profile_refresh IS NULL OR last_profile_refresh < ? LIMIT 25',
+  ).bind(staleThreshold).all<CuratorRow>()
+
+  const stale = (res.results ?? []).map(rowToCurator)
+  if (!stale.length)
+    return 0
+
   const agent = getPublicAgent()
-  const now = Date.now()
   let refreshed = 0
 
-  const stale = Object.values(index.curators).filter((c) => {
-    const lastRefresh = c.lastProfileRefresh ? new Date(c.lastProfileRefresh).getTime() : 0
-    return now - lastRefresh > REFRESH_INTERVAL
-  })
-
-  // Batch refresh up to 25 at a time to avoid overwhelming the AppView
-  const batch = stale.slice(0, 25)
-
-  await Promise.all(batch.map(async (curator) => {
+  await Promise.all(stale.map(async (curator) => {
     const profile = await agent.getProfile({ actor: curator.did }).catch(() => null)
     if (!profile?.data)
       return
 
-    // Remove flagged curators
     if (isProfileFlagged(profile.data)) {
-      delete index.curators[curator.did]
+      await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
       refreshed++
       return
     }
 
-    // Update if handle or profile data changed
-    curator.handle = profile.data.handle
-    curator.displayName = profile.data.displayName
-    curator.avatar = profile.data.avatar
-    curator.lastProfileRefresh = new Date().toISOString()
+    await db.prepare(`
+      UPDATE curators SET handle = ?, display_name = ?, avatar = ?, last_profile_refresh = ?
+      WHERE did = ?
+    `).bind(
+      profile.data.handle,
+      profile.data.displayName ?? null,
+      profile.data.avatar ?? null,
+      new Date().toISOString(),
+      curator.did,
+    ).run()
     refreshed++
   }))
-
-  if (refreshed > 0)
-    await saveIndex(index)
 
   return refreshed
 }

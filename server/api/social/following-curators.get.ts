@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     return { curators: [], total: 0 }
 
   // Cross-reference with curator index
-  const matchedCurators = await getCuratorsByDids(followDids)
+  const matchedCurators = await getCuratorsByDids(getDB(event), followDids)
 
   // Sort by most recently published
   matchedCurators.sort((a, b) => b.lastPublished.localeCompare(a.lastPublished))
