@@ -9,6 +9,19 @@ const { data: followingData, execute: fetchFollowing } = useFollowingCurators()
 // Fetch real homepage data from curator index + PDS
 const { data: homepageData } = useFetch('/api/homepage')
 
+// Fetch popular skills
+const { data: popularSkillsData } = useFetch('/api/skills', {
+  query: { sort: 'installs', limit: 12 },
+})
+
+function skillSlug(skill: { owner: string, repo: string, name: string }) {
+  return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
+}
+
+function skillPath(skill: { owner: string, repo: string, name: string }) {
+  return `/skills/${skillSlug(skill)}`
+}
+
 // Fetch following curators when authenticated
 watch(isAuthenticated, (authed) => {
   if (authed)
@@ -259,6 +272,54 @@ function toggleCollection(slug: string) {
           @click="authModalOpen = true"
         />
       </div>
+    </section>
+
+    <USeparator />
+
+    <!-- Popular Skills -->
+    <section
+      v-if="popularSkillsData?.items?.length"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="popular-skills-heading"
+    >
+      <div class="flex items-center justify-between mb-6">
+        <h2
+          id="popular-skills-heading"
+          class="section-label"
+        >
+          Popular skills
+        </h2>
+        <UButton
+          to="/skills"
+          label="View all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
+
+      <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
+        <li v-for="skill in popularSkillsData.items" :key="skill.slug">
+          <NuxtLink
+            :to="skillPath(skill)"
+            :aria-label="`${skill.name} by ${skill.owner}`"
+            class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          >
+            <div class="min-w-0">
+              <p class="font-mono text-sm font-medium truncate">
+                {{ skill.name }}
+              </p>
+              <p class="mt-0.5 text-xs text-muted truncate">
+                {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
+              </p>
+            </div>
+            <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
+              skilld add {{ skillSlug(skill) }}
+            </code>
+          </NuxtLink>
+        </li>
+      </ul>
     </section>
 
     <USeparator />

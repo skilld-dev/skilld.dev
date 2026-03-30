@@ -40,6 +40,9 @@ export default defineEventHandler(async (event) => {
     const records = await listCollectionRecords(curator.did, 5)
 
     for (const { record } of records) {
+      // Skip personal collections (slug "skills") — only show named collections
+      if (record.slug === 'skills')
+        continue
       collections.push({
         name: record.name,
         slug: record.slug,
