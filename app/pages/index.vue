@@ -1,140 +1,33 @@
 <script setup lang="ts">
-const authModalOpen = inject<Ref<boolean>>('authModalOpen', ref(false))
-const { copy: copyCli, copied: copiedCli } = useClipboard({ source: 'npx skilld' })
+defineOgImage('Splash.takumi', {}, { alt: 'skilld — curated agent skills from trusted open-source developers' })
 
+const authModalOpen = inject<Ref<boolean>>('authModalOpen', ref(false))
+const { user, isAuthenticated } = useAuth()
+const { stage } = useOnboarding()
+const { data: followingData, execute: fetchFollowing } = useFollowingCurators()
+
+// Fetch real homepage data from curator index + PDS
+const { data: homepageData } = useFetch('/api/homepage')
+
+// Fetch following curators when authenticated
+watch(isAuthenticated, (authed) => {
+  if (authed)
+    fetchFollowing()
+}, { immediate: true })
+
+const stats = computed(() => homepageData.value?.stats ?? { curators: 0, collections: 0, skills: 0 })
+
+// Copy collection install command
 const copiedCollectionSlug = ref<string | null>(null)
-function copyCollectionCmd(collection: typeof collections[number]) {
-  const cmd = `skilld add @${collection.curator.handle}/${collection.slug}`
+function copyCollectionCmd(handle: string, slug: string) {
+  const cmd = `skilld add @${handle}/${slug}`
   navigator.clipboard.writeText(cmd)
-  copiedCollectionSlug.value = collection.slug
+  copiedCollectionSlug.value = slug
   setTimeout(() => {
-    if (copiedCollectionSlug.value === collection.slug)
+    if (copiedCollectionSlug.value === slug)
       copiedCollectionSlug.value = null
   }, 2000)
 }
-
-const stats = {
-  packages: 142,
-  curators: 23,
-  agents: 11,
-  skills: 890,
-}
-
-const curators = [
-  {
-    name: 'Harlan Wilton',
-    handle: 'harlanzw',
-    avatar: 'https://cdn.bsky.app/img/avatar/plain/did:plc:hvv3hamgocficqdvp5llrkha/bafkreiavmyyhzu7btkmfjzdffyjysxsvwxbiybi3f2yzawygwfdqs5wjc4',
-    bio: 'Nuxt core team. Building skilld, nuxt-seo, unhead.',
-    stacks: ['Nuxt', 'Vue', 'TypeScript', 'Tailwind CSS'],
-    collections: 3,
-    skillCount: 18,
-    topSkills: ['vue', 'nuxt', '@nuxt/ui', 'motion-v', 'nuxt-og-image', 'tailwindcss'],
-    updated: '2d ago',
-  },
-  {
-    name: 'Daniel Roe',
-    handle: 'danielroe',
-    avatar: 'https://ui-avatars.com/api/?name=Daniel+Roe&background=292524&color=a8a29e&format=svg',
-    bio: 'Nuxt lead. TypeScript, Nitro, UnJS ecosystem.',
-    stacks: ['Nuxt', 'Nitro', 'UnJS', 'TypeScript'],
-    collections: 2,
-    skillCount: 14,
-    topSkills: ['nuxt', 'nitro', 'h3', 'ofetch', 'unimport', 'typescript'],
-    updated: '5d ago',
-  },
-  {
-    name: 'Anthony Fu',
-    handle: 'antfu',
-    avatar: 'https://ui-avatars.com/api/?name=Anthony+Fu&background=292524&color=a8a29e&format=svg',
-    bio: 'Vue, Vite, Nuxt core team. UnoCSS, Slidev, VueUse.',
-    stacks: ['Vue', 'Vite', 'UnoCSS', 'TypeScript'],
-    collections: 4,
-    skillCount: 22,
-    topSkills: ['vue', 'vite', 'unocss', 'vitest', '@vueuse/core', 'unplugin'],
-    updated: '1d ago',
-  },
-  {
-    name: 'Evan You',
-    handle: 'yyx990803',
-    avatar: 'https://ui-avatars.com/api/?name=Evan+You&background=292524&color=a8a29e&format=svg',
-    bio: 'Creator of Vue.js and Vite.',
-    stacks: ['Vue', 'Vite', 'Rolldown', 'TypeScript'],
-    collections: 2,
-    skillCount: 8,
-    topSkills: ['vue', 'vite', 'rolldown', 'typescript'],
-    updated: '1w ago',
-  },
-  {
-    name: 'Pooya Parsa',
-    handle: 'pi0',
-    avatar: 'https://ui-avatars.com/api/?name=Pooya+Parsa&background=292524&color=a8a29e&format=svg',
-    bio: 'UnJS, Nitro, H3. Infrastructure for the JS ecosystem.',
-    stacks: ['UnJS', 'Nitro', 'H3', 'TypeScript'],
-    collections: 2,
-    skillCount: 16,
-    topSkills: ['nitro', 'h3', 'ofetch', 'unstorage', 'unenv', 'citty'],
-    updated: '3d ago',
-  },
-  {
-    name: 'Kevin Deng',
-    handle: 'sxzz',
-    avatar: 'https://ui-avatars.com/api/?name=Kevin+Deng&background=292524&color=a8a29e&format=svg',
-    bio: 'Vue core team. Compiler work, unplugin, ast-grep.',
-    stacks: ['Vue', 'TypeScript', 'Compiler', 'Tooling'],
-    collections: 1,
-    skillCount: 10,
-    topSkills: ['vue', 'unplugin', 'ast-grep', 'typescript'],
-    updated: '4d ago',
-  },
-]
-
-const collections = [
-  {
-    name: 'Nuxt Production Stack',
-    slug: 'nuxt-production',
-    icon: 'i-simple-icons-nuxtdotjs',
-    description: 'Full Nuxt setup for production apps. Vue 3, Nuxt modules, Tailwind, and TypeScript conventions.',
-    curator: curators[0]!,
-    skillCount: 6,
-    skills: ['vue', 'nuxt', 'typescript', 'tailwindcss', '@nuxt/ui', 'nuxt-og-image'],
-    installs: 340,
-    updated: '2d ago',
-  },
-  {
-    name: 'UnJS Core',
-    slug: 'unjs-core',
-    icon: 'i-simple-icons-javascript',
-    description: 'The foundational UnJS packages. Server framework, HTTP, fetch, storage, and environment.',
-    curator: curators[4]!,
-    skillCount: 6,
-    skills: ['nitro', 'h3', 'ofetch', 'unstorage', 'unenv', 'citty'],
-    installs: 210,
-    updated: '3d ago',
-  },
-  {
-    name: 'Vue Design Engineer',
-    slug: 'vue-design-engineer',
-    icon: 'i-simple-icons-vuedotjs',
-    description: 'Skills for building polished Vue interfaces. Motion, components, images, and design tools.',
-    curator: curators[0]!,
-    skillCount: 5,
-    skills: ['vue', 'motion-v', '@nuxt/ui', 'tailwindcss', 'nuxt-og-image'],
-    installs: 185,
-    updated: '4d ago',
-  },
-  {
-    name: 'Vite Ecosystem',
-    slug: 'vite-ecosystem',
-    icon: 'i-simple-icons-vite',
-    description: 'Vite and its surrounding tooling. Build, test, lint, and develop with the modern stack.',
-    curator: curators[2]!,
-    skillCount: 5,
-    skills: ['vite', 'vitest', 'unocss', 'unplugin', '@vueuse/core'],
-    installs: 290,
-    updated: '1d ago',
-  },
-]
 
 const expandedCollection = ref<string | null>(null)
 
@@ -145,7 +38,7 @@ function toggleCollection(slug: string) {
 
 <template>
   <div>
-    <!-- Hero: compact, search-forward -->
+    <!-- Hero -->
     <section
       class="mx-auto max-w-5xl px-4 sm:px-6 pt-16 pb-10 md:pt-24 md:pb-14"
       aria-labelledby="hero-heading"
@@ -157,44 +50,30 @@ function toggleCollection(slug: string) {
         >
           Curated agent skills from trusted open-source developers
         </h1>
-        <p class="mt-3 text-sm text-[var(--ui-text-muted)] max-w-lg leading-relaxed">
+        <p class="mt-3 text-sm text-muted max-w-lg leading-relaxed">
           Developers curate the skills that power their workflow.
           Follow curators, install collections, keep your agent current.
         </p>
 
-        <!-- Hero CTAs -->
         <div class="mt-6 flex flex-wrap items-center gap-3">
           <UButton
-            to="#curators"
+            to="/people"
             label="Browse curators"
             icon="i-lucide-users"
             size="sm"
           />
           <UButton
-            :icon="copiedCli ? 'i-lucide-check' : 'i-lucide-terminal'"
-            :label="copiedCli ? 'Copied' : 'npx skilld'"
+            to="/skills"
+            label="Browse skills"
+            icon="i-lucide-search"
             size="sm"
             color="neutral"
             variant="outline"
-            :aria-label="copiedCli ? 'Copied to clipboard' : 'Copy npx skilld command'"
-            @click="copyCli('npx skilld')"
           />
-          <!-- Screen reader announcement for copy -->
-          <span
-            aria-live="polite"
-            class="sr-only"
-          >{{ copiedCli ? 'Command copied to clipboard' : '' }}</span>
         </div>
       </div>
 
-      <!-- Stats bar: quiet data strip -->
       <dl class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div class="data-label">
-          <dt class="sr-only">
-            Packages
-          </dt>
-          <dd>{{ stats.packages }} packages</dd>
-        </div>
         <div class="data-label">
           <dt class="sr-only">
             Curators
@@ -203,20 +82,80 @@ function toggleCollection(slug: string) {
         </div>
         <div class="data-label">
           <dt class="sr-only">
-            Agents
+            Collections
           </dt>
-          <dd>{{ stats.agents }} agents</dd>
+          <dd>{{ stats.collections }} collections</dd>
         </div>
         <div class="data-label">
           <dt class="sr-only">
-            Skills generated
+            Skills
           </dt>
-          <dd>{{ stats.skills }} skills generated</dd>
+          <dd>{{ stats.skills }} skills</dd>
         </div>
       </dl>
     </section>
 
-    <UDivider />
+    <!-- Curators you follow (authenticated only) -->
+    <template v-if="followingData?.curators.length">
+      <USeparator />
+
+      <section
+        class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+        aria-labelledby="following-heading"
+      >
+        <h2
+          id="following-heading"
+          class="section-label mb-6"
+        >
+          Curators you follow
+        </h2>
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <NuxtLink
+            v-for="curator in followingData.curators"
+            :key="curator.did"
+            :to="`/people/${curator.handle}`"
+            :aria-label="`${curator.displayName || curator.handle}, ${curator.collectionCount} collections`"
+            class="group flex items-center gap-3 rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          >
+            <img
+              v-if="curator.avatar"
+              :src="curator.avatar"
+              :alt="`Avatar for ${curator.displayName || curator.handle}`"
+              width="36"
+              height="36"
+              class="size-9 rounded-full"
+            >
+            <div
+              v-else
+              class="flex size-9 items-center justify-center rounded-full bg-muted"
+            >
+              <UIcon
+                name="i-lucide-user"
+                class="size-4 text-muted"
+                aria-hidden="true"
+              />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium truncate">
+                {{ curator.displayName || curator.handle }}
+              </p>
+              <p class="font-mono text-xs text-muted">
+                @{{ curator.handle }}
+              </p>
+              <CuratorLabels
+                v-if="curator.labels?.length"
+                :labels="curator.labels"
+                class="mt-1.5"
+              />
+            </div>
+            <span class="data-label shrink-0">{{ curator.collectionCount }} {{ curator.collectionCount === 1 ? 'collection' : 'collections' }}</span>
+          </NuxtLink>
+        </div>
+      </section>
+    </template>
+
+    <USeparator />
 
     <!-- Curators -->
     <section
@@ -224,76 +163,101 @@ function toggleCollection(slug: string) {
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
       aria-labelledby="curators-heading"
     >
-      <h2
-        id="curators-heading"
-        class="section-label mb-6"
-      >
-        Curators
-      </h2>
+      <div class="flex items-center justify-between mb-6">
+        <h2
+          id="curators-heading"
+          class="section-label"
+        >
+          Curators
+        </h2>
+        <UButton
+          v-if="homepageData?.curators.length"
+          to="/people"
+          label="View all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        v-if="homepageData?.curators.length"
+        class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      >
         <NuxtLink
-          v-for="curator in curators"
-          :key="curator.handle"
+          v-for="curator in homepageData.curators.slice(0, 6)"
+          :key="curator.did"
           :to="`/people/${curator.handle}`"
-          :aria-label="`${curator.name}, ${curator.skillCount} skills, ${curator.collections} collections`"
-          class="group block rounded-lg border border-[var(--ui-border)] p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          :aria-label="`${curator.displayName || curator.handle}, ${curator.collectionCount} collections`"
+          class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
         >
           <div class="flex items-start gap-3">
             <img
+              v-if="curator.avatar"
               :src="curator.avatar"
-              :alt="`Avatar for ${curator.name}`"
+              :alt="`Avatar for ${curator.displayName || curator.handle}`"
               width="36"
               height="36"
               class="size-9 rounded-full"
             >
+            <div
+              v-else
+              class="flex size-9 items-center justify-center rounded-full bg-muted"
+            >
+              <UIcon
+                name="i-lucide-user"
+                class="size-4 text-muted"
+                aria-hidden="true"
+              />
+            </div>
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium truncate">
-                {{ curator.name }}
+                {{ curator.displayName || curator.handle }}
               </p>
-              <p class="font-mono text-xs text-[var(--ui-text-muted)]">
+              <p class="font-mono text-xs text-muted">
                 @{{ curator.handle }}
               </p>
             </div>
           </div>
 
-          <p class="mt-3 text-xs text-[var(--ui-text-muted)] leading-relaxed line-clamp-2">
-            {{ curator.bio }}
-          </p>
+          <CuratorLabels
+            v-if="curator.labels?.length"
+            :labels="curator.labels"
+            class="mt-3"
+          />
 
-          <!-- Top-level: simplified metrics -->
-          <div
-            class="mt-3 flex items-center gap-3"
-            aria-hidden="true"
-          >
-            <span class="data-label">{{ curator.skillCount }} skills</span>
-            <span class="data-label">{{ curator.collections }} {{ curator.collections === 1 ? 'collection' : 'collections' }}</span>
-            <span class="data-label ml-auto">{{ curator.updated }}</span>
-          </div>
-
-          <!-- Progressive: stack badges -->
-          <div class="mt-3 flex flex-wrap gap-1">
-            <UBadge
-              v-for="stack in curator.stacks.slice(0, 3)"
-              :key="stack"
-              :label="stack"
-              variant="subtle"
-              color="neutral"
-              size="xs"
-            />
-            <UBadge
-              v-if="curator.stacks.length > 3"
-              :label="`+${curator.stacks.length - 3}`"
-              variant="subtle"
-              color="neutral"
-              size="xs"
-            />
+          <div class="mt-3 flex items-center gap-3">
+            <span class="data-label">{{ curator.collectionCount }} {{ curator.collectionCount === 1 ? 'collection' : 'collections' }}</span>
+            <span class="data-label ml-auto">{{ useTimeAgo(curator.lastPublished).value }}</span>
           </div>
         </NuxtLink>
       </div>
+
+      <!-- Empty state -->
+      <div
+        v-else
+        class="rounded-lg border border-default p-8 text-center"
+      >
+        <UIcon
+          name="i-lucide-users"
+          class="mx-auto size-8 text-muted"
+          aria-hidden="true"
+        />
+        <p class="mt-3 text-sm">
+          No curators yet. Be the first to share your skills.
+        </p>
+        <UButton
+          label="Connect with Bluesky"
+          icon="i-lucide-cloud"
+          size="sm"
+          class="mt-4"
+          @click="authModalOpen = true"
+        />
+      </div>
     </section>
 
-    <UDivider />
+    <USeparator />
 
     <!-- Collections -->
     <section
@@ -307,43 +271,38 @@ function toggleCollection(slug: string) {
         Collections
       </h2>
 
-      <!-- Screen reader announcement for copy -->
       <span
         aria-live="polite"
         class="sr-only"
       >{{ copiedCollectionSlug ? 'Install command copied to clipboard' : '' }}</span>
 
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <!-- Real collections from PDS -->
+      <div
+        v-if="homepageData?.collections.length"
+        class="grid grid-cols-1 gap-3 md:grid-cols-2"
+      >
         <article
-          v-for="collection in collections"
-          :key="collection.slug"
-          class="rounded-lg border border-[var(--ui-border)] transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          v-for="collection in homepageData.collections"
+          :key="`${collection.curator.handle}/${collection.slug}`"
+          class="rounded-lg border border-default transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
         >
-          <!-- Top-level: name, curator, one metric -->
           <div class="p-4">
             <div class="flex items-start justify-between gap-3">
-              <div class="flex items-start gap-3 min-w-0">
-                <UIcon
-                  :name="collection.icon"
-                  class="size-5 shrink-0 mt-0.5 text-[var(--ui-text-muted)]"
-                  aria-hidden="true"
-                />
-                <div class="min-w-0">
-                  <h3 class="font-mono text-sm font-medium">
-                    <NuxtLink
-                      :to="`/people/${collection.curator.handle}/${collection.slug}`"
-                      class="hover:text-[var(--ui-text-muted)] transition-colors"
-                    >
-                      {{ collection.name }}
-                    </NuxtLink>
-                  </h3>
-                  <p class="mt-1 text-xs text-[var(--ui-text-muted)] leading-relaxed line-clamp-2">
-                    {{ collection.description }}
-                  </p>
-                </div>
+              <div class="min-w-0">
+                <h3 class="font-mono text-sm font-medium">
+                  <NuxtLink
+                    :to="`/people/${collection.curator.handle}/${collection.slug}`"
+                    class="hover:text-muted transition-colors"
+                  >
+                    {{ collection.name }}
+                  </NuxtLink>
+                </h3>
+                <p class="mt-1 text-xs text-muted leading-relaxed line-clamp-2">
+                  {{ collection.description }}
+                </p>
               </div>
               <button
-                class="mt-0.5 shrink-0 rounded p-1 text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+                class="mt-0.5 shrink-0 rounded p-1 text-muted transition-colors hover:text-default"
                 :aria-label="`${expandedCollection === collection.slug ? 'Collapse' : 'Expand'} ${collection.name}`"
                 :aria-expanded="expandedCollection === collection.slug"
                 @click="toggleCollection(collection.slug)"
@@ -358,23 +317,21 @@ function toggleCollection(slug: string) {
 
             <div class="mt-3 flex items-center gap-3">
               <img
+                v-if="collection.curator.avatar"
                 :src="collection.curator.avatar"
-                :alt="`Avatar for ${collection.curator.name}`"
+                :alt="`Avatar for ${collection.curator.displayName || collection.curator.handle}`"
                 width="20"
                 height="20"
                 class="size-5 rounded-full"
               >
-              <span class="text-xs">{{ collection.curator.name }}</span>
+              <span class="text-xs">{{ collection.curator.displayName || collection.curator.handle }}</span>
               <span class="data-label ml-auto">{{ collection.skillCount }} skills</span>
-              <span class="data-label">{{ collection.installs }} installs</span>
-              <span class="data-label">{{ collection.updated }}</span>
             </div>
           </div>
 
-          <!-- Progressive: expanded detail -->
           <div
             v-if="expandedCollection === collection.slug"
-            class="border-t border-[var(--ui-border)] px-4 py-3"
+            class="border-t border-default px-4 py-3"
           >
             <div class="flex flex-wrap gap-1.5">
               <UBadge
@@ -388,7 +345,7 @@ function toggleCollection(slug: string) {
             </div>
 
             <div class="mt-3 flex items-center gap-2">
-              <code class="flex-1 truncate rounded bg-[var(--ui-bg-muted)] px-2.5 py-1.5 font-mono text-xs text-[var(--ui-text-muted)]">
+              <code class="flex-1 truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
                 skilld add @{{ collection.curator.handle }}/{{ collection.slug }}
               </code>
               <UButton
@@ -397,17 +354,39 @@ function toggleCollection(slug: string) {
                 color="neutral"
                 variant="ghost"
                 :aria-label="copiedCollectionSlug === collection.slug ? 'Copied' : `Copy install command for ${collection.name}`"
-                @click="copyCollectionCmd(collection)"
+                @click="copyCollectionCmd(collection.curator.handle, collection.slug)"
               />
             </div>
           </div>
         </article>
       </div>
+
+      <!-- Empty state -->
+      <div
+        v-else
+        class="rounded-lg border border-default p-8 text-center"
+      >
+        <UIcon
+          name="i-lucide-layers"
+          class="mx-auto size-8 text-muted"
+          aria-hidden="true"
+        />
+        <p class="mt-3 text-sm">
+          No collections published yet. Be the first to curate your skills.
+        </p>
+        <UButton
+          label="Publish a collection"
+          icon="i-lucide-plus"
+          size="sm"
+          class="mt-4"
+          @click="authModalOpen = true"
+        />
+      </div>
     </section>
 
-    <UDivider />
+    <USeparator />
 
-    <!-- How it works: compact steps -->
+    <!-- How it works -->
     <section
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
       aria-labelledby="how-heading"
@@ -420,7 +399,7 @@ function toggleCollection(slug: string) {
       </h2>
 
       <ol class="grid grid-cols-1 gap-3 sm:grid-cols-3 list-none p-0">
-        <li class="rounded-lg border border-[var(--ui-border)] p-4">
+        <li class="rounded-lg border border-default p-4">
           <span
             class="data-label"
             aria-hidden="true"
@@ -428,11 +407,11 @@ function toggleCollection(slug: string) {
           <p class="mt-2 text-sm font-medium">
             Add packages
           </p>
-          <p class="mt-1 text-xs text-[var(--ui-text-muted)] leading-relaxed">
-            Run <code class="rounded bg-[var(--ui-bg-muted)] px-1 py-0.5 font-mono text-xs">skilld add vue nuxt</code> to generate skills from any npm package docs.
+          <p class="mt-1 text-xs text-muted leading-relaxed">
+            Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add vue nuxt</code> to generate skills from any npm package docs.
           </p>
         </li>
-        <li class="rounded-lg border border-[var(--ui-border)] p-4">
+        <li class="rounded-lg border border-default p-4">
           <span
             class="data-label"
             aria-hidden="true"
@@ -440,11 +419,11 @@ function toggleCollection(slug: string) {
           <p class="mt-2 text-sm font-medium">
             Follow curators
           </p>
-          <p class="mt-1 text-xs text-[var(--ui-text-muted)] leading-relaxed">
+          <p class="mt-1 text-xs text-muted leading-relaxed">
             Install a curator's collection with one command. Their skill set becomes your agent's context.
           </p>
         </li>
-        <li class="rounded-lg border border-[var(--ui-border)] p-4">
+        <li class="rounded-lg border border-default p-4">
           <span
             class="data-label"
             aria-hidden="true"
@@ -452,48 +431,97 @@ function toggleCollection(slug: string) {
           <p class="mt-2 text-sm font-medium">
             Stay current
           </p>
-          <p class="mt-1 text-xs text-[var(--ui-text-muted)] leading-relaxed">
-            Skills update when packages release. Run <code class="rounded bg-[var(--ui-bg-muted)] px-1 py-0.5 font-mono text-xs">skilld update</code> to regenerate from latest docs.
+          <p class="mt-1 text-xs text-muted leading-relaxed">
+            Skills update when packages release. Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld update</code> to regenerate from latest docs.
           </p>
         </li>
       </ol>
     </section>
 
-    <UDivider />
+    <USeparator />
 
-    <!-- CTA: publish your collection -->
+    <!-- CTA: stage-aware -->
     <section
+      v-if="stage !== 'curator'"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
       aria-labelledby="cta-heading"
     >
-      <div class="rounded-lg border border-[var(--ui-border)] p-6 sm:p-8 text-center">
-        <h2
-          id="cta-heading"
-          class="font-mono text-lg font-medium"
-        >
-          Publish your collection
-        </h2>
-        <p class="mt-2 text-sm text-[var(--ui-text-muted)] max-w-md mx-auto">
-          Curate your skills, publish a collection, share your install link.
-          Anyone can run <code class="rounded bg-[var(--ui-bg-muted)] px-1 py-0.5 font-mono text-xs">skilld add @you</code> to get your setup.
-        </p>
-        <div class="mt-5 flex items-center justify-center gap-3">
-          <UButton
-            label="Connect with Bluesky"
-            icon="i-lucide-cloud"
-            trailing-icon="i-lucide-arrow-right"
-            size="sm"
-            @click="authModalOpen = true"
-          />
-          <UButton
-            to="/skills"
-            label="Browse skills"
-            icon="i-lucide-search"
-            size="sm"
-            color="neutral"
-            variant="outline"
-          />
-        </div>
+      <div class="rounded-lg border border-default p-6 sm:p-8 text-center">
+        <!-- Browse: not signed in -->
+        <template v-if="stage === 'browse'">
+          <h2
+            id="cta-heading"
+            class="font-mono text-lg font-medium"
+          >
+            Share your skills
+          </h2>
+          <p class="mt-2 text-sm text-muted max-w-md mx-auto">
+            Add the tools you use every day, publish them to your Personal Data Server.
+            Anyone can run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add @you</code> to get your setup.
+          </p>
+          <div class="mt-5 flex items-center justify-center gap-3">
+            <UButton
+              label="Connect with Bluesky"
+              icon="i-lucide-cloud"
+              trailing-icon="i-lucide-arrow-right"
+              size="sm"
+              @click="authModalOpen = true"
+            />
+            <UButton
+              to="/skills"
+              label="Browse skills"
+              icon="i-lucide-search"
+              size="sm"
+              color="neutral"
+              variant="outline"
+            />
+          </div>
+        </template>
+
+        <!-- Connected: signed in, no personal collection -->
+        <template v-else-if="stage === 'connected'">
+          <h2
+            id="cta-heading"
+            class="font-mono text-lg font-medium"
+          >
+            Add your skills
+          </h2>
+          <p class="mt-2 text-sm text-muted max-w-md mx-auto">
+            You're connected. Add the tools you reach for every day, with a note about why each one matters.
+          </p>
+          <div class="mt-5">
+            <UButton
+              :to="`/people/${user?.handle}/edit-skills`"
+              label="Add your skills"
+              icon="i-lucide-plus"
+              trailing-icon="i-lucide-arrow-right"
+              size="sm"
+            />
+          </div>
+        </template>
+
+        <!-- Published: has personal collection -->
+        <template v-else-if="stage === 'published'">
+          <h2
+            id="cta-heading"
+            class="font-mono text-lg font-medium"
+          >
+            Create a named collection
+          </h2>
+          <p class="mt-2 text-sm text-muted max-w-md mx-auto">
+            Group skills into themed sets like "My Nuxt Stack" or "Vue Essentials."
+          </p>
+          <div class="mt-5">
+            <UButton
+              :to="`/people/${user?.handle}/collections/new`"
+              label="New collection"
+              icon="i-lucide-layers"
+              size="sm"
+              color="neutral"
+              variant="outline"
+            />
+          </div>
+        </template>
       </div>
     </section>
   </div>

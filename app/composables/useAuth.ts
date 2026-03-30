@@ -16,7 +16,7 @@ export const useAuth = createSharedComposable(() => {
     const params = new URLSearchParams({ handle })
     if (returnTo)
       params.set('returnTo', returnTo)
-    navigateTo(`/api/auth/atproto?${params}`, { external: true })
+    return navigateTo(`/api/auth/atproto?${params}`, { external: true })
   }
 
   async function logout() {

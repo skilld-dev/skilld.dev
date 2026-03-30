@@ -1,19 +1,13 @@
-import type { OAuthClientMetadata, OAuthRedirectUri } from '@atproto/oauth-client-node'
+import type { WorkersSavedSessionStore, WorkersSavedStateStore } from 'atproto-oauth-client-cloudflare-workers'
+import type { OAuthClientMetadata } from 'atproto-oauth-client-cloudflare-workers/oauth-client'
 // @ts-expect-error virtual file from oauth module
 import { clientUri } from '#oauth/config'
-import { AtprotoDohHandleResolver, NodeOAuthClient, oauthRedirectUriSchema } from '@atproto/oauth-client-node'
-import { useOAuthStorage } from './storage'
+import { WorkersOAuthClient } from 'atproto-oauth-client-cloudflare-workers'
 
 export const scope = 'atproto'
 
-export const handleResolver = new AtprotoDohHandleResolver({
-  dohEndpoint: 'https://cloudflare-dns.com/dns-query',
-})
-
 export function getOauthClientMetadata(): OAuthClientMetadata {
-  const redirect_uri: OAuthRedirectUri = oauthRedirectUriSchema.parse(
-    `${clientUri}/api/auth/atproto`,
-  )
+  const redirect_uri = `${clientUri}/api/auth/atproto` as `https://${string}`
 
   // In dev, use loopback client_id (public client, no JWKs needed)
   const client_id
@@ -37,14 +31,12 @@ export function getOauthClientMetadata(): OAuthClientMetadata {
   }
 }
 
-export async function getNodeOAuthClient(): Promise<NodeOAuthClient> {
-  const { stateStore, sessionStore } = useOAuthStorage()
+export function getOAuthClient(stateStore: WorkersSavedStateStore, sessionStore: WorkersSavedSessionStore): WorkersOAuthClient {
   const clientMetadata = getOauthClientMetadata()
 
-  return new NodeOAuthClient({
+  return new WorkersOAuthClient({
     stateStore,
     sessionStore,
     clientMetadata,
-    handleResolver,
   })
 }

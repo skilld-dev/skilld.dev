@@ -1,16 +1,16 @@
-import type { NodeSavedState, NodeSavedStateStore } from '@atproto/oauth-client-node'
+import type { WorkersSavedState, WorkersSavedStateStore } from 'atproto-oauth-client-cloudflare-workers'
 
 const STATE_TTL = 60 * 30 // 30 minutes
 
-export class OAuthStateStore implements NodeSavedStateStore {
+export class OAuthStateStore implements WorkersSavedStateStore {
   private prefix = 'atproto:oauth:state'
 
-  async get(key: string): Promise<NodeSavedState | undefined> {
-    const val = await useStorage('data').getItem<NodeSavedState>(`${this.prefix}:${key}`)
+  async get(key: string): Promise<WorkersSavedState | undefined> {
+    const val = await useStorage('data').getItem<WorkersSavedState>(`${this.prefix}:${key}`)
     return val ?? undefined
   }
 
-  async set(key: string, val: NodeSavedState) {
+  async set(key: string, val: WorkersSavedState) {
     await useStorage('data').setItem(`${this.prefix}:${key}`, val, { ttl: STATE_TTL })
   }
 

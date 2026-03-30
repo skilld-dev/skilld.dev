@@ -22,6 +22,10 @@ logs
 .wrangler
 wrangler.toml
 
+# Playwright
+playwright-report/
+test-results/
+
 # Local env files
 .env
 .env.*

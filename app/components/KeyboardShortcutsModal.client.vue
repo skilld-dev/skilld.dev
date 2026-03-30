@@ -31,7 +31,7 @@ const open = defineModel<boolean>('open', { default: false })
           </div>
         </div>
 
-        <p class="mt-6 text-xs text-[var(--ui-text-muted)]">
+        <p class="mt-6 text-xs text-muted">
           Shortcuts are disabled when typing in input fields.
         </p>
 

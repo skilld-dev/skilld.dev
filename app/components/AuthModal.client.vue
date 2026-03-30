@@ -2,36 +2,62 @@
 const LEADING_AT_RE = /^@/
 
 const { user, isAuthenticated, isLoading, login, logout } = useAuth()
+const { stage, allUnlocked, unlockAll } = useOnboarding()
 
 const open = defineModel<boolean>('open', { default: false })
-const handle = ref('')
+const username = ref('')
+const customHandle = ref('')
+const customDomain = ref(false)
 const error = ref('')
 const submitting = ref(false)
 
 function handleConnect() {
-  const trimmed = handle.value.trim().toLowerCase().replace(LEADING_AT_RE, '')
-  if (!trimmed) {
-    error.value = 'Enter your Bluesky handle'
-    return
+  let resolved: string
+
+  if (customDomain.value) {
+    resolved = customHandle.value.trim().toLowerCase().replace(LEADING_AT_RE, '')
+    if (!resolved) {
+      error.value = 'Enter your handle'
+      return
+    }
+    if (!resolved.includes('.')) {
+      error.value = 'Enter a full handle like yourname.example.com'
+      return
+    }
   }
-  if (!trimmed.includes('.')) {
-    error.value = 'Enter a full handle like yourname.bsky.social'
-    return
+  else {
+    const name = username.value.trim().toLowerCase().replace(LEADING_AT_RE, '')
+    if (!name) {
+      error.value = 'Enter your username'
+      return
+    }
+    if (name.includes('.')) {
+      error.value = 'Just the username, without .bsky.social'
+      return
+    }
+    resolved = `${name}.bsky.social`
   }
+
   error.value = ''
   submitting.value = true
-  login(trimmed, window.location.pathname)
+  login(resolved, window.location.pathname)
 }
 
 function handleDisconnect() {
   logout()
-  handle.value = ''
+  username.value = ''
+  customHandle.value = ''
 }
 
-watch(handle, () => {
+watch([username, customHandle], () => {
   if (error.value)
     error.value = ''
 })
+
+function toggleCustomDomain() {
+  customDomain.value = !customDomain.value
+  error.value = ''
+}
 </script>
 
 <template>
@@ -46,7 +72,7 @@ watch(handle, () => {
           <p class="section-label mb-4">
             Connected
           </p>
-          <div class="flex items-center gap-3 rounded-lg border border-[var(--ui-border)] p-4">
+          <div class="flex items-center gap-3 rounded-lg border border-default p-4">
             <img
               v-if="user.avatar"
               :src="user.avatar"
@@ -57,11 +83,11 @@ watch(handle, () => {
             >
             <div
               v-else
-              class="flex size-10 items-center justify-center rounded-full bg-[var(--ui-bg-muted)]"
+              class="flex size-10 items-center justify-center rounded-full bg-muted"
             >
               <UIcon
                 name="i-lucide-user"
-                class="size-5 text-[var(--ui-text-muted)]"
+                class="size-5 text-muted"
                 aria-hidden="true"
               />
             </div>
@@ -69,12 +95,20 @@ watch(handle, () => {
               <p class="text-sm font-medium truncate">
                 @{{ user.handle }}
               </p>
-              <p class="font-mono text-xs text-[var(--ui-text-muted)] truncate">
+              <p class="font-mono text-xs text-muted truncate">
                 {{ user.did }}
               </p>
             </div>
           </div>
-          <div class="mt-4 flex justify-end">
+          <div class="mt-4 flex items-center justify-between">
+            <button
+              v-if="!allUnlocked && stage !== 'curator'"
+              class="text-xs text-muted hover:text-default"
+              @click="unlockAll"
+            >
+              Stop showing tips
+            </button>
+            <span v-else />
             <UButton
               label="Disconnect"
               color="neutral"
@@ -95,9 +129,9 @@ watch(handle, () => {
           </h2>
           <p
             id="auth-modal-description"
-            class="mt-2 text-sm text-[var(--ui-text-muted)] leading-relaxed"
+            class="mt-2 text-sm text-muted leading-relaxed"
           >
-            Sign in with your Bluesky account to publish and share your skill collections.
+            Sign in with your Bluesky account to publish and share your skills.
           </p>
 
           <form
@@ -108,11 +142,32 @@ watch(handle, () => {
               <label
                 for="bluesky-handle"
                 class="sr-only"
-              >Bluesky handle</label>
+              >{{ customDomain ? 'Bluesky handle' : 'Bluesky username' }}</label>
+
+              <!-- Simple mode: username + .bsky.social suffix -->
               <UInput
+                v-if="!customDomain"
                 id="bluesky-handle"
-                v-model="handle"
-                placeholder="yourname.bsky.social"
+                v-model="username"
+                placeholder="yourname"
+                icon="i-lucide-at-sign"
+                size="lg"
+                class="font-mono"
+                :disabled="submitting"
+                :aria-invalid="!!error"
+                :aria-describedby="error ? 'handle-error' : undefined"
+              >
+                <template #trailing>
+                  <span class="text-muted text-sm font-mono select-none">.bsky.social</span>
+                </template>
+              </UInput>
+
+              <!-- Custom domain mode: full handle -->
+              <UInput
+                v-else
+                id="bluesky-handle"
+                v-model="customHandle"
+                placeholder="yourname.example.com"
                 icon="i-lucide-at-sign"
                 size="lg"
                 class="font-mono"
@@ -120,6 +175,7 @@ watch(handle, () => {
                 :aria-invalid="!!error"
                 :aria-describedby="error ? 'handle-error' : undefined"
               />
+
               <p
                 v-if="error"
                 id="handle-error"
@@ -141,29 +197,28 @@ watch(handle, () => {
             />
           </form>
 
-          <div
-            class="mt-4 flex items-center gap-2"
-            role="separator"
-          >
-            <UDivider class="flex-1" />
-            <span class="data-label">or</span>
-            <UDivider class="flex-1" />
+          <div class="mt-3 flex items-center justify-between">
+            <button
+              class="font-mono text-xs text-muted hover:text-default transition-colors"
+              type="button"
+              @click="toggleCustomDomain"
+            >
+              {{ customDomain ? 'Use bsky.social' : 'Custom domain?' }}
+            </button>
+            <UButton
+              to="https://bsky.app"
+              target="_blank"
+              label="Create account"
+              color="neutral"
+              variant="link"
+              size="xs"
+              class="font-mono"
+              trailing-icon="i-lucide-external-link"
+            />
           </div>
 
-          <UButton
-            to="https://bsky.app"
-            target="_blank"
-            label="Create a Bluesky account"
-            color="neutral"
-            variant="ghost"
-            block
-            size="sm"
-            class="mt-3"
-            trailing-icon="i-lucide-external-link"
-          />
-
-          <p class="mt-4 text-xs text-[var(--ui-text-muted)] leading-relaxed">
-            skilld.dev uses the AT Protocol for authentication. Your data stays on your Personal Data Server.
+          <p class="mt-4 text-xs text-muted leading-relaxed">
+            skilld.dev uses the <a href="https://atproto.com" target="_blank" class="text-default hover:text-primary transition-colors">AT Protocol</a> for authentication. Your data stays on your Personal Data Server.
           </p>
         </div>
 

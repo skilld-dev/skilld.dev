@@ -29,6 +29,38 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     sessionPassword: process.env.NUXT_SESSION_PASSWORD || '',
+    adminSecret: process.env.NUXT_ADMIN_SECRET || '',
+  },
+
+  nitro: {
+    preset: 'cloudflare-durable',
+    cloudflare: {
+      deployConfig: true,
+      nodeCompat: true,
+      wrangler: {
+        name: 'skilld-dev',
+        compatibility_flags: ['nodejs_compat', 'no_nodejs_compat_v2'],
+        durable_objects: {
+          bindings: [
+            { name: '$DurableObject', class_name: '$DurableObject' },
+          ],
+        },
+        migrations: [
+          { tag: 'v1', new_classes: ['$DurableObject'] },
+        ],
+        observability: {
+          logs: { enabled: true, head_sampling_rate: 1, invocation_logs: true },
+        },
+      },
+    },
+    experimental: {
+      tasks: true,
+      websocket: true,
+      wasm: true,
+    },
+    scheduledTasks: {
+      '*/10 * * * *': ['refresh-curators'],
+    },
   },
 
   routeRules: {
@@ -38,7 +70,7 @@ export default defineNuxtConfig({
     compatibilityVersion: 5,
   },
 
-  compatibilityDate: '2025-03-28',
+  compatibilityDate: '2026-03-03',
 
   eslint: {
     config: {
@@ -61,7 +93,20 @@ export default defineNuxtConfig({
     collections: ['lucide'],
   },
 
-  ogImage: {
-    enabled: false,
+  sitemap: {
+    sitemaps: {
+      pages: {
+        includeAppSources: true,
+        exclude: ['/skills/**', '/people/**'],
+      },
+      skills: {
+        sources: ['/api/__sitemap__/skills'],
+        includeAppSources: false,
+      },
+      people: {
+        sources: ['/api/__sitemap__/people'],
+        includeAppSources: false,
+      },
+    },
   },
 })

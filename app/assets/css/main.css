@@ -4,8 +4,8 @@
 @theme {
   --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  /* Darken primary-500 from rose default for WCAG AA contrast with white text */
-  --color-primary-500: oklch(0.555 0.225 17.32);
+  /* Darken rose-500 for WCAG AA contrast with white text on solid primary buttons */
+  --color-rose-500: oklch(0.555 0.225 17.32);
 }
 
 :root {
@@ -18,6 +18,8 @@
   --ui-border: oklch(0.88 0.008 60);
   --ui-border-muted: oklch(0.92 0.005 60);
   --ui-radius: 0.5rem;
+  /* Darken primary-500 for WCAG AA contrast with white text on solid buttons */
+  --ui-color-primary-500: oklch(0.555 0.225 17.32);
 }
 
 .dark {
@@ -29,6 +31,8 @@
   --ui-text-inverted: oklch(1 0 0);
   --ui-border: oklch(0.26 0.012 60);
   --ui-border-muted: oklch(0.22 0.008 60);
+  --ui-color-primary-400: oklch(0.555 0.225 17.32);
+  --ui-color-primary-500: oklch(0.555 0.225 17.32);
 }
 
 /* High contrast mode */

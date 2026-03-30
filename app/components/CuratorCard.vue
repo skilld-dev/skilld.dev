@@ -16,7 +16,7 @@ const { curator } = defineProps<{
 <template>
   <NuxtLink
     :to="`/people/${curator.handle}`"
-    class="group block rounded-lg border border-[var(--ui-border)] p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+    class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
   >
     <div class="flex items-start gap-3">
       <img
@@ -30,7 +30,7 @@ const { curator } = defineProps<{
         <p class="text-sm font-medium truncate">
           {{ curator.name }}
         </p>
-        <p class="font-mono text-xs text-[var(--ui-text-muted)]">
+        <p class="font-mono text-xs text-muted">
           @{{ curator.handle }}
         </p>
       </div>
@@ -38,7 +38,7 @@ const { curator } = defineProps<{
 
     <p
       v-if="curator.bio"
-      class="mt-3 text-xs text-[var(--ui-text-muted)] leading-relaxed line-clamp-2"
+      class="mt-3 text-xs text-muted leading-relaxed line-clamp-2"
     >
       {{ curator.bio }}
     </p>

@@ -3,6 +3,11 @@ useSeoMeta({
   title: 'Accessibility — skilld',
   description: 'Accessibility statement for skilld.dev. Our approach to building an inclusive experience.',
 })
+
+defineOgImage('Page.takumi', {
+  title: 'Accessibility',
+  description: 'Our approach to building an inclusive experience.',
+}, { alt: 'Accessibility statement for skilld.dev' })
 </script>
 
 <template>
@@ -12,7 +17,7 @@ useSeoMeta({
         <h1 class="font-mono text-2xl sm:text-3xl font-medium tracking-tight">
           Accessibility
         </h1>
-        <p class="mt-3 text-sm text-[var(--ui-text-muted)] leading-relaxed">
+        <p class="mt-3 text-sm text-muted leading-relaxed">
           skilld.dev is committed to providing an accessible experience for everyone.
         </p>
       </header>
@@ -27,7 +32,7 @@ useSeoMeta({
         >
           Our approach
         </h2>
-        <p class="text-sm text-[var(--ui-text-muted)] leading-relaxed">
+        <p class="text-sm text-muted leading-relaxed">
           We build skilld.dev with accessibility as a core requirement, not an afterthought.
           Our target is WCAG 2.1 AA conformance across all pages and interactions.
         </p>
@@ -43,48 +48,48 @@ useSeoMeta({
         >
           What we do
         </h2>
-        <ul class="space-y-2 text-sm text-[var(--ui-text-muted)] leading-relaxed">
+        <ul class="space-y-2 text-sm text-muted leading-relaxed">
           <li class="flex items-start gap-2">
             <span
               class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
               aria-hidden="true"
             />
-            <span><strong class="text-[var(--ui-text)]">Semantic HTML</strong> with proper landmarks, headings, and document structure</span>
+            <span><strong class="text-default">Semantic HTML</strong> with proper landmarks, headings, and document structure</span>
           </li>
           <li class="flex items-start gap-2">
             <span
               class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
               aria-hidden="true"
             />
-            <span><strong class="text-[var(--ui-text)]">ARIA attributes</strong> for interactive elements, live regions, and dynamic content</span>
+            <span><strong class="text-default">ARIA attributes</strong> for interactive elements, live regions, and dynamic content</span>
           </li>
           <li class="flex items-start gap-2">
             <span
               class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
               aria-hidden="true"
             />
-            <span><strong class="text-[var(--ui-text)]">Keyboard navigation</strong> with skip links, focus indicators, and global shortcuts</span>
+            <span><strong class="text-default">Keyboard navigation</strong> with skip links, focus indicators, and global shortcuts</span>
           </li>
           <li class="flex items-start gap-2">
             <span
               class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
               aria-hidden="true"
             />
-            <span><strong class="text-[var(--ui-text)]">Color contrast</strong> meeting WCAG AA ratios with enhanced high contrast mode support</span>
+            <span><strong class="text-default">Color contrast</strong> meeting WCAG AA ratios with enhanced high contrast mode support</span>
           </li>
           <li class="flex items-start gap-2">
             <span
               class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
               aria-hidden="true"
             />
-            <span><strong class="text-[var(--ui-text)]">Reduced motion</strong> respecting user preferences for animations and transitions</span>
+            <span><strong class="text-default">Reduced motion</strong> respecting user preferences for animations and transitions</span>
           </li>
           <li class="flex items-start gap-2">
             <span
               class="mt-1.5 size-1 shrink-0 rounded-full bg-[var(--ui-text-muted)]"
               aria-hidden="true"
             />
-            <span><strong class="text-[var(--ui-text)]">Automated testing</strong> with axe-core audits to catch regressions</span>
+            <span><strong class="text-default">Automated testing</strong> with axe-core audits to catch regressions</span>
           </li>
         </ul>
       </section>
@@ -99,7 +104,7 @@ useSeoMeta({
         >
           Known limitations
         </h2>
-        <p class="text-sm text-[var(--ui-text-muted)] leading-relaxed">
+        <p class="text-sm text-muted leading-relaxed">
           skilld.dev is under active development. Some pages and features may not yet meet our accessibility goals.
           We are working to address these as the platform grows.
         </p>
@@ -115,13 +120,13 @@ useSeoMeta({
         >
           Feedback
         </h2>
-        <p class="text-sm text-[var(--ui-text-muted)] leading-relaxed">
+        <p class="text-sm text-muted leading-relaxed">
           If you encounter an accessibility barrier on skilld.dev, please
           <a
             href="https://github.com/harlan-zw/skilld/issues"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-[var(--ui-text)] underline underline-offset-2 hover:text-[var(--color-primary-500)]"
+            class="text-default underline underline-offset-2 hover:text-[var(--color-primary-500)]"
           >open an issue on GitHub</a>.
           We take all feedback seriously and will work to resolve issues promptly.
         </p>

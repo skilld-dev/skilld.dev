@@ -1,0 +1,101 @@
+{
+  "lexicon": 1,
+  "id": "dev.skilld.collection",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A curated collection of agent skills published to a user's AT Protocol repository.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["name", "slug", "description", "skills", "stacks", "createdAt", "updatedAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name of the collection.",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe identifier, used as the record key.",
+            "maxLength": 64,
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "A short description of the collection's purpose.",
+            "maxLength": 500
+          },
+          "skills": {
+            "type": "array",
+            "description": "Skills included in this collection.",
+            "maxLength": 50,
+            "minLength": 1,
+            "items": {
+              "type": "ref",
+              "ref": "#skillEntry"
+            }
+          },
+          "stacks": {
+            "type": "array",
+            "description": "Related technology stacks.",
+            "maxLength": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "postRef": {
+            "type": "ref",
+            "ref": "#postReference",
+            "description": "Reference to the Bluesky post announcing this collection."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when the collection was first created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp of the most recent update."
+          }
+        }
+      }
+    },
+    "skillEntry": {
+      "type": "object",
+      "description": "A single skill endorsement within a collection.",
+      "required": ["packageName"],
+      "properties": {
+        "packageName": {
+          "type": "string",
+          "description": "Package identifier for the skill (e.g. owner/repo or owner/repo/name).",
+          "maxLength": 256
+        },
+        "reason": {
+          "type": "string",
+          "description": "Optional reason for including this skill.",
+          "maxLength": 500
+        }
+      }
+    },
+    "postReference": {
+      "type": "object",
+      "description": "Reference to an associated Bluesky post.",
+      "required": ["uri", "cid"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "at-uri",
+          "description": "AT URI of the post."
+        },
+        "cid": {
+          "type": "string",
+          "description": "CID of the post at time of reference."
+        }
+      }
+    }
+  }
+}

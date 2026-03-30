@@ -15,7 +15,7 @@ export default {
     },
     card: {
       slots: {
-        root: 'rounded-lg border border-[var(--ui-border)] transition-colors duration-200',
+        root: 'rounded-lg border border-default transition-colors duration-200',
         header: 'p-4',
         body: 'p-4',
       },

@@ -10,7 +10,17 @@ const authModalOpen = ref(false)
 const shortcutsModalOpen = ref(false)
 
 const { enabled: kbdEnabled } = useKeyboardShortcuts()
-const router = useRouter()
+const { justSignedIn } = useOnboarding()
+
+// Detect auth transition to trigger welcome banner
+if (import.meta.client) {
+  let wasAuthenticated = false
+  watch(isAuthenticated, (val) => {
+    if (val && !wasAuthenticated)
+      justSignedIn.value = true
+    wasAuthenticated = val
+  })
+}
 
 useHead({
   meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
@@ -26,10 +36,12 @@ useSeoMeta({
   twitterCard: 'summary_large_image',
 })
 
+defineOgImage('Page.takumi', {}, { alt: 'skilld — curated agent skills from trusted open-source developers' })
+
 provide('authModalOpen', authModalOpen)
 
 // Global keyboard shortcuts
-onKeyDown('/', (e) => {
+onKeyDown('/', async (e) => {
   if (!kbdEnabled.value || isEditableElement(e.target))
     return
   e.preventDefault()
@@ -38,7 +50,7 @@ onKeyDown('/', (e) => {
     searchInput.focus()
   }
   else {
-    router.push('/skills')
+    return navigateTo('/skills')
   }
 }, { dedupe: true })
 
@@ -85,8 +97,25 @@ onKeyDown('?', (e) => {
           class="hidden lg:inline-flex"
         />
         <UButton
-          to="#curators"
+          to="/skills/official"
+          label="Official"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          class="hidden lg:inline-flex"
+        />
+        <UButton
+          to="/people"
           label="Curators"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          class="hidden lg:inline-flex"
+        />
+        <UButton
+          v-if="isAuthenticated && user"
+          :to="`/people/${user.handle}`"
+          label="My skills"
           color="neutral"
           variant="ghost"
           size="sm"
@@ -107,7 +136,7 @@ onKeyDown('?', (e) => {
           <template v-if="!isLoading">
             <button
               v-if="isAuthenticated && user"
-              class="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--ui-bg-muted)]"
+              class="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted"
               aria-label="Account settings"
               @click="authModalOpen = true"
             >
@@ -148,7 +177,15 @@ onKeyDown('?', (e) => {
             class="justify-start"
           />
           <UButton
-            to="#curators"
+            to="/skills/official"
+            label="Official"
+            color="neutral"
+            variant="ghost"
+            block
+            class="justify-start"
+          />
+          <UButton
+            to="/people"
             label="Curators"
             color="neutral"
             variant="ghost"
@@ -159,6 +196,10 @@ onKeyDown('?', (e) => {
       </template>
     </UHeader>
 
+    <ClientOnly>
+      <WelcomeBanner />
+    </ClientOnly>
+
     <UMain
       id="main-content"
       tabindex="-1"
@@ -168,12 +209,12 @@ onKeyDown('?', (e) => {
 
     <UFooter>
       <template #left>
-        <p class="font-mono text-xs text-[var(--ui-text-muted)]">
+        <p class="font-mono text-xs text-muted">
           Built by <a
             href="https://harlanzw.com"
             target="_blank"
             rel="noopener noreferrer"
-            class="underline underline-offset-2 hover:text-[var(--ui-text)]"
+            class="underline underline-offset-2 hover:text-default"
           >Harlan Wilton</a>
         </p>
       </template>
@@ -181,7 +222,7 @@ onKeyDown('?', (e) => {
       <template #right>
         <NuxtLink
           to="/accessibility"
-          class="font-mono text-xs text-[var(--ui-text-muted)] underline-offset-2 hover:underline hover:text-[var(--ui-text)]"
+          class="font-mono text-xs text-muted underline-offset-2 hover:underline hover:text-default"
         >
           Accessibility
         </NuxtLink>
