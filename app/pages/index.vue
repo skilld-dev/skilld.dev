@@ -412,8 +412,7 @@ function toggleCollection(slug: string) {
             Share your skills
           </h2>
           <p class="mt-2 text-sm text-muted max-w-md mx-auto">
-            Add the tools you use every day, publish them to your Personal Data Server.
-            Anyone can run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add @you</code> to get your setup.
+            Add the tools you use every day, publish them so anyone can run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add @you</code> to get your setup.
           </p>
           <div class="mt-5 flex items-center justify-center gap-3">
             <UButton

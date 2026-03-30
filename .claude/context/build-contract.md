@@ -1,70 +1,67 @@
-# Build Contract: Onboarding + Skills Browse
+# Build Contract: Skill Detail Pages
 
 ## What will be built
 
-### Home page updates
-- Replace "Share your skill set" CTA with "Publish your collection" that opens auth modal
-- Fix color contrast on solid primary buttons (WCAG AA)
-- Add "Skills" nav link to header
-- Add auth button/avatar to header
+### API
+- `server/api/skills/[...slug].get.ts`: fetches skill metadata from the skills sitemap cache, attempts to load the SKILL.md content from GitHub, and cross-references curators whose collections include this skill
 
-### Auth modal (`AuthModal.client.vue`)
-- Bluesky handle input with validation
-- "Connect with Bluesky" button initiating AT Protocol OAuth
-- Connected state showing avatar and handle
-- Disconnect action
-- Loading and error states
+### Pages
+- `app/pages/skills/[...slug].vue`: dedicated detail page for a single skill, showing metadata, install command, curator endorsements, SKILL.md content, and source links
 
-### Server auth (AT Protocol OAuth, adapted from npmx.dev)
-- `modules/oauth.ts` Nuxt module for client URI config
-- `server/plugins/oauth-client.ts` singleton OAuth client
-- `server/utils/atproto/` state store, session store, helpers
-- `server/api/auth/atproto.get.ts` OAuth initiation + callback
-- `server/api/auth/session.get.ts` current session
-- `server/api/auth/session.delete.ts` logout
-- `server/routes/oauth-client-metadata.json.get.ts` client metadata
+### Modifications
+- `app/pages/skills.vue`: grid items become `NuxtLink` elements pointing to `/skills/{owner}/{name}`
 
-### Auth composable (`useAuth.ts`)
-- Reactive user session state
-- Login redirect and logout methods
+## Testable Behaviors
 
-### Skills browse page (`/skills`)
-- Server route fetching skills from skills.sh sitemap
-- Search input with real-time filtering
-- Grid of skill cards showing name, owner, install command
-- Loading skeleton and error states
+### Interaction assertions
+- [C1] GIVEN a skill detail page is loaded, WHEN the user clicks "Copy" on the install command, THEN the clipboard contains the `skilld add {owner}/{name}` string
+- [C2] GIVEN the skills list page at /skills, WHEN the user clicks a skill card, THEN they navigate to /skills/{owner}/{name}
+- [C3] GIVEN a skill detail page with curator endorsements, WHEN the user clicks a curator's name, THEN they navigate to /people/{handle}
+- [C4] GIVEN a skill detail page with a collection link, WHEN the user clicks the collection name, THEN they navigate to /people/{handle}/{slug}
+- [C5] GIVEN a skill detail page, WHEN the user clicks the "View on skills.sh" link, THEN a new tab opens to the skills.sh URL
+- [C6] GIVEN a skill detail page, WHEN the user clicks the "View source" link, THEN a new tab opens to the GitHub repository
+- [C7] GIVEN a skill detail page, WHEN the user clicks the back link, THEN they navigate to /skills
 
-## Testable behaviors
+### State assertions
+- [C8] GIVEN the API is loading, WHEN the page renders, THEN skeleton placeholders are visible with aria-busy="true"
+- [C9] GIVEN the API returns a 404 (skill not found), WHEN the page renders, THEN an error state shows "Couldn't find this skill" with a link back to /skills
+- [C10] GIVEN the API returns a network error, WHEN the page renders, THEN an error state shows with a "Retry" button
+- [C11] GIVEN the skill exists but no curators include it, WHEN the page renders, THEN the curators section shows an empty state: "No curators have added this skill yet."
+- [C12] GIVEN the skill exists but SKILL.md fetch fails, WHEN the page renders, THEN the page still renders all other sections without the content preview
 
-[C1] GIVEN unauthenticated user, WHEN clicking "Publish your collection" CTA, THEN auth modal opens
-[C2] GIVEN auth modal open, WHEN entering valid Bluesky handle and clicking Connect, THEN browser redirects to Bluesky OAuth endpoint
-[C3] GIVEN OAuth callback success, WHEN redirected back, THEN session is set and header shows avatar + handle
-[C4] GIVEN authenticated user, WHEN clicking avatar in header, THEN dropdown shows handle and disconnect option
-[C5] GIVEN auth modal, WHEN submitting empty handle, THEN validation error displayed
-[C6] GIVEN authenticated user, WHEN clicking disconnect, THEN session cleared and UI updates to unauthenticated state
-[C7] GIVEN /skills page, WHEN loaded, THEN skills grid displayed with search input visible
-[C8] GIVEN /skills page, WHEN typing "vue" in search, THEN only skills matching "vue" shown
-[C9] GIVEN /skills data loading, WHEN fetch in progress, THEN loading skeleton visible
-[C10] GIVEN /skills fetch failure, WHEN error occurs, THEN error message with retry button shown
-[C11] GIVEN /skills page at 375px width, THEN single column layout with no horizontal overflow
-[C12] GIVEN /skills page at 768px width, THEN 2-column grid layout
-[C13] GIVEN dark mode active, THEN all new components use semantic tokens (no hardcoded colors)
-[C14] GIVEN keyboard user, WHEN tabbing through auth modal, THEN focus order: handle input, connect button, close button
-[C15] GIVEN SSR request to /skills, THEN HTML contains skill cards before hydration
-[C16] GIVEN header nav on any page, THEN "Skills" link navigates to /skills
+### Responsive assertions
+- [C13] GIVEN a viewport of 375px width, WHEN the skill detail page renders, THEN all content fits without horizontal overflow and the install command block truncates with ellipsis
+- [C14] GIVEN a viewport of 768px width, WHEN the skill detail page renders, THEN the layout uses the max-w-3xl container with appropriate padding
 
-## Design expectations
+### Dark mode assertion
+- [C15] GIVEN dark mode is active, WHEN the skill detail page renders, THEN all surfaces use warm stone backgrounds (oklch 0.14-0.22 range), text is readable at 4.5:1+ contrast, and the install command block uses bg-muted
 
-- Quiet theme: warm stone neutrals, rose accent only on primary CTAs
-- Auth modal: border-driven card with surface-warm background, mono font on inputs/buttons
-- Skills page: same section-label pattern, compact cards, progressive disclosure (click to expand)
-- Header auth: small avatar + mono handle text, ghost variant for sign-in button
+### Accessibility assertion
+- [C16] GIVEN the page is loaded, WHEN a keyboard user tabs through, THEN focus moves in logical order: back link, install copy button, curator links, source links, with visible focus rings
+
+### SSR assertion
+- [C17] GIVEN a request to /skills/harlanzw/nuxt, WHEN the server renders the HTML, THEN the response contains the skill name, owner, and install command in the initial HTML
+
+## Design Expectations
+
+**Theme**: stone (warm editorial, existing design system)
+
+**Design principle applied**: Quiet + Progressive Data Discovery
+
+The page follows the existing collection detail page pattern (`/people/[handle]/[slug].vue`) as the closest structural analog: single-entity detail view with header, metadata, related items, and provenance.
+
+**Layout structure**:
+1. Header section (max-w-3xl): back breadcrumb, skill name in mono text-xl, owner as muted mono link, install command block with copy button
+2. Curators section: section-label "Curators using this skill", list of curator cards linking to their profiles and the specific collection containing this skill
+3. Content section (collapsible, default open): rendered SKILL.md content if available, otherwise a link to view on skills.sh
+4. Source section: external links to skills.sh and GitHub repo
+
+**Visual weight**: quiet, border-driven. Same card and spacing patterns as collection detail. No extra embellishment. Mono font for all chrome, sans-serif only if rendering markdown body content.
 
 ## Out of scope
 
-- Collection creation/editing UI (future phase)
-- Curator profile pages
-- Skill detail pages
-- Real-time sync with Bluesky feeds
-- Production Redis/KV session storage (dev uses file storage)
-- JWK signing keys for confidential OAuth client
+- Editing or creating skills from the detail page
+- Download/install count display (against brand guidelines)
+- Skill versioning or changelog
+- Comments or ratings
+- Related skills recommendations

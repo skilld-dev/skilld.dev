@@ -30,11 +30,16 @@ const searchQuery = ref('')
 const debouncedQuery = refDebounced(searchQuery, 200)
 const showSuggestions = ref(false)
 
-const { data: suggestions } = useFetch<{ items: SitemapSkill[] }>('/api/skills', {
-  query: { q: debouncedQuery, limit: 8 },
-  watch: [debouncedQuery],
-  immediate: false,
-  server: false,
+const suggestions = ref<{ items: SitemapSkill[] } | null>(null)
+
+watch(debouncedQuery, async (q) => {
+  if (q.length < 2) {
+    suggestions.value = null
+    return
+  }
+  suggestions.value = await $fetch<{ items: SitemapSkill[] }>('/api/skills', {
+    query: { q, limit: 8 },
+  })
 })
 
 const filteredSuggestions = computed(() => {
@@ -119,33 +124,6 @@ async function handlePublish() {
   }, 6000)
 }
 
-// Import from CLI
-const importToken = ref('')
-const importing = ref(false)
-const importError = ref('')
-
-async function handleImport() {
-  if (!importToken.value.trim())
-    return
-  importing.value = true
-  importError.value = ''
-  $fetch<{ skills: string[] }>(`/api/collections/import/${importToken.value.trim()}`)
-    .then((data) => {
-      const existing = new Set(skills.value.map(s => s.packageName))
-      for (const name of data.skills) {
-        if (!existing.has(name)) {
-          skills.value.push({ packageName: name })
-          existing.add(name)
-        }
-      }
-      importToken.value = ''
-    })
-    .catch((err: Error) => {
-      importError.value = err.message || 'Failed to import skills'
-    })
-    .finally(() => { importing.value = false })
-}
-
 useSeoMeta({
   title: `Edit skills · @${handle.value}`,
 })
@@ -191,7 +169,7 @@ useSeoMeta({
         </div>
 
         <InlineTip id="edit-skills-intro">
-          Skills resolve by npm package name. Your collection publishes to your Personal Data Server, where you control the data.
+          Search the <a href="https://skills.sh" target="_blank" class="underline underline-offset-2">skills.sh</a> directory to find skills. Your collection publishes to your PDS, where you control the data.
         </InlineTip>
 
         <!-- Success banner -->
@@ -359,49 +337,6 @@ useSeoMeta({
           </p>
         </div>
 
-        <!-- Import from CLI -->
-        <InlineTip
-          id="cli-import"
-          icon="i-lucide-terminal"
-          class="mt-6"
-        >
-          Already using skilld? Run <code class="font-mono">npx skilld upload</code> to generate an import token, then paste it below to import your installed skills.
-        </InlineTip>
-
-        <details class="mt-4 rounded-lg border border-default">
-          <summary class="cursor-pointer px-4 py-3 text-sm font-mono select-none">
-            Import from CLI
-          </summary>
-          <div class="border-t border-default px-4 py-3 space-y-3">
-            <div class="flex gap-2">
-              <UInput
-                v-model="importToken"
-                placeholder="Paste import token"
-                class="flex-1 font-mono"
-                @keydown.enter.prevent="handleImport"
-              />
-              <UButton
-                label="Import"
-                icon="i-lucide-download"
-                color="neutral"
-                variant="outline"
-                size="sm"
-                :loading="importing"
-                @click="handleImport"
-              />
-            </div>
-            <p
-              v-if="importError"
-              class="text-xs text-[var(--ui-color-primary-500)]"
-            >
-              {{ importError }}
-            </p>
-            <p class="text-xs text-muted leading-relaxed">
-              Skills from your CLI will be added to the list above. You can reorder them and add reasons before publishing.
-            </p>
-          </div>
-        </details>
-
         <!-- Error display -->
         <div
           v-if="mutationError"
@@ -422,9 +357,12 @@ useSeoMeta({
             :disabled="!skills.length || (!hasChanges && !!personalCollection)"
             @click="handlePublish"
           />
-          <p class="text-xs text-muted">
-            Stored on your Personal Data Server.
-          </p>
+          <UiTooltip
+            label="Stored on your PDS"
+            title="Personal Data Server"
+            description="Your data is stored on the AT Protocol, not on skilld.dev. You own and control it."
+            size="md"
+          />
         </div>
 
         <!-- Install command preview -->

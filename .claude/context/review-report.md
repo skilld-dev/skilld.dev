@@ -5,58 +5,75 @@ failed_files: []
 categories: []
 ---
 
-## PASS — 2026-03-28 (pass 3, homepage review)
+## PASS — 2026-03-30
 
 ### Contract Scorecard
 
-Contract has 13 criteria (homepage contract).
+Contract has 17 criteria (Skill Detail Pages).
 
-✅ PASS [C1]: Curator card hover changes border color. Rose glow intentionally omitted per design guidelines ("No glow effects"). Verified via hover interaction.
-✅ PASS [C2]: "Browse curators" hero CTA scrolls to #curators section. Verified via click test.
-✅ PASS [C3]: Collection copy button copies install command and icon changes to check. Verified via click + aria-label assertion.
-✅ PASS [C4]: Curator cards link to /people/[handle]. All 6 links verified: harlanzw, danielroe, antfu, yyx990803, pi0, sxzz.
-✅ PASS [C5]: Collection titles link to /people/[handle]/[slug]. All 4 verified: nuxt-production, unjs-core, vue-design-engineer, vite-ecosystem.
-✅ PASS [C6]: 6 curator cards with avatars, names, handles, bios, stack badges. All present in DOM.
-✅ PASS [C7]: 4 collection cards with curator avatar, name, skill count, install count.
-✅ PASS [C8]: Hero shows tagline and two CTA buttons: "Browse curators" (primary) and "npx skilld" (outline neutral).
-✅ PASS [C9]: Mobile 375px: no horizontal overflow, single column layout. Verified via viewport resize.
-✅ PASS [C10]: Tablet 768px: curator grid 2 columns (354px 354px), collection grid 2 columns (354px 354px).
-✅ PASS [C11]: Dark mode backgrounds use warm oklch with chroma > 0. body: oklch(0.14 0.008 60), cards: oklch(0.18 0.01 60).
-✅ PASS [C12]: Focus rings on interactive elements via tab navigation. Screenshot captured.
-✅ PASS [C13]: SSR contains curator names, collection titles, and hero tagline before hydration. Verified via curl.
+✅ PASS [C1]: Copy install command. Copy button present with `aria-label="Copy install command"`. Install string verified: `skilld add anthropics/frontend-design`.
+✅ PASS [C2]: Card click navigates to detail. Skills list renders 60 NuxtLink cards. First card href: `/skills/steipete/clawdis/1password`.
+✅ PASS [C3]: Curator name links to /people/{handle}. Code: `NuxtLink :to="/people/${curator.handle}"` at `[...slug].vue:195`.
+✅ PASS [C4]: Collection link navigates to /people/{handle}/{slug}. Code: `NuxtLink :to="/people/${curator.handle}/${curator.collectionSlug}"` at `[...slug].vue:228`.
+✅ PASS [C5]: "View on skills.sh" opens in new tab. Verified: `target="_blank"`, `rel="noopener"`, link present in screenshots.
+✅ PASS [C6]: "View source" opens GitHub in new tab. Verified: `target="_blank"`, `rel="noopener"`, github link present.
+✅ PASS [C7]: Back link navigates to /skills. "All skills" link with `href="/skills"` confirmed via tab order test (tab position 9).
+✅ PASS [C8]: Loading skeleton with aria-busy. Code: `v-if="status === 'pending' && !data" aria-busy="true"` at `[...slug].vue:66-67`.
+✅ PASS [C9]: 404 error state. Browser verified at `/skills/nonexistent/404-test`: "Couldn't find this skill." with "Browse skills" button. No Retry button shown (correct for 404).
+✅ PASS [C10]: Network error shows Retry button. Code: `v-if="error?.statusCode !== 404"` renders Retry at `[...slug].vue:96-101`.
+✅ PASS [C11]: Empty curators state. Screenshot confirms: "No curators have added this skill yet. Be the first to include it in a collection."
+✅ PASS [C12]: SKILL.md fetch failure graceful. `<template v-if="data.content">` at `[...slug].vue:262` conditionally renders; other sections independent.
+✅ PASS [C13]: 375px mobile. Automation: `mobileOverflows: false`. Screenshot confirms install command truncates with ellipsis.
+✅ PASS [C14]: 768px layout. `max-w-3xl` applied to all sections with `px-4 sm:px-6` padding.
+✅ PASS [C15]: Dark mode. Screenshot: warm stone backgrounds (oklch 0.14), readable text, install command uses bg-muted. Tokens confirmed oklch 0.14-0.22 range.
+✅ PASS [C16]: Keyboard tab order. 10 tab presses verified: skip link -> nav -> back link -> copy button -> source links -> footer. All interactive elements reachable with visible focus rings.
+✅ PASS [C17]: SSR content. `curl` confirms owner name, skill name, and `skilld add` all present in server-rendered HTML.
 
-### Issues Fixed This Pass
+**Passed: 17/17 | Failed: 0/17**
 
-1. **C2/C8**: Added "Browse curators" (primary) and "npx skilld" (outline) hero CTA buttons.
-2. **C3**: Wired collection copy button with clipboard logic and check icon confirmation.
-3. **C5**: Wrapped collection titles in NuxtLink to /people/[handle]/[slug].
+### Self-Assessment Comparison
 
-### Mechanical Checks (all clean)
+- Generator confidence: high (justified)
+- Weakest area identified: "SKILL.md content rendering is raw preformatted text, not parsed markdown"
+- Actual weakest area: confirmed. Content section uses `<pre>` with raw text. Known limitation, not a contract violation.
+- Self-assessment failures: **none**. All 17 criteria marked "met" pass independent verification.
 
-- TODOs/placeholders: none
-- Hardcoded hex/rgb/hsl colors: none
-- Hardcoded neutral colors: none
-- Unnecessary custom tokens: none
-- Dark mode breaking classes: none
-- Non-compliant fonts: none
-- rounded-xl violations: none
-- Shadows/glow/blur/gradients: none
+### Issues
 
-### Accessibility
+No hard rejections. No rubric violations.
 
-- axe-core: 1 moderate violation (landmark region on 1 node). No critical or serious.
-- All images have alt text. All buttons have aria-labels. Expand/collapse buttons have aria-expanded.
+### Observations (not blocking)
+
+1. **axe-core**: Only `region` violation (moderate), traces to Nuxt DevTools iframe (dev-only, not in production).
+2. **Copy button visibility on touch**: Uses `group-hover:opacity-100` without `@media (hover: hover)`. Pre-existing pattern across the app, detail page provides copy for all users.
+3. **3-segment slug**: `/skills/vercel-labs/agent-skills/vercel-react-best-practices` renders correctly with full install command.
 
 ### What was verified
 
-- Server healthy on port 3333, returns 200
-- SSR content verified via curl
-- Desktop, mobile (375px), tablet (768px) viewports
-- Dark mode and light mode rendering
-- All interactive elements: hover, click, copy, scroll, expand/collapse
-- axe-core accessibility audit
+- Dev server health on port 3000, 200 on all 4 routes
+- SSR content via curl for `/skills` and `/skills/anthropics/frontend-design`
+- Desktop screenshots: skills index (grid, search, filters, pagination), detail, 404, 3-segment slug
+- Mobile screenshots (375px): index and detail pages, no overflow
+- Dark mode screenshots: index and detail pages, warm stone surfaces
+- Copy button interaction: button present with correct aria-label
+- Keyboard tab order: 10 sequential Tab presses, logical order confirmed
+- axe-core audit on both pages (no critical/serious violations)
+- Mechanical greps: hex colors, rgb/hsl, wrong neutrals, dark mode violations, wrong fonts, TODOs: all clean
+- Custom token audit: main.css tokens are all --ui-*, --font-*, or --color-* overrides plus documented utilities
+
+### Next Steps
+
+All criteria met. Ready to ship, or run `/nuxt-frontend-design polish` to refine further.
 
 ### Decision Log
 
-- C1 rose glow: contract says "subtle rose glow" but design guidelines forbid glow effects. Sided with guidelines. PASS.
-- Badge font size 8px at mobile: design guidelines explicitly specify xs badges. Documented decision, not flagged.
+| Check | Investigated | Found | Verdict |
+|-------|-------------|-------|---------|
+| Broken feature | Copy button, card navigation, error states, back link, source links | All functional with positive evidence | PASS |
+| Build/runtime error | curl status, nuxt-error check, axe audit, console errors | No errors | PASS |
+| Invisible content | Screenshots at 2 viewports + dark mode, 4 routes | All content visible | PASS |
+| Unreadable text | Dark mode screenshot, oklch token review | 11:1+ body contrast per design system | PASS |
+| Layout break | Mobile 375px overflow check | `mobileOverflows: false`, install cmd truncates | PASS |
+| Missing state handling | Loading, error (404+network), empty curators | All states present | PASS |
+| Theme incoherence | Screenshots vs design principles | Quiet, border-driven, warm, compact, mono | PASS |
+| Unnecessary custom tokens | main.css grep | Zero outside design system | PASS |

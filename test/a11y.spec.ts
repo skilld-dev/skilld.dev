@@ -110,6 +110,7 @@ describe('accessibility: component coverage', () => {
     'BlueskyThread', // Requires async fetch context (useFetch) for thread data
     'CollectionEditor.client', // Client-only editor requires auth and complex form state
     'CuratorLabels', // Simple label display, tested indirectly via CuratorCard
+    'HomepageHowItWorks', // Static content section, tested at page level
     'InlineTip.client', // Client-only component with slot content
     'KeyboardShortcutsModal.client', // Client-only modal requires full app context
     'OgBrand', // OG image component, rendered server-side only

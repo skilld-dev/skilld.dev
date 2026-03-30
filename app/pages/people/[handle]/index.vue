@@ -331,7 +331,7 @@ defineOgImage('Curator.takumi', {
         v-if="collectionsData?.fetchedAt"
         class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 text-xs text-muted"
       >
-        Synced from PDS {{ useTimeAgo(collectionsData.fetchedAt).value }}
+        Synced {{ useTimeAgo(collectionsData.fetchedAt).value }}
       </p>
     </template>
   </div>

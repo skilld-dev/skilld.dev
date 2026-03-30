@@ -98,6 +98,14 @@ Every surface has warm undertone. The accent is coral/rose. The voice is editori
 - Badges: subtle variant, size xs, mono font. Used for stack labels and agent compatibility. xs keeps badges subordinate to content
 - Focus rings: Nuxt UI default ring behavior
 
+### UiTooltip
+Use `UiTooltip` (not `UTooltip`) for any tooltip that needs more than a plain string. Built on `UPopover` in hover mode.
+- **Label mode**: `<UiTooltip label="Stored on your PDS" title="Personal Data Server" description="..." />` renders the label text with a small info icon; hovering the icon shows the rich tooltip
+- **Wrapper mode**: wrap any element in `<UiTooltip title="..." description="...">` to attach a tooltip to it
+- **Sizes**: xs, sm, md (default), lg, xl control max-width
+- **Style**: text-xs font-mono, bg-elevated border-default, pointer-events-none
+- Use `UTooltip` only for simple single-line hints on icon buttons (e.g. "Copy to clipboard")
+
 ### Progressive Disclosure Components
 - **Hover cards**: secondary metadata (version, updated date, source) appears on hover via tooltip or popover. Content is text-xs mono
 - **Collapsible sections**: API changes, type signatures, compatibility matrices default to collapsed. Trigger is a text button with chevron icon
@@ -126,7 +134,10 @@ Every surface has warm undertone. The accent is coral/rose. The voice is editori
 
 > Full voice system, banned language, and messaging framework in `brand-guidelines.md`. Below are UI-specific copy patterns.
 
-- **Button labels**: short verb phrases in mono: "Browse", "Install", "View skills"
+- **Button labels**: short verb phrases in mono: "Browse", "Install", "View skills". Never include "PDS" or "Personal Data Server" in button text. Use action + object: "Publish skills", "Update collection"
+- **CTA patterns**: first action = "Publish [noun]", subsequent updates = "Update [noun]". Keep it about the action, not the storage destination
+- **PDS terminology**: always use the abbreviation "PDS", never spell out "Personal Data Server" in UI copy. When PDS appears in explanatory text, pair it with a `UTooltip` or `<abbr>` so new users can learn the term. The tooltip text is: "Your Personal Data Server stores your data on the AT Protocol. You own and control it."
+- **Storage attribution**: next to publish buttons, show "Stored on your PDS" as muted helper text with an info icon and tooltip. Do not put storage details in the button label itself
 - **Error style**: direct, no fluff: "Couldn't load curators. Check your connection and try again."
 - **Empty states**: acknowledge, explain value, provide action: "No collections yet. Curators bundle their favorite skills into collections you can install with one command."
 - **Data labels**: always label metrics with context, never bare numbers. "12 skills" not "12". "Updated 3d ago" not "Mar 25"
@@ -145,6 +156,8 @@ Every surface has warm undertone. The accent is coral/rose. The voice is editori
 - Large font sizes in UI chrome; reserve large type for page headings only
 - Generous padding "for breathing room"; padding should be structural
 - Showing all available data at once; layer it through progressive disclosure
+- Spelling out "Personal Data Server" in UI copy; always use "PDS" with a tooltip
+- Mentioning PDS or storage location in button labels; buttons describe the action, not the destination
 
 ## Custom Utilities
 

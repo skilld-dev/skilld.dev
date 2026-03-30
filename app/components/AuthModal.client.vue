@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { isValidHandle } from '@atproto/syntax'
 
-const { user, isAuthenticated, isLoading, login, logout } = useAuth()
+const { user, isAuthenticated, login, logout } = useAuth()
 const { stage, allUnlocked, unlockAll } = useOnboarding()
 
+const atHandleRegex = /@/g
 const open = defineModel<boolean>('open', { default: false })
 const handleInput = ref('')
 const error = ref('')
@@ -29,8 +30,8 @@ function handleBlueskySignIn() {
   login('https://bsky.social', window.location.pathname)
 }
 
-function handleCreateAccount() {
-  navigateTo('https://bsky.app', { external: true, open: { target: '_blank' } })
+async function handleCreateAccount() {
+  await navigateTo('https://bsky.app', { external: true, open: { target: '_blank' } })
 }
 
 function handleDisconnect() {
@@ -41,7 +42,7 @@ function handleDisconnect() {
 watch(handleInput, (val) => {
   if (error.value)
     error.value = ''
-  const normalized = val.trim().toLowerCase().replace(/@/g, '')
+  const normalized = val.trim().toLowerCase().replace(atHandleRegex, '')
   if (normalized !== val)
     handleInput.value = normalized
 })
@@ -173,7 +174,7 @@ watch(handleInput, (val) => {
                 skilld.dev is built on the <a href="https://atproto.com" target="_blank" class="text-default hover:text-primary transition-colors">AT Protocol</a>,
                 the same open network that powers <a href="https://bsky.app" target="_blank" class="text-default hover:text-primary transition-colors">Bluesky</a>
                 and <a href="https://tangled.org" target="_blank" class="text-default hover:text-primary transition-colors">Tangled</a>.
-                Your identity and data live on your Personal Data Server, not on skilld.dev.
+                Your identity and data live on your <abbr title="Personal Data Server" class="no-underline cursor-help">PDS</abbr>, not on skilld.dev.
               </p>
             </details>
 

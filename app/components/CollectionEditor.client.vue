@@ -285,13 +285,16 @@ async function handleSubmit() {
     <div class="flex items-center gap-3 pt-2">
       <UButton
         type="submit"
-        :label="isEdit ? 'Update collection' : 'Publish to your PDS'"
+        :label="isEdit ? 'Update collection' : 'Publish collection'"
         icon="i-lucide-upload"
         :loading="publishing"
       />
-      <p class="text-xs text-muted">
-        Stored on your Personal Data Server via the AT Protocol.
-      </p>
+      <UiTooltip
+        label="Stored on your PDS"
+        title="Personal Data Server"
+        description="Your data is stored on the AT Protocol, not on skilld.dev. You own and control it."
+        size="md"
+      />
     </div>
   </form>
 </template>

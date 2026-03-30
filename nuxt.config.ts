@@ -15,10 +15,10 @@ export default defineNuxtConfig({
 
   scripts: {
     registry: {
-      cloudflareWebAnalytics: {
-        token: 'fefd4b7eafe04d5f81621e43e5d5ef80',
-        trigger: 'server',
-      },
+      cloudflareWebAnalytics: [
+        { token: 'fefd4b7eafe04d5f81621e43e5d5ef80' },
+        { trigger: 'server' },
+      ],
     },
   },
 

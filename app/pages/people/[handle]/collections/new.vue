@@ -8,7 +8,7 @@ const isAuthorized = computed(() => isAuthenticated.value && user.value?.handle 
 
 useSeoMeta({
   title: 'New Collection',
-  description: 'Create and publish a new skill collection to your Personal Data Server.',
+  description: 'Create and publish a new skill collection.',
 })
 
 async function onPublished({ rkey }: { uri: string, rkey: string }) {

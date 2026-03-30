@@ -1,14 +1,14 @@
 {
   "schema_version": 2,
-  "created": "2026-03-28T13:00:00Z",
-  "git_hash": "1c18fdefcc7d7b23f86ee100045d24b3d0d07635",
-  "dev_port": 3333,
-  "pages_changed": ["app/pages/index.vue", "app/pages/skills.vue"],
-  "components_created": ["app/components/AuthModal.client.vue"],
-  "routes_to_test": ["/", "/skills"],
-  "design_system_changes": true,
+  "created": "2026-03-29T07:00:00Z",
+  "git_hash": "ba8b373546f969042045223ca999298772fefb9d",
+  "dev_port": 3000,
+  "pages_changed": ["app/pages/skills/index.vue", "app/pages/skills/[...slug].vue"],
+  "components_created": [],
+  "routes_to_test": ["/skills", "/skills/anthropics/frontend-design", "/skills/vercel-labs/agent-skills/vercel-react-best-practices", "/skills/nonexistent/404-test"],
+  "design_system_changes": false,
   "design_guidelines_path": ".claude/context/design-guidelines.md",
-  "theme_name": "quiet",
+  "theme_name": "stone",
   "contract_path": ".claude/context/build-contract.md",
   "contract_criteria_status": {
     "C1": "met",
@@ -21,30 +21,28 @@
     "C8": "met",
     "C9": "met",
     "C10": "met",
-    "C11": "met (fixed: nav links hidden on mobile, mobile menu via #body slot)",
+    "C11": "met",
     "C12": "met",
     "C13": "met",
-    "C14": "met (fixed: close button added with aria-label)",
+    "C14": "met",
     "C15": "met",
-    "C16": "met"
+    "C16": "met",
+    "C17": "met"
   },
   "self_assessment": {
-    "confidence": "medium",
-    "weakest_area": "OAuth flow untested end-to-end (requires live PDS interaction)",
-    "hardest_decision": "Used absolute positioning for modal close button to keep it last in tab order (after form fields) while visually at top-right"
+    "confidence": "high",
+    "weakest_area": "SKILL.md content rendering is raw preformatted text, not parsed markdown",
+    "hardest_decision": "Using conditional aria-labelledby/aria-label to handle missing heading in error/loading states"
   },
   "has_client_animations": false,
   "known_limitations": [
-    "OAuth sessions use in-memory storage in dev (lost on server restart)",
-    "No JWK signing keys (public client only, production needs confidential client)",
-    "Skills data fetched from skills.sh sitemap on first request, cached 1 hour",
-    "No collection creation UI yet (out of scope)"
+    "SKILL.md content rendered as raw text, not parsed markdown",
+    "Curator endorsements depend on the curator index having entries; empty on fresh installs",
+    "GitHub raw URL pattern assumes SKILL.md lives at repo root or in a name/ subdirectory"
   ],
   "next_steps": [
-    "Test OAuth flow with a real Bluesky account",
-    "Add production session storage (Redis/KV)",
-    "Build collection creation UI for authenticated users",
-    "Add curator profile pages"
+    "Add markdown rendering for SKILL.md content",
+    "Add OG image generation for skill detail pages"
   ],
   "dark_mode_relevant": true
 }
