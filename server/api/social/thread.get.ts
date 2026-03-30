@@ -71,10 +71,17 @@ export default defineEventHandler(async (event): Promise<ThreadResponse> => {
     return cached
 
   const agent = getPublicAgent()
-  const res = await agent.app.bsky.feed.getPostThread({ uri, depth: 10 })
-    .catch(() => null)
 
-  if (!res || res.data.thread.$type !== 'app.bsky.feed.defs#threadViewPost')
+  let res
+  try {
+    res = await agent.app.bsky.feed.getPostThread({ uri, depth: 10 })
+  }
+  catch (err) {
+    console.warn('[thread] Failed to fetch post thread:', uri, err)
+    throw createError({ statusCode: 404, message: 'Thread not found' })
+  }
+
+  if (res.data.thread.$type !== 'app.bsky.feed.defs#threadViewPost')
     throw createError({ statusCode: 404, message: 'Thread not found' })
 
   const thread = res.data.thread as any

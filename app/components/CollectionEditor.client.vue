@@ -83,16 +83,20 @@ async function handleSubmit() {
   if (validate())
     return
 
-  const result = await publish({
-    name: state.name,
-    slug: state.slug,
-    description: state.description,
-    skills: state.skills.map(packageName => ({ packageName })),
-    stacks: state.stacks,
-  }, { shareOnBluesky: state.shareOnBluesky }).catch(() => null)
-
-  if (!result)
+  let result
+  try {
+    result = await publish({
+      name: state.name,
+      slug: state.slug,
+      description: state.description,
+      skills: state.skills.map(packageName => ({ packageName })),
+      stacks: state.stacks,
+    }, { shareOnBluesky: state.shareOnBluesky })
+  }
+  catch {
+    // error.value is already set by useCollectionMutations
     return
+  }
 
   emit('published', { uri: result.uri, rkey: state.slug, postUri: result.postUri })
 }

@@ -4,7 +4,13 @@ export default defineEventHandler(async (event) => {
   const db = getDB(event)
 
   // Trigger stale profile refresh in the background (non-blocking)
-  refreshStaleCurators(db).catch(() => {})
+  refreshStaleCurators(db).then(
+    (count) => {
+      if (count)
+        console.info(`[curators] Refreshed ${count} stale profiles`)
+    },
+    (err) => { console.warn('[curators] Failed to refresh stale profiles:', err) },
+  )
 
   const curators = await getAllCurators(db)
 

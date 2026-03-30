@@ -26,10 +26,14 @@ export default defineEventHandler(async (event) => {
     return cached
 
   const agent = getPublicAgent()
-  const res = await agent.getProfile({ actor: handle }).catch(() => null)
-
-  if (!res?.data)
+  let res
+  try {
+    res = await agent.getProfile({ actor: handle })
+  }
+  catch (err) {
+    console.warn(`[resolve] Failed to resolve profile for @${handle}:`, err)
     throw createError({ statusCode: 404, message: `Profile not found for @${handle}` })
+  }
 
   if (isProfileFlagged(res.data))
     throw createError({ statusCode: 403, message: 'This account is not available' })

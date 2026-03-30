@@ -250,10 +250,8 @@ export async function refreshStaleCurators(db: D1Database): Promise<number> {
   const agent = getPublicAgent()
   let refreshed = 0
 
-  await Promise.all(stale.map(async (curator) => {
-    const profile = await agent.getProfile({ actor: curator.did }).catch(() => null)
-    if (!profile?.data)
-      return
+  const results = await Promise.allSettled(stale.map(async (curator) => {
+    const profile = await agent.getProfile({ actor: curator.did })
 
     if (isProfileFlagged(profile.data)) {
       await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
@@ -273,6 +271,11 @@ export async function refreshStaleCurators(db: D1Database): Promise<number> {
     ).run()
     refreshed++
   }))
+
+  for (const result of results) {
+    if (result.status === 'rejected')
+      console.warn('[refreshStaleCurators] Failed to refresh curator:', result.reason)
+  }
 
   return refreshed
 }

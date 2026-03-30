@@ -107,10 +107,16 @@ function decodeOAuthState(event: Parameters<typeof getCookie>[0], state: string 
 
 async function getMiniProfile(did: string) {
   const agent = new Agent('https://public.api.bsky.app')
-  const res = await agent.getProfile({ actor: did }).catch(() => null)
 
-  return {
-    handle: res?.data.handle ?? did,
-    avatar: res?.data.avatar,
+  try {
+    const res = await agent.getProfile({ actor: did })
+    return {
+      handle: res.data.handle ?? did,
+      avatar: res.data.avatar,
+    }
+  }
+  catch (err) {
+    console.warn('[auth] Failed to fetch profile for', did, err)
+    return { handle: did, avatar: undefined }
   }
 }

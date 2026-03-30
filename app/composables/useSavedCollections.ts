@@ -45,13 +45,16 @@ export const useSavedCollections = createSharedComposable(() => {
       createdAt: new Date().toISOString(),
     })
 
-    await $fetch('/api/collections/saves', {
-      method: 'PUT',
-      body: { subject },
-    }).catch(() => {
-      // Rollback on failure
+    try {
+      await $fetch('/api/collections/saves', {
+        method: 'PUT',
+        body: { subject },
+      })
+    }
+    catch (err) {
+      console.warn('[saves] Failed to save collection:', err)
       data.value.saves = data.value.saves.filter(s => s.subject.uri !== subject.uri)
-    })
+    }
 
     await refresh()
   }
@@ -62,13 +65,16 @@ export const useSavedCollections = createSharedComposable(() => {
     // Optimistic remove
     data.value.saves = data.value.saves.filter(s => s.subject.uri !== subjectUri)
 
-    await $fetch('/api/collections/saves', {
-      method: 'DELETE',
-      body: { subjectUri },
-    }).catch(() => {
-      // Rollback on failure
+    try {
+      await $fetch('/api/collections/saves', {
+        method: 'DELETE',
+        body: { subjectUri },
+      })
+    }
+    catch (err) {
+      console.warn('[saves] Failed to unsave collection:', err)
       data.value.saves = prev
-    })
+    }
   }
 
   return { saves: data, isSaved, save, unsave, refresh, isLoading: computed(() => status.value === 'pending') }

@@ -32,7 +32,10 @@ export default defineEventHandler(async (event) => {
 
   // Fetch SKILL.md and curator endorsements in parallel
   const [content, curators] = await Promise.all([
-    $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => null),
+    $fetch<string>(rawUrl, { responseType: 'text' }).catch((err) => {
+      console.warn(`[skills] Failed to fetch SKILL.md from ${rawUrl}:`, err)
+      return null
+    }),
     getEndorsementsForSkill(getDB(event), skill.name),
   ])
 

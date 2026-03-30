@@ -14,20 +14,26 @@ export default defineEventHandler(async (event) => {
   // Check if record exists to preserve createdAt and postRef
   let existingCreatedAt: string | undefined
   let existingPostRef: PostReference | undefined
-  const isUpdate = !!(await agent.com.atproto.repo.getRecord({
-    repo: did,
-    collection: COLLECTION_NSID,
-    rkey: input.slug,
-  }).then((r) => {
-    const val = r.data.value as Record<string, unknown>
+  let isUpdate = false
+
+  try {
+    const existing = await agent.com.atproto.repo.getRecord({
+      repo: did,
+      collection: COLLECTION_NSID,
+      rkey: input.slug,
+    })
+    isUpdate = true
+    const val = existing.data.value as Record<string, unknown>
     existingCreatedAt = val.createdAt as string
     if (val.postRef && typeof val.postRef === 'object') {
       const ref = val.postRef as Record<string, unknown>
       if (typeof ref.uri === 'string' && typeof ref.cid === 'string')
         existingPostRef = { uri: ref.uri, cid: ref.cid }
     }
-    return r
-  }).catch(() => null))
+  }
+  catch {
+    // Record doesn't exist yet, this is a new collection
+  }
 
   // Build initial record (postRef added after post creation if needed)
   const record = toCollectionRecord(input, {
@@ -36,53 +42,67 @@ export default defineEventHandler(async (event) => {
   })
 
   // Fetch profile for Bluesky post URL
-  const profile = await agent.getProfile({ actor: did }).catch(() => null)
+  let handle = did
+  try {
+    const profile = await agent.getProfile({ actor: did })
+    handle = profile.data.handle ?? did
+  }
+  catch (err) {
+    console.warn('[collections:put] Failed to fetch profile for post URL:', err)
+  }
 
   // Post to Bluesky: new collection gets a fresh post, updates reply to the original
   let postRef: PostReference | undefined
   if (shareOnBluesky) {
-    const handle = profile?.data.handle ?? did
     const collectionUrl = `${clientUri}/people/${handle}/${input.slug}`
     const skillCount = input.skills.length
 
     if (isUpdate && existingPostRef) {
       // Reply to the original post with an update
       const text = `Updated "${input.name}" on skilld.dev. Now ${skillCount} skill${skillCount === 1 ? '' : 's'}.\n\n${collectionUrl}`
-      await agent.post({
-        text,
-        reply: {
-          root: { uri: existingPostRef.uri, cid: existingPostRef.cid },
-          parent: { uri: existingPostRef.uri, cid: existingPostRef.cid },
-        },
-        embed: {
-          $type: 'app.bsky.embed.external',
-          external: {
-            uri: collectionUrl,
-            title: input.name,
-            description: input.description || `A collection of ${skillCount} curated agent skills.`,
+      try {
+        await agent.post({
+          text,
+          reply: {
+            root: { uri: existingPostRef.uri, cid: existingPostRef.cid },
+            parent: { uri: existingPostRef.uri, cid: existingPostRef.cid },
           },
-        },
-      }).catch(() => null)
+          embed: {
+            $type: 'app.bsky.embed.external',
+            external: {
+              uri: collectionUrl,
+              title: input.name,
+              description: input.description || `A collection of ${skillCount} curated agent skills.`,
+            },
+          },
+        })
+      }
+      catch (err) {
+        console.warn('[collections:put] Failed to post Bluesky update reply:', err)
+      }
       // Keep original postRef
       postRef = existingPostRef
     }
     else {
       // New post for new collection
       const text = `Published "${input.name}" on skilld.dev. ${skillCount} skill${skillCount === 1 ? '' : 's'} you can install with one command.\n\n${collectionUrl}`
-      const post = await agent.post({
-        text,
-        embed: {
-          $type: 'app.bsky.embed.external',
-          external: {
-            uri: collectionUrl,
-            title: input.name,
-            description: input.description || `A collection of ${skillCount} curated agent skills.`,
+      try {
+        const post = await agent.post({
+          text,
+          embed: {
+            $type: 'app.bsky.embed.external',
+            external: {
+              uri: collectionUrl,
+              title: input.name,
+              description: input.description || `A collection of ${skillCount} curated agent skills.`,
+            },
           },
-        },
-      }).catch(() => null)
-
-      if (post)
+        })
         postRef = { uri: post.uri, cid: post.cid }
+      }
+      catch (err) {
+        console.warn('[collections:put] Failed to post to Bluesky:', err)
+      }
     }
   }
 

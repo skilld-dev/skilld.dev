@@ -11,7 +11,14 @@ export async function getAuthenticatedAgent(event: H3Event): Promise<{ agent: Ag
   if (!did)
     throw createError({ statusCode: 401, message: 'Sign in to continue.' })
 
-  const oauthSession = await event.context.oauthClient.restore(did).catch(() => null)
+  let oauthSession
+  try {
+    oauthSession = await event.context.oauthClient.restore(did)
+  }
+  catch (err) {
+    console.warn('[auth] Failed to restore OAuth session for', did, err)
+    throw createError({ statusCode: 401, message: 'Your session has expired. Please sign in again.' })
+  }
   if (!oauthSession)
     throw createError({ statusCode: 401, message: 'Your session has expired. Please sign in again.' })
 
