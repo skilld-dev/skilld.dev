@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { CollectionRecord } from '../../server/utils/atproto/lexicons/collection'
 
-const { existing } = defineProps<{
+const { existing, initialSkills } = defineProps<{
   existing?: { rkey: string, record: CollectionRecord }
+  initialSkills?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -21,7 +22,7 @@ const state = reactive({
   slug: existing?.rkey ?? '',
   description: existing?.record.description ?? '',
   skillInput: '',
-  skills: existing?.record.skills.map(s => s.packageName) ?? [] as string[],
+  skills: existing?.record.skills.map(s => s.packageName) ?? initialSkills ?? [] as string[],
   stackInput: '',
   stacks: existing?.record.stacks ?? [] as string[],
   shareOnBluesky: !existing,

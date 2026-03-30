@@ -13,6 +13,12 @@ const { data, status, error, refresh } = useFetch(
 
 const { copy, copied } = useClipboard()
 
+const packageName = computed(() => {
+  if (!data.value)
+    return ''
+  return data.value.name
+})
+
 const installCmd = computed(() => {
   if (!data.value)
     return ''
@@ -161,6 +167,7 @@ defineOgImage('Skill.takumi', {
             color="neutral"
             variant="ghost"
           />
+          <AddToCollection :package-name="packageName" />
         </div>
       </template>
     </section>

@@ -3,6 +3,11 @@ const route = useRoute()
 const handle = computed(() => route.params.handle as string)
 const { user, isAuthenticated } = useAuth()
 
+const initialSkills = computed(() => {
+  const skill = route.query.skill
+  return skill ? [String(skill)] : undefined
+})
+
 // Guard: must be authenticated and viewing own profile
 const isAuthorized = computed(() => isAuthenticated.value && user.value?.handle === handle.value)
 
@@ -70,7 +75,10 @@ async function onPublished({ rkey }: { uri: string, rkey: string }) {
         </p>
 
         <div class="mt-8">
-          <CollectionEditor @published="onPublished" />
+          <CollectionEditor
+            :initial-skills="initialSkills"
+            @published="onPublished"
+          />
         </div>
       </template>
     </section>
