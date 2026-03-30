@@ -45,6 +45,7 @@ export async function getPdsAgent(did: string): Promise<Agent> {
     did.startsWith('did:plc:')
       ? `https://plc.directory/${did}`
       : `https://${did.replace('did:web:', '')}/.well-known/did.json`,
+    { responseType: 'json' },
   )
 
   const pds = res.service?.find(s => s.id === '#atproto_pds')
