@@ -61,7 +61,7 @@ export default defineNuxtConfig({
         name: 'skilld-dev',
         compatibility_flags: ['nodejs_compat', 'no_nodejs_compat_v2'],
         d1_databases: [
-          { binding: 'DB', database_name: 'skilld-db', database_id: process.env.D1_DATABASE_ID || 'local' },
+          { binding: 'DB', database_name: 'skilld-db', database_id: 'a5e53f35-f5e5-4987-8c67-c0175addc7cc' },
         ],
         durable_objects: {
           bindings: [
