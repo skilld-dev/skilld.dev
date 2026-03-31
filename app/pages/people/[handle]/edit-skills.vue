@@ -179,9 +179,8 @@ async function handlePublish() {
   if (!skills.value.length)
     return
 
-  let result
   try {
-    result = await publish({
+    await publish({
       name: 'My Skills',
       slug: PERSONAL_COLLECTION_SLUG,
       description: `Skills curated by @${handle.value}`,

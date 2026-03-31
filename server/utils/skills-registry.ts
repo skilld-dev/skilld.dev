@@ -1,6 +1,8 @@
 import type { H3Event } from 'h3'
 import { getDB } from './db'
 
+const WHITESPACE_RE = /\s+/
+
 export interface RegistrySkill {
   name: string
   owner: string
@@ -56,13 +58,11 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   const params: (string | number)[] = []
 
   // FTS search
-  let usesFts = false
   if (search) {
     // FTS5 match with prefix search
-    const ftsQuery = search.split(/\s+/).map(t => `"${t}"*`).join(' ')
+    const ftsQuery = search.split(WHITESPACE_RE).map(t => `"${t}"*`).join(' ')
     conditions.push('skills.rowid IN (SELECT rowid FROM skills_fts WHERE skills_fts MATCH ?)')
     params.push(ftsQuery)
-    usesFts = true
   }
 
   if (owner) {

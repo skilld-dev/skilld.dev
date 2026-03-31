@@ -1,3 +1,8 @@
+const SITE_PATH_RE = /sites\/nuxtseo\.com\/(.+)/
+const FILE_REF_RE = /file: (.+)/g
+const VUE_COMPONENT_TRACE_RE = /\s*at <[A-Z][^>]*>\s*/g
+const EXCESS_NEWLINES_RE = /\n{3,}/g
+
 export default defineNuxtPlugin((nuxtApp) => {
   if (!import.meta.dev)
     return
@@ -110,7 +115,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   ])
 
   function relPath(file: string): string {
-    return file.match(/sites\/nuxtseo\.com\/(.+)/)?.[1] || file
+    return file.match(SITE_PATH_RE)?.[1] || file
   }
 
   // Walk the internal component tree via ComponentPublicInstance.$
@@ -186,14 +191,14 @@ export default defineNuxtPlugin((nuxtApp) => {
     const pageComponent = matched?.components?.default as any
     if (pageComponent?.__file) {
       const file = pageComponent.__file
-      const rel = file.match(/sites\/nuxtseo\.com\/(.+)/)?.[1] || file
+      const rel = file.match(SITE_PATH_RE)?.[1] || file
       lines.push(`- Page component: ${rel}`)
     }
 
     // Collect all unique files referenced in issues for quick access
     const fileRefs = new Set<string>()
     for (const msg of [...errors, ...warnings]) {
-      const fileMatch = msg.match(/file: (.+)/g)
+      const fileMatch = msg.match(FILE_REF_RE)
       if (fileMatch)
         fileMatch.forEach(f => fileRefs.add(f.replace('file: ', '').trim()))
     }
@@ -330,8 +335,8 @@ export default defineNuxtPlugin((nuxtApp) => {
     const raw = args.map(a => typeof a === 'string' ? a : a instanceof Error ? (a.stack || a.message) : String(a)).join(' ')
     // Clean: strip Vue component tree traces from any source
     const cleaned = raw
-      .replace(/\s*at <[A-Z][^>]*>\s*/g, '')
-      .replace(/\n{3,}/g, '\n\n')
+      .replace(VUE_COMPONENT_TRACE_RE, '')
+      .replace(EXCESS_NEWLINES_RE, '\n\n')
       .trim()
     if (cleaned)
       addIssue(errors, cleaned)

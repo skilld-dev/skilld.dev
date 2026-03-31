@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
   refreshStaleCurators(db).then(
     (counts) => {
       if (counts.refreshed)
-        console.info(`[curators] Refreshed ${counts.refreshed} stale profiles`)
+        console.warn(`[curators] Refreshed ${counts.refreshed} stale profiles`)
     },
     (err) => { console.warn('[curators] Failed to refresh stale profiles:', err) },
   )

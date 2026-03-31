@@ -21,7 +21,8 @@ interface Registry {
 const raw = readFileSync(resolve(import.meta.dirname!, '../server/data/skills-registry.json'), 'utf-8')
 const registry: Registry = JSON.parse(raw)
 
-const escape = (s: string) => s.replace(/'/g, '\'\'')
+const SINGLE_QUOTE_RE = /'/g
+const escape = (s: string) => s.replace(SINGLE_QUOTE_RE, '\'\'')
 
 const BATCH = 500
 const rows = registry.skills.map(([name, sourceIdx, displayName, installs]) => {
