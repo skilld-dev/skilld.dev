@@ -1,5 +1,5 @@
 import { getAuthenticatedAgent } from '../../../utils/atproto/agent'
-import { bustCollectionsCache, syncCuratorAfterChange } from '../../../utils/atproto/collections'
+import { bustCollectionsCache, bustHomepageCache, syncCuratorAfterChange } from '../../../utils/atproto/collections'
 import { COLLECTION_NSID } from '../../../utils/atproto/lexicons/collection'
 
 /**
@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
 
   await bustCollectionsCache(did)
   await syncCuratorAfterChange(getDB(event), agent, did)
+  await bustHomepageCache()
 
   return { deleted: true }
 })

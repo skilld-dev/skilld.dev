@@ -2,7 +2,7 @@ import type { PostReference } from '../../utils/atproto/lexicons/collection'
 // @ts-expect-error virtual file from oauth module
 import { clientUri } from '#oauth/config'
 import { getAuthenticatedAgent } from '../../utils/atproto/agent'
-import { bustCollectionsCache, syncCuratorAfterChange } from '../../utils/atproto/collections'
+import { bustCollectionsCache, bustHomepageCache, syncCuratorAfterChange } from '../../utils/atproto/collections'
 import { COLLECTION_NSID, toCollectionRecord, validateCollectionInput } from '../../utils/atproto/lexicons/collection'
 
 export default defineEventHandler(async (event) => {
@@ -119,6 +119,7 @@ export default defineEventHandler(async (event) => {
 
   await bustCollectionsCache(did)
   await syncCuratorAfterChange(getDB(event), agent, did)
+  await bustHomepageCache()
 
   return {
     uri: result.data.uri,

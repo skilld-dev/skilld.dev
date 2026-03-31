@@ -69,6 +69,19 @@ export async function bustCollectionsCache(did: string) {
   await useStorage('cache').removeItem(`${CACHE_PREFIX}:${did}`)
 }
 
+/** Bust the homepage API cache and Nitro's SWR route cache for /. */
+export async function bustHomepageCache() {
+  const cache = useStorage('cache')
+  await cache.removeItem('homepage:data')
+  // Clear Nitro's SWR cached response for the index route
+  const handlerKeys = await cache.getKeys('nitro:handlers')
+  await Promise.all(
+    handlerKeys
+      .filter(k => k.includes('index') || k.includes('__'))
+      .map(k => cache.removeItem(k)),
+  )
+}
+
 /**
  * Sync curator index after a collection change (create, update, or delete).
  * Fetches profile + remaining collection count, then upserts or removes the curator.
@@ -80,7 +93,14 @@ export async function syncCuratorAfterChange(db: D1Database, agent: Agent, did: 
   ])
 
   const profile = profileRes.status === 'fulfilled' ? profileRes.value : null
-  const count = collections.status === 'fulfilled' ? collections.value.length : 0
+
+  // Never treat a failed fetch as zero collections — skip the update entirely
+  if (collections.status === 'rejected') {
+    console.warn(`[syncCuratorAfterChange] Collection fetch failed for ${did}, skipping:`, collections.reason)
+    return { handle: profile?.data.handle ?? did, collectionCount: -1 }
+  }
+
+  const count = collections.value.length
 
   if (count > 0) {
     await upsertCurator(db, {

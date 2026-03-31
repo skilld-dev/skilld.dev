@@ -108,7 +108,7 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    '/': { prerender: true },
+    '/': { swr: 300 },
   },
   future: {
     compatibilityVersion: 5,

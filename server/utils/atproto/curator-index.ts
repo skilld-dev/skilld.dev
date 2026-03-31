@@ -198,10 +198,22 @@ async function syncCurator(
   const profile = profileRes.status === 'fulfilled' ? profileRes.value : null
   const count = collectionsRes.value.length
 
-  // Remove curators with no collections or flagged profiles
-  if (count === 0 || (profile?.data && isProfileFlagged(profile.data))) {
+  // Remove flagged profiles immediately
+  if (profile?.data && isProfileFlagged(profile.data)) {
     await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
     return 'removed'
+  }
+
+  // If AT Protocol returns 0 but curator previously had collections, skip.
+  // PDS outages or rate limits can return empty success responses.
+  // Only remove if the curator was already at 0 (confirmed empty).
+  if (count === 0) {
+    if (curator.collectionCount === 0) {
+      await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
+      return 'removed'
+    }
+    console.warn(`[syncCurator] ${curator.did} returned 0 collections but had ${curator.collectionCount}, skipping removal`)
+    return 'skipped'
   }
 
   const labels = computeLabels({
