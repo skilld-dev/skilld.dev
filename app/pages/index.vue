@@ -52,61 +52,64 @@ function toggleCollection(slug: string) {
 <template>
   <div>
     <!-- Hero -->
-    <section
-      class="mx-auto max-w-5xl px-4 sm:px-6 pt-16 pb-10 md:pt-24 md:pb-14"
-      aria-labelledby="hero-heading"
-    >
-      <div class="max-w-2xl">
-        <h1
-          id="hero-heading"
-          class="font-mono text-2xl sm:text-3xl font-medium tracking-tight"
-        >
-          Curated agent skills from trusted open-source developers
-        </h1>
-        <p class="mt-3 text-sm text-muted max-w-lg leading-relaxed">
-          Developers curate the skills that power their workflow.
-          Follow curators, install collections, keep your agent current.
-        </p>
+    <div class="relative">
+      <NoiseField />
+      <section
+        class="mx-auto max-w-5xl px-4 sm:px-6 pt-16 pb-10 md:pt-24 md:pb-14"
+        aria-labelledby="hero-heading"
+      >
+        <div class="max-w-2xl">
+          <h1
+            id="hero-heading"
+            class="font-mono text-2xl sm:text-3xl font-medium tracking-tight"
+          >
+            Curated agent skills from trusted open-source developers
+          </h1>
+          <p class="mt-3 text-sm text-muted max-w-lg leading-relaxed">
+            Developers curate the skills that power their workflow.
+            Follow curators, install collections, keep your agent current.
+          </p>
 
-        <div class="mt-6 flex flex-wrap items-center gap-3">
-          <UButton
-            to="/people"
-            label="Browse curators"
-            icon="i-lucide-users"
-            size="sm"
-          />
-          <UButton
-            to="/skills"
-            label="Browse skills"
-            icon="i-lucide-search"
-            size="sm"
-            color="neutral"
-            variant="outline"
-          />
+          <div class="mt-6 flex flex-wrap items-center gap-3">
+            <UButton
+              to="/people"
+              label="Browse curators"
+              icon="i-lucide-users"
+              size="sm"
+            />
+            <UButton
+              to="/skills"
+              label="Browse skills"
+              icon="i-lucide-search"
+              size="sm"
+              color="neutral"
+              variant="outline"
+            />
+          </div>
         </div>
-      </div>
 
-      <dl class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div class="data-label">
-          <dt class="sr-only">
-            Curators
-          </dt>
-          <dd>{{ stats.curators }} curators</dd>
-        </div>
-        <div class="data-label">
-          <dt class="sr-only">
-            Collections
-          </dt>
-          <dd>{{ stats.collections }} collections</dd>
-        </div>
-        <div class="data-label">
-          <dt class="sr-only">
-            Skills
-          </dt>
-          <dd>{{ stats.skills }} skills</dd>
-        </div>
-      </dl>
-    </section>
+        <dl class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div class="data-label">
+            <dt class="sr-only">
+              Curators
+            </dt>
+            <dd>{{ stats.curators }} curators</dd>
+          </div>
+          <div class="data-label">
+            <dt class="sr-only">
+              Collections
+            </dt>
+            <dd>{{ stats.collections }} collections</dd>
+          </div>
+          <div class="data-label">
+            <dt class="sr-only">
+              Skills
+            </dt>
+            <dd>{{ stats.skills }} skills</dd>
+          </div>
+        </dl>
+      </section>
+    </div>
 
     <!-- Curators you follow (authenticated only) -->
     <template v-if="followingData?.curators.length">

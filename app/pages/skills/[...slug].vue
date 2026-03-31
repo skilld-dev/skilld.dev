@@ -9,7 +9,19 @@ const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch(
   () => `/api/skills/${slug.value}`,
   { watch: [slug], lazy: !isBot.value },
-) as ReturnType<typeof useFetch<{ content: string | null, curators: { did: string, handle: string, displayName?: string, avatar?: string, collectionName: string, collectionSlug: string, reason?: string }[], url: string, repo: string, owner: string, name: string, githubUrl: string }>>
+) as ReturnType<typeof useFetch<{
+  content: string | null
+  curators: { did: string, handle: string, displayName?: string, avatar?: string, collectionName: string, collectionSlug: string, reason?: string }[]
+  url: string
+  repo: string
+  owner: string
+  name: string
+  githubUrl: string
+  description: string | null
+  stars: number
+  forks: number
+  pushedAt: string | null
+}>>
 
 const { copy, copied } = useClipboard()
 
@@ -29,10 +41,13 @@ const installCmd = computed(() => {
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
 const skillsShUrl = computed(() => data.value?.url ?? '')
 
+const pushedAtDate = computed(() => new Date(data.value?.pushedAt || 0))
+const pushedAtAgo = useTimeAgo(pushedAtDate)
+
 useSeoMeta({
   title: () => data.value ? `${data.value.name} by ${data.value.owner}` : 'Skill',
   description: () => data.value
-    ? `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
+    ? data.value.description || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
     : 'View skill details on skilld.',
 })
 
@@ -74,6 +89,12 @@ defineOgImage('Skill.takumi', {
       >
         <USkeleton class="h-6 w-2/3" />
         <USkeleton class="mt-2 h-4 w-1/3" />
+        <USkeleton class="mt-3 h-4 w-full max-w-md" />
+        <div class="mt-4 flex items-center gap-4">
+          <USkeleton class="h-3.5 w-16" />
+          <USkeleton class="h-3.5 w-12" />
+          <USkeleton class="h-3.5 w-24" />
+        </div>
         <USkeleton class="mt-6 h-10 w-full" />
       </div>
 
@@ -130,6 +151,54 @@ defineOgImage('Skill.takumi', {
           </p>
         </div>
 
+        <!-- Description from GitHub -->
+        <p
+          v-if="data.description"
+          class="mt-3 text-sm text-muted leading-relaxed line-clamp-2"
+        >
+          {{ data.description }}
+        </p>
+
+        <!-- Stats row -->
+        <div
+          v-if="data.stars || data.forks || data.pushedAt"
+          class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5"
+        >
+          <span
+            v-if="data.stars"
+            class="data-label inline-flex items-center gap-1"
+          >
+            <UIcon
+              name="i-lucide-star"
+              class="size-3.5"
+              aria-hidden="true"
+            />
+            {{ data.stars.toLocaleString() }}
+          </span>
+          <span
+            v-if="data.forks"
+            class="data-label inline-flex items-center gap-1"
+          >
+            <UIcon
+              name="i-lucide-git-fork"
+              class="size-3.5"
+              aria-hidden="true"
+            />
+            {{ data.forks.toLocaleString() }}
+          </span>
+          <span
+            v-if="data.pushedAt"
+            class="data-label inline-flex items-center gap-1"
+          >
+            <UIcon
+              name="i-lucide-clock"
+              class="size-3.5"
+              aria-hidden="true"
+            />
+            Updated {{ pushedAtAgo }}
+          </span>
+        </div>
+
         <!-- Install command -->
         <div class="mt-6 flex items-center gap-2">
           <code class="flex-1 truncate rounded-lg border border-default bg-muted px-3 py-2 font-mono text-sm">
@@ -148,21 +217,21 @@ defineOgImage('Skill.takumi', {
         <!-- Source links -->
         <div class="mt-4 flex flex-wrap items-center gap-3">
           <UButton
-            :href="skillsShUrl"
+            :href="githubUrl"
             target="_blank"
             rel="noopener"
-            label="View on skills.sh"
-            icon="i-lucide-external-link"
+            label="GitHub"
+            icon="i-simple-icons-github"
             size="xs"
             color="neutral"
             variant="ghost"
           />
           <UButton
-            :href="githubUrl"
+            :href="skillsShUrl"
             target="_blank"
             rel="noopener"
-            label="View source"
-            icon="i-lucide-github"
+            label="skills.sh"
+            icon="i-lucide-external-link"
             size="xs"
             color="neutral"
             variant="ghost"

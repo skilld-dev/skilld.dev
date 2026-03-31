@@ -12,8 +12,23 @@ interface CuratorEndorsement {
   reason?: string
 }
 
+interface UnghRepo {
+  id: number
+  name: string
+  repo: string
+  description: string | null
+  createdAt: string
+  updatedAt: string
+  pushedAt: string
+  stars: number
+  watchers: number
+  forks: number
+  defaultBranch: string
+}
+
 const ENDORSEMENTS_CACHE_KEY = 'skills:endorsement-map'
 const ENDORSEMENTS_CACHE_TTL = 60 * 5 // 5 minutes
+const REPO_META_CACHE_TTL = 60 * 15 // 15 minutes
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
@@ -30,13 +45,14 @@ export default defineEventHandler(async (event) => {
     ? `https://raw.githubusercontent.com/${skill.owner}/skills/main/${skill.name}/SKILL.md`
     : `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/main/SKILL.md`
 
-  // Fetch SKILL.md and curator endorsements in parallel
-  const [content, curators] = await Promise.all([
+  // Fetch SKILL.md, curator endorsements, and repo metadata in parallel
+  const [content, curators, repoMeta] = await Promise.all([
     $fetch<string>(rawUrl, { responseType: 'text' }).catch((err) => {
       console.warn(`[skills] Failed to fetch SKILL.md from ${rawUrl}:`, err)
       return null
     }),
     getEndorsementsForSkill(getDB(event), skill.name),
+    getRepoMeta(skill.owner, skill.repo),
   ])
 
   return {
@@ -46,10 +62,32 @@ export default defineEventHandler(async (event) => {
     displayName: skill.displayName,
     installs: skill.installs,
     githubUrl,
+    url: `https://skills.sh/${skill.slug}`,
     content,
     curators,
+    description: repoMeta?.description ?? null,
+    stars: repoMeta?.stars ?? 0,
+    forks: repoMeta?.forks ?? 0,
+    pushedAt: repoMeta?.pushedAt ?? null,
   }
 })
+
+async function getRepoMeta(owner: string, repo: string): Promise<UnghRepo | null> {
+  const cacheKey = `skills:repo-meta:${owner}/${repo}`
+  const cached = await useStorage('cache').getItem<UnghRepo>(cacheKey)
+  if (cached)
+    return cached
+
+  const data = await $fetch<{ repo: UnghRepo }>(`https://ungh.cc/repos/${owner}/${repo}`).catch((err) => {
+    console.warn(`[skills] Failed to fetch repo meta from ungh.cc:`, err)
+    return null
+  })
+
+  if (data?.repo)
+    await useStorage('cache').setItem(cacheKey, data.repo, { ttl: REPO_META_CACHE_TTL })
+
+  return data?.repo ?? null
+}
 
 async function getEndorsementsForSkill(db: D1Database, skillName: string): Promise<CuratorEndorsement[]> {
   // Check for cached endorsement map

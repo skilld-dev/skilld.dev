@@ -14,7 +14,7 @@ Practically:
 - One accent color used sparingly (10% of surface area, max)
 - UI chrome in monospace at small sizes; content in the sans-serif
 - Borders, not shadows, define boundaries
-- No glow, no gradient, no blur, no decorative flourish
+- No glow, no gradient, no blur, no decorative flourish in UI chrome (the brand noise field is the sole exception; see "Brand Noise Field" section)
 - Compact components: tight padding, defined shapes, minimal radius
 - Whitespace is intentional structure, not generous filler
 
@@ -144,7 +144,7 @@ Use `UiTooltip` (not `UTooltip`) for any tooltip that needs more than a plain st
 
 ## Avoid
 
-- Glow effects, box-shadows on cards, backdrop-blur on surfaces
+- Glow effects, box-shadows on cards, backdrop-blur on surfaces (exception: brand noise field has controlled additive bloom; see "Brand Noise Field" section)
 - Cold colors (blue, cyan, purple) as primary accents
 - Pure black (#000) or pure gray (0 chroma) anywhere
 - Leaderboard or ranking patterns; never sort by download count as primary view
@@ -158,6 +158,63 @@ Use `UiTooltip` (not `UTooltip`) for any tooltip that needs more than a plain st
 - Showing all available data at once; layer it through progressive disclosure
 - Spelling out "Personal Data Server" in UI copy; always use "PDS" with a tooltip
 - Mentioning PDS or storage location in button labels; buttons describe the action, not the destination
+
+## Brand Noise Field
+
+The noise field animation from the CLI (`skilld/src/ui.ts`) is the single kinetic brand element on the site. Full identity spec in `brand-guidelines.md`; this section covers visual implementation.
+
+### Why WebGL
+
+The noise field renders thousands of dots with per-frame brightness calculations. Canvas 2D could handle it but would burn CPU on compositing and glow. WebGL moves all work to the GPU:
+
+- Fragment shader computes brightness per dot (same ring + Gaussian math as CLI)
+- Additive blending produces soft bloom without a separate blur pass
+- Instanced rendering for the dot grid: one draw call, thousands of dots
+- Main thread cost: near zero. Only passes `time` uniform each frame via `requestAnimationFrame`
+
+### Rendering spec
+
+| Property | Value | Notes |
+|----------|-------|-------|
+| **Dot size** | 2px radius circles | Matches the weight of 2px icon strokes |
+| **Grid spacing** | 8px | Aligns with the 4pt spatial system (every other grid line) |
+| **Base opacity** | 0.35 (hero), 0.5 (loading states) | Visible but subordinate to content |
+| **Bloom** | Gaussian glow (sigma 6px) on all visible dots, intensity scales with brightness | Soft halos create overlapping luminous field |
+| **Color** | HSL with hue from `djb2(route.path) % 360 / 360`, saturation 0.35 + brightness x 0.15, lightness 0.4 + brightness x 0.3 | Slightly warmer and brighter than original CLI spec for screen visibility |
+| **Frame rate** | Capped at display refresh via `requestAnimationFrame` | No `setInterval`; GPU-synced |
+| **Canvas sizing** | `devicePixelRatio`-aware, resize via `ResizeObserver` | Crisp on retina, no layout thrash |
+
+### Interactivity
+
+- **Mouse proximity**: cursor position becomes a ring origin. One ring, no stagger, faster decay (0.8 vs 0.4) so the effect is local and brief
+- **Scroll parallax**: none. The field is fixed-position behind content, does not move with scroll. Parallax would undermine the quiet principle
+- **Touch**: tap spawns a single ripple at tap coordinates, same as mouse proximity but single-fire
+
+### Performance budget
+
+- **GPU memory**: one framebuffer (bloom pass) + dot instance buffer. Under 2MB total
+- **CPU per frame**: uniform update only (~0.01ms). All computation in shaders
+- **Startup**: shader compilation happens once on mount; first frame within 16ms on modern GPUs
+- **Fallback**: if `WebGL2` is unavailable (rare), render a static SVG dot pattern at ambient shimmer brightness. No animation, no glow. Still warm, still branded
+- **Visibility**: pause the animation loop when the canvas is offscreen (`IntersectionObserver`) or the tab is hidden (`document.visibilityState`). Zero GPU cost when not visible
+
+### Reduced motion
+
+When `prefers-reduced-motion: reduce` is active:
+- No expanding rings, no ripple
+- Render a single static frame at ambient shimmer state (t=3s equivalent, floor=0, density=0)
+- Mouse proximity does nothing
+- The field still has the per-page hue and warm color; it just doesn't move
+
+### Integration with quiet principle
+
+The noise field is bounded by strict rules so it doesn't erode the quiet feel:
+
+1. **Contained**: only in hero, transitions, and loading states. Never in UI chrome
+2. **Behind content**: always `z-index: -1` or composited behind text layers
+3. **Low opacity**: text contrast ratios calculated against the surface beneath, not the dots
+4. **No competing motion**: when the noise field is active, no other motion-v animations run simultaneously in the same viewport region
+5. **Scarcity**: appearing in 3 contexts makes each appearance meaningful. If it were everywhere, it would be noise
 
 ## Custom Utilities
 

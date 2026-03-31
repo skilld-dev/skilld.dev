@@ -11,11 +11,11 @@ skills.sh treats skills like npm packages: ranked by install count on a leaderbo
 | | skills.sh | skilld.dev |
 |---|---|---|
 | Organizing unit | Skills (leaderboard) | People (curators) |
-| Discovery | Search + install count | Stack selector + curated collections |
+| Discovery | Search + install count | Curated collections |
 | Social proof | Download numbers | Real people via AT Protocol/Bluesky |
 | Quality signal | None | Editorial curation, curator reputation |
 | Detail pages | 404 (broken) | Skill preview, source transparency, agent compatibility |
-| Personalization | None | Stack-aware recommendations |
+| Personalization | None | Curator-driven recommendations |
 
 ## Information Architecture
 
@@ -25,7 +25,6 @@ skilld.dev/
   /people/[handle]         → Curator profile: bio, stack, collections, activity
   /people/[handle]/[slug]  → Collection with editorial context + one-click install
   /skills/[pkg]            → Skill detail: preview, sources, agents, "recommended by" people
-  /stacks                  → Browse by stack, entry point is people using it
   /@[handle]               → Short URL, resolves to /people/[handle]
 ```
 
@@ -52,11 +51,6 @@ Each person becomes a living skill preset. When they update their list, follower
 - Human-curated bundles: "The Nuxt Starter Kit", "AI App Builder", "Design Engineer Essentials"
 - Each collection has a curator, editorial rationale, and a single install command
 - Collections are the atomic unit of sharing, not individual skills
-
-### Stack-Aware Discovery
-- Homepage stack selector: pick your framework, UI library, deployment target
-- "Paste your package.json" for instant personalized recommendations
-- Leverages skilld CLI's existing import scanner and preset detection
 
 ### Quality Gate
 - Curated skills: tested, verified, editorially reviewed
@@ -91,12 +85,11 @@ Each person becomes a living skill preset. When they update their list, follower
 ## Build Phases
 
 - [x] Design system setup (colors, fonts, tokens, component theming, guidelines)
-- [ ] Homepage: people feed + featured collections + stack selector
-- [ ] Curator profile page
-- [ ] Collection detail page
+- [x] Homepage: people feed + featured collections
+- [x] Curator profile page
+- [x] Collection detail page
 - [ ] Skill detail page
-- [ ] Stacks browse page
-- [ ] AT Protocol auth integration
+- [x] AT Protocol auth integration
 - [ ] API: curator profiles, collections, skill metadata
 - [ ] CLI integration: `skilld add @handle` resolution
-- [ ] OG image generation for curators, collections, skills
+- [x] OG image generation for curators, collections, skills

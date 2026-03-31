@@ -138,6 +138,48 @@ Skilld organizes AI agent skills around developers you trust, not download count
 
 **1 paragraph:** Skilld organizes AI agent skills around developers you trust. Developers curate collections of skills they actually use, publish them with one command, and share an install link. You follow the developers whose taste matches yours. When they update, you re-sync. The right skill for your context matters more than the most downloaded one.
 
+## Brand Animation — Noise Field
+
+The animated noise field from the CLI (`skilld/src/ui.ts`) is a core brand element, not a decorative flourish. It represents the brand's visual signature: structured noise resolving into signal, which mirrors the product thesis (curation brings order to a noisy skill landscape).
+
+### What the animation communicates
+
+The ripple pattern expanding outward from a focal point, then settling into ambient shimmer, tells the brand story in motion: a deliberate act of selection radiating through noise until everything resolves. The fill outro (noise converging to solid) represents the moment a curator's collection crystallizes into something installable.
+
+### Core visual DNA (platform-agnostic)
+
+These properties define the animation across CLI, web, and any future surface:
+
+| Property | Value | Why |
+|----------|-------|-----|
+| **Pattern** | Dot grid with varying density | Braille dots in CLI, circle grid on web; the density gradient IS the animation |
+| **Ripple model** | Expanding concentric rings from a focal point | 3 rings, staggered 0.5s apart, Gaussian falloff from ring front, exponential time decay |
+| **Hue seeding** | Deterministic per-context hue via djb2 hash | CLI: seeded from cwd. Web: seeded from route path. Same color every visit, different per page |
+| **Color behavior** | Saturation and lightness scale with brightness | Dim dots are muted warm stone; bright dots are vivid and tinted. The field never reads as flat |
+| **Brand mark** | Rose chevron (⏶) at #fb7185 | Sits at the ripple origin as the focal anchor |
+| **Phases** | Ripple → ambient shimmer → fill outro → solid | Each phase has a distinct feel: energy, calm, resolution, permanence |
+| **Ambient shimmer** | Low random jitter after ripples pass (~1.5s) | The field stays alive at rest, never static, never distracting |
+
+### Web-specific adaptations
+
+The CLI uses Unicode Braille characters; the web version uses a WebGL dot grid. The math model is identical; the rendering layer changes.
+
+- **Dot grid**: 2px circles on an 8px grid, opacity and scale mapped to `brightness(x, y)`
+- **Glow**: soft additive bloom on bright dots only, 4px radius max. This is the one place glow is permitted in the visual system
+- **Hue seeding**: `djb2(route.path)` produces a stable hue per page. Home page gets a fixed hue (rose-adjacent)
+- **Interactivity**: mouse proximity spawns a local ripple (cursor position as ring origin). Touch devices use tap position
+- **Reduced motion**: `prefers-reduced-motion` shows a single static frame at ambient shimmer state, no expanding rings
+
+### Usage boundaries
+
+The noise field appears in exactly three contexts on the web:
+
+1. **Hero background** (landing page): full-width behind content, base opacity 0.15, mouse-interactive
+2. **Page transitions**: brief ripple burst during route changes, 300ms max duration, contained to viewport
+3. **Loading / empty states**: small contained field (matching CLI proportions) while async data resolves
+
+It does not appear in: navigation, cards, buttons, tooltips, footers, or any UI chrome. Scarcity makes it premium.
+
 ## Relationship to Design Guidelines
 
 Brand guidelines own: identity, positioning, voice, tone, copy rules, terminology, messaging.
