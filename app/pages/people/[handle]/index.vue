@@ -202,7 +202,7 @@ defineOgImage('Curator.takumi', {
             </p>
             <p class="mt-1 text-xs text-muted leading-relaxed max-w-sm mx-auto">
               Add your skills with a note about why each one matters.
-              Anyone can run <code class="font-mono">skilld add @{{ handle }}</code> to get your setup.
+              Anyone can run <code class="font-mono">skilld add @{{ handle }}</code> to install your setup.
             </p>
             <div class="mt-4 flex items-center justify-center gap-3">
               <UButton
@@ -262,6 +262,7 @@ defineOgImage('Curator.takumi', {
                   >
                     {{ skill.packageName }}
                   </p>
+                  <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
                 </div>
                 <a
                   v-if="skillMeta[skill.packageName]"

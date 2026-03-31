@@ -89,15 +89,15 @@ onKeyDown('?', (e) => {
       <template #right>
         <UButton
           to="/skills"
-          label="Skills"
+          label="Package Skills"
           color="neutral"
           variant="ghost"
           size="sm"
           class="hidden lg:inline-flex"
         />
         <UButton
-          to="/skills/official"
-          label="Official"
+          to="/skills/guide"
+          label="Guide Skills"
           color="neutral"
           variant="ghost"
           size="sm"
@@ -106,15 +106,6 @@ onKeyDown('?', (e) => {
         <UButton
           to="/people"
           label="Curators"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          class="hidden lg:inline-flex"
-        />
-        <UButton
-          v-if="isAuthenticated && user"
-          :to="`/people/${user.handle}`"
-          label="My skills"
           color="neutral"
           variant="ghost"
           size="sm"
@@ -169,15 +160,15 @@ onKeyDown('?', (e) => {
         >
           <UButton
             to="/skills"
-            label="Skills"
+            label="Package Skills"
             color="neutral"
             variant="ghost"
             block
             class="justify-start"
           />
           <UButton
-            to="/skills/official"
-            label="Official"
+            to="/skills/guide"
+            label="Guide Skills"
             color="neutral"
             variant="ghost"
             block

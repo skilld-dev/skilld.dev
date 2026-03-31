@@ -373,6 +373,7 @@ useSeoMeta({
                   <p class="font-mono text-sm font-medium">
                     {{ skill.packageName }}
                   </p>
+                  <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
                 </div>
                 <a
                   v-if="skillMeta.get(skill.packageName)"

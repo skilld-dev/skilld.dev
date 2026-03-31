@@ -15,6 +15,10 @@ function skillSlug(skill: { owner: string, repo: string, name: string }) {
   return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
 }
 
+function skillInstallCmd(skill: { name: string }) {
+  return `skilld add npm:${skill.name}`
+}
+
 function skillPath(skill: { owner: string, repo: string, name: string }) {
   return `/skills/${skillSlug(skill)}`
 }
@@ -307,15 +311,18 @@ function toggleCollection(slug: string) {
             class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
           >
             <div class="min-w-0">
-              <p class="font-mono text-sm font-medium truncate">
-                {{ skill.name }}
-              </p>
+              <div class="flex items-center gap-1.5">
+                <p class="font-mono text-sm font-medium truncate">
+                  {{ skill.name }}
+                </p>
+                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+              </div>
               <p class="mt-0.5 text-xs text-muted truncate">
                 {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
               </p>
             </div>
             <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-              skilld add {{ skillSlug(skill) }}
+              {{ skillInstallCmd(skill) }}
             </code>
           </NuxtLink>
         </li>
@@ -473,7 +480,7 @@ function toggleCollection(slug: string) {
             Share your skills
           </h2>
           <p class="mt-2 text-sm text-muted max-w-md mx-auto">
-            Add the tools you use every day, publish them so anyone can run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add @you</code> to get your setup.
+            Add the package skills you use every day, publish them so anyone can run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add @you</code> to install your setup.
           </p>
           <div class="mt-5 flex items-center justify-center gap-3">
             <UButton

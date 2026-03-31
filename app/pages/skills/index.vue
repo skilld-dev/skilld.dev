@@ -2,14 +2,14 @@
 const REGEX_ESCAPE_RE = /[.*+?^${}()|[\]\\]/g
 
 useSeoMeta({
-  title: 'Skills — skilld',
-  description: 'Browse and search AI agent skills. Find the right skill for your stack.',
+  title: 'Package Skills — skilld',
+  description: 'Browse curated package skills for npm packages. Find the right skill for your stack.',
 })
 
 defineOgImage('Page.takumi', {
-  title: 'Skills',
-  description: 'Browse and search AI agent skills. Find the right skill for your stack.',
-}, { alt: 'Skills directory on skilld' })
+  title: 'Package Skills',
+  description: 'Browse curated package skills for npm packages. Find the right skill for your stack.',
+}, { alt: 'Package skills directory on skilld' })
 
 // URL-synced state
 const route = useRoute()
@@ -87,9 +87,13 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
   return `/skills/${skillSlug(skill)}`
 }
 
+function skillInstallCmd(skill: { name: string }) {
+  return `skilld add npm:${skill.name}`
+}
+
 function copyInstall(skill: { owner: string, repo: string, name: string }) {
   const slug = skillSlug(skill)
-  copy(`skilld add ${slug}`)
+  copy(skillInstallCmd(skill))
   copiedSlug.value = slug
   setTimeout(() => {
     if (copiedSlug.value === slug)
@@ -137,10 +141,10 @@ const sortOptions = [
         id="skills-heading"
         class="font-mono text-2xl sm:text-3xl font-medium tracking-tight"
       >
-        Skills
+        Package Skills
       </h1>
       <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
-        Browse {{ data?.total?.toLocaleString() ?? '' }} skills from the community. Search by name, author, or topic.
+        Browse {{ data?.total?.toLocaleString() ?? '' }} curated package skills. One canonical skill per npm package, maintained by skilld.
       </p>
 
       <!-- Search + filters bar -->
@@ -373,7 +377,10 @@ const sortOptions = [
           >
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
-                <p class="font-mono text-sm font-medium truncate" v-html="highlight(skill.name)" />
+                <div class="flex items-center gap-1.5">
+                  <p class="font-mono text-sm font-medium truncate" v-html="highlight(skill.name)" />
+                  <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+                </div>
                 <p class="mt-0.5 text-xs text-muted truncate" v-html="highlight(skill.owner + (skill.repo !== 'skills' ? `/${skill.repo}` : ''))" />
               </div>
               <UButton
@@ -388,7 +395,7 @@ const sortOptions = [
             </div>
 
             <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-              skilld add {{ skillSlug(skill) }}
+              {{ skillInstallCmd(skill) }}
             </code>
           </NuxtLink>
         </li>
@@ -406,11 +413,14 @@ const sortOptions = [
             class="group flex items-center gap-4 px-4 py-3 transition-colors duration-200 hover:bg-elevated"
           >
             <div class="min-w-0 flex-1 flex items-center gap-3">
-              <p class="font-mono text-sm font-medium truncate shrink-0" v-html="highlight(skill.name)" />
+              <div class="flex items-center gap-1.5 shrink-0">
+                <p class="font-mono text-sm font-medium truncate" v-html="highlight(skill.name)" />
+                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+              </div>
               <p class="text-xs text-muted truncate" v-html="highlight(skill.owner + (skill.repo !== 'skills' ? `/${skill.repo}` : ''))" />
             </div>
             <code class="hidden sm:block truncate font-mono text-xs text-muted max-w-xs">
-              skilld add {{ skillSlug(skill) }}
+              {{ skillInstallCmd(skill) }}
             </code>
             <UButton
               :icon="copiedSlug === skillSlug(skill) ? 'i-lucide-check' : 'i-lucide-copy'"

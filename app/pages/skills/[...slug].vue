@@ -34,8 +34,7 @@ const packageName = computed(() => {
 const installCmd = computed(() => {
   if (!data.value)
     return ''
-  const { owner, repo, name } = data.value
-  return `skilld add ${owner}/${repo === 'skills' ? name : `${repo}/${name}`}`
+  return `skilld add npm:${data.value.name}`
 })
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
@@ -140,12 +139,15 @@ defineOgImage('Skill.takumi', {
       <!-- Skill header -->
       <template v-else>
         <div>
-          <h1
-            id="skill-heading"
-            class="font-mono text-xl font-medium"
-          >
-            {{ data.name }}
-          </h1>
+          <div class="flex items-center gap-2">
+            <h1
+              id="skill-heading"
+              class="font-mono text-xl font-medium"
+            >
+              {{ data.name }}
+            </h1>
+            <UBadge label="package skill" variant="subtle" color="neutral" size="xs" />
+          </div>
           <p class="mt-1 font-mono text-sm text-muted">
             {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
           </p>

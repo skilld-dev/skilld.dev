@@ -12,9 +12,9 @@ const {
 }>()
 
 const installCmd = computed(() => {
-  if (!name || !owner)
+  if (!name)
     return ''
-  return `skilld add ${owner}/${repo === 'skills' ? name : `${repo}/${name}`}`
+  return `skilld add npm:${name}`
 })
 </script>
 

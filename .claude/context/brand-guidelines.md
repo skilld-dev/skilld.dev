@@ -4,7 +4,7 @@
 
 ## What skilld Is
 
-skilld is a curation layer for AI agent skills. It organizes discovery around people whose taste you trust, not download counts or algorithms. The data comes from skills.sh; what skilld adds is the human layer: curators, collections, editorial context, and social proof via the AT Protocol.
+skilld is a curated registry of AI agent skills. It organizes discovery around people whose taste you trust, not download counts or algorithms. The platform authors and maintains one canonical package skill per npm package. Curators assemble these into collections. The human layer (curators, collections, editorial context, social proof via the AT Protocol) is what makes skilld more than a registry.
 
 ### Core Thesis
 
@@ -17,27 +17,27 @@ Skills are knowledge, not packages. The right skill for your context matters mor
 ## Positioning
 
 ### What we are
-- A curation and discovery layer for AI agent skills
-- People-first: every surface answers "who" before "what"
+- A curated registry and discovery layer for AI agent skills
+- People first: every surface answers "who" before "what"
 - An editorial platform where developer taste is the quality signal
+- Two skill types: **package skills** (npm, authored by skilld) and **guide skills** (general knowledge, authored by people)
 
 ### What we are not
-- A package manager or registry (skills.sh is the registry; we curate on top)
 - An AI product (we serve developers who use AI agents, but we are not "AI-powered")
 - A leaderboard or popularity contest (never sort by downloads as primary view)
 
-### Differentiation from skills.sh
+### Differentiation
 
-skills.sh treats skills like npm packages: flat list, ranked by installs. skilld organizes discovery around people. Same underlying data, fundamentally different lens.
+| | Context7 | skills.sh | skilld |
+|---|---|---|---|
+| Model | Cloud API, raw doc chunks | Flat list, ranked by installs | Curated registry + local files |
+| Organizing unit | Libraries | Skills (leaderboard) | People (curators) |
+| Discovery | Search by library name | Search + install count | Curators, collections, stacks |
+| Quality signal | None (raw docs) | Popularity | Editorial curation, curator reputation |
+| Social proof | None | Download numbers | Real people via AT Protocol |
+| Offline | No | Yes | Yes, skills are local files |
 
-| | skills.sh | skilld |
-|---|---|---|
-| Organizing unit | Skills (leaderboard) | People (curators) |
-| Discovery model | Search + install count | Follow curators, browse collections |
-| Social proof | Download numbers | Real people via AT Protocol |
-| Quality signal | Popularity | Editorial curation, curator reputation |
-
-We use their database. We don't compete on data; we compete on discovery.
+The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gives you knowledge, organized around the people you trust.
 
 ## Naming
 
@@ -51,17 +51,20 @@ We use their database. We don't compete on data; we compete on discovery.
 
 | Term | Definition | Usage notes |
 |------|-----------|-------------|
-| **skill** | A SKILL.md file that gives an AI agent domain knowledge about a package or tool | Lowercase always. Not "plugin", "extension", or "module" |
+| **skill** | A SKILL.md file that gives an AI agent domain knowledge | Lowercase always. Not "plugin", "extension", or "module" |
+| **package skill** | A skill tied to a specific npm package and version, authored by skilld | Canonical, one per package, installed via `npm:` prefix |
+| **guide skill** | A curation tag on skilld.dev for skills not tied to a package | Distributed as git skills, tagged for filtering in browse views |
 | **collection** | A curated bundle of skills assembled by a curator | Not "preset", "pack", "bundle", or "kit" in UI (fine in marketing prose) |
 | **curator** | A developer who maintains one or more collections on skilld | Not "author", "creator", or "maintainer" (those imply they wrote the skills) |
-| **install** | Adding a skill or collection to your agent's configuration | Not "download", "add" is acceptable in CLI context (`skilld add @handle`) |
+| **registry** | skilld.dev, the central hub for curated package skills | Also hosts the MCP server |
+| **install** | Adding a skill or collection to your agent's configuration | Not "download", "add" is acceptable in CLI context (`skilld add npm:vue`) |
 | **follow** | Subscribing to a curator's updates | Keep social language grounded; no "subscribe", "watch", or "star" |
 | **stack** | A developer's framework and tooling combination (e.g. Nuxt + Tailwind + Vitest) | Used for personalization and filtering |
 
 ### Feature naming
 - Name features descriptively, not cleverly. "Stack selector" not "StackMatch"
 - No trademark-style capitalization for features (not "Smart Collections")
-- CLI commands use lowercase: `skilld add`, `skilld sync`
+- CLI commands use lowercase: `skilld add`, `skilld update`, `skilld author`
 
 ## Voice & Tone
 

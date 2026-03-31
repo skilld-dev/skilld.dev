@@ -179,9 +179,12 @@ defineOgImage('Collection.takumi', {
             class="flex items-center justify-between gap-3 px-4 py-3"
           >
             <div class="min-w-0">
-              <p class="font-mono text-sm truncate">
-                {{ skill.packageName }}
-              </p>
+              <div class="flex items-center gap-1.5">
+                <p class="font-mono text-sm truncate">
+                  {{ skill.packageName }}
+                </p>
+                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+              </div>
               <p
                 v-if="skill.reason"
                 class="mt-0.5 text-xs text-muted truncate"

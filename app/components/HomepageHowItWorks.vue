@@ -17,10 +17,10 @@
           aria-hidden="true"
         >01</span>
         <p class="mt-2 text-sm font-medium">
-          Add packages
+          Install skills
         </p>
         <p class="mt-1 text-xs text-muted leading-relaxed">
-          Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add vue nuxt</code> to generate skills from any npm package docs.
+          Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add npm:vue npm:nuxt</code> to install curated skills for your npm packages.
         </p>
       </li>
       <li class="rounded-lg border border-default p-4">
@@ -44,7 +44,7 @@
           Stay current
         </p>
         <p class="mt-1 text-xs text-muted leading-relaxed">
-          Skills update when packages release. Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld update</code> to regenerate from latest docs.
+          Skills update when packages release. Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld update</code> to refresh from the registry.
         </p>
       </li>
     </ol>

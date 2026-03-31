@@ -3,6 +3,7 @@ import type { OAuthClientMetadata } from 'atproto-oauth-client-cloudflare-worker
 // @ts-expect-error virtual file from oauth module
 import { clientUri } from '#oauth/config'
 import { WorkersOAuthClient } from 'atproto-oauth-client-cloudflare-workers'
+import { requestLocalLock } from 'atproto-oauth-client-cloudflare-workers/oauth-client'
 
 export const scope = 'atproto transition:generic'
 
@@ -38,5 +39,6 @@ export function getOAuthClient(stateStore: WorkersSavedStateStore, sessionStore:
     stateStore,
     sessionStore,
     clientMetadata,
+    requestLock: requestLocalLock,
   })
 }
