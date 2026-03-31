@@ -50,6 +50,13 @@ export default defineNuxtConfig({
   runtimeConfig: {
     sessionPassword: process.env.NUXT_SESSION_PASSWORD || '',
     adminSecret: process.env.NUXT_ADMIN_SECRET || '',
+    public: {
+      algolia: {
+        appId: 'OFCNCOG2CU',
+        apiKey: 'f54e21fa3a2a0160595bb058179bfb1e',
+        indexName: 'npm-search',
+      },
+    },
   },
 
   nitro: {

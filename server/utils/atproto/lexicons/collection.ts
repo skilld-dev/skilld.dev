@@ -10,6 +10,8 @@ export interface PostReference {
 export interface CollectionSkill {
   packageName: string
   reason?: string
+  owner?: string
+  repo?: string
 }
 
 export interface CollectionRecord {
@@ -77,6 +79,8 @@ export function validateCollectionInput(body: unknown): CollectionInput {
     skills: skills.map((s: CollectionSkill) => ({
       packageName: s.packageName,
       ...(s.reason ? { reason: s.reason } : {}),
+      ...(s.owner ? { owner: s.owner } : {}),
+      ...(s.repo ? { repo: s.repo } : {}),
     })),
     stacks: stacks.filter((s): s is string => typeof s === 'string'),
   }
@@ -141,6 +145,8 @@ export function parseCollectionRecord(value: unknown): CollectionRecord | null {
     skills: (v.skills as CollectionSkill[]).map(s => ({
       packageName: s.packageName,
       ...(s.reason ? { reason: s.reason } : {}),
+      ...(s.owner ? { owner: s.owner } : {}),
+      ...(s.repo ? { repo: s.repo } : {}),
     })),
     stacks: (v.stacks as string[]).filter(s => typeof s === 'string'),
     ...(postRef ? { postRef } : {}),

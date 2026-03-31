@@ -42,6 +42,7 @@
     "@takumi-rs/wasm": "catalog:",
     "@vueuse/core": "catalog:",
     "@vueuse/nuxt": "catalog:",
+    "algoliasearch": "catalog:",
     "atproto-oauth-client-cloudflare-workers": "catalog:",
     "motion-v": "catalog:",
     "nuxt": "catalog:",

@@ -482,7 +482,7 @@ function toggleCollection(slug: string) {
           <p class="mt-2 text-sm text-muted max-w-md mx-auto">
             Add the package skills you use every day, publish them so anyone can run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add @you</code> to install your setup.
           </p>
-          <div class="mt-5 flex items-center justify-center gap-3">
+          <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
             <UButton
               label="Connect with your Atmosphere account"
               icon="i-lucide-cloud"

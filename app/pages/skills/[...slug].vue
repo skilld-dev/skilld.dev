@@ -146,7 +146,7 @@ defineOgImage('Skill.takumi', {
             >
               {{ data.name }}
             </h1>
-            <UBadge label="package skill" variant="subtle" color="neutral" size="xs" />
+            <UBadge label="npm skill" variant="subtle" color="neutral" size="xs" />
           </div>
           <p class="mt-1 font-mono text-sm text-muted">
             {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}

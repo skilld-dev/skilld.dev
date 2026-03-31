@@ -24,6 +24,7 @@ catalog:
   '@vue/test-utils': ^2.4.6
   '@vueuse/core': ^14.2.1
   '@vueuse/nuxt': ^14.2.1
+  algoliasearch: ^5.50.0
   atproto-oauth-client-cloudflare-workers: ^0.2.2
   axe-core: ^4.11.1
   eslint: ^10.1.0

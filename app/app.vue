@@ -89,7 +89,7 @@ onKeyDown('?', (e) => {
       <template #right>
         <UButton
           to="/skills"
-          label="Package Skills"
+          label="NPM Skills"
           color="neutral"
           variant="ghost"
           size="sm"
@@ -160,7 +160,7 @@ onKeyDown('?', (e) => {
         >
           <UButton
             to="/skills"
-            label="Package Skills"
+            label="NPM Skills"
             color="neutral"
             variant="ghost"
             block

@@ -57,13 +57,25 @@ async function hydrateSkillMeta(packageNames: string[]) {
   }
 }
 
+// Pre-populate skillMeta from stored owner/repo before hydrating missing ones
+function prePopulateSkillMeta(skills: CollectionSkill[]) {
+  for (const s of skills) {
+    if (s.owner && s.repo && !skillMeta.value.has(s.packageName))
+      skillMeta.value.set(s.packageName, { owner: s.owner, repo: s.repo, official: false })
+  }
+}
+
 // Hydrate on initial load and when synced from server
-if (skills.value.length)
+if (skills.value.length) {
+  prePopulateSkillMeta(skills.value)
   hydrateSkillMeta(skills.value.map(s => s.packageName))
+}
 
 watch(personalCollection, (pc) => {
-  if (pc?.record.skills.length)
+  if (pc?.record.skills.length) {
+    prePopulateSkillMeta(pc.record.skills)
     hydrateSkillMeta(pc.record.skills.map(s => s.packageName))
+  }
 })
 
 watch(debouncedQuery, async (q) => {
@@ -184,7 +196,12 @@ async function handlePublish() {
       name: 'My Skills',
       slug: PERSONAL_COLLECTION_SLUG,
       description: `Skills curated by @${handle.value}`,
-      skills: skills.value,
+      skills: skills.value.map(s => ({
+        ...s,
+        ...skillMeta.value.has(s.packageName)
+          ? { owner: skillMeta.value.get(s.packageName)!.owner, repo: skillMeta.value.get(s.packageName)!.repo }
+          : {},
+      })),
       stacks: personalCollection.value?.record.stacks ?? [],
     })
   }

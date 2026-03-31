@@ -183,8 +183,14 @@ defineOgImage('Collection.takumi', {
                 <p class="font-mono text-sm truncate">
                   {{ skill.packageName }}
                 </p>
-                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+                <UBadge v-if="!skill.owner" label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
               </div>
+              <a
+                v-if="skill.owner && skill.repo"
+                :href="`https://github.com/${skill.owner}/${skill.repo}`"
+                target="_blank"
+                class="mt-0.5 block text-xs text-muted font-mono hover:text-default"
+              >{{ skill.owner }}/{{ skill.repo }}</a>
               <p
                 v-if="skill.reason"
                 class="mt-0.5 text-xs text-muted truncate"
