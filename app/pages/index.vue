@@ -9,10 +9,7 @@ const { data: followingData, execute: fetchFollowing } = useFollowingCurators()
 // Fetch real homepage data from curator index + PDS
 const { data: homepageData } = useFetch('/api/homepage')
 
-// Fetch popular skills
-const { data: popularSkillsData } = useFetch('/api/skills', {
-  query: { sort: 'installs', limit: 12 },
-})
+const popularSkills = computed(() => homepageData.value?.popularSkills ?? [])
 
 function skillSlug(skill: { owner: string, repo: string, name: string }) {
   return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
@@ -281,7 +278,7 @@ function toggleCollection(slug: string) {
 
     <!-- Popular Skills -->
     <section
-      v-if="popularSkillsData?.items?.length"
+      v-if="popularSkills.length"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
       aria-labelledby="popular-skills-heading"
     >
@@ -303,7 +300,7 @@ function toggleCollection(slug: string) {
       </div>
 
       <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
-        <li v-for="skill in popularSkillsData.items" :key="skill.slug">
+        <li v-for="skill in popularSkills" :key="skill.slug">
           <NuxtLink
             :to="skillPath(skill)"
             :aria-label="`${skill.name} by ${skill.owner}`"

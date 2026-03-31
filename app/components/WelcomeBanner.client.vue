@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { user } = useAuth()
-const { justSignedIn } = useOnboarding()
+const { justSignedIn, hasPersonalCollection } = useOnboarding()
 const visible = ref(false)
 
 // Show banner when justSignedIn becomes true
@@ -8,6 +8,12 @@ watch(justSignedIn, (val) => {
   if (val)
     visible.value = true
 }, { immediate: true })
+
+// Auto-hide once user publishes their personal skills
+watch(hasPersonalCollection, (val) => {
+  if (val)
+    dismiss()
+})
 
 function dismiss() {
   visible.value = false

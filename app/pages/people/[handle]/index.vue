@@ -28,6 +28,16 @@ const namedCollections = computed(() =>
 
 const curatorLabels = computed(() => resolvedProfile.value?.labels ?? [])
 
+// Resolve skill metadata (owner, repo, official) for display
+const skillNames = computed(() => personalCollection.value?.record.skills.map(s => s.packageName) ?? [])
+const { data: skillMeta } = useFetch('/api/skills/resolve', {
+  method: 'POST',
+  body: computed(() => ({ names: skillNames.value })),
+  watch: [skillNames],
+  default: () => ({} as Record<string, { owner: string, repo: string, official: boolean }>),
+  lazy: true,
+})
+
 useSeoMeta({
   title: () => resolvedProfile.value?.displayName
     ? `${resolvedProfile.value.displayName} (@${handle.value})`
@@ -232,9 +242,36 @@ defineOgImage('Curator.takumi', {
               class="flex items-start gap-3 rounded-lg border border-default p-3"
             >
               <div class="min-w-0 flex-1">
-                <p class="font-mono text-sm font-medium">
-                  {{ skill.packageName }}
-                </p>
+                <div class="flex items-center gap-2">
+                  <img
+                    v-if="skillMeta[skill.packageName]?.official"
+                    :src="`https://github.com/${skillMeta[skill.packageName]!.owner}.png?size=32`"
+                    :alt="skillMeta[skill.packageName]!.owner"
+                    class="size-4 shrink-0 rounded-full"
+                  >
+                  <NuxtLink
+                    v-if="skillMeta[skill.packageName]"
+                    :to="`/skills/${skillMeta[skill.packageName]!.owner}/${skillMeta[skill.packageName]!.repo === 'skills' ? skill.packageName : `${skillMeta[skill.packageName]!.repo}/${skill.packageName}`}`"
+                    class="font-mono text-sm font-medium hover:text-muted transition-colors"
+                  >
+                    {{ skill.packageName }}
+                  </NuxtLink>
+                  <p
+                    v-else
+                    class="font-mono text-sm font-medium"
+                  >
+                    {{ skill.packageName }}
+                  </p>
+                </div>
+                <a
+                  v-if="skillMeta[skill.packageName]"
+                  :href="`https://github.com/${skillMeta[skill.packageName]!.owner}/${skillMeta[skill.packageName]!.repo}`"
+                  target="_blank"
+                  rel="noopener"
+                  class="mt-0.5 block text-xs text-muted font-mono hover:text-default transition-colors"
+                >
+                  {{ skillMeta[skill.packageName]!.owner }}/{{ skillMeta[skill.packageName]!.repo }}
+                </a>
                 <p
                   v-if="skill.reason"
                   class="mt-0.5 text-xs text-muted leading-relaxed"

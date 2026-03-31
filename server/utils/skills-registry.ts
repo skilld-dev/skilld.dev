@@ -114,6 +114,21 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   }
 }
 
+export async function findSkillsByNames(event: H3Event, names: string[]): Promise<Map<string, RegistrySkill>> {
+  if (!names.length)
+    return new Map()
+  const db = getDB(event)
+  const placeholders = names.map(() => '?').join(',')
+  const rows = await db
+    .prepare(`SELECT * FROM skills WHERE name IN (${placeholders})`)
+    .bind(...names)
+    .all<SkillRow>()
+  const map = new Map<string, RegistrySkill>()
+  for (const row of rows.results ?? [])
+    map.set(row.name, rowToSkill(row))
+  return map
+}
+
 export async function findSkill(event: H3Event, slug: string): Promise<RegistrySkill | null> {
   const db = getDB(event)
   const row = await db

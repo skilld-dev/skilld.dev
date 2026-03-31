@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CollectionRecord } from '../../server/utils/atproto/lexicons/collection'
 import type { CollectionItem } from '../composables/useCollections'
+import { PERSONAL_COLLECTION_SLUG } from '../composables/useOnboarding'
 
 const { packageName } = defineProps<{
   packageName: string
@@ -15,7 +16,9 @@ const { data: collectionsData, status } = useCollections(
   { lazy: true },
 )
 
-const collections = computed(() => collectionsData.value?.collections ?? [])
+const allCollections = computed(() => collectionsData.value?.collections ?? [])
+const personalCollection = computed(() => allCollections.value.find(c => c.rkey === PERSONAL_COLLECTION_SLUG))
+const namedCollections = computed(() => allCollections.value.filter(c => c.rkey !== PERSONAL_COLLECTION_SLUG))
 
 function hasSkill(record: CollectionRecord): boolean {
   return record.skills.some(s => s.packageName === packageName)
@@ -74,7 +77,7 @@ async function toggle(collection: CollectionItem) {
       <div class="w-60 p-1.5">
         <!-- Loading -->
         <div
-          v-if="status === 'pending' && !collections.length"
+          v-if="status === 'pending' && !allCollections.length"
           class="flex items-center justify-center py-4"
         >
           <UIcon
@@ -84,35 +87,24 @@ async function toggle(collection: CollectionItem) {
           />
         </div>
 
-        <!-- Empty -->
-        <div
-          v-else-if="!collections.length"
-          class="px-2 py-3 text-center"
-        >
-          <p class="text-xs text-muted">
-            No collections yet.
-          </p>
-        </div>
-
-        <!-- Collection list -->
         <template v-else>
+          <!-- Personal collection (My Skills) -->
           <button
-            v-for="c in collections"
-            :key="c.rkey"
+            v-if="personalCollection"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-200 hover:bg-muted disabled:opacity-50"
-            :disabled="updating === c.rkey || (hasSkill(c.record) && c.record.skills.length <= 1)"
-            @click="toggle(c)"
+            :disabled="updating === personalCollection.rkey || (hasSkill(personalCollection.record) && personalCollection.record.skills.length <= 1)"
+            @click="toggle(personalCollection)"
           >
             <UIcon
-              :name="hasSkill(c.record) ? 'i-lucide-check' : 'i-lucide-plus'"
+              :name="hasSkill(personalCollection.record) ? 'i-lucide-check' : 'i-lucide-plus'"
               class="size-3.5 shrink-0"
-              :class="hasSkill(c.record) ? 'text-primary' : 'text-muted'"
+              :class="hasSkill(personalCollection.record) ? 'text-primary' : 'text-muted'"
               aria-hidden="true"
             />
-            <span class="flex-1 truncate font-mono text-xs">{{ c.record.name }}</span>
+            <span class="flex-1 truncate font-mono text-xs">My Skills</span>
             <UIcon
-              v-if="updating === c.rkey"
+              v-if="updating === personalCollection.rkey"
               name="i-lucide-loader-2"
               class="size-3 shrink-0 animate-spin text-muted"
               aria-hidden="true"
@@ -120,8 +112,49 @@ async function toggle(collection: CollectionItem) {
             <span
               v-else
               class="data-label shrink-0"
-            >{{ c.record.skills.length }}</span>
+            >{{ personalCollection.record.skills.length }}</span>
           </button>
+
+          <!-- Named collections -->
+          <template v-if="namedCollections.length">
+            <USeparator v-if="personalCollection" class="my-1" />
+            <button
+              v-for="c in namedCollections"
+              :key="c.rkey"
+              type="button"
+              class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors duration-200 hover:bg-muted disabled:opacity-50"
+              :disabled="updating === c.rkey || (hasSkill(c.record) && c.record.skills.length <= 1)"
+              @click="toggle(c)"
+            >
+              <UIcon
+                :name="hasSkill(c.record) ? 'i-lucide-check' : 'i-lucide-plus'"
+                class="size-3.5 shrink-0"
+                :class="hasSkill(c.record) ? 'text-primary' : 'text-muted'"
+                aria-hidden="true"
+              />
+              <span class="flex-1 truncate font-mono text-xs">{{ c.record.name }}</span>
+              <UIcon
+                v-if="updating === c.rkey"
+                name="i-lucide-loader-2"
+                class="size-3 shrink-0 animate-spin text-muted"
+                aria-hidden="true"
+              />
+              <span
+                v-else
+                class="data-label shrink-0"
+              >{{ c.record.skills.length }}</span>
+            </button>
+          </template>
+
+          <!-- No collections at all -->
+          <div
+            v-if="!personalCollection && !namedCollections.length"
+            class="px-2 py-3 text-center"
+          >
+            <p class="text-xs text-muted">
+              No collections yet.
+            </p>
+          </div>
         </template>
 
         <!-- Error -->
