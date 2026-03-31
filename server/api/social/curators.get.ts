@@ -5,9 +5,9 @@ export default defineEventHandler(async (event) => {
 
   // Trigger stale profile refresh in the background (non-blocking)
   refreshStaleCurators(db).then(
-    (count) => {
-      if (count)
-        console.info(`[curators] Refreshed ${count} stale profiles`)
+    (counts) => {
+      if (counts.refreshed)
+        console.info(`[curators] Refreshed ${counts.refreshed} stale profiles`)
     },
     (err) => { console.warn('[curators] Failed to refresh stale profiles:', err) },
   )

@@ -173,109 +173,110 @@ function computeLabels(opts: {
   return [...labels]
 }
 
+type SyncResult = 'refreshed' | 'removed' | 'skipped'
+
 /**
- * Rebuild the curator index from network state.
- * Re-fetches profiles and collection counts for all known curators.
- * Removes curators with zero collections or flagged profiles.
+ * Sync a single curator against network state.
+ * Returns what happened so callers can aggregate results.
  */
-export async function rebuildIndex(db: D1Database): Promise<{ refreshed: number, removed: number }> {
-  const curators = await getAllCurators(db)
-  const agent = getPublicAgent()
-  let removed = 0
+async function syncCurator(
+  db: D1Database,
+  agent: ReturnType<typeof getPublicAgent>,
+  curator: IndexedCurator,
+): Promise<SyncResult> {
+  const [profileRes, collectionsRes] = await Promise.allSettled([
+    agent.getProfile({ actor: curator.did }),
+    listCollectionRecords(curator.did),
+  ])
 
-  await Promise.all(curators.map(async (curator) => {
-    const [profileRes, collectionsRes] = await Promise.allSettled([
-      agent.getProfile({ actor: curator.did }),
-      listCollectionRecords(curator.did),
-    ])
+  // Never delete on transient fetch failures
+  if (collectionsRes.status === 'rejected') {
+    console.warn(`[syncCurator] Collection fetch failed for ${curator.did}, skipping:`, collectionsRes.reason)
+    return 'skipped'
+  }
 
-    const profile = profileRes.status === 'fulfilled' ? profileRes.value : null
-    const collections = collectionsRes.status === 'fulfilled' ? collectionsRes.value : []
+  const profile = profileRes.status === 'fulfilled' ? profileRes.value : null
+  const count = collectionsRes.value.length
 
-    if (collectionsRes.status === 'rejected')
-      console.warn(`[rebuildIndex] Failed to fetch collections for ${curator.did}:`, collectionsRes.reason)
+  // Remove curators with no collections or flagged profiles
+  if (count === 0 || (profile?.data && isProfileFlagged(profile.data))) {
+    await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
+    return 'removed'
+  }
 
-    const count = collections.length
+  const labels = computeLabels({
+    collectionCount: count,
+    isEarlyAdopter: curator.labels.includes('early-curator'),
+    existingLabels: curator.labels,
+  })
 
-    if (count === 0 || (profile?.data && isProfileFlagged(profile.data))) {
-      await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
-      removed++
-      return
+  await db.prepare(`
+    UPDATE curators SET
+      handle = ?,
+      display_name = ?,
+      avatar = ?,
+      collection_count = ?,
+      labels = ?,
+      last_profile_refresh = ?
+    WHERE did = ?
+  `).bind(
+    profile?.data.handle ?? curator.handle,
+    profile?.data.displayName ?? null,
+    profile?.data.avatar ?? null,
+    count,
+    JSON.stringify(labels),
+    new Date().toISOString(),
+    curator.did,
+  ).run()
+
+  return 'refreshed'
+}
+
+function countResults(results: PromiseSettledResult<SyncResult>[]) {
+  const counts = { refreshed: 0, removed: 0, skipped: 0, errored: 0 }
+  for (const r of results) {
+    if (r.status === 'rejected') {
+      counts.errored++
+      console.warn('[curator-index] Unexpected sync error:', r.reason)
     }
-
-    const labels = computeLabels({
-      collectionCount: count,
-      isEarlyAdopter: curator.labels.includes('early-curator'),
-      existingLabels: curator.labels,
-    })
-
-    await db.prepare(`
-      UPDATE curators SET
-        handle = ?,
-        display_name = ?,
-        avatar = ?,
-        collection_count = ?,
-        labels = ?,
-        last_profile_refresh = ?
-      WHERE did = ?
-    `).bind(
-      profile?.data.handle ?? curator.handle,
-      profile?.data.displayName ?? null,
-      profile?.data.avatar ?? null,
-      count,
-      JSON.stringify(labels),
-      new Date().toISOString(),
-      curator.did,
-    ).run()
-  }))
-
-  return { refreshed: curators.length - removed, removed }
+    else {
+      counts[r.value]++
+    }
+  }
+  return counts
 }
 
 /**
- * Refresh stale curator profiles (handle changes, avatar updates, moderation flags).
- * Only refreshes curators whose profile data is older than the refresh interval.
+ * Rebuild the full curator index from network state.
+ * Re-fetches all profiles and collection counts. Skips curators
+ * whose data can't be fetched (never deletes on transient errors).
  */
-export async function refreshStaleCurators(db: D1Database): Promise<number> {
-  const staleThreshold = new Date(Date.now() - REFRESH_INTERVAL).toISOString()
+export async function rebuildIndex(db: D1Database) {
+  const curators = await getAllCurators(db)
+  const agent = getPublicAgent()
+  const results = await Promise.allSettled(
+    curators.map(c => syncCurator(db, agent, c)),
+  )
+  return countResults(results)
+}
 
+/**
+ * Refresh curators whose profile data is older than the refresh interval.
+ * Batched to 25 at a time to avoid rate limits.
+ */
+export async function refreshStaleCurators(db: D1Database) {
+  const staleThreshold = new Date(Date.now() - REFRESH_INTERVAL).toISOString()
   const res = await db.prepare(
     'SELECT * FROM curators WHERE last_profile_refresh IS NULL OR last_profile_refresh < ? LIMIT 25',
   ).bind(staleThreshold).all<CuratorRow>()
 
   const stale = (res.results ?? []).map(rowToCurator)
   if (!stale.length)
-    return 0
+    return countResults([])
 
   const agent = getPublicAgent()
-  let refreshed = 0
-
-  const results = await Promise.allSettled(stale.map(async (curator) => {
-    const profile = await agent.getProfile({ actor: curator.did })
-
-    if (isProfileFlagged(profile.data)) {
-      await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
-      refreshed++
-      return
-    }
-
-    await db.prepare(`
-      UPDATE curators SET handle = ?, display_name = ?, avatar = ?, last_profile_refresh = ?
-      WHERE did = ?
-    `).bind(
-      profile.data.handle,
-      profile.data.displayName ?? null,
-      profile.data.avatar ?? null,
-      new Date().toISOString(),
-      curator.did,
-    ).run()
-    refreshed++
-  }))
-
-  for (const result of results) {
-    if (result.status === 'rejected')
-      console.warn('[refreshStaleCurators] Failed to refresh curator:', result.reason)
-  }
-
-  return refreshed
+  const results = await Promise.allSettled(
+    stale.map(c => syncCurator(db, agent, c)),
+  )
+  return countResults(results)
 }
