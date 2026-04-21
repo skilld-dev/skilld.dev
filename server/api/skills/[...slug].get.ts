@@ -128,7 +128,7 @@ export default defineEventHandler(async (event) => {
     frontmatter: parsed?.frontmatter ?? null,
     raw: raw ?? null,
     curators,
-    description: repoMeta?.description ?? parsed?.frontmatter.description ?? null,
+    description: repoMeta?.description ?? (typeof parsed?.frontmatter.description === 'string' ? parsed.frontmatter.description : null),
     stars: repoMeta?.stars ?? 0,
     forks: repoMeta?.forks ?? 0,
     pushedAt: repoMeta?.pushedAt ?? null,
@@ -194,8 +194,23 @@ async function getRepoTree(owner: string, repo: string, branch: string): Promise
   return skillFiles
 }
 
-function parseSkillMd(raw: string): { frontmatter: Record<string, string>, body: string, html: string } {
-  const frontmatter: Record<string, string> = {}
+function parseFrontmatterValue(raw: string): unknown {
+  const trimmed = raw.trim()
+  if (!trimmed)
+    return ''
+  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+    try {
+      return JSON.parse(trimmed)
+    }
+    catch {
+      // Fall through to string handling
+    }
+  }
+  return trimmed.replace(/^['"]|['"]$/g, '')
+}
+
+function parseSkillMd(raw: string): { frontmatter: Record<string, unknown>, body: string, html: string } {
+  const frontmatter: Record<string, unknown> = {}
   let body = raw
 
   const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
@@ -207,7 +222,7 @@ function parseSkillMd(raw: string): { frontmatter: Record<string, string>, body:
       const key = line.slice(0, colonIdx)
       if (!/^[A-Z_][\w-]*$/i.test(key))
         continue
-      frontmatter[key] = line.slice(colonIdx + 1).trim().replace(/^['"]|['"]$/g, '')
+      frontmatter[key] = parseFrontmatterValue(line.slice(colonIdx + 1))
     }
     body = fmMatch[2]!
   }

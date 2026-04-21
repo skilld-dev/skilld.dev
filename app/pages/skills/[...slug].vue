@@ -5,6 +5,9 @@ const slug = computed(() => {
   return Array.isArray(params) ? params.join('/') : params
 })
 
+const { isAuthenticated } = useAuth()
+const authModalOpen = inject<Ref<boolean>>('authModalOpen', ref(false))
+
 const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch(
   () => `/api/skills/${slug.value}`,
@@ -12,7 +15,7 @@ const { data, status, error, refresh } = useFetch(
 ) as ReturnType<typeof useFetch<{
   content: string | null
   contentHtml: string | null
-  frontmatter: Record<string, string> | null
+  frontmatter: Record<string, unknown> | null
   raw: string | null
   curators: { did: string, handle: string, displayName?: string, avatar?: string, collectionName: string, collectionSlug: string, reason?: string }[]
   url: string
@@ -48,16 +51,30 @@ const HIDDEN_FRONTMATTER_KEYS = new Set(['name', 'description'])
 
 const allowedTools = computed(() => {
   const raw = data.value?.frontmatter?.['allowed-tools']
-  if (!raw)
+  if (typeof raw !== 'string' || !raw)
     return []
   return raw.split(',').map(s => s.trim()).filter(Boolean)
 })
+
+function formatFrontmatterValue(v: unknown): string {
+  if (v === null || v === undefined)
+    return ''
+  if (typeof v === 'string')
+    return v
+  return JSON.stringify(v, null, 2)
+}
+
+function isComplexValue(v: unknown): boolean {
+  return typeof v === 'object' && v !== null
+}
 
 const frontmatterEntries = computed(() => {
   const fm = data.value?.frontmatter
   if (!fm)
     return []
-  return Object.entries(fm).filter(([k, v]) => !HIDDEN_FRONTMATTER_KEYS.has(k) && k !== 'allowed-tools' && v)
+  return Object.entries(fm)
+    .filter(([k, v]) => !HIDDEN_FRONTMATTER_KEYS.has(k) && k !== 'allowed-tools' && v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => ({ key: k, value: formatFrontmatterValue(v), complex: isComplexValue(v) }))
 })
 
 const pushedAtDate = computed(() => new Date(data.value?.pushedAt || 0))
@@ -264,6 +281,97 @@ defineOgImage('Skill.takumi', {
     </section>
 
     <template v-if="data && status !== 'pending'">
+      <!-- SKILL.md content -->
+      <template v-if="data.contentHtml">
+        <USeparator />
+
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="content-heading"
+        >
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h2
+              id="content-heading"
+              class="section-label"
+            >
+              Skill content
+            </h2>
+            <UButton
+              v-if="data.raw"
+              :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+              :label="markdownCopied ? 'Copied' : 'Copy as markdown'"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              @click="copyMarkdown(data.raw)"
+            />
+          </div>
+
+          <div class="rounded-lg border border-default overflow-hidden">
+            <dl
+              v-if="allowedTools.length || frontmatterEntries.length"
+              class="divide-y divide-default border-b border-default bg-muted/30 text-sm"
+            >
+              <div
+                v-if="allowedTools.length"
+                class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
+              >
+                <dt class="data-label shrink-0 sm:w-32">
+                  Allowed tools
+                </dt>
+                <dd class="flex flex-wrap gap-1.5">
+                  <UBadge
+                    v-for="tool in allowedTools"
+                    :key="tool"
+                    :label="tool"
+                    variant="subtle"
+                    color="neutral"
+                    size="xs"
+                    class="font-mono"
+                  />
+                </dd>
+              </div>
+              <div
+                v-for="entry in frontmatterEntries"
+                :key="entry.key"
+                class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:gap-4"
+                :class="entry.complex ? 'sm:items-start' : 'sm:items-center'"
+              >
+                <dt class="data-label shrink-0 sm:w-32">
+                  {{ entry.key }}
+                </dt>
+                <dd class="min-w-0 flex-1 font-mono text-xs text-muted">
+                  <pre
+                    v-if="entry.complex"
+                    class="whitespace-pre-wrap break-all"
+                  >{{ entry.value }}</pre>
+                  <span
+                    v-else
+                    class="break-all"
+                  >{{ entry.value }}</span>
+                </dd>
+              </div>
+            </dl>
+            <article
+              class="skill-prose p-4 sm:p-6"
+              v-html="data.contentHtml"
+            />
+          </div>
+
+          <p class="mt-3 text-xs text-muted">
+            Source:
+            <a
+              :href="`${githubUrl}/blob/main/${data.repo === 'skills' ? `${data.name}/` : ''}SKILL.md`"
+              target="_blank"
+              rel="noopener"
+              class="font-mono hover:text-default transition-colors"
+            >
+              SKILL.md on GitHub
+            </a>
+          </p>
+        </section>
+      </template>
+
       <!-- Curators section -->
       <USeparator />
 
@@ -353,91 +461,22 @@ defineOgImage('Skill.takumi', {
           <p class="mt-3 text-sm text-muted">
             No curators have added this skill yet. Be the first to include it in a collection.
           </p>
+          <div class="mt-4 flex justify-center">
+            <AddToCollection
+              v-if="isAuthenticated"
+              :package-name="packageName"
+            />
+            <UButton
+              v-else
+              icon="i-lucide-folder-plus"
+              label="Sign in to curate"
+              size="sm"
+              color="neutral"
+              @click="authModalOpen = true"
+            />
+          </div>
         </div>
       </section>
-
-      <!-- SKILL.md content -->
-      <template v-if="data.contentHtml">
-        <USeparator />
-
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="content-heading"
-        >
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <h2
-              id="content-heading"
-              class="section-label"
-            >
-              Skill content
-            </h2>
-            <UButton
-              v-if="data.raw"
-              :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-              :label="markdownCopied ? 'Copied' : 'Copy as markdown'"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              @click="copyMarkdown(data.raw)"
-            />
-          </div>
-
-          <div class="rounded-lg border border-default overflow-hidden">
-            <dl
-              v-if="allowedTools.length || frontmatterEntries.length"
-              class="divide-y divide-default border-b border-default bg-muted/30 text-sm"
-            >
-              <div
-                v-if="allowedTools.length"
-                class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
-              >
-                <dt class="data-label shrink-0 sm:w-32">
-                  Allowed tools
-                </dt>
-                <dd class="flex flex-wrap gap-1.5">
-                  <UBadge
-                    v-for="tool in allowedTools"
-                    :key="tool"
-                    :label="tool"
-                    variant="subtle"
-                    color="neutral"
-                    size="xs"
-                    class="font-mono"
-                  />
-                </dd>
-              </div>
-              <div
-                v-for="[key, value] in frontmatterEntries"
-                :key="key"
-                class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
-              >
-                <dt class="data-label shrink-0 sm:w-32">
-                  {{ key }}
-                </dt>
-                <dd class="font-mono text-xs text-muted break-all">
-                  {{ value }}
-                </dd>
-              </div>
-            </dl>
-            <article
-              class="skill-prose p-4 sm:p-6"
-              v-html="data.contentHtml"
-            />
-          </div>
-
-          <p class="mt-3 text-xs text-muted">
-            Source:
-            <a
-              :href="`${githubUrl}/blob/main/${data.repo === 'skills' ? `${data.name}/` : ''}SKILL.md`"
-              target="_blank"
-              rel="noopener"
-              class="font-mono hover:text-default transition-colors"
-            >
-              SKILL.md on GitHub
-            </a>
-          </p>
-        </section>
-      </template>
     </template>
   </div>
 </template>
