@@ -44,6 +44,7 @@
     "@vueuse/nuxt": "catalog:",
     "algoliasearch": "catalog:",
     "atproto-oauth-client-cloudflare-workers": "catalog:",
+    "marked": "catalog:",
     "motion-v": "catalog:",
     "nuxt": "catalog:",
     "nuxt-og-image": "catalog:",

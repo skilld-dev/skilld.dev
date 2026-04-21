@@ -1,7 +1,7 @@
-// @ts-expect-error virtual file from oauth module
-import { clientUri } from '#oauth/config'
 import { Agent } from '@atproto/api'
 import { OAuthCallbackError } from 'atproto-oauth-client-cloudflare-workers/oauth-client'
+// @ts-expect-error virtual file from oauth module
+import { clientUri } from '#oauth/config'
 import { scope } from '../../utils/atproto/oauth'
 
 const OAUTH_REQUEST_COOKIE_PREFIX = 'atproto_oauth_req'

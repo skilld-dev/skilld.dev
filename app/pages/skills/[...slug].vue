@@ -11,6 +11,8 @@ const { data, status, error, refresh } = useFetch(
   { watch: [slug], lazy: !isBot.value },
 ) as ReturnType<typeof useFetch<{
   content: string | null
+  contentHtml: string | null
+  frontmatter: Record<string, string> | null
   curators: { did: string, handle: string, displayName?: string, avatar?: string, collectionName: string, collectionSlug: string, reason?: string }[]
   url: string
   repo: string
@@ -337,7 +339,7 @@ defineOgImage('Skill.takumi', {
       </section>
 
       <!-- SKILL.md content -->
-      <template v-if="data.content">
+      <template v-if="data.contentHtml">
         <USeparator />
 
         <section
@@ -351,9 +353,10 @@ defineOgImage('Skill.takumi', {
             Skill content
           </h2>
 
-          <div class="rounded-lg border border-default p-4 sm:p-5">
-            <pre class="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-muted overflow-x-auto">{{ data.content }}</pre>
-          </div>
+          <article
+            class="skill-prose rounded-lg border border-default p-4 sm:p-6"
+            v-html="data.contentHtml"
+          />
 
           <p class="mt-3 text-xs text-muted">
             Source:

@@ -1,9 +1,9 @@
 import type { WorkersSavedSessionStore, WorkersSavedStateStore } from 'atproto-oauth-client-cloudflare-workers'
 import type { OAuthClientMetadata } from 'atproto-oauth-client-cloudflare-workers/oauth-client'
-// @ts-expect-error virtual file from oauth module
-import { clientUri } from '#oauth/config'
 import { WorkersOAuthClient } from 'atproto-oauth-client-cloudflare-workers'
 import { requestLocalLock } from 'atproto-oauth-client-cloudflare-workers/oauth-client'
+// @ts-expect-error virtual file from oauth module
+import { clientUri } from '#oauth/config'
 
 export const scope = 'atproto transition:generic'
 

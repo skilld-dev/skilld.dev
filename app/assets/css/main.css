@@ -111,3 +111,106 @@
 .data-label {
   @apply font-mono text-xs text-[var(--ui-text-muted)] tabular-nums;
 }
+
+/* Rendered markdown (SKILL.md) */
+.skill-prose {
+  color: var(--ui-text);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+.skill-prose > :first-child { margin-top: 0; }
+.skill-prose > :last-child { margin-bottom: 0; }
+.skill-prose h1,
+.skill-prose h2,
+.skill-prose h3,
+.skill-prose h4 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.75em 0 0.6em;
+  color: var(--ui-text);
+}
+.skill-prose h1 { font-size: 1.5rem; }
+.skill-prose h2 { font-size: 1.25rem; }
+.skill-prose h3 { font-size: 1.0625rem; }
+.skill-prose h4 { font-size: 0.9375rem; }
+.skill-prose p,
+.skill-prose ul,
+.skill-prose ol,
+.skill-prose blockquote,
+.skill-prose table {
+  margin: 0.9em 0;
+}
+.skill-prose ul,
+.skill-prose ol {
+  padding-left: 1.5em;
+}
+.skill-prose ul { list-style: disc; }
+.skill-prose ol { list-style: decimal; }
+.skill-prose li { margin: 0.3em 0; }
+.skill-prose li > ul,
+.skill-prose li > ol { margin: 0.3em 0; }
+.skill-prose a {
+  color: var(--ui-color-primary-500);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.skill-prose a:hover { color: var(--ui-text); }
+.skill-prose strong { font-weight: 600; color: var(--ui-text); }
+.skill-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--ui-bg-muted);
+  border: 1px solid var(--ui-border-muted);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.35em;
+}
+.skill-prose pre {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  background: var(--ui-bg-muted);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.skill-prose pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.skill-prose blockquote {
+  border-left: 3px solid var(--ui-border);
+  padding-left: 1em;
+  color: var(--ui-text-muted);
+  font-style: italic;
+}
+.skill-prose hr {
+  border: 0;
+  border-top: 1px solid var(--ui-border-muted);
+  margin: 1.5em 0;
+}
+.skill-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  display: block;
+  overflow-x: auto;
+}
+.skill-prose th,
+.skill-prose td {
+  border: 1px solid var(--ui-border-muted);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.skill-prose th {
+  background: var(--ui-bg-muted);
+  font-weight: 600;
+}
+.skill-prose img {
+  max-width: 100%;
+  border-radius: var(--ui-radius);
+}
