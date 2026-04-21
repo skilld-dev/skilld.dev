@@ -39,7 +39,8 @@ export default defineEventHandler(async (event) => {
 
   // Fetch collections from each curator's PDS (cap at 10 curators for performance)
   const collections: HomepageCollection[] = []
-  const skillCounts = new Map<string, number>()
+  // Count by (owner, name) when owner is known; otherwise by name for legacy entries.
+  const skillCounts = new Map<string, { owner?: string, name: string, count: number }>()
 
   const topCurators = curators
     .sort((a, b) => b.lastPublished.localeCompare(a.lastPublished))
@@ -50,8 +51,14 @@ export default defineEventHandler(async (event) => {
 
     for (const { record } of records) {
       // Count all skill appearances across collections
-      for (const skill of record.skills)
-        skillCounts.set(skill.packageName, (skillCounts.get(skill.packageName) ?? 0) + 1)
+      for (const skill of record.skills) {
+        const key = skill.owner ? `${skill.owner}/${skill.packageName}` : skill.packageName
+        const existing = skillCounts.get(key)
+        if (existing)
+          existing.count++
+        else
+          skillCounts.set(key, { owner: skill.owner, name: skill.packageName, count: 1 })
+      }
 
       // Skip personal collections (slug "skills") — only show named collections
       if (record.slug === 'skills')
@@ -86,23 +93,39 @@ export default defineEventHandler(async (event) => {
   })
 
   // Build popular skills from collection data
-  const topSkillNames = [...skillCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
+  const topSkills = [...skillCounts.values()]
+    .sort((a, b) => b.count - a.count)
     .slice(0, 12)
 
+  interface SkillRow { name: string, owner: string, repo: string, display_name: string, installs: number, slug: string }
+
   let popularSkills: PopularSkill[] = []
-  if (topSkillNames.length) {
-    const placeholders = topSkillNames.map(() => '?').join(',')
+  if (topSkills.length) {
+    const uniqueNames = [...new Set(topSkills.map(s => s.name))]
+    const placeholders = uniqueNames.map(() => '?').join(',')
     const rows = await db
       .prepare(`SELECT * FROM skills WHERE name IN (${placeholders})`)
-      .bind(...topSkillNames.map(([name]) => name))
-      .all<{ name: string, owner: string, repo: string, display_name: string, installs: number, slug: string }>()
+      .bind(...uniqueNames)
+      .all<SkillRow>()
 
-    const rowMap = new Map((rows.results ?? []).map(r => [r.name, r]))
-    popularSkills = topSkillNames
-      .filter(([name]) => rowMap.has(name))
-      .map(([name, count]) => {
-        const r = rowMap.get(name)!
+    // Group rows by name so we can resolve (owner, name) exactly, or pick top-installs when owner unknown.
+    const rowsByName = new Map<string, SkillRow[]>()
+    for (const r of rows.results ?? []) {
+      const list = rowsByName.get(r.name) ?? []
+      list.push(r)
+      rowsByName.set(r.name, list)
+    }
+
+    popularSkills = topSkills
+      .map(({ owner, name, count }) => {
+        const candidates = rowsByName.get(name)
+        if (!candidates?.length)
+          return null
+        const r = owner
+          ? candidates.find(c => c.owner === owner)
+          : [...candidates].sort((a, b) => b.installs - a.installs)[0]
+        if (!r)
+          return null
         return {
           name: r.name,
           owner: r.owner,
@@ -113,6 +136,7 @@ export default defineEventHandler(async (event) => {
           collectionCount: count,
         }
       })
+      .filter((s): s is PopularSkill => s !== null)
   }
 
   const totalSkills = collections.reduce((sum, c) => sum + c.skillCount, 0)

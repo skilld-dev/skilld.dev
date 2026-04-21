@@ -14,12 +14,13 @@ interface CollectionsResponse {
 export function useCollections(did: MaybeRefOrGetter<string | null | undefined>, options?: { lazy?: boolean }) {
   const resolvedDid = computed(() => toValue(did))
 
-  return useFetch<CollectionsResponse>(() =>
-    resolvedDid.value ? `/api/collections/${resolvedDid.value}` : null!, {
-    watch: [resolvedDid],
-    immediate: !!toValue(did),
-    lazy: options?.lazy,
-  })
+  return useFetch<CollectionsResponse>(
+    () => resolvedDid.value ? `/api/collections/${resolvedDid.value}` : null!,
+    {
+      watch: [resolvedDid],
+      lazy: options?.lazy,
+    },
+  )
 }
 
 export function useCollection(did: MaybeRefOrGetter<string>, rkey: MaybeRefOrGetter<string>, options?: { lazy?: boolean }) {
