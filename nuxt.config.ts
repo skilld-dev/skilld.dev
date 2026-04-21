@@ -154,6 +154,7 @@ export default defineNuxtConfig({
       skills: {
         sources: ['/api/__sitemap__/skills'],
         includeAppSources: false,
+        chunks: 10000,
       },
       people: {
         sources: ['/api/__sitemap__/people'],

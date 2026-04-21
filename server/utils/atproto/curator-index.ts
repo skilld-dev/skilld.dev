@@ -111,15 +111,24 @@ export async function getAllCurators(db: D1Database): Promise<IndexedCurator[]> 
   return (res.results ?? []).map(rowToCurator)
 }
 
-/** Get curators matching a set of DIDs. */
+/** Get curators matching a set of DIDs. Chunked to stay under D1's bind-parameter limit. */
 export async function getCuratorsByDids(db: D1Database, dids: string[]): Promise<IndexedCurator[]> {
   if (!dids.length)
     return []
-  const placeholders = dids.map(() => '?').join(',')
-  const res = await db.prepare(`SELECT * FROM curators WHERE did IN (${placeholders})`)
-    .bind(...dids)
-    .all<CuratorRow>()
-  return (res.results ?? []).map(rowToCurator)
+  const CHUNK = 80
+  const uniqueDids = [...new Set(dids)]
+  const chunks: string[][] = []
+  for (let i = 0; i < uniqueDids.length; i += CHUNK)
+    chunks.push(uniqueDids.slice(i, i + CHUNK))
+
+  const results = await Promise.all(chunks.map((chunk) => {
+    const placeholders = chunk.map(() => '?').join(',')
+    return db.prepare(`SELECT * FROM curators WHERE did IN (${placeholders})`)
+      .bind(...chunk)
+      .all<CuratorRow>()
+  }))
+
+  return results.flatMap(r => (r.results ?? []).map(rowToCurator))
 }
 
 /** Manually add a label to a curator (admin operation). */

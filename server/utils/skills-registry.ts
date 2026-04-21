@@ -157,6 +157,20 @@ export async function findSkillsByLookups(event: H3Event, lookups: SkillLookup[]
   return map
 }
 
+export interface SkillSitemapEntry {
+  name: string
+  owner: string
+  repo: string
+}
+
+export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
+  const db = getDB(event)
+  const res = await db
+    .prepare('SELECT name, owner, repo FROM skills')
+    .all<SkillSitemapEntry>()
+  return res.results ?? []
+}
+
 export async function findSkill(event: H3Event, slug: string): Promise<RegistrySkill | null> {
   const db = getDB(event)
   const row = await db
