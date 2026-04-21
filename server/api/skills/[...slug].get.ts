@@ -126,6 +126,7 @@ export default defineEventHandler(async (event) => {
     content: parsed?.body ?? null,
     contentHtml: parsed?.html ?? null,
     frontmatter: parsed?.frontmatter ?? null,
+    raw: raw ?? null,
     curators,
     description: repoMeta?.description ?? parsed?.frontmatter.description ?? null,
     stars: repoMeta?.stars ?? 0,
