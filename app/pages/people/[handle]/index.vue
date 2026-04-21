@@ -29,11 +29,11 @@ const namedCollections = computed(() =>
 const curatorLabels = computed(() => resolvedProfile.value?.labels ?? [])
 
 // Resolve skill metadata (owner, repo, official) for display
-const skillNames = computed(() => personalCollection.value?.record.skills.map(s => s.packageName) ?? [])
+const skillLookups = computed(() => personalCollection.value?.record.skills.map(s => ({ packageName: s.packageName, owner: s.owner })) ?? [])
 const { data: skillMeta } = useFetch('/api/skills/resolve', {
   method: 'POST',
-  body: computed(() => ({ names: skillNames.value })),
-  watch: [skillNames],
+  body: computed(() => ({ items: skillLookups.value })),
+  watch: [skillLookups],
   default: () => ({} as Record<string, { owner: string, repo: string, official: boolean }>),
   lazy: true,
 })

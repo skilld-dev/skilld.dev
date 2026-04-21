@@ -114,18 +114,46 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   }
 }
 
-export async function findSkillsByNames(event: H3Event, names: string[]): Promise<Map<string, RegistrySkill>> {
-  if (!names.length)
+export interface SkillLookup {
+  packageName: string
+  owner?: string
+}
+
+/**
+ * Resolve skill rows for a list of (packageName, owner?) pairs.
+ * When owner is known, the exact (owner, name) row is returned. When owner
+ * is missing (legacy collection entries), the highest-installs row for that
+ * name wins. Result is keyed by packageName.
+ */
+export async function findSkillsByLookups(event: H3Event, lookups: SkillLookup[]): Promise<Map<string, RegistrySkill>> {
+  if (!lookups.length)
     return new Map()
   const db = getDB(event)
-  const placeholders = names.map(() => '?').join(',')
+  const uniqueNames = [...new Set(lookups.map(l => l.packageName))]
+  const placeholders = uniqueNames.map(() => '?').join(',')
   const rows = await db
     .prepare(`SELECT * FROM skills WHERE name IN (${placeholders})`)
-    .bind(...names)
+    .bind(...uniqueNames)
     .all<SkillRow>()
+
+  const rowsByName = new Map<string, SkillRow[]>()
+  for (const r of rows.results ?? []) {
+    const list = rowsByName.get(r.name) ?? []
+    list.push(r)
+    rowsByName.set(r.name, list)
+  }
+
   const map = new Map<string, RegistrySkill>()
-  for (const row of rows.results ?? [])
-    map.set(row.name, rowToSkill(row))
+  for (const { packageName, owner } of lookups) {
+    const candidates = rowsByName.get(packageName)
+    if (!candidates?.length)
+      continue
+    const row = owner
+      ? candidates.find(c => c.owner === owner)
+      : [...candidates].sort((a, b) => b.installs - a.installs)[0]
+    if (row)
+      map.set(packageName, rowToSkill(row))
+  }
   return map
 }
 

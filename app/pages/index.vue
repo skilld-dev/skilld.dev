@@ -312,6 +312,13 @@ function toggleCollection(slug: string) {
           >
             <div class="min-w-0">
               <div class="flex items-center gap-1.5">
+                <img
+                  v-if="skill.official"
+                  :src="`https://github.com/${skill.owner}.png?size=32`"
+                  :alt="skill.owner"
+                  class="size-4 shrink-0 rounded-full"
+                  loading="lazy"
+                >
                 <p class="font-mono text-sm font-medium truncate">
                   {{ skill.name }}
                 </p>

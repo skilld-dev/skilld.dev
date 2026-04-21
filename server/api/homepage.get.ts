@@ -1,11 +1,14 @@
 import type { IndexedCurator } from '../utils/atproto/curator-index'
 import type { RegistrySkill } from '../utils/skills-registry'
+import { officialRepos } from '../data/official-repos'
 import { listCollectionRecords } from '../utils/atproto/collections'
 import { getAllCurators } from '../utils/atproto/curator-index'
 import { getDB } from '../utils/db'
 
 const CACHE_KEY = 'homepage:data'
 const CACHE_TTL = 60 * 5 // 5 minutes
+
+const officialOwners = new Set(officialRepos.map(r => r.owner))
 
 interface HomepageCollection {
   name: string
@@ -19,6 +22,7 @@ interface HomepageCollection {
 
 interface PopularSkill extends RegistrySkill {
   collectionCount: number
+  official: boolean
 }
 
 interface HomepageData {
@@ -134,6 +138,7 @@ export default defineEventHandler(async (event) => {
           installs: r.installs,
           slug: r.slug,
           collectionCount: count,
+          official: officialOwners.has(r.owner),
         }
       })
       .filter((s): s is PopularSkill => s !== null)
