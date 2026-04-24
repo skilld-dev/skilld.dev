@@ -1,11 +1,54 @@
 <script setup lang="ts">
+import type { CollectionInput, CollectionSkill } from '../../../../../server/utils/atproto/lexicons/collection'
+
 const route = useRoute()
 const handle = computed(() => route.params.handle as string)
 const { user, isAuthenticated } = useAuth()
 
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' && v.length ? v : undefined
+}
+
+function list(v: unknown): string[] | undefined {
+  if (typeof v !== 'string' || !v.length)
+    return undefined
+  return v.split(',').map(s => s.trim()).filter(Boolean)
+}
+
 const initialSkills = computed(() => {
   const skill = route.query.skill
   return skill ? [String(skill)] : undefined
+})
+
+// Full pre-fill via query params (used for programmatic seeding, e.g. launch collections).
+// Example: ?name=Vue%20Ecosystem&slug=vue-ecosystem&skills=vue-skilld,pinia-skilld&skillsOwner=skilld-dev&skillsRepo=vue-ecosystem-skills&stacks=Vue,Nuxt&preamble=...
+const initial = computed<Partial<CollectionInput> | undefined>(() => {
+  const name = str(route.query.name)
+  const slug = str(route.query.slug)
+  const description = str(route.query.description)
+  const preamble = str(route.query.preamble)
+  const stacks = list(route.query.stacks)
+  const skillNames = list(route.query.skills)
+  const owner = str(route.query.skillsOwner)
+  const repo = str(route.query.skillsRepo)
+
+  if (!name && !slug && !description && !preamble && !stacks && !skillNames)
+    return undefined
+
+  const skills: CollectionSkill[] | undefined = skillNames?.map(packageName => ({
+    packageName,
+    ...(owner ? { owner } : {}),
+    ...(repo ? { repo } : {}),
+  }))
+
+  return {
+    ...(name ? { name } : {}),
+    ...(slug ? { slug } : {}),
+    ...(description ? { description } : {}),
+    ...(preamble ? { preamble } : {}),
+    ...(stacks ? { stacks } : {}),
+    ...(skills ? { skills } : {}),
+  }
 })
 
 // Guard: must be authenticated and viewing own profile
@@ -77,6 +120,7 @@ async function onPublished({ rkey }: { uri: string, rkey: string }) {
         <div class="mt-8">
           <CollectionEditor
             :initial-skills="initialSkills"
+            :initial="initial"
             @published="onPublished"
           />
         </div>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { CollectionRecord } from '../../server/utils/atproto/lexicons/collection'
+import type { CollectionInput, CollectionRecord, CollectionSkill } from '../../server/utils/atproto/lexicons/collection'
 
-const { existing, initialSkills } = defineProps<{
+const { existing, initialSkills, initial } = defineProps<{
   existing?: { rkey: string, record: CollectionRecord }
   initialSkills?: string[]
+  initial?: Partial<CollectionInput>
 }>()
 
 const emit = defineEmits<{
@@ -17,15 +18,23 @@ const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
 const NON_ALNUM_RE = /[^a-z0-9]+/g
 const LEADING_TRAILING_DASH_RE = /^-|-$/g
 
+const seedSkills: CollectionSkill[] = existing?.record.skills
+  ?? initial?.skills
+  ?? (initialSkills?.map(packageName => ({ packageName })) ?? [])
+
+const skillMeta = reactive<Record<string, { reason?: string, owner?: string, repo?: string }>>(
+  Object.fromEntries(seedSkills.map(s => [s.packageName, { reason: s.reason, owner: s.owner, repo: s.repo }])),
+)
+
 const state = reactive({
-  name: existing?.record.name ?? '',
-  slug: existing?.rkey ?? '',
-  description: existing?.record.description ?? '',
-  preamble: existing?.record.preamble ?? '',
+  name: existing?.record.name ?? initial?.name ?? '',
+  slug: existing?.rkey ?? initial?.slug ?? '',
+  description: existing?.record.description ?? initial?.description ?? '',
+  preamble: existing?.record.preamble ?? initial?.preamble ?? '',
   skillInput: '',
-  skills: existing?.record.skills.map(s => s.packageName) ?? initialSkills ?? [] as string[],
+  skills: seedSkills.map(s => s.packageName),
   stackInput: '',
-  stacks: existing?.record.stacks ?? [] as string[],
+  stacks: existing?.record.stacks ?? initial?.stacks ?? [] as string[],
   shareOnBluesky: !existing,
 })
 
@@ -92,7 +101,15 @@ async function handleSubmit() {
       slug: state.slug,
       description: state.description,
       ...(state.preamble.trim() ? { preamble: state.preamble.trim() } : {}),
-      skills: state.skills.map(packageName => ({ packageName })),
+      skills: state.skills.map((packageName) => {
+        const meta = skillMeta[packageName]
+        return {
+          packageName,
+          ...(meta?.reason ? { reason: meta.reason } : {}),
+          ...(meta?.owner ? { owner: meta.owner } : {}),
+          ...(meta?.repo ? { repo: meta.repo } : {}),
+        }
+      }),
       stacks: state.stacks,
     }, { shareOnBluesky: state.shareOnBluesky })
   }
