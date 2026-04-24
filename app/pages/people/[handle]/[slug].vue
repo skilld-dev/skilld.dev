@@ -37,6 +37,17 @@ function metaExcerpt(source: string | undefined, fallback: string): string {
   return `${stripped.slice(0, 160).replace(/\s+\S*$/, '')}...`
 }
 
+const commonSource = computed(() => {
+  const skills = data.value?.record.skills
+  if (!skills?.length)
+    return null
+  const first = skills[0]
+  if (!first?.owner || !first?.repo)
+    return null
+  const allSame = skills.every(s => s.owner === first.owner && s.repo === first.repo)
+  return allSame ? { owner: first.owner, repo: first.repo } : null
+})
+
 useSeoMeta({
   title: () => data.value?.record.name ?? slug.value,
   description: () => metaExcerpt(
@@ -199,12 +210,24 @@ defineOgImage('Collection.takumi', {
         class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
         aria-labelledby="skills-list-heading"
       >
-        <h2
-          id="skills-list-heading"
-          class="section-label mb-4"
-        >
-          {{ data.record.skills.length }} skills
-        </h2>
+        <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2
+            id="skills-list-heading"
+            class="section-label"
+          >
+            {{ data.record.skills.length }} skills
+          </h2>
+          <a
+            v-if="commonSource"
+            :href="`https://github.com/${commonSource.owner}/${commonSource.repo}`"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center gap-1.5 text-xs text-muted font-mono hover:text-default"
+          >
+            <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
+            {{ commonSource.owner }}/{{ commonSource.repo }}
+          </a>
+        </div>
 
         <div
           class="divide-y divide-default rounded-lg border border-default"
@@ -224,7 +247,7 @@ defineOgImage('Collection.takumi', {
                 <UBadge v-if="!skill.owner" label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
               </div>
               <a
-                v-if="skill.owner && skill.repo"
+                v-if="!commonSource && skill.owner && skill.repo"
                 :href="`https://github.com/${skill.owner}/${skill.repo}`"
                 target="_blank"
                 class="mt-0.5 block text-xs text-muted font-mono hover:text-default"
