@@ -2,7 +2,7 @@
   "name": "skilld-dev",
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@10.33.2",
   "description": "Curated agent skills from trusted open-source developers",
   "author": {
     "name": "Harlan Wilton",

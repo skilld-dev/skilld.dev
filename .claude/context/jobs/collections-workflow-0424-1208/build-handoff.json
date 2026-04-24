@@ -1,0 +1,70 @@
+{
+  "schema_version": 4,
+  "job_id": "collections-workflow-0424-1208",
+  "created": "2026-04-24T02:28:00Z",
+  "git_hash": "8808f68d49e4b24495449593f6060ceaaa8977bd",
+  "dev_port": 3004,
+  "pages_changed": [
+    "app/pages/collections/index.vue",
+    "app/pages/collections/new.vue",
+    "app/pages/index.vue",
+    "app/pages/people/[handle]/[slug].vue",
+    "app/app.vue"
+  ],
+  "components_created": [
+    "app/components/CollectionsEmptyCTA.vue",
+    "app/plugins/post-auth-intent.client.ts",
+    "server/api/collections/index.get.ts"
+  ],
+  "routes_to_test": [
+    "/",
+    "/collections",
+    "/collections/new",
+    "/people/{handle}/{slug}"
+  ],
+  "design_system_changes": false,
+  "theme_name": "quiet-editorial",
+  "contract_path": ".claude/context/jobs/collections-workflow-0424-1208/build-contract.md",
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "met",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met",
+    "C14": "met",
+    "C15": "met",
+    "C16": "met",
+    "C17": "met",
+    "C18": "met",
+    "C19": "met",
+    "C20": "met",
+    "C21": "met",
+    "C22": "partial"
+  },
+  "self_assessment": {
+    "confidence": "medium",
+    "weakest_area": "Featured/recent split + curator ranking is not yet live-tested (site has 0 published collections). The /api/collections endpoint returns empty; the sort code has not exercised real data. Post-auth intent plugin also has not been through a full OAuth round-trip.",
+    "hardest_decision": "Ranking for 'featured' uses curator labels (verified-maintainer > prolific > early-curator) + collectionCount as a proxy, since follower-count (per the ranking memory) is not available server-side via the curators index. Memory says rank by curator follower graph, but that data lives in atproto and is not currently indexed server-side."
+  },
+  "has_client_animations": false,
+  "known_limitations": [
+    "Preamble input is plain textarea (paragraph split on double newline for rendering). Full markdown rendering is not implemented; headings/lists/links render as plain text. If richer formatting is needed later, swap in a markdown renderer.",
+    "AT Protocol lexicon schema file (./lexicons/dev.skilld.collection.json) does not exist in this repo — only the TS validator was updated. If an external lexicon spec is published elsewhere, it needs the preamble field added too.",
+    "The featured ranking relies on curator.labels being populated; a curator with no labels + many collections may rank below a labelled curator with fewer. Revisit once curator-follower data is indexed.",
+    "/collections/new is in the sitemap. It sets robots=noindex so crawlers will skip indexing, but a dedicated sitemap exclusion could be cleaner."
+  ],
+  "next_steps": [
+    "Publish a real collection with a preamble to validate the full SEO rendering (meta description, preamble block, card excerpt).",
+    "Consider topic/stack landing pages (/collections/stacks/{stack}) for additional SEO capture — already marked out-of-scope in this contract.",
+    "Add curator follower counts to the server-side index so featured ranking can honour the memoryed model."
+  ],
+  "dark_mode_relevant": true
+}

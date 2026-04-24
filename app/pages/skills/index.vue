@@ -4,23 +4,23 @@ import type { NpmSearchResult } from '~/composables/useNpmSearch'
 const REGEX_ESCAPE_RE = /[.*+?^${}()|[\]\\]/g
 
 useSeoMeta({
-  title: 'NPM Skills — skilld',
-  description: 'Browse curated skills for npm packages. Search any package and get its skill page.',
+  title: 'Skills — skilld',
+  description: 'Browse curated skills from official providers and the wider community. Search any npm package to view its skill page.',
 })
 
 defineOgImage('Page.takumi', {
-  title: 'NPM Skills',
-  description: 'Browse curated skills for npm packages. Search any package and get its skill page.',
-}, { alt: 'NPM skills on skilld' })
+  title: 'Skills',
+  description: 'Browse curated skills from official providers and the wider community.',
+}, { alt: 'Skills on skilld' })
 
 const route = useRoute()
 const search = ref((route.query.q as string) || '')
 const page = ref(Number(route.query.page) || 1)
 const view = ref<'grid' | 'list'>((route.query.view as 'grid' | 'list') || 'grid')
+const owner = ref((route.query.owner as string) || '')
 const debouncedSearch = refDebounced(search, 300)
 
-// Sync state to URL
-watch([debouncedSearch, page, view], async () => {
+watch([debouncedSearch, page, view, owner], async () => {
   const query: Record<string, string> = {}
   if (debouncedSearch.value)
     query.q = debouncedSearch.value
@@ -28,30 +28,55 @@ watch([debouncedSearch, page, view], async () => {
     query.page = String(page.value)
   if (view.value !== 'grid')
     query.view = view.value
+  if (owner.value)
+    query.owner = owner.value
   await navigateTo({ query }, { replace: true })
 })
 
-watch(debouncedSearch, () => {
+watch(debouncedSearch, (next) => {
+  page.value = 1
+  if (next && owner.value)
+    owner.value = ''
+})
+
+watch(owner, () => {
   page.value = 1
 })
 
 const PAGE_SIZE = 21
 const { search: npmSearch } = useNpmSearch()
 
-// Algolia search results
+// Algolia npm search results (search mode)
 const npmResults = ref<NpmSearchResult[]>([])
 const npmTotal = ref(0)
 const npmStatus = ref<'idle' | 'pending' | 'success' | 'error'>('idle')
 
-// Also fetch existing skills from the registry for the default view
 const { isBot } = useBotDetection()
-const { data: registryData, status: registryStatus } = useFetch('/api/skills', {
-  query: { q: debouncedSearch, page, limit: PAGE_SIZE, sort: 'name' },
-  watch: [debouncedSearch, page],
+
+const isSearching = computed(() => !!debouncedSearch.value)
+const isOwnerFiltered = computed(() => !!owner.value && !isSearching.value)
+const showOfficialSections = computed(() => !isSearching.value && !isOwnerFiltered.value)
+
+// Featured official sections (default home view)
+const { data: featuredData, status: featuredStatus } = useFetch('/api/skills/featured', {
+  query: { orgs: 6, perOrg: 6 },
   lazy: !isBot.value,
 })
 
-// Run Algolia search when query changes
+// Community / owner-filtered registry list
+const registryQuery = computed(() => ({
+  page: page.value,
+  limit: PAGE_SIZE,
+  sort: 'installs',
+  ...(owner.value ? { owner: owner.value } : {}),
+  ...(showOfficialSections.value ? { excludeOfficial: 'true' } : {}),
+}))
+const { data: registryData, status: registryStatus } = useFetch('/api/skills', {
+  query: registryQuery,
+  watch: [page, owner, showOfficialSections],
+  lazy: !isBot.value,
+})
+
 watch(debouncedSearch, async (q) => {
   if (!q) {
     npmResults.value = []
@@ -74,7 +99,6 @@ watch(debouncedSearch, async (q) => {
   }
 }, { immediate: !!search.value })
 
-// Also re-fetch Algolia on page change when searching
 watch(page, async () => {
   if (!debouncedSearch.value)
     return
@@ -93,8 +117,6 @@ watch(page, async () => {
   }
 })
 
-// When searching, use Algolia results; when browsing, use registry
-const isSearching = computed(() => !!debouncedSearch.value)
 const totalPages = computed(() => {
   if (isSearching.value)
     return Math.ceil(npmTotal.value / PAGE_SIZE)
@@ -107,7 +129,6 @@ const isLoading = computed(() => {
   return registryStatus.value === 'pending' && !registryData.value
 })
 
-// Keyboard shortcut: / to focus search
 const searchInput = ref<{ inputRef?: HTMLInputElement } | null>(null)
 const activeElement = useActiveElement()
 const searchFocused = computed(() => activeElement.value === searchInput.value?.inputRef)
@@ -153,13 +174,16 @@ function highlight(text: string): string {
   )
 }
 
-// Registry skill helpers (for browse mode)
 function skillSlug(skill: { owner: string, repo: string, name: string }) {
   return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
 }
 
 function skillPath(skill: { owner: string, repo: string, name: string }) {
   return `/skills/${skillSlug(skill)}`
+}
+
+function clearOwner() {
+  owner.value = ''
 }
 </script>
 
@@ -173,13 +197,32 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
         id="skills-heading"
         class="font-mono text-2xl sm:text-3xl font-medium tracking-tight"
       >
-        NPM Skills
+        Skills
       </h1>
       <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
-        Search any npm package to view its skill page. One canonical skill per package, generated on demand.
+        Curated skills from official providers and the wider npm ecosystem. Search any package to view its skill page.
       </p>
 
-      <!-- Search bar -->
+      <!-- Owner filter chip -->
+      <div v-if="isOwnerFiltered" class="mt-4 flex items-center gap-2">
+        <UBadge
+          :label="`Filtered: ${owner}`"
+          variant="subtle"
+          color="neutral"
+          size="sm"
+          class="font-mono"
+        />
+        <UButton
+          icon="i-lucide-x"
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          label="Clear"
+          @click="clearOwner"
+        />
+      </div>
+
+      <!-- Search + view toggle -->
       <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div class="relative max-w-md flex-1">
           <label for="skill-search" class="sr-only">Search npm packages</label>
@@ -213,9 +256,9 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
         </div>
 
         <div class="flex items-center gap-2">
-          <!-- View toggle -->
           <div class="flex items-center border border-default rounded-lg overflow-hidden">
             <button
+              type="button"
               class="p-1.5 transition-colors duration-200" :class="[
                 view === 'grid' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
               ]"
@@ -225,6 +268,7 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
               <UIcon name="i-lucide-layout-grid" class="size-4" />
             </button>
             <button
+              type="button"
               class="p-1.5 transition-colors duration-200" :class="[
                 view === 'list' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
               ]"
@@ -240,35 +284,31 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
 
     <USeparator />
 
+    <!-- ===== SEARCH MODE: Algolia results ===== -->
     <section
+      v-if="isSearching"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
-      aria-labelledby="skills-results-heading"
+      aria-labelledby="search-results-heading"
     >
-      <h2 id="skills-results-heading" class="sr-only">
-        {{ isSearching ? 'Search results' : 'Skills' }}
+      <h2 id="search-results-heading" class="sr-only">
+        Search results
       </h2>
 
-      <!-- Screen reader status -->
       <div aria-live="polite" aria-atomic="true" class="sr-only">
         <template v-if="isLoading">
           Loading...
         </template>
-        <template v-else-if="isSearching && npmResults.length === 0">
+        <template v-else-if="npmResults.length === 0">
           No packages found for "{{ search }}".
         </template>
-        <template v-else-if="isSearching">
+        <template v-else>
           {{ npmTotal }} packages found.
         </template>
       </div>
 
-      <!-- Loading skeleton -->
       <div
         v-if="isLoading"
-        :class="[
-          view === 'grid'
-            ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'
-            : 'flex flex-col gap-2',
-        ]"
+        :class="view === 'grid' ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'flex flex-col gap-2'"
         aria-busy="true"
         aria-label="Loading"
       >
@@ -283,108 +323,307 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
         </div>
       </div>
 
-      <!-- ===== SEARCH MODE: Algolia npm results ===== -->
-      <template v-else-if="isSearching">
-        <!-- Empty state -->
-        <div
-          v-if="npmResults.length === 0 && npmStatus !== 'pending'"
-          class="rounded-lg border border-default p-8 text-center"
-        >
-          <UIcon name="i-lucide-search-x" class="mx-auto size-8 text-muted" aria-hidden="true" />
-          <p class="mt-3 text-sm">
-            No packages found for "{{ search }}". Try a different search term.
+      <div
+        v-else-if="npmResults.length === 0"
+        class="rounded-lg border border-default p-8 text-center"
+      >
+        <UIcon name="i-lucide-search-x" class="mx-auto size-8 text-muted" aria-hidden="true" />
+        <p class="mt-3 text-sm">
+          No packages found for "{{ search }}". Try a different search term.
+        </p>
+      </div>
+
+      <ul
+        v-else-if="view === 'grid'"
+        class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
+      >
+        <li v-for="pkg in npmResults" :key="pkg.name" class="group relative">
+          <NuxtLink
+            :to="`/skills/${pkg.name}`"
+            :aria-label="`${pkg.name} v${pkg.version}`"
+            class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          >
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
+                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+              </div>
+              <p class="mt-0.5 text-xs text-muted truncate">
+                v{{ pkg.version }}
+              </p>
+            </div>
+            <p
+              v-if="pkg.description"
+              class="mt-2 text-xs text-muted line-clamp-2 leading-relaxed"
+            >
+              {{ pkg.description }}
+            </p>
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <code class="truncate rounded bg-muted px-2 py-1 font-mono text-xs text-muted">
+                skilld add npm:{{ pkg.name }}
+              </code>
+              <span class="data-label shrink-0">{{ formatDownloads(pkg.weeklyDownloads) }}/wk</span>
+            </div>
+          </NuxtLink>
+          <UButton
+            :icon="copiedName === pkg.name ? 'i-lucide-check' : 'i-lucide-copy'"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            :aria-label="copiedName === pkg.name ? 'Copied' : `Copy install command for ${pkg.name}`"
+            @click="copyInstall(pkg.name)"
+          />
+        </li>
+      </ul>
+
+      <ul
+        v-else
+        class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
+      >
+        <li v-for="pkg in npmResults" :key="pkg.name" class="group relative">
+          <NuxtLink
+            :to="`/skills/${pkg.name}`"
+            :aria-label="`${pkg.name} v${pkg.version}`"
+            class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
+          >
+            <div class="min-w-0 flex-1 flex items-center gap-3">
+              <div class="flex items-center gap-1.5 shrink-0">
+                <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
+                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+              </div>
+              <p class="text-xs text-muted truncate hidden sm:block">
+                {{ pkg.description }}
+              </p>
+            </div>
+            <span class="data-label shrink-0">{{ formatDownloads(pkg.weeklyDownloads) }}/wk</span>
+          </NuxtLink>
+          <UButton
+            :icon="copiedName === pkg.name ? 'i-lucide-check' : 'i-lucide-copy'"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            :aria-label="copiedName === pkg.name ? 'Copied' : `Copy install command for ${pkg.name}`"
+            @click="copyInstall(pkg.name)"
+          />
+        </li>
+      </ul>
+    </section>
+
+    <!-- ===== DEFAULT MODE: Official sections + Community ===== -->
+    <template v-else>
+      <!-- Official sections -->
+      <section
+        v-if="showOfficialSections"
+        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+        aria-labelledby="official-heading"
+      >
+        <div class="mb-6">
+          <h2
+            id="official-heading"
+            class="font-mono text-xl font-medium tracking-tight"
+          >
+            Official
+          </h2>
+          <p class="mt-1 text-sm text-muted leading-relaxed">
+            Skills published by the companies and organizations that build the underlying technology.
           </p>
         </div>
 
-        <!-- Grid view -->
-        <ul
-          v-else-if="view === 'grid'"
-          class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
+        <!-- Featured loading -->
+        <div
+          v-if="featuredStatus === 'pending' && !featuredData"
+          class="space-y-8"
+          aria-busy="true"
+          aria-label="Loading official providers"
         >
-          <li v-for="pkg in npmResults" :key="pkg.name">
-            <NuxtLink
-              :to="`/skills/${pkg.name}`"
-              :aria-label="`${pkg.name} v${pkg.version}`"
-              class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          <div v-for="i in 3" :key="i" class="space-y-3">
+            <div class="flex items-center gap-3">
+              <USkeleton class="size-8 rounded-full" />
+              <USkeleton class="h-4 w-32" />
+            </div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <USkeleton v-for="j in 3" :key="j" class="h-20 rounded-lg" />
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-else-if="featuredData?.sections.length"
+          class="space-y-10"
+        >
+          <div
+            v-for="section in featuredData.sections"
+            :key="`${section.owner}/${section.repo}`"
+          >
+            <div class="mb-3 flex items-center gap-3">
+              <a
+                :href="`https://github.com/${section.owner}`"
+                target="_blank"
+                rel="noopener"
+                :aria-label="`${section.owner} on GitHub`"
+                class="shrink-0"
+              >
+                <img
+                  :src="`https://github.com/${section.owner}.png?size=64`"
+                  :alt="`${section.owner} avatar`"
+                  width="32"
+                  height="32"
+                  class="size-8 rounded-full bg-muted"
+                  loading="lazy"
+                >
+              </a>
+              <h3 class="font-mono text-sm font-medium">
+                {{ section.owner }}
+              </h3>
+              <span class="data-label shrink-0">
+                {{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }}
+              </span>
+              <NuxtLink
+                v-if="section.totalSkills > section.skills.length"
+                :to="{ query: { owner: section.owner } }"
+                class="ml-auto font-mono text-xs text-muted hover:text-default transition-colors"
+              >
+                View all →
+              </NuxtLink>
+            </div>
+
+            <ul
+              v-if="view === 'grid'"
+              class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
             >
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-1.5">
-                    <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
-                    <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-                  </div>
-                  <p class="mt-0.5 text-xs text-muted truncate">
-                    v{{ pkg.version }}
+              <li v-for="skill in section.skills" :key="skill.slug" class="group relative">
+                <NuxtLink
+                  :to="skillPath(skill)"
+                  :aria-label="`${skill.name} by ${skill.owner}`"
+                  class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+                >
+                  <p class="font-mono text-sm font-medium truncate">
+                    {{ skill.name }}
                   </p>
-                </div>
+                  <div v-if="skill.tags?.length" class="mt-2 flex flex-wrap gap-1">
+                    <UBadge
+                      v-for="tag in skill.tags.slice(0, 3)"
+                      :key="tag"
+                      :label="tag"
+                      variant="subtle"
+                      color="neutral"
+                      size="xs"
+                      class="font-mono"
+                    />
+                  </div>
+                  <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
+                    skilld add npm:{{ skill.name }}
+                  </code>
+                </NuxtLink>
                 <UButton
-                  :icon="copiedName === pkg.name ? 'i-lucide-check' : 'i-lucide-copy'"
+                  :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
                   size="xs"
                   color="neutral"
                   variant="ghost"
-                  class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  :aria-label="copiedName === pkg.name ? 'Copied' : `Copy install command for ${pkg.name}`"
-                  @click.prevent="copyInstall(pkg.name)"
+                  class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
+                  @click="copyInstall(skill.name)"
                 />
-              </div>
+              </li>
+            </ul>
 
-              <p
-                v-if="pkg.description"
-                class="mt-2 text-xs text-muted line-clamp-2 leading-relaxed"
-              >
-                {{ pkg.description }}
-              </p>
-
-              <div class="mt-3 flex items-center justify-between gap-2">
-                <code class="truncate rounded bg-muted px-2 py-1 font-mono text-xs text-muted">
-                  skilld add npm:{{ pkg.name }}
-                </code>
-                <span class="data-label shrink-0">{{ formatDownloads(pkg.weeklyDownloads) }}/wk</span>
-              </div>
-            </NuxtLink>
-          </li>
-        </ul>
-
-        <!-- List view -->
-        <ul
-          v-else
-          class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
-        >
-          <li v-for="pkg in npmResults" :key="pkg.name">
-            <NuxtLink
-              :to="`/skills/${pkg.name}`"
-              :aria-label="`${pkg.name} v${pkg.version}`"
-              class="group flex items-center gap-4 px-4 py-3 transition-colors duration-200 hover:bg-elevated"
+            <ul
+              v-else
+              class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
             >
-              <div class="min-w-0 flex-1 flex items-center gap-3">
-                <div class="flex items-center gap-1.5 shrink-0">
-                  <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
-                  <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-                </div>
-                <p class="text-xs text-muted truncate hidden sm:block">
-                  {{ pkg.description }}
-                </p>
-              </div>
-              <span class="data-label shrink-0">{{ formatDownloads(pkg.weeklyDownloads) }}/wk</span>
-              <UButton
-                :icon="copiedName === pkg.name ? 'i-lucide-check' : 'i-lucide-copy'"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                :aria-label="copiedName === pkg.name ? 'Copied' : `Copy install command for ${pkg.name}`"
-                @click.prevent="copyInstall(pkg.name)"
-              />
-            </NuxtLink>
-          </li>
-        </ul>
-      </template>
+              <li v-for="skill in section.skills" :key="skill.slug" class="group relative">
+                <NuxtLink
+                  :to="skillPath(skill)"
+                  :aria-label="`${skill.name} by ${skill.owner}`"
+                  class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
+                >
+                  <div class="min-w-0 flex-1 flex items-center gap-2">
+                    <p class="font-mono text-sm font-medium truncate shrink-0">
+                      {{ skill.name }}
+                    </p>
+                    <div v-if="skill.tags?.length" class="hidden md:flex flex-wrap gap-1 min-w-0">
+                      <UBadge
+                        v-for="tag in skill.tags.slice(0, 3)"
+                        :key="tag"
+                        :label="tag"
+                        variant="subtle"
+                        color="neutral"
+                        size="xs"
+                        class="font-mono"
+                      />
+                    </div>
+                  </div>
+                  <code class="hidden sm:block truncate font-mono text-xs text-muted max-w-xs">
+                    skilld add npm:{{ skill.name }}
+                  </code>
+                </NuxtLink>
+                <UButton
+                  :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
+                  @click="copyInstall(skill.name)"
+                />
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
-      <!-- ===== BROWSE MODE: Registry skills ===== -->
-      <template v-else>
-        <!-- Error state -->
+      <USeparator v-if="showOfficialSections" />
+
+      <!-- Community / owner-filtered registry list -->
+      <section
+        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+        aria-labelledby="community-heading"
+      >
+        <div class="mb-6">
+          <h2
+            id="community-heading"
+            class="font-mono text-xl font-medium tracking-tight"
+          >
+            {{ isOwnerFiltered ? `Skills by ${owner}` : 'Community' }}
+          </h2>
+          <p v-if="!isOwnerFiltered" class="mt-1 text-sm text-muted leading-relaxed">
+            Skills from the wider npm ecosystem, ranked by weekly install volume.
+          </p>
+        </div>
+
+        <div aria-live="polite" aria-atomic="true" class="sr-only">
+          <template v-if="isLoading">
+            Loading...
+          </template>
+          <template v-else-if="registryData && registryData.items.length === 0">
+            No skills found.
+          </template>
+          <template v-else-if="registryData">
+            {{ registryData.total }} skills.
+          </template>
+        </div>
+
         <div
-          v-if="registryStatus === 'error'"
+          v-if="isLoading"
+          :class="view === 'grid' ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'flex flex-col gap-2'"
+          aria-busy="true"
+          aria-label="Loading"
+        >
+          <div
+            v-for="i in 12"
+            :key="i"
+            class="rounded-lg border border-default p-4"
+          >
+            <USkeleton class="h-4 w-3/4" />
+            <USkeleton class="mt-2 h-3 w-1/2" />
+            <USkeleton v-if="view === 'grid'" class="mt-4 h-3 w-full" />
+          </div>
+        </div>
+
+        <div
+          v-else-if="registryStatus === 'error'"
           role="alert"
           class="rounded-lg border border-default p-8 text-center"
         >
@@ -394,68 +633,62 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
           </p>
         </div>
 
-        <!-- Empty state -->
         <div
           v-else-if="registryData && registryData.items.length === 0"
           class="rounded-lg border border-default p-8 text-center"
         >
           <UIcon name="i-lucide-package" class="mx-auto size-8 text-muted" aria-hidden="true" />
           <p class="mt-3 text-sm">
-            No skills in the registry yet. Search for any npm package above to generate one.
+            No skills here yet. Search for any npm package above to generate one.
           </p>
         </div>
 
-        <!-- Grid view -->
         <ul
           v-else-if="registryData && view === 'grid'"
           class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
         >
-          <li v-for="skill in registryData.items" :key="skill.slug">
+          <li v-for="skill in registryData.items" :key="skill.slug" class="group relative">
             <NuxtLink
               :to="skillPath(skill)"
               :aria-label="`${skill.name} by ${skill.owner}`"
-              class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+              class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
             >
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-1.5">
-                    <p class="font-mono text-sm font-medium truncate">
-                      {{ skill.name }}
-                    </p>
-                    <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-                  </div>
-                  <p class="mt-0.5 text-xs text-muted truncate">
-                    {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <p class="font-mono text-sm font-medium truncate">
+                    {{ skill.name }}
                   </p>
+                  <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
                 </div>
-                <UButton
-                  :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-                  @click.prevent="copyInstall(skill.name)"
-                />
+                <p class="mt-0.5 text-xs text-muted truncate">
+                  {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
+                </p>
               </div>
-
               <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
                 skilld add npm:{{ skill.name }}
               </code>
             </NuxtLink>
+            <UButton
+              :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+              :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
+              @click="copyInstall(skill.name)"
+            />
           </li>
         </ul>
 
-        <!-- List view -->
         <ul
           v-else-if="registryData && view === 'list'"
           class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
         >
-          <li v-for="skill in registryData.items" :key="skill.slug">
+          <li v-for="skill in registryData.items" :key="skill.slug" class="group relative">
             <NuxtLink
               :to="skillPath(skill)"
               :aria-label="`${skill.name} by ${skill.owner}`"
-              class="group flex items-center gap-4 px-4 py-3 transition-colors duration-200 hover:bg-elevated"
+              class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
             >
               <div class="min-w-0 flex-1 flex items-center gap-3">
                 <div class="flex items-center gap-1.5 shrink-0">
@@ -471,48 +704,76 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
               <code class="hidden sm:block truncate font-mono text-xs text-muted max-w-xs">
                 skilld add npm:{{ skill.name }}
               </code>
-              <UButton
-                :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-                @click.prevent="copyInstall(skill.name)"
-              />
             </NuxtLink>
+            <UButton
+              :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+              :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
+              @click="copyInstall(skill.name)"
+            />
           </li>
         </ul>
-      </template>
 
-      <!-- Pagination -->
-      <nav
-        v-if="totalPages > 1"
-        aria-label="Pagination"
-        class="mt-8 flex items-center justify-center gap-2"
-      >
-        <UButton
-          icon="i-lucide-chevron-left"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          aria-label="Previous page"
-          :disabled="page <= 1"
-          @click="page--"
-        />
-        <span class="data-label">
-          Page {{ page }} of {{ totalPages }}
-        </span>
-        <UButton
-          icon="i-lucide-chevron-right"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          aria-label="Next page"
-          :disabled="page >= totalPages"
-          @click="page++"
-        />
-      </nav>
-    </section>
+        <nav
+          v-if="totalPages > 1"
+          aria-label="Pagination"
+          class="mt-8 flex items-center justify-center gap-2"
+        >
+          <UButton
+            icon="i-lucide-chevron-left"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            aria-label="Previous page"
+            :disabled="page <= 1"
+            @click="page--"
+          />
+          <span class="data-label">
+            Page {{ page }} of {{ totalPages }}
+          </span>
+          <UButton
+            icon="i-lucide-chevron-right"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            aria-label="Next page"
+            :disabled="page >= totalPages"
+            @click="page++"
+          />
+        </nav>
+      </section>
+    </template>
+
+    <!-- Search-mode pagination -->
+    <nav
+      v-if="isSearching && totalPages > 1"
+      aria-label="Pagination"
+      class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 flex items-center justify-center gap-2"
+    >
+      <UButton
+        icon="i-lucide-chevron-left"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        aria-label="Previous page"
+        :disabled="page <= 1"
+        @click="page--"
+      />
+      <span class="data-label">
+        Page {{ page }} of {{ totalPages }}
+      </span>
+      <UButton
+        icon="i-lucide-chevron-right"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        aria-label="Next page"
+        :disabled="page >= totalPages"
+        @click="page++"
+      />
+    </nav>
   </div>
 </template>

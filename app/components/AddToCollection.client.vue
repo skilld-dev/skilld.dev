@@ -45,6 +45,7 @@ async function toggle(collection: CollectionItem) {
       name: collection.record.name,
       slug: collection.record.slug,
       description: collection.record.description,
+      ...(collection.record.preamble ? { preamble: collection.record.preamble } : {}),
       skills: updatedSkills,
       stacks: collection.record.stacks,
     },

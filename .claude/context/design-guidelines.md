@@ -147,7 +147,6 @@ Use `UiTooltip` (not `UTooltip`) for any tooltip that needs more than a plain st
 - Glow effects, box-shadows on cards, backdrop-blur on surfaces (exception: brand noise field has controlled additive bloom; see "Brand Noise Field" section)
 - Cold colors (blue, cyan, purple) as primary accents
 - Pure black (#000) or pure gray (0 chroma) anywhere
-- Leaderboard or ranking patterns; never sort by download count as primary view
 - Dense data tables on first-level views; density increases with depth
 - Emoji or playful illustrations
 - Gradient text effects

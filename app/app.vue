@@ -89,15 +89,15 @@ onKeyDown('?', (e) => {
       <template #right>
         <UButton
           to="/skills"
-          label="NPM Skills"
+          label="Skills"
           color="neutral"
           variant="ghost"
           size="sm"
           class="hidden lg:inline-flex"
         />
         <UButton
-          to="/skills/guide"
-          label="Guide Skills"
+          to="/collections"
+          label="Collections"
           color="neutral"
           variant="ghost"
           size="sm"
@@ -160,15 +160,15 @@ onKeyDown('?', (e) => {
         >
           <UButton
             to="/skills"
-            label="NPM Skills"
+            label="Skills"
             color="neutral"
             variant="ghost"
             block
             class="justify-start"
           />
           <UButton
-            to="/skills/guide"
-            label="Guide Skills"
+            to="/collections"
+            label="Collections"
             color="neutral"
             variant="ghost"
             block

@@ -343,12 +343,23 @@ function toggleCollection(slug: string) {
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
       aria-labelledby="collections-heading"
     >
-      <h2
-        id="collections-heading"
-        class="section-label mb-6"
-      >
-        Collections
-      </h2>
+      <div class="flex items-center justify-between mb-6">
+        <h2
+          id="collections-heading"
+          class="section-label"
+        >
+          Collections
+        </h2>
+        <UButton
+          v-if="homepageData?.collections.length"
+          to="/collections"
+          label="View all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
 
       <span
         aria-live="polite"
@@ -443,26 +454,7 @@ function toggleCollection(slug: string) {
       </div>
 
       <!-- Empty state -->
-      <div
-        v-else
-        class="rounded-lg border border-default p-8 text-center"
-      >
-        <UIcon
-          name="i-lucide-layers"
-          class="mx-auto size-8 text-muted"
-          aria-hidden="true"
-        />
-        <p class="mt-3 text-sm">
-          No collections published yet. Be the first to curate your skills.
-        </p>
-        <UButton
-          label="Publish a collection"
-          icon="i-lucide-plus"
-          size="sm"
-          class="mt-4"
-          @click="authModalOpen = true"
-        />
-      </div>
+      <CollectionsEmptyCTA v-else />
     </section>
 
     <USeparator />

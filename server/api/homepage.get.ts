@@ -14,6 +14,7 @@ interface HomepageCollection {
   name: string
   slug: string
   description: string
+  preambleExcerpt?: string
   skillCount: number
   skills: string[]
   stacks: string[]
@@ -71,6 +72,7 @@ export default defineEventHandler(async (event) => {
         name: record.name,
         slug: record.slug,
         description: record.description,
+        ...(record.preamble ? { preambleExcerpt: excerpt(record.preamble) } : {}),
         skillCount: record.skills.length,
         skills: record.skills.map(s => s.packageName),
         stacks: record.stacks,

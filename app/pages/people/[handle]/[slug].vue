@@ -28,9 +28,21 @@ async function handleDelete() {
   await navigateTo(`/people/${handle.value}`)
 }
 
+function metaExcerpt(source: string | undefined, fallback: string): string {
+  if (!source)
+    return fallback
+  const stripped = source.replace(/[#>*_`~[\]()!]/g, '').replace(/\s+/g, ' ').trim()
+  if (stripped.length <= 160)
+    return stripped
+  return `${stripped.slice(0, 160).replace(/\s+\S*$/, '')}...`
+}
+
 useSeoMeta({
   title: () => data.value?.record.name ?? slug.value,
-  description: () => data.value?.record.description ?? `Collection by @${handle.value}`,
+  description: () => metaExcerpt(
+    data.value?.record.preamble,
+    data.value?.record.description ?? `Collection by @${handle.value}`,
+  ),
 })
 
 defineOgImage('Collection.takumi', {
@@ -152,6 +164,32 @@ defineOgImage('Collection.takumi', {
         </div>
       </template>
     </section>
+
+    <!-- Preamble (long-form intro) -->
+    <template v-if="data?.record.preamble && !resolving">
+      <USeparator />
+
+      <section
+        class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-10"
+        aria-labelledby="preamble-heading"
+      >
+        <h2
+          id="preamble-heading"
+          class="section-label mb-4"
+        >
+          About this collection
+        </h2>
+        <div class="space-y-4 text-sm leading-relaxed text-default">
+          <p
+            v-for="(para, i) in data.record.preamble.split(/\n{2,}/).filter(Boolean)"
+            :key="i"
+            class="whitespace-pre-line"
+          >
+            {{ para }}
+          </p>
+        </div>
+      </section>
+    </template>
 
     <!-- Skills list -->
     <template v-if="data && !resolving">

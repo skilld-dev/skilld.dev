@@ -19,6 +19,7 @@ export interface CollectionRecord {
   name: string
   slug: string
   description: string
+  preamble?: string
   skills: CollectionSkill[]
   stacks: string[]
   postRef?: PostReference
@@ -31,6 +32,7 @@ export interface CollectionInput {
   name: string
   slug: string
   description: string
+  preamble?: string
   skills: CollectionSkill[]
   stacks: string[]
 }
@@ -38,6 +40,7 @@ export interface CollectionInput {
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
 const MAX_NAME = 100
 const MAX_DESCRIPTION = 500
+const MAX_PREAMBLE = 5000
 const MAX_SKILLS = 50
 const MAX_STACKS = 10
 
@@ -45,7 +48,7 @@ export function validateCollectionInput(body: unknown): CollectionInput {
   if (!body || typeof body !== 'object')
     throw createError({ statusCode: 400, message: 'Request body must be an object' })
 
-  const { name, slug, description, skills, stacks } = body as Record<string, unknown>
+  const { name, slug, description, preamble, skills, stacks } = body as Record<string, unknown>
 
   if (typeof name !== 'string' || name.length < 1 || name.length > MAX_NAME)
     throw createError({ statusCode: 400, message: `name must be 1-${MAX_NAME} characters` })
@@ -55,6 +58,9 @@ export function validateCollectionInput(body: unknown): CollectionInput {
 
   if (typeof description !== 'string' || description.length > MAX_DESCRIPTION)
     throw createError({ statusCode: 400, message: `description must be under ${MAX_DESCRIPTION} characters` })
+
+  if (preamble !== undefined && (typeof preamble !== 'string' || preamble.length > MAX_PREAMBLE))
+    throw createError({ statusCode: 400, message: `preamble must be a string under ${MAX_PREAMBLE} characters` })
 
   if (!Array.isArray(skills) || skills.length < 1 || skills.length > MAX_SKILLS)
     throw createError({ statusCode: 400, message: `skills must have 1-${MAX_SKILLS} entries` })
@@ -76,6 +82,7 @@ export function validateCollectionInput(body: unknown): CollectionInput {
     name,
     slug,
     description,
+    ...(typeof preamble === 'string' && preamble.length > 0 ? { preamble } : {}),
     skills: skills.map((s: CollectionSkill) => ({
       packageName: s.packageName,
       ...(s.reason ? { reason: s.reason } : {}),
@@ -94,6 +101,7 @@ export function toCollectionRecord(input: CollectionInput, opts?: { existingCrea
     name: input.name,
     slug: input.slug,
     description: input.description,
+    ...(input.preamble ? { preamble: input.preamble } : {}),
     skills: input.skills,
     stacks: input.stacks,
     ...(opts?.postRef ? { postRef: opts.postRef } : {}),
@@ -115,6 +123,8 @@ export function parseCollectionRecord(value: unknown): CollectionRecord | null {
   if (typeof v.name !== 'string' || typeof v.slug !== 'string')
     return null
   if (typeof v.description !== 'string')
+    return null
+  if (v.preamble !== undefined && typeof v.preamble !== 'string')
     return null
   if (!Array.isArray(v.skills) || v.skills.length === 0)
     return null
@@ -142,6 +152,7 @@ export function parseCollectionRecord(value: unknown): CollectionRecord | null {
     name: v.name,
     slug: v.slug,
     description: v.description,
+    ...(typeof v.preamble === 'string' && v.preamble.length > 0 ? { preamble: v.preamble } : {}),
     skills: (v.skills as CollectionSkill[]).map(s => ({
       packageName: s.packageName,
       ...(s.reason ? { reason: s.reason } : {}),

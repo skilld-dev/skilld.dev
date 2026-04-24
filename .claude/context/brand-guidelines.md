@@ -24,7 +24,6 @@ Skills are knowledge, not packages. The right skill for your context matters mor
 
 ### What we are not
 - An AI product (we serve developers who use AI agents, but we are not "AI-powered")
-- A leaderboard or popularity contest (never sort by downloads as primary view)
 
 ### Differentiation
 

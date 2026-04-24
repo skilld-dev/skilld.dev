@@ -1,7 +1,16 @@
+import type { H3Event } from 'h3'
+import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
+import type { FaqPayload } from '../../jobs/generate-faqs'
+import type { TagPayload } from '../../jobs/generate-tags'
+import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
 import { Marked } from 'marked'
+import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
+import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { listCollectionRecords } from '../../utils/atproto/collections'
 import { getAllCurators } from '../../utils/atproto/curator-index'
-import { findSkill } from '../../utils/skills-registry'
+import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
+import { getGenerated } from '../../utils/skill-generated'
+import { findRelatedSkills, findSkill, findSkillsByLookups } from '../../utils/skills-registry'
 
 const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
 const HTML_ESCAPE_RE = /[&<>"']/g
@@ -67,8 +76,31 @@ interface UnghRepo {
 const ENDORSEMENTS_CACHE_KEY = 'skills:endorsement-map'
 const ENDORSEMENTS_CACHE_TTL = 60 * 5 // 5 minutes
 const REPO_META_CACHE_TTL = 60 * 15 // 15 minutes
-const REPO_MISSING_CACHE_TTL = 60 * 60 * 24 // 24 hours — deleted repos
+const REPO_MISSING_CACHE_TTL = 60 * 60 * 24 // 24 hours, deleted repos
 const REPO_TREE_CACHE_TTL = 60 * 60 * 6 // 6 hours
+const COMMITS_CACHE_TTL = 60 * 60 * 12 // 12 hours, GitHub anon rate limit is tight
+
+interface SkillCommit {
+  sha: string
+  shortSha: string
+  message: string
+  authorName: string
+  authorAvatar: string | null
+  date: string
+  url: string
+}
+
+const ONE_DAY_MS = 1000 * 60 * 60 * 24
+
+function computeMaturity(createdAt: string | null, pushedAt: string | null): { ageDays: number, sinceUpdateDays: number, cadence: 'active' | 'steady' | 'dormant' } | null {
+  if (!createdAt || !pushedAt)
+    return null
+  const now = Date.now()
+  const ageDays = Math.max(1, Math.floor((now - new Date(createdAt).getTime()) / ONE_DAY_MS))
+  const sinceUpdateDays = Math.floor((now - new Date(pushedAt).getTime()) / ONE_DAY_MS)
+  const cadence = sinceUpdateDays <= 30 ? 'active' : sinceUpdateDays <= 180 ? 'steady' : 'dormant'
+  return { ageDays, sinceUpdateDays, cadence }
+}
 
 interface UnghTreeFile {
   path: string
@@ -113,6 +145,27 @@ export default defineEventHandler(async (event) => {
 
   const parsed = raw ? parseSkillMd(raw) : null
 
+  const db = getDB(event)
+  const [commits, related, faqRow, tagRow, coOccurrenceNeighbors, embeddingNeighbors] = await Promise.all([
+    skillPath ? getSkillCommits(skill.owner, skill.repo, skillPath) : Promise.resolve([]),
+    findRelatedSkills(event, { owner: skill.owner, repo: skill.repo, excludeName: skill.name, limit: 6 }),
+    getGenerated<FaqPayload>(db, { owner: skill.owner, name: skill.name, kind: 'faq' }),
+    getGenerated<TagPayload>(db, { owner: skill.owner, name: skill.name, kind: 'tags' }),
+    getCoOccurrenceNeighbors(db, skill.name),
+    getEmbeddingNeighbors(db, { owner: skill.owner, name: skill.name }),
+  ])
+
+  const [coOccurrenceSkills, embeddingSkills] = await resolveNeighborSkills(
+    event,
+    coOccurrenceNeighbors,
+    embeddingNeighbors,
+    skill.name,
+  )
+
+  const tags = (tagRow?.payload.tags ?? [])
+    .map(slug => TAG_BY_SLUG.get(slug))
+    .filter((t): t is NonNullable<typeof t> => Boolean(t))
+
   return {
     owner: skill.owner,
     repo: skill.repo,
@@ -132,8 +185,111 @@ export default defineEventHandler(async (event) => {
     stars: repoMeta?.stars ?? 0,
     forks: repoMeta?.forks ?? 0,
     pushedAt: repoMeta?.pushedAt ?? null,
+    createdAt: repoMeta?.createdAt ?? null,
+    maturity: computeMaturity(repoMeta?.createdAt ?? null, repoMeta?.pushedAt ?? null),
+    commits,
+    relatedRepoSkills: related.sameRepo,
+    relatedOwnerSkills: related.sameOwner,
+    tags,
+    faqs: faqRow?.payload.items ?? [],
+    coOccurrenceSkills,
+    semanticSiblings: embeddingSkills,
   }
 })
+
+interface NeighborSkill {
+  name: string
+  owner: string
+  repo: string
+  slug: string
+  displayName: string
+  installs: number
+  score: number
+}
+
+async function resolveNeighborSkills(
+  event: H3Event,
+  coOccurrence: CoOccurrenceNeighbor[],
+  embedding: EmbeddingNeighbor[],
+  excludeName: string,
+): Promise<[NeighborSkill[], NeighborSkill[]]> {
+  const coNames = coOccurrence.filter(n => n.name !== excludeName).slice(0, 8)
+  const embedNames = embedding.filter(n => n.name !== excludeName).slice(0, 8)
+  const lookups = [
+    ...coNames.map(n => ({ packageName: n.name })),
+    ...embedNames.map(n => ({ packageName: n.name, owner: n.owner })),
+  ]
+  if (!lookups.length)
+    return [[], []]
+
+  const map = await findSkillsByLookups(event, lookups)
+
+  function hydrate<N extends { name: string }>(
+    neighbors: N[],
+    scoreKey: keyof N,
+  ): NeighborSkill[] {
+    return neighbors
+      .map((n) => {
+        const row = map.get(n.name)
+        if (!row)
+          return null
+        return {
+          name: row.name,
+          owner: row.owner,
+          repo: row.repo,
+          slug: row.slug,
+          displayName: row.displayName,
+          installs: row.installs,
+          score: Number(n[scoreKey]) || 0,
+        }
+      })
+      .filter((s): s is NeighborSkill => s !== null)
+      .slice(0, 6)
+  }
+
+  return [hydrate(coNames, 'score'), hydrate(embedNames, 'similarity')]
+}
+
+interface GhCommitResponse {
+  sha: string
+  html_url: string
+  commit: {
+    message: string
+    author: { name: string, date: string } | null
+  }
+  author: { login: string, avatar_url: string } | null
+}
+
+async function getSkillCommits(owner: string, repo: string, path: string): Promise<SkillCommit[]> {
+  const cacheKey = `skills:commits:${owner}/${repo}:${path}`
+  const cached = await useStorage('cache').getItem<SkillCommit[]>(cacheKey)
+  if (cached)
+    return cached
+
+  const data = await $fetch<GhCommitResponse[]>(`https://api.github.com/repos/${owner}/${repo}/commits`, {
+    query: { path, per_page: 5 },
+    headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'skilld.dev' },
+  }).catch((err) => {
+    console.warn(`[skills] Failed to fetch commits for ${owner}/${repo}:${path}:`, err?.statusCode || err)
+    return null
+  })
+
+  if (!Array.isArray(data))
+    return []
+
+  const commits: SkillCommit[] = data.map(c => ({
+    sha: c.sha,
+    shortSha: c.sha.slice(0, 7),
+    message: (c.commit?.message ?? '').split('\n')[0]!.slice(0, 140),
+    authorName: c.author?.login ?? c.commit?.author?.name ?? 'unknown',
+    authorAvatar: c.author?.avatar_url ?? null,
+    date: c.commit?.author?.date ?? '',
+    url: c.html_url,
+  }))
+
+  await useStorage('cache').setItem(cacheKey, commits, { ttl: COMMITS_CACHE_TTL })
+  return commits
+}
 
 async function resolveSkillMdPath(owner: string, repo: string, name: string, branch: string): Promise<string | null> {
   const cacheKey = `skills:skill-path:v2:${owner}/${repo}/${name}`

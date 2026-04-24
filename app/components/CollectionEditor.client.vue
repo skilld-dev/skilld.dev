@@ -21,6 +21,7 @@ const state = reactive({
   name: existing?.record.name ?? '',
   slug: existing?.rkey ?? '',
   description: existing?.record.description ?? '',
+  preamble: existing?.record.preamble ?? '',
   skillInput: '',
   skills: existing?.record.skills.map(s => s.packageName) ?? initialSkills ?? [] as string[],
   stackInput: '',
@@ -90,6 +91,7 @@ async function handleSubmit() {
       name: state.name,
       slug: state.slug,
       description: state.description,
+      ...(state.preamble.trim() ? { preamble: state.preamble.trim() } : {}),
       skills: state.skills.map(packageName => ({ packageName })),
       stacks: state.stacks,
     }, { shareOnBluesky: state.shareOnBluesky })
@@ -148,12 +150,31 @@ async function handleSubmit() {
     <UFormField
       label="Description"
       name="description"
+      hint="Shown under the name. 1-2 sentences, under 500 chars."
     >
       <UTextarea
         v-model="state.description"
         placeholder="What this collection is for and who it's built for."
         :rows="3"
       />
+    </UFormField>
+
+    <UFormField
+      label="Preamble"
+      name="preamble"
+      hint="Optional. Long-form intro rendered at the top of the collection page. Plain text or markdown, up to ~5000 chars."
+    >
+      <UTextarea
+        v-model="state.preamble"
+        placeholder="Why this stack exists. The constraints it solves. Who it's for. Anything a reader (or search engine) would want to know before scanning the skills list."
+        :rows="6"
+        class="font-mono text-sm"
+      />
+      <template #description>
+        <span class="font-mono text-xs text-muted">
+          {{ state.preamble.length }} / 5000
+        </span>
+      </template>
     </UFormField>
 
     <UFormField

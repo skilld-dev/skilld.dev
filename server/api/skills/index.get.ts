@@ -10,12 +10,14 @@ export default defineEventHandler(async (event) => {
   const limit = Math.min(Number(query.limit) || 60, 200)
   const sort = (query.sort as string) || 'installs'
   const official = query.official === 'true' || query.official === '1'
+  const excludeOfficial = query.excludeOfficial === 'true' || query.excludeOfficial === '1'
   const owner = (query.owner as string || '').toLowerCase().trim()
 
   const result = await querySkills(event, {
     search: search || undefined,
     owner: owner || undefined,
     official,
+    excludeOfficial,
     sort: sort as 'installs' | 'name' | 'owner',
     page,
     limit,

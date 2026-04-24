@@ -8,6 +8,46 @@ const slug = computed(() => {
 const { isAuthenticated } = useAuth()
 const authModalOpen = inject<Ref<boolean>>('authModalOpen', ref(false))
 
+interface RelatedSkill {
+  name: string
+  owner: string
+  repo: string
+  displayName: string
+  installs: number
+  slug: string
+}
+
+interface SkillCommit {
+  sha: string
+  shortSha: string
+  message: string
+  authorName: string
+  authorAvatar: string | null
+  date: string
+  url: string
+}
+
+interface SkillTag {
+  slug: string
+  label: string
+  description: string
+}
+
+interface FaqItem {
+  question: string
+  answer: string
+}
+
+interface NeighborSkill {
+  name: string
+  owner: string
+  repo: string
+  slug: string
+  displayName: string
+  installs: number
+  score: number
+}
+
 const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch(
   () => `/api/skills/${slug.value}`,
@@ -27,6 +67,17 @@ const { data, status, error, refresh } = useFetch(
   stars: number
   forks: number
   pushedAt: string | null
+  createdAt: string | null
+  maturity: { ageDays: number, sinceUpdateDays: number, cadence: 'active' | 'steady' | 'dormant' } | null
+  branch: string
+  skillPath: string | null
+  commits: SkillCommit[]
+  relatedRepoSkills: RelatedSkill[]
+  relatedOwnerSkills: RelatedSkill[]
+  tags: SkillTag[]
+  faqs: FaqItem[]
+  coOccurrenceSkills: NeighborSkill[]
+  semanticSiblings: NeighborSkill[]
 }>>
 
 const { copy, copied } = useClipboard()
@@ -79,12 +130,57 @@ const frontmatterEntries = computed(() => {
 
 const pushedAtDate = computed(() => new Date(data.value?.pushedAt || 0))
 const pushedAtAgo = useTimeAgo(pushedAtDate)
+const createdAtDate = computed(() => data.value?.createdAt ? new Date(data.value.createdAt) : null)
+const createdAtAgo = useTimeAgo(computed(() => createdAtDate.value ?? new Date(0)))
 
-useSeoMeta({
-  title: () => data.value ? `${data.value.name} by ${data.value.owner}` : 'Skill',
-  description: () => data.value
-    ? data.value.description || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
-    : 'View skill details on skilld.',
+const maturity = computed(() => data.value?.maturity ?? null)
+
+const TOOL_CATEGORIES: { match: RegExp, scope: 'read' | 'write' | 'exec' | 'net' }[] = [
+  { match: /^(Read|Glob|Grep|NotebookRead|LS)$/i, scope: 'read' },
+  { match: /^(Edit|Write|MultiEdit|NotebookEdit)$/i, scope: 'write' },
+  { match: /^(Bash|Task|KillBash|BashOutput)$/i, scope: 'exec' },
+  { match: /^(WebFetch|WebSearch|mcp__.*fetch.*|mcp__.*http.*)$/i, scope: 'net' },
+]
+
+const capabilitySummary = computed<{ scopes: ('read' | 'write' | 'exec' | 'net')[], mcp: string[] } | null>(() => {
+  if (!allowedTools.value.length)
+    return null
+  const scopes = new Set<'read' | 'write' | 'exec' | 'net'>()
+  const mcp: string[] = []
+  for (const raw of allowedTools.value) {
+    // Strip argument filter: "Bash(git:*)" -> "Bash", "mcp__foo__bar(...)" -> "mcp__foo__bar"
+    const tool = raw.split('(')[0]!.trim()
+    if (tool.startsWith('mcp__')) {
+      const server = tool.split('__')[1]
+      if (server && !mcp.includes(server))
+        mcp.push(server)
+    }
+    for (const cat of TOOL_CATEGORIES) {
+      if (cat.match.test(tool))
+        scopes.add(cat.scope)
+    }
+  }
+  return { scopes: [...scopes], mcp }
+})
+
+const SCOPE_META: Record<'read' | 'write' | 'exec' | 'net', { icon: string, label: string, hint: string }> = {
+  read: { icon: 'i-lucide-eye', label: 'Reads files', hint: 'Can read files and search the codebase' },
+  write: { icon: 'i-lucide-pencil', label: 'Edits files', hint: 'Can create or modify files' },
+  exec: { icon: 'i-lucide-terminal', label: 'Runs commands', hint: 'Can execute shell commands via Bash' },
+  net: { icon: 'i-lucide-globe', label: 'Network', hint: 'Can make web requests' },
+}
+
+const skillModel = computed(() => {
+  const fm = data.value?.frontmatter
+  const m = fm?.model
+  return typeof m === 'string' ? m : null
+})
+
+const commitsWithAgo = computed(() => {
+  return (data.value?.commits ?? []).map((c) => {
+    const d = new Date(c.date)
+    return { ...c, relative: useTimeAgo(d).value, absolute: d.toLocaleString() }
+  })
 })
 
 defineOgImage('Skill.takumi', {
@@ -94,6 +190,77 @@ defineOgImage('Skill.takumi', {
   curatorCount: () => data.value?.curators.length ?? 0,
 }, {
   alt: () => `${data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
+})
+
+const siteOrigin = 'https://skilld.dev'
+const skillPageUrl = computed(() => `${siteOrigin}/skills/${slug.value}`)
+
+useSchemaOrg(computed(() => {
+  if (!data.value)
+    return []
+  const d = data.value
+  const description = d.description || `${d.name} Claude Code skill by ${d.owner}.`
+  return [
+    defineSoftwareApp({
+      '@id': `${skillPageUrl.value}#skill`,
+      'name': d.name,
+      description,
+      'applicationCategory': 'DeveloperApplication',
+      'operatingSystem': 'Any',
+      'url': skillPageUrl.value,
+      'downloadUrl': d.githubUrl,
+      'softwareVersion': d.pushedAt ?? undefined,
+      'dateModified': d.pushedAt ?? undefined,
+      'datePublished': d.createdAt ?? undefined,
+      'author': {
+        '@type': 'Person',
+        'name': d.owner,
+        'url': `https://github.com/${d.owner}`,
+      },
+      'offers': { '@type': 'Offer', 'price': '0', 'priceCurrency': 'USD' },
+      'aggregateRating': d.curators.length
+        ? {
+            '@type': 'AggregateRating',
+            'ratingValue': '5',
+            'reviewCount': d.curators.length,
+            'bestRating': '5',
+            'worstRating': '1',
+          }
+        : undefined,
+    }),
+    defineHowTo({
+      '@id': `${skillPageUrl.value}#install`,
+      'name': `Install ${d.name} with skilld`,
+      'description': `Install the ${d.name} skill into Claude Code.`,
+      'totalTime': 'PT1M',
+      'step': [
+        {
+          '@type': 'HowToStep',
+          'name': 'Run the install command',
+          'text': `skilld add npm:${d.name}`,
+          'url': `${skillPageUrl.value}#install`,
+        },
+      ],
+    }),
+    ...(d.faqs.length
+      ? [{
+          '@type': 'FAQPage' as const,
+          '@id': `${skillPageUrl.value}#faq`,
+          'mainEntity': d.faqs.map(f => ({
+            '@type': 'Question',
+            'name': f.question,
+            'acceptedAnswer': { '@type': 'Answer', 'text': f.answer },
+          })),
+        }]
+      : []),
+  ]
+}))
+
+useSeoMeta({
+  title: () => data.value ? `${data.value.name} by ${data.value.owner}` : 'Skill',
+  description: () => data.value
+    ? data.value.description || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
+    : 'View skill details on skilld.',
 })
 </script>
 
@@ -175,19 +342,36 @@ defineOgImage('Skill.takumi', {
 
       <!-- Skill header -->
       <template v-else>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1
-              id="skill-heading"
-              class="font-mono text-xl font-medium"
+        <div class="flex items-start gap-3">
+          <a
+            :href="`https://github.com/${data.owner}`"
+            target="_blank"
+            rel="noopener"
+            class="shrink-0"
+            :aria-label="`${data.owner} on GitHub`"
+          >
+            <img
+              :src="`https://github.com/${data.owner}.png?size=80`"
+              :alt="`${data.owner} avatar`"
+              width="40"
+              height="40"
+              class="size-10 rounded-md border border-default"
             >
-              {{ data.name }}
-            </h1>
-            <UBadge label="npm skill" variant="subtle" color="neutral" size="xs" />
+          </a>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <h1
+                id="skill-heading"
+                class="font-mono text-xl font-medium"
+              >
+                {{ data.name }}
+              </h1>
+              <UBadge label="npm skill" variant="subtle" color="neutral" size="xs" />
+            </div>
+            <p class="mt-1 font-mono text-sm text-muted">
+              {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
+            </p>
           </div>
-          <p class="mt-1 font-mono text-sm text-muted">
-            {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
-          </p>
         </div>
 
         <!-- Description from GitHub -->
@@ -200,7 +384,7 @@ defineOgImage('Skill.takumi', {
 
         <!-- Stats row -->
         <div
-          v-if="data.stars || data.forks || data.pushedAt"
+          v-if="data.stars || data.forks || data.pushedAt || data.createdAt"
           class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5"
         >
           <span
@@ -236,6 +420,30 @@ defineOgImage('Skill.takumi', {
             />
             Updated {{ pushedAtAgo }}
           </span>
+          <span
+            v-if="data.createdAt"
+            class="data-label inline-flex items-center gap-1"
+            :title="new Date(data.createdAt).toLocaleDateString()"
+          >
+            <UIcon
+              name="i-lucide-sparkles"
+              class="size-3.5"
+              aria-hidden="true"
+            />
+            First seen {{ createdAtAgo }}
+          </span>
+          <UBadge
+            v-if="maturity"
+            :label="maturity.cadence"
+            :color="maturity.cadence === 'active' ? 'primary' : 'neutral'"
+            variant="subtle"
+            size="xs"
+            :title="maturity.cadence === 'active'
+              ? 'Updated in the last 30 days'
+              : maturity.cadence === 'steady'
+                ? 'Updated in the last 6 months'
+                : 'No updates in 6+ months'"
+          />
         </div>
 
         <!-- Install command -->
@@ -277,10 +485,170 @@ defineOgImage('Skill.takumi', {
           />
           <AddToCollection :package-name="packageName" />
         </div>
+
+        <!-- Tag chips -->
+        <div
+          v-if="data.tags.length"
+          class="mt-4 flex flex-wrap gap-1.5"
+        >
+          <NuxtLink
+            v-for="tag in data.tags"
+            :key="tag.slug"
+            :to="`/skills/tag/${tag.slug}`"
+            class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
+            :title="tag.description"
+          >
+            <UIcon
+              name="i-lucide-tag"
+              class="size-3"
+              aria-hidden="true"
+            />
+            {{ tag.label }}
+          </NuxtLink>
+        </div>
       </template>
     </section>
 
     <template v-if="data && status !== 'pending'">
+      <!-- Capability panel -->
+      <template v-if="capabilitySummary || skillModel || frontmatterEntries.length">
+        <USeparator />
+
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
+          aria-labelledby="capability-heading"
+        >
+          <h2
+            id="capability-heading"
+            class="section-label mb-4"
+          >
+            Capability
+          </h2>
+
+          <div class="rounded-lg border border-default p-4 sm:p-5 space-y-4">
+            <!-- Scopes -->
+            <div
+              v-if="capabilitySummary && capabilitySummary.scopes.length"
+              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
+            >
+              <span class="data-label shrink-0 sm:w-32 pt-1">What it can do</span>
+              <div class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="scope in capabilitySummary.scopes"
+                  :key="scope"
+                  class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
+                  :title="SCOPE_META[scope].hint"
+                >
+                  <UIcon
+                    :name="SCOPE_META[scope].icon"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ SCOPE_META[scope].label }}
+                </span>
+              </div>
+            </div>
+
+            <!-- MCP servers -->
+            <div
+              v-if="capabilitySummary && capabilitySummary.mcp.length"
+              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
+            >
+              <span class="data-label shrink-0 sm:w-32 pt-1">MCP servers</span>
+              <div class="flex flex-wrap gap-1.5">
+                <UBadge
+                  v-for="server in capabilitySummary.mcp"
+                  :key="server"
+                  :label="server"
+                  variant="subtle"
+                  color="neutral"
+                  size="xs"
+                  class="font-mono"
+                />
+              </div>
+            </div>
+
+            <!-- Model -->
+            <div
+              v-if="skillModel"
+              class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4"
+            >
+              <span class="data-label shrink-0 sm:w-32">Model</span>
+              <UBadge
+                :label="skillModel"
+                variant="subtle"
+                color="neutral"
+                size="xs"
+                class="font-mono"
+              />
+            </div>
+
+            <!-- Allowed tools (detailed, collapsible) -->
+            <details
+              v-if="allowedTools.length"
+              class="group"
+            >
+              <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="size-3.5 transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+                All {{ allowedTools.length }} allowed tools
+              </summary>
+              <div class="mt-3 flex flex-wrap gap-1.5 pl-5">
+                <UBadge
+                  v-for="tool in allowedTools"
+                  :key="tool"
+                  :label="tool"
+                  variant="subtle"
+                  color="neutral"
+                  size="xs"
+                  class="font-mono"
+                />
+              </div>
+            </details>
+
+            <!-- Remaining frontmatter (minor metadata, collapsed) -->
+            <details
+              v-if="frontmatterEntries.length"
+              class="group"
+            >
+              <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="size-3.5 transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+                Other metadata
+              </summary>
+              <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-sm">
+                <div
+                  v-for="entry in frontmatterEntries"
+                  :key="entry.key"
+                  class="flex flex-col gap-1 px-3 py-2 sm:flex-row sm:gap-4"
+                  :class="entry.complex ? 'sm:items-start' : 'sm:items-center'"
+                >
+                  <dt class="data-label shrink-0 sm:w-32">
+                    {{ entry.key }}
+                  </dt>
+                  <dd class="min-w-0 flex-1 font-mono text-xs text-muted">
+                    <pre
+                      v-if="entry.complex"
+                      class="whitespace-pre-wrap break-all"
+                    >{{ entry.value }}</pre>
+                    <span
+                      v-else
+                      class="break-all"
+                    >{{ entry.value }}</span>
+                  </dd>
+                </div>
+              </dl>
+            </details>
+          </div>
+        </section>
+      </template>
+
       <!-- SKILL.md content -->
       <template v-if="data.contentHtml">
         <USeparator />
@@ -308,50 +676,6 @@ defineOgImage('Skill.takumi', {
           </div>
 
           <div class="rounded-lg border border-default overflow-hidden">
-            <dl
-              v-if="allowedTools.length || frontmatterEntries.length"
-              class="divide-y divide-default border-b border-default bg-muted/30 text-sm"
-            >
-              <div
-                v-if="allowedTools.length"
-                class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
-              >
-                <dt class="data-label shrink-0 sm:w-32">
-                  Allowed tools
-                </dt>
-                <dd class="flex flex-wrap gap-1.5">
-                  <UBadge
-                    v-for="tool in allowedTools"
-                    :key="tool"
-                    :label="tool"
-                    variant="subtle"
-                    color="neutral"
-                    size="xs"
-                    class="font-mono"
-                  />
-                </dd>
-              </div>
-              <div
-                v-for="entry in frontmatterEntries"
-                :key="entry.key"
-                class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:gap-4"
-                :class="entry.complex ? 'sm:items-start' : 'sm:items-center'"
-              >
-                <dt class="data-label shrink-0 sm:w-32">
-                  {{ entry.key }}
-                </dt>
-                <dd class="min-w-0 flex-1 font-mono text-xs text-muted">
-                  <pre
-                    v-if="entry.complex"
-                    class="whitespace-pre-wrap break-all"
-                  >{{ entry.value }}</pre>
-                  <span
-                    v-else
-                    class="break-all"
-                  >{{ entry.value }}</span>
-                </dd>
-              </div>
-            </dl>
             <article
               class="skill-prose p-4 sm:p-6"
               v-html="data.contentHtml"
@@ -367,6 +691,115 @@ defineOgImage('Skill.takumi', {
               class="font-mono hover:text-default transition-colors"
             >
               SKILL.md on GitHub
+            </a>
+          </p>
+        </section>
+      </template>
+
+      <!-- FAQ -->
+      <template v-if="data.faqs.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="faq-heading"
+        >
+          <h2
+            id="faq-heading"
+            class="section-label mb-4"
+          >
+            Frequently asked
+          </h2>
+          <div class="divide-y divide-default rounded-lg border border-default">
+            <details
+              v-for="(faq, idx) in data.faqs"
+              :key="idx"
+              class="group"
+            >
+              <summary class="flex cursor-pointer items-start gap-3 px-4 py-3 text-sm hover:bg-muted/30 transition-colors">
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="size-4 shrink-0 mt-0.5 text-muted transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+                <span class="flex-1">{{ faq.question }}</span>
+              </summary>
+              <div class="px-4 pb-4 pl-11 text-sm text-muted leading-relaxed">
+                {{ faq.answer }}
+              </div>
+            </details>
+          </div>
+          <p class="mt-3 text-xs text-muted">
+            Generated from the skill's SKILL.md. Refreshed when the source changes.
+          </p>
+        </section>
+      </template>
+
+      <!-- Changelog -->
+      <template v-if="commitsWithAgo.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="changelog-heading"
+        >
+          <h2
+            id="changelog-heading"
+            class="section-label mb-4"
+          >
+            Recent changes
+          </h2>
+          <ol
+            class="divide-y divide-default rounded-lg border border-default"
+            role="list"
+          >
+            <li
+              v-for="commit in commitsWithAgo"
+              :key="commit.sha"
+              class="flex items-start gap-3 px-4 py-3"
+            >
+              <img
+                v-if="commit.authorAvatar"
+                :src="commit.authorAvatar"
+                :alt="`${commit.authorName} avatar`"
+                width="24"
+                height="24"
+                class="size-6 shrink-0 rounded-full mt-0.5"
+              >
+              <div
+                v-else
+                class="size-6 shrink-0 rounded-full bg-muted mt-0.5"
+                aria-hidden="true"
+              />
+              <div class="min-w-0 flex-1">
+                <a
+                  :href="commit.url"
+                  target="_blank"
+                  rel="noopener"
+                  class="text-sm hover:text-muted transition-colors line-clamp-2"
+                >
+                  {{ commit.message }}
+                </a>
+                <div class="mt-0.5 flex items-center gap-2 text-xs text-muted">
+                  <span class="font-mono">{{ commit.authorName }}</span>
+                  <span aria-hidden="true">·</span>
+                  <time
+                    :datetime="commit.date"
+                    :title="commit.absolute"
+                    class="font-mono"
+                  >{{ commit.relative }}</time>
+                  <span aria-hidden="true">·</span>
+                  <code class="font-mono">{{ commit.shortSha }}</code>
+                </div>
+              </div>
+            </li>
+          </ol>
+          <p class="mt-3 text-xs text-muted">
+            <a
+              :href="`${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
+              target="_blank"
+              rel="noopener"
+              class="font-mono hover:text-default transition-colors"
+            >
+              View full history on GitHub
             </a>
           </p>
         </section>
@@ -477,6 +910,173 @@ defineOgImage('Skill.takumi', {
           </div>
         </div>
       </section>
+
+      <!-- Related skills (same repo) -->
+      <template v-if="data.relatedRepoSkills.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="repo-siblings-heading"
+        >
+          <h2
+            id="repo-siblings-heading"
+            class="section-label mb-4"
+          >
+            More from {{ data.owner }}/{{ data.repo }}
+          </h2>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <NuxtLink
+              v-for="sibling in data.relatedRepoSkills"
+              :key="sibling.slug"
+              :to="`/skills/${sibling.slug}`"
+              class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
+            >
+              <UIcon
+                name="i-lucide-file-code"
+                class="size-4 shrink-0 mt-0.5 text-muted group-hover:text-default transition-colors"
+                aria-hidden="true"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-mono text-sm">
+                  {{ sibling.name }}
+                </div>
+                <div
+                  v-if="sibling.installs"
+                  class="data-label mt-0.5"
+                >
+                  {{ sibling.installs.toLocaleString() }} installs
+                </div>
+              </div>
+            </NuxtLink>
+          </div>
+        </section>
+      </template>
+
+      <!-- Commonly paired with (curator co-occurrence) -->
+      <template v-if="data.coOccurrenceSkills.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="paired-heading"
+        >
+          <h2
+            id="paired-heading"
+            class="section-label mb-4"
+          >
+            Commonly paired with
+          </h2>
+          <p class="mb-4 text-xs text-muted">
+            Curators who added this skill often also added these.
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <NuxtLink
+              v-for="pair in data.coOccurrenceSkills"
+              :key="pair.slug"
+              :to="`/skills/${pair.slug}`"
+              class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
+            >
+              <img
+                :src="`https://github.com/${pair.owner}.png?size=48`"
+                :alt="`${pair.owner} avatar`"
+                width="24"
+                height="24"
+                class="size-6 shrink-0 rounded-md border border-default mt-0.5"
+              >
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-mono text-sm">
+                  {{ pair.name }}
+                </div>
+                <div class="data-label mt-0.5 truncate">
+                  {{ pair.owner }}/{{ pair.repo }}
+                </div>
+              </div>
+            </NuxtLink>
+          </div>
+        </section>
+      </template>
+
+      <!-- Semantic siblings (embedding similarity) -->
+      <template v-if="data.semanticSiblings.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="semantic-heading"
+        >
+          <h2
+            id="semantic-heading"
+            class="section-label mb-4"
+          >
+            Similar skills
+          </h2>
+          <p class="mb-4 text-xs text-muted">
+            Skills with overlapping purpose, ranked by content similarity.
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <NuxtLink
+              v-for="sib in data.semanticSiblings"
+              :key="sib.slug"
+              :to="`/skills/${sib.slug}`"
+              class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
+            >
+              <img
+                :src="`https://github.com/${sib.owner}.png?size=48`"
+                :alt="`${sib.owner} avatar`"
+                width="24"
+                height="24"
+                class="size-6 shrink-0 rounded-md border border-default mt-0.5"
+              >
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-mono text-sm">
+                  {{ sib.name }}
+                </div>
+                <div class="data-label mt-0.5 truncate">
+                  {{ sib.owner }}/{{ sib.repo }}
+                </div>
+              </div>
+            </NuxtLink>
+          </div>
+        </section>
+      </template>
+
+      <!-- Other skills by owner -->
+      <template v-if="data.relatedOwnerSkills.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="owner-skills-heading"
+        >
+          <h2
+            id="owner-skills-heading"
+            class="section-label mb-4"
+          >
+            Other skills by {{ data.owner }}
+          </h2>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <NuxtLink
+              v-for="other in data.relatedOwnerSkills"
+              :key="other.slug"
+              :to="`/skills/${other.slug}`"
+              class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
+            >
+              <img
+                :src="`https://github.com/${other.owner}.png?size=48`"
+                :alt="`${other.owner} avatar`"
+                width="24"
+                height="24"
+                class="size-6 shrink-0 rounded-md border border-default mt-0.5"
+              >
+              <div class="min-w-0 flex-1">
+                <div class="truncate font-mono text-sm">
+                  {{ other.name }}
+                </div>
+                <div class="data-label mt-0.5 truncate">
+                  {{ other.owner }}/{{ other.repo }}
+                </div>
+              </div>
+            </NuxtLink>
+          </div>
+        </section>
+      </template>
     </template>
   </div>
 </template>
