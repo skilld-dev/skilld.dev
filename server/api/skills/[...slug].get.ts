@@ -192,7 +192,7 @@ async function getRenderedSkill(
   branch: string,
   pushedAt: string | null,
 ): Promise<RenderedCache> {
-  const cacheKey = `skills:rendered:v1:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
+  const cacheKey = `skills:rendered:v2:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
   const cached = await useStorage('cache').getItem<RenderedCache>(cacheKey)
   if (cached)
     return cached
@@ -229,8 +229,12 @@ async function getRenderedSkill(
   return result
 }
 
+function slugifyName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
 async function resolveSkillMdPath(owner: string, repo: string, name: string, branch: string): Promise<string | null> {
-  const cacheKey = `skills:skill-path:v2:${owner}/${repo}/${name}`
+  const cacheKey = `skills:skill-path:v3:${owner}/${repo}/${name}`
   const cached = await useStorage('cache').getItem<string | null>(cacheKey)
   if (cached !== null && cached !== undefined)
     return cached || null
@@ -243,22 +247,53 @@ async function resolveSkillMdPath(owner: string, repo: string, name: string, bra
   if (!skillMds.length)
     return null
 
-  const exact = skillMds.find(f => f.path.endsWith(`/${name}/SKILL.md`) || f.path === `${name}/SKILL.md`)
-  if (exact) {
-    await useStorage('cache').setItem(cacheKey, exact.path, { ttl: REPO_TREE_CACHE_TTL })
-    return exact.path
+  const slug = slugifyName(name)
+  // Original first, then a slugified variant. Catches names with spaces or
+  // colons (`agent browser` → `agent-browser`, `react:components` →
+  // `react-components`) where the registry name doesn't match the dir name.
+  const variants = name === slug ? [name] : [name, slug]
+
+  const cache = (path: string) => useStorage('cache').setItem(cacheKey, path, { ttl: REPO_TREE_CACHE_TTL })
+
+  for (const v of variants) {
+    const exact = skillMds.find(f => f.path.endsWith(`/${v}/SKILL.md`) || f.path === `${v}/SKILL.md`)
+    if (exact) {
+      await cache(exact.path)
+      return exact.path
+    }
   }
 
   if (skillMds.length === 1) {
-    const path = skillMds[0]!.path
-    await useStorage('cache').setItem(cacheKey, path, { ttl: REPO_TREE_CACHE_TTL })
-    return path
+    await cache(skillMds[0]!.path)
+    return skillMds[0]!.path
   }
 
-  const fuzzy = skillMds.find(f => f.path.split('/').includes(name))
-  if (fuzzy) {
-    await useStorage('cache').setItem(cacheKey, fuzzy.path, { ttl: REPO_TREE_CACHE_TTL })
-    return fuzzy.path
+  for (const v of variants) {
+    const fuzzy = skillMds.find(f => f.path.split('/').includes(v))
+    if (fuzzy) {
+      await cache(fuzzy.path)
+      return fuzzy.path
+    }
+  }
+
+  // Multi-segment match: registry packs paths like `better-auth/best-practices`
+  // into a single hyphenated name `better-auth-best-practices`. Try every
+  // hyphen split; accept only when exactly one path matches (avoid ambiguity).
+  if (slug.includes('-')) {
+    const parts = slug.split('-')
+    for (let i = 1; i < parts.length; i++) {
+      const left = parts.slice(0, i).join('-')
+      const right = parts.slice(i).join('-')
+      const matches = skillMds.filter((f) => {
+        const segs = f.path.split('/')
+        const idx = segs.indexOf(left)
+        return idx >= 0 && segs[idx + 1] === right
+      })
+      if (matches.length === 1) {
+        await cache(matches[0]!.path)
+        return matches[0]!.path
+      }
+    }
   }
 
   await useStorage('cache').setItem(cacheKey, '', { ttl: REPO_TREE_CACHE_TTL })
