@@ -21,7 +21,7 @@ const resolving = computed(() => profileStatus.value === 'pending')
 
 const { data, status, error } = useCollection(did, slug, { lazy: !isBot.value })
 
-const installCmd = computed(() => `skilld add @${handle.value}/${slug.value}`)
+const installCmd = computed(() => collectionInstallCmd(handle.value, slug.value))
 
 async function handleDelete() {
   await remove(slug.value)

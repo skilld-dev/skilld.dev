@@ -17,8 +17,8 @@ function skillSlug(skill: { owner: string, repo: string, name: string }) {
   return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
 }
 
-function skillInstallCmd(skill: { name: string }) {
-  return `skilld add npm:${skill.name}`
+function skillInstallCmd(skill: { owner: string, repo: string, name: string }) {
+  return gitInstallCmd(skill.owner, skill.repo, skill.name)
 }
 
 function skillPath(skill: { owner: string, repo: string, name: string }) {
@@ -36,8 +36,7 @@ const stats = computed(() => homepageData.value?.stats ?? { curators: 0, collect
 // Copy collection install command
 const copiedCollectionSlug = ref<string | null>(null)
 function copyCollectionCmd(handle: string, slug: string) {
-  const cmd = `skilld add @${handle}/${slug}`
-  navigator.clipboard.writeText(cmd)
+  navigator.clipboard.writeText(collectionInstallCmd(handle, slug))
   copiedCollectionSlug.value = slug
   setTimeout(() => {
     if (copiedCollectionSlug.value === slug)
@@ -178,64 +177,6 @@ function toggleCollection(slug: string) {
 
     <USeparator />
 
-    <!-- Official skills: orgs -->
-    <section
-      v-if="featuredOrgs.length"
-      id="official-orgs"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="official-orgs-heading"
-    >
-      <div class="flex items-end justify-between mb-2">
-        <h2
-          id="official-orgs-heading"
-          class="section-label"
-        >
-          Official skills · Orgs
-        </h2>
-        <UButton
-          to="/skills?official=true"
-          label="View all"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          trailing-icon="i-lucide-arrow-right"
-        />
-      </div>
-      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
-        Skills published by the companies that build the underlying technology.
-      </p>
-
-      <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 list-none p-0">
-        <li v-for="entry in featuredOrgs" :key="`org-${entry.owner}`">
-          <NuxtLink
-            :to="`/skills?owner=${entry.owner}`"
-            :aria-label="`${entry.owner}, ${entry.totalSkills} skills`"
-            class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-          >
-            <img
-              :src="`https://github.com/${entry.owner}.png?size=64`"
-              :alt="`${entry.owner} avatar`"
-              width="32"
-              height="32"
-              loading="lazy"
-              decoding="async"
-              class="size-8 shrink-0 rounded bg-muted"
-            >
-            <div class="min-w-0 flex-1">
-              <p class="font-mono text-xs font-medium truncate">
-                {{ entry.owner }}
-              </p>
-              <p class="text-xs text-muted">
-                {{ entry.totalSkills }} {{ entry.totalSkills === 1 ? 'skill' : 'skills' }}
-              </p>
-            </div>
-          </NuxtLink>
-        </li>
-      </ul>
-    </section>
-
-    <USeparator v-if="featuredOrgs.length" />
-
     <!-- Official skills: devs -->
     <section
       v-if="featuredUsers.length"
@@ -293,7 +234,65 @@ function toggleCollection(slug: string) {
       </ul>
     </section>
 
-    <USeparator />
+    <USeparator v-if="featuredUsers.length" />
+
+    <!-- Official skills: orgs -->
+    <section
+      v-if="featuredOrgs.length"
+      id="official-orgs"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="official-orgs-heading"
+    >
+      <div class="flex items-end justify-between mb-2">
+        <h2
+          id="official-orgs-heading"
+          class="section-label"
+        >
+          Official skills · Orgs
+        </h2>
+        <UButton
+          to="/skills?official=true"
+          label="View all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Skills published by the companies that build the underlying technology.
+      </p>
+
+      <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 list-none p-0">
+        <li v-for="entry in featuredOrgs" :key="`org-${entry.owner}`">
+          <NuxtLink
+            :to="`/skills?owner=${entry.owner}`"
+            :aria-label="`${entry.owner}, ${entry.totalSkills} skills`"
+            class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          >
+            <img
+              :src="`https://github.com/${entry.owner}.png?size=64`"
+              :alt="`${entry.owner} avatar`"
+              width="32"
+              height="32"
+              loading="lazy"
+              decoding="async"
+              class="size-8 shrink-0 rounded bg-muted"
+            >
+            <div class="min-w-0 flex-1">
+              <p class="font-mono text-xs font-medium truncate">
+                {{ entry.owner }}
+              </p>
+              <p class="text-xs text-muted">
+                {{ entry.totalSkills }} {{ entry.totalSkills === 1 ? 'skill' : 'skills' }}
+              </p>
+            </div>
+          </NuxtLink>
+        </li>
+      </ul>
+    </section>
+
+    <USeparator v-if="featuredOrgs.length" />
 
     <!-- Popular Skills -->
     <section
@@ -453,7 +452,7 @@ function toggleCollection(slug: string) {
 
             <div class="mt-3 flex items-center gap-2">
               <code class="flex-1 truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                skilld add @{{ collection.curator.handle }}/{{ collection.slug }}
+                {{ collectionInstallCmd(collection.curator.handle, collection.slug) }}
               </code>
               <UButton
                 :icon="copiedCollectionSlug === collection.slug ? 'i-lucide-check' : 'i-lucide-copy'"
@@ -564,7 +563,7 @@ function toggleCollection(slug: string) {
             Share your skills
           </h2>
           <p class="mt-2 text-sm text-muted max-w-md mx-auto">
-            Add the package skills you use every day, publish them so anyone can run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add @you</code> to install your setup.
+            Add the package skills you use every day, publish them so anyone can run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">npx -y skilld add @you</code> to install your setup.
           </p>
           <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
             <UButton

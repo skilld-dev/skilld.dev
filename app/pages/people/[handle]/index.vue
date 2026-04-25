@@ -16,7 +16,7 @@ const { data: resolvedProfile, status: profileStatus, error: profileError } = us
 
 const did = computed(() => resolvedProfile.value?.did)
 const { data: collectionsData, status: collectionsStatus } = useCollections(did, { lazy: !isBot.value })
-const { copy: copyInstall } = useClipboard({ source: computed(() => `skilld add @${handle.value}`) })
+const { copy: copyInstall } = useClipboard({ source: computed(() => curatorInstallCmd(handle.value)) })
 
 // Split personal vs named collections
 const personalCollection = computed(() =>
@@ -202,7 +202,7 @@ defineOgImage('Curator.takumi', {
             </p>
             <p class="mt-1 text-xs text-muted leading-relaxed max-w-sm mx-auto">
               Add your skills with a note about why each one matters.
-              Anyone can run <code class="font-mono">skilld add @{{ handle }}</code> to install your setup.
+              Anyone can run <code class="font-mono">{{ curatorInstallCmd(handle) }}</code> to install your setup.
             </p>
             <div class="mt-4 flex items-center justify-center gap-3">
               <UButton
@@ -285,7 +285,7 @@ defineOgImage('Curator.takumi', {
 
           <!-- Install command -->
           <div class="mt-4 flex items-center gap-2 rounded-lg border border-default p-3">
-            <code class="flex-1 font-mono text-sm">skilld add @{{ handle }}</code>
+            <code class="flex-1 font-mono text-sm">{{ curatorInstallCmd(handle) }}</code>
             <UButton
               icon="i-lucide-clipboard"
               color="neutral"

@@ -40,8 +40,7 @@ defineOgImage('Page.takumi', {
 
 const copied = ref<string | null>(null)
 function copyInstall(handle: string, slug: string) {
-  const cmd = `skilld add @${handle}/${slug}`
-  navigator.clipboard.writeText(cmd)
+  navigator.clipboard.writeText(collectionInstallCmd(handle, slug))
   copied.value = `${handle}/${slug}`
   setTimeout(() => {
     if (copied.value === `${handle}/${slug}`)
@@ -229,7 +228,7 @@ function copyInstall(handle: string, slug: string) {
 
               <div class="mt-3 flex items-center gap-2">
                 <code class="flex-1 truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                  skilld add @{{ c.curator.handle }}/{{ c.slug }}
+                  {{ collectionInstallCmd(c.curator.handle, c.slug) }}
                 </code>
                 <UButton
                   :icon="copied === `${c.curator.handle}/${c.slug}` ? 'i-lucide-check' : 'i-lucide-copy'"
@@ -314,7 +313,7 @@ function copyInstall(handle: string, slug: string) {
         </h2>
         <p class="mt-2 text-sm text-muted max-w-md mx-auto">
           Bundle the skills you reach for into a named collection. Anyone can install the full set with
-          <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add @you/name</code>.
+          <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">npx -y skilld add @you/name</code>.
         </p>
         <div class="mt-5">
           <UButton

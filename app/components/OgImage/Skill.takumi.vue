@@ -12,9 +12,9 @@ const {
 }>()
 
 const installCmd = computed(() => {
-  if (!name)
+  if (!owner || !repo || !name)
     return ''
-  return `skilld add npm:${name}`
+  return gitInstallCmd(owner, repo, name)
 })
 </script>
 

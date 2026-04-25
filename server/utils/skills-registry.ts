@@ -208,6 +208,33 @@ export async function getTopOwnersByCount(
   return res.results ?? []
 }
 
+/**
+ * Rank owners by max GitHub repo stars (per-skill stars are denormalized from
+ * the repo, so MAX collapses to the repo's star count). Returns count too so
+ * callers can render the same shape as `getTopOwnersByCount`.
+ */
+export async function getTopOwnersByStars(
+  event: H3Event,
+  allowedOwners: Set<string>,
+  limit: number,
+): Promise<{ owner: string, count: number, stars: number }[]> {
+  if (!allowedOwners.size)
+    return []
+  const db = getDB(event)
+  const placeholders = Array.from(allowedOwners, () => '?').join(',')
+  const res = await db
+    .prepare(
+      `SELECT owner, COUNT(*) as count, MAX(stars) as stars FROM skills
+       WHERE owner IN (${placeholders}) AND ${NOT_BROKEN_SQL}
+       GROUP BY owner
+       ORDER BY stars DESC, count DESC
+       LIMIT ?`,
+    )
+    .bind(...allowedOwners, limit)
+    .all<{ owner: string, count: number, stars: number }>()
+  return res.results ?? []
+}
+
 export interface FeaturedOrgSection {
   owner: string
   repo: string

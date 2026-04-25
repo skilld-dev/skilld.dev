@@ -147,8 +147,8 @@ onKeyStroke('/', (e) => {
 const { copy } = useClipboard()
 const copiedName = ref<string | null>(null)
 
-function copyInstall(name: string) {
-  copy(`skilld add npm:${name}`)
+function copyCmd(name: string, cmd: string) {
+  copy(cmd)
   copiedName.value = name
   setTimeout(() => {
     if (copiedName.value === name)
@@ -365,7 +365,7 @@ function formatStars(n: number): string {
             </p>
             <div class="mt-3 flex items-center justify-between gap-2">
               <code class="truncate rounded bg-muted px-2 py-1 font-mono text-xs text-muted">
-                skilld add npm:{{ pkg.name }}
+                {{ npmInstallCmd(pkg.name) }}
               </code>
               <span class="data-label shrink-0">{{ formatDownloads(pkg.weeklyDownloads) }}/wk</span>
             </div>
@@ -377,7 +377,7 @@ function formatStars(n: number): string {
             variant="ghost"
             class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
             :aria-label="copiedName === pkg.name ? 'Copied' : `Copy install command for ${pkg.name}`"
-            @click="copyInstall(pkg.name)"
+            @click="copyCmd(pkg.name, npmInstallCmd(pkg.name))"
           />
         </li>
       </ul>
@@ -407,7 +407,7 @@ function formatStars(n: number): string {
             variant="ghost"
             class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
             :aria-label="copiedName === pkg.name ? 'Copied' : `Copy install command for ${pkg.name}`"
-            @click="copyInstall(pkg.name)"
+            @click="copyCmd(pkg.name, npmInstallCmd(pkg.name))"
           />
         </li>
       </ul>
@@ -516,7 +516,7 @@ function formatStars(n: number): string {
                     />
                   </div>
                   <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                    skilld add npm:{{ skill.name }}
+                    {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
                   </code>
                 </NuxtLink>
                 <UButton
@@ -526,7 +526,7 @@ function formatStars(n: number): string {
                   variant="ghost"
                   class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-                  @click="copyInstall(skill.name)"
+                  @click="copyCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
                 />
               </li>
             </ul>
@@ -558,7 +558,7 @@ function formatStars(n: number): string {
                     </div>
                   </div>
                   <code class="hidden sm:block truncate font-mono text-xs text-muted max-w-xs">
-                    skilld add npm:{{ skill.name }}
+                    {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
                   </code>
                 </NuxtLink>
                 <UButton
@@ -568,7 +568,7 @@ function formatStars(n: number): string {
                   variant="ghost"
                   class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-                  @click="copyInstall(skill.name)"
+                  @click="copyCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
                 />
               </li>
             </ul>
@@ -675,7 +675,7 @@ function formatStars(n: number): string {
                 </p>
               </div>
               <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                skilld add npm:{{ skill.name }}
+                {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
               </code>
             </NuxtLink>
             <UButton
@@ -685,7 +685,7 @@ function formatStars(n: number): string {
               variant="ghost"
               class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
               :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-              @click="copyInstall(skill.name)"
+              @click="copyCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
             />
           </li>
         </ul>
@@ -720,7 +720,7 @@ function formatStars(n: number): string {
                 </p>
               </div>
               <code class="hidden sm:block truncate font-mono text-xs text-muted max-w-xs">
-                skilld add npm:{{ skill.name }}
+                {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
               </code>
             </NuxtLink>
             <UButton
@@ -730,7 +730,7 @@ function formatStars(n: number): string {
               variant="ghost"
               class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
               :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-              @click="copyInstall(skill.name)"
+              @click="copyCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
             />
           </li>
         </ul>

@@ -159,7 +159,7 @@ async function handleSubmit() {
           v-if="user && state.slug"
           class="font-mono text-xs text-muted"
         >
-          skilld add @{{ user.handle }}/{{ state.slug }}
+          {{ collectionInstallCmd(user.handle, state.slug) }}
         </span>
       </template>
     </UFormField>

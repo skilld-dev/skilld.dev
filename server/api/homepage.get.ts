@@ -4,9 +4,9 @@ import { officialRepos } from '../data/official-repos'
 import { listCollectionRecords } from '../utils/atproto/collections'
 import { getAllCurators } from '../utils/atproto/curator-index'
 import { getDB } from '../utils/db'
-import { getTopOwnersByCount } from '../utils/skills-registry'
+import { getTopOwnersByCount, getTopOwnersByStars } from '../utils/skills-registry'
 
-const CACHE_KEY = 'homepage:data:v2'
+const CACHE_KEY = 'homepage:data:v3'
 const CACHE_TTL = 60 * 5 // 5 minutes
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
@@ -167,7 +167,7 @@ export default defineEventHandler(async (event) => {
 
   const [orgRanked, userRanked] = await Promise.all([
     getTopOwnersByCount(event, orgOwnerSet, FEATURED_ORG_LIMIT),
-    getTopOwnersByCount(event, userOwnerSet, FEATURED_USER_LIMIT),
+    getTopOwnersByStars(event, userOwnerSet, FEATURED_USER_LIMIT),
   ])
 
   const featuredOrgs: FeaturedOfficial[] = orgRanked.map(({ owner, count }) => ({

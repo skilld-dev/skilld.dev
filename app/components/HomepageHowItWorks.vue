@@ -20,7 +20,7 @@
           Install skills
         </p>
         <p class="mt-1 text-xs text-muted leading-relaxed">
-          Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">skilld add npm:vue npm:nuxt</code> to install curated skills for your npm packages.
+          Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">npx -y skilld add npm:vue npm:nuxt</code> to install curated skills for your npm packages.
         </p>
       </li>
       <li class="rounded-lg border border-default p-4">

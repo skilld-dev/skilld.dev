@@ -14,7 +14,7 @@ const isOwnProfile = computed(() => isAuthenticated.value && user.value?.handle 
 
 const { personalCollection } = useOnboarding()
 const { publish, publishing, error: mutationError } = useCollectionMutations()
-const { copy: copyInstall } = useClipboard({ source: computed(() => `skilld add @${handle.value}`) })
+const { copy: copyInstall } = useClipboard({ source: computed(() => curatorInstallCmd(handle.value)) })
 
 // Editable skills state
 const skills = ref<CollectionSkill[]>(
@@ -280,7 +280,7 @@ useSeoMeta({
             </p>
             <p class="text-xs text-muted">
               Anyone can now run
-              <code class="font-mono">skilld add @{{ handle }}</code>
+              <code class="font-mono">{{ curatorInstallCmd(handle) }}</code>
               to get your setup.
             </p>
           </div>
@@ -490,7 +490,7 @@ useSeoMeta({
             Install command
           </p>
           <div class="flex items-center gap-2">
-            <code class="flex-1 font-mono text-sm">skilld add @{{ handle }}</code>
+            <code class="flex-1 font-mono text-sm">{{ curatorInstallCmd(handle) }}</code>
             <UButton
               icon="i-lucide-clipboard"
               color="neutral"

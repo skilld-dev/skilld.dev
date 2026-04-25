@@ -33,7 +33,7 @@ function dismiss() {
         </p>
         <p class="mt-1 text-xs leading-relaxed text-muted">
           Add the package skills you use every day. Publish them so anyone can run
-          <code class="font-mono">skilld add @{{ user.handle }}</code>
+          <code class="font-mono">{{ curatorInstallCmd(user.handle) }}</code>
           to install your setup.
         </p>
       </div>

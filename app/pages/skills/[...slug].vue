@@ -108,7 +108,7 @@ const packageName = computed(() => {
 const installCmd = computed(() => {
   if (!data.value)
     return ''
-  return `skilld add npm:${data.value.name}`
+  return gitInstallCmd(data.value.owner, data.value.repo, data.value.name)
 })
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
@@ -287,7 +287,7 @@ useSchemaOrg(computed(() => {
         {
           '@type': 'HowToStep',
           'name': 'Run the install command',
-          'text': `skilld add npm:${d.name}`,
+          'text': gitInstallCmd(d.owner, d.repo, d.name),
           'url': `${skillPageUrl.value}#install`,
         },
       ],

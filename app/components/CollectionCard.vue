@@ -15,7 +15,7 @@ const { collection } = defineProps<{
 }>()
 
 const expanded = ref(false)
-const installCmd = computed(() => `skilld add @${collection.curator.handle}/${collection.slug}`)
+const installCmd = computed(() => collectionInstallCmd(collection.curator.handle, collection.slug))
 const { copy, copied } = useClipboard({ source: installCmd })
 
 const { isAuthenticated } = useAuth()
