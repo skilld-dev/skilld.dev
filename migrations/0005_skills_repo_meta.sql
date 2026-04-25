@@ -1,0 +1,9 @@
+ALTER TABLE skills ADD COLUMN stars INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE skills ADD COLUMN forks INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE skills ADD COLUMN pushed_at INTEGER;
+ALTER TABLE skills ADD COLUMN repo_created_at INTEGER;
+ALTER TABLE skills ADD COLUMN description TEXT;
+ALTER TABLE skills ADD COLUMN default_branch TEXT;
+ALTER TABLE skills ADD COLUMN repo_meta_synced_at INTEGER;
+
+CREATE INDEX IF NOT EXISTS idx_skills_stars ON skills (stars DESC);

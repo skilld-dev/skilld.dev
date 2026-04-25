@@ -10,6 +10,8 @@ const { data: followingData, execute: fetchFollowing } = useFollowingCurators()
 const { data: homepageData } = useFetch('/api/homepage')
 
 const popularSkills = computed(() => homepageData.value?.popularSkills ?? [])
+const featuredOrgs = computed(() => homepageData.value?.featuredOrgs ?? [])
+const featuredUsers = computed(() => homepageData.value?.featuredUsers ?? [])
 
 function skillSlug(skill: { owner: string, repo: string, name: string }) {
   return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
@@ -176,22 +178,22 @@ function toggleCollection(slug: string) {
 
     <USeparator />
 
-    <!-- Curators -->
+    <!-- Official skills: orgs -->
     <section
-      id="curators"
+      v-if="featuredOrgs.length"
+      id="official-orgs"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="curators-heading"
+      aria-labelledby="official-orgs-heading"
     >
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-end justify-between mb-2">
         <h2
-          id="curators-heading"
+          id="official-orgs-heading"
           class="section-label"
         >
-          Curators
+          Official skills · Orgs
         </h2>
         <UButton
-          v-if="homepageData?.curators.length"
-          to="/people"
+          to="/skills?official=true"
           label="View all"
           color="neutral"
           variant="ghost"
@@ -199,83 +201,96 @@ function toggleCollection(slug: string) {
           trailing-icon="i-lucide-arrow-right"
         />
       </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Skills published by the companies that build the underlying technology.
+      </p>
 
-      <div
-        v-if="homepageData?.curators.length"
-        class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        <NuxtLink
-          v-for="curator in homepageData.curators.slice(0, 6)"
-          :key="curator.did"
-          :to="`/people/${curator.handle}`"
-          :aria-label="`${curator.displayName || curator.handle}, ${curator.collectionCount} collections`"
-          class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-        >
-          <div class="flex items-start gap-3">
+      <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 list-none p-0">
+        <li v-for="entry in featuredOrgs" :key="`org-${entry.owner}`">
+          <NuxtLink
+            :to="`/skills?owner=${entry.owner}`"
+            :aria-label="`${entry.owner}, ${entry.totalSkills} skills`"
+            class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          >
             <img
-              v-if="curator.avatar"
-              :src="curator.avatar"
-              :alt="`Avatar for ${curator.displayName || curator.handle}`"
+              :src="`https://github.com/${entry.owner}.png?size=64`"
+              :alt="`${entry.owner} avatar`"
+              width="32"
+              height="32"
+              loading="lazy"
+              decoding="async"
+              class="size-8 shrink-0 rounded bg-muted"
+            >
+            <div class="min-w-0 flex-1">
+              <p class="font-mono text-xs font-medium truncate">
+                {{ entry.owner }}
+              </p>
+              <p class="text-xs text-muted">
+                {{ entry.totalSkills }} {{ entry.totalSkills === 1 ? 'skill' : 'skills' }}
+              </p>
+            </div>
+          </NuxtLink>
+        </li>
+      </ul>
+    </section>
+
+    <USeparator v-if="featuredOrgs.length" />
+
+    <!-- Official skills: devs -->
+    <section
+      v-if="featuredUsers.length"
+      id="official-users"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="official-users-heading"
+    >
+      <div class="flex items-end justify-between mb-2">
+        <h2
+          id="official-users-heading"
+          class="section-label"
+        >
+          Official skills · Devs
+        </h2>
+        <UButton
+          to="/skills"
+          label="Browse all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Skill repos maintained by individual developers. Their personal stack, made installable.
+      </p>
+
+      <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
+        <li v-for="entry in featuredUsers" :key="`user-${entry.owner}`">
+          <NuxtLink
+            :to="`/skills?owner=${entry.owner}`"
+            :aria-label="`${entry.owner}/${entry.repo}, ${entry.totalSkills} skills`"
+            class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          >
+            <img
+              :src="`https://github.com/${entry.owner}.png?size=64`"
+              :alt="`${entry.owner} avatar`"
               width="36"
               height="36"
               loading="lazy"
               decoding="async"
-              class="size-9 rounded-full"
+              class="size-9 shrink-0 rounded-full bg-muted"
             >
-            <div
-              v-else
-              class="flex size-9 items-center justify-center rounded-full bg-muted"
-            >
-              <UIcon
-                name="i-lucide-user"
-                class="size-4 text-muted"
-                aria-hidden="true"
-              />
-            </div>
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium truncate">
-                {{ curator.displayName || curator.handle }}
+              <p class="font-mono text-sm font-medium truncate">
+                {{ entry.owner }}
               </p>
-              <p class="font-mono text-xs text-muted">
-                @{{ curator.handle }}
+              <p class="font-mono text-xs text-muted truncate">
+                /{{ entry.repo }}
               </p>
             </div>
-          </div>
-
-          <CuratorLabels
-            v-if="curator.labels?.length"
-            :labels="curator.labels"
-            class="mt-3"
-          />
-
-          <div class="mt-3 flex items-center gap-3">
-            <span class="data-label">{{ curator.collectionCount }} {{ curator.collectionCount === 1 ? 'collection' : 'collections' }}</span>
-            <span class="data-label ml-auto">{{ useTimeAgo(curator.lastPublished).value }}</span>
-          </div>
-        </NuxtLink>
-      </div>
-
-      <!-- Empty state -->
-      <div
-        v-else
-        class="rounded-lg border border-default p-8 text-center"
-      >
-        <UIcon
-          name="i-lucide-users"
-          class="mx-auto size-8 text-muted"
-          aria-hidden="true"
-        />
-        <p class="mt-3 text-sm">
-          No curators yet. Be the first to share your skills.
-        </p>
-        <UButton
-          label="Connect with your Atmosphere account"
-          icon="i-lucide-cloud"
-          size="sm"
-          class="mt-4"
-          @click="authModalOpen = true"
-        />
-      </div>
+            <span class="data-label shrink-0">{{ entry.totalSkills }} {{ entry.totalSkills === 1 ? 'skill' : 'skills' }}</span>
+          </NuxtLink>
+        </li>
+      </ul>
     </section>
 
     <USeparator />
@@ -455,6 +470,76 @@ function toggleCollection(slug: string) {
 
       <!-- Empty state -->
       <CollectionsEmptyCTA v-else />
+    </section>
+
+    <USeparator v-if="homepageData?.curators.length" />
+
+    <!-- Curators (compact) -->
+    <section
+      v-if="homepageData?.curators.length"
+      id="curators"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="curators-heading"
+    >
+      <div class="flex items-end justify-between mb-2">
+        <h2
+          id="curators-heading"
+          class="section-label"
+        >
+          Curators
+        </h2>
+        <UButton
+          to="/people"
+          label="View all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Developers sharing their personal stacks via Atmosphere.
+      </p>
+
+      <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
+        <li v-for="curator in homepageData.curators.slice(0, 6)" :key="curator.did">
+          <NuxtLink
+            :to="`/people/${curator.handle}`"
+            :aria-label="`${curator.displayName || curator.handle}, ${curator.collectionCount} collections`"
+            class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          >
+            <img
+              v-if="curator.avatar"
+              :src="curator.avatar"
+              :alt="`Avatar for ${curator.displayName || curator.handle}`"
+              width="32"
+              height="32"
+              loading="lazy"
+              decoding="async"
+              class="size-8 shrink-0 rounded-full"
+            >
+            <div
+              v-else
+              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
+            >
+              <UIcon
+                name="i-lucide-user"
+                class="size-4 text-muted"
+                aria-hidden="true"
+              />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium truncate">
+                {{ curator.displayName || curator.handle }}
+              </p>
+              <p class="font-mono text-xs text-muted truncate">
+                @{{ curator.handle }}
+              </p>
+            </div>
+            <span class="data-label shrink-0">{{ curator.collectionCount }}</span>
+          </NuxtLink>
+        </li>
+      </ul>
     </section>
 
     <USeparator />

@@ -12,7 +12,8 @@ export default defineEventHandler(async (event) => {
   const orgCount = Math.min(Math.max(Number(query.orgs) || DEFAULT_ORG_COUNT, 1), 20)
   const perOrg = Math.min(Math.max(Number(query.perOrg) || DEFAULT_PER_ORG, 1), 12)
 
-  const ownerToRepo = new Map(officialRepos.map(r => [r.owner, r.repo]))
+  const orgRepos = officialRepos.filter(r => r.kind === 'org')
+  const ownerToRepo = new Map(orgRepos.map(r => [r.owner, r.repo]))
   const officialOwners = new Set(ownerToRepo.keys())
 
   const ranked = await getTopOwnersByCount(event, officialOwners, orgCount)

@@ -38,6 +38,12 @@ interface FaqItem {
   answer: string
 }
 
+interface SkillSummary {
+  tagline: string
+  blurb: string
+  useCases: string[]
+}
+
 interface NeighborSkill {
   name: string
   owner: string
@@ -62,6 +68,7 @@ const { data, status, error, refresh } = useFetch(
   repo: string
   owner: string
   name: string
+  installs: number
   githubUrl: string
   description: string | null
   stars: number
@@ -71,11 +78,20 @@ const { data, status, error, refresh } = useFetch(
   maturity: { ageDays: number, sinceUpdateDays: number, cadence: 'active' | 'steady' | 'dormant' } | null
   branch: string
   skillPath: string | null
+  resolutionStatus: 'ok' | 'path_missing' | 'fetch_failed'
+  tier: 'official-org' | 'official-user' | 'community'
+  tags: SkillTag[]
+  faqs: FaqItem[]
+  summary: SkillSummary | null
+}>>
+
+const { data: relatedData } = useFetch(
+  () => `/api/skill-related/${slug.value}`,
+  { watch: [slug], lazy: !isBot.value, immediate: true },
+) as ReturnType<typeof useFetch<{
   commits: SkillCommit[]
   relatedRepoSkills: RelatedSkill[]
   relatedOwnerSkills: RelatedSkill[]
-  tags: SkillTag[]
-  faqs: FaqItem[]
   coOccurrenceSkills: NeighborSkill[]
   semanticSiblings: NeighborSkill[]
 }>>
@@ -176,8 +192,42 @@ const skillModel = computed(() => {
   return typeof m === 'string' ? m : null
 })
 
+const contentView = ref<'preview' | 'markdown'>('preview')
+const rawHtml = ref<string | null>(null)
+const rawError = ref<string | null>(null)
+
+async function renderRaw(raw: string) {
+  rawError.value = null
+  try {
+    const { codeToHtml } = await import('shiki')
+    rawHtml.value = await codeToHtml(raw, {
+      lang: 'markdown',
+      themes: { light: 'github-light', dark: 'github-dark' },
+      defaultColor: false,
+    })
+  }
+  catch (err) {
+    rawError.value = err instanceof Error ? err.message : 'Failed to render markdown'
+  }
+}
+
+watch([contentView, () => data.value?.raw], ([view, raw], [, prevRaw]) => {
+  if (raw !== prevRaw) {
+    rawHtml.value = null
+    rawError.value = null
+  }
+  if (!import.meta.client || view !== 'markdown' || !raw || rawHtml.value)
+    return
+  renderRaw(raw)
+})
+
+const contentTabs = [
+  { label: 'Preview', value: 'preview', icon: 'i-lucide-eye' },
+  { label: 'Markdown', value: 'markdown', icon: 'i-lucide-file-text' },
+]
+
 const commitsWithAgo = computed(() => {
-  return (data.value?.commits ?? []).map((c) => {
+  return (relatedData.value?.commits ?? []).map((c) => {
     const d = new Date(c.date)
     return { ...c, relative: useTimeAgo(d).value, absolute: d.toLocaleString() }
   })
@@ -257,10 +307,19 @@ useSchemaOrg(computed(() => {
 }))
 
 useSeoMeta({
-  title: () => data.value ? `${data.value.name} by ${data.value.owner}` : 'Skill',
-  description: () => data.value
-    ? data.value.description || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
-    : 'View skill details on skilld.',
+  title: () => {
+    if (!data.value)
+      return 'Skill'
+    const tagline = data.value.summary?.tagline
+    return tagline ? `${data.value.name} — ${tagline}` : `${data.value.name} by ${data.value.owner}`
+  },
+  description: () => {
+    if (!data.value)
+      return 'View skill details on skilld.'
+    return data.value.summary?.blurb
+      || data.value.description
+      || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
+  },
 })
 </script>
 
@@ -366,7 +425,22 @@ useSeoMeta({
               >
                 {{ data.name }}
               </h1>
-              <UBadge label="npm skill" variant="subtle" color="neutral" size="xs" />
+              <UBadge
+                v-if="data.tier === 'official-org'"
+                label="official"
+                variant="subtle"
+                color="primary"
+                size="xs"
+                title="Published by the org behind this technology"
+              />
+              <UBadge
+                v-else-if="data.tier === 'official-user'"
+                label="maintainer"
+                variant="subtle"
+                color="primary"
+                size="xs"
+                title="Published by a recognised individual maintainer"
+              />
             </div>
             <p class="mt-1 font-mono text-sm text-muted">
               {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
@@ -468,7 +542,7 @@ useSeoMeta({
             target="_blank"
             rel="noopener"
             label="GitHub"
-            icon="i-simple-icons-github"
+            icon="i-lucide-github"
             size="xs"
             color="neutral"
             variant="ghost"
@@ -510,6 +584,47 @@ useSeoMeta({
     </section>
 
     <template v-if="data && status !== 'pending'">
+      <!-- AI summary -->
+      <template v-if="data.summary">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
+          aria-labelledby="summary-heading"
+        >
+          <h2
+            id="summary-heading"
+            class="section-label mb-3"
+          >
+            What it does
+          </h2>
+          <p class="text-sm leading-relaxed">
+            {{ data.summary.blurb }}
+          </p>
+          <template v-if="data.summary.useCases.length">
+            <h3 class="data-label mt-5 mb-2">
+              Common use cases
+            </h3>
+            <ul class="space-y-1.5 text-sm text-muted">
+              <li
+                v-for="(uc, idx) in data.summary.useCases"
+                :key="idx"
+                class="flex items-start gap-2"
+              >
+                <UIcon
+                  name="i-lucide-check"
+                  class="size-3.5 shrink-0 mt-1 text-muted"
+                  aria-hidden="true"
+                />
+                <span>{{ uc }}</span>
+              </li>
+            </ul>
+          </template>
+          <p class="mt-4 text-xs text-muted">
+            Generated from this skill's SKILL.md.
+          </p>
+        </section>
+      </template>
+
       <!-- Capability panel -->
       <template v-if="capabilitySummary || skillModel || frontmatterEntries.length">
         <USeparator />
@@ -649,6 +764,51 @@ useSeoMeta({
         </section>
       </template>
 
+      <!-- Broken source notice -->
+      <template v-if="data.resolutionStatus && data.resolutionStatus !== 'ok'">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
+          aria-labelledby="broken-heading"
+        >
+          <h2
+            id="broken-heading"
+            class="sr-only"
+          >
+            Source unavailable
+          </h2>
+          <div
+            class="flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
+            role="status"
+          >
+            <UIcon
+              name="i-lucide-alert-triangle"
+              class="size-5 shrink-0 mt-0.5 text-muted"
+              aria-hidden="true"
+            />
+            <div class="flex-1">
+              <p class="font-medium">
+                {{ data.resolutionStatus === 'path_missing' ? 'SKILL.md not found in source repository' : 'Could not load SKILL.md' }}
+              </p>
+              <p class="mt-1 text-muted">
+                The skill is still in the registry with {{ data.installs.toLocaleString() }} installs, but the source file isn't where the registry expects it. The repo may have been restructured or the skill removed.
+              </p>
+              <UButton
+                :href="data.githubUrl"
+                target="_blank"
+                rel="noopener"
+                label="Browse repository"
+                icon="i-simple-icons-github"
+                size="xs"
+                color="neutral"
+                variant="outline"
+                class="mt-3"
+              />
+            </div>
+          </div>
+        </section>
+      </template>
+
       <!-- SKILL.md content -->
       <template v-if="data.contentHtml">
         <USeparator />
@@ -675,11 +835,66 @@ useSeoMeta({
             />
           </div>
 
+          <UTabs
+            v-model="contentView"
+            :items="contentTabs"
+            :content="false"
+            color="neutral"
+            variant="link"
+            size="xs"
+            class="mb-3"
+          />
+
           <div class="rounded-lg border border-default overflow-hidden">
             <article
+              v-show="contentView === 'preview'"
               class="skill-prose p-4 sm:p-6"
               v-html="data.contentHtml"
             />
+            <div
+              v-show="contentView === 'markdown'"
+              class="skill-markdown"
+            >
+              <div
+                v-if="rawHtml"
+                v-html="rawHtml"
+              />
+              <div
+                v-else-if="rawError"
+                class="flex items-start gap-3 p-4 sm:p-6 text-sm"
+                role="alert"
+              >
+                <UIcon
+                  name="i-lucide-alert-circle"
+                  class="size-4 shrink-0 mt-0.5 text-muted"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-default">
+                    Couldn't render markdown source.
+                  </p>
+                  <p class="mt-1 font-mono text-xs text-muted break-words">
+                    {{ rawError }}
+                  </p>
+                  <UButton
+                    label="Retry"
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                    class="mt-3"
+                    @click="data?.raw && renderRaw(data.raw)"
+                  />
+                </div>
+              </div>
+              <div
+                v-else
+                class="p-4 sm:p-6"
+              >
+                <USkeleton class="h-4 w-3/4" />
+                <USkeleton class="mt-2 h-4 w-1/2" />
+                <USkeleton class="mt-2 h-4 w-2/3" />
+              </div>
+            </div>
           </div>
 
           <p class="mt-3 text-xs text-muted">
@@ -912,7 +1127,7 @@ useSeoMeta({
       </section>
 
       <!-- Related skills (same repo) -->
-      <template v-if="data.relatedRepoSkills.length">
+      <template v-if="relatedData?.relatedRepoSkills?.length">
         <USeparator />
         <section
           class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
@@ -926,7 +1141,7 @@ useSeoMeta({
           </h2>
           <div class="grid gap-3 sm:grid-cols-2">
             <NuxtLink
-              v-for="sibling in data.relatedRepoSkills"
+              v-for="sibling in relatedData.relatedRepoSkills"
               :key="sibling.slug"
               :to="`/skills/${sibling.slug}`"
               class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
@@ -953,7 +1168,7 @@ useSeoMeta({
       </template>
 
       <!-- Commonly paired with (curator co-occurrence) -->
-      <template v-if="data.coOccurrenceSkills.length">
+      <template v-if="relatedData?.coOccurrenceSkills?.length">
         <USeparator />
         <section
           class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
@@ -970,7 +1185,7 @@ useSeoMeta({
           </p>
           <div class="grid gap-3 sm:grid-cols-2">
             <NuxtLink
-              v-for="pair in data.coOccurrenceSkills"
+              v-for="pair in relatedData.coOccurrenceSkills"
               :key="pair.slug"
               :to="`/skills/${pair.slug}`"
               class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
@@ -996,7 +1211,7 @@ useSeoMeta({
       </template>
 
       <!-- Semantic siblings (embedding similarity) -->
-      <template v-if="data.semanticSiblings.length">
+      <template v-if="relatedData?.semanticSiblings?.length">
         <USeparator />
         <section
           class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
@@ -1013,7 +1228,7 @@ useSeoMeta({
           </p>
           <div class="grid gap-3 sm:grid-cols-2">
             <NuxtLink
-              v-for="sib in data.semanticSiblings"
+              v-for="sib in relatedData.semanticSiblings"
               :key="sib.slug"
               :to="`/skills/${sib.slug}`"
               class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
@@ -1039,7 +1254,7 @@ useSeoMeta({
       </template>
 
       <!-- Other skills by owner -->
-      <template v-if="data.relatedOwnerSkills.length">
+      <template v-if="relatedData?.relatedOwnerSkills?.length">
         <USeparator />
         <section
           class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
@@ -1053,7 +1268,7 @@ useSeoMeta({
           </h2>
           <div class="grid gap-3 sm:grid-cols-2">
             <NuxtLink
-              v-for="other in data.relatedOwnerSkills"
+              v-for="other in relatedData.relatedOwnerSkills"
               :key="other.slug"
               :to="`/skills/${other.slug}`"
               class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"

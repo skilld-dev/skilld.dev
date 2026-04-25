@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   if (!items.length)
     return {}
 
-  const map = await findSkillsByLookups(event, items)
+  const map = await findSkillsByLookups(event, items, { includeBroken: true })
   const result: Record<string, { owner: string, repo: string, official: boolean }> = {}
   for (const [name, skill] of map)
     result[name] = { owner: skill.owner, repo: skill.repo, official: officialOwners.has(skill.owner) }

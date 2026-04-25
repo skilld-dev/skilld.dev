@@ -3,6 +3,12 @@ import { getDB } from './db'
 
 const WHITESPACE_RE = /\s+/
 
+// Skills flagged broken less than 7 days ago stay visible (grace period for
+// transient upstream issues). After that they fall off listings/search/sitemap
+// but the detail page remains reachable so deep links don't 404.
+const BROKEN_GRACE_SECONDS = 7 * 86400
+const NOT_BROKEN_SQL = `(skills.broken_since IS NULL OR skills.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
+
 export interface RegistrySkill {
   name: string
   owner: string
@@ -10,6 +16,8 @@ export interface RegistrySkill {
   displayName: string
   installs: number
   slug: string
+  stars: number
+  description: string | null
 }
 
 interface SkillRow {
@@ -19,6 +27,8 @@ interface SkillRow {
   display_name: string
   installs: number
   slug: string
+  stars: number | null
+  description: string | null
 }
 
 function rowToSkill(row: SkillRow): RegistrySkill {
@@ -29,6 +39,8 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     displayName: row.display_name,
     installs: row.installs,
     slug: row.slug,
+    stars: row.stars ?? 0,
+    description: row.description ?? null,
   }
 }
 
@@ -55,7 +67,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   const db = getDB(event)
   const { search, owner, official, excludeOfficial, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
 
-  const conditions: string[] = []
+  const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
 
   // FTS search
@@ -83,7 +95,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     params.push(...officialOwners)
   }
 
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  const where = `WHERE ${conditions.join(' AND ')}`
 
   // Count query
   const countStmt = db.prepare(`SELECT COUNT(*) as total FROM skills ${where}`).bind(...params)
@@ -132,14 +144,19 @@ export interface SkillLookup {
  * is missing (legacy collection entries), the highest-installs row for that
  * name wins. Result is keyed by packageName.
  */
-export async function findSkillsByLookups(event: H3Event, lookups: SkillLookup[]): Promise<Map<string, RegistrySkill>> {
+export async function findSkillsByLookups(
+  event: H3Event,
+  lookups: SkillLookup[],
+  opts: { includeBroken?: boolean } = {},
+): Promise<Map<string, RegistrySkill>> {
   if (!lookups.length)
     return new Map()
   const db = getDB(event)
   const uniqueNames = [...new Set(lookups.map(l => l.packageName))]
   const placeholders = uniqueNames.map(() => '?').join(',')
+  const brokenClause = opts.includeBroken ? '' : ` AND ${NOT_BROKEN_SQL}`
   const rows = await db
-    .prepare(`SELECT * FROM skills WHERE name IN (${placeholders})`)
+    .prepare(`SELECT * FROM skills WHERE name IN (${placeholders})${brokenClause}`)
     .bind(...uniqueNames)
     .all<SkillRow>()
 
@@ -181,7 +198,7 @@ export async function getTopOwnersByCount(
   const res = await db
     .prepare(
       `SELECT owner, COUNT(*) as count FROM skills
-       WHERE owner IN (${placeholders})
+       WHERE owner IN (${placeholders}) AND ${NOT_BROKEN_SQL}
        GROUP BY owner
        ORDER BY count DESC
        LIMIT ?`,
@@ -221,7 +238,7 @@ export async function getFeaturedOfficialSections(
           ROW_NUMBER() OVER (PARTITION BY owner ORDER BY installs DESC, name ASC) AS rn,
           COUNT(*) OVER (PARTITION BY owner) AS owner_total
         FROM skills
-        WHERE owner IN (${placeholders})
+        WHERE owner IN (${placeholders}) AND ${NOT_BROKEN_SQL}
       ) WHERE rn <= ?`,
     )
     .bind(...ownerNames, perOrg)
@@ -255,7 +272,7 @@ export interface SkillSitemapEntry {
 export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   const db = getDB(event)
   const res = await db
-    .prepare('SELECT name, owner, repo FROM skills')
+    .prepare(`SELECT name, owner, repo FROM skills WHERE ${NOT_BROKEN_SQL}`)
     .all<SkillSitemapEntry>()
   return res.results ?? []
 }
@@ -269,11 +286,11 @@ export async function findRelatedSkills(
 
   const [repoRes, ownerRes] = await Promise.all([
     db
-      .prepare('SELECT * FROM skills WHERE owner = ? AND repo = ? AND name != ? ORDER BY installs DESC LIMIT ?')
+      .prepare(`SELECT * FROM skills WHERE owner = ? AND repo = ? AND name != ? AND ${NOT_BROKEN_SQL} ORDER BY installs DESC LIMIT ?`)
       .bind(owner, repo, excludeName, limit)
       .all<SkillRow>(),
     db
-      .prepare('SELECT * FROM skills WHERE owner = ? AND NOT (repo = ?) AND name != ? ORDER BY installs DESC LIMIT ?')
+      .prepare(`SELECT * FROM skills WHERE owner = ? AND NOT (repo = ?) AND name != ? AND ${NOT_BROKEN_SQL} ORDER BY installs DESC LIMIT ?`)
       .bind(owner, repo, excludeName, limit)
       .all<SkillRow>(),
   ])

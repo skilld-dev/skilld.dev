@@ -17,32 +17,35 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { generateEmbedding } from '../server/jobs/generate-embeddings'
 import { generateFaqs } from '../server/jobs/generate-faqs'
+import { generateSummary } from '../server/jobs/generate-summary'
 import { generateTags } from '../server/jobs/generate-tags'
 
 const { values } = parseArgs({
   options: {
-    slug: { type: 'string' },
-    kind: { type: 'string' },
-    all: { type: 'boolean' },
-    limit: { type: 'string', default: '5' },
-    remote: { type: 'boolean' },
+    'slug': { type: 'string' },
+    'slugs-file': { type: 'string' },
+    'kind': { type: 'string' },
+    'all': { type: 'boolean' },
+    'limit': { type: 'string', default: '5' },
+    'remote': { type: 'boolean' },
   },
 })
 
-if (!values.kind || !['faq', 'tags', 'embedding'].includes(values.kind)) {
-  console.error('Usage: --kind <faq|tags|embedding> [--slug owner/name] [--all --limit N] [--remote]')
+if (!values.kind || !['faq', 'tags', 'embedding', 'summary'].includes(values.kind)) {
+  console.error('Usage: --kind <faq|tags|embedding|summary> [--slug owner/name | --slugs-file path | --all --limit N] [--remote]')
   process.exit(1)
 }
 
-const KIND = values.kind as 'faq' | 'tags' | 'embedding'
+const KIND = values.kind as 'faq' | 'tags' | 'embedding' | 'summary'
 const REMOTE_FLAG = values.remote ? '--remote' : '--local'
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
 const VOYAGE_KEY = process.env.VOYAGE_API_KEY
 
-if ((KIND === 'faq' || KIND === 'tags') && !ANTHROPIC_KEY)
+if ((KIND === 'faq' || KIND === 'tags' || KIND === 'summary') && !ANTHROPIC_KEY)
   console.error('note: no ANTHROPIC_API_KEY — falling back to `claude -p` (uses local Claude Code auth)')
 
 interface SkillPick {
@@ -73,6 +76,19 @@ function pickSkills(): SkillPick[] {
     )
     return rows.map(r => ({ slug: r.slug, owner: r.owner, repo: r.repo, name: r.name, displayName: r.display_name }))
   }
+  if (values['slugs-file']) {
+    const slugs = readFileSync(values['slugs-file'], 'utf-8')
+      .split('\n')
+      .map((s: string) => s.trim())
+      .filter(Boolean)
+    if (!slugs.length)
+      return []
+    const inClause = slugs.map((s: string) => `'${s.replace(/'/g, '\'\'')}'`).join(',')
+    const rows = d1Query<{ slug: string, owner: string, repo: string, name: string, display_name: string }>(
+      `SELECT slug, owner, repo, name, display_name FROM skills WHERE slug IN (${inClause})`,
+    )
+    return rows.map(r => ({ slug: r.slug, owner: r.owner, repo: r.repo, name: r.name, displayName: r.display_name }))
+  }
   if (values.all) {
     const limit = Math.max(1, Number(values.limit) || 5)
     const rows = d1Query<{ slug: string, owner: string, repo: string, name: string, display_name: string }>(
@@ -80,7 +96,7 @@ function pickSkills(): SkillPick[] {
     )
     return rows.map(r => ({ slug: r.slug, owner: r.owner, repo: r.repo, name: r.name, displayName: r.display_name }))
   }
-  throw new Error('pass --slug or --all')
+  throw new Error('pass --slug, --slugs-file, or --all')
 }
 
 async function fetchSkillMd(owner: string, repo: string, name: string): Promise<{ raw: string, description: string | null } | null> {
@@ -180,6 +196,18 @@ async function run() {
       else if (KIND === 'embedding') {
         const out = await generateEmbedding({ db, voyageKey: VOYAGE_KEY }, { owner: skill.owner, repo: skill.repo, name: skill.name, displayName: skill.displayName, description: src.description, raw: src.raw })
         console.log(out ? `  ✓ embed dim=${out.dim} model=${out.model}` : '  ✗ no payload')
+      }
+      else if (KIND === 'summary') {
+        const out = await generateSummary({ db, apiKey: ANTHROPIC_KEY }, { owner: skill.owner, repo: skill.repo, name: skill.name, displayName: skill.displayName, raw: src.raw })
+        if (!out) {
+          console.log('  ✗ no payload')
+        }
+        else {
+          console.log(`  ✓ summary`)
+          console.log(`    tagline: ${out.tagline}`)
+          console.log(`    blurb: ${out.blurb}`)
+          for (const uc of out.useCases) console.log(`    • ${uc}`)
+        }
       }
     }
     catch (err) {

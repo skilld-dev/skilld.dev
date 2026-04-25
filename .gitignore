@@ -34,3 +34,4 @@ test-results/
 .env
 .env.*
 !.env.example
+broken-skills.json

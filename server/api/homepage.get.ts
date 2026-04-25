@@ -4,11 +4,20 @@ import { officialRepos } from '../data/official-repos'
 import { listCollectionRecords } from '../utils/atproto/collections'
 import { getAllCurators } from '../utils/atproto/curator-index'
 import { getDB } from '../utils/db'
+import { getTopOwnersByCount } from '../utils/skills-registry'
 
-const CACHE_KEY = 'homepage:data'
+const CACHE_KEY = 'homepage:data:v2'
 const CACHE_TTL = 60 * 5 // 5 minutes
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
+const orgRepos = officialRepos.filter(r => r.kind === 'org')
+const userRepos = officialRepos.filter(r => r.kind === 'user')
+const orgOwnerSet = new Set(orgRepos.map(r => r.owner))
+const userOwnerSet = new Set(userRepos.map(r => r.owner))
+const ownerToRepo = new Map(officialRepos.map(r => [r.owner, r.repo]))
+
+const FEATURED_ORG_LIMIT = 12
+const FEATURED_USER_LIMIT = 12
 
 interface HomepageCollection {
   name: string
@@ -26,10 +35,18 @@ interface PopularSkill extends RegistrySkill {
   official: boolean
 }
 
+interface FeaturedOfficial {
+  owner: string
+  repo: string
+  totalSkills: number
+}
+
 interface HomepageData {
   curators: IndexedCurator[]
   collections: HomepageCollection[]
   popularSkills: PopularSkill[]
+  featuredOrgs: FeaturedOfficial[]
+  featuredUsers: FeaturedOfficial[]
   stats: { curators: number, collections: number, skills: number }
   fetchedAt: string
 }
@@ -148,10 +165,29 @@ export default defineEventHandler(async (event) => {
 
   const totalSkills = collections.reduce((sum, c) => sum + c.skillCount, 0)
 
+  const [orgRanked, userRanked] = await Promise.all([
+    getTopOwnersByCount(event, orgOwnerSet, FEATURED_ORG_LIMIT),
+    getTopOwnersByCount(event, userOwnerSet, FEATURED_USER_LIMIT),
+  ])
+
+  const featuredOrgs: FeaturedOfficial[] = orgRanked.map(({ owner, count }) => ({
+    owner,
+    repo: ownerToRepo.get(owner) ?? 'skills',
+    totalSkills: count,
+  }))
+
+  const featuredUsers: FeaturedOfficial[] = userRanked.map(({ owner, count }) => ({
+    owner,
+    repo: ownerToRepo.get(owner) ?? 'skills',
+    totalSkills: count,
+  }))
+
   const result: HomepageData = {
     curators,
     collections: collections.slice(0, 8),
     popularSkills,
+    featuredOrgs,
+    featuredUsers,
     stats: {
       curators: curators.length,
       collections: collections.length,

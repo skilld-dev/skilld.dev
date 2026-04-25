@@ -185,6 +185,14 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
 function clearOwner() {
   owner.value = ''
 }
+
+function formatStars(n: number): string {
+  if (n >= 10000)
+    return `${Math.round(n / 1000)}k`
+  if (n >= 1000)
+    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
+  return n.toLocaleString()
+}
 </script>
 
 <template>
@@ -344,10 +352,7 @@ function clearOwner() {
             class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
           >
             <div class="min-w-0">
-              <div class="flex items-center gap-1.5">
-                <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
-                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-              </div>
+              <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
               <p class="mt-0.5 text-xs text-muted truncate">
                 v{{ pkg.version }}
               </p>
@@ -388,10 +393,7 @@ function clearOwner() {
             class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
           >
             <div class="min-w-0 flex-1 flex items-center gap-3">
-              <div class="flex items-center gap-1.5 shrink-0">
-                <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
-                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-              </div>
+              <p class="font-mono text-sm font-medium truncate shrink-0" v-html="highlight(pkg.name)" />
               <p class="text-xs text-muted truncate hidden sm:block">
                 {{ pkg.description }}
               </p>
@@ -659,6 +661,14 @@ function clearOwner() {
                     {{ skill.name }}
                   </p>
                   <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+                  <span
+                    v-if="skill.stars"
+                    class="inline-flex items-center gap-0.5 shrink-0 font-mono text-xs text-muted"
+                    :title="`${skill.stars.toLocaleString()} GitHub stars`"
+                  >
+                    <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
+                    {{ formatStars(skill.stars) }}
+                  </span>
                 </div>
                 <p class="mt-0.5 text-xs text-muted truncate">
                   {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
@@ -696,6 +706,14 @@ function clearOwner() {
                     {{ skill.name }}
                   </p>
                   <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
+                  <span
+                    v-if="skill.stars"
+                    class="inline-flex items-center gap-0.5 font-mono text-xs text-muted"
+                    :title="`${skill.stars.toLocaleString()} GitHub stars`"
+                  >
+                    <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
+                    {{ formatStars(skill.stars) }}
+                  </span>
                 </div>
                 <p class="text-xs text-muted truncate">
                   {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
