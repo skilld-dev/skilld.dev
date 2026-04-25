@@ -192,7 +192,7 @@ async function getRenderedSkill(
   branch: string,
   pushedAt: string | null,
 ): Promise<RenderedCache> {
-  const cacheKey = `skills:rendered:v2:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
+  const cacheKey = `skills:rendered:v3:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
   const cached = await useStorage('cache').getItem<RenderedCache>(cacheKey)
   if (cached)
     return cached
@@ -234,7 +234,7 @@ function slugifyName(s: string): string {
 }
 
 async function resolveSkillMdPath(owner: string, repo: string, name: string, branch: string): Promise<string | null> {
-  const cacheKey = `skills:skill-path:v3:${owner}/${repo}/${name}`
+  const cacheKey = `skills:skill-path:v4:${owner}/${repo}/${name}`
   const cached = await useStorage('cache').getItem<string | null>(cacheKey)
   if (cached !== null && cached !== undefined)
     return cached || null
@@ -296,7 +296,76 @@ async function resolveSkillMdPath(owner: string, repo: string, name: string, bra
     }
   }
 
+  // Frontmatter-name match: registry uses the SKILL.md frontmatter `name:`
+  // field, which often differs from the directory name (e.g. dir `postgresql`,
+  // frontmatter `postgresql-table-design`). Build a name → path index by
+  // scanning the repo's SKILL.md files. Cached per repo so we only pay the
+  // scan cost once.
+  const fmIndex = await getRepoFrontmatterIndex(owner, repo, branch, skillMds)
+  if (fmIndex) {
+    for (const v of variants) {
+      const path = fmIndex[v] ?? fmIndex[slugifyName(v)]
+      if (path) {
+        await cache(path)
+        return path
+      }
+    }
+  }
+
   await useStorage('cache').setItem(cacheKey, '', { ttl: REPO_TREE_CACHE_TTL })
+  return null
+}
+
+const FRONTMATTER_INDEX_MAX_FILES = 250
+const FRONTMATTER_FETCH_CONCURRENCY = 8
+
+async function getRepoFrontmatterIndex(
+  owner: string,
+  repo: string,
+  branch: string,
+  skillMds: UnghTreeFile[],
+): Promise<Record<string, string> | null> {
+  if (skillMds.length > FRONTMATTER_INDEX_MAX_FILES)
+    return null
+
+  const cacheKey = `skills:fm-index:v1:${owner}/${repo}/${branch}`
+  const cached = await useStorage('cache').getItem<Record<string, string>>(cacheKey)
+  if (cached)
+    return cached
+
+  const index: Record<string, string> = {}
+  let cursor = 0
+  async function worker() {
+    while (cursor < skillMds.length) {
+      const i = cursor++
+      const path = skillMds[i]!.path
+      const name = await fetchFrontmatterName(owner, repo, branch, path)
+      if (name)
+        index[name] = path
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(FRONTMATTER_FETCH_CONCURRENCY, skillMds.length) }, () => worker()))
+
+  await useStorage('cache').setItem(cacheKey, index, { ttl: REPO_TREE_CACHE_TTL })
+  return index
+}
+
+async function fetchFrontmatterName(owner: string, repo: string, branch: string, path: string): Promise<string | null> {
+  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`
+  const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
+  if (!raw)
+    return null
+  // Match only inside the frontmatter block to avoid pulling stray `name:` lines from prose.
+  const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (!fm)
+    return null
+  for (const line of fm[1]!.split(/\r?\n/)) {
+    const m = line.match(/^name:(.*)$/)
+    if (!m)
+      continue
+    const value = m[1]!.trim().replace(/^['"]|['"]$/g, '').trim()
+    return value || null
+  }
   return null
 }
 
