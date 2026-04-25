@@ -207,7 +207,7 @@ function toggleCollection(slug: string) {
       <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
         <li v-for="entry in featuredUsers" :key="`user-${entry.owner}`">
           <NuxtLink
-            :to="`/skills?owner=${entry.owner}`"
+            :to="`/orgs/${entry.owner}`"
             :aria-label="`${entry.owner}/${entry.repo}, ${entry.totalSkills} skills`"
             class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
           >
@@ -266,7 +266,7 @@ function toggleCollection(slug: string) {
       <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 list-none p-0">
         <li v-for="entry in featuredOrgs" :key="`org-${entry.owner}`">
           <NuxtLink
-            :to="`/skills?owner=${entry.owner}`"
+            :to="`/orgs/${entry.owner}`"
             :aria-label="`${entry.owner}, ${entry.totalSkills} skills`"
             class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
           >

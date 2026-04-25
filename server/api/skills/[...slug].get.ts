@@ -192,7 +192,7 @@ async function getRenderedSkill(
   branch: string,
   pushedAt: string | null,
 ): Promise<RenderedCache> {
-  const cacheKey = `skills:rendered:v3:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
+  const cacheKey = `skills:rendered:v4:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
   const cached = await useStorage('cache').getItem<RenderedCache>(cacheKey)
   if (cached)
     return cached
@@ -234,7 +234,7 @@ function slugifyName(s: string): string {
 }
 
 async function resolveSkillMdPath(owner: string, repo: string, name: string, branch: string): Promise<string | null> {
-  const cacheKey = `skills:skill-path:v4:${owner}/${repo}/${name}`
+  const cacheKey = `skills:skill-path:v5:${owner}/${repo}/${name}`
   const cached = await useStorage('cache').getItem<string | null>(cacheKey)
   if (cached !== null && cached !== undefined)
     return cached || null
@@ -298,17 +298,16 @@ async function resolveSkillMdPath(owner: string, repo: string, name: string, bra
 
   // Frontmatter-name match: registry uses the SKILL.md frontmatter `name:`
   // field, which often differs from the directory name (e.g. dir `postgresql`,
-  // frontmatter `postgresql-table-design`). Build a name → path index by
-  // scanning the repo's SKILL.md files. Cached per repo so we only pay the
-  // scan cost once.
+  // frontmatter `postgresql-table-design`). Build a slug → path index by
+  // scanning the repo's SKILL.md files. Both keys and lookups are slugified
+  // so `Frontend Responsive Design Standards` matches `frontend responsive
+  // design standards` from the registry.
   const fmIndex = await getRepoFrontmatterIndex(owner, repo, branch, skillMds)
   if (fmIndex) {
-    for (const v of variants) {
-      const path = fmIndex[v] ?? fmIndex[slugifyName(v)]
-      if (path) {
-        await cache(path)
-        return path
-      }
+    const path = fmIndex[slug] ?? fmIndex[slugifyName(name)]
+    if (path) {
+      await cache(path)
+      return path
     }
   }
 
@@ -328,7 +327,7 @@ async function getRepoFrontmatterIndex(
   if (skillMds.length > FRONTMATTER_INDEX_MAX_FILES)
     return null
 
-  const cacheKey = `skills:fm-index:v1:${owner}/${repo}/${branch}`
+  const cacheKey = `skills:fm-index:v2:${owner}/${repo}/${branch}`
   const cached = await useStorage('cache').getItem<Record<string, string>>(cacheKey)
   if (cached)
     return cached
@@ -340,8 +339,11 @@ async function getRepoFrontmatterIndex(
       const i = cursor++
       const path = skillMds[i]!.path
       const name = await fetchFrontmatterName(owner, repo, branch, path)
-      if (name)
-        index[name] = path
+      if (name) {
+        const key = slugifyName(name)
+        if (key && !index[key])
+          index[key] = path
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.min(FRONTMATTER_FETCH_CONCURRENCY, skillMds.length) }, () => worker()))
