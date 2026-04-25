@@ -212,13 +212,22 @@ function formatStars(n: number): string {
       </p>
 
       <!-- Owner filter chip -->
-      <div v-if="isOwnerFiltered" class="mt-4 flex items-center gap-2">
+      <div v-if="isOwnerFiltered" class="mt-4 flex items-center gap-2 flex-wrap">
         <UBadge
           :label="`Filtered: ${owner}`"
           variant="subtle"
           color="neutral"
           size="sm"
           class="font-mono"
+        />
+        <UButton
+          :to="`/orgs/${owner}`"
+          icon="i-lucide-arrow-right"
+          size="xs"
+          color="neutral"
+          variant="outline"
+          label="View profile"
+          trailing
         />
         <UButton
           icon="i-lucide-x"
@@ -460,11 +469,9 @@ function formatStars(n: number): string {
             :key="`${section.owner}/${section.repo}`"
           >
             <div class="mb-3 flex items-center gap-3">
-              <a
-                :href="`https://github.com/${section.owner}`"
-                target="_blank"
-                rel="noopener"
-                :aria-label="`${section.owner} on GitHub`"
+              <NuxtLink
+                :to="`/orgs/${section.owner}`"
+                :aria-label="`${section.owner} profile`"
                 class="shrink-0"
               >
                 <img
@@ -475,19 +482,23 @@ function formatStars(n: number): string {
                   class="size-8 rounded-full bg-muted"
                   loading="lazy"
                 >
-              </a>
+              </NuxtLink>
               <h3 class="font-mono text-sm font-medium">
-                {{ section.owner }}
+                <NuxtLink
+                  :to="`/orgs/${section.owner}`"
+                  class="hover:text-muted transition-colors"
+                >
+                  {{ section.owner }}
+                </NuxtLink>
               </h3>
               <span class="data-label shrink-0">
                 {{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }}
               </span>
               <NuxtLink
-                v-if="section.totalSkills > section.skills.length"
-                :to="{ query: { owner: section.owner } }"
+                :to="`/orgs/${section.owner}`"
                 class="ml-auto font-mono text-xs text-muted hover:text-default transition-colors"
               >
-                View all →
+                View profile →
               </NuxtLink>
             </div>
 

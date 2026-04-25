@@ -402,12 +402,10 @@ useSeoMeta({
       <!-- Skill header -->
       <template v-else>
         <div class="flex items-start gap-3">
-          <a
-            :href="`https://github.com/${data.owner}`"
-            target="_blank"
-            rel="noopener"
+          <NuxtLink
+            :to="`/orgs/${data.owner}`"
             class="shrink-0"
-            :aria-label="`${data.owner} on GitHub`"
+            :aria-label="`${data.owner} profile`"
           >
             <img
               :src="`https://github.com/${data.owner}.png?size=80`"
@@ -416,7 +414,7 @@ useSeoMeta({
               height="40"
               class="size-10 rounded-md border border-default"
             >
-          </a>
+          </NuxtLink>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <h1
@@ -443,7 +441,12 @@ useSeoMeta({
               />
             </div>
             <p class="mt-1 font-mono text-sm text-muted">
-              {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
+              <NuxtLink
+                :to="`/orgs/${data.owner}`"
+                class="hover:text-default transition-colors"
+              >
+                {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
+              </NuxtLink>
             </p>
           </div>
         </div>

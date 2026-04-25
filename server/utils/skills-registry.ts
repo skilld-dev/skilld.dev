@@ -304,6 +304,14 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
   return res.results ?? []
 }
 
+export async function listAllOwnersForSitemap(event: H3Event): Promise<{ owner: string }[]> {
+  const db = getDB(event)
+  const res = await db
+    .prepare(`SELECT DISTINCT owner FROM skills WHERE ${NOT_BROKEN_SQL} ORDER BY owner ASC`)
+    .all<{ owner: string }>()
+  return res.results ?? []
+}
+
 export async function findRelatedSkills(
   event: H3Event,
   opts: { owner: string, repo: string, excludeName: string, limit?: number },
