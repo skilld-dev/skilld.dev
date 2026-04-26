@@ -1,11 +1,9 @@
 /**
  * Feed generator for surfacing skilld.dev collections inside Bluesky.
- * Serves a "New Collections" feed from curator activity.
+ * Serves a "New Collections" feed from the D1 collections index.
  */
 
 /// <reference types="@cloudflare/workers-types" />
-import { listCollectionRecords } from './collections'
-import { getAllCurators } from './curator-index'
 
 export const FEED_URI_PATH = 'skilld-new-collections'
 
@@ -14,46 +12,48 @@ interface FeedSkeleton {
   cursor?: string
 }
 
+interface CollectionPostRow {
+  post_uri: string
+  updated_at: number
+}
+
 /**
  * Build a feed skeleton from recent collection posts.
- * Returns AT URIs of Bluesky posts linked from collection records via postRef.
+ * Reads from the D1 collections index, dropping the previous PDS fan-out.
  */
-export async function getCollectionsFeedSkeleton(db: D1Database, opts?: { limit?: number, cursor?: string }): Promise<FeedSkeleton> {
+export async function getCollectionsFeedSkeleton(
+  db: D1Database,
+  opts?: { limit?: number, cursor?: string },
+): Promise<FeedSkeleton> {
   const limit = Math.min(opts?.limit ?? 30, 50)
-  const cursorTime = opts?.cursor ? new Date(opts.cursor).getTime() : Infinity
+  // Cursor is the last entry's updated_at as ISO; convert to unix seconds.
+  const cursorSec = opts?.cursor
+    ? Math.floor(Date.parse(opts.cursor) / 1000)
+    : null
 
-  const curators = await getAllCurators(db)
+  const where = cursorSec !== null
+    ? 'WHERE deleted_at IS NULL AND post_uri IS NOT NULL AND updated_at < ?'
+    : 'WHERE deleted_at IS NULL AND post_uri IS NOT NULL'
 
-  // Gather all collection records with postRefs
-  const entries: Array<{ postUri: string, updatedAt: string }> = []
+  const stmt = db.prepare(`
+    SELECT post_uri, updated_at
+    FROM collections
+    ${where}
+    ORDER BY updated_at DESC
+    LIMIT ?
+  `)
 
-  const results = await Promise.allSettled(curators.map(async (curator) => {
-    const records = await listCollectionRecords(curator.did, 20)
+  const bound = cursorSec !== null
+    ? stmt.bind(cursorSec, limit)
+    : stmt.bind(limit)
 
-    for (const { record } of records) {
-      if (!record.postRef)
-        continue
-
-      const time = new Date(record.updatedAt).getTime()
-      if (time < cursorTime) {
-        entries.push({ postUri: record.postRef.uri, updatedAt: record.updatedAt })
-      }
-    }
-  }))
-
-  for (const result of results) {
-    if (result.status === 'rejected')
-      console.warn('[feed-generator] Failed to fetch curator collections:', result.reason)
-  }
-
-  // Sort by most recent
-  entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-
-  const page = entries.slice(0, limit)
-  const lastEntry = page.at(-1)
+  const res = await bound.all<CollectionPostRow>()
+  const rows = res.results ?? []
 
   return {
-    feed: page.map(e => ({ post: e.postUri })),
-    cursor: lastEntry?.updatedAt,
+    feed: rows.map(r => ({ post: r.post_uri })),
+    cursor: rows.at(-1)
+      ? new Date(rows.at(-1)!.updated_at * 1000).toISOString()
+      : undefined,
   }
 }

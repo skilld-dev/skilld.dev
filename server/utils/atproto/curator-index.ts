@@ -5,6 +5,7 @@
 
 /// <reference types="@cloudflare/workers-types" />
 import { getPublicAgent } from './agent'
+import { syncCuratorCollections, tombstoneCuratorCollections } from './collection-sync'
 import { listCollectionRecords } from './collections'
 import { isProfileFlagged } from './moderation'
 
@@ -207,8 +208,9 @@ async function syncCurator(
   const profile = profileRes.status === 'fulfilled' ? profileRes.value : null
   const count = collectionsRes.value.length
 
-  // Remove flagged profiles immediately
+  // Remove flagged profiles immediately and tombstone their collections.
   if (profile?.data && isProfileFlagged(profile.data)) {
+    await tombstoneCuratorCollections(db, curator.did)
     await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
     return 'removed'
   }
@@ -218,6 +220,7 @@ async function syncCurator(
   // Only remove if the curator was already at 0 (confirmed empty).
   if (count === 0) {
     if (curator.collectionCount === 0) {
+      await tombstoneCuratorCollections(db, curator.did)
       await db.prepare('DELETE FROM curators WHERE did = ?').bind(curator.did).run()
       return 'removed'
     }
@@ -249,6 +252,12 @@ async function syncCurator(
     new Date().toISOString(),
     curator.did,
   ).run()
+
+  // Project the curator's collection records into the D1 index. Failures here
+  // are non-fatal — the curator row update has already succeeded.
+  await syncCuratorCollections(db, curator.did).catch((err) => {
+    console.warn(`[syncCurator] Collection index sync failed for ${curator.did}:`, err)
+  })
 
   return 'refreshed'
 }
