@@ -104,6 +104,8 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       '*/10 * * * *': ['refresh-curators'],
+      '*/15 * * * *': ['refresh-follows'],
+      '0 * * * *': ['sync-github-skills'],
     },
   },
 

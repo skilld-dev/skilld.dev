@@ -31,24 +31,17 @@ const headline = computed(() => {
 
 const fingerprint = computed(() => data.value?.topTags.slice(0, 3).map(t => t.label).join(', ') ?? '')
 
-const isSingleRepo = computed(() => (data.value?.repos.length ?? 0) === 1)
-const primaryRepo = computed(() => data.value?.repos[0])
-
-const installCmd = computed(() => {
-  if (!data.value || !primaryRepo.value)
-    return ''
-  return gitInstallCmd(data.value.owner, primaryRepo.value.repo)
-})
-
-const { copy: copyInstall } = useClipboard({ source: installCmd })
-const installCopied = ref(false)
-function handleCopyInstall() {
-  copyInstall()
-  installCopied.value = true
-  setTimeout(() => (installCopied.value = false), 2000)
-}
-
 const { copy: copySkill } = useClipboard()
+const { copy: copyRepoInstall } = useClipboard()
+const repoCopiedKey = ref<string | null>(null)
+function copyRepoCmd(repoKey: string, cmd: string) {
+  copyRepoInstall(cmd)
+  repoCopiedKey.value = repoKey
+  setTimeout(() => {
+    if (repoCopiedKey.value === repoKey)
+      repoCopiedKey.value = null
+  }, 2000)
+}
 const copiedName = ref<string | null>(null)
 function copySkillCmd(name: string, cmd: string) {
   copySkill(cmd)
@@ -365,43 +358,7 @@ useSchemaOrg(computed(() => {
     <template v-if="data && !error">
       <USeparator />
 
-      <!-- Install command (single-repo only) -->
-      <section
-        v-if="isSingleRepo && primaryRepo"
-        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-10"
-        aria-labelledby="install-heading"
-      >
-        <h2
-          id="install-heading"
-          class="section-label mb-3"
-        >
-          Install
-        </h2>
-        <div class="flex items-center gap-2 rounded-lg border border-default p-3">
-          <code class="flex-1 font-mono text-sm truncate">{{ installCmd }}</code>
-          <UButton
-            :icon="installCopied ? 'i-lucide-check' : 'i-lucide-clipboard'"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :aria-label="installCopied ? 'Copied' : 'Copy install command'"
-            @click="handleCopyInstall"
-          />
-        </div>
-        <p class="mt-2 text-xs text-muted leading-relaxed">
-          Installs all {{ data.totalSkills }} {{ data.totalSkills === 1 ? 'skill' : 'skills' }} from
-          <a
-            :href="`https://github.com/${data.owner}/${primaryRepo.repo}`"
-            target="_blank"
-            rel="noopener"
-            class="font-mono hover:text-default transition-colors"
-          >{{ data.owner }}/{{ primaryRepo.repo }}</a>.
-        </p>
-      </section>
-
-      <USeparator v-if="isSingleRepo && primaryRepo" />
-
-      <!-- Skills -->
+      <!-- Skills, grouped by GitHub repo -->
       <section
         class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
         aria-labelledby="skills-heading"
@@ -413,33 +370,58 @@ useSchemaOrg(computed(() => {
           Skills
         </h2>
 
-        <!-- Multi-repo: grouped -->
-        <div
-          v-if="!isSingleRepo"
-          class="space-y-10"
-        >
+        <div class="space-y-12">
           <div
             v-for="repo in data.repos"
             :key="repo.repo"
           >
-            <div class="mb-3 flex items-center gap-3 flex-wrap">
-              <h3 class="font-mono text-sm font-medium">
-                <a
-                  :href="`https://github.com/${data.owner}/${repo.repo}`"
-                  target="_blank"
-                  rel="noopener"
-                  class="hover:text-muted transition-colors"
-                  :aria-label="`${data.owner}/${repo.repo} on GitHub (opens in new tab)`"
-                >{{ data.owner }}/{{ repo.repo }}</a>
-              </h3>
-              <span class="data-label">{{ repo.count }} {{ repo.count === 1 ? 'skill' : 'skills' }}</span>
-              <span
-                v-if="repo.stars > 0"
-                class="data-label inline-flex items-center gap-1"
-              >
-                <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-                {{ formatStars(repo.stars) }}
-              </span>
+            <!-- Repo header: name, stats, description, repo-level install -->
+            <div class="mb-4 rounded-lg border border-default p-4">
+              <div class="flex items-start gap-3 flex-wrap">
+                <div class="min-w-0 flex-1">
+                  <h3 class="font-mono text-sm font-medium">
+                    <a
+                      :href="`https://github.com/${data.owner}/${repo.repo}`"
+                      target="_blank"
+                      rel="noopener"
+                      class="inline-flex items-center gap-1.5 hover:text-muted transition-colors"
+                      :aria-label="`${data.owner}/${repo.repo} on GitHub (opens in new tab)`"
+                    >
+                      <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
+                      {{ data.owner }}/{{ repo.repo }}
+                    </a>
+                  </h3>
+                  <p
+                    v-if="repo.description"
+                    class="mt-1.5 text-xs text-muted leading-relaxed line-clamp-2"
+                  >
+                    {{ repo.description }}
+                  </p>
+                  <div class="mt-2 flex items-center gap-3 flex-wrap">
+                    <span class="data-label">{{ repo.count }} {{ repo.count === 1 ? 'skill' : 'skills' }}</span>
+                    <span
+                      v-if="repo.stars > 0"
+                      class="data-label inline-flex items-center gap-1"
+                    >
+                      <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
+                      {{ formatStars(repo.stars) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Install whole repo -->
+              <div class="mt-3 flex items-center gap-2 rounded-md border border-default bg-muted/50 p-2">
+                <code class="flex-1 font-mono text-xs truncate">{{ gitInstallCmd(data.owner, repo.repo) }}</code>
+                <UButton
+                  :icon="repoCopiedKey === repo.repo ? 'i-lucide-check' : 'i-lucide-clipboard'"
+                  color="neutral"
+                  variant="ghost"
+                  size="xs"
+                  :aria-label="repoCopiedKey === repo.repo ? 'Copied' : `Copy install command for ${data.owner}/${repo.repo}`"
+                  @click="copyRepoCmd(repo.repo, gitInstallCmd(data.owner, repo.repo))"
+                />
+              </div>
             </div>
 
             <ul
@@ -485,57 +467,6 @@ useSchemaOrg(computed(() => {
             </ul>
           </div>
         </div>
-
-        <!-- Single-repo: flat grid -->
-        <ul
-          v-else
-          class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
-        >
-          <li
-            v-for="skill in data.skills"
-            :key="skill.slug"
-            class="group relative"
-          >
-            <NuxtLink
-              :to="skillPath(skill)"
-              :aria-label="`${skill.name} by ${skill.owner}`"
-              class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-            >
-              <div class="flex items-center gap-1.5">
-                <p class="font-mono text-sm font-medium truncate">
-                  {{ skill.name }}
-                </p>
-                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-                <span
-                  v-if="skill.stars"
-                  class="inline-flex items-center gap-0.5 shrink-0 font-mono text-xs text-muted"
-                  :title="`${skill.stars.toLocaleString()} GitHub stars`"
-                >
-                  <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-                  {{ formatStars(skill.stars) }}
-                </span>
-              </div>
-              <p
-                v-if="skill.description"
-                class="mt-1.5 text-xs text-muted leading-relaxed line-clamp-2"
-              >
-                {{ skill.description }}
-              </p>
-              <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
-              </code>
-            </NuxtLink>
-            <UButton
-              :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-              :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-              @click="copySkillCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
-            />
-          </li>
-        </ul>
       </section>
 
       <p class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 text-xs text-muted">

@@ -12,6 +12,7 @@ export interface OrgRepo {
   repo: string
   count: number
   stars: number
+  description: string | null
 }
 
 export interface OrgTag {
@@ -118,13 +119,29 @@ export default defineCachedEventHandler(async (event) => {
 
   const repoMap = new Map<string, OrgRepo>()
   for (const skill of registryResult.items) {
-    const entry = repoMap.get(skill.repo) ?? { repo: skill.repo, count: 0, stars: 0 }
+    const entry = repoMap.get(skill.repo) ?? { repo: skill.repo, count: 0, stars: 0, description: null }
     entry.count++
     if (skill.stars > entry.stars)
       entry.stars = skill.stars
     repoMap.set(skill.repo, entry)
   }
   const repos = [...repoMap.values()].sort((a, b) => b.count - a.count)
+
+  // Pull the actual GitHub repo description (not the top skill's description)
+  // for each repo, via ungh.cc which we already use for repo metadata. Cached
+  // for 6 hours; misses leave `description` as null.
+  await Promise.all(repos.map(async (r) => {
+    const cacheKey = `github:repo-desc:${owner}/${r.repo}`
+    const cached = await useStorage('cache').getItem<string | null>(cacheKey)
+    if (cached) {
+      r.description = cached
+      return
+    }
+    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${owner}/${r.repo}`).catch(() => null)
+    const desc = data?.repo?.description?.trim() || null
+    await useStorage('cache').setItem(cacheKey, desc, { ttl: 60 * 60 * 6 })
+    r.description = desc
+  }))
 
   const tagMap = await getGeneratedBatch<TagPayload>(
     getDB(event),
@@ -170,6 +187,6 @@ export default defineCachedEventHandler(async (event) => {
   swr: true,
   getKey: (event) => {
     const owner = getRouterParam(event, 'owner')
-    return `org:${(owner || '').toLowerCase()}`
+    return `org:v2:${(owner || '').toLowerCase()}`
   },
 })

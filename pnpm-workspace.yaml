@@ -6,7 +6,7 @@ catalog:
   '@antfu/eslint-config': ^8.2.0
   '@atproto/api': ^0.19.11
   '@atproto/common': ^0.5.16
-  '@cloudflare/workers-types': ^4.20260425.1
+  '@cloudflare/workers-types': ^4.20260426.1
   '@iconify-json/lucide': ^1.2.103
   '@iconify-json/simple-icons': ^1.2.79
   '@nuxt/a11y': 1.0.0-alpha.1
@@ -35,7 +35,7 @@ catalog:
   motion-v: ^2.2.1
   nitro-cloudflare-dev: ^0.2.2
   nuxt: ^4.4.2
-  nuxt-og-image: ^6.4.7
+  nuxt-og-image: ^6.4.8
   shiki: ^4.0.2
   tailwindcss: ^4.2.4
   typescript: ^6.0.3

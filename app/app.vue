@@ -211,6 +211,12 @@ onKeyDown('?', (e) => {
 
       <template #right>
         <NuxtLink
+          to="/skills/stats"
+          class="font-mono text-xs text-muted underline-offset-2 hover:underline hover:text-default"
+        >
+          Stats
+        </NuxtLink>
+        <NuxtLink
           to="/accessibility"
           class="font-mono text-xs text-muted underline-offset-2 hover:underline hover:text-default"
         >

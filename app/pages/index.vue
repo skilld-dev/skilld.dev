@@ -5,6 +5,7 @@ const authModalOpen = inject<Ref<boolean>>('authModalOpen', ref(false))
 const { user, isAuthenticated } = useAuth()
 const { stage } = useOnboarding()
 const { data: followingData, execute: fetchFollowing } = useFollowingCurators()
+const { execute: fetchNetworkFeed } = useNetworkFeed()
 
 // Fetch real homepage data from curator index + PDS
 const { data: homepageData } = useFetch('/api/homepage')
@@ -25,10 +26,12 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
   return `/skills/${skillSlug(skill)}`
 }
 
-// Fetch following curators when authenticated
+// Fetch following curators + network feed when authenticated
 watch(isAuthenticated, (authed) => {
-  if (authed)
+  if (authed) {
     fetchFollowing()
+    fetchNetworkFeed()
+  }
 }, { immediate: true })
 
 const stats = computed(() => homepageData.value?.stats ?? { curators: 0, collections: 0, skills: 0 })
@@ -112,6 +115,12 @@ function toggleCollection(slug: string) {
         </dl>
       </section>
     </div>
+
+    <!-- Picked by your network (authenticated only) — primary feed -->
+    <template v-if="isAuthenticated">
+      <USeparator />
+      <NetworkFeedSection />
+    </template>
 
     <!-- Curators you follow (authenticated only) -->
     <template v-if="followingData?.curators.length">
