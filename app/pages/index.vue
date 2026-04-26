@@ -14,6 +14,12 @@ const popularSkills = computed(() => homepageData.value?.popularSkills ?? [])
 const featuredOrgs = computed(() => homepageData.value?.featuredOrgs ?? [])
 const featuredUsers = computed(() => homepageData.value?.featuredUsers ?? [])
 
+const { data: publishesData } = useFetch('/api/feed/recent-publishes', { lazy: true })
+const { data: updatesData } = useFetch('/api/feed/recent-updates', { lazy: true })
+const recentPublishes = computed(() => publishesData.value?.items ?? [])
+const recentUpdates = computed(() => updatesData.value?.items ?? [])
+const hasActivity = computed(() => recentPublishes.value.length > 0 || recentUpdates.value.length > 0)
+
 function skillSlug(skill: { owner: string, repo: string, name: string }) {
   return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
 }
@@ -303,9 +309,106 @@ function toggleCollection(slug: string) {
 
     <USeparator v-if="featuredOrgs.length" />
 
-    <!-- Popular Skills -->
+    <!-- Activity rails -->
     <section
-      v-if="popularSkills.length"
+      v-if="hasActivity"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="activity-heading"
+    >
+      <h2
+        id="activity-heading"
+        class="sr-only"
+      >
+        Recent activity
+      </h2>
+      <div class="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-10">
+        <div v-if="recentPublishes.length">
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="section-label">
+              Recently published
+            </h3>
+          </div>
+          <ul class="space-y-2 list-none p-0">
+            <li
+              v-for="skill in recentPublishes.slice(0, 8)"
+              :key="`pub-${skill.owner}/${skill.name}`"
+            >
+              <NuxtLink
+                :to="`/skills/${skill.slug}`"
+                class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors hover:border-[var(--ui-text-muted)]"
+              >
+                <img
+                  :src="`https://github.com/${skill.owner}.png?size=32`"
+                  :alt="skill.owner"
+                  class="size-6 shrink-0 rounded-full"
+                  loading="lazy"
+                  width="24"
+                  height="24"
+                >
+                <div class="min-w-0 flex-1">
+                  <p class="font-mono text-sm font-medium truncate">
+                    {{ skill.name }}
+                  </p>
+                  <p class="font-mono text-xs text-muted truncate">
+                    {{ skill.owner }}
+                  </p>
+                </div>
+                <NuxtTime
+                  :datetime="skill.occurredAt * 1000"
+                  relative
+                  class="data-label shrink-0 tabular-nums"
+                />
+              </NuxtLink>
+            </li>
+          </ul>
+        </div>
+
+        <div v-if="recentUpdates.length">
+          <div class="mb-4 flex items-center justify-between">
+            <h3 class="section-label">
+              Recently updated
+            </h3>
+          </div>
+          <ul class="space-y-2 list-none p-0">
+            <li
+              v-for="skill in recentUpdates.slice(0, 8)"
+              :key="`upd-${skill.owner}/${skill.name}`"
+            >
+              <NuxtLink
+                :to="`/skills/${skill.slug}`"
+                class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors hover:border-[var(--ui-text-muted)]"
+              >
+                <img
+                  :src="`https://github.com/${skill.owner}.png?size=32`"
+                  :alt="skill.owner"
+                  class="size-6 shrink-0 rounded-full"
+                  loading="lazy"
+                  width="24"
+                  height="24"
+                >
+                <div class="min-w-0 flex-1">
+                  <p class="font-mono text-sm font-medium truncate">
+                    {{ skill.name }}
+                  </p>
+                  <p class="font-mono text-xs text-muted truncate">
+                    {{ skill.owner }}
+                  </p>
+                </div>
+                <NuxtTime
+                  :datetime="skill.occurredAt * 1000"
+                  relative
+                  class="data-label shrink-0 tabular-nums"
+                />
+              </NuxtLink>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Popular Skills (fallback while activity table is empty) -->
+    <section
+      v-if="!hasActivity && popularSkills.length"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
       aria-labelledby="popular-skills-heading"
     >

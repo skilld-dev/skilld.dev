@@ -1,0 +1,59 @@
+/**
+ * Recent updates feed: existing skills whose SKILL.md changed.
+ * Reads from the materialized activity table, joined to skills for display fields.
+ */
+
+import { getDB } from '../../utils/db'
+
+interface FeedRow {
+  owner: string
+  name: string
+  occurred_at: number
+  sha: string
+  display_name: string | null
+  repo: string | null
+  description: string | null
+  slug: string | null
+}
+
+export interface RecentUpdatesResponse {
+  items: Array<{
+    owner: string
+    name: string
+    displayName: string
+    repo: string
+    description: string | null
+    slug: string
+    sha: string
+    occurredAt: number
+  }>
+}
+
+export default defineCachedEventHandler(
+  async (event): Promise<RecentUpdatesResponse> => {
+    const db = getDB(event)
+    const res = await db
+      .prepare(
+        `SELECT a.owner, a.name, a.occurred_at, a.sha,
+                s.display_name, s.repo, s.description, s.slug
+         FROM activity a
+         LEFT JOIN skills s ON s.owner = a.owner AND s.name = a.name
+         WHERE a.type = 'skill_updated'
+         ORDER BY a.occurred_at DESC
+         LIMIT 12`,
+      )
+      .all<FeedRow>()
+    const items = (res.results ?? []).map(row => ({
+      owner: row.owner,
+      name: row.name,
+      displayName: row.display_name ?? row.name,
+      repo: row.repo ?? 'skills',
+      description: row.description,
+      slug: row.slug ?? `${row.owner}/${row.name}`,
+      sha: row.sha,
+      occurredAt: row.occurred_at,
+    }))
+    return { items }
+  },
+  { maxAge: 60, swr: true, name: 'feed-recent-updates' },
+)
