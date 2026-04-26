@@ -1,0 +1,389 @@
+<script setup lang="ts">
+import type { TagProfile } from '../../server/api/tags/[slug].get'
+
+const { isBot } = useBotDetection()
+
+const { data, status, error, refresh } = useFetch<TagProfile>(
+  () => '/api/tags/nuxt',
+  {
+    key: 'tag-nuxt',
+    lazy: !isBot.value,
+  },
+)
+
+const siteOrigin = 'https://skilld.dev'
+const canonicalUrl = `${siteOrigin}/nuxt`
+
+const skillsByOwner = computed(() => {
+  if (!data.value)
+    return [] as Array<{ owner: string, skills: TagProfile['skills'] }>
+  const map = new Map<string, TagProfile['skills']>()
+  for (const skill of data.value.skills) {
+    const list = map.get(skill.owner) ?? []
+    list.push(skill)
+    map.set(skill.owner, list)
+  }
+  return [...map.entries()]
+    .map(([owner, skills]) => ({ owner, skills }))
+    .sort((a, b) => b.skills.length - a.skills.length || a.owner.localeCompare(b.owner))
+})
+
+function skillSlug(skill: { owner: string, repo: string, name: string }) {
+  return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
+}
+
+function skillPath(skill: { owner: string, repo: string, name: string }) {
+  return `/skills/${skillSlug(skill)}`
+}
+
+function formatStars(n: number): string {
+  if (n >= 10000)
+    return `${Math.round(n / 1000)}k`
+  if (n >= 1000)
+    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
+  return n.toLocaleString()
+}
+
+const { copy: copySkill } = useClipboard()
+const copiedName = ref<string | null>(null)
+function copySkillCmd(name: string, cmd: string) {
+  copySkill(cmd)
+  copiedName.value = name
+  setTimeout(() => {
+    if (copiedName.value === name)
+      copiedName.value = null
+  }, 2000)
+}
+
+useSeoMeta({
+  title: 'Skills for Nuxt',
+  description: () => {
+    if (!data.value)
+      return 'Curated agent skills for Nuxt apps, modules, and Nitro routes.'
+    return `${data.value.totalSkills} agent skills for Nuxt, from ${data.value.topOwners.length}+ developers shipping in production.`
+  },
+  ogTitle: 'Skills for Nuxt',
+  ogDescription: 'Curated agent skills for Nuxt apps, modules, and Nitro routes.',
+  ogUrl: canonicalUrl,
+  twitterCard: 'summary_large_image',
+})
+
+useHead({
+  link: [{ rel: 'canonical', href: canonicalUrl }],
+})
+
+defineOgImage('Page.takumi', {
+  title: 'Skills for Nuxt',
+  description: 'Curated agent skills for Nuxt apps, modules, and Nitro routes.',
+}, {
+  alt: 'Skills for Nuxt on skilld',
+})
+
+useSchemaOrg(computed(() => {
+  if (!data.value)
+    return []
+  const d = data.value
+  return [
+    {
+      '@type': 'CollectionPage' as const,
+      '@id': `${canonicalUrl}#page`,
+      'url': canonicalUrl,
+      'name': 'Skills for Nuxt on skilld',
+      'description': `${d.totalSkills} agent skills for Nuxt curated on skilld.`,
+      'hasPart': d.skills.slice(0, 25).map(s => ({
+        '@type': 'SoftwareApplication' as const,
+        'name': s.name,
+        'url': `${siteOrigin}${skillPath(s)}`,
+        'applicationCategory': 'DeveloperApplication',
+        'operatingSystem': 'Any',
+      })),
+    },
+  ]
+}))
+</script>
+
+<template>
+  <div>
+    <!-- Hero -->
+    <section
+      class="mx-auto max-w-5xl px-4 sm:px-6 pt-12 pb-6 md:pt-16 md:pb-8"
+      aria-labelledby="nuxt-heading"
+    >
+      <!-- Loading -->
+      <div
+        v-if="status === 'pending'"
+        class="space-y-4"
+        aria-busy="true"
+      >
+        <USkeleton class="h-6 w-24" />
+        <USkeleton class="h-10 w-72" />
+        <USkeleton class="h-4 w-full max-w-xl" />
+        <div class="flex items-center gap-4 pt-2">
+          <USkeleton class="h-3 w-20" />
+          <USkeleton class="h-3 w-24" />
+          <USkeleton class="h-3 w-16" />
+        </div>
+      </div>
+
+      <!-- Error / empty -->
+      <div
+        v-else-if="error || !data"
+        class="text-center py-12"
+      >
+        <UIcon
+          name="i-lucide-package-x"
+          class="mx-auto size-10 text-muted"
+          aria-hidden="true"
+        />
+        <h1
+          id="nuxt-heading"
+          class="mt-3 font-mono text-lg font-medium"
+        >
+          No Nuxt skills indexed yet
+        </h1>
+        <p class="mt-1 text-sm text-muted">
+          Browse the full registry to find what you need.
+        </p>
+        <div class="mt-4 flex items-center justify-center gap-2">
+          <UButton
+            to="/skills"
+            label="Browse all skills"
+            variant="outline"
+            color="neutral"
+            size="sm"
+          />
+          <UButton
+            label="Retry"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            @click="refresh()"
+          />
+        </div>
+      </div>
+
+      <!-- Hero content -->
+      <div v-else>
+        <div class="flex items-center gap-2">
+          <UIcon
+            name="i-simple-icons-nuxtdotjs"
+            class="size-5 text-muted"
+            aria-hidden="true"
+          />
+          <span class="section-label">Framework</span>
+        </div>
+        <h1
+          id="nuxt-heading"
+          class="mt-3 font-mono text-3xl sm:text-4xl font-medium tracking-tight"
+        >
+          Skills for Nuxt
+        </h1>
+        <p class="mt-3 text-sm md:text-base text-muted leading-relaxed max-w-2xl">
+          Curated agent skills for Nuxt apps, modules, and Nitro routes, from developers shipping in production.
+        </p>
+        <div class="mt-5 flex items-center gap-3 flex-wrap">
+          <span class="data-label">
+            {{ data.totalSkills }} {{ data.totalSkills === 1 ? 'skill' : 'skills' }}
+          </span>
+          <span class="data-label">
+            {{ data.topOwners.length }}{{ data.topOwners.length === 8 ? '+' : '' }} {{ data.topOwners.length === 1 ? 'contributor' : 'contributors' }}
+          </span>
+          <span
+            v-if="data.totalStars > 0"
+            class="data-label inline-flex items-center gap-1"
+            :title="`${data.totalStars.toLocaleString()} GitHub stars combined`"
+          >
+            <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
+            {{ formatStars(data.totalStars) }}
+          </span>
+        </div>
+        <div class="mt-5 flex items-center gap-2 flex-wrap">
+          <UButton
+            to="https://nuxt.com"
+            target="_blank"
+            rel="noopener"
+            icon="i-lucide-external-link"
+            label="nuxt.com"
+            color="neutral"
+            variant="outline"
+            size="sm"
+            aria-label="Nuxt official site (opens in new tab)"
+          />
+          <UButton
+            to="/skills"
+            icon="i-lucide-arrow-right"
+            label="Browse all skills"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+          />
+        </div>
+      </div>
+    </section>
+
+    <template v-if="data && !error">
+      <USeparator />
+
+      <!-- Top contributors -->
+      <section
+        v-if="data.topOwners.length"
+        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+        aria-labelledby="contributors-heading"
+      >
+        <h2
+          id="contributors-heading"
+          class="section-label mb-6"
+        >
+          Top contributors
+        </h2>
+        <ul
+          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 list-none p-0"
+          aria-label="Owners with the most Nuxt-related skills"
+        >
+          <li
+            v-for="o in data.topOwners"
+            :key="o.owner"
+          >
+            <NuxtLink
+              :to="`/orgs/${o.owner}`"
+              :aria-label="`@${o.owner}, ${o.count} Nuxt ${o.count === 1 ? 'skill' : 'skills'}`"
+              class="block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+            >
+              <img
+                :src="o.avatar"
+                :alt="`Avatar for ${o.owner}`"
+                width="40"
+                height="40"
+                loading="lazy"
+                class="size-10 rounded-full border border-default object-cover bg-muted"
+              >
+              <p class="mt-3 font-mono text-sm font-medium truncate">
+                @{{ o.owner }}
+              </p>
+              <div class="mt-1 flex items-center gap-2 flex-wrap">
+                <span class="data-label">
+                  {{ o.count }} {{ o.count === 1 ? 'skill' : 'skills' }}
+                </span>
+                <span
+                  v-if="o.stars > 0"
+                  class="data-label inline-flex items-center gap-1"
+                >
+                  <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
+                  {{ formatStars(o.stars) }}
+                </span>
+              </div>
+            </NuxtLink>
+          </li>
+        </ul>
+      </section>
+
+      <USeparator />
+
+      <!-- Skills, grouped by owner -->
+      <section
+        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+        aria-labelledby="skills-heading"
+      >
+        <h2
+          id="skills-heading"
+          class="section-label mb-6"
+        >
+          All skills
+        </h2>
+
+        <div class="space-y-10">
+          <div
+            v-for="group in skillsByOwner"
+            :key="group.owner"
+          >
+            <div class="mb-3 flex items-baseline gap-3">
+              <h3 class="font-mono text-sm font-medium">
+                <NuxtLink
+                  :to="`/orgs/${group.owner}`"
+                  class="hover:text-muted transition-colors"
+                >
+                  @{{ group.owner }}
+                </NuxtLink>
+              </h3>
+              <span class="data-label">
+                {{ group.skills.length }} {{ group.skills.length === 1 ? 'skill' : 'skills' }}
+              </span>
+            </div>
+            <ul
+              class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
+              :aria-label="`Skills by @${group.owner}`"
+            >
+              <li
+                v-for="skill in group.skills"
+                :key="skill.slug"
+                class="group relative"
+              >
+                <NuxtLink
+                  :to="skillPath(skill)"
+                  :aria-label="`${skill.name} by @${skill.owner}`"
+                  class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+                >
+                  <p class="font-mono text-sm font-medium truncate">
+                    {{ skill.name }}
+                  </p>
+                  <p
+                    v-if="skill.description"
+                    class="mt-1.5 text-xs text-muted leading-relaxed line-clamp-2"
+                  >
+                    {{ skill.description }}
+                  </p>
+                  <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
+                    {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
+                  </code>
+                </NuxtLink>
+                <UButton
+                  :icon="copiedName === `${skill.owner}/${skill.name}` ? 'i-lucide-check' : 'i-lucide-copy'"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  :aria-label="copiedName === `${skill.owner}/${skill.name}` ? 'Copied' : `Copy install command for ${skill.name}`"
+                  @click="copySkillCmd(`${skill.owner}/${skill.name}`, gitInstallCmd(skill.owner, skill.repo, skill.name))"
+                />
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Related tags -->
+      <section
+        v-if="data.relatedTags.length"
+        class="mx-auto max-w-5xl px-4 sm:px-6 pb-12"
+        aria-labelledby="related-heading"
+      >
+        <h2
+          id="related-heading"
+          class="section-label mb-3"
+        >
+          Often appears with
+        </h2>
+        <ul class="flex flex-wrap items-center gap-2 list-none p-0">
+          <li
+            v-for="t in data.relatedTags"
+            :key="t.slug"
+          >
+            <UBadge
+              variant="subtle"
+              color="neutral"
+              size="sm"
+              class="font-mono"
+            >
+              {{ t.label }}
+              <span class="ml-1.5 opacity-60">{{ t.count }}</span>
+            </UBadge>
+          </li>
+        </ul>
+      </section>
+
+      <p class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 text-xs text-muted">
+        Synced {{ useTimeAgo(data.fetchedAt).value }}
+      </p>
+    </template>
+  </div>
+</template>
