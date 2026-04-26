@@ -51,16 +51,45 @@ watch(() => state.name, (name) => {
     .slice(0, 64)
 })
 
+const editingReason = ref<string | null>(null)
+const reasonInput = ref('')
+const firstAddPrompted = ref(state.skills.length > 0)
+
+function startEditReason(packageName: string) {
+  editingReason.value = packageName
+  reasonInput.value = skillMeta[packageName]?.reason ?? ''
+  nextTick(() => {
+    document.getElementById(`reason-input-${packageName}`)?.focus()
+  })
+}
+
+function commitReason(packageName: string) {
+  const trimmed = reasonInput.value.trim()
+  const meta = skillMeta[packageName] ?? {}
+  meta.reason = trimmed || undefined
+  skillMeta[packageName] = meta
+  editingReason.value = null
+}
+
 function addSkill() {
   const val = state.skillInput.trim()
-  if (val && !state.skills.includes(val)) {
-    state.skills.push(val)
+  if (!val || state.skills.includes(val)) {
+    state.skillInput = ''
+    return
   }
+  state.skills.push(val)
   state.skillInput = ''
+  if (!firstAddPrompted.value) {
+    firstAddPrompted.value = true
+    startEditReason(val)
+  }
 }
 
 function removeSkill(index: number) {
+  const removed = state.skills[index]
   state.skills.splice(index, 1)
+  if (removed && editingReason.value === removed)
+    editingReason.value = null
 }
 
 function addStack() {
@@ -217,35 +246,70 @@ async function handleSubmit() {
             @click="addSkill"
           />
         </div>
-        <div
+        <ul
           v-if="state.skills.length"
-          class="flex flex-wrap gap-1.5"
+          class="space-y-2"
         >
-          <UBadge
+          <li
             v-for="(skill, i) in state.skills"
             :key="skill"
-            :label="skill"
-            variant="subtle"
-            color="neutral"
-            size="xs"
-            class="pr-1"
+            class="group flex items-start gap-3 rounded-lg border border-default p-3"
           >
-            <template #trailing>
-              <button
-                type="button"
-                class="ml-1 rounded-sm p-0.5 text-muted hover:text-default"
-                :aria-label="`Remove ${skill}`"
-                @click="removeSkill(i)"
+            <div class="min-w-0 flex-1">
+              <p class="font-mono text-sm">
+                {{ skill }}
+              </p>
+              <div
+                v-if="editingReason === skill"
+                class="mt-1.5"
               >
-                <UIcon
-                  name="i-lucide-x"
-                  class="size-3"
-                  aria-hidden="true"
-                />
+                <label
+                  :for="`reason-input-${skill}`"
+                  class="sr-only"
+                >
+                  Why this skill?
+                </label>
+                <input
+                  :id="`reason-input-${skill}`"
+                  v-model="reasonInput"
+                  class="w-full rounded border border-default bg-transparent px-2 py-1 text-xs text-muted outline-none focus:border-[var(--ui-text-muted)]"
+                  placeholder="Why this skill? (one line is plenty, like &quot;use this for v3 SSR with Pinia&quot;)"
+                  @blur="commitReason(skill)"
+                  @keydown.enter.prevent="commitReason(skill)"
+                  @keydown.escape="editingReason = null"
+                >
+              </div>
+              <button
+                v-else-if="skillMeta[skill]?.reason"
+                type="button"
+                class="mt-1 text-left text-xs text-muted leading-relaxed hover:text-default transition-colors"
+                @click="startEditReason(skill)"
+              >
+                {{ skillMeta[skill]!.reason }}
               </button>
-            </template>
-          </UBadge>
-        </div>
+              <button
+                v-else
+                type="button"
+                class="mt-1 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-default focus:opacity-100"
+                @click="startEditReason(skill)"
+              >
+                + add reason
+              </button>
+            </div>
+            <button
+              type="button"
+              class="shrink-0 rounded-sm p-1 text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-default focus:opacity-100"
+              :aria-label="`Remove ${skill}`"
+              @click="removeSkill(i)"
+            >
+              <UIcon
+                name="i-lucide-x"
+                class="size-4"
+                aria-hidden="true"
+              />
+            </button>
+          </li>
+        </ul>
         <p
           v-else
           class="text-xs text-muted"

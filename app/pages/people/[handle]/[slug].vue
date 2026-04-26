@@ -21,7 +21,31 @@ const resolving = computed(() => profileStatus.value === 'pending')
 
 const { data, status, error } = useCollection(did, slug, { lazy: !isBot.value })
 
+interface RelatedCollection {
+  name: string
+  slug: string
+  description: string
+  preambleExcerpt?: string
+  skillCount: number
+  stacks: string[]
+  curator: { did: string, handle: string, displayName?: string, avatar?: string }
+}
+
+const { data: related } = useFetch<{ byCurator: RelatedCollection[], byStack: RelatedCollection[] }>(
+  () => did.value ? `/api/collections/related?did=${did.value}&slug=${slug.value}` : null!,
+  { watch: [did, slug], lazy: true, default: () => ({ byCurator: [], byStack: [] }) },
+)
+
 const installCmd = computed(() => collectionInstallCmd(handle.value, slug.value))
+
+const siteOrigin = 'https://skilld.dev'
+const canonicalUrl = computed(() => `${siteOrigin}/people/${handle.value}/${slug.value}`)
+
+function skillPath(skill: { packageName: string, owner?: string, repo?: string }): string | null {
+  if (!skill.owner || !skill.repo)
+    return null
+  return `/skills/${skill.owner}/${skill.repo === 'skills' ? skill.packageName : `${skill.repo}/${skill.packageName}`}`
+}
 
 async function handleDelete() {
   await remove(slug.value)
@@ -48,13 +72,103 @@ const commonSource = computed(() => {
   return allSame ? { owner: first.owner, repo: first.repo } : null
 })
 
-useSeoMeta({
-  title: () => data.value?.record.name ?? slug.value,
-  description: () => metaExcerpt(
+const firstSkillReason = computed(() => {
+  const skills = data.value?.record.skills ?? []
+  for (const s of skills) {
+    if (s.reason && s.reason.trim().length > 0)
+      return { packageName: s.packageName, reason: s.reason.replace(/\s+/g, ' ').trim() }
+  }
+  return null
+})
+
+function joinMeta(base: string, quote: string, max: number): string {
+  const headline = `${base} · "${quote}"`
+  if (headline.length <= max)
+    return headline
+  const remaining = max - base.length - 4
+  if (remaining < 24)
+    return base
+  return `${base} · "${quote.slice(0, remaining - 1).replace(/\s+\S*$/, '')}…"`
+}
+
+const collectionTitle = computed(() => data.value?.record.name ?? slug.value)
+const collectionDescription = computed(() => {
+  const base = metaExcerpt(
     data.value?.record.preamble,
     data.value?.record.description ?? `Collection by @${handle.value}`,
-  ),
+  )
+  const quote = firstSkillReason.value
+  return quote ? joinMeta(base, quote.reason, 200) : base
 })
+
+useSeoMeta({
+  title: () => collectionTitle.value,
+  description: () => collectionDescription.value,
+  ogTitle: () => collectionTitle.value,
+  ogDescription: () => collectionDescription.value,
+  twitterTitle: () => collectionTitle.value,
+  twitterDescription: () => collectionDescription.value,
+  ogUrl: canonicalUrl,
+})
+
+useHead({
+  link: [{ rel: 'canonical', href: canonicalUrl }],
+})
+
+useSchemaOrg(computed(() => {
+  if (!data.value)
+    return []
+  const d = data.value.record
+  const url = canonicalUrl.value
+  const reasonReviews = d.skills.filter(s => s.reason && s.reason.trim().length >= 20)
+  return [
+    {
+      '@type': 'Article' as const,
+      '@id': `${url}#article`,
+      'headline': d.name,
+      'description': metaExcerpt(d.preamble, d.description || `Collection by @${handle.value}`),
+      'articleBody': d.preamble || d.description,
+      'datePublished': d.createdAt,
+      'dateModified': d.updatedAt,
+      'url': url,
+      'author': {
+        '@type': 'Person' as const,
+        'name': profile.value?.displayName || handle.value,
+        'url': `${siteOrigin}/people/${handle.value}`,
+        'identifier': `https://bsky.app/profile/${handle.value}`,
+      },
+      'about': d.stacks.map(s => ({ '@type': 'Thing' as const, 'name': s })),
+    },
+    {
+      '@type': 'ItemList' as const,
+      '@id': `${url}#list`,
+      'itemListElement': d.skills.map((s, i) => {
+        const path = skillPath(s)
+        const review = reasonReviews.includes(s)
+          ? {
+              review: {
+                '@type': 'Review' as const,
+                'reviewBody': s.reason!,
+                'author': { '@type': 'Person' as const, 'name': profile.value?.displayName || handle.value },
+              },
+            }
+          : {}
+        return {
+          '@type': 'ListItem' as const,
+          'position': i + 1,
+          'item': {
+            '@type': 'SoftwareApplication' as const,
+            'name': s.packageName,
+            ...(path ? { url: `${siteOrigin}${path}` } : {}),
+            'applicationCategory': 'DeveloperApplication',
+            'operatingSystem': 'Any',
+            ...review,
+          },
+        }
+      }),
+    },
+  ]
+}))
 
 defineOgImage('Collection.takumi', {
   name: () => data.value?.record.name ?? slug.value,
@@ -64,6 +178,8 @@ defineOgImage('Collection.takumi', {
   curatorAvatar: () => profile.value?.avatar ?? '',
   skillCount: () => data.value?.record.skills.length ?? 0,
   skills: () => data.value?.record.skills.map((s: { packageName: string }) => s.packageName) ?? [],
+  reason: () => firstSkillReason.value?.reason ?? '',
+  reasonSkill: () => firstSkillReason.value?.packageName ?? '',
 }, {
   alt: () => `${data.value?.record.name ?? slug.value} collection by @${handle.value} on skilld`,
 })
@@ -217,16 +333,14 @@ defineOgImage('Collection.takumi', {
           >
             {{ data.record.skills.length }} skills
           </h2>
-          <a
+          <NuxtLink
             v-if="commonSource"
-            :href="`https://github.com/${commonSource.owner}/${commonSource.repo}`"
-            target="_blank"
-            rel="noopener noreferrer"
+            :to="`/orgs/${commonSource.owner}`"
             class="flex items-center gap-1.5 text-xs text-muted font-mono hover:text-default"
           >
             <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
             {{ commonSource.owner }}/{{ commonSource.repo }}
-          </a>
+          </NuxtLink>
         </div>
 
         <div
@@ -241,17 +355,27 @@ defineOgImage('Collection.takumi', {
           >
             <div class="min-w-0">
               <div class="flex items-center gap-1.5">
-                <p class="font-mono text-sm truncate">
-                  {{ skill.packageName }}
-                </p>
+                <h3 class="font-mono text-sm truncate font-normal">
+                  <NuxtLink
+                    v-if="skillPath(skill)"
+                    :to="skillPath(skill)!"
+                    class="hover:text-muted transition-colors"
+                  >
+                    {{ skill.packageName }}
+                  </NuxtLink>
+                  <template v-else>
+                    {{ skill.packageName }}
+                  </template>
+                </h3>
                 <UBadge v-if="!skill.owner" label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
               </div>
-              <a
+              <NuxtLink
                 v-if="!commonSource && skill.owner && skill.repo"
-                :href="`https://github.com/${skill.owner}/${skill.repo}`"
-                target="_blank"
+                :to="`/orgs/${skill.owner}`"
                 class="mt-0.5 block text-xs text-muted font-mono hover:text-default"
-              >{{ skill.owner }}/{{ skill.repo }}</a>
+              >
+                {{ skill.owner }}/{{ skill.repo }}
+              </NuxtLink>
               <p
                 v-if="skill.reason"
                 class="mt-0.5 text-xs text-muted truncate"
@@ -276,6 +400,77 @@ defineOgImage('Collection.takumi', {
           </h2>
           <BlueskyThread :post-uri="data.record.postRef.uri" />
         </section>
+
+        <!-- Related collections -->
+        <template v-if="related && (related.byCurator.length || related.byStack.length)">
+          <section
+            v-if="related.byCurator.length"
+            class="mt-8"
+            aria-labelledby="related-curator-heading"
+          >
+            <h2
+              id="related-curator-heading"
+              class="section-label mb-4"
+            >
+              More from @{{ handle }}
+            </h2>
+            <ul class="divide-y divide-default rounded-lg border border-default">
+              <li
+                v-for="c in related.byCurator"
+                :key="c.slug"
+              >
+                <NuxtLink
+                  :to="`/people/${handle}/${c.slug}`"
+                  class="block px-4 py-3 hover:bg-muted transition-colors"
+                >
+                  <p class="font-mono text-sm">
+                    {{ c.name }}
+                  </p>
+                  <p
+                    v-if="c.description"
+                    class="mt-0.5 text-xs text-muted truncate"
+                  >
+                    {{ c.description }}
+                  </p>
+                  <p class="mt-1 text-xs text-muted">
+                    {{ c.skillCount }} {{ c.skillCount === 1 ? 'skill' : 'skills' }}
+                  </p>
+                </NuxtLink>
+              </li>
+            </ul>
+          </section>
+
+          <section
+            v-if="related.byStack.length"
+            class="mt-8"
+            aria-labelledby="related-stack-heading"
+          >
+            <h2
+              id="related-stack-heading"
+              class="section-label mb-4"
+            >
+              Related collections
+            </h2>
+            <ul class="divide-y divide-default rounded-lg border border-default">
+              <li
+                v-for="c in related.byStack"
+                :key="`${c.curator.did}/${c.slug}`"
+              >
+                <NuxtLink
+                  :to="`/people/${c.curator.handle}/${c.slug}`"
+                  class="block px-4 py-3 hover:bg-muted transition-colors"
+                >
+                  <p class="font-mono text-sm">
+                    {{ c.name }}
+                  </p>
+                  <p class="mt-0.5 text-xs text-muted">
+                    by @{{ c.curator.handle }} · {{ c.skillCount }} {{ c.skillCount === 1 ? 'skill' : 'skills' }}
+                  </p>
+                </NuxtLink>
+              </li>
+            </ul>
+          </section>
+        </template>
 
         <!-- AT Protocol provenance -->
         <div class="mt-6 rounded-lg border border-default p-4">

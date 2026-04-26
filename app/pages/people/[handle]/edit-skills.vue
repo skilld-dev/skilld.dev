@@ -96,13 +96,18 @@ const filteredSuggestions = computed(() => {
 })
 
 function selectSuggestion(skill: SearchSkill) {
+  let added = false
   if (!skills.value.some(s => s.packageName === skill.name)) {
     skills.value.push({ packageName: skill.name })
     skillMeta.value.set(skill.name, { owner: skill.owner, repo: skill.repo, official: !!skill.official })
+    added = true
   }
   searchQuery.value = ''
   showSuggestions.value = false
-  nextTick(() => document.getElementById('skill-search-input')?.focus())
+  if (added)
+    maybePromptFirstReason()
+  else
+    nextTick(() => document.getElementById('skill-search-input')?.focus())
 }
 
 const GITHUB_SKILL_RE = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)(?:\/tree\/[^/]+\/(.+))?/
@@ -132,6 +137,7 @@ function addManualSkill() {
     skills.value.push({ packageName: name })
     skillMeta.value.set(name, { owner: gh.owner, repo: gh.repo, official: false })
     searchQuery.value = ''
+    maybePromptFirstReason()
     return
   }
 
@@ -139,6 +145,7 @@ function addManualSkill() {
     return
   skills.value.push({ packageName: raw })
   searchQuery.value = ''
+  maybePromptFirstReason()
 }
 
 function removeSkill(index: number) {
@@ -152,6 +159,7 @@ function updateReason(index: number, reason: string) {
 // Editing reason inline
 const editingReason = ref<number | null>(null)
 const reasonInput = ref('')
+const firstAddPrompted = ref(false)
 
 function startEditReason(index: number) {
   editingReason.value = index
@@ -160,6 +168,15 @@ function startEditReason(index: number) {
     const el = document.getElementById(`reason-input-${index}`)
     el?.focus()
   })
+}
+
+function maybePromptFirstReason() {
+  if (firstAddPrompted.value)
+    return
+  firstAddPrompted.value = true
+  const lastIndex = skills.value.length - 1
+  if (lastIndex >= 0)
+    startEditReason(lastIndex)
 }
 
 function commitReason(index: number) {
@@ -404,11 +421,17 @@ useSeoMeta({
                   v-if="editingReason === i"
                   class="mt-1"
                 >
+                  <label
+                    :for="`reason-input-${i}`"
+                    class="sr-only"
+                  >
+                    Why this skill?
+                  </label>
                   <input
                     :id="`reason-input-${i}`"
                     v-model="reasonInput"
                     class="w-full rounded border border-default bg-transparent px-2 py-1 text-xs text-muted outline-none focus:border-[var(--ui-text-muted)]"
-                    placeholder="Why do you use this?"
+                    placeholder="Why this skill? (one line is plenty)"
                     @blur="commitReason(i)"
                     @keydown.enter.prevent="commitReason(i)"
                     @keydown.escape="editingReason = null"

@@ -118,9 +118,20 @@ export default defineEventHandler(async (event) => {
 
   const githubUrl = `https://github.com/${skill.owner}/${skill.repo}`
 
-  const [curators, repoMeta] = await Promise.all([
+  const [curators, repoMeta, revision] = await Promise.all([
     getEndorsementsForSkill(getDB(event), skill.name),
     getRepoMeta(skill.owner, skill.repo),
+    getDB(event)
+      .prepare(`SELECT current_sha, modified_at, references_count, last_synced_at, sync_status
+                FROM skills WHERE owner = ? AND name = ?`)
+      .bind(skill.owner, skill.name)
+      .first<{
+      current_sha: string | null
+      modified_at: number | null
+      references_count: number | null
+      last_synced_at: number | null
+      sync_status: string | null
+    }>(),
   ])
 
   if (repoMeta === 'not-found')
@@ -173,6 +184,26 @@ export default defineEventHandler(async (event) => {
           useCases: summaryRow.payload.useCases,
         }
       : null,
+    provenance: {
+      owner: skill.owner,
+      repo: skill.repo,
+      branch,
+      skillPath: rendered.skillPath,
+      sourceCommitSha: revision?.current_sha ?? null,
+      sourceCommitUrl: revision?.current_sha
+        ? `${githubUrl}/commit/${revision.current_sha}`
+        : null,
+      skillFileUrl: rendered.skillPath
+        ? `${githubUrl}/blob/${revision?.current_sha ?? branch}/${rendered.skillPath}`
+        : null,
+      historyUrl: rendered.skillPath
+        ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
+        : null,
+      modifiedAt: revision?.modified_at ?? null,
+      referencesCount: revision?.references_count ?? 0,
+      lastSyncedAt: revision?.last_synced_at ?? null,
+      syncStatus: revision?.sync_status ?? null,
+    },
   }
 })
 

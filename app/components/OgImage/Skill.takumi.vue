@@ -4,11 +4,15 @@ const {
   owner = '',
   repo = 'skills',
   curatorCount = 0,
+  reason = '',
+  reasonHandle = '',
 } = defineProps<{
   name?: string
   owner?: string
   repo?: string
   curatorCount?: number
+  reason?: string
+  reasonHandle?: string
 }>()
 
 const installCmd = computed(() => {
@@ -66,7 +70,29 @@ const installCmd = computed(() => {
       </div>
 
       <div
-        v-if="curatorCount > 0"
+        v-if="reason"
+        class="flex flex-col gap-2"
+        :style="{
+          borderLeft: '3px solid oklch(0.555 0.225 17.32)',
+          paddingLeft: '16px',
+        }"
+      >
+        <span
+          class="text-3xl leading-snug"
+          :style="{ color: 'oklch(0.93 0.005 60)', lineClamp: 3, textOverflow: 'ellipsis' }"
+        >
+          &ldquo;{{ reason }}&rdquo;
+        </span>
+        <span
+          v-if="reasonHandle"
+          class="text-2xl font-mono"
+          :style="{ color: 'oklch(0.62 0.01 60)' }"
+        >
+          @{{ reasonHandle }}
+        </span>
+      </div>
+      <div
+        v-else-if="curatorCount > 0"
         class="text-3xl"
         :style="{ color: 'oklch(0.62 0.01 60)' }"
       >

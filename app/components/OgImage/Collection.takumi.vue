@@ -7,6 +7,8 @@ const {
   curatorAvatar = '',
   skillCount = 0,
   skills = [],
+  reason = '',
+  reasonSkill = '',
 } = defineProps<{
   name: string
   description?: string
@@ -15,7 +17,16 @@ const {
   curatorAvatar?: string
   skillCount?: number
   skills?: string[]
+  reason?: string
+  reasonSkill?: string
 }>()
+
+const truncatedReason = computed(() => {
+  if (!reason)
+    return ''
+  const collapsed = reason.replace(/\s+/g, ' ').trim()
+  return collapsed.length <= 140 ? collapsed : `${collapsed.slice(0, 139).replace(/\s+\S*$/, '')}…`
+})
 
 function getInitials(n: string) {
   return n
@@ -90,9 +101,33 @@ function getInitials(n: string) {
         </span>
       </div>
 
+      <!-- Curator note -->
+      <div
+        v-if="truncatedReason"
+        class="flex flex-col gap-2"
+        :style="{
+          borderLeft: '3px solid oklch(0.555 0.225 17.32)',
+          paddingLeft: '16px',
+        }"
+      >
+        <span
+          class="text-2xl leading-snug"
+          :style="{ color: 'oklch(0.93 0.005 60)', lineClamp: 3, textOverflow: 'ellipsis' }"
+        >
+          &ldquo;{{ truncatedReason }}&rdquo;
+        </span>
+        <span
+          v-if="reasonSkill"
+          class="font-mono text-xl"
+          :style="{ color: 'oklch(0.62 0.01 60)' }"
+        >
+          on {{ reasonSkill }}
+        </span>
+      </div>
+
       <!-- Skill badges with rose accent on first badge -->
       <div
-        v-if="skills.length"
+        v-else-if="skills.length"
         class="flex flex-wrap gap-2"
       >
         <span

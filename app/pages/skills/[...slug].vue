@@ -83,6 +83,20 @@ const { data, status, error, refresh } = useFetch(
   tags: SkillTag[]
   faqs: FaqItem[]
   summary: SkillSummary | null
+  provenance: {
+    owner: string
+    repo: string
+    branch: string
+    skillPath: string | null
+    sourceCommitSha: string | null
+    sourceCommitUrl: string | null
+    skillFileUrl: string | null
+    historyUrl: string | null
+    modifiedAt: number | null
+    referencesCount: number
+    lastSyncedAt: number | null
+    syncStatus: string | null
+  } | null
 }>>
 
 const { data: relatedData } = useFetch(
@@ -233,11 +247,26 @@ const commitsWithAgo = computed(() => {
   })
 })
 
+const curatorsWithReason = computed(() =>
+  (data.value?.curators ?? []).filter(c => c.reason && c.reason.trim().length > 0),
+)
+
+const topCuratorReason = computed(() => curatorsWithReason.value[0] ?? null)
+
+function truncateReason(text: string, max: number): string {
+  const collapsed = text.replace(/\s+/g, ' ').trim()
+  if (collapsed.length <= max)
+    return collapsed
+  return `${collapsed.slice(0, max - 1).replace(/\s+\S*$/, '')}…`
+}
+
 defineOgImage('Skill.takumi', {
   name: () => data.value?.name ?? '',
   owner: () => data.value?.owner ?? '',
   repo: () => data.value?.repo ?? 'skills',
   curatorCount: () => data.value?.curators.length ?? 0,
+  reason: () => topCuratorReason.value ? truncateReason(topCuratorReason.value.reason!, 140) : '',
+  reasonHandle: () => topCuratorReason.value?.handle ?? '',
 }, {
   alt: () => `${data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
 })
@@ -306,20 +335,31 @@ useSchemaOrg(computed(() => {
   ]
 }))
 
+const skillTitle = computed(() => {
+  if (!data.value)
+    return 'Skill'
+  const tagline = data.value.summary?.tagline
+  return tagline ? `${data.value.name} — ${tagline}` : `${data.value.name} by ${data.value.owner}`
+})
+
+const skillDescription = computed(() => {
+  if (!data.value)
+    return 'View skill details on skilld.'
+  const top = topCuratorReason.value
+  if (top?.reason)
+    return truncateReason(`"${top.reason}" — @${top.handle}`, 200)
+  return data.value.summary?.blurb
+    || data.value.description
+    || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
+})
+
 useSeoMeta({
-  title: () => {
-    if (!data.value)
-      return 'Skill'
-    const tagline = data.value.summary?.tagline
-    return tagline ? `${data.value.name} — ${tagline}` : `${data.value.name} by ${data.value.owner}`
-  },
-  description: () => {
-    if (!data.value)
-      return 'View skill details on skilld.'
-    return data.value.summary?.blurb
-      || data.value.description
-      || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
-  },
+  title: () => skillTitle.value,
+  description: () => skillDescription.value,
+  ogTitle: () => skillTitle.value,
+  ogDescription: () => skillDescription.value,
+  twitterTitle: () => skillTitle.value,
+  twitterDescription: () => skillDescription.value,
 })
 </script>
 
@@ -587,6 +627,69 @@ useSeoMeta({
     </section>
 
     <template v-if="data && status !== 'pending'">
+      <!-- Curator pull-quotes -->
+      <template v-if="curatorsWithReason.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
+          aria-labelledby="curator-reasons-heading"
+        >
+          <h2
+            id="curator-reasons-heading"
+            class="section-label mb-3"
+          >
+            Why curators picked this
+          </h2>
+          <div class="space-y-3">
+            <figure
+              v-for="curator in curatorsWithReason"
+              :key="`${curator.did}/${curator.collectionSlug}`"
+              class="rounded-lg border border-default bg-elevated p-4 sm:p-5"
+            >
+              <UIcon
+                name="i-lucide-quote"
+                class="size-4 text-muted"
+                aria-hidden="true"
+              />
+              <blockquote class="mt-2 text-base leading-relaxed text-default">
+                {{ curator.reason }}
+              </blockquote>
+              <figcaption class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <NuxtLink
+                  :to="`/people/${curator.handle}`"
+                  class="inline-flex items-center min-h-11 min-w-11 shrink-0"
+                  :aria-label="`${curator.handle} profile`"
+                >
+                  <img
+                    v-if="curator.avatar"
+                    :src="curator.avatar"
+                    :alt="`${curator.handle} avatar`"
+                    width="36"
+                    height="36"
+                    class="size-9 rounded-full border border-default"
+                  >
+                </NuxtLink>
+                <NuxtLink
+                  :to="`/people/${curator.handle}`"
+                  class="inline-flex items-center min-h-11 py-2 font-mono text-xs text-muted hover:text-default transition-colors"
+                >
+                  @{{ curator.handle }}
+                </NuxtLink>
+                <span
+                  class="font-mono text-xs text-muted"
+                  aria-hidden="true"
+                >·</span>
+                <NuxtLink
+                  :to="`/people/${curator.handle}/${curator.collectionSlug}`"
+                  class="inline-flex items-center min-h-11 py-2 font-mono text-xs text-muted hover:text-default transition-colors truncate"
+                >
+                  {{ curator.collectionName }}
+                </NuxtLink>
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+      </template>
       <!-- AI summary -->
       <template v-if="data.summary">
         <USeparator />
@@ -952,6 +1055,14 @@ useSeoMeta({
         </section>
       </template>
 
+      <!-- Receipts -->
+      <template v-if="data.provenance">
+        <USeparator />
+        <div class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12">
+          <SkillReceiptsPanel :provenance="data.provenance" />
+        </div>
+      </template>
+
       <!-- Changelog -->
       <template v-if="commitsWithAgo.length">
         <USeparator />
@@ -1089,12 +1200,6 @@ useSeoMeta({
                   {{ curator.collectionName }}
                 </NuxtLink>
               </div>
-              <p
-                v-if="curator.reason"
-                class="mt-0.5 text-xs text-muted truncate"
-              >
-                {{ curator.reason }}
-              </p>
             </div>
           </div>
         </div>
