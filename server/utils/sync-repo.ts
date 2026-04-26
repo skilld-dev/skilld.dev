@@ -105,6 +105,7 @@ export async function syncRepo(
   if (
     !repoRes.notModified
     && anyExisting?.pushed_at != null
+    && anyExisting.last_tree_sha != null
     && repoPushedAt != null
     && anyExisting.pushed_at >= repoPushedAt
   ) {

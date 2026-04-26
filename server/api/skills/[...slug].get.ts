@@ -118,20 +118,23 @@ export default defineEventHandler(async (event) => {
 
   const githubUrl = `https://github.com/${skill.owner}/${skill.repo}`
 
-  const [curators, repoMeta, revision] = await Promise.all([
+  const [curators, repoMeta, revision, latestCommit] = await Promise.all([
     getEndorsementsForSkill(getDB(event), skill.name),
     getRepoMeta(skill.owner, skill.repo),
     getDB(event)
-      .prepare(`SELECT current_sha, modified_at, references_count, last_synced_at, sync_status
+      .prepare(`SELECT modified_at, references_count, last_synced_at, sync_status
                 FROM skills WHERE owner = ? AND name = ?`)
       .bind(skill.owner, skill.name)
       .first<{
-      current_sha: string | null
       modified_at: number | null
       references_count: number | null
       last_synced_at: number | null
       sync_status: string | null
     }>(),
+    getDB(event)
+      .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
+      .bind(skill.owner, skill.name)
+      .first<{ sha: string }>(),
   ])
 
   if (repoMeta === 'not-found')
@@ -189,12 +192,12 @@ export default defineEventHandler(async (event) => {
       repo: skill.repo,
       branch,
       skillPath: rendered.skillPath,
-      sourceCommitSha: revision?.current_sha ?? null,
-      sourceCommitUrl: revision?.current_sha
-        ? `${githubUrl}/commit/${revision.current_sha}`
+      sourceCommitSha: latestCommit?.sha ?? null,
+      sourceCommitUrl: latestCommit?.sha
+        ? `${githubUrl}/commit/${latestCommit.sha}`
         : null,
       skillFileUrl: rendered.skillPath
-        ? `${githubUrl}/blob/${revision?.current_sha ?? branch}/${rendered.skillPath}`
+        ? `${githubUrl}/blob/${latestCommit?.sha ?? branch}/${rendered.skillPath}`
         : null,
       historyUrl: rendered.skillPath
         ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
