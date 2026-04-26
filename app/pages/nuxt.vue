@@ -55,6 +55,9 @@ function copySkillCmd(name: string, cmd: string) {
   }, 2000)
 }
 
+
+const syncedAgo = useTimeAgo(() => data.value?.fetchedAt ?? Date.now())
+
 useSeoMeta({
   title: 'Skills for Nuxt',
   description: () => {
@@ -125,9 +128,39 @@ useSchemaOrg(computed(() => {
         </div>
       </div>
 
-      <!-- Error / empty -->
+      <!-- Error -->
       <div
-        v-else-if="error || !data"
+        v-else-if="error"
+        class="text-center py-12"
+      >
+        <UIcon
+          name="i-lucide-cloud-off"
+          class="mx-auto size-10 text-muted"
+          aria-hidden="true"
+        />
+        <h1
+          id="nuxt-heading"
+          class="mt-3 font-mono text-lg font-medium"
+        >
+          Couldn't load Nuxt skills
+        </h1>
+        <p class="mt-1 text-sm text-muted">
+          Check your connection and try again.
+        </p>
+        <div class="mt-4 flex items-center justify-center">
+          <UButton
+            label="Retry"
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="refresh()"
+          />
+        </div>
+      </div>
+
+      <!-- Empty -->
+      <div
+        v-else-if="!data"
         class="text-center py-12"
       >
         <UIcon
@@ -144,20 +177,13 @@ useSchemaOrg(computed(() => {
         <p class="mt-1 text-sm text-muted">
           Browse the full registry to find what you need.
         </p>
-        <div class="mt-4 flex items-center justify-center gap-2">
+        <div class="mt-4 flex items-center justify-center">
           <UButton
             to="/skills"
             label="Browse all skills"
             variant="outline"
             color="neutral"
             size="sm"
-          />
-          <UButton
-            label="Retry"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            @click="refresh()"
           />
         </div>
       </div>
@@ -237,7 +263,7 @@ useSchemaOrg(computed(() => {
           Top contributors
         </h2>
         <ul
-          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 list-none p-0"
+          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 list-none p-0"
           aria-label="Owners with the most Nuxt-related skills"
         >
           <li
@@ -382,7 +408,7 @@ useSchemaOrg(computed(() => {
       </section>
 
       <p class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 text-xs text-muted">
-        Synced {{ useTimeAgo(data.fetchedAt).value }}
+        Synced {{ syncedAgo }}
       </p>
     </template>
   </div>
