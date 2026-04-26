@@ -346,9 +346,15 @@ function toggleCollection(slug: string) {
                   height="24"
                 >
                 <div class="min-w-0 flex-1">
-                  <p class="font-mono text-sm font-medium truncate">
-                    {{ skill.name }}
-                  </p>
+                  <div class="flex items-center gap-1.5">
+                    <p class="font-mono text-sm font-medium truncate">
+                      {{ skill.name }}
+                    </p>
+                    <SkillReceiptsBadge
+                      v-if="skill.hasReceipts"
+                      compact
+                    />
+                  </div>
                   <p class="font-mono text-xs text-muted truncate">
                     {{ skill.owner }}
                   </p>
@@ -387,9 +393,15 @@ function toggleCollection(slug: string) {
                   height="24"
                 >
                 <div class="min-w-0 flex-1">
-                  <p class="font-mono text-sm font-medium truncate">
-                    {{ skill.name }}
-                  </p>
+                  <div class="flex items-center gap-1.5">
+                    <p class="font-mono text-sm font-medium truncate">
+                      {{ skill.name }}
+                    </p>
+                    <SkillReceiptsBadge
+                      v-if="skill.hasReceipts"
+                      compact
+                    />
+                  </div>
                   <p class="font-mono text-xs text-muted truncate">
                     {{ skill.owner }}
                   </p>

@@ -35,6 +35,8 @@ export interface OrgProfile {
   repos: OrgRepo[]
   topTags: OrgTag[]
   skills: RegistrySkill[]
+  lastSyncedAt: number | null
+  syncStatus: 'ok' | 'failed' | 'never' | null
   fetchedAt: string
 }
 
@@ -164,6 +166,25 @@ export default defineCachedEventHandler(async (event) => {
 
   const totalStars = registryResult.items.reduce((max, s) => s.stars > max ? s.stars : max, 0)
 
+  const syncRow = await getDB(event)
+    .prepare(
+      `SELECT MAX(last_synced_at) AS last_synced_at,
+              SUM(CASE WHEN sync_status = 'failed' THEN 1 ELSE 0 END) AS failed,
+              SUM(CASE WHEN sync_status = 'ok' THEN 1 ELSE 0 END) AS ok
+       FROM skills WHERE owner = ?`,
+    )
+    .bind(owner)
+    .first<{ last_synced_at: number | null, failed: number | null, ok: number | null }>()
+
+  const lastSyncedAt = syncRow?.last_synced_at ?? null
+  let syncStatus: 'ok' | 'failed' | 'never' | null = null
+  if (lastSyncedAt == null)
+    syncStatus = 'never'
+  else if ((syncRow?.failed ?? 0) > 0)
+    syncStatus = 'failed'
+  else if ((syncRow?.ok ?? 0) > 0)
+    syncStatus = 'ok'
+
   const profile: OrgProfile = {
     owner,
     kind,
@@ -178,6 +199,8 @@ export default defineCachedEventHandler(async (event) => {
     repos,
     topTags,
     skills: registryResult.items,
+    lastSyncedAt,
+    syncStatus,
     fetchedAt: new Date().toISOString(),
   }
 

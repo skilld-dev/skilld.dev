@@ -15,6 +15,7 @@ interface FeedRow {
   repo: string | null
   description: string | null
   slug: string | null
+  sync_status: string | null
 }
 
 export interface RecentPublishesResponse {
@@ -27,6 +28,7 @@ export interface RecentPublishesResponse {
     slug: string
     sha: string
     occurredAt: number
+    hasReceipts: boolean
   }>
 }
 
@@ -36,7 +38,7 @@ export default defineCachedEventHandler(
     const res = await db
       .prepare(
         `SELECT a.owner, a.name, a.occurred_at, a.sha,
-                s.display_name, s.repo, s.description, s.slug
+                s.display_name, s.repo, s.description, s.slug, s.sync_status
          FROM activity a
          LEFT JOIN skills s ON s.owner = a.owner AND s.name = a.name
          WHERE a.type = 'skill_published'
@@ -53,6 +55,7 @@ export default defineCachedEventHandler(
       slug: row.slug ?? `${row.owner}/${row.name}`,
       sha: row.sha,
       occurredAt: row.occurred_at,
+      hasReceipts: row.sync_status === 'ok',
     }))
     return { items }
   },

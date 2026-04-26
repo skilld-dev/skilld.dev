@@ -156,7 +156,7 @@ export async function syncRepo(
     const prev = existing.get(parsed.name)
     const refsCount = refsCountForSkillDir(tree.tree, file.dirName)
     const description = parsed.description || repoDescription
-    const isNewToRegistry = !prev
+    const isNewToRegistry = !prev || prev.current_sha == null
     const contentChanged = prev?.current_sha !== file.treeSha
     const firstSeenAt = prev?.first_seen_at ?? now
 

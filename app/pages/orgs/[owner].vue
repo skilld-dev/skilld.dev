@@ -31,6 +31,19 @@ const headline = computed(() => {
 
 const fingerprint = computed(() => data.value?.topTags.slice(0, 3).map(t => t.label).join(', ') ?? '')
 
+const now = useTimestamp({ interval: 60_000 })
+const syncStale = computed(() => {
+  const profile = data.value
+  if (!profile)
+    return false
+  if (profile.syncStatus === 'never' || profile.syncStatus === 'failed')
+    return true
+  if (!profile.lastSyncedAt)
+    return false
+  const ageHours = (now.value / 1000 - profile.lastSyncedAt) / 3600
+  return ageHours > 24
+})
+
 const { copy: copySkill } = useClipboard()
 const { copy: copyRepoInstall } = useClipboard()
 const repoCopiedKey = ref<string | null>(null)
@@ -312,6 +325,25 @@ useSchemaOrg(computed(() => {
                 aria-hidden="true"
               />
               {{ data.location }}
+            </span>
+            <span
+              v-if="syncStale"
+              class="data-label inline-flex items-center gap-1 text-amber-500"
+              :title="data.lastSyncedAt ? `Last synced ${new Date(data.lastSyncedAt * 1000).toLocaleString()}` : 'Never synced'"
+            >
+              <UIcon
+                name="i-lucide-clock-alert"
+                class="size-3"
+                aria-hidden="true"
+              />
+              <span v-if="!data.lastSyncedAt">Sync pending</span>
+              <span v-else>
+                Synced
+                <NuxtTime
+                  :datetime="data.lastSyncedAt * 1000"
+                  relative
+                />
+              </span>
             </span>
           </div>
 
