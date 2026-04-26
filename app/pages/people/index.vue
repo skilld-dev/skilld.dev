@@ -1,20 +1,62 @@
 <script setup lang="ts">
+import type { IndependentDev } from '../../../server/api/people/independent.get'
 import type { IndexedCurator } from '../../../server/utils/atproto/curator-index'
+
+type Filter = 'all' | 'independent' | 'community'
 
 useSeoMeta({
   title: 'Curators',
-  description: 'Developers who curate agent skill collections on skilld.',
+  description: 'Developers who curate agent skill collections, plus independent developers shipping their own skill repos.',
 })
 
 defineOgImage('Page.takumi', {
   title: 'Curators',
-  description: 'Developers who curate agent skill collections on skilld.',
+  description: 'Developers who curate agent skill collections, plus independent developers shipping their own skill repos.',
 }, { alt: 'Curators directory on skilld' })
 
+const route = useRoute()
+const router = useRouter()
+
+const filter = computed<Filter>(() => {
+  const q = route.query.filter
+  if (q === 'independent' || q === 'community')
+    return q
+  return 'all'
+})
+
+function setFilter(next: Filter) {
+  const query = next === 'all' ? {} : { filter: next }
+  navigateTo({ query }, { replace: true })
+}
+
+const showIndependent = computed(() => filter.value === 'all' || filter.value === 'independent')
+const showCommunity = computed(() => filter.value === 'all' || filter.value === 'community')
+
 const { isBot } = useBotDetection()
-const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], total: number }>('/api/social/curators', {
+
+const {
+  data: independentData,
+  status: independentStatus,
+  error: independentError,
+  refresh: refreshIndependent,
+} = useFetch<{ devs: IndependentDev[], total: number }>('/api/people/independent', {
   lazy: !isBot.value,
 })
+
+const {
+  data: communityData,
+  status: communityStatus,
+  error: communityError,
+  refresh: refreshCommunity,
+} = useFetch<{ curators: IndexedCurator[], total: number }>('/api/social/curators', {
+  lazy: !isBot.value,
+})
+
+const filterOptions: { value: Filter, label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'independent', label: 'Independent' },
+  { value: 'community', label: 'Community' },
+]
 </script>
 
 <template>
@@ -30,26 +72,55 @@ const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], 
         Curators
       </h1>
       <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
-        Developers who curate agent skill collections. Follow their taste, install their setup.
+        Developers who curate agent skill collections. Browse their stack, follow their taste.
       </p>
     </section>
 
     <USeparator />
 
     <section
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
-      aria-labelledby="curators-list-heading"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-6"
+      aria-label="Filter directory"
     >
-      <h2
-        id="curators-list-heading"
-        class="sr-only"
+      <div
+        role="group"
+        aria-label="Curator type"
+        class="flex flex-wrap gap-2"
       >
-        Curator directory
-      </h2>
+        <UButton
+          v-for="opt in filterOptions"
+          :key="opt.value"
+          :label="opt.label"
+          :color="filter === opt.value ? 'primary' : 'neutral'"
+          :variant="filter === opt.value ? 'solid' : 'outline'"
+          size="sm"
+          :aria-pressed="filter === opt.value"
+          @click="setFilter(opt.value)"
+        />
+      </div>
+    </section>
+
+    <!-- Independent section -->
+    <section
+      v-if="showIndependent"
+      class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 md:pb-12"
+      aria-labelledby="independent-heading"
+    >
+      <div class="mb-4">
+        <h2
+          id="independent-heading"
+          class="section-label"
+        >
+          Independent
+        </h2>
+        <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
+          Developers maintaining their own skill repos. Browse their stack, install what fits.
+        </p>
+      </div>
 
       <!-- Loading -->
       <div
-        v-if="status === 'pending'"
+        v-if="independentStatus === 'pending'"
         class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
         aria-busy="true"
       >
@@ -71,7 +142,108 @@ const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], 
 
       <!-- Error -->
       <div
-        v-else-if="error"
+        v-else-if="independentError"
+        role="alert"
+        class="rounded-lg border border-default p-8 text-center"
+      >
+        <UIcon
+          name="i-lucide-alert-circle"
+          class="mx-auto size-8 text-muted"
+          aria-hidden="true"
+        />
+        <p class="mt-3 text-sm">
+          Couldn't load independent developers. Check your connection and try again.
+        </p>
+        <UButton
+          label="Retry"
+          size="sm"
+          variant="outline"
+          color="neutral"
+          class="mt-4"
+          @click="refreshIndependent()"
+        />
+      </div>
+
+      <!-- Empty -->
+      <div
+        v-else-if="!independentData?.devs.length"
+        class="rounded-lg border border-default p-8 text-center"
+      >
+        <UIcon
+          name="i-lucide-users"
+          class="mx-auto size-8 text-muted"
+          aria-hidden="true"
+        />
+        <p class="mt-3 text-sm">
+          No independent developers indexed yet.
+        </p>
+      </div>
+
+      <!-- Cards -->
+      <div
+        v-else
+        class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        <PeopleIndependentCard
+          v-for="dev in independentData.devs"
+          :key="dev.owner"
+          :dev="dev"
+        />
+      </div>
+
+      <p
+        v-if="independentData?.total"
+        class="mt-6 data-label"
+      >
+        {{ independentData.total }} {{ independentData.total === 1 ? 'developer' : 'developers' }}
+      </p>
+    </section>
+
+    <USeparator v-if="showIndependent && showCommunity" />
+
+    <!-- Community section -->
+    <section
+      v-if="showCommunity"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+      aria-labelledby="community-heading"
+    >
+      <div class="mb-4">
+        <h2
+          id="community-heading"
+          class="section-label"
+        >
+          Community
+        </h2>
+        <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
+          Developers publishing collections on skilld via the AT Protocol.
+        </p>
+      </div>
+
+      <!-- Loading -->
+      <div
+        v-if="communityStatus === 'pending'"
+        class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        aria-busy="true"
+      >
+        <div
+          v-for="i in 6"
+          :key="i"
+          class="rounded-lg border border-default p-4"
+        >
+          <div class="flex items-center gap-3">
+            <USkeleton class="size-10 rounded-full" />
+            <div class="space-y-1.5 flex-1">
+              <USkeleton class="h-4 w-2/3" />
+              <USkeleton class="h-3 w-1/3" />
+            </div>
+          </div>
+          <USkeleton class="mt-3 h-3 w-full" />
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div
+        v-else-if="communityError"
         role="alert"
         class="rounded-lg border border-default p-8 text-center"
       >
@@ -89,13 +261,13 @@ const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], 
           variant="outline"
           color="neutral"
           class="mt-4"
-          @click="refresh()"
+          @click="refreshCommunity()"
         />
       </div>
 
       <!-- Empty -->
       <div
-        v-else-if="!data?.curators.length"
+        v-else-if="!communityData?.curators.length"
         class="rounded-lg border border-default p-8 text-center"
       >
         <UIcon
@@ -114,7 +286,7 @@ const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], 
         class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
       >
         <NuxtLink
-          v-for="curator in data.curators"
+          v-for="curator in communityData.curators"
           :key="curator.did"
           :to="`/people/${curator.handle}`"
           :aria-label="`${curator.displayName || curator.handle}, ${curator.collectionCount} collections`"
@@ -165,10 +337,10 @@ const { data, status, error, refresh } = useFetch<{ curators: IndexedCurator[], 
       </div>
 
       <p
-        v-if="data?.total"
+        v-if="communityData?.total"
         class="mt-6 data-label"
       >
-        {{ data.total }} {{ data.total === 1 ? 'curator' : 'curators' }}
+        {{ communityData.total }} {{ communityData.total === 1 ? 'curator' : 'curators' }}
       </p>
     </section>
   </div>

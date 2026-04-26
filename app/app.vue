@@ -105,7 +105,7 @@ onKeyDown('?', (e) => {
         />
         <UButton
           to="/people"
-          label="Curators"
+          label="People"
           color="neutral"
           variant="ghost"
           size="sm"
@@ -176,7 +176,7 @@ onKeyDown('?', (e) => {
           />
           <UButton
             to="/people"
-            label="Curators"
+            label="People"
             color="neutral"
             variant="ghost"
             block
