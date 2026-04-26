@@ -14,7 +14,7 @@
  */
 import type { EmbeddingContext, EmbeddingSkill } from './generate-embeddings'
 import type { TagPayload } from './generate-tags'
-import { getGenerated, putGenerated, sha1 } from '../utils/skill-generated'
+import { putGenerated, sha1 } from '../utils/skill-generated'
 import { generateEmbedding } from './generate-embeddings'
 import { TAXONOMY } from './taxonomy'
 
