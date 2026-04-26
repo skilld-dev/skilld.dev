@@ -7,12 +7,13 @@ import { parseSkillFile, titleCaseFromSlug } from './skill-frontmatter'
 export interface SyncRepoStats {
   owner: string
   repo: string
-  status: 'ok' | 'skipped-pushed-at' | 'skipped-tree-sha' | 'failed'
+  status: 'ok' | 'skipped-pushed-at' | 'skipped-tree-sha' | 'failed' | 'rate-limited'
   reason?: string
   skillsSeen: number
   skillsUpserted: number
   revisionsInserted: number
   activityEmitted: number
+  rateLimitRemaining?: number
 }
 
 interface ExistingSkill {
@@ -88,6 +89,14 @@ export async function syncRepo(
 
   const repoRes = await getRepo(owner, repo, bindings)
   logRateLimit(`repo ${owner}/${repo}`, repoRes.rateLimit)
+  if (repoRes.rateLimit)
+    stats.rateLimitRemaining = repoRes.rateLimit.remaining
+
+  if (repoRes.status === 403 || repoRes.status === 429) {
+    stats.status = 'rate-limited'
+    stats.reason = `rate-limited (${repoRes.rateLimit?.remaining ?? '?'} remaining)`
+    return stats
+  }
 
   if (!repoRes.data) {
     stats.status = 'failed'
