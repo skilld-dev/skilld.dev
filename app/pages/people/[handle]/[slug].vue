@@ -6,7 +6,6 @@ const slug = computed(() => route.params.slug as string)
 const { user, isAuthenticated } = useAuth()
 const isOwner = computed(() => isAuthenticated.value && user.value?.handle === handle.value)
 const { remove, deleting } = useCollectionMutations()
-const { copy, copied } = useClipboard()
 
 const { isBot } = useBotDetection()
 
@@ -37,6 +36,11 @@ const { data: related } = useFetch<{ byCurator: RelatedCollection[], byStack: Re
 )
 
 const installCmd = computed(() => collectionInstallCmd(handle.value, slug.value))
+const { copy, copied } = useInstallCopy(
+  installCmd,
+  'collection-page-hero',
+  () => ({ kind: 'collection', handle: handle.value, slug: slug.value }),
+)
 
 const siteOrigin = 'https://skilld.dev'
 const canonicalUrl = computed(() => `${siteOrigin}/people/${handle.value}/${slug.value}`)

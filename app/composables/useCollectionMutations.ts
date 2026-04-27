@@ -39,7 +39,7 @@ export function useCollectionMutations() {
   async function remove(rkey: string) {
     deleting.value = true
     error.value = null
-    return $fetch(`/api/collections/${rkey}`, {
+    return $fetch<unknown>(`/api/collections/${rkey}`, {
       method: 'DELETE',
     })
       .catch((err: unknown) => {

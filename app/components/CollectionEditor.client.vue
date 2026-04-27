@@ -53,7 +53,6 @@ watch(() => state.name, (name) => {
 
 const editingReason = ref<string | null>(null)
 const reasonInput = ref('')
-const firstAddPrompted = ref(state.skills.length > 0)
 
 function startEditReason(packageName: string) {
   editingReason.value = packageName
@@ -79,10 +78,7 @@ function addSkill() {
   }
   state.skills.push(val)
   state.skillInput = ''
-  if (!firstAddPrompted.value) {
-    firstAddPrompted.value = true
-    startEditReason(val)
-  }
+  startEditReason(val)
 }
 
 function removeSkill(index: number) {
@@ -273,7 +269,7 @@ async function handleSubmit() {
                   :id="`reason-input-${skill}`"
                   v-model="reasonInput"
                   class="w-full rounded border border-default bg-transparent px-2 py-1 text-xs text-muted outline-none focus:border-[var(--ui-text-muted)]"
-                  placeholder="Why this skill? (one line is plenty, like &quot;use this for v3 SSR with Pinia&quot;)"
+                  placeholder="e.g. use this for v3 SSR with Pinia"
                   @blur="commitReason(skill)"
                   @keydown.enter.prevent="commitReason(skill)"
                   @keydown.escape="editingReason = null"
@@ -290,7 +286,7 @@ async function handleSubmit() {
               <button
                 v-else
                 type="button"
-                class="mt-1 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-default focus:opacity-100"
+                class="mt-1 text-xs text-muted hover:text-default transition-colors"
                 @click="startEditReason(skill)"
               >
                 + add reason

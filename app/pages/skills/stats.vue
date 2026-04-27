@@ -156,9 +156,9 @@ const summaryMetrics = computed(() => {
           </div>
           <StatsBars
             v-else-if="data"
+            :ariaLabel="'Star count distribution across dedicated skill repos'"
             :bins="data.starHistogram"
             scale="sqrt"
-            aria-label="Star count distribution across dedicated skill repos"
           />
         </Motion>
 
@@ -182,8 +182,8 @@ const summaryMetrics = computed(() => {
             </div>
             <StatsHBar
               v-else-if="data"
+              :ariaLabel="'Repo maintenance freshness, days since last push'"
               :bins="data.maintenance"
-              aria-label="Repo maintenance freshness, days since last push"
             />
           </Motion>
 
@@ -205,9 +205,9 @@ const summaryMetrics = computed(() => {
             </div>
             <StatsBars
               v-else-if="data"
+              :ariaLabel="'Repo age cohorts, time since the repo was created'"
               :bins="data.ageCohorts"
               scale="sqrt"
-              aria-label="Repo age cohorts, time since the repo was created"
             />
           </Motion>
         </div>
@@ -234,8 +234,8 @@ const summaryMetrics = computed(() => {
           </div>
           <StatsLeaderboard
             v-else-if="data"
+            :ariaLabel="'Top owners ranked by their highest-starred repository'"
             :rows="data.topOwners"
-            aria-label="Top owners ranked by their highest-starred repository"
           />
         </Motion>
 
@@ -258,8 +258,8 @@ const summaryMetrics = computed(() => {
             </div>
             <StatsScatter
               v-else-if="data"
+              :ariaLabel="'Scatter of npm installs against GitHub stars on log-log scale'"
               :points="data.scatter"
-              aria-label="Scatter of npm installs against GitHub stars on log-log scale"
             />
           </Motion>
 
@@ -281,8 +281,8 @@ const summaryMetrics = computed(() => {
             </div>
             <StatsBars
               v-else-if="data"
+              :ariaLabel="'Distribution of how many skills each repo publishes'"
               :bins="data.skillsPerRepo"
-              aria-label="Distribution of how many skills each repo publishes"
             />
           </Motion>
         </div>

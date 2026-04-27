@@ -16,7 +16,11 @@ const { collection } = defineProps<{
 
 const expanded = ref(false)
 const installCmd = computed(() => collectionInstallCmd(collection.curator.handle, collection.slug))
-const { copy, copied } = useClipboard({ source: installCmd })
+const { copy, copied } = useInstallCopy(
+  installCmd,
+  'collection-card',
+  () => ({ kind: 'collection', handle: collection.curator.handle, slug: collection.slug }),
+)
 
 const { isAuthenticated } = useAuth()
 const { isSaved, save, unsave } = useSavedCollections()

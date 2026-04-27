@@ -20,18 +20,6 @@ const recentPublishes = computed(() => publishesData.value?.items ?? [])
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const hasActivity = computed(() => recentPublishes.value.length > 0 || recentUpdates.value.length > 0)
 
-function skillSlug(skill: { owner: string, repo: string, name: string }) {
-  return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
-}
-
-function skillInstallCmd(skill: { owner: string, repo: string, name: string }) {
-  return gitInstallCmd(skill.owner, skill.repo, skill.name)
-}
-
-function skillPath(skill: { owner: string, repo: string, name: string }) {
-  return `/skills/${skillSlug(skill)}`
-}
-
 // Fetch following curators + network feed when authenticated
 watch(isAuthenticated, (authed) => {
   if (authed) {
@@ -443,33 +431,13 @@ function toggleCollection(slug: string) {
 
       <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
         <li v-for="skill in popularSkills" :key="skill.slug">
-          <NuxtLink
-            :to="skillPath(skill)"
-            :aria-label="`${skill.name} by ${skill.owner}`"
-            class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-          >
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5">
-                <img
-                  v-if="skill.official"
-                  :src="`https://github.com/${skill.owner}.png?size=32`"
-                  :alt="skill.owner"
-                  class="size-4 shrink-0 rounded-full"
-                  loading="lazy"
-                >
-                <p class="font-mono text-sm font-medium truncate">
-                  {{ skill.name }}
-                </p>
-                <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-              </div>
-              <p class="mt-0.5 text-xs text-muted truncate">
-                {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
-              </p>
-            </div>
-            <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-              {{ skillInstallCmd(skill) }}
-            </code>
-          </NuxtLink>
+          <SkillCard
+            :skill
+            variant="compact"
+            :show-copy="false"
+            :show-owner-avatar="skill.official"
+            show-owner-path
+          />
         </li>
       </ul>
     </section>

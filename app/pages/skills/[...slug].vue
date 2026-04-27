@@ -110,7 +110,6 @@ const { data: relatedData } = useFetch(
   semanticSiblings: NeighborSkill[]
 }>>
 
-const { copy, copied } = useClipboard()
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 
 const packageName = computed(() => {
@@ -124,6 +123,12 @@ const installCmd = computed(() => {
     return ''
   return gitInstallCmd(data.value.owner, data.value.repo, data.value.name)
 })
+
+const { copy, copied } = useInstallCopy(
+  installCmd,
+  'skill-page-hero',
+  () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
+)
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
 const skillsShUrl = computed(() => data.value?.url ?? '')
@@ -600,6 +605,16 @@ useSeoMeta({
             color="neutral"
             variant="ghost"
           />
+          <UButton
+            :href="`/api/skills-raw/${slug}`"
+            target="_blank"
+            rel="noopener"
+            label="Raw SKILL.md"
+            icon="i-lucide-file-text"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+          />
           <AddToCollection :package-name="packageName" />
         </div>
 
@@ -640,6 +655,17 @@ useSeoMeta({
           >
             Why curators picked this
           </h2>
+          <p
+            v-if="data.owner !== 'anthropics'"
+            class="mb-3 text-xs text-muted"
+          >
+            <NuxtLink
+              :to="`/collections/new?skill=${packageName}&skillsOwner=${data.owner}&skillsRepo=${data.repo}`"
+              class="underline underline-offset-2 hover:text-default"
+            >
+              Add yours
+            </NuxtLink> — share why you reach for this skill.
+          </p>
           <div class="space-y-3">
             <figure
               v-for="curator in curatorsWithReason"
@@ -688,6 +714,29 @@ useSeoMeta({
               </figcaption>
             </figure>
           </div>
+        </section>
+      </template>
+      <template v-else>
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-6"
+          aria-labelledby="curator-reasons-empty-heading"
+        >
+          <h2
+            id="curator-reasons-empty-heading"
+            class="section-label mb-2"
+          >
+            Why curators picked this
+          </h2>
+          <p class="text-sm text-muted leading-relaxed">
+            No curator note yet.
+            <NuxtLink
+              :to="`/collections/new?skill=${packageName}&skillsOwner=${data.owner}&skillsRepo=${data.repo}`"
+              class="underline underline-offset-2 hover:text-default"
+            >
+              Be the first to add yours
+            </NuxtLink> — one line on why you reach for this skill.
+          </p>
         </section>
       </template>
       <!-- AI summary -->

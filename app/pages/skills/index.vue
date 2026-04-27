@@ -185,14 +185,6 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
 function clearOwner() {
   owner.value = ''
 }
-
-function formatStars(n: number): string {
-  if (n >= 10000)
-    return `${Math.round(n / 1000)}k`
-  if (n >= 1000)
-    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
-  return n.toLocaleString()
-}
 </script>
 
 <template>
@@ -506,39 +498,8 @@ function formatStars(n: number): string {
               v-if="view === 'grid'"
               class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
             >
-              <li v-for="skill in section.skills" :key="skill.slug" class="group relative">
-                <NuxtLink
-                  :to="skillPath(skill)"
-                  :aria-label="`${skill.name} by ${skill.owner}`"
-                  class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-                >
-                  <p class="font-mono text-sm font-medium truncate">
-                    {{ skill.name }}
-                  </p>
-                  <div v-if="skill.tags?.length" class="mt-2 flex flex-wrap gap-1">
-                    <UBadge
-                      v-for="tag in skill.tags.slice(0, 3)"
-                      :key="tag"
-                      :label="tag"
-                      variant="subtle"
-                      color="neutral"
-                      size="xs"
-                      class="font-mono"
-                    />
-                  </div>
-                  <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                    {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
-                  </code>
-                </NuxtLink>
-                <UButton
-                  :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-                  @click="copyCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
-                />
+              <li v-for="skill in section.skills" :key="skill.slug">
+                <SkillCard :skill :show-description="false" show-tags />
               </li>
             </ul>
 
@@ -546,41 +507,8 @@ function formatStars(n: number): string {
               v-else
               class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
             >
-              <li v-for="skill in section.skills" :key="skill.slug" class="group relative">
-                <NuxtLink
-                  :to="skillPath(skill)"
-                  :aria-label="`${skill.name} by ${skill.owner}`"
-                  class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
-                >
-                  <div class="min-w-0 flex-1 flex items-center gap-2">
-                    <p class="font-mono text-sm font-medium truncate shrink-0">
-                      {{ skill.name }}
-                    </p>
-                    <div v-if="skill.tags?.length" class="hidden md:flex flex-wrap gap-1 min-w-0">
-                      <UBadge
-                        v-for="tag in skill.tags.slice(0, 3)"
-                        :key="tag"
-                        :label="tag"
-                        variant="subtle"
-                        color="neutral"
-                        size="xs"
-                        class="font-mono"
-                      />
-                    </div>
-                  </div>
-                  <code class="hidden sm:block truncate font-mono text-xs text-muted max-w-xs">
-                    {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
-                  </code>
-                </NuxtLink>
-                <UButton
-                  :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-                  @click="copyCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
-                />
+              <li v-for="skill in section.skills" :key="skill.slug">
+                <SkillCard :skill variant="list" :show-description="false" show-tags />
               </li>
             </ul>
           </div>
@@ -660,44 +588,8 @@ function formatStars(n: number): string {
           v-else-if="registryData && view === 'grid'"
           class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
         >
-          <li v-for="skill in registryData.items" :key="skill.slug" class="group relative">
-            <NuxtLink
-              :to="skillPath(skill)"
-              :aria-label="`${skill.name} by ${skill.owner}`"
-              class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-            >
-              <div class="min-w-0">
-                <div class="flex items-center gap-1.5">
-                  <p class="font-mono text-sm font-medium truncate">
-                    {{ skill.name }}
-                  </p>
-                  <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-                  <span
-                    v-if="skill.stars"
-                    class="inline-flex items-center gap-0.5 shrink-0 font-mono text-xs text-muted"
-                    :title="`${skill.stars.toLocaleString()} GitHub stars`"
-                  >
-                    <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-                    {{ formatStars(skill.stars) }}
-                  </span>
-                </div>
-                <p class="mt-0.5 text-xs text-muted truncate">
-                  {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
-                </p>
-              </div>
-              <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
-              </code>
-            </NuxtLink>
-            <UButton
-              :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-              :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-              @click="copyCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
-            />
+          <li v-for="skill in registryData.items" :key="skill.slug">
+            <SkillCard :skill :show-description="false" show-owner-path />
           </li>
         </ul>
 
@@ -705,44 +597,8 @@ function formatStars(n: number): string {
           v-else-if="registryData && view === 'list'"
           class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
         >
-          <li v-for="skill in registryData.items" :key="skill.slug" class="group relative">
-            <NuxtLink
-              :to="skillPath(skill)"
-              :aria-label="`${skill.name} by ${skill.owner}`"
-              class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
-            >
-              <div class="min-w-0 flex-1 flex items-center gap-3">
-                <div class="flex items-center gap-1.5 shrink-0">
-                  <p class="font-mono text-sm font-medium">
-                    {{ skill.name }}
-                  </p>
-                  <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-                  <span
-                    v-if="skill.stars"
-                    class="inline-flex items-center gap-0.5 font-mono text-xs text-muted"
-                    :title="`${skill.stars.toLocaleString()} GitHub stars`"
-                  >
-                    <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-                    {{ formatStars(skill.stars) }}
-                  </span>
-                </div>
-                <p class="text-xs text-muted truncate">
-                  {{ skill.owner }}{{ skill.repo !== 'skills' ? `/${skill.repo}` : '' }}
-                </p>
-              </div>
-              <code class="hidden sm:block truncate font-mono text-xs text-muted max-w-xs">
-                {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
-              </code>
-            </NuxtLink>
-            <UButton
-              :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-              :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-              @click="copyCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
-            />
+          <li v-for="skill in registryData.items" :key="skill.slug">
+            <SkillCard :skill variant="list" :show-description="false" show-owner-path />
           </li>
         </ul>
 

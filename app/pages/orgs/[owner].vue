@@ -44,7 +44,6 @@ const syncStale = computed(() => {
   return ageHours > 24
 })
 
-const { copy: copySkill } = useClipboard()
 const { copy: copyRepoInstall } = useClipboard()
 const repoCopiedKey = ref<string | null>(null)
 function copyRepoCmd(repoKey: string, cmd: string) {
@@ -53,15 +52,6 @@ function copyRepoCmd(repoKey: string, cmd: string) {
   setTimeout(() => {
     if (repoCopiedKey.value === repoKey)
       repoCopiedKey.value = null
-  }, 2000)
-}
-const copiedName = ref<string | null>(null)
-function copySkillCmd(name: string, cmd: string) {
-  copySkill(cmd)
-  copiedName.value = name
-  setTimeout(() => {
-    if (copiedName.value === name)
-      copiedName.value = null
   }, 2000)
 }
 
@@ -463,38 +453,8 @@ useSchemaOrg(computed(() => {
               <li
                 v-for="skill in skillsByRepo.get(repo.repo) ?? []"
                 :key="skill.slug"
-                class="group relative"
               >
-                <NuxtLink
-                  :to="skillPath(skill)"
-                  :aria-label="`${skill.name} by ${skill.owner}`"
-                  class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-                >
-                  <div class="flex items-center gap-1.5">
-                    <p class="font-mono text-sm font-medium truncate">
-                      {{ skill.name }}
-                    </p>
-                    <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
-                  </div>
-                  <p
-                    v-if="skill.description"
-                    class="mt-1.5 text-xs text-muted leading-relaxed line-clamp-2"
-                  >
-                    {{ skill.description }}
-                  </p>
-                  <code class="mt-3 block truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                    {{ gitInstallCmd(skill.owner, skill.repo, skill.name) }}
-                  </code>
-                </NuxtLink>
-                <UButton
-                  :icon="copiedName === skill.name ? 'i-lucide-check' : 'i-lucide-copy'"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                  :aria-label="copiedName === skill.name ? 'Copied' : `Copy install command for ${skill.name}`"
-                  @click="copySkillCmd(skill.name, gitInstallCmd(skill.owner, skill.repo, skill.name))"
-                />
+                <SkillCard :skill />
               </li>
             </ul>
           </div>

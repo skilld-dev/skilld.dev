@@ -35,5 +35,5 @@ export function useNetworkFeed() {
 }
 
 export async function refreshFollows(): Promise<{ refreshedAt: string, followCount: number }> {
-  return $fetch('/api/social/refresh-follows', { method: 'POST' })
+  return $fetch<{ refreshedAt: string, followCount: number }>('/api/social/refresh-follows', { method: 'POST' })
 }
