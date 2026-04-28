@@ -5,6 +5,10 @@ const slug = computed(() => {
   return Array.isArray(params) ? params.join('/') : params
 })
 
+if (Array.isArray(route.params.slug) && route.params.slug.length === 1) {
+  await navigateTo(`/orgs/${route.params.slug[0]}`, { redirectCode: 301, replace: true })
+}
+
 const { isAuthenticated } = useAuth()
 const authModalOpen = inject<Ref<boolean>>('authModalOpen', ref(false))
 
@@ -25,6 +29,8 @@ interface SkillCommit {
   authorAvatar: string | null
   date: string
   url: string
+  verified: boolean
+  verifiedReason: string
 }
 
 interface SkillTag {
@@ -169,6 +175,29 @@ const createdAtDate = computed(() => data.value?.createdAt ? new Date(data.value
 const createdAtAgo = useTimeAgo(computed(() => createdAtDate.value ?? new Date(0)))
 
 const maturity = computed(() => data.value?.maturity ?? null)
+
+const verifiedSummary = computed<{ verified: number, total: number } | null>(() => {
+  const list = relatedData.value?.commits ?? []
+  if (!list.length)
+    return null
+  return { verified: list.filter(c => c.verified).length, total: list.length }
+})
+
+const provenanceLine = computed<string | null>(() => {
+  const d = data.value
+  if (!d)
+    return null
+  const updated = d.pushedAt ? `source updated ${pushedAtAgo.value}` : null
+  const v = verifiedSummary.value
+  const signed = v ? `${v.verified}/${v.total} recent commits signed` : null
+  const tail = [signed, updated].filter(Boolean).join(', ')
+  const suffix = tail ? `, ${tail}` : ''
+  if (d.tier === 'official-org')
+    return `Maintained by the ${d.owner} team${suffix}.`
+  if (d.tier === 'official-user')
+    return `Maintained by @${d.owner}${suffix}.`
+  return `Community skill from ${d.owner}${suffix}.`
+})
 
 const TOOL_CATEGORIES: { match: RegExp, scope: 'read' | 'write' | 'exec' | 'net' }[] = [
   { match: /^(Read|Glob|Grep|NotebookRead|LS)$/i, scope: 'read' },
@@ -502,6 +531,19 @@ useSeoMeta({
           class="mt-3 text-sm text-muted leading-relaxed line-clamp-2"
         >
           {{ data.description }}
+        </p>
+
+        <!-- Provenance line: who authored, when source last updated -->
+        <p
+          v-if="provenanceLine"
+          class="mt-2 inline-flex items-center gap-1.5 font-mono text-xs text-muted"
+        >
+          <UIcon
+            name="i-lucide-shield-check"
+            class="size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          {{ provenanceLine }}
         </p>
 
         <!-- Stats row -->
@@ -1166,6 +1208,19 @@ useSeoMeta({
                   >{{ commit.relative }}</time>
                   <span aria-hidden="true">·</span>
                   <code class="font-mono">{{ commit.shortSha }}</code>
+                  <span
+                    v-if="commit.verified"
+                    class="inline-flex items-center gap-1 font-mono"
+                    :title="`GPG-signed commit (${commit.verifiedReason})`"
+                  >
+                    <span aria-hidden="true">·</span>
+                    <UIcon
+                      name="i-lucide-shield-check"
+                      class="size-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>signed</span>
+                  </span>
                 </div>
               </div>
             </li>

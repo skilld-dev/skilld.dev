@@ -65,8 +65,11 @@ function toggleCollection(slug: string) {
             Curated agent skills from trusted open-source developers
           </h1>
           <p class="mt-3 text-sm text-muted max-w-lg leading-relaxed">
-            Developers curate the skills that power their workflow.
-            Follow curators, install collections, keep your agent current.
+            Developers curate the skills they actually use, with notes on why each one matters.
+            Follow them, install their stack, re-sync when they update.
+          </p>
+          <p class="mt-2 text-xs text-muted max-w-lg leading-relaxed">
+            Every skill traces to a name. A curator vouches, or it comes from the team behind the package.
           </p>
 
           <div class="mt-6 flex flex-wrap items-center gap-3">
@@ -589,7 +592,7 @@ function toggleCollection(slug: string) {
         />
       </div>
       <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
-        Developers sharing their personal stacks via Atmosphere.
+        Developers sharing the stacks they actually use. Public identity, public picks, public reasons.
       </p>
 
       <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">

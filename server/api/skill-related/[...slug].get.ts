@@ -15,6 +15,8 @@ interface SkillCommit {
   authorAvatar: string | null
   date: string
   url: string
+  verified: boolean
+  verifiedReason: string
 }
 
 interface NeighborSkill {
@@ -38,7 +40,7 @@ export default defineEventHandler(async (event) => {
 
   // skillPath is needed for commits; cheap KV lookup since the critical handler primed it
   const skillPath = await useStorage('cache').getItem<string | null>(
-    `skills:skill-path:v2:${skill.owner}/${skill.repo}/${skill.name}`,
+    `skills:skill-path:v5:${skill.owner}/${skill.repo}/${skill.name}`,
   )
 
   const db = getDB(event)
@@ -111,12 +113,13 @@ interface GhCommitResponse {
   commit: {
     message: string
     author: { name: string, date: string } | null
+    verification?: { verified: boolean, reason: string } | null
   }
   author: { login: string, avatar_url: string } | null
 }
 
 async function getSkillCommits(owner: string, repo: string, path: string): Promise<SkillCommit[]> {
-  const cacheKey = `skills:commits:${owner}/${repo}:${path}`
+  const cacheKey = `skills:commits:v2:${owner}/${repo}:${path}`
   const cached = await useStorage('cache').getItem<SkillCommit[]>(cacheKey)
   if (cached)
     return cached
@@ -140,6 +143,8 @@ async function getSkillCommits(owner: string, repo: string, path: string): Promi
     authorAvatar: c.author?.avatar_url ?? null,
     date: c.commit?.author?.date ?? '',
     url: c.html_url,
+    verified: c.commit?.verification?.verified ?? false,
+    verifiedReason: c.commit?.verification?.reason ?? 'unsigned',
   }))
 
   await useStorage('cache').setItem(cacheKey, commits, { ttl: COMMITS_CACHE_TTL })
