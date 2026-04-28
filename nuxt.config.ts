@@ -34,6 +34,16 @@ export default defineNuxtConfig({
     description: 'Curated agent skills from trusted open-source developers',
   },
 
+  aiReady: {
+    database: {
+      type: 'd1',
+      bindingName: 'DB',
+    },
+    cron: true,
+    runtimeSync: true,
+    indexNow: true,
+  },
+
   app: {
     head: {
       link: [

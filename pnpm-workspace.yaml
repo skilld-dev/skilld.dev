@@ -50,3 +50,5 @@ ignoredBuiltDependencies:
   - esbuild
   - unrs-resolver
   - vue-demi.
+onlyBuiltDependencies:
+  - better-sqlite3

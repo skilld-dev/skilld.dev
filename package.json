@@ -63,6 +63,7 @@
     "@playwright/test": "catalog:",
     "@vue/test-utils": "catalog:",
     "axe-core": "catalog:",
+    "better-sqlite3": "^12.9.0",
     "eslint": "catalog:",
     "eslint-plugin-harlanzw": "catalog:",
     "happy-dom": "catalog:",
