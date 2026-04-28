@@ -25,9 +25,13 @@ export async function getAuthenticatedAgent(event: H3Event): Promise<{ agent: Ag
   return { agent: new Agent(oauthSession), did }
 }
 
-/** Public agent for unauthenticated reads via the Bluesky AppView. */
+/**
+ * Public agent for unauthenticated reads via the Bluesky AppView.
+ * Uses api.bsky.app rather than public.api.bsky.app: the latter sits behind
+ * Cloudflare with stricter anti-bot rules that 403 some networks/IPs.
+ */
 export function getPublicAgent(): Agent {
-  return new Agent('https://public.api.bsky.app')
+  return new Agent('https://api.bsky.app')
 }
 
 /**

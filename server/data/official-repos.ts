@@ -101,6 +101,7 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'wordpress', repo: 'agent-skills', kind: 'org' },
 
   // Individual developers publishing their own skill repos.
+  { owner: 'garrytan', repo: 'gstack', kind: 'user' },
   { owner: 'obra', repo: 'superpowers', kind: 'user' },
   { owner: 'antfu', repo: 'skills', kind: 'user' },
   { owner: 'jimliu', repo: 'baoyu-skills', kind: 'user' },

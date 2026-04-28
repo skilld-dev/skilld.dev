@@ -116,6 +116,31 @@ const { data: relatedData } = useFetch(
   semanticSiblings: NeighborSkill[]
 }>>
 
+interface SocialPost {
+  id: number
+  platform: 'twitter' | 'bsky' | 'reddit'
+  postUrl: string
+  postId: string
+  authorHandle: string
+  authorDisplayName: string | null
+  authorAvatar: string | null
+  role: 'author' | 'community'
+  textExtract: string
+  title: string | null
+  oembedHtml: string | null
+  bskyUri: string | null
+  bskyCid: string | null
+  subreddit: string | null
+  redditKind: 'post' | 'comment' | null
+  score: number | null
+  postedAt: number | null
+}
+
+const { data: socialData } = useFetch(
+  () => `/api/skill-social/${slug.value}`,
+  { watch: [slug], lazy: !isBot.value, immediate: true },
+) as ReturnType<typeof useFetch<{ author: SocialPost[], community: SocialPost[] }>>
+
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 
 const packageName = computed(() => {
@@ -308,6 +333,10 @@ defineOgImage('Skill.takumi', {
 const siteOrigin = 'https://skilld.dev'
 const skillPageUrl = computed(() => `${siteOrigin}/skills/${slug.value}`)
 
+const authorPosts = computed(() => socialData.value?.author ?? [])
+const communityPosts = computed(() => socialData.value?.community ?? [])
+const allSocialPosts = computed(() => [...authorPosts.value, ...communityPosts.value])
+
 useSchemaOrg(computed(() => {
   if (!data.value)
     return []
@@ -366,6 +395,20 @@ useSchemaOrg(computed(() => {
           })),
         }]
       : []),
+    ...allSocialPosts.value.map(p => ({
+      '@type': 'SocialMediaPosting' as const,
+      '@id': `${skillPageUrl.value}#post-${p.id}`,
+      'url': p.postUrl,
+      'headline': p.title ?? p.textExtract.slice(0, 120),
+      'articleBody': p.textExtract,
+      'datePublished': p.postedAt ? new Date(p.postedAt * 1000).toISOString() : undefined,
+      'author': {
+        '@type': 'Person',
+        'name': p.authorDisplayName || p.authorHandle,
+        'identifier': p.authorHandle,
+      },
+      'about': { '@id': `${skillPageUrl.value}#skill` },
+    })),
   ]
 }))
 
@@ -781,6 +824,80 @@ useSeoMeta({
           </p>
         </section>
       </template>
+      <!-- From the author -->
+      <template v-if="authorPosts.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
+          aria-labelledby="author-posts-heading"
+        >
+          <h2
+            id="author-posts-heading"
+            class="section-label mb-3"
+          >
+            From the author
+          </h2>
+          <p class="mb-4 text-xs text-muted">
+            What @{{ data.owner }} has said about this skill.
+          </p>
+          <div class="space-y-4">
+            <SocialEmbed
+              v-for="post in authorPosts"
+              :key="post.id"
+              :platform="post.platform"
+              :post-url="post.postUrl"
+              :author-handle="post.authorHandle"
+              :author-display-name="post.authorDisplayName"
+              :author-avatar="post.authorAvatar"
+              :text-extract="post.textExtract"
+              :title="post.title"
+              :bsky-uri="post.bskyUri"
+              :bsky-cid="post.bskyCid"
+              :subreddit="post.subreddit"
+              :reddit-kind="post.redditKind"
+              :posted-at="post.postedAt"
+            />
+          </div>
+        </section>
+      </template>
+
+      <!-- Community signal -->
+      <template v-if="communityPosts.length">
+        <USeparator />
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
+          aria-labelledby="community-posts-heading"
+        >
+          <h2
+            id="community-posts-heading"
+            class="section-label mb-3"
+          >
+            Community signal
+          </h2>
+          <p class="mb-4 text-xs text-muted">
+            Posts and threads referencing this skill across X, Bluesky, and Reddit.
+          </p>
+          <div class="space-y-4">
+            <SocialEmbed
+              v-for="post in communityPosts"
+              :key="post.id"
+              :platform="post.platform"
+              :post-url="post.postUrl"
+              :author-handle="post.authorHandle"
+              :author-display-name="post.authorDisplayName"
+              :author-avatar="post.authorAvatar"
+              :text-extract="post.textExtract"
+              :title="post.title"
+              :bsky-uri="post.bskyUri"
+              :bsky-cid="post.bskyCid"
+              :subreddit="post.subreddit"
+              :reddit-kind="post.redditKind"
+              :posted-at="post.postedAt"
+            />
+          </div>
+        </section>
+      </template>
+
       <!-- AI summary -->
       <template v-if="data.summary">
         <USeparator />

@@ -27,6 +27,7 @@ catalog:
   algoliasearch: ^5.51.0
   atproto-oauth-client-cloudflare-workers: ^0.2.2
   axe-core: ^4.11.3
+  better-sqlite3: ^12.9.0
   eslint: ^10.2.1
   eslint-plugin-harlanzw: ^0.12.1
   happy-dom: ^20.9.0
@@ -35,6 +36,7 @@ catalog:
   motion-v: ^2.2.1
   nitro-cloudflare-dev: ^0.2.2
   nuxt: ^4.4.2
+  nuxt-ai-ready: ^1.3.0
   nuxt-og-image: ^6.4.8
   shiki: ^4.0.2
   tailwindcss: ^4.2.4
