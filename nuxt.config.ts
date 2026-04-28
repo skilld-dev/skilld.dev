@@ -6,6 +6,7 @@ export default defineNuxtConfig({
     '@nuxt/fonts',
     '@nuxt/scripts',
     '@nuxtjs/seo',
+    'nuxt-ai-ready',
     '@nuxt/a11y',
     '@nuxtjs/html-validator',
     'motion-v/nuxt',
