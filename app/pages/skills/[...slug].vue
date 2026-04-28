@@ -727,6 +727,247 @@ useSeoMeta({
     </section>
 
     <template v-if="data && status !== 'pending'">
+      <!-- Capability panel -->
+      <template v-if="capabilitySummary || skillModel || frontmatterEntries.length">
+        <USeparator />
+
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
+          aria-labelledby="capability-heading"
+        >
+          <h2
+            id="capability-heading"
+            class="section-label mb-4"
+          >
+            Capability
+          </h2>
+
+          <div class="rounded-lg border border-default p-4 sm:p-5 space-y-4">
+            <!-- Scopes -->
+            <div
+              v-if="capabilitySummary && capabilitySummary.scopes.length"
+              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
+            >
+              <span class="data-label shrink-0 sm:w-32 pt-1">What it can do</span>
+              <div class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="scope in capabilitySummary.scopes"
+                  :key="scope"
+                  class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
+                  :title="SCOPE_META[scope].hint"
+                >
+                  <UIcon
+                    :name="SCOPE_META[scope].icon"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ SCOPE_META[scope].label }}
+                </span>
+              </div>
+            </div>
+
+            <!-- MCP servers -->
+            <div
+              v-if="capabilitySummary && capabilitySummary.mcp.length"
+              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
+            >
+              <span class="data-label shrink-0 sm:w-32 pt-1">MCP servers</span>
+              <div class="flex flex-wrap gap-1.5">
+                <UBadge
+                  v-for="server in capabilitySummary.mcp"
+                  :key="server"
+                  :label="server"
+                  variant="subtle"
+                  color="neutral"
+                  size="xs"
+                  class="font-mono"
+                />
+              </div>
+            </div>
+
+            <!-- Model -->
+            <div
+              v-if="skillModel"
+              class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4"
+            >
+              <span class="data-label shrink-0 sm:w-32">Model</span>
+              <UBadge
+                :label="skillModel"
+                variant="subtle"
+                color="neutral"
+                size="xs"
+                class="font-mono"
+              />
+            </div>
+
+            <!-- Allowed tools (detailed, collapsible) -->
+            <details
+              v-if="allowedTools.length"
+              class="group"
+            >
+              <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="size-3.5 transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+                All {{ allowedTools.length }} allowed tools
+              </summary>
+              <div class="mt-3 flex flex-wrap gap-1.5 pl-5">
+                <UBadge
+                  v-for="tool in allowedTools"
+                  :key="tool"
+                  :label="tool"
+                  variant="subtle"
+                  color="neutral"
+                  size="xs"
+                  class="font-mono"
+                />
+              </div>
+            </details>
+
+            <!-- Remaining frontmatter (minor metadata, collapsed) -->
+            <details
+              v-if="frontmatterEntries.length"
+              class="group"
+            >
+              <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="size-3.5 transition-transform group-open:rotate-90"
+                  aria-hidden="true"
+                />
+                Other metadata
+              </summary>
+              <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-sm">
+                <div
+                  v-for="entry in frontmatterEntries"
+                  :key="entry.key"
+                  class="flex flex-col gap-1 px-3 py-2 sm:flex-row sm:gap-4"
+                  :class="entry.complex ? 'sm:items-start' : 'sm:items-center'"
+                >
+                  <dt class="data-label shrink-0 sm:w-32">
+                    {{ entry.key }}
+                  </dt>
+                  <dd class="min-w-0 flex-1 font-mono text-xs text-muted">
+                    <pre
+                      v-if="entry.complex"
+                      class="whitespace-pre-wrap break-all"
+                    >{{ entry.value }}</pre>
+                    <span
+                      v-else
+                      class="break-all"
+                    >{{ entry.value }}</span>
+                  </dd>
+                </div>
+              </dl>
+            </details>
+          </div>
+        </section>
+      </template>
+
+      <!-- SKILL.md content -->
+      <template v-if="data.contentHtml">
+        <USeparator />
+
+        <section
+          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="content-heading"
+        >
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h2
+              id="content-heading"
+              class="section-label"
+            >
+              Skill content
+            </h2>
+            <UButton
+              v-if="data.raw"
+              :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+              :label="markdownCopied ? 'Copied' : 'Copy as markdown'"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              @click="copyMarkdown(data.raw)"
+            />
+          </div>
+
+          <UTabs
+            v-model="contentView"
+            :items="contentTabs"
+            :content="false"
+            color="neutral"
+            variant="link"
+            size="xs"
+            class="mb-3"
+          />
+
+          <div class="rounded-lg border border-default overflow-hidden">
+            <article
+              v-show="contentView === 'preview'"
+              class="skill-prose p-4 sm:p-6"
+              v-html="data.contentHtml"
+            />
+            <div
+              v-show="contentView === 'markdown'"
+              class="skill-markdown"
+            >
+              <div
+                v-if="rawHtml"
+                v-html="rawHtml"
+              />
+              <div
+                v-else-if="rawError"
+                class="flex items-start gap-3 p-4 sm:p-6 text-sm"
+                role="alert"
+              >
+                <UIcon
+                  name="i-lucide-alert-circle"
+                  class="size-4 shrink-0 mt-0.5 text-muted"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-default">
+                    Couldn't render markdown source.
+                  </p>
+                  <p class="mt-1 font-mono text-xs text-muted break-words">
+                    {{ rawError }}
+                  </p>
+                  <UButton
+                    label="Retry"
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                    class="mt-3"
+                    @click="data?.raw && renderRaw(data.raw)"
+                  />
+                </div>
+              </div>
+              <div
+                v-else
+                class="p-4 sm:p-6"
+              >
+                <USkeleton class="h-4 w-3/4" />
+                <USkeleton class="mt-2 h-4 w-1/2" />
+                <USkeleton class="mt-2 h-4 w-2/3" />
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-3 text-xs text-muted">
+            Source:
+            <a
+              :href="`${githubUrl}/blob/main/${data.repo === 'skills' ? `${data.name}/` : ''}SKILL.md`"
+              target="_blank"
+              rel="noopener"
+              class="font-mono hover:text-default transition-colors"
+            >
+              SKILL.md on GitHub
+            </a>
+          </p>
+        </section>
+      </template>
+
       <!-- Curator pull-quotes -->
       <template v-if="curatorsWithReason.length">
         <USeparator />
@@ -939,145 +1180,6 @@ useSeoMeta({
         </section>
       </template>
 
-      <!-- Capability panel -->
-      <template v-if="capabilitySummary || skillModel || frontmatterEntries.length">
-        <USeparator />
-
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
-          aria-labelledby="capability-heading"
-        >
-          <h2
-            id="capability-heading"
-            class="section-label mb-4"
-          >
-            Capability
-          </h2>
-
-          <div class="rounded-lg border border-default p-4 sm:p-5 space-y-4">
-            <!-- Scopes -->
-            <div
-              v-if="capabilitySummary && capabilitySummary.scopes.length"
-              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
-            >
-              <span class="data-label shrink-0 sm:w-32 pt-1">What it can do</span>
-              <div class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="scope in capabilitySummary.scopes"
-                  :key="scope"
-                  class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
-                  :title="SCOPE_META[scope].hint"
-                >
-                  <UIcon
-                    :name="SCOPE_META[scope].icon"
-                    class="size-3.5"
-                    aria-hidden="true"
-                  />
-                  {{ SCOPE_META[scope].label }}
-                </span>
-              </div>
-            </div>
-
-            <!-- MCP servers -->
-            <div
-              v-if="capabilitySummary && capabilitySummary.mcp.length"
-              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
-            >
-              <span class="data-label shrink-0 sm:w-32 pt-1">MCP servers</span>
-              <div class="flex flex-wrap gap-1.5">
-                <UBadge
-                  v-for="server in capabilitySummary.mcp"
-                  :key="server"
-                  :label="server"
-                  variant="subtle"
-                  color="neutral"
-                  size="xs"
-                  class="font-mono"
-                />
-              </div>
-            </div>
-
-            <!-- Model -->
-            <div
-              v-if="skillModel"
-              class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4"
-            >
-              <span class="data-label shrink-0 sm:w-32">Model</span>
-              <UBadge
-                :label="skillModel"
-                variant="subtle"
-                color="neutral"
-                size="xs"
-                class="font-mono"
-              />
-            </div>
-
-            <!-- Allowed tools (detailed, collapsible) -->
-            <details
-              v-if="allowedTools.length"
-              class="group"
-            >
-              <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
-                <UIcon
-                  name="i-lucide-chevron-right"
-                  class="size-3.5 transition-transform group-open:rotate-90"
-                  aria-hidden="true"
-                />
-                All {{ allowedTools.length }} allowed tools
-              </summary>
-              <div class="mt-3 flex flex-wrap gap-1.5 pl-5">
-                <UBadge
-                  v-for="tool in allowedTools"
-                  :key="tool"
-                  :label="tool"
-                  variant="subtle"
-                  color="neutral"
-                  size="xs"
-                  class="font-mono"
-                />
-              </div>
-            </details>
-
-            <!-- Remaining frontmatter (minor metadata, collapsed) -->
-            <details
-              v-if="frontmatterEntries.length"
-              class="group"
-            >
-              <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
-                <UIcon
-                  name="i-lucide-chevron-right"
-                  class="size-3.5 transition-transform group-open:rotate-90"
-                  aria-hidden="true"
-                />
-                Other metadata
-              </summary>
-              <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-sm">
-                <div
-                  v-for="entry in frontmatterEntries"
-                  :key="entry.key"
-                  class="flex flex-col gap-1 px-3 py-2 sm:flex-row sm:gap-4"
-                  :class="entry.complex ? 'sm:items-start' : 'sm:items-center'"
-                >
-                  <dt class="data-label shrink-0 sm:w-32">
-                    {{ entry.key }}
-                  </dt>
-                  <dd class="min-w-0 flex-1 font-mono text-xs text-muted">
-                    <pre
-                      v-if="entry.complex"
-                      class="whitespace-pre-wrap break-all"
-                    >{{ entry.value }}</pre>
-                    <span
-                      v-else
-                      class="break-all"
-                    >{{ entry.value }}</span>
-                  </dd>
-                </div>
-              </dl>
-            </details>
-          </div>
-        </section>
-      </template>
-
       <!-- Broken source notice -->
       <template v-if="data.resolutionStatus && data.resolutionStatus !== 'ok'">
         <USeparator />
@@ -1120,108 +1222,6 @@ useSeoMeta({
               />
             </div>
           </div>
-        </section>
-      </template>
-
-      <!-- SKILL.md content -->
-      <template v-if="data.contentHtml">
-        <USeparator />
-
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="content-heading"
-        >
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <h2
-              id="content-heading"
-              class="section-label"
-            >
-              Skill content
-            </h2>
-            <UButton
-              v-if="data.raw"
-              :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-              :label="markdownCopied ? 'Copied' : 'Copy as markdown'"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              @click="copyMarkdown(data.raw)"
-            />
-          </div>
-
-          <UTabs
-            v-model="contentView"
-            :items="contentTabs"
-            :content="false"
-            color="neutral"
-            variant="link"
-            size="xs"
-            class="mb-3"
-          />
-
-          <div class="rounded-lg border border-default overflow-hidden">
-            <article
-              v-show="contentView === 'preview'"
-              class="skill-prose p-4 sm:p-6"
-              v-html="data.contentHtml"
-            />
-            <div
-              v-show="contentView === 'markdown'"
-              class="skill-markdown"
-            >
-              <div
-                v-if="rawHtml"
-                v-html="rawHtml"
-              />
-              <div
-                v-else-if="rawError"
-                class="flex items-start gap-3 p-4 sm:p-6 text-sm"
-                role="alert"
-              >
-                <UIcon
-                  name="i-lucide-alert-circle"
-                  class="size-4 shrink-0 mt-0.5 text-muted"
-                  aria-hidden="true"
-                />
-                <div class="min-w-0 flex-1">
-                  <p class="text-default">
-                    Couldn't render markdown source.
-                  </p>
-                  <p class="mt-1 font-mono text-xs text-muted break-words">
-                    {{ rawError }}
-                  </p>
-                  <UButton
-                    label="Retry"
-                    size="xs"
-                    color="neutral"
-                    variant="outline"
-                    class="mt-3"
-                    @click="data?.raw && renderRaw(data.raw)"
-                  />
-                </div>
-              </div>
-              <div
-                v-else
-                class="p-4 sm:p-6"
-              >
-                <USkeleton class="h-4 w-3/4" />
-                <USkeleton class="mt-2 h-4 w-1/2" />
-                <USkeleton class="mt-2 h-4 w-2/3" />
-              </div>
-            </div>
-          </div>
-
-          <p class="mt-3 text-xs text-muted">
-            Source:
-            <a
-              :href="`${githubUrl}/blob/main/${data.repo === 'skills' ? `${data.name}/` : ''}SKILL.md`"
-              target="_blank"
-              rel="noopener"
-              class="font-mono hover:text-default transition-colors"
-            >
-              SKILL.md on GitHub
-            </a>
-          </p>
         </section>
       </template>
 

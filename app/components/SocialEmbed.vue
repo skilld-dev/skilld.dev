@@ -38,10 +38,78 @@ const platformLabel = computed(() => {
 })
 
 const datetime = computed(() => props.postedAt ? new Date(props.postedAt * 1000).toISOString() : undefined)
+
+const PLATFORM_ICON: Record<Props['platform'], string> = {
+  twitter: 'i-simple-icons-x',
+  bsky: 'i-simple-icons-bluesky',
+  reddit: 'i-simple-icons-reddit',
+}
+
+const profileUrl = computed(() => {
+  if (props.platform === 'twitter')
+    return `https://x.com/${props.authorHandle}`
+  if (props.platform === 'bsky')
+    return `https://bsky.app/profile/${props.authorHandle}`
+  return `https://www.reddit.com/user/${props.authorHandle}`
+})
 </script>
 
 <template>
   <figure class="social-embed not-prose rounded-lg border border-default bg-elevated overflow-hidden">
+    <!-- Author header (always visible, even before widget hydrates) -->
+    <header class="flex items-center gap-2.5 px-4 pt-3 pb-2 border-b border-default/60">
+      <a
+        :href="profileUrl"
+        target="_blank"
+        rel="noopener"
+        class="shrink-0"
+        :aria-label="`@${authorHandle} profile`"
+      >
+        <img
+          v-if="authorAvatar"
+          :src="authorAvatar"
+          :alt="`${authorDisplayName || authorHandle} avatar`"
+          width="32"
+          height="32"
+          class="size-8 rounded-full border border-default"
+          loading="lazy"
+        >
+        <div
+          v-else
+          class="flex size-8 items-center justify-center rounded-full bg-muted border border-default"
+          aria-hidden="true"
+        >
+          <UIcon
+            :name="PLATFORM_ICON[platform]"
+            class="size-4 text-muted"
+          />
+        </div>
+      </a>
+      <div class="min-w-0 flex-1">
+        <a
+          :href="profileUrl"
+          target="_blank"
+          rel="noopener"
+          class="block truncate text-sm font-medium hover:text-muted transition-colors"
+        >
+          {{ authorDisplayName || authorHandle }}
+        </a>
+        <a
+          :href="profileUrl"
+          target="_blank"
+          rel="noopener"
+          class="block truncate font-mono text-xs text-muted hover:text-default transition-colors"
+        >
+          {{ platform === 'reddit' ? 'u/' : '@' }}{{ authorHandle }}{{ subreddit ? ` · r/${subreddit}` : '' }}
+        </a>
+      </div>
+      <UIcon
+        :name="PLATFORM_ICON[platform]"
+        class="size-4 text-muted shrink-0"
+        :aria-label="platformLabel"
+      />
+    </header>
+
     <!-- Twitter / X -->
     <blockquote
       v-if="platform === 'twitter'"
