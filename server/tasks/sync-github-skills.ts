@@ -1,6 +1,5 @@
 import type { SyncRepoStats } from '../utils/sync-repo'
 /// <reference types="@cloudflare/workers-types" />
-import { officialRepos } from '../data/official-repos'
 import { resolveGithubBindings } from '../utils/github-client'
 import { pAll } from '../utils/p-all'
 import { syncRepo } from '../utils/sync-repo'
@@ -9,16 +8,20 @@ const CONCURRENCY = 8
 const RATE_LIMIT_GUARD = 200 // bail when remaining drops below this
 
 /**
- * Scheduled task: walk every repo in officialRepos, sync skills + revisions
- * + activity. Prioritises the stalest repos first (using last_synced_at as a
- * natural cursor), runs CONCURRENCY repos in parallel, and bails cleanly when
- * the GitHub rate-limit headroom drops below RATE_LIMIT_GUARD so the next
- * cycle can pick up where this one stopped.
+ * Scheduled task: walk every (owner, repo) pair present in the skills table,
+ * sync skills + revisions + activity. Prioritises the stalest repos first
+ * (using last_synced_at as a natural cursor), runs CONCURRENCY repos in
+ * parallel, and bails cleanly when the GitHub rate-limit headroom drops
+ * below RATE_LIMIT_GUARD so the next cycle can pick up where it stopped.
+ *
+ * Iteration source is the skills table, not `officialRepos`; that list is
+ * the curated featured/badge set, while the sync target is whatever has
+ * skills in D1 (seeded ~1.4k repos, plus anything ingested later).
  */
 export default defineTask({
   meta: {
     name: 'sync-github-skills',
-    description: 'Sync skills, revisions, and activity from GitHub for every official repo',
+    description: 'Sync skills, revisions, and activity from GitHub for every repo with skills in D1',
   },
   async run({ context }) {
     const env = (context as Record<string, any>).cloudflare?.env as Record<string, unknown> | undefined
@@ -33,22 +36,20 @@ export default defineTask({
       console.warn('[sync-github-skills] GITHUB_TOKEN not configured; running unauthenticated (60/hr cap)')
     }
 
+    // Stalest first; NULL last_synced_at sorts as 0 so unsynced repos lead.
+    // Filter out broken-only repos (every skill flagged broken_since) so we
+    // don't keep retrying repos that have been removed/renamed upstream.
     const stalenessRows = await db
       .prepare(
         `SELECT owner, repo, MIN(last_synced_at) AS ls
-         FROM skills GROUP BY owner, repo`,
+         FROM skills
+         WHERE broken_since IS NULL
+         GROUP BY owner, repo
+         ORDER BY MIN(last_synced_at) IS NULL DESC, MIN(last_synced_at) ASC`,
       )
       .all<{ owner: string, repo: string, ls: number | null }>()
 
-    const stalenessByRepo = new Map<string, number>()
-    for (const row of stalenessRows.results ?? [])
-      stalenessByRepo.set(`${row.owner}/${row.repo}`, row.ls ?? 0)
-
-    const orderedRepos = [...officialRepos].sort((a, b) => {
-      const ax = stalenessByRepo.get(`${a.owner}/${a.repo}`) ?? 0
-      const bx = stalenessByRepo.get(`${b.owner}/${b.repo}`) ?? 0
-      return ax - bx
-    })
+    const orderedRepos = (stalenessRows.results ?? []).map(r => ({ owner: r.owner, repo: r.repo }))
 
     const startedAt = Date.now()
     let aborted = false

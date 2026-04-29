@@ -117,6 +117,7 @@ export default defineNuxtConfig({
       '*/10 * * * *': ['refresh-curators'],
       '*/15 * * * *': ['refresh-follows'],
       '0 * * * *': ['sync-github-skills'],
+      '0 6 * * *': ['sync-npm-downloads'],
     },
   },
 
