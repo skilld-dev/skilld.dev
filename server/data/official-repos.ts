@@ -105,6 +105,7 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'obra', repo: 'superpowers', kind: 'user' },
   { owner: 'antfu', repo: 'skills', kind: 'user' },
   { owner: 'jimliu', repo: 'baoyu-skills', kind: 'user' },
+  { owner: 'pbakaus', repo: 'agent-reviews', kind: 'user' },
   { owner: 'pbakaus', repo: 'impeccable', kind: 'user' },
   { owner: 'kepano', repo: 'obsidian-skills', kind: 'user' },
   { owner: 'addyosmani', repo: 'web-quality-skills', kind: 'user' },
