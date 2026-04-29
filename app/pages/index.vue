@@ -10,15 +10,11 @@ const { execute: fetchNetworkFeed } = useNetworkFeed()
 // Fetch real homepage data from curator index + PDS
 const { data: homepageData } = useFetch('/api/homepage')
 
-const popularSkills = computed(() => homepageData.value?.popularSkills ?? [])
 const featuredOrgs = computed(() => homepageData.value?.featuredOrgs ?? [])
 const featuredUsers = computed(() => homepageData.value?.featuredUsers ?? [])
 
 const { data: publishesData } = useFetch('/api/feed/recent-publishes')
-const { data: updatesData } = useFetch('/api/feed/recent-updates')
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
-const recentUpdates = computed(() => updatesData.value?.items ?? [])
-const hasActivity = computed(() => recentPublishes.value.length > 0 || recentUpdates.value.length > 0)
 
 // Fetch following curators + network feed when authenticated
 watch(isAuthenticated, (authed) => {
@@ -183,19 +179,19 @@ function toggleCollection(slug: string) {
 
     <USeparator />
 
-    <!-- Official skills: devs -->
+    <!-- Popular Devs -->
     <section
       v-if="featuredUsers.length"
-      id="official-users"
+      id="popular-devs"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="official-users-heading"
+      aria-labelledby="popular-devs-heading"
     >
       <div class="flex items-end justify-between mb-2">
         <h2
-          id="official-users-heading"
+          id="popular-devs-heading"
           class="section-label"
         >
-          Official skills · Devs
+          Popular Devs
         </h2>
         <UButton
           to="/skills"
@@ -242,19 +238,60 @@ function toggleCollection(slug: string) {
 
     <USeparator v-if="featuredUsers.length" />
 
-    <!-- Official skills: orgs -->
+    <!-- Recent Published Skills (from official orgs / devs) -->
     <section
-      v-if="featuredOrgs.length"
-      id="official-orgs"
+      v-if="recentPublishes.length"
+      id="recent-published"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="official-orgs-heading"
+      aria-labelledby="recent-published-heading"
     >
       <div class="flex items-end justify-between mb-2">
         <h2
-          id="official-orgs-heading"
+          id="recent-published-heading"
           class="section-label"
         >
-          Official skills · Orgs
+          Recent Published Skills
+        </h2>
+        <UButton
+          to="/skills"
+          label="Browse all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Newly indexed skills from the orgs and devs we follow.
+      </p>
+
+      <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
+        <li v-for="skill in recentPublishes.slice(0, 9)" :key="`pub-${skill.owner}/${skill.name}`">
+          <SkillCard
+            :skill
+            :show-copy="false"
+            show-owner-avatar
+            show-owner-path
+          />
+        </li>
+      </ul>
+    </section>
+
+    <USeparator v-if="recentPublishes.length" />
+
+    <!-- Popular Orgs -->
+    <section
+      v-if="featuredOrgs.length"
+      id="popular-orgs"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="popular-orgs-heading"
+    >
+      <div class="flex items-end justify-between mb-2">
+        <h2
+          id="popular-orgs-heading"
+          class="section-label"
+        >
+          Popular Orgs
         </h2>
         <UButton
           to="/skills?official=true"
@@ -299,153 +336,6 @@ function toggleCollection(slug: string) {
     </section>
 
     <USeparator v-if="featuredOrgs.length" />
-
-    <!-- Activity rails -->
-    <section
-      v-if="hasActivity"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="activity-heading"
-    >
-      <h2
-        id="activity-heading"
-        class="sr-only"
-      >
-        Recent activity
-      </h2>
-      <div class="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-10">
-        <div v-if="recentPublishes.length">
-          <div class="mb-4 flex items-center justify-between">
-            <h3 class="section-label">
-              Recently published
-            </h3>
-          </div>
-          <ul class="space-y-2 list-none p-0">
-            <li
-              v-for="skill in recentPublishes.slice(0, 8)"
-              :key="`pub-${skill.owner}/${skill.name}`"
-            >
-              <NuxtLink
-                :to="`/skills/${skill.slug}`"
-                class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors hover:border-[var(--ui-text-muted)]"
-              >
-                <img
-                  :src="`https://github.com/${skill.owner}.png?size=32`"
-                  :alt="skill.owner"
-                  class="size-6 shrink-0 rounded-full"
-                  loading="lazy"
-                  width="24"
-                  height="24"
-                >
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-1.5">
-                    <p class="font-mono text-sm font-medium truncate">
-                      {{ skill.name }}
-                    </p>
-                    <SkillReceiptsBadge
-                      v-if="skill.hasReceipts"
-                      compact
-                    />
-                  </div>
-                  <p class="font-mono text-xs text-muted truncate">
-                    {{ skill.owner }}
-                  </p>
-                </div>
-                <NuxtTime
-                  :datetime="skill.occurredAt * 1000"
-                  relative
-                  class="data-label shrink-0 tabular-nums"
-                />
-              </NuxtLink>
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="recentUpdates.length">
-          <div class="mb-4 flex items-center justify-between">
-            <h3 class="section-label">
-              Recently updated
-            </h3>
-          </div>
-          <ul class="space-y-2 list-none p-0">
-            <li
-              v-for="skill in recentUpdates.slice(0, 8)"
-              :key="`upd-${skill.owner}/${skill.name}`"
-            >
-              <NuxtLink
-                :to="`/skills/${skill.slug}`"
-                class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors hover:border-[var(--ui-text-muted)]"
-              >
-                <img
-                  :src="`https://github.com/${skill.owner}.png?size=32`"
-                  :alt="skill.owner"
-                  class="size-6 shrink-0 rounded-full"
-                  loading="lazy"
-                  width="24"
-                  height="24"
-                >
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-1.5">
-                    <p class="font-mono text-sm font-medium truncate">
-                      {{ skill.name }}
-                    </p>
-                    <SkillReceiptsBadge
-                      v-if="skill.hasReceipts"
-                      compact
-                    />
-                  </div>
-                  <p class="font-mono text-xs text-muted truncate">
-                    {{ skill.owner }}
-                  </p>
-                </div>
-                <NuxtTime
-                  :datetime="skill.occurredAt * 1000"
-                  relative
-                  class="data-label shrink-0 tabular-nums"
-                />
-              </NuxtLink>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- Popular Skills (fallback while activity table is empty) -->
-    <section
-      v-if="!hasActivity && popularSkills.length"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="popular-skills-heading"
-    >
-      <div class="flex items-center justify-between mb-6">
-        <h2
-          id="popular-skills-heading"
-          class="section-label"
-        >
-          Popular skills
-        </h2>
-        <UButton
-          to="/skills"
-          label="View all"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          trailing-icon="i-lucide-arrow-right"
-        />
-      </div>
-
-      <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
-        <li v-for="skill in popularSkills" :key="skill.slug">
-          <SkillCard
-            :skill
-            variant="compact"
-            :show-copy="false"
-            :show-owner-avatar="skill.official"
-            show-owner-path
-          />
-        </li>
-      </ul>
-    </section>
-
-    <USeparator />
 
     <!-- Collections -->
     <section

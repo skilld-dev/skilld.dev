@@ -25,11 +25,18 @@ function sanitizeUrl(url: string): string {
   return trimmed
 }
 
+const SKILL_TAG_RE = /^<(\/?)([A-Z][A-Z0-9-]*)\s*>$/
+
 const skillMd = new Marked({
   gfm: true,
   async: false,
   renderer: {
-    html({ text }: { text: string }) { return escapeHtml(text) },
+    html({ text }: { text: string }) {
+      const m = text.match(SKILL_TAG_RE)
+      if (m)
+        return `<code class="skill-tag">&lt;${m[1]}${m[2]}&gt;</code>`
+      return escapeHtml(text)
+    },
     link({ href, title, tokens }: { href: string, title?: string | null, tokens: unknown[] }) {
       const safe = sanitizeUrl(href)
       const text = (this as { parser: { parseInline: (t: unknown[]) => string } }).parser.parseInline(tokens)
@@ -226,7 +233,7 @@ async function getRenderedSkill(
   branch: string,
   pushedAt: string | null,
 ): Promise<RenderedCache> {
-  const cacheKey = `skills:rendered:v4:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
+  const cacheKey = `skills:rendered:v6:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
   const cached = await useStorage('cache').getItem<RenderedCache>(cacheKey)
   if (cached)
     return cached
@@ -457,7 +464,7 @@ function parseSkillMd(raw: string): { frontmatter: Record<string, unknown>, body
     body = fmMatch[2]!
   }
 
-  const html = skillMd.parse(body) as string
+  const html = (skillMd.parse(body) as string).replace(/<pre(?![^>]*\btabindex=)/g, '<pre tabindex="0"')
   return { frontmatter, body, html }
 }
 

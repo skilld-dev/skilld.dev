@@ -165,6 +165,14 @@
   border-radius: 0.25rem;
   padding: 0.1em 0.35em;
 }
+.skill-prose code.skill-tag {
+  background: transparent;
+  border-color: var(--ui-border-muted);
+  color: var(--ui-text-muted);
+  font-size: 0.8em;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
 .skill-prose pre {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
@@ -175,6 +183,10 @@
   padding: 0.9rem 1rem;
   overflow-x: auto;
   margin: 1em 0;
+}
+.skill-prose pre:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
 }
 .skill-prose pre code {
   background: transparent;

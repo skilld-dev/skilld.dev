@@ -155,8 +155,20 @@ const installCmd = computed(() => {
   return gitInstallCmd(data.value.owner, data.value.repo, data.value.name)
 })
 
+const skillsShCmd = computed(() => {
+  if (!data.value)
+    return ''
+  return skillsShInstallCmd(data.value.owner, data.value.repo, data.value.name)
+})
+
+const installerTab = ref<'skilld' | 'skills'>('skilld')
+
+const installCmdActive = computed(() =>
+  installerTab.value === 'skilld' ? installCmd.value : skillsShCmd.value,
+)
+
 const { copy, copied } = useInstallCopy(
-  installCmd,
+  installCmdActive,
   'skill-page-hero',
   () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
 )
@@ -299,12 +311,57 @@ const contentTabs = [
   { label: 'Markdown', value: 'markdown', icon: 'i-lucide-file-text' },
 ]
 
+// Static signals of Agent Skills open-standard support (Dec 2025).
+// Not data-driven; SKILL.md is the standard, all listed agents read it.
+const compatibleAgents = [
+  { label: 'Claude Code' },
+  { label: 'Codex' },
+  { label: 'Cursor' },
+  { label: 'Copilot' },
+  { label: 'Gemini CLI' },
+]
+
+const relatedTab = ref<string>('repo')
+
+const relatedTabsAvailable = computed<{ label: string, value: string, items: NeighborSkill[] | RelatedSkill[] }[]>(() => {
+  const tabs: { label: string, value: string, items: NeighborSkill[] | RelatedSkill[] }[] = []
+  const repo = relatedData.value?.relatedRepoSkills ?? []
+  const paired = relatedData.value?.coOccurrenceSkills ?? []
+  const similar = relatedData.value?.semanticSiblings ?? []
+  const owner = relatedData.value?.relatedOwnerSkills ?? []
+  if (repo.length)
+    tabs.push({ label: `From ${data.value?.owner ?? ''}/${data.value?.repo ?? ''}`, value: 'repo', items: repo })
+  if (paired.length)
+    tabs.push({ label: 'Paired with', value: 'paired', items: paired })
+  if (similar.length)
+    tabs.push({ label: 'Similar', value: 'similar', items: similar })
+  if (owner.length)
+    tabs.push({ label: `Other by ${data.value?.owner ?? ''}`, value: 'owner', items: owner })
+  return tabs
+})
+
+watchEffect(() => {
+  const tabs = relatedTabsAvailable.value
+  if (tabs.length && !tabs.some(t => t.value === relatedTab.value))
+    relatedTab.value = tabs[0]!.value
+})
+
+const currentRelatedItems = computed(() => {
+  const tab = relatedTabsAvailable.value.find(t => t.value === relatedTab.value)
+  return tab?.items ?? []
+})
+
+const visibleCuratorAvatars = computed(() => (data.value?.curators ?? []).slice(0, 8))
+const overflowCuratorCount = computed(() => Math.max(0, (data.value?.curators.length ?? 0) - 8))
+
 const commitsWithAgo = computed(() => {
   return (relatedData.value?.commits ?? []).map((c) => {
     const d = new Date(c.date)
     return { ...c, relative: useTimeAgo(d).value, absolute: d.toLocaleString() }
   })
 })
+
+const recentCommits = computed(() => commitsWithAgo.value.slice(0, 4))
 
 const curatorsWithReason = computed(() =>
   (data.value?.curators ?? []).filter(c => c.reason && c.reason.trim().length > 0),
@@ -442,13 +499,12 @@ useSeoMeta({
 
 <template>
   <div>
-    <!-- Header -->
+    <!-- HERO -->
     <section
-      class="mx-auto max-w-3xl px-4 sm:px-6 pt-12 pb-6 md:pt-16"
+      class="mx-auto max-w-5xl px-4 sm:px-6 pt-10 pb-6 md:pt-14"
       :aria-labelledby="data && !error ? 'skill-heading' : undefined"
       :aria-label="!data || error ? 'Skill details' : undefined"
     >
-      <!-- Back link -->
       <NuxtLink
         to="/skills"
         class="inline-flex items-center gap-1.5 font-mono text-xs text-muted hover:text-default transition-colors mb-6"
@@ -465,19 +521,20 @@ useSeoMeta({
       <div
         v-if="status === 'pending' && !data"
         aria-busy="true"
+        class="space-y-3"
       >
-        <USkeleton class="h-6 w-2/3" />
-        <USkeleton class="mt-2 h-4 w-1/3" />
-        <USkeleton class="mt-3 h-4 w-full max-w-md" />
-        <div class="mt-4 flex items-center gap-4">
-          <USkeleton class="h-3.5 w-16" />
-          <USkeleton class="h-3.5 w-12" />
-          <USkeleton class="h-3.5 w-24" />
+        <div class="flex items-start gap-3">
+          <USkeleton class="size-12 rounded-md" />
+          <div class="min-w-0 flex-1 space-y-2">
+            <USkeleton class="h-5 w-2/3" />
+            <USkeleton class="h-4 w-1/3" />
+          </div>
         </div>
-        <USkeleton class="mt-6 h-10 w-full" />
+        <USkeleton class="h-4 w-full max-w-md" />
+        <USkeleton class="h-4 w-3/4 max-w-md" />
       </div>
 
-      <!-- Error state -->
+      <!-- Error -->
       <div
         v-else-if="error || !data"
         class="py-12 text-center"
@@ -516,1105 +573,1029 @@ useSeoMeta({
         </div>
       </div>
 
-      <!-- Skill header -->
+      <!-- Loaded hero -->
       <template v-else>
-        <div class="flex items-start gap-3">
-          <NuxtLink
-            :to="`/orgs/${data.owner}`"
-            class="shrink-0"
-            :aria-label="`${data.owner} profile`"
-          >
-            <img
-              :src="`https://github.com/${data.owner}.png?size=80`"
-              :alt="`${data.owner} avatar`"
-              width="40"
-              height="40"
-              class="size-10 rounded-md border border-default"
-            >
-          </NuxtLink>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <h1
-                id="skill-heading"
-                class="font-mono text-xl font-medium"
-              >
-                {{ data.name }}
-              </h1>
-              <UBadge
-                v-if="data.tier === 'official-org'"
-                label="official"
-                variant="subtle"
-                color="primary"
-                size="xs"
-                title="Published by the org behind this technology"
-              />
-              <UBadge
-                v-else-if="data.tier === 'official-user'"
-                label="maintainer"
-                variant="subtle"
-                color="primary"
-                size="xs"
-                title="Published by a recognised individual maintainer"
-              />
-            </div>
-            <p class="mt-1 font-mono text-sm text-muted">
-              <NuxtLink
-                :to="`/orgs/${data.owner}`"
-                class="hover:text-default transition-colors"
-              >
-                {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
-              </NuxtLink>
-            </p>
-          </div>
-        </div>
-
-        <!-- Description from GitHub -->
-        <p
-          v-if="data.description"
-          class="mt-3 text-sm text-muted leading-relaxed line-clamp-2"
-        >
-          {{ data.description }}
-        </p>
-
-        <!-- Provenance line: who authored, when source last updated -->
-        <p
-          v-if="provenanceLine"
-          class="mt-2 inline-flex items-center gap-1.5 font-mono text-xs text-muted"
-        >
-          <UIcon
-            name="i-lucide-shield-check"
-            class="size-3.5 shrink-0"
-            aria-hidden="true"
-          />
-          {{ provenanceLine }}
-        </p>
-
-        <!-- Stats row -->
-        <div
-          v-if="data.stars || data.forks || data.pushedAt || data.createdAt"
-          class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5"
-        >
-          <span
-            v-if="data.stars"
-            class="data-label inline-flex items-center gap-1"
-          >
-            <UIcon
-              name="i-lucide-star"
-              class="size-3.5"
-              aria-hidden="true"
-            />
-            {{ data.stars.toLocaleString() }}
-          </span>
-          <span
-            v-if="data.forks"
-            class="data-label inline-flex items-center gap-1"
-          >
-            <UIcon
-              name="i-lucide-git-fork"
-              class="size-3.5"
-              aria-hidden="true"
-            />
-            {{ data.forks.toLocaleString() }}
-          </span>
-          <span
-            v-if="data.pushedAt"
-            class="data-label inline-flex items-center gap-1"
-          >
-            <UIcon
-              name="i-lucide-clock"
-              class="size-3.5"
-              aria-hidden="true"
-            />
-            Updated {{ pushedAtAgo }}
-          </span>
-          <span
-            v-if="data.createdAt"
-            class="data-label inline-flex items-center gap-1"
-            :title="new Date(data.createdAt).toLocaleDateString()"
-          >
-            <UIcon
-              name="i-lucide-sparkles"
-              class="size-3.5"
-              aria-hidden="true"
-            />
-            First seen {{ createdAtAgo }}
-          </span>
-          <UBadge
-            v-if="maturity"
-            :label="maturity.cadence"
-            :color="maturity.cadence === 'active' ? 'primary' : 'neutral'"
-            variant="subtle"
-            size="xs"
-            :title="maturity.cadence === 'active'
-              ? 'Updated in the last 30 days'
-              : maturity.cadence === 'steady'
-                ? 'Updated in the last 6 months'
-                : 'No updates in 6+ months'"
-          />
-        </div>
-
-        <!-- Install command -->
-        <div class="mt-6 flex items-center gap-2">
-          <code class="flex-1 truncate rounded-lg border border-default bg-muted px-3 py-2 font-mono text-sm">
-            {{ installCmd }}
-          </code>
-          <UButton
-            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-            color="neutral"
-            variant="outline"
-            size="sm"
-            :aria-label="copied ? 'Copied' : 'Copy install command'"
-            @click="copy(installCmd)"
-          />
-        </div>
-
-        <!-- Source links -->
-        <div class="mt-4 flex flex-wrap items-center gap-3">
-          <UButton
-            :href="githubUrl"
-            target="_blank"
-            rel="noopener"
-            label="GitHub"
-            icon="i-lucide-github"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-          />
-          <UButton
-            :href="skillsShUrl"
-            target="_blank"
-            rel="noopener"
-            label="skills.sh"
-            icon="i-lucide-external-link"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-          />
-          <UButton
-            :href="`/api/skills-raw/${slug}`"
-            target="_blank"
-            rel="noopener"
-            label="Raw SKILL.md"
-            icon="i-lucide-file-text"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-          />
-          <AddToCollection :package-name="packageName" />
-        </div>
-
-        <!-- Tag chips -->
-        <div
-          v-if="data.tags.length"
-          class="mt-4 flex flex-wrap gap-1.5"
-        >
-          <NuxtLink
-            v-for="tag in data.tags"
-            :key="tag.slug"
-            :to="`/skills/tag/${tag.slug}`"
-            class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
-            :title="tag.description"
-          >
-            <UIcon
-              name="i-lucide-tag"
-              class="size-3"
-              aria-hidden="true"
-            />
-            {{ tag.label }}
-          </NuxtLink>
-        </div>
-      </template>
-    </section>
-
-    <template v-if="data && status !== 'pending'">
-      <!-- Capability panel -->
-      <template v-if="capabilitySummary || skillModel || frontmatterEntries.length">
-        <USeparator />
-
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
-          aria-labelledby="capability-heading"
-        >
-          <h2
-            id="capability-heading"
-            class="section-label mb-4"
-          >
-            Capability
-          </h2>
-
-          <div class="rounded-lg border border-default p-4 sm:p-5 space-y-4">
-            <!-- Scopes -->
-            <div
-              v-if="capabilitySummary && capabilitySummary.scopes.length"
-              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
-            >
-              <span class="data-label shrink-0 sm:w-32 pt-1">What it can do</span>
-              <div class="flex flex-wrap gap-1.5">
-                <span
-                  v-for="scope in capabilitySummary.scopes"
-                  :key="scope"
-                  class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
-                  :title="SCOPE_META[scope].hint"
-                >
-                  <UIcon
-                    :name="SCOPE_META[scope].icon"
-                    class="size-3.5"
-                    aria-hidden="true"
-                  />
-                  {{ SCOPE_META[scope].label }}
-                </span>
-              </div>
-            </div>
-
-            <!-- MCP servers -->
-            <div
-              v-if="capabilitySummary && capabilitySummary.mcp.length"
-              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
-            >
-              <span class="data-label shrink-0 sm:w-32 pt-1">MCP servers</span>
-              <div class="flex flex-wrap gap-1.5">
-                <UBadge
-                  v-for="server in capabilitySummary.mcp"
-                  :key="server"
-                  :label="server"
-                  variant="subtle"
-                  color="neutral"
-                  size="xs"
-                  class="font-mono"
-                />
-              </div>
-            </div>
-
-            <!-- Model -->
-            <div
-              v-if="skillModel"
-              class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4"
-            >
-              <span class="data-label shrink-0 sm:w-32">Model</span>
-              <UBadge
-                :label="skillModel"
-                variant="subtle"
-                color="neutral"
-                size="xs"
-                class="font-mono"
-              />
-            </div>
-
-            <!-- Allowed tools (detailed, collapsible) -->
-            <details
-              v-if="allowedTools.length"
-              class="group"
-            >
-              <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
-                <UIcon
-                  name="i-lucide-chevron-right"
-                  class="size-3.5 transition-transform group-open:rotate-90"
-                  aria-hidden="true"
-                />
-                All {{ allowedTools.length }} allowed tools
-              </summary>
-              <div class="mt-3 flex flex-wrap gap-1.5 pl-5">
-                <UBadge
-                  v-for="tool in allowedTools"
-                  :key="tool"
-                  :label="tool"
-                  variant="subtle"
-                  color="neutral"
-                  size="xs"
-                  class="font-mono"
-                />
-              </div>
-            </details>
-
-            <!-- Remaining frontmatter (minor metadata, collapsed) -->
-            <details
-              v-if="frontmatterEntries.length"
-              class="group"
-            >
-              <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
-                <UIcon
-                  name="i-lucide-chevron-right"
-                  class="size-3.5 transition-transform group-open:rotate-90"
-                  aria-hidden="true"
-                />
-                Other metadata
-              </summary>
-              <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-sm">
-                <div
-                  v-for="entry in frontmatterEntries"
-                  :key="entry.key"
-                  class="flex flex-col gap-1 px-3 py-2 sm:flex-row sm:gap-4"
-                  :class="entry.complex ? 'sm:items-start' : 'sm:items-center'"
-                >
-                  <dt class="data-label shrink-0 sm:w-32">
-                    {{ entry.key }}
-                  </dt>
-                  <dd class="min-w-0 flex-1 font-mono text-xs text-muted">
-                    <pre
-                      v-if="entry.complex"
-                      class="whitespace-pre-wrap break-all"
-                    >{{ entry.value }}</pre>
-                    <span
-                      v-else
-                      class="break-all"
-                    >{{ entry.value }}</span>
-                  </dd>
-                </div>
-              </dl>
-            </details>
-          </div>
-        </section>
-      </template>
-
-      <!-- SKILL.md content -->
-      <template v-if="data.contentHtml">
-        <USeparator />
-
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="content-heading"
-        >
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <h2
-              id="content-heading"
-              class="section-label"
-            >
-              Skill content
-            </h2>
-            <UButton
-              v-if="data.raw"
-              :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-              :label="markdownCopied ? 'Copied' : 'Copy as markdown'"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              @click="copyMarkdown(data.raw)"
-            />
-          </div>
-
-          <UTabs
-            v-model="contentView"
-            :items="contentTabs"
-            :content="false"
-            color="neutral"
-            variant="link"
-            size="xs"
-            class="mb-3"
-          />
-
-          <div class="rounded-lg border border-default overflow-hidden">
-            <article
-              v-show="contentView === 'preview'"
-              class="skill-prose p-4 sm:p-6"
-              v-html="data.contentHtml"
-            />
-            <div
-              v-show="contentView === 'markdown'"
-              class="skill-markdown"
-            >
-              <div
-                v-if="rawHtml"
-                v-html="rawHtml"
-              />
-              <div
-                v-else-if="rawError"
-                class="flex items-start gap-3 p-4 sm:p-6 text-sm"
-                role="alert"
-              >
-                <UIcon
-                  name="i-lucide-alert-circle"
-                  class="size-4 shrink-0 mt-0.5 text-muted"
-                  aria-hidden="true"
-                />
-                <div class="min-w-0 flex-1">
-                  <p class="text-default">
-                    Couldn't render markdown source.
-                  </p>
-                  <p class="mt-1 font-mono text-xs text-muted break-words">
-                    {{ rawError }}
-                  </p>
-                  <UButton
-                    label="Retry"
-                    size="xs"
-                    color="neutral"
-                    variant="outline"
-                    class="mt-3"
-                    @click="data?.raw && renderRaw(data.raw)"
-                  />
-                </div>
-              </div>
-              <div
-                v-else
-                class="p-4 sm:p-6"
-              >
-                <USkeleton class="h-4 w-3/4" />
-                <USkeleton class="mt-2 h-4 w-1/2" />
-                <USkeleton class="mt-2 h-4 w-2/3" />
-              </div>
-            </div>
-          </div>
-
-          <p class="mt-3 text-xs text-muted">
-            Source:
-            <a
-              :href="`${githubUrl}/blob/main/${data.repo === 'skills' ? `${data.name}/` : ''}SKILL.md`"
-              target="_blank"
-              rel="noopener"
-              class="font-mono hover:text-default transition-colors"
-            >
-              SKILL.md on GitHub
-            </a>
-          </p>
-        </section>
-      </template>
-
-      <!-- Curator pull-quotes -->
-      <template v-if="curatorsWithReason.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
-          aria-labelledby="curator-reasons-heading"
-        >
-          <h2
-            id="curator-reasons-heading"
-            class="section-label mb-3"
-          >
-            Why curators picked this
-          </h2>
-          <p
-            v-if="data.owner !== 'anthropics'"
-            class="mb-3 text-xs text-muted"
-          >
+        <div class="min-w-0">
+          <div class="flex items-start gap-3">
             <NuxtLink
-              :to="`/collections/new?skill=${packageName}&skillsOwner=${data.owner}&skillsRepo=${data.repo}`"
-              class="underline underline-offset-2 hover:text-default"
+              :to="`/orgs/${data.owner}`"
+              class="shrink-0"
+              :aria-label="`${data.owner} profile`"
             >
-              Add yours
-            </NuxtLink> — share why you reach for this skill.
+              <img
+                :src="`https://github.com/${data.owner}.png?size=96`"
+                :alt="`${data.owner} avatar`"
+                width="48"
+                height="48"
+                class="size-12 rounded-md border border-default"
+              >
+            </NuxtLink>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h1
+                  id="skill-heading"
+                  class="font-mono text-xl font-medium"
+                >
+                  {{ data.name }}
+                </h1>
+                <UBadge
+                  v-if="data.tier === 'official-org'"
+                  label="official"
+                  variant="solid"
+                  color="primary"
+                  size="xs"
+                  title="Published by the org behind this technology"
+                />
+                <UBadge
+                  v-else-if="data.tier === 'official-user'"
+                  label="maintainer"
+                  variant="solid"
+                  color="primary"
+                  size="xs"
+                  title="Published by a recognised individual maintainer"
+                />
+              </div>
+              <p class="mt-1 font-mono text-sm text-muted">
+                <NuxtLink
+                  :to="`/orgs/${data.owner}`"
+                  class="hover:text-default transition-colors"
+                >
+                  {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
+                </NuxtLink>
+              </p>
+            </div>
+          </div>
+          <p
+            v-if="data.description"
+            class="mt-3 text-sm text-muted leading-relaxed line-clamp-3"
+          >
+            {{ data.description }}
           </p>
-          <div class="space-y-3">
-            <figure
-              v-for="curator in curatorsWithReason"
-              :key="`${curator.did}/${curator.collectionSlug}`"
-              class="rounded-lg border border-default bg-elevated p-4 sm:p-5"
+        </div>
+
+        <!-- Data band -->
+        <div class="mt-6 space-y-3">
+          <p
+            v-if="provenanceLine"
+            class="inline-flex items-start gap-1.5 font-mono text-xs text-muted"
+          >
+            <UIcon
+              name="i-lucide-shield-check"
+              class="size-3.5 mt-0.5 shrink-0"
+              aria-hidden="true"
+            />
+            <span>{{ provenanceLine }}</span>
+          </p>
+
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span
+              v-if="data.stars"
+              class="data-label inline-flex items-center gap-1"
             >
               <UIcon
-                name="i-lucide-quote"
-                class="size-4 text-muted"
+                name="i-lucide-star"
+                class="size-3.5"
                 aria-hidden="true"
               />
-              <blockquote class="mt-2 text-base leading-relaxed text-default">
-                {{ curator.reason }}
-              </blockquote>
-              <figcaption class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {{ data.stars.toLocaleString() }}
+            </span>
+            <span
+              v-if="data.forks"
+              class="data-label inline-flex items-center gap-1"
+            >
+              <UIcon
+                name="i-lucide-git-fork"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              {{ data.forks.toLocaleString() }}
+            </span>
+            <span
+              v-if="data.pushedAt"
+              class="data-label inline-flex items-center gap-1"
+            >
+              <UIcon
+                name="i-lucide-clock"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              Updated {{ pushedAtAgo }}
+            </span>
+            <span
+              v-if="data.createdAt"
+              class="data-label inline-flex items-center gap-1"
+              :title="new Date(data.createdAt).toLocaleDateString()"
+            >
+              <UIcon
+                name="i-lucide-sparkles"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              First seen {{ createdAtAgo }}
+            </span>
+            <UBadge
+              v-if="maturity"
+              :label="maturity.cadence"
+              :color="maturity.cadence === 'active' ? 'primary' : 'neutral'"
+              :variant="maturity.cadence === 'active' ? 'solid' : 'subtle'"
+              size="xs"
+              :title="maturity.cadence === 'active'
+                ? 'Updated in the last 30 days'
+                : maturity.cadence === 'steady'
+                  ? 'Updated in the last 6 months'
+                  : 'No updates in 6+ months'"
+            />
+
+            <span
+              v-if="data.curators.length || data.stars || data.forks"
+              aria-hidden="true"
+              class="text-muted/50"
+            >·</span>
+
+            <template v-if="data.curators.length">
+              <span class="data-label">
+                Recommended by {{ data.curators.length }} {{ data.curators.length === 1 ? 'curator' : 'curators' }}
+              </span>
+              <div class="flex -space-x-2 isolate">
                 <NuxtLink
+                  v-for="curator in visibleCuratorAvatars"
+                  :key="curator.did"
                   :to="`/people/${curator.handle}`"
-                  class="inline-flex items-center min-h-11 min-w-11 shrink-0"
+                  class="relative inline-flex"
+                  :title="`@${curator.handle} · ${curator.collectionName}`"
                   :aria-label="`${curator.handle} profile`"
                 >
                   <img
                     v-if="curator.avatar"
                     :src="curator.avatar"
                     :alt="`${curator.handle} avatar`"
-                    width="36"
-                    height="36"
-                    class="size-9 rounded-full border border-default"
+                    width="24"
+                    height="24"
+                    class="size-6 rounded-full ring-2 ring-default bg-default"
                   >
-                </NuxtLink>
-                <NuxtLink
-                  :to="`/people/${curator.handle}`"
-                  class="inline-flex items-center min-h-11 py-2 font-mono text-xs text-muted hover:text-default transition-colors"
-                >
-                  @{{ curator.handle }}
-                </NuxtLink>
-                <span
-                  class="font-mono text-xs text-muted"
-                  aria-hidden="true"
-                >·</span>
-                <NuxtLink
-                  :to="`/people/${curator.handle}/${curator.collectionSlug}`"
-                  class="inline-flex items-center min-h-11 py-2 font-mono text-xs text-muted hover:text-default transition-colors truncate"
-                >
-                  {{ curator.collectionName }}
-                </NuxtLink>
-              </figcaption>
-            </figure>
-          </div>
-        </section>
-      </template>
-      <template v-else>
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-6"
-          aria-labelledby="curator-reasons-empty-heading"
-        >
-          <h2
-            id="curator-reasons-empty-heading"
-            class="section-label mb-2"
-          >
-            Why curators picked this
-          </h2>
-          <p class="text-sm text-muted leading-relaxed">
-            No curator note yet.
-            <NuxtLink
-              :to="`/collections/new?skill=${packageName}&skillsOwner=${data.owner}&skillsRepo=${data.repo}`"
-              class="underline underline-offset-2 hover:text-default"
-            >
-              Be the first to add yours
-            </NuxtLink> — one line on why you reach for this skill.
-          </p>
-        </section>
-      </template>
-      <!-- From the author -->
-      <template v-if="authorPosts.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
-          aria-labelledby="author-posts-heading"
-        >
-          <h2
-            id="author-posts-heading"
-            class="section-label mb-3"
-          >
-            From the author
-          </h2>
-          <p class="mb-4 text-xs text-muted">
-            What @{{ data.owner }} has said about this skill.
-          </p>
-          <div class="space-y-4">
-            <SocialEmbed
-              v-for="post in authorPosts"
-              :key="post.id"
-              :platform="post.platform"
-              :post-url="post.postUrl"
-              :author-handle="post.authorHandle"
-              :author-display-name="post.authorDisplayName"
-              :author-avatar="post.authorAvatar"
-              :text-extract="post.textExtract"
-              :title="post.title"
-              :bsky-uri="post.bskyUri"
-              :bsky-cid="post.bskyCid"
-              :subreddit="post.subreddit"
-              :reddit-kind="post.redditKind"
-              :posted-at="post.postedAt"
-            />
-          </div>
-        </section>
-      </template>
-
-      <!-- Community signal -->
-      <template v-if="communityPosts.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
-          aria-labelledby="community-posts-heading"
-        >
-          <h2
-            id="community-posts-heading"
-            class="section-label mb-3"
-          >
-            Community signal
-          </h2>
-          <p class="mb-4 text-xs text-muted">
-            Posts and threads referencing this skill across X, Bluesky, and Reddit.
-          </p>
-          <div class="space-y-4">
-            <SocialEmbed
-              v-for="post in communityPosts"
-              :key="post.id"
-              :platform="post.platform"
-              :post-url="post.postUrl"
-              :author-handle="post.authorHandle"
-              :author-display-name="post.authorDisplayName"
-              :author-avatar="post.authorAvatar"
-              :text-extract="post.textExtract"
-              :title="post.title"
-              :bsky-uri="post.bskyUri"
-              :bsky-cid="post.bskyCid"
-              :subreddit="post.subreddit"
-              :reddit-kind="post.redditKind"
-              :posted-at="post.postedAt"
-            />
-          </div>
-        </section>
-      </template>
-
-      <!-- AI summary -->
-      <template v-if="data.summary">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
-          aria-labelledby="summary-heading"
-        >
-          <h2
-            id="summary-heading"
-            class="section-label mb-3"
-          >
-            What it does
-          </h2>
-          <p class="text-sm leading-relaxed">
-            {{ data.summary.blurb }}
-          </p>
-          <template v-if="data.summary.useCases.length">
-            <h3 class="data-label mt-5 mb-2">
-              Common use cases
-            </h3>
-            <ul class="space-y-1.5 text-sm text-muted">
-              <li
-                v-for="(uc, idx) in data.summary.useCases"
-                :key="idx"
-                class="flex items-start gap-2"
-              >
-                <UIcon
-                  name="i-lucide-check"
-                  class="size-3.5 shrink-0 mt-1 text-muted"
-                  aria-hidden="true"
-                />
-                <span>{{ uc }}</span>
-              </li>
-            </ul>
-          </template>
-          <p class="mt-4 text-xs text-muted">
-            Generated from this skill's SKILL.md.
-          </p>
-        </section>
-      </template>
-
-      <!-- Broken source notice -->
-      <template v-if="data.resolutionStatus && data.resolutionStatus !== 'ok'">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8"
-          aria-labelledby="broken-heading"
-        >
-          <h2
-            id="broken-heading"
-            class="sr-only"
-          >
-            Source unavailable
-          </h2>
-          <div
-            class="flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
-            role="status"
-          >
-            <UIcon
-              name="i-lucide-alert-triangle"
-              class="size-5 shrink-0 mt-0.5 text-muted"
-              aria-hidden="true"
-            />
-            <div class="flex-1">
-              <p class="font-medium">
-                {{ data.resolutionStatus === 'path_missing' ? 'SKILL.md not found in source repository' : 'Could not load SKILL.md' }}
-              </p>
-              <p class="mt-1 text-muted">
-                The skill is still in the registry with {{ data.installs.toLocaleString() }} installs, but the source file isn't where the registry expects it. The repo may have been restructured or the skill removed.
-              </p>
-              <UButton
-                :href="data.githubUrl"
-                target="_blank"
-                rel="noopener"
-                label="Browse repository"
-                icon="i-simple-icons-github"
-                size="xs"
-                color="neutral"
-                variant="outline"
-                class="mt-3"
-              />
-            </div>
-          </div>
-        </section>
-      </template>
-
-      <!-- FAQ -->
-      <template v-if="data.faqs.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="faq-heading"
-        >
-          <h2
-            id="faq-heading"
-            class="section-label mb-4"
-          >
-            Frequently asked
-          </h2>
-          <div class="divide-y divide-default rounded-lg border border-default">
-            <details
-              v-for="(faq, idx) in data.faqs"
-              :key="idx"
-              class="group"
-            >
-              <summary class="flex cursor-pointer items-start gap-3 px-4 py-3 text-sm hover:bg-muted/30 transition-colors">
-                <UIcon
-                  name="i-lucide-chevron-right"
-                  class="size-4 shrink-0 mt-0.5 text-muted transition-transform group-open:rotate-90"
-                  aria-hidden="true"
-                />
-                <span class="flex-1">{{ faq.question }}</span>
-              </summary>
-              <div class="px-4 pb-4 pl-11 text-sm text-muted leading-relaxed">
-                {{ faq.answer }}
-              </div>
-            </details>
-          </div>
-          <p class="mt-3 text-xs text-muted">
-            Generated from the skill's SKILL.md. Refreshed when the source changes.
-          </p>
-        </section>
-      </template>
-
-      <!-- Receipts -->
-      <template v-if="data.provenance">
-        <USeparator />
-        <div class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12">
-          <SkillReceiptsPanel :provenance="data.provenance" />
-        </div>
-      </template>
-
-      <!-- Changelog -->
-      <template v-if="commitsWithAgo.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="changelog-heading"
-        >
-          <h2
-            id="changelog-heading"
-            class="section-label mb-4"
-          >
-            Recent changes
-          </h2>
-          <ol
-            class="divide-y divide-default rounded-lg border border-default"
-            role="list"
-          >
-            <li
-              v-for="commit in commitsWithAgo"
-              :key="commit.sha"
-              class="flex items-start gap-3 px-4 py-3"
-            >
-              <img
-                v-if="commit.authorAvatar"
-                :src="commit.authorAvatar"
-                :alt="`${commit.authorName} avatar`"
-                width="24"
-                height="24"
-                class="size-6 shrink-0 rounded-full mt-0.5"
-              >
-              <div
-                v-else
-                class="size-6 shrink-0 rounded-full bg-muted mt-0.5"
-                aria-hidden="true"
-              />
-              <div class="min-w-0 flex-1">
-                <a
-                  :href="commit.url"
-                  target="_blank"
-                  rel="noopener"
-                  class="text-sm hover:text-muted transition-colors line-clamp-2"
-                >
-                  {{ commit.message }}
-                </a>
-                <div class="mt-0.5 flex items-center gap-2 text-xs text-muted">
-                  <span class="font-mono">{{ commit.authorName }}</span>
-                  <span aria-hidden="true">·</span>
-                  <time
-                    :datetime="commit.date"
-                    :title="commit.absolute"
-                    class="font-mono"
-                  >{{ commit.relative }}</time>
-                  <span aria-hidden="true">·</span>
-                  <code class="font-mono">{{ commit.shortSha }}</code>
                   <span
-                    v-if="commit.verified"
-                    class="inline-flex items-center gap-1 font-mono"
-                    :title="`GPG-signed commit (${commit.verifiedReason})`"
+                    v-else
+                    class="flex size-6 items-center justify-center rounded-full ring-2 ring-default bg-muted"
                   >
-                    <span aria-hidden="true">·</span>
                     <UIcon
-                      name="i-lucide-shield-check"
-                      class="size-3.5 shrink-0"
+                      name="i-lucide-user"
+                      class="size-3 text-muted"
                       aria-hidden="true"
                     />
-                    <span>signed</span>
                   </span>
-                </div>
+                </NuxtLink>
               </div>
-            </li>
-          </ol>
-          <p class="mt-3 text-xs text-muted">
-            <a
-              :href="`${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
-              target="_blank"
-              rel="noopener"
-              class="font-mono hover:text-default transition-colors"
-            >
-              View full history on GitHub
-            </a>
-          </p>
-        </section>
-      </template>
+              <span
+                v-if="overflowCuratorCount"
+                class="data-label"
+              >
+                +{{ overflowCuratorCount }}
+              </span>
+            </template>
+            <template v-else>
+              <span class="data-label">No curators yet</span>
+              <UButton
+                v-if="!isAuthenticated"
+                label="Sign in to curate"
+                icon="i-lucide-folder-plus"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                @click="authModalOpen = true"
+              />
+            </template>
+          </div>
 
-      <!-- Curators section -->
-      <USeparator />
-
-      <section
-        class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-        aria-labelledby="curators-heading"
-      >
-        <h2
-          id="curators-heading"
-          class="section-label mb-4"
-        >
-          {{ data.curators.length ? `${data.curators.length} ${data.curators.length === 1 ? 'curator' : 'curators'} using this skill` : 'Curators' }}
-        </h2>
-
-        <!-- Curator endorsements -->
-        <div
-          v-if="data.curators.length"
-          class="divide-y divide-default rounded-lg border border-default"
-          role="list"
-        >
           <div
-            v-for="curator in data.curators"
-            :key="`${curator.did}-${curator.collectionSlug}`"
-            role="listitem"
-            class="flex items-center gap-3 px-4 py-3"
+            v-if="data.tags.length"
+            class="flex flex-wrap gap-1.5"
           >
             <NuxtLink
-              :to="`/people/${curator.handle}`"
-              class="shrink-0"
+              v-for="tag in data.tags"
+              :key="tag.slug"
+              :to="`/skills/tag/${tag.slug}`"
+              class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
+              :title="tag.description"
             >
-              <img
-                v-if="curator.avatar"
-                :src="curator.avatar"
-                :alt="`Avatar for ${curator.displayName || curator.handle}`"
-                width="32"
-                height="32"
-                class="size-8 rounded-full"
+              <UIcon
+                name="i-lucide-tag"
+                class="size-3"
+                aria-hidden="true"
+              />
+              {{ tag.label }}
+            </NuxtLink>
+          </div>
+        </div>
+      </template>
+    </section>
+
+    <template v-if="data && status !== 'pending'">
+      <USeparator />
+
+      <!-- Mobile install (above SKILL.md content) -->
+      <div class="mx-auto max-w-5xl px-4 sm:px-6 pt-6 lg:hidden">
+        <h2 class="section-label mb-2">
+          Install
+        </h2>
+        <div class="rounded-lg border border-default p-4 space-y-3">
+          <div
+            class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/30 p-0.5 text-xs font-mono"
+            role="tablist"
+            aria-label="Choose installer"
+          >
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="installerTab === 'skilld'"
+              class="rounded px-2.5 py-1 transition-colors"
+              :class="installerTab === 'skilld' ? 'bg-default text-default shadow-sm' : 'text-muted hover:text-default'"
+              @click="installerTab = 'skilld'"
+            >
+              skilld
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="installerTab === 'skills'"
+              class="rounded px-2.5 py-1 transition-colors"
+              :class="installerTab === 'skills' ? 'bg-default text-default shadow-sm' : 'text-muted hover:text-default'"
+              @click="installerTab = 'skills'"
+            >
+              skills.sh
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <code class="flex-1 truncate rounded-lg border border-default bg-muted px-3 py-2 font-mono text-sm">
+              {{ installCmdActive }}
+            </code>
+            <UButton
+              :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              :aria-label="copied ? 'Copied' : 'Copy install command'"
+              @click="copy(installCmdActive)"
+            />
+          </div>
+          <p class="font-mono text-xs text-muted">
+            Works with {{ compatibleAgents.map(a => a.label).join(' · ') }}
+          </p>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
+            <UButton
+              :href="githubUrl"
+              target="_blank"
+              rel="noopener"
+              label="GitHub"
+              icon="i-lucide-github"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+            />
+            <UButton
+              :href="skillsShUrl"
+              target="_blank"
+              rel="noopener"
+              label="skills.sh"
+              icon="i-lucide-external-link"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+            />
+            <UButton
+              :href="`/api/skills-raw/${slug}`"
+              target="_blank"
+              rel="noopener"
+              label="Raw"
+              icon="i-lucide-file-text"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+            />
+            <AddToCollection :package-name="packageName" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Main + Rail -->
+      <div class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-10 lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start">
+        <!-- Main column -->
+        <div class="lg:col-span-8 space-y-10 md:space-y-12">
+          <!-- SKILL.md -->
+          <section
+            v-if="data.contentHtml"
+            aria-labelledby="content-heading"
+          >
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h2
+                id="content-heading"
+                class="section-label"
               >
+                Skill content
+              </h2>
+              <UButton
+                v-if="data.raw"
+                :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+                :label="markdownCopied ? 'Copied' : 'Copy as markdown'"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                @click="copyMarkdown(data.raw)"
+              />
+            </div>
+
+            <UTabs
+              v-model="contentView"
+              :items="contentTabs"
+              :content="false"
+              color="neutral"
+              variant="link"
+              size="xs"
+              class="mb-3"
+            />
+
+            <div class="rounded-lg border border-default overflow-hidden">
+              <article
+                v-show="contentView === 'preview'"
+                class="skill-prose p-4 sm:p-6"
+                v-html="data.contentHtml"
+              />
               <div
-                v-else
-                class="flex size-8 items-center justify-center rounded-full bg-muted"
+                v-show="contentView === 'markdown'"
+                class="skill-markdown"
+              >
+                <div
+                  v-if="rawHtml"
+                  v-html="rawHtml"
+                />
+                <div
+                  v-else-if="rawError"
+                  class="flex items-start gap-3 p-4 sm:p-6 text-sm"
+                  role="alert"
+                >
+                  <UIcon
+                    name="i-lucide-alert-circle"
+                    class="size-4 shrink-0 mt-0.5 text-muted"
+                    aria-hidden="true"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-default">
+                      Couldn't render markdown source.
+                    </p>
+                    <p class="mt-1 font-mono text-xs text-muted break-words">
+                      {{ rawError }}
+                    </p>
+                    <UButton
+                      label="Retry"
+                      size="xs"
+                      color="neutral"
+                      variant="outline"
+                      class="mt-3"
+                      @click="data?.raw && renderRaw(data.raw)"
+                    />
+                  </div>
+                </div>
+                <div
+                  v-else
+                  class="p-4 sm:p-6"
+                >
+                  <USkeleton class="h-4 w-3/4" />
+                  <USkeleton class="mt-2 h-4 w-1/2" />
+                  <USkeleton class="mt-2 h-4 w-2/3" />
+                </div>
+              </div>
+            </div>
+
+            <p class="mt-3 text-xs text-muted">
+              Source:
+              <a
+                :href="`${githubUrl}/blob/main/${data.repo === 'skills' ? `${data.name}/` : ''}SKILL.md`"
+                target="_blank"
+                rel="noopener"
+                class="font-mono hover:text-default transition-colors"
+              >
+                SKILL.md on GitHub
+              </a>
+            </p>
+          </section>
+
+          <!-- Broken source -->
+          <section
+            v-if="data.resolutionStatus && data.resolutionStatus !== 'ok'"
+            aria-labelledby="broken-heading"
+          >
+            <h2
+              id="broken-heading"
+              class="sr-only"
+            >
+              Source unavailable
+            </h2>
+            <div
+              class="flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
+              role="status"
+            >
+              <UIcon
+                name="i-lucide-alert-triangle"
+                class="size-5 shrink-0 mt-0.5 text-muted"
+                aria-hidden="true"
+              />
+              <div class="flex-1">
+                <p class="font-medium">
+                  {{ data.resolutionStatus === 'path_missing' ? 'SKILL.md not found in source repository' : 'Could not load SKILL.md' }}
+                </p>
+                <p class="mt-1 text-muted">
+                  The skill is still in the registry with {{ data.installs.toLocaleString() }} installs, but the source file isn't where the registry expects it. The repo may have been restructured or the skill removed.
+                </p>
+                <UButton
+                  :href="data.githubUrl"
+                  target="_blank"
+                  rel="noopener"
+                  label="Browse repository"
+                  icon="i-simple-icons-github"
+                  size="xs"
+                  color="neutral"
+                  variant="outline"
+                  class="mt-3"
+                />
+              </div>
+            </div>
+          </section>
+
+          <!-- Why curators picked this -->
+          <section
+            v-if="curatorsWithReason.length"
+            aria-labelledby="curator-reasons-heading"
+          >
+            <h2
+              id="curator-reasons-heading"
+              class="section-label mb-3"
+            >
+              Why curators picked this
+            </h2>
+            <p
+              v-if="data.owner !== 'anthropics'"
+              class="mb-3 text-xs text-muted"
+            >
+              <NuxtLink
+                :to="`/collections/new?skill=${packageName}&skillsOwner=${data.owner}&skillsRepo=${data.repo}`"
+                class="underline underline-offset-2 hover:text-default"
+              >
+                Add yours
+              </NuxtLink> — share why you reach for this skill.
+            </p>
+            <div class="space-y-3">
+              <figure
+                v-for="curator in curatorsWithReason"
+                :key="`${curator.did}/${curator.collectionSlug}`"
+                class="rounded-lg border border-default bg-elevated p-4 sm:p-5"
               >
                 <UIcon
-                  name="i-lucide-user"
+                  name="i-lucide-quote"
                   class="size-4 text-muted"
                   aria-hidden="true"
                 />
-              </div>
-            </NuxtLink>
+                <blockquote class="mt-2 text-base leading-relaxed text-default">
+                  {{ curator.reason }}
+                </blockquote>
+                <figcaption class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <NuxtLink
+                    :to="`/people/${curator.handle}`"
+                    class="inline-flex items-center min-h-11 min-w-11 shrink-0"
+                    :aria-label="`${curator.handle} profile`"
+                  >
+                    <img
+                      v-if="curator.avatar"
+                      :src="curator.avatar"
+                      :alt="`${curator.handle} avatar`"
+                      width="36"
+                      height="36"
+                      class="size-9 rounded-full border border-default"
+                    >
+                  </NuxtLink>
+                  <NuxtLink
+                    :to="`/people/${curator.handle}`"
+                    class="inline-flex items-center min-h-11 py-2 font-mono text-xs text-muted hover:text-default transition-colors"
+                  >
+                    @{{ curator.handle }}
+                  </NuxtLink>
+                  <span
+                    class="font-mono text-xs text-muted"
+                    aria-hidden="true"
+                  >·</span>
+                  <NuxtLink
+                    :to="`/people/${curator.handle}/${curator.collectionSlug}`"
+                    class="inline-flex items-center min-h-11 py-2 font-mono text-xs text-muted hover:text-default transition-colors truncate"
+                  >
+                    {{ curator.collectionName }}
+                  </NuxtLink>
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+          <section
+            v-else-if="!data.curators.length"
+            aria-labelledby="curator-reasons-empty-heading"
+          >
+            <h2
+              id="curator-reasons-empty-heading"
+              class="section-label mb-2"
+            >
+              Why curators picked this
+            </h2>
+            <p class="text-sm text-muted leading-relaxed">
+              No curator note yet.
+              <NuxtLink
+                :to="`/collections/new?skill=${packageName}&skillsOwner=${data.owner}&skillsRepo=${data.repo}`"
+                class="underline underline-offset-2 hover:text-default"
+              >
+                Be the first to add yours
+              </NuxtLink> — one line on why you reach for this skill.
+            </p>
+          </section>
 
-            <div class="min-w-0 flex-1">
-              <div class="flex items-baseline gap-2">
-                <NuxtLink
-                  :to="`/people/${curator.handle}`"
-                  class="text-sm font-medium hover:text-muted transition-colors truncate"
+          <!-- From the author -->
+          <section
+            v-if="authorPosts.length"
+            aria-labelledby="author-posts-heading"
+          >
+            <h2
+              id="author-posts-heading"
+              class="section-label mb-3"
+            >
+              From the author
+            </h2>
+            <p class="mb-4 text-xs text-muted">
+              What @{{ data.owner }} has said about this skill.
+            </p>
+            <div class="space-y-4">
+              <SocialEmbed
+                v-for="post in authorPosts"
+                :key="post.id"
+                :platform="post.platform"
+                :post-url="post.postUrl"
+                :author-handle="post.authorHandle"
+                :author-display-name="post.authorDisplayName"
+                :author-avatar="post.authorAvatar"
+                :text-extract="post.textExtract"
+                :title="post.title"
+                :bsky-uri="post.bskyUri"
+                :bsky-cid="post.bskyCid"
+                :subreddit="post.subreddit"
+                :reddit-kind="post.redditKind"
+                :posted-at="post.postedAt"
+              />
+            </div>
+          </section>
+
+          <!-- Community signal -->
+          <section
+            v-if="communityPosts.length"
+            aria-labelledby="community-posts-heading"
+          >
+            <h2
+              id="community-posts-heading"
+              class="section-label mb-3"
+            >
+              Community signal
+            </h2>
+            <p class="mb-4 text-xs text-muted">
+              Posts and threads referencing this skill across X, Bluesky, and Reddit.
+            </p>
+            <div class="space-y-4">
+              <SocialEmbed
+                v-for="post in communityPosts"
+                :key="post.id"
+                :platform="post.platform"
+                :post-url="post.postUrl"
+                :author-handle="post.authorHandle"
+                :author-display-name="post.authorDisplayName"
+                :author-avatar="post.authorAvatar"
+                :text-extract="post.textExtract"
+                :title="post.title"
+                :bsky-uri="post.bskyUri"
+                :bsky-cid="post.bskyCid"
+                :subreddit="post.subreddit"
+                :reddit-kind="post.redditKind"
+                :posted-at="post.postedAt"
+              />
+            </div>
+          </section>
+
+          <!-- AI summary -->
+          <section
+            v-if="data.summary"
+            aria-labelledby="summary-heading"
+          >
+            <h2
+              id="summary-heading"
+              class="section-label mb-3"
+            >
+              What it does
+            </h2>
+            <p class="text-sm leading-relaxed">
+              {{ data.summary.blurb }}
+            </p>
+            <template v-if="data.summary.useCases.length">
+              <h3 class="data-label mt-5 mb-2">
+                Common use cases
+              </h3>
+              <ul class="space-y-1.5 text-sm text-muted">
+                <li
+                  v-for="(uc, idx) in data.summary.useCases"
+                  :key="idx"
+                  class="flex items-start gap-2"
                 >
-                  {{ curator.displayName || curator.handle }}
-                </NuxtLink>
-                <span class="data-label shrink-0">in</span>
-                <NuxtLink
-                  :to="`/people/${curator.handle}/${curator.collectionSlug}`"
-                  class="font-mono text-xs text-muted hover:text-default transition-colors truncate"
+                  <UIcon
+                    name="i-lucide-check"
+                    class="size-3.5 shrink-0 mt-1 text-muted"
+                    aria-hidden="true"
+                  />
+                  <span>{{ uc }}</span>
+                </li>
+              </ul>
+            </template>
+            <p class="mt-4 text-xs text-muted">
+              Generated from this skill's SKILL.md.
+            </p>
+          </section>
+
+          <!-- FAQ -->
+          <section
+            v-if="data.faqs.length"
+            aria-labelledby="faq-heading"
+          >
+            <h2
+              id="faq-heading"
+              class="section-label mb-4"
+            >
+              Frequently asked
+            </h2>
+            <div class="divide-y divide-default rounded-lg border border-default">
+              <details
+                v-for="(faq, idx) in data.faqs"
+                :key="idx"
+                class="group"
+              >
+                <summary class="flex cursor-pointer items-start gap-3 px-4 py-3 text-sm hover:bg-muted/30 transition-colors">
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="size-4 shrink-0 mt-0.5 text-muted transition-transform group-open:rotate-90"
+                    aria-hidden="true"
+                  />
+                  <span class="flex-1">{{ faq.question }}</span>
+                </summary>
+                <div class="px-4 pb-4 pl-11 text-sm text-muted leading-relaxed">
+                  {{ faq.answer }}
+                </div>
+              </details>
+            </div>
+            <p class="mt-3 text-xs text-muted">
+              Generated from the skill's SKILL.md. Refreshed when the source changes.
+            </p>
+          </section>
+        </div>
+
+        <!-- Rail -->
+        <aside class="mt-10 lg:mt-0 lg:col-span-4 lg:sticky lg:top-6 space-y-6">
+          <!-- Sticky install (desktop only) -->
+          <section
+            class="hidden lg:block"
+            aria-labelledby="rail-install-heading"
+          >
+            <h2
+              id="rail-install-heading"
+              class="section-label mb-2"
+            >
+              Install
+            </h2>
+            <div class="rounded-lg border border-default p-4 space-y-3">
+              <div
+                class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/30 p-0.5 text-xs font-mono"
+                role="tablist"
+                aria-label="Choose installer"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="installerTab === 'skilld'"
+                  class="rounded px-2.5 py-1 transition-colors"
+                  :class="installerTab === 'skilld' ? 'bg-default text-default shadow-sm' : 'text-muted hover:text-default'"
+                  @click="installerTab = 'skilld'"
                 >
-                  {{ curator.collectionName }}
-                </NuxtLink>
+                  skilld
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="installerTab === 'skills'"
+                  class="rounded px-2.5 py-1 transition-colors"
+                  :class="installerTab === 'skills' ? 'bg-default text-default shadow-sm' : 'text-muted hover:text-default'"
+                  @click="installerTab = 'skills'"
+                >
+                  skills.sh
+                </button>
+              </div>
+              <div class="flex items-center gap-2">
+                <code class="flex-1 truncate rounded-md border border-default bg-muted px-2 py-1.5 font-mono text-xs">
+                  {{ installCmdActive }}
+                </code>
+                <UButton
+                  :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+                  color="neutral"
+                  variant="outline"
+                  size="xs"
+                  :aria-label="copied ? 'Copied' : 'Copy install command'"
+                  @click="copy(installCmdActive)"
+                />
+              </div>
+              <p class="font-mono text-xs text-muted">
+                Works with {{ compatibleAgents.map(a => a.label).join(' · ') }}
+              </p>
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
+                <UButton
+                  :href="githubUrl"
+                  target="_blank"
+                  rel="noopener"
+                  label="GitHub"
+                  icon="i-lucide-github"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                />
+                <UButton
+                  :href="skillsShUrl"
+                  target="_blank"
+                  rel="noopener"
+                  label="skills.sh"
+                  icon="i-lucide-external-link"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                />
+                <UButton
+                  :href="`/api/skills-raw/${slug}`"
+                  target="_blank"
+                  rel="noopener"
+                  label="Raw"
+                  icon="i-lucide-file-text"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                />
+                <AddToCollection :package-name="packageName" />
               </div>
             </div>
-          </div>
-        </div>
+          </section>
 
-        <!-- Empty state -->
-        <div
-          v-else
-          class="rounded-lg border border-default p-6 text-center"
-        >
-          <UIcon
-            name="i-lucide-users"
-            class="mx-auto size-8 text-muted"
-            aria-hidden="true"
+          <!-- Capability -->
+          <section
+            v-if="capabilitySummary || skillModel || frontmatterEntries.length"
+            aria-labelledby="capability-heading"
+          >
+            <h2
+              id="capability-heading"
+              class="section-label mb-3"
+            >
+              Capability
+            </h2>
+            <div class="rounded-lg border border-default p-4 space-y-3">
+              <div
+                v-if="capabilitySummary && capabilitySummary.scopes.length"
+                class="space-y-1.5"
+              >
+                <span class="data-label block">What it can do</span>
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="scope in capabilitySummary.scopes"
+                    :key="scope"
+                    class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
+                    :title="SCOPE_META[scope].hint"
+                  >
+                    <UIcon
+                      :name="SCOPE_META[scope].icon"
+                      class="size-3.5"
+                      aria-hidden="true"
+                    />
+                    {{ SCOPE_META[scope].label }}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                v-if="capabilitySummary && capabilitySummary.mcp.length"
+                class="space-y-1.5"
+              >
+                <span class="data-label block">MCP servers</span>
+                <div class="flex flex-wrap gap-1">
+                  <UBadge
+                    v-for="server in capabilitySummary.mcp"
+                    :key="server"
+                    :label="server"
+                    variant="subtle"
+                    color="neutral"
+                    size="xs"
+                    class="font-mono"
+                  />
+                </div>
+              </div>
+
+              <div
+                v-if="skillModel"
+                class="space-y-1.5"
+              >
+                <span class="data-label block">Model</span>
+                <UBadge
+                  :label="skillModel"
+                  variant="subtle"
+                  color="neutral"
+                  size="xs"
+                  class="font-mono"
+                />
+              </div>
+
+              <details
+                v-if="allowedTools.length"
+                class="group"
+              >
+                <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="size-3.5 transition-transform group-open:rotate-90"
+                    aria-hidden="true"
+                  />
+                  All {{ allowedTools.length }} allowed tools
+                </summary>
+                <div class="mt-3 flex flex-wrap gap-1 pl-5">
+                  <UBadge
+                    v-for="tool in allowedTools"
+                    :key="tool"
+                    :label="tool"
+                    variant="subtle"
+                    color="neutral"
+                    size="xs"
+                    class="font-mono"
+                  />
+                </div>
+              </details>
+
+              <details
+                v-if="frontmatterEntries.length"
+                class="group"
+              >
+                <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="size-3.5 transition-transform group-open:rotate-90"
+                    aria-hidden="true"
+                  />
+                  Other metadata
+                </summary>
+                <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-xs">
+                  <div
+                    v-for="entry in frontmatterEntries"
+                    :key="entry.key"
+                    class="flex flex-col gap-1 px-3 py-2"
+                  >
+                    <dt class="data-label">
+                      {{ entry.key }}
+                    </dt>
+                    <dd class="min-w-0 font-mono text-muted">
+                      <pre
+                        v-if="entry.complex"
+                        class="whitespace-pre-wrap break-all"
+                      >{{ entry.value }}</pre>
+                      <span
+                        v-else
+                        class="break-all"
+                      >{{ entry.value }}</span>
+                    </dd>
+                  </div>
+                </dl>
+              </details>
+            </div>
+          </section>
+
+          <!-- Receipts -->
+          <SkillReceiptsPanel
+            v-if="data.provenance"
+            :provenance="data.provenance"
           />
-          <p class="mt-3 text-sm text-muted">
-            No curators have added this skill yet. Be the first to include it in a collection.
-          </p>
-          <div class="mt-4 flex justify-center">
-            <AddToCollection
-              v-if="isAuthenticated"
-              :package-name="packageName"
-            />
-            <UButton
-              v-else
-              icon="i-lucide-folder-plus"
-              label="Sign in to curate"
-              size="sm"
-              color="neutral"
-              @click="authModalOpen = true"
-            />
-          </div>
-        </div>
-      </section>
 
-      <!-- Related skills (same repo) -->
-      <template v-if="relatedData?.relatedRepoSkills?.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="repo-siblings-heading"
-        >
-          <h2
-            id="repo-siblings-heading"
-            class="section-label mb-4"
+          <!-- Recent changes -->
+          <section
+            v-if="recentCommits.length"
+            aria-labelledby="changelog-heading"
           >
-            More from {{ data.owner }}/{{ data.repo }}
-          </h2>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <NuxtLink
-              v-for="sibling in relatedData.relatedRepoSkills"
-              :key="sibling.slug"
-              :to="`/skills/${sibling.slug}`"
-              class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
+            <h2
+              id="changelog-heading"
+              class="section-label mb-3"
             >
-              <UIcon
-                name="i-lucide-file-code"
-                class="size-4 shrink-0 mt-0.5 text-muted group-hover:text-default transition-colors"
-                aria-hidden="true"
-              />
-              <div class="min-w-0 flex-1">
-                <div class="truncate font-mono text-sm">
-                  {{ sibling.name }}
-                </div>
-                <div
-                  v-if="sibling.installs"
-                  class="data-label mt-0.5"
+              Recent changes
+            </h2>
+            <ol
+              class="divide-y divide-default rounded-lg border border-default"
+            >
+              <li
+                v-for="commit in recentCommits"
+                :key="commit.sha"
+                class="flex items-start gap-2.5 px-3 py-2.5"
+              >
+                <img
+                  v-if="commit.authorAvatar"
+                  :src="commit.authorAvatar"
+                  :alt="`${commit.authorName} avatar`"
+                  width="20"
+                  height="20"
+                  class="size-5 shrink-0 rounded-full mt-0.5"
                 >
-                  {{ sibling.installs.toLocaleString() }} installs
+                <div
+                  v-else
+                  class="size-5 shrink-0 rounded-full bg-muted mt-0.5"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 flex-1">
+                  <a
+                    :href="commit.url"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-xs hover:underline underline-offset-2 transition-colors line-clamp-2 leading-snug"
+                  >
+                    {{ commit.message }}
+                  </a>
+                  <div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                    <time
+                      :datetime="commit.date"
+                      :title="commit.absolute"
+                      class="font-mono"
+                    >{{ commit.relative }}</time>
+                    <span aria-hidden="true">·</span>
+                    <code class="font-mono">{{ commit.shortSha }}</code>
+                    <UIcon
+                      v-if="commit.verified"
+                      name="i-lucide-shield-check"
+                      class="size-3 shrink-0"
+                      :title="`GPG-signed (${commit.verifiedReason})`"
+                      aria-hidden="true"
+                    />
+                  </div>
                 </div>
-              </div>
-            </NuxtLink>
-          </div>
-        </section>
-      </template>
+              </li>
+            </ol>
+            <p class="mt-2 text-xs text-muted">
+              <a
+                :href="`${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
+                target="_blank"
+                rel="noopener"
+                class="font-mono hover:text-default transition-colors"
+              >
+                View full history →
+              </a>
+            </p>
+          </section>
+        </aside>
+      </div>
 
-      <!-- Commonly paired with (curator co-occurrence) -->
-      <template v-if="relatedData?.coOccurrenceSkills?.length">
+      <!-- Discovery -->
+      <template v-if="relatedTabsAvailable.length">
         <USeparator />
         <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="paired-heading"
+          class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+          aria-labelledby="related-heading"
         >
           <h2
-            id="paired-heading"
+            id="related-heading"
             class="section-label mb-4"
           >
-            Commonly paired with
+            Related skills
           </h2>
-          <p class="mb-4 text-xs text-muted">
-            Curators who added this skill often also added these.
-          </p>
-          <div class="grid gap-3 sm:grid-cols-2">
+          <UTabs
+            v-model="relatedTab"
+            :items="relatedTabsAvailable"
+            :content="false"
+            color="neutral"
+            variant="link"
+            size="xs"
+            class="mb-4"
+          />
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <NuxtLink
-              v-for="pair in relatedData.coOccurrenceSkills"
-              :key="pair.slug"
-              :to="`/skills/${pair.slug}`"
-              class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
+              v-for="item in currentRelatedItems"
+              :key="`${relatedTab}-${item.slug}`"
+              :to="`/skills/${item.slug}`"
+              class="group flex items-start gap-3 rounded-lg border border-default p-4 transition-colors hover:border-inverted/30"
             >
               <img
-                :src="`https://github.com/${pair.owner}.png?size=48`"
-                :alt="`${pair.owner} avatar`"
+                :src="`https://github.com/${item.owner}.png?size=48`"
+                :alt="`${item.owner} avatar`"
                 width="24"
                 height="24"
                 class="size-6 shrink-0 rounded-md border border-default mt-0.5"
               >
               <div class="min-w-0 flex-1">
                 <div class="truncate font-mono text-sm">
-                  {{ pair.name }}
+                  {{ item.name }}
                 </div>
                 <div class="data-label mt-0.5 truncate">
-                  {{ pair.owner }}/{{ pair.repo }}
-                </div>
-              </div>
-            </NuxtLink>
-          </div>
-        </section>
-      </template>
-
-      <!-- Semantic siblings (embedding similarity) -->
-      <template v-if="relatedData?.semanticSiblings?.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="semantic-heading"
-        >
-          <h2
-            id="semantic-heading"
-            class="section-label mb-4"
-          >
-            Similar skills
-          </h2>
-          <p class="mb-4 text-xs text-muted">
-            Skills with overlapping purpose, ranked by content similarity.
-          </p>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <NuxtLink
-              v-for="sib in relatedData.semanticSiblings"
-              :key="sib.slug"
-              :to="`/skills/${sib.slug}`"
-              class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
-            >
-              <img
-                :src="`https://github.com/${sib.owner}.png?size=48`"
-                :alt="`${sib.owner} avatar`"
-                width="24"
-                height="24"
-                class="size-6 shrink-0 rounded-md border border-default mt-0.5"
-              >
-              <div class="min-w-0 flex-1">
-                <div class="truncate font-mono text-sm">
-                  {{ sib.name }}
-                </div>
-                <div class="data-label mt-0.5 truncate">
-                  {{ sib.owner }}/{{ sib.repo }}
-                </div>
-              </div>
-            </NuxtLink>
-          </div>
-        </section>
-      </template>
-
-      <!-- Other skills by owner -->
-      <template v-if="relatedData?.relatedOwnerSkills?.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-3xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="owner-skills-heading"
-        >
-          <h2
-            id="owner-skills-heading"
-            class="section-label mb-4"
-          >
-            Other skills by {{ data.owner }}
-          </h2>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <NuxtLink
-              v-for="other in relatedData.relatedOwnerSkills"
-              :key="other.slug"
-              :to="`/skills/${other.slug}`"
-              class="group flex items-start gap-3 rounded-lg border border-default p-3 transition-colors hover:border-inverted/30"
-            >
-              <img
-                :src="`https://github.com/${other.owner}.png?size=48`"
-                :alt="`${other.owner} avatar`"
-                width="24"
-                height="24"
-                class="size-6 shrink-0 rounded-md border border-default mt-0.5"
-              >
-              <div class="min-w-0 flex-1">
-                <div class="truncate font-mono text-sm">
-                  {{ other.name }}
-                </div>
-                <div class="data-label mt-0.5 truncate">
-                  {{ other.owner }}/{{ other.repo }}
+                  {{ item.owner }}{{ item.repo !== 'skills' ? `/${item.repo}` : '' }}
                 </div>
               </div>
             </NuxtLink>
