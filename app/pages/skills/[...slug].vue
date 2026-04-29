@@ -141,6 +141,39 @@ const { data: socialData } = useFetch(
   { watch: [slug], lazy: !isBot.value, immediate: true },
 ) as ReturnType<typeof useFetch<{ author: SocialPost[], community: SocialPost[] }>>
 
+// Client-only SWR refresh from skills.sh. SSR uses what's in D1; this fires
+// after hydration to pull the fresher install count (HTML-scraped) and the
+// security audit results (JSON, unauth API). The endpoint writes the install
+// count back to D1 so list-page SSR gradually self-heals via traffic.
+interface SkillAudit {
+  provider: string
+  slug: string
+  status: 'pass' | 'warn' | 'fail' | string
+  summary?: string
+  auditedAt?: string
+  riskLevel?: string
+}
+const liveId = computed(() =>
+  data.value ? `${data.value.owner}/${data.value.repo}/${data.value.name}` : null,
+)
+const { data: liveSkill } = useFetch(
+  () => `/api/skill-live/${liveId.value}`,
+  {
+    watch: [liveId],
+    server: false,
+    lazy: true,
+    default: () => null,
+  },
+) as ReturnType<typeof useFetch<{
+  installs: number | null
+  formatted: string | null
+  audits: SkillAudit[]
+  fetchedAt: string
+} | null>>
+
+const displayInstalls = computed(() => liveSkill.value?.installs ?? data.value?.installs ?? 0)
+const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
+
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 
 const packageName = computed(() => {
@@ -648,6 +681,32 @@ useSeoMeta({
           </p>
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span
+              v-if="displayInstalls > 0"
+              class="data-label inline-flex items-center gap-1"
+              :title="liveSkill?.fetchedAt ? `Refreshed ${new Date(liveSkill.fetchedAt).toLocaleString()} from skills.sh` : 'Weekly installs from skills.sh'"
+            >
+              <UIcon
+                name="i-lucide-arrow-down-to-line"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              {{ liveSkill?.formatted ?? displayInstalls.toLocaleString() }}
+            </span>
+            <span
+              v-for="a in audits"
+              :key="a.slug"
+              class="data-label inline-flex items-center gap-1"
+              :title="`${a.provider}: ${a.summary || a.status}${a.auditedAt ? ` · audited ${new Date(a.auditedAt).toLocaleDateString()}` : ''}`"
+            >
+              <UIcon
+                :name="a.status === 'pass' ? 'i-lucide-shield-check' : a.status === 'warn' ? 'i-lucide-shield-alert' : 'i-lucide-shield-x'"
+                class="size-3.5"
+                :class="a.status === 'pass' ? 'text-emerald-500' : a.status === 'warn' ? 'text-amber-500' : 'text-rose-500'"
+                aria-hidden="true"
+              />
+              {{ a.provider }}
+            </span>
             <span
               v-if="data.stars"
               class="data-label inline-flex items-center gap-1"

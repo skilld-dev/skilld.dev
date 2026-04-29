@@ -96,6 +96,17 @@ export default defineNuxtConfig({
         observability: {
           logs: { enabled: true, head_sampling_rate: 1, invocation_logs: true },
         },
+        // Nitro embeds scheduledTasks in the bundle but doesn't auto-emit
+        // `triggers.crons` in the deployed wrangler config; without these
+        // entries Cloudflare never invokes the worker's scheduled() handler.
+        // Keep this list in sync with `nitro.scheduledTasks` below.
+        triggers: {
+          crons: [
+            '*/10 * * * *',
+            '*/15 * * * *',
+            '0 * * * *',
+          ],
+        },
       },
     },
     storage: {
@@ -117,7 +128,6 @@ export default defineNuxtConfig({
       '*/10 * * * *': ['refresh-curators'],
       '*/15 * * * *': ['refresh-follows'],
       '0 * * * *': ['sync-github-skills'],
-      '0 6 * * *': ['sync-npm-downloads'],
     },
   },
 
