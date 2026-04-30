@@ -50,6 +50,19 @@ const { search: npmSearch } = useNpmSearch()
 const npmResults = ref<NpmSearchResult[]>([])
 const npmTotal = ref(0)
 const npmStatus = ref<'idle' | 'pending' | 'success' | 'error'>('idle')
+const resolvedSkills = ref<Record<string, { owner: string, repo: string, official: boolean }>>({})
+
+async function resolveResults(results: NpmSearchResult[]) {
+  if (!results.length) {
+    resolvedSkills.value = {}
+    return
+  }
+  const items = results.map(r => ({ packageName: r.name }))
+  resolvedSkills.value = await $fetch('/api/skills/resolve', {
+    method: 'POST',
+    body: { items },
+  }).catch(() => ({}))
+}
 
 const { isBot } = useBotDetection()
 
@@ -90,6 +103,7 @@ watch(debouncedSearch, async (q) => {
       size: PAGE_SIZE,
       offset: (page.value - 1) * PAGE_SIZE,
     })
+    await resolveResults(res.results)
     npmResults.value = res.results
     npmTotal.value = res.total
     npmStatus.value = 'success'
@@ -108,6 +122,7 @@ watch(page, async () => {
       size: PAGE_SIZE,
       offset: (page.value - 1) * PAGE_SIZE,
     })
+    await resolveResults(res.results)
     npmResults.value = res.results
     npmTotal.value = res.total
     npmStatus.value = 'success'
@@ -180,6 +195,17 @@ function skillSlug(skill: { owner: string, repo: string, name: string }) {
 
 function skillPath(skill: { owner: string, repo: string, name: string }) {
   return `/skills/${skillSlug(skill)}`
+}
+
+function npmResultPath(name: string): string {
+  const resolved = resolvedSkills.value[name]
+  if (resolved)
+    return skillPath({ owner: resolved.owner, repo: resolved.repo, name })
+  return `https://npmx.dev/${name}`
+}
+
+function npmResultIsExternal(name: string): boolean {
+  return !resolvedSkills.value[name]
 }
 
 function clearOwner() {
@@ -348,7 +374,10 @@ function clearOwner() {
       >
         <li v-for="pkg in npmResults" :key="pkg.name" class="group relative">
           <NuxtLink
-            :to="`/skills/${pkg.name}`"
+            :to="npmResultPath(pkg.name)"
+            :external="npmResultIsExternal(pkg.name)"
+            :target="npmResultIsExternal(pkg.name) ? '_blank' : undefined"
+            :rel="npmResultIsExternal(pkg.name) ? 'noopener noreferrer' : undefined"
             :aria-label="`${pkg.name} v${pkg.version}`"
             class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
           >
@@ -389,7 +418,10 @@ function clearOwner() {
       >
         <li v-for="pkg in npmResults" :key="pkg.name" class="group relative">
           <NuxtLink
-            :to="`/skills/${pkg.name}`"
+            :to="npmResultPath(pkg.name)"
+            :external="npmResultIsExternal(pkg.name)"
+            :target="npmResultIsExternal(pkg.name) ? '_blank' : undefined"
+            :rel="npmResultIsExternal(pkg.name) ? 'noopener noreferrer' : undefined"
             :aria-label="`${pkg.name} v${pkg.version}`"
             class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
           >
