@@ -35,6 +35,9 @@ export function parseFrontmatter(raw: string): SkillFrontmatter {
 }
 
 const TITLE_SPLIT_RE = /[-_\s]+/
+const SLUGIFY_STRIP_RE = /[^a-z0-9-]+/g
+const SLUGIFY_DEDUPE_DASH_RE = /-+/g
+const SLUGIFY_TRIM_DASH_RE = /^-+|-+$/g
 
 export function titleCaseFromSlug(s: string): string {
   return s
@@ -42,6 +45,15 @@ export function titleCaseFromSlug(s: string): string {
     .filter(Boolean)
     .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
+}
+
+export function slugifySkillName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(SLUGIFY_STRIP_RE, '')
+    .replace(SLUGIFY_DEDUPE_DASH_RE, '-')
+    .replace(SLUGIFY_TRIM_DASH_RE, '')
 }
 
 export interface ParsedSkill {
@@ -52,16 +64,25 @@ export interface ParsedSkill {
 
 /**
  * Parse a SKILL.md file given its raw body and the directory it lives in.
- * Returns null if neither frontmatter `name` nor a usable directory name resolves.
+ * Returns null if the directory name does not slugify to a usable identifier.
+ *
+ * `name` (slug) always derives from `dirName` — frontmatter `name:` is treated
+ * as a display title, not a slug.
  */
+const SLUG_LOOKING_RE = /^[a-z0-9][a-z0-9-]*$/
+
 export function parseSkillFile(raw: string, dirName: string): ParsedSkill | null {
-  const fm = raw ? parseFrontmatter(raw) : {}
-  const name = (fm.name || dirName).trim()
+  const name = slugifySkillName(dirName)
   if (!name)
     return null
+  const fm = raw ? parseFrontmatter(raw) : {}
+  const fmName = fm.name?.trim()
+  const displayName = fmName && !SLUG_LOOKING_RE.test(fmName)
+    ? fmName
+    : titleCaseFromSlug(name)
   return {
     name,
-    displayName: titleCaseFromSlug(name),
+    displayName,
     description: fm.description?.trim() || null,
   }
 }

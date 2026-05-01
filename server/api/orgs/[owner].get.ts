@@ -30,6 +30,7 @@ export interface OrgProfile {
   location: string | null
   avatar: string
   github: string
+  followers: number
   totalSkills: number
   totalStars: number
   repos: OrgRepo[]
@@ -40,27 +41,23 @@ export interface OrgProfile {
   fetchedAt: string
 }
 
-interface GitHubProfile {
+interface OwnerRow {
+  kind: 'user' | 'org' | null
   name: string | null
   bio: string | null
   blog: string | null
   location: string | null
-  type: 'User' | 'Organization'
+  followers: number | null
+  last_synced_at: number | null
+  sync_status: string | null
 }
 
-const GH_CACHE_PREFIX = 'github:profile'
-const GH_CACHE_TTL = 60 * 60 * 6 // 6 hours
-const GH_NEGATIVE_TTL = 60 * 10 // 10 minutes for misses
+const OWNER_FRESH_HOURS = 24 * 7
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 const kindByOwner = new Map(officialRepos.map(r => [r.owner, r.kind]))
 
-async function fetchGitHubProfile(owner: string): Promise<GitHubProfile | null> {
-  const cacheKey = `${GH_CACHE_PREFIX}:${owner}`
-  const cached = await useStorage('cache').getItem<GitHubProfile | null>(cacheKey)
-  if (cached !== undefined && cached !== null)
-    return cached as GitHubProfile
-
+async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerRow | null> {
   const res = await fetch(`https://api.github.com/users/${owner}`, {
     headers: {
       'User-Agent': 'skilld.dev',
@@ -69,7 +66,15 @@ async function fetchGitHubProfile(owner: string): Promise<GitHubProfile | null> 
   }).catch(() => null)
 
   if (!res || !res.ok) {
-    await useStorage('cache').setItem(cacheKey, null, { ttl: GH_NEGATIVE_TTL })
+    if (res?.status === 404) {
+      await db
+        .prepare(
+          `INSERT INTO owners (owner, sync_status, last_synced_at) VALUES (?, '404', unixepoch())
+           ON CONFLICT(owner) DO UPDATE SET sync_status = '404', last_synced_at = unixepoch()`,
+        )
+        .bind(owner)
+        .run()
+    }
     return null
   }
 
@@ -78,19 +83,55 @@ async function fetchGitHubProfile(owner: string): Promise<GitHubProfile | null> 
     bio?: string
     blog?: string
     location?: string
+    followers?: number
+    public_repos?: number
     type?: string
   }
 
-  const profile: GitHubProfile = {
+  const kind: 'user' | 'org' = data.type === 'Organization' ? 'org' : 'user'
+  const row: OwnerRow = {
+    kind,
     name: data.name?.trim() || null,
     bio: data.bio?.trim() || null,
     blog: data.blog?.trim() || null,
     location: data.location?.trim() || null,
-    type: data.type === 'User' ? 'User' : 'Organization',
+    followers: data.followers ?? 0,
+    last_synced_at: Math.floor(Date.now() / 1000),
+    sync_status: 'ok',
   }
 
-  await useStorage('cache').setItem(cacheKey, profile, { ttl: GH_CACHE_TTL })
-  return profile
+  await db
+    .prepare(
+      `INSERT INTO owners (owner, kind, name, bio, blog, location, followers, public_repos, last_synced_at, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), 'ok')
+       ON CONFLICT(owner) DO UPDATE SET
+         kind = excluded.kind, name = excluded.name, bio = excluded.bio, blog = excluded.blog,
+         location = excluded.location, followers = excluded.followers, public_repos = excluded.public_repos,
+         last_synced_at = excluded.last_synced_at, sync_status = 'ok'`,
+    )
+    .bind(owner, kind, row.name, row.bio, row.blog, row.location, row.followers, data.public_repos ?? 0)
+    .run()
+
+  return row
+}
+
+async function loadOwner(owner: string, db: D1Database): Promise<OwnerRow | null> {
+  const cached = await db
+    .prepare(
+      `SELECT kind, name, bio, blog, location, followers, last_synced_at, sync_status
+       FROM owners WHERE owner = ?`,
+    )
+    .bind(owner)
+    .first<OwnerRow>()
+
+  const fresh = cached?.last_synced_at != null
+    && cached.last_synced_at > Math.floor(Date.now() / 1000) - OWNER_FRESH_HOURS * 3600
+
+  if (cached && fresh)
+    return cached.sync_status === '404' ? null : cached
+
+  const fetched = await fetchAndStoreOwner(owner, db)
+  return fetched ?? cached ?? null
 }
 
 export default defineCachedEventHandler(async (event) => {
@@ -100,7 +141,8 @@ export default defineCachedEventHandler(async (event) => {
 
   const owner = ownerParam.toLowerCase()
 
-  const [registryResult, github] = await Promise.all([
+  const db = getDB(event)
+  const [registryResult, ownerRow] = await Promise.all([
     querySkills(event, {
       owner,
       sort: 'installs',
@@ -108,7 +150,7 @@ export default defineCachedEventHandler(async (event) => {
       limit: 200,
       officialOwners,
     }),
-    fetchGitHubProfile(owner),
+    loadOwner(owner, db),
   ])
 
   if (registryResult.items.length === 0) {
@@ -117,7 +159,7 @@ export default defineCachedEventHandler(async (event) => {
 
   const manifestKind = kindByOwner.get(owner)
   const kind: OrgKind = manifestKind
-    ?? (github?.type === 'User' ? 'user' : 'org')
+    ?? (ownerRow?.kind === 'user' ? 'user' : 'org')
 
   const repoMap = new Map<string, OrgRepo>()
   for (const skill of registryResult.items) {
@@ -146,7 +188,7 @@ export default defineCachedEventHandler(async (event) => {
   }))
 
   const tagMap = await getGeneratedBatch<TagPayload>(
-    getDB(event),
+    db,
     registryResult.items.map(s => ({ owner: s.owner, name: s.name })),
     'tags',
   )
@@ -166,7 +208,7 @@ export default defineCachedEventHandler(async (event) => {
 
   const totalStars = registryResult.items.reduce((max, s) => s.stars > max ? s.stars : max, 0)
 
-  const syncRow = await getDB(event)
+  const syncRow = await db
     .prepare(
       `SELECT MAX(last_synced_at) AS last_synced_at,
               SUM(CASE WHEN sync_status = 'failed' THEN 1 ELSE 0 END) AS failed,
@@ -188,12 +230,13 @@ export default defineCachedEventHandler(async (event) => {
   const profile: OrgProfile = {
     owner,
     kind,
-    displayName: github?.name || owner,
-    description: github?.bio ?? null,
-    blog: github?.blog ?? null,
-    location: github?.location ?? null,
+    displayName: ownerRow?.name || owner,
+    description: ownerRow?.bio ?? null,
+    blog: ownerRow?.blog ?? null,
+    location: ownerRow?.location ?? null,
     avatar: `https://github.com/${owner}.png`,
     github: `https://github.com/${owner}`,
+    followers: ownerRow?.followers ?? 0,
     totalSkills: registryResult.items.length,
     totalStars,
     repos,
@@ -210,6 +253,6 @@ export default defineCachedEventHandler(async (event) => {
   swr: true,
   getKey: (event) => {
     const owner = getRouterParam(event, 'owner')
-    return `org:v2:${(owner || '').toLowerCase()}`
+    return `org:v3:${(owner || '').toLowerCase()}`
   },
 })

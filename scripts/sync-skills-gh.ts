@@ -19,7 +19,7 @@
 
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
-import { parseFrontmatter, titleCaseFromSlug } from '../server/utils/skill-frontmatter'
+import { parseSkillFile } from '../server/utils/skill-frontmatter'
 
 const args = process.argv.slice(2)
 const target = args[0]
@@ -93,15 +93,10 @@ for (const file of skillFiles) {
   catch (err) {
     console.error(`[sync] WARN failed to fetch ${file.path}: ${(err as Error).message}`)
   }
-  const fm = raw ? parseFrontmatter(raw) : {}
-  const name = (fm.name || dirName).trim()
-  if (!name)
+  const parsed = parseSkillFile(raw, dirName)
+  if (!parsed)
     continue
-  skills.push({
-    name,
-    displayName: titleCaseFromSlug(name),
-    description: fm.description?.trim() || null,
-  })
+  skills.push(parsed)
 }
 
 if (!skills.length) {

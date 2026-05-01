@@ -2,7 +2,7 @@
 
 import type { GithubBindings } from './github-client'
 import { getCommits, getRawFile, getRepo, getTree, logRateLimit } from './github-client'
-import { parseSkillFile, titleCaseFromSlug } from './skill-frontmatter'
+import { parseSkillFile } from './skill-frontmatter'
 
 export interface SyncRepoStats {
   owner: string
@@ -231,7 +231,7 @@ export async function syncRepo(
         parsed.name,
         owner,
         repo,
-        parsed.displayName || titleCaseFromSlug(parsed.name),
+        parsed.displayName,
         `${owner}/${parsed.name}`,
         stars,
         forks,
