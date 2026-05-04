@@ -11,7 +11,7 @@ const { execute: fetchNetworkFeed } = useNetworkFeed()
 const { data: homepageData } = useFetch('/api/homepage')
 const { data: featuredSkillsData } = useFetch('/api/skills/featured', {
   key: 'home-featured-devs',
-  query: { orgs: 0, devs: 6, perDev: 6 },
+  query: { orgs: 0, devs: 6, perDev: 12 },
 })
 
 const featuredOrgs = computed(() => homepageData.value?.featuredOrgs ?? [])

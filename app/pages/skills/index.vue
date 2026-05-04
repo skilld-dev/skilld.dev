@@ -73,7 +73,7 @@ const showOfficialSections = computed(() => !isSearching.value && !isOwnerFilter
 // Featured developer and official sections (default home view)
 const { data: featuredData, status: featuredStatus } = useFetch('/api/skills/featured', {
   key: 'skills-featured-sections',
-  query: { orgs: 6, perOrg: 6, devs: 18, perDev: 6 },
+  query: { orgs: 6, perOrg: 6, devs: 18, perDev: 12 },
   lazy: !isBot.value,
 })
 

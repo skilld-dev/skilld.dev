@@ -7,7 +7,7 @@ import { getFeaturedOfficialSections, getTopReposByCount, getTopReposByStars } f
 const DEFAULT_ORG_COUNT = 6
 const DEFAULT_PER_ORG = 4
 const DEFAULT_DEV_COUNT = 12
-const DEFAULT_PER_DEV = 6
+const DEFAULT_PER_DEV = 12
 const OWNER_FRESH_SECONDS = 7 * 86400
 
 interface OwnerProfileRow {

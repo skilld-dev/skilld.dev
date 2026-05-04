@@ -85,44 +85,46 @@ function skillPath(skill: DeveloperSkill) {
       />
     </div>
 
-    <ul class="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 list-none">
-      <li
-        v-for="skill in section.skills"
-        :key="skill.slug"
-        class="w-[17rem] shrink-0 snap-start sm:w-[19rem]"
-      >
-        <NuxtLink
-          :to="skillPath(skill)"
-          :aria-label="`${skill.name} by ${skill.owner}`"
-          class="flex h-40 flex-col rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+    <div class="developer-skill-carousel-frame -mx-4 sm:-mx-6">
+      <ul class="developer-skill-carousel flex gap-3 overflow-x-auto px-4 sm:px-6 list-none">
+        <li
+          v-for="skill in section.skills"
+          :key="skill.slug"
+          class="w-[17rem] shrink-0 snap-start sm:w-[19rem]"
         >
-          <div class="min-w-0">
-            <p class="font-mono text-sm font-medium truncate">
-              {{ skill.name }}
-            </p>
-            <p
-              v-if="skill.description"
-              class="mt-2 text-xs text-muted leading-relaxed line-clamp-3"
-            >
-              {{ skill.description }}
-            </p>
-          </div>
+          <NuxtLink
+            :to="skillPath(skill)"
+            :aria-label="`${skill.name} by ${skill.owner}`"
+            class="flex h-40 flex-col rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          >
+            <div class="min-w-0">
+              <p class="font-mono text-sm font-medium truncate">
+                {{ skill.name }}
+              </p>
+              <p
+                v-if="skill.description"
+                class="mt-2 text-xs text-muted leading-relaxed line-clamp-3"
+              >
+                {{ skill.description }}
+              </p>
+            </div>
 
-          <div class="mt-auto flex items-center justify-between gap-3 pt-4">
-            <span class="font-mono text-xs text-muted truncate">
-              {{ skill.owner }}/{{ skill.repo }}
-            </span>
-            <span
-              v-if="skill.stars"
-              class="data-label inline-flex shrink-0 items-center gap-1"
-              :title="`${skill.stars.toLocaleString()} GitHub stars`"
-            >
-              <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-              {{ formatStars(skill.stars) }}
-            </span>
-          </div>
-        </NuxtLink>
-      </li>
-    </ul>
+            <div class="mt-auto flex items-center justify-between gap-3 pt-4">
+              <span class="font-mono text-xs text-muted truncate">
+                {{ skill.owner }}/{{ skill.repo }}
+              </span>
+              <span
+                v-if="skill.stars"
+                class="data-label inline-flex shrink-0 items-center gap-1"
+                :title="`${skill.stars.toLocaleString()} GitHub stars`"
+              >
+                <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
+                {{ formatStars(skill.stars) }}
+              </span>
+            </div>
+          </NuxtLink>
+        </li>
+      </ul>
+    </div>
   </article>
 </template>

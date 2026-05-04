@@ -112,6 +112,43 @@
   @apply font-mono text-xs text-[var(--ui-text-muted)] tabular-nums;
 }
 
+.developer-skill-carousel-frame {
+  position: relative;
+  overflow: hidden;
+}
+
+.developer-skill-carousel-frame::before,
+.developer-skill-carousel-frame::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 2.5rem;
+  pointer-events: none;
+}
+
+.developer-skill-carousel-frame::before {
+  left: 0;
+  background: linear-gradient(to right, var(--ui-bg), transparent);
+}
+
+.developer-skill-carousel-frame::after {
+  right: 0;
+  background: linear-gradient(to left, var(--ui-bg), transparent);
+}
+
+.developer-skill-carousel {
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 1rem;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.developer-skill-carousel::-webkit-scrollbar {
+  display: none;
+}
+
 /* Rendered markdown (SKILL.md) */
 .skill-prose {
   color: var(--ui-text);
