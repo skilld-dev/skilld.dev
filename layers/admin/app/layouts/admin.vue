@@ -2,7 +2,10 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
 
 const { user, isAuthenticated, isLoading } = useAuth()
-const isAdmin = computed(() => user.value?.email?.toLowerCase() === 'harlan@harlanzw.com')
+const isAdmin = computed(() =>
+  user.value?.email?.toLowerCase() === 'harlan@harlanzw.com'
+  || (user.value?.did === 'did:plc:hvv3hamgocficqdvp5llrkha' && user.value?.handle === 'harlanzw.com'),
+)
 
 useRobotsRule(false)
 

@@ -2,6 +2,7 @@ import { Agent } from '@atproto/api'
 import { OAuthCallbackError } from 'atproto-oauth-client-cloudflare-workers/oauth-client'
 // @ts-expect-error virtual file from oauth module
 import { clientUri } from '#oauth/config'
+import { getAdminEmailForAtprotoIdentity } from '../../utils/admin'
 import { scope } from '../../utils/atproto/oauth'
 
 const OAUTH_REQUEST_COOKIE_PREFIX = 'atproto_oauth_req'
@@ -59,6 +60,7 @@ export default defineEventHandler(async (event) => {
     public: {
       did: result.session.did,
       handle: profile.handle,
+      email: getAdminEmailForAtprotoIdentity({ did: result.session.did, handle: profile.handle }) ?? undefined,
       avatar: profile.avatar,
     },
   })
