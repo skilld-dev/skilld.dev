@@ -69,6 +69,7 @@ export interface SkillsQuery {
   official?: boolean
   excludeOfficial?: boolean
   supportedOnly?: boolean
+  trustTier?: string
   sort?: 'installs' | 'name' | 'owner'
   page?: number
   limit?: number
@@ -85,7 +86,7 @@ interface SkillsQueryResult {
 
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
-  const { search, owner, official, excludeOfficial, supportedOnly, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
+  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
 
   const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
@@ -117,6 +118,11 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
 
   if (supportedOnly)
     conditions.push(`(${SUPPORTED_SKILL_SQL})`)
+
+  if (trustTier) {
+    conditions.push('skills.trust_tier = ?')
+    params.push(trustTier)
+  }
 
   const where = `WHERE ${conditions.join(' AND ')}`
 

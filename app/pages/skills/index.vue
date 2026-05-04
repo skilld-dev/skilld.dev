@@ -82,7 +82,7 @@ const registryQuery = computed(() => ({
   limit: PAGE_SIZE,
   sort: 'installs',
   ...(owner.value ? { owner: owner.value } : {}),
-  ...(showOfficialSections.value ? { excludeOfficial: 'true' } : {}),
+  ...(showOfficialSections.value ? { trustTier: 'candidate' } : {}),
 }))
 const { data: registryData, status: registryStatus } = useFetch('/api/skills', {
   query: registryQuery,
@@ -558,7 +558,7 @@ function clearOwner() {
             {{ isOwnerFiltered ? `Skills by ${owner}` : 'Community' }}
           </h2>
           <p v-if="!isOwnerFiltered" class="mt-1 text-sm text-muted leading-relaxed">
-            Skills from the wider npm ecosystem, ranked by weekly install volume.
+            Candidate skills from the wider ecosystem, ranked by weekly install volume.
           </p>
         </div>
 
