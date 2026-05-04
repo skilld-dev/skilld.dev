@@ -9,9 +9,13 @@ const { execute: fetchNetworkFeed } = useNetworkFeed()
 
 // Fetch real homepage data from curator index + PDS
 const { data: homepageData } = useFetch('/api/homepage')
+const { data: featuredSkillsData } = useFetch('/api/skills/featured', {
+  key: 'home-featured-devs',
+  query: { orgs: 0, devs: 6, perDev: 6 },
+})
 
 const featuredOrgs = computed(() => homepageData.value?.featuredOrgs ?? [])
-const featuredUsers = computed(() => homepageData.value?.featuredUsers ?? [])
+const featuredDevSections = computed(() => featuredSkillsData.value?.devSections ?? [])
 
 const { data: publishesData } = useFetch('/api/feed/recent-publishes')
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
@@ -181,7 +185,7 @@ function toggleCollection(slug: string) {
 
     <!-- Popular Devs -->
     <section
-      v-if="featuredUsers.length"
+      v-if="featuredDevSections.length"
       id="popular-devs"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
       aria-labelledby="popular-devs-heading"
@@ -203,40 +207,19 @@ function toggleCollection(slug: string) {
         />
       </div>
       <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
-        Skill repos maintained by individual developers. Their personal stack, made installable.
+        Skills published by individual developers, ranked around people first.
       </p>
 
-      <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
-        <li v-for="entry in featuredUsers" :key="`user-${entry.owner}`">
-          <NuxtLink
-            :to="ownerHubPath(entry.owner)"
-            :aria-label="`${entry.owner}/${entry.repo}, ${entry.totalSkills} skills`"
-            class="group flex items-center gap-3 rounded-lg border border-default p-3 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-          >
-            <img
-              :src="`https://github.com/${entry.owner}.png?size=64`"
-              :alt="`${entry.owner} avatar`"
-              width="36"
-              height="36"
-              loading="lazy"
-              decoding="async"
-              class="size-9 shrink-0 rounded-full bg-muted"
-            >
-            <div class="min-w-0 flex-1">
-              <p class="font-mono text-sm font-medium truncate">
-                {{ entry.owner }}
-              </p>
-              <p class="font-mono text-xs text-muted truncate">
-                /{{ entry.repo }}
-              </p>
-            </div>
-            <span class="data-label shrink-0">{{ entry.totalSkills }} {{ entry.totalSkills === 1 ? 'skill' : 'skills' }}</span>
-          </NuxtLink>
-        </li>
-      </ul>
+      <div class="space-y-0">
+        <DeveloperSkillSection
+          v-for="section in featuredDevSections"
+          :key="`dev-${section.owner}/${section.repo}`"
+          :section
+        />
+      </div>
     </section>
 
-    <USeparator v-if="featuredUsers.length" />
+    <USeparator v-if="featuredDevSections.length" />
 
     <!-- Recent Published Skills (from official orgs / devs) -->
     <section

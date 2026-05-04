@@ -70,9 +70,10 @@ const isSearching = computed(() => !!debouncedSearch.value)
 const isOwnerFiltered = computed(() => !!owner.value && !isSearching.value)
 const showOfficialSections = computed(() => !isSearching.value && !isOwnerFiltered.value)
 
-// Featured official sections (default home view)
+// Featured developer and official sections (default home view)
 const { data: featuredData, status: featuredStatus } = useFetch('/api/skills/featured', {
-  query: { orgs: 6, perOrg: 6 },
+  key: 'skills-featured-sections',
+  query: { orgs: 6, perOrg: 6, devs: 18, perDev: 6 },
   lazy: !isBot.value,
 })
 
@@ -444,6 +445,58 @@ function clearOwner() {
 
     <!-- ===== DEFAULT MODE: Official sections + Community ===== -->
     <template v-else>
+      <!-- Developer sections -->
+      <section
+        v-if="showOfficialSections"
+        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+        aria-labelledby="developers-heading"
+      >
+        <div class="mb-6">
+          <h2
+            id="developers-heading"
+            class="font-mono text-xl font-medium tracking-tight"
+          >
+            Developers
+          </h2>
+          <p class="mt-1 text-sm text-muted leading-relaxed">
+            Skills published by individual developers, with the person behind the stack up front.
+          </p>
+        </div>
+
+        <div
+          v-if="featuredStatus === 'pending' && !featuredData"
+          class="space-y-8"
+          aria-busy="true"
+          aria-label="Loading developers"
+        >
+          <div v-for="i in 3" :key="i" class="space-y-3">
+            <div class="flex items-center gap-3">
+              <USkeleton class="size-12 rounded-full" />
+              <div class="space-y-2">
+                <USkeleton class="h-4 w-40" />
+                <USkeleton class="h-3 w-64" />
+              </div>
+            </div>
+            <div class="flex gap-3 overflow-hidden">
+              <USkeleton v-for="j in 3" :key="j" class="h-40 w-72 shrink-0 rounded-lg" />
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-else-if="featuredData?.devSections.length"
+          class="space-y-0"
+        >
+          <DeveloperSkillSection
+            v-for="section in featuredData.devSections"
+            :key="`${section.owner}/${section.repo}`"
+            :section
+          />
+        </div>
+      </section>
+
+      <USeparator v-if="showOfficialSections" />
+
       <!-- Official sections -->
       <section
         v-if="showOfficialSections"

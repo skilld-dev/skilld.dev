@@ -89,11 +89,20 @@ interface RepoRef {
   repo: string
 }
 
+const MAX_REPO_FILTER_REFS = 40
+
 function repoPairFilter(repos: RepoRef[]): { sql: string, params: string[] } {
   return {
     sql: repos.map(() => '(owner = ? AND repo = ?)').join(' OR '),
     params: repos.flatMap(({ owner, repo }) => [owner, repo]),
   }
+}
+
+function chunkRepos(repos: RepoRef[]): RepoRef[][] {
+  const chunks: RepoRef[][] = []
+  for (let i = 0; i < repos.length; i += MAX_REPO_FILTER_REFS)
+    chunks.push(repos.slice(i, i + MAX_REPO_FILTER_REFS))
+  return chunks
 }
 
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
@@ -262,18 +271,46 @@ export async function getTopReposByCount(
   if (!allowedRepos.length)
     return []
   const db = getDB(event)
-  const filter = repoPairFilter(allowedRepos)
-  const res = await db
-    .prepare(
-      `SELECT owner, repo, COUNT(*) as count FROM skills
-       WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
-       GROUP BY owner, repo
-       ORDER BY count DESC
-       LIMIT ?`,
-    )
-    .bind(...filter.params, limit)
-    .all<{ owner: string, repo: string, count: number }>()
-  return res.results ?? []
+  const rows = await Promise.all(chunkRepos(allowedRepos).map(async (repos) => {
+    const filter = repoPairFilter(repos)
+    const res = await db
+      .prepare(
+        `SELECT owner, repo, COUNT(*) as count FROM skills
+         WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
+         GROUP BY owner, repo
+         ORDER BY count DESC
+         LIMIT ?`,
+      )
+      .bind(...filter.params, limit)
+      .all<{ owner: string, repo: string, count: number }>()
+    return res.results ?? []
+  }))
+  return rows.flat().sort((a, b) => b.count - a.count).slice(0, limit)
+}
+
+export async function getTopReposByStars(
+  event: H3Event,
+  allowedRepos: RepoRef[],
+  limit: number,
+): Promise<{ owner: string, repo: string, count: number, stars: number }[]> {
+  if (!allowedRepos.length)
+    return []
+  const db = getDB(event)
+  const rows = await Promise.all(chunkRepos(allowedRepos).map(async (repos) => {
+    const filter = repoPairFilter(repos)
+    const res = await db
+      .prepare(
+        `SELECT owner, repo, COUNT(*) as count, MAX(stars) as stars FROM skills
+         WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
+         GROUP BY owner, repo
+         ORDER BY stars DESC, count DESC
+         LIMIT ?`,
+      )
+      .bind(...filter.params, limit)
+      .all<{ owner: string, repo: string, count: number, stars: number }>()
+    return res.results ?? []
+  }))
+  return rows.flat().sort((a, b) => b.stars - a.stars || b.count - a.count).slice(0, limit)
 }
 
 /**
