@@ -84,6 +84,18 @@ interface SkillsQueryResult {
   facets: { owner: string, count: number }[]
 }
 
+interface RepoRef {
+  owner: string
+  repo: string
+}
+
+function repoPairFilter(repos: RepoRef[]): { sql: string, params: string[] } {
+  return {
+    sql: repos.map(() => '(owner = ? AND repo = ?)').join(' OR '),
+    params: repos.flatMap(({ owner, repo }) => [owner, repo]),
+  }
+}
+
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
   const { search, owner, official, excludeOfficial, supportedOnly, trustTier, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
@@ -239,6 +251,32 @@ export async function getTopOwnersByCount(
 }
 
 /**
+ * Return official repo sections by exact repo allowlist, not by owner. This
+ * avoids treating every repo under a trusted GitHub org as official.
+ */
+export async function getTopReposByCount(
+  event: H3Event,
+  allowedRepos: RepoRef[],
+  limit: number,
+): Promise<{ owner: string, repo: string, count: number }[]> {
+  if (!allowedRepos.length)
+    return []
+  const db = getDB(event)
+  const filter = repoPairFilter(allowedRepos)
+  const res = await db
+    .prepare(
+      `SELECT owner, repo, COUNT(*) as count FROM skills
+       WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
+       GROUP BY owner, repo
+       ORDER BY count DESC
+       LIMIT ?`,
+    )
+    .bind(...filter.params, limit)
+    .all<{ owner: string, repo: string, count: number }>()
+  return res.results ?? []
+}
+
+/**
  * Rank owners by max GitHub repo stars (per-skill stars are denormalized from
  * the repo, so MAX collapses to the repo's star count). Returns count too so
  * callers can render the same shape as `getTopOwnersByCount`.
@@ -279,40 +317,40 @@ export interface FeaturedOrgSection {
  */
 export async function getFeaturedOfficialSections(
   event: H3Event,
-  owners: { owner: string, repo: string }[],
+  repos: RepoRef[],
   perOrg: number,
 ): Promise<FeaturedOrgSection[]> {
-  if (!owners.length)
+  if (!repos.length)
     return []
   const db = getDB(event)
-  const ownerNames = owners.map(o => o.owner)
-  const placeholders = ownerNames.map(() => '?').join(',')
+  const filter = repoPairFilter(repos)
 
   const rankedStmt = db
     .prepare(
       `SELECT * FROM (
         SELECT skills.*,
-          ROW_NUMBER() OVER (PARTITION BY owner ORDER BY installs DESC, name ASC) AS rn,
-          COUNT(*) OVER (PARTITION BY owner) AS owner_total
+          ROW_NUMBER() OVER (PARTITION BY owner, repo ORDER BY installs DESC, name ASC) AS rn,
+          COUNT(*) OVER (PARTITION BY owner, repo) AS repo_total
         FROM skills
-        WHERE owner IN (${placeholders}) AND ${NOT_BROKEN_SQL}
+        WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
       ) WHERE rn <= ?`,
     )
-    .bind(...ownerNames, perOrg)
+    .bind(...filter.params, perOrg)
 
-  const res = await rankedStmt.all<SkillRow & { rn: number, owner_total: number }>()
+  const res = await rankedStmt.all<SkillRow & { rn: number, repo_total: number }>()
   const rows = res.results ?? []
 
-  const byOwner = new Map<string, { skills: RegistrySkill[], total: number }>()
+  const byRepo = new Map<string, { skills: RegistrySkill[], total: number }>()
   for (const r of rows) {
-    const entry = byOwner.get(r.owner) ?? { skills: [], total: r.owner_total }
+    const key = `${r.owner}/${r.repo}`
+    const entry = byRepo.get(key) ?? { skills: [], total: r.repo_total }
     entry.skills.push(rowToSkill(r))
-    byOwner.set(r.owner, entry)
+    byRepo.set(key, entry)
   }
 
-  return owners
+  return repos
     .map(({ owner, repo }) => {
-      const entry = byOwner.get(owner)
+      const entry = byRepo.get(`${owner}/${repo}`)
       if (!entry)
         return null
       return { owner, repo, totalSkills: entry.total, skills: entry.skills }
