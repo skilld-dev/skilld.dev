@@ -251,7 +251,7 @@ defineOgImage('Curator.takumi', {
                   >
                   <NuxtLink
                     v-if="skillMeta[skill.packageName]"
-                    :to="`/skills/${skillMeta[skill.packageName]!.owner}/${skillMeta[skill.packageName]!.repo === 'skills' ? skill.packageName : `${skillMeta[skill.packageName]!.repo}/${skill.packageName}`}`"
+                    :to="repoSkillPath(skillMeta[skill.packageName]!.owner, skillMeta[skill.packageName]!.repo, skill.packageName)"
                     class="font-mono text-sm font-medium hover:text-muted transition-colors"
                   >
                     {{ skill.packageName }}
@@ -264,15 +264,13 @@ defineOgImage('Curator.takumi', {
                   </p>
                   <UBadge label="npm" variant="subtle" color="neutral" size="xs" class="shrink-0" />
                 </div>
-                <a
+                <NuxtLink
                   v-if="skillMeta[skill.packageName]"
-                  :href="`https://github.com/${skillMeta[skill.packageName]!.owner}/${skillMeta[skill.packageName]!.repo}`"
-                  target="_blank"
-                  rel="noopener"
+                  :to="repoHubPath(skillMeta[skill.packageName]!.owner, skillMeta[skill.packageName]!.repo)"
                   class="mt-0.5 block text-xs text-muted font-mono hover:text-default transition-colors"
                 >
                   {{ skillMeta[skill.packageName]!.owner }}/{{ skillMeta[skill.packageName]!.repo }}
-                </a>
+                </NuxtLink>
                 <p
                   v-if="skill.reason"
                   class="mt-0.5 text-xs text-muted leading-relaxed"

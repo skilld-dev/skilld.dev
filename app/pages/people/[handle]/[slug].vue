@@ -48,7 +48,7 @@ const canonicalUrl = computed(() => `${siteOrigin}/people/${handle.value}/${slug
 function skillPath(skill: { packageName: string, owner?: string, repo?: string }): string | null {
   if (!skill.owner || !skill.repo)
     return null
-  return `/skills/${skill.owner}/${skill.repo === 'skills' ? skill.packageName : `${skill.repo}/${skill.packageName}`}`
+  return repoSkillPath(skill.owner, skill.repo, skill.packageName)
 }
 
 async function handleDelete() {
@@ -339,7 +339,7 @@ defineOgImage('Collection.takumi', {
           </h2>
           <NuxtLink
             v-if="commonSource"
-            :to="`/orgs/${commonSource.owner}`"
+            :to="repoHubPath(commonSource.owner, commonSource.repo)"
             class="flex items-center gap-1.5 text-xs text-muted font-mono hover:text-default"
           >
             <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
@@ -375,7 +375,7 @@ defineOgImage('Collection.takumi', {
               </div>
               <NuxtLink
                 v-if="!commonSource && skill.owner && skill.repo"
-                :to="`/orgs/${skill.owner}`"
+                :to="repoHubPath(skill.owner, skill.repo)"
                 class="mt-0.5 block text-xs text-muted font-mono hover:text-default"
               >
                 {{ skill.owner }}/{{ skill.repo }}

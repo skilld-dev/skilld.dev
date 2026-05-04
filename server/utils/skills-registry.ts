@@ -1,5 +1,11 @@
 import type { H3Event } from 'h3'
+import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate-canonical'
 import { getDB } from './db'
+import {
+  duplicateWeakerSlugSet,
+  findDuplicateGroupForSlug,
+  skillSlug,
+} from './skill-duplicate-canonical'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
 
 const WHITESPACE_RE = /\s+/
@@ -314,20 +320,130 @@ export interface SkillSitemapEntry {
   repo: string
 }
 
-export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
+interface SkillDuplicateRow extends DuplicateCandidate {
+  is_supported: number
+}
+
+export interface SkillDuplicateSibling {
+  name: string
+  owner: string
+  repo: string
+  displayName: string
+  installs: number
+  stars: number
+  slug: string
+  supportTier: string | null
+  trustTier: string | null
+}
+
+export interface SkillDuplicateGroup {
+  reason: DuplicateGroupReason
+  canonical: SkillDuplicateSibling
+  isCanonical: boolean
+  siblings: SkillDuplicateSibling[]
+}
+
+function duplicateRowToSibling(row: DuplicateCandidate): SkillDuplicateSibling {
+  return {
+    name: row.name,
+    owner: row.owner,
+    repo: row.repo,
+    displayName: row.display_name,
+    installs: row.installs ?? 0,
+    stars: row.stars ?? 0,
+    slug: skillSlug(row),
+    supportTier: row.support_tier,
+    trustTier: row.trust_tier,
+  }
+}
+
+async function listDuplicateCandidateRows(event: H3Event, opts: { supportedOnly: boolean }): Promise<SkillDuplicateRow[]> {
   const db = getDB(event)
+  const supportedSelect = `CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END`
+  const supportedFilter = opts.supportedOnly ? `AND (${SUPPORTED_SKILL_SQL})` : ''
   const res = await db
-    .prepare(`SELECT name, owner, repo FROM skills WHERE ${NOT_BROKEN_SQL} AND seo_indexable = 1`)
-    .all<SkillSitemapEntry>()
+    .prepare(`
+      SELECT
+        skills.owner,
+        skills.repo,
+        skills.name,
+        skills.display_name,
+        skills.description,
+        skills.installs,
+        skills.stars,
+        skills.pushed_at,
+        supported_repos.support_tier,
+        skills.trust_tier,
+        ${supportedSelect} AS is_supported
+      FROM skills
+      LEFT JOIN supported_repos
+        ON supported_repos.owner = skills.owner
+        AND supported_repos.repo = skills.repo
+        AND supported_repos.enabled = 1
+      WHERE ${NOT_BROKEN_SQL}
+        AND skills.seo_indexable = 1
+        ${supportedFilter}
+      ORDER BY skills.owner ASC, skills.repo ASC, skills.name ASC
+    `)
+    .all<SkillDuplicateRow>()
   return res.results ?? []
 }
 
-export async function listSupportedSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
+export async function findSupportedDuplicateGroupForSkill(event: H3Event, slug: string): Promise<SkillDuplicateGroup | null> {
+  const rows = await listDuplicateCandidateRows(event, { supportedOnly: true })
+  const group = findDuplicateGroupForSlug(rows, slug)
+  if (!group)
+    return null
+  const canonicalSlug = skillSlug(group.canonical)
+  return {
+    reason: group.reason,
+    canonical: duplicateRowToSibling(group.canonical),
+    isCanonical: canonicalSlug === slug,
+    siblings: group.rows
+      .filter(row => skillSlug(row) !== slug)
+      .map(duplicateRowToSibling),
+  }
+}
+
+export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   const db = getDB(event)
   const res = await db
-    .prepare(`SELECT name, owner, repo FROM skills WHERE ${NOT_BROKEN_SQL} AND seo_indexable = 1 AND (${SUPPORTED_SKILL_SQL})`)
-    .all<SkillSitemapEntry>()
-  return res.results ?? []
+    .prepare(`
+      SELECT
+        skills.name,
+        skills.owner,
+        skills.repo,
+        skills.display_name,
+        skills.description,
+        skills.installs,
+        skills.stars,
+        skills.pushed_at,
+        supported_repos.support_tier,
+        skills.trust_tier,
+        CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported
+      FROM skills
+      LEFT JOIN supported_repos
+        ON supported_repos.owner = skills.owner
+        AND supported_repos.repo = skills.repo
+        AND supported_repos.enabled = 1
+      WHERE ${NOT_BROKEN_SQL}
+        AND skills.seo_indexable = 1
+      ORDER BY skills.owner ASC, skills.repo ASC, skills.name ASC
+    `)
+    .all<SkillDuplicateRow>()
+  const rows = res.results ?? []
+  const weakerSupportedSlugs = duplicateWeakerSlugSet(rows.filter(row => row.is_supported === 1))
+  return rows
+    .filter(row => !weakerSupportedSlugs.has(skillSlug(row)))
+    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo }))
+}
+
+export async function listSupportedSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
+  const rows = await listDuplicateCandidateRows(event, { supportedOnly: true })
+  const weakerSlugs = duplicateWeakerSlugSet(rows)
+  return rows
+    .filter(row => !weakerSlugs.has(skillSlug(row)))
+    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo }))
 }
 
 export async function listAllOwnersForSitemap(event: H3Event): Promise<{ owner: string }[]> {
@@ -374,10 +490,11 @@ export async function findSkill(event: H3Event, slug: string): Promise<RegistryS
     const parts = slug.split('/')
     if (parts.length >= 3) {
       const owner = parts[0]
+      const repo = parts[1]
       const name = parts.slice(2).join('/')
       const altRow = await db
-        .prepare('SELECT * FROM skills WHERE owner = ? AND name = ?')
-        .bind(owner, name)
+        .prepare('SELECT * FROM skills WHERE owner = ? AND repo = ? AND name = ?')
+        .bind(owner, repo, name)
         .first<SkillRow>()
       return altRow ? rowToSkill(altRow) : null
     }

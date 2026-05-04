@@ -23,6 +23,12 @@ export function resolveGithubBindings(cloudflareEnv?: Record<string, unknown>): 
 }
 
 export interface RepoMeta {
+  name: string
+  full_name: string
+  html_url: string
+  owner: {
+    login: string
+  }
   default_branch: string
   description: string | null
   stargazers_count: number

@@ -8,7 +8,7 @@ const avatarFailed = ref(false)
 
 <template>
   <NuxtLink
-    :to="`/orgs/${dev.owner}`"
+    :to="ownerHubPath(dev.owner)"
     :aria-label="`${dev.displayName}, ${dev.skillCount} skills`"
     class="group block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
   >

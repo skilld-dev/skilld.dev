@@ -48,7 +48,7 @@ const summary = computed(() => {
           {{ String(i + 1).padStart(2, '0') }}
         </span>
         <NuxtLink
-          :to="`/orgs/${row.owner}`"
+          :to="ownerHubPath(row.owner)"
           class="font-mono text-sm text-default hover:text-primary truncate"
         >
           {{ row.owner }}

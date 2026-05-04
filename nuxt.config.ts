@@ -174,7 +174,7 @@ export default defineNuxtConfig({
     sitemaps: {
       pages: {
         includeAppSources: true,
-        exclude: ['/skills/**', '/people/**', '/orgs/**'],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/orgs/**'],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],

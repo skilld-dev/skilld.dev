@@ -39,8 +39,7 @@ const { copy, copied } = useInstallCopy(
 )
 
 const skillPath = computed(() => {
-  const tail = skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`
-  return `/skills/${skill.owner}/${tail}`
+  return repoSkillPath(skill.owner, skill.repo, skill.name)
 })
 
 const ownerPath = computed(() =>

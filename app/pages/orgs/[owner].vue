@@ -16,7 +16,7 @@ const { data, status, error, refresh } = useFetch<OrgProfile>(
 )
 
 const siteOrigin = 'https://skilld.dev'
-const canonicalUrl = computed(() => `${siteOrigin}/orgs/${ownerParam.value}`)
+const canonicalUrl = computed(() => `${siteOrigin}${ownerHubPath(ownerParam.value)}`)
 
 const isUser = computed(() => data.value?.kind === 'user')
 const kindLabel = computed(() => isUser.value ? 'person' : 'org')
@@ -55,12 +55,8 @@ function copyRepoCmd(repoKey: string, cmd: string) {
   }, 2000)
 }
 
-function skillSlug(skill: { owner: string, repo: string, name: string }) {
-  return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
-}
-
 function skillPath(skill: { owner: string, repo: string, name: string }) {
-  return `/skills/${skillSlug(skill)}`
+  return repoSkillPath(skill.owner, skill.repo, skill.name)
 }
 
 function formatStars(n: number): string {
@@ -114,6 +110,7 @@ useSeoMeta({
     return `${data.value.totalSkills} agent skills ${verb} ${data.value.displayName}.`
   },
   ogUrl: canonicalUrl,
+  robots: 'noindex,follow',
   twitterCard: 'summary_large_image',
 })
 
@@ -402,16 +399,14 @@ useSchemaOrg(computed(() => {
               <div class="flex items-start gap-3 flex-wrap">
                 <div class="min-w-0 flex-1">
                   <h3 class="font-mono text-sm font-medium">
-                    <a
-                      :href="`https://github.com/${data.owner}/${repo.repo}`"
-                      target="_blank"
-                      rel="noopener"
+                    <NuxtLink
+                      :to="repoHubPath(data.owner, repo.repo)"
                       class="inline-flex items-center gap-1.5 hover:text-muted transition-colors"
-                      :aria-label="`${data.owner}/${repo.repo} on GitHub (opens in new tab)`"
+                      :aria-label="`${data.owner}/${repo.repo} source page`"
                     >
                       <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
                       {{ data.owner }}/{{ repo.repo }}
-                    </a>
+                    </NuxtLink>
                   </h3>
                   <p
                     v-if="repo.description"

@@ -1,12 +1,38 @@
 <script setup lang="ts">
-const route = useRoute()
-const slug = computed(() => {
-  const params = route.params.slug
-  return Array.isArray(params) ? params.join('/') : params
+import type { OrgProfile } from '../../../server/api/orgs/[owner].get'
+import type { RepoSourceProfile } from '../../../server/api/repos/[owner]/[repo].get'
+
+definePageMeta({
+  alias: ['/gh/:slug(.*)*'],
 })
 
-if (Array.isArray(route.params.slug) && route.params.slug.length === 1) {
-  await navigateTo(`/orgs/${route.params.slug[0]}`, { redirectCode: 301, replace: true })
+const route = useRoute()
+const isRepoRoute = computed(() => route.path.startsWith('/gh/'))
+const slug = computed(() => {
+  const params = route.params.slug
+  return Array.isArray(params) ? params.join('/') : (params ?? '')
+})
+const slugParts = computed(() => slug.value.split('/').filter(Boolean))
+const repoHub = computed(() => {
+  if (!isRepoRoute.value || slugParts.value.length !== 2)
+    return null
+  return {
+    owner: slugParts.value[0]!,
+    repo: slugParts.value[1]!,
+  }
+})
+const ownerHub = computed(() => {
+  if (!isRepoRoute.value || slugParts.value.length !== 1)
+    return null
+  return { owner: slugParts.value[0]! }
+})
+const sourceHub = computed(() => repoHub.value ?? ownerHub.value)
+const isOwnerHub = computed(() => Boolean(ownerHub.value))
+const isRepoHub = computed(() => Boolean(repoHub.value))
+const isSourceHub = computed(() => Boolean(sourceHub.value))
+
+if (!isRepoRoute.value && Array.isArray(route.params.slug) && route.params.slug.length === 1) {
+  await navigateTo(ownerHubPath(route.params.slug[0]!), { redirectCode: 301, replace: true })
 }
 
 const { isAuthenticated } = useAuth()
@@ -50,6 +76,44 @@ interface SkillSummary {
   useCases: string[]
 }
 
+interface SourceFacts {
+  description: {
+    present: boolean
+    length: number
+    source: 'repository' | 'frontmatter' | null
+  }
+  repository: {
+    pushedAt: string | null
+    pushedAgeDays: number | null
+    createdAt: string | null
+    stars: number
+    forks: number
+    defaultBranch: string
+  }
+  source: {
+    resolved: boolean
+    resolutionStatus: 'ok' | 'path_missing' | 'fetch_failed'
+    skillPath: string | null
+    currentSha: string | null
+    hasCurrentSha: boolean
+    latestRevisionSha: string | null
+    modifiedAt: number | null
+    modifiedAgeDays: number | null
+    referencesCount: number
+    lastSyncedAt: number | null
+    lastSyncedAgeDays: number | null
+    syncStatus: string | null
+  }
+  frontmatter: {
+    present: boolean
+    keys: string[]
+    model: string | null
+    allowedTools: string[]
+    capabilityScopes: ('read' | 'write' | 'exec' | 'net')[]
+    mcpServers: string[]
+  }
+}
+
 interface NeighborSkill {
   name: string
   owner: string
@@ -60,10 +124,22 @@ interface NeighborSkill {
   score: number
 }
 
+interface DuplicateSkill {
+  name: string
+  owner: string
+  repo: string
+  displayName: string
+  installs: number
+  stars: number
+  slug: string
+  supportTier: string | null
+  trustTier: string | null
+}
+
 const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch(
   () => `/api/skills/${slug.value}`,
-  { watch: [slug], lazy: !isBot.value },
+  { watch: [slug], lazy: !isBot.value, immediate: !isSourceHub.value },
 ) as ReturnType<typeof useFetch<{
   content: string | null
   contentHtml: string | null
@@ -86,6 +162,7 @@ const { data, status, error, refresh } = useFetch(
   skillPath: string | null
   resolutionStatus: 'ok' | 'path_missing' | 'fetch_failed'
   tier: 'official-org' | 'official-user' | 'community'
+  sourceFacts: SourceFacts
   tags: SkillTag[]
   faqs: FaqItem[]
   summary: SkillSummary | null
@@ -120,11 +197,114 @@ const { data, status, error, refresh } = useFetch(
     reasons: string[]
     syncedAt: number | null
   }
+  duplicateGroup: {
+    reason: 'duplicate_description' | 'duplicate_title'
+    canonical: DuplicateSkill
+    isCanonical: boolean
+    siblings: DuplicateSkill[]
+  } | null
 }>>
 
-const { data: relatedData } = useFetch(
+const { data: repoProfile, status: repoStatus, error: repoError, refresh: refreshRepo } = useFetch<OrgProfile>(
+  () => `/api/orgs/${sourceHub.value?.owner ?? '_'}`,
+  {
+    watch: [sourceHub],
+    lazy: !isBot.value,
+    immediate: isOwnerHub.value,
+    server: !isRepoHub.value,
+  },
+) as ReturnType<typeof useFetch<OrgProfile>>
+
+const { data: repoSource, status: repoSourceStatus, error: repoSourceError, refresh: refreshRepoSource } = useFetch<RepoSourceProfile>(
+  () => repoHub.value ? `/api/repos/${repoHub.value.owner}/${repoHub.value.repo}` : null!,
+  {
+    watch: [repoHub],
+    lazy: !isBot.value,
+    immediate: isRepoHub.value,
+  },
+) as ReturnType<typeof useFetch<RepoSourceProfile>>
+
+const repoSkills = computed(() => {
+  const profile = repoProfile.value
+  if (!sourceHub.value || !profile)
+    return []
+  const hub = repoHub.value
+  return hub ? profile.skills.filter(skill => skill.repo.toLowerCase() === hub.repo.toLowerCase()) : profile.skills
+})
+
+const repoInfo = computed(() => {
+  const hub = repoHub.value
+  if (!hub || !repoProfile.value)
+    return null
+  return repoProfile.value.repos.find(repo => repo.repo === hub.repo) ?? null
+})
+
+const sourceDisplayName = computed(() => {
+  const hub = repoHub.value
+  if (hub) {
+    const source = repoSource.value
+    return `${source?.owner ?? hub.owner}/${source?.repo ?? hub.repo}`
+  }
+  return ownerHub.value?.owner ?? ''
+})
+
+const sourceDescription = computed(() =>
+  repoSource.value?.description ?? repoInfo.value?.description ?? repoProfile.value?.description ?? null,
+)
+
+const sourceStars = computed(() =>
+  repoSource.value?.stars ?? repoInfo.value?.stars ?? repoProfile.value?.totalStars ?? 0,
+)
+
+const sourceForks = computed(() =>
+  repoSource.value?.forks ?? 0,
+)
+
+const sourceAvatar = computed(() => {
+  const owner = sourceHub.value?.owner ?? repoProfile.value?.owner
+  return owner ? `https://github.com/${owner}.png` : ''
+})
+
+const sourceConfirmedNoSkillMd = computed(() =>
+  Boolean(repoHub.value && repoSource.value?.skillFileScanStatus === 'ok' && repoSource.value.skillFileCount === 0),
+)
+
+const repoSourceScanNotice = computed<string | null>(() => {
+  const source = repoSource.value
+  if (!repoHub.value || !source)
+    return null
+  if (source.skillFileScanStatus === 'truncated')
+    return `GitHub returned a truncated file tree. skilld found ${source.skillFileCount.toLocaleString()} SKILL.md ${source.skillFileCount === 1 ? 'file' : 'files'}, but the scan may be incomplete.`
+  if (source.skillFileScanStatus === 'unavailable')
+    return 'GitHub repository metadata loaded, but the SKILL.md file scan is unavailable right now.'
+  return null
+})
+
+const sourceSkillFiles = computed(() => repoSource.value?.skillFiles ?? [])
+
+const sourceDefaultBranch = computed(() => repoSource.value?.defaultBranch ?? null)
+const sourcePushedAt = computed(() => repoSource.value?.pushedAt ?? null)
+const sourceCreatedAt = computed(() => repoSource.value?.createdAt ?? null)
+const sourcePushedAtDate = computed(() => sourcePushedAt.value ? new Date(sourcePushedAt.value) : null)
+const sourceCreatedAtDate = computed(() => sourceCreatedAt.value ? new Date(sourceCreatedAt.value) : null)
+const sourcePushedAtAgo = useTimeAgo(computed(() => sourcePushedAtDate.value ?? new Date(0)))
+const sourceCreatedAtAgo = useTimeAgo(computed(() => sourceCreatedAtDate.value ?? new Date(0)))
+
+const skilldInitCmd = computed(() => {
+  return 'npx -y skilld'
+})
+
+const repoHubGithubUrl = computed(() => {
+  const source = sourceHub.value
+  if (!source)
+    return ''
+  const hub = repoHub.value
+  return repoSource.value?.githubUrl ?? (hub ? `https://github.com/${hub.owner}/${hub.repo}` : `https://github.com/${source.owner}`)
+})
+
+const { data: relatedData, refresh: refreshRelated } = useFetch(
   () => `/api/skill-related/${slug.value}`,
-  { watch: [slug], lazy: !isBot.value, immediate: true },
+  { watch: [slug], lazy: !isBot.value, immediate: !isSourceHub.value },
 ) as ReturnType<typeof useFetch<{
   commits: SkillCommit[]
   relatedRepoSkills: RelatedSkill[]
@@ -153,10 +333,26 @@ interface SocialPost {
   postedAt: number | null
 }
 
-const { data: socialData } = useFetch(
+const { data: socialData, refresh: refreshSocial } = useFetch(
   () => `/api/skill-social/${slug.value}`,
-  { watch: [slug], lazy: !isBot.value, immediate: true },
+  { watch: [slug], lazy: !isBot.value, immediate: !isSourceHub.value },
 ) as ReturnType<typeof useFetch<{ author: SocialPost[], community: SocialPost[] }>>
+
+watch(isSourceHub, (hub) => {
+  if (hub) {
+    refreshRepo()
+    refreshRepoSource()
+    return
+  }
+  refresh()
+  refreshRelated()
+  refreshSocial()
+})
+
+onMounted(() => {
+  if (isRepoHub.value)
+    refreshRepo()
+})
 
 // Client-only SWR refresh from skills.sh. SSR uses what's in D1; this fires
 // after hydration to pull the fresher install count (HTML-scraped) and the
@@ -229,10 +425,7 @@ const skillsShUrl = computed(() => data.value?.url ?? '')
 const HIDDEN_FRONTMATTER_KEYS = new Set(['name', 'description'])
 
 const allowedTools = computed(() => {
-  const raw = data.value?.frontmatter?.['allowed-tools']
-  if (typeof raw !== 'string' || !raw)
-    return []
-  return raw.split(',').map(s => s.trim()).filter(Boolean)
+  return data.value?.sourceFacts.frontmatter.allowedTools ?? []
 })
 
 function formatFrontmatterValue(v: unknown): string {
@@ -286,32 +479,11 @@ const provenanceLine = computed<string | null>(() => {
   return `Community skill from ${d.owner}${suffix}.`
 })
 
-const TOOL_CATEGORIES: { match: RegExp, scope: 'read' | 'write' | 'exec' | 'net' }[] = [
-  { match: /^(Read|Glob|Grep|NotebookRead|LS)$/i, scope: 'read' },
-  { match: /^(Edit|Write|MultiEdit|NotebookEdit)$/i, scope: 'write' },
-  { match: /^(Bash|Task|KillBash|BashOutput)$/i, scope: 'exec' },
-  { match: /^(WebFetch|WebSearch|mcp__.*fetch.*|mcp__.*http.*)$/i, scope: 'net' },
-]
-
 const capabilitySummary = computed<{ scopes: ('read' | 'write' | 'exec' | 'net')[], mcp: string[] } | null>(() => {
-  if (!allowedTools.value.length)
+  const facts = data.value?.sourceFacts.frontmatter
+  if (!facts?.allowedTools.length)
     return null
-  const scopes = new Set<'read' | 'write' | 'exec' | 'net'>()
-  const mcp: string[] = []
-  for (const raw of allowedTools.value) {
-    // Strip argument filter: "Bash(git:*)" -> "Bash", "mcp__foo__bar(...)" -> "mcp__foo__bar"
-    const tool = raw.split('(')[0]!.trim()
-    if (tool.startsWith('mcp__')) {
-      const server = tool.split('__')[1]
-      if (server && !mcp.includes(server))
-        mcp.push(server)
-    }
-    for (const cat of TOOL_CATEGORIES) {
-      if (cat.match.test(tool))
-        scopes.add(cat.scope)
-    }
-  }
-  return { scopes: [...scopes], mcp }
+  return { scopes: facts.capabilityScopes, mcp: facts.mcpServers }
 })
 
 const SCOPE_META: Record<'read' | 'write' | 'exec' | 'net', { icon: string, label: string, hint: string }> = {
@@ -322,9 +494,7 @@ const SCOPE_META: Record<'read' | 'write' | 'exec' | 'net', { icon: string, labe
 }
 
 const skillModel = computed(() => {
-  const fm = data.value?.frontmatter
-  const m = fm?.model
-  return typeof m === 'string' ? m : null
+  return data.value?.sourceFacts.frontmatter.model ?? null
 })
 
 const contentView = ref<'preview' | 'markdown'>('preview')
@@ -438,7 +608,22 @@ defineOgImage('Skill.takumi', {
 })
 
 const siteOrigin = 'https://skilld.dev'
-const skillPageUrl = computed(() => `${siteOrigin}/skills/${slug.value}`)
+const skillPagePath = computed(() => data.value ? repoSkillPath(data.value.owner, data.value.repo, data.value.name) : `/gh/${slug.value}`)
+const skillPageUrl = computed(() => `${siteOrigin}${skillPagePath.value}`)
+const isLegacySkillRoute = computed(() => route.path.startsWith('/skills/'))
+const duplicateGroup = computed(() => data.value?.duplicateGroup ?? null)
+const isWeakerDuplicate = computed(() => Boolean(duplicateGroup.value && !duplicateGroup.value.isCanonical))
+const canonicalSkillPageUrl = computed(() => {
+  const canonical = duplicateGroup.value?.canonical
+  return canonical ? `${siteOrigin}${repoSkillPath(canonical.owner, canonical.repo, canonical.name)}` : skillPageUrl.value
+})
+const sourceHubCanonicalUrl = computed(() => {
+  const source = sourceHub.value
+  if (!source)
+    return skillPageUrl.value
+  const hub = repoHub.value
+  return hub ? `${siteOrigin}${repoHubPath(hub.owner, hub.repo)}` : `${siteOrigin}${ownerHubPath(source.owner)}`
+})
 
 const authorPosts = computed(() => socialData.value?.author ?? [])
 const communityPosts = computed(() => socialData.value?.community ?? [])
@@ -530,6 +715,13 @@ useSchemaOrg(computed(() => {
 }))
 
 const skillTitle = computed(() => {
+  if (isSourceHub.value) {
+    const source = sourceHub.value
+    if (!source)
+      return 'Source skills'
+    const hub = repoHub.value
+    return hub ? `${hub.owner}/${hub.repo} skills` : `${source.owner} skills`
+  }
   if (!data.value)
     return 'Skill'
   const tagline = data.value.summary?.tagline
@@ -537,6 +729,13 @@ const skillTitle = computed(() => {
 })
 
 const skillDescription = computed(() => {
+  if (isSourceHub.value) {
+    const source = sourceHub.value
+    if (!source)
+      return 'View source skills on skilld.'
+    const count = repoSkills.value.length
+    return sourceDescription.value || `${count} agent ${count === 1 ? 'skill' : 'skills'} from ${sourceDisplayName.value || source.owner} on skilld.`
+  }
   if (!data.value)
     return 'View skill details on skilld.'
   const top = topCuratorReason.value
@@ -551,18 +750,342 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
-  robots: () => data.value?.seo.indexable ? 'index,follow' : 'noindex,follow',
+  robots: () => {
+    if (isOwnerHub.value)
+      return 'index,follow'
+    if (isRepoHub.value)
+      return 'noindex,follow'
+    if (isLegacySkillRoute.value)
+      return 'noindex,follow'
+    return data.value?.seo.indexable && !isWeakerDuplicate.value ? 'index,follow' : 'noindex,follow'
+  },
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
   twitterDescription: () => skillDescription.value,
 })
+
+useHead(computed(() => ({
+  link: [
+    {
+      rel: 'canonical',
+      href: isSourceHub.value ? sourceHubCanonicalUrl.value : canonicalSkillPageUrl.value,
+    },
+  ],
+})))
 </script>
 
 <template>
   <div>
+    <section
+      v-if="isSourceHub"
+      class="mx-auto max-w-5xl px-4 sm:px-6 pt-10 pb-8 md:pt-14"
+      aria-labelledby="repo-heading"
+    >
+      <NuxtLink
+        to="/skills"
+        class="inline-flex items-center gap-1.5 font-mono text-xs text-muted hover:text-default transition-colors mb-6"
+      >
+        <UIcon
+          name="i-lucide-arrow-left"
+          class="size-3.5"
+          aria-hidden="true"
+        />
+        All skills
+      </NuxtLink>
+
+      <div
+        v-if="isRepoHub ? repoSourceStatus === 'pending' && !repoSource : repoStatus === 'pending' && !repoProfile"
+        aria-busy="true"
+        class="space-y-4"
+      >
+        <div class="flex items-start gap-3">
+          <USkeleton class="size-12 rounded-md" />
+          <div class="min-w-0 flex-1 space-y-2">
+            <USkeleton class="h-6 w-64 max-w-full" />
+            <USkeleton class="h-4 w-48 max-w-full" />
+          </div>
+        </div>
+        <USkeleton class="h-4 w-full max-w-xl" />
+        <USkeleton class="h-24 w-full" />
+      </div>
+
+      <div
+        v-else-if="isRepoHub ? repoSourceError || !repoSource : repoError || !repoProfile"
+        class="py-12 text-center"
+        role="alert"
+      >
+        <UIcon
+          name="i-lucide-alert-circle"
+          class="mx-auto size-10 text-muted"
+          aria-hidden="true"
+        />
+        <h1
+          id="repo-heading"
+          class="mt-3 font-mono text-lg font-medium"
+        >
+          Source not found
+        </h1>
+        <p class="mt-1 text-sm text-muted">
+          Couldn't load <code class="font-mono">{{ sourceDisplayName }}</code> from GitHub or the skill index.
+        </p>
+        <div class="mt-4 flex items-center justify-center gap-2">
+          <UButton
+            to="/skills"
+            label="Browse skills"
+            size="sm"
+            variant="outline"
+            color="neutral"
+          />
+          <UButton
+            label="Retry"
+            size="sm"
+            variant="ghost"
+            color="neutral"
+            @click="isRepoHub ? refreshRepoSource() : refreshRepo()"
+          />
+        </div>
+      </div>
+
+      <template v-else>
+        <div class="flex items-start gap-3">
+          <NuxtLink
+            :to="ownerHubPath(sourceHub?.owner ?? repoProfile?.owner ?? '')"
+            class="shrink-0"
+            :aria-label="`${sourceHub?.owner ?? repoProfile?.owner} profile`"
+          >
+            <img
+              :src="sourceAvatar"
+              :alt="`${sourceHub?.owner ?? repoProfile?.owner} avatar`"
+              width="48"
+              height="48"
+              class="size-12 rounded-md border border-default"
+            >
+          </NuxtLink>
+          <div class="min-w-0 flex-1">
+            <h1
+              id="repo-heading"
+              class="font-mono text-xl font-medium"
+            >
+              {{ sourceDisplayName }}
+            </h1>
+            <p
+              v-if="sourceDescription"
+              class="mt-2 max-w-2xl text-sm text-muted leading-relaxed"
+            >
+              {{ sourceDescription }}
+            </p>
+            <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span class="data-label inline-flex items-center gap-1">
+                <UIcon
+                  name="i-lucide-package"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                {{ repoSkills.length }} {{ repoSkills.length === 1 ? 'skill' : 'skills' }}
+              </span>
+              <span
+                v-if="isOwnerHub && repoProfile && repoProfile.repos.length > 1"
+                class="data-label inline-flex items-center gap-1"
+              >
+                <UIcon
+                  name="i-lucide-git-branch"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                {{ repoProfile.repos.length }} repos
+              </span>
+              <span
+                v-if="sourceStars"
+                class="data-label inline-flex items-center gap-1"
+              >
+                <UIcon
+                  name="i-lucide-star"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                {{ sourceStars.toLocaleString() }}
+              </span>
+              <span
+                v-if="sourceForks"
+                class="data-label inline-flex items-center gap-1"
+              >
+                <UIcon
+                  name="i-lucide-git-fork"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                {{ sourceForks.toLocaleString() }}
+              </span>
+              <span
+                v-if="repoSource && repoSource.skillFileScanStatus === 'ok'"
+                class="data-label inline-flex items-center gap-1"
+              >
+                <UIcon
+                  name="i-lucide-file-text"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                {{ repoSource.skillFileCount }} SKILL.md
+              </span>
+              <span
+                v-if="sourceDefaultBranch"
+                class="data-label inline-flex items-center gap-1"
+              >
+                <UIcon
+                  name="i-lucide-git-branch"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                {{ sourceDefaultBranch }}
+              </span>
+              <span
+                v-if="sourcePushedAt"
+                class="data-label inline-flex items-center gap-1"
+                :title="new Date(sourcePushedAt).toLocaleDateString()"
+              >
+                <UIcon
+                  name="i-lucide-clock"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                Updated {{ sourcePushedAtAgo }}
+              </span>
+              <span
+                v-if="sourceCreatedAt"
+                class="data-label inline-flex items-center gap-1"
+                :title="new Date(sourceCreatedAt).toLocaleDateString()"
+              >
+                <UIcon
+                  name="i-lucide-sparkles"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                Created {{ sourceCreatedAtAgo }}
+              </span>
+              <UButton
+                :href="repoHubGithubUrl"
+                target="_blank"
+                rel="noopener"
+                label="GitHub"
+                icon="i-simple-icons-github"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+              />
+            </div>
+          </div>
+        </div>
+
+        <USeparator class="my-8" />
+
+        <section aria-labelledby="repo-skills-heading">
+          <h2
+            id="repo-skills-heading"
+            class="section-label mb-3"
+          >
+            Indexed skills
+          </h2>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <SkillCard
+              v-for="skill in repoSkills"
+              :key="skill.slug"
+              :skill="skill"
+              variant="compact"
+              signal="installs"
+              show-owner-path
+            />
+          </div>
+          <p
+            v-if="!repoSkills.length && !sourceConfirmedNoSkillMd"
+            class="text-sm text-muted leading-relaxed"
+          >
+            No indexed skills for this repository yet.
+          </p>
+          <div
+            v-if="sourceSkillFiles.length"
+            class="mt-6 rounded-lg border border-default p-4"
+          >
+            <h3 class="font-mono text-sm font-medium">
+              SKILL.md files
+            </h3>
+            <ul class="mt-3 space-y-2">
+              <li
+                v-for="path in sourceSkillFiles"
+                :key="path"
+              >
+                <a
+                  :href="`${repoHubGithubUrl}/blob/${sourceDefaultBranch}/${path}`"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex min-w-0 items-center gap-2 font-mono text-xs text-muted hover:text-default transition-colors"
+                >
+                  <UIcon
+                    name="i-lucide-file-text"
+                    class="size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span class="truncate">{{ path }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div
+            v-if="repoSourceScanNotice"
+            class="mt-6 flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
+            role="status"
+          >
+            <UIcon
+              name="i-lucide-info"
+              class="mt-0.5 size-4 shrink-0 text-muted"
+              aria-hidden="true"
+            />
+            <p class="text-muted leading-relaxed">
+              {{ repoSourceScanNotice }}
+            </p>
+          </div>
+          <div
+            v-if="sourceConfirmedNoSkillMd"
+            class="mt-6 rounded-lg border border-dashed border-default p-4 sm:p-5"
+          >
+            <div class="flex items-start gap-3">
+              <UIcon
+                name="i-lucide-file-plus"
+                class="mt-0.5 size-5 shrink-0 text-muted"
+                aria-hidden="true"
+              />
+              <div class="min-w-0 flex-1">
+                <h3 class="font-mono text-sm font-medium">
+                  Add a SKILL.md for this repo
+                </h3>
+                <p class="mt-1 max-w-2xl text-sm text-muted leading-relaxed">
+                  skilld did not find a SKILL.md in {{ sourceDisplayName }}. Add one to describe how agents should work in this repository.
+                </p>
+                <div class="mt-3 flex items-center gap-2">
+                  <code class="min-w-0 flex-1 truncate rounded-lg border border-default bg-muted px-3 py-2 font-mono text-sm">
+                    {{ skilldInitCmd }}
+                  </code>
+                  <UButton
+                    :href="repoHubGithubUrl"
+                    target="_blank"
+                    rel="noopener"
+                    label="Open repo"
+                    icon="i-simple-icons-github"
+                    size="sm"
+                    color="neutral"
+                    variant="outline"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </template>
+    </section>
+
     <!-- HERO -->
     <section
+      v-else
       class="mx-auto max-w-5xl px-4 sm:px-6 pt-10 pb-6 md:pt-14"
       :aria-labelledby="data && !error ? 'skill-heading' : undefined"
       :aria-label="!data || error ? 'Skill details' : undefined"
@@ -640,7 +1163,7 @@ useSeoMeta({
         <div class="min-w-0">
           <div class="flex items-start gap-3">
             <NuxtLink
-              :to="`/orgs/${data.owner}`"
+              :to="ownerHubPath(data.owner)"
               class="shrink-0"
               :aria-label="`${data.owner} profile`"
             >
@@ -679,7 +1202,7 @@ useSeoMeta({
               </div>
               <p class="mt-1 font-mono text-sm text-muted">
                 <NuxtLink
-                  :to="`/orgs/${data.owner}`"
+                  :to="repoHubPath(data.owner, data.repo)"
                   class="hover:text-default transition-colors"
                 >
                   {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
@@ -1056,7 +1579,7 @@ useSeoMeta({
             <p class="mt-3 text-xs text-muted">
               Source:
               <a
-                :href="`${githubUrl}/blob/main/${data.repo === 'skills' ? `${data.name}/` : ''}SKILL.md`"
+                :href="data.provenance?.skillFileUrl || githubUrl"
                 target="_blank"
                 rel="noopener"
                 class="font-mono hover:text-default transition-colors"
@@ -1434,6 +1957,98 @@ useSeoMeta({
             </div>
           </section>
 
+          <!-- Duplicate siblings -->
+          <section
+            v-if="duplicateGroup?.siblings.length"
+            aria-labelledby="duplicate-siblings-heading"
+          >
+            <h2
+              id="duplicate-siblings-heading"
+              class="section-label mb-3"
+            >
+              Also available from
+            </h2>
+            <div class="divide-y divide-default rounded-lg border border-default overflow-hidden">
+              <NuxtLink
+                v-for="sibling in duplicateGroup.siblings"
+                :key="sibling.slug"
+                :to="repoSkillPath(sibling.owner, sibling.repo, sibling.name)"
+                class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
+                :title="`${sibling.owner}/${sibling.repo} · ${sibling.installs.toLocaleString()} installs`"
+              >
+                <UIcon
+                  name="i-lucide-git-branch"
+                  class="size-3.5 shrink-0 text-muted"
+                  aria-hidden="true"
+                />
+                <span class="min-w-0 flex-1 truncate font-mono text-xs text-muted">
+                  {{ sibling.owner }}/{{ sibling.repo }}
+                </span>
+                <span
+                  v-if="sibling.slug === duplicateGroup.canonical.slug"
+                  class="shrink-0 font-mono text-[11px] text-muted/70"
+                >
+                  canonical
+                </span>
+              </NuxtLink>
+            </div>
+          </section>
+
+          <!-- Deterministic metadata -->
+          <section aria-labelledby="metadata-heading">
+            <h2
+              id="metadata-heading"
+              class="section-label mb-3"
+            >
+              Metadata
+            </h2>
+            <dl class="divide-y divide-default rounded-lg border border-default text-sm">
+              <div class="flex items-center justify-between gap-3 px-3 py-2.5">
+                <dt class="data-label">
+                  Description
+                </dt>
+                <dd class="font-mono text-xs text-muted">
+                  {{ data.sourceFacts.description.length }} chars{{ data.sourceFacts.description.source ? ` · ${data.sourceFacts.description.source}` : '' }}
+                </dd>
+              </div>
+              <div class="flex items-center justify-between gap-3 px-3 py-2.5">
+                <dt class="data-label">
+                  Frontmatter
+                </dt>
+                <dd class="font-mono text-xs text-muted">
+                  {{ data.sourceFacts.frontmatter.present ? `${data.sourceFacts.frontmatter.keys.length} keys` : 'missing' }}
+                </dd>
+              </div>
+              <div
+                v-if="allowedTools.length"
+                class="flex items-center justify-between gap-3 px-3 py-2.5"
+              >
+                <dt class="data-label">
+                  Allowed tools
+                </dt>
+                <dd class="font-mono text-xs text-muted">
+                  {{ allowedTools.length }}
+                </dd>
+              </div>
+              <div
+                v-if="!data.sourceFacts.source.resolved || (data.sourceFacts.source.syncStatus && data.sourceFacts.source.syncStatus !== 'ok')"
+                class="flex items-center justify-between gap-3 px-3 py-2.5"
+              >
+                <dt class="data-label">
+                  Source
+                </dt>
+                <dd class="inline-flex items-center gap-1.5 font-mono text-xs text-amber-500">
+                  <UIcon
+                    name="i-lucide-alert-triangle"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ data.sourceFacts.source.syncStatus || data.sourceFacts.source.resolutionStatus }}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
           <!-- Capability -->
           <section
             v-if="capabilitySummary || skillModel || frontmatterEntries.length"
@@ -1668,7 +2283,7 @@ useSeoMeta({
             <NuxtLink
               v-for="item in currentRelatedItems"
               :key="`${relatedTab}-${item.slug}`"
-              :to="`/skills/${item.slug}`"
+              :to="repoSkillPath(item.owner, item.repo, item.name)"
               class="group flex items-start gap-3 rounded-lg border border-default p-4 transition-colors hover:border-inverted/30"
             >
               <img

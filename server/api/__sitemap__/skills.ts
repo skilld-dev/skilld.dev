@@ -1,3 +1,4 @@
+import { repoSkillPath } from '../../utils/skill-routes'
 import { listAllSkillsForSitemap, listSupportedSkillsForSitemap } from '../../utils/skills-registry'
 
 export default defineSitemapEventHandler(async (event) => {
@@ -7,7 +8,7 @@ export default defineSitemapEventHandler(async (event) => {
     ? await listSupportedSkillsForSitemap(event)
     : await listAllSkillsForSitemap(event)
   return skills.map(s => ({
-    loc: `/skills/${s.owner}/${s.repo}/${s.name}`,
+    loc: repoSkillPath(s.owner, s.repo, s.name),
     changefreq: 'weekly' as const,
   }))
 })

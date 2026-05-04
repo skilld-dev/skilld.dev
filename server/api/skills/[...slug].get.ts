@@ -7,7 +7,7 @@ import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { listCollectionRecords } from '../../utils/atproto/collections'
 import { getAllCurators } from '../../utils/atproto/curator-index'
 import { getGenerated } from '../../utils/skill-generated'
-import { findSkill } from '../../utils/skills-registry'
+import { findSkill, findSupportedDuplicateGroupForSkill } from '../../utils/skills-registry'
 
 const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
 const HTML_ESCAPE_RE = /[&<>"']/g
@@ -96,6 +96,14 @@ const OFFICIAL_REPO_KEYS = new Set(officialRepos.map(r => `${r.owner}/${r.repo}`
 const OFFICIAL_REPO_KIND = new Map(officialRepos.map(r => [`${r.owner}/${r.repo}`, r.kind]))
 
 export type SkillTier = 'official-org' | 'official-user' | 'community'
+type CapabilityScope = 'read' | 'write' | 'exec' | 'net'
+
+const TOOL_CATEGORIES: { match: RegExp, scope: CapabilityScope }[] = [
+  { match: /^(Read|Glob|Grep|NotebookRead|LS)$/i, scope: 'read' },
+  { match: /^(Edit|Write|MultiEdit|NotebookEdit)$/i, scope: 'write' },
+  { match: /^(Bash|Task|KillBash|BashOutput)$/i, scope: 'exec' },
+  { match: /^(WebFetch|WebSearch|mcp__.*fetch.*|mcp__.*http.*)$/i, scope: 'net' },
+]
 
 function resolveTier(owner: string, repo: string): SkillTier {
   const key = `${owner}/${repo}`
@@ -114,6 +122,59 @@ function computeMaturity(createdAt: string | null, pushedAt: string | null): { a
   return { ageDays, sinceUpdateDays, cadence }
 }
 
+function parseAllowedTools(frontmatter: Record<string, unknown> | null): string[] {
+  const raw = frontmatter?.['allowed-tools']
+  if (Array.isArray(raw))
+    return raw.map(String).map(s => s.trim()).filter(Boolean)
+  if (typeof raw !== 'string' || !raw)
+    return []
+  return raw.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+function classifyAllowedTools(allowedTools: string[]): { scopes: CapabilityScope[], mcpServers: string[] } {
+  const scopes = new Set<CapabilityScope>()
+  const mcpServers: string[] = []
+
+  for (const raw of allowedTools) {
+    const tool = raw.split('(')[0]!.trim()
+    if (tool.startsWith('mcp__')) {
+      const server = tool.split('__')[1]
+      if (server && !mcpServers.includes(server))
+        mcpServers.push(server)
+    }
+    for (const cat of TOOL_CATEGORIES) {
+      if (cat.match.test(tool))
+        scopes.add(cat.scope)
+    }
+  }
+
+  return { scopes: [...scopes], mcpServers }
+}
+
+function frontmatterString(frontmatter: Record<string, unknown> | null, key: string): string | null {
+  const value = frontmatter?.[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function secondsAgo(ts: number | null | undefined): number | null {
+  if (!ts)
+    return null
+  return Math.max(0, Math.floor(Date.now() / 1000) - ts)
+}
+
+function daysFromSecondsAgo(value: number | null): number | null {
+  return value === null ? null : Math.floor(value / (ONE_DAY_MS / 1000))
+}
+
+function isoToSecondsAgo(value: string | null | undefined): number | null {
+  if (!value)
+    return null
+  const time = new Date(value).getTime()
+  if (!Number.isFinite(time))
+    return null
+  return Math.max(0, Math.floor((Date.now() - time) / 1000))
+}
+
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
   if (!slug)
@@ -125,17 +186,18 @@ export default defineEventHandler(async (event) => {
 
   const githubUrl = `https://github.com/${skill.owner}/${skill.repo}`
 
-  const [curators, repoMeta, revision, latestCommit] = await Promise.all([
+  const [curators, repoMeta, revision, latestCommit, duplicateGroup] = await Promise.all([
     getEndorsementsForSkill(getDB(event), skill.name),
     getRepoMeta(skill.owner, skill.repo),
     getDB(event)
-      .prepare(`SELECT modified_at, references_count, last_synced_at, sync_status,
+      .prepare(`SELECT current_sha, modified_at, references_count, last_synced_at, sync_status,
                        seo_index_score, seo_indexable, seo_index_reasons, seo_index_synced_at,
                        curator_count, curator_reason_count, approved_social_count, author_social_count,
                        trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at
                 FROM skills WHERE owner = ? AND name = ?`)
       .bind(skill.owner, skill.name)
       .first<{
+      current_sha: string | null
       modified_at: number | null
       references_count: number | null
       last_synced_at: number | null
@@ -158,6 +220,7 @@ export default defineEventHandler(async (event) => {
       .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
       .bind(skill.owner, skill.name)
       .first<{ sha: string }>(),
+    findSupportedDuplicateGroupForSkill(event, skill.slug),
   ])
 
   if (repoMeta === 'not-found')
@@ -178,6 +241,12 @@ export default defineEventHandler(async (event) => {
     .map(s => TAG_BY_SLUG.get(s))
     .filter((t): t is NonNullable<typeof t> => Boolean(t))
 
+  const description = repoMeta?.description ?? frontmatterString(rendered.frontmatter, 'description')
+  const allowedTools = parseAllowedTools(rendered.frontmatter)
+  const capability = classifyAllowedTools(allowedTools)
+  const sourceResolved = Boolean(rendered.status === 'ok' && rendered.skillPath && rendered.raw)
+  const sourceCommitSha = latestCommit?.sha ?? revision?.current_sha ?? null
+
   return {
     owner: skill.owner,
     repo: skill.repo,
@@ -194,13 +263,50 @@ export default defineEventHandler(async (event) => {
     frontmatter: rendered.frontmatter,
     raw: rendered.raw,
     curators,
-    description: repoMeta?.description ?? (typeof rendered.frontmatter?.description === 'string' ? rendered.frontmatter.description : null),
+    description,
     stars: repoMeta?.stars ?? 0,
     forks: repoMeta?.forks ?? 0,
     pushedAt: repoMeta?.pushedAt ?? null,
     createdAt: repoMeta?.createdAt ?? null,
     maturity: computeMaturity(repoMeta?.createdAt ?? null, repoMeta?.pushedAt ?? null),
     tier: resolveTier(skill.owner, skill.repo),
+    sourceFacts: {
+      description: {
+        present: Boolean(description?.trim()),
+        length: description?.trim().length ?? 0,
+        source: repoMeta?.description ? 'repository' : frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : null,
+      },
+      repository: {
+        pushedAt: repoMeta?.pushedAt ?? null,
+        pushedAgeDays: daysFromSecondsAgo(isoToSecondsAgo(repoMeta?.pushedAt ?? null)),
+        createdAt: repoMeta?.createdAt ?? null,
+        stars: repoMeta?.stars ?? 0,
+        forks: repoMeta?.forks ?? 0,
+        defaultBranch: branch,
+      },
+      source: {
+        resolved: sourceResolved,
+        resolutionStatus: rendered.status,
+        skillPath: rendered.skillPath,
+        currentSha: revision?.current_sha ?? null,
+        hasCurrentSha: Boolean(revision?.current_sha),
+        latestRevisionSha: latestCommit?.sha ?? null,
+        modifiedAt: revision?.modified_at ?? null,
+        modifiedAgeDays: daysFromSecondsAgo(secondsAgo(revision?.modified_at)),
+        referencesCount: revision?.references_count ?? 0,
+        lastSyncedAt: revision?.last_synced_at ?? null,
+        lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(revision?.last_synced_at)),
+        syncStatus: revision?.sync_status ?? null,
+      },
+      frontmatter: {
+        present: Boolean(rendered.frontmatter && Object.keys(rendered.frontmatter).length),
+        keys: rendered.frontmatter ? Object.keys(rendered.frontmatter).sort() : [],
+        model: frontmatterString(rendered.frontmatter, 'model'),
+        allowedTools,
+        capabilityScopes: capability.scopes,
+        mcpServers: capability.mcpServers,
+      },
+    },
     tags,
     faqs: faqRow?.payload.items ?? [],
     summary: summaryRow?.payload
@@ -215,12 +321,12 @@ export default defineEventHandler(async (event) => {
       repo: skill.repo,
       branch,
       skillPath: rendered.skillPath,
-      sourceCommitSha: latestCommit?.sha ?? null,
-      sourceCommitUrl: latestCommit?.sha
-        ? `${githubUrl}/commit/${latestCommit.sha}`
+      sourceCommitSha,
+      sourceCommitUrl: sourceCommitSha
+        ? `${githubUrl}/commit/${sourceCommitSha}`
         : null,
       skillFileUrl: rendered.skillPath
-        ? `${githubUrl}/blob/${latestCommit?.sha ?? branch}/${rendered.skillPath}`
+        ? `${githubUrl}/blob/${sourceCommitSha ?? branch}/${rendered.skillPath}`
         : null,
       historyUrl: rendered.skillPath
         ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
@@ -247,6 +353,7 @@ export default defineEventHandler(async (event) => {
       reasons: revision?.trust_reasons ? JSON.parse(revision.trust_reasons) as string[] : [],
       syncedAt: revision?.trust_synced_at ?? null,
     },
+    duplicateGroup,
   }
 })
 

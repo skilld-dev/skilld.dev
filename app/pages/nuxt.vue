@@ -28,12 +28,8 @@ const skillsByOwner = computed(() => {
     .sort((a, b) => b.skills.length - a.skills.length || a.owner.localeCompare(b.owner))
 })
 
-function skillSlug(skill: { owner: string, repo: string, name: string }) {
-  return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
-}
-
 function skillPath(skill: { owner: string, repo: string, name: string }) {
-  return `/skills/${skillSlug(skill)}`
+  return repoSkillPath(skill.owner, skill.repo, skill.name)
 }
 
 function formatStars(n: number): string {
@@ -259,7 +255,7 @@ useSchemaOrg(computed(() => {
             :key="o.owner"
           >
             <NuxtLink
-              :to="`/orgs/${o.owner}`"
+              :to="ownerHubPath(o.owner)"
               :aria-label="`@${o.owner}, ${o.count} Nuxt ${o.count === 1 ? 'skill' : 'skills'}`"
               class="block rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
             >
@@ -313,7 +309,7 @@ useSchemaOrg(computed(() => {
             <div class="mb-3 flex items-baseline gap-3">
               <h3 class="font-mono text-sm font-medium">
                 <NuxtLink
-                  :to="`/orgs/${group.owner}`"
+                  :to="ownerHubPath(group.owner)"
                   class="hover:text-muted transition-colors"
                 >
                   @{{ group.owner }}

@@ -30,7 +30,7 @@ test.describe('multi-sitemap', () => {
     const locs = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), m => new URL(m[1]!).pathname)
     expect(locs.length).toBeGreaterThan(0)
     for (const loc of locs) {
-      expect(loc).toMatch(/^\/skills\//)
+      expect(loc).toMatch(/^\/gh\//)
     }
   })
 

@@ -57,12 +57,12 @@ const lastSyncedLabel = computed(() => {
 function skillSlug(s: { packageName: string, owner: string | null, repo: string | null }) {
   if (!s.owner)
     return s.packageName
-  if (s.repo && s.repo !== 'skills')
-    return `${s.owner}/${s.repo}/${s.packageName}`
-  return `${s.owner}/${s.packageName}`
+  return `${s.owner}/${s.repo ?? 'skills'}/${s.packageName}`
 }
 function skillPath(s: { packageName: string, owner: string | null, repo: string | null }) {
-  return `/skills/${skillSlug(s)}`
+  if (!s.owner)
+    return `/skills/${s.packageName}`
+  return repoSkillPath(s.owner, s.repo ?? 'skills', s.packageName)
 }
 function curatorPath(handle: string) {
   return `/people/${handle}`

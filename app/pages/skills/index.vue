@@ -189,12 +189,8 @@ function highlight(text: string): string {
   )
 }
 
-function skillSlug(skill: { owner: string, repo: string, name: string }) {
-  return `${skill.owner}/${skill.repo === 'skills' ? skill.name : `${skill.repo}/${skill.name}`}`
-}
-
 function skillPath(skill: { owner: string, repo: string, name: string }) {
-  return `/skills/${skillSlug(skill)}`
+  return repoSkillPath(skill.owner, skill.repo, skill.name)
 }
 
 function npmResultPath(name: string): string {
@@ -239,7 +235,7 @@ function clearOwner() {
           class="font-mono"
         />
         <UButton
-          :to="`/orgs/${owner}`"
+          :to="ownerHubPath(owner)"
           icon="i-lucide-arrow-right"
           size="xs"
           color="neutral"
@@ -494,7 +490,7 @@ function clearOwner() {
           >
             <div class="mb-3 flex items-center gap-3">
               <NuxtLink
-                :to="`/orgs/${section.owner}`"
+                :to="ownerHubPath(section.owner)"
                 :aria-label="`${section.owner} profile`"
                 class="shrink-0"
               >
@@ -509,7 +505,7 @@ function clearOwner() {
               </NuxtLink>
               <h3 class="font-mono text-sm font-medium">
                 <NuxtLink
-                  :to="`/orgs/${section.owner}`"
+                  :to="ownerHubPath(section.owner)"
                   class="hover:text-muted transition-colors"
                 >
                   {{ section.owner }}
@@ -519,7 +515,7 @@ function clearOwner() {
                 {{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }}
               </span>
               <NuxtLink
-                :to="`/orgs/${section.owner}`"
+                :to="ownerHubPath(section.owner)"
                 class="ml-auto font-mono text-xs text-muted hover:text-default transition-colors"
               >
                 View profile →
