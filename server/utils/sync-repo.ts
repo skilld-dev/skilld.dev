@@ -1,8 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import type { GithubBindings } from './github-client'
+import type { SkillTrustTier } from './skill-trust'
 import { getCommits, getRawFile, getRepo, getTree, logRateLimit } from './github-client'
 import { parseSkillFile } from './skill-frontmatter'
+import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
+import { resolveSkillTrust } from './skill-trust'
 
 export interface SyncRepoStats {
   owner: string
@@ -69,6 +72,18 @@ interface SkillSnapshot {
   path: string
   dirName: string
   treeSha: string
+}
+
+interface RepoTrustOverrideRow {
+  tier: SkillTrustTier
+  reason: string | null
+}
+
+async function getRepoTrustOverride(db: D1Database, owner: string, repo: string): Promise<RepoTrustOverrideRow | null> {
+  return await db
+    .prepare('SELECT tier, reason FROM repo_trust_overrides WHERE owner = ? AND repo = ?')
+    .bind(owner, repo)
+    .first<RepoTrustOverrideRow>()
 }
 
 export async function syncRepo(
@@ -153,6 +168,7 @@ export async function syncRepo(
   const forks = meta.forks_count ?? 0
   const repoCreatedAt = epoch(meta.created_at)
   const repoDescription = meta.description?.trim() || null
+  const repoOverride = await getRepoTrustOverride(db, owner, repo)
 
   const seenNames = new Set<string>()
 
@@ -169,6 +185,33 @@ export async function syncRepo(
     const isNewToRegistry = !prev || prev.current_sha == null
     const contentChanged = prev?.current_sha !== file.treeSha
     const firstSeenAt = prev?.first_seen_at ?? now
+    const isOfficial = isOfficialSkillRepo(owner, repo)
+    const trust = resolveSkillTrust({
+      owner,
+      repo,
+      sourceResolved: true,
+      installs: 0,
+      curatorReasonCount: 0,
+      approvedSocialCount: 0,
+      repoSkillCount: skillFiles.length,
+      overrideTier: repoOverride?.tier,
+      overrideReason: repoOverride?.reason,
+    })
+    const indexability = scoreSkillIndexability({
+      isOfficial,
+      sourceResolved: true,
+      trustTier: trust.tier,
+      curatorCount: 0,
+      curatorReasonCount: 0,
+      approvedSocialCount: 0,
+      authorSocialCount: 0,
+      installs: 0,
+      stars,
+      pushedAt: repoPushedAt,
+      referencesCount: refsCount,
+      description,
+      repoSkillCount: skillFiles.length,
+    }, now)
 
     let modifiedAt = prev?.modified_at ?? null
     if (contentChanged) {
@@ -206,8 +249,12 @@ export async function syncRepo(
            stars, forks, pushed_at, repo_created_at, description, default_branch,
            repo_meta_synced_at, broken_since,
            current_sha, modified_at, first_seen_at, references_count,
-           last_synced_at, sync_status, last_tree_sha
-         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'ok', ?)
+           last_synced_at, sync_status, last_tree_sha,
+           is_official, source_resolved, seo_index_score, seo_indexable,
+           seo_index_reasons, seo_index_synced_at,
+           trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
+           repo_skill_count
+         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'ok', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(owner, name) DO UPDATE SET
            repo = excluded.repo,
            display_name = excluded.display_name,
@@ -225,7 +272,19 @@ export async function syncRepo(
            references_count = excluded.references_count,
            last_synced_at = excluded.last_synced_at,
            sync_status = 'ok',
-           last_tree_sha = excluded.last_tree_sha`,
+           last_tree_sha = excluded.last_tree_sha,
+           is_official = excluded.is_official,
+           source_resolved = excluded.source_resolved,
+           seo_index_score = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_index_score ELSE skills.seo_index_score END,
+           seo_indexable = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_indexable ELSE skills.seo_indexable END,
+           seo_index_reasons = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_index_reasons ELSE skills.seo_index_reasons END,
+           seo_index_synced_at = COALESCE(skills.seo_index_synced_at, excluded.seo_index_synced_at),
+           trust_tier = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_tier ELSE skills.trust_tier END,
+           trust_source = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_source ELSE skills.trust_source END,
+           trust_score = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_score ELSE skills.trust_score END,
+           trust_reasons = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_reasons ELSE skills.trust_reasons END,
+           trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at),
+           repo_skill_count = excluded.repo_skill_count`,
       )
       .bind(
         parsed.name,
@@ -246,6 +305,17 @@ export async function syncRepo(
         refsCount,
         now,
         tree.sha,
+        isOfficial ? 1 : 0,
+        indexability.score,
+        indexability.indexable ? 1 : 0,
+        JSON.stringify(indexability.reasons),
+        now,
+        trust.tier,
+        trust.source,
+        trust.score,
+        JSON.stringify(trust.reasons),
+        now,
+        skillFiles.length,
       )
       .run()
     stats.skillsUpserted += 1
@@ -275,8 +345,22 @@ export async function syncRepo(
   for (const [name] of existing) {
     if (!seenNames.has(name)) {
       await db
-        .prepare(`UPDATE skills SET broken_since = COALESCE(broken_since, ?) WHERE owner = ? AND name = ?`)
-        .bind(now, owner, name)
+        .prepare(
+          `UPDATE skills
+           SET broken_since = COALESCE(broken_since, ?),
+               source_resolved = 0,
+               seo_indexable = 0,
+               seo_index_score = MIN(seo_index_score, 0),
+               seo_index_reasons = '["source_missing"]',
+               seo_index_synced_at = ?,
+               trust_tier = 'quarantined',
+               trust_source = 'computed',
+               trust_score = -50,
+               trust_reasons = '["source_missing"]',
+               trust_synced_at = ?
+           WHERE owner = ? AND name = ?`,
+        )
+        .bind(now, now, now, owner, name)
         .run()
     }
   }

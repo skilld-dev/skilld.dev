@@ -76,7 +76,7 @@ export default defineEventHandler(async (event) => {
       fetched.score,
       fetched.postedAt,
       now,
-      status === 'approved' ? admin.handle : null,
+      status === 'approved' ? admin.email : null,
       status === 'approved' ? now : null,
     )
     .run()

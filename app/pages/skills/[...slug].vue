@@ -103,6 +103,23 @@ const { data, status, error, refresh } = useFetch(
     lastSyncedAt: number | null
     syncStatus: string | null
   } | null
+  seo: {
+    indexScore: number
+    indexable: boolean
+    reasons: string[]
+    syncedAt: number | null
+    curatorCount: number
+    curatorReasonCount: number
+    approvedSocialCount: number
+    authorSocialCount: number
+  }
+  trust: {
+    tier: string
+    source: string
+    score: number
+    reasons: string[]
+    syncedAt: number | null
+  }
 }>>
 
 const { data: relatedData } = useFetch(
@@ -523,6 +540,7 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
+  robots: () => data.value?.seo.indexable ? 'index,follow' : 'noindex,follow',
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,

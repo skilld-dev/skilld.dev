@@ -129,7 +129,10 @@ export default defineEventHandler(async (event) => {
     getEndorsementsForSkill(getDB(event), skill.name),
     getRepoMeta(skill.owner, skill.repo),
     getDB(event)
-      .prepare(`SELECT modified_at, references_count, last_synced_at, sync_status
+      .prepare(`SELECT modified_at, references_count, last_synced_at, sync_status,
+                       seo_index_score, seo_indexable, seo_index_reasons, seo_index_synced_at,
+                       curator_count, curator_reason_count, approved_social_count, author_social_count,
+                       trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at
                 FROM skills WHERE owner = ? AND name = ?`)
       .bind(skill.owner, skill.name)
       .first<{
@@ -137,6 +140,19 @@ export default defineEventHandler(async (event) => {
       references_count: number | null
       last_synced_at: number | null
       sync_status: string | null
+      seo_index_score: number | null
+      seo_indexable: number | null
+      seo_index_reasons: string | null
+      seo_index_synced_at: number | null
+      curator_count: number | null
+      curator_reason_count: number | null
+      approved_social_count: number | null
+      author_social_count: number | null
+      trust_tier: string | null
+      trust_source: string | null
+      trust_score: number | null
+      trust_reasons: string | null
+      trust_synced_at: number | null
     }>(),
     getDB(event)
       .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
@@ -213,6 +229,23 @@ export default defineEventHandler(async (event) => {
       referencesCount: revision?.references_count ?? 0,
       lastSyncedAt: revision?.last_synced_at ?? null,
       syncStatus: revision?.sync_status ?? null,
+    },
+    seo: {
+      indexScore: revision?.seo_index_score ?? 0,
+      indexable: revision?.seo_indexable === 1,
+      reasons: revision?.seo_index_reasons ? JSON.parse(revision.seo_index_reasons) as string[] : [],
+      syncedAt: revision?.seo_index_synced_at ?? null,
+      curatorCount: revision?.curator_count ?? 0,
+      curatorReasonCount: revision?.curator_reason_count ?? 0,
+      approvedSocialCount: revision?.approved_social_count ?? 0,
+      authorSocialCount: revision?.author_social_count ?? 0,
+    },
+    trust: {
+      tier: revision?.trust_tier ?? 'untrusted',
+      source: revision?.trust_source ?? 'computed',
+      score: revision?.trust_score ?? 0,
+      reasons: revision?.trust_reasons ? JSON.parse(revision.trust_reasons) as string[] : [],
+      syncedAt: revision?.trust_synced_at ?? null,
     },
   }
 })
@@ -464,7 +497,11 @@ function parseSkillMd(raw: string): { frontmatter: Record<string, unknown>, body
     body = fmMatch[2]!
   }
 
-  const html = (skillMd.parse(body) as string).replace(/<pre(?![^>]*\btabindex=)/g, '<pre tabindex="0"')
+  const html = (skillMd.parse(body) as string).replace(/<pre\b([^>]*)>/g, (match, attrs: string) => {
+    if (/\btabindex=/.test(attrs))
+      return match
+    return `<pre tabindex="0"${attrs}>`
+  })
   return { frontmatter, body, html }
 }
 

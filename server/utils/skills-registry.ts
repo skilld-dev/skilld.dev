@@ -18,6 +18,10 @@ export interface RegistrySkill {
   slug: string
   stars: number
   description: string | null
+  seoIndexScore: number
+  seoIndexable: boolean
+  trustTier: string
+  trustScore: number
 }
 
 interface SkillRow {
@@ -29,6 +33,10 @@ interface SkillRow {
   slug: string
   stars: number | null
   description: string | null
+  seo_index_score: number | null
+  seo_indexable: number | null
+  trust_tier: string | null
+  trust_score: number | null
 }
 
 function rowToSkill(row: SkillRow): RegistrySkill {
@@ -41,6 +49,10 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     slug: row.slug,
     stars: row.stars ?? 0,
     description: row.description ?? null,
+    seoIndexScore: row.seo_index_score ?? 0,
+    seoIndexable: row.seo_indexable === 1,
+    trustTier: row.trust_tier ?? 'untrusted',
+    trustScore: row.trust_score ?? 0,
   }
 }
 
@@ -299,7 +311,7 @@ export interface SkillSitemapEntry {
 export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   const db = getDB(event)
   const res = await db
-    .prepare(`SELECT name, owner, repo FROM skills WHERE ${NOT_BROKEN_SQL}`)
+    .prepare(`SELECT name, owner, repo FROM skills WHERE ${NOT_BROKEN_SQL} AND seo_indexable = 1`)
     .all<SkillSitemapEntry>()
   return res.results ?? []
 }

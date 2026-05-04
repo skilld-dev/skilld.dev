@@ -71,7 +71,10 @@ async function fetchInstallsFromHtml(id: string): Promise<{ installs: number | n
   const m = PAGE_INSTALLS_RE.exec(html)
   if (!m)
     return { installs: null, formatted: null }
-  const formatted = m[1].trim()
+  const rawFormatted = m[1]
+  if (!rawFormatted)
+    return { installs: null, formatted: null }
+  const formatted = rawFormatted.trim()
   return { installs: parseFormattedCount(formatted), formatted }
 }
 

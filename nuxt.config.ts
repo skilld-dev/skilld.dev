@@ -1,4 +1,5 @@
 export default defineNuxtConfig({
+  extends: ['./layers/admin'],
 
   modules: [
     '@nuxt/eslint',

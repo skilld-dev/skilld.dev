@@ -1,8 +1,8 @@
 <script setup lang="ts">
-definePageMeta({ layout: false })
+definePageMeta({ layout: 'admin' })
 
 const { user, isAuthenticated, isLoading } = useAuth()
-const isAdmin = computed(() => user.value?.handle === 'harlanzw.com')
+const isAdmin = computed(() => user.value?.email?.toLowerCase() === 'harlan@harlanzw.com')
 
 useSeoMeta({
   title: 'Social queue (admin)',
@@ -130,7 +130,7 @@ const statusTabs = [
       v-else-if="!isAuthenticated || !isAdmin"
       class="rounded-lg border border-default p-6 text-sm"
     >
-      Sign in as <code class="font-mono">harlanzw.com</code> to access this page.
+      Sign in as <code class="font-mono">harlan@harlanzw.com</code> to access this page.
     </div>
 
     <template v-else>

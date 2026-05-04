@@ -1,6 +1,7 @@
 export interface AuthUser {
   did: string
   handle: string
+  email?: string
   avatar?: string
 }
 

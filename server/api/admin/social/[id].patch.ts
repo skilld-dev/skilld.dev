@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
     binds.push(body.status)
     if (body.status === 'approved') {
       updates.push('approved_by = ?', 'approved_at = ?')
-      binds.push(admin.handle, Math.floor(Date.now() / 1000))
+      binds.push(admin.email, Math.floor(Date.now() / 1000))
     }
   }
   if (body.role) {

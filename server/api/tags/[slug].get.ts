@@ -52,6 +52,10 @@ function rowToSkill(r: SkillRow): RegistrySkill {
     slug: r.slug,
     stars: r.stars ?? 0,
     description: r.description ?? null,
+    seoIndexScore: 0,
+    seoIndexable: false,
+    trustTier: 'untrusted',
+    trustScore: 0,
   }
 }
 
