@@ -1,4 +1,18 @@
 <script setup lang="ts">
+const title = 'Curated agent skills from trusted open-source developers · skilld'
+
+useSeoMeta({
+  title,
+  ogTitle: title,
+})
+
+useHead({
+  titleTemplate: null,
+  templateParams: {
+    separator: '·',
+  },
+})
+
 defineOgImage('Splash.takumi', {}, { alt: 'skilld — curated agent skills from trusted open-source developers' })
 
 const authModalOpen = inject<Ref<boolean>>('authModalOpen', ref(false))
@@ -255,6 +269,7 @@ function toggleCollection(slug: string) {
             :show-copy="false"
             show-owner-avatar
             show-owner-path
+            timestamp-label="Published"
           />
         </li>
       </ul>

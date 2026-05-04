@@ -9,6 +9,7 @@ interface SkillLike {
   stars?: number
   tags?: string[]
   official?: boolean
+  occurredAt?: number | null
 }
 
 const {
@@ -20,6 +21,7 @@ const {
   showOwnerAvatar = false,
   showOwnerPath = false,
   showTags = false,
+  timestampLabel,
 } = defineProps<{
   skill: SkillLike
   variant?: 'grid' | 'list' | 'compact'
@@ -29,6 +31,7 @@ const {
   showOwnerAvatar?: boolean
   showOwnerPath?: boolean
   showTags?: boolean
+  timestampLabel?: string
 }>()
 
 const installCmd = computed(() => gitInstallCmd(skill.owner, skill.repo, skill.name))
@@ -61,6 +64,23 @@ function formatCount(n: number): string {
     return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
   return n.toLocaleString()
 }
+
+function formatTimestamp(epochSeconds: number): string {
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(epochSeconds * 1000))
+}
+
+const timestampDate = computed(() =>
+  typeof skill.occurredAt === 'number' ? new Date(skill.occurredAt * 1000) : null,
+)
+
+const formattedTimestamp = computed(() =>
+  typeof skill.occurredAt === 'number' ? formatTimestamp(skill.occurredAt) : null,
+)
 
 const resolvedSignal = computed<'installs' | 'stars' | null>(() => {
   if (signal === 'none')
@@ -137,6 +157,22 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
             {{ ownerPath }}
           </p>
           <p
+            v-if="timestampLabel && timestampDate"
+            class="hidden items-center gap-1 text-xs text-muted sm:inline-flex"
+          >
+            <UIcon
+              name="i-lucide-calendar-days"
+              class="size-3"
+              aria-hidden="true"
+            />
+            <time
+              :datetime="timestampDate.toISOString()"
+              :title="timestampDate.toISOString()"
+            >
+              {{ timestampLabel }} {{ formattedTimestamp }}
+            </time>
+          </p>
+          <p
             v-if="showDescription && skill.description"
             class="text-xs text-muted truncate hidden sm:block"
           >
@@ -203,6 +239,22 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
           class="mt-0.5 text-xs text-muted truncate"
         >
           {{ ownerPath }}
+        </p>
+        <p
+          v-if="timestampLabel && timestampDate"
+          class="mt-2 inline-flex items-center gap-1 text-xs text-muted"
+        >
+          <UIcon
+            name="i-lucide-calendar-days"
+            class="size-3"
+            aria-hidden="true"
+          />
+          <time
+            :datetime="timestampDate.toISOString()"
+            :title="timestampDate.toISOString()"
+          >
+            {{ timestampLabel }} {{ formattedTimestamp }}
+          </time>
         </p>
         <div
           v-if="showTags && skill.tags?.length"
