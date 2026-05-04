@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { getDB } from './db'
+import { SUPPORTED_SKILL_SQL } from './supported-sources'
 
 const WHITESPACE_RE = /\s+/
 
@@ -61,6 +62,7 @@ export interface SkillsQuery {
   owner?: string
   official?: boolean
   excludeOfficial?: boolean
+  supportedOnly?: boolean
   sort?: 'installs' | 'name' | 'owner'
   page?: number
   limit?: number
@@ -77,7 +79,7 @@ interface SkillsQueryResult {
 
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
-  const { search, owner, official, excludeOfficial, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
+  const { search, owner, official, excludeOfficial, supportedOnly, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
 
   const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
@@ -106,6 +108,9 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     conditions.push(`skills.owner NOT IN (${placeholders})`)
     params.push(...officialOwners)
   }
+
+  if (supportedOnly)
+    conditions.push(`(${SUPPORTED_SKILL_SQL})`)
 
   const where = `WHERE ${conditions.join(' AND ')}`
 
@@ -159,7 +164,7 @@ export interface SkillLookup {
 export async function findSkillsByLookups(
   event: H3Event,
   lookups: SkillLookup[],
-  opts: { includeBroken?: boolean } = {},
+  opts: { includeBroken?: boolean, supportedOnly?: boolean } = {},
 ): Promise<Map<string, RegistrySkill>> {
   if (!lookups.length)
     return new Map()
@@ -167,8 +172,9 @@ export async function findSkillsByLookups(
   const uniqueNames = [...new Set(lookups.map(l => l.packageName))]
   const placeholders = uniqueNames.map(() => '?').join(',')
   const brokenClause = opts.includeBroken ? '' : ` AND ${NOT_BROKEN_SQL}`
+  const supportedClause = opts.supportedOnly ? ` AND (${SUPPORTED_SKILL_SQL})` : ''
   const rows = await db
-    .prepare(`SELECT * FROM skills WHERE name IN (${placeholders})${brokenClause}`)
+    .prepare(`SELECT * FROM skills WHERE name IN (${placeholders})${brokenClause}${supportedClause}`)
     .bind(...uniqueNames)
     .all<SkillRow>()
 
@@ -312,6 +318,14 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
   const db = getDB(event)
   const res = await db
     .prepare(`SELECT name, owner, repo FROM skills WHERE ${NOT_BROKEN_SQL} AND seo_indexable = 1`)
+    .all<SkillSitemapEntry>()
+  return res.results ?? []
+}
+
+export async function listSupportedSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
+  const db = getDB(event)
+  const res = await db
+    .prepare(`SELECT name, owner, repo FROM skills WHERE ${NOT_BROKEN_SQL} AND seo_indexable = 1 AND (${SUPPORTED_SKILL_SQL})`)
     .all<SkillSitemapEntry>()
   return res.results ?? []
 }

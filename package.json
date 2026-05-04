@@ -27,6 +27,8 @@
     "test:e2e": "pnpm build:test && playwright test",
     "test:e2e:update": "pnpm build:test && playwright test --update-snapshots",
     "build:test": "NODE_ENV=test nuxi build",
+    "seo:audit-supported": "npx tsx scripts/audit-supported-indexable-skills.ts",
+    "seo:curate-supported": "npx tsx scripts/curate-supported-source.ts",
     "start:playwright:webserver": "NODE_ENV=test nuxi preview --port 5678"
   },
   "dependencies": {

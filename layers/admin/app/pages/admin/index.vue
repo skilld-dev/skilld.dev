@@ -119,6 +119,28 @@ function metricValue(label: string) {
   return metricByLabel.value.get(label.toLowerCase())?.value ?? 0
 }
 
+const totalSkills = computed(() => metricValue('Total skills'))
+const indexableSkills = computed(() => metricValue('Indexable skills'))
+const noindexSkills = computed(() => metricValue('Noindex skills'))
+
+const preciseIndexCoverage = computed(() => {
+  if (!totalSkills.value)
+    return '0.0'
+  return ((indexableSkills.value / totalSkills.value) * 100).toFixed(1)
+})
+
+const trustBucketCounts = computed(() => {
+  const map = new Map(trustDistribution.value.map(item => [item.label, item.count]))
+  return {
+    official: map.get('official') ?? 0,
+    trustedAuthor: map.get('trusted-author') ?? 0,
+    trustedCurator: map.get('trusted-curator') ?? 0,
+    candidate: map.get('candidate') ?? 0,
+    untrusted: map.get('untrusted') ?? 0,
+    quarantined: map.get('quarantined') ?? 0,
+  }
+})
+
 const severityColor: Record<Severity, 'error' | 'warning' | 'neutral'> = {
   critical: 'error',
   warning: 'warning',
@@ -213,6 +235,71 @@ const recoveryCards = computed(() => [
     </div>
 
     <template v-else-if="data">
+      <section class="rounded-lg border border-default bg-elevated p-5">
+        <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div class="mb-2 flex items-center gap-2">
+              <UIcon
+                name="i-lucide-radar"
+                class="size-4 text-muted"
+                aria-hidden="true"
+              />
+              <h2 class="font-medium">
+                Corpus summary
+              </h2>
+            </div>
+            <p class="max-w-2xl text-sm text-muted">
+              {{ indexableSkills.toLocaleString() }} of {{ totalSkills.toLocaleString() }} skills are indexable. {{ noindexSkills.toLocaleString() }} remain reachable but excluded from search.
+            </p>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-3 xl:min-w-[520px]">
+            <div class="rounded-md border border-default p-3">
+              <p class="text-xs text-muted">
+                Indexable surface
+              </p>
+              <p class="mt-1 font-mono text-xl">
+                {{ preciseIndexCoverage }}%
+              </p>
+            </div>
+            <div class="rounded-md border border-default p-3">
+              <p class="text-xs text-muted">
+                Trusted
+              </p>
+              <p class="mt-1 font-mono text-xl">
+                {{ (trustBucketCounts.official + trustBucketCounts.trustedAuthor + trustBucketCounts.trustedCurator).toLocaleString() }}
+              </p>
+            </div>
+            <div class="rounded-md border border-default p-3">
+              <p class="text-xs text-muted">
+                Review queue
+              </p>
+              <p class="mt-1 font-mono text-xl">
+                {{ trustBucketCounts.candidate.toLocaleString() }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="trustDistribution.length"
+          class="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-6"
+        >
+          <div
+            v-for="item in trustDistribution"
+            :key="`summary-${item.label}`"
+            class="rounded-md bg-muted/40 px-3 py-2"
+          >
+            <p class="break-all font-mono text-xs text-muted">
+              {{ item.label }}
+            </p>
+            <p class="mt-1 font-mono text-sm">
+              {{ item.count.toLocaleString() }}
+            </p>
+          </div>
+        </div>
+      </section>
+
       <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div
           v-for="card in recoveryCards"

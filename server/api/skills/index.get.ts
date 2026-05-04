@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
   const sort = (query.sort as string) || 'installs'
   const official = query.official === 'true' || query.official === '1'
   const excludeOfficial = query.excludeOfficial === 'true' || query.excludeOfficial === '1'
+  const supportedOnly = query.supported === 'true' || query.supported === '1'
   const owner = (query.owner as string || '').toLowerCase().trim()
 
   const result = await querySkills(event, {
@@ -18,6 +19,7 @@ export default defineEventHandler(async (event) => {
     owner: owner || undefined,
     official,
     excludeOfficial,
+    supportedOnly,
     sort: sort as 'installs' | 'name' | 'owner',
     page,
     limit,

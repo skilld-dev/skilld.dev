@@ -444,11 +444,21 @@ const authorPosts = computed(() => socialData.value?.author ?? [])
 const communityPosts = computed(() => socialData.value?.community ?? [])
 const allSocialPosts = computed(() => [...authorPosts.value, ...communityPosts.value])
 
+function withSourceContext(text: string, owner: string, repo: string, max = 200): string {
+  const suffix = ` From ${owner}/${repo}.`
+  const collapsed = text.replace(/\s+/g, ' ').trim()
+  if (collapsed.includes(`${owner}/${repo}`))
+    return truncateReason(collapsed, max)
+  if (collapsed.length + suffix.length <= max)
+    return `${collapsed}${suffix}`
+  return `${truncateReason(collapsed, Math.max(40, max - suffix.length))}${suffix}`
+}
+
 useSchemaOrg(computed(() => {
   if (!data.value)
     return []
   const d = data.value
-  const description = d.description || `${d.name} Claude Code skill by ${d.owner}.`
+  const description = withSourceContext(d.description || `${d.name} Claude Code skill by ${d.owner}.`, d.owner, d.repo, 240)
   return [
     defineSoftwareApp({
       '@id': `${skillPageUrl.value}#skill`,
@@ -532,9 +542,10 @@ const skillDescription = computed(() => {
   const top = topCuratorReason.value
   if (top?.reason)
     return truncateReason(`"${top.reason}" — @${top.handle}`, 200)
-  return data.value.summary?.blurb
+  const base = data.value.summary?.blurb
     || data.value.description
     || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
+  return withSourceContext(base, data.value.owner, data.value.repo)
 })
 
 useSeoMeta({
