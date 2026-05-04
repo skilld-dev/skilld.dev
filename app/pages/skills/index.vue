@@ -527,7 +527,7 @@ function clearOwner() {
               class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
             >
               <li v-for="skill in section.skills" :key="skill.slug">
-                <SkillCard :skill :show-description="false" show-tags />
+                <SkillCard :skill show-tags />
               </li>
             </ul>
 
@@ -536,7 +536,7 @@ function clearOwner() {
               class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
             >
               <li v-for="skill in section.skills" :key="skill.slug">
-                <SkillCard :skill variant="list" :show-description="false" show-tags />
+                <SkillCard :skill variant="list" show-tags />
               </li>
             </ul>
           </div>
@@ -617,7 +617,7 @@ function clearOwner() {
           class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
         >
           <li v-for="skill in registryData.items" :key="skill.slug">
-            <SkillCard :skill :show-description="false" show-owner-path />
+            <SkillCard :skill show-owner-path />
           </li>
         </ul>
 
@@ -626,7 +626,7 @@ function clearOwner() {
           class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
         >
           <li v-for="skill in registryData.items" :key="skill.slug">
-            <SkillCard :skill variant="list" :show-description="false" show-owner-path />
+            <SkillCard :skill variant="list" show-owner-path />
           </li>
         </ul>
 
