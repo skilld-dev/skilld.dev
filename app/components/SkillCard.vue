@@ -10,6 +10,8 @@ interface SkillLike {
   tags?: string[]
   official?: boolean
   occurredAt?: number | null
+  pushedAt?: number | null
+  modifiedAt?: number | null
 }
 
 const {
@@ -74,12 +76,22 @@ function formatTimestamp(epochSeconds: number): string {
   }).format(new Date(epochSeconds * 1000))
 }
 
+const timestampSeconds = computed<number | null>(() => {
+  if (typeof skill.occurredAt === 'number')
+    return skill.occurredAt
+  if (typeof skill.modifiedAt === 'number')
+    return skill.modifiedAt
+  if (typeof skill.pushedAt === 'number')
+    return skill.pushedAt
+  return null
+})
+
 const timestampDate = computed(() =>
-  typeof skill.occurredAt === 'number' ? new Date(skill.occurredAt * 1000) : null,
+  timestampSeconds.value != null ? new Date(timestampSeconds.value * 1000) : null,
 )
 
 const formattedTimestamp = computed(() =>
-  typeof skill.occurredAt === 'number' ? formatTimestamp(skill.occurredAt) : null,
+  timestampSeconds.value != null ? formatTimestamp(timestampSeconds.value) : null,
 )
 
 const resolvedSignal = computed<'installs' | 'stars' | null>(() => {

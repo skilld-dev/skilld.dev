@@ -229,7 +229,14 @@ const repoSkills = computed(() => {
   if (!sourceHub.value || !profile)
     return []
   const hub = repoHub.value
-  return hub ? profile.skills.filter(skill => skill.repo.toLowerCase() === hub.repo.toLowerCase()) : profile.skills
+  const list = hub ? profile.skills.filter(skill => skill.repo.toLowerCase() === hub.repo.toLowerCase()) : profile.skills
+  return [...list].sort((a, b) => {
+    const aT = a.modifiedAt ?? a.pushedAt ?? 0
+    const bT = b.modifiedAt ?? b.pushedAt ?? 0
+    if (bT !== aT)
+      return bT - aT
+    return (b.installs ?? 0) - (a.installs ?? 0)
+  })
 })
 
 const repoInfo = computed(() => {
@@ -991,9 +998,10 @@ useHead(computed(() => ({
               v-for="skill in repoSkills"
               :key="skill.slug"
               :skill="skill"
-              variant="compact"
               signal="installs"
+              :show-copy="false"
               show-owner-path
+              timestamp-label="Updated"
             />
           </div>
           <p

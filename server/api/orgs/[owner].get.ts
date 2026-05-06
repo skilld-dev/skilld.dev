@@ -253,6 +253,6 @@ export default defineCachedEventHandler(async (event) => {
   swr: true,
   getKey: (event) => {
     const owner = getRouterParam(event, 'owner')
-    return `org:v3:${(owner || '').toLowerCase()}`
+    return `org:v4:${(owner || '').toLowerCase()}`
   },
 })

@@ -29,6 +29,8 @@ export interface RegistrySkill {
   seoIndexable: boolean
   trustTier: string
   trustScore: number
+  pushedAt: number | null
+  modifiedAt: number | null
 }
 
 interface SkillRow {
@@ -44,6 +46,8 @@ interface SkillRow {
   seo_indexable: number | null
   trust_tier: string | null
   trust_score: number | null
+  pushed_at: number | null
+  modified_at: number | null
 }
 
 function rowToSkill(row: SkillRow): RegistrySkill {
@@ -60,6 +64,8 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     seoIndexable: row.seo_indexable === 1,
     trustTier: row.trust_tier ?? 'untrusted',
     trustScore: row.trust_score ?? 0,
+    pushedAt: row.pushed_at ?? null,
+    modifiedAt: row.modified_at ?? null,
   }
 }
 
