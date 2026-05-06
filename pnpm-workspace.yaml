@@ -8,7 +8,7 @@ catalog:
   '@atproto/common': ^0.5.16
   '@cloudflare/workers-types': ^4.20260506.1
   '@iconify-json/lucide': ^1.2.105
-  '@iconify-json/simple-icons': ^1.2.80
+  '@iconify-json/simple-icons': ^1.2.81
   '@nuxt/a11y': 1.0.0-alpha.1
   '@nuxt/eslint': ^1.15.2
   '@nuxt/fonts': ^0.14.0

@@ -22,8 +22,8 @@ catalogs:
       specifier: ^1.2.105
       version: 1.2.105
     '@iconify-json/simple-icons':
-      specifier: ^1.2.80
-      version: 1.2.80
+      specifier: ^1.2.81
+      version: 1.2.81
     '@nuxt/a11y':
       specifier: 1.0.0-alpha.1
       version: 1.0.0-alpha.1
@@ -78,6 +78,9 @@ catalogs:
     axe-core:
       specifier: ^4.11.4
       version: 4.11.4
+    better-sqlite3:
+      specifier: ^12.9.0
+      version: 12.9.0
     eslint:
       specifier: ^10.3.0
       version: 10.3.0
@@ -102,6 +105,9 @@ catalogs:
     nuxt:
       specifier: ^4.4.4
       version: 4.4.4
+    nuxt-ai-ready:
+      specifier: ^1.3.0
+      version: 1.3.0
     nuxt-og-image:
       specifier: ^6.5.0
       version: 6.5.0
@@ -139,7 +145,7 @@ importers:
         version: 1.2.105
       '@iconify-json/simple-icons':
         specifier: 'catalog:'
-        version: 1.2.80
+        version: 1.2.81
       '@nuxt/fonts':
         specifier: 'catalog:'
         version: 0.14.0(db0@0.3.4(better-sqlite3@12.9.0)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260506.1)(better-sqlite3@12.9.0)))(ioredis@5.10.1)(magicast@0.5.2)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(yaml@2.8.4))
@@ -183,7 +189,7 @@ importers:
         specifier: 'catalog:'
         version: 4.4.4(@babel/core@7.29.0)(@babel/plugin-syntax-jsx@7.28.6(@babel/core@7.29.0))(@parcel/watcher@2.5.6)(@types/node@25.6.0)(@vue/compiler-sfc@3.5.33)(better-sqlite3@12.9.0)(cac@6.7.14)(db0@0.3.4(better-sqlite3@12.9.0)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260506.1)(better-sqlite3@12.9.0)))(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260506.1)(better-sqlite3@12.9.0))(eslint@10.3.0(jiti@2.6.1))(ioredis@5.10.1)(lightningcss@1.32.0)(magicast@0.5.2)(optionator@0.9.4)(rollup-plugin-visualizer@7.0.1(rollup@4.60.2))(rollup@4.60.2)(srvx@0.11.15)(terser@5.46.2)(typescript@6.0.3)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(yaml@2.8.4))(vue-tsc@3.2.8(typescript@6.0.3))(yaml@2.8.4)
       nuxt-ai-ready:
-        specifier: ^1.3.0
+        specifier: 'catalog:'
         version: 1.3.0(d691b4933f61299cc82baa37825ddc8f)
       nuxt-og-image:
         specifier: 'catalog:'
@@ -223,7 +229,7 @@ importers:
         specifier: 'catalog:'
         version: 4.11.4
       better-sqlite3:
-        specifier: ^12.9.0
+        specifier: 'catalog:'
         version: 12.9.0
       eslint:
         specifier: 'catalog:'
@@ -1269,8 +1275,8 @@ packages:
   '@iconify-json/lucide@1.2.105':
     resolution: {integrity: sha512-tbE+cGEixWcRFtW8xkzX1HaGRqp7CDhZb01uPBh7PnRoxXzVET9E73rHOXDdsLKUGoTuYGZKhhX6oirvoy5NDg==}
 
-  '@iconify-json/simple-icons@1.2.80':
-    resolution: {integrity: sha512-iglncJJ6X/dVuzFDU32MrHwwo4RBwivGf108dgyYg+HKS78ifx0h7sTenpDZMVT+UhdS6CSgZcvY/SvRXlIEUg==}
+  '@iconify-json/simple-icons@1.2.81':
+    resolution: {integrity: sha512-Utjw4sPtoVdbpAQAkC4O0cYpt4ehQZYr6aFHhmvdeW8mQwkINyAe0ogTPqNptSSKogZ2lfgXM8zpuhO961Wnng==}
 
   '@iconify/collections@1.0.679':
     resolution: {integrity: sha512-8Q+WrWk2ssGegl+7eMNKGKy7s8SXz6SozUZ3n+Pki/OzlpLr5+ihOVXjttOwE110sWqzoCviXgJc4jNzZny5ow==}
@@ -8884,7 +8890,7 @@ snapshots:
     dependencies:
       '@iconify/types': 2.0.0
 
-  '@iconify-json/simple-icons@1.2.80':
+  '@iconify-json/simple-icons@1.2.81':
     dependencies:
       '@iconify/types': 2.0.0
 
