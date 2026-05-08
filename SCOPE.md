@@ -106,7 +106,7 @@ Each person becomes a living skill preset. When they update their list, follower
 - @nuxt/fonts (Plus Jakarta Sans + IBM Plex Mono)
 - @nuxtjs/seo + nuxt-og-image
 - GitHub OAuth via `nuxt-auth-utils` (Phase 2)
-- Resend + vue-email for digests (Phase 3)
+- Cloudflare Workers `send_email` binding + Anthropic Haiku 4.5 for digests (Phase 3; replaced the planned Resend + vue-email path)
 - Cloudflare Workers + D1 for deployment
 
 ## Brand Identity
@@ -122,6 +122,6 @@ Each person becomes a living skill preset. When they update their list, follower
 ## Build Phases
 
 - [x] Phase 1 — Loop 1 cleanup: rip atproto, new homepage, `/@<login>/*` collection routes, 410/redirect for `/people/*`
-- [ ] Phase 2 — Auth + watching: GitHub OAuth, users + subscriptions tables, onboarding, `/me` dashboard
-- [ ] Phase 3 — Email + AI summary: Resend, vue-email digest, Anthropic Haiku summaries, asset SHA tracking
+- [x] Phase 2 — Auth + watching: GitHub OAuth, users + subscriptions + starred-repos tables, onboarding, `/me` dashboard, watch buttons (shipped 2026-05-08)
+- [x] Phase 3 — Email + AI summary: digest_runs table, Cloudflare Workers `send_email` binding (not Resend), plain-HTML digest template (not vue-email), Haiku 4.5 summaries with per-user prompt caching, HMAC unsubscribe + RFC 8058 one-click, email-change verification, subscription-prioritised polling pre-pass (shipped 2026-05-08). Asset SHA tracking deferred.
 - [ ] Phase 4 — Cleanup: drop legacy atproto tables once v2 is verified

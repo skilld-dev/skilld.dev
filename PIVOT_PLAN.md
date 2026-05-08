@@ -1,6 +1,6 @@
 # skilld.dev — GitHub Pivot Plan
 
-Status: planning, locked decisions from grill session 2026-05-08. No code landed yet.
+Status: Phase 1 + Phase 2 + Phase 3 shipped on `main` 2026-05-08. Phase 4 cleanup outstanding. Section-by-section deviation notes are inlined below where the shipped code diverges from the original plan.
 
 ## Two-loop product model
 
@@ -192,8 +192,10 @@ No new tasks/crons for sync. Existing hourly `sync-github-skills` does the work.
 
 ## Email + digest pipeline
 
-- **Provider:** Resend. Domain `mail.skilld.dev`, SPF/DKIM/DMARC configured. Single sender identity.
-- **Templates:** vue-email, one template (`digest`). Per-skill bullets, AI summary line per skill, repo grouping when multiple skills per repo, footer with one-click unsubscribe (RFC 8058 `List-Unsubscribe` + `List-Unsubscribe-Post`).
+> **Shipped deviation (2026-05-08):** sender swapped from **Resend** to the **Cloudflare Workers `send_email` binding** (`cloudflare:email` + `mimetext`). No provider API key. Constraint: until the Cloudflare account has Send Email enabled for arbitrary destinations, every recipient must be a Verified Destination Address in the dashboard. `mail.skilld.dev` SPF/DKIM/DMARC + verified sender domain registration is still required and remains a deploy-time prerequisite. Template swapped from **vue-email** to plain functional HTML (`digest-template.ts`) — same input shape, no Vue SSR in the worker hot path; vue-email can be reintroduced later without schema or selection changes.
+
+- **Provider:** Cloudflare Workers `send_email` binding (was: Resend). Domain `mail.skilld.dev`, SPF/DKIM/DMARC configured. Single sender identity (`noreply@mail.skilld.dev`).
+- **Templates:** plain HTML (was: vue-email). Per-skill bullets, AI summary line per skill, repo grouping when multiple skills per repo, footer with one-click unsubscribe (RFC 8058 `List-Unsubscribe` + `List-Unsubscribe-Post`).
 - **Cron:** new task `server/tasks/send-digests.ts`, schedule `0 * * * *` in `nuxt.config.ts:scheduledTasks` and `wrangler.toml:triggers.crons`.
 - **Selection logic:** for each user where `email_opt_in=1` AND `digest_frequency != 'off'` AND user-local `(dow, hour)` matches current UTC slot via stored `timezone`:
   - Window = `MAX(last digest_runs.window_end, onboarded_at)` → now
@@ -291,7 +293,7 @@ Watch-collection alternate entry: clicking "Watch this collection" on a collecti
 
 Site is unused, so no need to stage public exposure. All phases land in one push.
 
-**Phase 1 — Loop 1 cleanup (1-2 days)**
+**Phase 1 — Loop 1 cleanup (1-2 days) — SHIPPED 2026-05-08**
 - Migrations 0020 (collections v2), seed your 2 collections under `harlanzw` (manually inserted user row with placeholder GitHub data, replaced when you OAuth in Phase 2).
 - Rip atproto: deps, server code, components, tasks.
 - Rewrite homepage, skill detail page, collection routes (`/people/*` → `/@*`).
@@ -299,23 +301,25 @@ Site is unused, so no need to stage public exposure. All phases land in one push
 - Update SCOPE/CONTEXT/CLAUDE/brand docs with two-loop framing.
 - Sitemap regen.
 
-**Phase 2 — Auth + watching (3-4 days)**
-- Migrations 0017 (users), 0018 (subscriptions), 0019 (starred).
-- GitHub OAuth handler, token encryption util, session migration.
+**Phase 2 — Auth + watching (3-4 days) — SHIPPED 2026-05-08 (commits 32c209f, 86eaa52, c938115)**
+- Migrations 0017 (users), 0018 (subscriptions), 0019 (starred), plus 0022 (collections backfill: ghost-user merge + FK + drop temp `author_login`).
+- GitHub OAuth handler via `nuxt-auth-utils`, AES-GCM token encryption util keyed by `NUXT_TOKEN_KEY`, cookie session.
 - `/login`, `/onboarding/{discover,cadence,email}`, `/me`.
-- `POST /api/me/stars/sync`.
-- "Watch for changes" buttons on skill + collection pages.
-- Collection authoring UI at `/collections/new`.
+- `POST /api/me/stars/sync` (paginates 10×100, joins `skills` for `has_skill`).
+- "Watch for changes" buttons on skill + collection pages, with `?return_to=...&action=watch-{skill,collection}` post-OAuth side effects.
+- Collection authoring UI at `/collections/new` rewritten for D1 (`POST /api/collections`).
+- Collection APIs (`featured`, `by-author/*`, sitemap authors) JOIN `users` via `author_user_id`.
 
-**Phase 3 — Email + AI summary (3-4 days)**
-- Migration 0021 (digest_runs).
-- Resend integration, `mail.skilld.dev` DNS.
-- vue-email digest template.
-- `server/tasks/send-digests.ts` + cron registration.
-- Anthropic Haiku integration with prompt caching.
-- Unsubscribe handler + email-change verification.
-- Asset SHA tracking in `sync-repo.ts`.
-- Subscription-prioritized polling pre-pass.
+**Phase 3 — Email + AI summary (3-4 days) — SHIPPED 2026-05-08 (commits 86aed45, 2cb0c5d)**
+- Migration 0021 (digest_runs). ✅
+- ~~Resend integration~~ → Cloudflare Workers `send_email` binding (`cloudflare:email` + `mimetext`); `mail.skilld.dev` DNS still pending. ✅ (with deviation noted above)
+- ~~vue-email digest template~~ → plain functional HTML template (`digest-template.ts`); same input shape so swap remains cheap. ✅ (with deviation)
+- `layers/identity/server/tasks/send-digests.ts` + cron registration alongside `sync-github-skills` (hourly). ✅
+- Anthropic Haiku 4.5 integration with prompt caching: stable per-user system prefix (sorted subscriptions + skill descriptions, `cache_control: ephemeral`), volatile diffs in user message, failure mode = no-summary fallback. ✅
+- Unsubscribe handler (HMAC-SHA256, GET + POST, RFC 8058) + email-change verification round-trip (`/api/me/email/{verify-request,verify}`, SHA-256 hashed token, 24h expiry). ✅
+- ~~Asset SHA tracking in `sync-repo.ts`~~ — **deferred**. The SKILL.md SHA path already drives the digest; asset hashing is additive and can layer on later without schema changes.
+- Subscription-prioritized polling pre-pass: `sync-github-skills` runs subscribed-and-stalest>1h repos before the general 24h-stalest pass. ✅
+- Outstanding deploy-time prerequisites: remote D1 migrations (`CLOUDFLARE_API_TOKEN`), `mail.skilld.dev` DNS + verified sender domain, Verified Destination Addresses (until Send Email goes unrestricted), `NUXT_ANTHROPIC_API_KEY` (digest still ships without it via the commits-bullet fallback).
 
 **Phase 4 — Cleanup (post-merge)**
 - Drop atproto tables.
