@@ -1,5 +1,5 @@
-import { ownerHubPath } from '../../utils/skill-routes'
-import { listAllOwnersForSitemap } from '../../utils/skills-registry'
+import { ownerHubPath } from '~~/layers/registry/server/utils/skill-routes'
+import { listAllOwnersForSitemap } from '~~/layers/registry/server/utils/skills-registry'
 
 export default defineSitemapEventHandler(async (event) => {
   const owners = await listAllOwnersForSitemap(event)

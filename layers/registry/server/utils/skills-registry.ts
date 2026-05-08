@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate-canonical'
-import { getDB } from './db'
+import { getDB } from '~~/server/utils/db'
 import {
   duplicateWeakerSlugSet,
   findDuplicateGroupForSlug,

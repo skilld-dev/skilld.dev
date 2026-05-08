@@ -1,0 +1,53 @@
+{
+  "schema_version": 4,
+  "job_id": "nuxt-framework-page-0426-1422",
+  "created": "2026-04-26T22:30:07Z",
+  "git_hash": "4b67fcb347785fae23635442db489b198c10828b",
+  "dev_port": 3000,
+  "pages_changed": ["app/pages/nuxt.vue"],
+  "components_created": [],
+  "routes_to_test": ["/nuxt", "/api/tags/nuxt"],
+  "design_system_changes": false,
+  "theme_name": "quiet-editorial",
+  "contract_path": ".claude/context/jobs/nuxt-framework-page-0426-1422/build-contract.md",
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "met",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met"
+  },
+  "self_assessment": {
+    "confidence": "high",
+    "weakest_area": "Error branch verified by template inspection only; live runtime error injection not exercised. Template now has distinct error vs empty branches with brand-voiced copy and correct CTAs (Retry vs Browse).",
+    "hardest_decision": "Splitting the merged error/empty block into two distinct v-else-if branches rather than a single block with computed copy. Two branches keep each state's copy and CTA self-contained and make future edits to either one safer."
+  },
+  "has_client_animations": false,
+  "known_limitations": [
+    "Error runtime branch not exercised live (verified via template); SSR with valid local data prevents fault injection without code patching",
+    "Local D1 has sparse AI-tag data; the endpoint relies on FTS + owner match in addition to tags so this is masked in dev",
+    "/nuxt is not yet linked from anywhere in the existing nav or skills index"
+  ],
+  "next_steps": [
+    "If desired, add a /nuxt link from the skills index or homepage",
+    "If/when /skills/tag/[slug] becomes a thing, the same /api/tags/[slug] endpoint backs it"
+  ],
+  "dark_mode_relevant": true,
+  "repair_pass": {
+    "prior_verdict": "FAIL",
+    "fixes_applied": [
+      {"id": "C8", "category": "error-state-copy", "file": "app/pages/nuxt.vue:130-188", "change": "Split merged v-else-if='error || !data' into distinct error and empty branches. Error: 'Couldn't load Nuxt skills. Check your connection and try again.' + Retry only. Empty: 'No Nuxt skills indexed yet. Browse the full registry to find what you need.' + Browse all skills only. Error icon swapped to i-lucide-cloud-off."},
+      {"id": "C9/C10", "category": "responsive-grid", "file": "app/pages/nuxt.vue:265", "change": "Top contributors grid changed from grid-cols-2 sm:grid-cols-3 md:grid-cols-4 to grid-cols-1 sm:grid-cols-2 md:grid-cols-3. Now: 1 col @ 375px, 2 cols @ 640px, 3 cols @ 768px."},
+      {"id": "code-quality", "category": "vueuse-pattern", "file": "app/pages/nuxt.vue:58", "change": "Lifted useTimeAgo out of template render. Added const syncedAgo = useTimeAgo(() => data.value?.fetchedAt ?? Date.now()) in setup; template now reads {{ syncedAgo }}."}
+    ],
+    "out_of_scope_flagged": "INFO note about app/pages/index.vue lazy:true removal left untouched (review explicitly flagged it as not in this contract's scope)."
+  }
+}

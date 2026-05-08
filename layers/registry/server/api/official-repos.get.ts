@@ -1,5 +1,5 @@
-import { officialRepos } from '../data/official-repos'
-import { getDB } from '../utils/db'
+import { officialRepos } from '~~/layers/registry/server/data/official-repos'
+import { getDB } from '~~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)

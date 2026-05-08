@@ -1,9 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { TagPayload } from '../../jobs/generate-tags'
-import type { RegistrySkill } from '../../utils/skills-registry'
+import type { RegistrySkill } from '~~/layers/registry/server/utils/skills-registry'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
-import { getDB } from '../../utils/db'
-import { getGeneratedBatch } from '../../utils/skill-generated'
+import { getDB } from '~~/server/utils/db'
+import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
 
 export interface TagOwner {
   owner: string

@@ -1,0 +1,78 @@
+{
+  "schema_version": 4,
+  "job_id": "orgs-page-0425-1834",
+  "created": "2026-04-25T19:30:00Z",
+  "git_hash": "0bbcb9272ef4f7773b7c6b78be7801d7db8fb23a",
+  "dev_port": 3000,
+  "pages_changed": [
+    "app/pages/orgs/[owner].vue",
+    "app/pages/skills/index.vue",
+    "app/pages/skills/[...slug].vue"
+  ],
+  "components_created": [],
+  "routes_to_test": [
+    "/orgs/obra",
+    "/orgs/anthropics",
+    "/orgs/this-owner-does-not-exist-zzz123",
+    "/__sitemap__/orgs.xml",
+    "/skills",
+    "/skills?owner=obra",
+    "/skills/obra/superpowers/brainstorming"
+  ],
+  "design_system_changes": false,
+  "theme_name": "stone-rose-quiet",
+  "contract_path": ".claude/context/jobs/orgs-page-0425-1834/build-contract.md",
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "met",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met",
+    "C14": "met",
+    "C15": "met",
+    "C16": "met",
+    "C17": "met",
+    "C18": "met",
+    "C19": "met",
+    "C20": "partial",
+    "C21": "met",
+    "C22": "met",
+    "C23": "met",
+    "C24": "met",
+    "C25": "met"
+  },
+  "self_assessment": {
+    "confidence": "medium",
+    "weakest_area": "OG image params (skillCount, collectionCount) read 0 on SSR for non-bot user agents because the page uses lazy useFetch. Same pattern as /people/[handle], so consistent with existing pages, but worth verifying social shares look right when the page is first loaded.",
+    "hardest_decision": "Avatar shape (rounded-full vs rounded-lg) was the only kind-specific differentiation that survived contact with the 'quiet' brand. Considered larger headline scaling, kind-specific layouts, and color tints; all violated the 90/10 neutrals/accent budget. The shape + four characters of mono badge text is the entire visual story for kind, which is in line with the principle that quiet character comes from precision, not volume."
+  },
+  "has_client_animations": false,
+  "known_limitations": [
+    "OG image renders with skillCount=0/collectionCount=0 on non-bot SSR (same as /people/[handle]).",
+    "First request per owner is cold (~500-1500ms) due to GitHub API. Subsequent requests served from KV cache."
+  ],
+  "next_steps": [
+    "Optional: add an /orgs/ index page listing top owners.",
+    "Optional: when an owner is also a skilld curator (atproto handle matches), cross-link to /people/{handle}.",
+    "Optional: enable D1-only fast path (skip GitHub fetch) for owners not in the official manifest, if SSR latency matters."
+  ],
+  "dark_mode_relevant": true,
+  "seo_artifacts": {
+    "title_format": "{displayName} (@{handle}) skills",
+    "description_format": "{N} agent skills {verb} {displayName} on skilld. {Topic1}, {Topic2}, {Topic3}.",
+    "schema_org": [
+      "Person | Organization (kind-aware) with sameAs to github + blog",
+      "CollectionPage with hasPart of up to 25 SoftwareApplication entries"
+    ],
+    "sitemap_path": "/__sitemap__/orgs.xml",
+    "sitemap_entries": 9423
+  }
+}

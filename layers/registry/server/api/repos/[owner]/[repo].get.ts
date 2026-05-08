@@ -1,4 +1,4 @@
-import { getRepo, getTree, resolveGithubBindings } from '../../../utils/github-client'
+import { getRepo, getTree, resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
 
 export interface RepoSourceProfile {
   owner: string

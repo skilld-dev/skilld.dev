@@ -15,7 +15,7 @@
  * duplicate content competing with skills.sh's own SEO ranking.
  */
 
-import { getDB } from '../../utils/db'
+import { getDB } from '~~/server/utils/db'
 
 interface AuditEntry {
   provider: string

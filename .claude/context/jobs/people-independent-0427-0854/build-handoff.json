@@ -1,0 +1,54 @@
+{
+  "schema_version": 4,
+  "job_id": "people-independent-0427-0854",
+  "created": "2026-04-26T23:01:35Z",
+  "git_hash": "5a6998554ff605d196f14726221634e627f5897a",
+  "dev_port": 3001,
+  "pages_changed": ["app/pages/people/index.vue"],
+  "components_created": [
+    "app/components/PeopleIndependentCard.vue",
+    "server/api/people/independent.get.ts"
+  ],
+  "routes_to_test": [
+    "/people",
+    "/people?filter=independent",
+    "/people?filter=community",
+    "/api/people/independent"
+  ],
+  "design_system_changes": false,
+  "theme_name": null,
+  "contract_path": ".claude/context/jobs/people-independent-0427-0854/build-contract.md",
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "met",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met",
+    "C14": "partial"
+  },
+  "self_assessment": {
+    "confidence": "medium",
+    "weakest_area": "lastSyncedAt is null for all 12 devs in local D1 state — card hides timestamp gracefully but the 'updated {relative}' affordance from the contract won't show in dev. Needs verification against production data, or a synced D1 snapshot, before declaring the time-ago line definitively works.",
+    "hardest_decision": "Used a new dedicated endpoint instead of extending /api/social/curators. Two endpoints + one card-shape per kind avoids forcing every consumer to discriminate on a `kind` field, and keeps atproto-specific fields (labels, firstPublished) confined to the curator response."
+  },
+  "has_client_animations": false,
+  "known_limitations": [
+    "lastSyncedAt null in local dev (sync not yet run for these owners)",
+    "displayName falls back to handle for 8/12 devs until github:profile cache warms via /orgs/{owner} visits",
+    "C14 (bot SSR full-content render) verified by code path only, not by curl with bot UA"
+  ],
+  "next_steps": [
+    "Run /nuxt-frontend-review people-independent-0427-0854",
+    "Confirm production lastSyncedAt populates for these owners",
+    "Optionally pre-warm github:profile cache for the 12 user-kind owners on first deploy"
+  ],
+  "dark_mode_relevant": true
+}

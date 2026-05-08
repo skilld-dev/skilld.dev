@@ -1,10 +1,10 @@
 import type { TagPayload } from '../../jobs/generate-tags'
-import type { RegistrySkill } from '../../utils/skills-registry'
+import type { RegistrySkill } from '~~/layers/registry/server/utils/skills-registry'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
-import { getDB } from '../../utils/db'
-import { getGeneratedBatch } from '../../utils/skill-generated'
-import { querySkills } from '../../utils/skills-registry'
+import { getDB } from '~~/server/utils/db'
+import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
+import { querySkills } from '~~/layers/registry/server/utils/skills-registry'
 
 export type OrgKind = 'org' | 'user'
 

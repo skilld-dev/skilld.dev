@@ -1,0 +1,77 @@
+{
+  "schema_version": 4,
+  "job_id": "positioning-vs-skills-sh-0426-2000",
+  "created": "2026-04-26T04:13:14Z",
+  "git_hash": "1f56e8e48e47edec8b800a48096f454bdea71247",
+  "dev_port": 3000,
+  "pages_changed": [
+    "app/pages/skills/[...slug].vue",
+    "app/pages/people/[handle]/[slug].vue",
+    "app/pages/people/[handle]/edit-skills.vue"
+  ],
+  "components_created": [],
+  "components_modified": [
+    "app/components/CollectionEditor.client.vue",
+    "app/components/OgImage/Skill.takumi.vue",
+    "app/components/OgImage/Collection.takumi.vue"
+  ],
+  "routes_to_test": [
+    "/skills/anthropics/skills/skill-creator",
+    "/people/atinux.com/skills",
+    "/people/atinux.com/edit-skills",
+    "/collections/new"
+  ],
+  "design_system_changes": false,
+  "theme_name": "skilld-quiet",
+  "contract_path": ".claude/context/jobs/positioning-vs-skills-sh-0426-2000/build-contract.md",
+  "repair_pass": {
+    "of": "2026-04-26T04:13:14Z",
+    "fixed": [
+      "C1: pull-quote moved out of header section; now sibling section between header close (line 627) and AI-summary template at line 694 (skills/[...slug].vue:631-692)",
+      "C1: heading is 'Why curators picked this' as <h2 id='curator-reasons-heading' class='section-label mb-3'> (skills/[...slug].vue:637-642)",
+      "C1: blockquote typography is 'text-base leading-relaxed' — enforces ≥16px on all viewports (skills/[...slug].vue:654)",
+      "C3: avatar is size-9 (36px) with width/height='36' (skills/[...slug].vue:667-669)",
+      "C5: tap-target enforcement — avatar link inline-flex with min-h-11 min-w-11 (line 660); handle/collection links inline-flex with min-h-11 py-2 (lines 674, 684)"
+    ],
+    "verified_at": "2026-04-26T10:00:00Z",
+    "verification_notes": "Re-verified via grep + line-level read after sync to HEAD 1f56e8e. All four [HARD REJECT] items and the [RUBRIC] tap-target item are in the committed source. Smoke test: /skills/anthropics/skills/skill-creator returns 200."
+  },
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "partial",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met",
+    "C14": "met",
+    "C15": "met",
+    "C16": "met",
+    "C17": "met",
+    "C18": "met"
+  },
+  "self_assessment": {
+    "confidence": "medium",
+    "weakest_area": "Pull-quote populated rendering still cannot be visually verified — local D1 returns zero curators, so the section is suppressed by `v-if='curatorsWithReason.length'`. The four hard-rejects from the prior review are deterministic, code-only fixes (position, heading, avatar size, mobile body typography) and are visible in the diff without needing seeded data. C5 tap-target enforcement is now in markup (min-h-11 / min-w-11) but visual measurement at 375px viewport requires the section to render, which requires curator data.",
+    "hardest_decision": "Whether to enforce 44×44 tap targets via min-h-11 + py-2 on inline links (chose this — preserves visible text size while expanding hit area) versus increasing the visible text size of the citation row (rejected — would visually overweight the meta vs. the quote). The avatar link uses both min-h-11 and min-w-11 because the 36px avatar alone is below the 44px floor on width."
+  },
+  "has_client_animations": false,
+  "known_limitations": [
+    "Pull-quote ordering uses array order from API; plan recommends 'top-by-curator-followers' but data.curators lacks follower counts.",
+    "OG image quote rendering relies on takumi component; only verified via metadata, not by inspecting a generated PNG.",
+    "Activity feed (#2) and network feed (#3) inversions are documented in build-contract.md as deferred. They depend on sibling plans (github-integration-plan.md, network-feed-plan.md) that have not shipped yet.",
+    "Populated visual state (pull-quote section, avatar at size-9, mobile blockquote at 16px, 44px tap targets at 375px) cannot be observed locally — requires seeded curator data."
+  ],
+  "next_steps": [
+    "Seed local D1 with at least one curator+reason to visually verify the pull-quote populated state, avatar size, mobile typography, and tap targets at 375px.",
+    "When github-integration-plan ships activity feeds, apply the headline-inversion rule from this plan (#2/#3).",
+    "Phase 2 of the plan: quick-add popover from skill detail page (W2), receipts panel pairing (#4), Bluesky cross-post template (#7)."
+  ],
+  "dark_mode_relevant": true
+}

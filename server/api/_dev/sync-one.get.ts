@@ -4,9 +4,9 @@
  * Returns the SyncRepoStats so we can see what landed.
  */
 
+import { resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
+import { syncRepo } from '~~/layers/registry/server/utils/sync-repo'
 import { getDB } from '../../utils/db'
-import { resolveGithubBindings } from '../../utils/github-client'
-import { syncRepo } from '../../utils/sync-repo'
 
 export default defineEventHandler(async (event) => {
   if (process.env.NODE_ENV === 'production')

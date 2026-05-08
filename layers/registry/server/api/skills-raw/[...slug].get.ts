@@ -1,4 +1,4 @@
-import { findSkill } from '../../utils/skills-registry'
+import { findSkill } from '~~/layers/registry/server/utils/skills-registry'
 
 const RAW_CACHE_TTL = 60 * 5
 const RAW_MISSING_TTL = 60

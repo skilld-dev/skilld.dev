@@ -1,5 +1,5 @@
-import { repoSkillPath } from '../../utils/skill-routes'
-import { listAllSkillsForSitemap, listSupportedSkillsForSitemap } from '../../utils/skills-registry'
+import { repoSkillPath } from '~~/layers/registry/server/utils/skill-routes'
+import { listAllSkillsForSitemap, listSupportedSkillsForSitemap } from '~~/layers/registry/server/utils/skills-registry'
 
 export default defineSitemapEventHandler(async (event) => {
   const query = getQuery(event)

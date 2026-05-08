@@ -1,8 +1,8 @@
-import type { SyncRepoStats } from '../utils/sync-repo'
+import type { SyncRepoStats } from '~~/layers/registry/server/utils/sync-repo'
 /// <reference types="@cloudflare/workers-types" />
-import { resolveGithubBindings } from '../utils/github-client'
-import { pAll } from '../utils/p-all'
-import { syncRepo } from '../utils/sync-repo'
+import { resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
+import { pAll } from '~~/server/utils/p-all'
+import { syncRepo } from '~~/layers/registry/server/utils/sync-repo'
 
 const CONCURRENCY = 8
 const RATE_LIMIT_GUARD = 200 // bail when remaining drops below this

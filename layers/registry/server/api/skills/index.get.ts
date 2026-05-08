@@ -1,5 +1,5 @@
 import { officialRepos } from '../../data/official-repos'
-import { querySkills } from '../../utils/skills-registry'
+import { querySkills } from '~~/layers/registry/server/utils/skills-registry'
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 

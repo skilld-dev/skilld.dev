@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TagProfile } from '../../server/api/tags/[slug].get'
+import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
 
 const { isBot } = useBotDetection()
 
@@ -12,7 +12,7 @@ const { data, status, error, refresh } = useFetch<TagProfile>(
 )
 
 const siteOrigin = 'https://skilld.dev'
-const canonicalUrl = `${siteOrigin}/nuxt`
+const canonicalUrl = `${siteOrigin}/frameworks/nuxt`
 
 const skillsByOwner = computed(() => {
   if (!data.value)

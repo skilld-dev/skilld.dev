@@ -1,4 +1,4 @@
-import { getDB } from '../../utils/db'
+import { getDB } from '~~/server/utils/db'
 
 const BROKEN_GRACE_SECONDS = 7 * 86400
 const NOT_BROKEN_SQL = `(broken_since IS NULL OR broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`

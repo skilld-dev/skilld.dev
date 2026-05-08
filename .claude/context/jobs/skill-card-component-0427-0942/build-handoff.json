@@ -1,0 +1,58 @@
+{
+  "schema_version": 4,
+  "job_id": "skill-card-component-0427-0942",
+  "created": "2026-04-27T00:03:35Z",
+  "git_hash": "ba95d74f5a04e07e6ba8305eb4501f767ca87e67",
+  "dev_port": 3001,
+  "pages_changed": [
+    "app/pages/orgs/[owner].vue",
+    "app/pages/skills/index.vue",
+    "app/pages/nuxt.vue",
+    "app/pages/index.vue"
+  ],
+  "components_created": [
+    "app/components/SkillCard.vue"
+  ],
+  "routes_to_test": [
+    "/orgs/github",
+    "/skills",
+    "/skills?view=list",
+    "/nuxt",
+    "/"
+  ],
+  "design_system_changes": false,
+  "theme_name": "skilld-quiet-editorial",
+  "contract_path": ".claude/context/jobs/skill-card-component-0427-0942/build-contract.md",
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "met",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met",
+    "C14": "partial"
+  },
+  "self_assessment": {
+    "confidence": "medium",
+    "weakest_area": "Homepage popular cards now show a 16px owner avatar only when skill.official is true (preserves original conditional). Without verifying in browser, unclear whether the visual rhythm reads as the contract intended for non-official popular skills.",
+    "hardest_decision": "Bound :show-owner-avatar=\"skill.official\" on the homepage instead of unconditional show-owner-avatar from the contract literal — the literal would render avatars on every popular card, breaking the existing official-only marker."
+  },
+  "has_client_animations": false,
+  "known_limitations": [
+    "C14 is partial: skills/index.vue still has copyCmd/copiedName/useClipboard for the npm Algolia search results section (lines 145-155, 375-410). The contract author treated this section as out of scope by omission (only listed registry skill cards in the replacement table); cleaning it up requires a separate component or refactor that isn't covered by the SkillCard abstraction (npm packages aren't RegistrySkill).",
+    "Behavior change: /skills (official + community) and /nuxt now lead with description/signal-chip rather than install command in the card body. This is the intended rollout per contract Risk 1 but worth a visual sanity check in the browser.",
+    "Contract C6 says clipboard receives `npx -y skilld add gh:{owner}/{repo}/{name}`. Actual gitInstallCmd helper produces `npx -y skilld add gh:{owner}/{repo} -s {name}` (the existing convention). The component matches the existing helper, not the C6 string."
+  ],
+  "next_steps": [
+    "Run /nuxt-frontend-review skill-card-component-0427-0942 to verify visual diff on /orgs/github, the new description-led look on /skills + /nuxt, and that the homepage popular grid renders as expected with conditional avatars.",
+    "Future cleanup: factor an NpmPackageCard for the Algolia search results, then drop copyCmd/copiedName from skills/index.vue."
+  ],
+  "dark_mode_relevant": true
+}

@@ -2,12 +2,10 @@ import type { FaqPayload } from '../../jobs/generate-faqs'
 import type { SummaryPayload } from '../../jobs/generate-summary'
 import type { TagPayload } from '../../jobs/generate-tags'
 import { Marked } from 'marked'
+import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
+import { findSkill, findSupportedDuplicateGroupForSkill } from '~~/layers/registry/server/utils/skills-registry'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
-import { listCollectionRecords } from '../../utils/atproto/collections'
-import { getAllCurators } from '../../utils/atproto/curator-index'
-import { getGenerated } from '../../utils/skill-generated'
-import { findSkill, findSupportedDuplicateGroupForSkill } from '../../utils/skills-registry'
 
 const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
 const HTML_ESCAPE_RE = /[&<>"']/g
@@ -652,35 +650,8 @@ async function getEndorsementsForSkill(db: D1Database, skillName: string): Promi
   return endorsementMap[skillName] ?? []
 }
 
-async function buildEndorsementMap(db: D1Database): Promise<Record<string, CuratorEndorsement[]>> {
-  const curators = await getAllCurators(db)
-  const map: Record<string, CuratorEndorsement[]> = {}
-
-  const results = await Promise.allSettled(curators.map(async (curator) => {
-    const records = await listCollectionRecords(curator.did)
-
-    for (const { record } of records) {
-      for (const skill of record.skills) {
-        const endorsement: CuratorEndorsement = {
-          did: curator.did,
-          handle: curator.handle,
-          displayName: curator.displayName,
-          avatar: curator.avatar,
-          collectionName: record.name,
-          collectionSlug: record.slug,
-          reason: skill.reason,
-        }
-        if (!map[skill.packageName])
-          map[skill.packageName] = []
-        map[skill.packageName]!.push(endorsement)
-      }
-    }
-  }))
-
-  for (const result of results) {
-    if (result.status === 'rejected')
-      console.warn('[endorsement-map] Failed to fetch curator collections:', result.reason)
-  }
-
-  return map
+async function buildEndorsementMap(_db: D1Database): Promise<Record<string, CuratorEndorsement[]>> {
+  // Phase 1: endorsements were sourced from atproto curator collections, which
+  // are gone. Returns empty until Phase 2 rebuilds against collections_v2.
+  return {}
 }

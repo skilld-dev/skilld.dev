@@ -1,4 +1,4 @@
-import { officialRepos } from '../data/official-repos'
+import { officialRepos } from '~~/layers/registry/server/data/official-repos'
 
 export type SkillTrustTier = 'official' | 'trusted-author' | 'trusted-curator' | 'candidate' | 'untrusted' | 'quarantined'
 export type SkillTrustSource = 'manual' | 'official-list' | 'curator-reason' | 'downloads' | 'social-proof' | 'repo-scale' | 'computed'

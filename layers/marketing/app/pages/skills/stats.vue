@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SkillsStats } from '../../../server/api/skills/stats.get'
+import type { SkillsStats } from '#layers/registry/server/api/skills/stats.get'
 
 useSeoMeta({
   title: 'Stats — skilld',

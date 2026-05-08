@@ -1,0 +1,81 @@
+{
+  "schema_version": 4,
+  "job_id": "skills-stats-page-0426-1143",
+  "created": "2026-04-26T02:32:10Z",
+  "updated": "2026-04-26T02:53:33Z",
+  "phase": "polish",
+  "git_hash": "04c45ae9aeb6bc150ef31230290992783944cf1f",
+  "dev_port": 3000,
+  "pages_changed": [
+    "app/pages/skills/stats.vue",
+    "app/app.vue"
+  ],
+  "components_created": [
+    "app/components/StatsBars.vue",
+    "app/components/StatsHBar.vue",
+    "app/components/StatsScatter.vue",
+    "app/components/StatsLeaderboard.vue"
+  ],
+  "components_modified_polish": [
+    "app/components/StatsBars.vue",
+    "app/components/StatsHBar.vue",
+    "app/components/StatsScatter.vue",
+    "app/components/StatsLeaderboard.vue",
+    "app/pages/skills/stats.vue"
+  ],
+  "routes_to_test": [
+    "/skills/stats"
+  ],
+  "design_system_changes": false,
+  "theme_name": "quiet-editorial",
+  "contract_path": ".claude/context/jobs/skills-stats-page-0426-1143/build-contract.md",
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "met",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met",
+    "C14": "met",
+    "C15": "met",
+    "C16": "met"
+  },
+  "polish_changes": [
+    "Chart cards: added site-wide hover affordance (transition-colors duration-200 hover:border-[var(--ui-text-muted)]) to all 6 cards",
+    "StatsBars: added scale prop ('linear' | 'sqrt'); wired scale='sqrt' on Star distribution and Repo age so long-tail bars are differentiable",
+    "StatsBars: count labels move inside bar top when bar height >= 16 viewBox units, using fill-bg for contrast against the bar",
+    "StatsBars: padding increased (PAD_TOP 8->14, PAD_BOTTOM 24->22) and label sizes bumped (6->6.5/7.5) for legibility",
+    "StatsHBar: 1px inset right-border in --ui-bg between segments so opacity-graded segments read distinctly",
+    "StatsScatter: padding bumped (PAD_L 28->32, PAD_B 28->30) and axis label font-size 6->7.5",
+    "StatsLeaderboard: skill-count rendered as '· N sk' instead of bare '· N' for clarity",
+    "stats.vue: chart cards wrapped in <Motion> with fade-up entrance (opacity 0->1, y 4->0, 60ms stagger, easeOut), opacity-only fallback under prefers-reduced-motion via useMotionA11y"
+  ],
+  "self_assessment": {
+    "confidence": "high",
+    "weakest_area": "Star distribution sqrt scale still leaves bars 2-6 (3, 21, 20, 15, 7) as thin slivers because the 5285:3 ratio is ~1700×; sqrt compresses to ~42× which is better than linear but tail is still subordinate. Going further (cbrt/log) would compress the dominant signal.",
+    "hardest_decision": "Whether to apply sqrt to Chart 6 (Skills per repo). Skipped because that distribution is reasonably balanced (1336/1338/1786/887/387) and linear is honest. Only Chart 1 and Chart 3 (which has unknown=11353 dominance) get sqrt."
+  },
+  "has_client_animations": true,
+  "known_limitations": [
+    "Maintenance and age charts mostly show 'unknown' until repo metadata sync runs",
+    "Scatter sampled to top 1,500 skills with non-zero stars or installs",
+    "Star histogram is bimodal at 0 and 10k+, reflecting the long tail of personal skill-named repos with no stars"
+  ],
+  "next_steps": [
+    "Run /nuxt-frontend-review skills-stats-page-0426-1143 to re-grade after polish",
+    "Optional: trigger GitHub repo metadata sync to populate pushed_at and repo_created_at, which will make charts 2 and 3 informative"
+  ],
+  "dark_mode_relevant": true,
+  "repair_log": [
+    "C11: stats.vue:143,207 lg:grid-cols-2 -> md:grid-cols-2 (768px breakpoint)",
+    "a11y: StatsHBar.vue:48 added role=\"img\" to bar wrapper div (axe aria-prohibited-attr)",
+    "a11y rubric: StatsBars.vue:62, StatsScatter.vue:91 dropped redundant role=\"img\" + aria-label on aria-hidden SVG"
+  ]
+}
