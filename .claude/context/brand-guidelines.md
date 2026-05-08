@@ -4,23 +4,27 @@
 
 ## What skilld Is
 
-skilld is a curated registry of AI agent skills. It organizes discovery around people whose taste you trust, not download counts or algorithms. The platform authors and maintains one canonical package skill per npm package. Curators assemble these into collections. The human layer (curators, collections, editorial context, social proof via the AT Protocol) is what makes skilld more than a registry.
+skilld is a curated registry of AI agent skills for the npm packages and GitHub repos developers actually use. One install command works with every agent. When a watched repo changes, skilld emails a digest so users learn what changed and why.
 
 ### Core Thesis
 
-Skills are knowledge, not packages. The right skill for your context matters more than the most popular one. The best signal for "right" is a developer you already trust choosing it for their own workflow.
+Skills are knowledge, not packages. The right skill for your context matters more than the most popular one. A curated registry plus a watch-for-changes loop turns skill discovery into a habit, not a one-off lookup.
 
 ### One-liner
 
-**Curated agent skills from trusted open-source developers.**
+**Curated skills for AI agents.**
+
+### Two loops
+
+- **Loop 1 — Activation:** anonymous discovery → install. Land, copy, run. No friction.
+- **Loop 2 — Retention:** sign in with GitHub, watch your stack, get a weekly digest of what changed.
 
 ## Positioning
 
 ### What we are
-- A curated registry and discovery layer for AI agent skills
-- People first: every surface answers "who" before "what"
-- An editorial platform where developer taste is the quality signal
-- Two skill types: **package skills** (npm, authored by skilld) and **guide skills** (general knowledge, authored by people)
+- A curated registry of AI agent skills for the npm packages and GitHub repos developers actually use
+- One install command, every agent: `npx skilld add gh:owner/repo`
+- A watch-for-changes layer: sign in with GitHub, get a digest when watched repos change
 
 ### What we are not
 - An AI product (we serve developers who use AI agents, but we are not "AI-powered")
@@ -30,13 +34,13 @@ Skills are knowledge, not packages. The right skill for your context matters mor
 | | Context7 | skills.sh | skilld |
 |---|---|---|---|
 | Model | Cloud API, raw doc chunks | Flat list, ranked by installs | Curated registry + local files |
-| Organizing unit | Libraries | Skills (leaderboard) | People (curators) |
-| Discovery | Search by library name | Search + install count | Curators, collections, stacks |
-| Quality signal | None (raw docs) | Popularity | Editorial curation, curator reputation |
-| Social proof | None | Download numbers | Real people via AT Protocol |
+| Organizing unit | Libraries | Skills (leaderboard) | Repos and curated collections |
+| Discovery | Search by library name | Search + install count | Recently updated skills, featured collections, watch CTA |
+| Quality signal | None (raw docs) | Popularity | Editorial curation, official-repo signal |
+| Change tracking | None | None | Watch for changes → weekly digest |
 | Offline | No | Yes | Yes, skills are local files |
 
-The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gives you knowledge, organized around the people you trust.
+The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gives you a curated registry plus a watch-for-changes loop, so your agent stays current as the underlying packages evolve.
 
 ## Naming
 
@@ -53,12 +57,12 @@ The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gi
 | **skill** | A SKILL.md file that gives an AI agent domain knowledge | Lowercase always. Not "plugin", "extension", or "module" |
 | **package skill** | A skill tied to a specific npm package and version, authored by skilld | Canonical, one per package, installed via `npm:` prefix |
 | **guide skill** | A curation tag on skilld.dev for skills not tied to a package | Distributed as git skills, tagged for filtering in browse views |
-| **collection** | A curated bundle of skills assembled by a curator | Not "preset", "pack", "bundle", or "kit" in UI (fine in marketing prose) |
-| **curator** | A developer who maintains one or more collections on skilld | Not "author", "creator", or "maintainer" (those imply they wrote the skills) |
-| **registry** | skilld.dev, the central hub for curated package skills | Also hosts the MCP server |
-| **install** | Adding a skill or collection to your agent's configuration | Not "download", "add" is acceptable in CLI context (`skilld add npm:vue`) |
-| **follow** | Subscribing to a curator's updates | Keep social language grounded; no "subscribe", "watch", or "star" |
-| **stack** | A developer's framework and tooling combination (e.g. Nuxt + Tailwind + Vitest) | Used for personalization and filtering |
+| **collection** | A curated bundle of skills assembled by a collection author | Not "preset", "pack", "bundle", or "kit" in UI (fine in marketing prose) |
+| **author** / **curator** | A developer who maintains one or more collections on skilld. Identity is their GitHub login. | Either word is fine; "curator" reads warmer in editorial copy, "author" in product UI |
+| **registry** | skilld.dev, the central hub for curated agent skills | Also hosts the MCP server |
+| **install** | Adding a skill or collection to your agent's configuration | Not "download". `skilld add` is the canonical CLI verb |
+| **watch** | Subscribing to a repo or collection so you receive digest emails when it changes | The Loop 2 verb. Not "follow", not "star", not "subscribe" |
+| **digest** | Periodic email summarizing changes to your watched repos | Weekly default; daily and off are options |
 
 ### Feature naming
 - Name features descriptively, not cleverly. "Stack selector" not "StackMatch"
@@ -117,28 +121,28 @@ Confident, warm, editorial. Think independent technical magazine, not startup la
 ## Messaging Framework
 
 ### Tagline
-**Curated agent skills from trusted open-source developers.**
+**Curated skills for AI agents.**
 
 ### Elevator pitch (2 sentences)
-Skilld organizes AI agent skills around developers you trust, not download counts. Follow curators, install their collections, keep your agent current.
+Skilld is a curated registry of agent skills for the npm packages and GitHub repos you actually use. One install command, every agent; watch your stack and get a digest when it changes.
 
 ### Value propositions
 
 | For... | Value |
 |--------|-------|
-| Developers choosing skills | Find skills through developers whose judgment you trust, not leaderboard rankings |
-| Developers sharing skills | Curate your skills, publish a collection, share one install command |
-| Teams standardizing | Install a curator's full stack in one command; re-sync when they update |
+| Developers picking skills | A curated registry of agent skills, one install command across every agent |
+| Developers staying current | Watch the repos you depend on, get a weekly digest when their skills change |
+| Teams standardizing | Hand-picked collections install a stack in one command |
 
 ### How we talk about the product in different lengths
 
-**5 words:** Agent skills from trusted developers.
+**5 words:** Curated skills for AI agents.
 
-**1 sentence:** Skilld organizes AI agent skills around developers you trust, not download counts.
+**1 sentence:** Skilld is a curated registry of agent skills for the npm packages and GitHub repos you actually use.
 
-**2 sentences:** Skilld organizes AI agent skills around developers you trust, not download counts. Follow curators, install their collections, keep your agent current.
+**2 sentences:** Skilld is a curated registry of agent skills for the npm packages and GitHub repos you actually use. One install command, every agent; watch your stack and get a digest when it changes.
 
-**1 paragraph:** Skilld organizes AI agent skills around developers you trust. Developers curate collections of skills they actually use, publish them with one command, and share an install link. You follow the developers whose taste matches yours. When they update, you re-sync. The right skill for your context matters more than the most downloaded one.
+**1 paragraph:** Skilld is a curated registry of agent skills tied to the npm packages and GitHub repos developers actually use. The platform tracks skill files across repos, surfaces what changed, and ships them through one install command that works across every agent. Sign in with GitHub to watch the repos you depend on; we send a weekly digest when their skills change so your agent stays current as the underlying packages evolve.
 
 ## Brand Animation — Noise Field
 

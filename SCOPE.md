@@ -1,6 +1,15 @@
 # skilld.dev
 
-Curated registry and discovery platform for AI agent skills. People first, skills second.
+Curated registry and discovery platform for AI agent skills.
+
+## Two Loops
+
+Every change must serve one of two loops. If a feature doesn't, cut it.
+
+- **Loop 1 — Activation (anonymous discovery → install).** Land on skilld.dev → see curated/official skills + recent updates → open skill detail → copy `npx skilld add gh:owner/repo` → run it. No auth, no email, no friction. SEO-bearing surface. Top of funnel.
+- **Loop 2 — Retention (authenticated watching → digest).** Returning user signs in with GitHub → bulk-imports starred repos that have skills → optionally watches collections → receives weekly digest email when watched repos change. Lifecycle hook + moat.
+
+Loops live on the same site but are sold separately. Loop 1 is the headline; Loop 2 is a small CTA strip on the homepage and a "Watch for changes" affordance on skill/collection pages.
 
 ## Core Thesis
 
@@ -32,11 +41,11 @@ Not tied to any package. Distributed as git skills (`github:owner/repo`). Author
 
 ```
 skilld.dev/
-  /                        → People feed: curators, latest picks, featured collections
-  /people/[handle]         → Curator profile: bio, stack, collections, activity
-  /people/[handle]/[slug]  → Collection with editorial context + one-click install
-  /skills/[pkg]            → Skill detail: preview, sources, agents, "recommended by" people
-  /@[handle]               → Short URL, resolves to /people/[handle]
+  /                          → Hero install command, recently updated skills, featured collections
+  /@<gh-login>               → Collection author profile
+  /@<gh-login>/<slug>        → Collection with editorial context + one-click install
+  /gh/[owner]/[repo]/[name]  → Skill detail: preview, sources, agents, watch CTA
+  /skills/[pkg]              → Marketing/SEO landing for a package skill
 ```
 
 ## Install Commands
@@ -69,11 +78,10 @@ Each person becomes a living skill preset. When they update their list, follower
 
 ## Key Features
 
-### People First
-- Homepage is a people feed, not a leaderboard
-- Every surface answers "who" before "what"
-- Curator profiles linked to AT Protocol handles (no proprietary auth)
-- Comments and social proof via Bluesky threads
+### Curated registry
+- Homepage leads with the install command and recently updated official skills
+- Featured collections are hand-picked bundles, one install command per collection
+- Author profiles live under `/@<github-login>`, backed by GitHub OAuth (Phase 2)
 
 ### Curated Collections
 - Human curated bundles: "The Nuxt Starter Kit", "AI App Builder", "Design Engineer Essentials"
@@ -97,7 +105,8 @@ Each person becomes a living skill preset. When they update their list, follower
 - motion-v for animations
 - @nuxt/fonts (Plus Jakarta Sans + IBM Plex Mono)
 - @nuxtjs/seo + nuxt-og-image
-- AT Protocol for auth and social layer
+- GitHub OAuth via `nuxt-auth-utils` (Phase 2)
+- Resend + vue-email for digests (Phase 3)
 - Cloudflare Workers + D1 for deployment
 
 ## Brand Identity
@@ -112,13 +121,7 @@ Each person becomes a living skill preset. When they update their list, follower
 
 ## Build Phases
 
-- [x] Design system setup (colors, fonts, tokens, component theming, guidelines)
-- [x] Homepage: people feed + featured collections
-- [x] Curator profile page
-- [x] Collection detail page
-- [ ] Skill detail page
-- [x] AT Protocol auth integration
-- [ ] Registry API: skill metadata, search, collection endpoints
-- [ ] MCP server: hosted at skilld.dev/api/mcp
-- [ ] CLI integration: `skilld add npm:` resolution from registry
-- [x] OG image generation for curators, collections, skills
+- [x] Phase 1 — Loop 1 cleanup: rip atproto, new homepage, `/@<login>/*` collection routes, 410/redirect for `/people/*`
+- [ ] Phase 2 — Auth + watching: GitHub OAuth, users + subscriptions tables, onboarding, `/me` dashboard
+- [ ] Phase 3 — Email + AI summary: Resend, vue-email digest, Anthropic Haiku summaries, asset SHA tracking
+- [ ] Phase 4 — Cleanup: drop legacy atproto tables once v2 is verified
