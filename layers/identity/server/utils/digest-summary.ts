@@ -6,8 +6,17 @@
 // Workers AI has no Anthropic-style prompt caching; the cost per call is
 // low enough that re-paying the full prompt each week is fine.
 
+// Workers AI Anthropic-partner shape: top-level `system` (string), `messages`
+// with role 'user'|'assistant', max_tokens required. Response is the raw
+// Anthropic message: `content` is an array of typed blocks; we read the
+// first text block.
 interface AiBinding {
-  run: (model: string, input: { messages: Array<{ role: string, content: string }>, max_tokens?: number, response_format?: { type: 'json_schema', json_schema: object } }) => Promise<{ response?: string }>
+  run: (model: string, input: {
+    messages: Array<{ role: 'user' | 'assistant', content: string }>
+    max_tokens: number
+    system?: string
+    temperature?: number
+  }) => Promise<{    content?: Array<{ type: string, text?: string }>    stop_reason?: string | null  }>
 }
 
 // Anthropic Haiku 4.5 brokered through Workers AI. The binding handles auth;
@@ -65,7 +74,8 @@ For each repo with changes, return one sentence (max ~20 words) describing what 
 Subscriptions for this user:
 ${subBlock}
 
-Return JSON matching the provided schema. The "summaries" array has one entry per repo that changed.`
+Output JSON only, no prose, with this exact shape:
+{"summaries":[{"owner":"...","repo":"...","sentence":"..."}]}`
 
   const changesBlock = input.changes.map((c) => {
     const commits = c.commitMessages.slice(0, 20).map(m => `  - ${m}`).join('\n')
@@ -75,35 +85,14 @@ Return JSON matching the provided schema. The "summaries" array has one entry pe
   const userPrompt = `This week's changes:\n\n${changesBlock}`
 
   const out = await input.ai.run(MODEL, {
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    max_tokens: 1024,
-    response_format: {
-      type: 'json_schema',
-      json_schema: {
-        type: 'object',
-        properties: {
-          summaries: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                owner: { type: 'string' },
-                repo: { type: 'string' },
-                sentence: { type: 'string' },
-              },
-              required: ['owner', 'repo', 'sentence'],
-            },
-          },
-        },
-        required: ['summaries'],
-      },
-    },
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+    max_tokens: 1024
   }).catch(() => null)
 
-  const text = out?.response ?? ''
+  const text = (out?.content ?? [])
+    .filter(b => b.type === 'text' && typeof b.text === 'string')
+    .map(b => b.text!).join('')
   if (!text)
     return null
 
