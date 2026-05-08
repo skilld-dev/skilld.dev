@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
+
 const title = 'Curated skills for AI agents · skilld'
 const description = 'A curated registry of agent skills for the npm packages and GitHub repos you actually use. One install command, every agent. Get notified when they change.'
 
@@ -26,13 +28,23 @@ function copyHero() {
   }, 2000)
 }
 
-import type { RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
-
 const { data: updatesData } = useFetch<RecentUpdatesResponse>('/api/feed/recent-updates')
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 
 const { data: collectionsData } = useFetch('/api/collections/featured')
 const featuredCollections = computed(() => collectionsData.value?.items ?? [])
+
+const { data: designData } = useFetch('/api/skills', {
+  key: 'home-design',
+  query: { q: 'design', limit: 6, sort: 'installs' },
+})
+const designSkills = computed(() => designData.value?.items ?? [])
+
+const { data: featuredDevsData } = useFetch('/api/skills/featured', {
+  key: 'home-featured-devs',
+  query: { orgs: 0, perOrg: 0, devs: 4, perDev: 4 },
+})
+const featuredDevSections = computed(() => featuredDevsData.value?.devSections ?? [])
 
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts * 1000
@@ -63,35 +75,19 @@ function formatRelative(ts: number): string {
             id="hero-heading"
             class="font-mono text-2xl sm:text-3xl font-medium tracking-tight"
           >
-            Curated skills for AI agents
+            What should your agent be better at?
           </h1>
           <p class="mt-3 text-sm text-muted max-w-lg leading-relaxed">
-            Stop explaining how to plan, debug, or review every session.
-            Install the skill once — every agent uses it.
+            A curated registry of skills for the npm packages and GitHub repos you actually use. Browse by what you're trying to do, install once, every agent uses it.
           </p>
 
-          <div class="mt-6 flex items-center gap-2 max-w-xl">
-            <code class="flex-1 truncate rounded bg-muted px-3 py-2 font-mono text-xs sm:text-sm">{{ heroInstallCmd }}</code>
-            <UButton
-              :icon="heroCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-              :label="heroCopied ? 'Copied' : 'Copy'"
-              size="sm"
-              color="neutral"
-              variant="outline"
-              :aria-label="heroCopied ? 'Install command copied' : 'Copy install command'"
-              @click="copyHero"
-            />
-          </div>
-          <span aria-live="polite" class="sr-only">{{ heroCopied ? 'Install command copied to clipboard' : '' }}</span>
-
-          <div class="mt-4 flex flex-wrap items-center gap-3">
+          <div class="mt-6 flex flex-wrap items-center gap-3">
             <UButton
               to="/skills"
               label="Browse skills"
               icon="i-lucide-search"
               size="sm"
               color="neutral"
-              variant="ghost"
             />
             <UButton
               to="/collections"
@@ -101,6 +97,22 @@ function formatRelative(ts: number): string {
               color="neutral"
               variant="ghost"
             />
+          </div>
+
+          <div class="mt-6 flex flex-col gap-1.5 max-w-xl">
+            <span class="data-label">Already know what you want?</span>
+            <div class="flex items-center gap-2">
+              <code class="flex-1 truncate rounded bg-muted px-3 py-1.5 font-mono text-xs">{{ heroInstallCmd }}</code>
+              <UButton
+                :icon="heroCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                :aria-label="heroCopied ? 'Install command copied' : 'Copy install command'"
+                @click="copyHero"
+              />
+            </div>
+            <span aria-live="polite" class="sr-only">{{ heroCopied ? 'Install command copied to clipboard' : '' }}</span>
           </div>
         </div>
       </section>
@@ -123,6 +135,72 @@ function formatRelative(ts: number): string {
         Six things JS developers are tuning their agent for. Pick a problem, install a skill, restart your agent.
       </p>
       <HomepageClusterGrid />
+    </section>
+
+    <USeparator v-if="designSkills.length" />
+
+    <!-- Design — top-level domain category -->
+    <section
+      v-if="designSkills.length"
+      id="design"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="design-heading"
+    >
+      <div class="flex items-end justify-between mb-2">
+        <h2 id="design-heading" class="section-label">
+          Design
+        </h2>
+        <UButton
+          to="/skills?q=design"
+          label="View all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Skills for UI, UX, and visual quality. Make your agent build interfaces that don't look generic.
+      </p>
+      <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
+        <li v-for="skill in designSkills" :key="skill.slug">
+          <SkillCard :skill show-tags show-owner-path />
+        </li>
+      </ul>
+    </section>
+
+    <USeparator v-if="featuredDevSections.length" />
+
+    <!-- Featured Developers -->
+    <section
+      v-if="featuredDevSections.length"
+      id="featured-developers"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="featured-devs-heading"
+    >
+      <div class="flex items-end justify-between mb-2">
+        <h2 id="featured-devs-heading" class="section-label">
+          Featured developers
+        </h2>
+        <UButton
+          to="/skills"
+          label="View all"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          trailing-icon="i-lucide-arrow-right"
+        />
+      </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Skills published by individual developers, with the person behind the stack up front.
+      </p>
+      <div class="space-y-0">
+        <DeveloperSkillSection
+          v-for="section in featuredDevSections"
+          :key="`${section.owner}/${section.repo}`"
+          :section
+        />
+      </div>
     </section>
 
     <USeparator />
