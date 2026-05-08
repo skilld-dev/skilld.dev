@@ -63,7 +63,7 @@ export default defineNuxtConfig({
     sessionPassword: process.env.NUXT_SESSION_PASSWORD || '',
     adminSecret: process.env.NUXT_ADMIN_SECRET || '',
     tokenKey: process.env.NUXT_TOKEN_KEY || '',
-    anthropicApiKey: process.env.NUXT_ANTHROPIC_API_KEY || '',
+    cfAigToken: process.env.NUXT_CF_AIG_TOKEN || process.env.CF_AIG_TOKEN || '',
     publicSiteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://skilld.dev',
     oauth: {
       github: {
@@ -102,6 +102,12 @@ export default defineNuxtConfig({
         send_email: [
           { name: 'EMAIL' },
         ],
+        // Workers AI binding — Anthropic calls go through AI Gateway "main"
+        // with BYOK; no provider key lives in the worker. Phase 3.
+        ai: {
+          binding: 'AI',
+          experimental_remote: true,
+        },
         durable_objects: {
           bindings: [
             { name: '$DurableObject', class_name: '$DurableObject' },

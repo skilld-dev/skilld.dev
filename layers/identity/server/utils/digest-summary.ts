@@ -2,8 +2,15 @@
 // skill descriptions) sits in `system` with cache_control; per-week diffs
 // land in the user message. Failure mode: caller falls back to the
 // no-summary template — never block the send.
+//
+// Routes through the Workers AI binding's gateway('main') with BYOK: no
+// Anthropic key in the worker; the gateway holds it. Auth is the
+// CF_AIG_TOKEN. The pattern mirrors nuxtseo.com's pro-chat handler.
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
+interface AiBinding {
+  gateway: (name: string) => { getUrl: (provider: string) => Promise<string> }
+}
+
 const ANTHROPIC_VERSION = '2023-06-01'
 const MODEL = 'claude-haiku-4-5'
 
@@ -30,7 +37,8 @@ export interface SkillSummary {
 }
 
 export interface SummariseInput {
-  apiKey: string
+  ai: AiBinding
+  cfAigToken: string
   subscriptions: SubscriptionContext[]
   changes: RepoChange[]
 }
@@ -42,7 +50,7 @@ export interface SummariseResult {
 }
 
 export async function summariseChanges(input: SummariseInput): Promise<SummariseResult | null> {
-  if (!input.apiKey || !input.changes.length)
+  if (!input.ai || !input.cfAigToken || !input.changes.length)
     return null
 
   // Sort deterministically so the cached prefix stays byte-stable across
@@ -79,11 +87,13 @@ Output JSON only, no prose, with this exact shape:
     messages: [{ role: 'user', content: userPrompt }],
   }
 
-  const res = await fetch(ANTHROPIC_URL, {
+  const baseURL = await input.ai.gateway('main').getUrl('anthropic')
+  const res = await fetch(`${baseURL}/v1/messages`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': input.apiKey,
+      'cf-aig-authorization': `Bearer ${input.cfAigToken}`,
+      'cf-aig-skip-cache': 'true',
       'anthropic-version': ANTHROPIC_VERSION,
     },
     body: JSON.stringify(body),
