@@ -5,7 +5,7 @@
  * drift and regenerate when source changes.
  */
 
-export type GeneratedKind = 'faq' | 'tags' | 'embedding' | 'summary'
+export type GeneratedKind = 'faq' | 'tags' | 'embedding' | 'summary' | 'abstractness'
 
 export interface GeneratedRow<T = unknown> {
   owner: string

@@ -1,3 +1,5 @@
+import { CLUSTERS } from '../data/clusters'
+
 // Legacy /skills/<owner>[/repo[/name]] URLs were the catch-all entry point.
 // The marketing layer now owns /skills/* literals; everything else under
 // /skills/ is a registry entity and redirects to /gh/. See ADR-0001.
@@ -7,6 +9,7 @@ const MARKETING_PATHS = new Set([
   '/skills/guide',
   '/skills/official',
   '/skills/stats',
+  ...CLUSTERS.map(c => `/skills/${c.slug}`),
 ])
 
 export default defineEventHandler((event) => {

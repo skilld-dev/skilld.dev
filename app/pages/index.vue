@@ -64,8 +64,8 @@ function formatRelative(ts: number): string {
             Curated skills for AI agents
           </h1>
           <p class="mt-3 text-sm text-muted max-w-lg leading-relaxed">
-            A curated registry of agent skills for the npm packages and GitHub repos you actually use.
-            One install command, every agent. Get notified when they change.
+            Stop explaining how to plan, debug, or review every session.
+            Install the skill once — every agent uses it.
           </p>
 
           <div class="mt-6 flex items-center gap-2 max-w-xl">
@@ -103,6 +103,25 @@ function formatRelative(ts: number): string {
         </div>
       </section>
     </div>
+
+    <USeparator />
+
+    <!-- What are you trying to do? — pain-point cluster grid -->
+    <section
+      id="clusters"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="clusters-heading"
+    >
+      <div class="mb-2">
+        <h2 id="clusters-heading" class="section-label">
+          What are you trying to do?
+        </h2>
+      </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Six things JS developers are tuning their agent for. Pick a problem, install a skill, restart your agent.
+      </p>
+      <HomepageClusterGrid />
+    </section>
 
     <USeparator />
 
