@@ -16,7 +16,12 @@ interface AiBinding {
     max_tokens: number
     system?: string
     temperature?: number
-  }) => Promise<{    content?: Array<{ type: string, text?: string }>    stop_reason?: string | null  }>
+  }) => Promise<AnthropicAiResult>
+}
+
+interface AnthropicAiResult {
+  content?: Array<{ type: string, text?: string }>
+  stop_reason?: string | null
 }
 
 // Anthropic Haiku 4.5 brokered through Workers AI. The binding handles auth;
@@ -87,12 +92,13 @@ Output JSON only, no prose, with this exact shape:
   const out = await input.ai.run(MODEL, {
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
-    max_tokens: 1024
+    max_tokens: 1024,
   }).catch(() => null)
 
   const text = (out?.content ?? [])
     .filter(b => b.type === 'text' && typeof b.text === 'string')
-    .map(b => b.text!).join('')
+    .map(b => b.text!)
+    .join('')
   if (!text)
     return null
 
