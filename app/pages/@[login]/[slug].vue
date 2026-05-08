@@ -69,14 +69,7 @@ useHead({
     <span aria-live="polite" class="sr-only">{{ copied ? 'Install command copied to clipboard' : '' }}</span>
 
     <div class="mt-4">
-      <UButton
-        label="Watch this collection (coming soon)"
-        icon="i-lucide-bell"
-        size="sm"
-        color="neutral"
-        variant="ghost"
-        disabled
-      />
+      <WatchCollectionButton :login="login" :slug="slug" />
     </div>
 
     <USeparator class="my-8" />

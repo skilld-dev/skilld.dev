@@ -27,9 +27,10 @@ export default defineEventHandler(async (event) => {
   const db = getDB(event)
   const collection = await db
     .prepare(
-      `SELECT id, author_login, slug, name, preamble, featured, created_at, updated_at
-       FROM collections_v2
-       WHERE author_login = ? AND slug = ? AND deleted_at IS NULL
+      `SELECT c.id, u.login AS author_login, c.slug, c.name, c.preamble, c.featured, c.created_at, c.updated_at
+       FROM collections_v2 c
+       JOIN users u ON u.id = c.author_user_id
+       WHERE u.login = ? AND c.slug = ? AND c.deleted_at IS NULL
        LIMIT 1`,
     )
     .bind(login, slug)

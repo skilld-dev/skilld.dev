@@ -1163,6 +1163,7 @@ useHead(computed(() => ({
               <p class="font-mono text-xs text-muted">
                 Works with {{ compatibleAgents.map(a => a.label).join(' · ') }}
               </p>
+              <WatchSkillButton :owner="data.owner" :repo="data.repo" />
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
                 <UButton
                   :href="githubUrl"

@@ -10,10 +10,11 @@ export default defineSitemapEventHandler(async (event) => {
   const db = getDB(event)
   const res = await db
     .prepare(
-      `SELECT author_login, slug, updated_at
-       FROM collections_v2
-       WHERE deleted_at IS NULL
-       ORDER BY updated_at DESC`,
+      `SELECT u.login AS author_login, c.slug, c.updated_at
+       FROM collections_v2 c
+       JOIN users u ON u.id = c.author_user_id
+       WHERE c.deleted_at IS NULL
+       ORDER BY c.updated_at DESC`,
     )
     .all<CollectionRow>()
 

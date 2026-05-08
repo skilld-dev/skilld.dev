@@ -27,9 +27,10 @@ export default defineCachedEventHandler(
     const db = getDB(event)
     const res = await db
       .prepare(
-        `SELECT c.id, c.author_login, c.slug, c.name, c.preamble, c.featured_at, c.updated_at,
+        `SELECT c.id, u.login AS author_login, c.slug, c.name, c.preamble, c.featured_at, c.updated_at,
                 (SELECT COUNT(*) FROM collection_skills_v2 cs WHERE cs.collection_id = c.id) AS skill_count
          FROM collections_v2 c
+         JOIN users u ON u.id = c.author_user_id
          WHERE c.featured = 1 AND c.deleted_at IS NULL
          ORDER BY c.featured_at DESC
          LIMIT 6`,

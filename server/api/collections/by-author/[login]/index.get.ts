@@ -20,7 +20,8 @@ export default defineEventHandler(async (event) => {
       `SELECT c.slug, c.name, c.preamble, c.featured, c.updated_at,
               (SELECT COUNT(*) FROM collection_skills_v2 cs WHERE cs.collection_id = c.id) AS skill_count
        FROM collections_v2 c
-       WHERE c.author_login = ? AND c.deleted_at IS NULL
+       JOIN users u ON u.id = c.author_user_id
+       WHERE u.login = ? AND c.deleted_at IS NULL
        ORDER BY c.created_at DESC`,
     )
     .bind(login)

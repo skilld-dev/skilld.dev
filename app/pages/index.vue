@@ -233,11 +233,11 @@ function formatRelative(ts: number): string {
           </p>
         </div>
         <UButton
-          label="Sign in with GitHub (coming soon)"
+          to="/login?return_to=/onboarding/discover"
+          label="Sign in with GitHub"
           icon="i-lucide-github"
           color="neutral"
           size="sm"
-          disabled
         />
       </div>
     </section>
