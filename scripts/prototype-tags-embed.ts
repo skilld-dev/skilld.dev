@@ -7,7 +7,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { TAXONOMY } from '../server/jobs/taxonomy'
+import { TAXONOMY } from '../layers/registry/server/jobs/taxonomy'
 
 const VOYAGE_KEY = process.env.VOYAGE_API_KEY
 if (!VOYAGE_KEY) {

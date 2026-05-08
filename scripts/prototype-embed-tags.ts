@@ -15,7 +15,7 @@
 import { spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { TAXONOMY } from '../server/jobs/taxonomy'
+import { TAXONOMY } from '../layers/registry/server/jobs/taxonomy'
 
 const { values } = parseArgs({ options: { remote: { type: 'boolean' } } })
 const REMOTE_FLAG = values.remote ? '--remote' : '--local'

@@ -4,12 +4,11 @@ trustPolicy: no-downgrade
 
 catalog:
   '@antfu/eslint-config': ^8.2.0
-  '@atproto/api': ^0.19.13
-  '@atproto/common': ^0.5.16
-  '@cloudflare/workers-types': ^4.20260506.1
+  '@cloudflare/workers-types': ^4.20260508.1
   '@iconify-json/lucide': ^1.2.105
   '@iconify-json/simple-icons': ^1.2.81
   '@nuxt/a11y': 1.0.0-alpha.1
+  '@nuxt/content': ^3.7.1
   '@nuxt/eslint': ^1.15.2
   '@nuxt/fonts': ^0.14.0
   '@nuxt/scripts': ^1.0.6
@@ -25,13 +24,12 @@ catalog:
   '@vueuse/core': ^14.3.0
   '@vueuse/nuxt': ^14.3.0
   algoliasearch: ^5.52.1
-  atproto-oauth-client-cloudflare-workers: ^0.2.2
   axe-core: ^4.11.4
   better-sqlite3: ^12.9.0
   eslint: ^10.3.0
   eslint-plugin-harlanzw: ^0.12.1
   happy-dom: ^20.9.0
-  lint-staged: ^16.4.0
+  lint-staged: ^17.0.2
   marked: ^18.0.3
   motion-v: ^2.2.1
   nitro-cloudflare-dev: ^0.2.2
@@ -43,7 +41,7 @@ catalog:
   typescript: ^6.0.3
   vitest: ^4.1.5
   vue-tsc: ^3.2.8
-  wrangler: ^4.88.0
+  wrangler: ^4.90.0
 ignoredBuiltDependencies:
   - '@parcel/watcher'
   - '@tailwindcss/oxide'
@@ -53,3 +51,11 @@ ignoredBuiltDependencies:
 onlyBuiltDependencies:
   - better-sqlite3
 trustPolicyIgnoreAfter: 262800
+allowBuilds:
+  '@parcel/watcher': true
+  better-sqlite3: true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  vue-demi: true
+  workerd: true

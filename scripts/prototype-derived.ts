@@ -19,10 +19,10 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { generateEmbedding } from '../server/jobs/generate-embeddings'
-import { generateFaqs } from '../server/jobs/generate-faqs'
-import { generateSummary } from '../server/jobs/generate-summary'
-import { generateTags } from '../server/jobs/generate-tags'
+import { generateEmbedding } from '../layers/registry/server/jobs/generate-embeddings'
+import { generateFaqs } from '../layers/registry/server/jobs/generate-faqs'
+import { generateSummary } from '../layers/registry/server/jobs/generate-summary'
+import { generateTags } from '../layers/registry/server/jobs/generate-tags'
 
 const { values } = parseArgs({
   options: {
