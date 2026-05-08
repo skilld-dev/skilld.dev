@@ -33,7 +33,7 @@ function parseFrontmatter(md: string): Frontmatter {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!
-    const kv = line.match(/^(\w[\w-]*):\s*(.*)$/)
+    const kv = line.match(/^(\w[\w-]*):(.*)$/)
     if (!kv)
       continue
     const [, key, rawVal] = kv as [string, string, string]

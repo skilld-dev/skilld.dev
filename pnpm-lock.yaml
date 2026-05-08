@@ -90,6 +90,9 @@ catalogs:
     marked:
       specifier: ^18.0.3
       version: 18.0.3
+    mimetext:
+      specifier: ^3.0.28
+      version: 3.0.28
     motion-v:
       specifier: ^2.2.1
       version: 2.2.1
@@ -102,6 +105,9 @@ catalogs:
     nuxt-ai-ready:
       specifier: ^1.3.0
       version: 1.3.0
+    nuxt-auth-utils:
+      specifier: ^0.5.29
+      version: 0.5.29
     nuxt-og-image:
       specifier: ^6.5.0
       version: 6.5.0
@@ -171,7 +177,7 @@ importers:
         specifier: 'catalog:'
         version: 18.0.3
       mimetext:
-        specifier: ^3.0.28
+        specifier: 'catalog:'
         version: 3.0.28
       motion-v:
         specifier: 'catalog:'
@@ -183,7 +189,7 @@ importers:
         specifier: 'catalog:'
         version: 1.3.0(e7c6daa8a4536965ca622d1033b32d8a)
       nuxt-auth-utils:
-        specifier: ^0.5.29
+        specifier: 'catalog:'
         version: 0.5.29(magicast@0.5.2)
       nuxt-og-image:
         specifier: 'catalog:'

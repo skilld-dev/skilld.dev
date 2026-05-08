@@ -5,7 +5,7 @@ const { data: me } = await useFetch('/api/me')
 const { fetchSession } = useAuth()
 
 const email = ref(me.value?.digest_email || me.value?.email || '')
-const optIn = ref(false)
+const optIn = ref(true)
 
 const submitting = ref(false)
 async function finish() {
@@ -17,19 +17,20 @@ async function finish() {
   await $fetch('/api/me/onboarded', { method: 'POST' }).catch(() => null)
   await fetchSession()
   submitting.value = false
-  await navigateTo('/me')
+  await navigateTo('/me?welcome=1')
 }
 
 useSeoMeta({ title: 'Email opt-in · skilld', robots: 'noindex' })
 </script>
 
 <template>
-  <section class="mx-auto max-w-md px-4 sm:px-6 pt-12 pb-12 md:pt-16">
-    <h1 class="font-mono text-2xl font-medium">
+  <section class="mx-auto max-w-md px-4 sm:px-6 pt-8 pb-12 md:pt-12">
+    <OnboardingSteps :step="3" />
+    <h1 class="mt-6 font-mono text-2xl font-medium">
       Email
     </h1>
     <p class="mt-2 text-sm text-muted">
-      Where should we send the digest? Opt-in is explicit; you can change it any time.
+      Where should we send the digest? You can change this any time from your dashboard.
     </p>
 
     <div class="mt-6 space-y-4">
@@ -49,9 +50,21 @@ useSeoMeta({ title: 'Email opt-in · skilld', robots: 'noindex' })
           Send me the digest when watched repos change. (Required to receive emails.)
         </span>
       </label>
+
+      <p v-if="!optIn" class="rounded-lg border border-default bg-elevated/50 p-3 text-xs text-muted">
+        You won't receive any emails. You can opt in later from your dashboard.
+      </p>
     </div>
 
-    <div class="mt-8 flex justify-end">
+    <div class="mt-8 flex items-center justify-between">
+      <UButton
+        to="/onboarding/cadence"
+        label="Back"
+        leading-icon="i-lucide-arrow-left"
+        size="sm"
+        color="neutral"
+        variant="ghost"
+      />
       <UButton
         :loading="submitting"
         label="Finish"

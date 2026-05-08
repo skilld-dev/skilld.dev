@@ -1,9 +1,9 @@
+import type { RegistrySkill } from '~~/layers/registry/server/utils/skills-registry'
 /// <reference types="@cloudflare/workers-types" />
 import type { TagPayload } from '../../jobs/generate-tags'
-import type { RegistrySkill } from '~~/layers/registry/server/utils/skills-registry'
-import { TAG_BY_SLUG } from '../../jobs/taxonomy'
-import { getDB } from '~~/server/utils/db'
 import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
+import { getDB } from '~~/server/utils/db'
+import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 
 export interface TagOwner {
   owner: string
@@ -40,6 +40,8 @@ interface SkillRow {
   slug: string
   stars: number | null
   description: string | null
+  pushed_at: number | null
+  modified_at: number | null
 }
 
 function rowToSkill(r: SkillRow): RegistrySkill {
@@ -52,6 +54,8 @@ function rowToSkill(r: SkillRow): RegistrySkill {
     slug: r.slug,
     stars: r.stars ?? 0,
     description: r.description ?? null,
+    pushedAt: r.pushed_at ?? null,
+    modifiedAt: r.modified_at ?? null,
     seoIndexScore: 0,
     seoIndexable: false,
     trustTier: 'untrusted',
@@ -74,7 +78,7 @@ export default defineCachedEventHandler(async (event) => {
   //   3. AI-classified tags (skill_generated kind='tags')
   const skillsRes = await db
     .prepare(
-      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.installs, s.slug, s.stars, s.description
+      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.installs, s.slug, s.stars, s.description, s.pushed_at, s.modified_at
        FROM skills s
        WHERE ${NOT_BROKEN_SQL} AND (
          s.rowid IN (SELECT rowid FROM skills_fts WHERE skills_fts MATCH ?)

@@ -2,11 +2,18 @@
 definePageMeta({ middleware: ['auth'] })
 
 const { data: me } = await useFetch('/api/me')
+const { data: subs } = await useFetch('/api/me/subscriptions')
+
+if (!subs.value?.items?.length) {
+  await navigateTo('/onboarding/email', { replace: true })
+}
+
+const detectedTz = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
 
 const frequency = ref<'weekly' | 'daily' | 'off'>(me.value?.digest_frequency ?? 'weekly')
 const dow = ref<number>(me.value?.digest_dow ?? 1)
 const hour = ref<number>(me.value?.digest_hour ?? 9)
-const timezone = ref<string>(me.value?.timezone || (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'))
+const timezone = ref<string>(me.value?.timezone || detectedTz)
 
 const dows = [
   { value: 0, label: 'Sun' },
@@ -17,6 +24,19 @@ const dows = [
   { value: 5, label: 'Fri' },
   { value: 6, label: 'Sat' },
 ]
+
+const hourItems = Array.from({ length: 24 }, (_, h) => {
+  const period = h < 12 ? 'AM' : 'PM'
+  const display = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return { value: h, label: `${display}:00 ${period}` }
+})
+
+const tzItems = computed(() => {
+  const fromIntl = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf
+  const list = typeof fromIntl === 'function' ? fromIntl.call(Intl, 'timeZone') : []
+  const zones = list.length ? list : ['UTC', detectedTz]
+  return [...new Set(zones)].map(z => ({ value: z, label: z }))
+})
 
 const submitting = ref(false)
 async function save() {
@@ -33,12 +53,13 @@ useSeoMeta({ title: 'Choose your cadence · skilld', robots: 'noindex' })
 </script>
 
 <template>
-  <section class="mx-auto max-w-md px-4 sm:px-6 pt-12 pb-12 md:pt-16">
-    <h1 class="font-mono text-2xl font-medium">
-      Digest cadence
+  <section class="mx-auto max-w-md px-4 sm:px-6 pt-8 pb-12 md:pt-12">
+    <OnboardingSteps :step="2" />
+    <h1 class="mt-6 font-mono text-2xl font-medium">
+      Digest email schedule
     </h1>
     <p class="mt-2 text-sm text-muted">
-      How often we send a digest of changes to repos you watch.
+      A "digest" is a single email summarising recent SKILL.md changes across the repos you watch. Choose how often you'd like it.
     </p>
 
     <div class="mt-6 space-y-4">
@@ -51,7 +72,7 @@ useSeoMeta({ title: 'Choose your cadence · skilld', robots: 'noindex' })
             :label="f"
             size="sm"
             :variant="frequency === f ? 'solid' : 'outline'"
-            color="neutral"
+            :color="frequency === f ? 'primary' : 'neutral'"
             @click="frequency = f"
           />
         </div>
@@ -66,36 +87,47 @@ useSeoMeta({ title: 'Choose your cadence · skilld', robots: 'noindex' })
             :label="d.label"
             size="sm"
             :variant="dow === d.value ? 'solid' : 'outline'"
-            color="neutral"
+            :color="dow === d.value ? 'primary' : 'neutral'"
             @click="dow = d.value"
           />
         </div>
       </div>
 
-      <div v-if="frequency !== 'off'">
-        <label for="hour" class="text-xs uppercase tracking-wide text-muted">Hour (local)</label>
-        <input
-          id="hour"
-          v-model.number="hour"
-          type="number"
-          min="0"
-          max="23"
-          class="mt-1 w-20 rounded border border-default bg-default px-2 py-1 font-mono text-sm"
-        >
+      <div v-if="frequency !== 'off'" class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="hour" class="text-xs uppercase tracking-wide text-muted">Time</label>
+          <USelect
+            id="hour"
+            v-model="hour"
+            :items="hourItems"
+            class="mt-1 w-full"
+          />
+        </div>
+        <div>
+          <label for="tz" class="text-xs uppercase tracking-wide text-muted">Timezone</label>
+          <USelect
+            id="tz"
+            v-model="timezone"
+            :items="tzItems"
+            class="mt-1 w-full"
+          />
+        </div>
       </div>
 
-      <div v-if="frequency !== 'off'">
-        <label for="tz" class="text-xs uppercase tracking-wide text-muted">Timezone</label>
-        <input
-          id="tz"
-          v-model="timezone"
-          type="text"
-          class="mt-1 w-full rounded border border-default bg-default px-2 py-1 font-mono text-sm"
-        >
-      </div>
+      <p v-if="frequency === 'off'" class="rounded-lg border border-default bg-elevated/50 p-3 text-xs text-muted">
+        We won't send a digest. You can switch this on later from your dashboard.
+      </p>
     </div>
 
-    <div class="mt-8 flex justify-end">
+    <div class="mt-8 flex items-center justify-between">
+      <UButton
+        to="/onboarding/discover"
+        label="Back"
+        leading-icon="i-lucide-arrow-left"
+        size="sm"
+        color="neutral"
+        variant="ghost"
+      />
       <UButton
         :loading="submitting"
         label="Continue"

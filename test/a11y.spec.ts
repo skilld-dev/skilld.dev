@@ -51,71 +51,25 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
   })
-
-  it('collectionCard has no violations', async () => {
-    const container = createIsolatedContainer()
-    const wrapper = await mountSuspended(
-      await import('~/components/CollectionCard.vue').then(m => m.default),
-      {
-        attachTo: container,
-        props: {
-          collection: {
-            name: 'Test Collection',
-            slug: 'test',
-            description: 'A test collection',
-            curator: { name: 'Test User', handle: 'testuser', avatar: 'https://example.com/avatar.png' },
-            skillCount: 3,
-            skills: ['vue', 'nuxt', 'typescript'],
-            installs: 100,
-            updated: '1d ago',
-          },
-        },
-      },
-    )
-    const results = await runAxe(container)
-    expect(results.violations, formatViolations(results)).toHaveLength(0)
-    wrapper.unmount()
-  })
-
-  it('curatorCard has no violations', async () => {
-    const container = createIsolatedContainer()
-    const wrapper = await mountSuspended(
-      await import('~/components/CuratorCard.vue').then(m => m.default),
-      {
-        attachTo: container,
-        props: {
-          curator: {
-            name: 'Test Curator',
-            handle: 'testcurator',
-            avatar: 'https://example.com/avatar.png',
-            bio: 'A test curator bio',
-            stacks: ['Vue', 'Nuxt', 'TypeScript', 'Tailwind'],
-            collections: 2,
-            skillCount: 10,
-            updated: '3d ago',
-          },
-        },
-      },
-    )
-    const results = await runAxe(container)
-    expect(results.violations, formatViolations(results)).toHaveLength(0)
-    wrapper.unmount()
-  })
 })
 
 describe('accessibility: component coverage', () => {
   // Components that are skipped with documented reasons
   const SKIPPED_COMPONENTS = [
-    'AuthModal.client', // Client-only modal requires full app context with auth providers
-    'BlueskyThread', // Requires async fetch context (useFetch) for thread data
-    'CollectionEditor.client', // Client-only editor requires auth and complex form state
-    'CuratorLabels', // Simple label display, tested indirectly via CuratorCard
+    'DeveloperSkillSection', // Static section component, tested at page level
     'HomepageHowItWorks', // Static content section, tested at page level
-    'InlineTip.client', // Client-only component with slot content
     'KeyboardShortcutsModal.client', // Client-only modal requires full app context
+    'NoiseField.client', // Decorative client-only canvas
     'OgBrand', // OG image component, rendered server-side only
     'OgLayout', // OG image layout component, rendered server-side only
-    'WelcomeBanner.client', // Client-only banner requires auth context
+    'SkillCard', // Tested at page level
+    'SkillReceiptsBadge', // Tested at page level
+    'SkillReceiptsPanel', // Tested at page level
+    'StatsBars', // Decorative chart, tested at page level
+    'StatsHBar', // Decorative chart, tested at page level
+    'StatsLeaderboard', // Tested at page level
+    'StatsScatter', // Decorative chart, tested at page level
+    'UiTooltip', // Wrapper around UTooltip, exercised by parent components
   ]
 
   it('all non-skipped components have a11y tests', async () => {
@@ -139,7 +93,7 @@ describe('accessibility: component coverage', () => {
     // If this test fails, add an axe-core test for the new component
     for (const name of untestedComponents) {
       expect(
-        SKIPPED_COMPONENTS.includes(name) || ['AppLogo', 'CollectionCard', 'CuratorCard'].includes(name),
+        SKIPPED_COMPONENTS.includes(name) || ['AppLogo'].includes(name),
         `Component "${name}" needs an accessibility test or should be added to SKIPPED_COMPONENTS with a reason`,
       ).toBe(true)
     }

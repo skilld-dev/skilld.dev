@@ -82,10 +82,13 @@ function b64urlEncode(buf: ArrayBuffer | Uint8Array): string {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-function b64urlDecode(s: string): Uint8Array {
+function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4))
   const norm = s.replace(/-/g, '+').replace(/_/g, '/') + pad
-  return Uint8Array.from(atob(norm), c => c.charCodeAt(0))
+  const bin = atob(norm)
+  const out = new Uint8Array(new ArrayBuffer(bin.length))
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out
 }
 
 async function hmacKey(secret: string): Promise<CryptoKey> {

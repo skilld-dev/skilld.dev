@@ -9,9 +9,9 @@ const error = computed(() => typeof route.query.error === 'string' ? route.query
 
 const href = computed(() => loginUrl({ returnTo: returnTo.value, action: action.value }))
 
-watchEffect(() => {
+watchEffect(async () => {
   if (loggedIn.value)
-    navigateTo(returnTo.value || '/me', { replace: true })
+    await navigateTo(returnTo.value || '/me', { replace: true })
 })
 
 useSeoMeta({

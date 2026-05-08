@@ -7,13 +7,9 @@ const owner = computed(() => String(route.params.owner ?? ''))
 const repo = computed(() => String(route.params.repo ?? ''))
 const repoHub = computed(() => ({ owner: owner.value, repo: repo.value }))
 const sourceHub = computed(() => repoHub.value)
-const isOwnerHub = false
-const isRepoHub = true
-const isSourceHub = true
-
 const { isBot } = useBotDetection()
 
-const { data: repoProfile, status: repoStatus, error: repoError, refresh: refreshRepo } = useFetch<OrgProfile>(
+const { data: repoProfile, refresh: refreshRepo } = useFetch<OrgProfile>(
   () => `/api/orgs/${sourceHub.value.owner}`,
   {
     watch: [sourceHub],

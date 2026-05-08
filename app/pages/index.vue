@@ -21,7 +21,9 @@ const heroCopied = ref(false)
 function copyHero() {
   navigator.clipboard.writeText(heroInstallCmd)
   heroCopied.value = true
-  setTimeout(() => { heroCopied.value = false }, 2000)
+  setTimeout(() => {
+    heroCopied.value = false
+  }, 2000)
 }
 
 const { data: updatesData } = useFetch('/api/feed/recent-updates')

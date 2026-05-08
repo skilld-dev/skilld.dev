@@ -4,7 +4,6 @@ const owner = computed(() => String(route.params.owner ?? ''))
 const repo = computed(() => String(route.params.repo ?? ''))
 const name = computed(() => String(route.params.name ?? ''))
 const slug = computed(() => `${owner.value}/${repo.value}/${name.value}`)
-const isSourceHub = false
 
 interface RelatedSkill {
   name: string
@@ -183,26 +182,6 @@ const { data: relatedData, refresh: refreshRelated } = useFetch(
   coOccurrenceSkills: NeighborSkill[]
   semanticSiblings: NeighborSkill[]
 }>>
-
-interface SocialPost {
-  id: number
-  platform: 'twitter' | 'bsky' | 'reddit'
-  postUrl: string
-  postId: string
-  authorHandle: string
-  authorDisplayName: string | null
-  authorAvatar: string | null
-  role: 'author' | 'community'
-  textExtract: string
-  title: string | null
-  oembedHtml: string | null
-  bskyUri: string | null
-  bskyCid: string | null
-  subreddit: string | null
-  redditKind: 'post' | 'comment' | null
-  score: number | null
-  postedAt: number | null
-}
 
 watch(slug, () => {
   refresh()

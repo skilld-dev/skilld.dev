@@ -16,7 +16,9 @@ const copied = ref(false)
 function copy() {
   navigator.clipboard.writeText(installCmd.value)
   copied.value = true
-  setTimeout(() => { copied.value = false }, 2000)
+  setTimeout(() => {
+    copied.value = false
+  }, 2000)
 }
 
 useSeoMeta({

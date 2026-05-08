@@ -13,14 +13,14 @@ Identity was muddled: a GitHub user and a skilld curator (atproto) could land on
 
 Three Nuxt layers, three URL pillars, one rule per pillar.
 
-### `/gh/*` — registry layer (proxied GitHub)
-- `/gh/[owner]` — owner hub (org or user)
-- `/gh/[owner]/[repo]` — repo hub
-- `/gh/[owner]/[repo]/[name]` — skill detail
+### `/gh/*`: registry layer (proxied GitHub)
+- `/gh/[owner]`: owner hub (org or user)
+- `/gh/[owner]/[repo]`: repo hub
+- `/gh/[owner]/[repo]/[name]`: skill detail
 - Owns: [GitHub](https://github.com) fetch, SKILL.md resolution, registry sitemaps, `api/orgs|repos|skills|skill-live|skills-raw`.
 - Knows nothing about curators, atproto, collections.
 
-### `/people/*`, `/collections/*`, `/` — app layer (skilld native)
+### `/people/*`, `/collections/*`, `/`: app layer (skilld native)
 - `/` homepage feed
 - `/people/[handle]` curator profile
 - `/people/[handle]/collections/[slug]` collection detail (canonical; old `/people/[handle]/[slug]` 301s here)
@@ -28,7 +28,7 @@ Three Nuxt layers, three URL pillars, one rule per pillar.
 - `/collections` discovery index
 - Owns: atproto, collections, saves, feeds, auth.
 
-### `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*` — marketing layer
+### `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`: marketing layer
 - `/skills` index, `/skills/guide`, `/skills/official`, `/skills/stats`
 - `/frameworks/[name]` (e.g. `/nuxt` → `/frameworks/nuxt`)
 - Built on `@nuxt/content` (MDC, content collections, schema).
@@ -39,7 +39,7 @@ Strict HTTP only (`$fetch('/api/...')`{lang="ts"}). No importing server utilitie
 
 ## Why `/gh` instead of folding into `/skills/[owner]/...`
 
-The `/gh` prefix is an explicit signal — to readers, to crawlers, and to the layer boundary — that the page is a proxy of GitHub data, not native skilld content. It also avoids the `/skills/owner/skills/name` collision when a repo is named `skills`. The cost (one extra path segment) is paid by clarity at the seam.
+The `/gh` prefix is an explicit signal, visible to readers, to crawlers, and to the layer boundary, that the page is a proxy of GitHub data, not native skilld content. It also avoids the `/skills/owner/skills/name` collision when a repo is named `skills`. The cost (one extra path segment) is paid by clarity at the seam.
 
 ## Consequences
 
@@ -51,6 +51,6 @@ The `/gh` prefix is an explicit signal — to readers, to crawlers, and to the l
 
 ## Rejected alternatives
 
-- **Collapse `/gh` into `/skills/[owner]/...`:** rejected — collides with marketing namespace and with `repo === 'skills'` case.
-- **Single `/skills/[pkg]` canonical with multiple sources:** deferred — requires a package-skill table; revisit when first-party package skills ship per SCOPE.md.
-- **Allow shared server utilities across layers:** rejected — defeats the deletion test, lets layers couple silently.
+- **Collapse `/gh` into `/skills/[owner]/...`:** rejected; collides with marketing namespace and with `repo === 'skills'` case.
+- **Single `/skills/[pkg]` canonical with multiple sources:** deferred; requires a package-skill table; revisit when first-party package skills ship per SCOPE.md.
+- **Allow shared server utilities across layers:** rejected; defeats the deletion test, lets layers couple silently.

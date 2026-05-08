@@ -1,8 +1,8 @@
 # server/jobs
 
 Batch-derivation jobs that read source state (SKILL.md, endorsements) and write
-derived content to D1 (`skill_generated`) or KV. Designed to run on a schedule
-— not per-request. Each job is pure: give it `{ db, skill, raw, sha }`, get
+derived content to D1 (`skill_generated`) or KV. Designed to run on a schedule,
+not per-request. Each job is pure: give it `{ db, skill, raw, sha }`, get
 back a payload row, no I/O beyond the storage helpers.
 
 ## Conventions
@@ -15,7 +15,7 @@ back a payload row, no I/O beyond the storage helpers.
 
 ## Runners
 
-- `scripts/prototype-*.ts` — tsx entrypoints for local one-off runs against D1
+- `scripts/prototype-*.ts`: tsx entrypoints for local one-off runs against D1
   (`wrangler d1 execute`). Useful to eyeball quality before wiring a cron.
-- Future: a Cloudflare cron-triggered Worker will iterate the `skills` table
-  and dispatch to generators in chunks. Not built yet — prototype phase.
+- Future: a [Cloudflare](https://cloudflare.com) cron-triggered Worker will iterate the `skills` table
+  and dispatch to generators in chunks. Not built yet; prototype phase.

@@ -45,11 +45,11 @@
     "@vueuse/nuxt": "catalog:",
     "algoliasearch": "catalog:",
     "marked": "catalog:",
-    "mimetext": "^3.0.28",
+    "mimetext": "catalog:",
     "motion-v": "catalog:",
     "nuxt": "catalog:",
     "nuxt-ai-ready": "catalog:",
-    "nuxt-auth-utils": "^0.5.29",
+    "nuxt-auth-utils": "catalog:",
     "nuxt-og-image": "catalog:",
     "shiki": "catalog:",
     "tailwindcss": "catalog:"

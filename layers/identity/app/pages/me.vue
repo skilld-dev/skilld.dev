@@ -51,6 +51,20 @@ async function saveEmail() {
 
 useSeoMeta({ title: 'Your dashboard · skilld', robots: 'noindex' })
 
+const route = useRoute()
+const toast = useToast()
+onMounted(() => {
+  if (route.query.welcome === '1') {
+    toast.add({
+      title: 'You\'re all set',
+      description: 'We\'ll let you know when watched repos update.',
+      color: 'success',
+      icon: 'i-lucide-check-circle',
+    })
+    void navigateTo({ path: route.path, query: {} }, { replace: true })
+  }
+})
+
 function fmtDate(ts: number | null | undefined): string {
   if (!ts)
     return '—'

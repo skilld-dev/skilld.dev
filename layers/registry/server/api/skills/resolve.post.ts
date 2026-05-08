@@ -1,6 +1,6 @@
 import type { SkillLookup } from '~~/layers/registry/server/utils/skills-registry'
-import { officialRepos } from '../../data/official-repos'
 import { findSkillsByLookups } from '~~/layers/registry/server/utils/skills-registry'
+import { officialRepos } from '../../data/official-repos'
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 
