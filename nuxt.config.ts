@@ -1,5 +1,5 @@
 export default defineNuxtConfig({
-  extends: ['./layers/admin', './layers/registry', './layers/marketing'],
+  extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing'],
 
   modules: [
     '@nuxt/eslint',
@@ -13,6 +13,7 @@ export default defineNuxtConfig({
     'motion-v/nuxt',
     '@vueuse/nuxt',
     'nitro-cloudflare-dev',
+    'nuxt-auth-utils',
   ],
 
   scripts: {
@@ -61,6 +62,14 @@ export default defineNuxtConfig({
   runtimeConfig: {
     sessionPassword: process.env.NUXT_SESSION_PASSWORD || '',
     adminSecret: process.env.NUXT_ADMIN_SECRET || '',
+    tokenKey: process.env.NUXT_TOKEN_KEY || '',
+    oauth: {
+      github: {
+        clientId: process.env.NUXT_OAUTH_GITHUB_CLIENT_ID || '',
+        clientSecret: process.env.NUXT_OAUTH_GITHUB_CLIENT_SECRET || '',
+        scope: ['read:user', 'user:email'],
+      },
+    },
     public: {
       algolia: {
         appId: 'OFCNCOG2CU',

@@ -5,8 +5,8 @@ import { isEditableElement } from '~/utils/input'
 const title = 'skilld'
 const description = 'Curated agent skills from trusted open-source developers'
 
-const authModalOpen = ref(false)
 const shortcutsModalOpen = ref(false)
+const { isAuthenticated, user, logout } = useAuth()
 
 const { enabled: kbdEnabled } = useKeyboardShortcuts()
 
@@ -24,8 +24,6 @@ useSeoMeta({
 })
 
 defineOgImage('Page.takumi', {}, { alt: 'skilld — curated agent skills from trusted open-source developers' })
-
-provide('authModalOpen', authModalOpen)
 
 // Global keyboard shortcuts
 onKeyDown('/', async (e) => {
@@ -101,13 +99,31 @@ onKeyDown('?', (e) => {
           variant="ghost"
         />
 
+        <template v-if="isAuthenticated && user">
+          <UButton
+            to="/me"
+            :label="`@${user.login}`"
+            icon="i-lucide-user"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+          />
+          <UButton
+            label="Sign out"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            @click="logout"
+          />
+        </template>
         <UButton
+          v-else
+          to="/login"
           label="Sign in"
-          icon="i-lucide-log-in"
+          icon="i-lucide-github"
           color="neutral"
           variant="ghost"
           size="sm"
-          @click="authModalOpen = true"
         />
       </template>
 
@@ -190,7 +206,6 @@ onKeyDown('?', (e) => {
     </UFooter>
 
     <ClientOnly>
-      <AuthModal v-model:open="authModalOpen" />
       <KeyboardShortcutsModal v-model:open="shortcutsModalOpen" />
     </ClientOnly>
   </UApp>

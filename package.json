@@ -48,6 +48,7 @@
     "motion-v": "catalog:",
     "nuxt": "catalog:",
     "nuxt-ai-ready": "catalog:",
+    "nuxt-auth-utils": "^0.5.29",
     "nuxt-og-image": "catalog:",
     "shiki": "catalog:",
     "tailwindcss": "catalog:"
