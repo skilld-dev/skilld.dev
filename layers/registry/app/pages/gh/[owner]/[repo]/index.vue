@@ -90,6 +90,20 @@ const repoSourceScanNotice = computed<string | null>(() => {
 
 const sourceSkillFiles = computed(() => repoSource.value?.skillFiles ?? [])
 
+const flatSkillName = computed<string | null>(() => {
+  const source = repoSource.value
+  if (!source || source.skillFileCount !== 1)
+    return null
+  const path = source.skillFiles?.[0]
+  if (!path)
+    return null
+  const match = path.match(/(?:^|\/)([^/]+)\/SKILL\.md$/i)
+  const name = match?.[1]
+  if (!name)
+    return null
+  return name === repoHub.value.repo ? name : null
+})
+
 const sourceDefaultBranch = computed(() => repoSource.value?.defaultBranch ?? null)
 const sourcePushedAt = computed(() => repoSource.value?.pushedAt ?? null)
 const sourceCreatedAt = computed(() => repoSource.value?.createdAt ?? null)
@@ -140,7 +154,13 @@ useHead(computed(() => ({
 </script>
 
 <template>
-  <div>
+  <SkillDetail
+    v-if="flatSkillName"
+    :owner="repoHub.owner"
+    :repo="repoHub.repo"
+    :name="flatSkillName"
+  />
+  <div v-else>
     <section
       class="mx-auto max-w-5xl px-4 sm:px-6 pt-10 pb-8 md:pt-14"
       aria-labelledby="repo-heading"
