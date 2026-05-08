@@ -1,8 +1,8 @@
 import type { SyncRepoStats } from '~~/layers/registry/server/utils/sync-repo'
 /// <reference types="@cloudflare/workers-types" />
 import { resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
-import { pAll } from '~~/server/utils/p-all'
 import { syncRepo } from '~~/layers/registry/server/utils/sync-repo'
+import { pAll } from '~~/server/utils/p-all'
 
 const CONCURRENCY = 8
 const RATE_LIMIT_GUARD = 200 // bail when remaining drops below this
@@ -36,6 +36,25 @@ export default defineTask({
       console.warn('[sync-github-skills] GITHUB_TOKEN not configured; running unauthenticated (60/hr cap)')
     }
 
+    // Phase 3: subscription-prioritised pre-pass. Repos that any user
+    // watches and whose stalest skill is > 1h old jump the queue so the
+    // weekly digest reflects fresh activity. The general staleness pass
+    // picks up the rest after.
+    const SUB_STALE_AFTER = 60 * 60 // 1h
+    const subRows = await db
+      .prepare(
+        `SELECT s.owner, s.repo, MIN(s.last_synced_at) AS ls
+         FROM skills s
+         JOIN skill_subscriptions sub
+           ON sub.owner = s.owner AND sub.repo = s.repo
+         WHERE s.broken_since IS NULL
+         GROUP BY s.owner, s.repo
+         HAVING MIN(s.last_synced_at) IS NULL OR MIN(s.last_synced_at) < ?1
+         ORDER BY MIN(s.last_synced_at) IS NULL DESC, MIN(s.last_synced_at) ASC`,
+      )
+      .bind(Math.floor(Date.now() / 1000) - SUB_STALE_AFTER)
+      .all<{ owner: string, repo: string, ls: number | null }>()
+
     // Stalest first; NULL last_synced_at sorts as 0 so unsynced repos lead.
     // Filter out broken-only repos (every skill flagged broken_since) so we
     // don't keep retrying repos that have been removed/renamed upstream.
@@ -49,7 +68,13 @@ export default defineTask({
       )
       .all<{ owner: string, repo: string, ls: number | null }>()
 
-    const orderedRepos = (stalenessRows.results ?? []).map(r => ({ owner: r.owner, repo: r.repo }))
+    // Dedupe: subscribed repos run first, then everything else.
+    const subscribed = (subRows.results ?? []).map(r => ({ owner: r.owner, repo: r.repo }))
+    const seen = new Set(subscribed.map(r => `${r.owner}/${r.repo}`))
+    const rest = (stalenessRows.results ?? [])
+      .map(r => ({ owner: r.owner, repo: r.repo }))
+      .filter(r => !seen.has(`${r.owner}/${r.repo}`))
+    const orderedRepos = [...subscribed, ...rest]
 
     const startedAt = Date.now()
     let aborted = false

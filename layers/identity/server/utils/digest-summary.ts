@@ -1,18 +1,20 @@
-// Per-user Haiku summary call. Stable per-user prefix (subscriptions +
-// skill descriptions) sits in `system` with cache_control; per-week diffs
-// land in the user message. Failure mode: caller falls back to the
+// Per-user digest summaries via the Workers AI binding. No gateway, no
+// API key — `env.AI.run(model, ...)` is authenticated implicitly by the
+// Worker→Cloudflare relationship. Failure mode: caller falls back to the
 // no-summary template — never block the send.
 //
-// Routes through the Workers AI binding's gateway('main') with BYOK: no
-// Anthropic key in the worker; the gateway holds it. Auth is the
-// CF_AIG_TOKEN. The pattern mirrors nuxtseo.com's pro-chat handler.
+// Workers AI has no Anthropic-style prompt caching; the cost per call is
+// low enough that re-paying the full prompt each week is fine.
 
 interface AiBinding {
-  gateway: (name: string) => { getUrl: (provider: string) => Promise<string> }
+  run: (model: string, input: { messages: Array<{ role: string, content: string }>, max_tokens?: number, response_format?: { type: 'json_schema', json_schema: object } }) => Promise<{ response?: string }>
 }
 
-const ANTHROPIC_VERSION = '2023-06-01'
-const MODEL = 'claude-haiku-4-5'
+// Anthropic Haiku 4.5 brokered through Workers AI. The binding handles auth;
+// no Anthropic key or gateway token needed. Swap to a llama/qwen if cost or
+// latency need to drop later — caller doesn't care which model produced
+// `response`.
+const MODEL = 'anthropic/claude-haiku-4.5'
 
 export interface SubscriptionContext {
   owner: string
@@ -38,23 +40,18 @@ export interface SkillSummary {
 
 export interface SummariseInput {
   ai: AiBinding
-  cfAigToken: string
   subscriptions: SubscriptionContext[]
   changes: RepoChange[]
 }
 
 export interface SummariseResult {
   summaries: SkillSummary[]
-  cacheRead: number
-  cacheCreate: number
 }
 
 export async function summariseChanges(input: SummariseInput): Promise<SummariseResult | null> {
-  if (!input.ai || !input.cfAigToken || !input.changes.length)
+  if (!input.ai || !input.changes.length)
     return null
 
-  // Sort deterministically so the cached prefix stays byte-stable across
-  // weeks even if subscription insertion order differs.
   const subs = [...input.subscriptions].sort((a, b) =>
     `${a.owner}/${a.repo}`.localeCompare(`${b.owner}/${b.repo}`))
   const subBlock = subs
@@ -68,8 +65,7 @@ For each repo with changes, return one sentence (max ~20 words) describing what 
 Subscriptions for this user:
 ${subBlock}
 
-Output JSON only, no prose, with this exact shape:
-{"summaries":[{"owner":"...","repo":"...","sentence":"..."}]}`
+Return JSON matching the provided schema. The "summaries" array has one entry per repo that changed.`
 
   const changesBlock = input.changes.map((c) => {
     const commits = c.commitMessages.slice(0, 20).map(m => `  - ${m}`).join('\n')
@@ -78,38 +74,38 @@ Output JSON only, no prose, with this exact shape:
 
   const userPrompt = `This week's changes:\n\n${changesBlock}`
 
-  const body = {
-    model: MODEL,
-    max_tokens: 1024,
-    system: [
-      { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+  const out = await input.ai.run(MODEL, {
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
     ],
-    messages: [{ role: 'user', content: userPrompt }],
-  }
-
-  const baseURL = await input.ai.gateway('main').getUrl('anthropic')
-  const res = await fetch(`${baseURL}/v1/messages`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'cf-aig-authorization': `Bearer ${input.cfAigToken}`,
-      'cf-aig-skip-cache': 'true',
-      'anthropic-version': ANTHROPIC_VERSION,
+    max_tokens: 1024,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        type: 'object',
+        properties: {
+          summaries: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                owner: { type: 'string' },
+                repo: { type: 'string' },
+                sentence: { type: 'string' },
+              },
+              required: ['owner', 'repo', 'sentence'],
+            },
+          },
+        },
+        required: ['summaries'],
+      },
     },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok)
+  }).catch(() => null)
+
+  const text = out?.response ?? ''
+  if (!text)
     return null
-
-  const data = await res.json() as {
-    content: { type: string, text?: string }[]
-    usage: { cache_read_input_tokens?: number, cache_creation_input_tokens?: number }
-  }
-
-  const text = data.content
-    .filter(b => b.type === 'text' && typeof b.text === 'string')
-    .map(b => b.text!)
-    .join('')
 
   const json = extractJson<{ summaries?: SkillSummary[] }>(text)
   if (!json?.summaries)
@@ -117,8 +113,6 @@ Output JSON only, no prose, with this exact shape:
 
   return {
     summaries: json.summaries.filter(s => s.owner && s.repo && s.sentence),
-    cacheRead: data.usage.cache_read_input_tokens ?? 0,
-    cacheCreate: data.usage.cache_creation_input_tokens ?? 0,
   }
 }
 

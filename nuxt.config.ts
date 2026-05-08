@@ -63,7 +63,6 @@ export default defineNuxtConfig({
     sessionPassword: process.env.NUXT_SESSION_PASSWORD || '',
     adminSecret: process.env.NUXT_ADMIN_SECRET || '',
     tokenKey: process.env.NUXT_TOKEN_KEY || '',
-    cfAigToken: process.env.NUXT_CF_AIG_TOKEN || process.env.CF_AIG_TOKEN || '',
     publicSiteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://skilld.dev',
     oauth: {
       github: {

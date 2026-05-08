@@ -28,8 +28,7 @@ export default defineTask({
 
     const config = useRuntimeConfig()
     const tokenKey = config.tokenKey as string
-    const cfAigToken = config.cfAigToken as string
-    const aiBinding = env?.AI as { gateway: (n: string) => { getUrl: (p: string) => Promise<string> } } | undefined
+    const aiBinding = env?.AI as Parameters<typeof summariseChanges>[0]['ai'] | undefined
     const siteUrl = (config.publicSiteUrl as string) || 'https://skilld.dev'
 
     const nowSec = Math.floor(Date.now() / 1000)
@@ -77,8 +76,8 @@ export default defineTask({
         commitMessages: e.commitMessages,
         diffExcerpt: '', // Phase 3 cuts the SKILL.md diff fetch — commits-only summary
       }))
-      const ai = (aiBinding && cfAigToken)
-        ? await summariseChanges({ ai: aiBinding, cfAigToken, subscriptions: subs, changes }).catch(() => null)
+      const ai = aiBinding
+        ? await summariseChanges({ ai: aiBinding, subscriptions: subs, changes }).catch(() => null)
         : null
       const summariesByRepo = new Map<string, string>()
       for (const s of ai?.summaries ?? [])
