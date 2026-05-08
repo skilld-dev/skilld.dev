@@ -45,6 +45,7 @@
     "@vueuse/nuxt": "catalog:",
     "algoliasearch": "catalog:",
     "marked": "catalog:",
+    "mimetext": "^3.0.28",
     "motion-v": "catalog:",
     "nuxt": "catalog:",
     "nuxt-ai-ready": "catalog:",

@@ -54,6 +54,7 @@ trustPolicyIgnoreAfter: 262800
 allowBuilds:
   '@parcel/watcher': true
   better-sqlite3: true
+  core-js-pure: false
   esbuild: true
   sharp: true
   unrs-resolver: true

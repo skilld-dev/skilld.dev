@@ -63,6 +63,8 @@ export default defineNuxtConfig({
     sessionPassword: process.env.NUXT_SESSION_PASSWORD || '',
     adminSecret: process.env.NUXT_ADMIN_SECRET || '',
     tokenKey: process.env.NUXT_TOKEN_KEY || '',
+    anthropicApiKey: process.env.NUXT_ANTHROPIC_API_KEY || '',
+    publicSiteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://skilld.dev',
     oauth: {
       github: {
         clientId: process.env.NUXT_OAUTH_GITHUB_CLIENT_ID || '',
@@ -93,6 +95,12 @@ export default defineNuxtConfig({
         ],
         d1_databases: [
           { binding: 'DB', database_name: 'skilld-db', database_id: 'a5e53f35-f5e5-4987-8c67-c0175addc7cc' },
+        ],
+        // Cloudflare send_email binding. Each recipient must be a Verified
+        // Destination Address in the dashboard until Send Email is enabled
+        // for arbitrary destinations.
+        send_email: [
+          { name: 'EMAIL' },
         ],
         durable_objects: {
           bindings: [
@@ -132,7 +140,7 @@ export default defineNuxtConfig({
       wasm: true,
     },
     scheduledTasks: {
-      '0 * * * *': ['sync-github-skills'],
+      '0 * * * *': ['sync-github-skills', 'send-digests'],
     },
   },
 
