@@ -6,9 +6,6 @@ const name = computed(() => String(route.params.name ?? ''))
 const slug = computed(() => `${owner.value}/${repo.value}/${name.value}`)
 const isSourceHub = false
 
-const { isAuthenticated } = useAuth()
-const authModalOpen = inject<Ref<boolean>>('authModalOpen', ref(false))
-
 interface RelatedSkill {
   name: string
   owner: string
@@ -207,15 +204,9 @@ interface SocialPost {
   postedAt: number | null
 }
 
-const { data: socialData, refresh: refreshSocial } = useFetch(
-  () => `/api/skill-social/${slug.value}`,
-  { watch: [slug], lazy: !isBot.value, immediate: true },
-) as ReturnType<typeof useFetch<{ author: SocialPost[], community: SocialPost[] }>>
-
 watch(slug, () => {
   refresh()
   refreshRelated()
-  refreshSocial()
 })
 
 interface SkillAudit {
@@ -429,9 +420,6 @@ const currentRelatedItems = computed(() => {
   return tab?.items ?? []
 })
 
-const visibleCuratorAvatars = computed(() => (data.value?.curators ?? []).slice(0, 8))
-const overflowCuratorCount = computed(() => Math.max(0, (data.value?.curators.length ?? 0) - 8))
-
 const commitsWithAgo = computed(() => {
   return (relatedData.value?.commits ?? []).map((c) => {
     const d = new Date(c.date)
@@ -440,12 +428,6 @@ const commitsWithAgo = computed(() => {
 })
 
 const recentCommits = computed(() => commitsWithAgo.value.slice(0, 4))
-
-const curatorsWithReason = computed(() =>
-  (data.value?.curators ?? []).filter(c => c.reason && c.reason.trim().length > 0),
-)
-
-const topCuratorReason = computed(() => curatorsWithReason.value[0] ?? null)
 
 function truncateReason(text: string, max: number): string {
   const collapsed = text.replace(/\s+/g, ' ').trim()
@@ -458,9 +440,9 @@ defineOgImage('Skill.takumi', {
   name: () => data.value?.name ?? '',
   owner: () => data.value?.owner ?? '',
   repo: () => data.value?.repo ?? 'skills',
-  curatorCount: () => data.value?.curators.length ?? 0,
-  reason: () => topCuratorReason.value ? truncateReason(topCuratorReason.value.reason!, 140) : '',
-  reasonHandle: () => topCuratorReason.value?.handle ?? '',
+  curatorCount: () => 0,
+  reason: () => '',
+  reasonHandle: () => '',
 }, {
   alt: () => `${data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
 })
@@ -474,10 +456,6 @@ const canonicalSkillPageUrl = computed(() => {
   const canonical = duplicateGroup.value?.canonical
   return canonical ? `${siteOrigin}${repoSkillPath(canonical.owner, canonical.repo, canonical.name)}` : skillPageUrl.value
 })
-
-const authorPosts = computed(() => socialData.value?.author ?? [])
-const communityPosts = computed(() => socialData.value?.community ?? [])
-const allSocialPosts = computed(() => [...authorPosts.value, ...communityPosts.value])
 
 function withSourceContext(text: string, owner: string, repo: string, max = 200): string {
   const suffix = ` From ${owner}/${repo}.`
@@ -512,15 +490,6 @@ useSchemaOrg(computed(() => {
         'url': `https://github.com/${d.owner}`,
       },
       'offers': { '@type': 'Offer', 'price': '0', 'priceCurrency': 'USD' },
-      'aggregateRating': d.curators.length
-        ? {
-            '@type': 'AggregateRating',
-            'ratingValue': '5',
-            'reviewCount': d.curators.length,
-            'bestRating': '5',
-            'worstRating': '1',
-          }
-        : undefined,
     }),
     defineHowTo({
       '@id': `${skillPageUrl.value}#install`,
@@ -547,20 +516,6 @@ useSchemaOrg(computed(() => {
           })),
         }]
       : []),
-    ...allSocialPosts.value.map(p => ({
-      '@type': 'SocialMediaPosting' as const,
-      '@id': `${skillPageUrl.value}#post-${p.id}`,
-      'url': p.postUrl,
-      'headline': p.title ?? p.textExtract.slice(0, 120),
-      'articleBody': p.textExtract,
-      'datePublished': p.postedAt ? new Date(p.postedAt * 1000).toISOString() : undefined,
-      'author': {
-        '@type': 'Person',
-        'name': p.authorDisplayName || p.authorHandle,
-        'identifier': p.authorHandle,
-      },
-      'about': { '@id': `${skillPageUrl.value}#skill` },
-    })),
   ]
 }))
 
@@ -574,9 +529,6 @@ const skillTitle = computed(() => {
 const skillDescription = computed(() => {
   if (!data.value)
     return 'View skill details on skilld.'
-  const top = topCuratorReason.value
-  if (top?.reason)
-    return truncateReason(`"${top.reason}" — @${top.handle}`, 200)
   const base = data.value.summary?.blurb
     || data.value.description
     || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
@@ -1082,163 +1034,6 @@ useHead(computed(() => ({
                   class="mt-3"
                 />
               </div>
-            </div>
-          </section>
-
-          <section
-            v-if="false && curatorsWithReason.length"
-            aria-labelledby="curator-reasons-heading"
-          >
-            <h2
-              id="curator-reasons-heading"
-              class="section-label mb-3"
-            >
-              Why curators picked this
-            </h2>
-            <p
-              v-if="data.owner !== 'anthropics'"
-              class="mb-3 text-xs text-muted"
-            >
-              <NuxtLink
-                :to="`/collections/new?skill=${packageName}&skillsOwner=${data.owner}&skillsRepo=${data.repo}`"
-                class="underline underline-offset-2 hover:text-default"
-              >
-                Add yours
-              </NuxtLink> — share why you reach for this skill.
-            </p>
-            <div class="space-y-3">
-              <figure
-                v-for="curator in curatorsWithReason"
-                :key="`${curator.did}/${curator.collectionSlug}`"
-                class="rounded-lg border border-default bg-elevated p-4 sm:p-5"
-              >
-                <UIcon
-                  name="i-lucide-quote"
-                  class="size-4 text-muted"
-                  aria-hidden="true"
-                />
-                <blockquote class="mt-2 text-base leading-relaxed text-default">
-                  {{ curator.reason }}
-                </blockquote>
-                <figcaption class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <NuxtLink
-                    :to="`/people/${curator.handle}`"
-                    class="inline-flex items-center min-h-11 min-w-11 shrink-0"
-                    :aria-label="`${curator.handle} profile`"
-                  >
-                    <img
-                      v-if="curator.avatar"
-                      :src="curator.avatar"
-                      :alt="`${curator.handle} avatar`"
-                      width="36"
-                      height="36"
-                      class="size-9 rounded-full border border-default"
-                    >
-                  </NuxtLink>
-                  <NuxtLink
-                    :to="`/people/${curator.handle}`"
-                    class="inline-flex items-center min-h-11 py-2 font-mono text-xs text-muted hover:text-default transition-colors"
-                  >
-                    @{{ curator.handle }}
-                  </NuxtLink>
-                  <span
-                    class="font-mono text-xs text-muted"
-                    aria-hidden="true"
-                  >·</span>
-                  <NuxtLink
-                    :to="`/people/${curator.handle}/collections/${curator.collectionSlug}`"
-                    class="inline-flex items-center min-h-11 py-2 font-mono text-xs text-muted hover:text-default transition-colors truncate"
-                  >
-                    {{ curator.collectionName }}
-                  </NuxtLink>
-                </figcaption>
-              </figure>
-            </div>
-          </section>
-          <section
-            v-else-if="false && !data.curators.length"
-            aria-labelledby="curator-reasons-empty-heading"
-          >
-            <h2
-              id="curator-reasons-empty-heading"
-              class="section-label mb-2"
-            >
-              Why curators picked this
-            </h2>
-            <p class="text-sm text-muted leading-relaxed">
-              No curator note yet.
-              <NuxtLink
-                :to="`/collections/new?skill=${packageName}&skillsOwner=${data.owner}&skillsRepo=${data.repo}`"
-                class="underline underline-offset-2 hover:text-default"
-              >
-                Be the first to add yours
-              </NuxtLink> — one line on why you reach for this skill.
-            </p>
-          </section>
-
-          <section
-            v-if="false && authorPosts.length"
-            aria-labelledby="author-posts-heading"
-          >
-            <h2
-              id="author-posts-heading"
-              class="section-label mb-3"
-            >
-              From the author
-            </h2>
-            <p class="mb-4 text-xs text-muted">
-              What @{{ data.owner }} has said about this skill.
-            </p>
-            <div class="space-y-4">
-              <SocialEmbed
-                v-for="post in authorPosts"
-                :key="post.id"
-                :platform="post.platform"
-                :post-url="post.postUrl"
-                :author-handle="post.authorHandle"
-                :author-display-name="post.authorDisplayName"
-                :author-avatar="post.authorAvatar"
-                :text-extract="post.textExtract"
-                :title="post.title"
-                :bsky-uri="post.bskyUri"
-                :bsky-cid="post.bskyCid"
-                :subreddit="post.subreddit"
-                :reddit-kind="post.redditKind"
-                :posted-at="post.postedAt"
-              />
-            </div>
-          </section>
-
-          <section
-            v-if="false && communityPosts.length"
-            aria-labelledby="community-posts-heading"
-          >
-            <h2
-              id="community-posts-heading"
-              class="section-label mb-3"
-            >
-              Community signal
-            </h2>
-            <p class="mb-4 text-xs text-muted">
-              Posts and threads referencing this skill across X, Bluesky, and Reddit.
-            </p>
-            <div class="space-y-4">
-              <SocialEmbed
-                v-for="post in communityPosts"
-                :key="post.id"
-                :platform="post.platform"
-                :post-url="post.postUrl"
-                :author-handle="post.authorHandle"
-                :author-display-name="post.authorDisplayName"
-                :author-avatar="post.authorAvatar"
-                :text-extract="post.textExtract"
-                :title="post.title"
-                :bsky-uri="post.bskyUri"
-                :bsky-cid="post.bskyCid"
-                :subreddit="post.subreddit"
-                :reddit-kind="post.redditKind"
-                :posted-at="post.postedAt"
-              />
             </div>
           </section>
 
