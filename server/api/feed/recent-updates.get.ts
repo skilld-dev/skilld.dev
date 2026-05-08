@@ -1,11 +1,16 @@
 /**
  * Recent updates feed: existing skills whose SKILL.md changed.
  * Reads from the materialized activity table, joined to skills for display fields.
+ *
+ * Cards are emitted at repo grain when 2+ skills in the same repo updated in the
+ * same window — otherwise a single skill card. Bulk-update spam (e.g. an
+ * `awesome-copilot`-style repo bumping all of its skills at once) collapses
+ * into one card, with the skill names listed inside.
  */
 
 import { getDB } from '../../utils/db'
 
-interface FeedRow {
+interface ActivityRow {
   owner: string
   name: string
   occurred_at: number
@@ -17,18 +22,45 @@ interface FeedRow {
   sync_status: string | null
 }
 
+interface SkillEntry {
+  owner: string
+  name: string
+  displayName: string
+  repo: string
+  description: string | null
+  slug: string
+  sha: string
+  occurredAt: number
+  hasReceipts: boolean
+}
+
+interface SkillCard extends SkillEntry {
+  kind: 'skill'
+  avatarUrl: string
+}
+
+interface RepoCard {
+  kind: 'repo'
+  owner: string
+  repo: string
+  avatarUrl: string
+  occurredAt: number
+  skillCount: number
+  skills: { name: string, displayName: string, slug: string }[]
+}
+
+export type RecentUpdateCard = SkillCard | RepoCard
+
 export interface RecentUpdatesResponse {
-  items: Array<{
-    owner: string
-    name: string
-    displayName: string
-    repo: string
-    description: string | null
-    slug: string
-    sha: string
-    occurredAt: number
-    hasReceipts: boolean
-  }>
+  items: RecentUpdateCard[]
+}
+
+const MAX_CARDS = 12
+const FETCH_LIMIT = 60
+const REPO_COLLAPSE_THRESHOLD = 2
+
+function avatarFor(owner: string): string {
+  return `https://github.com/${owner}.png?size=80`
 }
 
 export default defineCachedEventHandler(
@@ -42,10 +74,13 @@ export default defineCachedEventHandler(
          LEFT JOIN skills s ON s.owner = a.owner AND s.name = a.name
          WHERE a.type = 'skill_updated'
          ORDER BY a.occurred_at DESC
-         LIMIT 12`,
+         LIMIT ?`,
       )
-      .all<FeedRow>()
-    const items = (res.results ?? []).map(row => ({
+      .bind(FETCH_LIMIT)
+      .all<ActivityRow>()
+
+    const rows = res.results ?? []
+    const skillEntries: SkillEntry[] = rows.map(row => ({
       owner: row.owner,
       name: row.name,
       displayName: row.display_name ?? row.name,
@@ -56,7 +91,46 @@ export default defineCachedEventHandler(
       occurredAt: row.occurred_at,
       hasReceipts: row.sync_status === 'ok',
     }))
-    return { items }
+
+    // Group by (owner, repo) preserving order of first appearance.
+    const groups = new Map<string, SkillEntry[]>()
+    for (const e of skillEntries) {
+      const key = `${e.owner}/${e.repo}`
+      let arr = groups.get(key)
+      if (!arr) {
+        arr = []
+        groups.set(key, arr)
+      }
+      arr.push(e)
+    }
+
+    const cards: RecentUpdateCard[] = []
+    for (const [, entries] of groups) {
+      if (cards.length >= MAX_CARDS)
+        break
+      if (entries.length >= REPO_COLLAPSE_THRESHOLD) {
+        const head = entries[0]!
+        cards.push({
+          kind: 'repo',
+          owner: head.owner,
+          repo: head.repo,
+          avatarUrl: avatarFor(head.owner),
+          occurredAt: Math.max(...entries.map(e => e.occurredAt)),
+          skillCount: entries.length,
+          skills: entries.slice(0, 6).map(e => ({
+            name: e.name,
+            displayName: e.displayName,
+            slug: e.slug,
+          })),
+        })
+      }
+      else {
+        const e = entries[0]!
+        cards.push({ kind: 'skill', ...e, avatarUrl: avatarFor(e.owner) })
+      }
+    }
+
+    return { items: cards }
   },
   { maxAge: 60, swr: true, name: 'feed-recent-updates' },
 )

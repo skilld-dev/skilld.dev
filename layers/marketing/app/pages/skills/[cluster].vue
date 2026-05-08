@@ -96,12 +96,24 @@ function formatInstalls(n: number): string {
         class="rounded-lg border border-default p-4 transition-colors hover:border-[var(--ui-text-muted)]"
       >
         <NuxtLink :to="`/gh/${s.slug}`" class="block">
-          <p class="font-mono text-sm font-medium truncate">
-            {{ s.displayName }}
-          </p>
-          <p class="font-mono text-xs text-muted truncate">
-            {{ s.owner }}/{{ s.repo }}
-          </p>
+          <div class="flex items-start gap-2">
+            <img
+              :src="`https://github.com/${s.owner}.png?size=80`"
+              :alt="`${s.owner} avatar`"
+              class="size-5 rounded shrink-0 mt-0.5 border border-default"
+              width="20"
+              height="20"
+              loading="lazy"
+            >
+            <div class="min-w-0 flex-1">
+              <p class="font-mono text-sm font-medium truncate">
+                {{ s.displayName }}
+              </p>
+              <p class="font-mono text-xs text-muted truncate">
+                {{ s.owner }}/{{ s.repo }}
+              </p>
+            </div>
+          </div>
           <p
             v-if="s.description"
             class="mt-2 text-xs text-muted line-clamp-3"

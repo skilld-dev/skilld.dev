@@ -26,7 +26,9 @@ function copyHero() {
   }, 2000)
 }
 
-const { data: updatesData } = useFetch('/api/feed/recent-updates')
+import type { RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
+
+const { data: updatesData } = useFetch<RecentUpdatesResponse>('/api/feed/recent-updates')
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 
 const { data: collectionsData } = useFetch('/api/collections/featured')
@@ -152,16 +154,56 @@ function formatRelative(ts: number): string {
       <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
         <li
           v-for="item in recentUpdates.slice(0, 12)"
-          :key="`${item.owner}/${item.name}`"
+          :key="item.kind === 'repo' ? `repo:${item.owner}/${item.repo}` : `skill:${item.owner}/${item.name}`"
           class="rounded-lg border border-default p-4 transition-colors hover:border-[var(--ui-text-muted)]"
         >
-          <NuxtLink :to="`/gh/${item.slug}`" class="block">
-            <p class="font-mono text-sm font-medium truncate">
-              {{ item.displayName }}
+          <NuxtLink
+            v-if="item.kind === 'repo'"
+            :to="`/gh/${item.owner}/${item.repo}`"
+            class="block"
+          >
+            <div class="flex items-center gap-2">
+              <img
+                :src="item.avatarUrl"
+                :alt="`${item.owner} avatar`"
+                class="size-5 rounded shrink-0 border border-default"
+                width="20"
+                height="20"
+                loading="lazy"
+              >
+              <p class="font-mono text-sm font-medium truncate">
+                {{ item.owner }}/{{ item.repo }}
+              </p>
+            </div>
+            <p class="mt-2 text-xs text-muted">
+              {{ item.skillCount }} skills updated
             </p>
-            <p class="font-mono text-xs text-muted truncate">
-              {{ item.owner }}/{{ item.repo }}
+            <p class="mt-2 font-mono text-xs text-muted line-clamp-2">
+              {{ item.skills.slice(0, 4).map(s => s.name).join(' · ') }}{{ item.skillCount > 4 ? ` · +${item.skillCount - 4} more` : '' }}
             </p>
+            <p class="mt-2 font-mono text-xs text-muted">
+              Updated {{ formatRelative(item.occurredAt) }}
+            </p>
+          </NuxtLink>
+          <NuxtLink v-else :to="`/gh/${item.slug}`" class="block">
+            <div class="flex items-start gap-2">
+              <img
+                :src="item.avatarUrl"
+                :alt="`${item.owner} avatar`"
+                class="size-5 rounded shrink-0 mt-0.5 border border-default"
+                width="20"
+                height="20"
+                loading="lazy"
+              >
+              <div class="min-w-0 flex-1">
+                <p class="font-mono text-sm font-medium truncate">
+                  {{ item.displayName }}
+                </p>
+                <p class="font-mono text-xs text-muted truncate">
+                  {{ item.owner }}/{{ item.repo }}
+                </p>
+              </div>
+            </div>
             <p
               v-if="item.description"
               class="mt-2 text-xs text-muted line-clamp-2"
