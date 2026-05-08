@@ -76,6 +76,7 @@ export interface SkillsQuery {
   excludeOfficial?: boolean
   supportedOnly?: boolean
   trustTier?: string
+  category?: string
   sort?: 'installs' | 'name' | 'owner'
   page?: number
   limit?: number
@@ -113,7 +114,7 @@ function chunkRepos(repos: RepoRef[]): RepoRef[][] {
 
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
-  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
+  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
 
   const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
@@ -149,6 +150,11 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   if (trustTier) {
     conditions.push('skills.trust_tier = ?')
     params.push(trustTier)
+  }
+
+  if (category) {
+    conditions.push('skills.abstractness_category = ?')
+    params.push(category)
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`

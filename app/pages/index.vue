@@ -34,11 +34,32 @@ const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const { data: collectionsData } = useFetch('/api/collections/featured')
 const featuredCollections = computed(() => collectionsData.value?.items ?? [])
 
-const { data: designData } = useFetch('/api/skills', {
-  key: 'home-design',
-  query: { q: 'design', limit: 6, sort: 'installs' },
+interface DomainCategory {
+  category: string
+  label: string
+  description: string
+}
+
+const DOMAIN_CATEGORIES: DomainCategory[] = [
+  { category: 'design', label: 'Design', description: 'UI, UX, and visual quality. Make your agent build interfaces that don\'t look generic.' },
+  { category: 'testing-strategy', label: 'Testing', description: 'Unit, integration, and TDD workflows that keep behaviour stable.' },
+  { category: 'security', label: 'Security', description: 'Auditing, threat modelling, and finding vulnerabilities before shipping.' },
+  { category: 'performance', label: 'Performance', description: 'Profiling, optimisation, and shipping fast UIs.' },
+  { category: 'accessibility', label: 'Accessibility', description: 'Building interfaces that work for everyone.' },
+]
+
+const { data: domainData } = useAsyncData('home-domains', async () => {
+  const results = await Promise.all(
+    DOMAIN_CATEGORIES.map(async (c) => {
+      const res = await $fetch('/api/skills', {
+        query: { category: c.category, limit: 6, sort: 'installs' },
+      })
+      return { ...c, items: res.items ?? [] }
+    }),
+  )
+  return results.filter(r => r.items.length > 0)
 })
-const designSkills = computed(() => designData.value?.items ?? [])
+const domainSections = computed(() => domainData.value ?? [])
 
 const { data: featuredDevsData } = useFetch('/api/skills/featured', {
   key: 'home-featured-devs',
@@ -137,36 +158,52 @@ function formatRelative(ts: number): string {
       <HomepageClusterGrid />
     </section>
 
-    <USeparator v-if="designSkills.length" />
+    <USeparator v-if="domainSections.length" />
 
-    <!-- Design — top-level domain category -->
+    <!-- By domain — top-level dev categories from classifier -->
     <section
-      v-if="designSkills.length"
-      id="design"
+      v-if="domainSections.length"
+      id="by-domain"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="design-heading"
+      aria-labelledby="by-domain-heading"
     >
-      <div class="flex items-end justify-between mb-2">
-        <h2 id="design-heading" class="section-label">
-          Design
+      <div class="mb-6">
+        <h2 id="by-domain-heading" class="section-label">
+          By domain
         </h2>
-        <UButton
-          to="/skills?q=design"
-          label="View all"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          trailing-icon="i-lucide-arrow-right"
-        />
+        <p class="mt-1 text-sm text-muted max-w-lg leading-relaxed">
+          Skills grouped by what part of dev work they level up.
+        </p>
       </div>
-      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
-        Skills for UI, UX, and visual quality. Make your agent build interfaces that don't look generic.
-      </p>
-      <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
-        <li v-for="skill in designSkills" :key="skill.slug">
-          <SkillCard :skill show-tags show-owner-path />
-        </li>
-      </ul>
+
+      <div class="space-y-12">
+        <div
+          v-for="section in domainSections"
+          :key="section.category"
+        >
+          <div class="flex items-end justify-between mb-3">
+            <h3 class="font-mono text-base font-medium tracking-tight">
+              {{ section.label }}
+            </h3>
+            <UButton
+              :to="`/skills?category=${section.category}`"
+              label="View all"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              trailing-icon="i-lucide-arrow-right"
+            />
+          </div>
+          <p class="mb-4 text-sm text-muted max-w-lg leading-relaxed">
+            {{ section.description }}
+          </p>
+          <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
+            <li v-for="skill in section.items" :key="skill.slug">
+              <SkillCard :skill show-tags show-owner-path />
+            </li>
+          </ul>
+        </div>
+      </div>
     </section>
 
     <USeparator v-if="featuredDevSections.length" />

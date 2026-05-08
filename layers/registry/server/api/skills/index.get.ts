@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
   const supportedOnly = query.supported === 'true' || query.supported === '1'
   const trustTier = (query.trustTier as string || '').toLowerCase().trim()
   const owner = (query.owner as string || '').toLowerCase().trim()
+  const category = (query.category as string || '').toLowerCase().trim()
 
   const result = await querySkills(event, {
     search: search || undefined,
@@ -22,6 +23,7 @@ export default defineEventHandler(async (event) => {
     excludeOfficial,
     supportedOnly,
     trustTier: trustTier || undefined,
+    category: category || undefined,
     sort: sort as 'installs' | 'name' | 'owner',
     page,
     limit,
