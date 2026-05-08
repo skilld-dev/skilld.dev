@@ -5,22 +5,10 @@ import { isEditableElement } from '~/utils/input'
 const title = 'skilld'
 const description = 'Curated agent skills from trusted open-source developers'
 
-const { user, isAuthenticated, isLoading } = useAuth()
 const authModalOpen = ref(false)
 const shortcutsModalOpen = ref(false)
 
 const { enabled: kbdEnabled } = useKeyboardShortcuts()
-const { justSignedIn } = useOnboarding()
-
-// Detect auth transition to trigger welcome banner
-if (import.meta.client) {
-  let wasAuthenticated = false
-  watch(isAuthenticated, (val) => {
-    if (val && !wasAuthenticated)
-      justSignedIn.value = true
-    wasAuthenticated = val
-  })
-}
 
 useHead({
   meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
@@ -103,14 +91,6 @@ onKeyDown('?', (e) => {
           size="sm"
           class="hidden lg:inline-flex"
         />
-        <UButton
-          to="/people"
-          label="People"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          class="hidden lg:inline-flex"
-        />
         <UColorModeButton />
         <UButton
           to="https://github.com/harlan-zw/skilld"
@@ -121,36 +101,14 @@ onKeyDown('?', (e) => {
           variant="ghost"
         />
 
-        <!-- Auth: avatar or sign in -->
-        <ClientOnly>
-          <template v-if="!isLoading">
-            <button
-              v-if="isAuthenticated && user"
-              class="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-muted"
-              aria-label="Account settings"
-              @click="authModalOpen = true"
-            >
-              <img
-                v-if="user.avatar"
-                :src="user.avatar"
-                :alt="`Avatar for ${user.handle}`"
-                width="24"
-                height="24"
-                class="size-6 rounded-full"
-              >
-              <span class="hidden font-mono text-xs sm:inline">@{{ user.handle }}</span>
-            </button>
-            <UButton
-              v-else
-              label="Sign in"
-              icon="i-lucide-log-in"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              @click="authModalOpen = true"
-            />
-          </template>
-        </ClientOnly>
+        <UButton
+          label="Sign in"
+          icon="i-lucide-log-in"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          @click="authModalOpen = true"
+        />
       </template>
 
       <template #body>
@@ -174,21 +132,9 @@ onKeyDown('?', (e) => {
             block
             class="justify-start"
           />
-          <UButton
-            to="/people"
-            label="People"
-            color="neutral"
-            variant="ghost"
-            block
-            class="justify-start"
-          />
         </nav>
       </template>
     </UHeader>
-
-    <ClientOnly>
-      <WelcomeBanner />
-    </ClientOnly>
 
     <UMain
       id="main-content"

@@ -834,65 +834,6 @@ useHead(computed(() => ({
                   ? 'Updated in the last 6 months'
                   : 'No updates in 6+ months'"
             />
-
-            <span
-              v-if="data.curators.length || data.stars || data.forks"
-              aria-hidden="true"
-              class="text-muted/50"
-            >·</span>
-
-            <template v-if="data.curators.length">
-              <span class="data-label">
-                Recommended by {{ data.curators.length }} {{ data.curators.length === 1 ? 'curator' : 'curators' }}
-              </span>
-              <div class="flex -space-x-2 isolate">
-                <NuxtLink
-                  v-for="curator in visibleCuratorAvatars"
-                  :key="curator.did"
-                  :to="`/people/${curator.handle}`"
-                  class="relative inline-flex"
-                  :title="`@${curator.handle} · ${curator.collectionName}`"
-                  :aria-label="`${curator.handle} profile`"
-                >
-                  <img
-                    v-if="curator.avatar"
-                    :src="curator.avatar"
-                    :alt="`${curator.handle} avatar`"
-                    width="24"
-                    height="24"
-                    class="size-6 rounded-full ring-2 ring-default bg-default"
-                  >
-                  <span
-                    v-else
-                    class="flex size-6 items-center justify-center rounded-full ring-2 ring-default bg-muted"
-                  >
-                    <UIcon
-                      name="i-lucide-user"
-                      class="size-3 text-muted"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </NuxtLink>
-              </div>
-              <span
-                v-if="overflowCuratorCount"
-                class="data-label"
-              >
-                +{{ overflowCuratorCount }}
-              </span>
-            </template>
-            <template v-else>
-              <span class="data-label">No curators yet</span>
-              <UButton
-                v-if="!isAuthenticated"
-                label="Sign in to curate"
-                icon="i-lucide-folder-plus"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                @click="authModalOpen = true"
-              />
-            </template>
           </div>
 
           <div
@@ -1145,7 +1086,7 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="curatorsWithReason.length"
+            v-if="false && curatorsWithReason.length"
             aria-labelledby="curator-reasons-heading"
           >
             <h2
@@ -1215,7 +1156,7 @@ useHead(computed(() => ({
             </div>
           </section>
           <section
-            v-else-if="!data.curators.length"
+            v-else-if="false && !data.curators.length"
             aria-labelledby="curator-reasons-empty-heading"
           >
             <h2
@@ -1236,7 +1177,7 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="authorPosts.length"
+            v-if="false && authorPosts.length"
             aria-labelledby="author-posts-heading"
           >
             <h2
@@ -1269,7 +1210,7 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="communityPosts.length"
+            v-if="false && communityPosts.length"
             aria-labelledby="community-posts-heading"
           >
             <h2

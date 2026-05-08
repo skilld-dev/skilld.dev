@@ -1,5 +1,5 @@
 export default defineNuxtConfig({
-  extends: ['./layers/admin'],
+  extends: ['./layers/admin', './layers/registry', './layers/marketing'],
 
   modules: [
     '@nuxt/eslint',
@@ -12,7 +12,6 @@ export default defineNuxtConfig({
     '@nuxtjs/html-validator',
     'motion-v/nuxt',
     '@vueuse/nuxt',
-    './modules/oauth',
     'nitro-cloudflare-dev',
   ],
 
@@ -103,8 +102,6 @@ export default defineNuxtConfig({
         // Keep this list in sync with `nitro.scheduledTasks` below.
         triggers: {
           crons: [
-            '*/10 * * * *',
-            '*/15 * * * *',
             '0 * * * *',
           ],
         },
@@ -126,8 +123,6 @@ export default defineNuxtConfig({
       wasm: true,
     },
     scheduledTasks: {
-      '*/10 * * * *': ['refresh-curators'],
-      '*/15 * * * *': ['refresh-follows'],
       '0 * * * *': ['sync-github-skills'],
     },
   },
@@ -174,15 +169,15 @@ export default defineNuxtConfig({
     sitemaps: {
       pages: {
         includeAppSources: true,
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/orgs/**'],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new'],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],
         includeAppSources: false,
         chunks: 10000,
       },
-      people: {
-        sources: ['/api/__sitemap__/people'],
+      authors: {
+        sources: ['/api/__sitemap__/authors'],
         includeAppSources: false,
       },
       orgs: {
