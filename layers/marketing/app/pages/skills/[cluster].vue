@@ -95,7 +95,7 @@ function formatInstalls(n: number): string {
         :key="`${s.owner}/${s.name}`"
         class="rounded-lg border border-default p-4 transition-colors hover:border-[var(--ui-text-muted)]"
       >
-        <NuxtLink :to="`/gh/${s.slug}`" class="block">
+        <NuxtLink :to="`/gh/${s.owner}/${s.repo}/${s.name}`" class="block">
           <div class="flex items-start gap-2">
             <img
               :src="`https://github.com/${s.owner}.png?size=80`"

@@ -300,7 +300,7 @@ function formatRelative(ts: number): string {
               Updated {{ formatRelative(item.occurredAt) }}
             </p>
           </NuxtLink>
-          <NuxtLink v-else :to="`/gh/${item.slug}`" class="block">
+          <NuxtLink v-else :to="`/gh/${item.owner}/${item.repo}/${item.name}`" class="block">
             <div class="flex items-start gap-2">
               <img
                 :src="item.avatarUrl"
