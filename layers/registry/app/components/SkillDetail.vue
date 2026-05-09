@@ -481,7 +481,7 @@ defineOgImage('Skill.takumi', {
 })
 
 const siteOrigin = 'https://skilld.dev'
-const skillPagePath = computed(() => data.value ? repoSkillPath(data.value.owner, data.value.repo, data.value.name) : `/gh/${slug.value}`)
+const skillPagePath = computed(() => data.value ? repoSkillPath(data.value.owner, data.value.repo, data.value.name) : '')
 const skillPageUrl = computed(() => `${siteOrigin}${skillPagePath.value}`)
 const duplicateGroup = computed(() => data.value?.duplicateGroup ?? null)
 const isWeakerDuplicate = computed(() => Boolean(duplicateGroup.value && !duplicateGroup.value.isCanonical))
