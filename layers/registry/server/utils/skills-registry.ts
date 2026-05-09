@@ -16,6 +16,10 @@ const WHITESPACE_RE = /\s+/
 const BROKEN_GRACE_SECONDS = 7 * 86400
 const NOT_BROKEN_SQL = `(skills.broken_since IS NULL OR skills.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
 
+// Aggregator repos (>100 skills, mostly awesome-list republishers) are excluded
+// from anonymous discovery surfaces. Detail pages remain reachable.
+const NOT_AGGREGATOR_SQL = `skills.repo_kind != 'aggregator'`
+
 export interface RegistrySkill {
   name: string
   owner: string
@@ -156,6 +160,13 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     conditions.push('skills.abstractness_category = ?')
     params.push(category)
   }
+
+  // Anonymous discovery (Loop 1) hides aggregators. Owner profiles, official
+  // sections, and supported-only views show everything since the user already
+  // chose a scope.
+  const isAnonymousBrowse = !owner && !official && !supportedOnly
+  if (isAnonymousBrowse)
+    conditions.push(NOT_AGGREGATOR_SQL)
 
   const where = `WHERE ${conditions.join(' AND ')}`
 
@@ -475,6 +486,7 @@ async function listDuplicateCandidateRows(event: H3Event, opts: { supportedOnly:
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
         AND skills.seo_indexable = 1
+        AND ${NOT_AGGREGATOR_SQL}
         ${supportedFilter}
       ORDER BY skills.owner ASC, skills.repo ASC, skills.name ASC
     `)
@@ -521,6 +533,7 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
         AND skills.seo_indexable = 1
+        AND ${NOT_AGGREGATOR_SQL}
       ORDER BY skills.owner ASC, skills.repo ASC, skills.name ASC
     `)
     .all<SkillDuplicateRow>()

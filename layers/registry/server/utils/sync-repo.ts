@@ -122,6 +122,24 @@ async function getRepoTrustOverride(db: D1Database, owner: string, repo: string)
     .first<RepoTrustOverrideRow>()
 }
 
+type RepoKind = 'creator' | 'catalog' | 'aggregator'
+
+async function getRepoKindOverride(db: D1Database, owner: string, repo: string): Promise<RepoKind | null> {
+  const row = await db
+    .prepare('SELECT kind FROM repo_kind_overrides WHERE owner = ? AND repo = ?')
+    .bind(owner, repo)
+    .first<{ kind: RepoKind }>()
+  return row?.kind ?? null
+}
+
+function classifyRepoKind(skillCount: number): RepoKind {
+  if (skillCount > 100)
+    return 'aggregator'
+  if (skillCount > 5)
+    return 'catalog'
+  return 'creator'
+}
+
 export async function syncRepo(
   owner: string,
   repo: string,
@@ -205,6 +223,9 @@ export async function syncRepo(
   const repoCreatedAt = epoch(meta.created_at)
   const repoDescription = meta.description?.trim() || null
   const repoOverride = await getRepoTrustOverride(db, owner, repo)
+  const kindOverride = await getRepoKindOverride(db, owner, repo)
+  const repoKind: RepoKind = kindOverride ?? classifyRepoKind(skillFiles.length)
+  const repoKindSource: 'computed' | 'override' = kindOverride ? 'override' : 'computed'
 
   const seenNames = new Set<string>()
 
@@ -290,8 +311,8 @@ export async function syncRepo(
            is_official, source_resolved, seo_index_score, seo_indexable,
            seo_index_reasons, seo_index_synced_at,
            trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-           repo_skill_count
-         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           repo_skill_count, repo_kind, repo_kind_source
+         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(owner, name) DO UPDATE SET
            repo = excluded.repo,
            display_name = excluded.display_name,
@@ -322,7 +343,9 @@ export async function syncRepo(
            trust_score = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_score ELSE skills.trust_score END,
            trust_reasons = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_reasons ELSE skills.trust_reasons END,
            trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at),
-           repo_skill_count = excluded.repo_skill_count`,
+           repo_skill_count = excluded.repo_skill_count,
+           repo_kind = CASE WHEN skills.repo_kind_source = 'override' THEN skills.repo_kind ELSE excluded.repo_kind END,
+           repo_kind_source = skills.repo_kind_source`,
       )
       .bind(
         parsed.name,
@@ -355,6 +378,8 @@ export async function syncRepo(
         JSON.stringify(trust.reasons),
         now,
         skillFiles.length,
+        repoKind,
+        repoKindSource,
       )
       .run()
     stats.skillsUpserted += 1

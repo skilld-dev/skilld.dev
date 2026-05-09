@@ -114,7 +114,11 @@ const now = Math.floor(Date.now() / 1000)
 const ownerSql = sqlText(owner)
 const repoSql = sqlText(repo)
 
-console.log(`-- sync-skills-gh: ${owner}/${repo} (${skills.length} skills, ${stars} stars)`)
+// Classify the repo by skill count. Manual overrides in repo_kind_overrides
+// take precedence and are preserved by the ON CONFLICT clause below.
+const repoKind = skills.length > 100 ? 'aggregator' : skills.length > 5 ? 'catalog' : 'creator'
+
+console.log(`-- sync-skills-gh: ${owner}/${repo} (${skills.length} skills, ${stars} stars, kind=${repoKind})`)
 // Note: D1 manages transactions implicitly per file; explicit BEGIN/COMMIT
 // is rejected.
 for (const s of skills) {
@@ -123,8 +127,8 @@ for (const s of skills) {
   // description. Stars/forks/pushed/created/branch come from the repo.
   const desc = s.description || repoDescription
   console.log(
-    `INSERT INTO skills (name, owner, repo, display_name, installs, slug, stars, forks, pushed_at, repo_created_at, description, default_branch, repo_meta_synced_at, broken_since)
-     VALUES (${sqlText(s.name)}, ${ownerSql}, ${repoSql}, ${sqlText(s.displayName)}, 0, ${sqlText(slug)}, ${stars}, ${forks}, ${pushedAt}, ${createdAt}, ${sqlText(desc)}, ${sqlText(branch)}, ${now}, NULL)
+    `INSERT INTO skills (name, owner, repo, display_name, installs, slug, stars, forks, pushed_at, repo_created_at, description, default_branch, repo_meta_synced_at, broken_since, repo_skill_count, repo_kind)
+     VALUES (${sqlText(s.name)}, ${ownerSql}, ${repoSql}, ${sqlText(s.displayName)}, 0, ${sqlText(slug)}, ${stars}, ${forks}, ${pushedAt}, ${createdAt}, ${sqlText(desc)}, ${sqlText(branch)}, ${now}, NULL, ${skills.length}, ${sqlText(repoKind)})
      ON CONFLICT(owner, name) DO UPDATE SET
        repo = excluded.repo,
        display_name = excluded.display_name,
@@ -136,7 +140,9 @@ for (const s of skills) {
        description = COALESCE(excluded.description, skills.description),
        default_branch = excluded.default_branch,
        repo_meta_synced_at = excluded.repo_meta_synced_at,
-       broken_since = NULL;`,
+       broken_since = NULL,
+       repo_skill_count = excluded.repo_skill_count,
+       repo_kind = CASE WHEN skills.repo_kind_source = 'override' THEN skills.repo_kind ELSE excluded.repo_kind END;`,
   )
 }
 

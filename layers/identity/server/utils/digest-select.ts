@@ -95,6 +95,7 @@ export async function selectDigestForUser(
      JOIN skill_subscriptions sub ON sub.user_id = ?1 AND sub.owner = s.owner AND sub.repo = s.repo
      WHERE a.occurred_at > ?2 AND a.occurred_at <= ?3
        AND (sub.muted_until IS NULL OR sub.muted_until <= ?3)
+       AND s.repo_kind != 'aggregator'
      GROUP BY s.owner, s.repo
      ORDER BY commit_count DESC, s.owner ASC, s.repo ASC
      LIMIT 30`,
