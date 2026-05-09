@@ -270,7 +270,7 @@ function formatRelative(ts: number): string {
         <li
           v-for="item in recentUpdates.slice(0, 12)"
           :key="item.kind === 'repo' ? `repo:${item.owner}/${item.repo}` : `skill:${item.owner}/${item.name}`"
-          class="rounded-lg border border-default p-4 transition-colors hover:border-[var(--ui-text-muted)]"
+          :class="item.kind === 'repo' ? 'rounded-lg border border-default p-4 transition-colors hover:border-[var(--ui-text-muted)]' : ''"
         >
           <NuxtLink
             v-if="item.kind === 'repo'"
@@ -300,35 +300,14 @@ function formatRelative(ts: number): string {
               Updated {{ formatRelative(item.occurredAt) }}
             </p>
           </NuxtLink>
-          <NuxtLink v-else :to="`/gh/${item.owner}/${item.repo}/${item.name}`" class="block">
-            <div class="flex items-start gap-2">
-              <img
-                :src="item.avatarUrl"
-                :alt="`${item.owner} avatar`"
-                class="size-5 rounded shrink-0 mt-0.5 border border-default"
-                width="20"
-                height="20"
-                loading="lazy"
-              >
-              <div class="min-w-0 flex-1">
-                <p class="font-mono text-sm font-medium truncate">
-                  {{ item.displayName }}
-                </p>
-                <p class="font-mono text-xs text-muted truncate">
-                  {{ item.owner }}/{{ item.repo }}
-                </p>
-              </div>
-            </div>
-            <p
-              v-if="item.description"
-              class="mt-2 text-xs text-muted line-clamp-2"
-            >
-              {{ item.description }}
-            </p>
-            <p class="mt-2 font-mono text-xs text-muted">
-              Updated {{ formatRelative(item.occurredAt) }}
-            </p>
-          </NuxtLink>
+          <SkillCard
+            v-else
+            :skill="item"
+            variant="grid"
+            signal="none"
+            show-owner-path
+            timestamp-label="Updated"
+          />
         </li>
       </ul>
     </section>
