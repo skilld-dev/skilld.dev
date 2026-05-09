@@ -18,7 +18,7 @@ useHead({
 
 defineOgImage('Splash.takumi', {}, { alt: 'skilld — curated skills for AI agents' })
 
-const heroInstallCmd = 'npx skilld add gh:nuxt/nuxt'
+const heroInstallCmd = 'npx skilld add gh:<repo>'
 const heroCopied = ref(false)
 function copyHero() {
   navigator.clipboard.writeText(heroInstallCmd)

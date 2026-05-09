@@ -298,22 +298,6 @@ const verifiedSummary = computed<{ verified: number, total: number } | null>(() 
   return { verified: list.filter(c => c.verified).length, total: list.length }
 })
 
-const provenanceLine = computed<string | null>(() => {
-  const d = data.value
-  if (!d)
-    return null
-  const updated = d.pushedAt ? `source updated ${pushedAtAgo.value}` : null
-  const v = verifiedSummary.value
-  const signed = v ? `${v.verified}/${v.total} recent commits signed` : null
-  const tail = [signed, updated].filter(Boolean).join(', ')
-  const suffix = tail ? `, ${tail}` : ''
-  if (d.tier === 'official-org')
-    return `Maintained by the ${d.owner} team${suffix}.`
-  if (d.tier === 'official-user')
-    return `Maintained by @${d.owner}${suffix}.`
-  return `Community skill from ${d.owner}${suffix}.`
-})
-
 const capabilitySummary = computed<{ scopes: ('read' | 'write' | 'exec' | 'net')[], mcp: string[] } | null>(() => {
   const facts = data.value?.sourceFacts.frontmatter
   if (!facts?.allowedTools.length)
@@ -366,12 +350,9 @@ const contentTabs = [
   { label: 'Markdown', value: 'markdown', icon: 'i-lucide-file-text' },
 ]
 
-const compatibleAgents = [
-  { label: 'Claude Code' },
-  { label: 'Codex' },
-  { label: 'Cursor' },
-  { label: 'Copilot' },
-  { label: 'Gemini CLI' },
+const installerTabs = [
+  { label: 'skilld', value: 'skilld' },
+  { label: 'skills.sh', value: 'skills' },
 ]
 
 const relatedTab = ref<string>('repo')
@@ -674,18 +655,6 @@ useHead(computed(() => ({
         </div>
 
         <div class="mt-6 space-y-3">
-          <p
-            v-if="provenanceLine"
-            class="inline-flex items-start gap-1.5 font-mono text-xs text-muted"
-          >
-            <UIcon
-              name="i-lucide-shield-check"
-              class="size-3.5 mt-0.5 shrink-0"
-              aria-hidden="true"
-            />
-            <span>{{ provenanceLine }}</span>
-          </p>
-
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span
               v-if="displayInstalls > 0"
@@ -698,20 +667,6 @@ useHead(computed(() => ({
                 aria-hidden="true"
               />
               {{ liveSkill?.formatted ?? displayInstalls.toLocaleString() }}
-            </span>
-            <span
-              v-for="a in audits"
-              :key="a.slug"
-              class="data-label inline-flex items-center gap-1"
-              :title="`${a.provider}: ${a.summary || a.status}${a.auditedAt ? ` · audited ${new Date(a.auditedAt).toLocaleDateString()}` : ''}`"
-            >
-              <UIcon
-                :name="a.status === 'pass' ? 'i-lucide-shield-check' : a.status === 'warn' ? 'i-lucide-shield-alert' : 'i-lucide-shield-x'"
-                class="size-3.5"
-                :class="a.status === 'pass' ? 'text-emerald-500' : a.status === 'warn' ? 'text-amber-500' : 'text-rose-500'"
-                aria-hidden="true"
-              />
-              {{ a.provider }}
             </span>
             <span
               v-if="data.stars"
@@ -758,18 +713,19 @@ useHead(computed(() => ({
               />
               First seen {{ createdAtAgo }}
             </span>
-            <UBadge
-              v-if="maturity"
-              :label="maturity.cadence"
-              :color="maturity.cadence === 'active' ? 'primary' : 'neutral'"
-              :variant="maturity.cadence === 'active' ? 'solid' : 'subtle'"
-              size="xs"
-              :title="maturity.cadence === 'active'
-                ? 'Updated in the last 30 days'
-                : maturity.cadence === 'steady'
-                  ? 'Updated in the last 6 months'
-                  : 'No updates in 6+ months'"
-            />
+            <a
+              v-if="data.provenance"
+              href="#receipts"
+              class="data-label inline-flex items-center gap-1 hover:text-default transition-colors"
+              title="View trust signals: audits, signed commits, source provenance"
+            >
+              <UIcon
+                name="i-lucide-shield-check"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              Trust
+            </a>
           </div>
 
           <div
@@ -803,32 +759,15 @@ useHead(computed(() => ({
           Install
         </h2>
         <div class="rounded-lg border border-default p-4 space-y-3">
-          <div
-            class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/30 p-0.5 text-xs font-mono"
-            role="tablist"
-            aria-label="Choose installer"
-          >
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="installerTab === 'skilld'"
-              class="rounded px-2.5 py-1 transition-colors"
-              :class="installerTab === 'skilld' ? 'bg-default text-default shadow-sm' : 'text-muted hover:text-default'"
-              @click="installerTab = 'skilld'"
-            >
-              skilld
-            </button>
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="installerTab === 'skills'"
-              class="rounded px-2.5 py-1 transition-colors"
-              :class="installerTab === 'skills' ? 'bg-default text-default shadow-sm' : 'text-muted hover:text-default'"
-              @click="installerTab = 'skills'"
-            >
-              skills.sh
-            </button>
-          </div>
+          <UTabs
+            v-model="installerTab"
+            :items="installerTabs"
+            :content="false"
+            color="neutral"
+            variant="link"
+            size="xs"
+            :ui="{ list: 'border-b border-default' }"
+          />
           <div class="flex items-center gap-2">
             <code class="flex-1 truncate rounded-lg border border-default bg-muted px-3 py-2 font-mono text-sm">
               {{ installCmdActive }}
@@ -842,9 +781,6 @@ useHead(computed(() => ({
               @click="copy(installCmdActive)"
             />
           </div>
-          <p class="font-mono text-xs text-muted">
-            Works with {{ compatibleAgents.map(a => a.label).join(' · ') }}
-          </p>
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
             <UButton
               :href="githubUrl"
@@ -1105,32 +1041,15 @@ useHead(computed(() => ({
               Install
             </h2>
             <div class="rounded-lg border border-default p-4 space-y-3">
-              <div
-                class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/30 p-0.5 text-xs font-mono"
-                role="tablist"
-                aria-label="Choose installer"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  :aria-selected="installerTab === 'skilld'"
-                  class="rounded px-2.5 py-1 transition-colors"
-                  :class="installerTab === 'skilld' ? 'bg-default text-default shadow-sm' : 'text-muted hover:text-default'"
-                  @click="installerTab = 'skilld'"
-                >
-                  skilld
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  :aria-selected="installerTab === 'skills'"
-                  class="rounded px-2.5 py-1 transition-colors"
-                  :class="installerTab === 'skills' ? 'bg-default text-default shadow-sm' : 'text-muted hover:text-default'"
-                  @click="installerTab = 'skills'"
-                >
-                  skills.sh
-                </button>
-              </div>
+              <UTabs
+                v-model="installerTab"
+                :items="installerTabs"
+                :content="false"
+                color="neutral"
+                variant="link"
+                size="xs"
+                :ui="{ list: 'border-b border-default' }"
+              />
               <div class="flex items-center gap-2">
                 <code class="flex-1 truncate rounded-md border border-default bg-muted px-2 py-1.5 font-mono text-xs">
                   {{ installCmdActive }}
@@ -1144,9 +1063,6 @@ useHead(computed(() => ({
                   @click="copy(installCmdActive)"
                 />
               </div>
-              <p class="font-mono text-xs text-muted">
-                Works with {{ compatibleAgents.map(a => a.label).join(' · ') }}
-              </p>
               <WatchSkillButton :owner="data.owner" :repo="data.repo" />
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
                 <UButton
@@ -1404,6 +1320,9 @@ useHead(computed(() => ({
           <SkillReceiptsPanel
             v-if="data.provenance"
             :provenance="data.provenance"
+            :audits="audits"
+            :verified-summary="verifiedSummary"
+            :maturity="maturity"
           />
 
           <section

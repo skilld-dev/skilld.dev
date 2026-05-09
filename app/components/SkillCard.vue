@@ -20,7 +20,7 @@ const {
   signal = 'auto',
   showDescription = true,
   showCopy = true,
-  showOwnerAvatar = false,
+  showOwnerAvatar = true,
   showOwnerPath = false,
   showTags = false,
   timestampLabel,

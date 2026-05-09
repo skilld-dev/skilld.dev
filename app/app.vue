@@ -90,14 +90,6 @@ onKeyDown('?', (e) => {
           class="hidden lg:inline-flex"
         />
         <UColorModeButton />
-        <UButton
-          to="https://github.com/harlan-zw/skilld"
-          target="_blank"
-          icon="i-lucide-github"
-          aria-label="GitHub repository (opens in new tab)"
-          color="neutral"
-          variant="ghost"
-        />
 
         <template v-if="isAuthenticated && user">
           <UButton

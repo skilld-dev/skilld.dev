@@ -14,8 +14,31 @@ interface SkillProvenance {
   syncStatus: string | null
 }
 
-const { provenance } = defineProps<{
+interface SkillAudit {
+  provider: string
+  slug: string
+  status: 'pass' | 'warn' | 'fail' | string
+  summary?: string
+  auditedAt?: string
+  riskLevel?: string
+}
+
+interface MaturitySummary {
+  cadence: 'active' | 'steady' | 'dormant'
+  ageDays: number
+  sinceUpdateDays: number
+}
+
+const {
+  provenance,
+  audits = [],
+  verifiedSummary = null,
+  maturity = null,
+} = defineProps<{
   provenance: SkillProvenance
+  audits?: SkillAudit[]
+  verifiedSummary?: { verified: number, total: number } | null
+  maturity?: MaturitySummary | null
 }>()
 
 const modifiedDate = computed(() =>
@@ -39,6 +62,31 @@ const stale = computed(() => {
 const shortSha = computed(() =>
   provenance.sourceCommitSha ? provenance.sourceCommitSha.slice(0, 7) : null,
 )
+
+const AUDIT_META: Record<string, { icon: string, klass: string }> = {
+  pass: { icon: 'i-lucide-shield-check', klass: 'text-emerald-500' },
+  warn: { icon: 'i-lucide-shield-alert', klass: 'text-amber-500' },
+  fail: { icon: 'i-lucide-shield-x', klass: 'text-rose-500' },
+}
+function auditMeta(a: SkillAudit) {
+  return AUDIT_META[a.status] ?? AUDIT_META.fail!
+}
+function auditTitle(a: SkillAudit) {
+  const parts = [`${a.provider}: ${a.summary || a.status}`]
+  if (a.auditedAt)
+    parts.push(`audited ${new Date(a.auditedAt).toLocaleDateString()}`)
+  return parts.join(' · ')
+}
+
+const MATURITY_META: Record<MaturitySummary['cadence'], { icon: string, label: string, hint: string, klass: string }> = {
+  active: { icon: 'i-lucide-activity', label: 'Active', hint: 'Updated in the last 30 days', klass: 'text-emerald-500' },
+  steady: { icon: 'i-lucide-minus', label: 'Steady', hint: 'Updated in the last 6 months', klass: 'text-muted' },
+  dormant: { icon: 'i-lucide-moon', label: 'Dormant', hint: 'No updates in 6+ months', klass: 'text-amber-500' },
+}
+
+const hasGlance = computed(() => Boolean(
+  audits.length || verifiedSummary || maturity || lastSyncedDate.value,
+))
 </script>
 
 <template>
@@ -51,13 +99,76 @@ const shortSha = computed(() =>
       id="receipts-heading"
       class="section-label mb-3"
     >
-      Receipts
+      Trust
     </h2>
 
     <div class="rounded-lg border border-default p-4 sm:p-5">
-      <div class="flex items-start gap-2">
+      <div
+        v-if="hasGlance"
+        class="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs"
+      >
+        <span
+          v-for="a in audits"
+          :key="a.slug"
+          class="inline-flex items-center gap-1 text-muted"
+          :title="auditTitle(a)"
+        >
+          <UIcon
+            :name="auditMeta(a).icon"
+            class="size-3.5"
+            :class="auditMeta(a).klass"
+            aria-hidden="true"
+          />
+          {{ a.provider }}
+        </span>
+        <span
+          v-if="verifiedSummary"
+          class="inline-flex items-center gap-1 text-muted"
+          :title="`Recent commits with verified signatures (GPG/SSH)`"
+        >
+          <UIcon
+            name="i-lucide-key-round"
+            class="size-3.5"
+            :class="verifiedSummary.verified === verifiedSummary.total ? 'text-emerald-500' : 'text-muted'"
+            aria-hidden="true"
+          />
+          <span class="tabular-nums">{{ verifiedSummary.verified }}/{{ verifiedSummary.total }}</span>
+          signed
+        </span>
+        <span
+          v-if="maturity"
+          class="inline-flex items-center gap-1 text-muted"
+          :title="MATURITY_META[maturity.cadence].hint"
+        >
+          <UIcon
+            :name="MATURITY_META[maturity.cadence].icon"
+            class="size-3.5"
+            :class="MATURITY_META[maturity.cadence].klass"
+            aria-hidden="true"
+          />
+          {{ MATURITY_META[maturity.cadence].label }}
+        </span>
+        <span
+          v-if="lastSyncedDate"
+          class="inline-flex items-center gap-1"
+          :class="stale ? 'text-amber-500' : 'text-muted'"
+          :title="lastSyncedDate.toLocaleString()"
+        >
+          <UIcon
+            :name="stale ? 'i-lucide-clock-alert' : 'i-lucide-clock'"
+            class="size-3.5"
+            aria-hidden="true"
+          />
+          Verified {{ lastSyncedAgo }}{{ stale ? ' (stale)' : '' }}
+        </span>
+      </div>
+
+      <div
+        class="flex items-start gap-2"
+        :class="hasGlance ? 'mt-4 border-t border-default pt-4' : ''"
+      >
         <UIcon
-          name="i-lucide-shield-check"
+          name="i-lucide-link"
           class="mt-0.5 size-4 shrink-0 text-muted"
           aria-hidden="true"
         />
@@ -163,22 +274,6 @@ const shortSha = computed(() =>
           </dd>
         </div>
       </dl>
-
-      <p
-        v-if="lastSyncedDate"
-        class="mt-4 flex items-center gap-1.5 font-mono text-xs"
-        :class="stale ? 'text-amber-500' : 'text-muted'"
-      >
-        <UIcon
-          v-if="stale"
-          name="i-lucide-clock-alert"
-          class="size-3.5"
-          aria-hidden="true"
-        />
-        <span :title="lastSyncedDate.toLocaleString()">
-          Verified {{ lastSyncedAgo }}{{ stale ? ' (stale)' : '' }}
-        </span>
-      </p>
     </div>
   </section>
 </template>

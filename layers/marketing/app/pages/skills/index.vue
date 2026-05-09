@@ -133,6 +133,18 @@ watch(page, async () => {
   }
 })
 
+const sortedNpmResults = computed(() => {
+  return [...npmResults.value].sort((a, b) => {
+    const ra = resolvedSkills.value[a.name]
+    const rb = resolvedSkills.value[b.name]
+    const trustA = ra?.official ? 2 : ra ? 1 : 0
+    const trustB = rb?.official ? 2 : rb ? 1 : 0
+    if (trustA !== trustB)
+      return trustB - trustA
+    return (b.weeklyDownloads || 0) - (a.weeklyDownloads || 0)
+  })
+})
+
 const totalPages = computed(() => {
   if (isSearching.value)
     return Math.ceil(npmTotal.value / PAGE_SIZE)
@@ -257,12 +269,12 @@ function clearOwner() {
       <!-- Search + view toggle -->
       <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div class="relative max-w-md flex-1">
-          <label for="skill-search" class="sr-only">Search npm packages</label>
+          <label for="skill-search" class="sr-only">Search GitHub repos or skill names</label>
           <UInput
             id="skill-search"
             ref="searchInput"
             v-model="search"
-            placeholder="Search npm packages..."
+            placeholder="Search GitHub repo or skill name..."
             icon="i-lucide-search"
             size="lg"
             class="font-mono"
@@ -369,7 +381,7 @@ function clearOwner() {
         v-else-if="view === 'grid'"
         class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
       >
-        <li v-for="pkg in npmResults" :key="pkg.name" class="group relative">
+        <li v-for="pkg in sortedNpmResults" :key="pkg.name" class="group relative">
           <NuxtLink
             :to="npmResultPath(pkg.name)"
             :external="npmResultIsExternal(pkg.name)"
@@ -378,11 +390,27 @@ function clearOwner() {
             :aria-label="`${pkg.name} v${pkg.version}`"
             class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
           >
-            <div class="min-w-0">
-              <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
-              <p class="mt-0.5 text-xs text-muted truncate">
-                v{{ pkg.version }}
-              </p>
+            <div class="min-w-0 flex items-start gap-3">
+              <img
+                v-if="resolvedSkills[pkg.name]"
+                :src="`https://github.com/${resolvedSkills[pkg.name].owner}.png?size=64`"
+                :alt="`${resolvedSkills[pkg.name].owner} avatar`"
+                width="32"
+                height="32"
+                class="size-8 rounded-full bg-muted shrink-0"
+                loading="lazy"
+              >
+              <div class="min-w-0 flex-1">
+                <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
+                <p class="mt-0.5 text-xs text-muted truncate">
+                  <template v-if="resolvedSkills[pkg.name]">
+                    {{ resolvedSkills[pkg.name].owner }}{{ resolvedSkills[pkg.name].official ? ' · official' : '' }}
+                  </template>
+                  <template v-else>
+                    v{{ pkg.version }}
+                  </template>
+                </p>
+              </div>
             </div>
             <p
               v-if="pkg.description"
@@ -413,7 +441,7 @@ function clearOwner() {
         v-else
         class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
       >
-        <li v-for="pkg in npmResults" :key="pkg.name" class="group relative">
+        <li v-for="pkg in sortedNpmResults" :key="pkg.name" class="group relative">
           <NuxtLink
             :to="npmResultPath(pkg.name)"
             :external="npmResultIsExternal(pkg.name)"
@@ -423,6 +451,15 @@ function clearOwner() {
             class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
           >
             <div class="min-w-0 flex-1 flex items-center gap-3">
+              <img
+                v-if="resolvedSkills[pkg.name]"
+                :src="`https://github.com/${resolvedSkills[pkg.name].owner}.png?size=48`"
+                :alt="`${resolvedSkills[pkg.name].owner} avatar`"
+                width="24"
+                height="24"
+                class="size-6 rounded-full bg-muted shrink-0"
+                loading="lazy"
+              >
               <p class="font-mono text-sm font-medium truncate shrink-0" v-html="highlight(pkg.name)" />
               <p class="text-xs text-muted truncate hidden sm:block">
                 {{ pkg.description }}

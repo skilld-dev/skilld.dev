@@ -28,7 +28,7 @@
   --ui-bg-elevated: oklch(0.22 0.012 60);
   --ui-text: oklch(0.93 0.008 60);
   --ui-text-muted: oklch(0.62 0.01 60);
-  --ui-text-inverted: oklch(1 0 0);
+  --ui-text-inverted: oklch(0.18 0.01 60);
   --ui-border: oklch(0.26 0.012 60);
   --ui-border-muted: oklch(0.22 0.008 60);
   --ui-color-primary-400: oklch(0.555 0.225 17.32);
