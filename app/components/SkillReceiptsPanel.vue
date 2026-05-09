@@ -77,6 +77,18 @@ function auditTitle(a: SkillAudit) {
     parts.push(`audited ${new Date(a.auditedAt).toLocaleDateString()}`)
   return parts.join(' · ')
 }
+function relativeDay(iso: string) {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (days < 1)
+    return 'today'
+  if (days === 1)
+    return '1d'
+  if (days < 30)
+    return `${days}d`
+  if (days < 365)
+    return `${Math.floor(days / 30)}mo`
+  return `${Math.floor(days / 365)}y`
+}
 
 const MATURITY_META: Record<MaturitySummary['cadence'], { icon: string, label: string, hint: string, klass: string }> = {
   active: { icon: 'i-lucide-activity', label: 'Active', hint: 'Updated in the last 30 days', klass: 'text-emerald-500' },
@@ -84,9 +96,9 @@ const MATURITY_META: Record<MaturitySummary['cadence'], { icon: string, label: s
   dormant: { icon: 'i-lucide-moon', label: 'Dormant', hint: 'No updates in 6+ months', klass: 'text-amber-500' },
 }
 
-const hasGlance = computed(() => Boolean(
-  audits.length || verifiedSummary || maturity || lastSyncedDate.value,
-))
+const hasStatus = computed(() => Boolean(maturity || verifiedSummary))
+const hasProvenance = computed(() => Boolean(shortSha.value || modifiedDate.value))
+const hasActions = computed(() => Boolean(provenance.skillFileUrl || provenance.historyUrl))
 </script>
 
 <template>
@@ -95,185 +107,171 @@ const hasGlance = computed(() => Boolean(
     aria-labelledby="receipts-heading"
     class="scroll-mt-20"
   >
-    <h2
-      id="receipts-heading"
-      class="section-label mb-3"
-    >
-      Trust
-    </h2>
-
-    <div class="rounded-lg border border-default p-4 sm:p-5">
-      <div
-        v-if="hasGlance"
-        class="flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs"
+    <div class="mb-3 flex items-baseline justify-between gap-2">
+      <h2
+        id="receipts-heading"
+        class="section-label"
       >
-        <span
+        Trust
+      </h2>
+      <span
+        v-if="lastSyncedDate"
+        class="font-mono text-[10px] uppercase tracking-widest"
+        :class="stale ? 'text-amber-500' : 'text-muted'"
+        :title="lastSyncedDate.toLocaleString()"
+      >
+        Verified {{ lastSyncedAgo }}{{ stale ? ' · stale' : '' }}
+      </span>
+    </div>
+
+    <div class="rounded-lg border border-default">
+      <ul
+        v-if="audits.length"
+        class="divide-y divide-default"
+      >
+        <li
           v-for="a in audits"
           :key="a.slug"
-          class="inline-flex items-center gap-1 text-muted"
-          :title="auditTitle(a)"
+          class="flex items-start gap-3 px-4 py-3"
         >
           <UIcon
             :name="auditMeta(a).icon"
-            class="size-3.5"
             :class="auditMeta(a).klass"
+            class="size-4 mt-0.5 shrink-0"
             aria-hidden="true"
           />
-          {{ a.provider }}
-        </span>
-        <span
-          v-if="verifiedSummary"
-          class="inline-flex items-center gap-1 text-muted"
-          :title="`Recent commits with verified signatures (GPG/SSH)`"
-        >
-          <UIcon
-            name="i-lucide-key-round"
-            class="size-3.5"
-            :class="verifiedSummary.verified === verifiedSummary.total ? 'text-emerald-500' : 'text-muted'"
-            aria-hidden="true"
-          />
-          <span class="tabular-nums">{{ verifiedSummary.verified }}/{{ verifiedSummary.total }}</span>
-          signed
-        </span>
-        <span
-          v-if="maturity"
-          class="inline-flex items-center gap-1 text-muted"
-          :title="MATURITY_META[maturity.cadence].hint"
-        >
-          <UIcon
-            :name="MATURITY_META[maturity.cadence].icon"
-            class="size-3.5"
-            :class="MATURITY_META[maturity.cadence].klass"
-            aria-hidden="true"
-          />
-          {{ MATURITY_META[maturity.cadence].label }}
-        </span>
-        <span
-          v-if="lastSyncedDate"
-          class="inline-flex items-center gap-1"
-          :class="stale ? 'text-amber-500' : 'text-muted'"
-          :title="lastSyncedDate.toLocaleString()"
-        >
-          <UIcon
-            :name="stale ? 'i-lucide-clock-alert' : 'i-lucide-clock'"
-            class="size-3.5"
-            aria-hidden="true"
-          />
-          Verified {{ lastSyncedAgo }}{{ stale ? ' (stale)' : '' }}
-        </span>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="font-mono text-sm text-default">{{ a.provider }}</span>
+              <span
+                v-if="a.auditedAt"
+                class="font-mono text-[10px] uppercase tracking-wide text-muted shrink-0"
+              >{{ relativeDay(a.auditedAt) }}</span>
+            </div>
+            <p
+              v-if="a.summary"
+              class="mt-0.5 text-xs text-muted leading-snug line-clamp-2"
+              :title="a.summary"
+            >
+              {{ a.summary }}
+            </p>
+          </div>
+        </li>
+      </ul>
+
+      <div
+        v-if="audits.length === 0"
+        class="px-4 py-3 font-mono text-xs text-muted"
+      >
+        No third-party audits yet.
       </div>
 
       <div
-        class="flex items-start gap-2"
-        :class="hasGlance ? 'mt-4 border-t border-default pt-4' : ''"
+        v-if="hasStatus || hasProvenance"
+        class="border-t border-default px-4 py-3 font-mono text-xs"
       >
-        <UIcon
-          name="i-lucide-link"
-          class="mt-0.5 size-4 shrink-0 text-muted"
-          aria-hidden="true"
-        />
-        <p class="text-sm leading-relaxed">
-          Indexed from
-          <NuxtLink
-            :to="`https://github.com/${provenance.owner}/${provenance.repo}`"
+        <div
+          v-if="hasStatus"
+          class="flex flex-wrap items-center gap-x-3 gap-y-1.5"
+        >
+          <span
+            v-if="maturity"
+            class="inline-flex items-center gap-1.5 text-muted"
+            :title="MATURITY_META[maturity.cadence].hint"
+          >
+            <UIcon
+              :name="MATURITY_META[maturity.cadence].icon"
+              class="size-3.5 shrink-0"
+              :class="MATURITY_META[maturity.cadence].klass"
+              aria-hidden="true"
+            />
+            {{ MATURITY_META[maturity.cadence].label }}
+          </span>
+          <span
+            v-if="verifiedSummary"
+            class="inline-flex items-center gap-1.5 text-muted"
+            title="Recent commits with verified signatures (GPG/SSH)"
+          >
+            <UIcon
+              name="i-lucide-key-round"
+              class="size-3.5 shrink-0"
+              :class="verifiedSummary.verified === verifiedSummary.total ? 'text-emerald-500' : 'text-muted'"
+              aria-hidden="true"
+            />
+            <span class="tabular-nums">{{ verifiedSummary.verified }}/{{ verifiedSummary.total }}</span> signed
+          </span>
+        </div>
+        <div
+          v-if="hasProvenance"
+          class="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted"
+          :class="hasStatus ? 'mt-2' : ''"
+        >
+          <a
+            v-if="shortSha && provenance.sourceCommitUrl"
+            :href="provenance.sourceCommitUrl"
             target="_blank"
             rel="noopener"
-            class="font-mono hover:text-default text-muted transition-colors"
+            class="inline-flex items-center gap-1 hover:text-default transition-colors"
+            :title="provenance.sourceCommitSha ?? ''"
           >
-            github.com/{{ provenance.owner }}/{{ provenance.repo }}
-          </NuxtLink>
-          on branch
-          <code class="font-mono text-muted">{{ provenance.branch }}</code>.
-        </p>
+            <UIcon
+              name="i-lucide-git-commit-horizontal"
+              class="size-3.5 shrink-0"
+              aria-hidden="true"
+            />
+            <span class="text-default">{{ shortSha }}</span>
+          </a>
+          <span
+            v-if="modifiedDate"
+            class="tabular-nums"
+            :title="modifiedDate.toLocaleString()"
+          >· updated {{ modifiedAgo }}</span>
+        </div>
       </div>
 
-      <dl class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div
-          v-if="shortSha && provenance.sourceCommitUrl"
-          class="flex min-w-0 flex-col gap-0.5"
+      <div
+        v-if="hasActions"
+        class="flex divide-x divide-default border-t border-default font-mono text-xs"
+      >
+        <a
+          v-if="provenance.skillFileUrl"
+          :href="provenance.skillFileUrl"
+          target="_blank"
+          rel="noopener"
+          class="flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-muted hover:text-default hover:bg-elevated/40 transition-colors"
         >
-          <dt class="data-label">
-            Commit
-          </dt>
-          <dd class="m-0 min-w-0">
-            <a
-              :href="provenance.sourceCommitUrl"
-              target="_blank"
-              rel="noopener"
-              class="block truncate font-mono text-sm hover:text-muted transition-colors"
-              :title="provenance.sourceCommitSha ?? ''"
-            >
-              {{ shortSha }}
-            </a>
-          </dd>
-        </div>
-
-        <div
-          v-if="provenance.skillPath && provenance.skillFileUrl"
-          class="flex min-w-0 flex-col gap-0.5"
-        >
-          <dt class="data-label">
-            SKILL.md
-          </dt>
-          <dd class="m-0 min-w-0">
-            <a
-              :href="provenance.skillFileUrl"
-              target="_blank"
-              rel="noopener"
-              class="block break-words font-mono text-sm hover:text-muted transition-colors"
-              :title="provenance.skillPath"
-            >
-              {{ provenance.skillPath }}
-            </a>
-          </dd>
-        </div>
-
-        <div
-          v-if="modifiedDate"
-          class="flex min-w-0 flex-col gap-0.5"
-        >
-          <dt class="data-label">
-            Last modified
-          </dt>
-          <dd
-            class="m-0 font-mono text-sm tabular-nums"
-            :title="modifiedDate.toLocaleString()"
-          >
-            {{ modifiedAgo }}
-          </dd>
-        </div>
-
-        <div
-          v-if="provenance.referencesCount > 0"
-          class="flex min-w-0 flex-col gap-0.5"
-        >
-          <dt class="data-label">
-            References
-          </dt>
-          <dd class="m-0 font-mono text-sm tabular-nums">
-            {{ provenance.referencesCount }} file{{ provenance.referencesCount === 1 ? '' : 's' }}
-          </dd>
-        </div>
-
-        <div
+          <UIcon
+            name="i-lucide-file-text"
+            class="size-3.5"
+            aria-hidden="true"
+          />
+          SKILL.md
+          <UIcon
+            name="i-lucide-arrow-up-right"
+            class="size-3"
+            aria-hidden="true"
+          />
+        </a>
+        <a
           v-if="provenance.historyUrl"
-          class="flex min-w-0 flex-col gap-0.5"
+          :href="provenance.historyUrl"
+          target="_blank"
+          rel="noopener"
+          class="flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-muted hover:text-default hover:bg-elevated/40 transition-colors"
         >
-          <dt class="data-label">
-            History
-          </dt>
-          <dd class="m-0 min-w-0">
-            <a
-              :href="provenance.historyUrl"
-              target="_blank"
-              rel="noopener"
-              class="font-mono text-sm hover:text-muted transition-colors"
-            >
-              View commits
-            </a>
-          </dd>
-        </div>
-      </dl>
+          <UIcon
+            name="i-lucide-history"
+            class="size-3.5"
+            aria-hidden="true"
+          />
+          History
+          <UIcon
+            name="i-lucide-arrow-up-right"
+            class="size-3"
+            aria-hidden="true"
+          />
+        </a>
+      </div>
     </div>
   </section>
 </template>

@@ -117,11 +117,13 @@ const { data, status, error, refresh } = useFetch(
   contentHtml: string | null
   frontmatter: Record<string, unknown> | null
   raw: string | null
+  assets: { path: string, size: number, type: 'markdown' | 'code' | 'image' | 'data' | 'other' }[]
   curators: { did: string, handle: string, displayName?: string, avatar?: string, collectionName: string, collectionSlug: string, reason?: string }[]
   url: string
   repo: string
   owner: string
   name: string
+  displayName: string
   installs: number
   githubUrl: string
   description: string | null
@@ -394,6 +396,72 @@ const commitsWithAgo = computed(() => {
 
 const recentCommits = computed(() => commitsWithAgo.value.slice(0, 4))
 
+interface BundledAsset {
+  path: string
+  size: number
+  type: 'markdown' | 'code' | 'image' | 'data' | 'other'
+  fileName: string
+  ext: string
+  href: string
+  external: boolean
+  icon: string
+}
+
+interface BundledAssetGroup {
+  label: string
+  assets: BundledAsset[]
+}
+
+const ASSET_ICON: Record<BundledAsset['type'], string> = {
+  markdown: 'i-lucide-file-text',
+  code: 'i-lucide-file-code',
+  image: 'i-lucide-image',
+  data: 'i-lucide-database',
+  other: 'i-lucide-file',
+}
+
+const bundledAssetGroups = computed<BundledAssetGroup[]>(() => {
+  const list = data.value?.assets ?? []
+  if (!list.length || !data.value)
+    return []
+  const groups = new Map<string, BundledAsset[]>()
+  for (const a of list) {
+    const segments = a.path.split('/')
+    const fileName = segments[segments.length - 1] ?? a.path
+    const dir = segments.length > 1 ? segments.slice(0, -1).join('/') : ''
+    const ext = (fileName.split('.').pop() ?? '').toLowerCase()
+    const isMd = a.type === 'markdown'
+    const href = isMd
+      ? `/gh/${data.value!.owner}/${data.value!.repo}/${data.value!.name}/-/${a.path}`
+      : `https://github.com/${data.value!.owner}/${data.value!.repo}/blob/${data.value!.branch}/${data.value!.skillPath?.replace(/\/SKILL\.md$/, '') ?? ''}/${a.path}`
+    const asset: BundledAsset = {
+      path: a.path,
+      size: a.size,
+      type: a.type,
+      fileName,
+      ext,
+      href,
+      external: !isMd,
+      icon: ASSET_ICON[a.type] ?? 'i-lucide-file',
+    }
+    if (!groups.has(dir))
+      groups.set(dir, [])
+    groups.get(dir)!.push(asset)
+  }
+  // Top-level files first, then nested folders alphabetically.
+  return [...groups.entries()]
+    .sort(([a], [b]) => {
+      if (a === '' && b !== '')
+        return -1
+      if (b === '' && a !== '')
+        return 1
+      return a.localeCompare(b)
+    })
+    .map(([dir, assets]) => ({ label: dir, assets }))
+})
+
+const hasBundledAssets = computed(() => bundledAssetGroups.value.some(g => g.assets.length > 0))
+
 function truncateReason(text: string, max: number): string {
   const collapsed = text.replace(/\s+/g, ' ').trim()
   if (collapsed.length <= max)
@@ -599,9 +667,9 @@ useHead(computed(() => ({
         <div class="min-w-0">
           <div class="flex items-start gap-3">
             <NuxtLink
-              :to="ownerHubPath(data.owner)"
+              :to="repoHubPath(data.owner, data.repo)"
               class="shrink-0"
-              :aria-label="`${data.owner} profile`"
+              :aria-label="`${data.owner}/${data.repo} repository`"
             >
               <img
                 :src="`https://github.com/${data.owner}.png?size=96`"
@@ -617,7 +685,7 @@ useHead(computed(() => ({
                   id="skill-heading"
                   class="font-mono text-xl font-medium"
                 >
-                  {{ data.name }}
+                  {{ data.displayName || data.name }}
                 </h1>
                 <UBadge
                   v-if="data.tier === 'official-org'"
@@ -627,22 +695,41 @@ useHead(computed(() => ({
                   size="xs"
                   title="Published by the org behind this technology"
                 />
-                <UBadge
-                  v-else-if="data.tier === 'official-user'"
-                  label="maintainer"
-                  variant="solid"
-                  color="primary"
-                  size="xs"
-                  title="Published by a recognised individual maintainer"
-                />
               </div>
-              <p class="mt-1 font-mono text-sm text-muted">
-                <NuxtLink
-                  :to="repoHubPath(data.owner, data.repo)"
-                  class="hover:text-default transition-colors"
+              <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-sm text-muted">
+                <span>
+                  <NuxtLink
+                    :to="ownerHubPath(data.owner)"
+                    class="hover:text-default transition-colors"
+                  >{{ data.owner }}</NuxtLink>/<NuxtLink
+                    :to="repoHubPath(data.owner, data.repo)"
+                    class="hover:text-default transition-colors"
+                  >{{ data.repo }}</NuxtLink>
+                </span>
+                <span
+                  v-if="data.stars"
+                  class="inline-flex items-center gap-1"
+                  title="Repository stars on GitHub"
                 >
-                  {{ data.owner }}{{ data.repo !== 'skills' ? `/${data.repo}` : '' }}
-                </NuxtLink>
+                  <UIcon
+                    name="i-lucide-star"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ data.stars.toLocaleString() }}
+                </span>
+                <span
+                  v-if="data.forks"
+                  class="inline-flex items-center gap-1"
+                  title="Repository forks on GitHub"
+                >
+                  <UIcon
+                    name="i-lucide-git-fork"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ data.forks.toLocaleString() }}
+                </span>
               </p>
             </div>
           </div>
@@ -659,40 +746,19 @@ useHead(computed(() => ({
             <span
               v-if="displayInstalls > 0"
               class="data-label inline-flex items-center gap-1"
-              :title="liveSkill?.fetchedAt ? `Refreshed ${new Date(liveSkill.fetchedAt).toLocaleString()} from skills.sh` : 'Weekly installs from skills.sh'"
+              :title="liveSkill?.fetchedAt ? `Weekly installs from skills.sh — refreshed ${new Date(liveSkill.fetchedAt).toLocaleString()}` : 'Weekly installs from skills.sh'"
             >
               <UIcon
-                name="i-lucide-arrow-down-to-line"
+                name="i-lucide-trending-up"
                 class="size-3.5"
                 aria-hidden="true"
               />
-              {{ liveSkill?.formatted ?? displayInstalls.toLocaleString() }}
-            </span>
-            <span
-              v-if="data.stars"
-              class="data-label inline-flex items-center gap-1"
-            >
-              <UIcon
-                name="i-lucide-star"
-                class="size-3.5"
-                aria-hidden="true"
-              />
-              {{ data.stars.toLocaleString() }}
-            </span>
-            <span
-              v-if="data.forks"
-              class="data-label inline-flex items-center gap-1"
-            >
-              <UIcon
-                name="i-lucide-git-fork"
-                class="size-3.5"
-                aria-hidden="true"
-              />
-              {{ data.forks.toLocaleString() }}
+              {{ liveSkill?.formatted ?? displayInstalls.toLocaleString() }}/wk
             </span>
             <span
               v-if="data.pushedAt"
               class="data-label inline-flex items-center gap-1"
+              :title="new Date(data.pushedAt).toLocaleString()"
             >
               <UIcon
                 name="i-lucide-clock"
@@ -700,18 +766,6 @@ useHead(computed(() => ({
                 aria-hidden="true"
               />
               Updated {{ pushedAtAgo }}
-            </span>
-            <span
-              v-if="data.createdAt"
-              class="data-label inline-flex items-center gap-1"
-              :title="new Date(data.createdAt).toLocaleDateString()"
-            >
-              <UIcon
-                name="i-lucide-sparkles"
-                class="size-3.5"
-                aria-hidden="true"
-              />
-              First seen {{ createdAtAgo }}
             </span>
             <a
               v-if="data.provenance"
@@ -1188,6 +1242,88 @@ useHead(computed(() => ({
                 </dd>
               </div>
             </dl>
+          </section>
+
+          <section
+            v-if="hasBundledAssets"
+            aria-labelledby="assets-heading"
+          >
+            <h2
+              id="assets-heading"
+              class="section-label mb-3"
+            >
+              Bundled files
+            </h2>
+            <div class="rounded-lg border border-default overflow-hidden">
+              <div
+                v-for="(group, groupIdx) in bundledAssetGroups"
+                :key="group.label || '__root__'"
+              >
+                <div
+                  v-if="group.label"
+                  class="data-label px-3 py-1.5 bg-muted/30 border-default"
+                  :class="{ 'border-t': groupIdx > 0 }"
+                >
+                  {{ group.label }}/
+                </div>
+                <ul class="divide-y divide-default" :class="{ 'border-t border-default': groupIdx > 0 && !group.label }">
+                  <li
+                    v-for="asset in group.assets"
+                    :key="asset.path"
+                  >
+                    <a
+                      v-if="asset.external"
+                      :href="asset.href"
+                      target="_blank"
+                      rel="noopener"
+                      :title="asset.path"
+                      class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
+                    >
+                      <UIcon
+                        :name="asset.icon"
+                        class="size-3.5 shrink-0 text-muted"
+                        aria-hidden="true"
+                      />
+                      <span class="min-w-0 flex-1 truncate font-mono text-xs">
+                        {{ asset.fileName }}
+                      </span>
+                      <span
+                        v-if="asset.ext"
+                        class="data-label shrink-0"
+                      >
+                        {{ asset.ext }}
+                      </span>
+                      <UIcon
+                        name="i-lucide-external-link"
+                        class="size-3 shrink-0 text-muted/70"
+                        aria-hidden="true"
+                      />
+                    </a>
+                    <NuxtLink
+                      v-else
+                      :to="asset.href"
+                      :title="asset.path"
+                      class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
+                    >
+                      <UIcon
+                        :name="asset.icon"
+                        class="size-3.5 shrink-0 text-muted"
+                        aria-hidden="true"
+                      />
+                      <span class="min-w-0 flex-1 truncate font-mono text-xs">
+                        {{ asset.fileName }}
+                      </span>
+                      <span
+                        v-if="asset.ext"
+                        class="data-label shrink-0"
+                      >
+                        {{ asset.ext }}
+                      </span>
+                    </NuxtLink>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </section>
 
           <section

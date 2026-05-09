@@ -1,53 +1,11 @@
 import type { FaqPayload } from '../../jobs/generate-faqs'
 import type { SummaryPayload } from '../../jobs/generate-summary'
 import type { TagPayload } from '../../jobs/generate-tags'
-import { Marked } from 'marked'
 import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
+import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
 import { findSkill, findSupportedDuplicateGroupForSkill } from '~~/layers/registry/server/utils/skills-registry'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
-
-const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
-const HTML_ESCAPE_RE = /[&<>"']/g
-function escapeHtml(s: string): string {
-  return s.replace(HTML_ESCAPE_RE, c => HTML_ESCAPE[c]!)
-}
-
-function sanitizeUrl(url: string): string {
-  const trimmed = url.trim()
-  if (/^(?:javascript|vbscript|data|file):/i.test(trimmed)) {
-    if (/^data:image\/(?:png|jpeg|gif|webp|svg\+xml);/i.test(trimmed))
-      return trimmed
-    return '#'
-  }
-  return trimmed
-}
-
-const SKILL_TAG_RE = /^<(\/?)([A-Z][A-Z0-9-]*)\s*>$/
-
-const skillMd = new Marked({
-  gfm: true,
-  async: false,
-  renderer: {
-    html({ text }: { text: string }) {
-      const m = text.match(SKILL_TAG_RE)
-      if (m)
-        return `<code class="skill-tag">&lt;${m[1]}${m[2]}&gt;</code>`
-      return escapeHtml(text)
-    },
-    link({ href, title, tokens }: { href: string, title?: string | null, tokens: unknown[] }) {
-      const safe = sanitizeUrl(href)
-      const text = (this as { parser: { parseInline: (t: unknown[]) => string } }).parser.parseInline(tokens)
-      const t = title ? ` title="${escapeHtml(title)}"` : ''
-      return `<a href="${escapeHtml(safe)}"${t}>${text}</a>`
-    },
-    image({ href, title, text }: { href: string, title?: string | null, text: string }) {
-      const safe = sanitizeUrl(href)
-      const t = title ? ` title="${escapeHtml(title)}"` : ''
-      return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text)}"${t}>`
-    },
-  },
-})
 
 interface CuratorEndorsement {
   did: string
@@ -188,7 +146,7 @@ export default defineEventHandler(async (event) => {
     getEndorsementsForSkill(getDB(event), skill.name),
     getRepoMeta(skill.owner, skill.repo),
     getDB(event)
-      .prepare(`SELECT current_sha, modified_at, references_count, last_synced_at, sync_status,
+      .prepare(`SELECT current_sha, modified_at, references_count, assets, last_synced_at, sync_status,
                        seo_index_score, seo_indexable, seo_index_reasons, seo_index_synced_at,
                        curator_count, curator_reason_count, approved_social_count, author_social_count,
                        trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at
@@ -198,6 +156,7 @@ export default defineEventHandler(async (event) => {
       current_sha: string | null
       modified_at: number | null
       references_count: number | null
+      assets: string | null
       last_synced_at: number | null
       sync_status: string | null
       seo_index_score: number | null
@@ -239,7 +198,20 @@ export default defineEventHandler(async (event) => {
     .map(s => TAG_BY_SLUG.get(s))
     .filter((t): t is NonNullable<typeof t> => Boolean(t))
 
-  const description = repoMeta?.description ?? frontmatterString(rendered.frontmatter, 'description')
+  const description = frontmatterString(rendered.frontmatter, 'description') ?? repoMeta?.description ?? null
+  let assets: { path: string, size: number, type: string }[] = []
+  if (revision?.assets) {
+    try {
+      const parsedAssets = JSON.parse(revision.assets) as unknown
+      if (Array.isArray(parsedAssets)) {
+        assets = parsedAssets.filter((a): a is { path: string, size: number, type: string } =>
+          Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string')
+      }
+    }
+    catch {
+      // Ignore malformed JSON; treat as no assets.
+    }
+  }
   const allowedTools = parseAllowedTools(rendered.frontmatter)
   const capability = classifyAllowedTools(allowedTools)
   const sourceResolved = Boolean(rendered.status === 'ok' && rendered.skillPath && rendered.raw)
@@ -260,6 +232,7 @@ export default defineEventHandler(async (event) => {
     contentHtml: rendered.html,
     frontmatter: rendered.frontmatter,
     raw: rendered.raw,
+    assets,
     curators,
     description,
     stars: repoMeta?.stars ?? 0,
@@ -272,7 +245,7 @@ export default defineEventHandler(async (event) => {
       description: {
         present: Boolean(description?.trim()),
         length: description?.trim().length ?? 0,
-        source: repoMeta?.description ? 'repository' : frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : null,
+        source: frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : repoMeta?.description ? 'repository' : null,
       },
       repository: {
         pushedAt: repoMeta?.pushedAt ?? null,
@@ -371,7 +344,7 @@ async function getRenderedSkill(
   branch: string,
   pushedAt: string | null,
 ): Promise<RenderedCache> {
-  const cacheKey = `skills:rendered:v6:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
+  const cacheKey = `skills:rendered:v8:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
   const cached = await useStorage('cache').getItem<RenderedCache>(cacheKey)
   if (cached)
     return cached
@@ -395,7 +368,8 @@ async function getRenderedSkill(
     return result
   }
 
-  const parsed = parseSkillMd(raw)
+  const skillDir = skillPath.replace(/\/SKILL\.md$/, '')
+  const parsed = parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
   const result: RenderedCache = {
     skillPath,
     raw,
@@ -567,47 +541,6 @@ async function getRepoTree(owner: string, repo: string, branch: string): Promise
   const skillFiles = data.files.filter(f => f.path.endsWith('SKILL.md'))
   await useStorage('cache').setItem(cacheKey, skillFiles, { ttl: REPO_TREE_CACHE_TTL })
   return skillFiles
-}
-
-function parseFrontmatterValue(raw: string): unknown {
-  const trimmed = raw.trim()
-  if (!trimmed)
-    return ''
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-    try {
-      return JSON.parse(trimmed)
-    }
-    catch {
-      // Fall through to string handling
-    }
-  }
-  return trimmed.replace(/^['"]|['"]$/g, '')
-}
-
-function parseSkillMd(raw: string): { frontmatter: Record<string, unknown>, body: string, html: string } {
-  const frontmatter: Record<string, unknown> = {}
-  let body = raw
-
-  const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
-  if (fmMatch) {
-    for (const line of fmMatch[1]!.split(/\r?\n/)) {
-      const colonIdx = line.indexOf(':')
-      if (colonIdx <= 0)
-        continue
-      const key = line.slice(0, colonIdx)
-      if (!/^[A-Z_][\w-]*$/i.test(key))
-        continue
-      frontmatter[key] = parseFrontmatterValue(line.slice(colonIdx + 1))
-    }
-    body = fmMatch[2]!
-  }
-
-  const html = (skillMd.parse(body) as string).replace(/<pre\b([^>]*)>/g, (match, attrs: string) => {
-    if (/\btabindex=/.test(attrs))
-      return match
-    return `<pre tabindex="0"${attrs}>`
-  })
-  return { frontmatter, body, html }
 }
 
 type RepoMetaResult = UnghRepo | 'not-found' | null

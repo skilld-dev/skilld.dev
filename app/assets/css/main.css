@@ -193,6 +193,16 @@
   text-underline-offset: 2px;
 }
 .skill-prose a:hover { color: var(--ui-text); }
+.skill-prose a[target="_blank"]::after {
+  content: "↗";
+  display: inline-block;
+  margin-left: 0.15em;
+  font-size: 0.85em;
+  color: var(--ui-text-muted);
+  text-decoration: none;
+  transform: translateY(-0.05em);
+}
+.skill-prose a[target="_blank"]:hover::after { color: var(--ui-text); }
 .skill-prose strong { font-weight: 600; color: var(--ui-text); }
 .skill-prose code {
   font-family: var(--font-mono);

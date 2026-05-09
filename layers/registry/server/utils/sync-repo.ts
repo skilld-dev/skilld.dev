@@ -49,9 +49,45 @@ function dirNameFromSkillPath(path: string): string | null {
   return segments[segments.length - 2] ?? null
 }
 
-function refsCountForSkillDir(tree: { path: string, type: string }[], skillDir: string): number {
-  const prefix = `${skillDir}/references/`
-  return tree.filter(e => e.type === 'blob' && e.path.startsWith(prefix)).length
+interface SkillAsset {
+  path: string
+  size: number
+  type: 'markdown' | 'code' | 'image' | 'data' | 'other'
+}
+
+function classifyAsset(path: string): SkillAsset['type'] {
+  const ext = path.toLowerCase().split('.').pop() ?? ''
+  if (ext === 'md' || ext === 'markdown')
+    return 'markdown'
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext))
+    return 'image'
+  if (['json', 'yaml', 'yml', 'toml', 'csv'].includes(ext))
+    return 'data'
+  if (['py', 'js', 'ts', 'tsx', 'jsx', 'mjs', 'cjs', 'sh', 'bash', 'zsh', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'cpp', 'h', 'hpp', 'cs', 'php', 'lua', 'sql'].includes(ext))
+    return 'code'
+  return 'other'
+}
+
+const ASSET_IGNORE = /(?:^|\/)(?:LICENSE(?:\.[^/]+)?|\.DS_Store|\.gitignore|\.gitattributes)$/i
+
+function collectAssets(
+  tree: { path: string, type: string, size?: number }[],
+  skillDir: string,
+): SkillAsset[] {
+  const prefix = `${skillDir}/`
+  const assets: SkillAsset[] = []
+  for (const e of tree) {
+    if (e.type !== 'blob' || !e.path.startsWith(prefix))
+      continue
+    const rel = e.path.slice(prefix.length)
+    if (!rel || rel === 'SKILL.md')
+      continue
+    if (ASSET_IGNORE.test(rel))
+      continue
+    assets.push({ path: rel, size: e.size ?? 0, type: classifyAsset(rel) })
+  }
+  assets.sort((a, b) => a.path.localeCompare(b.path))
+  return assets
 }
 
 async function loadExistingSkills(db: D1Database, owner: string, repo: string): Promise<Map<string, ExistingSkill>> {
@@ -180,7 +216,8 @@ export async function syncRepo(
     seenNames.add(parsed.name)
 
     const prev = existing.get(parsed.name)
-    const refsCount = refsCountForSkillDir(tree.tree, file.dirName)
+    const assets = collectAssets(tree.tree, file.dirName)
+    const refsCount = assets.length
     const description = parsed.description || repoDescription
     const isNewToRegistry = !prev || prev.current_sha == null
     const contentChanged = prev?.current_sha !== file.treeSha
@@ -248,13 +285,13 @@ export async function syncRepo(
            name, owner, repo, display_name, installs, slug,
            stars, forks, pushed_at, repo_created_at, description, default_branch,
            repo_meta_synced_at, broken_since,
-           current_sha, modified_at, first_seen_at, references_count,
+           current_sha, modified_at, first_seen_at, references_count, assets,
            last_synced_at, sync_status, last_tree_sha,
            is_official, source_resolved, seo_index_score, seo_indexable,
            seo_index_reasons, seo_index_synced_at,
            trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
            repo_skill_count
-         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'ok', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(owner, name) DO UPDATE SET
            repo = excluded.repo,
            display_name = excluded.display_name,
@@ -270,6 +307,7 @@ export async function syncRepo(
            current_sha = excluded.current_sha,
            modified_at = COALESCE(excluded.modified_at, skills.modified_at),
            references_count = excluded.references_count,
+           assets = excluded.assets,
            last_synced_at = excluded.last_synced_at,
            sync_status = 'ok',
            last_tree_sha = excluded.last_tree_sha,
@@ -303,6 +341,7 @@ export async function syncRepo(
         modifiedAt,
         firstSeenAt,
         refsCount,
+        JSON.stringify(assets),
         now,
         tree.sha,
         isOfficial ? 1 : 0,
