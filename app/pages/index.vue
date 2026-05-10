@@ -33,7 +33,7 @@ const { data: updatesData } = useFetch<RecentUpdatesResponse>('/api/feed/recent-
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 
 const { data: collectionsData } = useFetch<FeaturedCollectionsResponse>('/api/collections/featured', {
-  key: 'home-featured-collections-v2',
+  key: 'home-featured-collections-v3',
 })
 const featuredCollections = computed(() =>
   (collectionsData.value?.items ?? []).map(collection => ({
