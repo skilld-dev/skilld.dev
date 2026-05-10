@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { FeaturedCollectionsResponse } from '~~/server/api/collections/featured.get'
 import type { RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 
 const title = 'Curated skills for AI agents · skilld'
@@ -31,8 +32,15 @@ function copyHero() {
 const { data: updatesData } = useFetch<RecentUpdatesResponse>('/api/feed/recent-updates')
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 
-const { data: collectionsData } = useFetch('/api/collections/featured')
-const featuredCollections = computed(() => collectionsData.value?.items ?? [])
+const { data: collectionsData } = useFetch<FeaturedCollectionsResponse>('/api/collections/featured', {
+  key: 'home-featured-collections-v2',
+})
+const featuredCollections = computed(() =>
+  (collectionsData.value?.items ?? []).map(collection => ({
+    ...collection,
+    skills: collection.skills ?? [],
+  })),
+)
 
 interface DomainCategory {
   category: string
@@ -41,11 +49,11 @@ interface DomainCategory {
 }
 
 const DOMAIN_CATEGORIES: DomainCategory[] = [
-  { category: 'design', label: 'Design', description: 'UI, UX, and visual quality. Make your agent build interfaces that don\'t look generic.' },
   { category: 'testing-strategy', label: 'Testing', description: 'Unit, integration, and TDD workflows that keep behaviour stable.' },
   { category: 'security', label: 'Security', description: 'Auditing, threat modelling, and finding vulnerabilities before shipping.' },
   { category: 'performance', label: 'Performance', description: 'Profiling, optimisation, and shipping fast UIs.' },
   { category: 'accessibility', label: 'Accessibility', description: 'Building interfaces that work for everyone.' },
+  { category: 'design', label: 'Design', description: 'Broader design critique, taste, and visual direction work.' },
 ]
 
 const { data: domainData } = useAsyncData('home-domains', async () => {
@@ -60,12 +68,6 @@ const { data: domainData } = useAsyncData('home-domains', async () => {
   return results.filter(r => r.items.length > 0)
 })
 const domainSections = computed(() => domainData.value ?? [])
-
-const { data: featuredDevsData } = useFetch('/api/skills/featured', {
-  key: 'home-featured-devs',
-  query: { orgs: 0, perOrg: 0, devs: 4, perDev: 4 },
-})
-const featuredDevSections = computed(() => featuredDevsData.value?.devSections ?? [])
 
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts * 1000
@@ -206,21 +208,21 @@ function formatRelative(ts: number): string {
       </div>
     </section>
 
-    <USeparator v-if="featuredDevSections.length" />
+    <USeparator v-if="featuredCollections.length" />
 
-    <!-- Featured Developers -->
+    <!-- Featured skill sets -->
     <section
-      v-if="featuredDevSections.length"
-      id="featured-developers"
+      v-if="featuredCollections.length"
+      id="featured-skill-sets"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="featured-devs-heading"
+      aria-labelledby="featured-skill-sets-heading"
     >
       <div class="flex items-end justify-between mb-2">
-        <h2 id="featured-devs-heading" class="section-label">
-          Featured developers
+        <h2 id="featured-skill-sets-heading" class="section-label">
+          Featured skill sets
         </h2>
         <UButton
-          to="/skills"
+          to="/collections"
           label="View all"
           color="neutral"
           variant="ghost"
@@ -229,15 +231,65 @@ function formatRelative(ts: number): string {
         />
       </div>
       <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
-        Skills published by individual developers, with the person behind the stack up front.
+        Opinionated sets from developers worth trusting. Some are full stacks; some are one strong skill that earns the spotlight.
       </p>
-      <div class="space-y-0">
-        <DeveloperSkillSection
-          v-for="section in featuredDevSections"
-          :key="`${section.owner}/${section.repo}`"
-          :section
-        />
-      </div>
+      <ul class="grid grid-cols-1 gap-3 md:grid-cols-2 list-none p-0">
+        <li
+          v-for="collection in featuredCollections"
+          :key="`${collection.authorLogin}/${collection.slug}`"
+        >
+          <NuxtLink
+            :to="`/@${collection.authorLogin}/${collection.slug}`"
+            class="group block h-full rounded-lg border border-default p-4 transition-colors hover:border-[var(--ui-text-muted)]"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h3 class="font-mono text-sm font-medium tracking-tight group-hover:text-muted transition-colors">
+                  {{ collection.name }}
+                </h3>
+                <p class="mt-1 font-mono text-xs text-muted">
+                  @{{ collection.authorLogin }} · {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'repo' : 'repos' }}
+                </p>
+              </div>
+              <UIcon
+                name="i-lucide-arrow-up-right"
+                class="mt-0.5 size-4 shrink-0 text-muted transition-colors group-hover:text-default"
+                aria-hidden="true"
+              />
+            </div>
+
+            <p
+              v-if="collection.preamble"
+              class="mt-3 text-sm text-muted leading-relaxed line-clamp-3"
+            >
+              {{ collection.preamble }}
+            </p>
+
+            <div
+              v-if="collection.skills.length"
+              class="mt-4 border-t border-default pt-3"
+            >
+              <p class="data-label mb-2">
+                Includes
+              </p>
+              <ul class="space-y-1.5 list-none p-0">
+                <li
+                  v-for="skill in collection.skills.slice(0, 3)"
+                  :key="`${collection.slug}:${skill.owner}/${skill.repo}`"
+                  class="flex items-center gap-2 font-mono text-xs text-muted"
+                >
+                  <UIcon
+                    name="i-lucide-github"
+                    class="size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span class="truncate">{{ skill.owner }}/{{ skill.repo }}</span>
+                </li>
+              </ul>
+            </div>
+          </NuxtLink>
+        </li>
+      </ul>
     </section>
 
     <USeparator />
@@ -314,67 +366,6 @@ function formatRelative(ts: number): string {
     </section>
 
     <USeparator v-if="recentUpdates.length" />
-
-    <!-- Featured collections -->
-    <section
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="collections-heading"
-    >
-      <div class="flex items-end justify-between mb-2">
-        <h2 id="collections-heading" class="section-label">
-          Featured collections
-        </h2>
-        <UButton
-          v-if="featuredCollections.length"
-          to="/collections"
-          label="View all"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          trailing-icon="i-lucide-arrow-right"
-        />
-      </div>
-      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
-        Hand-picked skill bundles, one install command per collection.
-      </p>
-
-      <div
-        v-if="featuredCollections.length"
-        class="grid grid-cols-1 gap-3 md:grid-cols-2"
-      >
-        <NuxtLink
-          v-for="c in featuredCollections"
-          :key="`${c.authorLogin}/${c.slug}`"
-          :to="`/@${c.authorLogin}/${c.slug}`"
-          class="rounded-lg border border-default p-4 transition-colors hover:border-[var(--ui-text-muted)]"
-        >
-          <h3 class="font-mono text-sm font-medium">
-            {{ c.name }}
-          </h3>
-          <p class="mt-1 font-mono text-xs text-muted">
-            @{{ c.authorLogin }}
-          </p>
-          <p
-            v-if="c.preamble"
-            class="mt-2 text-xs text-muted line-clamp-2"
-          >
-            {{ c.preamble }}
-          </p>
-          <p class="mt-2 font-mono text-xs text-muted">
-            {{ c.skillCount }} {{ c.skillCount === 1 ? 'skill' : 'skills' }}
-          </p>
-        </NuxtLink>
-      </div>
-
-      <p
-        v-else
-        class="text-sm text-muted"
-      >
-        No featured collections yet.
-      </p>
-    </section>
-
-    <USeparator />
 
     <!-- Watch for changes CTA -->
     <section
