@@ -42,6 +42,18 @@ const featuredCollections = computed(() =>
   })),
 )
 
+type FeaturedCollectionSkill = FeaturedCollectionsResponse['items'][number]['skills'][number]
+
+function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
+  return skill.name
+    ? repoSkillPath(skill.owner, skill.repo, skill.name)
+    : repoHubPath(skill.owner, skill.repo)
+}
+
+function featuredCollectionSkillLabel(skill: FeaturedCollectionSkill): string {
+  return skill.displayName ?? skill.name ?? skill.repo
+}
+
 interface DomainCategory {
   category: string
   label: string
@@ -271,15 +283,15 @@ function formatRelative(ts: number): string {
           >
             <li
               v-for="skill in collection.skills"
-              :key="`${collection.slug}:${skill.owner}/${skill.repo}`"
+              :key="`${collection.slug}:${skill.owner}/${skill.repo}/${skill.name ?? 'repo'}`"
             >
               <NuxtLink
-                :to="`/gh/${skill.owner}/${skill.repo}`"
-                :aria-label="`${skill.owner}/${skill.repo}`"
+                :to="featuredCollectionSkillPath(skill)"
+                :aria-label="`${featuredCollectionSkillLabel(skill)} by ${skill.owner}`"
                 class="flex h-full min-h-[5rem] flex-col rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
               >
                 <p class="font-mono text-sm font-medium truncate">
-                  {{ skill.repo }}
+                  {{ featuredCollectionSkillLabel(skill) }}
                 </p>
                 <div class="mt-0.5 flex items-center gap-1.5">
                   <img

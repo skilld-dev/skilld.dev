@@ -124,7 +124,10 @@ onMounted(() => {
 })
 
 const siteOrigin = 'https://skilld.dev'
-const sourceHubCanonicalUrl = computed(() => `${siteOrigin}${repoHubPath(repoHub.value.owner, repoHub.value.repo)}`)
+const sourceHubCanonicalUrl = computed(() => {
+  const flatName = flatSkillName.value
+  return `${siteOrigin}${flatName ? repoSkillPath(repoHub.value.owner, repoHub.value.repo, flatName) : repoHubPath(repoHub.value.owner, repoHub.value.repo)}`
+})
 
 const skillTitle = computed(() => `${repoHub.value.owner}/${repoHub.value.repo} skills`)
 

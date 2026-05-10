@@ -16,6 +16,8 @@ interface CollectionSkillRow {
   position: number
   owner: string
   repo: string
+  name: string | null
+  display_name: string | null
   reason: string | null
 }
 
@@ -30,6 +32,8 @@ export interface FeaturedCollectionsResponse {
     skills: Array<{
       owner: string
       repo: string
+      name: string | null
+      displayName: string | null
       reason: string | null
     }>
   }>
@@ -57,10 +61,23 @@ export default defineCachedEventHandler(
       const placeholders = ids.map(() => '?').join(',')
       const skillsRes = await db
         .prepare(
-          `SELECT collection_id, position, owner, repo, reason
-           FROM collection_skills_v2
-           WHERE collection_id IN (${placeholders})
-           ORDER BY collection_id ASC, position ASC`,
+          `WITH ranked_skills AS (
+             SELECT owner, repo, name, display_name,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY owner, repo
+                      ORDER BY installs DESC, name ASC
+                    ) AS rn
+             FROM skills
+             WHERE broken_since IS NULL OR broken_since > unixepoch() - 604800
+           )
+           SELECT cs.collection_id, cs.position, cs.owner, cs.repo, rs.name, rs.display_name, cs.reason
+           FROM collection_skills_v2 cs
+           LEFT JOIN ranked_skills rs
+             ON rs.owner = cs.owner
+            AND rs.repo = cs.repo
+            AND rs.rn = 1
+           WHERE cs.collection_id IN (${placeholders})
+           ORDER BY cs.collection_id ASC, cs.position ASC`,
         )
         .bind(...ids)
         .all<CollectionSkillRow>()
@@ -82,6 +99,8 @@ export default defineCachedEventHandler(
       skills: (skillsByCollection.get(row.id) ?? []).map(skill => ({
         owner: skill.owner,
         repo: skill.repo,
+        name: skill.name,
+        displayName: skill.display_name,
         reason: skill.reason,
       })),
     }))
