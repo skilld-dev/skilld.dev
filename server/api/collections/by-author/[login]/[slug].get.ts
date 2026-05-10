@@ -1,67 +1,35 @@
-import { getDB } from '../../../../utils/db'
+import type { CollectionDetailRow, CollectionSkillRow } from '~~/server/presenters/collection'
+import {
+  collectionDetailPresenter,
 
-interface CollectionRow {
-  id: number
-  author_login: string
-  slug: string
-  name: string
-  preamble: string | null
-  featured: number
-  created_at: number
-  updated_at: number
-}
+} from '~~/server/presenters/collection'
+import { defineApiHandler } from '#shared/server/handler'
 
-interface SkillRow {
-  position: number
-  owner: string
-  repo: string
-  reason: string | null
-}
+export default defineApiHandler({
+  handler: async ({ event, platform }) => {
+    const login = getRouterParam(event, 'login') ?? ''
+    const slug = getRouterParam(event, 'slug') ?? ''
+    if (!login || !slug)
+      throw createError({ statusCode: 400, message: 'Missing login or slug' })
 
-export default defineEventHandler(async (event) => {
-  const login = getRouterParam(event, 'login') ?? ''
-  const slug = getRouterParam(event, 'slug') ?? ''
-  if (!login || !slug)
-    throw createError({ statusCode: 400, message: 'Missing login or slug' })
-
-  const db = getDB(event)
-  const collection = await db
-    .prepare(
+    const collection = await platform.db.prepare(
       `SELECT c.id, u.login AS author_login, c.slug, c.name, c.preamble, c.featured, c.created_at, c.updated_at
        FROM collections_v2 c
        JOIN users u ON u.id = c.author_user_id
        WHERE u.login = ? AND c.slug = ? AND c.deleted_at IS NULL
        LIMIT 1`,
-    )
-    .bind(login, slug)
-    .first<CollectionRow>()
+    ).bind(login, slug).first<CollectionDetailRow>()
 
-  if (!collection)
-    throw createError({ statusCode: 404, message: 'Collection not found' })
+    if (!collection)
+      throw createError({ statusCode: 404, message: 'Collection not found' })
 
-  const skillsRes = await db
-    .prepare(
+    const skillsRes = await platform.db.prepare(
       `SELECT position, owner, repo, reason
        FROM collection_skills_v2
        WHERE collection_id = ?
        ORDER BY position ASC`,
-    )
-    .bind(collection.id)
-    .all<SkillRow>()
+    ).bind(collection.id).all<CollectionSkillRow>()
 
-  return {
-    authorLogin: collection.author_login,
-    slug: collection.slug,
-    name: collection.name,
-    preamble: collection.preamble,
-    featured: Boolean(collection.featured),
-    createdAt: collection.created_at,
-    updatedAt: collection.updated_at,
-    skills: (skillsRes.results ?? []).map(s => ({
-      position: s.position,
-      owner: s.owner,
-      repo: s.repo,
-      reason: s.reason,
-    })),
-  }
+    return collectionDetailPresenter(collection, skillsRes.results ?? [])
+  },
 })

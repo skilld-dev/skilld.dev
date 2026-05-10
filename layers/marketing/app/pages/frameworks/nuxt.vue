@@ -40,7 +40,7 @@ function formatStars(n: number): string {
   return n.toLocaleString()
 }
 
-const syncedAgo = useTimeAgo(() => data.value?.fetchedAt ?? Date.now())
+const syncedAgo = useTimeAgo(() => data.value?.fetchedAt ?? 0)
 
 useSeoMeta({
   title: 'Skills for Nuxt',

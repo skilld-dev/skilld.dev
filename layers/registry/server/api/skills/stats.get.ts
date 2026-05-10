@@ -1,4 +1,4 @@
-import { getDB } from '~~/server/utils/db'
+import { defineApiHandler } from '#shared/server/handler'
 
 const BROKEN_GRACE_SECONDS = 7 * 86400
 const NOT_BROKEN_SQL = `(broken_since IS NULL OR broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
@@ -90,156 +90,158 @@ function bucketByDays<T extends { maxDays: number | null }>(
   return bins[bins.length - 1]!
 }
 
-export default defineEventHandler(async (event): Promise<SkillsStats> => {
-  const db = getDB(event)
-  const nowSec = Math.floor(Date.now() / 1000)
+export default defineApiHandler<never, SkillsStats>({
+  handler: async ({ platform }): Promise<SkillsStats> => {
+    const db = platform.db
+    const nowSec = Math.floor(Date.now() / 1000)
 
-  const [
-    summaryRow,
-    skillRepoStarsRes,
-    repoMetaRes,
-    ownersRes,
-    scatterRes,
-    perRepoRes,
-  ] = await Promise.all([
-    db
-      .prepare(
-        `SELECT
+    const [
+      summaryRow,
+      skillRepoStarsRes,
+      repoMetaRes,
+      ownersRes,
+      scatterRes,
+      perRepoRes,
+    ] = await Promise.all([
+      db
+        .prepare(
+          `SELECT
           COUNT(*) AS skills,
           COUNT(DISTINCT owner || '/' || repo) AS repos,
           COUNT(DISTINCT owner) AS owners,
           AVG(stars) AS avg_stars
         FROM skills WHERE ${NOT_BROKEN_SQL}`,
-      )
-      .first<{ skills: number, repos: number, owners: number, avg_stars: number | null }>(),
+        )
+        .first<{ skills: number, repos: number, owners: number, avg_stars: number | null }>(),
 
-    // Chart 1: distinct (owner, repo) pairs where repo name contains "skill",
-    // with their star count. One row per repo.
-    db
-      .prepare(
-        `SELECT owner, repo, MAX(stars) AS stars
+      // Chart 1: distinct (owner, repo) pairs where repo name contains "skill",
+      // with their star count. One row per repo.
+      db
+        .prepare(
+          `SELECT owner, repo, MAX(stars) AS stars
         FROM skills
         WHERE ${NOT_BROKEN_SQL} AND LOWER(repo) LIKE '%skill%'
         GROUP BY owner, repo`,
-      )
-      .all<{ owner: string, repo: string, stars: number }>(),
+        )
+        .all<{ owner: string, repo: string, stars: number }>(),
 
-    // Charts 2 & 3: distinct repos with pushed_at and repo_created_at.
-    db
-      .prepare(
-        `SELECT owner, repo, MAX(pushed_at) AS pushed_at, MAX(repo_created_at) AS repo_created_at
+      // Charts 2 & 3: distinct repos with pushed_at and repo_created_at.
+      db
+        .prepare(
+          `SELECT owner, repo, MAX(pushed_at) AS pushed_at, MAX(repo_created_at) AS repo_created_at
         FROM skills WHERE ${NOT_BROKEN_SQL}
         GROUP BY owner, repo`,
-      )
-      .all<{ owner: string, repo: string, pushed_at: number | null, repo_created_at: number | null }>(),
+        )
+        .all<{ owner: string, repo: string, pushed_at: number | null, repo_created_at: number | null }>(),
 
-    // Chart 4: top 15 owners by max stars. Tie-break by total skill count.
-    db
-      .prepare(
-        `SELECT owner, MAX(stars) AS stars, COUNT(*) AS skills
+      // Chart 4: top 15 owners by max stars. Tie-break by total skill count.
+      db
+        .prepare(
+          `SELECT owner, MAX(stars) AS stars, COUNT(*) AS skills
         FROM skills WHERE ${NOT_BROKEN_SQL}
         GROUP BY owner
         ORDER BY stars DESC, skills DESC
         LIMIT 15`,
-      )
-      .all<{ owner: string, stars: number, skills: number }>(),
+        )
+        .all<{ owner: string, stars: number, skills: number }>(),
 
-    // Chart 5: scatter of skills with non-zero signal. With 80k+ skills in the
-    // registry (most with 0 stars, 0 installs), plotting everything is noise
-    // and makes the SVG unrenderable. Filter to skills with at least some
-    // signal and cap to keep the page light.
-    db
-      .prepare(
-        `SELECT name, owner, stars, installs
+      // Chart 5: scatter of skills with non-zero signal. With 80k+ skills in the
+      // registry (most with 0 stars, 0 installs), plotting everything is noise
+      // and makes the SVG unrenderable. Filter to skills with at least some
+      // signal and cap to keep the page light.
+      db
+        .prepare(
+          `SELECT name, owner, stars, installs
         FROM skills
         WHERE ${NOT_BROKEN_SQL} AND (stars > 0 OR installs > 0)
         ORDER BY (stars + installs) DESC
         LIMIT 1500`,
-      )
-      .all<{ name: string, owner: string, stars: number, installs: number }>(),
+        )
+        .all<{ name: string, owner: string, stars: number, installs: number }>(),
 
-    // Chart 6: count of skills per repo.
-    db
-      .prepare(
-        `SELECT COUNT(*) AS n
+      // Chart 6: count of skills per repo.
+      db
+        .prepare(
+          `SELECT COUNT(*) AS n
         FROM skills WHERE ${NOT_BROKEN_SQL}
         GROUP BY owner, repo`,
-      )
-      .all<{ n: number }>(),
-  ])
+        )
+        .all<{ n: number }>(),
+    ])
 
-  const skillRepos = skillRepoStarsRes.results ?? []
-  const starCounts = new Map(STAR_BINS.map(b => [b.label, 0]))
-  for (const r of skillRepos) {
-    const bin = bucketByValue(STAR_BINS, r.stars ?? 0)
-    if (bin)
-      starCounts.set(bin.label, (starCounts.get(bin.label) ?? 0) + 1)
-  }
-
-  const repoMeta = repoMetaRes.results ?? []
-  const maintenanceCounts = new Map<string, number>([
-    ...MAINTENANCE_BINS.map(b => [b.label, 0] as [string, number]),
-    ['unknown', 0],
-  ])
-  const ageCounts = new Map<string, number>([
-    ...AGE_BINS.map(b => [b.label, 0] as [string, number]),
-    ['unknown', 0],
-  ])
-  for (const r of repoMeta) {
-    if (r.pushed_at) {
-      const days = Math.max(0, (nowSec - r.pushed_at) / 86400)
-      const bin = bucketByDays(MAINTENANCE_BINS, days)
-      maintenanceCounts.set(bin.label, (maintenanceCounts.get(bin.label) ?? 0) + 1)
-    }
-    else {
-      maintenanceCounts.set('unknown', (maintenanceCounts.get('unknown') ?? 0) + 1)
+    const skillRepos = skillRepoStarsRes.results ?? []
+    const starCounts = new Map(STAR_BINS.map(b => [b.label, 0]))
+    for (const r of skillRepos) {
+      const bin = bucketByValue(STAR_BINS, r.stars ?? 0)
+      if (bin)
+        starCounts.set(bin.label, (starCounts.get(bin.label) ?? 0) + 1)
     }
 
-    if (r.repo_created_at) {
-      const days = Math.max(0, (nowSec - r.repo_created_at) / 86400)
-      const bin = bucketByDays(AGE_BINS, days)
-      ageCounts.set(bin.label, (ageCounts.get(bin.label) ?? 0) + 1)
-    }
-    else {
-      ageCounts.set('unknown', (ageCounts.get('unknown') ?? 0) + 1)
-    }
-  }
+    const repoMeta = repoMetaRes.results ?? []
+    const maintenanceCounts = new Map<string, number>([
+      ...MAINTENANCE_BINS.map(b => [b.label, 0] as [string, number]),
+      ['unknown', 0],
+    ])
+    const ageCounts = new Map<string, number>([
+      ...AGE_BINS.map(b => [b.label, 0] as [string, number]),
+      ['unknown', 0],
+    ])
+    for (const r of repoMeta) {
+      if (r.pushed_at) {
+        const days = Math.max(0, (nowSec - r.pushed_at) / 86400)
+        const bin = bucketByDays(MAINTENANCE_BINS, days)
+        maintenanceCounts.set(bin.label, (maintenanceCounts.get(bin.label) ?? 0) + 1)
+      }
+      else {
+        maintenanceCounts.set('unknown', (maintenanceCounts.get('unknown') ?? 0) + 1)
+      }
 
-  const perRepoCounts = new Map(REPO_BINS.map(b => [b.label, 0]))
-  for (const r of perRepoRes.results ?? []) {
-    const bin = bucketByValue(REPO_BINS, r.n)
-    if (bin)
-      perRepoCounts.set(bin.label, (perRepoCounts.get(bin.label) ?? 0) + 1)
-  }
+      if (r.repo_created_at) {
+        const days = Math.max(0, (nowSec - r.repo_created_at) / 86400)
+        const bin = bucketByDays(AGE_BINS, days)
+        ageCounts.set(bin.label, (ageCounts.get(bin.label) ?? 0) + 1)
+      }
+      else {
+        ageCounts.set('unknown', (ageCounts.get('unknown') ?? 0) + 1)
+      }
+    }
 
-  return {
-    summary: {
-      skills: summaryRow?.skills ?? 0,
-      repos: summaryRow?.repos ?? 0,
-      owners: summaryRow?.owners ?? 0,
-      avgStars: Math.round(summaryRow?.avg_stars ?? 0),
-    },
-    starHistogram: STAR_BINS.map(b => ({ label: b.label, count: starCounts.get(b.label) ?? 0 })),
-    starHistogramTotal: skillRepos.length,
-    maintenance: [
-      ...MAINTENANCE_BINS.map(b => ({ label: b.label, count: maintenanceCounts.get(b.label) ?? 0 })),
-      { label: 'unknown', count: maintenanceCounts.get('unknown') ?? 0 },
-    ],
-    ageCohorts: [
-      ...AGE_BINS.map(b => ({ label: b.label, count: ageCounts.get(b.label) ?? 0 })),
-      { label: 'unknown', count: ageCounts.get('unknown') ?? 0 },
-    ],
-    topOwners: (ownersRes.results ?? []).map(o => ({
-      owner: o.owner,
-      stars: o.stars ?? 0,
-      skills: o.skills,
-    })),
-    scatter: (scatterRes.results ?? []).map(s => ({
-      name: s.name,
-      owner: s.owner,
-      stars: s.stars ?? 0,
-      installs: s.installs ?? 0,
-    })),
-    skillsPerRepo: REPO_BINS.map(b => ({ label: b.label, count: perRepoCounts.get(b.label) ?? 0 })),
-  }
+    const perRepoCounts = new Map(REPO_BINS.map(b => [b.label, 0]))
+    for (const r of perRepoRes.results ?? []) {
+      const bin = bucketByValue(REPO_BINS, r.n)
+      if (bin)
+        perRepoCounts.set(bin.label, (perRepoCounts.get(bin.label) ?? 0) + 1)
+    }
+
+    return {
+      summary: {
+        skills: summaryRow?.skills ?? 0,
+        repos: summaryRow?.repos ?? 0,
+        owners: summaryRow?.owners ?? 0,
+        avgStars: Math.round(summaryRow?.avg_stars ?? 0),
+      },
+      starHistogram: STAR_BINS.map(b => ({ label: b.label, count: starCounts.get(b.label) ?? 0 })),
+      starHistogramTotal: skillRepos.length,
+      maintenance: [
+        ...MAINTENANCE_BINS.map(b => ({ label: b.label, count: maintenanceCounts.get(b.label) ?? 0 })),
+        { label: 'unknown', count: maintenanceCounts.get('unknown') ?? 0 },
+      ],
+      ageCohorts: [
+        ...AGE_BINS.map(b => ({ label: b.label, count: ageCounts.get(b.label) ?? 0 })),
+        { label: 'unknown', count: ageCounts.get('unknown') ?? 0 },
+      ],
+      topOwners: (ownersRes.results ?? []).map(o => ({
+        owner: o.owner,
+        stars: o.stars ?? 0,
+        skills: o.skills,
+      })),
+      scatter: (scatterRes.results ?? []).map(s => ({
+        name: s.name,
+        owner: s.owner,
+        stars: s.stars ?? 0,
+        installs: s.installs ?? 0,
+      })),
+      skillsPerRepo: REPO_BINS.map(b => ({ label: b.label, count: perRepoCounts.get(b.label) ?? 0 })),
+    }
+  },
 })

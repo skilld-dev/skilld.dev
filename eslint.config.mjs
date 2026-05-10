@@ -7,6 +7,7 @@ export default antfu({
     'node/prefer-global/buffer': 'off',
     'vue/no-useless-v-bind': 'off',
     'vue/attribute-hyphenation': 'off',
+    'ts/no-redeclare': 'off',
   },
   ignores: [
     '.data/**',

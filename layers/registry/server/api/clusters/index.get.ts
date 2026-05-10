@@ -8,7 +8,7 @@
  */
 
 import type { Cluster } from '../../data/clusters'
-import { getDB } from '~~/server/utils/db'
+import { getDB } from '../../../../../shared/server/db'
 import { CLUSTERS } from '../../data/clusters'
 
 interface SkillRow {

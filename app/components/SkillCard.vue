@@ -24,6 +24,7 @@ const {
   showOwnerPath = false,
   showTags = false,
   timestampLabel,
+  timestampFormat = 'absolute',
 } = defineProps<{
   skill: SkillLike
   variant?: 'grid' | 'list' | 'compact'
@@ -34,6 +35,7 @@ const {
   showOwnerPath?: boolean
   showTags?: boolean
   timestampLabel?: string
+  timestampFormat?: 'absolute' | 'relative'
 }>()
 
 const installCmd = computed(() => gitInstallCmd(skill.owner, skill.repo, skill.name))
@@ -76,6 +78,20 @@ function formatTimestamp(epochSeconds: number): string {
   }).format(new Date(epochSeconds * 1000))
 }
 
+function formatRelative(epochSeconds: number): string {
+  const diff = Date.now() - epochSeconds * 1000
+  const days = Math.floor(diff / 86_400_000)
+  if (days < 1)
+    return 'today'
+  if (days < 2)
+    return 'yesterday'
+  if (days < 30)
+    return `${days}d ago`
+  if (days < 365)
+    return `${Math.floor(days / 30)}mo ago`
+  return `${Math.floor(days / 365)}y ago`
+}
+
 const timestampSeconds = computed<number | null>(() => {
   if (typeof skill.occurredAt === 'number')
     return skill.occurredAt
@@ -90,9 +106,13 @@ const timestampDate = computed(() =>
   timestampSeconds.value != null ? new Date(timestampSeconds.value * 1000) : null,
 )
 
-const formattedTimestamp = computed(() =>
-  timestampSeconds.value != null ? formatTimestamp(timestampSeconds.value) : null,
-)
+const formattedTimestamp = computed(() => {
+  if (timestampSeconds.value == null)
+    return null
+  return timestampFormat === 'relative'
+    ? formatRelative(timestampSeconds.value)
+    : formatTimestamp(timestampSeconds.value)
+})
 
 const resolvedSignal = computed<'installs' | 'stars' | null>(() => {
   if (signal === 'none')

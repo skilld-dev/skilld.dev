@@ -393,8 +393,8 @@ function clearOwner() {
             <div class="min-w-0 flex items-start gap-3">
               <img
                 v-if="resolvedSkills[pkg.name]"
-                :src="`https://github.com/${resolvedSkills[pkg.name].owner}.png?size=64`"
-                :alt="`${resolvedSkills[pkg.name].owner} avatar`"
+                :src="`https://github.com/${resolvedSkills[pkg.name]!.owner}.png?size=64`"
+                :alt="`${resolvedSkills[pkg.name]!.owner} avatar`"
                 width="32"
                 height="32"
                 class="size-8 rounded-full bg-muted shrink-0"
@@ -404,7 +404,7 @@ function clearOwner() {
                 <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
                 <p class="mt-0.5 text-xs text-muted truncate">
                   <template v-if="resolvedSkills[pkg.name]">
-                    {{ resolvedSkills[pkg.name].owner }}{{ resolvedSkills[pkg.name].official ? ' · official' : '' }}
+                    {{ resolvedSkills[pkg.name]!.owner }}{{ resolvedSkills[pkg.name]!.official ? ' · official' : '' }}
                   </template>
                   <template v-else>
                     v{{ pkg.version }}
@@ -453,8 +453,8 @@ function clearOwner() {
             <div class="min-w-0 flex-1 flex items-center gap-3">
               <img
                 v-if="resolvedSkills[pkg.name]"
-                :src="`https://github.com/${resolvedSkills[pkg.name].owner}.png?size=48`"
-                :alt="`${resolvedSkills[pkg.name].owner} avatar`"
+                :src="`https://github.com/${resolvedSkills[pkg.name]!.owner}.png?size=48`"
+                :alt="`${resolvedSkills[pkg.name]!.owner} avatar`"
                 width="24"
                 height="24"
                 class="size-6 rounded-full bg-muted shrink-0"

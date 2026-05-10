@@ -31,7 +31,7 @@ export interface SkillRenderContext {
 let renderContext: SkillRenderContext | null = null
 
 function isAbsoluteUrl(href: string): boolean {
-  return /^(?:[a-z][a-z0-9+.-]*:|\/\/|#|mailto:|tel:)/i.test(href)
+  return /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
 }
 
 function splitFragment(href: string): { path: string, suffix: string } {

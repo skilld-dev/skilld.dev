@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { OrgProfile } from '../../../server/api/orgs/[owner].get'
+import type { OrgProfile } from '#layers/registry/server/api/orgs/[owner].get'
 
 const route = useRoute()
 const ownerParam = computed(() => (route.params.owner as string).toLowerCase())

@@ -17,8 +17,8 @@
 
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { callHaiku, extractJson } from '../server/utils/anthropic'
-import { pAll } from '../server/utils/p-all'
+import { callHaiku, extractJson } from '../shared/server/anthropic'
+import { pAll } from '../shared/server/p-all'
 
 const INPUT = '/tmp/skilld-ux/top-skills.tsv'
 const OUTPUT = '/tmp/skilld-ux/classifications.jsonl'

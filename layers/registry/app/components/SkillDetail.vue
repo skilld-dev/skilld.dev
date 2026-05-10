@@ -288,9 +288,6 @@ const frontmatterEntries = computed(() => {
 
 const pushedAtDate = computed(() => new Date(data.value?.pushedAt || 0))
 const pushedAtAgo = useTimeAgo(pushedAtDate)
-const createdAtDate = computed(() => data.value?.createdAt ? new Date(data.value.createdAt) : null)
-const createdAtAgo = useTimeAgo(computed(() => createdAtDate.value ?? new Date(0)))
-
 const maturity = computed(() => data.value?.maturity ?? null)
 
 const verifiedSummary = computed<{ verified: number, total: number } | null>(() => {

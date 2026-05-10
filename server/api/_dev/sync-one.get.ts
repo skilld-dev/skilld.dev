@@ -1,24 +1,19 @@
-/**
- * DEV-ONLY one-shot sync trigger. Invoke with:
- *   curl 'http://localhost:3000/api/_dev/sync-one?owner=anthropics&repo=skills'
- * Returns the SyncRepoStats so we can see what landed.
- */
-
+import { z } from 'zod'
 import { resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
 import { syncRepo } from '~~/layers/registry/server/utils/sync-repo'
-import { getDB } from '../../utils/db'
+import { defineApiHandler } from '#shared/server/handler'
 
-export default defineEventHandler(async (event) => {
-  if (process.env.NODE_ENV === 'production')
-    throw createError({ statusCode: 404 })
+const SyncOneQuery = z.object({
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+})
 
-  const owner = getQuery(event).owner as string | undefined
-  const repo = getQuery(event).repo as string | undefined
-  if (!owner || !repo)
-    throw createError({ statusCode: 400, message: 'owner + repo query params required' })
-
-  const db = getDB(event)
-  const env = (event.context.cloudflare?.env ?? {}) as Record<string, unknown>
-  const bindings = resolveGithubBindings(env)
-  return syncRepo(owner, repo, bindings, db)
+export default defineApiHandler({
+  schema: SyncOneQuery,
+  handler: async ({ body, platform }) => {
+    if (process.env.NODE_ENV === 'production')
+      throw createError({ statusCode: 404 })
+    const bindings = resolveGithubBindings(platform.env)
+    return syncRepo(body.owner, body.repo, bindings, platform.db)
+  },
 })

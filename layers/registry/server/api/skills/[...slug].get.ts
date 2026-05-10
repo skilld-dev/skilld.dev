@@ -4,6 +4,7 @@ import type { TagPayload } from '../../jobs/generate-tags'
 import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
 import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
 import { findSkill, findSupportedDuplicateGroupForSkill } from '~~/layers/registry/server/utils/skills-registry'
+import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 
@@ -131,201 +132,203 @@ function isoToSecondsAgo(value: string | null | undefined): number | null {
   return Math.max(0, Math.floor((Date.now() - time) / 1000))
 }
 
-export default defineEventHandler(async (event) => {
-  const slug = getRouterParam(event, 'slug')
-  if (!slug)
-    throw createError({ statusCode: 400, message: 'Missing skill slug' })
+export default defineApiHandler({
+  handler: async ({ event, platform }) => {
+    const slug = getRouterParam(event, 'slug')
+    if (!slug)
+      throw createError({ statusCode: 400, message: 'Missing skill slug' })
 
-  const skill = await findSkill(event, slug)
-  if (!skill)
-    throw createError({ statusCode: 404, message: 'Skill not found' })
+    const skill = await findSkill(event, slug)
+    if (!skill)
+      throw createError({ statusCode: 404, message: 'Skill not found' })
 
-  const githubUrl = `https://github.com/${skill.owner}/${skill.repo}`
+    const githubUrl = `https://github.com/${skill.owner}/${skill.repo}`
 
-  const [curators, repoMeta, revision, latestCommit, duplicateGroup] = await Promise.all([
-    getEndorsementsForSkill(getDB(event), skill.name),
-    getRepoMeta(skill.owner, skill.repo),
-    getDB(event)
-      .prepare(`SELECT current_sha, modified_at, references_count, assets, last_synced_at, sync_status,
+    const [curators, repoMeta, revision, latestCommit, duplicateGroup] = await Promise.all([
+      getEndorsementsForSkill(platform.db, skill.name),
+      getRepoMeta(skill.owner, skill.repo),
+      platform.db
+        .prepare(`SELECT current_sha, modified_at, references_count, assets, last_synced_at, sync_status,
                        seo_index_score, seo_indexable, seo_index_reasons, seo_index_synced_at,
                        curator_count, curator_reason_count, approved_social_count, author_social_count,
                        trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at
                 FROM skills WHERE owner = ? AND name = ?`)
-      .bind(skill.owner, skill.name)
-      .first<{
-      current_sha: string | null
-      modified_at: number | null
-      references_count: number | null
-      assets: string | null
-      last_synced_at: number | null
-      sync_status: string | null
-      seo_index_score: number | null
-      seo_indexable: number | null
-      seo_index_reasons: string | null
-      seo_index_synced_at: number | null
-      curator_count: number | null
-      curator_reason_count: number | null
-      approved_social_count: number | null
-      author_social_count: number | null
-      trust_tier: string | null
-      trust_source: string | null
-      trust_score: number | null
-      trust_reasons: string | null
-      trust_synced_at: number | null
-    }>(),
-    getDB(event)
-      .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
-      .bind(skill.owner, skill.name)
-      .first<{ sha: string }>(),
-    findSupportedDuplicateGroupForSkill(event, skill.slug),
-  ])
+        .bind(skill.owner, skill.name)
+        .first<{
+        current_sha: string | null
+        modified_at: number | null
+        references_count: number | null
+        assets: string | null
+        last_synced_at: number | null
+        sync_status: string | null
+        seo_index_score: number | null
+        seo_indexable: number | null
+        seo_index_reasons: string | null
+        seo_index_synced_at: number | null
+        curator_count: number | null
+        curator_reason_count: number | null
+        approved_social_count: number | null
+        author_social_count: number | null
+        trust_tier: string | null
+        trust_source: string | null
+        trust_score: number | null
+        trust_reasons: string | null
+        trust_synced_at: number | null
+      }>(),
+      platform.db
+        .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
+        .bind(skill.owner, skill.name)
+        .first<{ sha: string }>(),
+      findSupportedDuplicateGroupForSkill(event, skill.slug),
+    ])
 
-  if (repoMeta === 'not-found')
-    throw createError({ statusCode: 404, message: 'Skill source repository no longer exists' })
+    if (repoMeta === 'not-found')
+      throw createError({ statusCode: 404, message: 'Skill source repository no longer exists' })
 
-  const branch = repoMeta?.defaultBranch || 'main'
+    const branch = repoMeta?.defaultBranch || 'main'
 
-  const rendered = await getRenderedSkill(skill.owner, skill.repo, skill.name, branch, repoMeta?.pushedAt ?? null)
+    const rendered = await getRenderedSkill(skill.owner, skill.repo, skill.name, branch, repoMeta?.pushedAt ?? null)
 
-  const db = getDB(event)
-  const [faqRow, tagRow, summaryRow] = await Promise.all([
-    getGenerated<FaqPayload>(db, { owner: skill.owner, name: skill.name, kind: 'faq' }),
-    getGenerated<TagPayload>(db, { owner: skill.owner, name: skill.name, kind: 'tags' }),
-    getGenerated<SummaryPayload>(db, { owner: skill.owner, name: skill.name, kind: 'summary' }),
-  ])
+    const db = platform.db
+    const [faqRow, tagRow, summaryRow] = await Promise.all([
+      getGenerated<FaqPayload>(db, { owner: skill.owner, name: skill.name, kind: 'faq' }),
+      getGenerated<TagPayload>(db, { owner: skill.owner, name: skill.name, kind: 'tags' }),
+      getGenerated<SummaryPayload>(db, { owner: skill.owner, name: skill.name, kind: 'summary' }),
+    ])
 
-  const tags = (tagRow?.payload.tags ?? [])
-    .map(s => TAG_BY_SLUG.get(s))
-    .filter((t): t is NonNullable<typeof t> => Boolean(t))
+    const tags = (tagRow?.payload.tags ?? [])
+      .map(s => TAG_BY_SLUG.get(s))
+      .filter((t): t is NonNullable<typeof t> => Boolean(t))
 
-  const description = frontmatterString(rendered.frontmatter, 'description') ?? repoMeta?.description ?? null
-  let assets: { path: string, size: number, type: string }[] = []
-  if (revision?.assets) {
-    try {
-      const parsedAssets = JSON.parse(revision.assets) as unknown
-      if (Array.isArray(parsedAssets)) {
-        assets = parsedAssets.filter((a): a is { path: string, size: number, type: string } =>
-          Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string')
+    const description = frontmatterString(rendered.frontmatter, 'description') ?? repoMeta?.description ?? null
+    let assets: { path: string, size: number, type: string }[] = []
+    if (revision?.assets) {
+      try {
+        const parsedAssets = JSON.parse(revision.assets) as unknown
+        if (Array.isArray(parsedAssets)) {
+          assets = parsedAssets.filter((a): a is { path: string, size: number, type: string } =>
+            Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string')
+        }
+      }
+      catch {
+      // Ignore malformed JSON; treat as no assets.
       }
     }
-    catch {
-      // Ignore malformed JSON; treat as no assets.
-    }
-  }
-  const allowedTools = parseAllowedTools(rendered.frontmatter)
-  const capability = classifyAllowedTools(allowedTools)
-  const sourceResolved = Boolean(rendered.status === 'ok' && rendered.skillPath && rendered.raw)
-  const sourceCommitSha = latestCommit?.sha ?? revision?.current_sha ?? null
+    const allowedTools = parseAllowedTools(rendered.frontmatter)
+    const capability = classifyAllowedTools(allowedTools)
+    const sourceResolved = Boolean(rendered.status === 'ok' && rendered.skillPath && rendered.raw)
+    const sourceCommitSha = latestCommit?.sha ?? revision?.current_sha ?? null
 
-  return {
-    owner: skill.owner,
-    repo: skill.repo,
-    name: skill.name,
-    displayName: skill.displayName,
-    installs: skill.installs,
-    githubUrl,
-    url: `https://skills.sh/${skill.slug}`,
-    skillPath: rendered.skillPath,
-    branch,
-    resolutionStatus: rendered.status,
-    content: rendered.body,
-    contentHtml: rendered.html,
-    frontmatter: rendered.frontmatter,
-    raw: rendered.raw,
-    assets,
-    curators,
-    description,
-    stars: repoMeta?.stars ?? 0,
-    forks: repoMeta?.forks ?? 0,
-    pushedAt: repoMeta?.pushedAt ?? null,
-    createdAt: repoMeta?.createdAt ?? null,
-    maturity: computeMaturity(repoMeta?.createdAt ?? null, repoMeta?.pushedAt ?? null),
-    tier: resolveTier(skill.owner, skill.repo),
-    sourceFacts: {
-      description: {
-        present: Boolean(description?.trim()),
-        length: description?.trim().length ?? 0,
-        source: frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : repoMeta?.description ? 'repository' : null,
-      },
-      repository: {
-        pushedAt: repoMeta?.pushedAt ?? null,
-        pushedAgeDays: daysFromSecondsAgo(isoToSecondsAgo(repoMeta?.pushedAt ?? null)),
-        createdAt: repoMeta?.createdAt ?? null,
-        stars: repoMeta?.stars ?? 0,
-        forks: repoMeta?.forks ?? 0,
-        defaultBranch: branch,
-      },
-      source: {
-        resolved: sourceResolved,
-        resolutionStatus: rendered.status,
-        skillPath: rendered.skillPath,
-        currentSha: revision?.current_sha ?? null,
-        hasCurrentSha: Boolean(revision?.current_sha),
-        latestRevisionSha: latestCommit?.sha ?? null,
-        modifiedAt: revision?.modified_at ?? null,
-        modifiedAgeDays: daysFromSecondsAgo(secondsAgo(revision?.modified_at)),
-        referencesCount: revision?.references_count ?? 0,
-        lastSyncedAt: revision?.last_synced_at ?? null,
-        lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(revision?.last_synced_at)),
-        syncStatus: revision?.sync_status ?? null,
-      },
-      frontmatter: {
-        present: Boolean(rendered.frontmatter && Object.keys(rendered.frontmatter).length),
-        keys: rendered.frontmatter ? Object.keys(rendered.frontmatter).sort() : [],
-        model: frontmatterString(rendered.frontmatter, 'model'),
-        allowedTools,
-        capabilityScopes: capability.scopes,
-        mcpServers: capability.mcpServers,
-      },
-    },
-    tags,
-    faqs: faqRow?.payload.items ?? [],
-    summary: summaryRow?.payload
-      ? {
-          tagline: summaryRow.payload.tagline,
-          blurb: summaryRow.payload.blurb,
-          useCases: summaryRow.payload.useCases,
-        }
-      : null,
-    provenance: {
+    return {
       owner: skill.owner,
       repo: skill.repo,
-      branch,
+      name: skill.name,
+      displayName: skill.displayName,
+      installs: skill.installs,
+      githubUrl,
+      url: `https://skills.sh/${skill.slug}`,
       skillPath: rendered.skillPath,
-      sourceCommitSha,
-      sourceCommitUrl: sourceCommitSha
-        ? `${githubUrl}/commit/${sourceCommitSha}`
+      branch,
+      resolutionStatus: rendered.status,
+      content: rendered.body,
+      contentHtml: rendered.html,
+      frontmatter: rendered.frontmatter,
+      raw: rendered.raw,
+      assets,
+      curators,
+      description,
+      stars: repoMeta?.stars ?? 0,
+      forks: repoMeta?.forks ?? 0,
+      pushedAt: repoMeta?.pushedAt ?? null,
+      createdAt: repoMeta?.createdAt ?? null,
+      maturity: computeMaturity(repoMeta?.createdAt ?? null, repoMeta?.pushedAt ?? null),
+      tier: resolveTier(skill.owner, skill.repo),
+      sourceFacts: {
+        description: {
+          present: Boolean(description?.trim()),
+          length: description?.trim().length ?? 0,
+          source: frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : repoMeta?.description ? 'repository' : null,
+        },
+        repository: {
+          pushedAt: repoMeta?.pushedAt ?? null,
+          pushedAgeDays: daysFromSecondsAgo(isoToSecondsAgo(repoMeta?.pushedAt ?? null)),
+          createdAt: repoMeta?.createdAt ?? null,
+          stars: repoMeta?.stars ?? 0,
+          forks: repoMeta?.forks ?? 0,
+          defaultBranch: branch,
+        },
+        source: {
+          resolved: sourceResolved,
+          resolutionStatus: rendered.status,
+          skillPath: rendered.skillPath,
+          currentSha: revision?.current_sha ?? null,
+          hasCurrentSha: Boolean(revision?.current_sha),
+          latestRevisionSha: latestCommit?.sha ?? null,
+          modifiedAt: revision?.modified_at ?? null,
+          modifiedAgeDays: daysFromSecondsAgo(secondsAgo(revision?.modified_at)),
+          referencesCount: revision?.references_count ?? 0,
+          lastSyncedAt: revision?.last_synced_at ?? null,
+          lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(revision?.last_synced_at)),
+          syncStatus: revision?.sync_status ?? null,
+        },
+        frontmatter: {
+          present: Boolean(rendered.frontmatter && Object.keys(rendered.frontmatter).length),
+          keys: rendered.frontmatter ? Object.keys(rendered.frontmatter).sort() : [],
+          model: frontmatterString(rendered.frontmatter, 'model'),
+          allowedTools,
+          capabilityScopes: capability.scopes,
+          mcpServers: capability.mcpServers,
+        },
+      },
+      tags,
+      faqs: faqRow?.payload.items ?? [],
+      summary: summaryRow?.payload
+        ? {
+            tagline: summaryRow.payload.tagline,
+            blurb: summaryRow.payload.blurb,
+            useCases: summaryRow.payload.useCases,
+          }
         : null,
-      skillFileUrl: rendered.skillPath
-        ? `${githubUrl}/blob/${sourceCommitSha ?? branch}/${rendered.skillPath}`
-        : null,
-      historyUrl: rendered.skillPath
-        ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
-        : null,
-      modifiedAt: revision?.modified_at ?? null,
-      referencesCount: revision?.references_count ?? 0,
-      lastSyncedAt: revision?.last_synced_at ?? null,
-      syncStatus: revision?.sync_status ?? null,
-    },
-    seo: {
-      indexScore: revision?.seo_index_score ?? 0,
-      indexable: revision?.seo_indexable === 1,
-      reasons: revision?.seo_index_reasons ? JSON.parse(revision.seo_index_reasons) as string[] : [],
-      syncedAt: revision?.seo_index_synced_at ?? null,
-      curatorCount: revision?.curator_count ?? 0,
-      curatorReasonCount: revision?.curator_reason_count ?? 0,
-      approvedSocialCount: revision?.approved_social_count ?? 0,
-      authorSocialCount: revision?.author_social_count ?? 0,
-    },
-    trust: {
-      tier: revision?.trust_tier ?? 'untrusted',
-      source: revision?.trust_source ?? 'computed',
-      score: revision?.trust_score ?? 0,
-      reasons: revision?.trust_reasons ? JSON.parse(revision.trust_reasons) as string[] : [],
-      syncedAt: revision?.trust_synced_at ?? null,
-    },
-    duplicateGroup,
-  }
+      provenance: {
+        owner: skill.owner,
+        repo: skill.repo,
+        branch,
+        skillPath: rendered.skillPath,
+        sourceCommitSha,
+        sourceCommitUrl: sourceCommitSha
+          ? `${githubUrl}/commit/${sourceCommitSha}`
+          : null,
+        skillFileUrl: rendered.skillPath
+          ? `${githubUrl}/blob/${sourceCommitSha ?? branch}/${rendered.skillPath}`
+          : null,
+        historyUrl: rendered.skillPath
+          ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
+          : null,
+        modifiedAt: revision?.modified_at ?? null,
+        referencesCount: revision?.references_count ?? 0,
+        lastSyncedAt: revision?.last_synced_at ?? null,
+        syncStatus: revision?.sync_status ?? null,
+      },
+      seo: {
+        indexScore: revision?.seo_index_score ?? 0,
+        indexable: revision?.seo_indexable === 1,
+        reasons: revision?.seo_index_reasons ? JSON.parse(revision.seo_index_reasons) as string[] : [],
+        syncedAt: revision?.seo_index_synced_at ?? null,
+        curatorCount: revision?.curator_count ?? 0,
+        curatorReasonCount: revision?.curator_reason_count ?? 0,
+        approvedSocialCount: revision?.approved_social_count ?? 0,
+        authorSocialCount: revision?.author_social_count ?? 0,
+      },
+      trust: {
+        tier: revision?.trust_tier ?? 'untrusted',
+        source: revision?.trust_source ?? 'computed',
+        score: revision?.trust_score ?? 0,
+        reasons: revision?.trust_reasons ? JSON.parse(revision.trust_reasons) as string[] : [],
+        syncedAt: revision?.trust_synced_at ?? null,
+      },
+      duplicateGroup,
+    }
+  },
 })
 
 interface RenderedCache {

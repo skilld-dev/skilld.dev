@@ -5,7 +5,7 @@ import type { H3Event } from 'h3'
 // user's behalf once the session exists.
 
 function db(event: H3Event): D1Database {
-  return event.context.cloudflare.env.DB as D1Database
+  return event.context.platform.db
 }
 
 interface ParsedReturnTo {

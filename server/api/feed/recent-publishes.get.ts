@@ -6,7 +6,7 @@
  */
 
 import { officialRepos } from '~~/layers/registry/server/data/official-repos'
-import { getDB } from '../../utils/db'
+import { getDB } from '../../../shared/server/db'
 
 const officialOwners = officialRepos.map(r => r.owner)
 

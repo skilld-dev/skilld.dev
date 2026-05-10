@@ -3,6 +3,7 @@ import type { CoOccurrenceNeighbor } from '~~/layers/registry/server/utils/skill
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
 import { getCoOccurrenceNeighbors } from '~~/layers/registry/server/utils/skill-co-occurrence'
 import { findRelatedSkills, findSkill, findSkillsByLookups } from '~~/layers/registry/server/utils/skills-registry'
+import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
 
 const COMMITS_CACHE_TTL = 60 * 60 * 12
@@ -29,42 +30,43 @@ interface NeighborSkill {
   score: number
 }
 
-export default defineEventHandler(async (event) => {
-  const slug = getRouterParam(event, 'slug')
-  if (!slug)
-    throw createError({ statusCode: 400, message: 'Missing skill slug' })
+export default defineApiHandler({
+  handler: async ({ event, platform }) => {
+    const slug = getRouterParam(event, 'slug')
+    if (!slug)
+      throw createError({ statusCode: 400, message: 'Missing skill slug' })
 
-  const skill = await findSkill(event, slug)
-  if (!skill)
-    throw createError({ statusCode: 404, message: 'Skill not found' })
+    const skill = await findSkill(event, slug)
+    if (!skill)
+      throw createError({ statusCode: 404, message: 'Skill not found' })
 
-  // skillPath is needed for commits; cheap KV lookup since the critical handler primed it
-  const skillPath = await useStorage('cache').getItem<string | null>(
-    `skills:skill-path:v5:${skill.owner}/${skill.repo}/${skill.name}`,
-  )
+    // skillPath is needed for commits; cheap KV lookup since the critical handler primed it
+    const skillPath = await useStorage('cache').getItem<string | null>(
+      `skills:skill-path:v5:${skill.owner}/${skill.repo}/${skill.name}`,
+    )
 
-  const db = getDB(event)
-  const [commits, related, coOccurrenceNeighbors, embeddingNeighbors] = await Promise.all([
-    skillPath ? getSkillCommits(skill.owner, skill.repo, skillPath) : Promise.resolve([]),
-    findRelatedSkills(event, { owner: skill.owner, repo: skill.repo, excludeName: skill.name, limit: 6 }),
-    getCoOccurrenceNeighbors(db, skill.name),
-    getEmbeddingNeighbors(db, { owner: skill.owner, name: skill.name }),
-  ])
+    const [commits, related, coOccurrenceNeighbors, embeddingNeighbors] = await Promise.all([
+      skillPath ? getSkillCommits(skill.owner, skill.repo, skillPath) : Promise.resolve([]),
+      findRelatedSkills(event, { owner: skill.owner, repo: skill.repo, excludeName: skill.name, limit: 6 }),
+      getCoOccurrenceNeighbors(platform.db, skill.name),
+      getEmbeddingNeighbors(platform.db, { owner: skill.owner, name: skill.name }),
+    ])
 
-  const [coOccurrenceSkills, semanticSiblings] = await resolveNeighborSkills(
-    event,
-    coOccurrenceNeighbors,
-    embeddingNeighbors,
-    skill.name,
-  )
+    const [coOccurrenceSkills, semanticSiblings] = await resolveNeighborSkills(
+      event,
+      coOccurrenceNeighbors,
+      embeddingNeighbors,
+      skill.name,
+    )
 
-  return {
-    commits,
-    relatedRepoSkills: related.sameRepo,
-    relatedOwnerSkills: related.sameOwner,
-    coOccurrenceSkills,
-    semanticSiblings,
-  }
+    return {
+      commits,
+      relatedRepoSkills: related.sameRepo,
+      relatedOwnerSkills: related.sameOwner,
+      coOccurrenceSkills,
+      semanticSiblings,
+    }
+  },
 })
 
 async function resolveNeighborSkills(

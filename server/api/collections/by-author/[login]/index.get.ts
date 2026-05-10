@@ -1,40 +1,22 @@
-import { getDB } from '../../../../utils/db'
+import type { CollectionListRow } from '~~/server/presenters/collection'
+import { collectionListEntryPresenter } from '~~/server/presenters/collection'
+import { defineApiHandler } from '#shared/server/handler'
 
-interface CollectionRow {
-  slug: string
-  name: string
-  preamble: string | null
-  featured: number
-  updated_at: number
-  skill_count: number
-}
+export default defineApiHandler({
+  handler: async ({ event, platform }) => {
+    const login = getRouterParam(event, 'login') ?? ''
+    if (!login)
+      throw createError({ statusCode: 400, message: 'Missing login' })
 
-export default defineEventHandler(async (event) => {
-  const login = getRouterParam(event, 'login') ?? ''
-  if (!login)
-    throw createError({ statusCode: 400, message: 'Missing login' })
-
-  const db = getDB(event)
-  const res = await db
-    .prepare(
+    const res = await platform.db.prepare(
       `SELECT c.slug, c.name, c.preamble, c.featured, c.updated_at,
               (SELECT COUNT(*) FROM collection_skills_v2 cs WHERE cs.collection_id = c.id) AS skill_count
        FROM collections_v2 c
        JOIN users u ON u.id = c.author_user_id
        WHERE u.login = ? AND c.deleted_at IS NULL
        ORDER BY c.created_at DESC`,
-    )
-    .bind(login)
-    .all<CollectionRow>()
+    ).bind(login).all<CollectionListRow>()
 
-  return {
-    items: (res.results ?? []).map(row => ({
-      slug: row.slug,
-      name: row.name,
-      preamble: row.preamble,
-      featured: Boolean(row.featured),
-      updatedAt: row.updated_at,
-      skillCount: row.skill_count,
-    })),
-  }
+    return { items: (res.results ?? []).map(collectionListEntryPresenter) }
+  },
 })

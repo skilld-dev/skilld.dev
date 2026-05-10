@@ -1,6 +1,6 @@
 import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
 import { findSkill } from '~~/layers/registry/server/utils/skills-registry'
-import { getDB } from '~~/server/utils/db'
+import { defineApiHandler } from '#shared/server/handler'
 
 const ASSET_CACHE_TTL = 60 * 60 * 24 * 7
 const ASSET_MISSING_TTL = 60 * 60
@@ -37,128 +37,130 @@ function classifyAsset(path: string): RegisteredAsset['type'] {
   return 'code'
 }
 
-export default defineEventHandler(async (event) => {
-  const slugParam = getRouterParam(event, 'slug')
-  if (!slugParam)
-    throw createError({ statusCode: 400, message: 'Missing slug' })
+export default defineApiHandler({
+  handler: async ({ event, platform }) => {
+    const slugParam = getRouterParam(event, 'slug')
+    if (!slugParam)
+      throw createError({ statusCode: 400, message: 'Missing slug' })
 
-  const segments = slugParam.split('/').filter(Boolean)
-  if (segments.length < 4)
-    throw createError({ statusCode: 400, message: 'Expected /skill-asset/:owner/:repo/:name/:file+' })
+    const segments = slugParam.split('/').filter(Boolean)
+    if (segments.length < 4)
+      throw createError({ statusCode: 400, message: 'Expected /skill-asset/:owner/:repo/:name/:file+' })
 
-  const [owner, repo, name, ...fileParts] = segments
-  const filePath = fileParts.join('/')
-  if (!owner || !repo || !name || !filePath)
-    throw createError({ statusCode: 400, message: 'Missing path components' })
-  if (filePath.includes('..'))
-    throw createError({ statusCode: 400, message: 'Invalid path' })
+    const [owner, repo, name, ...fileParts] = segments
+    const filePath = fileParts.join('/')
+    if (!owner || !repo || !name || !filePath)
+      throw createError({ statusCode: 400, message: 'Missing path components' })
+    if (filePath.includes('..'))
+      throw createError({ statusCode: 400, message: 'Invalid path' })
 
-  const skillSlug = `${owner}/${repo}/${name}`
-  const skill = await findSkill(event, skillSlug)
-  if (!skill)
-    throw createError({ statusCode: 404, message: 'Skill not found' })
+    const skillSlug = `${owner}/${repo}/${name}`
+    const skill = await findSkill(event, skillSlug)
+    if (!skill)
+      throw createError({ statusCode: 404, message: 'Skill not found' })
 
-  const row = await getDB(event)
-    .prepare('SELECT default_branch, assets FROM skills WHERE owner = ? AND name = ?')
-    .bind(skill.owner, skill.name)
-    .first<SkillAssetRow>()
+    const row = await platform.db
+      .prepare('SELECT default_branch, assets FROM skills WHERE owner = ? AND name = ?')
+      .bind(skill.owner, skill.name)
+      .first<SkillAssetRow>()
 
-  if (!row)
-    throw createError({ statusCode: 404, message: 'Skill metadata missing' })
+    if (!row)
+      throw createError({ statusCode: 404, message: 'Skill metadata missing' })
 
-  let registered: RegisteredAsset[] = []
-  if (row.assets) {
-    try {
-      const parsed = JSON.parse(row.assets) as unknown
-      if (Array.isArray(parsed)) {
-        registered = parsed.filter((a): a is RegisteredAsset =>
-          Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string',
-        )
+    let registered: RegisteredAsset[] = []
+    if (row.assets) {
+      try {
+        const parsed = JSON.parse(row.assets) as unknown
+        if (Array.isArray(parsed)) {
+          registered = parsed.filter((a): a is RegisteredAsset =>
+            Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string',
+          )
+        }
+      }
+      catch {
+      // Treat as empty list.
       }
     }
-    catch {
-      // Treat as empty list.
+
+    const asset = registered.find(a => a.path === filePath)
+    if (!asset)
+      throw createError({ statusCode: 404, message: 'Asset not registered for this skill' })
+
+    const branch = row.default_branch || 'main'
+    const cacheKey = `skills:asset:v1:${skill.owner}/${skill.repo}/${skill.name}:${filePath}:${branch}`
+    const cached = await useStorage('cache').getItem<AssetCache>(cacheKey)
+    if (cached) {
+      if (cached.status === 'missing')
+        throw createError({ statusCode: 404, message: 'Asset content unavailable' })
+      return cached
     }
-  }
 
-  const asset = registered.find(a => a.path === filePath)
-  if (!asset)
-    throw createError({ statusCode: 404, message: 'Asset not registered for this skill' })
+    // Resolve the skill directory by re-finding the SKILL.md path.
+    const treeRes = await $fetch<{ files?: { path: string }[] }>(
+      `https://ungh.cc/repos/${skill.owner}/${skill.repo}/files/${branch}`,
+    ).catch(() => null)
+    const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    const skillMdPath = (treeRes?.files ?? []).find(f =>
+      f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
+      || f.path.toLowerCase() === `${slugifiedName}/skill.md`
+      || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
+    )?.path
 
-  const branch = row.default_branch || 'main'
-  const cacheKey = `skills:asset:v1:${skill.owner}/${skill.repo}/${skill.name}:${filePath}:${branch}`
-  const cached = await useStorage('cache').getItem<AssetCache>(cacheKey)
-  if (cached) {
-    if (cached.status === 'missing')
-      throw createError({ statusCode: 404, message: 'Asset content unavailable' })
-    return cached
-  }
+    if (!skillMdPath) {
+      await useStorage('cache').setItem(cacheKey, {
+        status: 'missing',
+        raw: null,
+        html: null,
+        size: asset.size,
+        type: asset.type,
+        branch,
+        skillPath: null,
+      } satisfies AssetCache, { ttl: ASSET_MISSING_TTL })
+      throw createError({ statusCode: 404, message: 'Skill source not found' })
+    }
 
-  // Resolve the skill directory by re-finding the SKILL.md path.
-  const treeRes = await $fetch<{ files?: { path: string }[] }>(
-    `https://ungh.cc/repos/${skill.owner}/${skill.repo}/files/${branch}`,
-  ).catch(() => null)
-  const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-  const skillMdPath = (treeRes?.files ?? []).find(f =>
-    f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
-    || f.path.toLowerCase() === `${slugifiedName}/skill.md`
-    || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
-  )?.path
+    const skillDir = skillMdPath.replace(/\/SKILL\.md$/, '')
+    const fullPath = `${skillDir}/${filePath}`
+    const rawUrl = `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/${branch}/${fullPath}`
+    const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => null)
 
-  if (!skillMdPath) {
-    await useStorage('cache').setItem(cacheKey, {
-      status: 'missing',
-      raw: null,
-      html: null,
-      size: asset.size,
-      type: asset.type,
-      branch,
-      skillPath: null,
-    } satisfies AssetCache, { ttl: ASSET_MISSING_TTL })
-    throw createError({ statusCode: 404, message: 'Skill source not found' })
-  }
+    if (raw === null) {
+      await useStorage('cache').setItem(cacheKey, {
+        status: 'missing',
+        raw: null,
+        html: null,
+        size: asset.size,
+        type: asset.type,
+        branch,
+        skillPath: skillMdPath,
+      } satisfies AssetCache, { ttl: ASSET_MISSING_TTL })
+      throw createError({ statusCode: 502, message: 'Could not fetch asset' })
+    }
 
-  const skillDir = skillMdPath.replace(/\/SKILL\.md$/, '')
-  const fullPath = `${skillDir}/${filePath}`
-  const rawUrl = `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/${branch}/${fullPath}`
-  const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => null)
+    const type = asset.type ?? classifyAsset(filePath)
+    let html: string | null = null
+    if (type === 'markdown') {
+      const parsed = parseSkillMd(raw, {
+        owner: skill.owner,
+        repo: skill.repo,
+        name: skill.name,
+        branch,
+        skillDir,
+        filePath,
+      })
+      html = parsed.html
+    }
 
-  if (raw === null) {
-    await useStorage('cache').setItem(cacheKey, {
-      status: 'missing',
-      raw: null,
-      html: null,
-      size: asset.size,
-      type: asset.type,
+    const result: AssetCache = {
+      status: 'ok',
+      raw,
+      html,
+      size: raw.length,
+      type,
       branch,
       skillPath: skillMdPath,
-    } satisfies AssetCache, { ttl: ASSET_MISSING_TTL })
-    throw createError({ statusCode: 502, message: 'Could not fetch asset' })
-  }
-
-  const type = asset.type ?? classifyAsset(filePath)
-  let html: string | null = null
-  if (type === 'markdown') {
-    const parsed = parseSkillMd(raw, {
-      owner: skill.owner,
-      repo: skill.repo,
-      name: skill.name,
-      branch,
-      skillDir,
-      filePath,
-    })
-    html = parsed.html
-  }
-
-  const result: AssetCache = {
-    status: 'ok',
-    raw,
-    html,
-    size: raw.length,
-    type,
-    branch,
-    skillPath: skillMdPath,
-  }
-  await useStorage('cache').setItem(cacheKey, result, { ttl: ASSET_CACHE_TTL })
-  return result
+    }
+    await useStorage('cache').setItem(cacheKey, result, { ttl: ASSET_CACHE_TTL })
+    return result
+  },
 })

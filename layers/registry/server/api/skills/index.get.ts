@@ -1,49 +1,36 @@
 import { querySkills } from '~~/layers/registry/server/utils/skills-registry'
+import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
+import { makeOwnerFacetPresenter, makeSkillPresenter } from '../../presenters/skill'
+import { SkillsListQuery } from '../../schemas/skills-query'
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
+const skillPresenter = makeSkillPresenter(officialOwners)
+const ownerFacetPresenter = makeOwnerFacetPresenter(officialOwners)
 
-export default defineEventHandler(async (event) => {
-  const query = getQuery(event)
-  const search = (query.q as string || '').toLowerCase().trim()
-  const page = Number(query.page) || 1
-  const limit = Math.min(Number(query.limit) || 60, 200)
-  const sort = (query.sort as string) || 'installs'
-  const official = query.official === 'true' || query.official === '1'
-  const excludeOfficial = query.excludeOfficial === 'true' || query.excludeOfficial === '1'
-  const supportedOnly = query.supported === 'true' || query.supported === '1'
-  const trustTier = (query.trustTier as string || '').toLowerCase().trim()
-  const owner = (query.owner as string || '').toLowerCase().trim()
-  const category = (query.category as string || '').toLowerCase().trim()
+export default defineApiHandler({
+  schema: SkillsListQuery,
+  handler: async ({ event, body }) => {
+    const result = await querySkills(event, {
+      search: body.q || undefined,
+      owner: body.owner || undefined,
+      official: body.official,
+      excludeOfficial: body.excludeOfficial,
+      supportedOnly: body.supported,
+      trustTier: body.trustTier || undefined,
+      category: body.category || undefined,
+      sort: body.sort,
+      page: body.page,
+      limit: body.limit,
+      officialOwners,
+    })
 
-  const result = await querySkills(event, {
-    search: search || undefined,
-    owner: owner || undefined,
-    official,
-    excludeOfficial,
-    supportedOnly,
-    trustTier: trustTier || undefined,
-    category: category || undefined,
-    sort: sort as 'installs' | 'name' | 'owner',
-    page,
-    limit,
-    officialOwners,
-  })
-
-  const ownerFacets = result.facets.map(f => ({
-    name: f.owner,
-    count: f.count,
-    official: officialOwners.has(f.owner),
-  }))
-
-  return {
-    items: result.items.map(s => ({
-      ...s,
-      official: officialOwners.has(s.owner),
-    })),
-    total: result.total,
-    page: result.page,
-    pages: result.pages,
-    facets: { owners: ownerFacets },
-  }
+    return {
+      items: result.items.map(skillPresenter),
+      total: result.total,
+      page: result.page,
+      pages: result.pages,
+      facets: { owners: result.facets.map(ownerFacetPresenter) },
+    }
+  },
 })

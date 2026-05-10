@@ -9,9 +9,8 @@
  *   echo "owner/repo" | npx tsx scripts/sync-repo-meta-bulk.ts > /tmp/repo-meta.sql
  */
 
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import process from 'node:process'
 
 const BATCH = 50
 

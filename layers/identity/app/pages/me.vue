@@ -53,6 +53,9 @@ useSeoMeta({ title: 'Your dashboard · skilld', robots: 'noindex' })
 
 const route = useRoute()
 const toast = useToast()
+async function clearWelcomeQuery() {
+  await navigateTo({ path: route.path, query: {} }, { replace: true })
+}
 onMounted(() => {
   if (route.query.welcome === '1') {
     toast.add({
@@ -61,7 +64,7 @@ onMounted(() => {
       color: 'success',
       icon: 'i-lucide-check-circle',
     })
-    void navigateTo({ path: route.path, query: {} }, { replace: true })
+    clearWelcomeQuery()
   }
 })
 

@@ -1,14 +1,4 @@
-/**
- * Recent updates feed: existing skills whose SKILL.md changed.
- * Reads from the materialized activity table, joined to skills for display fields.
- *
- * Cards are emitted at repo grain when 2+ skills in the same repo updated in the
- * same window — otherwise a single skill card. Bulk-update spam (e.g. an
- * `awesome-copilot`-style repo bumping all of its skills at once) collapses
- * into one card, with the skill names listed inside.
- */
-
-import { getDB } from '../../utils/db'
+import { getDB } from '../../../shared/server/db'
 
 interface ActivityRow {
   owner: string

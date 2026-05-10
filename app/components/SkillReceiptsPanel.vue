@@ -71,12 +71,6 @@ const AUDIT_META: Record<string, { icon: string, klass: string }> = {
 function auditMeta(a: SkillAudit) {
   return AUDIT_META[a.status] ?? AUDIT_META.fail!
 }
-function auditTitle(a: SkillAudit) {
-  const parts = [`${a.provider}: ${a.summary || a.status}`]
-  if (a.auditedAt)
-    parts.push(`audited ${new Date(a.auditedAt).toLocaleDateString()}`)
-  return parts.join(' · ')
-}
 function relativeDay(iso: string) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
   if (days < 1)

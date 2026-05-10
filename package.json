@@ -52,7 +52,8 @@
     "nuxt-auth-utils": "catalog:",
     "nuxt-og-image": "catalog:",
     "shiki": "catalog:",
-    "tailwindcss": "catalog:"
+    "tailwindcss": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:",

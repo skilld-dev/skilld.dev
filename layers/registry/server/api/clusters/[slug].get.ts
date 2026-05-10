@@ -1,9 +1,4 @@
-/**
- * Cluster detail: paginated list of abstract skills inside a single cluster,
- * ordered by installs DESC. 404s on unknown slug.
- */
-
-import { getDB } from '~~/server/utils/db'
+import { getDB } from '../../../../../shared/server/db'
 import { CLUSTER_BY_SLUG } from '../../data/clusters'
 
 interface SkillRow {

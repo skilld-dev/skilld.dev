@@ -1,6 +1,6 @@
 import { getGenerated, putGenerated, sha1 } from '~~/layers/registry/server/utils/skill-generated'
 /// <reference types="@cloudflare/workers-types" />
-import { callHaiku, extractJson } from '~~/server/utils/anthropic'
+import { callHaiku, extractJson } from '~~/shared/server/anthropic'
 
 export interface SummaryPayload {
   tagline: string

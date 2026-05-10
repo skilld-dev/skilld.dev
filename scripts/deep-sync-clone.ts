@@ -18,11 +18,14 @@
 
 import type { SkillTrustTier } from '~~/layers/registry/server/utils/skill-trust'
 import { execFile, execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { promisify } from 'node:util'
+import { parseSkillFile } from '~~/layers/registry/server/utils/skill-frontmatter'
+import { isOfficialSkillRepo, scoreSkillIndexability } from '~~/layers/registry/server/utils/skill-indexability'
+import { resolveSkillTrust } from '~~/layers/registry/server/utils/skill-trust'
 
 const execFileP = promisify(execFile)
 async function runP(cmd: string, args: string[], opts: { timeout?: number, maxBuffer?: number, cwd?: string } = {}): Promise<{ stdout: string, stderr: string, code: number }> {
@@ -35,9 +38,6 @@ async function runP(cmd: string, args: string[], opts: { timeout?: number, maxBu
     return { stdout: err.stdout ?? '', stderr: err.stderr ?? String(e), code: err.code ?? 1 }
   }
 }
-import { parseSkillFile } from '~~/layers/registry/server/utils/skill-frontmatter'
-import { isOfficialSkillRepo, scoreSkillIndexability } from '~~/layers/registry/server/utils/skill-indexability'
-import { resolveSkillTrust } from '~~/layers/registry/server/utils/skill-trust'
 
 interface TopRepo { owner: string, repo: string, stars: number }
 interface KindOverride { kind: 'creator' | 'catalog' | 'aggregator' }
@@ -49,7 +49,10 @@ const CONCURRENCY = +(args[args.indexOf('--concurrency') + 1] ?? 6)
 const reposIdx = args.indexOf('--repos')
 const EXPLICIT = reposIdx >= 0 ? (args[reposIdx + 1] ?? '').split(',').filter(Boolean) : []
 const TOKEN = process.env.GITHUB_TOKEN
-if (!TOKEN) { console.error('GITHUB_TOKEN required'); process.exit(1) }
+if (!TOKEN) {
+  console.error('GITHUB_TOKEN required')
+  process.exit(1)
+}
 const ACCOUNT_ID = '5904138d55ca25d5670dca6adf99894e'
 const MAX_CLONE_BYTES = 600 * 1024 * 1024 // 600MB safety cap
 
@@ -94,8 +97,13 @@ function fetchRepoMeta(repos: TopRepo[]): Map<string, RepoMetaNode | null> {
       `  r${j}: repository(owner: "${r.owner}", name: "${r.repo}") { stargazerCount forkCount pushedAt createdAt description defaultBranchRef { name } }`,
     ).join('\n')}\n}`
     let res
-    try { res = ghGraphql(q) }
-    catch (e) { console.error(`  graphql batch ${i} failed`); continue }
+    try {
+      res = ghGraphql(q)
+    }
+    catch {
+      console.error(`  graphql batch ${i} failed`)
+      continue
+    }
     const notFound = new Set<number>()
     for (const e of res.errors ?? []) {
       if (e.type === 'NOT_FOUND' && e.path?.[0]?.startsWith('r'))
@@ -216,10 +224,15 @@ function dirSize(dir: string): number {
     const out = execFileSync('du', ['-sb', dir], { encoding: 'utf-8' })
     return +(out.split(/\s/)[0] ?? 0)
   }
-  catch { return 0 }
+  catch {
+    return 0
+  }
 }
 
-let okCount = 0; let failCount = 0; let skillCount = 0; let revCount = 0
+let okCount = 0
+let failCount = 0
+let skillCount = 0
+let revCount = 0
 
 async function syncRepo(target: TopRepo, meta: RepoMetaNode | null, kindOv: Map<string, KindOverride['kind']>, trustOv: Map<string, TrustOverride>) {
   const { owner, repo } = target
@@ -402,7 +415,10 @@ async function syncRepo(target: TopRepo, meta: RepoMetaNode | null, kindOv: Map<
 // Main
 let top: TopRepo[]
 if (EXPLICIT.length) {
-  top = EXPLICIT.map((s) => { const [o, r] = s.split('/'); return { owner: o!, repo: r!, stars: 0 } })
+  top = EXPLICIT.map((s) => {
+    const [o, r] = s.split('/')
+    return { owner: o!, repo: r!, stars: 0 }
+  })
   console.error(`[deep-sync-clone] ${top.length} explicit repos`)
 }
 else {
@@ -431,13 +447,15 @@ for (const r of d1Query<{ owner: string, repo: string, kind: KindOverride['kind'
 console.error(`[deep-sync-clone] starting ${top.length} repos at concurrency ${CONCURRENCY}...`)
 
 let cursor = 0
-async function worker(workerId: number) {
+async function worker(_workerId: number) {
   while (true) {
     const i = cursor++
     if (i >= top.length)
       return
     const t = top[i]!
-    try { await syncRepo(t, meta.get(`${t.owner}/${t.repo}`) ?? null, kindOv, trustOv) }
+    try {
+      await syncRepo(t, meta.get(`${t.owner}/${t.repo}`) ?? null, kindOv, trustOv)
+    }
     catch (e) {
       console.error(`  ! ${t.owner}/${t.repo}: ${(e as Error).message?.slice(0, 200)}`)
       failCount++

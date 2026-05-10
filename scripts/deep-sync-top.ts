@@ -165,7 +165,10 @@ for (const r of d1Query<{ owner: string, repo: string, kind: KindOverride['kind'
   kindOverrides.set(`${r.owner}/${r.repo}`, r.kind)
 }
 
-let okCount = 0; let failCount = 0; let skillCount = 0; let revCount = 0
+let okCount = 0
+let failCount = 0
+let skillCount = 0
+let revCount = 0
 
 for (const { owner, repo } of top) {
   const slug = `${owner}/${repo}`

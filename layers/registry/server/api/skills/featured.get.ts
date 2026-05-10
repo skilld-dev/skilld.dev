@@ -1,13 +1,10 @@
 import type { TagPayload } from '../../jobs/generate-tags'
 import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
 import { getFeaturedOfficialSections, getTopReposByCount, getTopReposByStars } from '~~/layers/registry/server/utils/skills-registry'
-import { getDB } from '~~/server/utils/db'
+import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
+import { FeaturedSkillsQuery } from '../../schemas/featured-query'
 
-const DEFAULT_ORG_COUNT = 6
-const DEFAULT_PER_ORG = 4
-const DEFAULT_DEV_COUNT = 12
-const DEFAULT_PER_DEV = 12
 const OWNER_FRESH_SECONDS = 7 * 86400
 
 interface OwnerProfileRow {
@@ -19,10 +16,7 @@ interface OwnerProfileRow {
 
 async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerProfileRow | null> {
   const res = await fetch(`https://api.github.com/users/${owner}`, {
-    headers: {
-      'User-Agent': 'skilld.dev',
-      'Accept': 'application/vnd.github+json',
-    },
+    headers: { 'User-Agent': 'skilld.dev', 'Accept': 'application/vnd.github+json' },
   }).catch(() => null)
 
   if (!res?.ok)
@@ -39,27 +33,23 @@ async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerP
   }
 
   const kind = data.type === 'Organization' ? 'org' : 'user'
-  await db
-    .prepare(
-      `INSERT INTO owners (owner, kind, name, bio, blog, location, followers, public_repos, last_synced_at, sync_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), 'ok')
-       ON CONFLICT(owner) DO UPDATE SET
-         kind = excluded.kind, name = excluded.name, bio = excluded.bio, blog = excluded.blog,
-         location = excluded.location, followers = excluded.followers, public_repos = excluded.public_repos,
-         last_synced_at = excluded.last_synced_at, sync_status = 'ok'`,
-    )
-    .bind(
-      owner,
-      kind,
-      data.name?.trim() || null,
-      data.bio?.trim() || null,
-      data.blog?.trim() || null,
-      data.location?.trim() || null,
-      data.followers ?? 0,
-      data.public_repos ?? 0,
-    )
-    .run()
-    .catch(() => {})
+  await db.prepare(
+    `INSERT INTO owners (owner, kind, name, bio, blog, location, followers, public_repos, last_synced_at, sync_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch(), 'ok')
+     ON CONFLICT(owner) DO UPDATE SET
+       kind = excluded.kind, name = excluded.name, bio = excluded.bio, blog = excluded.blog,
+       location = excluded.location, followers = excluded.followers, public_repos = excluded.public_repos,
+       last_synced_at = excluded.last_synced_at, sync_status = 'ok'`,
+  ).bind(
+    owner,
+    kind,
+    data.name?.trim() || null,
+    data.bio?.trim() || null,
+    data.blog?.trim() || null,
+    data.location?.trim() || null,
+    data.followers ?? 0,
+    data.public_repos ?? 0,
+  ).run().catch(() => { })
 
   return {
     name: data.name?.trim() || null,
@@ -84,7 +74,6 @@ async function loadOwnerProfiles(owners: string[], db: D1Database): Promise<Map<
       profiles.set(owner, cached)
       return
     }
-
     const fetched = await fetchAndStoreOwner(owner, db)
     if (fetched)
       profiles.set(owner, fetched)
@@ -95,54 +84,45 @@ async function loadOwnerProfiles(owners: string[], db: D1Database): Promise<Map<
   return profiles
 }
 
-function boundedNumber(value: unknown, fallback: number, min: number, max: number): number {
-  const parsed = Number(value)
-  const n = Number.isFinite(parsed) ? parsed : fallback
-  return Math.min(Math.max(n, min), max)
-}
+export default defineApiHandler({
+  schema: FeaturedSkillsQuery,
+  handler: async ({ event, body, platform }) => {
+    const { orgs, perOrg, devs, perDev } = body
+    const orgRepos = officialRepos.filter(r => r.kind === 'org')
+    const userRepos = officialRepos.filter(r => r.kind === 'user')
 
-export default defineEventHandler(async (event) => {
-  const query = getQuery(event)
-  const orgCount = boundedNumber(query.orgs, DEFAULT_ORG_COUNT, 0, 20)
-  const perOrg = boundedNumber(query.perOrg, DEFAULT_PER_ORG, 1, 12)
-  const devCount = boundedNumber(query.devs, DEFAULT_DEV_COUNT, 0, 30)
-  const perDev = boundedNumber(query.perDev, DEFAULT_PER_DEV, 1, 12)
+    const [featuredOrgs, featuredDevs] = await Promise.all([
+      orgs > 0 ? getTopReposByCount(event, orgRepos, orgs) : Promise.resolve([]),
+      devs > 0 ? getTopReposByStars(event, userRepos, devs) : Promise.resolve([]),
+    ])
 
-  const orgRepos = officialRepos.filter(r => r.kind === 'org')
-  const userRepos = officialRepos.filter(r => r.kind === 'user')
+    const [sections, devSections] = await Promise.all([
+      getFeaturedOfficialSections(event, featuredOrgs, perOrg),
+      getFeaturedOfficialSections(event, featuredDevs, perDev),
+    ])
 
-  const [featuredOrgs, featuredDevs] = await Promise.all([
-    orgCount > 0 ? getTopReposByCount(event, orgRepos, orgCount) : Promise.resolve([]),
-    devCount > 0 ? getTopReposByStars(event, userRepos, devCount) : Promise.resolve([]),
-  ])
+    const allKeys = [...sections, ...devSections].flatMap(s => s.skills.map(sk => ({ owner: sk.owner, name: sk.name })))
+    const tagMap = await getGeneratedBatch<TagPayload>(platform.db, allKeys, 'tags')
 
-  const [sections, devSections] = await Promise.all([
-    getFeaturedOfficialSections(event, featuredOrgs, perOrg),
-    getFeaturedOfficialSections(event, featuredDevs, perDev),
-  ])
+    const enrichSkills = (section: typeof sections[number]) => ({
+      ...section,
+      skills: section.skills.map(skill => ({
+        ...skill,
+        tags: tagMap.get(`${skill.owner}/${skill.name}`)?.payload.tags ?? [],
+      })),
+    })
 
-  const allKeys = [...sections, ...devSections].flatMap(s => s.skills.map(sk => ({ owner: sk.owner, name: sk.name })))
-  const tagMap = await getGeneratedBatch<TagPayload>(getDB(event), allKeys, 'tags')
+    const profileMap = await loadOwnerProfiles(devSections.map(s => s.owner), platform.db)
+    const enriched = sections.map(enrichSkills)
+    const enrichedDevs = devSections.map((section) => {
+      const profile = profileMap.get(section.owner)
+      return {
+        ...enrichSkills(section),
+        displayName: profile?.name || section.owner,
+        description: profile?.bio ?? null,
+      }
+    })
 
-  const enrichSkills = (section: typeof sections[number]) => ({
-    ...section,
-    skills: section.skills.map(skill => ({
-      ...skill,
-      tags: tagMap.get(`${skill.owner}/${skill.name}`)?.payload.tags ?? [],
-    })),
-  })
-
-  const db = getDB(event)
-  const profileMap = await loadOwnerProfiles(devSections.map(section => section.owner), db)
-  const enriched = sections.map(enrichSkills)
-  const enrichedDevs = devSections.map((section) => {
-    const profile = profileMap.get(section.owner)
-    return {
-      ...enrichSkills(section),
-      displayName: profile?.name || section.owner,
-      description: profile?.bio ?? null,
-    }
-  })
-
-  return { sections: enriched, devSections: enrichedDevs }
+    return { sections: enriched, devSections: enrichedDevs }
+  },
 })

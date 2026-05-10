@@ -1,4 +1,4 @@
-import { getDB } from '../../utils/db'
+import { getDB } from '../../../shared/server/db'
 
 interface CollectionRow {
   id: number

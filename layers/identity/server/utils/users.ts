@@ -28,7 +28,7 @@ export interface GitHubProfile {
 }
 
 function db(event: H3Event): D1Database {
-  return event.context.cloudflare.env.DB as D1Database
+  return event.context.platform.db
 }
 
 export async function upsertUserFromGithub(

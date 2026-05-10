@@ -2,7 +2,7 @@ import type { RegistrySkill } from '~~/layers/registry/server/utils/skills-regis
 import type { TagPayload } from '../../jobs/generate-tags'
 import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
 import { querySkills } from '~~/layers/registry/server/utils/skills-registry'
-import { getDB } from '~~/server/utils/db'
+import { getDB } from '../../../../../shared/server/db'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 

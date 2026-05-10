@@ -307,6 +307,7 @@ function formatRelative(ts: number): string {
             signal="none"
             show-owner-path
             timestamp-label="Updated"
+            timestamp-format="relative"
           />
         </li>
       </ul>

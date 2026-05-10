@@ -1,21 +1,4 @@
-/**
- * SWR-cached live data for a skill, sourced from skills.sh:
- *   - install count (parsed from public HTML; bulk JSON endpoints are
- *     auth-gated and the API key isn't available to us right now)
- *   - security audit results from /api/v1/skills/audit/{id} (one of the few
- *     endpoints that explicitly works without authentication; 60/min per IP)
- *
- * Both upstream calls fire in parallel on cache miss / stale revalidate. SWR
- * means most page views never hit upstream.
- *
- * The endpoint also writes through `skills.installs` to D1 so that list-page
- * SSR (which reads from D1) gradually self-refreshes via foreground traffic.
- *
- * Note: we do not capture skills.sh's AI-generated `Summary` text — would be
- * duplicate content competing with skills.sh's own SEO ranking.
- */
-
-import { getDB } from '~~/server/utils/db'
+import { getDB } from '../../../../../shared/server/db'
 
 interface AuditEntry {
   provider: string

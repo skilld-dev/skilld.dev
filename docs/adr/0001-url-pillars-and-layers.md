@@ -54,3 +54,15 @@ The `/gh` prefix is an explicit signal, visible to readers, to crawlers, and to 
 - **Collapse `/gh` into `/skills/[owner]/...`:** rejected; collides with marketing namespace and with `repo === 'skills'` case.
 - **Single `/skills/[pkg]` canonical with multiple sources:** deferred; requires a package-skill table; revisit when first-party package skills ship per SCOPE.md.
 - **Allow shared server utilities across layers:** rejected; defeats the deletion test, lets layers couple silently.
+
+## Amendment 2026-05-10: framework infrastructure exception
+
+The "no shared server utils across layers" rule is about **domain** coupling; collections logic must not appear inside registry, registry data must not be reached by `app/`. It is not about **framework infrastructure**.
+
+A `shared/server/` tree is permitted for code that:
+- has no knowledge of any layer's domain (no `users`, `collections`, `skills`, `digests` references),
+- exists only to bridge Nitro/Cloudflare runtime to handlers (Platform context, error normalization, the `defineApiHandler` factory, generic zod helpers).
+
+Concretely: `shared/server/handler.ts`, `shared/server/errors.ts`, `shared/server/platform.ts` are allowed. A `shared/server/collections.ts` is not; that belongs in the app layer and crosses the HTTP seam.
+
+The deletion test still applies: deleting a layer must not break `shared/`, and deleting `shared/` must surface only as missing infrastructure (every handler fails the same way), not as cross-layer domain breakage.
