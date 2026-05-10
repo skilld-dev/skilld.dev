@@ -233,61 +233,76 @@ function formatRelative(ts: number): string {
       <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
         Opinionated sets from developers worth trusting. Some are full stacks; some are one strong skill that earns the spotlight.
       </p>
-      <ul class="grid grid-cols-1 gap-3 md:grid-cols-2 list-none p-0">
+      <ul class="space-y-10 list-none p-0">
         <li
           v-for="collection in featuredCollections"
           :key="`${collection.authorLogin}/${collection.slug}`"
         >
-          <NuxtLink
-            :to="`/@${collection.authorLogin}/${collection.slug}`"
-            class="group block h-full rounded-lg border border-default p-4 transition-colors hover:border-[var(--ui-text-muted)]"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
+          <div class="flex items-end justify-between gap-3 mb-1">
+            <div class="min-w-0">
+              <NuxtLink
+                :to="`/@${collection.authorLogin}/${collection.slug}`"
+                class="group inline-flex items-baseline gap-2"
+              >
                 <h3 class="font-mono text-sm font-medium tracking-tight group-hover:text-muted transition-colors">
                   {{ collection.name }}
                 </h3>
-                <p class="mt-1 font-mono text-xs text-muted">
-                  @{{ collection.authorLogin }} · {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'repo' : 'repos' }}
-                </p>
-              </div>
-              <UIcon
-                name="i-lucide-arrow-up-right"
-                class="mt-0.5 size-4 shrink-0 text-muted transition-colors group-hover:text-default"
-                aria-hidden="true"
-              />
-            </div>
-
-            <p
-              v-if="collection.preamble"
-              class="mt-3 text-sm text-muted leading-relaxed line-clamp-3"
-            >
-              {{ collection.preamble }}
-            </p>
-
-            <div
-              v-if="collection.skills.length"
-              class="mt-4 border-t border-default pt-3"
-            >
-              <p class="data-label mb-2">
-                Includes
+                <UIcon
+                  name="i-lucide-arrow-up-right"
+                  class="size-3.5 text-muted transition-colors group-hover:text-default"
+                  aria-hidden="true"
+                />
+              </NuxtLink>
+              <p class="mt-0.5 font-mono text-xs text-muted">
+                @{{ collection.authorLogin }} · {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'repo' : 'repos' }}
               </p>
-              <ul class="space-y-1.5 list-none p-0">
-                <li
-                  v-for="skill in collection.skills.slice(0, 3)"
-                  :key="`${collection.slug}:${skill.owner}/${skill.repo}`"
-                  class="flex items-center gap-2 font-mono text-xs text-muted"
-                >
-                  <UIcon
-                    name="i-lucide-github"
-                    class="size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span class="truncate">{{ skill.owner }}/{{ skill.repo }}</span>
-                </li>
-              </ul>
             </div>
-          </NuxtLink>
+          </div>
+          <p
+            v-if="collection.preamble"
+            class="mb-3 text-sm text-muted leading-relaxed max-w-2xl"
+          >
+            {{ collection.preamble }}
+          </p>
+
+          <ul
+            v-if="collection.skills.length"
+            class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
+          >
+            <li
+              v-for="skill in collection.skills"
+              :key="`${collection.slug}:${skill.owner}/${skill.repo}`"
+            >
+              <NuxtLink
+                :to="`/gh/${skill.owner}/${skill.repo}`"
+                :aria-label="`${skill.owner}/${skill.repo}`"
+                class="flex h-full min-h-[5rem] flex-col rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+              >
+                <p class="font-mono text-sm font-medium truncate">
+                  {{ skill.repo }}
+                </p>
+                <div class="mt-0.5 flex items-center gap-1.5">
+                  <img
+                    :src="`https://github.com/${skill.owner}.png?size=32`"
+                    :alt="skill.owner"
+                    width="16"
+                    height="16"
+                    class="size-4 shrink-0 rounded-full"
+                    loading="lazy"
+                  >
+                  <p class="text-xs text-muted truncate">
+                    {{ skill.owner }}/{{ skill.repo }}
+                  </p>
+                </div>
+                <p
+                  v-if="skill.reason"
+                  class="mt-2 text-xs text-muted leading-relaxed line-clamp-2"
+                >
+                  {{ skill.reason }}
+                </p>
+              </NuxtLink>
+            </li>
+          </ul>
         </li>
       </ul>
     </section>
