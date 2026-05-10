@@ -3,7 +3,7 @@ import type { SummaryPayload } from '../../jobs/generate-summary'
 import type { TagPayload } from '../../jobs/generate-tags'
 import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
 import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
-import { findSkill, findSupportedDuplicateGroupForSkill } from '~~/layers/registry/server/utils/skills-registry'
+import { findDuplicateGroupForSkill, findSkill } from '~~/layers/registry/server/utils/skills-registry'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
@@ -179,7 +179,7 @@ export default defineApiHandler({
         .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
         .bind(skill.owner, skill.name)
         .first<{ sha: string }>(),
-      findSupportedDuplicateGroupForSkill(event, skill.slug),
+      findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
     ])
 
     if (repoMeta === 'not-found')

@@ -70,12 +70,15 @@ export default defineCachedEventHandler(
              FROM skills
              WHERE broken_since IS NULL OR broken_since > unixepoch() - 604800
            )
-           SELECT cs.collection_id, cs.position, cs.owner, cs.repo, rs.name, rs.display_name, cs.reason
+           SELECT cs.collection_id, cs.position, cs.owner, cs.repo, COALESCE(rs.name, cs.name) AS name, rs.display_name, cs.reason
            FROM collection_skills_v2 cs
            LEFT JOIN ranked_skills rs
              ON rs.owner = cs.owner
             AND rs.repo = cs.repo
-            AND rs.rn = 1
+            AND (
+              (cs.name IS NOT NULL AND rs.name = cs.name)
+              OR (cs.name IS NULL AND rs.rn = 1)
+            )
            WHERE cs.collection_id IN (${placeholders})
            ORDER BY cs.collection_id ASC, cs.position ASC`,
         )
@@ -106,5 +109,5 @@ export default defineCachedEventHandler(
     }))
     return { items }
   },
-  { maxAge: 60, swr: true, name: 'collections-featured' },
+  { maxAge: 60, swr: true, name: 'collections-featured-v3' },
 )

@@ -482,9 +482,17 @@ const skillPagePath = computed(() => data.value ? repoSkillPath(data.value.owner
 const skillPageUrl = computed(() => `${siteOrigin}${skillPagePath.value}`)
 const duplicateGroup = computed(() => data.value?.duplicateGroup ?? null)
 const isWeakerDuplicate = computed(() => Boolean(duplicateGroup.value && !duplicateGroup.value.isCanonical))
-const canonicalSkillPageUrl = computed(() => {
+const canonicalSkillPagePath = computed(() => {
   const canonical = duplicateGroup.value?.canonical
-  return canonical ? `${siteOrigin}${repoSkillPath(canonical.owner, canonical.repo, canonical.name)}` : skillPageUrl.value
+  return canonical ? repoSkillPath(canonical.owner, canonical.repo, canonical.name) : skillPagePath.value
+})
+const canonicalSkillPageUrl = computed(() => {
+  return `${siteOrigin}${canonicalSkillPagePath.value}`
+})
+const duplicateReasonLabel = computed(() => {
+  return duplicateGroup.value?.reason === 'duplicate_description'
+    ? 'same skill description'
+    : 'same skill name'
 })
 
 function withSourceContext(text: string, owner: string, repo: string, max = 200): string {
@@ -736,6 +744,43 @@ useHead(computed(() => ({
           >
             {{ data.description }}
           </p>
+
+          <div
+            v-if="isWeakerDuplicate && duplicateGroup"
+            class="mt-5 flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm sm:flex-row sm:items-start"
+            role="status"
+          >
+            <UIcon
+              name="i-lucide-shield-alert"
+              class="size-5 shrink-0 text-warning"
+              aria-hidden="true"
+            />
+            <div class="min-w-0 flex-1">
+              <p class="font-medium text-default">
+                Canonical version available
+              </p>
+              <p class="mt-1 text-muted">
+                This appears to be a copy of
+                <NuxtLink
+                  :to="canonicalSkillPagePath"
+                  class="font-mono text-default hover:underline"
+                >
+                  {{ duplicateGroup.canonical.owner }}/{{ duplicateGroup.canonical.repo }}/{{ duplicateGroup.canonical.name }}
+                </NuxtLink>
+                based on the {{ duplicateReasonLabel }}.
+              </p>
+            </div>
+            <UButton
+              :to="canonicalSkillPagePath"
+              label="View canonical"
+              icon="i-lucide-arrow-right"
+              trailing
+              size="xs"
+              color="warning"
+              variant="soft"
+              class="shrink-0"
+            />
+          </div>
         </div>
 
         <div class="mt-6 space-y-3">

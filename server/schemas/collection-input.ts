@@ -5,6 +5,7 @@ const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
 export const SkillEntry = z.object({
   owner: z.string().min(1),
   repo: z.string().min(1),
+  name: z.string().min(1).nullish(),
   reason: z.string().nullish(),
 })
 

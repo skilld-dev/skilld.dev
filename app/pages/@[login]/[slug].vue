@@ -30,6 +30,16 @@ const canonicalUrl = computed(() => `https://skilld.dev/@${login.value}/${slug.v
 useHead({
   link: [{ rel: 'canonical', href: canonicalUrl }],
 })
+
+function collectionSkillPath(skill: { owner: string, repo: string, name?: string | null }) {
+  return skill.name
+    ? repoSkillPath(skill.owner, skill.repo, skill.name)
+    : repoHubPath(skill.owner, skill.repo)
+}
+
+function collectionSkillLabel(skill: { repo: string, name?: string | null, displayName?: string | null }) {
+  return skill.displayName ?? skill.name ?? skill.repo
+}
 </script>
 
 <template>
@@ -89,11 +99,14 @@ useHead({
         class="rounded-lg border border-default p-4"
       >
         <NuxtLink
-          :to="`/gh/${skill.owner}/${skill.repo}`"
+          :to="collectionSkillPath(skill)"
           class="font-mono text-sm font-medium hover:text-muted transition-colors"
         >
-          {{ skill.owner }}/{{ skill.repo }}
+          {{ collectionSkillLabel(skill) }}
         </NuxtLink>
+        <p class="mt-0.5 text-xs text-muted">
+          {{ skill.owner }}/{{ skill.repo }}
+        </p>
         <p
           v-if="skill.reason"
           class="mt-2 text-sm text-muted leading-relaxed"

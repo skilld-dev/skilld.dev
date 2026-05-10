@@ -48,6 +48,8 @@ export interface CollectionSkillRow {
   position: number
   owner: string
   repo: string
+  name: string | null
+  display_name?: string | null
   reason: string | null
 }
 
@@ -64,6 +66,8 @@ export function collectionDetailPresenter(collection: CollectionDetailRow, skill
       position: s.position,
       owner: s.owner,
       repo: s.repo,
+      name: s.name,
+      displayName: s.display_name ?? null,
       reason: s.reason,
     })),
   }

@@ -29,9 +29,9 @@ export default defineApiHandler({
 
     if (skills.length) {
       const stmts = skills.map((s, i) => db.prepare(
-        `INSERT INTO collection_skills_v2 (collection_id, position, owner, repo, reason)
-         VALUES (?1, ?2, ?3, ?4, ?5)`,
-      ).bind(insert.id, i, s.owner, s.repo, s.reason ?? null))
+        `INSERT INTO collection_skills_v2 (collection_id, position, owner, repo, name, reason)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      ).bind(insert.id, i, s.owner, s.repo, s.name ?? null, s.reason ?? null))
       await db.batch(stmts)
     }
 

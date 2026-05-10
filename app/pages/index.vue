@@ -266,7 +266,7 @@ function formatRelative(ts: number): string {
                 />
               </NuxtLink>
               <p class="mt-0.5 font-mono text-xs text-muted">
-                @{{ collection.authorLogin }} · {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'repo' : 'repos' }}
+                @{{ collection.authorLogin }} · {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'skill' : 'skills' }}
               </p>
             </div>
           </div>

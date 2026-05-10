@@ -24,10 +24,14 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Collection not found' })
 
     const skillsRes = await platform.db.prepare(
-      `SELECT position, owner, repo, reason
-       FROM collection_skills_v2
-       WHERE collection_id = ?
-       ORDER BY position ASC`,
+      `SELECT cs.position, cs.owner, cs.repo, cs.name, s.display_name, cs.reason
+       FROM collection_skills_v2 cs
+       LEFT JOIN skills s
+         ON s.owner = cs.owner
+        AND s.repo = cs.repo
+        AND s.name = cs.name
+       WHERE cs.collection_id = ?
+       ORDER BY cs.position ASC`,
     ).bind(collection.id).all<CollectionSkillRow>()
 
     return collectionDetailPresenter(collection, skillsRes.results ?? [])

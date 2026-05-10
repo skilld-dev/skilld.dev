@@ -461,10 +461,14 @@ function duplicateRowToSibling(row: DuplicateCandidate): SkillDuplicateSibling {
   }
 }
 
-async function listDuplicateCandidateRows(event: H3Event, opts: { supportedOnly: boolean }): Promise<SkillDuplicateRow[]> {
+async function listDuplicateCandidateRows(
+  event: H3Event,
+  opts: { supportedOnly: boolean, includeAggregators?: boolean },
+): Promise<SkillDuplicateRow[]> {
   const db = getDB(event)
   const supportedSelect = `CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END`
   const supportedFilter = opts.supportedOnly ? `AND (${SUPPORTED_SKILL_SQL})` : ''
+  const aggregatorFilter = opts.includeAggregators ? '' : `AND ${NOT_AGGREGATOR_SQL}`
   const res = await db
     .prepare(`
       SELECT
@@ -486,7 +490,7 @@ async function listDuplicateCandidateRows(event: H3Event, opts: { supportedOnly:
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
         AND skills.seo_indexable = 1
-        AND ${NOT_AGGREGATOR_SQL}
+        ${aggregatorFilter}
         ${supportedFilter}
       ORDER BY skills.owner ASC, skills.repo ASC, skills.name ASC
     `)
@@ -496,6 +500,15 @@ async function listDuplicateCandidateRows(event: H3Event, opts: { supportedOnly:
 
 export async function findSupportedDuplicateGroupForSkill(event: H3Event, slug: string): Promise<SkillDuplicateGroup | null> {
   const rows = await listDuplicateCandidateRows(event, { supportedOnly: true })
+  return findDuplicateGroupInRows(rows, slug)
+}
+
+export async function findDuplicateGroupForSkill(event: H3Event, slug: string): Promise<SkillDuplicateGroup | null> {
+  const rows = await listDuplicateCandidateRows(event, { supportedOnly: false, includeAggregators: true })
+  return findDuplicateGroupInRows(rows, slug)
+}
+
+function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): SkillDuplicateGroup | null {
   const group = findDuplicateGroupForSlug(rows, slug)
   if (!group)
     return null
