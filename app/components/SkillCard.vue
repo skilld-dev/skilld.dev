@@ -232,21 +232,45 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
       </template>
 
       <template v-else>
-        <div class="flex items-start justify-between gap-2">
-          <div class="flex items-center gap-1.5 min-w-0 flex-1">
-            <img
-              v-if="showOwnerAvatar"
-              :src="`https://github.com/${skill.owner}.png?size=32`"
-              :alt="skill.owner"
-              width="16"
-              height="16"
-              class="size-4 shrink-0 rounded-full"
-              loading="lazy"
-            >
-            <p class="font-mono text-sm font-medium truncate min-w-0 flex-1">
-              {{ skill.name }}
-            </p>
-          </div>
+        <div class="flex items-start gap-2">
+          <p class="font-mono text-sm font-medium truncate min-w-0 flex-1">
+            {{ skill.name }}
+          </p>
+          <span
+            v-if="!showOwnerPath && resolvedSignal === 'installs'"
+            class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
+            :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
+            :title="`${(skill.installs ?? 0).toLocaleString()} weekly installs`"
+          >
+            <UIcon name="i-lucide-arrow-down-to-line" class="size-3" aria-hidden="true" />
+            {{ formatCount(skill.installs ?? 0) }}
+          </span>
+          <span
+            v-else-if="!showOwnerPath && resolvedSignal === 'stars'"
+            class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
+            :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
+            :title="`${(skill.stars ?? 0).toLocaleString()} GitHub stars`"
+          >
+            <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
+            {{ formatStars(skill.stars ?? 0) }}
+          </span>
+        </div>
+        <div
+          v-if="showOwnerPath"
+          class="mt-0.5 flex items-center gap-1.5"
+        >
+          <img
+            v-if="showOwnerAvatar"
+            :src="`https://github.com/${skill.owner}.png?size=32`"
+            :alt="skill.owner"
+            width="16"
+            height="16"
+            class="size-4 shrink-0 rounded-full"
+            loading="lazy"
+          >
+          <p class="text-xs text-muted truncate min-w-0 flex-1">
+            {{ ownerPath }}
+          </p>
           <span
             v-if="resolvedSignal === 'installs'"
             class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
@@ -266,12 +290,6 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
             {{ formatStars(skill.stars ?? 0) }}
           </span>
         </div>
-        <p
-          v-if="showOwnerPath"
-          class="mt-0.5 text-xs text-muted truncate"
-        >
-          {{ ownerPath }}
-        </p>
         <p
           v-if="timestampLabel && timestampDate"
           class="mt-2 inline-flex items-center gap-1 text-xs text-muted"
