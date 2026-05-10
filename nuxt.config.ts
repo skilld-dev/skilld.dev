@@ -150,7 +150,11 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    '/': { swr: 300 },
+    '/': {
+      headers: {
+        'cache-control': 'no-store',
+      },
+    },
   },
   future: {
     compatibilityVersion: 5,
