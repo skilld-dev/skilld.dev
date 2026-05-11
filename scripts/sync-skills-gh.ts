@@ -19,7 +19,7 @@
 
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
-import { parseSkillFile } from '../server/utils/skill-frontmatter'
+import { parseSkillFile } from '../layers/registry/server/utils/skill-frontmatter'
 
 const args = process.argv.slice(2)
 const target = args[0]
