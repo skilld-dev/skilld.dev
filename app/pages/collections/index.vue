@@ -2,13 +2,14 @@
 interface IndexCollection {
   name: string
   slug: string
-  description: string
-  preambleExcerpt?: string
+  preamble: string | null
+  preambleExcerpt?: string | null
   skillCount: number
   skills: string[]
-  stacks: string[]
-  updatedAt: string
-  curator: { did: string, handle: string, displayName?: string, avatar?: string }
+  updatedAt: number
+  authorLogin: string
+  authorDisplayName?: string | null
+  authorAvatar?: string | null
 }
 
 interface IndexResponse {
@@ -174,32 +175,32 @@ function copyInstall(handle: string, slug: string) {
         <ul class="grid grid-cols-1 gap-3 md:grid-cols-2 list-none p-0">
           <li
             v-for="c in data.featured"
-            :key="`${c.curator.did}/${c.slug}`"
+            :key="`${c.authorLogin}/${c.slug}`"
           >
             <article class="group h-full rounded-lg border border-default p-5 transition-colors duration-200 hover:border-[var(--ui-text-muted)]">
               <h3 class="font-mono text-sm font-medium">
                 <NuxtLink
-                  :to="`/people/${c.curator.handle}/${c.slug}`"
+                  :to="`/@${c.authorLogin}/${c.slug}`"
                   class="hover:text-muted transition-colors"
                 >
                   {{ c.name }}
                 </NuxtLink>
               </h3>
               <p
-                v-if="c.preambleExcerpt || c.description"
+                v-if="c.preambleExcerpt || c.preamble"
                 class="mt-2 text-xs text-muted leading-relaxed line-clamp-3"
               >
-                {{ c.preambleExcerpt || c.description }}
+                {{ c.preambleExcerpt || c.preamble }}
               </p>
 
               <div
-                v-if="c.stacks.length"
+                v-if="c.skills.length"
                 class="mt-3 flex flex-wrap gap-1.5"
               >
                 <UBadge
-                  v-for="stack in c.stacks.slice(0, 4)"
-                  :key="stack"
-                  :label="stack"
+                  v-for="skill in c.skills.slice(0, 4)"
+                  :key="skill"
+                  :label="skill"
                   variant="subtle"
                   color="primary"
                   size="xs"
@@ -208,35 +209,35 @@ function copyInstall(handle: string, slug: string) {
 
               <div class="mt-4 flex items-center gap-2">
                 <NuxtLink
-                  :to="`/people/${c.curator.handle}`"
+                  :to="`/@${c.authorLogin}`"
                   class="flex items-center gap-2 min-w-0 flex-1 text-xs hover:text-muted transition-colors"
                 >
                   <img
-                    v-if="c.curator.avatar"
-                    :src="c.curator.avatar"
-                    :alt="`Avatar for ${c.curator.displayName || c.curator.handle}`"
+                    v-if="c.authorAvatar"
+                    :src="c.authorAvatar"
+                    :alt="`Avatar for ${c.authorDisplayName || c.authorLogin}`"
                     width="20"
                     height="20"
                     loading="lazy"
                     decoding="async"
                     class="size-5 rounded-full"
                   >
-                  <span class="truncate">{{ c.curator.displayName || c.curator.handle }}</span>
+                  <span class="truncate">{{ c.authorDisplayName || c.authorLogin }}</span>
                 </NuxtLink>
                 <span class="data-label shrink-0">{{ c.skillCount }} skills</span>
               </div>
 
               <div class="mt-3 flex items-center gap-2">
                 <code class="flex-1 truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                  {{ collectionInstallCmd(c.curator.handle, c.slug) }}
+                  {{ collectionInstallCmd(c.authorLogin, c.slug) }}
                 </code>
                 <UButton
-                  :icon="copied === `${c.curator.handle}/${c.slug}` ? 'i-lucide-check' : 'i-lucide-copy'"
+                  :icon="copied === `${c.authorLogin}/${c.slug}` ? 'i-lucide-check' : 'i-lucide-copy'"
                   size="xs"
                   color="neutral"
                   variant="ghost"
-                  :aria-label="copied === `${c.curator.handle}/${c.slug}` ? 'Copied' : `Copy install command for ${c.name}`"
-                  @click="copyInstall(c.curator.handle, c.slug)"
+                  :aria-label="copied === `${c.authorLogin}/${c.slug}` ? 'Copied' : `Copy install command for ${c.name}`"
+                  @click="copyInstall(c.authorLogin, c.slug)"
                 />
               </div>
             </article>
@@ -262,33 +263,33 @@ function copyInstall(handle: string, slug: string) {
         <ul class="grid grid-cols-1 gap-3 md:grid-cols-2 list-none p-0">
           <li
             v-for="c in data.recent"
-            :key="`${c.curator.did}/${c.slug}`"
+            :key="`${c.authorLogin}/${c.slug}`"
           >
             <NuxtLink
-              :to="`/people/${c.curator.handle}/${c.slug}`"
+              :to="`/@${c.authorLogin}/${c.slug}`"
               class="group block h-full rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
             >
               <h3 class="font-mono text-sm font-medium">
                 {{ c.name }}
               </h3>
               <p
-                v-if="c.preambleExcerpt || c.description"
+                v-if="c.preambleExcerpt || c.preamble"
                 class="mt-1 text-xs text-muted leading-relaxed line-clamp-2"
               >
-                {{ c.preambleExcerpt || c.description }}
+                {{ c.preambleExcerpt || c.preamble }}
               </p>
               <div class="mt-3 flex items-center gap-2">
                 <img
-                  v-if="c.curator.avatar"
-                  :src="c.curator.avatar"
-                  :alt="`Avatar for ${c.curator.displayName || c.curator.handle}`"
+                  v-if="c.authorAvatar"
+                  :src="c.authorAvatar"
+                  :alt="`Avatar for ${c.authorDisplayName || c.authorLogin}`"
                   width="20"
                   height="20"
                   loading="lazy"
                   decoding="async"
                   class="size-5 rounded-full"
                 >
-                <span class="text-xs truncate flex-1">{{ c.curator.displayName || c.curator.handle }}</span>
+                <span class="text-xs truncate flex-1">{{ c.authorDisplayName || c.authorLogin }}</span>
                 <span class="data-label shrink-0">{{ c.skillCount }} skills</span>
               </div>
             </NuxtLink>
