@@ -32,7 +32,15 @@ export default defineOAuthGitHubEventHandler({
 
     const query = getQuery(event)
     const action = typeof query.action === 'string' ? query.action : ''
-    const returnTo = typeof query.return_to === 'string' && query.return_to.startsWith('/') ? query.return_to : ''
+    const queryReturnTo = typeof query.return_to === 'string' && query.return_to.startsWith('/') ? query.return_to : ''
+
+    // CLI flow stashes the (longer) return_to in a cookie because OAuth round-
+    // trips drop query params. Cookie takes priority over the query string.
+    const cookieReturnTo = getCookie(event, 'cli_return_to')
+    const returnTo = (cookieReturnTo && cookieReturnTo.startsWith('/')) ? cookieReturnTo : queryReturnTo
+
+    if (cookieReturnTo)
+      deleteCookie(event, 'cli_return_to', { path: '/' })
 
     if (action.startsWith('watch-'))
       await handleWatchAction(event, row.id, action, returnTo)

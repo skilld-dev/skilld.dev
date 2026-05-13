@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const route = useRoute()
 const { loggedIn } = useUserSession()
-const { loginUrl } = useAuth()
 
 const status = ref<'loading' | 'ready' | 'done' | 'error'>('loading')
 const error = ref('')
@@ -33,7 +32,9 @@ onMounted(() => {
 
 async function initAuthorize() {
   if (!loggedIn.value) {
-    window.location.replace(loginUrl({ returnTo: returnTo.value }))
+    // Use the CLI-specific bounce so the full /cli/authorize?challenge=… URL
+    // survives the GitHub OAuth round-trip (stashed in a short-lived cookie).
+    window.location.replace(`/auth/cli-prepare?return_to=${encodeURIComponent(returnTo.value)}`)
     return
   }
 
