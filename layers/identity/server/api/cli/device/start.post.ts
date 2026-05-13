@@ -1,16 +1,12 @@
-import { z } from 'zod'
+import { DeviceStartInputSchema, DeviceStartResponseSchema } from 'skilld-protocol/wire'
 import { defineApiHandler } from '#shared/server/handler'
 import { randomBase64Url } from '../../../utils/cli-tokens'
-
-const StartInput = z.object({
-  cli_version: z.string().max(32),
-  machine_hint: z.string().max(128).optional(),
-})
 
 const USER_CODE_ALPHABET = '23456789BCDFGHJKLMNPQRSTVWXYZ'
 
 export default defineApiHandler({
-  schema: StartInput,
+  schema: DeviceStartInputSchema,
+  response: DeviceStartResponseSchema,
   handler: async ({ event, body }) => {
     const now = Math.floor(Date.now() / 1000)
     const deviceCode = randomBase64Url(32)

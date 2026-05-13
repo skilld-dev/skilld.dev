@@ -1,10 +1,6 @@
-import { z } from 'zod'
+import { OidcExchangeInputSchema, TokenResponseSchema } from 'skilld-protocol/wire'
 import { defineApiHandler } from '#shared/server/handler'
 import { issueSession } from '../../../utils/cli-tokens'
-
-const ExchangeInput = z.object({
-  id_token: z.string().min(64),
-})
 
 interface GitHubOidcClaims {
   aud: string | string[]
@@ -27,7 +23,8 @@ interface Jwk {
 let cachedJwks: { expiresAt: number, keys: Jwk[] } | null = null
 
 export default defineApiHandler({
-  schema: ExchangeInput,
+  schema: OidcExchangeInputSchema,
+  response: TokenResponseSchema,
   handler: async ({ event, body }) => {
     const claims = await verifyGitHubOidc(body.id_token)
     if (!claims)

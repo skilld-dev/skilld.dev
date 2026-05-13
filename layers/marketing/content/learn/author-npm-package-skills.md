@@ -136,6 +136,6 @@ If you want to see what a finished skill looks like before authoring one yoursel
 ## Related
 
 - [Agent Skills specification](https://agentskills.io/home)
-- [antfu/skills-npm](https://github.com/antfu/skills-npm) — convention for shipping skills in npm packages
-- [Claude Code skill best practices](https://code.claude.com/docs/en/skills#add-supporting-files) — keep SKILL.md under 500 lines, push detail into references
+- [antfu/skills-npm](https://github.com/antfu/skills-npm): convention for shipping skills in npm packages
+- [Claude Code skill best practices](https://code.claude.com/docs/en/skills#add-supporting-files): keep SKILL.md under 500 lines, push detail into references
 - [skilld on GitHub](https://github.com/skilld-dev/skilld)

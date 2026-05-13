@@ -81,7 +81,7 @@ describe('collection manifest endpoint', () => {
 
     await expect(manifestHandler(event)).resolves.toEqual({
       name: 'Empty',
-      preamble: null,
+      preamble: undefined,
       items: [],
     })
   })

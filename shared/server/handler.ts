@@ -19,6 +19,12 @@ export type Policy<B = unknown> = (ctx: HandlerCtx<B>) => boolean | Promise<bool
 
 export interface ApiHandlerOptions<S extends z.ZodTypeAny, R, P> {
   schema?: S
+  /**
+   * Protocol response schema. Dev/test: strict parse, so drift is a 500 we
+   * see in CI. Prod: soft parse + log, never block a response on a schema
+   * mismatch the CLI can already tolerate.
+   */
+  response?: z.ZodTypeAny
   policy?: Policy<z.infer<S>> | Policy<z.infer<S>>[]
   handler: (ctx: HandlerCtx<z.infer<S>>) => Promise<R> | R
   presenter?: (row: R, ctx: HandlerCtx<z.infer<S>>) => P
@@ -78,7 +84,23 @@ export function defineApiHandler<
     }
 
     const result = await opts.handler(ctx)
-    return (opts.presenter ? opts.presenter(result, ctx) : (result as unknown as P))
+    const presented = (opts.presenter ? opts.presenter(result, ctx) : (result as unknown as P))
+
+    if (opts.response) {
+      const parsed = opts.response.safeParse(presented)
+      if (!parsed.success) {
+        if (import.meta.dev || import.meta.test) {
+          throw createError({
+            statusCode: 500,
+            message: 'Response failed protocol validation',
+            data: { issues: parsed.error.issues },
+          })
+        }
+        const path = event.path ?? '<unknown>'
+        console.warn(`[api:${path}] response failed protocol validation:`, parsed.error.flatten())
+      }
+    }
+    return presented
   })
 }
 

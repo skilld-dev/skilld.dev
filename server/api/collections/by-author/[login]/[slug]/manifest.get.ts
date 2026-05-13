@@ -1,3 +1,4 @@
+import { CollectionManifestSchema } from 'skilld-protocol/wire'
 import { defineApiHandler } from '#shared/server/handler'
 
 interface ManifestRow {
@@ -8,6 +9,7 @@ interface ManifestRow {
 }
 
 export default defineApiHandler({
+  response: CollectionManifestSchema,
   handler: async ({ event, platform }) => {
     const login = getRouterParam(event, 'login') ?? ''
     const slug = getRouterParam(event, 'slug') ?? ''
@@ -43,7 +45,7 @@ export default defineApiHandler({
     const rows = res.results ?? []
     return {
       name: collection.name,
-      preamble: collection.preamble,
+      preamble: collection.preamble ?? undefined,
       items: rows.map(row => row.target_package
         ? { kind: 'npm' as const, package: row.target_package }
         : { kind: 'gh' as const, owner: row.owner, repo: row.repo }),

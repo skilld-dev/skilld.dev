@@ -1,11 +1,7 @@
-import { z } from 'zod'
+import { DevicePollInputSchema, DevicePollResponseSchema } from 'skilld-protocol/wire'
 import { defineApiHandler } from '#shared/server/handler'
 import { issueSession } from '../../../utils/cli-tokens'
 import { getUserById } from '../../../utils/users'
-
-const PollInput = z.object({
-  device_code: z.string().min(16),
-})
 
 interface DeviceRow {
   device_code: string
@@ -16,7 +12,8 @@ interface DeviceRow {
 }
 
 export default defineApiHandler({
-  schema: PollInput,
+  schema: DevicePollInputSchema,
+  response: DevicePollResponseSchema,
   handler: async ({ event, body }) => {
     const row = await event.context.platform.db.prepare(
       `SELECT * FROM cli_device_sessions WHERE device_code = ?1`,

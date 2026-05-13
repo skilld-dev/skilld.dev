@@ -17,6 +17,7 @@ export interface IssuedCliSession {
   refreshToken?: string
   expiresAt: number
   scopes: string
+  userId: number
 }
 
 interface CliTokenRow {
@@ -85,6 +86,7 @@ export async function issueSession(
     refreshToken: hasRefresh ? refreshToken : undefined,
     expiresAt: accessExpiresAt,
     scopes,
+    userId,
   }
 }
 
@@ -136,6 +138,7 @@ export async function rotateSession(event: H3Event, refreshToken: string): Promi
       refreshToken: nextRefreshToken,
       expiresAt: accessExpiresAt,
       scopes: row.scopes,
+      userId: row.user_id,
     }
   }
 
@@ -149,6 +152,7 @@ export async function rotateSession(event: H3Event, refreshToken: string): Promi
       refreshToken: await decryptRefresh(event, row.refresh_token_encrypted),
       expiresAt: accessExpiresAt,
       scopes: row.scopes,
+      userId: row.user_id,
     }
   }
 

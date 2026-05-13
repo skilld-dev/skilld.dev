@@ -1,6 +1,7 @@
 import type { FaqPayload } from '../../jobs/generate-faqs'
 import type { SummaryPayload } from '../../jobs/generate-summary'
 import type { TagPayload } from '../../jobs/generate-tags'
+import { SkillDetailResponseSchema } from 'skilld-protocol/wire'
 import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
 import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkill } from '~~/layers/registry/server/utils/skills-registry'
@@ -133,6 +134,7 @@ function isoToSecondsAgo(value: string | null | undefined): number | null {
 }
 
 export default defineApiHandler({
+  response: SkillDetailResponseSchema,
   handler: async ({ event, platform }) => {
     const slug = getRouterParam(event, 'slug')
     if (!slug)

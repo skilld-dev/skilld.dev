@@ -39,8 +39,9 @@ catalog:
   nuxt-auth-utils: ^0.5.29
   nuxt-og-image: ^6.5.0
   shiki: ^4.0.2
-  skilld-protocol: 0.1.1
+  skilld-protocol: 0.2.0
   tailwindcss: ^4.3.0
+  tsx: ^4.21.0
   typescript: ^6.0.3
   vitest: ^4.1.6
   vue-tsc: ^3.2.8

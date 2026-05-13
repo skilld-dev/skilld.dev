@@ -1,13 +1,7 @@
-import { z } from 'zod'
+import { OauthTokenInputSchema, TokenResponseSchema } from 'skilld-protocol/wire'
 import { defineApiHandler } from '#shared/server/handler'
 import { issueSession, sha256Base64Url } from '../../../utils/cli-tokens'
 import { getUserById } from '../../../utils/users'
-
-const TokenInput = z.object({
-  code: z.string().min(16),
-  code_verifier: z.string().min(32).max(256),
-  redirect_uri: z.string().url(),
-})
 
 interface AuthCodeRow {
   code: string
@@ -21,7 +15,8 @@ interface AuthCodeRow {
 }
 
 export default defineApiHandler({
-  schema: TokenInput,
+  schema: OauthTokenInputSchema,
+  response: TokenResponseSchema,
   handler: async ({ event, body }) => {
     const row = await event.context.platform.db.prepare(
       `SELECT * FROM cli_auth_codes WHERE code = ?1`,
