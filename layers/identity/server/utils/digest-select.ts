@@ -76,12 +76,13 @@ export async function selectDigestForUser(
   db: D1Database,
   user: DigestUser,
   nowSec: number,
+  opts: { windowStart?: number } = {},
 ): Promise<DigestSelection | null> {
   // Window: from MAX(last digest_runs.window_end, onboarded_at) to now.
   const last = await db.prepare(
     `SELECT MAX(window_end) AS we FROM digest_runs WHERE user_id = ?1`,
   ).bind(user.id).first<{ we: number | null }>()
-  const windowStart = Math.max(last?.we ?? 0, user.onboarded_at ?? 0)
+  const windowStart = opts.windowStart ?? Math.max(last?.we ?? 0, user.onboarded_at ?? 0)
   const windowEnd = nowSec
 
   // Aggregate activity rows joined to skill_subscriptions for this user.

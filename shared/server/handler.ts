@@ -61,7 +61,8 @@ export function defineApiHandler<
     }
 
     const session = await getUserSession(event).catch(() => null) as UserSession | null
-    const user = session?.user ?? null
+    const bearerUser = session?.user ? null : await resolveBearerUser(event)
+    const user = session?.user ?? bearerUser
 
     if (opts.requireAuth && !user) {
       throw createError({ statusCode: 401, message: 'Not signed in' })
@@ -79,6 +80,11 @@ export function defineApiHandler<
     const result = await opts.handler(ctx)
     return (opts.presenter ? opts.presenter(result, ctx) : (result as unknown as P))
   })
+}
+
+async function resolveBearerUser(event: H3Event): Promise<UserSession['user'] | null> {
+  const { resolveBearerSession } = await import('~~/layers/identity/server/utils/bearer')
+  return await resolveBearerSession(event)
 }
 
 function isMethodWithBody(event: H3Event): boolean {

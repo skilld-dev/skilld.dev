@@ -10,6 +10,7 @@
 export interface Platform {
   db: D1Database
   ai: Ai
+  SKILLD_ANALYTICS?: AnalyticsEngineDataset
   env: CloudflareEnv
   requestId: string
 }
@@ -20,6 +21,7 @@ export interface CloudflareEnv {
   KV_CACHE: KVNamespace
   KV_DATA: KVNamespace
   EMAIL: { send: (msg: unknown) => Promise<void> }
+  SKILLD_ANALYTICS?: AnalyticsEngineDataset
   [key: string]: unknown
 }
 

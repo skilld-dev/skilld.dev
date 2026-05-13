@@ -9,6 +9,7 @@ export default defineNitroPlugin((nitroApp) => {
     const platform: Platform = {
       db: env.DB,
       ai: env.AI,
+      SKILLD_ANALYTICS: env.SKILLD_ANALYTICS,
       env,
       requestId: crypto.randomUUID(),
     }

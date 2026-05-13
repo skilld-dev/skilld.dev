@@ -95,6 +95,9 @@ export default defineNuxtConfig({
         d1_databases: [
           { binding: 'DB', database_name: 'skilld-db', database_id: 'a5e53f35-f5e5-4987-8c67-c0175addc7cc' },
         ],
+        analytics_engine_datasets: [
+          { binding: 'SKILLD_ANALYTICS', dataset: 'skilld_cli_v1' },
+        ],
         // Cloudflare send_email binding. Each recipient must be a Verified
         // Destination Address in the dashboard until Send Email is enabled
         // for arbitrary destinations.
