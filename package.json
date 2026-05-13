@@ -52,6 +52,7 @@
     "nuxt-auth-utils": "catalog:",
     "nuxt-og-image": "catalog:",
     "shiki": "catalog:",
+    "skilld-protocol": "catalog:",
     "tailwindcss": "catalog:",
     "zod": "catalog:"
   },
@@ -71,6 +72,7 @@
     "happy-dom": "catalog:",
     "lint-staged": "catalog:",
     "nitro-cloudflare-dev": "catalog:",
+    "tsx": "^4.21.0",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "vue-tsc": "catalog:",
