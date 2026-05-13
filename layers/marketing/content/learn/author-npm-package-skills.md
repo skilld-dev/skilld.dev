@@ -10,6 +10,8 @@ createdAt: 2026-05-13
 updatedAt: 2026-05-13
 ---
 
+**TL;DR.** `skilld author package` reads your `docs/`, `README`, `CHANGELOG`, and GitHub issues, then writes a SKILL.md into `skills/<name>/`. Patches `package.json` so it ships in your tarball. Consumers run `skilld prepare` and the skill links into their agent.
+
 If you maintain an [npm](https://npmjs.com) package, your README is already drifting from your code. Agents that pull "latest docs" from a generic indexer get a snapshot of yesterday plus whatever stale Stack Overflow answer ranked well. The fix is to ship a SKILL.md with the package itself, versioned alongside the code, so the agent reads what you published.
 
 This guide walks through `skilld author package`: what it reads, what it writes, and how consumers pick it up. The output follows the [Agent Skills specification](https://agentskills.io/home) and is compatible with [antfu's skills-npm convention](https://github.com/antfu/skills-npm), so consumers using either toolchain see the same files.
