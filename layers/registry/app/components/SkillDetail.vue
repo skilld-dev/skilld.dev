@@ -206,15 +206,16 @@ interface SkillAudit {
 const liveId = computed(() =>
   data.value ? `${data.value.owner}/${data.value.repo}/${data.value.name}` : null,
 )
-const { data: liveSkill } = useFetch(
-  () => `/api/skill-live/${liveId.value}`,
+const { data: liveSkill } = useAsyncData(
+  () => `skill-live:${liveId.value ?? 'none'}`,
+  () => liveId.value ? $fetch(`/api/skill-live/${liveId.value}`) : null,
   {
     watch: [liveId],
     server: false,
     lazy: true,
     default: () => null,
   },
-) as ReturnType<typeof useFetch<{
+) as ReturnType<typeof useAsyncData<{
   installs: number | null
   formatted: string | null
   audits: SkillAudit[]

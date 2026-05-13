@@ -78,8 +78,9 @@ function formatTimestamp(epochSeconds: number): string {
   }).format(new Date(epochSeconds * 1000))
 }
 
+const renderNow = useState('render:now', () => Date.now())
 function formatRelative(epochSeconds: number): string {
-  const diff = Date.now() - epochSeconds * 1000
+  const diff = renderNow.value - epochSeconds * 1000
   const days = Math.floor(diff / 86_400_000)
   if (days < 1)
     return 'today'

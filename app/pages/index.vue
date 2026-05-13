@@ -81,8 +81,9 @@ const { data: domainData } = useAsyncData('home-domains', async () => {
 })
 const domainSections = computed(() => domainData.value ?? [])
 
+const renderNow = useState('render:now', () => Date.now())
 function formatRelative(ts: number): string {
-  const diff = Date.now() - ts * 1000
+  const diff = renderNow.value - ts * 1000
   const days = Math.floor(diff / 86_400_000)
   if (days < 1)
     return 'today'
