@@ -55,7 +55,7 @@ function formatInstalls(n: number): string {
           v-if="c.examples.length"
           class="mt-3 font-mono text-xs text-muted line-clamp-2"
         >
-          {{ c.examples.slice(0, 3).map(e => e.name).join(' · ') }}
+          {{ c.examples.slice(0, 3).map(e => `/${e.name}`).join(' · ') }}
         </p>
         <p class="mt-3 font-mono text-xs text-muted">
           {{ c.skillCount }} {{ c.skillCount === 1 ? 'skill' : 'skills' }}
