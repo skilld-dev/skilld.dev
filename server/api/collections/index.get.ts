@@ -119,7 +119,7 @@ async function loadSkillLabels(db: D1Database, rows: CollectionIndexRow[]) {
 
   for (const skill of skillsRes.results ?? []) {
     const labels = skillsByCollection.get(skill.collection_id) ?? []
-    labels.push(skill.display_name ?? skill.name ?? skill.repo)
+    labels.push(skill.name ? `/${skill.name}` : skill.repo)
     skillsByCollection.set(skill.collection_id, labels)
   }
 

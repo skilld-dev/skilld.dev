@@ -51,7 +51,7 @@ function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
 }
 
 function featuredCollectionSkillLabel(skill: FeaturedCollectionSkill): string {
-  return skill.displayName ?? skill.name ?? skill.repo
+  return skill.name ? `/${skill.name}` : skill.repo
 }
 
 interface DomainCategory {
@@ -373,7 +373,7 @@ function formatRelative(ts: number): string {
               {{ item.skillCount }} skills updated
             </p>
             <p class="mt-2 font-mono text-xs text-muted line-clamp-2">
-              {{ item.skills.slice(0, 4).map(s => s.name).join(' · ') }}{{ item.skillCount > 4 ? ` · +${item.skillCount - 4} more` : '' }}
+              {{ item.skills.slice(0, 4).map(s => `/${s.name}`).join(' · ') }}{{ item.skillCount > 4 ? ` · +${item.skillCount - 4} more` : '' }}
             </p>
             <p class="mt-2 font-mono text-xs text-muted">
               Updated {{ formatRelative(item.occurredAt) }}

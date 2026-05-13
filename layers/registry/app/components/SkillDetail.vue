@@ -690,7 +690,7 @@ useHead(computed(() => ({
                   id="skill-heading"
                   class="font-mono text-xl font-medium"
                 >
-                  {{ data.displayName || data.name }}
+                  /{{ data.name }}
                 </h1>
                 <UBadge
                   v-if="data.tier === 'official-org'"
@@ -1613,7 +1613,7 @@ useHead(computed(() => ({
               >
               <div class="min-w-0 flex-1">
                 <div class="truncate font-mono text-sm">
-                  {{ item.name }}
+                  /{{ item.name }}
                 </div>
                 <div class="data-label mt-0.5 truncate">
                   {{ item.owner }}{{ item.repo !== 'skills' ? `/${item.repo}` : '' }}

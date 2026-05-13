@@ -37,8 +37,8 @@ function collectionSkillPath(skill: { owner: string, repo: string, name?: string
     : repoHubPath(skill.owner, skill.repo)
 }
 
-function collectionSkillLabel(skill: { repo: string, name?: string | null, displayName?: string | null }) {
-  return skill.displayName ?? skill.name ?? skill.repo
+function collectionSkillLabel(skill: { repo: string, name?: string | null }) {
+  return skill.name ? `/${skill.name}` : skill.repo
 }
 </script>
 

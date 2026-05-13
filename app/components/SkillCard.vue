@@ -149,7 +149,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
   <div class="group relative h-full">
     <NuxtLink
       :to="skillPath"
-      :aria-label="`${skill.name} by ${skill.owner}`"
+      :aria-label="`/${skill.name} by ${skill.owner}`"
       :class="linkClasses"
     >
       <template v-if="variant === 'list'">
@@ -165,7 +165,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
               loading="lazy"
             >
             <p class="font-mono text-sm font-medium truncate">
-              {{ skill.name }}
+              /{{ skill.name }}
             </p>
             <div
               v-if="showTags && skill.tags?.length"
@@ -234,7 +234,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
       <template v-else>
         <div class="flex items-start gap-2">
           <p class="font-mono text-sm font-medium truncate min-w-0 flex-1">
-            {{ skill.name }}
+            /{{ skill.name }}
           </p>
           <span
             v-if="!showOwnerPath && resolvedSignal === 'installs'"
@@ -337,7 +337,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
       variant="ghost"
       class="absolute z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
       :class="buttonPositionClass"
-      :aria-label="copied ? 'Copied' : `Copy install command for ${skill.name}`"
+      :aria-label="copied ? 'Copied' : `Copy install command for /${skill.name}`"
       @click.stop.prevent="copy(installCmd)"
     />
   </div>

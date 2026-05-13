@@ -1,3 +1,4 @@
+import { DigestResponseSchema } from 'skilld-protocol/wire'
 import { z } from 'zod'
 import { defineApiHandler } from '#shared/server/handler'
 import { authenticated } from '../../policies/authenticated'
@@ -10,6 +11,7 @@ const ChangesInput = z.object({
 
 export default defineApiHandler({
   schema: ChangesInput,
+  response: DigestResponseSchema,
   policy: [authenticated],
   handler: async ({ event, body, user }) => {
     const row = await getUserById(event, user!.id)

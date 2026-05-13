@@ -101,7 +101,7 @@ export async function requireUserRow(event: H3Event): Promise<UserRow> {
   // `defineApiHandler` on `event.context.user`. Bearer path must be honored
   // here so the CLI can hit any `/me/*` endpoint that uses requireUserRow.
   const session = await getUserSession(event).catch(() => null)
-  const ctxUser = (event.context.user as { id?: number } | undefined)
+  const ctxUser = event.context.user as { id?: number } | undefined
   const id = (session?.user as { id?: number } | undefined)?.id ?? ctxUser?.id
   if (!id)
     throw createError({ statusCode: 401, message: 'Not signed in' })
