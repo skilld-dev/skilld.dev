@@ -33,7 +33,9 @@ export function useInstallCopy(
           ? { owner: t.owner, name: t.name }
           : { handle: t.handle, slug: t.slug }),
       },
-    }).catch(() => {})
+    }).catch((error) => {
+      console.warn('[install-copy] Failed to record install event:', error)
+    })
   }
 
   return { copy, copied }

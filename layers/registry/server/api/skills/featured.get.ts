@@ -49,7 +49,9 @@ async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerP
     data.location?.trim() || null,
     data.followers ?? 0,
     data.public_repos ?? 0,
-  ).run().catch(() => { })
+  ).run().catch((error) => {
+    console.warn(`[featured-skills] Failed to cache owner profile for ${owner}:`, error)
+  })
 
   return {
     name: data.name?.trim() || null,
