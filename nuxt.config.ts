@@ -2,6 +2,7 @@ export default defineNuxtConfig({
   extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing'],
 
   modules: [
+    './modules/mdxg/src/module',
     '@nuxt/eslint',
     '@nuxt/ui',
     '@nuxt/fonts',
