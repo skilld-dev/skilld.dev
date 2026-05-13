@@ -5,6 +5,7 @@ import type { SkillTrustTier } from './skill-trust'
 import { getCommits, getRawFile, getRepo, getTree, logRateLimit } from './github-client'
 import { parseSkillFile } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
+import { parseSkillMd } from './skill-md-render'
 import { resolveSkillTrust } from './skill-trust'
 
 export interface SyncRepoStats {
@@ -240,6 +241,15 @@ export async function syncRepo(
     const assets = collectAssets(tree.tree, file.dirName)
     const refsCount = assets.length
     const description = parsed.description || repoDescription
+    const skillDir = file.path.replace(/\/SKILL\.md$/, '')
+    const rendered = parseSkillMd(raw, {
+      owner,
+      repo,
+      name: parsed.name,
+      branch,
+      skillDir,
+      filePath: '',
+    })
     const isNewToRegistry = !prev || prev.current_sha == null
     const contentChanged = prev?.current_sha !== file.treeSha
     const firstSeenAt = prev?.first_seen_at ?? now
@@ -311,8 +321,9 @@ export async function syncRepo(
            is_official, source_resolved, seo_index_score, seo_indexable,
            seo_index_reasons, seo_index_synced_at,
            trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-           repo_skill_count, repo_kind, repo_kind_source
-         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           repo_skill_count, repo_kind, repo_kind_source,
+           rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at
+         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?)
          ON CONFLICT(owner, name) DO UPDATE SET
            repo = excluded.repo,
            display_name = excluded.display_name,
@@ -345,7 +356,13 @@ export async function syncRepo(
            trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at),
            repo_skill_count = excluded.repo_skill_count,
            repo_kind = CASE WHEN skills.repo_kind_source = 'override' THEN skills.repo_kind ELSE excluded.repo_kind END,
-           repo_kind_source = skills.repo_kind_source`,
+           repo_kind_source = skills.repo_kind_source,
+           rendered_skill_path = excluded.rendered_skill_path,
+           rendered_status = excluded.rendered_status,
+           rendered_raw = excluded.rendered_raw,
+           rendered_frontmatter = excluded.rendered_frontmatter,
+           rendered_html = excluded.rendered_html,
+           rendered_at = excluded.rendered_at`,
       )
       .bind(
         parsed.name,
@@ -380,6 +397,11 @@ export async function syncRepo(
         skillFiles.length,
         repoKind,
         repoKindSource,
+        file.path,
+        raw,
+        JSON.stringify(rendered.frontmatter),
+        rendered.html,
+        now,
       )
       .run()
     stats.skillsUpserted += 1

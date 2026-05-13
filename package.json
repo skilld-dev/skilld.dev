@@ -52,7 +52,7 @@
     "nuxt-auth-utils": "catalog:",
     "nuxt-og-image": "catalog:",
     "shiki": "catalog:",
-    "skilld-protocol": "catalog:",
+    "skilld-protocol": "0.2.2",
     "tailwindcss": "catalog:",
     "zod": "catalog:"
   },

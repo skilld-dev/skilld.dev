@@ -4,6 +4,7 @@ import { defineApiHandler } from '#shared/server/handler'
 interface ManifestRow {
   owner: string
   repo: string
+  name: string
   position: number
   target_package: string | null
 }
@@ -30,15 +31,16 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Collection not found' })
 
     const res = await platform.db.prepare(
-      `SELECT cs.owner, cs.repo, cs.position,
+      `SELECT cs.owner, cs.repo, cs.name, cs.position,
               MIN(s.target_package) AS target_package
        FROM collection_skills_v2 cs
        LEFT JOIN skills s
          ON s.owner = cs.owner
         AND s.repo = cs.repo
+        AND s.name = cs.name
         AND s.target_package IS NOT NULL
        WHERE cs.collection_id = ?1
-       GROUP BY cs.owner, cs.repo, cs.position
+       GROUP BY cs.owner, cs.repo, cs.name, cs.position
        ORDER BY cs.position`,
     ).bind(collection.id).all<ManifestRow>()
 
@@ -48,7 +50,7 @@ export default defineApiHandler({
       preamble: collection.preamble ?? undefined,
       items: rows.map(row => row.target_package
         ? { kind: 'npm' as const, package: row.target_package }
-        : { kind: 'gh' as const, owner: row.owner, repo: row.repo }),
+        : { kind: 'gh' as const, owner: row.owner, repo: row.repo, name: row.name }),
     }
   },
 })

@@ -25,20 +25,22 @@ describe('collection manifest endpoint', () => {
         collection_id INTEGER NOT NULL,
         position INTEGER NOT NULL,
         owner TEXT NOT NULL,
-        repo TEXT NOT NULL
+        repo TEXT NOT NULL,
+        name TEXT NOT NULL
       );
       CREATE TABLE skills (
         owner TEXT NOT NULL,
         repo TEXT NOT NULL,
+        name TEXT NOT NULL,
         target_package TEXT
       );
 
       INSERT INTO users VALUES (1, 'harlan');
       INSERT INTO collections_v2 VALUES (1, 1, 'stack', 'Stack', 'Install these.', NULL);
       INSERT INTO collections_v2 VALUES (2, 1, 'empty', 'Empty', NULL, NULL);
-      INSERT INTO collection_skills_v2 VALUES (1, 1, 'nuxt', 'nuxt');
-      INSERT INTO collection_skills_v2 VALUES (1, 2, 'other', 'repo');
-      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt');
+      INSERT INTO collection_skills_v2 VALUES (1, 1, 'nuxt', 'nuxt', 'nuxt');
+      INSERT INTO collection_skills_v2 VALUES (1, 2, 'other', 'repo', 'tool');
+      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'nuxt');
     `)
 
     event = {
@@ -70,7 +72,7 @@ describe('collection manifest endpoint', () => {
       preamble: 'Install these.',
       items: [
         { kind: 'npm', package: 'nuxt' },
-        { kind: 'gh', owner: 'other', repo: 'repo' },
+        { kind: 'gh', owner: 'other', repo: 'repo', name: 'tool' },
       ],
     })
   })

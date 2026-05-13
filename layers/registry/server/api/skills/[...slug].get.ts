@@ -1,3 +1,4 @@
+import type { H3Event } from 'h3'
 import type { FaqPayload } from '../../jobs/generate-faqs'
 import type { SummaryPayload } from '../../jobs/generate-summary'
 import type { TagPayload } from '../../jobs/generate-tags'
@@ -19,34 +20,9 @@ interface CuratorEndorsement {
   reason?: string
 }
 
-interface UnghRepo {
-  id: number
-  name: string
-  repo: string
-  description: string | null
-  createdAt: string
-  updatedAt: string
-  pushedAt: string
-  stars: number
-  watchers: number
-  forks: number
-  defaultBranch: string
-}
-
-interface UnghTreeFile {
-  path: string
-  mode: string
-  sha: string
-  size: number
-}
-
 const ENDORSEMENTS_CACHE_KEY = 'skills:endorsement-map'
 const ENDORSEMENTS_CACHE_TTL = 60 * 5
-const REPO_META_CACHE_TTL = 60 * 15
-const REPO_MISSING_CACHE_TTL = 60 * 60 * 24
-const REPO_TREE_CACHE_TTL = 60 * 60 * 6
-const RENDERED_CACHE_TTL = 60 * 60 * 24 * 7
-const RENDERED_MISSING_TTL = 60 * 60 * 24
+const STALE_AFTER_SECONDS = 60 * 30
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24
 
@@ -70,12 +46,13 @@ function resolveTier(owner: string, repo: string): SkillTier {
   return OFFICIAL_REPO_KIND.get(key) === 'user' ? 'official-user' : 'official-org'
 }
 
-function computeMaturity(createdAt: string | null, pushedAt: string | null): { ageDays: number, sinceUpdateDays: number, cadence: 'active' | 'steady' | 'dormant' } | null {
-  if (!createdAt || !pushedAt)
+function computeMaturity(createdAtSec: number | null, pushedAtSec: number | null): { ageDays: number, sinceUpdateDays: number, cadence: 'active' | 'steady' | 'dormant' } | null {
+  if (!createdAtSec || !pushedAtSec)
     return null
-  const now = Date.now()
-  const ageDays = Math.max(1, Math.floor((now - new Date(createdAt).getTime()) / ONE_DAY_MS))
-  const sinceUpdateDays = Math.floor((now - new Date(pushedAt).getTime()) / ONE_DAY_MS)
+  const nowSec = Math.floor(Date.now() / 1000)
+  const dayS = 86400
+  const ageDays = Math.max(1, Math.floor((nowSec - createdAtSec) / dayS))
+  const sinceUpdateDays = Math.floor((nowSec - pushedAtSec) / dayS)
   const cadence = sinceUpdateDays <= 30 ? 'active' : sinceUpdateDays <= 180 ? 'steady' : 'dormant'
   return { ageDays, sinceUpdateDays, cadence }
 }
@@ -124,6 +101,12 @@ function daysFromSecondsAgo(value: number | null): number | null {
   return value === null ? null : Math.floor(value / (ONE_DAY_MS / 1000))
 }
 
+function epochToIso(sec: number | null | undefined): string | null {
+  if (!sec)
+    return null
+  return new Date(sec * 1000).toISOString()
+}
+
 function isoToSecondsAgo(value: string | null | undefined): number | null {
   if (!value)
     return null
@@ -131,6 +114,43 @@ function isoToSecondsAgo(value: string | null | undefined): number | null {
   if (!Number.isFinite(time))
     return null
   return Math.max(0, Math.floor((Date.now() - time) / 1000))
+}
+
+interface SkillDetailRow {
+  // repo meta
+  stars: number | null
+  forks: number | null
+  pushed_at: number | null
+  repo_created_at: number | null
+  default_branch: string | null
+  // sync/revision
+  current_sha: string | null
+  modified_at: number | null
+  references_count: number | null
+  assets: string | null
+  last_synced_at: number | null
+  sync_status: string | null
+  // seo / trust
+  seo_index_score: number | null
+  seo_indexable: number | null
+  seo_index_reasons: string | null
+  seo_index_synced_at: number | null
+  curator_count: number | null
+  curator_reason_count: number | null
+  approved_social_count: number | null
+  author_social_count: number | null
+  trust_tier: string | null
+  trust_source: string | null
+  trust_score: number | null
+  trust_reasons: string | null
+  trust_synced_at: number | null
+  // rendered
+  rendered_skill_path: string | null
+  rendered_status: string | null
+  rendered_raw: string | null
+  rendered_frontmatter: string | null
+  rendered_html: string | null
+  rendered_at: number | null
 }
 
 export default defineApiHandler({
@@ -146,80 +166,81 @@ export default defineApiHandler({
 
     const githubUrl = `https://github.com/${skill.owner}/${skill.repo}`
 
-    const [curators, repoMeta, revision, latestCommit, duplicateGroup] = await Promise.all([
+    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow] = await Promise.all([
       getEndorsementsForSkill(platform.db, skill.name),
-      getRepoMeta(skill.owner, skill.repo),
       platform.db
-        .prepare(`SELECT current_sha, modified_at, references_count, assets, last_synced_at, sync_status,
-                       seo_index_score, seo_indexable, seo_index_reasons, seo_index_synced_at,
-                       curator_count, curator_reason_count, approved_social_count, author_social_count,
-                       trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at
-                FROM skills WHERE owner = ? AND name = ?`)
+        .prepare(`SELECT stars, forks, pushed_at, repo_created_at, default_branch,
+                         current_sha, modified_at, references_count, assets, last_synced_at, sync_status,
+                         seo_index_score, seo_indexable, seo_index_reasons, seo_index_synced_at,
+                         curator_count, curator_reason_count, approved_social_count, author_social_count,
+                         trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
+                         rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at
+                  FROM skills WHERE owner = ? AND name = ?`)
         .bind(skill.owner, skill.name)
-        .first<{
-        current_sha: string | null
-        modified_at: number | null
-        references_count: number | null
-        assets: string | null
-        last_synced_at: number | null
-        sync_status: string | null
-        seo_index_score: number | null
-        seo_indexable: number | null
-        seo_index_reasons: string | null
-        seo_index_synced_at: number | null
-        curator_count: number | null
-        curator_reason_count: number | null
-        approved_social_count: number | null
-        author_social_count: number | null
-        trust_tier: string | null
-        trust_source: string | null
-        trust_score: number | null
-        trust_reasons: string | null
-        trust_synced_at: number | null
-      }>(),
+        .first<SkillDetailRow>(),
       platform.db
         .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
         .bind(skill.owner, skill.name)
         .first<{ sha: string }>(),
       findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
+      getGenerated<FaqPayload>(platform.db, { owner: skill.owner, name: skill.name, kind: 'faq' }),
+      getGenerated<TagPayload>(platform.db, { owner: skill.owner, name: skill.name, kind: 'tags' }),
+      getGenerated<SummaryPayload>(platform.db, { owner: skill.owner, name: skill.name, kind: 'summary' }),
     ])
 
-    if (repoMeta === 'not-found')
-      throw createError({ statusCode: 404, message: 'Skill source repository no longer exists' })
+    const branch = row?.default_branch || 'main'
 
-    const branch = repoMeta?.defaultBranch || 'main'
+    // Warm path: render is in D1. Cold path (legacy rows or fetch_failed
+    // status): fall back to a live render so the first visit still works,
+    // then write back to D1.
+    let rendered: RenderedView
+    if (row?.rendered_html && row.rendered_status === 'ok') {
+      rendered = {
+        skillPath: row.rendered_skill_path,
+        raw: row.rendered_raw,
+        frontmatter: parseFrontmatterJson(row.rendered_frontmatter),
+        body: stripFrontmatter(row.rendered_raw ?? ''),
+        html: row.rendered_html,
+        status: 'ok',
+      }
+    }
+    else {
+      rendered = await renderLive(skill.owner, skill.repo, skill.name, branch)
+      // Cache cold-path result back to D1 so subsequent visits hit the warm
+      // path. Fire-and-forget; missing waitUntil context (e.g. local dev)
+      // just means we await it inline.
+      schedulePersist(event, platform.db, skill.owner, skill.name, rendered)
+    }
 
-    const rendered = await getRenderedSkill(skill.owner, skill.repo, skill.name, branch, repoMeta?.pushedAt ?? null)
-
-    const db = platform.db
-    const [faqRow, tagRow, summaryRow] = await Promise.all([
-      getGenerated<FaqPayload>(db, { owner: skill.owner, name: skill.name, kind: 'faq' }),
-      getGenerated<TagPayload>(db, { owner: skill.owner, name: skill.name, kind: 'tags' }),
-      getGenerated<SummaryPayload>(db, { owner: skill.owner, name: skill.name, kind: 'summary' }),
-    ])
+    // Stale refresh: only fire when rendered_at older than threshold.
+    const renderedAge = secondsAgo(row?.rendered_at)
+    if (row?.rendered_html && renderedAge != null && renderedAge > STALE_AFTER_SECONDS)
+      scheduleRefresh(event, platform.db, skill.owner, skill.repo, skill.name, branch)
 
     const tags = (tagRow?.payload.tags ?? [])
       .map(s => TAG_BY_SLUG.get(s))
       .filter((t): t is NonNullable<typeof t> => Boolean(t))
 
-    const description = frontmatterString(rendered.frontmatter, 'description') ?? repoMeta?.description ?? null
+    const description = frontmatterString(rendered.frontmatter, 'description') ?? skill.description ?? null
     let assets: { path: string, size: number, type: string }[] = []
-    if (revision?.assets) {
+    if (row?.assets) {
       try {
-        const parsedAssets = JSON.parse(revision.assets) as unknown
+        const parsedAssets = JSON.parse(row.assets) as unknown
         if (Array.isArray(parsedAssets)) {
           assets = parsedAssets.filter((a): a is { path: string, size: number, type: string } =>
             Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string')
         }
       }
       catch {
-      // Ignore malformed JSON; treat as no assets.
+        // Ignore malformed JSON; treat as no assets.
       }
     }
     const allowedTools = parseAllowedTools(rendered.frontmatter)
     const capability = classifyAllowedTools(allowedTools)
     const sourceResolved = Boolean(rendered.status === 'ok' && rendered.skillPath && rendered.raw)
-    const sourceCommitSha = latestCommit?.sha ?? revision?.current_sha ?? null
+    const sourceCommitSha = latestCommit?.sha ?? row?.current_sha ?? null
+    const pushedAtIso = epochToIso(row?.pushed_at)
+    const createdAtIso = epochToIso(row?.repo_created_at)
 
     return {
       owner: skill.owner,
@@ -239,39 +260,39 @@ export default defineApiHandler({
       assets,
       curators,
       description,
-      stars: repoMeta?.stars ?? 0,
-      forks: repoMeta?.forks ?? 0,
-      pushedAt: repoMeta?.pushedAt ?? null,
-      createdAt: repoMeta?.createdAt ?? null,
-      maturity: computeMaturity(repoMeta?.createdAt ?? null, repoMeta?.pushedAt ?? null),
+      stars: row?.stars ?? 0,
+      forks: row?.forks ?? 0,
+      pushedAt: pushedAtIso,
+      createdAt: createdAtIso,
+      maturity: computeMaturity(row?.repo_created_at ?? null, row?.pushed_at ?? null),
       tier: resolveTier(skill.owner, skill.repo),
       sourceFacts: {
         description: {
           present: Boolean(description?.trim()),
           length: description?.trim().length ?? 0,
-          source: frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : repoMeta?.description ? 'repository' : null,
+          source: frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : skill.description ? 'repository' : null,
         },
         repository: {
-          pushedAt: repoMeta?.pushedAt ?? null,
-          pushedAgeDays: daysFromSecondsAgo(isoToSecondsAgo(repoMeta?.pushedAt ?? null)),
-          createdAt: repoMeta?.createdAt ?? null,
-          stars: repoMeta?.stars ?? 0,
-          forks: repoMeta?.forks ?? 0,
+          pushedAt: pushedAtIso,
+          pushedAgeDays: daysFromSecondsAgo(isoToSecondsAgo(pushedAtIso)),
+          createdAt: createdAtIso,
+          stars: row?.stars ?? 0,
+          forks: row?.forks ?? 0,
           defaultBranch: branch,
         },
         source: {
           resolved: sourceResolved,
           resolutionStatus: rendered.status,
           skillPath: rendered.skillPath,
-          currentSha: revision?.current_sha ?? null,
-          hasCurrentSha: Boolean(revision?.current_sha),
+          currentSha: row?.current_sha ?? null,
+          hasCurrentSha: Boolean(row?.current_sha),
           latestRevisionSha: latestCommit?.sha ?? null,
-          modifiedAt: revision?.modified_at ?? null,
-          modifiedAgeDays: daysFromSecondsAgo(secondsAgo(revision?.modified_at)),
-          referencesCount: revision?.references_count ?? 0,
-          lastSyncedAt: revision?.last_synced_at ?? null,
-          lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(revision?.last_synced_at)),
-          syncStatus: revision?.sync_status ?? null,
+          modifiedAt: row?.modified_at ?? null,
+          modifiedAgeDays: daysFromSecondsAgo(secondsAgo(row?.modified_at)),
+          referencesCount: row?.references_count ?? 0,
+          lastSyncedAt: row?.last_synced_at ?? null,
+          lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(row?.last_synced_at)),
+          syncStatus: row?.sync_status ?? null,
         },
         frontmatter: {
           present: Boolean(rendered.frontmatter && Object.keys(rendered.frontmatter).length),
@@ -306,34 +327,34 @@ export default defineApiHandler({
         historyUrl: rendered.skillPath
           ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
           : null,
-        modifiedAt: revision?.modified_at ?? null,
-        referencesCount: revision?.references_count ?? 0,
-        lastSyncedAt: revision?.last_synced_at ?? null,
-        syncStatus: revision?.sync_status ?? null,
+        modifiedAt: row?.modified_at ?? null,
+        referencesCount: row?.references_count ?? 0,
+        lastSyncedAt: row?.last_synced_at ?? null,
+        syncStatus: row?.sync_status ?? null,
       },
       seo: {
-        indexScore: revision?.seo_index_score ?? 0,
-        indexable: revision?.seo_indexable === 1,
-        reasons: revision?.seo_index_reasons ? JSON.parse(revision.seo_index_reasons) as string[] : [],
-        syncedAt: revision?.seo_index_synced_at ?? null,
-        curatorCount: revision?.curator_count ?? 0,
-        curatorReasonCount: revision?.curator_reason_count ?? 0,
-        approvedSocialCount: revision?.approved_social_count ?? 0,
-        authorSocialCount: revision?.author_social_count ?? 0,
+        indexScore: row?.seo_index_score ?? 0,
+        indexable: row?.seo_indexable === 1,
+        reasons: row?.seo_index_reasons ? JSON.parse(row.seo_index_reasons) as string[] : [],
+        syncedAt: row?.seo_index_synced_at ?? null,
+        curatorCount: row?.curator_count ?? 0,
+        curatorReasonCount: row?.curator_reason_count ?? 0,
+        approvedSocialCount: row?.approved_social_count ?? 0,
+        authorSocialCount: row?.author_social_count ?? 0,
       },
       trust: {
-        tier: revision?.trust_tier ?? 'untrusted',
-        source: revision?.trust_source ?? 'computed',
-        score: revision?.trust_score ?? 0,
-        reasons: revision?.trust_reasons ? JSON.parse(revision.trust_reasons) as string[] : [],
-        syncedAt: revision?.trust_synced_at ?? null,
+        tier: row?.trust_tier ?? 'untrusted',
+        source: row?.trust_source ?? 'computed',
+        score: row?.trust_score ?? 0,
+        reasons: row?.trust_reasons ? JSON.parse(row.trust_reasons) as string[] : [],
+        syncedAt: row?.trust_synced_at ?? null,
       },
       duplicateGroup,
     }
   },
 })
 
-interface RenderedCache {
+interface RenderedView {
   skillPath: string | null
   raw: string | null
   frontmatter: Record<string, unknown> | null
@@ -342,239 +363,105 @@ interface RenderedCache {
   status: 'ok' | 'path_missing' | 'fetch_failed'
 }
 
-async function getRenderedSkill(
-  owner: string,
-  repo: string,
-  name: string,
-  branch: string,
-  pushedAt: string | null,
-): Promise<RenderedCache> {
-  const cacheKey = `skills:rendered:v8:${owner}/${repo}/${name}:${pushedAt ?? 'unknown'}`
-  const cached = await useStorage('cache').getItem<RenderedCache>(cacheKey)
-  if (cached)
-    return cached
-
-  const skillPath = await resolveSkillMdPath(owner, repo, name, branch)
-  if (!skillPath) {
-    const result: RenderedCache = { skillPath: null, raw: null, frontmatter: null, body: null, html: null, status: 'path_missing' }
-    await useStorage('cache').setItem(cacheKey, result, { ttl: RENDERED_MISSING_TTL })
-    return result
-  }
-
-  const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${skillPath}`
-  const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch((err) => {
-    console.warn(`[skills] Failed to fetch SKILL.md from ${rawUrl}:`, err)
+function parseFrontmatterJson(value: string | null): Record<string, unknown> | null {
+  if (!value)
     return null
-  })
-
-  if (!raw) {
-    const result: RenderedCache = { skillPath, raw: null, frontmatter: null, body: null, html: null, status: 'fetch_failed' }
-    await useStorage('cache').setItem(cacheKey, result, { ttl: RENDERED_MISSING_TTL })
-    return result
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null
   }
-
-  const skillDir = skillPath.replace(/\/SKILL\.md$/, '')
-  const parsed = parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
-  const result: RenderedCache = {
-    skillPath,
-    raw,
-    frontmatter: parsed.frontmatter,
-    body: parsed.body,
-    html: parsed.html,
-    status: 'ok',
+  catch {
+    return null
   }
-  await useStorage('cache').setItem(cacheKey, result, { ttl: RENDERED_CACHE_TTL })
-  return result
 }
 
-function slugifyName(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+function stripFrontmatter(raw: string): string {
+  const m = raw.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/)
+  return m ? m[1]! : raw
 }
 
-async function resolveSkillMdPath(owner: string, repo: string, name: string, branch: string): Promise<string | null> {
-  const cacheKey = `skills:skill-path:v5:${owner}/${repo}/${name}`
-  const cached = await useStorage('cache').getItem<string | null>(cacheKey)
-  if (cached !== null && cached !== undefined)
-    return cached || null
-
-  const files = await getRepoTree(owner, repo, branch)
-  if (!files)
-    return null
-
-  const skillMds = files.filter(f => f.path.endsWith('SKILL.md'))
-  if (!skillMds.length)
-    return null
-
-  const slug = slugifyName(name)
-  // Original first, then a slugified variant. Catches names with spaces or
-  // colons (`agent browser` → `agent-browser`, `react:components` →
-  // `react-components`) where the registry name doesn't match the dir name.
-  const variants = name === slug ? [name] : [name, slug]
-
-  const cache = (path: string) => useStorage('cache').setItem(cacheKey, path, { ttl: REPO_TREE_CACHE_TTL })
-
-  for (const v of variants) {
-    const exact = skillMds.find(f => f.path.endsWith(`/${v}/SKILL.md`) || f.path === `${v}/SKILL.md`)
-    if (exact) {
-      await cache(exact.path)
-      return exact.path
-    }
-  }
-
-  if (skillMds.length === 1) {
-    await cache(skillMds[0]!.path)
-    return skillMds[0]!.path
-  }
-
-  for (const v of variants) {
-    const fuzzy = skillMds.find(f => f.path.split('/').includes(v))
-    if (fuzzy) {
-      await cache(fuzzy.path)
-      return fuzzy.path
-    }
-  }
-
-  // Multi-segment match: registry packs paths like `better-auth/best-practices`
-  // into a single hyphenated name `better-auth-best-practices`. Try every
-  // hyphen split; accept only when exactly one path matches (avoid ambiguity).
-  if (slug.includes('-')) {
-    const parts = slug.split('-')
-    for (let i = 1; i < parts.length; i++) {
-      const left = parts.slice(0, i).join('-')
-      const right = parts.slice(i).join('-')
-      const matches = skillMds.filter((f) => {
-        const segs = f.path.split('/')
-        const idx = segs.indexOf(left)
-        return idx >= 0 && segs[idx + 1] === right
-      })
-      if (matches.length === 1) {
-        await cache(matches[0]!.path)
-        return matches[0]!.path
+// Live render fallback for rows that pre-date the rendered_* columns or had
+// a previous fetch_failed. Mirrors the path resolution the sync job uses,
+// but lighter: just hit the unauthenticated GitHub raw URL for the common
+// `skills/<name>/SKILL.md` and `<name>/SKILL.md` layouts. If neither
+// exists, fall through to the ungh tree walk (rare).
+async function renderLive(owner: string, repo: string, name: string, branch: string): Promise<RenderedView> {
+  const candidates = [
+    `skills/${name}/SKILL.md`,
+    `${name}/SKILL.md`,
+  ]
+  for (const path of candidates) {
+    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`
+    const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
+    if (raw) {
+      const skillDir = path.replace(/\/SKILL\.md$/, '')
+      const parsed = parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
+      return {
+        skillPath: path,
+        raw,
+        frontmatter: parsed.frontmatter,
+        body: parsed.body,
+        html: parsed.html,
+        status: 'ok',
       }
     }
   }
-
-  // Frontmatter-name match: registry uses the SKILL.md frontmatter `name:`
-  // field, which often differs from the directory name (e.g. dir `postgresql`,
-  // frontmatter `postgresql-table-design`). Build a slug → path index by
-  // scanning the repo's SKILL.md files. Both keys and lookups are slugified
-  // so `Frontend Responsive Design Standards` matches `frontend responsive
-  // design standards` from the registry.
-  const fmIndex = await getRepoFrontmatterIndex(owner, repo, branch, skillMds)
-  if (fmIndex) {
-    const path = fmIndex[slug] ?? fmIndex[slugifyName(name)]
-    if (path) {
-      await cache(path)
-      return path
-    }
-  }
-
-  await useStorage('cache').setItem(cacheKey, '', { ttl: REPO_TREE_CACHE_TTL })
-  return null
+  return { skillPath: null, raw: null, frontmatter: null, body: null, html: null, status: 'path_missing' }
 }
 
-const FRONTMATTER_INDEX_MAX_FILES = 250
-const FRONTMATTER_FETCH_CONCURRENCY = 8
-
-async function getRepoFrontmatterIndex(
-  owner: string,
-  repo: string,
-  branch: string,
-  skillMds: UnghTreeFile[],
-): Promise<Record<string, string> | null> {
-  if (skillMds.length > FRONTMATTER_INDEX_MAX_FILES)
-    return null
-
-  const cacheKey = `skills:fm-index:v2:${owner}/${repo}/${branch}`
-  const cached = await useStorage('cache').getItem<Record<string, string>>(cacheKey)
-  if (cached)
-    return cached
-
-  const index: Record<string, string> = {}
-  let cursor = 0
-  async function worker() {
-    while (cursor < skillMds.length) {
-      const i = cursor++
-      const path = skillMds[i]!.path
-      const name = await fetchFrontmatterName(owner, repo, branch, path)
-      if (name) {
-        const key = slugifyName(name)
-        if (key && !index[key])
-          index[key] = path
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(FRONTMATTER_FETCH_CONCURRENCY, skillMds.length) }, () => worker()))
-
-  await useStorage('cache').setItem(cacheKey, index, { ttl: REPO_TREE_CACHE_TTL })
-  return index
+function schedulePersist(event: H3Event, db: D1Database, owner: string, name: string, rendered: RenderedView): void {
+  if (rendered.status !== 'ok' || !rendered.html)
+    return
+  const promise = db
+    .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND name = ?`)
+    .bind(
+      rendered.skillPath,
+      rendered.raw,
+      JSON.stringify(rendered.frontmatter ?? {}),
+      rendered.html,
+      Math.floor(Date.now() / 1000),
+      owner,
+      name,
+    )
+    .run()
+    .catch((err) => {
+      console.warn(`[skills] persist rendered failed for ${owner}/${name}:`, err)
+    })
+  runAfterResponse(event, promise)
 }
 
-async function fetchFrontmatterName(owner: string, repo: string, branch: string, path: string): Promise<string | null> {
-  const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`
-  const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
-  if (!raw)
-    return null
-  // Match only inside the frontmatter block to avoid pulling stray `name:` lines from prose.
-  const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  if (!fm)
-    return null
-  for (const line of fm[1]!.split(/\r?\n/)) {
-    const m = line.match(/^name:(.*)$/)
-    if (!m)
-      continue
-    const value = m[1]!.trim().replace(/^['"]|['"]$/g, '').trim()
-    return value || null
-  }
-  return null
-}
-
-async function getRepoTree(owner: string, repo: string, branch: string): Promise<UnghTreeFile[] | null> {
-  const cacheKey = `skills:repo-tree:${owner}/${repo}/${branch}`
-  const cached = await useStorage('cache').getItem<UnghTreeFile[]>(cacheKey)
-  if (cached)
-    return cached
-
-  const data = await $fetch<{ files: UnghTreeFile[] }>(`https://ungh.cc/repos/${owner}/${repo}/files/${branch}`).catch((err) => {
-    console.warn(`[skills] Failed to fetch repo tree from ungh.cc for ${owner}/${repo}@${branch}:`, err)
-    return null
+function scheduleRefresh(event: H3Event, db: D1Database, owner: string, repo: string, name: string, branch: string): void {
+  const promise = (async () => {
+    const live = await renderLive(owner, repo, name, branch)
+    if (live.status !== 'ok' || !live.html)
+      return
+    await db
+      .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND name = ?`)
+      .bind(
+        live.skillPath,
+        live.raw,
+        JSON.stringify(live.frontmatter ?? {}),
+        live.html,
+        Math.floor(Date.now() / 1000),
+        owner,
+        name,
+      )
+      .run()
+  })().catch((err) => {
+    console.warn(`[skills] stale refresh failed for ${owner}/${name}:`, err)
   })
-
-  if (!data?.files)
-    return null
-
-  const skillFiles = data.files.filter(f => f.path.endsWith('SKILL.md'))
-  await useStorage('cache').setItem(cacheKey, skillFiles, { ttl: REPO_TREE_CACHE_TTL })
-  return skillFiles
+  runAfterResponse(event, promise)
 }
 
-type RepoMetaResult = UnghRepo | 'not-found' | null
-
-async function getRepoMeta(owner: string, repo: string): Promise<RepoMetaResult> {
-  const cacheKey = `skills:repo-meta:${owner}/${repo}`
-  const cached = await useStorage('cache').getItem<UnghRepo | { notFound: true }>(cacheKey)
-  if (cached) {
-    if ('notFound' in cached)
-      return 'not-found'
-    return cached
+function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {
+  const ctx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(promise)
+    return
   }
-
-  const data = await $fetch<{ repo?: UnghRepo, error?: boolean, status?: number }>(`https://ungh.cc/repos/${owner}/${repo}`).catch((err) => {
-    console.warn(`[skills] Failed to fetch repo meta from ungh.cc:`, err)
-    return null
-  })
-
-  if (data?.repo) {
-    await useStorage('cache').setItem(cacheKey, data.repo, { ttl: REPO_META_CACHE_TTL })
-    return data.repo
-  }
-
-  if (data?.error && data.status === 404) {
-    await useStorage('cache').setItem(cacheKey, { notFound: true }, { ttl: REPO_MISSING_CACHE_TTL })
-    return 'not-found'
-  }
-
-  return null
+  // Local dev / non-Workers: don't block the response, but make sure the
+  // promise isn't an unhandled rejection.
+  void promise
 }
 
 async function getEndorsementsForSkill(db: D1Database, skillName: string): Promise<CuratorEndorsement[]> {

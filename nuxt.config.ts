@@ -158,6 +158,15 @@ export default defineNuxtConfig({
         'cache-control': 'no-store',
       },
     },
+    '/api/skill-related/**': {
+      swr: 3600,
+    },
+    '/api/skills-raw/**': {
+      swr: 3600,
+    },
+    '/api/skill-social/**': {
+      swr: 3600,
+    },
   },
   future: {
     compatibilityVersion: 5,
