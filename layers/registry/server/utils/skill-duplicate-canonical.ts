@@ -76,9 +76,9 @@ export function duplicateRankingSignals(row: DuplicateCandidate): DuplicateRanki
 export function canonicalDuplicateSort(a: DuplicateCandidate, b: DuplicateCandidate): number {
   const aSignals = duplicateRankingSignals(a)
   const bSignals = duplicateRankingSignals(b)
-  return bSignals.supportTierRank - aSignals.supportTierRank
+  return bSignals.installs - aSignals.installs
+    || bSignals.supportTierRank - aSignals.supportTierRank
     || bSignals.trustTierRank - aSignals.trustTierRank
-    || bSignals.installs - aSignals.installs
     || bSignals.stars - aSignals.stars
     || (bSignals.pushedAt ?? 0) - (aSignals.pushedAt ?? 0)
     || skillSlug(a).localeCompare(skillSlug(b))
