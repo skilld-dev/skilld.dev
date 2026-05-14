@@ -208,7 +208,7 @@ const liveId = computed(() =>
 )
 const { data: liveSkill } = useAsyncData(
   () => `skill-live:${liveId.value ?? 'none'}`,
-  () => liveId.value ? $fetch(`/api/skill-live/${liveId.value}`) : null,
+  async () => liveId.value ? $fetch(`/api/skill-live/${liveId.value}`) : null,
   {
     watch: [liveId],
     server: false,
@@ -244,12 +244,6 @@ const displayInstalls = computed(() => liveSkill.value?.installs ?? data.value?.
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
 
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
-
-const packageName = computed(() => {
-  if (!data.value)
-    return ''
-  return data.value.name
-})
 
 const installCmd = computed(() => {
   if (!data.value)

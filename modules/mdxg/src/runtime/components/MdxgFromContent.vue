@@ -73,9 +73,9 @@ const defaultResolver: MdxgLinkResolver = async (input) => {
   if (!props.collection)
     return null
   const trimmed = input.href.replace(/[?#].*$/, '')
-  if (!/\.(md|mdx)$|^[^.]+$|\/$/.test(trimmed))
+  if (!/\.(?:md|mdx)$|^[^.]+$|\/$/.test(trimmed))
     return null
-  const normalized = resolvePath(docPath.value || '/', trimmed).replace(/\.(md|mdx)$/, '')
+  const normalized = resolvePath(docPath.value || '/', trimmed).replace(/\.(?:md|mdx)$/, '')
   // Auto-imported by @nuxt/content; available globally on client + server.
   const row = await (queryCollection as any)(props.collection).path(normalized).first() as ContentRow | null
   if (!row)

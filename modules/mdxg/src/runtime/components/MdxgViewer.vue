@@ -39,8 +39,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'link-error': [info: { href: string, message: string }]
-  'navigate': [docId: string]
+  linkError: [info: { href: string, message: string }]
+  navigate: [docId: string]
 }>()
 
 // When a resolver is supplied, document state flows through the router;
@@ -49,7 +49,7 @@ const router = props.resolveLink
   ? useMdxgDocumentRouter({
       resolver: props.resolveLink,
       initial: { docId: props.docId ?? '', document: props.document, url: props.initialUrl },
-      onError: (_err, input) => emit('link-error', { href: input.href, message: 'Failed to load' }),
+      onError: (_err, input) => emit('linkError', { href: input.href, message: 'Failed to load' }),
     })
   : null
 
@@ -187,7 +187,9 @@ const docTitle = computed(() => {
 
 const error = computed(() => router?.error.value ?? null)
 const isLoading = computed(() => router?.isLoading.value ?? false)
-function dismissError() { router?.clearError() }
+function dismissError() {
+  router?.clearError()
+}
 </script>
 
 <template>

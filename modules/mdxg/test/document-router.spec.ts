@@ -47,7 +47,15 @@ describe('useMdxgDocumentRouter', () => {
     const navSpy = vi.fn()
     Object.defineProperty(window, 'location', {
       configurable: true,
-      value: { ...window.location, set href(v: string) { navSpy(v) } },
+      value: {
+        ...window.location,
+        get href() {
+          return ''
+        },
+        set href(v: string) {
+          navSpy(v)
+        },
+      },
     })
     const r = useMdxgDocumentRouter({
       resolver: async () => null,
@@ -70,7 +78,11 @@ describe('useMdxgDocumentRouter', () => {
 
   it('dedupes concurrent resolves for the same target', async () => {
     let calls = 0
-    const resolver = async () => { calls++; await Promise.resolve(); return result('b') }
+    const resolver = async () => {
+      calls++
+      await Promise.resolve()
+      return result('b')
+    }
     const r = useMdxgDocumentRouter({ resolver, initial: { docId: 'a', document: docOf('a') } })
     await Promise.all([r.navigate('./b.md'), r.navigate('./b.md'), r.prefetch('./b.md')])
     expect(calls).toBe(1)
@@ -92,7 +104,10 @@ describe('useMdxgDocumentRouter', () => {
 
   it('caches resolved documents — re-navigating skips resolver work', async () => {
     let calls = 0
-    const resolver = async (input: { href: string }) => { calls++; return result(input.href) }
+    const resolver = async (input: { href: string }) => {
+      calls++
+      return result(input.href)
+    }
     const r = useMdxgDocumentRouter({ resolver, initial: { docId: 'a', document: docOf('a') } })
     await r.navigate('./b.md')
     await r.navigate('./c.md')

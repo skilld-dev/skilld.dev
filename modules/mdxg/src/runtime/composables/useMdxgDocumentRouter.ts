@@ -131,7 +131,7 @@ export function useMdxgDocumentRouter(opts: UseMdxgRouterOptions): UseMdxgRouter
       href,
       fragment,
       fromDocId: fromDocId ?? currentId.value,
-    }).catch(() => {})
+    }).catch(() => null)
   }
 
   function back() {

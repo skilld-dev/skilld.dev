@@ -27,11 +27,15 @@ export function useMdxgCodeCopy(root: Ref<HTMLElement | null>, trigger: Ref<unkn
         try {
           await navigator.clipboard.writeText(code)
           btn.textContent = 'Copied'
-          setTimeout(() => { btn.textContent = 'Copy' }, 1500)
+          setTimeout(() => {
+            btn.textContent = 'Copy'
+          }, 1500)
         }
         catch {
           btn.textContent = 'Failed'
-          setTimeout(() => { btn.textContent = 'Copy' }, 1500)
+          setTimeout(() => {
+            btn.textContent = 'Copy'
+          }, 1500)
         }
       }
       btn.addEventListener('click', handler)

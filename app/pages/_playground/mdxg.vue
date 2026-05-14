@@ -171,7 +171,7 @@ async function load(id: string): Promise<MdxgDocument | null> {
 function resolveRelative(base: string, href: string): string {
   const clean = href.replace(/[?#].*$/, '')
   if (clean.startsWith('/'))
-    return clean.replace(/\.(md|mdx)$/, '')
+    return clean.replace(/\.(?:md|mdx)$/, '')
   const baseDir = base.replace(/\/[^/]*$/, '') || '/'
   const segs = (`${baseDir}/${clean}`).split('/').filter(Boolean)
   const out: string[] = []
@@ -183,7 +183,7 @@ function resolveRelative(base: string, href: string): string {
     else
       out.push(seg)
   }
-  return `/${out.join('/')}`.replace(/\.(md|mdx)$/, '')
+  return `/${out.join('/')}`.replace(/\.(?:md|mdx)$/, '')
 }
 
 const initialId = '/index'

@@ -2,7 +2,7 @@
   "name": "skilld-dev",
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@11.1.1",
+  "packageManager": "pnpm@11.1.2",
   "description": "Curated agent skills from trusted open-source developers",
   "author": {
     "name": "Harlan Wilton",
@@ -52,7 +52,6 @@
     "nuxt-ai-ready": "catalog:",
     "nuxt-auth-utils": "catalog:",
     "nuxt-og-image": "catalog:",
-    "remark-breaks": "catalog:",
     "shiki": "catalog:",
     "skilld-protocol": "catalog:",
     "tailwindcss": "catalog:",
