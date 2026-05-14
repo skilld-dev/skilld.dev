@@ -3,6 +3,7 @@ import type { FaqPayload } from '../../jobs/generate-faqs'
 import type { SummaryPayload } from '../../jobs/generate-summary'
 import type { TagPayload } from '../../jobs/generate-tags'
 import { SkillDetailResponseSchema } from 'skilld-protocol/wire'
+import { getTree, resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
 import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
 import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkill } from '~~/layers/registry/server/utils/skills-registry'
@@ -215,7 +216,7 @@ export default defineApiHandler({
       }
     }
     else {
-      rendered = await renderLive(skill.owner, skill.repo, skill.name, branch)
+      rendered = await renderLive(event, skill.owner, skill.repo, skill.name, branch)
       // Cache cold-path result back to D1 so subsequent visits hit the warm
       // path. Fire-and-forget; missing waitUntil context (e.g. local dev)
       // just means we await it inline.
@@ -391,14 +392,23 @@ function stripFrontmatter(raw: string): string {
 }
 
 // Live render fallback for rows that pre-date the rendered_* columns or had
-// a previous fetch_failed. Mirrors the path resolution the sync job uses,
-// but lighter: just hit the unauthenticated GitHub raw URL for the common
-// `skills/<name>/SKILL.md` and `<name>/SKILL.md` layouts. If neither
-// exists, fall through to the ungh tree walk (rare).
-async function renderLive(owner: string, repo: string, name: string, branch: string): Promise<RenderedView> {
+// a previous fetch_failed. Tries the common layouts via raw.githubusercontent
+// first (cheap, no API quota), then falls back to the authenticated GitHub
+// trees API for repos that nest SKILL.md under arbitrary directories
+// (e.g. Claude plugin repos mirroring under `.claude/skills/<name>/SKILL.md`).
+async function renderLive(
+  event: H3Event,
+  owner: string,
+  repo: string,
+  name: string,
+  branch: string,
+): Promise<RenderedView> {
   const candidates = [
     `skills/${name}/SKILL.md`,
     `${name}/SKILL.md`,
+    `.claude/skills/${name}/SKILL.md`,
+    `.agents/skills/${name}/SKILL.md`,
+    `plugin/skills/${name}/SKILL.md`,
   ]
   for (const path of candidates) {
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`
@@ -417,13 +427,14 @@ async function renderLive(owner: string, repo: string, name: string, branch: str
     }
   }
 
-  // Fall back to an ungh tree walk for repos that nest skills under arbitrary
-  // directories (e.g. `skills/engineering/<name>/SKILL.md`). ungh proxies the
-  // GitHub tree API and is unauthenticated.
-  const tree = await $fetch<{ files?: { path: string }[] }>(
-    `https://ungh.cc/repos/${owner}/${repo}/files/${branch}`,
-  ).catch(() => null)
-  const match = tree?.files?.find(f => f.path.endsWith(`/${name}/SKILL.md`))
+  // Authenticated GitHub trees API (matches sync-repo.ts). Recursive listing
+  // surfaces nested or dotfile-mirrored layouts the candidates above miss.
+  const cfEnv = (event.context as { cloudflare?: { env?: Record<string, unknown> } }).cloudflare?.env
+  const bindings = resolveGithubBindings(cfEnv)
+  const treeRes = await getTree(owner, repo, branch, bindings).catch(() => null)
+  const match = treeRes?.data?.tree.find(
+    e => e.type === 'blob' && e.path.endsWith(`/${name}/SKILL.md`),
+  )
   if (match) {
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${match.path}`
     const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
@@ -467,7 +478,7 @@ function schedulePersist(event: H3Event, db: D1Database, owner: string, name: st
 
 function scheduleRefresh(event: H3Event, db: D1Database, owner: string, repo: string, name: string, branch: string): void {
   const promise = (async () => {
-    const live = await renderLive(owner, repo, name, branch)
+    const live = await renderLive(event, owner, repo, name, branch)
     if (live.status !== 'ok' || !live.html)
       return
     await db
