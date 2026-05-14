@@ -297,7 +297,7 @@ async function main() {
   })
 
   broken.sort((a, b) => b.installs - a.installs)
-  await mkdir(dirname(OUT), { recursive: true }).catch(() => {})
+  await mkdir(dirname(OUT), { recursive: true })
   await writeFile(OUT, `${JSON.stringify({ generatedAt: new Date().toISOString(), base: BASE, total: skills.length, broken }, null, 2)}\n`)
 
   if (FLAG && metas.length) {

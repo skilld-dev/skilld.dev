@@ -78,8 +78,9 @@ function formatTimestamp(epochSeconds: number): string {
   }).format(new Date(epochSeconds * 1000))
 }
 
+const renderNow = useState('render:now', () => Date.now())
 function formatRelative(epochSeconds: number): string {
-  const diff = Date.now() - epochSeconds * 1000
+  const diff = renderNow.value - epochSeconds * 1000
   const days = Math.floor(diff / 86_400_000)
   if (days < 1)
     return 'today'
@@ -149,7 +150,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
   <div class="group relative h-full">
     <NuxtLink
       :to="skillPath"
-      :aria-label="`${skill.name} by ${skill.owner}`"
+      :aria-label="`/${skill.name} by ${skill.owner}`"
       :class="linkClasses"
     >
       <template v-if="variant === 'list'">
@@ -165,7 +166,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
               loading="lazy"
             >
             <p class="font-mono text-sm font-medium truncate">
-              {{ skill.name }}
+              /{{ skill.name }}
             </p>
             <div
               v-if="showTags && skill.tags?.length"
@@ -234,7 +235,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
       <template v-else>
         <div class="flex items-start gap-2">
           <p class="font-mono text-sm font-medium truncate min-w-0 flex-1">
-            {{ skill.name }}
+            /{{ skill.name }}
           </p>
           <span
             v-if="!showOwnerPath && resolvedSignal === 'installs'"
@@ -337,7 +338,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
       variant="ghost"
       class="absolute z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
       :class="buttonPositionClass"
-      :aria-label="copied ? 'Copied' : `Copy install command for ${skill.name}`"
+      :aria-label="copied ? 'Copied' : `Copy install command for /${skill.name}`"
       @click.stop.prevent="copy(installCmd)"
     />
   </div>

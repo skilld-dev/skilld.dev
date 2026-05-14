@@ -51,7 +51,7 @@ function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
 }
 
 function featuredCollectionSkillLabel(skill: FeaturedCollectionSkill): string {
-  return skill.displayName ?? skill.name ?? skill.repo
+  return skill.name ? `/${skill.name}` : skill.repo
 }
 
 interface DomainCategory {
@@ -81,8 +81,9 @@ const { data: domainData } = useAsyncData('home-domains', async () => {
 })
 const domainSections = computed(() => domainData.value ?? [])
 
+const renderNow = useState('render:now', () => Date.now())
 function formatRelative(ts: number): string {
-  const diff = Date.now() - ts * 1000
+  const diff = renderNow.value - ts * 1000
   const days = Math.floor(diff / 86_400_000)
   if (days < 1)
     return 'today'
@@ -266,7 +267,7 @@ function formatRelative(ts: number): string {
                 />
               </NuxtLink>
               <p class="mt-0.5 font-mono text-xs text-muted">
-                @{{ collection.authorLogin }} · {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'skill' : 'skills' }}
+                {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'skill' : 'skills' }}
               </p>
             </div>
           </div>
@@ -373,7 +374,7 @@ function formatRelative(ts: number): string {
               {{ item.skillCount }} skills updated
             </p>
             <p class="mt-2 font-mono text-xs text-muted line-clamp-2">
-              {{ item.skills.slice(0, 4).map(s => s.name).join(' · ') }}{{ item.skillCount > 4 ? ` · +${item.skillCount - 4} more` : '' }}
+              {{ item.skills.slice(0, 4).map(s => `/${s.name}`).join(' · ') }}{{ item.skillCount > 4 ? ` · +${item.skillCount - 4} more` : '' }}
             </p>
             <p class="mt-2 font-mono text-xs text-muted">
               Updated {{ formatRelative(item.occurredAt) }}

@@ -3,10 +3,10 @@ shellEmulator: true
 trustPolicy: no-downgrade
 
 catalog:
-  '@antfu/eslint-config': ^8.2.0
+  '@antfu/eslint-config': ^9.0.0
   '@cloudflare/workers-types': ^4.20260511.1
-  '@iconify-json/lucide': ^1.2.106
-  '@iconify-json/simple-icons': ^1.2.81
+  '@iconify-json/lucide': ^1.2.107
+  '@iconify-json/simple-icons': ^1.2.82
   '@nuxt/a11y': 1.0.0-alpha.1
   '@nuxt/content': ^3.13.0
   '@nuxt/eslint': ^1.15.2
@@ -18,7 +18,7 @@ catalog:
   '@nuxtjs/html-validator': ^2.1.0
   '@nuxtjs/mdc': '^0.21.1'
   '@nuxtjs/seo': ^5.1.3
-  '@playwright/test': ^1.59.1
+  '@playwright/test': ^1.60.0
   '@resvg/resvg-js': ^2.6.2
   '@takumi-rs/core': ^1.1.2
   '@takumi-rs/wasm': ^1.1.2
@@ -27,9 +27,9 @@ catalog:
   '@vueuse/nuxt': ^14.3.0
   algoliasearch: ^5.52.1
   axe-core: ^4.11.4
-  better-sqlite3: ^12.9.0
+  better-sqlite3: ^12.10.0
   eslint: ^10.3.0
-  eslint-plugin-harlanzw: ^0.12.1
+  eslint-plugin-harlanzw: ^0.14.0
   happy-dom: ^20.9.0
   lint-staged: ^17.0.4
   marked: ^18.0.3
@@ -41,11 +41,13 @@ catalog:
   nuxt-auth-utils: ^0.5.29
   nuxt-og-image: ^6.5.0
   shiki: ^4.0.2
+  skilld-protocol: ^0.2.1
   tailwindcss: ^4.3.0
+  tsx: ^4.21.0
   typescript: ^6.0.3
-  vitest: ^4.1.5
+  vitest: ^4.1.6
   vue-tsc: ^3.2.8
-  wrangler: ^4.90.0
+  wrangler: ^4.90.1
   zod: ^4.4.3
 ignoredBuiltDependencies:
   - '@parcel/watcher'

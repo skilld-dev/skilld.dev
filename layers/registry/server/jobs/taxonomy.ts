@@ -32,6 +32,7 @@ export const TAXONOMY: Tag[] = [
   { slug: 'nuxt', label: 'Nuxt', description: 'Nuxt modules, server routes, Nitro' },
   { slug: 'vue', label: 'Vue', description: 'Vue components, composables, reactivity' },
   { slug: 'react', label: 'React', description: 'React components, hooks, state mgmt' },
+  { slug: 'nextjs', label: 'Next.js', description: 'Next.js app router, server components, routing' },
   { slug: 'ai', label: 'AI/ML', description: 'LLM apps, embeddings, prompt engineering' },
   { slug: 'data', label: 'Data', description: 'ETL, pipelines, analytics, notebooks' },
   { slug: 'seo', label: 'SEO', description: 'Search optimization, structured data, sitemaps' },

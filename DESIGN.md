@@ -193,6 +193,54 @@ components:
 
 The animated noise field (CLI origin: `skilld/src/ui.ts`) is the single kinetic brand element on the site. WebGL implementation, 2px circles on an 8px grid, hue seeded by `djb2(route.path)`. Appears in **exactly three contexts**: hero background, page transitions, loading/empty states. Never in UI chrome. Full identity spec in `.claude/context/brand-guidelines.md`; full implementation spec in `.claude/context/design-guidelines.md`.
 
+## Homepage Editorial Direction
+
+The homepage should stop leading with broad category browsing and instead make a small number of high-value, author-led skill sets feel installable. This is equivalent to the current **Collection** system, but the editorial unit may contain one repo, several skills across compatible repos, or a single standout skill. The user-facing promise is: **skills from developers you already trust, grouped by the job they help your agent do better.**
+
+### High-Value Developer Skills
+
+Use these as the first homepage editorial inventory. Counts and rankings below are from the production registry on 2026-05-10 and should be refreshed before hard-coding copy.
+
+| Priority | Developer / repo | Strong skills to surface | Why it belongs on the homepage |
+|----------|------------------|--------------------------|---------------------------------|
+| 1 | Addy Osmani, `addyosmani/web-quality-skills` | `performance`, `core-web-vitals`, `accessibility`, `seo`, `web-quality-audit`, `best-practices` | Recognisable web quality authority; tight repo; every skill maps to a concrete frontend outcome. |
+| 1 | Matt Pocock, `mattpocock/skills` | `grill-me`, `improve-codebase-architecture`, `grill-with-docs`, `tdd`, `diagnose`, `zoom-out`, `write-a-skill` | High-trust TypeScript educator; strong skills for planning, architecture, TDD, diagnosis, and agent discipline. |
+| 1 | Paul Bakaus, `pbakaus/impeccable` | `impeccable` | Single-skill collection candidate. A large, opinionated frontend UX/design quality skill is easier to understand as one premium install than as a category. |
+| 1 | Anthony Fu, `antfu/skills` | `vite`, `vitest`, `vue-best-practices`, `vue`, `pinia`, `vueuse-functions`, `nuxt`, `pnpm`, `antfu` | Best first example of an author-led framework/tooling stack. Pairs naturally with Vue/Nuxt-specific repos. |
+| 2 | Steph Ango, `kepano/obsidian-skills` | `obsidian-bases`, `json-canvas`, `obsidian-markdown`, `obsidian-cli`, `defuddle` | Recognisable product author; coherent knowledge-work and markdown/canvas workflow. |
+| 2 | Garry Tan, `garrytan/gstack` | `retro`, `browse`, `benchmark`, `canary`, `careful`, `codex`, `cso`, `ship` | High social proof and broad workflow skills; needs editorial restraint because repo is large and mixed. |
+| 2 | Thomas Ricouard, `dimillian/skills` | `swiftui-liquid-glass`, `swiftui-performance-audit`, `swiftui-ui-patterns`, `swiftui-view-refactor`, `swift-concurrency-expert` | Clear Apple/Swift specialist set with practical development outcomes. |
+| 2 | Julien Thibeaut, `ibelick/ui-skills` | `fixing-motion-performance`, `fixing-accessibility`, `baseline-ui`, `fixing-metadata` | Strong companion to `impeccable` and Addy's web quality skills for UI polish. |
+| 3 | Brian Lovin, `brianlovin/claude-config` | `deslop`, `rams`, `agent-browser`, `sentry`, `react-doctor`, `simplify`, `playwriter` | Good product/design engineering angle; use as supporting pairings rather than first hero item. |
+| 3 | Yunfei He, `hyf0/vue-skills` | `vue-debug-guides`, `vue-best-practices`, `vue-router-best-practices`, `vue-pinia-best-practices`, `create-adaptable-composable` | Strong Vue companion inventory, especially when paired with Anthony Fu and Nuxt skills. |
+| 3 | Max, `onmax/nuxt-skills` | `nuxt`, `nuxt-ui`, `nuxt-content`, `nuxt-seo`, `vue`, `vueuse`, `vite`, `vitest` | Nuxt-specific extension to the Vue/tooling stack; lower author proof, higher topical usefulness. |
+| 3 | Paul Bakaus, `pbakaus/agent-reviews` | `resolve-agent-reviews`, `resolve-reviews`, `resolve-human-reviews`, `agent-reviews` | Useful PR-review workflow set; best shown as a companion to diagnosis/TDD/review skills. |
+
+### Suggested Homepage Skill Sets
+
+These are editorial sets, not necessarily database collections yet. If a set has one skill, render it the same way but show `1 skill` and make the rationale carry the value.
+
+| Set | Skills / repos | Homepage angle |
+|-----|----------------|----------------|
+| **Web quality stack** | Addy: `performance`, `core-web-vitals`, `accessibility`, `seo`, `web-quality-audit`, `best-practices` | "Make your agent catch the things Lighthouse, WCAG, and search bots care about." |
+| **Frontend taste stack** | Paul: `impeccable`; Julien: `baseline-ui`, `fixing-accessibility`, `fixing-motion-performance`; Brian: `rams`, `deslop` | "For making shipped UI sharper, calmer, more accessible, and less AI-generic." |
+| **TypeScript engineering stack** | Matt: `improve-codebase-architecture`, `tdd`, `diagnose`, `grill-with-docs`, `zoom-out`; Anthony: `pnpm`, `vitest` | "For planning, testing, and debugging real TypeScript codebases." |
+| **Vue/Nuxt stack** | Anthony: `vue`, `vue-best-practices`, `vite`, `vitest`, `pinia`, `vueuse-functions`; Yunfei: `vue-debug-guides`; Max: `nuxt`, `nuxt-ui`, `nuxt-content` | "A coherent Vue/Nuxt agent setup from framework people and ecosystem specialists." |
+| **Agent workflow stack** | Garry: `retro`, `careful`, `codex`, `ship`, `browse`, `canary`; Matt: `grill-me`; Thomas: `review-swarm`, `bug-hunt-swarm` | "For running an agent like an engineering workflow, not a chat box." |
+| **Apple app stack** | Thomas: `swiftui-liquid-glass`, `swiftui-performance-audit`, `swiftui-ui-patterns`, `swiftui-view-refactor`, `swift-concurrency-expert` | "For SwiftUI and Swift concurrency work with modern iOS defaults." |
+| **Knowledge workspace stack** | Steph: `obsidian-bases`, `json-canvas`, `obsidian-markdown`, `obsidian-cli`, `defuddle` | "For agents working inside an Obsidian vault, markdown knowledge base, or canvas workflow." |
+| **PR review cleanup stack** | Paul: `resolve-agent-reviews`, `resolve-human-reviews`; Brian: `react-doctor`, `sentry`; Matt: `diagnose`, `tdd` | "For turning review comments and production findings into fixed code." |
+
+### Homepage Layout Rules
+
+- **Hero**: lead with trust and specificity, not a question. Preferred direction: "Install skills from developers you already trust." Supporting copy should mention named developers and installable sets. Keep one primary CTA to browse featured sets and one secondary CTA to browse all skills.
+- **First content section**: `Featured skill sets`. Show 4-6 editorial cards before any generic category grid. Each card needs: set name, one-line rationale, author avatar stack, author/repo provenance line, 3-6 visible skills, `N skills`, and a compact install/browse action.
+- **Single-skill sets**: allowed and encouraged when the author/skill is strong enough, e.g. `pbakaus/impeccable`. Do not hide them in a generic list because they only contain one skill.
+- **Pairing signal**: when multiple authors appear in a set, show a small mono line such as `Works with Addy Osmani + Julien Thibeaut`. The point is compatibility and taste transfer, not volume.
+- **Section order**: Hero -> Featured skill sets -> Trusted developers -> Recently updated -> Browse by domain -> Watch CTA. Domain/category browsing becomes a lower-priority escape hatch.
+- **Card density**: use the existing bordered card pattern, but each editorial card should read like a Wirecutter pick: compact rationale first, metadata second. Avoid nested cards; skill names can be inline badges or a divided list.
+- **Copy rule**: do not say "top", "best", or "popular" unless the reason is visible. Say "Chosen because..." or "Useful when..." and connect the author to the workflow.
+
 ## Design Decisions
 
 > Append-only log of intentional choices the user has confirmed. Do not re-litigate; only add.

@@ -1,23 +1,6 @@
+import type { AuditEntry, SkillLiveResponse } from 'skilld-protocol/wire'
+import { SkillLiveResponseSchema } from 'skilld-protocol/wire'
 import { getDB } from '../../../../../shared/server/db'
-
-interface AuditEntry {
-  provider: string
-  slug: string
-  status: 'pass' | 'warn' | 'fail' | string
-  summary?: string
-  auditedAt?: string
-  riskLevel?: string
-  categories?: string[]
-}
-
-interface SkillLiveResponse {
-  id: string
-  installs: number | null
-  formatted: string | null
-  audits: AuditEntry[]
-  source: 'skills.sh'
-  fetchedAt: string
-}
 
 interface SkillsShAuditResponse {
   id?: string
@@ -103,7 +86,7 @@ export default defineCachedEventHandler(async (event): Promise<SkillLiveResponse
       })
   }
 
-  return {
+  const payload: SkillLiveResponse = {
     id,
     installs: installResult.installs,
     formatted: installResult.formatted,
@@ -111,6 +94,16 @@ export default defineCachedEventHandler(async (event): Promise<SkillLiveResponse
     source: 'skills.sh',
     fetchedAt: new Date().toISOString(),
   }
+
+  // Strict parse in dev/test (catches drift early); soft parse + log in prod
+  // (never block a response on a schema mismatch the CLI can already tolerate).
+  if (import.meta.dev || import.meta.test) {
+    return SkillLiveResponseSchema.parse(payload)
+  }
+  const parsed = SkillLiveResponseSchema.safeParse(payload)
+  if (!parsed.success)
+    console.warn('[skill-live] response failed protocol validation:', parsed.error.flatten())
+  return payload
 }, {
   maxAge: 60 * 60, // 1 hour fresh
   staleMaxAge: 60 * 60 * 24 * 7, // 1 week stale-while-revalidate window

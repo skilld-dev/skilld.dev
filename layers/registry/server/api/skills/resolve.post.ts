@@ -1,12 +1,13 @@
+import { SkillsResolveInputSchema, SkillsResolveResponseSchema } from 'skilld-protocol/wire'
 import { findSkillsByLookups } from '~~/layers/registry/server/utils/skills-registry'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
-import { ResolveSkillsInput } from '../../schemas/resolve-input'
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 
 export default defineApiHandler({
-  schema: ResolveSkillsInput,
+  schema: SkillsResolveInputSchema,
+  response: SkillsResolveResponseSchema,
   handler: async ({ event, body }) => {
     if (!body.items.length)
       return {}
