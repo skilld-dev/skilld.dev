@@ -1,3 +1,4 @@
+import type { Renderer, Tokens } from 'marked'
 import { Marked } from 'marked'
 
 const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
@@ -105,6 +106,18 @@ const skillMd = new Marked({
       const safe = sanitizeUrl(rewriteHref(href, 'image'))
       const t = title ? ` title="${escapeHtml(title)}"` : ''
       return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text)}"${t}>`
+    },
+    heading(this: Renderer, token: Tokens.Heading) {
+      const content = this.parser.parseInline(token.tokens)
+      const level = Math.min(token.depth + 1, 6)
+      return `<h${level}>${content}</h${level}>\n`
+    },
+    tablecell(this: Renderer, token: Tokens.TableCell) {
+      const content = this.parser.parseInline(token.tokens)
+      const tag = token.header ? 'th' : 'td'
+      const scope = token.header ? ' scope="col"' : ''
+      const align = token.align ? ` align="${token.align}"` : ''
+      return `<${tag}${scope}${align}>${content}</${tag}>\n`
     },
   },
 })

@@ -222,6 +222,24 @@ const { data: liveSkill } = useAsyncData(
   fetchedAt: string
 } | null>>
 
+const { data: skillFiles } = useFetch(
+  () => `/api/skill-files/${slug.value}`,
+  { watch: [slug], lazy: true, server: false, immediate: true, default: () => null },
+) as ReturnType<typeof useFetch<{
+  skillPath: string | null
+  branch: string
+  files: { path: string, size: number, type: 'markdown' | 'code' | 'image' | 'data' | 'other' }[]
+} | null>>
+
+// Prefer the live ungh-walked file list when available (catches markdown
+// siblings the sync job hasn't registered yet); fall back to data.assets.
+const treeAssets = computed(() => {
+  const live = skillFiles.value?.files
+  if (live && live.length)
+    return live
+  return data.value?.assets ?? []
+})
+
 const displayInstalls = computed(() => liveSkill.value?.installs ?? data.value?.installs ?? 0)
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
 
@@ -265,6 +283,25 @@ const HIDDEN_FRONTMATTER_KEYS = new Set(['name', 'description'])
 const allowedTools = computed(() => {
   return data.value?.sourceFacts.frontmatter.allowedTools ?? []
 })
+
+// SSR and client may use different locales/12h-vs-24h formats, which trips
+// hydration mismatch warnings on `:title` attributes. Pin to a stable
+// locale + ISO-like time so server and client always agree.
+const DATETIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+})
+function formatDateTitle(value: Date | string | number | null | undefined): string {
+  if (!value)
+    return ''
+  const d = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(d.getTime()) ? '' : DATETIME_FORMAT.format(d)
+}
 
 function formatFrontmatterValue(v: unknown): string {
   if (v === null || v === undefined)
@@ -320,12 +357,127 @@ const contentView = ref<'preview' | 'markdown'>('preview')
 const rawHtml = ref<string | null>(null)
 const rawError = ref<string | null>(null)
 
+import { shikiLangFromPath } from '../utils/skill-file-tree'
+
+// Path of the doc currently active in the viewer, relative to the skill folder.
+// Empty string === SKILL.md. Used to highlight the file tree.
+const activeDocPath = ref<string>('')
+// Sub-doc state. When the user navigates to a non-root markdown file via the
+// file tree, we store its server-rendered HTML + raw source here. Null means
+// "show the root SKILL.md" (data.value.contentHtml / data.value.raw).
+const subDocHtml = ref<string | null>(null)
+const subDocRaw = ref<string | null>(null)
+const currentDocLabel = computed(() => activeDocPath.value || 'SKILL.md')
+const currentRaw = computed(() => subDocRaw.value ?? data.value?.raw ?? null)
+// Same `marked` pipeline as SSR (skill-md-render.ts) on both sides, so the
+// initial paint matches `data.contentHtml` byte-for-byte — no hydration swap.
+const currentContentHtml = computed(() => subDocHtml.value ?? data.value?.contentHtml ?? null)
+// Surfaced when a sub-doc fetch fails so the user gets feedback instead of a
+// silent no-op. Cleared on every successful navigation and on raw refresh.
+const docLoadError = ref<{ path: string, message: string } | null>(null)
+// True while a tree click is fetching a sub-doc; drives the skeleton overlay
+// so the user doesn't stare at the previous doc.
+const docLoading = ref<string | null>(null)
+
+// Reset sub-doc state whenever the loaded skill changes so navigating between
+// skills always lands on the root SKILL.md.
+watch(
+  () => data.value,
+  () => {
+    activeDocPath.value = ''
+    subDocHtml.value = null
+    subDocRaw.value = null
+    docLoadError.value = null
+  },
+)
+
+// Programmatic open from the file tree. Markdown sub-docs reuse the server's
+// `marked` render via /api/skill-asset so every previewed document goes
+// through the same renderer as the SSR'd root SKILL.md.
+async function resolveAndOpen(path: string) {
+  if (!data.value)
+    return
+  docLoadError.value = null
+  const targetLabel = !path || path === 'SKILL.md' ? 'SKILL.md' : path
+  docLoading.value = targetLabel
+  try {
+    if (!path || path === 'SKILL.md') {
+      activeDocPath.value = ''
+      subDocHtml.value = null
+      subDocRaw.value = null
+      return
+    }
+    const asset = await $fetch<{ status: 'ok', raw: string, html: string | null, type: 'markdown' | 'code' | 'image' | 'data' | 'other' }>(
+      `/api/skill-asset/${data.value.owner}/${data.value.repo}/${data.value.name}/${path}`,
+    ).catch((err: unknown) => {
+      const message = (err as { statusMessage?: string })?.statusMessage
+        ?? (err instanceof Error ? err.message : 'Network error')
+      docLoadError.value = { path, message }
+      return null
+    })
+    if (!asset?.raw)
+      return
+    activeDocPath.value = path
+    subDocRaw.value = asset.raw
+    const isMd = path.toLowerCase().endsWith('.md') || path.toLowerCase().endsWith('.markdown')
+    subDocHtml.value = isMd ? asset.html : null
+  }
+  finally {
+    docLoading.value = null
+  }
+}
+
+function resolveRelativePath(baseDir: string, href: string): string | null {
+  let target = href.replace(/^\.\//, '')
+  if (target.startsWith('/')) {
+    target = target.slice(1)
+    return target.includes('..') ? null : target
+  }
+  const segments = baseDir ? baseDir.split('/').filter(Boolean) : []
+  for (const part of target.split('/')) {
+    if (part === '..') {
+      if (!segments.length)
+        return null
+      segments.pop()
+    }
+    else if (part && part !== '.') {
+      segments.push(part)
+    }
+  }
+  return segments.join('/')
+}
+
+// Intercept clicks on relative `.md` links inside the rendered preview so we
+// can swap the doc in place instead of leaving the page.
+function onPreviewClick(e: MouseEvent) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+    return
+  const anchor = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
+  if (!anchor)
+    return
+  const href = anchor.getAttribute('href') ?? ''
+  if (!href || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:\/\//i.test(href))
+    return
+  const cleanHref = href.split('#')[0]?.split('?')[0] ?? ''
+  if (!cleanHref.toLowerCase().endsWith('.md') && !cleanHref.toLowerCase().endsWith('.markdown'))
+    return
+  const baseDir = activeDocPath.value.includes('/')
+    ? activeDocPath.value.slice(0, activeDocPath.value.lastIndexOf('/'))
+    : ''
+  const resolved = resolveRelativePath(baseDir, cleanHref)
+  if (!resolved)
+    return
+  e.preventDefault()
+  void resolveAndOpen(resolved)
+}
+
 async function renderRaw(raw: string) {
   rawError.value = null
   try {
     const { codeToHtml } = await import('shiki')
+    const lang = activeDocPath.value ? shikiLangFromPath(activeDocPath.value) : 'markdown'
     rawHtml.value = await codeToHtml(raw, {
-      lang: 'markdown',
+      lang,
       themes: { light: 'github-light', dark: 'github-dark' },
       defaultColor: false,
     })
@@ -335,7 +487,7 @@ async function renderRaw(raw: string) {
   }
 }
 
-watch([contentView, () => data.value?.raw], ([view, raw], [, prevRaw]) => {
+watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
   if (raw !== prevRaw) {
     rawHtml.value = null
     rawError.value = null
@@ -345,10 +497,28 @@ watch([contentView, () => data.value?.raw], ([view, raw], [, prevRaw]) => {
   renderRaw(raw)
 })
 
-const contentTabs = [
-  { label: 'Preview', value: 'preview', icon: 'i-lucide-eye' },
-  { label: 'Markdown', value: 'markdown', icon: 'i-lucide-file-text' },
-]
+const isNonMarkdownDoc = computed(() => {
+  const p = activeDocPath.value
+  if (!p)
+    return false
+  const lower = p.toLowerCase()
+  return !lower.endsWith('.md') && !lower.endsWith('.markdown')
+})
+
+const contentTabs = computed(() => {
+  if (isNonMarkdownDoc.value)
+    return [{ label: 'Raw', value: 'markdown', icon: 'i-lucide-file-text' }]
+  return [
+    { label: 'Preview', value: 'preview', icon: 'i-lucide-eye' },
+    { label: 'Raw', value: 'markdown', icon: 'i-lucide-file-text' },
+  ]
+})
+
+// Non-md files have no Preview tab — pin to Raw whenever the active doc is
+// not markdown, and snap back to Preview when returning to a markdown doc.
+watch(isNonMarkdownDoc, (nonMd) => {
+  contentView.value = nonMd ? 'markdown' : 'preview'
+})
 
 const installerTabs = [
   { label: 'skilld', value: 'skilld' },
@@ -388,77 +558,11 @@ const currentRelatedItems = computed(() => {
 const commitsWithAgo = computed(() => {
   return (relatedData.value?.commits ?? []).map((c) => {
     const d = new Date(c.date)
-    return { ...c, relative: useTimeAgo(d).value, absolute: d.toLocaleString() }
+    return { ...c, relative: useTimeAgo(d).value, absolute: formatDateTitle(d) }
   })
 })
 
 const recentCommits = computed(() => commitsWithAgo.value.slice(0, 4))
-
-interface BundledAsset {
-  path: string
-  size: number
-  type: 'markdown' | 'code' | 'image' | 'data' | 'other'
-  fileName: string
-  ext: string
-  href: string
-  external: boolean
-  icon: string
-}
-
-interface BundledAssetGroup {
-  label: string
-  assets: BundledAsset[]
-}
-
-const ASSET_ICON: Record<BundledAsset['type'], string> = {
-  markdown: 'i-lucide-file-text',
-  code: 'i-lucide-file-code',
-  image: 'i-lucide-image',
-  data: 'i-lucide-database',
-  other: 'i-lucide-file',
-}
-
-const bundledAssetGroups = computed<BundledAssetGroup[]>(() => {
-  const list = data.value?.assets ?? []
-  if (!list.length || !data.value)
-    return []
-  const groups = new Map<string, BundledAsset[]>()
-  for (const a of list) {
-    const segments = a.path.split('/')
-    const fileName = segments[segments.length - 1] ?? a.path
-    const dir = segments.length > 1 ? segments.slice(0, -1).join('/') : ''
-    const ext = (fileName.split('.').pop() ?? '').toLowerCase()
-    const isMd = a.type === 'markdown'
-    const href = isMd
-      ? `/gh/${data.value!.owner}/${data.value!.repo}/${data.value!.name}/-/${a.path}`
-      : `https://github.com/${data.value!.owner}/${data.value!.repo}/blob/${data.value!.branch}/${data.value!.skillPath?.replace(/\/SKILL\.md$/, '') ?? ''}/${a.path}`
-    const asset: BundledAsset = {
-      path: a.path,
-      size: a.size,
-      type: a.type,
-      fileName,
-      ext,
-      href,
-      external: !isMd,
-      icon: ASSET_ICON[a.type] ?? 'i-lucide-file',
-    }
-    if (!groups.has(dir))
-      groups.set(dir, [])
-    groups.get(dir)!.push(asset)
-  }
-  // Top-level files first, then nested folders alphabetically.
-  return [...groups.entries()]
-    .sort(([a], [b]) => {
-      if (a === '' && b !== '')
-        return -1
-      if (b === '' && a !== '')
-        return 1
-      return a.localeCompare(b)
-    })
-    .map(([dir, assets]) => ({ label: dir, assets }))
-})
-
-const hasBundledAssets = computed(() => bundledAssetGroups.value.some(g => g.assets.length > 0))
 
 function truncateReason(text: string, max: number): string {
   const collapsed = text.replace(/\s+/g, ' ').trim()
@@ -789,7 +893,7 @@ useHead(computed(() => ({
             <span
               v-if="displayInstalls > 0"
               class="data-label inline-flex items-center gap-1"
-              :title="liveSkill?.fetchedAt ? `Weekly installs from skills.sh — refreshed ${new Date(liveSkill.fetchedAt).toLocaleString()}` : 'Weekly installs from skills.sh'"
+              :title="liveSkill?.fetchedAt ? `Weekly installs from skills.sh — refreshed ${formatDateTitle(liveSkill.fetchedAt)}` : 'Weekly installs from skills.sh'"
             >
               <UIcon
                 name="i-lucide-trending-up"
@@ -801,7 +905,7 @@ useHead(computed(() => ({
             <span
               v-if="data.pushedAt"
               class="data-label inline-flex items-center gap-1"
-              :title="new Date(data.pushedAt).toLocaleString()"
+              :title="formatDateTitle(data.pushedAt)"
             >
               <UIcon
                 name="i-lucide-clock"
@@ -909,7 +1013,7 @@ useHead(computed(() => ({
               color="neutral"
               variant="ghost"
             />
-            <AddToCollection :package-name="packageName" />
+            <AddToCollection :owner="data.owner" :repo="data.repo" :name="data.name" />
           </div>
         </div>
       </div>
@@ -918,27 +1022,64 @@ useHead(computed(() => ({
         <div class="lg:col-span-8 space-y-10 md:space-y-12">
           <section
             v-if="data.contentHtml"
+            class="skill-content-section"
             aria-labelledby="content-heading"
           >
-            <div class="mb-3 flex items-center justify-between gap-3">
+            <aside
+              class="skill-files-float hidden 2xl:block"
+              aria-labelledby="files-float-heading"
+            >
+              <div class="skill-files-float-inner">
+                <h2
+                  id="files-float-heading"
+                  class="section-label mb-3"
+                >
+                  Files
+                </h2>
+                <div class="rounded-lg border border-default p-2 bg-default">
+                  <SkillFileTree
+                    :assets="treeAssets"
+                    :owner="data.owner"
+                    :repo="data.repo"
+                    :name="data.name"
+                    :branch="data.branch"
+                    :skill-path="data.skillPath"
+                    :active-path="activeDocPath"
+                    @select="(p) => { void resolveAndOpen(p) }"
+                  />
+                </div>
+              </div>
+            </aside>
+            <div class="mb-3 flex items-start justify-between gap-3">
               <h2
                 id="content-heading"
-                class="section-label"
+                class="section-label flex min-w-0 flex-1 items-baseline gap-2"
               >
-                Skill content
+                <span class="shrink-0">Skill content</span>
+                <span
+                  v-if="activeDocPath"
+                  class="min-w-0 truncate font-mono text-[10px] tracking-normal normal-case text-muted"
+                  :title="currentDocLabel"
+                >
+                  / {{ currentDocLabel }}
+                </span>
               </h2>
               <UButton
-                v-if="data.raw"
+                v-if="currentRaw"
                 :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-                :label="markdownCopied ? 'Copied' : 'Copy as markdown'"
                 size="xs"
                 color="neutral"
                 variant="ghost"
-                @click="copyMarkdown(data.raw)"
-              />
+                class="shrink-0"
+                :aria-label="markdownCopied ? `${currentDocLabel} copied` : `Copy ${currentDocLabel}`"
+                @click="copyMarkdown(currentRaw)"
+              >
+                {{ markdownCopied ? 'Copied' : 'Copy markdown' }}
+              </UButton>
             </div>
 
             <UTabs
+              v-if="!isNonMarkdownDoc"
               v-model="contentView"
               :items="contentTabs"
               :content="false"
@@ -949,23 +1090,32 @@ useHead(computed(() => ({
             />
 
             <div class="rounded-lg border border-default overflow-hidden">
-              <article
+              <section
                 v-show="contentView === 'preview'"
-                class="skill-prose p-4 sm:p-6"
-                v-html="data.contentHtml"
-              />
-              <div
-                v-show="contentView === 'markdown'"
-                class="skill-markdown"
+                class="skill-mdxg p-4 sm:p-6 relative"
+                :data-loading="docLoading || undefined"
+                aria-label="Skill content viewer"
+                :aria-busy="docLoading ? 'true' : undefined"
               >
                 <div
-                  v-if="rawHtml"
-                  v-html="rawHtml"
-                />
+                  v-if="docLoading"
+                  class="skill-mdxg-loading"
+                  role="status"
+                  :aria-label="`Loading ${docLoading}`"
+                >
+                  <UIcon
+                    name="i-lucide-loader-circle"
+                    class="size-4 shrink-0 animate-spin text-muted"
+                    aria-hidden="true"
+                  />
+                  <span class="font-mono text-xs text-muted">
+                    Loading {{ docLoading }}…
+                  </span>
+                </div>
                 <div
-                  v-else-if="rawError"
-                  class="flex items-start gap-3 p-4 sm:p-6 text-sm"
+                  v-if="docLoadError"
                   role="alert"
+                  class="mb-3 flex items-start gap-2 rounded-md border border-default bg-muted/30 px-3 py-2 text-sm"
                 >
                   <UIcon
                     name="i-lucide-alert-circle"
@@ -973,30 +1123,70 @@ useHead(computed(() => ({
                     aria-hidden="true"
                   />
                   <div class="min-w-0 flex-1">
-                    <p class="text-default">
-                      Couldn't render markdown source.
+                    <p>
+                      Couldn't open <code class="font-mono">{{ docLoadError.path }}</code>.
                     </p>
                     <p class="mt-1 font-mono text-xs text-muted break-words">
-                      {{ rawError }}
+                      {{ docLoadError.message }}
                     </p>
-                    <UButton
-                      label="Retry"
-                      size="xs"
-                      color="neutral"
-                      variant="outline"
-                      class="mt-3"
-                      @click="data?.raw && renderRaw(data.raw)"
-                    />
                   </div>
+                  <button
+                    type="button"
+                    class="shrink-0 px-2 py-0.5 font-mono text-xs text-muted hover:text-default"
+                    @click="docLoadError = null"
+                  >
+                    Dismiss
+                  </button>
                 </div>
-                <div
-                  v-else
-                  class="p-4 sm:p-6"
-                >
-                  <USkeleton class="h-4 w-3/4" />
-                  <USkeleton class="mt-2 h-4 w-1/2" />
-                  <USkeleton class="mt-2 h-4 w-2/3" />
+                <article
+                  class="skill-prose"
+                  @click="onPreviewClick"
+                  v-html="currentContentHtml || ''"
+                />
+              </section>
+            </div>
+            <div
+              v-show="contentView === 'markdown'"
+              class="skill-markdown"
+            >
+              <div
+                v-if="rawHtml"
+                v-html="rawHtml"
+              />
+              <div
+                v-else-if="rawError"
+                class="flex items-start gap-3 p-4 sm:p-6 text-sm"
+                role="alert"
+              >
+                <UIcon
+                  name="i-lucide-alert-circle"
+                  class="size-4 shrink-0 mt-0.5 text-muted"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-default">
+                    Couldn't render markdown source.
+                  </p>
+                  <p class="mt-1 font-mono text-xs text-muted break-words">
+                    {{ rawError }}
+                  </p>
+                  <UButton
+                    label="Retry"
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                    class="mt-3"
+                    @click="currentRaw && renderRaw(currentRaw)"
+                  />
                 </div>
+              </div>
+              <div
+                v-else
+                class="p-4 sm:p-6"
+              >
+                <USkeleton class="h-4 w-3/4" />
+                <USkeleton class="mt-2 h-4 w-1/2" />
+                <USkeleton class="mt-2 h-4 w-2/3" />
               </div>
             </div>
 
@@ -1126,7 +1316,10 @@ useHead(computed(() => ({
           </section>
         </div>
 
-        <aside class="mt-10 lg:mt-0 lg:col-span-4 lg:sticky lg:top-6 space-y-6">
+        <aside
+          class="mt-10 lg:mt-0 lg:col-span-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1 scroll-fancy space-y-6"
+          aria-label="Install and metadata"
+        >
           <section
             class="hidden lg:block"
             aria-labelledby="rail-install-heading"
@@ -1160,7 +1353,9 @@ useHead(computed(() => ({
                   @click="copy(installCmdActive)"
                 />
               </div>
-              <WatchSkillButton :owner="data.owner" :repo="data.repo" />
+              <div style="min-height:1.75rem">
+                <WatchSkillButton :owner="data.owner" :repo="data.repo" />
+              </div>
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
                 <UButton
                   :href="githubUrl"
@@ -1192,7 +1387,7 @@ useHead(computed(() => ({
                   color="neutral"
                   variant="ghost"
                 />
-                <AddToCollection :package-name="packageName" />
+                <AddToCollection :owner="data.owner" :repo="data.repo" :name="data.name" />
               </div>
             </div>
           </section>
@@ -1288,84 +1483,26 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="hasBundledAssets"
-            aria-labelledby="assets-heading"
+            class="2xl:hidden"
+            aria-labelledby="files-heading"
           >
             <h2
-              id="assets-heading"
+              id="files-heading"
               class="section-label mb-3"
             >
-              Bundled files
+              Files
             </h2>
-            <div class="rounded-lg border border-default overflow-hidden">
-              <div
-                v-for="(group, groupIdx) in bundledAssetGroups"
-                :key="group.label || '__root__'"
-              >
-                <div
-                  v-if="group.label"
-                  class="data-label px-3 py-1.5 bg-muted/30 border-default"
-                  :class="{ 'border-t': groupIdx > 0 }"
-                >
-                  {{ group.label }}/
-                </div>
-                <ul class="divide-y divide-default" :class="{ 'border-t border-default': groupIdx > 0 && !group.label }">
-                  <li
-                    v-for="asset in group.assets"
-                    :key="asset.path"
-                  >
-                    <a
-                      v-if="asset.external"
-                      :href="asset.href"
-                      target="_blank"
-                      rel="noopener"
-                      :title="asset.path"
-                      class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
-                    >
-                      <UIcon
-                        :name="asset.icon"
-                        class="size-3.5 shrink-0 text-muted"
-                        aria-hidden="true"
-                      />
-                      <span class="min-w-0 flex-1 truncate font-mono text-xs">
-                        {{ asset.fileName }}
-                      </span>
-                      <span
-                        v-if="asset.ext"
-                        class="data-label shrink-0"
-                      >
-                        {{ asset.ext }}
-                      </span>
-                      <UIcon
-                        name="i-lucide-external-link"
-                        class="size-3 shrink-0 text-muted/70"
-                        aria-hidden="true"
-                      />
-                    </a>
-                    <NuxtLink
-                      v-else
-                      :to="asset.href"
-                      :title="asset.path"
-                      class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
-                    >
-                      <UIcon
-                        :name="asset.icon"
-                        class="size-3.5 shrink-0 text-muted"
-                        aria-hidden="true"
-                      />
-                      <span class="min-w-0 flex-1 truncate font-mono text-xs">
-                        {{ asset.fileName }}
-                      </span>
-                      <span
-                        v-if="asset.ext"
-                        class="data-label shrink-0"
-                      >
-                        {{ asset.ext }}
-                      </span>
-                    </NuxtLink>
-                  </li>
-                </ul>
-              </div>
+            <div class="rounded-lg border border-default p-2" style="min-height:8rem">
+              <SkillFileTree
+                :assets="treeAssets"
+                :owner="data.owner"
+                :repo="data.repo"
+                :name="data.name"
+                :branch="data.branch"
+                :skill-path="data.skillPath"
+                :active-path="activeDocPath"
+                @select="(p) => { void resolveAndOpen(p) }"
+              />
             </div>
           </section>
 
@@ -1576,54 +1713,157 @@ useHead(computed(() => ({
           </section>
         </aside>
       </div>
-
-      <template v-if="relatedTabsAvailable.length">
-        <USeparator />
-        <section
-          class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
-          aria-labelledby="related-heading"
-        >
-          <h2
-            id="related-heading"
-            class="section-label mb-4"
-          >
-            Related skills
-          </h2>
-          <UTabs
-            v-model="relatedTab"
-            :items="relatedTabsAvailable"
-            :content="false"
-            color="neutral"
-            variant="link"
-            size="xs"
-            class="mb-4"
-          />
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <NuxtLink
-              v-for="item in currentRelatedItems"
-              :key="`${relatedTab}-${item.slug}`"
-              :to="repoSkillPath(item.owner, item.repo, item.name)"
-              class="group flex items-start gap-3 rounded-lg border border-default p-4 transition-colors hover:border-inverted/30"
-            >
-              <img
-                :src="`https://github.com/${item.owner}.png?size=48`"
-                :alt="`${item.owner} avatar`"
-                width="24"
-                height="24"
-                class="size-6 shrink-0 rounded-md border border-default mt-0.5"
-              >
-              <div class="min-w-0 flex-1">
-                <div class="truncate font-mono text-sm">
-                  /{{ item.name }}
-                </div>
-                <div class="data-label mt-0.5 truncate">
-                  {{ item.owner }}{{ item.repo !== 'skills' ? `/${item.repo}` : '' }}
-                </div>
-              </div>
-            </NuxtLink>
-          </div>
-        </section>
-      </template>
     </template>
   </div>
+
+  <template v-if="relatedTabsAvailable.length">
+    <USeparator />
+    <section
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+      aria-labelledby="related-heading"
+    >
+      <h2
+        id="related-heading"
+        class="section-label mb-4"
+      >
+        Related skills
+      </h2>
+      <UTabs
+        v-model="relatedTab"
+        :items="relatedTabsAvailable"
+        :content="false"
+        color="neutral"
+        variant="link"
+        size="xs"
+        class="mb-4"
+      />
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <NuxtLink
+          v-for="item in currentRelatedItems"
+          :key="`${relatedTab}-${item.slug}`"
+          :to="repoSkillPath(item.owner, item.repo, item.name)"
+          class="group flex items-start gap-3 rounded-lg border border-default p-4 transition-colors hover:border-inverted/30"
+        >
+          <img
+            :src="`https://github.com/${item.owner}.png?size=48`"
+            :alt="`${item.owner} avatar`"
+            width="24"
+            height="24"
+            class="size-6 shrink-0 rounded-md border border-default mt-0.5"
+          >
+          <div class="min-w-0 flex-1">
+            <div class="truncate font-mono text-sm">
+              /{{ item.name }}
+            </div>
+            <div class="data-label mt-0.5 truncate">
+              {{ item.owner }}{{ item.repo !== 'skills' ? `/${item.repo}` : '' }}
+            </div>
+          </div>
+        </NuxtLink>
+      </div>
+    </section>
+  </template>
 </template>
+
+<style scoped>
+/* tick-1778739986023 */
+/* Floating file-tree panel — visible at 2xl+ only. Pinned to the viewport
+   left of the centered max-w-5xl content column. Half-page = 32rem
+   (max-w-5xl / 2), tree column ~14rem, gap 1.5rem; max-aligned to a 1rem
+   safety margin so very wide viewports keep the panel near the content. */
+/* The content section becomes the positioning anchor at 2xl+ so the floating
+   panel can sit aligned with the section's top edge ("Skill content"
+   heading) and extend down with it. */
+@media (min-width: 1536px) {
+  .skill-content-section {
+    position: relative;
+  }
+}
+
+.skill-files-float {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* Offset left of the column (14rem panel + 1.5rem gap). */
+  left: -15.5rem;
+  width: 14rem;
+}
+
+.skill-files-float-inner {
+  position: sticky;
+  top: 6rem;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--ui-border) 80%, transparent) transparent;
+}
+.skill-files-float-inner:hover {
+  scrollbar-color: color-mix(in oklch, var(--ui-text-muted) 60%, transparent) transparent;
+}
+.skill-files-float-inner::-webkit-scrollbar {
+  width: 8px;
+}
+.skill-files-float-inner::-webkit-scrollbar-track {
+  background: transparent;
+}
+.skill-files-float-inner::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--ui-border) 80%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 200ms;
+}
+.skill-files-float-inner:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--ui-text-muted) 60%, transparent);
+  background-clip: padding-box;
+}
+
+.skill-mdxg {
+  min-height: 24rem;
+}
+
+.skill-mdxg[data-loading] :deep(.skill-prose) {
+  opacity: 0.4;
+  transition: opacity 120ms;
+  pointer-events: none;
+}
+
+.skill-mdxg-loading {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-bg);
+  z-index: 1;
+}
+
+.skill-markdown :deep(pre),
+.skill-markdown :deep(.shiki) {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  background: var(--ui-bg-muted) !important;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  padding: 0.875rem 1rem;
+  overflow-x: auto;
+}
+.skill-markdown :deep(.shiki span) {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style);
+  font-weight: var(--shiki-light-font-weight);
+  background: transparent !important;
+}
+.dark .skill-markdown :deep(.shiki span) {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+  font-weight: var(--shiki-dark-font-weight);
+}
+</style>

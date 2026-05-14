@@ -33,6 +33,7 @@
   "dependencies": {
     "@iconify-json/lucide": "catalog:",
     "@iconify-json/simple-icons": "catalog:",
+    "@iconify-json/vscode-icons": "catalog:",
     "@nuxt/content": "catalog:",
     "@nuxt/fonts": "catalog:",
     "@nuxt/scripts": "catalog:",
@@ -51,8 +52,9 @@
     "nuxt-ai-ready": "catalog:",
     "nuxt-auth-utils": "catalog:",
     "nuxt-og-image": "catalog:",
+    "remark-breaks": "catalog:",
     "shiki": "catalog:",
-    "skilld-protocol": "0.2.2",
+    "skilld-protocol": "catalog:",
     "tailwindcss": "catalog:",
     "zod": "catalog:"
   },

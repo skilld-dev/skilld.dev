@@ -149,6 +149,36 @@
   display: none;
 }
 
+/* Modern thin scrollbar: stable gutter, contained overscroll,
+   theme-aware thumb that brightens on hover. Uses standard
+   scrollbar-color + scrollbar-width plus WebKit fallbacks. */
+.scroll-fancy {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--ui-border) 80%, transparent) transparent;
+}
+.scroll-fancy:hover {
+  scrollbar-color: color-mix(in oklch, var(--ui-text-muted) 60%, transparent) transparent;
+}
+.scroll-fancy::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-fancy::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-fancy::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--ui-border) 80%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 200ms;
+}
+.scroll-fancy:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--ui-text-muted) 60%, transparent);
+  background-clip: padding-box;
+}
+
 /* Rendered markdown (SKILL.md) */
 .skill-prose {
   color: var(--ui-text);
@@ -297,6 +327,7 @@
   font-style: var(--shiki-light-font-style);
   font-weight: var(--shiki-light-font-weight);
   text-decoration: var(--shiki-light-text-decoration);
+  background: transparent !important;
 }
 .dark .skill-markdown .shiki span {
   color: var(--shiki-dark);

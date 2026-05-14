@@ -91,32 +91,44 @@ onKeyDown('?', (e) => {
         />
         <UColorModeButton />
 
-        <template v-if="isAuthenticated && user">
+        <ClientOnly>
+          <template v-if="isAuthenticated && user">
+            <UButton
+              to="/me"
+              :label="`@${user.login}`"
+              icon="i-lucide-user"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+            />
+            <UButton
+              label="Sign out"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              @click="logout"
+            />
+          </template>
           <UButton
-            to="/me"
-            :label="`@${user.login}`"
-            icon="i-lucide-user"
+            v-else
+            to="/login"
+            label="Sign in"
+            icon="i-lucide-github"
             color="neutral"
             variant="ghost"
             size="sm"
           />
-          <UButton
-            label="Sign out"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            @click="logout"
-          />
-        </template>
-        <UButton
-          v-else
-          to="/login"
-          label="Sign in"
-          icon="i-lucide-github"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-        />
+          <template #fallback>
+            <UButton
+              to="/login"
+              label="Sign in"
+              icon="i-lucide-github"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+            />
+          </template>
+        </ClientOnly>
       </template>
 
       <template #body>

@@ -162,7 +162,7 @@ const hasActions = computed(() => Boolean(provenance.skillFileUrl || provenance.
       </span>
     </div>
 
-    <div class="rounded-lg border border-default">
+    <div class="rounded-lg border border-default min-h-[3.5rem]">
       <details
         v-if="audits.length"
         class="group"

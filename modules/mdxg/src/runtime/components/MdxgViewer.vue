@@ -31,6 +31,11 @@ const props = defineProps<{
   hideSequential?: boolean
   hideSearch?: boolean
   hideModeToggle?: boolean
+  // When true, the toolbar (active-page title + mode toggle) is not rendered
+  // at all. Use this when the host page already shows the active heading and
+  // the mode toggle is hidden, to avoid a stray H1 from competing with the
+  // host's heading outline.
+  hideToolbar?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -206,11 +211,17 @@ function dismissError() { router?.clearError() }
     </aside>
 
     <main class="mdxg-main">
-      <header class="mdxg-toolbar">
+      <header
+        v-if="!hideToolbar"
+        class="mdxg-toolbar"
+      >
         <h1 class="mdxg-active-title">
           {{ activePage.title }}
         </h1>
-        <MdxgModeToggle v-if="!hideModeToggle" v-model="mode" />
+        <MdxgModeToggle
+          v-if="!hideModeToggle"
+          v-model="mode"
+        />
       </header>
 
       <div

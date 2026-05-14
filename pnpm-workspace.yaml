@@ -7,6 +7,7 @@ catalog:
   '@cloudflare/workers-types': ^4.20260511.1
   '@iconify-json/lucide': ^1.2.107
   '@iconify-json/simple-icons': ^1.2.82
+  '@iconify-json/vscode-icons': ^1.2.49
   '@nuxt/a11y': 1.0.0-alpha.1
   '@nuxt/content': ^3.13.0
   '@nuxt/eslint': ^1.15.2
@@ -16,7 +17,7 @@ catalog:
   '@nuxt/test-utils': ^4.0.3
   '@nuxt/ui': ^4.7.1
   '@nuxtjs/html-validator': ^2.1.0
-  '@nuxtjs/mdc': '^0.21.1'
+  '@nuxtjs/mdc': ^0.21.1
   '@nuxtjs/seo': ^5.1.3
   '@playwright/test': ^1.60.0
   '@resvg/resvg-js': ^2.6.2
@@ -49,6 +50,9 @@ catalog:
   vue-tsc: ^3.2.8
   wrangler: ^4.90.1
   zod: ^4.4.3
+catalogs:
+  conflicts_skilld-protocol_0_2_2:
+    skilld-protocol: 0.2.2
 ignoredBuiltDependencies:
   - '@parcel/watcher'
   - '@tailwindcss/oxide'

@@ -83,6 +83,11 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'cloudflare-durable',
+    cloudflareDev: {
+      configPath: 'wrangler.local.toml',
+      persistDir: '.wrangler/state/v3',
+      silent: false,
+    },
     cloudflare: {
       deployConfig: true,
       nodeCompat: true,
@@ -148,33 +153,39 @@ export default defineNuxtConfig({
       websocket: true,
       wasm: true,
     },
+    externals: {
+      external: ['cloudflare:email'],
+    },
     scheduledTasks: {
       '0 * * * *': ['sync-github-skills', 'send-digests'],
     },
   },
 
-  routeRules: {
-    '/': {
-      headers: {
-        'cache-control': 'no-store',
-      },
-    },
-    '/api/skill-related/**': {
-      swr: 3600,
-    },
-    '/api/skills-raw/**': {
-      swr: 3600,
-    },
-    '/api/skill-social/**': {
-      swr: 3600,
-    },
-  },
+  // SWR caching only kicks in for production builds; in dev every request
+  // re-renders so HMR isn't fighting a stale cached HTML/JSON response.
+  routeRules: process.env.NODE_ENV === 'production'
+    ? {
+        '/': { swr: 60 },
+        '/api/skills': { swr: 300 },
+        '/api/skills/**': { swr: 300 },
+        '/api/collections/by-author/**': { swr: 300 },
+        '/api/skill-related/**': { swr: 3600 },
+        '/api/skills-raw/**': { swr: 3600 },
+        '/api/skill-social/**': { swr: 3600 },
+      }
+    : {},
   future: {
     compatibilityVersion: 5,
   },
 
   experimental: {
     viteEnvironmentApi: false,
+  },
+
+  vite: {
+    optimizeDeps: {
+      exclude: ['shiki'],
+    },
   },
 
   compatibilityDate: '2026-03-03',
@@ -201,7 +212,7 @@ export default defineNuxtConfig({
 
   icon: {
     serverBundle: 'local',
-    collections: ['lucide'],
+    collections: ['lucide', 'vscode-icons'],
   },
 
   sitemap: {

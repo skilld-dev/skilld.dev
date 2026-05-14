@@ -461,10 +461,21 @@ function duplicateRowToSibling(row: DuplicateCandidate): SkillDuplicateSibling {
   }
 }
 
+// Full-table scan: ~1.4k row reads per call. Cache the row set in KV so all
+// concurrent skill detail / sitemap requests share one query within the TTL
+// window instead of each one re-scanning. This was the dominant source of
+// the 6.87B read figure on D1.
+const DUPLICATE_CANDIDATES_TTL = 60 * 5
+
 async function listDuplicateCandidateRows(
   event: H3Event,
   opts: { supportedOnly: boolean, includeAggregators?: boolean },
 ): Promise<SkillDuplicateRow[]> {
+  const cacheKey = `skills:duplicate-candidates:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`
+  const cached = await useStorage('cache').getItem<SkillDuplicateRow[]>(cacheKey)
+  if (cached)
+    return cached
+
   const db = getDB(event)
   const supportedSelect = `CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END`
   const supportedFilter = opts.supportedOnly ? `AND (${SUPPORTED_SKILL_SQL})` : ''
@@ -495,7 +506,9 @@ async function listDuplicateCandidateRows(
       ORDER BY skills.owner ASC, skills.repo ASC, skills.name ASC
     `)
     .all<SkillDuplicateRow>()
-  return res.results ?? []
+  const rows = res.results ?? []
+  await useStorage('cache').setItem(cacheKey, rows, { ttl: DUPLICATE_CANDIDATES_TTL })
+  return rows
 }
 
 export async function findSupportedDuplicateGroupForSkill(event: H3Event, slug: string): Promise<SkillDuplicateGroup | null> {
@@ -524,6 +537,11 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
 }
 
 export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
+  const cacheKey = 'skills:sitemap-all'
+  const cached = await useStorage('cache').getItem<SkillSitemapEntry[]>(cacheKey)
+  if (cached)
+    return cached
+
   const db = getDB(event)
   const res = await db
     .prepare(`
@@ -552,9 +570,11 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
     .all<SkillDuplicateRow>()
   const rows = res.results ?? []
   const weakerSupportedSlugs = duplicateWeakerSlugSet(rows.filter(row => row.is_supported === 1))
-  return rows
+  const entries = rows
     .filter(row => !weakerSupportedSlugs.has(skillSlug(row)))
     .map(row => ({ name: row.name, owner: row.owner, repo: row.repo }))
+  await useStorage('cache').setItem(cacheKey, entries, { ttl: DUPLICATE_CANDIDATES_TTL })
+  return entries
 }
 
 export async function listSupportedSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {

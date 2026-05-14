@@ -82,9 +82,13 @@ export default defineApiHandler({
       }
     }
 
-    const asset = registered.find(a => a.path === filePath)
-    if (!asset)
-      throw createError({ statusCode: 404, message: 'Asset not registered for this skill' })
+    // Any file inside the resolved skillDir is fair game — the path is
+    // already constrained below so this stays scoped to the skill folder.
+    // Registration is used only to pick up the recorded size/type when
+    // available; otherwise we classify from the extension.
+    const registeredAsset = registered.find(a => a.path === filePath)
+    const asset: RegisteredAsset = registeredAsset
+      ?? { path: filePath, size: 0, type: classifyAsset(filePath) }
 
     const branch = row.default_branch || 'main'
     const cacheKey = `skills:asset:v1:${skill.owner}/${skill.repo}/${skill.name}:${filePath}:${branch}`

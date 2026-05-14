@@ -195,12 +195,22 @@ export default defineApiHandler({
     // then write back to D1.
     let rendered: RenderedView
     if (row?.rendered_html && row.rendered_status === 'ok') {
+      const reparsed = row.rendered_raw
+        ? parseSkillMd(row.rendered_raw, {
+            owner: skill.owner,
+            repo: skill.repo,
+            name: skill.name,
+            branch,
+            skillDir: row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? '',
+            filePath: '',
+          })
+        : null
       rendered = {
         skillPath: row.rendered_skill_path,
         raw: row.rendered_raw,
-        frontmatter: parseFrontmatterJson(row.rendered_frontmatter),
-        body: stripFrontmatter(row.rendered_raw ?? ''),
-        html: row.rendered_html,
+        frontmatter: reparsed?.frontmatter ?? parseFrontmatterJson(row.rendered_frontmatter),
+        body: reparsed?.body ?? stripFrontmatter(row.rendered_raw ?? ''),
+        html: reparsed?.html ?? row.rendered_html,
         status: 'ok',
       }
     }
@@ -406,6 +416,31 @@ async function renderLive(owner: string, repo: string, name: string, branch: str
       }
     }
   }
+
+  // Fall back to an ungh tree walk for repos that nest skills under arbitrary
+  // directories (e.g. `skills/engineering/<name>/SKILL.md`). ungh proxies the
+  // GitHub tree API and is unauthenticated.
+  const tree = await $fetch<{ files?: { path: string }[] }>(
+    `https://ungh.cc/repos/${owner}/${repo}/files/${branch}`,
+  ).catch(() => null)
+  const match = tree?.files?.find(f => f.path.endsWith(`/${name}/SKILL.md`))
+  if (match) {
+    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${match.path}`
+    const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
+    if (raw) {
+      const skillDir = match.path.replace(/\/SKILL\.md$/, '')
+      const parsed = parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
+      return {
+        skillPath: match.path,
+        raw,
+        frontmatter: parsed.frontmatter,
+        body: parsed.body,
+        html: parsed.html,
+        status: 'ok',
+      }
+    }
+  }
+
   return { skillPath: null, raw: null, frontmatter: null, body: null, html: null, status: 'path_missing' }
 }
 
