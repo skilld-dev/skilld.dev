@@ -81,6 +81,7 @@ export default defineTask({
            AND s.current_sha IS NOT NULL
            AND s.rendered_raw IS NOT NULL
            AND s.rendered_status = 'ok'
+           AND s.seo_indexable = 1
            AND (
              NOT EXISTS (
                SELECT 1 FROM skill_generated g
