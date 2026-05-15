@@ -26,7 +26,7 @@ const ONE_DAY_SECONDS = 86400
 const STALE_REPO_SECONDS = 365 * ONE_DAY_SECONDS
 const LOW_DESCRIPTION_CHARS = 80
 const BROKEN_GRACE_SECONDS = 7 * ONE_DAY_SECONDS
-const NOT_BROKEN_SQL = `(skills_v.broken_since IS NULL OR skills_v.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
+const NOT_BROKEN_SQL = `(r.broken_since IS NULL OR r.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
 
 const cliArgs = process.argv.slice(2).filter(arg => arg !== '--')
 
@@ -182,36 +182,37 @@ function repoHotspots(rows: AuditRow[], reason: string): RepoIssue[] {
 
 const rows = d1<AuditRow>(`
   SELECT
-    skills_v.owner,
-    skills_v.repo,
-    skills_v.name,
-    skills_v.display_name,
-    skills_v.description,
-    skills_v.installs,
-    skills_v.stars,
-    skills_v.pushed_at,
-    skills_v.default_branch,
-    skills_v.current_sha,
-    skills_v.sync_status,
-    skills_v.references_count,
-    skills_v.repo_skill_count,
+    s.owner,
+    s.repo,
+    s.name,
+    s.display_name,
+    s.description,
+    s.installs,
+    r.stars,
+    r.pushed_at,
+    r.default_branch,
+    s.current_sha,
+    s.sync_status,
+    s.references_count,
+    r.repo_skill_count,
     sr.support_tier,
-    skills_v.trust_tier,
-    skills_v.seo_index_score,
-    skills_v.curator_reason_count,
-    skills_v.approved_social_count,
+    s.trust_tier,
+    s.seo_index_score,
+    s.curator_reason_count,
+    s.approved_social_count,
     summary.sha AS summary_sha,
     tags.sha AS tags_sha,
     faq.sha AS faq_sha
-  FROM skills_v
-  LEFT JOIN skill_generated summary ON summary.owner = skills_v.owner AND summary.repo = skills_v.repo AND summary.name = skills_v.name AND summary.kind = 'summary'
-  LEFT JOIN skill_generated tags ON tags.owner = skills_v.owner AND tags.repo = skills_v.repo AND tags.name = skills_v.name AND tags.kind = 'tags'
-  LEFT JOIN skill_generated faq ON faq.owner = skills_v.owner AND faq.repo = skills_v.repo AND faq.name = skills_v.name AND faq.kind = 'faq'
-  LEFT JOIN supported_repos sr ON sr.owner = skills_v.owner AND sr.repo = skills_v.repo AND sr.enabled = 1
+  FROM skills s
+  JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+  LEFT JOIN skill_generated summary ON summary.owner = s.owner AND summary.repo = s.repo AND summary.name = s.name AND summary.kind = 'summary'
+  LEFT JOIN skill_generated tags ON tags.owner = s.owner AND tags.repo = s.repo AND tags.name = s.name AND tags.kind = 'tags'
+  LEFT JOIN skill_generated faq ON faq.owner = s.owner AND faq.repo = s.repo AND faq.name = s.name AND faq.kind = 'faq'
+  LEFT JOIN supported_repos sr ON sr.owner = s.owner AND sr.repo = s.repo AND sr.enabled = 1
   WHERE ${NOT_BROKEN_SQL}
-    AND skills_v.seo_indexable = 1
+    AND s.seo_indexable = 1
     AND (${SUPPORTED_SKILL_SQL})
-  ORDER BY skills_v.installs DESC, skills_v.stars DESC, skills_v.owner ASC, skills_v.name ASC
+  ORDER BY s.installs DESC, r.stars DESC, s.owner ASC, s.name ASC
 `)
 
 const now = Math.floor(Date.now() / 1000)

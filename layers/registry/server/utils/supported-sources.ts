@@ -18,27 +18,29 @@ export const initialSupportedRepos: SupportedRepoSeed[] = officialRepos.map(repo
     : 'Seeded from trusted author repository allowlist.',
 }))
 
+// Callers must alias the skills table as `s` (matches the standard JOIN form
+// in `skills-registry.ts` and `audit-supported-indexable-skills.ts`).
 export const SUPPORTED_SKILL_SQL = `
   NOT EXISTS (
     SELECT 1
     FROM supported_skills excluded_skill
-    WHERE excluded_skill.owner = skills_v.owner
-      AND excluded_skill.name = skills_v.name
+    WHERE excluded_skill.owner = s.owner
+      AND excluded_skill.name = s.name
       AND excluded_skill.support_mode = 'exclude'
   )
   AND (
     EXISTS (
       SELECT 1
       FROM supported_repos supported_repo
-      WHERE supported_repo.owner = skills_v.owner
-        AND supported_repo.repo = skills_v.repo
+      WHERE supported_repo.owner = s.owner
+        AND supported_repo.repo = s.repo
         AND supported_repo.enabled = 1
     )
     OR EXISTS (
       SELECT 1
       FROM supported_skills included_skill
-      WHERE included_skill.owner = skills_v.owner
-        AND included_skill.name = skills_v.name
+      WHERE included_skill.owner = s.owner
+        AND included_skill.name = s.name
         AND included_skill.support_mode = 'include'
     )
   )

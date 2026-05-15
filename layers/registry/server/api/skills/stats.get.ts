@@ -1,7 +1,8 @@
+import { notBrokenSql } from '~~/layers/registry/server/utils/broken'
 import { defineApiHandler } from '#shared/server/handler'
 
-const BROKEN_GRACE_SECONDS = 7 * 86400
-const NOT_BROKEN_SQL = `(broken_since IS NULL OR broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
+const NOT_BROKEN_SQL = notBrokenSql('r')
+const FROM = 'FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo'
 
 export interface StatsBin {
   label: string
@@ -107,10 +108,10 @@ export default defineApiHandler<never, SkillsStats>({
         .prepare(
           `SELECT
           COUNT(*) AS skills,
-          COUNT(DISTINCT owner || '/' || repo) AS repos,
-          COUNT(DISTINCT owner) AS owners,
-          AVG(stars) AS avg_stars
-        FROM skills_v WHERE ${NOT_BROKEN_SQL}`,
+          COUNT(DISTINCT s.owner || '/' || s.repo) AS repos,
+          COUNT(DISTINCT s.owner) AS owners,
+          AVG(r.stars) AS avg_stars
+        ${FROM} WHERE ${NOT_BROKEN_SQL}`,
         )
         .first<{ skills: number, repos: number, owners: number, avg_stars: number | null }>(),
 
@@ -118,28 +119,28 @@ export default defineApiHandler<never, SkillsStats>({
       // with their star count. One row per repo.
       db
         .prepare(
-          `SELECT owner, repo, MAX(stars) AS stars
-        FROM skills_v
-        WHERE ${NOT_BROKEN_SQL} AND LOWER(repo) LIKE '%skill%'
-        GROUP BY owner, repo`,
+          `SELECT s.owner, s.repo, MAX(r.stars) AS stars
+        ${FROM}
+        WHERE ${NOT_BROKEN_SQL} AND LOWER(s.repo) LIKE '%skill%'
+        GROUP BY s.owner, s.repo`,
         )
         .all<{ owner: string, repo: string, stars: number }>(),
 
       // Charts 2 & 3: distinct repos with pushed_at and repo_created_at.
       db
         .prepare(
-          `SELECT owner, repo, MAX(pushed_at) AS pushed_at, MAX(repo_created_at) AS repo_created_at
-        FROM skills_v WHERE ${NOT_BROKEN_SQL}
-        GROUP BY owner, repo`,
+          `SELECT s.owner, s.repo, MAX(r.pushed_at) AS pushed_at, MAX(r.repo_created_at) AS repo_created_at
+        ${FROM} WHERE ${NOT_BROKEN_SQL}
+        GROUP BY s.owner, s.repo`,
         )
         .all<{ owner: string, repo: string, pushed_at: number | null, repo_created_at: number | null }>(),
 
       // Chart 4: top 15 owners by max stars. Tie-break by total skill count.
       db
         .prepare(
-          `SELECT owner, MAX(stars) AS stars, COUNT(*) AS skills
-        FROM skills_v WHERE ${NOT_BROKEN_SQL}
-        GROUP BY owner
+          `SELECT s.owner, MAX(r.stars) AS stars, COUNT(*) AS skills
+        ${FROM} WHERE ${NOT_BROKEN_SQL}
+        GROUP BY s.owner
         ORDER BY stars DESC, skills DESC
         LIMIT 15`,
         )
@@ -151,10 +152,10 @@ export default defineApiHandler<never, SkillsStats>({
       // signal and cap to keep the page light.
       db
         .prepare(
-          `SELECT name, owner, stars, installs
-        FROM skills_v
-        WHERE ${NOT_BROKEN_SQL} AND (stars > 0 OR installs > 0)
-        ORDER BY (stars + installs) DESC
+          `SELECT s.name, s.owner, r.stars, s.installs
+        ${FROM}
+        WHERE ${NOT_BROKEN_SQL} AND (r.stars > 0 OR s.installs > 0)
+        ORDER BY (r.stars + s.installs) DESC
         LIMIT 1500`,
         )
         .all<{ name: string, owner: string, stars: number, installs: number }>(),
@@ -163,8 +164,8 @@ export default defineApiHandler<never, SkillsStats>({
       db
         .prepare(
           `SELECT COUNT(*) AS n
-        FROM skills_v WHERE ${NOT_BROKEN_SQL}
-        GROUP BY owner, repo`,
+        ${FROM} WHERE ${NOT_BROKEN_SQL}
+        GROUP BY s.owner, s.repo`,
         )
         .all<{ n: number }>(),
     ])

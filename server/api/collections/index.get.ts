@@ -96,13 +96,13 @@ async function loadSkillLabels(db: D1Database, rows: CollectionIndexRow[]) {
   const placeholders = ids.map(() => '?').join(',')
   const skillsRes = await db.prepare(
     `WITH ranked_skills AS (
-       SELECT owner, repo, name, display_name,
+       SELECT s.owner, s.repo, s.name, s.display_name,
               ROW_NUMBER() OVER (
-                PARTITION BY owner, repo
-                ORDER BY installs DESC, name ASC
+                PARTITION BY s.owner, s.repo
+                ORDER BY s.installs DESC, s.name ASC
               ) AS rn
-       FROM skills_v
-       WHERE broken_since IS NULL OR broken_since > unixepoch() - 604800
+       FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+       WHERE r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800
      )
      SELECT cs.collection_id, cs.owner, cs.repo, COALESCE(rs.name, cs.name) AS name, rs.display_name
      FROM collection_skills_v2 cs

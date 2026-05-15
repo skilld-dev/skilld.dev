@@ -22,9 +22,6 @@ describe('digest selection', () => {
         repo TEXT,
         repo_kind TEXT
       );
-      CREATE VIEW skills_v AS
-        SELECT s.owner, s.repo, s.name, s.description, r.repo_kind
-        FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo;
       CREATE TABLE skill_subscriptions (
         user_id INTEGER,
         owner TEXT,

@@ -170,13 +170,14 @@ export default defineApiHandler({
     const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow] = await Promise.all([
       getEndorsementsForSkill(platform.db, skill.name),
       platform.db
-        .prepare(`SELECT stars, forks, pushed_at, repo_created_at, default_branch,
-                         current_sha, modified_at, references_count, assets, last_synced_at, sync_status,
-                         seo_index_score, seo_indexable, seo_index_reasons, seo_index_synced_at,
-                         curator_count, curator_reason_count, approved_social_count, author_social_count,
-                         trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-                         rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at
-                  FROM skills_v WHERE owner = ? AND repo = ? AND name = ?`)
+        .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
+                         s.current_sha, s.modified_at, s.references_count, s.assets, s.last_synced_at, s.sync_status,
+                         s.seo_index_score, s.seo_indexable, s.seo_index_reasons, s.seo_index_synced_at,
+                         s.curator_count, s.curator_reason_count, s.approved_social_count, s.author_social_count,
+                         s.trust_tier, s.trust_source, s.trust_score, s.trust_reasons, s.trust_synced_at,
+                         s.rendered_skill_path, s.rendered_status, s.rendered_raw, s.rendered_frontmatter, s.rendered_html, s.rendered_at
+                  FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+                  WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
         .bind(skill.owner, skill.repo, skill.name)
         .first<SkillDetailRow>(),
       platform.db

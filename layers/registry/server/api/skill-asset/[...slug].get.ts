@@ -60,7 +60,9 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
     const row = await platform.db
-      .prepare('SELECT default_branch, assets FROM skills_v WHERE owner = ? AND repo = ? AND name = ?')
+      .prepare(`SELECT r.default_branch, s.assets
+                FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+                WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
       .bind(skill.owner, skill.repo, skill.name)
       .first<SkillAssetRow>()
 

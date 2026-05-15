@@ -124,4 +124,4 @@ Each person becomes a living skill preset. When they update their list, follower
 - [x] Phase 1 — Loop 1 cleanup: rip atproto, new homepage, `/@<login>/*` collection routes, 410/redirect for `/people/*`
 - [x] Phase 2 — Auth + watching: GitHub OAuth, users + subscriptions + starred-repos tables, onboarding, `/me` dashboard, watch buttons (shipped 2026-05-08)
 - [x] Phase 3 — Email + AI summary: digest_runs table, Cloudflare Workers `send_email` binding (not Resend), plain-HTML digest template (not vue-email), Haiku 4.5 summaries with per-user prompt caching, HMAC unsubscribe + RFC 8058 one-click, email-change verification, subscription-prioritised polling pre-pass (shipped 2026-05-08). Asset SHA tracking deferred.
-- [ ] Phase 4 — Cleanup: drop legacy atproto tables once v2 is verified
+- [x] Phase 4 — Cleanup (2026-05-15): dropped `curators`, `follows_cache`, `follows_refresh_state` in migration 0051; retired `skills_v` view in 0050. Legacy `collections`/`collection_skills` deferred until trust/indexability/integrity readers migrate to `collections_v2`.

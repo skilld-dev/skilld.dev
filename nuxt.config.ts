@@ -157,7 +157,7 @@ export default defineNuxtConfig({
       external: ['cloudflare:email'],
     },
     scheduledTasks: {
-      '0 * * * *': ['sync-github-skills', 'send-digests'],
+      '0 * * * *': ['sync-github-skills', 'send-digests', 'reconcile-rendered'],
     },
   },
 

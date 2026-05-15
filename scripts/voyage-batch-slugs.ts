@@ -54,7 +54,7 @@ function d1Exec(sql: string): unknown[] {
 
 const inClause = slugs.map(s => `'${s.replace(/'/g, '\'\'')}'`).join(',')
 const rows = d1Exec(
-  `SELECT owner, repo, name, display_name FROM skills_v WHERE slug IN (${inClause})`,
+  `SELECT owner, repo, name, display_name FROM skills WHERE slug IN (${inClause})`,
 ) as { owner: string, repo: string, name: string, display_name: string }[]
 console.log(`matched ${rows.length}/${slugs.length} skills in D1`)
 

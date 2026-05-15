@@ -123,7 +123,7 @@ console.log(`-- sync-skills-gh: ${owner}/${repo} (${skills.length} skills, ${sta
 // is rejected.
 
 // Repo-level facts go to `repos` (post-0034). Skills upsert only writes
-// skill-level columns now; readers join `repos` via `skills_v`.
+// skill-level columns now; readers JOIN `repos` directly.
 console.log(
   `INSERT INTO repos (owner, repo, default_branch, stars, forks, pushed_at, repo_created_at, repo_meta_synced_at, repo_skill_count, repo_kind, repo_kind_source, broken_since)
    VALUES (${ownerSql}, ${repoSql}, ${sqlText(branch)}, ${stars}, ${forks}, ${pushedAt}, ${createdAt}, ${now}, ${skills.length}, ${sqlText(repoKind)}, 'computed', NULL)

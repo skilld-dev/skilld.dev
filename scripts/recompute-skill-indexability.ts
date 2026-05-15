@@ -131,7 +131,7 @@ function main() {
       s.trust_source,
       s.trust_score,
       s.trust_reasons,
-      s.repo_skill_count AS stored_repo_skill_count`
+      r.repo_skill_count AS stored_repo_skill_count`
     : `0 AS is_official,
       0 AS source_resolved,
       0 AS stored_curator_count,
@@ -167,8 +167,8 @@ function main() {
       s.repo,
       s.name,
       s.installs,
-      s.stars,
-      s.pushed_at,
+      r.stars,
+      r.pushed_at,
       s.description,
       s.current_sha,
       s.sync_status,
@@ -206,10 +206,11 @@ function main() {
           AND sp.status = 'approved'
           AND sp.role = 'author'
       ) AS author_social_count
-    FROM skills_v s
+    FROM skills s
+    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
     LEFT JOIN repo_counts rc ON rc.owner = s.owner AND rc.repo = s.repo
     ${overrideJoin}
-    ORDER BY s.installs DESC, s.stars DESC, s.owner ASC, s.name ASC
+    ORDER BY s.installs DESC, r.stars DESC, s.owner ASC, s.name ASC
     ${limitClause}
   `)
 

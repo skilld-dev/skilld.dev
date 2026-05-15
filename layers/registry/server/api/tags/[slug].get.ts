@@ -28,8 +28,9 @@ export interface TagProfile {
   fetchedAt: string
 }
 
-const BROKEN_GRACE_SECONDS = 7 * 86400
-const NOT_BROKEN_SQL = `(s.broken_since IS NULL OR s.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
+import { notBrokenSql } from '~~/layers/registry/server/utils/broken'
+
+const NOT_BROKEN_SQL = notBrokenSql('r')
 
 interface SkillRow {
   name: string
@@ -76,13 +77,14 @@ export default defineCachedEventHandler(async (event) => {
   //   1. FTS on name/owner/display_name/slug (broad, catches `nuxt-ui`, `nuxt`)
   //   2. Exact owner = slug (the official org's repos, e.g. owner='nuxt')
   //   3. AI-classified tags (skill_generated kind='tags')
-  // stars/pushed_at/broken_since are repo facts (post-0034); read via skills_v.
+  // stars/pushed_at/broken_since live on `repos` (post-0034); JOIN explicitly.
   // FTS post-0049 indexes `repo` too, so the tuple match is precise across
   // same-(owner,name) collisions.
   const skillsRes = await db
     .prepare(
-      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.installs, s.slug, s.stars, s.description, s.pushed_at, s.modified_at
-       FROM skills_v s
+      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.installs, s.slug, r.stars, s.description, r.pushed_at, s.modified_at
+       FROM skills s
+       JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
        WHERE ${NOT_BROKEN_SQL} AND (
          (s.owner, s.repo, s.name) IN (SELECT owner, repo, name FROM skills_fts WHERE skills_fts MATCH ?)
          OR s.owner = ?
@@ -92,7 +94,7 @@ export default defineCachedEventHandler(async (event) => {
              AND sg.kind = 'tags' AND je.value = ?
          )
        )
-       ORDER BY s.installs DESC, s.stars DESC, s.name ASC
+       ORDER BY s.installs DESC, r.stars DESC, s.name ASC
        LIMIT 200`,
     )
     .bind(ftsQuery, slug, slug)

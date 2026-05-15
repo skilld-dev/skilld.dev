@@ -90,12 +90,12 @@ async function pAll<T>(items: T[], n: number, fn: (item: T, i: number) => Promis
 
 async function main() {
   console.error(`[backfill] querying top ${LIMIT} null-desc skills...`)
-  // Read repo facts via skills_v (joins repos under the hood).
   const rows = d1<SkillRow>(
-    `SELECT owner, repo, name, default_branch, installs
-     FROM skills_v
-     WHERE description IS NULL AND broken_since IS NULL
-     ORDER BY installs DESC
+    `SELECT s.owner, s.repo, s.name, r.default_branch, s.installs
+     FROM skills s
+     JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+     WHERE s.description IS NULL AND r.broken_since IS NULL
+     ORDER BY s.installs DESC
      LIMIT ${LIMIT}`,
   )
   console.error(`[backfill] ${rows.length} rows`)

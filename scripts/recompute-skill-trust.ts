@@ -106,7 +106,7 @@ function main() {
   const hasOverrides = tableExists('repo_trust_overrides')
   const cols = skillsColumns()
   const trustFields = cols.has('trust_tier')
-    ? `s.trust_tier, s.trust_source, s.trust_score, s.trust_reasons, s.repo_skill_count AS stored_repo_skill_count`
+    ? `s.trust_tier, s.trust_source, s.trust_score, s.trust_reasons, r.repo_skill_count AS stored_repo_skill_count`
     : `'untrusted' AS trust_tier, 'computed' AS trust_source, 0 AS trust_score, '[]' AS trust_reasons, 0 AS stored_repo_skill_count`
   const overrideFields = hasOverrides
     ? `o.tier AS override_tier, o.reason AS override_reason`
@@ -149,10 +149,11 @@ function main() {
       ) AS approved_social_count,
       ${overrideFields},
       ${trustFields}
-    FROM skills_v s
+    FROM skills s
+    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
     LEFT JOIN repo_counts rc ON rc.owner = s.owner AND rc.repo = s.repo
     ${overrideJoin}
-    ORDER BY s.installs DESC, s.stars DESC, s.owner ASC, s.name ASC
+    ORDER BY s.installs DESC, r.stars DESC, s.owner ASC, s.name ASC
     ${limitClause}
   `)
 
