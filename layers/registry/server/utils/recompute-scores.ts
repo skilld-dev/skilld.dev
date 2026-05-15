@@ -58,7 +58,6 @@ interface ScoreRow {
   trust_source: SkillTrustSource | null
   trust_score: number | null
   trust_reasons: string | null
-  stored_repo_skill_count: number | null
 }
 
 const BASE_SELECT = `
@@ -85,7 +84,6 @@ const BASE_SELECT = `
   s.trust_source,
   s.trust_score,
   s.trust_reasons,
-  s.repo_skill_count AS stored_repo_skill_count,
   o.tier AS override_tier,
   o.reason AS override_reason,
   (
@@ -197,7 +195,6 @@ function indexabilityChanged(
     || row.trust_source !== trust.source
     || (row.trust_score ?? 0) !== trust.score
     || !sameJsonArray(row.trust_reasons, trust.reasons)
-    || (row.stored_repo_skill_count ?? 0) !== row.repo_skill_count
 }
 
 function trustChanged(row: ScoreRow, trust: SkillTrustResult): boolean {
@@ -205,7 +202,6 @@ function trustChanged(row: ScoreRow, trust: SkillTrustResult): boolean {
     || row.trust_source !== trust.source
     || (row.trust_score ?? 0) !== trust.score
     || !sameJsonArray(row.trust_reasons, trust.reasons)
-    || (row.stored_repo_skill_count ?? 0) !== row.repo_skill_count
 }
 
 function updateIndexabilityStmt(
@@ -234,9 +230,8 @@ function updateIndexabilityStmt(
          trust_source = ?12,
          trust_score = ?13,
          trust_reasons = ?14,
-         trust_synced_at = ?10,
-         repo_skill_count = ?15
-       WHERE owner = ?16 AND name = ?17`,
+         trust_synced_at = ?10
+       WHERE owner = ?15 AND name = ?16`,
     )
     .bind(
       isOfficial ? 1 : 0,
@@ -253,7 +248,6 @@ function updateIndexabilityStmt(
       trust.source,
       trust.score,
       JSON.stringify(trust.reasons),
-      row.repo_skill_count,
       row.owner,
       row.name,
     )
@@ -272,9 +266,8 @@ function updateTrustStmt(
          trust_source = ?2,
          trust_score = ?3,
          trust_reasons = ?4,
-         trust_synced_at = ?5,
-         repo_skill_count = ?6
-       WHERE owner = ?7 AND name = ?8`,
+         trust_synced_at = ?5
+       WHERE owner = ?6 AND name = ?7`,
     )
     .bind(
       trust.tier,
@@ -282,7 +275,6 @@ function updateTrustStmt(
       trust.score,
       JSON.stringify(trust.reasons),
       now,
-      row.repo_skill_count,
       row.owner,
       row.name,
     )
