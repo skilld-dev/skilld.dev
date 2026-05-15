@@ -43,11 +43,15 @@ export default defineTask({
     const SUB_STALE_AFTER = 60 * 60 // 1h
     const subRows = await db
       .prepare(
+        // broken_since lives on `repos` post-0034; gate by joining repos so
+        // we skip whole repos that GitHub returned 404 for, while still using
+        // skills.last_synced_at to measure staleness per-row.
         `SELECT s.owner, s.repo, MIN(s.last_synced_at) AS ls
          FROM skills s
+         JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
          JOIN skill_subscriptions sub
            ON sub.owner = s.owner AND sub.repo = s.repo
-         WHERE s.broken_since IS NULL
+         WHERE r.broken_since IS NULL
          GROUP BY s.owner, s.repo
          HAVING MIN(s.last_synced_at) IS NULL OR MIN(s.last_synced_at) < ?1
          ORDER BY MIN(s.last_synced_at) IS NULL DESC, MIN(s.last_synced_at) ASC`,
@@ -60,11 +64,12 @@ export default defineTask({
     // don't keep retrying repos that have been removed/renamed upstream.
     const stalenessRows = await db
       .prepare(
-        `SELECT owner, repo, MIN(last_synced_at) AS ls
-         FROM skills
-         WHERE broken_since IS NULL
-         GROUP BY owner, repo
-         ORDER BY MIN(last_synced_at) IS NULL DESC, MIN(last_synced_at) ASC`,
+        `SELECT s.owner, s.repo, MIN(s.last_synced_at) AS ls
+         FROM skills s
+         JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+         WHERE r.broken_since IS NULL
+         GROUP BY s.owner, s.repo
+         ORDER BY MIN(s.last_synced_at) IS NULL DESC, MIN(s.last_synced_at) ASC`,
       )
       .all<{ owner: string, repo: string, ls: number | null }>()
 

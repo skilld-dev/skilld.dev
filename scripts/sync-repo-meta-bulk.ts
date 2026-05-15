@@ -87,14 +87,20 @@ for (let i = 0; i < repos.length; i += BATCH) {
     const node = result.data[`r${j}`]
     if (!node || notFoundIdx.has(j)) {
       console.log(
-        `UPDATE skills SET broken_since = ${now}, repo_meta_synced_at = ${now} WHERE owner = ${sqlText(r.owner)} AND repo = ${sqlText(r.repo)};`,
+        `UPDATE repos SET broken_since = ${now}, repo_meta_synced_at = ${now} WHERE owner = ${sqlText(r.owner)} AND repo = ${sqlText(r.repo)};`,
       )
       broken++
       return
     }
+    // Repo-level facts target `repos`; description still lives on `skills`.
     console.log(
-      `UPDATE skills SET stars = ${node.stargazerCount}, forks = ${node.forkCount}, pushed_at = ${epoch(node.pushedAt)}, repo_created_at = ${epoch(node.createdAt)}, default_branch = ${sqlText(node.defaultBranchRef?.name ?? null)}, description = COALESCE(description, ${sqlText(node.description)}), repo_meta_synced_at = ${now}, broken_since = NULL WHERE owner = ${sqlText(r.owner)} AND repo = ${sqlText(r.repo)};`,
+      `UPDATE repos SET stars = ${node.stargazerCount}, forks = ${node.forkCount}, pushed_at = ${epoch(node.pushedAt)}, repo_created_at = ${epoch(node.createdAt)}, default_branch = ${sqlText(node.defaultBranchRef?.name ?? null)}, repo_meta_synced_at = ${now}, broken_since = NULL WHERE owner = ${sqlText(r.owner)} AND repo = ${sqlText(r.repo)};`,
     )
+    if (node.description != null) {
+      console.log(
+        `UPDATE skills SET description = COALESCE(description, ${sqlText(node.description)}) WHERE owner = ${sqlText(r.owner)} AND repo = ${sqlText(r.repo)};`,
+      )
+    }
     synced++
   })
 

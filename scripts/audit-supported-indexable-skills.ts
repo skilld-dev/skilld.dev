@@ -2,13 +2,13 @@
  * Audit the restricted supported/indexable sitemap candidate set.
  *
  * Usage:
- *   pnpm tsx scripts/audit-supported-indexable-skills.ts
- *   pnpm tsx scripts/audit-supported-indexable-skills.ts --local
- *   pnpm tsx scripts/audit-supported-indexable-skills.ts --json
- *   pnpm tsx scripts/audit-supported-indexable-skills.ts --missing-generated summary --slugs-only
- *   pnpm tsx scripts/audit-supported-indexable-skills.ts --missing-source-facts --slugs-only
- *   pnpm tsx scripts/audit-supported-indexable-skills.ts --critical-source-facts --slugs-only
- *   pnpm tsx scripts/audit-supported-indexable-skills.ts --duplicate-duplicates --slugs-only
+ *   pnpm tsx scripts/audit-supported-indexable-skills_v.ts
+ *   pnpm tsx scripts/audit-supported-indexable-skills_v.ts --local
+ *   pnpm tsx scripts/audit-supported-indexable-skills_v.ts --json
+ *   pnpm tsx scripts/audit-supported-indexable-skills_v.ts --missing-generated summary --slugs-only
+ *   pnpm tsx scripts/audit-supported-indexable-skills_v.ts --missing-source-facts --slugs-only
+ *   pnpm tsx scripts/audit-supported-indexable-skills_v.ts --critical-source-facts --slugs-only
+ *   pnpm tsx scripts/audit-supported-indexable-skills_v.ts --duplicate-duplicates --slugs-only
  *   pnpm seo:audit-supported -- --json
  */
 
@@ -26,7 +26,7 @@ const ONE_DAY_SECONDS = 86400
 const STALE_REPO_SECONDS = 365 * ONE_DAY_SECONDS
 const LOW_DESCRIPTION_CHARS = 80
 const BROKEN_GRACE_SECONDS = 7 * ONE_DAY_SECONDS
-const NOT_BROKEN_SQL = `(skills.broken_since IS NULL OR skills.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
+const NOT_BROKEN_SQL = `(skills_v.broken_since IS NULL OR skills_v.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
 
 const cliArgs = process.argv.slice(2).filter(arg => arg !== '--')
 
@@ -182,36 +182,36 @@ function repoHotspots(rows: AuditRow[], reason: string): RepoIssue[] {
 
 const rows = d1<AuditRow>(`
   SELECT
-    skills.owner,
-    skills.repo,
-    skills.name,
-    skills.display_name,
-    skills.description,
-    skills.installs,
-    skills.stars,
-    skills.pushed_at,
-    skills.default_branch,
-    skills.current_sha,
-    skills.sync_status,
-    skills.references_count,
-    skills.repo_skill_count,
+    skills_v.owner,
+    skills_v.repo,
+    skills_v.name,
+    skills_v.display_name,
+    skills_v.description,
+    skills_v.installs,
+    skills_v.stars,
+    skills_v.pushed_at,
+    skills_v.default_branch,
+    skills_v.current_sha,
+    skills_v.sync_status,
+    skills_v.references_count,
+    skills_v.repo_skill_count,
     sr.support_tier,
-    skills.trust_tier,
-    skills.seo_index_score,
-    skills.curator_reason_count,
-    skills.approved_social_count,
+    skills_v.trust_tier,
+    skills_v.seo_index_score,
+    skills_v.curator_reason_count,
+    skills_v.approved_social_count,
     summary.sha AS summary_sha,
     tags.sha AS tags_sha,
     faq.sha AS faq_sha
-  FROM skills
-  LEFT JOIN skill_generated summary ON summary.owner = skills.owner AND summary.repo = skills.repo AND summary.name = skills.name AND summary.kind = 'summary'
-  LEFT JOIN skill_generated tags ON tags.owner = skills.owner AND tags.repo = skills.repo AND tags.name = skills.name AND tags.kind = 'tags'
-  LEFT JOIN skill_generated faq ON faq.owner = skills.owner AND faq.repo = skills.repo AND faq.name = skills.name AND faq.kind = 'faq'
-  LEFT JOIN supported_repos sr ON sr.owner = skills.owner AND sr.repo = skills.repo AND sr.enabled = 1
+  FROM skills_v
+  LEFT JOIN skill_generated summary ON summary.owner = skills_v.owner AND summary.repo = skills_v.repo AND summary.name = skills_v.name AND summary.kind = 'summary'
+  LEFT JOIN skill_generated tags ON tags.owner = skills_v.owner AND tags.repo = skills_v.repo AND tags.name = skills_v.name AND tags.kind = 'tags'
+  LEFT JOIN skill_generated faq ON faq.owner = skills_v.owner AND faq.repo = skills_v.repo AND faq.name = skills_v.name AND faq.kind = 'faq'
+  LEFT JOIN supported_repos sr ON sr.owner = skills_v.owner AND sr.repo = skills_v.repo AND sr.enabled = 1
   WHERE ${NOT_BROKEN_SQL}
-    AND skills.seo_indexable = 1
+    AND skills_v.seo_indexable = 1
     AND (${SUPPORTED_SKILL_SQL})
-  ORDER BY skills.installs DESC, skills.stars DESC, skills.owner ASC, skills.name ASC
+  ORDER BY skills_v.installs DESC, skills_v.stars DESC, skills_v.owner ASC, skills_v.name ASC
 `)
 
 const now = Math.floor(Date.now() / 1000)

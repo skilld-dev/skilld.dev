@@ -90,9 +90,10 @@ async function pAll<T>(items: T[], n: number, fn: (item: T, i: number) => Promis
 
 async function main() {
   console.error(`[backfill] querying top ${LIMIT} null-desc skills...`)
+  // Read repo facts via skills_v (joins repos under the hood).
   const rows = d1<SkillRow>(
     `SELECT owner, repo, name, default_branch, installs
-     FROM skills
+     FROM skills_v
      WHERE description IS NULL AND broken_since IS NULL
      ORDER BY installs DESC
      LIMIT ${LIMIT}`,
@@ -133,7 +134,7 @@ async function main() {
       if (!repoMeta.data) {
         if (repoMeta.status === 404) {
           console.log(
-            `UPDATE skills SET broken_since = COALESCE(broken_since, unixepoch()) `
+            `UPDATE repos SET broken_since = COALESCE(broken_since, unixepoch()) `
             + `WHERE owner = '${escape(entry.owner)}' AND repo = '${escape(entry.repo)}';`,
           )
           brokenMarked += entry.items.length
@@ -148,7 +149,7 @@ async function main() {
       const correctBranch = repoMeta.data.default_branch
       if (correctBranch && correctBranch !== entry.branch) {
         console.log(
-          `UPDATE skills SET default_branch = '${escape(correctBranch)}' `
+          `UPDATE repos SET default_branch = '${escape(correctBranch)}' `
           + `WHERE owner = '${escape(entry.owner)}' AND repo = '${escape(entry.repo)}' `
           + `AND (default_branch IS NULL OR default_branch != '${escape(correctBranch)}');`,
         )
@@ -195,7 +196,7 @@ async function main() {
       }
       console.log(
         `UPDATE skills SET description = '${escape(desc)}' `
-        + `WHERE owner = '${escape(skill.owner)}' AND name = '${escape(skill.name)}' AND description IS NULL;`,
+        + `WHERE owner = '${escape(skill.owner)}' AND repo = '${escape(skill.repo)}' AND name = '${escape(skill.name)}' AND description IS NULL;`,
       )
       filled++
     }

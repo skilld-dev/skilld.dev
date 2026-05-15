@@ -281,6 +281,33 @@ async function syncRepo(target: TopRepo, meta: RepoMetaNode | null, kindOv: Map<
     const repoKindSource = kindOverride ? 'override' : 'computed'
 
     console.log(`-- ${slug} (${skillPaths.length} skills, ${stars} stars, kind=${repoKind})`)
+
+    // Repo-level upsert (post-0034).
+    console.log(
+      `INSERT INTO repos (
+         owner, repo, default_branch, stars, forks, pushed_at, repo_created_at,
+         repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
+         repo_skill_count, broken_since
+       ) VALUES (
+         ${sql(owner)}, ${sql(repo)}, ${sql(branch)}, ${stars}, ${forks},
+         ${nullable(repoPushedAt)}, ${nullable(repoCreatedAt)}, ${now},
+         ${sql(treeShaRoot)}, ${sql(repoKind)}, ${sql(repoKindSource)},
+         ${skillPaths.length}, NULL
+       )
+       ON CONFLICT(owner, repo) DO UPDATE SET
+         default_branch = excluded.default_branch,
+         stars = excluded.stars,
+         forks = excluded.forks,
+         pushed_at = excluded.pushed_at,
+         repo_created_at = excluded.repo_created_at,
+         repo_meta_synced_at = excluded.repo_meta_synced_at,
+         last_tree_sha = excluded.last_tree_sha,
+         repo_kind = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind ELSE excluded.repo_kind END,
+         repo_kind_source = repos.repo_kind_source,
+         repo_skill_count = excluded.repo_skill_count,
+         broken_since = NULL;`,
+    )
+
     const seenNames: string[] = []
 
     for (const skillPath of skillPaths) {
@@ -343,45 +370,30 @@ async function syncRepo(target: TopRepo, meta: RepoMetaNode | null, kindOv: Map<
       const skillTreeSha = await gitTreeSha(dir, skillPath)
       console.log(
         `INSERT INTO skills (
-           name, owner, repo, display_name, installs, slug,
-           stars, forks, pushed_at, repo_created_at, description, default_branch,
-           repo_meta_synced_at, broken_since,
+           name, owner, repo, display_name, installs, slug, description,
            current_sha, modified_at, first_seen_at, references_count, assets,
-           last_synced_at, sync_status, last_tree_sha,
+           last_synced_at, sync_status,
            is_official, source_resolved, seo_index_score, seo_indexable,
            seo_index_reasons, seo_index_synced_at,
-           trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-           repo_skill_count, repo_kind, repo_kind_source
+           trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at
          ) VALUES (
-           ${sql(parsed.name)}, ${sql(owner)}, ${sql(repo)}, ${sql(parsed.displayName)}, 0, ${sql(`${owner}/${parsed.name}`)},
-           ${stars}, ${forks}, ${nullable(repoPushedAt)}, ${nullable(repoCreatedAt)}, ${sql(description)}, ${sql(branch)},
-           ${now}, NULL,
+           ${sql(parsed.name)}, ${sql(owner)}, ${sql(repo)}, ${sql(parsed.displayName)}, 0, ${sql(`${owner}/${parsed.name}`)}, ${sql(description)},
            ${sql(skillTreeSha)}, ${nullable(modifiedAt)}, ${now}, ${refsCount}, ${sql(JSON.stringify(assets))},
-           ${now}, 'ok', ${sql(treeShaRoot)},
+           ${now}, 'ok',
            ${isOfficial ? 1 : 0}, 1, ${indexability.score}, ${indexability.indexable ? 1 : 0},
            ${sql(JSON.stringify(indexability.reasons))}, ${now},
-           ${sql(trust.tier)}, ${sql(trust.source)}, ${trust.score}, ${sql(JSON.stringify(trust.reasons))}, ${now},
-           ${skillPaths.length}, ${sql(repoKind)}, ${sql(repoKindSource)}
+           ${sql(trust.tier)}, ${sql(trust.source)}, ${trust.score}, ${sql(JSON.stringify(trust.reasons))}, ${now}
          )
          ON CONFLICT(owner, repo, name) DO UPDATE SET
-           repo = excluded.repo,
            display_name = excluded.display_name,
            slug = excluded.slug,
-           stars = excluded.stars,
-           forks = excluded.forks,
-           pushed_at = excluded.pushed_at,
-           repo_created_at = excluded.repo_created_at,
            description = COALESCE(excluded.description, skills.description),
-           default_branch = excluded.default_branch,
-           repo_meta_synced_at = excluded.repo_meta_synced_at,
-           broken_since = NULL,
            current_sha = excluded.current_sha,
            modified_at = COALESCE(excluded.modified_at, skills.modified_at),
            references_count = excluded.references_count,
            assets = excluded.assets,
            last_synced_at = excluded.last_synced_at,
            sync_status = 'ok',
-           last_tree_sha = excluded.last_tree_sha,
            is_official = excluded.is_official,
            source_resolved = excluded.source_resolved,
            seo_index_score = excluded.seo_index_score,
@@ -392,10 +404,7 @@ async function syncRepo(target: TopRepo, meta: RepoMetaNode | null, kindOv: Map<
            trust_source = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_source ELSE skills.trust_source END,
            trust_score = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_score ELSE skills.trust_score END,
            trust_reasons = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_reasons ELSE skills.trust_reasons END,
-           trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at),
-           repo_skill_count = excluded.repo_skill_count,
-           repo_kind = CASE WHEN skills.repo_kind_source = 'override' THEN skills.repo_kind ELSE excluded.repo_kind END,
-           repo_kind_source = skills.repo_kind_source;`,
+           trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at);`,
       )
       skillCount++
     }
@@ -424,11 +433,13 @@ if (EXPLICIT.length) {
 else {
   console.error(`[deep-sync-clone] selecting top ${LIMIT} non-aggregator repos by stars (skipping synced <24h)...`)
   top = d1Query<TopRepo>(
-    `SELECT owner, repo, MAX(stars) AS stars FROM skills
-     WHERE repo_kind != 'aggregator' AND broken_since IS NULL
-     GROUP BY owner, repo
-     HAVING MAX(COALESCE(last_synced_at, 0)) < unixepoch() - 86400
-     ORDER BY stars DESC LIMIT ${LIMIT};`,
+    `SELECT r.owner AS owner, r.repo AS repo, r.stars AS stars
+     FROM repos r
+     JOIN skills s ON s.owner = r.owner AND s.repo = r.repo
+     WHERE r.repo_kind != 'aggregator' AND r.broken_since IS NULL
+     GROUP BY r.owner, r.repo
+     HAVING MAX(COALESCE(s.last_synced_at, 0)) < unixepoch() - 86400
+     ORDER BY r.stars DESC LIMIT ${LIMIT};`,
   )
   console.error(`[deep-sync-clone] ${top.length} repos`)
 }

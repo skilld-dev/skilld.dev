@@ -131,8 +131,8 @@ export default defineApiHandler({
     if (!hasIndexabilityColumns) {
       const [totalSkills, visibleSkills, brokenSkills] = await Promise.all([
         firstCount(db, 'SELECT COUNT(*) AS count FROM skills'),
-        firstCount(db, `SELECT COUNT(*) AS count FROM skills WHERE broken_since IS NULL OR broken_since > ${brokenVisibleCutoff}`),
-        firstCount(db, 'SELECT COUNT(*) AS count FROM skills WHERE broken_since IS NOT NULL'),
+        firstCount(db, `SELECT COUNT(*) AS count FROM skills_v WHERE broken_since IS NULL OR broken_since > ${brokenVisibleCutoff}`),
+        firstCount(db, 'SELECT COUNT(*) AS count FROM skills_v WHERE broken_since IS NOT NULL'),
       ])
 
       return {
@@ -204,7 +204,7 @@ export default defineApiHandler({
       checks,
     ] = await Promise.all([
       firstCount(db, 'SELECT COUNT(*) AS count FROM skills'),
-      firstCount(db, `SELECT COUNT(*) AS count FROM skills WHERE broken_since IS NULL OR broken_since > ${brokenVisibleCutoff}`),
+      firstCount(db, `SELECT COUNT(*) AS count FROM skills_v WHERE broken_since IS NULL OR broken_since > ${brokenVisibleCutoff}`),
       firstCount(db, 'SELECT COUNT(*) AS count FROM skills WHERE seo_indexable = 1'),
       firstCount(db, 'SELECT COUNT(*) AS count FROM skills WHERE seo_indexable = 0'),
       hasTrustColumns
@@ -216,7 +216,7 @@ export default defineApiHandler({
       hasTrustColumns
         ? firstCount(db, `SELECT COUNT(*) AS count FROM skills WHERE trust_tier = 'quarantined'`)
         : Promise.resolve(0),
-      firstCount(db, 'SELECT COUNT(*) AS count FROM skills WHERE broken_since IS NOT NULL'),
+      firstCount(db, 'SELECT COUNT(*) AS count FROM skills_v WHERE broken_since IS NOT NULL'),
       firstCount(db, `SELECT COUNT(*) AS count FROM skills WHERE last_synced_at IS NULL OR last_synced_at < ${staleBefore}`),
       firstCount(db, `SELECT COUNT(*) AS count FROM skills WHERE seo_index_synced_at IS NULL OR seo_index_synced_at < ${staleIndexabilityBefore}`),
       firstCount(db, `SELECT COUNT(*) AS count FROM skills WHERE description IS NULL OR length(trim(description)) < 40`),
@@ -277,11 +277,11 @@ export default defineApiHandler({
           severity: 'critical',
           description: 'Broken rows should not remain indexable, even during the visibility grace period.',
           countSql: `SELECT COUNT(*) AS count
-          FROM skills
+          FROM skills_v
           WHERE seo_indexable = 1 AND broken_since IS NOT NULL`,
           issuesSql: `SELECT slug, owner, repo, name, display_name,
             datetime(broken_since, 'unixepoch') AS value
-          FROM skills
+          FROM skills_v
           WHERE seo_indexable = 1 AND broken_since IS NOT NULL
           ORDER BY broken_since DESC, installs DESC
           LIMIT ?`,
@@ -397,11 +397,11 @@ export default defineApiHandler({
           severity: 'critical',
           description: 'Broken skills remain visible for a seven-day grace period; these are still eligible for listings and sitemap entries while degraded.',
           countSql: `SELECT COUNT(*) AS count
-          FROM skills
+          FROM skills_v
           WHERE broken_since IS NOT NULL AND broken_since > ${brokenVisibleCutoff}`,
           issuesSql: `SELECT slug, owner, repo, name, display_name,
             datetime(broken_since, 'unixepoch') AS value
-          FROM skills
+          FROM skills_v
           WHERE broken_since IS NOT NULL AND broken_since > ${brokenVisibleCutoff}
           ORDER BY broken_since DESC
           LIMIT ?`,

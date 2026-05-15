@@ -76,16 +76,19 @@ export default defineCachedEventHandler(async (event) => {
   //   1. FTS on name/owner/display_name/slug (broad, catches `nuxt-ui`, `nuxt`)
   //   2. Exact owner = slug (the official org's repos, e.g. owner='nuxt')
   //   3. AI-classified tags (skill_generated kind='tags')
+  // stars/pushed_at/broken_since are repo facts (post-0034); read via skills_v.
+  // FTS post-0049 indexes `repo` too, so the tuple match is precise across
+  // same-(owner,name) collisions.
   const skillsRes = await db
     .prepare(
       `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.installs, s.slug, s.stars, s.description, s.pushed_at, s.modified_at
-       FROM skills s
+       FROM skills_v s
        WHERE ${NOT_BROKEN_SQL} AND (
-         s.rowid IN (SELECT rowid FROM skills_fts WHERE skills_fts MATCH ?)
+         (s.owner, s.repo, s.name) IN (SELECT owner, repo, name FROM skills_fts WHERE skills_fts MATCH ?)
          OR s.owner = ?
          OR EXISTS (
            SELECT 1 FROM skill_generated sg, json_each(sg.payload, '$.tags') je
-           WHERE sg.owner = s.owner AND sg.name = s.name
+           WHERE sg.owner = s.owner AND sg.repo = s.repo AND sg.name = s.name
              AND sg.kind = 'tags' AND je.value = ?
          )
        )

@@ -67,7 +67,7 @@ export default defineCachedEventHandler(
                       PARTITION BY owner, repo
                       ORDER BY installs DESC, name ASC
                     ) AS rn
-             FROM skills
+             FROM skills_v
              WHERE broken_since IS NULL OR broken_since > unixepoch() - 604800
            )
            SELECT cs.collection_id, cs.position, cs.owner, cs.repo, COALESCE(rs.name, cs.name) AS name, rs.display_name, cs.reason

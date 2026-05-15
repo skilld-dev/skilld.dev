@@ -62,6 +62,7 @@ interface CriticalResponse {
 
 interface MetaUpdate {
   owner: string
+  repo: string
   name: string
   stars: number
   forks: number
@@ -135,9 +136,12 @@ function syncMeta(metas: MetaUpdate[]): void {
   const CHUNK = 100
   for (let i = 0; i < metas.length; i += CHUNK) {
     const slice = metas.slice(i, i + CHUNK)
+    // Repo-level cols target `repos`; per-skill description stays on `skills`.
     const stmts = slice
-      .map(m =>
-        `UPDATE skills SET stars = ${m.stars}, forks = ${m.forks}, pushed_at = ${sqlNum(m.pushedAt)}, repo_created_at = ${sqlNum(m.repoCreatedAt)}, description = ${sqlNullableString(m.description)}, default_branch = ${sqlNullableString(m.defaultBranch)}, repo_meta_synced_at = unixepoch() WHERE owner = ${sqlString(m.owner)} AND name = ${sqlString(m.name)};`)
+      .flatMap(m => [
+        `UPDATE repos SET stars = ${m.stars}, forks = ${m.forks}, pushed_at = ${sqlNum(m.pushedAt)}, repo_created_at = ${sqlNum(m.repoCreatedAt)}, default_branch = ${sqlNullableString(m.defaultBranch)}, repo_meta_synced_at = unixepoch() WHERE owner = ${sqlString(m.owner)} AND repo = ${sqlString(m.repo)};`,
+        `UPDATE skills SET description = ${sqlNullableString(m.description)} WHERE owner = ${sqlString(m.owner)} AND repo = ${sqlString(m.repo)} AND name = ${sqlString(m.name)};`,
+      ])
       .join(' ')
     d1Exec(stmts)
   }
@@ -147,26 +151,35 @@ function syncMeta(metas: MetaUpdate[]): void {
 function flagBroken(skills: SkillRow[], broken: BrokenEntry[]): void {
   if (!skills.length)
     return
-  const brokenSet = new Set(broken.map(b => `${b.owner}/${b.name}`))
-  const toFlag = broken.map(b => ({ owner: b.owner, name: b.name }))
-  const toClear = skills
-    .filter(s => !brokenSet.has(`${s.owner}/${s.name}`))
-    .map(s => ({ owner: s.owner, name: s.name }))
+  // broken_since lives on `repos` (post-0034); per-skill brokenness rolls up
+  // to the repo since every skill in a 404'd repo is broken together.
+  const brokenRepoKeys = new Set(broken.map(b => `${b.owner}/${b.repo}`))
+  const toFlag = [...new Set(broken.map(b => `${b.owner}/${b.repo}`))]
+    .map((k) => {
+      const [owner, repo] = k.split('/') as [string, string]
+      return { owner, repo }
+    })
+  const toClear = [...new Set(
+    skills
+      .filter(s => !brokenRepoKeys.has(`${s.owner}/${s.repo}`))
+      .map(s => `${s.owner}/${s.repo}`),
+  )].map((k) => {
+    const [owner, repo] = k.split('/') as [string, string]
+    return { owner, repo }
+  })
 
-  // Per-row UPDATEs joined by `;`; same shape as syncMeta which avoids
-  // SQLite's expression-tree depth limit (100) we hit with OR-chains.
   const CHUNK = 100
 
-  function runChunked(rows: { owner: string, name: string }[], stmt: (r: { owner: string, name: string }) => string) {
+  function runChunked(rows: { owner: string, repo: string }[], stmt: (r: { owner: string, repo: string }) => string) {
     for (let i = 0; i < rows.length; i += CHUNK)
       d1Exec(rows.slice(i, i + CHUNK).map(stmt).join(' '))
   }
 
   runChunked(toFlag, r =>
-    `UPDATE skills SET broken_since = unixepoch() WHERE broken_since IS NULL AND owner = ${sqlString(r.owner)} AND name = ${sqlString(r.name)};`)
+    `UPDATE repos SET broken_since = unixepoch() WHERE broken_since IS NULL AND owner = ${sqlString(r.owner)} AND repo = ${sqlString(r.repo)};`)
 
   runChunked(toClear, r =>
-    `UPDATE skills SET broken_since = NULL WHERE broken_since IS NOT NULL AND owner = ${sqlString(r.owner)} AND name = ${sqlString(r.name)};`)
+    `UPDATE repos SET broken_since = NULL WHERE broken_since IS NOT NULL AND owner = ${sqlString(r.owner)} AND repo = ${sqlString(r.repo)};`)
 
   console.log(`  flagged ${toFlag.length}, cleared ${toClear.length}`)
 }
@@ -230,6 +243,7 @@ async function warmSkill(skill: SkillRow): Promise<{ broken: BrokenEntry | null,
   const meta: MetaUpdate | null = critical.stars !== undefined || critical.description !== undefined || critical.branch !== undefined
     ? {
         owner: skill.owner,
+        repo: skill.repo,
         name: skill.name,
         stars: critical.stars ?? 0,
         forks: critical.forks ?? 0,

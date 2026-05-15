@@ -40,3 +40,10 @@ for (let i = 0; i < rows.length; i += BATCH) {
   const chunk = rows.slice(i, i + BATCH)
   process.stdout.write(`INSERT OR REPLACE INTO skills (name, owner, repo, display_name, installs, slug) VALUES\n${chunk.join(',\n')};\n`)
 }
+
+// Backfill `repos` so seeded skills are visible through skills_v (which
+// inner-joins repos). Without this, seeded `(owner, repo)` pairs that haven't
+// been touched by sync-repo yet are invisible to all hot-path reads.
+process.stdout.write(
+  `INSERT OR IGNORE INTO repos (owner, repo) SELECT DISTINCT owner, repo FROM skills;\n`,
+)

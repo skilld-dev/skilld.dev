@@ -121,28 +121,34 @@ const repoKind = skills.length > 100 ? 'aggregator' : skills.length > 5 ? 'catal
 console.log(`-- sync-skills-gh: ${owner}/${repo} (${skills.length} skills, ${stars} stars, kind=${repoKind})`)
 // Note: D1 manages transactions implicitly per file; explicit BEGIN/COMMIT
 // is rejected.
+
+// Repo-level facts go to `repos` (post-0034). Skills upsert only writes
+// skill-level columns now; readers join `repos` via `skills_v`.
+console.log(
+  `INSERT INTO repos (owner, repo, default_branch, stars, forks, pushed_at, repo_created_at, repo_meta_synced_at, repo_skill_count, repo_kind, repo_kind_source, broken_since)
+   VALUES (${ownerSql}, ${repoSql}, ${sqlText(branch)}, ${stars}, ${forks}, ${pushedAt}, ${createdAt}, ${now}, ${skills.length}, ${sqlText(repoKind)}, 'computed', NULL)
+   ON CONFLICT(owner, repo) DO UPDATE SET
+     default_branch = excluded.default_branch,
+     stars = excluded.stars,
+     forks = excluded.forks,
+     pushed_at = excluded.pushed_at,
+     repo_created_at = excluded.repo_created_at,
+     repo_meta_synced_at = excluded.repo_meta_synced_at,
+     repo_skill_count = excluded.repo_skill_count,
+     repo_kind = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind ELSE excluded.repo_kind END,
+     broken_since = NULL;`,
+)
+
 for (const s of skills) {
   const slug = `${owner}/${s.name}`
-  // Per-skill description prefers SKILL.md frontmatter, falls back to repo
-  // description. Stars/forks/pushed/created/branch come from the repo.
   const desc = s.description || repoDescription
   console.log(
-    `INSERT INTO skills (name, owner, repo, display_name, installs, slug, stars, forks, pushed_at, repo_created_at, description, default_branch, repo_meta_synced_at, broken_since, repo_skill_count, repo_kind)
-     VALUES (${sqlText(s.name)}, ${ownerSql}, ${repoSql}, ${sqlText(s.displayName)}, 0, ${sqlText(slug)}, ${stars}, ${forks}, ${pushedAt}, ${createdAt}, ${sqlText(desc)}, ${sqlText(branch)}, ${now}, NULL, ${skills.length}, ${sqlText(repoKind)})
+    `INSERT INTO skills (name, owner, repo, display_name, installs, slug, description)
+     VALUES (${sqlText(s.name)}, ${ownerSql}, ${repoSql}, ${sqlText(s.displayName)}, 0, ${sqlText(slug)}, ${sqlText(desc)})
      ON CONFLICT(owner, repo, name) DO UPDATE SET
-       repo = excluded.repo,
        display_name = excluded.display_name,
        slug = excluded.slug,
-       stars = excluded.stars,
-       forks = excluded.forks,
-       pushed_at = excluded.pushed_at,
-       repo_created_at = excluded.repo_created_at,
-       description = COALESCE(excluded.description, skills.description),
-       default_branch = excluded.default_branch,
-       repo_meta_synced_at = excluded.repo_meta_synced_at,
-       broken_since = NULL,
-       repo_skill_count = excluded.repo_skill_count,
-       repo_kind = CASE WHEN skills.repo_kind_source = 'override' THEN skills.repo_kind ELSE excluded.repo_kind END;`,
+       description = COALESCE(excluded.description, skills.description);`,
   )
 }
 

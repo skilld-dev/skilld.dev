@@ -118,10 +118,11 @@ function main() {
 
   const rows = d1<SkillRow>(`
     WITH repo_counts AS (
-      SELECT owner, repo, COUNT(*) AS repo_skill_count
-      FROM skills
-      WHERE broken_since IS NULL
-      GROUP BY owner, repo
+      SELECT s.owner, s.repo, COUNT(*) AS repo_skill_count
+      FROM skills s
+      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+      WHERE r.broken_since IS NULL
+      GROUP BY s.owner, s.repo
     )
     SELECT
       s.owner,
@@ -148,7 +149,7 @@ function main() {
       ) AS approved_social_count,
       ${overrideFields},
       ${trustFields}
-    FROM skills s
+    FROM skills_v s
     LEFT JOIN repo_counts rc ON rc.owner = s.owner AND rc.repo = s.repo
     ${overrideJoin}
     ORDER BY s.installs DESC, s.stars DESC, s.owner ASC, s.name ASC

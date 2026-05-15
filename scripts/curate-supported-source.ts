@@ -39,13 +39,15 @@ function splitRepo(ref: string): { owner: string, repo: string } {
   return { owner: parts[0]!, repo: parts[1]! }
 }
 
-function splitSkill(ref: string): { owner: string, repo: string | null, name: string } {
+function splitSkill(ref: string): { owner: string, repo: string, name: string } {
   const parts = ref.split('/').filter(Boolean)
-  if (parts.length === 2)
-    return { owner: parts[0]!, repo: null, name: parts[1]! }
-  if (parts.length >= 3)
-    return { owner: parts[0]!, repo: parts[1]!, name: parts.slice(2).join('/') }
-  usage()
+  if (parts.length < 3) {
+    // supported_skills.repo is NOT NULL since 0033 — owner/name alone is
+    // ambiguous because the same (owner, name) can map to multiple repos.
+    console.error(`[curate] skill ref must be owner/repo/name (got "${ref}")`)
+    usage()
+  }
+  return { owner: parts[0]!, repo: parts[1]!, name: parts.slice(2).join('/') }
 }
 
 const { values, positionals } = parseArgs({
@@ -124,7 +126,7 @@ else if (scope === 'skill') {
     `INSERT INTO supported_skills (
        owner, name, repo, support_mode, reason, reviewed_by, reviewed_at, notes, updated_at
      ) VALUES (
-       ${sqlString(owner)}, ${sqlString(name)}, ${repo ? sqlString(repo) : 'NULL'}, ${sqlString(action)},
+       ${sqlString(owner)}, ${sqlString(name)}, ${sqlString(repo)}, ${sqlString(action)},
        ${sqlString(reason)}, ${sqlString(reviewedBy)}, ${now}, ${notes ? sqlString(notes) : 'NULL'}, ${now}
      )
      ON CONFLICT(owner, repo, name) DO UPDATE SET

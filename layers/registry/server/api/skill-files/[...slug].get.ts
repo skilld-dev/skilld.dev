@@ -54,7 +54,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
     const row = await platform.db
-      .prepare('SELECT default_branch, rendered_skill_path FROM skills WHERE owner = ? AND repo = ? AND name = ?')
+      .prepare('SELECT default_branch, rendered_skill_path FROM skills_v WHERE owner = ? AND repo = ? AND name = ?')
       .bind(skill.owner, skill.repo, skill.name)
       .first<SkillFilesRow>()
     if (!row)
