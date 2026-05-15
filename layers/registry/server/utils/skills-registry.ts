@@ -14,11 +14,11 @@ const WHITESPACE_RE = /\s+/
 // transient upstream issues). After that they fall off listings/search/sitemap
 // but the detail page remains reachable so deep links don't 404.
 const BROKEN_GRACE_SECONDS = 7 * 86400
-const NOT_BROKEN_SQL = `(skills.broken_since IS NULL OR skills.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
+const NOT_BROKEN_SQL = `(skills_v.broken_since IS NULL OR skills_v.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`
 
 // Aggregator repos (>100 skills, mostly awesome-list republishers) are excluded
 // from anonymous discovery surfaces. Detail pages remain reachable.
-const NOT_AGGREGATOR_SQL = `skills.repo_kind != 'aggregator'`
+const NOT_AGGREGATOR_SQL = `skills_v.repo_kind != 'aggregator'`
 
 export interface RegistrySkill {
   name: string
@@ -127,24 +127,24 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   if (search) {
     // FTS5 match with prefix search
     const ftsQuery = search.split(WHITESPACE_RE).map(t => `"${t}"*`).join(' ')
-    conditions.push('skills.rowid IN (SELECT rowid FROM skills_fts WHERE skills_fts MATCH ?)')
+    conditions.push('(skills_v.owner, skills_v.name) IN (SELECT owner, name FROM skills_fts WHERE skills_fts MATCH ?)')
     params.push(ftsQuery)
   }
 
   if (owner) {
-    conditions.push('skills.owner = ?')
+    conditions.push('skills_v.owner = ?')
     params.push(owner)
   }
 
   if (official && officialOwners?.size) {
     const placeholders = Array.from(officialOwners, () => '?').join(',')
-    conditions.push(`skills.owner IN (${placeholders})`)
+    conditions.push(`skills_v.owner IN (${placeholders})`)
     params.push(...officialOwners)
   }
 
   if (excludeOfficial && officialOwners?.size) {
     const placeholders = Array.from(officialOwners, () => '?').join(',')
-    conditions.push(`skills.owner NOT IN (${placeholders})`)
+    conditions.push(`skills_v.owner NOT IN (${placeholders})`)
     params.push(...officialOwners)
   }
 
@@ -152,12 +152,12 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     conditions.push(`(${SUPPORTED_SKILL_SQL})`)
 
   if (trustTier) {
-    conditions.push('skills.trust_tier = ?')
+    conditions.push('skills_v.trust_tier = ?')
     params.push(trustTier)
   }
 
   if (category) {
-    conditions.push('skills.abstractness_category = ?')
+    conditions.push('skills_v.abstractness_category = ?')
     params.push(category)
   }
 
@@ -171,24 +171,24 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   const where = `WHERE ${conditions.join(' AND ')}`
 
   // Count query
-  const countStmt = db.prepare(`SELECT COUNT(*) as total FROM skills ${where}`).bind(...params)
+  const countStmt = db.prepare(`SELECT COUNT(*) as total FROM skills_v ${where}`).bind(...params)
 
   // Sort
   let orderBy: string
   if (sort === 'name')
-    orderBy = 'skills.name ASC'
+    orderBy = 'skills_v.name ASC'
   else if (sort === 'owner')
-    orderBy = 'skills.owner ASC, skills.name ASC'
-  else orderBy = 'skills.installs DESC'
+    orderBy = 'skills_v.owner ASC, skills_v.name ASC'
+  else orderBy = 'skills_v.installs DESC'
 
   const offset = (page - 1) * limit
   const dataStmt = db
-    .prepare(`SELECT * FROM skills ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
+    .prepare(`SELECT * FROM skills_v ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
     .bind(...params, limit, offset)
 
   // Facets: top owners from filtered results
   const facetStmt = db
-    .prepare(`SELECT owner, COUNT(*) as count FROM skills ${where} GROUP BY owner ORDER BY count DESC LIMIT 20`)
+    .prepare(`SELECT owner, COUNT(*) as count FROM skills_v ${where} GROUP BY owner ORDER BY count DESC LIMIT 20`)
     .bind(...params)
 
   const [countRes, dataRes, facetRes] = await Promise.all([
@@ -230,7 +230,7 @@ export async function findSkillsByLookups(
   const brokenClause = opts.includeBroken ? '' : ` AND ${NOT_BROKEN_SQL}`
   const supportedClause = opts.supportedOnly ? ` AND (${SUPPORTED_SKILL_SQL})` : ''
   const rows = await db
-    .prepare(`SELECT * FROM skills WHERE name IN (${placeholders})${brokenClause}${supportedClause}`)
+    .prepare(`SELECT * FROM skills_v WHERE name IN (${placeholders})${brokenClause}${supportedClause}`)
     .bind(...uniqueNames)
     .all<SkillRow>()
 
@@ -271,7 +271,7 @@ export async function getTopOwnersByCount(
   const placeholders = Array.from(allowedOwners, () => '?').join(',')
   const res = await db
     .prepare(
-      `SELECT owner, COUNT(*) as count FROM skills
+      `SELECT owner, COUNT(*) as count FROM skills_v
        WHERE owner IN (${placeholders}) AND ${NOT_BROKEN_SQL}
        GROUP BY owner
        ORDER BY count DESC
@@ -298,7 +298,7 @@ export async function getTopReposByCount(
     const filter = repoPairFilter(repos)
     const res = await db
       .prepare(
-        `SELECT owner, repo, COUNT(*) as count FROM skills
+        `SELECT owner, repo, COUNT(*) as count FROM skills_v
          WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
          GROUP BY owner, repo
          ORDER BY count DESC
@@ -323,7 +323,7 @@ export async function getTopReposByStars(
     const filter = repoPairFilter(repos)
     const res = await db
       .prepare(
-        `SELECT owner, repo, COUNT(*) as count, MAX(stars) as stars FROM skills
+        `SELECT owner, repo, COUNT(*) as count, MAX(stars) as stars FROM skills_v
          WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
          GROUP BY owner, repo
          ORDER BY stars DESC, count DESC
@@ -352,7 +352,7 @@ export async function getTopOwnersByStars(
   const placeholders = Array.from(allowedOwners, () => '?').join(',')
   const res = await db
     .prepare(
-      `SELECT owner, COUNT(*) as count, MAX(stars) as stars FROM skills
+      `SELECT owner, COUNT(*) as count, MAX(stars) as stars FROM skills_v
        WHERE owner IN (${placeholders}) AND ${NOT_BROKEN_SQL}
        GROUP BY owner
        ORDER BY stars DESC, count DESC
@@ -388,10 +388,10 @@ export async function getFeaturedOfficialSections(
   const rankedStmt = db
     .prepare(
       `SELECT * FROM (
-        SELECT skills.*,
+        SELECT skills_v.*,
           ROW_NUMBER() OVER (PARTITION BY owner, repo ORDER BY installs DESC, name ASC) AS rn,
           COUNT(*) OVER (PARTITION BY owner, repo) AS repo_total
-        FROM skills
+        FROM skills_v
         WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
       ) WHERE rn <= ?`,
     )
@@ -483,27 +483,27 @@ async function listDuplicateCandidateRows(
   const res = await db
     .prepare(`
       SELECT
-        skills.owner,
-        skills.repo,
-        skills.name,
-        skills.display_name,
-        skills.description,
-        skills.installs,
-        skills.stars,
-        skills.pushed_at,
+        skills_v.owner,
+        skills_v.repo,
+        skills_v.name,
+        skills_v.display_name,
+        skills_v.description,
+        skills_v.installs,
+        skills_v.stars,
+        skills_v.pushed_at,
         supported_repos.support_tier,
-        skills.trust_tier,
+        skills_v.trust_tier,
         ${supportedSelect} AS is_supported
-      FROM skills
+      FROM skills_v
       LEFT JOIN supported_repos
-        ON supported_repos.owner = skills.owner
-        AND supported_repos.repo = skills.repo
+        ON supported_repos.owner = skills_v.owner
+        AND supported_repos.repo = skills_v.repo
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
-        AND skills.seo_indexable = 1
+        AND skills_v.seo_indexable = 1
         ${aggregatorFilter}
         ${supportedFilter}
-      ORDER BY skills.owner ASC, skills.repo ASC, skills.name ASC
+      ORDER BY skills_v.owner ASC, skills_v.repo ASC, skills_v.name ASC
     `)
     .all<SkillDuplicateRow>()
   const rows = res.results ?? []
@@ -546,26 +546,26 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
   const res = await db
     .prepare(`
       SELECT
-        skills.name,
-        skills.owner,
-        skills.repo,
-        skills.display_name,
-        skills.description,
-        skills.installs,
-        skills.stars,
-        skills.pushed_at,
+        skills_v.name,
+        skills_v.owner,
+        skills_v.repo,
+        skills_v.display_name,
+        skills_v.description,
+        skills_v.installs,
+        skills_v.stars,
+        skills_v.pushed_at,
         supported_repos.support_tier,
-        skills.trust_tier,
+        skills_v.trust_tier,
         CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported
-      FROM skills
+      FROM skills_v
       LEFT JOIN supported_repos
-        ON supported_repos.owner = skills.owner
-        AND supported_repos.repo = skills.repo
+        ON supported_repos.owner = skills_v.owner
+        AND supported_repos.repo = skills_v.repo
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
-        AND skills.seo_indexable = 1
+        AND skills_v.seo_indexable = 1
         AND ${NOT_AGGREGATOR_SQL}
-      ORDER BY skills.owner ASC, skills.repo ASC, skills.name ASC
+      ORDER BY skills_v.owner ASC, skills_v.repo ASC, skills_v.name ASC
     `)
     .all<SkillDuplicateRow>()
   const rows = res.results ?? []
@@ -588,7 +588,7 @@ export async function listSupportedSkillsForSitemap(event: H3Event): Promise<Ski
 export async function listAllOwnersForSitemap(event: H3Event): Promise<{ owner: string }[]> {
   const db = getDB(event)
   const res = await db
-    .prepare(`SELECT DISTINCT owner FROM skills WHERE ${NOT_BROKEN_SQL} ORDER BY owner ASC`)
+    .prepare(`SELECT DISTINCT owner FROM skills_v WHERE ${NOT_BROKEN_SQL} ORDER BY owner ASC`)
     .all<{ owner: string }>()
   return res.results ?? []
 }
@@ -602,11 +602,11 @@ export async function findRelatedSkills(
 
   const [repoRes, ownerRes] = await Promise.all([
     db
-      .prepare(`SELECT * FROM skills WHERE owner = ? AND repo = ? AND name != ? AND ${NOT_BROKEN_SQL} ORDER BY installs DESC LIMIT ?`)
+      .prepare(`SELECT * FROM skills_v WHERE owner = ? AND repo = ? AND name != ? AND ${NOT_BROKEN_SQL} ORDER BY installs DESC LIMIT ?`)
       .bind(owner, repo, excludeName, limit)
       .all<SkillRow>(),
     db
-      .prepare(`SELECT * FROM skills WHERE owner = ? AND NOT (repo = ?) AND name != ? AND ${NOT_BROKEN_SQL} ORDER BY installs DESC LIMIT ?`)
+      .prepare(`SELECT * FROM skills_v WHERE owner = ? AND NOT (repo = ?) AND name != ? AND ${NOT_BROKEN_SQL} ORDER BY installs DESC LIMIT ?`)
       .bind(owner, repo, excludeName, limit)
       .all<SkillRow>(),
   ])
@@ -620,7 +620,7 @@ export async function findRelatedSkills(
 export async function findSkill(event: H3Event, slug: string): Promise<RegistrySkill | null> {
   const db = getDB(event)
   const row = await db
-    .prepare('SELECT * FROM skills WHERE slug = ?')
+    .prepare('SELECT * FROM skills_v WHERE slug = ?')
     .bind(slug)
     .first<SkillRow>()
 
@@ -632,7 +632,7 @@ export async function findSkill(event: H3Event, slug: string): Promise<RegistryS
       const repo = parts[1]
       const name = parts.slice(2).join('/')
       const altRow = await db
-        .prepare('SELECT * FROM skills WHERE owner = ? AND repo = ? AND name = ?')
+        .prepare('SELECT * FROM skills_v WHERE owner = ? AND repo = ? AND name = ?')
         .bind(owner, repo, name)
         .first<SkillRow>()
       return altRow ? rowToSkill(altRow) : null

@@ -25,8 +25,11 @@ interface ExistingSkill {
   current_sha: string | null
   modified_at: number | null
   first_seen_at: number | null
-  last_tree_sha: string | null
   last_synced_at: number | null
+}
+
+interface ExistingRepo {
+  last_tree_sha: string | null
   pushed_at: number | null
 }
 
@@ -94,7 +97,7 @@ function collectAssets(
 async function loadExistingSkills(db: D1Database, owner: string, repo: string): Promise<Map<string, ExistingSkill>> {
   const res = await db
     .prepare(
-      `SELECT name, current_sha, modified_at, first_seen_at, last_tree_sha, last_synced_at, pushed_at
+      `SELECT name, current_sha, modified_at, first_seen_at, last_synced_at
        FROM skills WHERE owner = ? AND repo = ?`,
     )
     .bind(owner, repo)
@@ -103,6 +106,13 @@ async function loadExistingSkills(db: D1Database, owner: string, repo: string): 
   for (const row of res.results ?? [])
     map.set(row.name, row)
   return map
+}
+
+async function loadExistingRepo(db: D1Database, owner: string, repo: string): Promise<ExistingRepo | null> {
+  return await db
+    .prepare(`SELECT last_tree_sha, pushed_at FROM repos WHERE owner = ? AND repo = ?`)
+    .bind(owner, repo)
+    .first<ExistingRepo>()
 }
 
 interface SkillSnapshot {
@@ -179,14 +189,14 @@ export async function syncRepo(
   const repoPushedAt = epoch(meta.pushed_at)
 
   const existing = await loadExistingSkills(db, owner, repo)
-  const anyExisting = existing.values().next().value as ExistingSkill | undefined
+  const existingRepo = await loadExistingRepo(db, owner, repo)
 
   if (
     !repoRes.notModified
-    && anyExisting?.pushed_at != null
-    && anyExisting.last_tree_sha != null
+    && existingRepo?.pushed_at != null
+    && existingRepo.last_tree_sha != null
     && repoPushedAt != null
-    && anyExisting.pushed_at >= repoPushedAt
+    && existingRepo.pushed_at >= repoPushedAt
   ) {
     stats.status = 'skipped-pushed-at'
     return stats
@@ -202,7 +212,7 @@ export async function syncRepo(
   }
 
   const tree = treeRes.data
-  if (anyExisting?.last_tree_sha && anyExisting.last_tree_sha === tree.sha) {
+  if (existingRepo?.last_tree_sha && existingRepo.last_tree_sha === tree.sha) {
     stats.status = 'skipped-tree-sha'
     return stats
   }
@@ -227,6 +237,45 @@ export async function syncRepo(
   const kindOverride = await getRepoKindOverride(db, owner, repo)
   const repoKind: RepoKind = kindOverride ?? classifyRepoKind(skillFiles.length)
   const repoKindSource: 'computed' | 'override' = kindOverride ? 'override' : 'computed'
+
+  // Upsert the per-repo row. Repo-level facts (stars, branch, tree sha,
+  // kind, broken_since, …) live on `repos` after 0034. `repo_kind_source =
+  // 'override'` rows are immutable from sync.
+  await db
+    .prepare(
+      `INSERT INTO repos (
+         owner, repo, default_branch, stars, forks, pushed_at, repo_created_at,
+         repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
+         repo_skill_count, broken_since
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+       ON CONFLICT(owner, repo) DO UPDATE SET
+         default_branch = excluded.default_branch,
+         stars = excluded.stars,
+         forks = excluded.forks,
+         pushed_at = excluded.pushed_at,
+         repo_created_at = excluded.repo_created_at,
+         repo_meta_synced_at = excluded.repo_meta_synced_at,
+         last_tree_sha = excluded.last_tree_sha,
+         repo_kind = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind ELSE excluded.repo_kind END,
+         repo_kind_source = repos.repo_kind_source,
+         repo_skill_count = excluded.repo_skill_count,
+         broken_since = NULL`,
+    )
+    .bind(
+      owner,
+      repo,
+      branch,
+      stars,
+      forks,
+      repoPushedAt,
+      repoCreatedAt,
+      now,
+      tree.sha,
+      repoKind,
+      repoKindSource,
+      skillFiles.length,
+    )
+    .run()
 
   const seenNames = new Set<string>()
 
@@ -300,10 +349,10 @@ export async function syncRepo(
           continue
         const insert = await db
           .prepare(
-            `INSERT OR IGNORE INTO skill_revisions (owner, name, sha, modified_at, author_login, message)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT OR IGNORE INTO skill_revisions (owner, repo, name, sha, modified_at, author_login, message)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
           )
-          .bind(owner, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message)
+          .bind(owner, repo, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message)
           .run()
         if (insert.meta?.changes)
           stats.revisionsInserted += insert.meta.changes
@@ -314,35 +363,24 @@ export async function syncRepo(
       .prepare(
         `INSERT INTO skills (
            name, owner, repo, display_name, installs, slug,
-           stars, forks, pushed_at, repo_created_at, description, default_branch,
-           repo_meta_synced_at, broken_since,
+           description,
            current_sha, modified_at, first_seen_at, references_count, assets,
-           last_synced_at, sync_status, last_tree_sha,
+           last_synced_at, sync_status,
            is_official, source_resolved, seo_index_score, seo_indexable,
            seo_index_reasons, seo_index_synced_at,
            trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-           repo_skill_count, repo_kind, repo_kind_source,
            rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at
-         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?)
-         ON CONFLICT(owner, name) DO UPDATE SET
-           repo = excluded.repo,
+         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?)
+         ON CONFLICT(owner, repo, name) DO UPDATE SET
            display_name = excluded.display_name,
            slug = excluded.slug,
-           stars = excluded.stars,
-           forks = excluded.forks,
-           pushed_at = excluded.pushed_at,
-           repo_created_at = excluded.repo_created_at,
            description = COALESCE(excluded.description, skills.description),
-           default_branch = excluded.default_branch,
-           repo_meta_synced_at = excluded.repo_meta_synced_at,
-           broken_since = NULL,
            current_sha = excluded.current_sha,
            modified_at = COALESCE(excluded.modified_at, skills.modified_at),
            references_count = excluded.references_count,
            assets = excluded.assets,
            last_synced_at = excluded.last_synced_at,
            sync_status = 'ok',
-           last_tree_sha = excluded.last_tree_sha,
            is_official = excluded.is_official,
            source_resolved = excluded.source_resolved,
            seo_index_score = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_index_score ELSE skills.seo_index_score END,
@@ -354,9 +392,6 @@ export async function syncRepo(
            trust_score = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_score ELSE skills.trust_score END,
            trust_reasons = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_reasons ELSE skills.trust_reasons END,
            trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at),
-           repo_skill_count = excluded.repo_skill_count,
-           repo_kind = CASE WHEN skills.repo_kind_source = 'override' THEN skills.repo_kind ELSE excluded.repo_kind END,
-           repo_kind_source = skills.repo_kind_source,
            rendered_skill_path = excluded.rendered_skill_path,
            rendered_status = excluded.rendered_status,
            rendered_raw = excluded.rendered_raw,
@@ -370,20 +405,13 @@ export async function syncRepo(
         repo,
         parsed.displayName,
         `${owner}/${parsed.name}`,
-        stars,
-        forks,
-        repoPushedAt,
-        repoCreatedAt,
         description,
-        branch,
-        now,
         file.treeSha,
         modifiedAt,
         firstSeenAt,
         refsCount,
         JSON.stringify(assets),
         now,
-        tree.sha,
         isOfficial ? 1 : 0,
         indexability.score,
         indexability.indexable ? 1 : 0,
@@ -394,9 +422,6 @@ export async function syncRepo(
         trust.score,
         JSON.stringify(trust.reasons),
         now,
-        skillFiles.length,
-        repoKind,
-        repoKindSource,
         file.path,
         raw,
         JSON.stringify(rendered.frontmatter),
@@ -409,20 +434,20 @@ export async function syncRepo(
     if (isNewToRegistry) {
       await db
         .prepare(
-          `INSERT INTO activity (type, owner, name, occurred_at, sha)
-           VALUES ('skill_published', ?, ?, ?, ?)`,
+          `INSERT INTO activity (type, owner, repo, name, occurred_at, sha)
+           VALUES ('skill_published', ?, ?, ?, ?, ?)`,
         )
-        .bind(owner, parsed.name, modifiedAt ?? now, file.treeSha)
+        .bind(owner, repo, parsed.name, modifiedAt ?? now, file.treeSha)
         .run()
       stats.activityEmitted += 1
     }
     else if (contentChanged) {
       await db
         .prepare(
-          `INSERT INTO activity (type, owner, name, occurred_at, sha)
-           VALUES ('skill_updated', ?, ?, ?, ?)`,
+          `INSERT INTO activity (type, owner, repo, name, occurred_at, sha)
+           VALUES ('skill_updated', ?, ?, ?, ?, ?)`,
         )
-        .bind(owner, parsed.name, modifiedAt ?? now, file.treeSha)
+        .bind(owner, repo, parsed.name, modifiedAt ?? now, file.treeSha)
         .run()
       stats.activityEmitted += 1
     }
@@ -433,8 +458,7 @@ export async function syncRepo(
       await db
         .prepare(
           `UPDATE skills
-           SET broken_since = COALESCE(broken_since, ?),
-               source_resolved = 0,
+           SET source_resolved = 0,
                seo_indexable = 0,
                seo_index_score = MIN(seo_index_score, 0),
                seo_index_reasons = '["source_missing"]',
@@ -444,11 +468,21 @@ export async function syncRepo(
                trust_score = -50,
                trust_reasons = '["source_missing"]',
                trust_synced_at = ?
-           WHERE owner = ? AND name = ?`,
+           WHERE owner = ? AND repo = ? AND name = ?`,
         )
-        .bind(now, now, now, owner, name)
+        .bind(now, now, owner, repo, name)
         .run()
     }
+  }
+
+  // If no skill files were seen at all in this sync, mark the whole repo
+  // broken. Individual skill removals are tracked via the per-skill UPDATE
+  // above.
+  if (skillFiles.length === 0) {
+    await db
+      .prepare(`UPDATE repos SET broken_since = COALESCE(broken_since, ?) WHERE owner = ? AND repo = ?`)
+      .bind(now, owner, repo)
+      .run()
   }
 
   return stats

@@ -204,9 +204,9 @@ const rows = d1<AuditRow>(`
     tags.sha AS tags_sha,
     faq.sha AS faq_sha
   FROM skills
-  LEFT JOIN skill_generated summary ON summary.owner = skills.owner AND summary.name = skills.name AND summary.kind = 'summary'
-  LEFT JOIN skill_generated tags ON tags.owner = skills.owner AND tags.name = skills.name AND tags.kind = 'tags'
-  LEFT JOIN skill_generated faq ON faq.owner = skills.owner AND faq.name = skills.name AND faq.kind = 'faq'
+  LEFT JOIN skill_generated summary ON summary.owner = skills.owner AND summary.repo = skills.repo AND summary.name = skills.name AND summary.kind = 'summary'
+  LEFT JOIN skill_generated tags ON tags.owner = skills.owner AND tags.repo = skills.repo AND tags.name = skills.name AND tags.kind = 'tags'
+  LEFT JOIN skill_generated faq ON faq.owner = skills.owner AND faq.repo = skills.repo AND faq.name = skills.name AND faq.kind = 'faq'
   LEFT JOIN supported_repos sr ON sr.owner = skills.owner AND sr.repo = skills.repo AND sr.enabled = 1
   WHERE ${NOT_BROKEN_SQL}
     AND skills.seo_indexable = 1

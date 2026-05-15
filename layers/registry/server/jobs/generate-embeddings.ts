@@ -92,7 +92,7 @@ export async function generateEmbedding(ctx: EmbeddingContext, skill: EmbeddingS
   // Bake model into sha so switching embedder forces regeneration.
   const currentSha = await sha1(`${model}\n${text}`)
 
-  const existing = await getGenerated<EmbeddingPayload>(ctx.db, { owner: skill.owner, name: skill.name, kind: 'embedding' })
+  const existing = await getGenerated<EmbeddingPayload>(ctx.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'embedding' })
   if (existing && existing.sha === currentSha)
     return existing.payload
 

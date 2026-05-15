@@ -110,7 +110,7 @@ export default defineApiHandler<never, SkillsStats>({
           COUNT(DISTINCT owner || '/' || repo) AS repos,
           COUNT(DISTINCT owner) AS owners,
           AVG(stars) AS avg_stars
-        FROM skills WHERE ${NOT_BROKEN_SQL}`,
+        FROM skills_v WHERE ${NOT_BROKEN_SQL}`,
         )
         .first<{ skills: number, repos: number, owners: number, avg_stars: number | null }>(),
 
@@ -119,7 +119,7 @@ export default defineApiHandler<never, SkillsStats>({
       db
         .prepare(
           `SELECT owner, repo, MAX(stars) AS stars
-        FROM skills
+        FROM skills_v
         WHERE ${NOT_BROKEN_SQL} AND LOWER(repo) LIKE '%skill%'
         GROUP BY owner, repo`,
         )
@@ -129,7 +129,7 @@ export default defineApiHandler<never, SkillsStats>({
       db
         .prepare(
           `SELECT owner, repo, MAX(pushed_at) AS pushed_at, MAX(repo_created_at) AS repo_created_at
-        FROM skills WHERE ${NOT_BROKEN_SQL}
+        FROM skills_v WHERE ${NOT_BROKEN_SQL}
         GROUP BY owner, repo`,
         )
         .all<{ owner: string, repo: string, pushed_at: number | null, repo_created_at: number | null }>(),
@@ -138,7 +138,7 @@ export default defineApiHandler<never, SkillsStats>({
       db
         .prepare(
           `SELECT owner, MAX(stars) AS stars, COUNT(*) AS skills
-        FROM skills WHERE ${NOT_BROKEN_SQL}
+        FROM skills_v WHERE ${NOT_BROKEN_SQL}
         GROUP BY owner
         ORDER BY stars DESC, skills DESC
         LIMIT 15`,
@@ -152,7 +152,7 @@ export default defineApiHandler<never, SkillsStats>({
       db
         .prepare(
           `SELECT name, owner, stars, installs
-        FROM skills
+        FROM skills_v
         WHERE ${NOT_BROKEN_SQL} AND (stars > 0 OR installs > 0)
         ORDER BY (stars + installs) DESC
         LIMIT 1500`,
@@ -163,7 +163,7 @@ export default defineApiHandler<never, SkillsStats>({
       db
         .prepare(
           `SELECT COUNT(*) AS n
-        FROM skills WHERE ${NOT_BROKEN_SQL}
+        FROM skills_v WHERE ${NOT_BROKEN_SQL}
         GROUP BY owner, repo`,
         )
         .all<{ n: number }>(),

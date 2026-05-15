@@ -222,15 +222,15 @@ export default defineApiHandler({
       firstCount(db, `SELECT COUNT(*) AS count FROM skills WHERE description IS NULL OR length(trim(description)) < 40`),
       firstCount(db, `SELECT COUNT(*) AS count
       FROM skills s
-      LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'summary'
+      LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
       WHERE g.owner IS NULL`),
       firstCount(db, `SELECT COUNT(*) AS count
       FROM skills s
-      LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'tags'
+      LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'tags'
       WHERE g.owner IS NULL`),
       firstCount(db, `SELECT COUNT(*) AS count
       FROM skills s
-      LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'faq'
+      LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'faq'
       WHERE g.owner IS NULL`),
       distribution(db, `SELECT je.value AS label, COUNT(*) AS count
       FROM skills s, json_each(CASE WHEN json_valid(s.seo_index_reasons) THEN s.seo_index_reasons ELSE '[]' END) je
@@ -310,7 +310,7 @@ export default defineApiHandler({
           description: 'Indexable pages with no generated summary or short descriptions are likely weaker crawl targets.',
           countSql: `SELECT COUNT(*) AS count
           FROM skills s
-          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'summary'
+          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE s.seo_indexable = 1
             AND (s.description IS NULL OR length(trim(s.description)) < 40 OR g.owner IS NULL)`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
@@ -319,7 +319,7 @@ export default defineApiHandler({
               ELSE 'missing summary'
             END AS value
           FROM skills s
-          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'summary'
+          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE s.seo_indexable = 1
             AND (s.description IS NULL OR length(trim(s.description)) < 40 OR g.owner IS NULL)
           ORDER BY s.seo_index_score ASC, s.installs DESC
@@ -446,12 +446,12 @@ export default defineApiHandler({
           description: 'Summary payloads drive stronger titles and descriptions on skill pages.',
           countSql: `SELECT COUNT(*) AS count
           FROM skills s
-          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'summary'
+          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE g.owner IS NULL`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
             s.current_sha AS value
           FROM skills s
-          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'summary'
+          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE g.owner IS NULL
           ORDER BY s.installs DESC
           LIMIT ?`,
@@ -464,12 +464,12 @@ export default defineApiHandler({
           description: 'Summary payloads tied to an old SHA can leave titles and meta descriptions out of step with the current SKILL.md.',
           countSql: `SELECT COUNT(*) AS count
           FROM skills s
-          JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'summary'
+          JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
             g.sha || ' != ' || s.current_sha AS value
           FROM skills s
-          JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'summary'
+          JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha
           ORDER BY s.installs DESC
           LIMIT ?`,
@@ -482,12 +482,12 @@ export default defineApiHandler({
           description: 'Tags improve browse paths and topical internal linking.',
           countSql: `SELECT COUNT(*) AS count
           FROM skills s
-          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'tags'
+          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'tags'
           WHERE g.owner IS NULL`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
             s.current_sha AS value
           FROM skills s
-          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'tags'
+          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'tags'
           WHERE g.owner IS NULL
           ORDER BY s.installs DESC
           LIMIT ?`,
@@ -500,12 +500,12 @@ export default defineApiHandler({
           description: 'Tag payloads tied to an old SHA may create stale topical links.',
           countSql: `SELECT COUNT(*) AS count
           FROM skills s
-          JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'tags'
+          JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'tags'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
             g.sha || ' != ' || s.current_sha AS value
           FROM skills s
-          JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'tags'
+          JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'tags'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha
           ORDER BY s.installs DESC
           LIMIT ?`,
@@ -518,12 +518,12 @@ export default defineApiHandler({
           description: 'FAQ payloads enrich structured data and page depth where they are available.',
           countSql: `SELECT COUNT(*) AS count
           FROM skills s
-          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'faq'
+          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'faq'
           WHERE g.owner IS NULL`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
             s.current_sha AS value
           FROM skills s
-          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'faq'
+          LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'faq'
           WHERE g.owner IS NULL
           ORDER BY s.installs DESC
           LIMIT ?`,
@@ -536,12 +536,12 @@ export default defineApiHandler({
           description: 'FAQ payloads tied to an old SHA may describe outdated behavior.',
           countSql: `SELECT COUNT(*) AS count
           FROM skills s
-          JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'faq'
+          JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'faq'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
             g.sha || ' != ' || s.current_sha AS value
           FROM skills s
-          JOIN skill_generated g ON g.owner = s.owner AND g.name = s.name AND g.kind = 'faq'
+          JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'faq'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha
           ORDER BY s.installs DESC
           LIMIT ?`,
@@ -554,12 +554,12 @@ export default defineApiHandler({
           description: 'Generated rows without a matching skill waste storage and can confuse derived-data backfills.',
           countSql: `SELECT COUNT(*) AS count
           FROM skill_generated g
-          LEFT JOIN skills s ON s.owner = g.owner AND s.name = g.name
+          LEFT JOIN skills s ON s.owner = g.owner AND s.repo = g.repo AND s.name = g.name
           WHERE s.owner IS NULL`,
           issuesSql: `SELECT NULL AS slug, g.owner, g.repo, g.name, NULL AS display_name,
             g.kind AS value
           FROM skill_generated g
-          LEFT JOIN skills s ON s.owner = g.owner AND s.name = g.name
+          LEFT JOIN skills s ON s.owner = g.owner AND s.repo = g.repo AND s.name = g.name
           WHERE s.owner IS NULL
           ORDER BY g.generated_at DESC
           LIMIT ?`,

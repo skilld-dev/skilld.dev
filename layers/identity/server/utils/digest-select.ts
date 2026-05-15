@@ -92,7 +92,7 @@ export async function selectDigestForUser(
     `SELECT s.owner, s.repo, s.name AS skill_name, s.description AS description,
             COUNT(*) AS commit_count
      FROM activity a
-     JOIN skills s ON s.owner = a.owner AND s.name = a.name
+     JOIN skills_v s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      JOIN skill_subscriptions sub ON sub.user_id = ?1 AND sub.owner = s.owner AND sub.repo = s.repo
      WHERE a.occurred_at > ?2 AND a.occurred_at <= ?3
        AND (sub.muted_until IS NULL OR sub.muted_until <= ?3)
@@ -116,9 +116,9 @@ export async function selectDigestForUser(
   // Pull recent commit messages per group via a follow-up batch.
   const messageStmts = groups.map(g => db.prepare(
     `SELECT message FROM skill_revisions
-     WHERE owner = ?1 AND name = ?2 AND modified_at > ?3 AND modified_at <= ?4
+     WHERE owner = ?1 AND repo = ?2 AND name = ?3 AND modified_at > ?4 AND modified_at <= ?5
      ORDER BY modified_at DESC LIMIT 20`,
-  ).bind(g.owner, g.skill_name, windowStart, windowEnd))
+  ).bind(g.owner, g.repo, g.skill_name, windowStart, windowEnd))
   const batch = messageStmts.length ? await db.batch<{ message: string | null }>(messageStmts) : []
 
   const entries: DigestEntry[] = groups.map((g, i) => ({

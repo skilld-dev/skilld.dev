@@ -189,7 +189,7 @@ export default defineCachedEventHandler(async (event) => {
 
   const tagMap = await getGeneratedBatch<TagPayload>(
     db,
-    registryResult.items.map(s => ({ owner: s.owner, name: s.name })),
+    registryResult.items.map(s => ({ owner: s.owner, repo: s.repo, name: s.name })),
     'tags',
   )
   const tagCounts = new Map<string, number>()

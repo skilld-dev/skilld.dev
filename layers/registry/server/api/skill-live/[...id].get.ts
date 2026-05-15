@@ -66,7 +66,7 @@ export default defineCachedEventHandler(async (event): Promise<SkillLiveResponse
   if (segments.length !== 3)
     throw createError({ statusCode: 400, message: 'id must be {owner}/{repo}/{name}' })
 
-  const [owner, , name] = segments
+  const [owner, repo, name] = segments
   const id = segments.join('/')
 
   const [installResult, audits] = await Promise.all([
@@ -78,8 +78,8 @@ export default defineCachedEventHandler(async (event): Promise<SkillLiveResponse
   // we never zero out a previously-seeded value.
   if (installResult.installs != null) {
     await getDB(event)
-      .prepare(`UPDATE skills SET installs = ? WHERE owner = ? AND name = ?`)
-      .bind(installResult.installs, owner, name)
+      .prepare(`UPDATE skills SET installs = ? WHERE owner = ? AND repo = ? AND name = ?`)
+      .bind(installResult.installs, owner, repo, name)
       .run()
       .catch((err) => {
         console.warn('[skill-live] D1 update failed:', (err as Error).message)

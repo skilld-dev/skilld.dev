@@ -35,7 +35,7 @@ export interface TagSkill {
 
 export async function generateTags(ctx: TagContext, skill: TagSkill): Promise<TagPayload | null> {
   const currentSha = await sha1(skill.raw)
-  const existing = await getGenerated<TagPayload>(ctx.db, { owner: skill.owner, name: skill.name, kind: 'tags' })
+  const existing = await getGenerated<TagPayload>(ctx.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'tags' })
   if (existing && existing.sha === currentSha)
     return existing.payload
 

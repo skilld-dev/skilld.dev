@@ -103,14 +103,14 @@ export default defineApiHandler({
       getFeaturedOfficialSections(event, featuredDevs, perDev),
     ])
 
-    const allKeys = [...sections, ...devSections].flatMap(s => s.skills.map(sk => ({ owner: sk.owner, name: sk.name })))
+    const allKeys = [...sections, ...devSections].flatMap(s => s.skills.map(sk => ({ owner: sk.owner, repo: sk.repo, name: sk.name })))
     const tagMap = await getGeneratedBatch<TagPayload>(platform.db, allKeys, 'tags')
 
     const enrichSkills = (section: typeof sections[number]) => ({
       ...section,
       skills: section.skills.map(skill => ({
         ...skill,
-        tags: tagMap.get(`${skill.owner}/${skill.name}`)?.payload.tags ?? [],
+        tags: tagMap.get(`${skill.owner}/${skill.repo}/${skill.name}`)?.payload.tags ?? [],
       })),
     })
 

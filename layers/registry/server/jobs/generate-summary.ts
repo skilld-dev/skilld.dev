@@ -50,7 +50,7 @@ export interface SummarySkill {
 
 export async function generateSummary(ctx: SummaryContext, skill: SummarySkill): Promise<SummaryPayload | null> {
   const currentSha = await sha1(skill.raw)
-  const existing = await getGenerated<SummaryPayload>(ctx.db, { owner: skill.owner, name: skill.name, kind: 'summary' })
+  const existing = await getGenerated<SummaryPayload>(ctx.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'summary' })
   if (existing && existing.sha === currentSha)
     return existing.payload
 

@@ -117,7 +117,7 @@ async function run(): Promise<void> {
     const valuesSql = chunk
       .map(r => `('${escape(r.owner)}', '${escape(r.repo)}', '${escape(r.name)}', '${escape(r.kind)}', '${escape(r.sha)}', '${escape(r.payload)}', '${escape(r.generated_at)}')`)
       .join(',')
-    const sql = `INSERT INTO skill_generated (owner, repo, name, kind, sha, payload, generated_at) VALUES ${valuesSql} ON CONFLICT(owner, name, kind) DO UPDATE SET repo = excluded.repo, sha = excluded.sha, payload = excluded.payload, generated_at = excluded.generated_at`
+    const sql = `INSERT INTO skill_generated (owner, repo, name, kind, sha, payload, generated_at) VALUES ${valuesSql} ON CONFLICT(owner, repo, name, kind) DO UPDATE SET repo = excluded.repo, sha = excluded.sha, payload = excluded.payload, generated_at = excluded.generated_at`
     d1('remote', sql)
     written += chunk.length
     console.log(`  wrote ${written}/${toWrite.length}`)

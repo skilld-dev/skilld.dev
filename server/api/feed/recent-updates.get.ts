@@ -61,7 +61,7 @@ export default defineCachedEventHandler(
         `SELECT a.owner, a.name, a.occurred_at, a.sha,
                 s.display_name, s.repo, s.description, s.slug, s.sync_status
          FROM activity a
-         INNER JOIN skills s ON s.owner = a.owner AND s.name = a.name
+         INNER JOIN skills_v s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
          WHERE a.type = 'skill_updated' AND s.stars >= 100
          ORDER BY a.occurred_at DESC
          LIMIT ?`,

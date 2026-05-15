@@ -127,7 +127,7 @@ else if (scope === 'skill') {
        ${sqlString(owner)}, ${sqlString(name)}, ${repo ? sqlString(repo) : 'NULL'}, ${sqlString(action)},
        ${sqlString(reason)}, ${sqlString(reviewedBy)}, ${now}, ${notes ? sqlString(notes) : 'NULL'}, ${now}
      )
-     ON CONFLICT(owner, name) DO UPDATE SET
+     ON CONFLICT(owner, repo, name) DO UPDATE SET
        repo = excluded.repo,
        support_mode = excluded.support_mode,
        reason = excluded.reason,

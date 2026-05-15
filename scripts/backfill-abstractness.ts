@@ -95,7 +95,7 @@ for (let i = 0; i < rows.length; i += BATCH) {
   const chunk = rows.slice(i, i + BATCH)
   process.stdout.write(
     `INSERT INTO skill_generated (owner, repo, name, kind, sha, payload, generated_at) VALUES\n${chunk.join(',\n')}\n`
-    + `ON CONFLICT(owner, name, kind) DO UPDATE SET\n`
+    + `ON CONFLICT(owner, repo, name, kind) DO UPDATE SET\n`
     + `  repo = excluded.repo,\n`
     + `  sha = excluded.sha,\n`
     + `  payload = excluded.payload,\n`

@@ -47,7 +47,7 @@ export interface FaqSkill {
 
 export async function generateFaqs(ctx: FaqContext, skill: FaqSkill): Promise<FaqPayload | null> {
   const currentSha = await sha1(skill.raw)
-  const existing = await getGenerated<FaqPayload>(ctx.db, { owner: skill.owner, name: skill.name, kind: 'faq' })
+  const existing = await getGenerated<FaqPayload>(ctx.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'faq' })
   if (existing && existing.sha === currentSha)
     return existing.payload
 

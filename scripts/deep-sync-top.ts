@@ -266,7 +266,7 @@ for (const { owner, repo } of top) {
       if (occurredAt == null)
         continue
       console.log(
-        `INSERT OR IGNORE INTO skill_revisions (owner, name, sha, modified_at, author_login, message) VALUES (${sql(owner)}, ${sql(parsed.name)}, ${sql(c.sha)}, ${occurredAt}, ${sql(c.author?.login ?? null)}, ${sql(c.commit.message)});`,
+        `INSERT OR IGNORE INTO skill_revisions (owner, repo, name, sha, modified_at, author_login, message) VALUES (${sql(owner)}, ${sql(repo)}, ${sql(parsed.name)}, ${sql(c.sha)}, ${occurredAt}, ${sql(c.author?.login ?? null)}, ${sql(c.commit.message)});`,
       )
       revCount++
     }
@@ -293,7 +293,7 @@ for (const { owner, repo } of top) {
          ${sql(trust.tier)}, ${sql(trust.source)}, ${trust.score}, ${sql(JSON.stringify(trust.reasons))}, ${now},
          ${skillFiles.length}, ${sql(repoKind)}, ${sql(repoKindSource)}
        )
-       ON CONFLICT(owner, name) DO UPDATE SET
+       ON CONFLICT(owner, repo, name) DO UPDATE SET
          repo = excluded.repo,
          display_name = excluded.display_name,
          slug = excluded.slug,

@@ -41,35 +41,37 @@ function rowToGenerated<T>(row: RawRow): GeneratedRow<T> {
 
 export async function getGenerated<T>(
   db: D1Database,
-  key: { owner: string, name: string, kind: GeneratedKind },
+  key: { owner: string, repo: string, name: string, kind: GeneratedKind },
 ): Promise<GeneratedRow<T> | null> {
   const row = await db
-    .prepare('SELECT * FROM skill_generated WHERE owner = ? AND name = ? AND kind = ?')
-    .bind(key.owner, key.name, key.kind)
+    .prepare('SELECT * FROM skill_generated WHERE owner = ? AND repo = ? AND name = ? AND kind = ?')
+    .bind(key.owner, key.repo, key.name, key.kind)
     .first<RawRow>()
   return row ? rowToGenerated<T>(row) : null
 }
 
 export async function getGeneratedBatch<T>(
   db: D1Database,
-  keys: { owner: string, name: string }[],
+  keys: { owner: string, repo: string, name: string }[],
   kind: GeneratedKind,
 ): Promise<Map<string, GeneratedRow<T>>> {
   if (!keys.length)
     return new Map()
-  const CHUNK = 40
+  // D1 caps statements at ~100 bound variables. Each key contributes 3
+  // (owner, repo, name) plus the leading `kind` param.
+  const CHUNK = 30
   const map = new Map<string, GeneratedRow<T>>()
   for (let i = 0; i < keys.length; i += CHUNK) {
     const chunk = keys.slice(i, i + CHUNK)
-    const placeholders = chunk.map(() => '(? = owner AND ? = name)').join(' OR ')
+    const placeholders = chunk.map(() => '(? = owner AND ? = repo AND ? = name)').join(' OR ')
     const params: string[] = []
-    for (const k of chunk) params.push(k.owner, k.name)
+    for (const k of chunk) params.push(k.owner, k.repo, k.name)
     const res = await db
       .prepare(`SELECT * FROM skill_generated WHERE kind = ? AND (${placeholders})`)
       .bind(kind, ...params)
       .all<RawRow>()
     for (const row of res.results ?? []) {
-      map.set(`${row.owner}/${row.name}`, rowToGenerated<T>(row))
+      map.set(`${row.owner}/${row.repo}/${row.name}`, rowToGenerated<T>(row))
     }
   }
   return map
@@ -83,8 +85,7 @@ export async function putGenerated<T>(
     .prepare(
       `INSERT INTO skill_generated (owner, repo, name, kind, sha, payload, generated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(owner, name, kind) DO UPDATE SET
-         repo = excluded.repo,
+       ON CONFLICT(owner, repo, name, kind) DO UPDATE SET
          sha = excluded.sha,
          payload = excluded.payload,
          generated_at = excluded.generated_at`,

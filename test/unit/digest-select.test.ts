@@ -10,14 +10,21 @@ describe('digest selection', () => {
     sqlite = new Database(':memory:')
     sqlite.exec(`
       CREATE TABLE digest_runs (user_id INTEGER, window_end INTEGER);
-      CREATE TABLE activity (owner TEXT, name TEXT, occurred_at INTEGER);
+      CREATE TABLE activity (owner TEXT, repo TEXT, name TEXT, occurred_at INTEGER);
       CREATE TABLE skills (
         owner TEXT,
         repo TEXT,
         name TEXT,
-        description TEXT,
+        description TEXT
+      );
+      CREATE TABLE repos (
+        owner TEXT,
+        repo TEXT,
         repo_kind TEXT
       );
+      CREATE VIEW skills_v AS
+        SELECT s.owner, s.repo, s.name, s.description, r.repo_kind
+        FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo;
       CREATE TABLE skill_subscriptions (
         user_id INTEGER,
         owner TEXT,
@@ -26,18 +33,20 @@ describe('digest selection', () => {
       );
       CREATE TABLE skill_revisions (
         owner TEXT,
+        repo TEXT,
         name TEXT,
         message TEXT,
         modified_at INTEGER
       );
 
       INSERT INTO digest_runs VALUES (1, 1000);
-      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'Nuxt framework', 'source');
+      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'Nuxt framework');
+      INSERT INTO repos VALUES ('nuxt', 'nuxt', 'source');
       INSERT INTO skill_subscriptions VALUES (1, 'nuxt', 'nuxt', NULL);
-      INSERT INTO activity VALUES ('nuxt', 'nuxt', 500);
-      INSERT INTO activity VALUES ('nuxt', 'nuxt', 1500);
-      INSERT INTO skill_revisions VALUES ('nuxt', 'nuxt', 'old change', 500);
-      INSERT INTO skill_revisions VALUES ('nuxt', 'nuxt', 'new change', 1500);
+      INSERT INTO activity VALUES ('nuxt', 'nuxt', 'nuxt', 500);
+      INSERT INTO activity VALUES ('nuxt', 'nuxt', 'nuxt', 1500);
+      INSERT INTO skill_revisions VALUES ('nuxt', 'nuxt', 'nuxt', 'old change', 500);
+      INSERT INTO skill_revisions VALUES ('nuxt', 'nuxt', 'nuxt', 'new change', 1500);
     `)
     db = wrapSqlite(sqlite)
   })

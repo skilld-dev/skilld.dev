@@ -154,7 +154,7 @@ async function main() {
   NULL, ${pushedAt}, ${now}, 0,
   ${now}, 'manual-seed', NULL
 )
-ON CONFLICT(owner, name) DO UPDATE SET
+ON CONFLICT(owner, repo, name) DO UPDATE SET
   display_name = excluded.display_name,
   description  = COALESCE(excluded.description, skills.description),
   stars        = excluded.stars,

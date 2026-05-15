@@ -129,7 +129,7 @@ for (const s of skills) {
   console.log(
     `INSERT INTO skills (name, owner, repo, display_name, installs, slug, stars, forks, pushed_at, repo_created_at, description, default_branch, repo_meta_synced_at, broken_since, repo_skill_count, repo_kind)
      VALUES (${sqlText(s.name)}, ${ownerSql}, ${repoSql}, ${sqlText(s.displayName)}, 0, ${sqlText(slug)}, ${stars}, ${forks}, ${pushedAt}, ${createdAt}, ${sqlText(desc)}, ${sqlText(branch)}, ${now}, NULL, ${skills.length}, ${sqlText(repoKind)})
-     ON CONFLICT(owner, name) DO UPDATE SET
+     ON CONFLICT(owner, repo, name) DO UPDATE SET
        repo = excluded.repo,
        display_name = excluded.display_name,
        slug = excluded.slug,

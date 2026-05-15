@@ -176,17 +176,17 @@ export default defineApiHandler({
                          curator_count, curator_reason_count, approved_social_count, author_social_count,
                          trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
                          rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at
-                  FROM skills WHERE owner = ? AND name = ?`)
-        .bind(skill.owner, skill.name)
+                  FROM skills_v WHERE owner = ? AND repo = ? AND name = ?`)
+        .bind(skill.owner, skill.repo, skill.name)
         .first<SkillDetailRow>(),
       platform.db
-        .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
-        .bind(skill.owner, skill.name)
+        .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND repo = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
+        .bind(skill.owner, skill.repo, skill.name)
         .first<{ sha: string }>(),
       findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
-      getGenerated<FaqPayload>(platform.db, { owner: skill.owner, name: skill.name, kind: 'faq' }),
-      getGenerated<TagPayload>(platform.db, { owner: skill.owner, name: skill.name, kind: 'tags' }),
-      getGenerated<SummaryPayload>(platform.db, { owner: skill.owner, name: skill.name, kind: 'summary' }),
+      getGenerated<FaqPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'faq' }),
+      getGenerated<TagPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'tags' }),
+      getGenerated<SummaryPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'summary' }),
     ])
 
     const branch = row?.default_branch || 'main'
@@ -220,7 +220,7 @@ export default defineApiHandler({
       // Cache cold-path result back to D1 so subsequent visits hit the warm
       // path. Fire-and-forget; missing waitUntil context (e.g. local dev)
       // just means we await it inline.
-      schedulePersist(event, platform.db, skill.owner, skill.name, rendered)
+      schedulePersist(event, platform.db, skill.owner, skill.repo, skill.name, rendered)
     }
 
     // Stale refresh: only fire when rendered_at older than threshold.
@@ -455,11 +455,11 @@ async function renderLive(
   return { skillPath: null, raw: null, frontmatter: null, body: null, html: null, status: 'path_missing' }
 }
 
-function schedulePersist(event: H3Event, db: D1Database, owner: string, name: string, rendered: RenderedView): void {
+function schedulePersist(event: H3Event, db: D1Database, owner: string, repo: string, name: string, rendered: RenderedView): void {
   if (rendered.status !== 'ok' || !rendered.html)
     return
   const promise = db
-    .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND name = ?`)
+    .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND repo = ? AND name = ?`)
     .bind(
       rendered.skillPath,
       rendered.raw,
@@ -467,11 +467,12 @@ function schedulePersist(event: H3Event, db: D1Database, owner: string, name: st
       rendered.html,
       Math.floor(Date.now() / 1000),
       owner,
+      repo,
       name,
     )
     .run()
     .catch((err) => {
-      console.warn(`[skills] persist rendered failed for ${owner}/${name}:`, err)
+      console.warn(`[skills] persist rendered failed for ${owner}/${repo}/${name}:`, err)
     })
   runAfterResponse(event, promise)
 }
@@ -482,7 +483,7 @@ function scheduleRefresh(event: H3Event, db: D1Database, owner: string, repo: st
     if (live.status !== 'ok' || !live.html)
       return
     await db
-      .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND name = ?`)
+      .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND repo = ? AND name = ?`)
       .bind(
         live.skillPath,
         live.raw,
@@ -490,11 +491,12 @@ function scheduleRefresh(event: H3Event, db: D1Database, owner: string, repo: st
         live.html,
         Math.floor(Date.now() / 1000),
         owner,
+        repo,
         name,
       )
       .run()
   })().catch((err) => {
-    console.warn(`[skills] stale refresh failed for ${owner}/${name}:`, err)
+    console.warn(`[skills] stale refresh failed for ${owner}/${repo}/${name}:`, err)
   })
   runAfterResponse(event, promise)
 }

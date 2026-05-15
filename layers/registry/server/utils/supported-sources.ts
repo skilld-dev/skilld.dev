@@ -22,23 +22,23 @@ export const SUPPORTED_SKILL_SQL = `
   NOT EXISTS (
     SELECT 1
     FROM supported_skills excluded_skill
-    WHERE excluded_skill.owner = skills.owner
-      AND excluded_skill.name = skills.name
+    WHERE excluded_skill.owner = skills_v.owner
+      AND excluded_skill.name = skills_v.name
       AND excluded_skill.support_mode = 'exclude'
   )
   AND (
     EXISTS (
       SELECT 1
       FROM supported_repos supported_repo
-      WHERE supported_repo.owner = skills.owner
-        AND supported_repo.repo = skills.repo
+      WHERE supported_repo.owner = skills_v.owner
+        AND supported_repo.repo = skills_v.repo
         AND supported_repo.enabled = 1
     )
     OR EXISTS (
       SELECT 1
       FROM supported_skills included_skill
-      WHERE included_skill.owner = skills.owner
-        AND included_skill.name = skills.name
+      WHERE included_skill.owner = skills_v.owner
+        AND included_skill.name = skills_v.name
         AND included_skill.support_mode = 'include'
     )
   )
