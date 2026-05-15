@@ -1,9 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
 import { resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
 import { syncRepo } from '~~/layers/registry/server/utils/sync-repo'
+import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { RECONCILE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 
 const BATCH = 50
-const STALE_AFTER_SECONDS = 6 * 60 * 60
+const CRON = '0 * * * *'
 
 /**
  * Periodically re-sync skills whose last render failed (path_missing or
@@ -30,7 +32,8 @@ export default defineTask({
       return { result: { error: 'no-db' } }
     }
 
-    const cutoff = Math.floor(Date.now() / 1000) - STALE_AFTER_SECONDS
+    const startedAt = Date.now()
+    const cutoff = Math.floor(Date.now() / 1000) - RECONCILE_RENDER_STALE_SECONDS
     const res = await db
       .prepare(
         `SELECT DISTINCT s.owner, s.repo
@@ -47,6 +50,7 @@ export default defineTask({
 
     const repos = res.results ?? []
     if (!repos.length) {
+      await reportJobRun(db, 'reconcile-rendered', { cron: CRON, status: 'ok', durationMs: Date.now() - startedAt })
       return { result: { reconciled: 0 } }
     }
 
@@ -63,6 +67,12 @@ export default defineTask({
       else
         failed++
     }
+    await reportJobRun(db, 'reconcile-rendered', {
+      cron: CRON,
+      status: failed > 0 ? (ok > 0 ? 'partial' : 'error') : 'ok',
+      durationMs: Date.now() - startedAt,
+      error: failed > 0 ? `${failed}/${repos.length} repos failed` : null,
+    })
     return { result: { reconciled: ok, failed, scanned: repos.length } }
   },
 })

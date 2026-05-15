@@ -1,4 +1,5 @@
 import type { RepoChange } from '../utils/digest-summary'
+import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import {
   loadDigestEligibleUsers,
   selectDigestForUser,
@@ -8,6 +9,8 @@ import { summariseChanges } from '../utils/digest-summary'
 /// <reference types="@cloudflare/workers-types" />
 import { renderDigest } from '../utils/digest-template'
 import { sendEmail, signUnsubToken } from '../utils/email'
+
+const CRON = '0 * * * *'
 
 // Fires every hour from the cloudflare cron registered in nuxt.config.ts.
 // Selects users whose configured (dow, hour, tz) matches the current UTC
@@ -31,6 +34,7 @@ export default defineTask({
     const aiBinding = env?.AI as Parameters<typeof summariseChanges>[0]['ai'] | undefined
     const siteUrl = (config.publicSiteUrl as string) || 'https://skilld.dev'
 
+    const startedAt = Date.now()
     const nowSec = Math.floor(Date.now() / 1000)
     const users = await loadDigestEligibleUsers(db)
     const fireUsers = users.filter(u => shouldFireForUser(u, nowSec))
@@ -149,6 +153,16 @@ export default defineTask({
         summary.failed += 1
       }
     }
+
+    const status = summary.failed > 0
+      ? (summary.sent > 0 || summary.skipped > 0 ? 'partial' : 'error')
+      : 'ok'
+    await reportJobRun(db, 'send-digests', {
+      cron: CRON,
+      status,
+      durationMs: Date.now() - startedAt,
+      error: summary.failed > 0 ? `${summary.failed} failed deliveries` : null,
+    })
 
     return { result: summary }
   },

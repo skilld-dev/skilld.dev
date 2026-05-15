@@ -6,7 +6,7 @@
 // transient upstream issues). After that they fall off listings, search, and
 // sitemaps, but the detail page remains reachable so deep links don't 404.
 
-export const BROKEN_GRACE_SECONDS = 7 * 86400
+import { BROKEN_GRACE_SECONDS } from '~~/server/utils/sync-thresholds'
 
 export function notBrokenSql(reposAlias: string): string {
   return `(${reposAlias}.broken_since IS NULL OR ${reposAlias}.broken_since > unixepoch() - ${BROKEN_GRACE_SECONDS})`

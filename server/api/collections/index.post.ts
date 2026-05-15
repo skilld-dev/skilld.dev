@@ -1,6 +1,7 @@
 import { authenticated } from '~~/server/policies/authenticated'
 import { createdCollectionPresenter } from '~~/server/presenters/collection'
 import { CreateCollectionInput } from '~~/server/schemas/collection-input'
+import { enqueueSkillDirtyStatement } from '~~/server/utils/skill-dirty'
 import { defineApiHandler } from '#shared/server/handler'
 
 export default defineApiHandler({
@@ -28,10 +29,23 @@ export default defineApiHandler({
       throw createError({ statusCode: 500, message: 'Insert failed' })
 
     if (skills.length) {
-      const stmts = skills.map((s, i) => db.prepare(
-        `INSERT INTO collection_skills_v2 (collection_id, position, owner, repo, name, reason)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-      ).bind(insert.id, i, s.owner, s.repo, s.name ?? null, s.reason ?? null))
+      const stmts = skills.flatMap((s, i) => {
+        const row = [db.prepare(
+          `INSERT INTO collection_skills_v2 (collection_id, position, owner, repo, name, reason)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+        ).bind(insert.id, i, s.owner, s.repo, s.name ?? null, s.reason ?? null)]
+        // Only enqueue when name is concrete — NULL-name rows don't feed the
+        // curator-count formula (NULL = NULL is false in the integrity check).
+        if (s.name) {
+          row.push(enqueueSkillDirtyStatement(db, {
+            owner: s.owner,
+            repo: s.repo,
+            name: s.name,
+            reason: 'curator',
+          }))
+        }
+        return row
+      })
       await db.batch(stmts)
     }
 

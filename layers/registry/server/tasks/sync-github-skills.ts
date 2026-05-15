@@ -2,10 +2,13 @@ import type { SyncRepoStats } from '~~/layers/registry/server/utils/sync-repo'
 /// <reference types="@cloudflare/workers-types" />
 import { resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
 import { syncRepo } from '~~/layers/registry/server/utils/sync-repo'
+import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { SUBSCRIBED_REPO_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { pAll } from '#shared/server/p-all'
 
 const CONCURRENCY = 8
 const RATE_LIMIT_GUARD = 200 // bail when remaining drops below this
+const CRON = '0 * * * *'
 
 /**
  * Scheduled task: walk every (owner, repo) pair present in the skills table,
@@ -37,10 +40,9 @@ export default defineTask({
     }
 
     // Phase 3: subscription-prioritised pre-pass. Repos that any user
-    // watches and whose stalest skill is > 1h old jump the queue so the
-    // weekly digest reflects fresh activity. The general staleness pass
-    // picks up the rest after.
-    const SUB_STALE_AFTER = 60 * 60 // 1h
+    // watches and whose stalest skill is > SUBSCRIBED_REPO_STALE_SECONDS old
+    // jump the queue so the weekly digest reflects fresh activity. The
+    // general staleness pass picks up the rest after.
     const subRows = await db
       .prepare(
         // broken_since lives on `repos` post-0034; gate by joining repos so
@@ -56,7 +58,7 @@ export default defineTask({
          HAVING MIN(s.last_synced_at) IS NULL OR MIN(s.last_synced_at) < ?1
          ORDER BY MIN(s.last_synced_at) IS NULL DESC, MIN(s.last_synced_at) ASC`,
       )
-      .bind(Math.floor(Date.now() / 1000) - SUB_STALE_AFTER)
+      .bind(Math.floor(Date.now() / 1000) - SUBSCRIBED_REPO_STALE_SECONDS)
       .all<{ owner: string, repo: string, ls: number | null }>()
 
     // Stalest first; NULL last_synced_at sorts as 0 so unsynced repos lead.
@@ -159,6 +161,16 @@ export default defineTask({
     )
     if (failures.length)
       console.warn('[sync-github-skills] failures', failures)
+
+    const status = summary.reposFailed > 0 || summary.reposRateLimited > 0
+      ? (summary.reposOk > 0 ? 'partial' : 'error')
+      : 'ok'
+    await reportJobRun(db, 'sync-github-skills', {
+      cron: CRON,
+      status,
+      durationMs: elapsedMs,
+      error: status === 'ok' ? null : `failed=${summary.reposFailed} rate-limited=${summary.reposRateLimited}`,
+    })
 
     return { result: { ...summary, elapsedMs, rateLimitLowest: lowestRemainingDisplay, failures } }
   },

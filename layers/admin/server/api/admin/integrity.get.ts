@@ -1,3 +1,8 @@
+import {
+  BROKEN_GRACE_SECONDS,
+  STALE_INDEXABILITY_SECONDS,
+  STALE_SYNC_SECONDS,
+} from '~~/server/utils/sync-thresholds'
 import { defineApiHandler } from '#shared/server/handler'
 
 type Severity = 'critical' | 'warning' | 'info'
@@ -40,9 +45,42 @@ interface DistributionItem {
 }
 
 const ISSUE_LIMIT = 25
-const STALE_SYNC_SECONDS = 36 * 60 * 60
-const BROKEN_GRACE_SECONDS = 7 * 24 * 60 * 60
-const STALE_INDEXABILITY_SECONDS = 24 * 60 * 60
+
+interface SyncJobRow {
+  name: string
+  cron: string
+  enabled: number
+  stale_after_seconds: number | null
+  last_run_at: number | null
+  last_status: string | null
+  last_error: string | null
+  last_duration_ms: number | null
+  run_count: number
+}
+
+/**
+ * Approximate seconds between fires for a cron expression. We only need a
+ * coarse staleness budget (2x interval) for /admin/integrity, not a real
+ * cron engine, so the supported set is small: '0 * * * *' (hourly),
+ * '*\/N * * * *' (every N min), and daily '0 H * * *'.
+ */
+function cronIntervalSeconds(cron: string): number {
+  const parts = cron.trim().split(/\s+/)
+  if (parts.length < 5)
+    return 3600
+  const minute = parts[0] ?? ''
+  const hour = parts[1] ?? ''
+  if (minute.startsWith('*/')) {
+    const n = Number.parseInt(minute.slice(2), 10)
+    if (Number.isFinite(n) && n > 0)
+      return n * 60
+  }
+  if (minute === '*')
+    return 60
+  if (hour === '*')
+    return 3600
+  return 86400
+}
 
 function mapIssue(row: SkillIssueRow, detail: string): SkillIssue {
   return {
@@ -734,6 +772,71 @@ export default defineApiHandler({
       ]),
     ])
 
+    // sync_jobs observability: any registered job whose last_run_at is older
+    // than 2x its cron cadence is "stalled", and any with last_status='error'
+    // is surfaced. The table is created in migration 0054; guard against the
+    // pre-migration case so the integrity endpoint still works.
+    const jobChecks: IntegrityCheck[] = []
+    const jobRows = await db
+      .prepare(`SELECT name, cron, enabled, stale_after_seconds, last_run_at, last_status, last_error, last_duration_ms, run_count FROM sync_jobs`)
+      .all<SyncJobRow>()
+      .catch(() => null)
+
+    if (jobRows?.results?.length) {
+      const stalled: SyncJobRow[] = []
+      const errored: SyncJobRow[] = []
+      for (const job of jobRows.results) {
+        if (!job.enabled)
+          continue
+        const budget = job.stale_after_seconds ?? cronIntervalSeconds(job.cron) * 2
+        const age = job.last_run_at != null ? now - job.last_run_at : null
+        if (age == null || age > budget)
+          stalled.push(job)
+        if (job.last_status === 'error')
+          errored.push(job)
+      }
+      if (stalled.length) {
+        jobChecks.push({
+          id: 'job-stalled',
+          label: 'Scheduled jobs stalled',
+          severity: 'critical',
+          count: stalled.length,
+          description: 'Sync jobs that have not reported a run inside 2x their cron cadence (or their configured stale budget).',
+          issues: stalled.map(job => ({
+            slug: null,
+            owner: null,
+            repo: null,
+            name: job.name,
+            displayName: job.name,
+            value: job.last_run_at
+              ? new Date(job.last_run_at * 1000).toISOString()
+              : 'never',
+            detail: `Cron ${job.cron}; last status ${job.last_status ?? 'never'}.`,
+          })),
+        })
+      }
+      if (errored.length) {
+        jobChecks.push({
+          id: 'job-errored',
+          label: 'Scheduled jobs errored',
+          severity: 'critical',
+          count: errored.length,
+          description: 'Sync jobs whose most recent run finished with status=error.',
+          issues: errored.map(job => ({
+            slug: null,
+            owner: null,
+            repo: null,
+            name: job.name,
+            displayName: job.name,
+            value: job.last_error ?? 'unknown error',
+            detail: `Cron ${job.cron}; failed at ${job.last_run_at ? new Date(job.last_run_at * 1000).toISOString() : 'unknown'}.`,
+          })),
+        })
+      }
+    }
+
+    const allChecks = [...jobChecks, ...checks]
+
     return {
       generatedAt: new Date().toISOString(),
       metrics: [
@@ -832,7 +935,7 @@ export default defineApiHandler({
       scoreDistribution,
       trustDistribution,
       trustSourceDistribution,
-      checks,
+      checks: allChecks,
     }
   },
 })

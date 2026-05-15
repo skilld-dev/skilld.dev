@@ -7,6 +7,7 @@ import { getTree, resolveGithubBindings } from '~~/layers/registry/server/utils/
 import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
 import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkill } from '~~/layers/registry/server/utils/skills-registry'
+import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
@@ -23,7 +24,6 @@ interface CuratorEndorsement {
 
 const ENDORSEMENTS_CACHE_KEY = 'skills:endorsement-map'
 const ENDORSEMENTS_CACHE_TTL = 60 * 5
-const STALE_AFTER_SECONDS = 60 * 30
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24
 
@@ -226,7 +226,7 @@ export default defineApiHandler({
 
     // Stale refresh: only fire when rendered_at older than threshold.
     const renderedAge = secondsAgo(row?.rendered_at)
-    if (row?.rendered_html && renderedAge != null && renderedAge > STALE_AFTER_SECONDS)
+    if (row?.rendered_html && renderedAge != null && renderedAge > LIVE_RENDER_STALE_SECONDS)
       scheduleRefresh(event, platform.db, skill.owner, skill.repo, skill.name, branch)
 
     const tags = (tagRow?.payload.tags ?? [])

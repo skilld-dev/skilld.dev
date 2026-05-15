@@ -1,5 +1,6 @@
 import { authenticated } from '~~/server/policies/authenticated'
 import { CollectionSkillRefInput } from '~~/server/schemas/collection-skill-input'
+import { enqueueSkillDirtyStatement } from '~~/server/utils/skill-dirty'
 import { defineApiHandler } from '#shared/server/handler'
 
 interface CollectionRow {
@@ -25,7 +26,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Collection not found' })
 
     const now = Math.floor(Date.now() / 1000)
-    await platform.db.batch([
+    const stmts = [
       platform.db.prepare(
         `DELETE FROM collection_skills_v2
          WHERE collection_id = ?1 AND owner = ?2 AND repo = ?3
@@ -34,7 +35,18 @@ export default defineApiHandler({
       platform.db.prepare(
         `UPDATE collections_v2 SET updated_at = ? WHERE id = ?`,
       ).bind(now, collection.id),
-    ])
+    ]
+    // Mirror the post handler: only the named rows feed the curator-count
+    // formula, so a NULL-name delete leaves counters unaffected.
+    if (body.name) {
+      stmts.push(enqueueSkillDirtyStatement(platform.db, {
+        owner: body.owner,
+        repo: body.repo,
+        name: body.name,
+        reason: 'curator',
+      }))
+    }
+    await platform.db.batch(stmts)
 
     return { ok: true }
   },

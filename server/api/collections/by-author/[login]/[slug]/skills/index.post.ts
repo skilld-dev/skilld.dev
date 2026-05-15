@@ -1,5 +1,6 @@
 import { authenticated } from '~~/server/policies/authenticated'
 import { CollectionSkillRefInput } from '~~/server/schemas/collection-skill-input'
+import { enqueueSkillDirtyStatement } from '~~/server/utils/skill-dirty'
 import { defineApiHandler } from '#shared/server/handler'
 
 interface CollectionRow {
@@ -43,7 +44,7 @@ export default defineApiHandler({
     ).bind(collection.id).first<PositionRow>()
 
     const now = Math.floor(Date.now() / 1000)
-    await platform.db.batch([
+    const stmts = [
       platform.db.prepare(
         `INSERT INTO collection_skills_v2 (collection_id, position, owner, repo, name, reason)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
@@ -51,7 +52,19 @@ export default defineApiHandler({
       platform.db.prepare(
         `UPDATE collections_v2 SET updated_at = ? WHERE id = ?`,
       ).bind(now, collection.id),
-    ])
+    ]
+    // NULL name rows don't participate in the curator-count formula (NULL =
+    // NULL is false), so we only enqueue when we have a concrete name to
+    // recompute against.
+    if (body.name) {
+      stmts.push(enqueueSkillDirtyStatement(platform.db, {
+        owner: body.owner,
+        repo: body.repo,
+        name: body.name,
+        reason: 'curator',
+      }))
+    }
+    await platform.db.batch(stmts)
 
     return { ok: true, alreadyPresent: false }
   },

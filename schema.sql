@@ -338,13 +338,13 @@ CREATE TABLE "skill_revisions" (
 CREATE TABLE skill_social_posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   skill_slug TEXT NOT NULL,
-  platform TEXT NOT NULL CHECK (platform IN ('twitter', 'bsky', 'reddit')),
+  platform TEXT NOT NULL CHECK (platform IN ('twitter', 'bsky', 'reddit', 'hn', 'github-ref')),
   post_url TEXT NOT NULL,
   post_id TEXT NOT NULL,
   author_handle TEXT NOT NULL,
   author_display_name TEXT,
   author_avatar TEXT,
-  role TEXT NOT NULL CHECK (role IN ('author', 'community')),
+  role TEXT NOT NULL DEFAULT 'community' CHECK (role IN ('author', 'community')),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   text_extract TEXT NOT NULL,
   title TEXT,
@@ -358,7 +358,8 @@ CREATE TABLE skill_social_posts (
   fetched_at INTEGER NOT NULL,
   approved_by TEXT,
   approved_at INTEGER,
-  UNIQUE (skill_slug, platform, post_id)
+  UNIQUE (skill_slug, platform, post_id),
+  UNIQUE (skill_slug, platform, post_url)
 );
 
 CREATE TABLE skill_subscriptions (
@@ -525,3 +526,40 @@ CREATE TRIGGER skills_au AFTER UPDATE ON skills BEGIN
   INSERT INTO skills_fts(rowid, name, owner, repo, display_name, slug)
   VALUES (new.rowid, new.name, new.owner, new.repo, new.display_name, new.slug);
 END;
+
+CREATE TABLE skill_dirty (
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  name TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  queued_at INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (owner, repo, name, reason)
+);
+
+CREATE INDEX idx_skill_dirty_queued ON skill_dirty(queued_at);
+
+CREATE TABLE sync_jobs (
+  name TEXT PRIMARY KEY,
+  cron TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  stale_after_seconds INTEGER,
+  last_run_at INTEGER,
+  last_status TEXT,
+  last_error TEXT,
+  last_duration_ms INTEGER,
+  run_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE ai_batches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  anthropic_batch_id TEXT NOT NULL UNIQUE,
+  kinds TEXT NOT NULL,
+  skill_count INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  submitted_at INTEGER NOT NULL,
+  completed_at INTEGER,
+  index_map TEXT
+);
+
+CREATE INDEX idx_ai_batches_status ON ai_batches(status);

@@ -116,6 +116,11 @@ export default defineNuxtConfig({
           binding: 'AI',
           experimental_remote: true,
         },
+        // Vectorize index for SKILL.md embeddings (bge-base-en-v1.5, 768d).
+        // Create once: `wrangler vectorize create skill-embeddings --dimensions=768 --metric=cosine`
+        vectorize: [
+          { binding: 'SKILL_EMBEDDINGS', index_name: 'skill-embeddings' },
+        ],
         durable_objects: {
           bindings: [
             { name: '$DurableObject', class_name: '$DurableObject' },
@@ -134,6 +139,11 @@ export default defineNuxtConfig({
         triggers: {
           crons: [
             '0 * * * *',
+            '15 * * * *',
+            '30 * * * *',
+            '45 * * * *',
+            '*/5 * * * *',
+            '0 3 * * *',
           ],
         },
       },
@@ -158,6 +168,11 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       '0 * * * *': ['sync-github-skills', 'send-digests', 'reconcile-rendered'],
+      '15 * * * *': ['ai-generate-submit'],
+      '30 * * * *': ['sync-social-mentions'],
+      '45 * * * *': ['ai-generate-poll'],
+      '*/5 * * * *': ['drain-skill-dirty'],
+      '0 3 * * *': ['recompute-skill-scores'],
     },
   },
 
