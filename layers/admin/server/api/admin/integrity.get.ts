@@ -592,19 +592,19 @@ export default defineApiHandler({
           FROM skills s
           WHERE s.curator_count != (
             SELECT COUNT(*)
-            FROM collection_skills cs
-            JOIN collections c ON c.uri = cs.collection_uri
+            FROM collection_skills_v2 cs
+            JOIN collections_v2 c ON c.id = cs.collection_id
             WHERE c.deleted_at IS NULL
-              AND cs.package_name = s.name
-              AND (cs.owner IS NULL OR cs.owner = s.owner)
+              AND cs.name = s.name
+              AND cs.owner = s.owner
           )
           OR s.curator_reason_count != (
             SELECT COUNT(*)
-            FROM collection_skills cs
-            JOIN collections c ON c.uri = cs.collection_uri
+            FROM collection_skills_v2 cs
+            JOIN collections_v2 c ON c.id = cs.collection_id
             WHERE c.deleted_at IS NULL
-              AND cs.package_name = s.name
-              AND (cs.owner IS NULL OR cs.owner = s.owner)
+              AND cs.name = s.name
+              AND cs.owner = s.owner
               AND length(trim(COALESCE(cs.reason, ''))) >= 20
           )`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
@@ -612,38 +612,38 @@ export default defineApiHandler({
             || ', live ' ||
             (
               SELECT COUNT(*)
-              FROM collection_skills cs
-              JOIN collections c ON c.uri = cs.collection_uri
+              FROM collection_skills_v2 cs
+              JOIN collections_v2 c ON c.id = cs.collection_id
               WHERE c.deleted_at IS NULL
-                AND cs.package_name = s.name
-                AND (cs.owner IS NULL OR cs.owner = s.owner)
+                AND cs.name = s.name
+                AND cs.owner = s.owner
             )
             || '/' ||
             (
               SELECT COUNT(*)
-              FROM collection_skills cs
-              JOIN collections c ON c.uri = cs.collection_uri
+              FROM collection_skills_v2 cs
+              JOIN collections_v2 c ON c.id = cs.collection_id
               WHERE c.deleted_at IS NULL
-                AND cs.package_name = s.name
-                AND (cs.owner IS NULL OR cs.owner = s.owner)
+                AND cs.name = s.name
+                AND cs.owner = s.owner
                 AND length(trim(COALESCE(cs.reason, ''))) >= 20
             ) AS value
           FROM skills s
           WHERE s.curator_count != (
             SELECT COUNT(*)
-            FROM collection_skills cs
-            JOIN collections c ON c.uri = cs.collection_uri
+            FROM collection_skills_v2 cs
+            JOIN collections_v2 c ON c.id = cs.collection_id
             WHERE c.deleted_at IS NULL
-              AND cs.package_name = s.name
-              AND (cs.owner IS NULL OR cs.owner = s.owner)
+              AND cs.name = s.name
+              AND cs.owner = s.owner
           )
           OR s.curator_reason_count != (
             SELECT COUNT(*)
-            FROM collection_skills cs
-            JOIN collections c ON c.uri = cs.collection_uri
+            FROM collection_skills_v2 cs
+            JOIN collections_v2 c ON c.id = cs.collection_id
             WHERE c.deleted_at IS NULL
-              AND cs.package_name = s.name
-              AND (cs.owner IS NULL OR cs.owner = s.owner)
+              AND cs.name = s.name
+              AND cs.owner = s.owner
               AND length(trim(COALESCE(cs.reason, ''))) >= 20
           )
           ORDER BY s.installs DESC

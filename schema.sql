@@ -19,18 +19,10 @@ CREATE UNIQUE INDEX idx_cli_tokens_refresh
 
 CREATE INDEX idx_cli_tokens_user ON cli_tokens(user_id, revoked_at);
 
-CREATE INDEX idx_collection_skills_lookup ON collection_skills (package_name, owner, repo);
-
 CREATE INDEX idx_collection_skills_v2_repo ON collection_skills_v2(owner, repo);
 
 CREATE INDEX idx_collection_skills_v2_skill
   ON collection_skills_v2(owner, repo, name);
-
-CREATE INDEX idx_collections_alive       ON collections (deleted_at) WHERE deleted_at IS NULL;
-
-CREATE INDEX idx_collections_did_updated ON collections (did, updated_at DESC);
-
-CREATE INDEX idx_collections_updated     ON collections (updated_at DESC);
 
 CREATE INDEX idx_collections_v2_author
   ON collections_v2(author_user_id, created_at DESC)
@@ -226,17 +218,6 @@ CREATE TABLE cli_tokens (
   revoked_at INTEGER
 );
 
-CREATE TABLE collection_skills (
-  collection_uri TEXT NOT NULL,
-  position       INTEGER NOT NULL,
-  package_name   TEXT NOT NULL,
-  owner          TEXT,
-  repo           TEXT,
-  reason         TEXT,
-  PRIMARY KEY (collection_uri, position),
-  FOREIGN KEY (collection_uri) REFERENCES collections(uri) ON DELETE CASCADE
-);
-
 CREATE TABLE collection_skills_v2 (
   collection_id INTEGER NOT NULL REFERENCES collections_v2(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,
@@ -244,23 +225,6 @@ CREATE TABLE collection_skills_v2 (
   repo TEXT NOT NULL,
   reason TEXT, name TEXT,
   PRIMARY KEY (collection_id, position)
-);
-
-CREATE TABLE collections (
-  uri          TEXT PRIMARY KEY,
-  did          TEXT NOT NULL,
-  rkey         TEXT NOT NULL,
-  slug         TEXT NOT NULL,
-  name         TEXT NOT NULL,
-  description  TEXT NOT NULL,
-  preamble     TEXT,
-  stacks       TEXT NOT NULL DEFAULT '[]',
-  post_uri     TEXT,
-  post_cid     TEXT,
-  created_at   INTEGER NOT NULL,
-  updated_at   INTEGER NOT NULL,
-  indexed_at   INTEGER NOT NULL,
-  deleted_at   INTEGER
 );
 
 CREATE TABLE "collections_v2" (

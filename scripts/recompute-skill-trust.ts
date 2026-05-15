@@ -134,11 +134,11 @@ function main() {
       COALESCE(rc.repo_skill_count, 0) AS repo_skill_count,
       (
         SELECT COUNT(*)
-        FROM collection_skills cs
-        JOIN collections c ON c.uri = cs.collection_uri
+        FROM collection_skills_v2 cs
+        JOIN collections_v2 c ON c.id = cs.collection_id
         WHERE c.deleted_at IS NULL
-          AND cs.package_name = s.name
-          AND (cs.owner IS NULL OR cs.owner = s.owner)
+          AND cs.name = s.name
+          AND cs.owner = s.owner
           AND length(trim(COALESCE(cs.reason, ''))) >= 20
       ) AS curator_reason_count,
       (
