@@ -4,8 +4,8 @@ trustPolicy: no-downgrade
 
 catalog:
   '@antfu/eslint-config': ^9.0.0
-  '@cloudflare/workers-types': ^4.20260511.1
-  '@iconify-json/lucide': ^1.2.107
+  '@cloudflare/workers-types': ^4.20260516.1
+  '@iconify-json/lucide': ^1.2.108
   '@iconify-json/simple-icons': ^1.2.82
   '@iconify-json/vscode-icons': ^1.2.49
   '@nuxt/a11y': 1.0.0-alpha.1
@@ -29,16 +29,16 @@ catalog:
   algoliasearch: ^5.52.1
   axe-core: ^4.11.4
   better-sqlite3: ^12.10.0
-  eslint: ^10.3.0
-  eslint-plugin-harlanzw: ^0.14.3
+  eslint: ^10.4.0
+  eslint-plugin-harlanzw: ^0.15.1
   happy-dom: ^20.9.0
-  lint-staged: ^17.0.4
+  lint-staged: ^17.0.5
   marked: ^18.0.3
   mimetext: ^3.0.28
   motion-v: ^2.2.1
   nitro-cloudflare-dev: ^0.2.2
   nuxt: ^4.4.5
-  nuxt-ai-ready: ^1.3.6
+  nuxt-ai-ready: ^1.3.7
   nuxt-auth-utils: ^0.5.29
   nuxt-og-image: ^6.5.0
   shiki: ^4.0.2
@@ -48,7 +48,7 @@ catalog:
   typescript: ^6.0.3
   vitest: ^4.1.6
   vue-tsc: ^3.2.9
-  wrangler: ^4.91.0
+  wrangler: ^4.92.0
   zod: ^4.4.3
 ignoredBuiltDependencies:
   - '@parcel/watcher'
