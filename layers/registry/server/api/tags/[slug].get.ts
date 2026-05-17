@@ -1,9 +1,11 @@
 import type { RegistrySkill } from '~~/layers/registry/server/utils/skills-registry'
 /// <reference types="@cloudflare/workers-types" />
 import type { TagPayload } from '../../jobs/generate-tags'
+import { notBrokenSql } from '~~/layers/registry/server/utils/broken'
 import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
 import { getDB } from '../../../../../shared/server/db'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
+
 import { getTagRedirect, isQualityDerivedTag } from '../../utils/tag-quality'
 
 function humanizeSlug(slug: string): string {
@@ -48,8 +50,6 @@ export interface TagProfile {
   relatedTags: RelatedTag[]
   fetchedAt: string
 }
-
-import { notBrokenSql } from '~~/layers/registry/server/utils/broken'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 

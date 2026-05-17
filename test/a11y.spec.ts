@@ -51,6 +51,24 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
   })
+
+  it('addToCollection has no violations when signed out', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/AddToCollection.client.vue').then(m => m.default),
+      {
+        attachTo: container,
+        props: {
+          owner: 'nuxt',
+          repo: 'ui',
+          name: 'nuxt-ui',
+        },
+      },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
 })
 
 describe('accessibility: component coverage', () => {
@@ -94,7 +112,7 @@ describe('accessibility: component coverage', () => {
     // If this test fails, add an axe-core test for the new component
     for (const name of untestedComponents) {
       expect(
-        SKIPPED_COMPONENTS.includes(name) || ['AppLogo'].includes(name),
+        SKIPPED_COMPONENTS.includes(name) || ['AddToCollection.client', 'AppLogo'].includes(name),
         `Component "${name}" needs an accessibility test or should be added to SKIPPED_COMPONENTS with a reason`,
       ).toBe(true)
     }

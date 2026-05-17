@@ -41,7 +41,7 @@ The cascade is deterministic. Skilld walks it once, stops at the first hit, and 
 
 If you have rich documentation, write it once in `docs/` and let skilld pull from there. If you only have a README, that's fine; the output will be terser.
 
-When the GitHub CLI (`gh`) is installed and authenticated, skilld also fetches the most recent 30 issues and 20 discussions for the repo. They land in the cache as searchable references; the LLM uses them to surface gotchas users hit.
+When you install and authenticate the GitHub CLI (`gh`), skilld also fetches the most recent 30 issues and 20 discussions for the repo. They land in the cache as searchable references; the LLM uses them to surface gotchas users hit.
 
 ## What the LLM produces
 
@@ -67,7 +67,7 @@ The frontmatter is doing more work than it looks like. The `description` field i
 
 The description always includes the phrase `ALWAYS use when editing ... or code importing "<package>"`. Agents see that, prioritize accordingly, and load the skill in the right contexts without you wiring anything up.
 
-The references block is a markdown link list pointing at the original sources: `package.json`, README, docs index, issues, discussions, releases. When the skill is installed in a consumer's project, those links resolve to local files under `references/`. Agents can crack them open when they need more than the summary.
+The references block is a markdown link list pointing at the original sources: `package.json`, README, docs index, issues, discussions, releases. After a consumer installs the skill in a project, those links resolve to local files under `references/`. Agents can crack them open when they need more than the summary.
 
 ## Monorepo mode
 
@@ -82,7 +82,7 @@ npx skilld author package
 # ◻ @scope/cli
 ```
 
-Each selected package gets its own `skills/<name>/` directory and its own `package.json` patch. The LLM config (model, sections) is resolved once and reused across the batch.
+Each selected package gets its own `skills/<name>/` directory and its own `package.json` patch. Skilld resolves the LLM config (model, sections) once and reuses it across the batch.
 
 Packages without their own repo URL inherit the repo URL from the monorepo root, so issue and discussion fetching works for every package in the workspace.
 

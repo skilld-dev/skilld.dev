@@ -38,10 +38,9 @@ function resolveLang(raw: string | undefined | null): BundledLanguage | null {
 
 function extractFenceLangs(body: string): Set<BundledLanguage> {
   const langs = new Set<BundledLanguage>()
-  const re = /(^|\n)\s{0,3}(?:```|~~~)([^\n`~]*)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(body)) !== null) {
-    const resolved = resolveLang(m[2])
+  const re = /(?:^|\n)\s{0,3}(?:```|~~~)([^\n`~]*)/g
+  for (const match of body.matchAll(re)) {
+    const resolved = resolveLang(match[1])
     if (resolved)
       langs.add(resolved)
   }

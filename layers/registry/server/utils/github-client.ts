@@ -323,7 +323,9 @@ export async function getBlobsBatch(
   const aliases = unique.map((_, i) => `b${i}:object(expression:$expr${i}){... on Blob{text}}`).join(' ')
   const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){${aliases}}}`
   const variables: Record<string, string> = { owner, repo }
-  unique.forEach((p, i) => { variables[`expr${i}`] = `${branch}:${p}` })
+  unique.forEach((p, i) => {
+    variables[`expr${i}`] = `${branch}:${p}`
+  })
 
   const out = await gqlPost<{ repository: Record<string, { text?: string } | null> | null }>(query, variables, bindings)
   if (!out.data?.repository)
@@ -358,7 +360,9 @@ export async function getCommitsBatch(
   ).join(' ')
   const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){defaultBranchRef{target{... on Commit{${histories}}}}}}`
   const variables: Record<string, string> = { owner, repo }
-  unique.forEach((p, i) => { variables[`path${i}`] = p })
+  unique.forEach((p, i) => {
+    variables[`path${i}`] = p
+  })
 
   interface GqlCommit { oid: string, message: string, author?: { name?: string, email?: string, date: string, user?: { login?: string } | null } | null }
   interface GqlResponse { repository: { defaultBranchRef: { target: Record<string, { nodes: GqlCommit[] } | null> | null } | null } | null }

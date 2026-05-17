@@ -78,7 +78,8 @@ function formatTimestamp(epochSeconds: number): string {
   }).format(new Date(epochSeconds * 1000))
 }
 
-const renderNow = useState('render:now', () => Date.now())
+// eslint-disable-next-line harlanzw/nuxt-no-unsafe-date -- useState serializes this SSR timestamp for hydration.
+const renderNow = useState('render:now', () => Number(new Date()))
 function formatRelative(epochSeconds: number): string {
   const diff = renderNow.value - epochSeconds * 1000
   const days = Math.floor(diff / 86_400_000)

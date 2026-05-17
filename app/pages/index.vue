@@ -81,7 +81,8 @@ const { data: domainData } = useAsyncData('home-domains', async () => {
 })
 const domainSections = computed(() => domainData.value ?? [])
 
-const renderNow = useState('render:now', () => Date.now())
+// eslint-disable-next-line harlanzw/nuxt-no-unsafe-date -- useState serializes this SSR timestamp for hydration.
+const renderNow = useState('render:now', () => Number(new Date()))
 function formatRelative(ts: number): string {
   const diff = renderNow.value - ts * 1000
   const days = Math.floor(diff / 86_400_000)

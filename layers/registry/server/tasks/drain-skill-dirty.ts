@@ -131,7 +131,9 @@ export default defineTask({
             )
             .bind(owner, repo, name)
             .run()
-            .catch(() => {})
+            .catch((updateErr) => {
+              console.warn(`[drain-skill-dirty] failed to bump attempts for ${owner}/${repo}/${name}:`, updateErr)
+            })
         })
     }
 

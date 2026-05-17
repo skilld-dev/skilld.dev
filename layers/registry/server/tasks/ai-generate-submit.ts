@@ -31,10 +31,6 @@ interface StaleSkillRow {
   display_name: string | null
 }
 
-interface AnthropicAiResult {
-  content?: Array<{ type: string, text?: string }>
-}
-
 interface AiBinding {
   run: (model: string, input: Record<string, unknown>) => Promise<unknown>
 }

@@ -162,7 +162,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   }
 
   if (tags?.length) {
-    const tagsSubquery = (tag: string) =>
+    const tagsSubquery = () =>
       `EXISTS (SELECT 1 FROM skill_generated sg, json_each(sg.payload, '$.tags') je
         WHERE sg.owner = s.owner AND sg.repo = s.repo AND sg.name = s.name
           AND sg.kind = 'tags' AND je.value = ?)`
@@ -170,8 +170,8 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
       conditions.push(`(${tags.map(tagsSubquery).join(' OR ')})`)
     }
     else {
-      for (const t of tags)
-        conditions.push(tagsSubquery(t))
+      for (let i = 0; i < tags.length; i++)
+        conditions.push(tagsSubquery())
     }
     params.push(...tags)
   }
