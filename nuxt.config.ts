@@ -223,7 +223,7 @@ export default defineNuxtConfig({
 
   icon: {
     serverBundle: 'local',
-    collections: ['lucide', 'vscode-icons'],
+    collections: ['lucide', 'vscode-icons', 'simple-icons'],
   },
 
   sitemap: {
