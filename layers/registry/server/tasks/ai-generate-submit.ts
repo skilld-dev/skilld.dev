@@ -1,9 +1,15 @@
 import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '~~/layers/registry/server/utils/ai-prompts'
 /// <reference types="@cloudflare/workers-types" />
 import { putGenerated } from '~~/layers/registry/server/utils/skill-generated'
+import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { extractJson } from '#shared/server/anthropic'
+import { pAll } from '#shared/server/p-all'
 
-const BATCH_LIMIT = 200
+const CRON = '15 * * * *'
+// Bounded so a single backfill spike can't blow Anthropic batch spend.
+// Steady state is much lower thanks to the ai_generated_sha short-circuit.
+const BATCH_LIMIT = 50
+const AI_CONCURRENCY = 8
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001'
 const ANTHROPIC_BATCH_URL = 'https://api.anthropic.com/v1/messages/batches'
 const ANTHROPIC_VERSION = '2023-06-01'
@@ -70,11 +76,36 @@ export default defineTask({
       console.warn('[ai-generate-submit] ANTHROPIC_API_KEY missing — batch submit skipped')
     }
 
-    // Find skills where ANY of summary/tags/faq is stale or missing.
-    // Also pull rendered_raw so we don't re-fetch from GitHub.
-    const stale = await db
-      .prepare(
-        `SELECT s.owner, s.repo, s.name, s.current_sha, s.rendered_raw, s.display_name
+    const startedAt = Date.now()
+    return runSubmit(db, ai, vectorize, apiKey)
+      .then(async (result) => {
+        const status = (result.result.errors?.length ?? 0) > 0 ? 'partial' : 'ok'
+        await reportJobRun(db, 'ai-generate-submit', {
+          cron: CRON,
+          status,
+          durationMs: Date.now() - startedAt,
+          error: result.result.errors?.length ? result.result.errors.slice(0, 3).join('; ') : null,
+        })
+        return result
+      })
+      .catch(async (err) => {
+        await reportJobRun(db, 'ai-generate-submit', {
+          cron: CRON,
+          status: 'error',
+          durationMs: Date.now() - startedAt,
+          error: (err as Error).message,
+        })
+        throw err
+      })
+  },
+})
+
+async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: VectorizeBinding | undefined, apiKey: string | undefined) {
+  // Find skills where ANY of summary/tags/faq is stale or missing.
+  // Also pull rendered_raw so we don't re-fetch from GitHub.
+  const stale = await db
+    .prepare(
+      `SELECT s.owner, s.repo, s.name, s.current_sha, s.rendered_raw, s.display_name
          FROM skills s
          JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
          WHERE r.broken_since IS NULL
@@ -82,6 +113,7 @@ export default defineTask({
            AND s.rendered_raw IS NOT NULL
            AND s.rendered_status = 'ok'
            AND s.seo_indexable = 1
+           AND (s.ai_generated_sha IS NULL OR s.ai_generated_sha != s.current_sha)
            AND (
              NOT EXISTS (
                SELECT 1 FROM skill_generated g
@@ -111,163 +143,172 @@ export default defineTask({
            )
          ORDER BY s.installs DESC
          LIMIT ?1`,
-      )
-      .bind(BATCH_LIMIT)
-      .all<StaleSkillRow>()
+    )
+    .bind(BATCH_LIMIT)
+    .all<StaleSkillRow>()
 
-    const skills = (stale.results ?? []).filter(r => r.rendered_raw && r.current_sha)
-    if (!skills.length)
-      return { result: { scanned: 0, message: 'nothing stale' } }
+  const skills = (stale.results ?? []).filter(r => r.rendered_raw && r.current_sha)
+  if (!skills.length)
+    return { result: { scanned: 0, message: 'nothing stale' } }
 
-    // Build batch index for custom_id resolution. Persisted alongside the
-    // ai_batches row so the poll task can map results back to skills.
-    const indexMap = skills.map(s => ({
-      owner: s.owner,
-      repo: s.repo,
-      name: s.name,
-      sha: s.current_sha,
-    }))
+  // Build batch index for custom_id resolution. Persisted alongside the
+  // ai_batches row so the poll task can map results back to skills.
+  const indexMap = skills.map(s => ({
+    owner: s.owner,
+    repo: s.repo,
+    name: s.name,
+    sha: s.current_sha,
+  }))
 
-    const summary = {
-      scanned: skills.length,
-      embeddingsWritten: 0,
-      abstractnessWritten: 0,
-      batchSubmitted: false,
-      batchSize: 0,
-      errors: [] as string[],
-    }
+  const summary = {
+    scanned: skills.length,
+    embeddingsWritten: 0,
+    abstractnessWritten: 0,
+    batchSubmitted: false,
+    batchSize: 0,
+    errors: [] as string[],
+  }
 
-    // --- 1. Synchronous: embedding + abstractness via Workers AI ---
-    for (const skill of skills) {
-      // Embedding
-      if (ai && vectorize) {
-        const input = (skill.rendered_raw ?? '').slice(0, 8000)
-        const embed = await ai.run(EMBEDDING_MODEL, { text: [input] })
-          .catch((err) => {
-            summary.errors.push(`embed ${skill.owner}/${skill.name}: ${(err as Error).message}`)
-            return null
-          })
-        // Workers AI returns { data: number[][], shape: [n, dim] }
-        const vec = (embed as { data?: number[][] } | null)?.data?.[0]
-        if (vec && vec.length === VECTORIZE_DIM) {
-          await vectorize.upsert([{
-            id: `${skill.owner}/${skill.repo}/${skill.name}`,
-            values: vec,
-            metadata: { sha: skill.current_sha, owner: skill.owner, repo: skill.repo, name: skill.name },
-          }]).catch((err) => {
-            summary.errors.push(`vectorize ${skill.owner}/${skill.name}: ${(err as Error).message}`)
-          })
-          await putGenerated(db, {
-            owner: skill.owner,
-            repo: skill.repo,
-            name: skill.name,
-            kind: 'embedding',
-            sha: skill.current_sha,
-            payload: { stored_in: 'vectorize', dim: VECTORIZE_DIM },
-          })
-          summary.embeddingsWritten += 1
-        }
-      }
-
-      // Abstractness
-      if (ai) {
-        const userPrompt = `SKILL.md content:\n\n${(skill.rendered_raw ?? '').slice(0, 6000)}\n\nClassify and output the JSON object.`
-        const out = await ai.run(ABSTRACTNESS_MODEL, {
-          messages: [
-            { role: 'system', content: ABSTRACTNESS_SYSTEM_PROMPT },
-            { role: 'user', content: userPrompt },
-          ],
-          max_tokens: 128,
-          temperature: 0,
-        }).catch((err) => {
-          summary.errors.push(`abstract ${skill.owner}/${skill.name}: ${(err as Error).message}`)
+  // --- 1. Workers AI: embedding + abstractness, parallelised ---
+  await pAll(skills, AI_CONCURRENCY, async (skill) => {
+    // Embedding
+    if (ai && vectorize) {
+      const input = (skill.rendered_raw ?? '').slice(0, 8000)
+      const embed = await ai.run(EMBEDDING_MODEL, { text: [input] })
+        .catch((err) => {
+          summary.errors.push(`embed ${skill.owner}/${skill.name}: ${(err as Error).message}`)
           return null
         })
-
-        // Workers AI llama returns { response: string } typically.
-        const text = (out as { response?: string, content?: Array<{ text?: string }> } | null)?.response
-          ?? (out as { content?: Array<{ text?: string }> } | null)?.content?.map(c => c.text ?? '').join('')
-          ?? ''
-        const parsed = extractJson<{ kind?: string, package?: string | null, category?: string }>(text)
-        if (parsed?.kind && parsed?.category) {
-          await putGenerated(db, {
-            owner: skill.owner,
-            repo: skill.repo,
-            name: skill.name,
-            kind: 'abstractness',
-            sha: skill.current_sha,
-            payload: {
-              kind: parsed.kind,
-              package: parsed.package ?? null,
-              category: parsed.category,
-            },
-          })
-          summary.abstractnessWritten += 1
-        }
+        // Workers AI returns { data: number[][], shape: [n, dim] }
+      const vec = (embed as { data?: number[][] } | null)?.data?.[0]
+      if (vec && vec.length === VECTORIZE_DIM) {
+        await vectorize.upsert([{
+          id: `${skill.owner}/${skill.repo}/${skill.name}`,
+          values: vec,
+          metadata: { sha: skill.current_sha, owner: skill.owner, repo: skill.repo, name: skill.name },
+        }]).catch((err) => {
+          summary.errors.push(`vectorize ${skill.owner}/${skill.name}: ${(err as Error).message}`)
+        })
+        await putGenerated(db, {
+          owner: skill.owner,
+          repo: skill.repo,
+          name: skill.name,
+          kind: 'embedding',
+          sha: skill.current_sha,
+          payload: { stored_in: 'vectorize', dim: VECTORIZE_DIM },
+        })
+        summary.embeddingsWritten += 1
       }
     }
 
-    // --- 2. Async: summary/tags/faq via Anthropic Batch API ---
-    if (apiKey) {
-      const requests: BatchRequestItem[] = []
-      for (let i = 0; i < skills.length; i++) {
-        const skill = skills[i]!
-        const body = (skill.rendered_raw ?? '').slice(0, 12000)
-        const displayName = skill.display_name || skill.name
-        for (const kind of BATCH_KINDS) {
-          const userPrompt = `Skill: ${skill.owner}/${skill.repo} — ${displayName}\nOutput kind: ${kind}\n\nSKILL.md content:\n\n${body}\n\nReturn the ${kind} output now, in the format specified by the system prompt.`
-          requests.push({
-            custom_id: encodeCustomId(i, kind),
-            params: {
-              model: HAIKU_MODEL,
-              max_tokens: kind === 'faq' ? 1024 : kind === 'tags' ? 256 : 512,
-              system: [{
-                type: 'text',
-                text: SHARED_SYSTEM_PROMPT,
-                cache_control: { type: 'ephemeral' },
-              }],
-              messages: [{ role: 'user', content: userPrompt }],
-            },
-          })
-        }
-      }
-
-      const res = await fetch(ANTHROPIC_BATCH_URL, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': ANTHROPIC_VERSION,
-        },
-        body: JSON.stringify({ requests }),
+    // Abstractness
+    if (ai) {
+      const userPrompt = `SKILL.md content:\n\n${(skill.rendered_raw ?? '').slice(0, 6000)}\n\nClassify and output the JSON object.`
+      const out = await ai.run(ABSTRACTNESS_MODEL, {
+        messages: [
+          { role: 'system', content: ABSTRACTNESS_SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: 128,
+        temperature: 0,
+      }).catch((err) => {
+        summary.errors.push(`abstract ${skill.owner}/${skill.name}: ${(err as Error).message}`)
+        return null
       })
 
-      if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        summary.errors.push(`batch submit ${res.status}: ${body.slice(0, 300)}`)
+      // Workers AI llama returns { response: string } typically.
+      const text = (out as { response?: string, content?: Array<{ text?: string }> } | null)?.response
+        ?? (out as { content?: Array<{ text?: string }> } | null)?.content?.map(c => c.text ?? '').join('')
+        ?? ''
+      const parsed = extractJson<{ kind?: string, package?: string | null, category?: string }>(text)
+      if (parsed?.kind && parsed?.category) {
+        await putGenerated(db, {
+          owner: skill.owner,
+          repo: skill.repo,
+          name: skill.name,
+          kind: 'abstractness',
+          sha: skill.current_sha,
+          payload: {
+            kind: parsed.kind,
+            package: parsed.package ?? null,
+            category: parsed.category,
+          },
+        })
+        summary.abstractnessWritten += 1
       }
-      else {
-        const data = await res.json() as { id: string }
-        await db
+    }
+  })
+
+  // --- 2. Async: summary/tags/faq via Anthropic Batch API ---
+  if (apiKey) {
+    const requests: BatchRequestItem[] = []
+    for (let i = 0; i < skills.length; i++) {
+      const skill = skills[i]!
+      const body = (skill.rendered_raw ?? '').slice(0, 12000)
+      const displayName = skill.display_name || skill.name
+      for (const kind of BATCH_KINDS) {
+        const userPrompt = `Skill: ${skill.owner}/${skill.repo} — ${displayName}\nOutput kind: ${kind}\n\nSKILL.md content:\n\n${body}\n\nReturn the ${kind} output now, in the format specified by the system prompt.`
+        requests.push({
+          custom_id: encodeCustomId(i, kind),
+          params: {
+            model: HAIKU_MODEL,
+            max_tokens: kind === 'faq' ? 1024 : kind === 'tags' ? 256 : 512,
+            system: [{
+              type: 'text',
+              text: SHARED_SYSTEM_PROMPT,
+              cache_control: { type: 'ephemeral' },
+            }],
+            messages: [{ role: 'user', content: userPrompt }],
+          },
+        })
+      }
+    }
+
+    const res = await fetch(ANTHROPIC_BATCH_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+      },
+      body: JSON.stringify({ requests }),
+    })
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      summary.errors.push(`batch submit ${res.status}: ${body.slice(0, 300)}`)
+    }
+    else {
+      const data = await res.json() as { id: string }
+      const submittedAt = Math.floor(Date.now() / 1000)
+      // Atomic: both rows commit or neither. Avoids paying for an
+      // Anthropic batch with no D1 record to poll against.
+      await db.batch([
+        db
           .prepare(
             `INSERT INTO ai_batches (anthropic_batch_id, kinds, skill_count, status, submitted_at, index_map)
-             VALUES (?, ?, ?, 'submitted', ?, ?)`,
+               VALUES (?, ?, ?, 'submitted', ?, ?)`,
           )
           .bind(
             data.id,
             JSON.stringify(BATCH_KINDS),
             skills.length,
-            Math.floor(Date.now() / 1000),
+            submittedAt,
             JSON.stringify(indexMap),
+          ),
+        db
+          .prepare(
+            `INSERT INTO ai_batch_costs (anthropic_batch_id, skill_count, request_count, submitted_at)
+               VALUES (?, ?, ?, ?)`,
           )
-          .run()
+          .bind(data.id, skills.length, requests.length, submittedAt),
+      ])
 
-        summary.batchSubmitted = true
-        summary.batchSize = requests.length
-      }
+      summary.batchSubmitted = true
+      summary.batchSize = requests.length
     }
+  }
 
-    console.warn('[ai-generate-submit] done', summary)
-    return { result: summary }
-  },
-})
+  console.warn('[ai-generate-submit] done', summary)
+  return { result: summary }
+}

@@ -5,7 +5,7 @@ import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { RECONCILE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 
 const BATCH = 50
-const CRON = '0 * * * *'
+const CRON = '20 */6 * * *'
 
 /**
  * Periodically re-sync skills whose last render failed (path_missing or

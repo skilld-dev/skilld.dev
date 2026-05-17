@@ -4,8 +4,10 @@ import {
   recomputeIndexabilityForSkill,
   recomputeTrustForSkill,
 } from '~~/layers/registry/server/utils/recompute-scores'
+import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 
 const BATCH = 200
+const CRON = '*/5 * * * *'
 
 interface DirtyRow {
   owner: string
@@ -45,6 +47,7 @@ export default defineTask({
       return { result: { error: 'no-db' } }
     }
 
+    const startedAt = Date.now()
     const picked = await db
       .prepare(
         `SELECT owner, repo, name, MIN(queued_at) AS queued_at
@@ -145,6 +148,12 @@ export default defineTask({
       })
     }
 
+    await reportJobRun(db, 'drain-skill-dirty', {
+      cron: CRON,
+      status: failed > 0 ? (updated > 0 ? 'partial' : 'error') : 'ok',
+      durationMs: Date.now() - startedAt,
+      error: failed > 0 ? `${failed} recomputes failed` : null,
+    })
     return { result: { drained: updated, failed, scanned: rows.length } }
   },
 })

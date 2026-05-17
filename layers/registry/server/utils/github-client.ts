@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 const API_BASE = 'https://api.github.com'
+const GRAPHQL_URL = 'https://api.github.com/graphql'
 const RAW_BASE = 'https://raw.githubusercontent.com'
 
 export interface GithubBindings {
@@ -144,6 +145,98 @@ export async function getRepo(
   bindings: GithubBindings,
 ): Promise<FetchOutcome<RepoMeta>> {
   return ghRequest<RepoMeta>(`${API_BASE}/repos/${owner}/${repo}`, bindings)
+}
+
+interface RepoSummaryGqlResponse {
+  repository: {
+    description: string | null
+    stargazerCount: number
+    forkCount: number
+    pushedAt: string
+    createdAt: string
+    isArchived: boolean
+    isFork: boolean
+    defaultBranchRef: {
+      name: string
+      target: { oid: string, tree: { oid: string } } | null
+    } | null
+  } | null
+}
+
+export interface RepoSummary {
+  meta: RepoMeta
+  headTreeSha: string | null
+}
+
+/**
+ * GraphQL-backed combo of getRepo + head-tree-SHA. One subrequest replaces
+ * the REST getRepo (1) and lets sync-repo skip the REST getTree call (1)
+ * when last_tree_sha matches. Halves the baseline subrequest count per
+ * unchanged repo from 2 → 1, doubling effective MAX_REPOS_PER_RUN capacity.
+ *
+ * GraphQL primary rate-limit headers mirror REST (x-ratelimit-*) so the
+ * caller can read FetchOutcome.rateLimit identically. Errors are mapped to
+ * data=null + non-200 status so callers can keep their existing branching.
+ */
+export async function getRepoSummary(
+  owner: string,
+  repo: string,
+  bindings: GithubBindings,
+): Promise<FetchOutcome<RepoSummary>> {
+  const query = `query($owner:String!,$repo:String!){
+    repository(owner:$owner,name:$repo){
+      description stargazerCount forkCount pushedAt createdAt isArchived isFork
+      defaultBranchRef{name target{... on Commit{oid tree{oid}}}}
+    }
+  }`
+  const headers = new Headers()
+  headers.set('Accept', 'application/vnd.github+json')
+  headers.set('Content-Type', 'application/json')
+  headers.set('User-Agent', 'skilld.dev')
+  if (bindings.GITHUB_TOKEN)
+    headers.set('Authorization', `Bearer ${bindings.GITHUB_TOKEN}`)
+
+  const res = await fetch(GRAPHQL_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query, variables: { owner, repo } }),
+  })
+  const rateLimit = parseRateLimit(res.headers)
+  if (!res.ok)
+    return { status: res.status, data: null, rateLimit, notModified: false }
+
+  const body = await res.json() as { data?: RepoSummaryGqlResponse, errors?: Array<{ type?: string, message?: string }> }
+  // GraphQL surfaces NOT_FOUND in errors with HTTP 200. Map it to 404 so
+  // callers preserve their existing rate-limit / broken-repo branching.
+  if (body.errors?.length) {
+    const notFound = body.errors.some(e => e.type === 'NOT_FOUND')
+    return { status: notFound ? 404 : 502, data: null, rateLimit, notModified: false }
+  }
+  const r = body.data?.repository
+  if (!r)
+    return { status: 404, data: null, rateLimit, notModified: false }
+
+  const branch = r.defaultBranchRef?.name || 'main'
+  const meta: RepoMeta = {
+    name: repo,
+    full_name: `${owner}/${repo}`,
+    html_url: `https://github.com/${owner}/${repo}`,
+    owner: { login: owner },
+    default_branch: branch,
+    description: r.description,
+    stargazers_count: r.stargazerCount,
+    forks_count: r.forkCount,
+    pushed_at: r.pushedAt,
+    created_at: r.createdAt,
+    archived: r.isArchived,
+    fork: r.isFork,
+  }
+  return {
+    status: 200,
+    data: { meta, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null },
+    rateLimit,
+    notModified: false,
+  }
 }
 
 export async function getTree(

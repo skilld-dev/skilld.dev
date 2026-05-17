@@ -8,7 +8,7 @@ import {
 import { summariseChanges } from '../utils/digest-summary'
 /// <reference types="@cloudflare/workers-types" />
 import { renderDigest } from '../utils/digest-template'
-import { sendEmail, signUnsubToken } from '../utils/email'
+import { sendEmailWithEnv, signUnsubToken } from '../utils/email'
 
 const CRON = '0 * * * *'
 
@@ -104,14 +104,7 @@ export default defineTask({
         })),
       })
 
-      // Need an H3Event-shaped object for sendEmail's binding access.
-      // Synthesise the minimum surface — this task runs in cron context so
-      // there is no real event; the binding is read off cloudflare.env.
-      const fakeEvent = {
-        context: { cloudflare: { env } },
-      } as unknown as Parameters<typeof sendEmail>[0]
-
-      const result = await sendEmail(fakeEvent, {
+      const result = await sendEmailWithEnv(env, {
         to: recipient,
         subject: rendered.subject,
         html: rendered.html,

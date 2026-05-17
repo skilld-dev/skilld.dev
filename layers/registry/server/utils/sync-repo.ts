@@ -2,7 +2,7 @@
 
 import type { GithubBindings } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
-import { getCommits, getRawFile, getRepo, getTree, logRateLimit } from './github-client'
+import { getCommits, getRawFile, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { parseSkillFile } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
 import { parseSkillMd } from './skill-md-render'
@@ -167,7 +167,7 @@ export async function syncRepo(
     activityEmitted: 0,
   }
 
-  const repoRes = await getRepo(owner, repo, bindings)
+  const repoRes = await getRepoSummary(owner, repo, bindings)
   logRateLimit(`repo ${owner}/${repo}`, repoRes.rateLimit)
   if (repoRes.rateLimit)
     stats.rateLimitRemaining = repoRes.rateLimit.remaining
@@ -184,16 +184,24 @@ export async function syncRepo(
     return stats
   }
 
-  const meta = repoRes.data
+  const meta = repoRes.data.meta
+  const headTreeSha = repoRes.data.headTreeSha
   const branch = meta.default_branch || 'main'
   const repoPushedAt = epoch(meta.pushed_at)
 
   const existing = await loadExistingSkills(db, owner, repo)
   const existingRepo = await loadExistingRepo(db, owner, repo)
 
+  // GraphQL gave us the head tree SHA in the same request. If it matches
+  // our cached value, the repo is unchanged and we skip the REST getTree
+  // call entirely — saving one subrequest per unchanged repo.
+  if (existingRepo?.last_tree_sha && headTreeSha && existingRepo.last_tree_sha === headTreeSha) {
+    stats.status = 'skipped-tree-sha'
+    return stats
+  }
+
   if (
-    !repoRes.notModified
-    && existingRepo?.pushed_at != null
+    existingRepo?.pushed_at != null
     && existingRepo.last_tree_sha != null
     && repoPushedAt != null
     && existingRepo.pushed_at >= repoPushedAt

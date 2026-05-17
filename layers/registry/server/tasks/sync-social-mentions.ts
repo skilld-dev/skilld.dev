@@ -1,5 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
+import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { pAll } from '#shared/server/p-all'
+
+const CRON = '30 * * * *'
 
 /**
  * Scheduled task: ingest social proof for tracked skills from Hacker News
@@ -16,9 +19,13 @@ import { pAll } from '#shared/server/p-all'
  * on the next drain.
  */
 
-const TOP_N_REPOS = 200
+const TOP_N_REPOS = 50
 const HN_AUTO_APPROVE = 5
 const HN_CONCURRENCY = 4
+// HN posts older than this are not re-fetched. Cron runs every 30min so a
+// 3-day cutoff gives ample slack if a run is missed; older mentions only
+// matter on initial backfill which a one-shot job can handle separately.
+const HN_LOOKBACK_SECONDS = 3 * 24 * 3600
 
 interface SkillRow {
   owner: string
@@ -67,7 +74,9 @@ function parseSkilldSlugFromUrl(url: string | null): string | null {
 }
 
 async function hnSearch(query: string): Promise<HnHit[]> {
-  const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=50`
+  const cutoff = nowSec() - HN_LOOKBACK_SECONDS
+  const filter = encodeURIComponent(`created_at_i>${cutoff}`)
+  const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=50&numericFilters=${filter}`
   const res = await fetch(url, { headers: { 'User-Agent': 'skilld.dev' } })
   if (!res.ok) {
     console.warn(`[sync-social-mentions] HN search failed for "${query}": ${res.status}`)
@@ -255,6 +264,11 @@ export default defineTask({
       elapsedMs: Date.now() - startedAt,
     }
     console.warn('[sync-social-mentions] done', summary)
+    await reportJobRun(db, 'sync-social-mentions', {
+      cron: CRON,
+      status: 'ok',
+      durationMs: summary.elapsedMs,
+    })
     return { result: summary }
   },
 })

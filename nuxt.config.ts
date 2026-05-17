@@ -1,3 +1,13 @@
+const scheduledTasks = {
+  '0 * * * *': ['sync-github-skills', 'send-digests'],
+  '15 * * * *': ['ai-generate-submit'],
+  '30 * * * *': ['sync-social-mentions'],
+  '20 */6 * * *': ['reconcile-rendered'],
+  '45 * * * *': ['ai-generate-poll'],
+  '*/5 * * * *': ['drain-skill-dirty'],
+  '0 3 * * *': ['recompute-skill-scores'],
+}
+
 export default defineNuxtConfig({
   extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing'],
 
@@ -135,16 +145,9 @@ export default defineNuxtConfig({
         // Nitro embeds scheduledTasks in the bundle but doesn't auto-emit
         // `triggers.crons` in the deployed wrangler config; without these
         // entries Cloudflare never invokes the worker's scheduled() handler.
-        // Keep this list in sync with `nitro.scheduledTasks` below.
+        // Single-sourced from `nitro.scheduledTasks` below at config-eval time.
         triggers: {
-          crons: [
-            '0 * * * *',
-            '15 * * * *',
-            '30 * * * *',
-            '45 * * * *',
-            '*/5 * * * *',
-            '0 3 * * *',
-          ],
+          crons: Object.keys(scheduledTasks),
         },
       },
     },
@@ -166,14 +169,7 @@ export default defineNuxtConfig({
     externals: {
       external: ['cloudflare:email'],
     },
-    scheduledTasks: {
-      '0 * * * *': ['sync-github-skills', 'send-digests', 'reconcile-rendered'],
-      '15 * * * *': ['ai-generate-submit'],
-      '30 * * * *': ['sync-social-mentions'],
-      '45 * * * *': ['ai-generate-poll'],
-      '*/5 * * * *': ['drain-skill-dirty'],
-      '0 3 * * *': ['recompute-skill-scores'],
-    },
+    scheduledTasks,
   },
 
   // SWR caching only kicks in for production builds; in dev every request

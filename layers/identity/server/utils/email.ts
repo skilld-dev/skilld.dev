@@ -34,6 +34,10 @@ export interface SendEmailResult {
 
 export async function sendEmail(event: H3Event, input: SendEmailInput): Promise<SendEmailResult> {
   const env = event.context.cloudflare?.env as Record<string, unknown> | undefined
+  return sendEmailWithEnv(env, input)
+}
+
+export async function sendEmailWithEnv(env: Record<string, unknown> | undefined, input: SendEmailInput): Promise<SendEmailResult> {
   const binding = env?.EMAIL as SendEmailBinding | undefined
   if (!binding) {
     return { ok: false, error: 'EMAIL binding missing (configure send_email in wrangler)' }

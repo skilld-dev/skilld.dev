@@ -8,6 +8,13 @@ import { pAll } from '#shared/server/p-all'
 
 const CONCURRENCY = 8
 const RATE_LIMIT_GUARD = 200 // bail when remaining drops below this
+// Cloudflare Workers cap outbound subrequests at 1000 per invocation.
+// After the GraphQL getRepoSummary swap, unchanged repos cost ~1 subrequest
+// (GraphQL combines metadata + head tree SHA, short-circuiting getTree).
+// Changed repos still cost ~4-6 (REST tree + per-skill blob/commits).
+// 300 repos × mostly-cached ≈ 350 subrequests + KV reads; safe with
+// headroom for the changed-repo tail. Subscribed repos sort first.
+const MAX_REPOS_PER_RUN = 300
 const CRON = '0 * * * *'
 
 /**
@@ -81,7 +88,9 @@ export default defineTask({
     const rest = (stalenessRows.results ?? [])
       .map(r => ({ owner: r.owner, repo: r.repo }))
       .filter(r => !seen.has(`${r.owner}/${r.repo}`))
-    const orderedRepos = [...subscribed, ...rest]
+    const fullOrder = [...subscribed, ...rest]
+    const orderedRepos = fullOrder.slice(0, MAX_REPOS_PER_RUN)
+    const deferred = fullOrder.length - orderedRepos.length
 
     const startedAt = Date.now()
     let aborted = false
@@ -119,6 +128,7 @@ export default defineTask({
 
     const summary = {
       reposTotal: orderedRepos.length,
+      reposDeferred: deferred,
       reposOk: 0,
       reposSkipped: 0,
       reposFailed: 0,
