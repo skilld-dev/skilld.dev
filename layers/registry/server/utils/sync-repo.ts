@@ -2,7 +2,7 @@
 
 import type { GithubBindings } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
-import { getCommits, getRawFile, getRepoSummary, getTree, logRateLimit } from './github-client'
+import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { parseSkillFile } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
 import { parseSkillMd } from './skill-md-render'
@@ -285,10 +285,36 @@ export async function syncRepo(
     )
     .run()
 
+  // Batch-fetch all blob contents in one GraphQL request, replacing N
+  // raw.githubusercontent.com fetches (per-IP-throttled, ignores auth).
+  // Then determine which paths' content changed and batch-fetch commits
+  // for those in a second GraphQL request. Net subrequest cost for the
+  // changed path: 2 (was 2N for N skills).
+  const blobsRes = await getBlobsBatch(owner, repo, branch, skillFiles.map(f => f.path), bindings)
+  logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
+  const blobs = blobsRes.data ?? new Map<string, string>()
+
+  const changedPaths: string[] = []
+  for (const file of skillFiles) {
+    const raw = blobs.get(file.path) ?? ''
+    const parsed = parseSkillFile(raw, file.dirName)
+    if (!parsed)
+      continue
+    const prev = existing.get(parsed.name)
+    if (prev?.current_sha !== file.treeSha)
+      changedPaths.push(file.path)
+  }
+  // Use the higher per-file cap unconditionally: the GraphQL fan-out is one
+  // request regardless of perPage, so paying the extra commit nodes for new
+  // skills (cap 30) saves the per-skill perPage branch.
+  const commitsRes = await getCommitsBatch(owner, repo, changedPaths, FIRST_SYNC_COMMIT_CAP, bindings)
+  logRateLimit(`commits-batch ${owner}/${repo}`, commitsRes.rateLimit)
+  const commitsByPath = commitsRes.data ?? new Map()
+
   const seenNames = new Set<string>()
 
   for (const file of skillFiles) {
-    const raw = (await getRawFile(owner, repo, branch, file.path, bindings)) ?? ''
+    const raw = blobs.get(file.path) ?? ''
     const parsed = parseSkillFile(raw, file.dirName)
     if (!parsed)
       continue
@@ -340,14 +366,7 @@ export async function syncRepo(
 
     let modifiedAt = prev?.modified_at ?? null
     if (contentChanged) {
-      const commitsRes = await getCommits(
-        owner,
-        repo,
-        { path: file.path, perPage: prev ? 5 : FIRST_SYNC_COMMIT_CAP },
-        bindings,
-      )
-      logRateLimit(`commits ${owner}/${repo} ${parsed.name}`, commitsRes.rateLimit)
-      const commits = commitsRes.data ?? []
+      const commits = commitsByPath.get(file.path) ?? []
       if (commits[0])
         modifiedAt = epoch(commits[0].commit.author.date)
 

@@ -275,6 +275,113 @@ export async function getCommits(
   )
 }
 
+async function gqlPost<T>(
+  query: string,
+  variables: Record<string, unknown>,
+  bindings: GithubBindings,
+): Promise<{ status: number, data: T | null, rateLimit: RateLimitInfo | null }> {
+  const headers = new Headers()
+  headers.set('Accept', 'application/vnd.github+json')
+  headers.set('Content-Type', 'application/json')
+  headers.set('User-Agent', 'skilld.dev')
+  if (bindings.GITHUB_TOKEN)
+    headers.set('Authorization', `Bearer ${bindings.GITHUB_TOKEN}`)
+  const res = await fetch(GRAPHQL_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query, variables }),
+  })
+  const rateLimit = parseRateLimit(res.headers)
+  if (!res.ok)
+    return { status: res.status, data: null, rateLimit }
+  const body = await res.json() as { data?: T, errors?: Array<{ type?: string, message?: string }> }
+  if (body.errors?.length) {
+    const notFound = body.errors.some(e => e.type === 'NOT_FOUND')
+    return { status: notFound ? 404 : 502, data: null, rateLimit }
+  }
+  return { status: 200, data: body.data ?? null, rateLimit }
+}
+
+/**
+ * Batch-fetch SKILL.md blob contents for N paths in one GraphQL request.
+ * Replaces N raw.githubusercontent.com fetches (which are per-IP rate-limited
+ * post-May-2025 and ignore auth headers) with a single deterministic
+ * authenticated request. Returns Map<path, text>; missing/non-Blob entries
+ * are absent from the map so callers can fall back per path.
+ */
+export async function getBlobsBatch(
+  owner: string,
+  repo: string,
+  branch: string,
+  paths: string[],
+  bindings: GithubBindings,
+): Promise<FetchOutcome<Map<string, string>>> {
+  if (paths.length === 0)
+    return { status: 200, data: new Map(), rateLimit: null, notModified: false }
+  const unique = [...new Set(paths)]
+  const varDecls = ['$owner:String!', '$repo:String!', ...unique.map((_, i) => `$expr${i}:String!`)]
+  const aliases = unique.map((_, i) => `b${i}:object(expression:$expr${i}){... on Blob{text}}`).join(' ')
+  const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){${aliases}}}`
+  const variables: Record<string, string> = { owner, repo }
+  unique.forEach((p, i) => { variables[`expr${i}`] = `${branch}:${p}` })
+
+  const out = await gqlPost<{ repository: Record<string, { text?: string } | null> | null }>(query, variables, bindings)
+  if (!out.data?.repository)
+    return { status: out.status, data: null, rateLimit: out.rateLimit, notModified: false }
+  const map = new Map<string, string>()
+  unique.forEach((p, i) => {
+    const text = out.data!.repository![`b${i}`]?.text
+    if (typeof text === 'string')
+      map.set(p, text)
+  })
+  return { status: 200, data: map, rateLimit: out.rateLimit, notModified: false }
+}
+
+/**
+ * Batch-fetch recent commit history for N paths in one GraphQL request.
+ * Replaces N REST /commits calls. Output shape matches the slice of
+ * CommitEntry that sync-repo actually consumes.
+ */
+export async function getCommitsBatch(
+  owner: string,
+  repo: string,
+  paths: string[],
+  perPage: number,
+  bindings: GithubBindings,
+): Promise<FetchOutcome<Map<string, CommitEntry[]>>> {
+  if (paths.length === 0)
+    return { status: 200, data: new Map(), rateLimit: null, notModified: false }
+  const unique = [...new Set(paths)]
+  const varDecls = ['$owner:String!', '$repo:String!', ...unique.map((_, i) => `$path${i}:String!`)]
+  const histories = unique.map((_, i) =>
+    `h${i}:history(first:${perPage},path:$path${i}){nodes{oid message author{name email date user{login}}}}`,
+  ).join(' ')
+  const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){defaultBranchRef{target{... on Commit{${histories}}}}}}`
+  const variables: Record<string, string> = { owner, repo }
+  unique.forEach((p, i) => { variables[`path${i}`] = p })
+
+  interface GqlCommit { oid: string, message: string, author?: { name?: string, email?: string, date: string, user?: { login?: string } | null } | null }
+  interface GqlResponse { repository: { defaultBranchRef: { target: Record<string, { nodes: GqlCommit[] } | null> | null } | null } | null }
+
+  const out = await gqlPost<GqlResponse>(query, variables, bindings)
+  const target = out.data?.repository?.defaultBranchRef?.target
+  if (!target)
+    return { status: out.status, data: null, rateLimit: out.rateLimit, notModified: false }
+  const map = new Map<string, CommitEntry[]>()
+  unique.forEach((p, i) => {
+    const nodes = target[`h${i}`]?.nodes ?? []
+    map.set(p, nodes.map(c => ({
+      sha: c.oid,
+      commit: {
+        author: { name: c.author?.name, email: c.author?.email, date: c.author?.date ?? '' },
+        message: c.message,
+      },
+      author: c.author?.user ? { login: c.author.user.login } : null,
+    })))
+  })
+  return { status: 200, data: map, rateLimit: out.rateLimit, notModified: false }
+}
+
 /**
  * Fetch a raw file from raw.githubusercontent.com. Bypasses the JSON API.
  * No ETag caching here; raw responses don't carry useful etags for our case.
