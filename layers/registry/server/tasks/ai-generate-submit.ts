@@ -9,7 +9,11 @@ const CRON = '15 * * * *'
 // Bounded so a single backfill spike can't blow Anthropic batch spend.
 // Steady state is much lower thanks to the ai_generated_sha short-circuit.
 const BATCH_LIMIT = 50
-const AI_CONCURRENCY = 8
+// Cloudflare Vectorize free tier rate-limits upserts aggressively (429
+// VECTOR_UPSERT_ERROR 40041 at concurrency 8). 3 is the sustainable
+// ceiling observed in production; wall time goes 7s → ~18s, still well
+// under the scheduled-handler budget.
+const AI_CONCURRENCY = 3
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001'
 const ANTHROPIC_BATCH_URL = 'https://api.anthropic.com/v1/messages/batches'
 const ANTHROPIC_VERSION = '2023-06-01'
