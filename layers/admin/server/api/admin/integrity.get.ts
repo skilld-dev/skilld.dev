@@ -46,6 +46,29 @@ interface DistributionItem {
 
 const ISSUE_LIMIT = 25
 
+interface AiSpendRow {
+  total_usd: number | null
+  batch_count: number | null
+  input_tokens: number | null
+  output_tokens: number | null
+}
+
+interface RecentRegenRow {
+  owner: string
+  repo: string
+  name: string
+  generated_at: number
+}
+
+interface AiSpendSummary {
+  windowDays: number
+  totalUsd: number
+  batchCount: number
+  inputTokens: number
+  outputTokens: number
+  recentRegenerations: Array<{ owner: string, repo: string, name: string, generatedAt: number }>
+}
+
 interface SyncJobRow {
   name: string
   cron: string
@@ -835,6 +858,52 @@ export default defineApiHandler({
       }
     }
 
+    // AI batch spend visibility: rolling 30-day cost + recently regenerated
+    // skills. Table is created in migration 0058; guard against the
+    // pre-migration case so the endpoint still works.
+    const thirtyDaysAgo = now - 30 * 86400
+    const spendRow = await db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(est_cost_usd), 0) AS total_usd,
+           COUNT(*) AS batch_count,
+           COALESCE(SUM(input_tokens), 0) AS input_tokens,
+           COALESCE(SUM(output_tokens), 0) AS output_tokens
+         FROM ai_batch_costs
+         WHERE submitted_at >= ?`,
+      )
+      .bind(thirtyDaysAgo)
+      .first<AiSpendRow>()
+      .catch(() => null)
+
+    const recentRegenRows = await db
+      .prepare(
+        `SELECT owner, repo, name, MAX(generated_at) AS generated_at
+         FROM skill_generated
+         WHERE kind = 'summary'
+         GROUP BY owner, repo, name
+         ORDER BY generated_at DESC
+         LIMIT 5`,
+      )
+      .all<RecentRegenRow>()
+      .catch(() => null)
+
+    const aiSpend: AiSpendSummary | null = spendRow
+      ? {
+          windowDays: 30,
+          totalUsd: spendRow.total_usd ?? 0,
+          batchCount: spendRow.batch_count ?? 0,
+          inputTokens: spendRow.input_tokens ?? 0,
+          outputTokens: spendRow.output_tokens ?? 0,
+          recentRegenerations: (recentRegenRows?.results ?? []).map(r => ({
+            owner: r.owner,
+            repo: r.repo,
+            name: r.name,
+            generatedAt: r.generated_at,
+          })),
+        }
+      : null
+
     const allChecks = [...jobChecks, ...checks]
 
     return {
@@ -935,6 +1004,7 @@ export default defineApiHandler({
       scoreDistribution,
       trustDistribution,
       trustSourceDistribution,
+      aiSpend,
       checks: allChecks,
     }
   },

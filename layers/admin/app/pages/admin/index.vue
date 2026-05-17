@@ -39,6 +39,22 @@ interface DistributionItem {
   count: number
 }
 
+interface RecentRegeneration {
+  owner: string
+  repo: string
+  name: string
+  generatedAt: number
+}
+
+interface AiSpend {
+  windowDays: number
+  totalUsd: number
+  batchCount: number
+  inputTokens: number
+  outputTokens: number
+  recentRegenerations: RecentRegeneration[]
+}
+
 interface IntegrityResponse {
   generatedAt: string
   metrics: Metric[]
@@ -46,6 +62,7 @@ interface IntegrityResponse {
   scoreDistribution: DistributionItem[]
   trustDistribution?: DistributionItem[]
   trustSourceDistribution?: DistributionItem[]
+  aiSpend?: AiSpend | null
   checks: IntegrityCheck[]
 }
 
@@ -139,6 +156,13 @@ const trustBucketCounts = computed(() => {
     untrusted: map.get('untrusted') ?? 0,
     quarantined: map.get('quarantined') ?? 0,
   }
+})
+
+const aiSpend = computed(() => data.value?.aiSpend ?? null)
+
+const aiSpendCostLabel = computed(() => {
+  const usd = aiSpend.value?.totalUsd ?? 0
+  return usd >= 10 ? `$${usd.toFixed(2)}` : `$${usd.toFixed(4)}`
 })
 
 const severityColor: Record<Severity, 'error' | 'warning' | 'neutral'> = {
@@ -326,6 +350,86 @@ const recoveryCards = computed(() => [
           <p class="mt-2 text-xs text-dimmed">
             {{ card.help }}
           </p>
+        </div>
+      </section>
+
+      <section
+        v-if="aiSpend"
+        class="rounded-lg border border-default bg-elevated p-4"
+      >
+        <div class="mb-4 flex items-center gap-2">
+          <UIcon
+            name="i-lucide-receipt"
+            class="size-4 text-muted"
+            aria-hidden="true"
+          />
+          <h2 class="font-medium">
+            AI batch spend
+          </h2>
+          <span class="text-xs text-dimmed">
+            last {{ aiSpend.windowDays }}d
+          </span>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-4">
+          <div class="rounded-md border border-default p-3">
+            <p class="text-xs text-muted">
+              Est. cost (USD)
+            </p>
+            <p class="mt-1 font-mono text-xl">
+              {{ aiSpendCostLabel }}
+            </p>
+          </div>
+          <div class="rounded-md border border-default p-3">
+            <p class="text-xs text-muted">
+              Batches
+            </p>
+            <p class="mt-1 font-mono text-xl">
+              {{ aiSpend.batchCount.toLocaleString() }}
+            </p>
+          </div>
+          <div class="rounded-md border border-default p-3">
+            <p class="text-xs text-muted">
+              Input tokens
+            </p>
+            <p class="mt-1 font-mono text-xl">
+              {{ aiSpend.inputTokens.toLocaleString() }}
+            </p>
+          </div>
+          <div class="rounded-md border border-default p-3">
+            <p class="text-xs text-muted">
+              Output tokens
+            </p>
+            <p class="mt-1 font-mono text-xl">
+              {{ aiSpend.outputTokens.toLocaleString() }}
+            </p>
+          </div>
+        </div>
+
+        <div
+          v-if="aiSpend.recentRegenerations.length"
+          class="mt-4"
+        >
+          <p class="mb-2 text-xs text-muted">
+            Most recently regenerated
+          </p>
+          <ul class="space-y-1 text-sm">
+            <li
+              v-for="row in aiSpend.recentRegenerations"
+              :key="`${row.owner}/${row.repo}/${row.name}`"
+              class="flex items-center justify-between gap-3"
+            >
+              <NuxtLink
+                :to="`/skills/${row.owner}/${row.repo}/${row.name}`"
+                class="font-mono text-primary hover:underline"
+              >
+                {{ row.owner }}/{{ row.repo }}/{{ row.name }}
+              </NuxtLink>
+              <span class="font-mono text-xs text-dimmed">
+                {{ new Date(row.generatedAt * 1000).toLocaleString() }}
+              </span>
+            </li>
+          </ul>
         </div>
       </section>
 

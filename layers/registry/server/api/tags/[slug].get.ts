@@ -4,6 +4,27 @@ import type { TagPayload } from '../../jobs/generate-tags'
 import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
 import { getDB } from '../../../../../shared/server/db'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
+import { getTagRedirect, isQualityDerivedTag } from '../../utils/tag-quality'
+
+function humanizeSlug(slug: string): string {
+  return slug
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+async function derivedTagCount(db: D1Database, slug: string): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(DISTINCT sg.owner || '/' || sg.repo || '/' || sg.name) AS count
+       FROM skill_generated sg, json_each(sg.payload, '$.tags') je
+       WHERE sg.kind = 'tags' AND je.value = ?`,
+    )
+    .bind(slug)
+    .first<{ count: number }>()
+  return row?.count ?? 0
+}
 
 export interface TagOwner {
   owner: string
@@ -66,11 +87,25 @@ function rowToSkill(r: SkillRow): RegistrySkill {
 
 export default defineCachedEventHandler(async (event) => {
   const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
-  const tag = TAG_BY_SLUG.get(slug)
-  if (!tag)
-    throw createError({ statusCode: 404, message: `Unknown tag: ${slug}` })
+
+  // Marketing/cluster landing pages own these slugs. Hand off so crawl
+  // signal accumulates on the canonical URL instead of splitting.
+  const redirect = getTagRedirect(slug)
+  if (redirect)
+    return sendRedirect(event, redirect, 301)
 
   const db = getDB(event)
+  let tag = TAG_BY_SLUG.get(slug)
+  if (!tag) {
+    // Long-tail: AI-derived tag must pass the quality gate before earning
+    // its own landing page. Anything that fails the gate 404s rather than
+    // rendering a thin page that drags domain authority.
+    const count = await derivedTagCount(db, slug)
+    if (!isQualityDerivedTag(slug, count))
+      throw createError({ statusCode: 404, message: `Unknown tag: ${slug}` })
+    const label = humanizeSlug(slug)
+    tag = { slug, label, description: `Skills tagged ${label}.` }
+  }
   const ftsQuery = `"${slug}"*`
 
   // Skills matching by:

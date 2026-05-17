@@ -245,6 +245,10 @@ export default defineNuxtConfig({
         sources: ['/api/__sitemap__/orgs'],
         includeAppSources: false,
       },
+      tags: {
+        sources: ['/api/__sitemap__/tags'],
+        includeAppSources: false,
+      },
     },
   },
 })
