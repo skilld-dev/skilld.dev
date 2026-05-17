@@ -79,6 +79,8 @@ export interface SkillsQuery {
   supportedOnly?: boolean
   trustTier?: string
   category?: string
+  tags?: string[]
+  tagMode?: 'and' | 'or'
   sort?: 'installs' | 'name' | 'owner'
   page?: number
   limit?: number
@@ -116,7 +118,7 @@ function chunkRepos(repos: RepoRef[]): RepoRef[][] {
 
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
-  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, sort = 'installs', page = 1, limit = 60, officialOwners } = opts
+  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'installs', page = 1, limit = 60, officialOwners } = opts
 
   const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
@@ -157,6 +159,21 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   if (category) {
     conditions.push('s.abstractness_category = ?')
     params.push(category)
+  }
+
+  if (tags?.length) {
+    const tagsSubquery = (tag: string) =>
+      `EXISTS (SELECT 1 FROM skill_generated sg, json_each(sg.payload, '$.tags') je
+        WHERE sg.owner = s.owner AND sg.repo = s.repo AND sg.name = s.name
+          AND sg.kind = 'tags' AND je.value = ?)`
+    if (tagMode === 'or') {
+      conditions.push(`(${tags.map(tagsSubquery).join(' OR ')})`)
+    }
+    else {
+      for (const t of tags)
+        conditions.push(tagsSubquery(t))
+    }
+    params.push(...tags)
   }
 
   // Anonymous discovery (Loop 1) hides aggregators. Owner profiles, official

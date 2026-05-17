@@ -13,6 +13,20 @@ export const SkillsListQuery = z.object({
   trustTier: z.string().trim().toLowerCase().default(''),
   owner: z.string().trim().toLowerCase().default(''),
   category: z.string().trim().toLowerCase().default(''),
+  tags: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .default('')
+    .transform(v =>
+      v
+        ? v
+            .split(',')
+            .map(t => t.trim())
+            .filter(Boolean)
+        : [],
+    ),
+  tagMode: z.enum(['and', 'or']).catch('and'),
 })
 
 export const OfficialReposQuery = z.object({

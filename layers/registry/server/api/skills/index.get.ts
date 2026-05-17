@@ -19,6 +19,8 @@ export default defineApiHandler({
       supportedOnly: body.supported,
       trustTier: body.trustTier || undefined,
       category: body.category || undefined,
+      tags: body.tags.length ? body.tags : undefined,
+      tagMode: body.tagMode,
       sort: body.sort,
       page: body.page,
       limit: body.limit,

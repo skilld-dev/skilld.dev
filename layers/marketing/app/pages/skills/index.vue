@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import type { NpmSearchResult } from '~/composables/useNpmSearch'
-
-const REGEX_ESCAPE_RE = /[.*+?^${}()|[\]\\]/g
+import type { TagFacet } from '~~/layers/registry/server/api/skills/tags.get'
 
 useSeoMeta({
   title: 'Skills — skilld',
-  description: 'Browse curated skills from official providers and the wider community. Search any npm package to view its skill page.',
+  description: 'Browse and filter curated skills by tag. Search the registry and combine multiple tags to narrow down what your agent needs.',
 })
 
 defineOgImage('Page.takumi', {
@@ -18,9 +16,16 @@ const search = ref((route.query.q as string) || '')
 const page = ref(Number(route.query.page) || 1)
 const view = ref<'grid' | 'list'>((route.query.view as 'grid' | 'list') || 'grid')
 const owner = ref((route.query.owner as string) || '')
+const tags = ref<string[]>(
+  ((route.query.tags as string) || '')
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean),
+)
+const tagMode = ref<'and' | 'or'>(((route.query.mode as 'and' | 'or') === 'or' ? 'or' : 'and'))
 const debouncedSearch = refDebounced(search, 300)
 
-watch([debouncedSearch, page, view, owner], async () => {
+watch([debouncedSearch, page, view, owner, tags, tagMode], async () => {
   const query: Record<string, string> = {}
   if (debouncedSearch.value)
     query.q = debouncedSearch.value
@@ -30,132 +35,65 @@ watch([debouncedSearch, page, view, owner], async () => {
     query.view = view.value
   if (owner.value)
     query.owner = owner.value
+  if (tags.value.length)
+    query.tags = tags.value.join(',')
+  if (tagMode.value !== 'and')
+    query.mode = tagMode.value
   await navigateTo({ query }, { replace: true })
-})
+}, { deep: true })
 
-watch(debouncedSearch, (next) => {
+watch([debouncedSearch, tags, owner, tagMode], () => {
   page.value = 1
-  if (next && owner.value)
-    owner.value = ''
-})
-
-watch(owner, () => {
-  page.value = 1
-})
+}, { deep: true })
 
 const PAGE_SIZE = 21
-const { search: npmSearch } = useNpmSearch()
-
-// Algolia npm search results (search mode)
-const npmResults = ref<NpmSearchResult[]>([])
-const npmTotal = ref(0)
-const npmStatus = ref<'idle' | 'pending' | 'success' | 'error'>('idle')
-const resolvedSkills = ref<Record<string, { owner: string, repo: string, official: boolean }>>({})
-
-async function resolveResults(results: NpmSearchResult[]) {
-  if (!results.length) {
-    resolvedSkills.value = {}
-    return
-  }
-  const items = results.map(r => ({ packageName: r.name }))
-  resolvedSkills.value = await $fetch('/api/skills/resolve', {
-    method: 'POST',
-    body: { items },
-  }).catch(() => ({}))
-}
-
 const { isBot } = useBotDetection()
 
-const isSearching = computed(() => !!debouncedSearch.value)
-const isOwnerFiltered = computed(() => !!owner.value && !isSearching.value)
-const showOfficialSections = computed(() => !isSearching.value && !isOwnerFiltered.value)
+const isFiltering = computed(() =>
+  !!debouncedSearch.value || tags.value.length > 0 || !!owner.value,
+)
+const showFeatured = computed(() => !isFiltering.value)
 
-// Featured developer and official sections (default home view)
+// Tag facets
+const { data: tagFacets } = useFetch('/api/skills/tags', {
+  key: 'skills-tag-facets',
+  lazy: !isBot.value,
+  default: () => ({ tags: [] as TagFacet[], total: 0 }),
+})
+
+const tagBySlug = computed(() => {
+  const map = new Map<string, TagFacet>()
+  for (const t of tagFacets.value?.tags ?? [])
+    map.set(t.slug, t)
+  return map
+})
+
+// Featured (only when nothing is filtered)
 const { data: featuredData, status: featuredStatus } = useFetch('/api/skills/featured', {
   key: 'skills-featured-sections',
   query: { orgs: 6, perOrg: 6, devs: 18, perDev: 12 },
   lazy: !isBot.value,
+  immediate: showFeatured.value,
 })
 
-// Community / owner-filtered registry list
+// Registry list (always; filters when active, candidate-only when not)
 const registryQuery = computed(() => ({
   page: page.value,
   limit: PAGE_SIZE,
   sort: 'installs',
+  ...(debouncedSearch.value ? { q: debouncedSearch.value } : {}),
   ...(owner.value ? { owner: owner.value } : {}),
-  ...(showOfficialSections.value ? { trustTier: 'candidate' } : {}),
+  ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
+  ...(showFeatured.value ? { trustTier: 'candidate' } : {}),
 }))
 const { data: registryData, status: registryStatus } = useFetch('/api/skills', {
   query: registryQuery,
-  watch: [page, owner, showOfficialSections],
+  watch: [registryQuery],
   lazy: !isBot.value,
 })
 
-watch(debouncedSearch, async (q) => {
-  if (!q) {
-    npmResults.value = []
-    npmTotal.value = 0
-    npmStatus.value = 'idle'
-    return
-  }
-  npmStatus.value = 'pending'
-  try {
-    const res = await npmSearch(q, {
-      size: PAGE_SIZE,
-      offset: (page.value - 1) * PAGE_SIZE,
-    })
-    await resolveResults(res.results)
-    npmResults.value = res.results
-    npmTotal.value = res.total
-    npmStatus.value = 'success'
-  }
-  catch {
-    npmStatus.value = 'error'
-  }
-}, { immediate: !!search.value })
-
-watch(page, async () => {
-  if (!debouncedSearch.value)
-    return
-  npmStatus.value = 'pending'
-  try {
-    const res = await npmSearch(debouncedSearch.value, {
-      size: PAGE_SIZE,
-      offset: (page.value - 1) * PAGE_SIZE,
-    })
-    await resolveResults(res.results)
-    npmResults.value = res.results
-    npmTotal.value = res.total
-    npmStatus.value = 'success'
-  }
-  catch {
-    npmStatus.value = 'error'
-  }
-})
-
-const sortedNpmResults = computed(() => {
-  return [...npmResults.value].sort((a, b) => {
-    const ra = resolvedSkills.value[a.name]
-    const rb = resolvedSkills.value[b.name]
-    const trustA = ra?.official ? 2 : ra ? 1 : 0
-    const trustB = rb?.official ? 2 : rb ? 1 : 0
-    if (trustA !== trustB)
-      return trustB - trustA
-    return (b.weeklyDownloads || 0) - (a.weeklyDownloads || 0)
-  })
-})
-
-const totalPages = computed(() => {
-  if (isSearching.value)
-    return Math.ceil(npmTotal.value / PAGE_SIZE)
-  return registryData.value?.pages ?? 1
-})
-
-const isLoading = computed(() => {
-  if (isSearching.value)
-    return npmStatus.value === 'pending'
-  return registryStatus.value === 'pending' && !registryData.value
-})
+const totalPages = computed(() => registryData.value?.pages ?? 1)
+const isLoading = computed(() => registryStatus.value === 'pending' && !registryData.value)
 
 const searchInput = ref<{ inputRef?: HTMLInputElement } | null>(null)
 const activeElement = useActiveElement()
@@ -172,50 +110,44 @@ onKeyStroke('/', (e) => {
   el?.focus()
 })
 
-const { copy } = useClipboard()
-const copiedName = ref<string | null>(null)
-
-function copyCmd(name: string, cmd: string) {
-  copy(cmd)
-  copiedName.value = name
-  setTimeout(() => {
-    if (copiedName.value === name)
-      copiedName.value = null
-  }, 2000)
+function toggleTag(slug: string) {
+  const next = new Set(tags.value)
+  if (next.has(slug))
+    next.delete(slug)
+  else
+    next.add(slug)
+  tags.value = [...next]
 }
 
-function formatDownloads(n: number): string {
-  if (n >= 1_000_000)
-    return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000)
-    return `${(n / 1_000).toFixed(0)}k`
-  return String(n)
+function removeTag(slug: string) {
+  tags.value = tags.value.filter(t => t !== slug)
 }
 
-function highlight(text: string): string {
-  if (!debouncedSearch.value)
-    return text
-  const escaped = debouncedSearch.value.replace(REGEX_ESCAPE_RE, '\\$&')
-  return text.replace(
-    new RegExp(`(${escaped})`, 'gi'),
-    '<mark class="bg-primary/20 text-inherit rounded-sm px-0.5">$1</mark>',
+function clearAll() {
+  search.value = ''
+  tags.value = []
+  owner.value = ''
+}
+
+const tagPopoverOpen = ref(false)
+const tagSearch = ref('')
+const popularTagCount = 8
+
+const popularTags = computed<TagFacet[]>(() => {
+  return (tagFacets.value?.tags ?? [])
+    .filter(t => t.count > 0)
+    .slice(0, popularTagCount)
+})
+
+const filteredTagList = computed<TagFacet[]>(() => {
+  const q = tagSearch.value.trim().toLowerCase()
+  const list = tagFacets.value?.tags ?? []
+  if (!q)
+    return list
+  return list.filter(
+    t => t.label.toLowerCase().includes(q) || t.slug.includes(q),
   )
-}
-
-function skillPath(skill: { owner: string, repo: string, name: string }) {
-  return repoSkillPath(skill.owner, skill.repo, skill.name)
-}
-
-function npmResultPath(name: string): string {
-  const resolved = resolvedSkills.value[name]
-  if (resolved)
-    return skillPath({ owner: resolved.owner, repo: resolved.repo, name })
-  return `https://npmx.dev/${name}`
-}
-
-function npmResultIsExternal(name: string): boolean {
-  return !resolvedSkills.value[name]
-}
+})
 
 function clearOwner() {
   owner.value = ''
@@ -235,49 +167,21 @@ function clearOwner() {
         Skills
       </h1>
       <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
-        Curated skills from official providers and the wider npm ecosystem. Search any package to view its skill page.
+        Search the registry by name, owner, or description. Combine tags to narrow down what your agent needs.
       </p>
 
-      <!-- Owner filter chip -->
-      <div v-if="isOwnerFiltered" class="mt-4 flex items-center gap-2 flex-wrap">
-        <UBadge
-          :label="`Filtered: ${owner}`"
-          variant="subtle"
-          color="neutral"
-          size="sm"
-          class="font-mono"
-        />
-        <UButton
-          :to="ownerHubPath(owner)"
-          icon="i-lucide-arrow-right"
-          size="xs"
-          color="neutral"
-          variant="outline"
-          label="View profile"
-          trailing
-        />
-        <UButton
-          icon="i-lucide-x"
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          label="Clear"
-          @click="clearOwner"
-        />
-      </div>
-
-      <!-- Search + view toggle -->
+      <!-- Search + filter row -->
       <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div class="relative max-w-md flex-1">
-          <label for="skill-search" class="sr-only">Search GitHub repos or skill names</label>
+          <label for="skill-search" class="sr-only">Search skills</label>
           <UInput
             id="skill-search"
             ref="searchInput"
             v-model="search"
-            placeholder="Search GitHub repo or skill name..."
+            placeholder="Search by name, owner, or description..."
             icon="i-lucide-search"
             size="lg"
-            class="font-mono"
+            class="font-mono w-full"
             :loading="isLoading"
           >
             <template #trailing>
@@ -299,7 +203,66 @@ function clearOwner() {
           </UInput>
         </div>
 
-        <div class="flex items-center gap-2">
+        <UPopover v-model:open="tagPopoverOpen" :ui="{ content: 'w-80 p-0' }">
+          <UButton
+            icon="i-lucide-tags"
+            color="neutral"
+            :variant="tags.length ? 'subtle' : 'outline'"
+            size="md"
+            class="font-mono"
+          >
+            Tags
+            <UBadge
+              v-if="tags.length"
+              :label="String(tags.length)"
+              color="primary"
+              variant="solid"
+              size="xs"
+              class="font-mono"
+            />
+          </UButton>
+
+          <template #content>
+            <div class="p-3 border-b border-default">
+              <UInput
+                v-model="tagSearch"
+                placeholder="Filter tags..."
+                icon="i-lucide-search"
+                size="sm"
+                class="font-mono w-full"
+              />
+            </div>
+            <div class="max-h-72 overflow-y-auto py-1">
+              <button
+                v-for="t in filteredTagList"
+                :key="t.slug"
+                type="button"
+                class="w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-elevated transition-colors"
+                :class="tags.includes(t.slug) ? 'text-highlighted' : 'text-default'"
+                :disabled="t.count === 0 && !tags.includes(t.slug)"
+                @click="toggleTag(t.slug)"
+              >
+                <span class="flex items-center gap-2 min-w-0">
+                  <UIcon
+                    :name="tags.includes(t.slug) ? 'i-lucide-check-square' : 'i-lucide-square'"
+                    class="size-4 shrink-0"
+                    :class="tags.includes(t.slug) ? 'text-primary' : 'text-muted'"
+                  />
+                  <span class="font-mono text-sm truncate">{{ t.label }}</span>
+                </span>
+                <span class="data-label shrink-0">{{ t.count }}</span>
+              </button>
+              <p
+                v-if="filteredTagList.length === 0"
+                class="px-3 py-4 text-center text-xs text-muted"
+              >
+                No tags match.
+              </p>
+            </div>
+          </template>
+        </UPopover>
+
+        <div class="flex items-center gap-2 sm:ml-auto">
           <div class="flex items-center border border-default rounded-lg overflow-hidden">
             <button
               type="button"
@@ -324,29 +287,126 @@ function clearOwner() {
           </div>
         </div>
       </div>
+
+      <!-- Popular tags chipbar (shown when no tag selected, as discovery) -->
+      <div
+        v-if="!tags.length && popularTags.length"
+        class="mt-4 flex flex-wrap items-center gap-2"
+      >
+        <span class="data-label uppercase tracking-widest">Popular</span>
+        <button
+          v-for="t in popularTags"
+          :key="t.slug"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-full border border-default px-2.5 py-1 font-mono text-xs text-muted hover:text-default hover:border-[var(--ui-text-muted)] transition-colors"
+          @click="toggleTag(t.slug)"
+        >
+          {{ t.label }}
+          <span class="text-[10px] opacity-70">{{ t.count }}</span>
+        </button>
+      </div>
+
+      <!-- Active filter chips (selected tags + owner + AND/OR toggle) -->
+      <div
+        v-if="isFiltering"
+        class="mt-4 flex flex-wrap items-center gap-2"
+      >
+        <UBadge
+          v-if="owner"
+          :label="`Owner: ${owner}`"
+          variant="subtle"
+          color="neutral"
+          size="sm"
+          class="font-mono"
+        >
+          <template #trailing>
+            <button
+              type="button"
+              aria-label="Clear owner"
+              class="ml-1 -mr-0.5"
+              @click="clearOwner"
+            >
+              <UIcon name="i-lucide-x" class="size-3" />
+            </button>
+          </template>
+        </UBadge>
+
+        <span
+          v-for="slug in tags"
+          :key="slug"
+          class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 font-mono text-xs text-primary"
+        >
+          {{ tagBySlug.get(slug)?.label ?? slug }}
+          <button
+            type="button"
+            class="ml-0.5 hover:opacity-100 opacity-70 transition-opacity"
+            :aria-label="`Remove ${slug} filter`"
+            @click="removeTag(slug)"
+          >
+            <UIcon name="i-lucide-x" class="size-3" />
+          </button>
+        </span>
+
+        <div v-if="tags.length > 1" class="inline-flex items-center border border-default rounded-full overflow-hidden">
+          <button
+            type="button"
+            class="px-2.5 py-1 font-mono text-xs transition-colors"
+            :class="tagMode === 'and' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+            @click="tagMode = 'and'"
+          >
+            AND
+          </button>
+          <button
+            type="button"
+            class="px-2.5 py-1 font-mono text-xs transition-colors"
+            :class="tagMode === 'or' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+            @click="tagMode = 'or'"
+          >
+            OR
+          </button>
+        </div>
+
+        <UButton
+          icon="i-lucide-x"
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          label="Clear all"
+          class="ml-auto"
+          @click="clearAll"
+        />
+      </div>
     </section>
 
     <USeparator />
 
-    <!-- ===== SEARCH MODE: Algolia results ===== -->
+    <!-- ===== FILTERED MODE: registry results ===== -->
     <section
-      v-if="isSearching"
+      v-if="isFiltering"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
-      aria-labelledby="search-results-heading"
+      aria-labelledby="results-heading"
     >
-      <h2 id="search-results-heading" class="sr-only">
-        Search results
-      </h2>
+      <div class="mb-6 flex items-baseline gap-3 flex-wrap">
+        <h2
+          id="results-heading"
+          class="font-mono text-xl font-medium tracking-tight"
+        >
+          Results
+        </h2>
+        <span v-if="registryData" class="data-label">
+          {{ registryData.total }} {{ registryData.total === 1 ? 'skill' : 'skills' }}
+        </span>
+      </div>
 
       <div aria-live="polite" aria-atomic="true" class="sr-only">
         <template v-if="isLoading">
           Loading...
         </template>
-        <template v-else-if="npmResults.length === 0">
-          No packages found for "{{ search }}".
+        <template v-else-if="registryData && registryData.items.length === 0">
+          No skills found.
         </template>
-        <template v-else>
-          {{ npmTotal }} packages found.
+        <template v-else-if="registryData">
+          {{ registryData.total }} skills.
         </template>
       </div>
 
@@ -368,72 +428,40 @@ function clearOwner() {
       </div>
 
       <div
-        v-else-if="npmResults.length === 0"
+        v-else-if="registryStatus === 'error'"
+        role="alert"
+        class="rounded-lg border border-default p-8 text-center"
+      >
+        <UIcon name="i-lucide-alert-circle" class="mx-auto size-8 text-muted" aria-hidden="true" />
+        <p class="mt-3 text-sm">
+          Couldn't load skills. Check your connection and try again.
+        </p>
+      </div>
+
+      <div
+        v-else-if="registryData && registryData.items.length === 0"
         class="rounded-lg border border-default p-8 text-center"
       >
         <UIcon name="i-lucide-search-x" class="mx-auto size-8 text-muted" aria-hidden="true" />
         <p class="mt-3 text-sm">
-          No packages found for "{{ search }}". Try a different search term.
+          No skills match these filters. Try removing a tag or broadening your search.
         </p>
+        <UButton
+          class="mt-4"
+          size="sm"
+          color="neutral"
+          variant="outline"
+          label="Clear filters"
+          @click="clearAll"
+        />
       </div>
 
       <ul
         v-else-if="view === 'grid'"
         class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
       >
-        <li v-for="pkg in sortedNpmResults" :key="pkg.name" class="group relative">
-          <NuxtLink
-            :to="npmResultPath(pkg.name)"
-            :external="npmResultIsExternal(pkg.name)"
-            :target="npmResultIsExternal(pkg.name) ? '_blank' : undefined"
-            :rel="npmResultIsExternal(pkg.name) ? 'noopener noreferrer' : undefined"
-            :aria-label="`${pkg.name} v${pkg.version}`"
-            class="block rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-          >
-            <div class="min-w-0 flex items-start gap-3">
-              <img
-                v-if="resolvedSkills[pkg.name]"
-                :src="`https://github.com/${resolvedSkills[pkg.name]!.owner}.png?size=64`"
-                :alt="`${resolvedSkills[pkg.name]!.owner} avatar`"
-                width="32"
-                height="32"
-                class="size-8 rounded-full bg-muted shrink-0"
-                loading="lazy"
-              >
-              <div class="min-w-0 flex-1">
-                <p class="font-mono text-sm font-medium truncate" v-html="highlight(pkg.name)" />
-                <p class="mt-0.5 text-xs text-muted truncate">
-                  <template v-if="resolvedSkills[pkg.name]">
-                    {{ resolvedSkills[pkg.name]!.owner }}{{ resolvedSkills[pkg.name]!.official ? ' · official' : '' }}
-                  </template>
-                  <template v-else>
-                    v{{ pkg.version }}
-                  </template>
-                </p>
-              </div>
-            </div>
-            <p
-              v-if="pkg.description"
-              class="mt-2 text-xs text-muted line-clamp-2 leading-relaxed"
-            >
-              {{ pkg.description }}
-            </p>
-            <div class="mt-3 flex items-center justify-between gap-2">
-              <code class="truncate rounded bg-muted px-2 py-1 font-mono text-xs text-muted">
-                {{ npmInstallCmd(pkg.name) }}
-              </code>
-              <span class="data-label shrink-0">{{ formatDownloads(pkg.weeklyDownloads) }}/wk</span>
-            </div>
-          </NuxtLink>
-          <UButton
-            :icon="copiedName === pkg.name ? 'i-lucide-check' : 'i-lucide-copy'"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            class="absolute top-3 right-3 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-            :aria-label="copiedName === pkg.name ? 'Copied' : `Copy install command for ${pkg.name}`"
-            @click="copyCmd(pkg.name, npmInstallCmd(pkg.name))"
-          />
+        <li v-for="skill in registryData!.items" :key="skill.slug">
+          <SkillCard :skill show-tags show-owner-path />
         </li>
       </ul>
 
@@ -441,50 +469,43 @@ function clearOwner() {
         v-else
         class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
       >
-        <li v-for="pkg in sortedNpmResults" :key="pkg.name" class="group relative">
-          <NuxtLink
-            :to="npmResultPath(pkg.name)"
-            :external="npmResultIsExternal(pkg.name)"
-            :target="npmResultIsExternal(pkg.name) ? '_blank' : undefined"
-            :rel="npmResultIsExternal(pkg.name) ? 'noopener noreferrer' : undefined"
-            :aria-label="`${pkg.name} v${pkg.version}`"
-            class="flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated"
-          >
-            <div class="min-w-0 flex-1 flex items-center gap-3">
-              <img
-                v-if="resolvedSkills[pkg.name]"
-                :src="`https://github.com/${resolvedSkills[pkg.name]!.owner}.png?size=48`"
-                :alt="`${resolvedSkills[pkg.name]!.owner} avatar`"
-                width="24"
-                height="24"
-                class="size-6 rounded-full bg-muted shrink-0"
-                loading="lazy"
-              >
-              <p class="font-mono text-sm font-medium truncate shrink-0" v-html="highlight(pkg.name)" />
-              <p class="text-xs text-muted truncate hidden sm:block">
-                {{ pkg.description }}
-              </p>
-            </div>
-            <span class="data-label shrink-0">{{ formatDownloads(pkg.weeklyDownloads) }}/wk</span>
-          </NuxtLink>
-          <UButton
-            :icon="copiedName === pkg.name ? 'i-lucide-check' : 'i-lucide-copy'"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            class="absolute top-1/2 right-3 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-            :aria-label="copiedName === pkg.name ? 'Copied' : `Copy install command for ${pkg.name}`"
-            @click="copyCmd(pkg.name, npmInstallCmd(pkg.name))"
-          />
+        <li v-for="skill in registryData!.items" :key="skill.slug">
+          <SkillCard :skill variant="list" show-tags show-owner-path />
         </li>
       </ul>
+
+      <nav
+        v-if="totalPages > 1"
+        aria-label="Pagination"
+        class="mt-8 flex items-center justify-center gap-2"
+      >
+        <UButton
+          icon="i-lucide-chevron-left"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          aria-label="Previous page"
+          :disabled="page <= 1"
+          @click="page--"
+        />
+        <span class="data-label">
+          Page {{ page }} of {{ totalPages }}
+        </span>
+        <UButton
+          icon="i-lucide-chevron-right"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          aria-label="Next page"
+          :disabled="page >= totalPages"
+          @click="page++"
+        />
+      </nav>
     </section>
 
-    <!-- ===== DEFAULT MODE: Official sections + Community ===== -->
+    <!-- ===== DEFAULT MODE: Featured ===== -->
     <template v-else>
-      <!-- Developer sections -->
       <section
-        v-if="showOfficialSections"
         class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
         aria-labelledby="developers-heading"
       >
@@ -532,11 +553,9 @@ function clearOwner() {
         </div>
       </section>
 
-      <USeparator v-if="showOfficialSections" />
+      <USeparator />
 
-      <!-- Official sections -->
       <section
-        v-if="showOfficialSections"
         class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
         aria-labelledby="official-heading"
       >
@@ -552,7 +571,6 @@ function clearOwner() {
           </p>
         </div>
 
-        <!-- Featured loading -->
         <div
           v-if="featuredStatus === 'pending' && !featuredData"
           class="space-y-8"
@@ -632,151 +650,6 @@ function clearOwner() {
           </div>
         </div>
       </section>
-
-      <USeparator v-if="showOfficialSections" />
-
-      <!-- Community / owner-filtered registry list -->
-      <section
-        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
-        aria-labelledby="community-heading"
-      >
-        <div class="mb-6">
-          <h2
-            id="community-heading"
-            class="font-mono text-xl font-medium tracking-tight"
-          >
-            {{ isOwnerFiltered ? `Skills by ${owner}` : 'Community' }}
-          </h2>
-          <p v-if="!isOwnerFiltered" class="mt-1 text-sm text-muted leading-relaxed">
-            Candidate skills from the wider ecosystem, ranked by weekly install volume.
-          </p>
-        </div>
-
-        <div aria-live="polite" aria-atomic="true" class="sr-only">
-          <template v-if="isLoading">
-            Loading...
-          </template>
-          <template v-else-if="registryData && registryData.items.length === 0">
-            No skills found.
-          </template>
-          <template v-else-if="registryData">
-            {{ registryData.total }} skills.
-          </template>
-        </div>
-
-        <div
-          v-if="isLoading"
-          :class="view === 'grid' ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'flex flex-col gap-2'"
-          aria-busy="true"
-          aria-label="Loading"
-        >
-          <div
-            v-for="i in 12"
-            :key="i"
-            class="rounded-lg border border-default p-4"
-          >
-            <USkeleton class="h-4 w-3/4" />
-            <USkeleton class="mt-2 h-3 w-1/2" />
-            <USkeleton v-if="view === 'grid'" class="mt-4 h-3 w-full" />
-          </div>
-        </div>
-
-        <div
-          v-else-if="registryStatus === 'error'"
-          role="alert"
-          class="rounded-lg border border-default p-8 text-center"
-        >
-          <UIcon name="i-lucide-alert-circle" class="mx-auto size-8 text-muted" aria-hidden="true" />
-          <p class="mt-3 text-sm">
-            Couldn't load skills. Check your connection and try again.
-          </p>
-        </div>
-
-        <div
-          v-else-if="registryData && registryData.items.length === 0"
-          class="rounded-lg border border-default p-8 text-center"
-        >
-          <UIcon name="i-lucide-package" class="mx-auto size-8 text-muted" aria-hidden="true" />
-          <p class="mt-3 text-sm">
-            No skills here yet. Search for any npm package above to generate one.
-          </p>
-        </div>
-
-        <ul
-          v-else-if="registryData && view === 'grid'"
-          class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
-        >
-          <li v-for="skill in registryData.items" :key="skill.slug">
-            <SkillCard :skill show-owner-path />
-          </li>
-        </ul>
-
-        <ul
-          v-else-if="registryData && view === 'list'"
-          class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
-        >
-          <li v-for="skill in registryData.items" :key="skill.slug">
-            <SkillCard :skill variant="list" show-owner-path />
-          </li>
-        </ul>
-
-        <nav
-          v-if="totalPages > 1"
-          aria-label="Pagination"
-          class="mt-8 flex items-center justify-center gap-2"
-        >
-          <UButton
-            icon="i-lucide-chevron-left"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            aria-label="Previous page"
-            :disabled="page <= 1"
-            @click="page--"
-          />
-          <span class="data-label">
-            Page {{ page }} of {{ totalPages }}
-          </span>
-          <UButton
-            icon="i-lucide-chevron-right"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            aria-label="Next page"
-            :disabled="page >= totalPages"
-            @click="page++"
-          />
-        </nav>
-      </section>
     </template>
-
-    <!-- Search-mode pagination -->
-    <nav
-      v-if="isSearching && totalPages > 1"
-      aria-label="Pagination"
-      class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 flex items-center justify-center gap-2"
-    >
-      <UButton
-        icon="i-lucide-chevron-left"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        aria-label="Previous page"
-        :disabled="page <= 1"
-        @click="page--"
-      />
-      <span class="data-label">
-        Page {{ page }} of {{ totalPages }}
-      </span>
-      <UButton
-        icon="i-lucide-chevron-right"
-        color="neutral"
-        variant="ghost"
-        size="sm"
-        aria-label="Next page"
-        :disabled="page >= totalPages"
-        @click="page++"
-      />
-    </nav>
   </div>
 </template>
