@@ -52,11 +52,19 @@ let highlighter: WebHighlighter | null = null
 function highlightSync(code: string, lang: BundledLanguage | null): string {
   if (!highlighter || !lang)
     return `<pre tabindex="0"><code>${escapeHtml(code)}</code></pre>`
-  return highlighter.codeToHtml(code, {
-    lang,
-    themes: { light: 'github-light', dark: 'github-dark' },
-    defaultColor: false,
-  })
+  // Shiki throws if the lang wasn't actually loaded (some bundled langs fail
+  // to register silently). Fall back to plain pre rather than 500ing the
+  // whole page render.
+  try {
+    return highlighter.codeToHtml(code, {
+      lang,
+      themes: { light: 'github-light', dark: 'github-dark' },
+      defaultColor: false,
+    })
+  }
+  catch {
+    return `<pre tabindex="0"><code>${escapeHtml(code)}</code></pre>`
+  }
 }
 
 const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
@@ -228,8 +236,14 @@ export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promi
     highlighter = await getHighlighter()
     const loaded = new Set(highlighter.getLoadedLanguages())
     const toLoad = [...needed].filter(l => !loaded.has(l))
-    if (toLoad.length)
-      await highlighter.loadLanguage(...toLoad)
+    if (toLoad.length) {
+      // Some bundled langs (e.g. nested grammars) can fail to load; swallow
+      // here so the page still renders — highlightSync also falls back to
+      // plain pre per-block if codeToHtml throws.
+      await highlighter.loadLanguage(...toLoad).catch((err) => {
+        console.warn('[skill-md-render] loadLanguage failed', toLoad, err)
+      })
+    }
   }
 
   renderContext = ctx ?? null
