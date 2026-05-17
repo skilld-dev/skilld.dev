@@ -104,6 +104,13 @@ export default defineNuxtConfig({
       wrangler: {
         name: 'skilld-dev',
         compatibility_flags: ['nodejs_compat', 'no_nodejs_compat_v2'],
+        // Default CPU limit is 30s for scheduled handlers; sync-github-skills
+        // at MAX_REPOS_PER_RUN GraphQL/JSON parses exceeds it (observed
+        // outcome=exceededCpu in worker logs, killing the task before
+        // reportJobRun and stalling the sync_jobs row). Bump to 5min, the
+        // Workers Paid ceiling. CPU time is billed at $0.02/M ms above the
+        // 30M included pool, but our totals are well within free envelope.
+        limits: { cpu_ms: 300_000 },
         kv_namespaces: [
           { binding: 'KV_CACHE', id: '187e636458cb49faa2ae14743adc7736' },
           { binding: 'KV_DATA', id: 'cf3d794a55f84192a30f520686e1d932' },

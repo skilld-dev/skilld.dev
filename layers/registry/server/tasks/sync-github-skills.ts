@@ -8,14 +8,13 @@ import { pAll } from '#shared/server/p-all'
 
 const CONCURRENCY = 8
 const RATE_LIMIT_GUARD = 200 // bail when remaining drops below this
-// Cloudflare Workers cap outbound subrequests at 1000 per invocation.
-// Per-repo subrequest cost after the full GraphQL migration:
-//   unchanged:  1 (getRepoSummary; getTree short-circuited by tree SHA)
-//   changed:    4 (summary + tree + batched blobs + batched commits)
-// 500 repos × mostly-cached ≈ 600 subrequests + KV reads, well under cap.
-// Subscribed repos sort first so Loop 2 freshness is preserved; deferred
-// general repos catch up next hour.
-const MAX_REPOS_PER_RUN = 500
+// Cloudflare Workers cap outbound subrequests at 1000 per invocation
+// AND scheduled handlers have CPU time limits. GraphQL JSON parsing per
+// repo is heavier than REST per-call (one big payload vs many small),
+// so subrequest-cap headroom doesn't translate to CPU headroom. 500 hit
+// outcome=exceededCpu in production; 250 leaves margin even at the
+// raised 5min CPU ceiling.
+const MAX_REPOS_PER_RUN = 250
 const CRON = '0 * * * *'
 
 /**

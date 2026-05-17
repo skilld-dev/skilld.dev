@@ -36,13 +36,15 @@ export default defineCachedEventHandler(async (event) => {
   const countRow = await db.prepare(countSql).bind(...cluster.categories).first<{ n: number }>()
   const total = countRow?.n ?? 0
 
+  // stars moved to `repos` in migration 0034; JOIN explicitly.
   const listSql = `
-    SELECT owner, name, repo, display_name, description,
-           installs, stars, modified_at
-    FROM skills
-    WHERE is_abstract = 1
-      AND abstractness_category IN (${placeholders})
-    ORDER BY installs DESC
+    SELECT s.owner, s.name, s.repo, s.display_name, s.description,
+           s.installs, r.stars, s.modified_at
+    FROM skills s
+    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+    WHERE s.is_abstract = 1
+      AND s.abstractness_category IN (${placeholders})
+    ORDER BY s.installs DESC, r.stars DESC
     LIMIT ? OFFSET ?
   `
   const res = await db.prepare(listSql).bind(...cluster.categories, limit, offset).all<SkillRow>()
