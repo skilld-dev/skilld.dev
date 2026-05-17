@@ -1,8 +1,10 @@
 import type { H3Event } from 'h3'
-import type { FaqPayload } from '../../jobs/generate-faqs'
-import type { SummaryPayload } from '../../jobs/generate-summary'
-import type { TagPayload } from '../../jobs/generate-tags'
 import { SkillDetailResponseSchema } from 'skilld-protocol/wire'
+
+interface FaqPayload { faqs: { question: string, answer: string }[] }
+interface SummaryPayload { text: string }
+interface TagPayload { tags: string[] }
+
 import { getTree, resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
 import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
 import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
@@ -229,9 +231,12 @@ export default defineApiHandler({
     if (row?.rendered_html && renderedAge != null && renderedAge > LIVE_RENDER_STALE_SECONDS)
       scheduleRefresh(event, platform.db, skill.owner, skill.repo, skill.name, branch)
 
-    const tags = (tagRow?.payload.tags ?? [])
+    const rawAiTags = tagRow?.payload.tags ?? []
+    const tags = rawAiTags
       .map(s => TAG_BY_SLUG.get(s))
       .filter((t): t is NonNullable<typeof t> => Boolean(t))
+    const knownTagSlugs = new Set(tags.map(t => t.slug))
+    const keywords = rawAiTags.filter(t => !knownTagSlugs.has(t))
 
     const description = frontmatterString(rendered.frontmatter, 'description') ?? skill.description ?? null
     let assets: { path: string, size: number, type: string }[] = []
@@ -316,13 +321,10 @@ export default defineApiHandler({
         },
       },
       tags,
-      faqs: faqRow?.payload.items ?? [],
-      summary: summaryRow?.payload
-        ? {
-            tagline: summaryRow.payload.tagline,
-            blurb: summaryRow.payload.blurb,
-            useCases: summaryRow.payload.useCases,
-          }
+      keywords,
+      faqs: faqRow?.payload.faqs ?? [],
+      summary: summaryRow?.payload?.text
+        ? { text: summaryRow.payload.text }
         : null,
       provenance: {
         owner: skill.owner,

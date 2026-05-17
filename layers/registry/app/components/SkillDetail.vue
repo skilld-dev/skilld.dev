@@ -43,9 +43,7 @@ interface FaqItem {
 }
 
 interface SkillSummary {
-  tagline: string
-  blurb: string
-  useCases: string[]
+  text: string
 }
 
 interface SourceFacts {
@@ -138,6 +136,7 @@ const { data, status, error, refresh } = useFetch(
   tier: 'official-org' | 'official-user' | 'community'
   sourceFacts: SourceFacts
   tags: SkillTag[]
+  keywords: string[]
   faqs: FaqItem[]
   summary: SkillSummary | null
   provenance: {
@@ -660,14 +659,13 @@ useSchemaOrg(computed(() => {
 const skillTitle = computed(() => {
   if (!data.value)
     return 'Skill'
-  const tagline = data.value.summary?.tagline
-  return tagline ? `${data.value.name} — ${tagline}` : `${data.value.name} by ${data.value.owner}`
+  return `${data.value.name} by ${data.value.owner}`
 })
 
 const skillDescription = computed(() => {
   if (!data.value)
     return 'View skill details on skilld.'
-  const base = data.value.summary?.blurb
+  const base = data.value.summary?.text
     || data.value.description
     || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
   return withSourceContext(base, data.value.owner, data.value.repo)
@@ -925,7 +923,7 @@ useHead(computed(() => ({
           </div>
 
           <div
-            v-if="data.tags.length"
+            v-if="data.tags.length || data.keywords?.length"
             class="flex flex-wrap gap-1.5"
           >
             <NuxtLink
@@ -942,6 +940,18 @@ useHead(computed(() => ({
               />
               {{ tag.label }}
             </NuxtLink>
+            <span
+              v-for="kw in data.keywords"
+              :key="`kw-${kw}`"
+              class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted"
+            >
+              <UIcon
+                name="i-lucide-hash"
+                class="size-3"
+                aria-hidden="true"
+              />
+              {{ kw }}
+            </span>
           </div>
         </div>
       </template>
@@ -1250,27 +1260,8 @@ useHead(computed(() => ({
               What it does
             </h2>
             <p class="text-sm leading-relaxed">
-              {{ data.summary.blurb }}
+              {{ data.summary.text }}
             </p>
-            <template v-if="data.summary.useCases.length">
-              <h3 class="data-label mt-5 mb-2">
-                Common use cases
-              </h3>
-              <ul class="space-y-1.5 text-sm text-muted">
-                <li
-                  v-for="(uc, idx) in data.summary.useCases"
-                  :key="idx"
-                  class="flex items-start gap-2"
-                >
-                  <UIcon
-                    name="i-lucide-check"
-                    class="size-3.5 shrink-0 mt-1 text-muted"
-                    aria-hidden="true"
-                  />
-                  <span>{{ uc }}</span>
-                </li>
-              </ul>
-            </template>
             <p class="mt-4 text-xs text-muted">
               Generated from this skill's SKILL.md.
             </p>

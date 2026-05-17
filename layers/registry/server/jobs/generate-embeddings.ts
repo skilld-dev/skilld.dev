@@ -114,56 +114,52 @@ export async function generateEmbedding(ctx: EmbeddingContext, skill: EmbeddingS
   return payload
 }
 
-function cosine(a: number[], b: number[]): number {
-  const len = Math.min(a.length, b.length)
-  let dot = 0
-  for (let i = 0; i < len; i++) dot += a[i]! * b[i]!
-  return dot
+interface VectorizeMetadata {
+  owner?: unknown
+  repo?: unknown
+  name?: unknown
 }
 
-/**
- * Build a precomputed neighbor index by scanning all stored embeddings.
- * O(n²) but embeddings are small (512 floats) and we only run this offline.
- */
-export async function buildNeighborIndex(db: D1Database, topN = 10): Promise<Record<string, EmbeddingNeighbor[]>> {
-  const res = await db
-    .prepare('SELECT owner, repo, name, payload FROM skill_generated WHERE kind = ?')
-    .bind('embedding')
-    .all<{ owner: string, repo: string, name: string, payload: string }>()
-
-  const rows = (res.results ?? []).map((r) => {
-    const p = JSON.parse(r.payload) as EmbeddingPayload
-    return { owner: r.owner, name: r.name, vec: p.vector }
-  })
-
-  const out: Record<string, EmbeddingNeighbor[]> = {}
-  for (let i = 0; i < rows.length; i++) {
-    const a = rows[i]!
-    const candidates: EmbeddingNeighbor[] = []
-    for (let j = 0; j < rows.length; j++) {
-      if (i === j)
-        continue
-      const b = rows[j]!
-      const sim = cosine(a.vec, b.vec)
-      candidates.push({ name: b.name, owner: b.owner, similarity: sim })
-    }
-    candidates.sort((x, y) => y.similarity - x.similarity)
-    out[`${a.owner}/${a.name}`] = candidates.slice(0, topN)
-  }
-  return out
-}
-
-const NEIGHBOR_CACHE_KEY = 'skills:embedding-neighbors:v1'
-const NEIGHBOR_TTL = 60 * 60 * 24 // embeddings are stable, rebuild once a day
+const NEIGHBOR_CACHE_TTL = 60 * 60 * 6
+const NEIGHBOR_TOP_K = 10
 
 export async function getEmbeddingNeighbors(
-  db: D1Database,
-  skill: { owner: string, name: string },
+  vectorize: Vectorize | undefined,
+  skill: { owner: string, repo: string, name: string },
 ): Promise<EmbeddingNeighbor[]> {
-  let index = await useStorage('cache').getItem<Record<string, EmbeddingNeighbor[]>>(NEIGHBOR_CACHE_KEY)
-  if (!index) {
-    index = await buildNeighborIndex(db)
-    await useStorage('cache').setItem(NEIGHBOR_CACHE_KEY, index, { ttl: NEIGHBOR_TTL })
+  if (!vectorize)
+    return []
+
+  const id = `${skill.owner}/${skill.repo}/${skill.name}`
+  const cacheKey = `skills:embedding-neighbors:v2:${id}`
+  const cached = await useStorage('cache').getItem<EmbeddingNeighbor[]>(cacheKey)
+  if (cached)
+    return cached
+
+  const matches = await vectorize
+    .queryById(id, { topK: NEIGHBOR_TOP_K + 1, returnMetadata: 'indexed' })
+    .catch((err: Error) => {
+      console.warn(`[embedding-neighbors] queryById failed for ${id}:`, err.message)
+      return null
+    })
+
+  if (!matches?.matches?.length)
+    return []
+
+  const neighbors: EmbeddingNeighbor[] = []
+  for (const m of matches.matches) {
+    if (m.id === id)
+      continue
+    const meta = (m.metadata ?? {}) as VectorizeMetadata
+    const owner = typeof meta.owner === 'string' ? meta.owner : m.id.split('/')[0]
+    const name = typeof meta.name === 'string' ? meta.name : m.id.split('/')[2]
+    if (!owner || !name)
+      continue
+    neighbors.push({ owner, name, similarity: m.score })
+    if (neighbors.length >= NEIGHBOR_TOP_K)
+      break
   }
-  return index[`${skill.owner}/${skill.name}`] ?? []
+
+  await useStorage('cache').setItem(cacheKey, neighbors, { ttl: NEIGHBOR_CACHE_TTL })
+  return neighbors
 }
