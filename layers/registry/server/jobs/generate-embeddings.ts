@@ -9,7 +9,8 @@
  * Storage: precomputed top-N neighbor list per skill, written to KV as one
  * blob keyed by model+version. No vector DB.
  */
-import { getGenerated, putGenerated, sha1 } from '~~/layers/registry/server/utils/skill-generated'
+import { getGenerated, putGenerated, sha1 } from '#layers/registry/server/utils/skill-generated'
+import { vectorIdFor } from '#layers/registry/server/utils/vector-id'
 
 const VOYAGE_URL = 'https://api.voyageai.com/v1/embeddings'
 const EMBED_DIM = 512
@@ -130,8 +131,11 @@ export async function getEmbeddingNeighbors(
   if (!vectorize)
     return []
 
-  const id = `${skill.owner}/${skill.repo}/${skill.name}`
-  const cacheKey = `skills:embedding-neighbors:v2:${id}`
+  // Vectorize ids are SHA-256 hex of `${owner}/${repo}/${name}` (64-byte
+  // cap on natural keys). Cache key keeps the human-readable form.
+  const naturalKey = `${skill.owner}/${skill.repo}/${skill.name}`
+  const id = await vectorIdFor(skill)
+  const cacheKey = `skills:embedding-neighbors:v3:${naturalKey}`
   const cached = await useStorage('cache').getItem<EmbeddingNeighbor[]>(cacheKey)
   if (cached)
     return cached
@@ -139,7 +143,7 @@ export async function getEmbeddingNeighbors(
   const matches = await vectorize
     .queryById(id, { topK: NEIGHBOR_TOP_K + 1, returnMetadata: 'indexed' })
     .catch((err: Error) => {
-      console.warn(`[embedding-neighbors] queryById failed for ${id}:`, err.message)
+      console.warn(`[embedding-neighbors] queryById failed for ${naturalKey}:`, err.message)
       return null
     })
 

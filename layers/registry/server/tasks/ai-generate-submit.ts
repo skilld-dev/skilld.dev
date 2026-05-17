@@ -1,7 +1,8 @@
-import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '~~/layers/registry/server/utils/ai-prompts'
-/// <reference types="@cloudflare/workers-types" />
-import { putGenerated } from '~~/layers/registry/server/utils/skill-generated'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '#layers/registry/server/utils/ai-prompts'
+/// <reference types="@cloudflare/workers-types" />
+import { putGenerated } from '#layers/registry/server/utils/skill-generated'
+import { vectorIdFor } from '#layers/registry/server/utils/vector-id'
 import { extractJson } from '#shared/server/anthropic'
 import { pAll } from '#shared/server/p-all'
 
@@ -182,8 +183,9 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
         // Workers AI returns { data: number[][], shape: [n, dim] }
       const vec = (embed as { data?: number[][] } | null)?.data?.[0]
       if (vec && vec.length === VECTORIZE_DIM) {
+        const vectorId = await vectorIdFor(skill)
         await vectorize.upsert([{
-          id: `${skill.owner}/${skill.repo}/${skill.name}`,
+          id: vectorId,
           values: vec,
           metadata: { sha: skill.current_sha, owner: skill.owner, repo: skill.repo, name: skill.name },
         }]).catch((err) => {
