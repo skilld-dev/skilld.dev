@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { parseSkillMd } from './skill-md-render'
 
 describe('parseSkillMd', () => {
-  it('adds column scope to rendered markdown table headers', () => {
-    const { html } = parseSkillMd([
+  it('adds column scope to rendered markdown table headers', async () => {
+    const { html } = await parseSkillMd([
       '| Tool | Purpose |',
       '| --- | ---: |',
       '| Codex | Editing |',

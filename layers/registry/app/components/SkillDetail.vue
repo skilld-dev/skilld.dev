@@ -1831,7 +1831,9 @@ useHead(computed(() => ({
 }
 
 .skill-markdown :deep(pre),
-.skill-markdown :deep(.shiki) {
+.skill-markdown :deep(.shiki),
+.skill-prose :deep(pre),
+.skill-prose :deep(.shiki) {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   line-height: 1.65;
@@ -1841,13 +1843,15 @@ useHead(computed(() => ({
   padding: 0.875rem 1rem;
   overflow-x: auto;
 }
-.skill-markdown :deep(.shiki span) {
+.skill-markdown :deep(.shiki span),
+.skill-prose :deep(.shiki span) {
   color: var(--shiki-light);
   font-style: var(--shiki-light-font-style);
   font-weight: var(--shiki-light-font-weight);
   background: transparent !important;
 }
-.dark .skill-markdown :deep(.shiki span) {
+.dark .skill-markdown :deep(.shiki span),
+.dark .skill-prose :deep(.shiki span) {
   color: var(--shiki-dark);
   font-style: var(--shiki-dark-font-style);
   font-weight: var(--shiki-dark-font-weight);

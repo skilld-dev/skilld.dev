@@ -146,7 +146,7 @@ export default defineApiHandler({
     const type = asset.type ?? classifyAsset(filePath)
     let html: string | null = null
     if (type === 'markdown') {
-      const parsed = parseSkillMd(raw, {
+      const parsed = await parseSkillMd(raw, {
         owner: skill.owner,
         repo: skill.repo,
         name: skill.name,

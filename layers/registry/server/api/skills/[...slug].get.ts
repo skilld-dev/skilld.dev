@@ -200,7 +200,7 @@ export default defineApiHandler({
     let rendered: RenderedView
     if (row?.rendered_html && row.rendered_status === 'ok') {
       const reparsed = row.rendered_raw
-        ? parseSkillMd(row.rendered_raw, {
+        ? await parseSkillMd(row.rendered_raw, {
             owner: skill.owner,
             repo: skill.repo,
             name: skill.name,
@@ -418,7 +418,7 @@ async function renderLive(
     const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
     if (raw) {
       const skillDir = path.replace(/\/SKILL\.md$/, '')
-      const parsed = parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
+      const parsed = await parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
       return {
         skillPath: path,
         raw,
@@ -443,7 +443,7 @@ async function renderLive(
     const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
     if (raw) {
       const skillDir = match.path.replace(/\/SKILL\.md$/, '')
-      const parsed = parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
+      const parsed = await parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
       return {
         skillPath: match.path,
         raw,

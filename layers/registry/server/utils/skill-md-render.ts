@@ -1,5 +1,63 @@
 import type { Renderer, Tokens } from 'marked'
+import type { BundledLanguage, HighlighterGeneric } from 'shiki/bundle/web'
 import { Marked } from 'marked'
+import { bundledLanguages, createHighlighter } from 'shiki/bundle/web'
+
+type WebHighlighter = HighlighterGeneric<BundledLanguage, 'github-light' | 'github-dark'>
+
+let highlighterPromise: Promise<WebHighlighter> | null = null
+function getHighlighter(): Promise<WebHighlighter> {
+  if (!highlighterPromise) {
+    highlighterPromise = createHighlighter({
+      themes: ['github-light', 'github-dark'],
+      langs: [],
+    }) as Promise<WebHighlighter>
+  }
+  return highlighterPromise
+}
+
+const LANG_ALIASES: Record<string, BundledLanguage> = {
+  sh: 'bash',
+  shell: 'bash',
+  zsh: 'bash',
+  yml: 'yaml',
+  js: 'javascript',
+  ts: 'typescript',
+  py: 'python',
+}
+
+function resolveLang(raw: string | undefined | null): BundledLanguage | null {
+  if (!raw)
+    return null
+  const lang = raw.trim().toLowerCase().split(/\s+/)[0]!
+  if (!lang)
+    return null
+  const aliased = LANG_ALIASES[lang] ?? (lang as BundledLanguage)
+  return aliased in bundledLanguages ? aliased : null
+}
+
+function extractFenceLangs(body: string): Set<BundledLanguage> {
+  const langs = new Set<BundledLanguage>()
+  const re = /(^|\n)\s{0,3}(?:```|~~~)([^\n`~]*)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body)) !== null) {
+    const resolved = resolveLang(m[2])
+    if (resolved)
+      langs.add(resolved)
+  }
+  return langs
+}
+
+let highlighter: WebHighlighter | null = null
+function highlightSync(code: string, lang: BundledLanguage | null): string {
+  if (!highlighter || !lang)
+    return `<pre tabindex="0"><code>${escapeHtml(code)}</code></pre>`
+  return highlighter.codeToHtml(code, {
+    lang,
+    themes: { light: 'github-light', dark: 'github-dark' },
+    defaultColor: false,
+  })
+}
 
 const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
 const HTML_ESCAPE_RE = /[&<>"']/g
@@ -119,6 +177,10 @@ const skillMd = new Marked({
       const align = token.align ? ` align="${token.align}"` : ''
       return `<${tag}${scope}${align}>${content}</${tag}>\n`
     },
+    code({ text, lang }: Tokens.Code) {
+      const resolved = resolveLang(lang)
+      return highlightSync(text, resolved)
+    },
   },
 })
 
@@ -143,7 +205,7 @@ function parseFrontmatterValue(value: string): unknown {
   return trimmed.replace(/^['"]|['"]$/g, '')
 }
 
-export function parseSkillMd(raw: string, ctx?: SkillRenderContext): ParsedSkillMd {
+export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promise<ParsedSkillMd> {
   const frontmatter: Record<string, unknown> = {}
   let body = raw
 
@@ -159,6 +221,15 @@ export function parseSkillMd(raw: string, ctx?: SkillRenderContext): ParsedSkill
       frontmatter[key] = parseFrontmatterValue(line.slice(colonIdx + 1))
     }
     body = fmMatch[2]!
+  }
+
+  const needed = extractFenceLangs(body)
+  if (needed.size) {
+    highlighter = await getHighlighter()
+    const loaded = new Set(highlighter.getLoadedLanguages())
+    const toLoad = [...needed].filter(l => !loaded.has(l))
+    if (toLoad.length)
+      await highlighter.loadLanguage(...toLoad)
   }
 
   renderContext = ctx ?? null

@@ -291,7 +291,7 @@ export async function syncRepo(
     const refsCount = assets.length
     const description = parsed.description || repoDescription
     const skillDir = file.path.replace(/\/SKILL\.md$/, '')
-    const rendered = parseSkillMd(raw, {
+    const rendered = await parseSkillMd(raw, {
       owner,
       repo,
       name: parsed.name,
