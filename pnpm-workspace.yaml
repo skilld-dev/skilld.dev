@@ -37,7 +37,7 @@ catalog:
   mimetext: ^3.0.28
   motion-v: ^2.2.1
   nitro-cloudflare-dev: ^0.2.2
-  nuxt: ^4.4.5
+  nuxt: ^4.4.6
   nuxt-ai-ready: ^1.3.7
   nuxt-auth-utils: ^0.5.29
   nuxt-og-image: ^6.5.0
