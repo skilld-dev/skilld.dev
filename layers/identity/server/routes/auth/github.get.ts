@@ -1,3 +1,4 @@
+import { scanOwnedRepos } from '../../utils/scan-owned-repos'
 import { upsertUserFromGithub } from '../../utils/users'
 import { handleWatchAction } from '../../utils/watch-actions'
 
@@ -17,6 +18,27 @@ export default defineOAuthGitHubEventHandler({
     const scopes = ['read:user', 'user:email']
 
     const row = await upsertUserFromGithub(event, profile, accessToken, scopes)
+
+    // First-time signup: kick off a background scan of the user's public repos
+    // for SKILL.md files via GitHub code search, indexing each into `skills`.
+    if (!row.onboarded_at && accessToken) {
+      const platform = event.context.platform
+      if (platform) {
+        const scanPromise = scanOwnedRepos({
+          login: row.login,
+          userToken: accessToken,
+          db: platform.db,
+          env: platform.env as unknown as Record<string, unknown>,
+        }).catch((err) => {
+          console.warn(`[oauth] owned-repo scan failed for @${row.login}:`, err)
+        })
+        const cfCtx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
+        if (cfCtx?.waitUntil)
+          cfCtx.waitUntil(scanPromise)
+        else
+          void scanPromise
+      }
+    }
 
     await setUserSession(event, {
       user: {
