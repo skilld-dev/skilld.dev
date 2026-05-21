@@ -55,6 +55,7 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'github', repo: 'awesome-copilot', kind: 'org' },
   { owner: 'google-gemini', repo: 'gemini-skills', kind: 'org' },
   { owner: 'google-labs-code', repo: 'stitch-skills', kind: 'org' },
+  { owner: 'GoogleChrome', repo: 'modern-web-guidance', kind: 'org' },
   { owner: 'hashicorp', repo: 'agent-skills', kind: 'org' },
   { owner: 'huggingface', repo: 'skills', kind: 'org' },
   { owner: 'kotlin', repo: 'kotlin-agent-skills', kind: 'org' },
