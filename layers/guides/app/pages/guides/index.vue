@@ -30,7 +30,7 @@ useSeoMeta({
     <ul v-if="guides?.length" class="divide-y divide-default">
       <li v-for="guide in guides" :key="guide.slug">
         <NuxtLink
-          :to="`/guides/${guide.slug}`"
+          :to="`/guides/npm/${guide.slug}`"
           class="flex items-center justify-between gap-3 py-3 hover:text-primary"
         >
           <span class="font-mono text-sm">{{ guide.packageName }}</span>

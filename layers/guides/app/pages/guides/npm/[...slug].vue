@@ -70,7 +70,7 @@ const description = computed(() =>
 )
 
 const url = useRequestURL()
-const canonical = computed(() => `${url.origin}/guides/${meta.value.slug}`)
+const canonical = computed(() => `${url.origin}/guides/npm/${meta.value.slug}`)
 
 useSeoMeta({
   title: () => meta.value.title,
@@ -114,7 +114,7 @@ useSchemaOrg(() => {
     defineBreadcrumb({
       itemListElement: [
         { name: 'Migration guides', item: '/guides' },
-        { name: m.title, item: `/guides/${m.slug}` },
+        { name: m.title, item: `/guides/npm/${m.slug}` },
       ],
     }),
   ]
@@ -202,12 +202,11 @@ useSchemaOrg(() => {
       </div>
     </UCard>
 
-    <!-- Prose typography is defined in this component's <style> (not the global
-         skill-prose), because Nuxt's per-route CSS splitting does not ship the
-         global custom classes to this route in production. Self-contained styles
-         travel with the route chunk and fix the standalone mdxg renderer's
-         hardcoded light-mode colours (near-black text, white code blocks). -->
-    <div class="mdxg-guide">
+    <!-- skill-prose (global, in entry.css) supplies typography; the .mdxg-guide
+         rule in main.css remaps the standalone mdxg renderer's hardcoded
+         light-mode vars onto --ui-* tokens. Both must be GLOBAL: Nuxt does not
+         inject this layer page's route CSS chunk in production. -->
+    <div class="skill-prose mdxg-guide">
       <MdxgPageView
         v-for="page in data.document.pages"
         :key="page.slug"
@@ -228,86 +227,3 @@ useSchemaOrg(() => {
     </footer>
   </UContainer>
 </template>
-
-<style scoped>
-/* Self-contained guide prose. Mirrors the global .skill-prose using --ui-* tokens
-   so it stays theme- and dark-mode-aware, and remaps the standalone mdxg
-   renderer's hardcoded light-mode vars onto the same tokens. :deep() is required
-   because the content is rendered by the child MdxgPageView (.mdxg-page). */
-.mdxg-guide {
-  --mdxg-color-fg: var(--ui-text);
-  --mdxg-color-muted: var(--ui-text-muted);
-  --mdxg-color-bg: var(--ui-bg);
-  --mdxg-color-surface: var(--ui-bg-muted);
-  --mdxg-color-border: var(--ui-border);
-  --mdxg-color-accent: var(--ui-primary);
-  color: var(--ui-text);
-  font-size: 0.9375rem;
-  line-height: 1.7;
-}
-.mdxg-guide :deep(.mdxg-page > :first-child) { margin-top: 0; }
-.mdxg-guide :deep(.mdxg-page > :last-child) { margin-bottom: 0; }
-.mdxg-guide :deep(h1),
-.mdxg-guide :deep(h2),
-.mdxg-guide :deep(h3),
-.mdxg-guide :deep(h4) {
-  font-family: var(--font-sans);
-  font-weight: 600;
-  line-height: 1.3;
-  margin: 1.75em 0 0.6em;
-  color: var(--ui-text);
-}
-.mdxg-guide :deep(h2) { font-size: 1.25rem; }
-.mdxg-guide :deep(h3) { font-size: 1.0625rem; }
-.mdxg-guide :deep(h4) { font-size: 0.9375rem; }
-.mdxg-guide :deep(p),
-.mdxg-guide :deep(ul),
-.mdxg-guide :deep(ol),
-.mdxg-guide :deep(blockquote),
-.mdxg-guide :deep(table) { margin: 0.9em 0; }
-.mdxg-guide :deep(ul),
-.mdxg-guide :deep(ol) { padding-left: 1.5em; }
-.mdxg-guide :deep(ul) { list-style: disc; }
-.mdxg-guide :deep(ol) { list-style: decimal; }
-.mdxg-guide :deep(li) { margin: 0.3em 0; }
-.mdxg-guide :deep(a) {
-  color: var(--ui-color-primary-500);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-/* The fixed primary rose is ~3.76:1 on the dark body bg (WCAG fail); lighten in dark.
-   .dark is an ancestor (on <html>), so it scopes fine without :global(). */
-.dark .mdxg-guide :deep(a) { color: oklch(0.74 0.15 17.32); }
-.mdxg-guide :deep(a:hover) { color: var(--ui-text); }
-.mdxg-guide :deep(strong) { font-weight: 600; color: var(--ui-text); }
-.mdxg-guide :deep(:not(pre) > code) {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-  background: var(--ui-bg-muted);
-  border: 1px solid var(--ui-border-muted);
-  border-radius: 0.25rem;
-  padding: 0.1em 0.35em;
-}
-.mdxg-guide :deep(pre) {
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  line-height: 1.6;
-  background: var(--ui-bg-muted);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  padding: 0.9rem 1rem;
-  overflow-x: auto;
-  margin: 1em 0;
-}
-.mdxg-guide :deep(pre code) { background: transparent; border: 0; padding: 0; font-size: inherit; }
-.mdxg-guide :deep(blockquote) {
-  border-left: 3px solid var(--ui-border);
-  padding-left: 1em;
-  color: var(--ui-text-muted);
-}
-.mdxg-guide :deep(table) { width: 100%; border-collapse: collapse; font-size: 0.875rem; display: block; overflow-x: auto; }
-.mdxg-guide :deep(th),
-.mdxg-guide :deep(td) { border: 1px solid var(--ui-border-muted); padding: 0.5rem 0.75rem; text-align: left; }
-.mdxg-guide :deep(th) { background: var(--ui-bg-muted); font-weight: 600; }
-.mdxg-guide :deep(hr) { border: 0; border-top: 1px solid var(--ui-border-muted); margin: 1.5em 0; }
-</style>
