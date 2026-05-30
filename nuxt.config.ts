@@ -9,7 +9,7 @@ const scheduledTasks = {
 }
 
 export default defineNuxtConfig({
-  extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing'],
+  extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/guides', './layers/marketing'],
 
   modules: [
     './modules/mdxg/src/module',
@@ -190,6 +190,10 @@ export default defineNuxtConfig({
         '/api/skill-related/**': { swr: 3600 },
         '/api/skills-raw/**': { swr: 3600 },
         '/api/skill-social/**': { swr: 3600 },
+        '/guides/**': { swr: 3600 },
+        '/api/npm-guides': { swr: 3600 },
+        '/api/npm-guides/**': { swr: 3600 },
+        '/api/npm-guides-raw/**': { swr: 3600 },
       }
     : {},
   future: {
@@ -237,7 +241,7 @@ export default defineNuxtConfig({
     sitemaps: {
       pages: {
         includeAppSources: true,
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new'],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/guides/**'],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],
@@ -254,6 +258,10 @@ export default defineNuxtConfig({
       },
       tags: {
         sources: ['/api/__sitemap__/tags'],
+        includeAppSources: false,
+      },
+      guides: {
+        sources: ['/api/__sitemap__/npm-guides'],
         includeAppSources: false,
       },
     },
