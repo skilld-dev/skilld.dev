@@ -14,6 +14,14 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Guide not found' })
 
     const document = await parseMdxg(guide.markdown)
+
+    // The page renders its own canonical <h1> from the title, so drop the
+    // markdown's leading h1 to avoid a duplicate top-level heading (SEO + a11y).
+    const firstPage = document.pages?.[0]
+    const firstChild = firstPage?.body?.children?.[0] as { tag?: string } | undefined
+    if (firstChild?.tag === 'h1')
+      firstPage!.body.children.shift()
+
     return {
       meta: {
         slug: guide.slug,
