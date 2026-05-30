@@ -226,19 +226,6 @@
    for normal text); lighten links in dark mode to clear 4.5:1 while staying rose. */
 .dark .skill-prose a { color: oklch(0.74 0.15 17.32); }
 .skill-prose a:hover { color: var(--ui-text); }
-
-/* Migration guides render the standalone mdxg renderer, whose styles.css hardcodes
-   light-mode colours (near-black text, white code/table surfaces, blue accent) at
-   :root with no dark variant. Remap its vars onto the site's dark-aware --ui-*
-   tokens so nested .mdxg-page rules follow the theme. */
-.mdxg-guide {
-  --mdxg-color-fg: var(--ui-text);
-  --mdxg-color-muted: var(--ui-text-muted);
-  --mdxg-color-bg: var(--ui-bg);
-  --mdxg-color-surface: var(--ui-bg-muted);
-  --mdxg-color-border: var(--ui-border);
-  --mdxg-color-accent: var(--ui-primary);
-}
 .skill-prose a[target="_blank"]::after {
   content: "↗";
   display: inline-block;
