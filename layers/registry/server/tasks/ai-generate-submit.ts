@@ -10,6 +10,10 @@ const CRON = '15 * * * *'
 // Bounded so a single backfill spike can't blow Anthropic batch spend.
 // Steady state is much lower thanks to the ai_generated_sha short-circuit.
 const BATCH_LIMIT = 50
+// Embeddings are cheap (Workers AI, no Anthropic spend) and gate search recall,
+// so catch them up on a separate, larger sweep decoupled from the Anthropic-
+// limited generation batch. Kept under the 1000-subrequest cap (200 * ~3 calls).
+const EMBED_BACKFILL_LIMIT = 200
 // Cloudflare Vectorize free tier rate-limits upserts aggressively (429
 // VECTOR_UPSERT_ERROR 40041 at concurrency 8). 3 is the sustainable
 // ceiling observed in production; wall time goes 7s → ~18s, still well
@@ -55,6 +59,45 @@ interface BatchRequestItem {
 // the original mapping in payload-by-index so the poll task can resolve.
 function encodeCustomId(index: number, kind: string): string {
   return `${index}-${kind}`
+}
+
+// Embed a skill's rendered SKILL.md and upsert it into the Vectorize index,
+// recording the embedding marker in skill_generated. Idempotent (upsert + sha
+// marker), so safe to call from both the generation batch and the backfill sweep.
+async function embedAndUpsert(
+  db: D1Database,
+  ai: AiBinding,
+  vectorize: VectorizeBinding,
+  skill: StaleSkillRow,
+  summary: { embeddingsWritten: number, errors: string[] },
+): Promise<void> {
+  const input = (skill.rendered_raw ?? '').slice(0, 8000)
+  const embed = await ai.run(EMBEDDING_MODEL, { text: [input] }).catch((err) => {
+    summary.errors.push(`embed ${skill.owner}/${skill.name}: ${(err as Error).message}`)
+    return null
+  })
+  // Workers AI returns { data: number[][], shape: [n, dim] }
+  const vec = (embed as { data?: number[][] } | null)?.data?.[0]
+  if (!vec || vec.length !== VECTORIZE_DIM)
+    return
+
+  const vectorId = await vectorIdFor(skill)
+  await vectorize.upsert([{
+    id: vectorId,
+    values: vec,
+    metadata: { sha: skill.current_sha, owner: skill.owner, repo: skill.repo, name: skill.name },
+  }]).catch((err) => {
+    summary.errors.push(`vectorize ${skill.owner}/${skill.name}: ${(err as Error).message}`)
+  })
+  await putGenerated(db, {
+    owner: skill.owner,
+    repo: skill.repo,
+    name: skill.name,
+    kind: 'embedding',
+    sha: skill.current_sha,
+    payload: { stored_in: 'vectorize', dim: VECTORIZE_DIM },
+  })
+  summary.embeddingsWritten += 1
 }
 
 export default defineTask({
@@ -173,35 +216,8 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
   // --- 1. Workers AI: embedding + abstractness, parallelised ---
   await pAll(skills, AI_CONCURRENCY, async (skill) => {
     // Embedding
-    if (ai && vectorize) {
-      const input = (skill.rendered_raw ?? '').slice(0, 8000)
-      const embed = await ai.run(EMBEDDING_MODEL, { text: [input] })
-        .catch((err) => {
-          summary.errors.push(`embed ${skill.owner}/${skill.name}: ${(err as Error).message}`)
-          return null
-        })
-        // Workers AI returns { data: number[][], shape: [n, dim] }
-      const vec = (embed as { data?: number[][] } | null)?.data?.[0]
-      if (vec && vec.length === VECTORIZE_DIM) {
-        const vectorId = await vectorIdFor(skill)
-        await vectorize.upsert([{
-          id: vectorId,
-          values: vec,
-          metadata: { sha: skill.current_sha, owner: skill.owner, repo: skill.repo, name: skill.name },
-        }]).catch((err) => {
-          summary.errors.push(`vectorize ${skill.owner}/${skill.name}: ${(err as Error).message}`)
-        })
-        await putGenerated(db, {
-          owner: skill.owner,
-          repo: skill.repo,
-          name: skill.name,
-          kind: 'embedding',
-          sha: skill.current_sha,
-          payload: { stored_in: 'vectorize', dim: VECTORIZE_DIM },
-        })
-        summary.embeddingsWritten += 1
-      }
-    }
+    if (ai && vectorize)
+      await embedAndUpsert(db, ai, vectorize, skill, summary)
 
     // Abstractness
     if (ai) {
@@ -240,6 +256,37 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
       }
     }
   })
+
+  // --- 1b. Embedding-only backfill: catch up missing vectors fast (no
+  // Anthropic spend), so search recall converges in a few cron ticks rather
+  // than trickling at BATCH_LIMIT/run behind the generation queue. ---
+  if (ai && vectorize) {
+    const missing = await db
+      .prepare(
+        `SELECT s.owner, s.repo, s.name, s.current_sha, s.rendered_raw, s.display_name
+           FROM skills s
+           JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+           WHERE r.broken_since IS NULL
+             AND s.current_sha IS NOT NULL
+             AND s.rendered_raw IS NOT NULL
+             AND s.rendered_status = 'ok'
+             AND s.seo_indexable = 1
+             AND NOT EXISTS (
+               SELECT 1 FROM skill_generated g
+               WHERE g.owner = s.owner AND g.repo = s.repo AND g.name = s.name
+                 AND g.kind = 'embedding' AND g.sha = s.current_sha
+             )
+           ORDER BY s.installs DESC
+           LIMIT ?1`,
+      )
+      .bind(EMBED_BACKFILL_LIMIT)
+      .all<StaleSkillRow>()
+    const toEmbed = (missing.results ?? []).filter(r => r.rendered_raw && r.current_sha)
+    if (toEmbed.length) {
+      await pAll(toEmbed, AI_CONCURRENCY, skill => embedAndUpsert(db, ai, vectorize, skill, summary))
+      summary.scanned += toEmbed.length
+    }
+  }
 
   // --- 2. Async: summary/tags/faq via Anthropic Batch API ---
   if (apiKey) {
