@@ -43,6 +43,21 @@ const rawUrl = computed(() => `/api/npm-guides-raw/${slug.value}`)
 
 const { copy, copied } = useClipboard({ source: installCmd })
 
+// Major framing: a guide is scoped to one major, so signal the jump explicitly
+// ("v8 → v9") rather than leaving the reader to parse "8.3.18 → 9.2.2".
+function majorOf(v?: string): number | null {
+  if (!v)
+    return null
+  const n = Number.parseInt(String(v).replace(/^\D+/, ''), 10)
+  return Number.isNaN(n) ? null : n
+}
+const fromMajor = computed(() => majorOf(meta.value.fromVersion))
+const toMajor = computed(() => majorOf(meta.value.version))
+const isMajorJump = computed(() => fromMajor.value != null && fromMajor.value !== toMajor.value)
+const majorLabel = computed(() =>
+  isMajorJump.value ? `v${fromMajor.value} → v${toMajor.value}` : (toMajor.value != null ? `v${toMajor.value}` : null),
+)
+
 // Surface the bucketed change counts as a change8-style summary strip. Breaking
 // changes are the decision signal, so they lead and carry semantic colour; the
 // rest stay quiet. A guide with no actionable changes says so plainly.
@@ -132,8 +147,19 @@ useSchemaOrg(() => {
         Migrating {{ meta.packageName }} to {{ meta.version }}
       </h1>
 
-      <!-- Identity + provenance row, quiet mono chrome. -->
+      <!-- Identity + provenance row, quiet mono chrome. Lead with the major
+           jump so the scope (v8 → v9) reads instantly; exact versions follow. -->
       <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted">
+        <UBadge
+          v-if="majorLabel"
+          :color="isMajorJump ? 'primary' : 'neutral'"
+          variant="subtle"
+          size="sm"
+          class="font-mono"
+          :aria-label="isMajorJump ? `major upgrade ${majorLabel}` : `major version ${majorLabel}`"
+        >
+          {{ majorLabel }}
+        </UBadge>
         <span class="text-default">{{ meta.packageName }}</span>
         <span v-if="meta.fromVersion" aria-label="upgrade range">{{ meta.fromVersion }} → {{ meta.version }}</span>
         <span v-else>{{ meta.version }}</span>
