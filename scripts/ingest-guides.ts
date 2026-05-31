@@ -47,8 +47,20 @@ const ZERO = { breaking: 0, features: 0, fixes: 0, improvements: 0 }
 const files = readdirSync(dir).filter(f => f.endsWith('.json') && f !== '_manifest.json')
 const generatedAt = new Date().toISOString()
 
+interface RB { version: string, buckets?: { breaking?: string[], features?: string[] }, counts?: unknown }
+// The page renders only breaking + features bullets per version (fixes/improvements
+// show as counts), so drop the fix/improvement bullet text — it bloats a single
+// INSERT past SQLite's ~1MB statement limit on big packages (mui, wasm-pack).
+function trimReleaseBuckets(rb: RB[] | undefined): unknown[] {
+  return (rb ?? []).map(r => ({
+    version: r.version,
+    counts: r.counts,
+    buckets: { breaking: r.buckets?.breaking ?? [], features: r.buckets?.features ?? [], fixes: [], improvements: [] },
+  }))
+}
+
 const statements = files.map((file) => {
-  const g = JSON.parse(readFileSync(join(dir, file), 'utf8')) as Guide
+  const g = JSON.parse(readFileSync(join(dir, file), 'utf8')) as Guide & { releaseBuckets?: RB[] }
   const cols = [
     sql(g.slug),
     sql(g.packageName),
@@ -61,7 +73,7 @@ const statements = files.map((file) => {
     sql(g.title),
     sql(g.markdown),
     sql(JSON.stringify(g.supersedes ?? [])),
-    sql(JSON.stringify(g.releaseBuckets ?? [])),
+    sql(JSON.stringify(trimReleaseBuckets(g.releaseBuckets))),
     sql(g.model ?? null),
     sql(generatedAt),
     String((g.counts ?? ZERO).breaking),
