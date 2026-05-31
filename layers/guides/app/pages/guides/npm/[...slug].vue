@@ -85,19 +85,23 @@ const majorLabel = computed(() =>
 // everything strictly newer, up to the target. Default = the previous-major
 // anchor (full migration); '' is the "from the earliest cached release" sentinel.
 const releaseBuckets = computed(() => meta.value.releaseBuckets ?? [])
+// Sentinel for "from the earliest cached release" — a version below all real
+// ones, so the window includes everything. Must be non-empty: USelect rejects
+// an empty-string value (it's reserved for clearing the selection).
+const EARLIEST = '0.0.0'
 const fromOptions = computed(() => {
   const opts: { label: string, value: string }[] = []
   if (meta.value.fromVersion)
     opts.push({ label: `${meta.value.fromVersion}${fromMajor.value != null ? ` · v${fromMajor.value}` : ''}`, value: meta.value.fromVersion })
   else
-    opts.push({ label: 'earliest', value: '' })
+    opts.push({ label: 'earliest', value: EARLIEST })
   for (const r of releaseBuckets.value) {
     if (cmpV(r.version, meta.value.version) < 0)
       opts.push({ label: r.version, value: r.version })
   }
   return opts
 })
-const selectedFrom = ref(meta.value.fromVersion ?? '')
+const selectedFrom = ref(meta.value.fromVersion ?? EARLIEST)
 const windowed = computed(() => releaseBuckets.value.filter(r => cmpV(r.version, selectedFrom.value) > 0))
 const windowCounts = computed<BucketCounts>(() => windowed.value.reduce<BucketCounts>((acc, r) => ({
   breaking: acc.breaking + r.counts.breaking,
@@ -284,7 +288,7 @@ useSchemaOrg(() => {
       </h2>
       <p class="text-xs text-muted mb-5 font-mono">
         {{ windowed.length }} release{{ windowed.length === 1 ? '' : 's' }} from
-        {{ selectedFrom || 'the earliest' }} → {{ meta.version }}
+        {{ selectedFrom === EARLIEST ? 'the earliest' : selectedFrom }} → {{ meta.version }}
       </p>
 
       <div class="space-y-5">
