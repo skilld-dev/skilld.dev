@@ -181,21 +181,12 @@ export default defineNuxtConfig({
 
   // SWR caching only kicks in for production builds; in dev every request
   // re-renders so HMR isn't fighting a stale cached HTML/JSON response.
-  routeRules: process.env.NODE_ENV === 'production'
-    ? {
-        '/': { swr: 60 },
-        '/api/skills': { swr: 300 },
-        '/api/skills/**': { swr: 300 },
-        '/api/collections/by-author/**': { swr: 300 },
-        '/api/skill-related/**': { swr: 3600 },
-        '/api/skills-raw/**': { swr: 3600 },
-        '/api/skill-social/**': { swr: 3600 },
-        '/guides/**': { swr: 3600 },
-        '/api/npm-guides': { swr: 3600 },
-        '/api/npm-guides/**': { swr: 3600 },
-        '/api/npm-guides-raw/**': { swr: 3600 },
-      }
-    : {},
+  // SWR disabled: stale-while-revalidate kept serving stale content after deploys
+  // and D1 ingests (per-colo, up to the TTL) — including once serving a crashing
+  // render — which caused repeated confusion. Pages now render dynamically (SSR +
+  // D1 per request), always fresh. D1 reads are cheap at current traffic; re-add
+  // targeted caching here if/when traffic warrants it.
+  routeRules: {},
   future: {
     compatibilityVersion: 5,
   },
