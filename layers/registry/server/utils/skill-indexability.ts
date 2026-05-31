@@ -1,5 +1,5 @@
 import type { SkillTrustTier } from './skill-trust'
-import { officialRepos } from '~~/layers/registry/server/data/official-repos'
+import { officialRepos } from '#layers/registry/server/data/official-repos'
 
 export const SEO_INDEXABLE_MIN_SCORE = 4
 export const SEO_INSTALLS_STRONG = 1_000
@@ -10,6 +10,8 @@ export const SEO_REPO_BROAD_SKILL_COUNT = 100
 
 export interface SkillIndexabilityInput {
   isOfficial: boolean
+  /** Skill imported by an authenticated GitHub user from a repo they own. */
+  ownerVerified: boolean
   sourceResolved: boolean
   trustTier: SkillTrustTier
   curatorCount: number
@@ -65,6 +67,11 @@ export function scoreSkillIndexability(input: SkillIndexabilityInput, now = Math
     reasons.push('official_source')
   }
 
+  if (input.ownerVerified) {
+    score += 3
+    reasons.push('owner_verified')
+  }
+
   if (input.sourceResolved) {
     score += 2
     reasons.push('source_resolved')
@@ -114,6 +121,7 @@ export function scoreSkillIndexability(input: SkillIndexabilityInput, now = Math
 
   const hasPrimaryTrustSignal = input.curatorReasonCount > 0
     || input.isOfficial
+    || input.ownerVerified
     || input.authorSocialCount > 0
     || input.approvedSocialCount > 0
     || input.installs >= SEO_INSTALLS_STRONG

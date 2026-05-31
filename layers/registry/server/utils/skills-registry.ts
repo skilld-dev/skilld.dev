@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate-canonical'
+import type { SemanticHit } from './skill-semantic-search'
 import { getDB } from '../../../../shared/server/db'
 import { JOIN_REPOS_SQL, notAggregatorSql, notBrokenSql } from './broken'
 import {
@@ -7,6 +8,7 @@ import {
   findDuplicateGroupForSlug,
   skillSlug,
 } from './skill-duplicate-canonical'
+import { nameMatchBoost, semanticSkillSearch } from './skill-semantic-search'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
 
 const WHITESPACE_RE = /\s+/
@@ -123,12 +125,25 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
 
-  // FTS search
+  // Search: semantic ranking over the Vectorize index, restricted to the
+  // matched skills. Falls back to lexical FTS5 when the AI/Vectorize bindings
+  // are unavailable (local dev). `null` => fell back, ranked in SQL below;
+  // a non-null array => semantic path, ranked in JS after fetch.
+  let semanticHits: SemanticHit[] | null = null
   if (search) {
-    // FTS5 match with prefix search
-    const ftsQuery = search.split(WHITESPACE_RE).map(t => `"${t}"*`).join(' ')
-    conditions.push('(s.owner, s.repo, s.name) IN (SELECT owner, repo, name FROM skills_fts WHERE skills_fts MATCH ?)')
-    params.push(ftsQuery)
+    semanticHits = await semanticSkillSearch(event, search)
+    if (semanticHits === null) {
+      const ftsQuery = search.split(WHITESPACE_RE).map(t => `"${t}"*`).join(' ')
+      conditions.push('(s.owner, s.repo, s.name) IN (SELECT owner, repo, name FROM skills_fts WHERE skills_fts MATCH ?)')
+      params.push(ftsQuery)
+    }
+    else if (semanticHits.length === 0) {
+      return { items: [], total: 0, page, pages: 0, facets: [] }
+    }
+    else {
+      conditions.push(`(s.owner, s.repo, s.name) IN (VALUES ${semanticHits.map(() => '(?, ?, ?)').join(', ')})`)
+      params.push(...semanticHits.flatMap(h => [h.owner, h.repo, h.name]))
+    }
   }
 
   if (owner) {
@@ -184,6 +199,44 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     conditions.push(NOT_AGGREGATOR_SQL)
 
   const where = `WHERE ${conditions.join(' AND ')}`
+
+  // Semantic path: the result set is the (filtered) matched skills, ranked by
+  // cosine + name boost in JS, then paged. The match set is small (<= topK),
+  // so we fetch it whole rather than paginating in SQL.
+  if (semanticHits && semanticHits.length) {
+    const rows = await db
+      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} ${where} LIMIT ?`)
+      .bind(...params, semanticHits.length)
+      .all<SkillRow>()
+    const scoreByKey = new Map(semanticHits.map(h => [`${h.owner}/${h.repo}/${h.name}`, h.score]))
+    const ranked = (rows.results ?? [])
+      .map(rowToSkill)
+      .map(skill => ({
+        skill,
+        score: (scoreByKey.get(`${skill.owner}/${skill.repo}/${skill.name}`) ?? 0)
+          + nameMatchBoost(skill, search!),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .map(x => x.skill)
+
+    const total = ranked.length
+    const start = (page - 1) * limit
+    const facetCounts = new Map<string, number>()
+    for (const s of ranked)
+      facetCounts.set(s.owner, (facetCounts.get(s.owner) ?? 0) + 1)
+    const facets = [...facetCounts.entries()]
+      .map(([owner, count]) => ({ owner, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20)
+
+    return {
+      items: ranked.slice(start, start + limit),
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      facets,
+    }
+  }
 
   // Count query
   const countStmt = db.prepare(`SELECT COUNT(*) as total ${FROM_SKILLS_JOIN_REPOS} ${where}`).bind(...params)

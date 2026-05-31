@@ -16,16 +16,16 @@
  *   --concurrency N   (default 6) parallel clones
  */
 
-import type { SkillTrustTier } from '~~/layers/registry/server/utils/skill-trust'
+import type { SkillTrustTier } from '#layers/registry/server/utils/skill-trust'
 import { execFile, execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { promisify } from 'node:util'
-import { parseSkillFile } from '~~/layers/registry/server/utils/skill-frontmatter'
-import { isOfficialSkillRepo, scoreSkillIndexability } from '~~/layers/registry/server/utils/skill-indexability'
-import { resolveSkillTrust } from '~~/layers/registry/server/utils/skill-trust'
+import { parseSkillFile } from '#layers/registry/server/utils/skill-frontmatter'
+import { isOfficialSkillRepo, scoreSkillIndexability } from '#layers/registry/server/utils/skill-indexability'
+import { resolveSkillTrust } from '#layers/registry/server/utils/skill-trust'
 
 const execFileP = promisify(execFile)
 async function runP(cmd: string, args: string[], opts: { timeout?: number, maxBuffer?: number, cwd?: string } = {}): Promise<{ stdout: string, stderr: string, code: number }> {
@@ -339,6 +339,7 @@ async function syncRepo(target: TopRepo, meta: RepoMetaNode | null, kindOv: Map<
       })
       const indexability = scoreSkillIndexability({
         isOfficial,
+        ownerVerified: false,
         sourceResolved: true,
         trustTier: trust.tier,
         curatorCount: 0,

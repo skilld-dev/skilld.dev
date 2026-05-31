@@ -151,11 +151,21 @@ function classifyRepoKind(skillCount: number): RepoKind {
   return 'creator'
 }
 
+export interface SyncRepoOptions {
+  /**
+   * Skill is being synced from a repo owned by an authenticated GitHub user.
+   * Admits new skills past the indexable-only ingestion gate and marks them
+   * owner-verified (a primary trust signal → indexable by default).
+   */
+  ownerVerified?: boolean
+}
+
 export async function syncRepo(
   owner: string,
   repo: string,
   bindings: GithubBindings,
   db: D1Database,
+  opts: SyncRepoOptions = {},
 ): Promise<SyncRepoStats> {
   const stats: SyncRepoStats = {
     owner,
@@ -348,8 +358,10 @@ export async function syncRepo(
       overrideTier: repoOverride?.tier,
       overrideReason: repoOverride?.reason,
     })
+    const ownerVerified = opts.ownerVerified === true
     const indexability = scoreSkillIndexability({
       isOfficial,
+      ownerVerified,
       sourceResolved: true,
       trustTier: trust.tier,
       curatorCount: 0,
@@ -363,6 +375,15 @@ export async function syncRepo(
       description,
       repoSkillCount: skillFiles.length,
     }, now)
+
+    // Indexable-only ingestion gate. The passive crawl must not repopulate the
+    // long tail we retired: a brand-new skill is persisted only if it is
+    // official, owner-verified, or already clears the indexability bar on first
+    // sync. Existing rows always continue to update (and can graduate via the
+    // nightly recompute). Skipped before any revisions/skills write.
+    const admit = !isNewToRegistry || isOfficial || ownerVerified || indexability.indexable
+    if (!admit)
+      continue
 
     let modifiedAt = prev?.modified_at ?? null
     if (contentChanged) {
@@ -396,8 +417,9 @@ export async function syncRepo(
            is_official, source_resolved, seo_index_score, seo_indexable,
            seo_index_reasons, seo_index_synced_at,
            trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-           rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at
-         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?)
+           rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at,
+           owner_verified
+         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?, ?)
          ON CONFLICT(owner, repo, name) DO UPDATE SET
            display_name = excluded.display_name,
            slug = excluded.slug,
@@ -424,7 +446,8 @@ export async function syncRepo(
            rendered_raw = excluded.rendered_raw,
            rendered_frontmatter = excluded.rendered_frontmatter,
            rendered_html = excluded.rendered_html,
-           rendered_at = excluded.rendered_at`,
+           rendered_at = excluded.rendered_at,
+           owner_verified = MAX(skills.owner_verified, excluded.owner_verified)`,
       )
       .bind(
         parsed.name,
@@ -454,6 +477,7 @@ export async function syncRepo(
         JSON.stringify(rendered.frontmatter),
         rendered.html,
         now,
+        ownerVerified ? 1 : 0,
       )
       .run()
     stats.skillsUpserted += 1

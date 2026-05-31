@@ -15,13 +15,13 @@
  * - Honours repo_trust_overrides + repo_kind_overrides via lookups against remote D1.
  */
 
-import type { SkillTrustTier } from '~~/layers/registry/server/utils/skill-trust'
+import type { SkillTrustTier } from '#layers/registry/server/utils/skill-trust'
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
-import { getCommits, getRawFile, getRepo, getTree } from '~~/layers/registry/server/utils/github-client'
-import { parseSkillFile } from '~~/layers/registry/server/utils/skill-frontmatter'
-import { isOfficialSkillRepo, scoreSkillIndexability } from '~~/layers/registry/server/utils/skill-indexability'
-import { resolveSkillTrust } from '~~/layers/registry/server/utils/skill-trust'
+import { getCommits, getRawFile, getRepo, getTree } from '#layers/registry/server/utils/github-client'
+import { parseSkillFile } from '#layers/registry/server/utils/skill-frontmatter'
+import { isOfficialSkillRepo, scoreSkillIndexability } from '#layers/registry/server/utils/skill-indexability'
+import { resolveSkillTrust } from '#layers/registry/server/utils/skill-trust'
 
 interface TopRepo {
   owner: string
@@ -273,6 +273,7 @@ for (const { owner, repo } of top) {
     })
     const indexability = scoreSkillIndexability({
       isOfficial,
+      ownerVerified: false,
       sourceResolved: true,
       trustTier: trust.tier,
       curatorCount: 0,

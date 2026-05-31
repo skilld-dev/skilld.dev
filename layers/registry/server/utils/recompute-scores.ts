@@ -46,6 +46,7 @@ interface ScoreRow {
   override_tier: SkillTrustTier | null
   override_reason: string | null
   is_official: number | null
+  owner_verified: number | null
   source_resolved: number | null
   stored_curator_count: number | null
   stored_curator_reason_count: number | null
@@ -72,6 +73,7 @@ const BASE_SELECT = `
   s.sync_status,
   s.references_count,
   s.is_official,
+  s.owner_verified,
   s.source_resolved,
   s.curator_count AS stored_curator_count,
   s.curator_reason_count AS stored_curator_reason_count,
@@ -155,6 +157,7 @@ function computeFromRow(row: ScoreRow, now: number): {
   })
   const scored = scoreSkillIndexability({
     isOfficial,
+    ownerVerified: row.owner_verified === 1,
     sourceResolved,
     trustTier: trust.tier,
     curatorCount: row.curator_count,

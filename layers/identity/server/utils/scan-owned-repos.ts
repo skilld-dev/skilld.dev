@@ -72,7 +72,9 @@ export async function scanOwnedRepos(opts: {
   let failed = 0
   for (const full of seen) {
     const [owner, repo] = full.split('/')
-    const stats = await syncRepo(owner!, repo!, bindings, db).catch(() => null)
+    // Authenticated user, their own repo (search filters to user:<login>,
+    // non-fork): owner-verified → admitted past the gate + indexable by default.
+    const stats = await syncRepo(owner!, repo!, bindings, db, { ownerVerified: true }).catch(() => null)
     if (stats && (stats.status === 'ok' || stats.status === 'skipped-pushed-at' || stats.status === 'skipped-tree-sha'))
       synced++
     else

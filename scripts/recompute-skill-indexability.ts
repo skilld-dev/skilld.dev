@@ -66,6 +66,7 @@ interface SkillRow {
   override_tier: SkillTrustTier | null
   override_reason: string | null
   is_official: number | null
+  owner_verified: number | null
   source_resolved: number | null
   stored_curator_count: number | null
   stored_curator_reason_count: number | null
@@ -152,6 +153,7 @@ function main() {
   const overrideJoin = hasOverrides
     ? 'LEFT JOIN repo_trust_overrides ro ON ro.owner = s.owner AND ro.repo = s.repo'
     : ''
+  const ownerVerifiedField = cols.has('owner_verified') ? 's.owner_verified' : '0 AS owner_verified'
   const limitClause = SAMPLE && Number.isFinite(SAMPLE) && SAMPLE > 0 ? `LIMIT ${SAMPLE}` : ''
 
   const rows = d1<SkillRow>(`
@@ -173,6 +175,7 @@ function main() {
       s.current_sha,
       s.sync_status,
       s.references_count,
+      ${ownerVerifiedField},
       COALESCE(rc.repo_skill_count, 0) AS repo_skill_count,
       ${overrideFields},
       ${storedSeoFields},
@@ -236,6 +239,7 @@ function main() {
     })
     const scored = scoreSkillIndexability({
       isOfficial,
+      ownerVerified: row.owner_verified === 1,
       sourceResolved,
       trustTier: trust.tier,
       curatorCount: row.curator_count,
