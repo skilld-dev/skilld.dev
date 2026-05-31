@@ -141,8 +141,10 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
       return { items: [], total: 0, page, pages: 0, facets: [] }
     }
     else {
-      conditions.push(`(s.owner, s.repo, s.name) IN (VALUES ${semanticHits.map(() => '(?, ?, ?)').join(', ')})`)
-      params.push(...semanticHits.flatMap(h => [h.owner, h.repo, h.name]))
+      // One bound param per hit (concatenated key) keeps us under D1's 100
+      // SQL-variable cap, leaving headroom for the other filter params below.
+      conditions.push(`(s.owner || '/' || s.repo || '/' || s.name) IN (${semanticHits.map(() => '?').join(', ')})`)
+      params.push(...semanticHits.map(h => `${h.owner}/${h.repo}/${h.name}`))
     }
   }
 
@@ -204,9 +206,11 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   // cosine + name boost in JS, then paged. The match set is small (<= topK),
   // so we fetch it whole rather than paginating in SQL.
   if (semanticHits && semanticHits.length) {
+    // The IN clause already bounds the row set to the matched skills, so no
+    // SQL LIMIT is needed; ranking + paging happen in JS below.
     const rows = await db
-      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} ${where} LIMIT ?`)
-      .bind(...params, semanticHits.length)
+      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} ${where}`)
+      .bind(...params)
       .all<SkillRow>()
     const scoreByKey = new Map(semanticHits.map(h => [`${h.owner}/${h.repo}/${h.name}`, h.score]))
     const ranked = (rows.results ?? [])
