@@ -38,6 +38,7 @@ interface Guide {
   supersedes?: string[]
   model?: string
   counts?: { breaking: number, features: number, fixes: number, improvements: number }
+  releaseBuckets?: unknown[]
 }
 
 const sql = (v: string | null): string => (v == null ? 'NULL' : `'${v.replace(/'/g, '\'\'')}'`)
@@ -60,6 +61,7 @@ const statements = files.map((file) => {
     sql(g.title),
     sql(g.markdown),
     sql(JSON.stringify(g.supersedes ?? [])),
+    sql(JSON.stringify(g.releaseBuckets ?? [])),
     sql(g.model ?? null),
     sql(generatedAt),
     String((g.counts ?? ZERO).breaking),
@@ -68,13 +70,13 @@ const statements = files.map((file) => {
     String((g.counts ?? ZERO).improvements),
   ].join(', ')
   return `INSERT INTO npm_guides
-  (slug, package_name, version, tag, prerelease, from_version, repo_url, released_at, title, markdown, supersedes, model, generated_at, count_breaking, count_features, count_fixes, count_improvements)
+  (slug, package_name, version, tag, prerelease, from_version, repo_url, released_at, title, markdown, supersedes, release_buckets, model, generated_at, count_breaking, count_features, count_fixes, count_improvements)
   VALUES (${cols})
   ON CONFLICT(slug) DO UPDATE SET
     package_name=excluded.package_name, version=excluded.version, tag=excluded.tag,
     prerelease=excluded.prerelease, from_version=excluded.from_version, repo_url=excluded.repo_url,
     released_at=excluded.released_at, title=excluded.title, markdown=excluded.markdown,
-    supersedes=excluded.supersedes, model=excluded.model, generated_at=excluded.generated_at,
+    supersedes=excluded.supersedes, release_buckets=excluded.release_buckets, model=excluded.model, generated_at=excluded.generated_at,
     count_breaking=excluded.count_breaking, count_features=excluded.count_features,
     count_fixes=excluded.count_fixes, count_improvements=excluded.count_improvements;`
 })

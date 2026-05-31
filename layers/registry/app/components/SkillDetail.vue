@@ -15,6 +15,7 @@ interface RelatedSkill {
   owner: string
   repo: string
   displayName: string
+  description: string | null
   installs: number
   slug: string
 }
@@ -90,6 +91,7 @@ interface NeighborSkill {
   repo: string
   slug: string
   displayName: string
+  description: string | null
   installs: number
   score: number
 }
@@ -1724,7 +1726,7 @@ useHead(computed(() => ({
         size="xs"
         class="mb-4"
       />
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="grid gap-3 sm:grid-cols-2">
         <NuxtLink
           v-for="item in currentRelatedItems"
           :key="`${relatedTab}-${item.slug}`"
@@ -1745,6 +1747,12 @@ useHead(computed(() => ({
             <div class="data-label mt-0.5 truncate">
               {{ item.owner }}{{ item.repo !== 'skills' ? `/${item.repo}` : '' }}
             </div>
+            <p
+              v-if="item.description"
+              class="mt-2 line-clamp-2 text-sm text-muted"
+            >
+              {{ item.description }}
+            </p>
           </div>
         </NuxtLink>
       </div>

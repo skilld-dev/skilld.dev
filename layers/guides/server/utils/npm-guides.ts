@@ -11,6 +11,13 @@ export interface BucketCounts {
 
 const ZERO_COUNTS: BucketCounts = { breaking: 0, features: 0, fixes: 0, improvements: 0 }
 
+/** Buckets for one version — powers the from-version window + per-version sections. */
+export interface VersionBuckets {
+  version: string
+  buckets: { breaking: string[], features: string[], fixes: string[], improvements: string[] }
+  counts: BucketCounts
+}
+
 /** A migration guide row as stored in D1 / returned to the page. */
 export interface NpmGuide {
   slug: string
@@ -24,6 +31,8 @@ export interface NpmGuide {
   title: string
   markdown: string
   counts: BucketCounts
+  /** Per-version buckets, newest-first (empty for guides ingested before 0062). */
+  releaseBuckets: VersionBuckets[]
   supersedes: string[]
   model?: string
   generatedAt: string
@@ -42,6 +51,7 @@ export interface IngestGuide {
   title: string
   markdown: string
   counts?: BucketCounts
+  releaseBuckets?: VersionBuckets[]
   supersedes?: string[]
   model?: string
 }
@@ -58,6 +68,7 @@ interface GuideRow {
   title: string
   markdown: string
   supersedes: string | null
+  release_buckets: string | null
   model: string | null
   generated_at: string
   count_breaking: number
@@ -88,6 +99,7 @@ function rowToGuide(row: GuideRow): NpmGuide {
     title: row.title,
     markdown: row.markdown,
     counts: rowCounts(row),
+    releaseBuckets: row.release_buckets ? JSON.parse(row.release_buckets) : [],
     supersedes: row.supersedes ? JSON.parse(row.supersedes) : [],
     model: row.model ?? undefined,
     generatedAt: row.generated_at,
@@ -136,8 +148,8 @@ export async function listGuidesForSitemap(event: H3Event): Promise<{ slug: stri
 export function upsertGuide(db: D1Database, guide: IngestGuide, generatedAt: string): Promise<unknown> {
   return db
     .prepare(`INSERT INTO npm_guides
-      (slug, package_name, version, tag, prerelease, from_version, repo_url, released_at, title, markdown, supersedes, model, generated_at, count_breaking, count_features, count_fixes, count_improvements)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (slug, package_name, version, tag, prerelease, from_version, repo_url, released_at, title, markdown, supersedes, release_buckets, model, generated_at, count_breaking, count_features, count_fixes, count_improvements)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(slug) DO UPDATE SET
         package_name = excluded.package_name,
         version = excluded.version,
@@ -149,6 +161,7 @@ export function upsertGuide(db: D1Database, guide: IngestGuide, generatedAt: str
         title = excluded.title,
         markdown = excluded.markdown,
         supersedes = excluded.supersedes,
+        release_buckets = excluded.release_buckets,
         model = excluded.model,
         generated_at = excluded.generated_at,
         count_breaking = excluded.count_breaking,
@@ -167,6 +180,7 @@ export function upsertGuide(db: D1Database, guide: IngestGuide, generatedAt: str
       guide.title,
       guide.markdown,
       JSON.stringify(guide.supersedes ?? []),
+      JSON.stringify(guide.releaseBuckets ?? []),
       guide.model ?? null,
       generatedAt,
       (guide.counts ?? ZERO_COUNTS).breaking,

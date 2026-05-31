@@ -1,8 +1,8 @@
 import type { H3Event } from 'h3'
-import type { CoOccurrenceNeighbor } from '~~/layers/registry/server/utils/skill-co-occurrence'
+import type { CoOccurrenceNeighbor } from '#layers/registry/server/utils/skill-co-occurrence'
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
-import { getCoOccurrenceNeighbors } from '~~/layers/registry/server/utils/skill-co-occurrence'
-import { findRelatedSkills, findSkill, findSkillsByLookups } from '~~/layers/registry/server/utils/skills-registry'
+import { getCoOccurrenceNeighbors } from '#layers/registry/server/utils/skill-co-occurrence'
+import { findRelatedSkills, findSkill, findSkillsByLookups } from '#layers/registry/server/utils/skills-registry'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
 
@@ -26,6 +26,7 @@ interface NeighborSkill {
   repo: string
   slug: string
   displayName: string
+  description: string | null
   installs: number
   score: number
 }
@@ -98,6 +99,7 @@ async function resolveNeighborSkills(
           repo: row.repo,
           slug: row.slug,
           displayName: row.displayName,
+          description: row.description,
           installs: row.installs,
           score: Number(n[scoreKey]) || 0,
         }

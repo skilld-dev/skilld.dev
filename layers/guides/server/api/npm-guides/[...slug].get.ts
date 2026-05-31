@@ -1,8 +1,12 @@
 import { findGuide } from '#layers/guides/server/utils/npm-guides'
 import { defineApiHandler } from '#shared/server/handler'
 
-// Returns the guide metadata plus a parsed MdxgDocument so the page can render
-// the markdown without re-parsing client-side.
+// Returns guide metadata + raw markdown + per-version buckets. The PAGE parses
+// the markdown (via parseMdxg) so the Shiki highlighter — registered by the mdxg
+// app plugin — is in scope; parsing here (Nitro context) skips it and code blocks
+// fall back to the unregistered /api/_mdc/highlight endpoint (raw, unhighlighted).
+const LEADING_H1_RE = /^#\s+(?:\S.*)?(?:\r?\n|$)/
+
 export default defineApiHandler({
   handler: async ({ event }) => {
     const slug = getRouterParam(event, 'slug')
@@ -13,14 +17,9 @@ export default defineApiHandler({
     if (!guide)
       throw createError({ statusCode: 404, message: 'Guide not found' })
 
-    const document = await parseMdxg(guide.markdown)
-
-    // The page renders its own canonical <h1> from the title, so drop the
-    // markdown's leading h1 to avoid a duplicate top-level heading (SEO + a11y).
-    const firstPage = document.pages?.[0]
-    const firstChild = firstPage?.body?.children?.[0] as { tag?: string } | undefined
-    if (firstChild?.tag === 'h1')
-      firstPage!.body.children.shift()
+    // The page renders its own canonical <h1> from the title; drop the markdown's
+    // leading h1 to avoid a duplicate top-level heading (SEO + a11y).
+    const markdown = guide.markdown.replace(LEADING_H1_RE, '').trimStart()
 
     return {
       meta: {
@@ -34,10 +33,11 @@ export default defineApiHandler({
         releasedAt: guide.releasedAt,
         title: guide.title,
         counts: guide.counts,
+        releaseBuckets: guide.releaseBuckets,
         supersedes: guide.supersedes,
         generatedAt: guide.generatedAt,
       },
-      document,
+      markdown,
     }
   },
 })

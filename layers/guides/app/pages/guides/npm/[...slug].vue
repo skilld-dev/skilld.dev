@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { MdxgDocument } from '~~/modules/mdxg/src/runtime/types'
 import { useClipboard } from '@vueuse/core'
 
 interface BucketCounts {
@@ -8,7 +7,11 @@ interface BucketCounts {
   fixes: number
   improvements: number
 }
-
+interface VersionBuckets {
+  version: string
+  buckets: { breaking: string[], features: string[], fixes: string[], improvements: string[] }
+  counts: BucketCounts
+}
 interface GuideMeta {
   slug: string
   packageName: string
@@ -20,6 +23,7 @@ interface GuideMeta {
   releasedAt?: string
   title: string
   counts: BucketCounts
+  releaseBuckets: VersionBuckets[]
   supersedes: string[]
   generatedAt: string
 }
@@ -30,27 +34,45 @@ const slug = computed(() => {
   return Array.isArray(s) ? s.join('/') : String(s ?? '')
 })
 
-const { data, error } = await useFetch<{ meta: GuideMeta, document: MdxgDocument }>(
+const { data, error } = await useFetch<{ meta: GuideMeta, markdown: string }>(
   () => `/api/npm-guides/${slug.value}`,
 )
-
 if (error.value || !data.value)
   throw createError({ statusCode: 404, statusMessage: 'Guide not found', fatal: true })
+
+// Parse in the app/SSR context (not the server route) so the mdxg app plugin's
+// Shiki highlighter is registered — otherwise code blocks render unhighlighted.
+const { data: doc } = await useAsyncData(
+  () => `mdxg-${slug.value}`,
+  () => parseMdxg(data.value!.markdown),
+)
 
 const meta = computed(() => data.value!.meta)
 const installCmd = computed(() => `npx skilld add npm:${meta.value.packageName}`)
 const rawUrl = computed(() => `/api/npm-guides-raw/${slug.value}`)
-
 const { copy, copied } = useClipboard({ source: installCmd })
 
-// Major framing: a guide is scoped to one major, so signal the jump explicitly
-// ("v8 → v9") rather than leaving the reader to parse "8.3.18 → 9.2.2".
+// --- semver helpers (client-side, numeric major.minor.patch; prerelease dropped) ---
+function parseV(v: string): number[] {
+  return (v.replace(/^\D+/, '').split('-')[0] ?? '').split('.').map(n => Number.parseInt(n, 10) || 0)
+}
+function cmpV(a: string, b: string): number {
+  const pa = parseV(a)
+  const pb = parseV(b)
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d)
+      return d
+  }
+  return 0
+}
 function majorOf(v?: string): number | null {
   if (!v)
     return null
   const n = Number.parseInt(String(v).replace(/^\D+/, ''), 10)
   return Number.isNaN(n) ? null : n
 }
+
 const fromMajor = computed(() => majorOf(meta.value.fromVersion))
 const toMajor = computed(() => majorOf(meta.value.version))
 const isMajorJump = computed(() => fromMajor.value != null && fromMajor.value !== toMajor.value)
@@ -58,19 +80,43 @@ const majorLabel = computed(() =>
   isMajorJump.value ? `v${fromMajor.value} → v${toMajor.value}` : (toMajor.value != null ? `v${toMajor.value}` : null),
 )
 
-// Surface the bucketed change counts as a change8-style summary strip. Breaking
-// changes are the decision signal, so they lead and carry semantic colour; the
-// rest stay quiet. A guide with no actionable changes says so plainly.
+// --- from-version window ---
+// releaseBuckets is newest-first. The user picks the version they're on; we show
+// everything strictly newer, up to the target. Default = the previous-major
+// anchor (full migration); '' is the "from the earliest cached release" sentinel.
+const releaseBuckets = computed(() => meta.value.releaseBuckets ?? [])
+const fromOptions = computed(() => {
+  const opts: { label: string, value: string }[] = []
+  if (meta.value.fromVersion)
+    opts.push({ label: `${meta.value.fromVersion}${fromMajor.value != null ? ` · v${fromMajor.value}` : ''}`, value: meta.value.fromVersion })
+  else
+    opts.push({ label: 'earliest', value: '' })
+  for (const r of releaseBuckets.value) {
+    if (cmpV(r.version, meta.value.version) < 0)
+      opts.push({ label: r.version, value: r.version })
+  }
+  return opts
+})
+const selectedFrom = ref(meta.value.fromVersion ?? '')
+const windowed = computed(() => releaseBuckets.value.filter(r => cmpV(r.version, selectedFrom.value) > 0))
+const windowCounts = computed<BucketCounts>(() => windowed.value.reduce<BucketCounts>((acc, r) => ({
+  breaking: acc.breaking + r.counts.breaking,
+  features: acc.features + r.counts.features,
+  fixes: acc.fixes + r.counts.fixes,
+  improvements: acc.improvements + r.counts.improvements,
+}), { breaking: 0, features: 0, fixes: 0, improvements: 0 }))
+
 const changeSummary = computed(() => {
-  const c = meta.value.counts
+  const c = windowCounts.value
   return [
     { n: c.breaking, label: c.breaking === 1 ? 'breaking change' : 'breaking changes', tone: 'breaking' as const },
-    { n: c.features, label: c.features === 1 ? 'new API' : 'new APIs', tone: 'feature' as const },
+    { n: c.features, label: c.features === 1 ? 'new feature' : 'new features', tone: 'feature' as const },
     { n: c.fixes, label: 'fixes', tone: 'muted' as const },
     { n: c.improvements, label: 'improvements', tone: 'muted' as const },
   ].filter(item => item.n > 0)
 })
-const noActionableChanges = computed(() => meta.value.counts.breaking + meta.value.counts.features === 0)
+const noActionableChanges = computed(() => windowCounts.value.breaking + windowCounts.value.features === 0)
+const hasBreakdown = computed(() => releaseBuckets.value.length > 0)
 
 const releasedDate = computed(() => {
   const iso = meta.value.releasedAt
@@ -80,10 +126,10 @@ const releasedDate = computed(() => {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 })
 
+// SEO uses the canonical whole-major counts (not the interactive window).
 const description = computed(() =>
-  `How to migrate ${meta.value.packageName} to ${meta.value.version}: ${meta.value.counts.breaking} breaking changes, ${meta.value.counts.features} new APIs, and a step-by-step upgrade an AI agent can follow.`,
+  `How to migrate ${meta.value.packageName} to ${meta.value.version}: ${meta.value.counts.breaking} breaking changes, ${meta.value.counts.features} new features, and a step-by-step upgrade an AI agent can follow.`,
 )
-
 const url = useRequestURL()
 const canonical = computed(() => `${url.origin}/guides/npm/${meta.value.slug}`)
 
@@ -94,16 +140,10 @@ useSeoMeta({
   ogDescription: description,
   ogType: 'article',
   articleModifiedTime: () => meta.value.generatedAt,
-  // releasedAt is often null in the dataset; fall back so the tag isn't dropped.
   articlePublishedTime: () => meta.value.releasedAt ?? meta.value.generatedAt,
 })
+useHead({ link: [{ rel: 'canonical', href: canonical }] })
 
-useHead({
-  link: [{ rel: 'canonical', href: canonical }],
-})
-
-// Structured data: TechArticle for the guide + HowTo for the upgrade, so search
-// engines (and agents) can read the migration as a discrete procedure.
 useSchemaOrg(() => {
   const m = meta.value
   return [
@@ -147,8 +187,7 @@ useSchemaOrg(() => {
         Migrating {{ meta.packageName }} to {{ meta.version }}
       </h1>
 
-      <!-- Identity + provenance row, quiet mono chrome. Lead with the major
-           jump so the scope (v8 → v9) reads instantly; exact versions follow. -->
+      <!-- Identity row: lead with the major jump so the scope reads instantly. -->
       <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted">
         <UBadge
           v-if="majorLabel"
@@ -156,21 +195,32 @@ useSchemaOrg(() => {
           variant="subtle"
           size="sm"
           class="font-mono"
-          :aria-label="isMajorJump ? `major upgrade ${majorLabel}` : `major version ${majorLabel}`"
         >
           {{ majorLabel }}
         </UBadge>
         <span class="text-default">{{ meta.packageName }}</span>
-        <span v-if="meta.fromVersion" aria-label="upgrade range">{{ meta.fromVersion }} → {{ meta.version }}</span>
-        <span v-else>{{ meta.version }}</span>
         <UBadge v-if="meta.prerelease" color="warning" variant="subtle" size="sm">
           {{ meta.tag }}
         </UBadge>
         <span v-if="releasedDate" class="text-dimmed">released {{ releasedDate }}</span>
       </div>
 
-      <!-- Change summary: the decision signal, breaking changes first. -->
-      <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs tabular-nums">
+      <!-- From-version control + live-recomputed change summary. -->
+      <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs">
+        <div class="flex items-center gap-2">
+          <span class="text-muted">Upgrading from</span>
+          <USelect
+            v-model="selectedFrom"
+            :items="fromOptions"
+            value-key="value"
+            size="sm"
+            class="font-mono w-40"
+            :disabled="fromOptions.length < 2"
+          />
+          <span class="text-muted">→ {{ meta.version }}</span>
+        </div>
+      </div>
+      <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs tabular-nums">
         <template v-if="changeSummary.length">
           <span
             v-for="item in changeSummary"
@@ -184,12 +234,11 @@ useSchemaOrg(() => {
             <span class="font-semibold">{{ item.n }}</span> {{ item.label }}
           </span>
         </template>
-        <span v-if="noActionableChanges" class="text-muted">No code changes required</span>
+        <span v-if="noActionableChanges" class="text-muted">No code changes required in this range</span>
       </div>
     </header>
 
-    <!-- Install CTA: this guide's package skill keeps an agent current. Quiet,
-         bordered, mono — the install command is the artefact, not a loud button. -->
+    <!-- Install CTA. -->
     <UCard class="mb-8 rounded-lg" :ui="{ root: 'rounded-lg', body: 'p-4 sm:p-4' }">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -202,25 +251,15 @@ useSchemaOrg(() => {
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <UButton
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            :to="rawUrl"
-            external
-            target="_blank"
-            icon="i-lucide-file-text"
-            class="font-mono rounded-lg"
+            color="neutral" variant="ghost" size="sm" :to="rawUrl" external target="_blank"
+            icon="i-lucide-file-text" class="font-mono rounded-lg"
           >
             Raw
           </UButton>
           <UButton
-            color="neutral"
-            variant="subtle"
-            size="sm"
-            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-            class="font-mono rounded-lg"
-            :aria-label="copied ? 'Copied install command' : 'Copy install command'"
-            @click="copy()"
+            color="neutral" variant="subtle" size="sm"
+            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" class="font-mono rounded-lg"
+            :aria-label="copied ? 'Copied install command' : 'Copy install command'" @click="copy()"
           >
             <span class="text-xs">{{ installCmd }}</span>
           </UButton>
@@ -228,18 +267,64 @@ useSchemaOrg(() => {
       </div>
     </UCard>
 
-    <!-- skill-prose (global, in entry.css) supplies typography; the .mdxg-guide
-         rule in main.css remaps the standalone mdxg renderer's hardcoded
-         light-mode vars onto --ui-* tokens. Both must be GLOBAL: Nuxt does not
-         inject this layer page's route CSS chunk in production. -->
-    <div class="skill-prose mdxg-guide">
+    <!-- Synthesised upgrade runbook (highlighted). Covers the full major. -->
+    <div v-if="doc" class="skill-prose mdxg-guide">
       <MdxgPageView
-        v-for="page in data.document.pages"
+        v-for="page in doc.pages"
         :key="page.slug"
         :page="page"
-        :data="data.document.data"
+        :data="doc.data"
       />
     </div>
+
+    <!-- Changes by version: per-release breakdown, filtered by the from-selector. -->
+    <section v-if="hasBreakdown" class="mt-12">
+      <h2 class="text-lg font-semibold text-default mb-1">
+        Changes by version
+      </h2>
+      <p class="text-xs text-muted mb-5 font-mono">
+        {{ windowed.length }} release{{ windowed.length === 1 ? '' : 's' }} from
+        {{ selectedFrom || 'the earliest' }} → {{ meta.version }}
+      </p>
+
+      <div class="space-y-5">
+        <div
+          v-for="rel in windowed"
+          :key="rel.version"
+          class="border border-default rounded-lg p-4"
+        >
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs">
+            <span class="text-default font-semibold text-sm">v{{ rel.version }}</span>
+            <span v-if="rel.counts.breaking" class="text-warning">{{ rel.counts.breaking }} breaking</span>
+            <span v-if="rel.counts.features" class="text-muted">{{ rel.counts.features }} new</span>
+            <span v-if="rel.counts.fixes" class="text-dimmed">{{ rel.counts.fixes }} fixes</span>
+            <span v-if="rel.counts.improvements" class="text-dimmed">{{ rel.counts.improvements }} improvements</span>
+          </div>
+
+          <div v-if="rel.buckets.breaking.length" class="mt-3">
+            <p class="font-mono text-[0.7rem] uppercase tracking-widest text-warning">
+              Breaking
+            </p>
+            <ul class="mt-1.5 space-y-1 text-sm">
+              <li v-for="(item, i) in rel.buckets.breaking" :key="`b${i}`" class="flex gap-2">
+                <span class="text-warning shrink-0">↳</span><span>{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="rel.buckets.features.length" class="mt-3">
+            <p class="font-mono text-[0.7rem] uppercase tracking-widest text-muted">
+              New
+            </p>
+            <ul class="mt-1.5 space-y-1 text-sm text-muted">
+              <li v-for="(item, i) in rel.buckets.features" :key="`f${i}`" class="flex gap-2">
+                <span class="text-dimmed shrink-0">+</span><span>{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <footer v-if="meta.repoUrl" class="mt-10 pt-5 border-t border-default font-mono text-xs text-muted">
       Generated from
