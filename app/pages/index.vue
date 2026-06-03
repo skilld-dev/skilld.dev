@@ -157,73 +157,6 @@ function formatRelative(ts: number): string {
 
     <USeparator />
 
-    <!-- What are you trying to do? — pain-point cluster grid -->
-    <section
-      id="clusters"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="clusters-heading"
-    >
-      <div class="mb-2">
-        <h2 id="clusters-heading" class="section-label">
-          What are you trying to do?
-        </h2>
-      </div>
-      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
-        Six things JS developers are tuning their agent for. Pick a problem, install a skill, restart your agent.
-      </p>
-      <HomepageClusterGrid />
-    </section>
-
-    <USeparator v-if="domainSections.length" />
-
-    <!-- By domain — top-level dev categories from classifier -->
-    <section
-      v-if="domainSections.length"
-      id="by-domain"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
-      aria-labelledby="by-domain-heading"
-    >
-      <div class="mb-6">
-        <h2 id="by-domain-heading" class="section-label">
-          By domain
-        </h2>
-        <p class="mt-1 text-sm text-muted max-w-lg leading-relaxed">
-          Skills grouped by what part of dev work they level up.
-        </p>
-      </div>
-
-      <div class="space-y-12">
-        <div
-          v-for="section in domainSections"
-          :key="section.category"
-        >
-          <div class="flex items-end justify-between mb-3">
-            <h3 class="font-mono text-base font-medium tracking-tight">
-              {{ section.label }}
-            </h3>
-            <UButton
-              :to="`/skills?category=${section.category}`"
-              label="View all"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              trailing-icon="i-lucide-arrow-right"
-            />
-          </div>
-          <p class="mb-4 text-sm text-muted max-w-lg leading-relaxed">
-            {{ section.description }}
-          </p>
-          <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
-            <li v-for="skill in section.items" :key="skill.slug">
-              <SkillCard :skill show-tags show-owner-path />
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <USeparator v-if="featuredCollections.length" />
-
     <!-- Featured skill sets -->
     <section
       v-if="featuredCollections.length"
@@ -319,6 +252,73 @@ function formatRelative(ts: number): string {
           </ul>
         </li>
       </ul>
+    </section>
+
+    <USeparator v-if="featuredCollections.length" />
+
+    <!-- What are you trying to do? — pain-point cluster grid -->
+    <section
+      id="clusters"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="clusters-heading"
+    >
+      <div class="mb-2">
+        <h2 id="clusters-heading" class="section-label">
+          What are you trying to do?
+        </h2>
+      </div>
+      <p class="mb-6 text-sm text-muted max-w-lg leading-relaxed">
+        Six things JS developers are tuning their agent for. Pick a problem, install a skill, restart your agent.
+      </p>
+      <HomepageClusterGrid />
+    </section>
+
+    <USeparator v-if="domainSections.length" />
+
+    <!-- By domain — top-level dev categories from classifier -->
+    <section
+      v-if="domainSections.length"
+      id="by-domain"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      aria-labelledby="by-domain-heading"
+    >
+      <div class="mb-6">
+        <h2 id="by-domain-heading" class="section-label">
+          By domain
+        </h2>
+        <p class="mt-1 text-sm text-muted max-w-lg leading-relaxed">
+          Skills grouped by what part of dev work they level up.
+        </p>
+      </div>
+
+      <div class="space-y-12">
+        <div
+          v-for="section in domainSections"
+          :key="section.category"
+        >
+          <div class="flex items-end justify-between mb-3">
+            <h3 class="font-mono text-base font-medium tracking-tight">
+              {{ section.label }}
+            </h3>
+            <UButton
+              :to="`/skills?category=${section.category}`"
+              label="View all"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              trailing-icon="i-lucide-arrow-right"
+            />
+          </div>
+          <p class="mb-4 text-sm text-muted max-w-lg leading-relaxed">
+            {{ section.description }}
+          </p>
+          <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
+            <li v-for="skill in section.items" :key="skill.slug">
+              <SkillCard :skill show-tags show-owner-path />
+            </li>
+          </ul>
+        </div>
+      </div>
     </section>
 
     <USeparator />
