@@ -61,11 +61,12 @@ interface DomainCategory {
 }
 
 const DOMAIN_CATEGORIES: DomainCategory[] = [
+  { category: 'package-best-practices', label: 'Framework & library best practices', description: 'Conventions for the npm packages and frameworks your project already depends on.' },
+  { category: 'devops', label: 'DevOps & deployment', description: 'CI, infrastructure, and release workflows that get code to production.' },
+  { category: 'api-integration', label: 'API integration', description: 'Connecting third-party services and SDKs with their current conventions.' },
   { category: 'testing-strategy', label: 'Testing', description: 'Unit, integration, and TDD workflows that keep behaviour stable.' },
   { category: 'security', label: 'Security', description: 'Auditing, threat modelling, and finding vulnerabilities before shipping.' },
-  { category: 'performance', label: 'Performance', description: 'Profiling, optimisation, and shipping fast UIs.' },
-  { category: 'accessibility', label: 'Accessibility', description: 'Building interfaces that work for everyone.' },
-  { category: 'design', label: 'Design', description: 'Broader design critique, taste, and visual direction work.' },
+  { category: 'design', label: 'Design', description: 'Design critique, taste, and visual direction work.' },
 ]
 
 const { data: domainData } = useAsyncData('home-domains', async () => {
@@ -81,7 +82,6 @@ const { data: domainData } = useAsyncData('home-domains', async () => {
 })
 const domainSections = computed(() => domainData.value ?? [])
 
-// eslint-disable-next-line harlanzw/nuxt-no-unsafe-date -- useState serializes this SSR timestamp for hydration.
 const renderNow = useState('render:now', () => Number(new Date()))
 function formatRelative(ts: number): string {
   const diff = renderNow.value - ts * 1000
