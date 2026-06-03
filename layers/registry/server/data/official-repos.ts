@@ -116,4 +116,5 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'dimillian', repo: 'skills', kind: 'user' },
   { owner: 'onmax', repo: 'nuxt-skills', kind: 'user' },
   { owner: 'hyf0', repo: 'vue-skills', kind: 'user' },
+  { owner: 'nutlope', repo: 'hallmark', kind: 'user' },
 ]

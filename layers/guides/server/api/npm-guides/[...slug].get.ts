@@ -2,9 +2,8 @@ import { findGuide } from '#layers/guides/server/utils/npm-guides'
 import { defineApiHandler } from '#shared/server/handler'
 
 // Returns guide metadata + raw markdown + per-version buckets. The PAGE parses
-// the markdown (via parseMdxg) so the Shiki highlighter — registered by the mdxg
-// app plugin — is in scope; parsing here (Nitro context) skips it and code blocks
-// fall back to the unregistered /api/_mdc/highlight endpoint (raw, unhighlighted).
+// the markdown (via parseMdxg); with the mdxg highlighter now registered
+// universally (JS Shiki engine, see modules/mdxg), highlighting runs at SSR.
 const LEADING_H1_RE = /^#\s+(?:\S.*)?(?:\r?\n|$)/
 
 export default defineApiHandler({

@@ -7,9 +7,12 @@ interface BucketCounts {
   fixes: number
   improvements: number
 }
+// A bare string is the legacy shape; the object shape carries the commit/PR that
+// introduced the change so we can link to source.
+type BucketItem = string | { text: string, commit?: string, pr?: number }
 interface VersionBuckets {
   version: string
-  buckets: { breaking: string[], features: string[], fixes: string[], improvements: string[] }
+  buckets: { breaking: BucketItem[], features: BucketItem[], fixes: BucketItem[], improvements: BucketItem[] }
   counts: BucketCounts
 }
 interface GuideMeta {
@@ -101,7 +104,20 @@ const fromOptions = computed(() => {
   }
   return opts
 })
-const selectedFrom = ref(meta.value.fromVersion ?? EARLIEST)
+// Persist the selected from-version in the URL (?from=) so the view is
+// shareable and survives reload. Default (the previous-major anchor, or
+// EARLIEST) is kept out of the query to leave canonical URLs clean. Invalid or
+// stale values fall back to the default rather than breaking the window.
+const defaultFrom = computed(() => meta.value.fromVersion ?? EARLIEST)
+const selectedFrom = computed<string>(() => {
+  const q = route.query.from
+  const v = Array.isArray(q) ? q[0] : q
+  return v && fromOptions.value.some(o => o.value === v) ? v : defaultFrom.value
+})
+function setFrom(v: string) {
+  const from = v && v !== defaultFrom.value ? v : undefined
+  return navigateTo({ query: { ...route.query, from } }, { replace: true })
+}
 const windowed = computed(() => releaseBuckets.value.filter(r => cmpV(r.version, selectedFrom.value) > 0))
 const windowCounts = computed<BucketCounts>(() => windowed.value.reduce<BucketCounts>((acc, r) => ({
   breaking: acc.breaking + r.counts.breaking,
@@ -121,6 +137,19 @@ const changeSummary = computed(() => {
 })
 const noActionableChanges = computed(() => windowCounts.value.breaking + windowCounts.value.features === 0)
 const hasBreakdown = computed(() => releaseBuckets.value.length > 0)
+
+// Normalise a bucket item to its text plus an optional source link (PR preferred
+// over commit). Links require the guide's repoUrl; without it we render text only.
+function itemLink(item: BucketItem): { text: string, href?: string, label?: string } {
+  if (typeof item === 'string')
+    return { text: item }
+  const repo = meta.value.repoUrl
+  if (repo && item.pr != null)
+    return { text: item.text, href: `${repo}/pull/${item.pr}`, label: `#${item.pr}` }
+  if (repo && item.commit)
+    return { text: item.text, href: `${repo}/commit/${item.commit}`, label: item.commit.slice(0, 7) }
+  return { text: item.text }
+}
 
 const releasedDate = computed(() => {
   const iso = meta.value.releasedAt
@@ -214,12 +243,13 @@ useSchemaOrg(() => {
         <div class="flex items-center gap-2">
           <span class="text-muted">Upgrading from</span>
           <USelect
-            v-model="selectedFrom"
+            :model-value="selectedFrom"
             :items="fromOptions"
             value-key="value"
             size="sm"
             class="font-mono w-40"
             :disabled="fromOptions.length < 2"
+            @update:model-value="setFrom"
           />
           <span class="text-muted">→ {{ meta.version }}</span>
         </div>
@@ -311,7 +341,15 @@ useSchemaOrg(() => {
             </p>
             <ul class="mt-1.5 space-y-1 text-sm">
               <li v-for="(item, i) in rel.buckets.breaking" :key="`b${i}`" class="flex gap-2">
-                <span class="text-warning shrink-0">↳</span><span>{{ item }}</span>
+                <span class="text-warning shrink-0">↳</span>
+                <span>
+                  {{ itemLink(item).text }}
+                  <a
+                    v-if="itemLink(item).href"
+                    :href="itemLink(item).href" target="_blank" rel="noopener"
+                    class="ml-1 font-mono text-xs text-dimmed hover:text-default underline underline-offset-2 whitespace-nowrap"
+                  >{{ itemLink(item).label }}</a>
+                </span>
               </li>
             </ul>
           </div>
@@ -322,7 +360,15 @@ useSchemaOrg(() => {
             </p>
             <ul class="mt-1.5 space-y-1 text-sm text-muted">
               <li v-for="(item, i) in rel.buckets.features" :key="`f${i}`" class="flex gap-2">
-                <span class="text-dimmed shrink-0">+</span><span>{{ item }}</span>
+                <span class="text-dimmed shrink-0">+</span>
+                <span>
+                  {{ itemLink(item).text }}
+                  <a
+                    v-if="itemLink(item).href"
+                    :href="itemLink(item).href" target="_blank" rel="noopener"
+                    class="ml-1 font-mono text-xs text-dimmed hover:text-default underline underline-offset-2 whitespace-nowrap"
+                  >{{ itemLink(item).label }}</a>
+                </span>
               </li>
             </ul>
           </div>

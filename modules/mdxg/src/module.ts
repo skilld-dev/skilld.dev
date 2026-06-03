@@ -63,10 +63,14 @@ export default defineNuxtModule<ModuleOptions>({
     addServerImportsDir(resolve('./runtime/utils'))
 
     // Wire @nuxtjs/mdc's bundled Shiki highlighter into parseMdxg defaults.
-    // Client-only: the bundled Shiki Oniguruma engine ships WebAssembly that
-    // Cloudflare workerd's nitro preset can't always load at SSR time. Server
-    // routes that need highlighted output should pass an explicit highlighter
-    // via `parseMdxg(source, { mdcOptions: { highlight: { highlighter } } })`.
-    addPlugin({ src: resolve('./runtime/plugin.ts'), mode: 'client' })
+    // Universal (server + client): with `mdc.highlight.shikiEngine: 'javascript'`
+    // the highlighter uses Shiki's JS regex engine — no Oniguruma WASM — so it
+    // also runs under Cloudflare workerd at SSR time. This is required for
+    // highlighted output to appear in the SSR HTML: pages that parse via
+    // `useAsyncData` cache the server result and never re-run on the client, so
+    // a client-only highlighter would never apply. Consumers using the default
+    // Oniguruma engine should keep this client-only or pass an explicit
+    // highlighter via `parseMdxg(source, { mdcOptions: { highlight: { highlighter } } })`.
+    addPlugin({ src: resolve('./runtime/plugin.ts') })
   },
 })

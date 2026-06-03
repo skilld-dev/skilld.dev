@@ -11,10 +11,17 @@ export interface BucketCounts {
 
 const ZERO_COUNTS: BucketCounts = { breaking: 0, features: 0, fixes: 0, improvements: 0 }
 
+/**
+ * A single change within a version bucket. A bare string is the legacy shape
+ * (text only); the object shape lets the generator attribute the change to the
+ * commit and/or PR that introduced it, so the page can link to source.
+ */
+export type BucketItem = string | { text: string, commit?: string, pr?: number }
+
 /** Buckets for one version — powers the from-version window + per-version sections. */
 export interface VersionBuckets {
   version: string
-  buckets: { breaking: string[], features: string[], fixes: string[], improvements: string[] }
+  buckets: { breaking: BucketItem[], features: BucketItem[], fixes: BucketItem[], improvements: BucketItem[] }
   counts: BucketCounts
 }
 

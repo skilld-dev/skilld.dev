@@ -47,7 +47,10 @@ const ZERO = { breaking: 0, features: 0, fixes: 0, improvements: 0 }
 const files = readdirSync(dir).filter(f => f.endsWith('.json') && f !== '_manifest.json')
 const generatedAt = new Date().toISOString()
 
-interface RB { version: string, buckets?: { breaking?: string[], features?: string[] }, counts?: unknown }
+// A bucket item is either legacy text or { text, commit?, pr? } so the generator
+// can attribute changes to source; the ingester passes either shape through.
+type BucketItem = string | { text: string, commit?: string, pr?: number }
+interface RB { version: string, buckets?: { breaking?: BucketItem[], features?: BucketItem[] }, counts?: unknown }
 // The page renders only breaking + features bullets per version (fixes/improvements
 // show as counts), so drop the fix/improvement bullet text — it bloats a single
 // INSERT past SQLite's ~1MB statement limit on big packages (mui, wasm-pack).
