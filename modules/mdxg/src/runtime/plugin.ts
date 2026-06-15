@@ -4,7 +4,6 @@
 // in their nuxt.config. Without this plugin, server-side parseMdxg calls would
 // silently fall through to a 404'd /api/_mdc/highlight endpoint and emit raw
 // (unhighlighted) code blocks.
-// @ts-expect-error virtual module provided by @nuxtjs/mdc at runtime
 import mdcHighlighter from '#mdc-highlighter'
 import { setMdxgDefaultHighlighter } from './utils/mdxg'
 
