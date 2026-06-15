@@ -1,4 +1,4 @@
-import { listGuidesForSitemap } from '#layers/guides/server/utils/npm-guides'
+import { listGuidesForSitemap } from '../../utils/npm-guides'
 
 export default defineSitemapEventHandler(async (event) => {
   const guides = await listGuidesForSitemap(event)

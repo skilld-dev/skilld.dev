@@ -105,7 +105,7 @@ export function defineApiHandler<
 }
 
 async function resolveBearerUser(event: H3Event): Promise<UserSession['user'] | null> {
-  const { resolveBearerSession } = await import('~~/layers/identity/server/utils/bearer')
+  const { resolveBearerSession } = await import('#layers/identity/server/utils/bearer')
   return await resolveBearerSession(event)
 }
 

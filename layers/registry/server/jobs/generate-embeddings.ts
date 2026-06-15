@@ -9,8 +9,8 @@
  * Storage: precomputed top-N neighbor list per skill, written to KV as one
  * blob keyed by model+version. No vector DB.
  */
-import { getGenerated, putGenerated, sha1 } from '#layers/registry/server/utils/skill-generated'
-import { vectorIdFor } from '#layers/registry/server/utils/vector-id'
+import { getGenerated, putGenerated, sha1 } from '../utils/skill-generated'
+import { vectorIdFor } from '../utils/vector-id'
 
 const VOYAGE_URL = 'https://api.voyageai.com/v1/embeddings'
 const EMBED_DIM = 512

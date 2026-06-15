@@ -1,5 +1,5 @@
-import { officialRepos } from '~~/layers/registry/server/data/official-repos'
 import { defineApiHandler } from '#shared/server/handler'
+import { officialRepos } from '../data/official-repos'
 import { OfficialReposQuery } from '../schemas/skills-query'
 
 export default defineApiHandler({

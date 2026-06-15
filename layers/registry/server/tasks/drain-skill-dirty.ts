@@ -1,10 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import {
   recomputeIndexabilityForSkill,
   recomputeTrustForSkill,
-} from '~~/layers/registry/server/utils/recompute-scores'
-import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+} from '../utils/recompute-scores'
 
 const BATCH = 200
 const CRON = '*/5 * * * *'

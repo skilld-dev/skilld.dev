@@ -1,8 +1,8 @@
-import { querySkills } from '~~/layers/registry/server/utils/skills-registry'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { makeOwnerFacetPresenter, makeSkillPresenter } from '../../presenters/skill'
 import { SkillsListQuery } from '../../schemas/skills-query'
+import { querySkills } from '../../utils/skills-registry'
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 const skillPresenter = makeSkillPresenter(officialOwners)

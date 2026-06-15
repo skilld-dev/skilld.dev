@@ -1,5 +1,5 @@
-import { findGuide } from '#layers/guides/server/utils/npm-guides'
 import { defineApiHandler } from '#shared/server/handler'
+import { findGuide } from '../../utils/npm-guides'
 
 // Returns guide metadata + raw markdown + per-version buckets. The PAGE parses
 // the markdown (via parseMdxg); with the mdxg highlighter now registered

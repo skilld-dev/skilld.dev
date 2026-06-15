@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
-import { syncRepo } from '~~/layers/registry/server/utils/sync-repo'
+import { resolveGithubBindings } from '#layers/registry/server/utils/github-client'
+import { syncRepo } from '#layers/registry/server/utils/sync-repo'
 import { defineApiHandler } from '#shared/server/handler'
 
 const SyncOneQuery = z.object({

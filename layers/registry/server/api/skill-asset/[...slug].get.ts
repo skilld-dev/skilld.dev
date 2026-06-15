@@ -1,6 +1,6 @@
-import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
-import { findSkill } from '~~/layers/registry/server/utils/skills-registry'
 import { defineApiHandler } from '#shared/server/handler'
+import { parseSkillMd } from '../../utils/skill-md-render'
+import { findSkill } from '../../utils/skills-registry'
 
 const ASSET_CACHE_TTL = 60 * 60 * 24 * 7
 const ASSET_MISSING_TTL = 60 * 60

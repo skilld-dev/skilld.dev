@@ -1,5 +1,5 @@
-import { notBrokenSql } from '~~/layers/registry/server/utils/broken'
 import { defineApiHandler } from '#shared/server/handler'
+import { notBrokenSql } from '../../utils/broken'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const FROM = 'FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo'

@@ -1,5 +1,5 @@
 import type { SkillTrustTier } from './skill-trust'
-import { officialRepos } from '#layers/registry/server/data/official-repos'
+import { officialRepos } from '../data/official-repos'
 
 export const SEO_INDEXABLE_MIN_SCORE = 4
 export const SEO_INSTALLS_STRONG = 1_000

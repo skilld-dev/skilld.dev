@@ -1,10 +1,10 @@
 import type { H3Event } from 'h3'
-import type { CoOccurrenceNeighbor } from '#layers/registry/server/utils/skill-co-occurrence'
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
-import { getCoOccurrenceNeighbors } from '#layers/registry/server/utils/skill-co-occurrence'
-import { findRelatedSkills, findSkill, findSkillsByLookups } from '#layers/registry/server/utils/skills-registry'
+import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
+import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
+import { findRelatedSkills, findSkill, findSkillsByLookups } from '../../utils/skills-registry'
 
 const COMMITS_CACHE_TTL = 60 * 60 * 12
 

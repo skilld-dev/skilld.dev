@@ -1,8 +1,8 @@
-import type { GeneratedKind } from '~~/layers/registry/server/utils/skill-generated'
-/// <reference types="@cloudflare/workers-types" />
-import { putGenerated } from '~~/layers/registry/server/utils/skill-generated'
+import type { GeneratedKind } from '../utils/skill-generated'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { extractJson } from '#shared/server/anthropic'
+/// <reference types="@cloudflare/workers-types" />
+import { putGenerated } from '../utils/skill-generated'
 
 const CRON = '45 * * * *'
 const ANTHROPIC_VERSION = '2023-06-01'

@@ -1,9 +1,9 @@
 import type { TagPayload } from '../../jobs/generate-tags'
-import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
-import { getFeaturedOfficialSections, getTopReposByCount, getTopReposByStars } from '~~/layers/registry/server/utils/skills-registry'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { FeaturedSkillsQuery } from '../../schemas/featured-query'
+import { getGeneratedBatch } from '../../utils/skill-generated'
+import { getFeaturedOfficialSections, getTopReposByCount, getTopReposByStars } from '../../utils/skills-registry'
 
 const OWNER_FRESH_SECONDS = 7 * 86400
 

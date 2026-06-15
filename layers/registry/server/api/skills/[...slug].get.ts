@@ -1,14 +1,14 @@
 import type { H3Event } from 'h3'
 import { SkillDetailResponseSchema } from 'skilld-protocol/wire'
 
-import { getTree, resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
-import { getGenerated } from '~~/layers/registry/server/utils/skill-generated'
-import { parseSkillMd } from '~~/layers/registry/server/utils/skill-md-render'
-import { findDuplicateGroupForSkill, findSkill } from '~~/layers/registry/server/utils/skills-registry'
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
+import { getTree, resolveGithubBindings } from '../../utils/github-client'
+import { getGenerated } from '../../utils/skill-generated'
+import { parseSkillMd } from '../../utils/skill-md-render'
+import { findDuplicateGroupForSkill, findSkill } from '../../utils/skills-registry'
 
 interface FaqPayload { faqs: { question: string, answer: string }[] }
 interface SummaryPayload { text: string }

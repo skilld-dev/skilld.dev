@@ -5,7 +5,7 @@
  * Empty until sync-github-skills has run at least once.
  */
 
-import { officialRepos } from '~~/layers/registry/server/data/official-repos'
+import { officialRepos } from '#layers/registry/server/data/official-repos'
 import { getDB } from '../../../shared/server/db'
 
 const officialOwners = officialRepos.map(r => r.owner)

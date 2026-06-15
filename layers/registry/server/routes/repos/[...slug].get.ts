@@ -1,4 +1,4 @@
-import { ownerHubPath, repoHubPath } from '~~/layers/registry/server/utils/skill-routes'
+import { ownerHubPath, repoHubPath } from '../../utils/skill-routes'
 
 export default defineEventHandler((event) => {
   const slug = (getRouterParam(event, 'slug') ?? '').replace(/^\/+/, '')

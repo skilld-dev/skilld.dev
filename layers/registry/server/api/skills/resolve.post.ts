@@ -1,7 +1,7 @@
 import { SkillsResolveInputSchema, SkillsResolveResponseSchema } from 'skilld-protocol/wire'
-import { findSkillsByLookups } from '~~/layers/registry/server/utils/skills-registry'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
+import { findSkillsByLookups } from '../../utils/skills-registry'
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 

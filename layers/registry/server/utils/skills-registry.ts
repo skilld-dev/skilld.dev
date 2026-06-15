@@ -657,14 +657,6 @@ export async function listSupportedSkillsForSitemap(event: H3Event): Promise<Ski
     .map(row => ({ name: row.name, owner: row.owner, repo: row.repo }))
 }
 
-export async function listAllOwnersForSitemap(event: H3Event): Promise<{ owner: string }[]> {
-  const db = getDB(event)
-  const res = await db
-    .prepare(`SELECT DISTINCT s.owner ${FROM_SKILLS_JOIN_REPOS} WHERE ${NOT_BROKEN_SQL} ORDER BY s.owner ASC`)
-    .all<{ owner: string }>()
-  return res.results ?? []
-}
-
 export async function findRelatedSkills(
   event: H3Event,
   opts: { owner: string, repo: string, excludeName: string, limit?: number },

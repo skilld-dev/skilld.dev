@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { OrgProfile } from '#layers/registry/server/api/orgs/[owner].get'
-import type { RepoSourceProfile } from '#layers/registry/server/api/repos/[owner]/[repo].get'
+import type { OrgProfile } from '../../../../../server/api/orgs/[owner].get'
+import type { RepoSourceProfile } from '../../../../../server/api/repos/[owner]/[repo].get'
 
 const route = useRoute()
 const owner = computed(() => String(route.params.owner ?? ''))

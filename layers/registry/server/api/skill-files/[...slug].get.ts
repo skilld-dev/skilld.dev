@@ -1,5 +1,5 @@
-import { findSkill } from '~~/layers/registry/server/utils/skills-registry'
 import { defineApiHandler } from '#shared/server/handler'
+import { findSkill } from '../../utils/skills-registry'
 
 const FILES_CACHE_TTL = 60 * 60 * 6
 const FILES_MISSING_TTL = 60 * 5

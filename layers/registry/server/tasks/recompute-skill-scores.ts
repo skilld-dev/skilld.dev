@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { recomputeAllSkillScores } from '~~/layers/registry/server/utils/recompute-scores'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { recomputeAllSkillScores } from '../utils/recompute-scores'
 
 const CRON = '0 3 * * *'
 

@@ -1,4 +1,4 @@
-import { officialRepos } from '~~/layers/registry/server/data/official-repos'
+import { officialRepos } from '../data/official-repos'
 
 export type SupportedRepoTier = 'core-official' | 'trusted-author' | 'curated' | 'candidate'
 

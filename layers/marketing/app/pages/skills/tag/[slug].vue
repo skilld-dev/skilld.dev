@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TagProfile } from '~~/layers/registry/server/api/tags/[slug].get'
+import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
 
 const route = useRoute()
 const tagSlug = computed(() => route.params.slug as string)
@@ -29,6 +29,10 @@ useSeoMeta({
   description,
   ogTitle: title,
   ogDescription: description,
+  // Derived tags are noindex until the curation audit keeps them (migration
+  // 0064); controlled-vocab tags are always indexable. Page still renders for
+  // internal nav either way.
+  robots: () => (data.value?.indexable ? 'index,follow' : 'noindex,follow'),
 })
 
 defineOgImage('Page.takumi', {

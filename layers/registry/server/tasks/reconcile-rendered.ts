@@ -1,8 +1,8 @@
-/// <reference types="@cloudflare/workers-types" />
-import { resolveGithubBindings } from '~~/layers/registry/server/utils/github-client'
-import { syncRepo } from '~~/layers/registry/server/utils/sync-repo'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { RECONCILE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
+/// <reference types="@cloudflare/workers-types" />
+import { resolveGithubBindings } from '../utils/github-client'
+import { syncRepo } from '../utils/sync-repo'
 
 const BATCH = 50
 const CRON = '20 */6 * * *'

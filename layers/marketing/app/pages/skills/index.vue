@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TagFacet } from '~~/layers/registry/server/api/skills/tags.get'
+import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 
 useSeoMeta({
   title: 'Skills — skilld',

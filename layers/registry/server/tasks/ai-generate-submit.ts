@@ -1,10 +1,10 @@
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
-import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '#layers/registry/server/utils/ai-prompts'
-/// <reference types="@cloudflare/workers-types" />
-import { putGenerated } from '#layers/registry/server/utils/skill-generated'
-import { vectorIdFor } from '#layers/registry/server/utils/vector-id'
 import { extractJson } from '#shared/server/anthropic'
 import { pAll } from '#shared/server/p-all'
+import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '../utils/ai-prompts'
+/// <reference types="@cloudflare/workers-types" />
+import { putGenerated } from '../utils/skill-generated'
+import { vectorIdFor } from '../utils/vector-id'
 
 const CRON = '15 * * * *'
 // Bounded so a single backfill spike can't blow Anthropic batch spend.
@@ -20,6 +20,11 @@ const EMBED_BACKFILL_LIMIT = 200
 // under the scheduled-handler budget.
 const AI_CONCURRENCY = 3
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001'
+// Kill switch: pause Anthropic Haiku batch spend while we investigate the
+// scaled-content-abuse deindexing (10k AI pages → 0.6% indexed, sitewide
+// demotion late Apr 2026). Embeddings/abstractness (Workers AI, ~free) keep
+// running so search recall doesn't regress. Flip back to false to resume.
+const HAIKU_GENERATION_PAUSED = true
 const ANTHROPIC_BATCH_URL = 'https://api.anthropic.com/v1/messages/batches'
 const ANTHROPIC_VERSION = '2023-06-01'
 
@@ -289,7 +294,7 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
   }
 
   // --- 2. Async: summary/tags/faq via Anthropic Batch API ---
-  if (apiKey) {
+  if (apiKey && !HAIKU_GENERATION_PAUSED) {
     const requests: BatchRequestItem[] = []
     for (let i = 0; i < skills.length; i++) {
       const skill = skills[i]!

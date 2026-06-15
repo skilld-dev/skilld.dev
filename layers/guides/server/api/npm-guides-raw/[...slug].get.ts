@@ -1,5 +1,5 @@
-import { findGuide } from '#layers/guides/server/utils/npm-guides'
 import { defineApiHandler } from '#shared/server/handler'
+import { findGuide } from '../../utils/npm-guides'
 
 // Raw markdown for agents: the same artifact a coding agent would be handed via
 // `npx skilld add`. Plain text/markdown, cacheable, no rendering shell.

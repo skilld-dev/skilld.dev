@@ -1,10 +1,10 @@
-import type { RegistrySkill } from '~~/layers/registry/server/utils/skills-registry'
 /// <reference types="@cloudflare/workers-types" />
 import type { TagPayload } from '../../jobs/generate-tags'
-import { notBrokenSql } from '~~/layers/registry/server/utils/broken'
-import { getGeneratedBatch } from '~~/layers/registry/server/utils/skill-generated'
+import type { RegistrySkill } from '../../utils/skills-registry'
 import { getDB } from '../../../../../shared/server/db'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
+import { notBrokenSql } from '../../utils/broken'
+import { getGeneratedBatch } from '../../utils/skill-generated'
 
 import { getTagRedirect, isQualityDerivedTag } from '../../utils/tag-quality'
 
@@ -28,6 +28,18 @@ async function derivedTagCount(db: D1Database, slug: string): Promise<number> {
   return row?.count ?? 0
 }
 
+// Curated indexability for derived tags (migration 0064). A derived tag earns
+// an indexable page only when a sub-agent audit ticked it (keep=1). Absent or
+// crossed → the page still renders for internal nav but is noindex + omitted
+// from the sitemap.
+async function tagDecisionKeep(db: D1Database, slug: string): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT keep FROM tag_decisions WHERE slug = ?`)
+    .bind(slug)
+    .first<{ keep: number }>()
+  return row?.keep === 1
+}
+
 export interface TagOwner {
   owner: string
   count: number
@@ -48,6 +60,7 @@ export interface TagProfile {
   topOwners: TagOwner[]
   skills: RegistrySkill[]
   relatedTags: RelatedTag[]
+  indexable: boolean
   fetchedAt: string
 }
 
@@ -95,6 +108,7 @@ export default defineCachedEventHandler(async (event) => {
     return sendRedirect(event, redirect, 301)
 
   const db = getDB(event)
+  const isControlledVocab = TAG_BY_SLUG.has(slug)
   let tag = TAG_BY_SLUG.get(slug)
   if (!tag) {
     // Long-tail: AI-derived tag must pass the quality gate before earning
@@ -183,6 +197,10 @@ export default defineCachedEventHandler(async (event) => {
 
   const totalStars = skills.reduce((sum, s) => sum + s.stars, 0)
 
+  // Controlled-vocab tags are trusted and always indexable; derived tags only
+  // when the audit kept them. Drives both robots and sitemap inclusion.
+  const indexable = isControlledVocab || await tagDecisionKeep(db, slug)
+
   const profile: TagProfile = {
     tag: { slug: tag.slug, label: tag.label, description: tag.description },
     totalSkills: skills.length,
@@ -190,6 +208,7 @@ export default defineCachedEventHandler(async (event) => {
     topOwners,
     skills,
     relatedTags,
+    indexable,
     fetchedAt: new Date().toISOString(),
   }
 
