@@ -8,7 +8,6 @@ interface CollectionRow {
   preamble: string | null
   featured_at: number | null
   updated_at: number
-  skill_count: number
 }
 
 interface CollectionSkillRow {
@@ -44,8 +43,7 @@ export default defineCachedEventHandler(
     const db = getDB(event)
     const res = await db
       .prepare(
-        `SELECT c.id, u.login AS author_login, c.slug, c.name, c.preamble, c.featured_at, c.updated_at,
-                (SELECT COUNT(*) FROM collection_skills_v2 cs WHERE cs.collection_id = c.id) AS skill_count
+        `SELECT c.id, u.login AS author_login, c.slug, c.name, c.preamble, c.featured_at, c.updated_at
          FROM collections_v2 c
          JOIN users u ON u.id = c.author_user_id
          WHERE c.featured = 1 AND c.deleted_at IS NULL
@@ -68,11 +66,13 @@ export default defineCachedEventHandler(
                       ORDER BY s.installs DESC, s.name ASC
                     ) AS rn
              FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-             WHERE r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800
+             WHERE (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)
+               AND s.source_resolved = 1
+               AND s.rendered_status = 'ok'
            )
-           SELECT cs.collection_id, cs.position, cs.owner, cs.repo, COALESCE(rs.name, cs.name) AS name, rs.display_name, cs.reason
+           SELECT cs.collection_id, cs.position, cs.owner, cs.repo, rs.name, rs.display_name, cs.reason
            FROM collection_skills_v2 cs
-           LEFT JOIN ranked_skills rs
+           JOIN ranked_skills rs
              ON rs.owner = cs.owner
             AND rs.repo = cs.repo
             AND (
@@ -92,21 +92,24 @@ export default defineCachedEventHandler(
       }
     }
 
-    const items = rows.map(row => ({
-      authorLogin: row.author_login,
-      slug: row.slug,
-      name: row.name,
-      preamble: row.preamble,
-      skillCount: row.skill_count,
-      updatedAt: row.updated_at,
-      skills: (skillsByCollection.get(row.id) ?? []).map(skill => ({
+    const items = rows.map((row) => {
+      const skills = (skillsByCollection.get(row.id) ?? []).map(skill => ({
         owner: skill.owner,
         repo: skill.repo,
         name: skill.name,
         displayName: skill.display_name,
         reason: skill.reason,
-      })),
-    }))
+      }))
+      return {
+        authorLogin: row.author_login,
+        slug: row.slug,
+        name: row.name,
+        preamble: row.preamble,
+        skillCount: skills.length,
+        updatedAt: row.updated_at,
+        skills,
+      }
+    })
     return { items }
   },
   { maxAge: 60, swr: true, name: 'collections-featured-v3' },

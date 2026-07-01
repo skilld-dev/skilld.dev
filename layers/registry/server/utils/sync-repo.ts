@@ -115,6 +115,39 @@ async function loadExistingRepo(db: D1Database, owner: string, repo: string): Pr
     .first<ExistingRepo>()
 }
 
+async function markRepoMissing(db: D1Database, owner: string, repo: string, now: number): Promise<void> {
+  await Promise.all([
+    db
+      .prepare(
+        `UPDATE repos
+         SET broken_since = COALESCE(broken_since, ?),
+             repo_meta_synced_at = ?
+         WHERE owner = ? AND repo = ?`,
+      )
+      .bind(now, now, owner, repo)
+      .run(),
+    db
+      .prepare(
+        `UPDATE skills
+         SET source_resolved = 0,
+             last_synced_at = ?,
+             sync_status = 'repo_missing',
+             seo_indexable = 0,
+             seo_index_score = MIN(seo_index_score, 0),
+             seo_index_reasons = '["source_missing"]',
+             seo_index_synced_at = ?,
+             trust_tier = 'quarantined',
+             trust_source = 'computed',
+             trust_score = -50,
+             trust_reasons = '["source_missing"]',
+             trust_synced_at = ?
+         WHERE owner = ? AND repo = ?`,
+      )
+      .bind(now, now, now, owner, repo)
+      .run(),
+  ])
+}
+
 interface SkillSnapshot {
   path: string
   dirName: string
@@ -189,6 +222,8 @@ export async function syncRepo(
   }
 
   if (!repoRes.data) {
+    if (repoRes.status === 404 || repoRes.status === 410)
+      await markRepoMissing(db, owner, repo, nowSec())
     stats.status = 'failed'
     stats.reason = `repo fetch ${repoRes.status}`
     return stats

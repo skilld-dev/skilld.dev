@@ -9,7 +9,6 @@ interface CollectionIndexRow {
   name: string
   preamble: string | null
   updated_at: number
-  skill_count: number
 }
 
 interface CollectionIndexSkillRow {
@@ -47,8 +46,7 @@ export default defineCachedEventHandler(
     const [featuredRes, recentRes, totalRow] = await Promise.all([
       db.prepare(
         `SELECT c.id, u.login AS author_login, u.name AS author_name, u.avatar AS author_avatar,
-                c.slug, c.name, c.preamble, c.updated_at,
-                (SELECT COUNT(*) FROM collection_skills_v2 cs WHERE cs.collection_id = c.id) AS skill_count
+                c.slug, c.name, c.preamble, c.updated_at
          FROM collections_v2 c
          JOIN users u ON u.id = c.author_user_id
          WHERE c.featured = 1 AND c.deleted_at IS NULL
@@ -57,8 +55,7 @@ export default defineCachedEventHandler(
       ).all<CollectionIndexRow>(),
       db.prepare(
         `SELECT c.id, u.login AS author_login, u.name AS author_name, u.avatar AS author_avatar,
-                c.slug, c.name, c.preamble, c.updated_at,
-                (SELECT COUNT(*) FROM collection_skills_v2 cs WHERE cs.collection_id = c.id) AS skill_count
+                c.slug, c.name, c.preamble, c.updated_at
          FROM collections_v2 c
          JOIN users u ON u.id = c.author_user_id
          WHERE c.deleted_at IS NULL
@@ -102,11 +99,13 @@ async function loadSkillLabels(db: D1Database, rows: CollectionIndexRow[]) {
                 ORDER BY s.installs DESC, s.name ASC
               ) AS rn
        FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-       WHERE r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800
+       WHERE (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)
+         AND s.source_resolved = 1
+         AND s.rendered_status = 'ok'
      )
-     SELECT cs.collection_id, cs.owner, cs.repo, COALESCE(rs.name, cs.name) AS name, rs.display_name
+     SELECT cs.collection_id, cs.owner, cs.repo, rs.name, rs.display_name
      FROM collection_skills_v2 cs
-     LEFT JOIN ranked_skills rs
+     JOIN ranked_skills rs
        ON rs.owner = cs.owner
       AND rs.repo = cs.repo
       AND (
@@ -127,6 +126,7 @@ async function loadSkillLabels(db: D1Database, rows: CollectionIndexRow[]) {
 }
 
 function collectionIndexItem(row: CollectionIndexRow, skillsByCollection: Map<number, string[]>): CollectionIndexItem {
+  const skills = skillsByCollection.get(row.id) ?? []
   return {
     authorLogin: row.author_login,
     authorDisplayName: row.author_name,
@@ -135,8 +135,8 @@ function collectionIndexItem(row: CollectionIndexRow, skillsByCollection: Map<nu
     name: row.name,
     preamble: row.preamble,
     preambleExcerpt: row.preamble ? excerpt(row.preamble) : null,
-    skillCount: row.skill_count,
-    skills: skillsByCollection.get(row.id) ?? [],
+    skillCount: skills.length,
+    skills,
     updatedAt: row.updated_at,
   }
 }

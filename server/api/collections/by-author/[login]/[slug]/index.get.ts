@@ -24,12 +24,26 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Collection not found' })
 
     const skillsRes = await platform.db.prepare(
-      `SELECT cs.position, cs.owner, cs.repo, cs.name, s.display_name, cs.reason
+      `WITH ranked_skills AS (
+         SELECT s.owner, s.repo, s.name, s.display_name,
+                ROW_NUMBER() OVER (
+                  PARTITION BY s.owner, s.repo
+                  ORDER BY s.installs DESC, s.name ASC
+                ) AS rn
+         FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+         WHERE (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)
+           AND s.source_resolved = 1
+           AND s.rendered_status = 'ok'
+       )
+       SELECT cs.position, cs.owner, cs.repo, rs.name, rs.display_name, cs.reason
        FROM collection_skills_v2 cs
-       LEFT JOIN skills s
-         ON s.owner = cs.owner
-        AND s.repo = cs.repo
-        AND s.name = cs.name
+       JOIN ranked_skills rs
+         ON rs.owner = cs.owner
+        AND rs.repo = cs.repo
+        AND (
+          (cs.name IS NOT NULL AND rs.name = cs.name)
+          OR (cs.name IS NULL AND rs.rn = 1)
+        )
        WHERE cs.collection_id = ?
        ORDER BY cs.position ASC`,
     ).bind(collection.id).all<CollectionSkillRow>()

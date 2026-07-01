@@ -31,16 +31,28 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Collection not found' })
 
     const res = await platform.db.prepare(
-      `SELECT cs.owner, cs.repo, cs.name, cs.position,
-              MIN(s.target_package) AS target_package
+      `WITH ranked_skills AS (
+         SELECT s.owner, s.repo, s.name, s.target_package,
+                ROW_NUMBER() OVER (
+                  PARTITION BY s.owner, s.repo
+                  ORDER BY s.installs DESC, s.name ASC
+                ) AS rn
+         FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+         WHERE (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)
+           AND s.source_resolved = 1
+           AND s.rendered_status = 'ok'
+       )
+       SELECT cs.owner, cs.repo, rs.name, cs.position,
+              rs.target_package
        FROM collection_skills_v2 cs
-       LEFT JOIN skills s
-         ON s.owner = cs.owner
-        AND s.repo = cs.repo
-        AND s.name = cs.name
-        AND s.target_package IS NOT NULL
+       JOIN ranked_skills rs
+         ON rs.owner = cs.owner
+        AND rs.repo = cs.repo
+        AND (
+          (cs.name IS NOT NULL AND rs.name = cs.name)
+          OR (cs.name IS NULL AND rs.rn = 1)
+        )
        WHERE cs.collection_id = ?1
-       GROUP BY cs.owner, cs.repo, cs.name, cs.position
        ORDER BY cs.position`,
     ).bind(collection.id).all<ManifestRow>()
 
