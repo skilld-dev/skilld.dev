@@ -1,9 +1,14 @@
 import type { SyncRepoStats } from '../utils/sync-repo'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
-import { SUBSCRIBED_REPO_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
+import { STALE_SYNC_SECONDS, SUBSCRIBED_REPO_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { pAll } from '#shared/server/p-all'
 /// <reference types="@cloudflare/workers-types" />
 import { resolveGithubBindings } from '../utils/github-client'
+import {
+  GENERAL_SYNC_CANDIDATES_SQL,
+  prioritizeRepoSyncCandidates,
+  SUBSCRIBED_SYNC_CANDIDATES_SQL,
+} from '../utils/sync-candidates'
 import { syncRepo } from '../utils/sync-repo'
 
 const CONCURRENCY = 8
@@ -46,51 +51,30 @@ export default defineTask({
       console.warn('[sync-github-skills] GITHUB_TOKEN not configured; running unauthenticated (60/hr cap)')
     }
 
-    // Phase 3: subscription-prioritised pre-pass. Repos that any user
-    // watches and whose stalest skill is > SUBSCRIBED_REPO_STALE_SECONDS old
-    // jump the queue so the weekly digest reflects fresh activity. The
-    // general staleness pass picks up the rest after.
+    const now = Math.floor(Date.now() / 1000)
+
+    // Phase 3: subscription-prioritised pre-pass. Watched repos use the short
+    // freshness window so digests reflect fresh activity. The general fleet
+    // only becomes eligible at STALE_SYNC_SECONDS; previously it had no cutoff
+    // and continuously rechecked up to 250 repos every hour.
     const subRows = await db
-      .prepare(
-        // broken_since lives on `repos` post-0034; gate by joining repos so
-        // we skip whole repos that GitHub returned 404 for, while still using
-        // skills.last_synced_at to measure staleness per-row.
-        `SELECT s.owner, s.repo, MIN(s.last_synced_at) AS ls
-         FROM skills s
-         JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-         JOIN skill_subscriptions sub
-           ON sub.owner = s.owner AND sub.repo = s.repo
-         WHERE r.broken_since IS NULL
-         GROUP BY s.owner, s.repo
-         HAVING MIN(s.last_synced_at) IS NULL OR MIN(s.last_synced_at) < ?1
-         ORDER BY MIN(s.last_synced_at) IS NULL DESC, MIN(s.last_synced_at) ASC`,
-      )
-      .bind(Math.floor(Date.now() / 1000) - SUBSCRIBED_REPO_STALE_SECONDS)
+      .prepare(SUBSCRIBED_SYNC_CANDIDATES_SQL)
+      .bind(now - SUBSCRIBED_REPO_STALE_SECONDS)
       .all<{ owner: string, repo: string, ls: number | null }>()
 
-    // Stalest first; NULL last_synced_at sorts as 0 so unsynced repos lead.
-    // Filter out broken-only repos (every skill flagged broken_since) so we
-    // don't keep retrying repos that have been removed/renamed upstream.
+    // Repo-level `repo_meta_synced_at` advances even when GitHub's tree is
+    // unchanged, making this a real due-work cursor instead of an old content
+    // timestamp that never moves on the cheapest skip path.
     const stalenessRows = await db
-      .prepare(
-        `SELECT s.owner, s.repo, MIN(s.last_synced_at) AS ls
-         FROM skills s
-         JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-         WHERE r.broken_since IS NULL
-         GROUP BY s.owner, s.repo
-         ORDER BY MIN(s.last_synced_at) IS NULL DESC, MIN(s.last_synced_at) ASC`,
-      )
+      .prepare(GENERAL_SYNC_CANDIDATES_SQL)
+      .bind(now - STALE_SYNC_SECONDS)
       .all<{ owner: string, repo: string, ls: number | null }>()
 
-    // Dedupe: subscribed repos run first, then everything else.
-    const subscribed = (subRows.results ?? []).map(r => ({ owner: r.owner, repo: r.repo }))
-    const seen = new Set(subscribed.map(r => `${r.owner}/${r.repo}`))
-    const rest = (stalenessRows.results ?? [])
-      .map(r => ({ owner: r.owner, repo: r.repo }))
-      .filter(r => !seen.has(`${r.owner}/${r.repo}`))
-    const fullOrder = [...subscribed, ...rest]
-    const orderedRepos = fullOrder.slice(0, MAX_REPOS_PER_RUN)
-    const deferred = fullOrder.length - orderedRepos.length
+    const { ordered: orderedRepos, deferred } = prioritizeRepoSyncCandidates(
+      subRows.results ?? [],
+      stalenessRows.results ?? [],
+      MAX_REPOS_PER_RUN,
+    )
 
     const startedAt = Date.now()
     let aborted = false

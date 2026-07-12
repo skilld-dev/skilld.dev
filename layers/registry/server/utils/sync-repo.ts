@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { GithubBindings } from './github-client'
+import type { GithubBindings, RepoMeta } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { parseSkillFile } from './skill-frontmatter'
@@ -113,6 +113,44 @@ async function loadExistingRepo(db: D1Database, owner: string, repo: string): Pr
     .prepare(`SELECT last_tree_sha, pushed_at FROM repos WHERE owner = ? AND repo = ?`)
     .bind(owner, repo)
     .first<ExistingRepo>()
+}
+
+/**
+ * Record a successful GitHub metadata check when content did not change.
+ * This is the scheduler's repo-level freshness cursor and also keeps cheap
+ * metadata current without rewriting every skill row in the repo.
+ */
+async function markRepoSummaryChecked(
+  db: D1Database,
+  owner: string,
+  repo: string,
+  meta: RepoMeta,
+  pushedAt: number | null,
+  checkedAt: number,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE repos
+       SET default_branch = ?,
+           stars = ?,
+           forks = ?,
+           pushed_at = ?,
+           repo_created_at = ?,
+           repo_meta_synced_at = ?,
+           broken_since = NULL
+       WHERE owner = ? AND repo = ?`,
+    )
+    .bind(
+      meta.default_branch || 'main',
+      meta.stargazers_count ?? 0,
+      meta.forks_count ?? 0,
+      pushedAt,
+      epoch(meta.created_at),
+      checkedAt,
+      owner,
+      repo,
+    )
+    .run()
 }
 
 async function markRepoMissing(db: D1Database, owner: string, repo: string, now: number): Promise<void> {
@@ -233,14 +271,15 @@ export async function syncRepo(
   const headTreeSha = repoRes.data.headTreeSha
   const branch = meta.default_branch || 'main'
   const repoPushedAt = epoch(meta.pushed_at)
+  const checkedAt = nowSec()
 
-  const existing = await loadExistingSkills(db, owner, repo)
   const existingRepo = await loadExistingRepo(db, owner, repo)
 
   // GraphQL gave us the head tree SHA in the same request. If it matches
   // our cached value, the repo is unchanged and we skip the REST getTree
   // call entirely — saving one subrequest per unchanged repo.
   if (existingRepo?.last_tree_sha && headTreeSha && existingRepo.last_tree_sha === headTreeSha) {
+    await markRepoSummaryChecked(db, owner, repo, meta, repoPushedAt, checkedAt)
     stats.status = 'skipped-tree-sha'
     return stats
   }
@@ -251,6 +290,7 @@ export async function syncRepo(
     && repoPushedAt != null
     && existingRepo.pushed_at >= repoPushedAt
   ) {
+    await markRepoSummaryChecked(db, owner, repo, meta, repoPushedAt, checkedAt)
     stats.status = 'skipped-pushed-at'
     return stats
   }
@@ -266,9 +306,14 @@ export async function syncRepo(
 
   const tree = treeRes.data
   if (existingRepo?.last_tree_sha && existingRepo.last_tree_sha === tree.sha) {
+    await markRepoSummaryChecked(db, owner, repo, meta, repoPushedAt, checkedAt)
     stats.status = 'skipped-tree-sha'
     return stats
   }
+
+  // The common unchanged-repo paths above need only the single repos row.
+  // Delay the potentially many-row skills read until content actually changed.
+  const existing = await loadExistingSkills(db, owner, repo)
 
   const skillFiles: SkillSnapshot[] = []
   for (const entry of tree.tree) {
@@ -281,7 +326,7 @@ export async function syncRepo(
   }
   stats.skillsSeen = skillFiles.length
 
-  const now = nowSec()
+  const now = checkedAt
   const stars = meta.stargazers_count ?? 0
   const forks = meta.forks_count ?? 0
   const repoCreatedAt = epoch(meta.created_at)

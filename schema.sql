@@ -4,6 +4,12 @@ CREATE INDEX idx_activity_skill ON activity (owner, repo, name);
 
 CREATE INDEX idx_ai_ready_pages_indexed ON ai_ready_pages(indexed);
 
+CREATE INDEX idx_ai_ready_pages_indexnow_pending
+  ON ai_ready_pages(route)
+  WHERE indexed = 1
+    AND is_error = 0
+    AND (indexnow_synced_at IS NULL OR indexnow_synced_at < indexed_at);
+
 CREATE INDEX idx_ai_ready_pages_is_error ON ai_ready_pages(is_error);
 
 CREATE INDEX idx_ai_ready_pages_last_seen ON ai_ready_pages(last_seen_at);
@@ -58,6 +64,8 @@ CREATE INDEX idx_skills_last_synced_at ON skills (last_synced_at);
 
 CREATE INDEX idx_skills_modified ON skills (modified_at DESC);
 
+CREATE INDEX idx_skills_name_lookup ON skills (name, owner, repo);
+
 CREATE INDEX idx_skills_owner ON skills (owner);
 
 CREATE INDEX idx_skills_owner_repo ON skills (owner, repo);
@@ -83,6 +91,10 @@ CREATE INDEX idx_supported_skills_mode
 CREATE INDEX idx_users_login ON users(login);
 
 CREATE INDEX repos_broken_idx ON repos (broken_since);
+
+CREATE INDEX idx_repos_sync_due
+  ON repos (repo_meta_synced_at, owner, repo)
+  WHERE broken_since IS NULL;
 
 CREATE INDEX repos_kind_idx ON repos (repo_kind);
 

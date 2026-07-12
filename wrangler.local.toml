@@ -1,0 +1,40 @@
+name = "skilld-dev"
+account_id = "5904138d55ca25d5670dca6adf99894e"
+compatibility_date = "2026-03-03"
+compatibility_flags = [
+  "nodejs_compat",
+  "no_nodejs_compat_v2"
+]
+
+# Dev-only bindings for `nitro-cloudflare-dev` (wrangler getPlatformProxy).
+# Loaded via `nitro.cloudflareDev.configPath` in nuxt.config.ts.
+# Production bindings live in `nitro.cloudflare.wrangler` in nuxt.config.ts
+# (written via `deployConfig: true` at build time). Keep ids in sync.
+#
+# Note: `[ai]` is intentionally omitted — Workers AI always proxies to the
+# remote runtime, which forces a Cloudflare login + remote session every dev
+# startup. Add it back if you need to test AI calls locally.
+
+[[kv_namespaces]]
+binding = "KV_CACHE"
+id = "187e636458cb49faa2ae14743adc7736"
+
+[[kv_namespaces]]
+binding = "KV_DATA"
+id = "cf3d794a55f84192a30f520686e1d932"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "skilld-db"
+database_id = "a5e53f35-f5e5-4987-8c67-c0175addc7cc"
+
+[[send_email]]
+name = "EMAIL"
+
+# Vectorize index for SKILL.md embeddings. Omitted from local dev by default
+# (forces a remote session like `[ai]`). Add explicitly when testing
+# embeddings locally; production binding lives in `nitro.cloudflare.wrangler`
+# in nuxt.config.ts.
+# [[vectorize]]
+# binding = "SKILL_EMBEDDINGS"
+# index_name = "skill-embeddings"
