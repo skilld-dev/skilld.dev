@@ -28,7 +28,9 @@
     "build:test": "NODE_ENV=test nuxi build",
     "seo:audit-supported": "npx tsx scripts/audit-supported-indexable-skills.ts",
     "seo:curate-supported": "npx tsx scripts/curate-supported-source.ts",
-    "start:playwright:webserver": "NODE_ENV=test nuxi preview --port 5678"
+    "start:playwright:webserver": "NODE_ENV=test nuxi preview --port 5678",
+    "db:migrations:dev": "wrangler d1 migrations apply DB",
+    "db:migrations:prod": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
     "@iconify-json/lucide": "catalog:",
