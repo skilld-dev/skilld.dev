@@ -74,7 +74,6 @@
     "eslint-plugin-harlanzw": "catalog:",
     "happy-dom": "catalog:",
     "lint-staged": "catalog:",
-    "nitro-cloudflare-dev": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
