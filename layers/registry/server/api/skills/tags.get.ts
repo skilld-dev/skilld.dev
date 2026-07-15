@@ -1,4 +1,4 @@
-import { getDB } from '../../../../../shared/server/db'
+import { getDB } from '#server/utils/db'
 import { TAXONOMY } from '../../jobs/taxonomy'
 import { notBrokenSql } from '../../utils/broken'
 

@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { getDB } from '#shared/server/db'
+import { getDB } from '#server/utils/db'
 
 /** Per-type change counts (change8-style badges). */
 export interface BucketCounts {

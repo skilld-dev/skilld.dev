@@ -1,6 +1,6 @@
 import type { AuditEntry, SkillLiveResponse } from 'skilld-protocol/wire'
 import { SkillLiveResponseSchema } from 'skilld-protocol/wire'
-import { getDB } from '../../../../../shared/server/db'
+import { getDB } from '#server/utils/db'
 
 interface SkillsShAuditResponse {
   id?: string

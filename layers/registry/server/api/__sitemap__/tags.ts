@@ -1,4 +1,4 @@
-import { getDB } from '~~/shared/server/db'
+import { getDB } from '#server/utils/db'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { getTagRedirect } from '../../utils/tag-quality'
 
