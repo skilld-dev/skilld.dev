@@ -60,8 +60,14 @@ export default defineScheduledTask({
       .all<DirtyRow & { queued_at: number }>()
 
     const rows = picked.results ?? []
-    if (!rows.length)
+    if (!rows.length) {
+      await reportJobRun(db, 'drain-skill-dirty', {
+        cron: CRON,
+        status: 'ok',
+        durationMs: Date.now() - startedAt,
+      })
       return { result: { drained: 0 } }
+    }
 
     let updated = 0
     let failed = 0
