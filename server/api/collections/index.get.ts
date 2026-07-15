@@ -43,7 +43,7 @@ export default defineCachedEventHandler(
   async (event): Promise<CollectionsIndexResponse> => {
     const db = getDB(event)
 
-    const [featuredRes, recentRes, totalRow] = await Promise.all([
+    const [featuredResult, recentResult, totalResult] = await db.batch([
       db.prepare(
         `SELECT c.id, u.login AS author_login, u.name AS author_name, u.avatar AS author_avatar,
                 c.slug, c.name, c.preamble, c.updated_at
@@ -52,7 +52,7 @@ export default defineCachedEventHandler(
          WHERE c.featured = 1 AND c.deleted_at IS NULL
          ORDER BY c.featured_at DESC, c.updated_at DESC
          LIMIT 10`,
-      ).all<CollectionIndexRow>(),
+      ),
       db.prepare(
         `SELECT c.id, u.login AS author_login, u.name AS author_name, u.avatar AS author_avatar,
                 c.slug, c.name, c.preamble, c.updated_at
@@ -61,16 +61,17 @@ export default defineCachedEventHandler(
          WHERE c.deleted_at IS NULL
          ORDER BY c.created_at DESC
          LIMIT 20`,
-      ).all<CollectionIndexRow>(),
+      ),
       db.prepare(
         `SELECT COUNT(*) AS total
          FROM collections_v2
          WHERE deleted_at IS NULL`,
-      ).first<{ total: number }>(),
+      ),
     ])
 
-    const featuredRows = featuredRes.results ?? []
-    const recentRows = recentRes.results ?? []
+    const featuredRows = (featuredResult?.results ?? []) as CollectionIndexRow[]
+    const recentRows = (recentResult?.results ?? []) as CollectionIndexRow[]
+    const totalRow = totalResult?.results[0] as { total: number } | undefined
     const allRows = [...featuredRows, ...recentRows]
     const skillsByCollection = await loadSkillLabels(db, allRows)
 
@@ -81,7 +82,7 @@ export default defineCachedEventHandler(
       fetchedAt: new Date().toISOString(),
     }
   },
-  { maxAge: 60, swr: true, name: 'collections-index-v1' },
+  { maxAge: 30, swr: false, name: 'collections-index-origin-v1' },
 )
 
 async function loadSkillLabels(db: D1Database, rows: CollectionIndexRow[]) {

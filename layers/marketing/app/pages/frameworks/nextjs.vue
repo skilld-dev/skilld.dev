@@ -4,7 +4,7 @@ import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
 const { isBot } = useBotDetection()
 
 const { data, status, error, refresh } = useFetch<TagProfile>(
-  () => '/api/tags/nextjs',
+  () => '/api/tags/nextjs?view=data',
   {
     key: 'tag-nextjs',
     lazy: !isBot.value,

@@ -24,7 +24,7 @@ export function useInstallCopy(
   async function copy(value?: string) {
     await rawCopy(value)
     const t = toValue(target)
-    $fetch('/api/events/install', {
+    void $fetch('/api/events/install', {
       method: 'POST',
       body: {
         surface,

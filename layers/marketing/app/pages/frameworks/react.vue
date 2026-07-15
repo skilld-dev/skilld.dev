@@ -4,7 +4,7 @@ import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
 const { isBot } = useBotDetection()
 
 const { data, status, error, refresh } = useFetch<TagProfile>(
-  () => '/api/tags/react',
+  () => '/api/tags/react?view=data',
   {
     key: 'tag-react',
     lazy: !isBot.value,

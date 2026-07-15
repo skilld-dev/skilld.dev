@@ -74,6 +74,7 @@ export default defineCachedEventHandler(async (event) => {
     pages: Math.max(1, Math.ceil(total / limit)),
   }
 }, {
-  maxAge: 60 * 5,
-  swr: true,
+  maxAge: 60,
+  swr: false,
+  name: 'clusters-detail-origin-v1',
 })

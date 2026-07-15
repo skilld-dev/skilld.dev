@@ -1,10 +1,14 @@
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@5.20260715.1'
+  - miniflare@4.20260710.0
+  - wrangler@4.111.0
 shellEmulator: true
 
 trustPolicy: no-downgrade
 
 catalog:
   '@antfu/eslint-config': ^9.1.0
-  '@cloudflare/workers-types': ^5.20260714.1
+  '@cloudflare/workers-types': ^5.20260715.1
   '@iconify-json/lucide': ^1.2.117
   '@iconify-json/simple-icons': ^1.2.90
   '@iconify-json/vscode-icons': ^1.2.67
@@ -23,6 +27,7 @@ catalog:
   '@resvg/resvg-js': ^2.6.2
   '@takumi-rs/core': ^2.1.2
   '@takumi-rs/wasm': ^2.1.2
+  '@types/node': ^25.0.0
   '@vue/test-utils': ^2.4.11
   '@vueuse/core': ^14.3.0
   '@vueuse/nuxt': ^14.3.0
@@ -34,11 +39,11 @@ catalog:
   happy-dom: ^20.10.6
   lint-staged: ^17.0.8
   marked: ^18.0.6
-  mimetext: ^3.0.28
   motion-v: ^2.3.0
   nuxt: ^4.4.8
   nuxt-ai-ready: ^1.5.4
   nuxt-auth-utils: ^0.5.29
+  nuxt-cf-jobs: ^0.13.0
   nuxt-og-image: ^6.7.2
   shiki: ^4.3.1
   skilld-protocol: ^2.0.0
@@ -47,7 +52,7 @@ catalog:
   typescript: ^6.0.3
   vitest: ^4.1.10
   vue-tsc: ^3.3.7
-  wrangler: ^4.110.0
+  wrangler: ^4.111.0
   zod: ^4.4.3
 ignoredBuiltDependencies:
   - '@parcel/watcher'

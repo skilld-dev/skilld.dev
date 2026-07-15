@@ -100,11 +100,13 @@ function rowToSkill(r: SkillRow): RegistrySkill {
 
 export default defineCachedEventHandler(async (event) => {
   const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
+  const dataView = getQuery(event).view === 'data'
 
   // Marketing/cluster landing pages own these slugs. Hand off so crawl
-  // signal accumulates on the canonical URL instead of splitting.
+  // signal accumulates on the canonical URL instead of splitting. Their SSR
+  // data requests opt out explicitly so they can still reuse this profile.
   const redirect = getTagRedirect(slug)
-  if (redirect)
+  if (redirect && !dataView)
     return sendRedirect(event, redirect, 301)
 
   const db = getDB(event)
@@ -214,10 +216,11 @@ export default defineCachedEventHandler(async (event) => {
 
   return profile
 }, {
-  maxAge: 60 * 5,
-  swr: true,
+  maxAge: 60,
+  swr: false,
   getKey: (event) => {
     const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
-    return `tag:v1:${slug}`
+    const view = getQuery(event).view === 'data' ? 'data' : 'canonical'
+    return `tag-origin:v2:${slug}:${view}`
   },
 })

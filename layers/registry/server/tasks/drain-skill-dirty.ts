@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { getTaskEnv } from '#shared/server/task-env'
 import {
   recomputeIndexabilityForSkill,
   recomputeTrustForSkill,
@@ -34,13 +35,12 @@ interface DirtyRow {
  * UPDATE per skill using correlated subqueries against the live source
  * tables, then deletes the drained rows from skill_dirty.
  */
-export default defineTask({
-  meta: {
-    name: 'drain-skill-dirty',
-    description: 'Recompute drifted curator/social counters on skills from the skill_dirty queue',
-  },
+export default defineScheduledTask({
+  name: 'drain-skill-dirty',
+  cron: '*/5 * * * *',
+  description: 'Recompute drifted curator/social counters on skills from the skill_dirty queue',
   async run({ context }) {
-    const env = (context as Record<string, any>).cloudflare?.env as Record<string, unknown> | undefined
+    const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
     if (!db) {
       console.warn('[drain-skill-dirty] D1 binding not available in task context')

@@ -1,1 +1,4 @@
-{ "extends": "./.nuxt/tsconfig.json" }
+{
+  "extends": "./.nuxt/tsconfig.json",
+  "files": ["./worker-configuration.d.ts"]
+}

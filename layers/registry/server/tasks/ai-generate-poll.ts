@@ -1,6 +1,7 @@
 import type { GeneratedKind } from '../utils/skill-generated'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { extractJson } from '#shared/server/anthropic'
+import { getTaskEnv } from '#shared/server/task-env'
 /// <reference types="@cloudflare/workers-types" />
 import { putGenerated } from '../utils/skill-generated'
 
@@ -88,13 +89,12 @@ function parsePayload(kind: GeneratedKind, text: string): unknown | null {
   return null
 }
 
-export default defineTask({
-  meta: {
-    name: 'ai-generate-poll',
-    description: 'Poll Anthropic batches and UPSERT skill_generated when results land',
-  },
+export default defineScheduledTask({
+  name: 'ai-generate-poll',
+  cron: '45 * * * *',
+  description: 'Poll Anthropic batches and UPSERT skill_generated when results land',
   async run({ context }) {
-    const env = (context as Record<string, any>).cloudflare?.env as Record<string, unknown> | undefined
+    const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
     const apiKey = (env?.ANTHROPIC_API_KEY as string | undefined) || process.env.ANTHROPIC_API_KEY
 

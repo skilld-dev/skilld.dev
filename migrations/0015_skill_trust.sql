@@ -1,9 +1,5 @@
-ALTER TABLE skills ADD COLUMN trust_tier TEXT NOT NULL DEFAULT 'untrusted';
-ALTER TABLE skills ADD COLUMN trust_source TEXT NOT NULL DEFAULT 'computed';
-ALTER TABLE skills ADD COLUMN trust_score INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE skills ADD COLUMN trust_reasons TEXT NOT NULL DEFAULT '[]';
-ALTER TABLE skills ADD COLUMN trust_synced_at INTEGER;
-ALTER TABLE skills ADD COLUMN repo_skill_count INTEGER NOT NULL DEFAULT 0;
+-- The trust columns are created by 0014. Keep this migration focused on the
+-- supporting table and indexes so a fresh database can apply the full chain.
 
 CREATE TABLE IF NOT EXISTS repo_trust_overrides (
   owner        TEXT NOT NULL,

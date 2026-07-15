@@ -25,7 +25,7 @@ export default defineApiHandler({
       login: u.login,
       userToken,
       db,
-      env: env as unknown as Record<string, unknown>,
+      env,
     })
 
     return { ok: true as const, ...result }

@@ -28,7 +28,7 @@ export default defineOAuthGitHubEventHandler({
           login: row.login,
           userToken: accessToken,
           db: platform.db,
-          env: platform.env as unknown as Record<string, unknown>,
+          env: platform.env,
         }).catch((err) => {
           console.warn(`[oauth] owned-repo scan failed for @${row.login}:`, err)
         })

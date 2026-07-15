@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { pAll } from '#shared/server/p-all'
+import { getTaskEnv } from '#shared/server/task-env'
 
 const CRON = '30 * * * *'
 
@@ -156,13 +157,12 @@ async function enqueueDirty(db: D1Database, skills: SkillRow[]): Promise<number>
   return enqueued
 }
 
-export default defineTask({
-  meta: {
-    name: 'sync-social-mentions',
-    description: 'Ingest HN mentions of skilld.dev + tracked repos into skill_social_posts',
-  },
+export default defineScheduledTask({
+  name: 'sync-social-mentions',
+  cron: '30 * * * *',
+  description: 'Ingest HN mentions of skilld.dev + tracked repos into skill_social_posts',
   async run({ context }) {
-    const env = (context as Record<string, any>).cloudflare?.env as Record<string, unknown> | undefined
+    const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
     if (!db) {
       console.warn('[sync-social-mentions] D1 binding not available')

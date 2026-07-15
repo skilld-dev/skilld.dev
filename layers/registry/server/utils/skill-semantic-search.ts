@@ -55,9 +55,9 @@ async function getIdMap(db: D1Database): Promise<Map<string, SkillKey>> {
 // topK is capped well under D1's 100 bound-parameter limit: each hit becomes
 // one param in the IN clause, leaving headroom for owner/tag/category filters.
 export async function semanticSkillSearch(event: H3Event, query: string, topK = 60): Promise<SemanticHit[] | null> {
-  const env = (event.context as { platform?: { env?: Record<string, unknown> } }).platform?.env
+  const env = event.context.platform?.env
   const ai = env?.AI as AiBinding | undefined
-  const vectorize = env?.SKILL_EMBEDDINGS as Vectorize | undefined
+  const vectorize = env?.SKILL_EMBEDDINGS
   if (!ai || !vectorize)
     return null
 

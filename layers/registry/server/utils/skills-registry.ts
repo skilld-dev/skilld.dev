@@ -263,18 +263,21 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     .prepare(`SELECT s.owner, COUNT(*) as count ${FROM_SKILLS_JOIN_REPOS} ${where} GROUP BY s.owner ORDER BY count DESC LIMIT 20`)
     .bind(...params)
 
-  const [countRes, dataRes, facetRes] = await Promise.all([
-    countStmt.first<{ total: number }>(),
-    dataStmt.all<SkillRow>(),
-    facetStmt.all<{ owner: string, count: number }>(),
+  const [countResult, dataResult, facetResult] = await db.batch([
+    countStmt,
+    dataStmt,
+    facetStmt,
   ])
+  const countRes = countResult?.results[0] as { total: number } | undefined
+  const dataRows = (dataResult?.results ?? []) as SkillRow[]
+  const facets = (facetResult?.results ?? []) as { owner: string, count: number }[]
 
   return {
-    items: (dataRes.results ?? []).map(rowToSkill),
+    items: dataRows.map(rowToSkill),
     total: countRes?.total ?? 0,
     page,
     pages: Math.ceil((countRes?.total ?? 0) / limit),
-    facets: facetRes.results ?? [],
+    facets,
   }
 }
 
@@ -664,20 +667,20 @@ export async function findRelatedSkills(
   const db = getDB(event)
   const { owner, repo, excludeName, limit = 6 } = opts
 
-  const [repoRes, ownerRes] = await Promise.all([
+  const [repoResult, ownerResult] = await db.batch([
     db
       .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND s.repo = ? AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY s.installs DESC LIMIT ?`)
-      .bind(owner, repo, excludeName, limit)
-      .all<SkillRow>(),
+      .bind(owner, repo, excludeName, limit),
     db
       .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY s.installs DESC LIMIT ?`)
-      .bind(owner, repo, excludeName, limit)
-      .all<SkillRow>(),
+      .bind(owner, repo, excludeName, limit),
   ])
+  const repoRows = (repoResult?.results ?? []) as SkillRow[]
+  const ownerRows = (ownerResult?.results ?? []) as SkillRow[]
 
   return {
-    sameRepo: (repoRes.results ?? []).map(rowToSkill),
-    sameOwner: (ownerRes.results ?? []).map(rowToSkill),
+    sameRepo: repoRows.map(rowToSkill),
+    sameOwner: ownerRows.map(rowToSkill),
   }
 }
 

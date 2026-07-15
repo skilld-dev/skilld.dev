@@ -21,6 +21,8 @@ logs
 # Cloudflare
 .wrangler
 wrangler.toml
+.dev.vars*
+!.dev.vars.example
 
 # Skills registry (regenerated from mastra-ai/skills-api)
 server/data/scraped-skills.json

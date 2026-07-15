@@ -1,6 +1,9 @@
 import type { EventHandler, EventHandlerRequest, H3Event } from 'h3'
 import type { z } from 'zod'
 import type { Platform } from './platform'
+import { getHeader } from 'h3'
+
+export const MAX_API_BODY_BYTES = 1024 * 1024
 
 export interface UserSession {
   user: { id: number, login: string, [key: string]: unknown }
@@ -41,8 +44,17 @@ export interface ApiHandlerOptions<S extends z.ZodTypeAny, R, P> {
 export function defineApiHandler<
   S extends z.ZodTypeAny = z.ZodAny,
   R = unknown,
+>(opts: ApiHandlerOptions<S, R, R> & { presenter?: undefined }): EventHandler<EventHandlerRequest, Promise<R>>
+export function defineApiHandler<
+  S extends z.ZodTypeAny = z.ZodAny,
+  R = unknown,
   P = R,
->(opts: ApiHandlerOptions<S, R, P>): EventHandler<EventHandlerRequest, Promise<P>> {
+>(opts: ApiHandlerOptions<S, R, P> & { presenter: NonNullable<ApiHandlerOptions<S, R, P>['presenter']> }): EventHandler<EventHandlerRequest, Promise<P>>
+export function defineApiHandler<
+  S extends z.ZodTypeAny,
+  R,
+  P,
+>(opts: ApiHandlerOptions<S, R, P>): EventHandler<EventHandlerRequest, Promise<R | P>> {
   return defineEventHandler(async (event) => {
     const platform = event.context.platform
     if (!platform) {
@@ -54,7 +66,7 @@ export function defineApiHandler<
 
     let body = undefined as z.infer<S>
     if (opts.schema) {
-      const raw = isMethodWithBody(event) ? await readBody(event).catch(() => ({})) : getQuery(event)
+      const raw = isMethodWithBody(event) ? await readApiBody(event) : getQuery(event)
       const parsed = opts.schema.safeParse(raw)
       if (!parsed.success) {
         throw createError({
@@ -84,7 +96,7 @@ export function defineApiHandler<
     }
 
     const result = await opts.handler(ctx)
-    const presented = (opts.presenter ? opts.presenter(result, ctx) : (result as unknown as P))
+    const presented = opts.presenter ? opts.presenter(result, ctx) : result
 
     if (opts.response) {
       const parsed = opts.response.safeParse(presented)
@@ -112,4 +124,16 @@ async function resolveBearerUser(event: H3Event): Promise<UserSession['user'] | 
 function isMethodWithBody(event: H3Event): boolean {
   const m = event.method
   return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE'
+}
+
+async function readApiBody(event: H3Event): Promise<unknown> {
+  const contentLength = Number(getHeader(event, 'content-length'))
+  if (Number.isFinite(contentLength) && contentLength > MAX_API_BODY_BYTES) {
+    throw createError({
+      statusCode: 413,
+      statusMessage: 'Payload Too Large',
+      message: `Request body exceeds the ${MAX_API_BODY_BYTES}-byte limit`,
+    })
+  }
+  return await readBody(event)
 }
