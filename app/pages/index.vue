@@ -33,7 +33,7 @@ const { data: updatesData } = useFetch<RecentUpdatesResponse>('/api/feed/recent-
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 
 const { data: collectionsData } = useFetch<FeaturedCollectionsResponse>('/api/collections/featured', {
-  key: 'home-featured-collections-v3',
+  key: 'home-featured-collections-v4',
 })
 const featuredCollections = computed(() =>
   (collectionsData.value?.items ?? []).map(collection => ({
@@ -61,12 +61,12 @@ interface DomainCategory {
 }
 
 const DOMAIN_CATEGORIES: DomainCategory[] = [
+  { category: 'design', label: 'Design & frontend craft', description: 'Interface critique, taste, motion, and visual direction for polished frontend work.' },
   { category: 'package-best-practices', label: 'Framework & library best practices', description: 'Conventions for the npm packages and frameworks your project already depends on.' },
-  { category: 'devops', label: 'DevOps & deployment', description: 'CI, infrastructure, and release workflows that get code to production.' },
-  { category: 'api-integration', label: 'API integration', description: 'Connecting third-party services and SDKs with their current conventions.' },
   { category: 'testing-strategy', label: 'Testing', description: 'Unit, integration, and TDD workflows that keep behaviour stable.' },
+  { category: 'api-integration', label: 'API integration', description: 'Connecting third-party services and SDKs with their current conventions.' },
+  { category: 'devops', label: 'DevOps & deployment', description: 'CI, infrastructure, and release workflows that get code to production.' },
   { category: 'security', label: 'Security', description: 'Auditing, threat modelling, and finding vulnerabilities before shipping.' },
-  { category: 'design', label: 'Design', description: 'Design critique, taste, and visual direction work.' },
 ]
 
 const { data: domainData } = useAsyncData('home-domains', async () => {
@@ -112,10 +112,10 @@ function formatRelative(ts: number): string {
             id="hero-heading"
             class="font-mono text-2xl sm:text-3xl font-medium tracking-tight"
           >
-            What should your agent be better at?
+            Give your agent an eye for the frontend.
           </h1>
           <p class="mt-3 text-sm text-muted max-w-lg leading-relaxed">
-            A curated registry of skills for the npm packages and GitHub repos you actually use. Browse by what you're trying to do, install once, every agent uses it.
+            Curated skills that give your agent craft: motion, interface feel, accessibility, and the framework idioms behind polished frontend work. Install once, every agent uses it.
           </p>
 
           <div class="mt-6 flex flex-wrap items-center gap-3">

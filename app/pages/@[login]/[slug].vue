@@ -12,14 +12,11 @@ if (error.value)
   throw createError({ statusCode: 404, message: 'Collection not found', fatal: true })
 
 const installCmd = computed(() => collection.value ? collectionInstallCmd(login.value, slug.value) : '')
-const copied = ref(false)
-function copy() {
-  navigator.clipboard.writeText(installCmd.value)
-  copied.value = true
-  setTimeout(() => {
-    copied.value = false
-  }, 2000)
-}
+const { copy, copied } = useInstallCopy(
+  installCmd,
+  'collection-page',
+  () => ({ kind: 'collection', handle: login.value, slug: slug.value }),
+)
 
 useSeoMeta({
   title: () => collection.value ? `${collection.value.name} · @${login.value} · skilld` : 'Collection · skilld',
@@ -75,7 +72,7 @@ function collectionSkillLabel(skill: { repo: string, name?: string | null }) {
         color="neutral"
         variant="outline"
         :aria-label="copied ? 'Install command copied' : 'Copy install command'"
-        @click="copy"
+        @click="copy()"
       />
     </div>
     <span aria-live="polite" class="sr-only">{{ copied ? 'Install command copied to clipboard' : '' }}</span>
