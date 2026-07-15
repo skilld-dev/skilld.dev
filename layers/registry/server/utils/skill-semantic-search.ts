@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { H3Event } from 'h3'
-import { getDB } from '../../../../shared/server/db'
+import { getDB } from '#server/utils/db'
 import { vectorIdFor } from './vector-id'
 
 // Same model + dim the AI generation pipeline embeds skills with

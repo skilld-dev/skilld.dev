@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { retryIdempotentD1Write } from '#shared/server/db'
+import { retryIdempotentD1Write } from '#server/utils/db'
 
 describe('retryIdempotentD1Write', () => {
   it('retries transient D1 errors with exponential backoff and jitter', async () => {

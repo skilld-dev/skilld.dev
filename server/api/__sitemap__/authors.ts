@@ -1,4 +1,4 @@
-import { getDB } from '../../../shared/server/db'
+import { getDB } from '#server/utils/db'
 
 interface CollectionRow {
   author_login: string

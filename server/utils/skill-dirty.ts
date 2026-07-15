@@ -1,5 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
-import { retryIdempotentD1Write } from '#shared/server/db'
+import { retryIdempotentD1Write } from '#server/utils/db'
 
 /**
  * Reason buckets supported by the skill_dirty queue.
