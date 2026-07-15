@@ -35,7 +35,20 @@ describe('d1 migration bootstrap', () => {
          WHERE type = 'index' AND name = 'idx_ai_ready_pages_indexnow_pending'`,
       ).get()
       expect(pendingIndex).toBeTruthy()
-      expect(migrations.at(-1)).toBe('0067_optimize_query_planner.sql')
+
+      const cfJobTables = sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'table' AND name IN ('job_batches', 'jobs', 'failed_jobs')
+         ORDER BY name`,
+      ).all() as Array<{ name: string }>
+      expect(cfJobTables.map(table => table.name)).toEqual(['failed_jobs', 'job_batches', 'jobs'])
+
+      const cfJobClaimIndex = sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_jobs_claimable'`,
+      ).get()
+      expect(cfJobClaimIndex).toBeTruthy()
+      expect(migrations.at(-1)).toBe('0068_cf_jobs.sql')
     }
     finally {
       sqlite.close()
