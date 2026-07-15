@@ -42,7 +42,7 @@ const open = defineModel<boolean>('open', { default: false })
           size="sm"
           class="absolute right-3 top-3"
           aria-label="Close dialog"
-          @click="open = false"
+          @click="() => { open = false }"
         />
       </div>
     </template>

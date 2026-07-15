@@ -73,7 +73,7 @@ useSeoMeta({ title: 'Choose your cadence · skilld', robots: 'noindex' })
             size="sm"
             :variant="frequency === f ? 'solid' : 'outline'"
             :color="frequency === f ? 'primary' : 'neutral'"
-            @click="frequency = f"
+            @click="() => { frequency = f }"
           />
         </div>
       </div>
@@ -88,7 +88,7 @@ useSeoMeta({ title: 'Choose your cadence · skilld', robots: 'noindex' })
             size="sm"
             :variant="dow === d.value ? 'solid' : 'outline'"
             :color="dow === d.value ? 'primary' : 'neutral'"
-            @click="dow = d.value"
+            @click="() => { dow = d.value }"
           />
         </div>
       </div>

@@ -197,7 +197,7 @@ function clearOwner() {
                 variant="link"
                 size="xs"
                 aria-label="Clear search"
-                @click="search = ''"
+                @click="() => { search = '' }"
               />
             </template>
           </UInput>
@@ -486,7 +486,7 @@ function clearOwner() {
           size="sm"
           aria-label="Previous page"
           :disabled="page <= 1"
-          @click="page--"
+          @click="() => { page-- }"
         />
         <span class="data-label">
           Page {{ page }} of {{ totalPages }}
@@ -498,7 +498,7 @@ function clearOwner() {
           size="sm"
           aria-label="Next page"
           :disabled="page >= totalPages"
-          @click="page++"
+          @click="() => { page++ }"
         />
       </nav>
     </section>

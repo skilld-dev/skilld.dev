@@ -164,7 +164,7 @@ const signInHref = computed(() => loginUrl({ returnTo: route.fullPath, action: '
               color="neutral"
               variant="ghost"
               block
-              @click="open = false"
+              @click="() => { open = false }"
             />
           </div>
         </template>

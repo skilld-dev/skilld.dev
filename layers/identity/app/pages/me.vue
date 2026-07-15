@@ -95,7 +95,7 @@ function fmtDate(ts: number | null | undefined): string {
           color="neutral"
           variant="outline"
           label="Edit"
-          @click="showCadence = !showCadence"
+          @click="() => { showCadence = !showCadence }"
         />
         <div v-if="showCadence" class="mt-3 space-y-2 text-sm">
           <div class="flex gap-2">
@@ -106,7 +106,7 @@ function fmtDate(ts: number | null | undefined): string {
               size="xs"
               :variant="cadence.frequency === f ? 'solid' : 'outline'"
               color="neutral"
-              @click="cadence.frequency = f"
+              @click="() => { cadence.frequency = f }"
             />
           </div>
           <div v-if="cadence.frequency === 'weekly'" class="flex gap-1 flex-wrap">
@@ -117,7 +117,7 @@ function fmtDate(ts: number | null | undefined): string {
               size="xs"
               :variant="cadence.dow === d ? 'solid' : 'outline'"
               color="neutral"
-              @click="cadence.dow = d"
+              @click="() => { cadence.dow = d }"
             />
           </div>
           <div v-if="cadence.frequency !== 'off'">
@@ -144,7 +144,7 @@ function fmtDate(ts: number | null | undefined): string {
           color="neutral"
           variant="outline"
           label="Edit"
-          @click="showEmail = !showEmail"
+          @click="() => { showEmail = !showEmail }"
         />
         <div v-if="showEmail" class="mt-3 space-y-2">
           <input v-model="emailForm.digest_email" type="email" class="w-full rounded border border-default bg-default px-2 py-1 font-mono text-xs">

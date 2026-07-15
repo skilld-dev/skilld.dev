@@ -195,7 +195,7 @@ onKeyDown('?', (e) => {
           size="xs"
           aria-label="Keyboard shortcuts"
           aria-haspopup="dialog"
-          @click="shortcutsModalOpen = true"
+          @click="() => { shortcutsModalOpen = true }"
         />
         <UButton
           to="https://github.com/harlan-zw/skilld"

@@ -1184,7 +1184,7 @@ useHead(computed(() => ({
                     color="neutral"
                     variant="outline"
                     class="mt-3"
-                    @click="currentRaw && renderRaw(currentRaw)"
+                    @click="() => { if (currentRaw) renderRaw(currentRaw) }"
                   />
                 </div>
               </div>

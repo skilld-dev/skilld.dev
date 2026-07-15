@@ -637,7 +637,7 @@ const recoveryCards = computed(() => [
               size="sm"
               :variant="severityFilter === filter.value ? 'solid' : 'ghost'"
               :color="severityFilter === filter.value ? 'primary' : 'neutral'"
-              @click="severityFilter = filter.value"
+              @click="() => { severityFilter = filter.value }"
             />
           </div>
 
