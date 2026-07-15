@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "skilld-dev",
+  "account_id": "5904138d55ca25d5670dca6adf99894e",
+  "compatibility_date": "2026-07-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "limits": {
+    "cpu_ms": 300000
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "skilld-db", "database_id": "a5e53f35-f5e5-4987-8c67-c0175addc7cc" }
+  ],
+  "kv_namespaces": [
+    { "binding": "KV_CACHE", "id": "187e636458cb49faa2ae14743adc7736" },
+    { "binding": "KV_DATA", "id": "cf3d794a55f84192a30f520686e1d932" }
+  ],
+  "analytics_engine_datasets": [
+    { "binding": "SKILLD_ANALYTICS", "dataset": "skilld_cli_v1" }
+  ],
+  "send_email": [
+    { "name": "EMAIL" }
+  ],
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "vectorize": [
+    { "binding": "SKILL_EMBEDDINGS", "index_name": "skill-embeddings" }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "$DurableObject", "class_name": "$DurableObject" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_classes": ["$DurableObject"] }
+  ],
+  "keep_vars": true,
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true
+    },
+  },
+  "routes": [
+    {
+      "pattern": "skilld.dev",
+      "custom_domain": true
+    }
+  ]
+}

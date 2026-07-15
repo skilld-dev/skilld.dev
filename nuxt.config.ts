@@ -23,7 +23,6 @@ export default defineNuxtConfig({
     '@nuxtjs/html-validator',
     'motion-v/nuxt',
     '@vueuse/nuxt',
-    'nitro-cloudflare-dev',
     'nuxt-auth-utils',
   ],
 
@@ -71,14 +70,14 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    sessionPassword: process.env.NUXT_SESSION_PASSWORD || '',
-    adminSecret: process.env.NUXT_ADMIN_SECRET || '',
-    tokenKey: process.env.NUXT_TOKEN_KEY || '',
-    publicSiteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://skilld.dev',
+    sessionPassword: '',
+    adminSecret: '',
+    tokenKey: '',
+    publicSiteUrl: 'https://skilld.dev',
     oauth: {
       github: {
-        clientId: process.env.NUXT_OAUTH_GITHUB_CLIENT_ID || '',
-        clientSecret: process.env.NUXT_OAUTH_GITHUB_CLIENT_SECRET || '',
+        clientId: '',
+        clientSecret: '',
         scope: ['read:user', 'user:email'],
       },
     },
@@ -93,66 +92,10 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'cloudflare-durable',
-    cloudflareDev: {
-      configPath: 'wrangler.local.toml',
-      persistDir: '.wrangler/state/v3',
-      silent: false,
-    },
     cloudflare: {
       deployConfig: true,
       nodeCompat: true,
       wrangler: {
-        name: 'skilld-dev',
-        compatibility_flags: ['nodejs_compat', 'no_nodejs_compat_v2'],
-        // Default CPU limit is 30s for scheduled handlers; sync-github-skills
-        // at MAX_REPOS_PER_RUN GraphQL/JSON parses exceeds it (observed
-        // outcome=exceededCpu in worker logs, killing the task before
-        // reportJobRun and stalling the sync_jobs row). Bump to 5min, the
-        // Workers Paid ceiling. CPU time is billed at $0.02/M ms above the
-        // 30M included pool, but our totals are well within free envelope.
-        limits: { cpu_ms: 300_000 },
-        kv_namespaces: [
-          { binding: 'KV_CACHE', id: '187e636458cb49faa2ae14743adc7736' },
-          { binding: 'KV_DATA', id: 'cf3d794a55f84192a30f520686e1d932' },
-        ],
-        d1_databases: [
-          { binding: 'DB', database_name: 'skilld-db', database_id: 'a5e53f35-f5e5-4987-8c67-c0175addc7cc' },
-        ],
-        analytics_engine_datasets: [
-          { binding: 'SKILLD_ANALYTICS', dataset: 'skilld_cli_v1' },
-        ],
-        // Cloudflare send_email binding. Each recipient must be a Verified
-        // Destination Address in the dashboard until Send Email is enabled
-        // for arbitrary destinations.
-        send_email: [
-          { name: 'EMAIL' },
-        ],
-        // Workers AI binding — Anthropic calls go through AI Gateway "main"
-        // with BYOK; no provider key lives in the worker. Phase 3.
-        ai: {
-          binding: 'AI',
-          experimental_remote: true,
-        },
-        // Vectorize index for SKILL.md embeddings (bge-base-en-v1.5, 768d).
-        // Create once: `wrangler vectorize create skill-embeddings --dimensions=768 --metric=cosine`
-        vectorize: [
-          { binding: 'SKILL_EMBEDDINGS', index_name: 'skill-embeddings' },
-        ],
-        durable_objects: {
-          bindings: [
-            { name: '$DurableObject', class_name: '$DurableObject' },
-          ],
-        },
-        migrations: [
-          { tag: 'v1', new_classes: ['$DurableObject'] },
-        ],
-        observability: {
-          logs: { enabled: true, head_sampling_rate: 1, invocation_logs: true },
-        },
-        // Nitro embeds scheduledTasks in the bundle but doesn't auto-emit
-        // `triggers.crons` in the deployed wrangler config; without these
-        // entries Cloudflare never invokes the worker's scheduled() handler.
-        // Single-sourced from `nitro.scheduledTasks` below at config-eval time.
         triggers: {
           crons: Object.keys(scheduledTasks),
         },
@@ -216,7 +159,7 @@ export default defineNuxtConfig({
     },
   },
 
-  compatibilityDate: '2026-03-03',
+  compatibilityDate: '2026-07-15',
 
   eslint: {
     config: {
