@@ -1,5 +1,6 @@
 import type { RepoChange } from '../utils/digest-summary'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { getTaskEnv } from '#shared/server/task-env'
 import {
   loadDigestEligibleUsers,
   selectDigestForUser,
@@ -15,14 +16,12 @@ const CRON = '0 * * * *'
 // Fires every hour from the cloudflare cron registered in nuxt.config.ts.
 // Selects users whose configured (dow, hour, tz) matches the current UTC
 // slot, builds and sends digests, writes a digest_runs row per user.
-export default defineTask({
-  meta: {
-    name: 'send-digests',
-    description: 'Send weekly/daily digest emails to opted-in users when their cadence slot matches',
-  },
+export default defineScheduledTask({
+  name: 'send-digests',
+  cron: '0 * * * *',
+  description: 'Send weekly/daily digest emails to opted-in users when their cadence slot matches',
   async run({ context }) {
-    const cf = (context as Record<string, unknown>).cloudflare as { env?: Record<string, unknown> } | undefined
-    const env = cf?.env
+    const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
     if (!db) {
       console.warn('[send-digests] D1 binding missing')

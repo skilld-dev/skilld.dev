@@ -123,5 +123,5 @@ export default defineCachedEventHandler(
 
     return { items: cards }
   },
-  { maxAge: 60, swr: true, name: 'feed-recent-updates' },
+  { maxAge: 30, swr: false, name: 'feed-recent-updates-origin-v1' },
 )

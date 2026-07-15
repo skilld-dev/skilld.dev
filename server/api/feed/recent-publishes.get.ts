@@ -74,5 +74,5 @@ export default defineCachedEventHandler(
     }))
     return { items }
   },
-  { maxAge: 60, swr: true, name: 'feed-recent-publishes' },
+  { maxAge: 30, swr: false, name: 'feed-recent-publishes-origin-v1' },
 )

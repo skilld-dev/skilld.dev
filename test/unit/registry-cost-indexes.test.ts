@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 // Nuxt's Vitest environment can expose an http(s) import.meta.url. Resolve from
 // the configured project root so this remains a normal filesystem path there.
 const migrationPath = resolve(process.cwd(), 'migrations/0066_registry_cost_hot_path_indexes.sql')
+const optimizeMigrationPath = resolve(process.cwd(), 'migrations/0067_optimize_query_planner.sql')
 
 describe('registry cost hot-path indexes', () => {
   let sqlite: Database.Database
@@ -50,7 +51,7 @@ describe('registry cost hot-path indexes', () => {
     const migration = readFileSync(migrationPath, 'utf8')
     sqlite.exec(migration)
     sqlite.exec(migration)
-    sqlite.exec('ANALYZE')
+    sqlite.exec(readFileSync(optimizeMigrationPath, 'utf8'))
   })
 
   afterEach(() => {

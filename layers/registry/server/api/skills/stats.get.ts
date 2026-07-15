@@ -97,13 +97,13 @@ export default defineApiHandler<never, SkillsStats>({
     const nowSec = Math.floor(Date.now() / 1000)
 
     const [
-      summaryRow,
-      skillRepoStarsRes,
-      repoMetaRes,
-      ownersRes,
-      scatterRes,
-      perRepoRes,
-    ] = await Promise.all([
+      summaryResult,
+      skillRepoStarsResult,
+      repoMetaResult,
+      ownersResult,
+      scatterResult,
+      perRepoResult,
+    ] = await db.batch([
       db
         .prepare(
           `SELECT
@@ -112,8 +112,7 @@ export default defineApiHandler<never, SkillsStats>({
           COUNT(DISTINCT s.owner) AS owners,
           AVG(r.stars) AS avg_stars
         ${FROM} WHERE ${NOT_BROKEN_SQL}`,
-        )
-        .first<{ skills: number, repos: number, owners: number, avg_stars: number | null }>(),
+        ),
 
       // Chart 1: distinct (owner, repo) pairs where repo name contains "skill",
       // with their star count. One row per repo.
@@ -123,8 +122,7 @@ export default defineApiHandler<never, SkillsStats>({
         ${FROM}
         WHERE ${NOT_BROKEN_SQL} AND LOWER(s.repo) LIKE '%skill%'
         GROUP BY s.owner, s.repo`,
-        )
-        .all<{ owner: string, repo: string, stars: number }>(),
+        ),
 
       // Charts 2 & 3: distinct repos with pushed_at and repo_created_at.
       db
@@ -132,8 +130,7 @@ export default defineApiHandler<never, SkillsStats>({
           `SELECT s.owner, s.repo, MAX(r.pushed_at) AS pushed_at, MAX(r.repo_created_at) AS repo_created_at
         ${FROM} WHERE ${NOT_BROKEN_SQL}
         GROUP BY s.owner, s.repo`,
-        )
-        .all<{ owner: string, repo: string, pushed_at: number | null, repo_created_at: number | null }>(),
+        ),
 
       // Chart 4: top 15 owners by max stars. Tie-break by total skill count.
       db
@@ -143,8 +140,7 @@ export default defineApiHandler<never, SkillsStats>({
         GROUP BY s.owner
         ORDER BY stars DESC, skills DESC
         LIMIT 15`,
-        )
-        .all<{ owner: string, stars: number, skills: number }>(),
+        ),
 
       // Chart 5: scatter of skills with non-zero signal. With 80k+ skills in the
       // registry (most with 0 stars, 0 installs), plotting everything is noise
@@ -157,8 +153,7 @@ export default defineApiHandler<never, SkillsStats>({
         WHERE ${NOT_BROKEN_SQL} AND (r.stars > 0 OR s.installs > 0)
         ORDER BY (r.stars + s.installs) DESC
         LIMIT 1500`,
-        )
-        .all<{ name: string, owner: string, stars: number, installs: number }>(),
+        ),
 
       // Chart 6: count of skills per repo.
       db
@@ -166,11 +161,15 @@ export default defineApiHandler<never, SkillsStats>({
           `SELECT COUNT(*) AS n
         ${FROM} WHERE ${NOT_BROKEN_SQL}
         GROUP BY s.owner, s.repo`,
-        )
-        .all<{ n: number }>(),
+        ),
     ])
 
-    const skillRepos = skillRepoStarsRes.results ?? []
+    const summaryRow = summaryResult?.results[0] as { skills: number, repos: number, owners: number, avg_stars: number | null } | undefined
+    const skillRepos = (skillRepoStarsResult?.results ?? []) as { owner: string, repo: string, stars: number }[]
+    const repoMeta = (repoMetaResult?.results ?? []) as { owner: string, repo: string, pushed_at: number | null, repo_created_at: number | null }[]
+    const ownerRows = (ownersResult?.results ?? []) as { owner: string, stars: number, skills: number }[]
+    const scatterRows = (scatterResult?.results ?? []) as { name: string, owner: string, stars: number, installs: number }[]
+    const perRepoRows = (perRepoResult?.results ?? []) as { n: number }[]
     const starCounts = new Map(STAR_BINS.map(b => [b.label, 0]))
     for (const r of skillRepos) {
       const bin = bucketByValue(STAR_BINS, r.stars ?? 0)
@@ -178,7 +177,6 @@ export default defineApiHandler<never, SkillsStats>({
         starCounts.set(bin.label, (starCounts.get(bin.label) ?? 0) + 1)
     }
 
-    const repoMeta = repoMetaRes.results ?? []
     const maintenanceCounts = new Map<string, number>([
       ...MAINTENANCE_BINS.map(b => [b.label, 0] as [string, number]),
       ['unknown', 0],
@@ -208,7 +206,7 @@ export default defineApiHandler<never, SkillsStats>({
     }
 
     const perRepoCounts = new Map(REPO_BINS.map(b => [b.label, 0]))
-    for (const r of perRepoRes.results ?? []) {
+    for (const r of perRepoRows) {
       const bin = bucketByValue(REPO_BINS, r.n)
       if (bin)
         perRepoCounts.set(bin.label, (perRepoCounts.get(bin.label) ?? 0) + 1)
@@ -231,12 +229,12 @@ export default defineApiHandler<never, SkillsStats>({
         ...AGE_BINS.map(b => ({ label: b.label, count: ageCounts.get(b.label) ?? 0 })),
         { label: 'unknown', count: ageCounts.get('unknown') ?? 0 },
       ],
-      topOwners: (ownersRes.results ?? []).map(o => ({
+      topOwners: ownerRows.map(o => ({
         owner: o.owner,
         stars: o.stars ?? 0,
         skills: o.skills,
       })),
-      scatter: (scatterRes.results ?? []).map(s => ({
+      scatter: scatterRows.map(s => ({
         name: s.name,
         owner: s.owner,
         stars: s.stars ?? 0,

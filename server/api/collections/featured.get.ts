@@ -112,5 +112,5 @@ export default defineCachedEventHandler(
     })
     return { items }
   },
-  { maxAge: 60, swr: true, name: 'collections-featured-v3' },
+  { maxAge: 30, swr: false, name: 'collections-featured-origin-v1' },
 )

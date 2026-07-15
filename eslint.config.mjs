@@ -11,5 +11,6 @@ export default antfu({
   },
   ignores: [
     '.data/**',
+    'worker-configuration.d.ts',
   ],
 }, ...harlanzw())

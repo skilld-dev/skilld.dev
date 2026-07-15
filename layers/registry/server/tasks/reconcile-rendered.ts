@@ -1,5 +1,6 @@
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { RECONCILE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
+import { getTaskEnv } from '#shared/server/task-env'
 /// <reference types="@cloudflare/workers-types" />
 import { resolveGithubBindings } from '../utils/github-client'
 import { syncRepo } from '../utils/sync-repo'
@@ -19,13 +20,12 @@ const CRON = '20 */6 * * *'
  * Kept to N=50/run so it doesn't dominate the hourly cron budget alongside
  * sync-github-skills and send-digests.
  */
-export default defineTask({
-  meta: {
-    name: 'reconcile-rendered',
-    description: 'Re-sync skills with non-ok rendered_status that have gone stale',
-  },
+export default defineScheduledTask({
+  name: 'reconcile-rendered',
+  cron: '20 */6 * * *',
+  description: 'Re-sync skills with non-ok rendered_status that have gone stale',
   async run({ context }) {
-    const env = (context as Record<string, any>).cloudflare?.env as Record<string, unknown> | undefined
+    const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
     if (!db) {
       console.warn('[reconcile-rendered] D1 binding not available in task context')

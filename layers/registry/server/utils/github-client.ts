@@ -9,17 +9,19 @@ export interface GithubBindings {
   GITHUB_TOKEN?: string
 }
 
+type GithubBindingSource = Partial<Pick<Cloudflare.Env, 'KV_CACHE' | 'GITHUB_TOKEN'>>
+
 /**
  * Resolve GitHub bindings from a Cloudflare env (Worker runtime) or process.env (local dev).
- * Pass `cloudflareEnv` from `event.context.cloudflare.env` (handlers) or
- * `(context as any).cloudflare?.env` (Nitro tasks). Falls back to process.env in local dev,
+ * Pass the generated Cloudflare environment from the request platform or a
+ * Nitro task. Falls back to process.env in local dev,
  * since `.env` populates process.env but not the Worker env binding.
  */
-export function resolveGithubBindings(cloudflareEnv?: Record<string, unknown>): GithubBindings {
-  const env = (cloudflareEnv ?? {}) as Record<string, unknown>
+export function resolveGithubBindings(cloudflareEnv?: GithubBindingSource): GithubBindings {
+  const env = cloudflareEnv ?? {}
   return {
-    KV_CACHE: env.KV_CACHE as KVNamespace | undefined,
-    GITHUB_TOKEN: (env.GITHUB_TOKEN as string | undefined) ?? process.env.GITHUB_TOKEN,
+    KV_CACHE: env.KV_CACHE,
+    GITHUB_TOKEN: env.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN,
   }
 }
 

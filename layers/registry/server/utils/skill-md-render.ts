@@ -47,8 +47,7 @@ function extractFenceLangs(body: string): Set<BundledLanguage> {
   return langs
 }
 
-let highlighter: WebHighlighter | null = null
-function highlightSync(code: string, lang: BundledLanguage | null): string {
+function highlightSync(highlighter: WebHighlighter | null, code: string, lang: BundledLanguage | null): string {
   if (!highlighter || !lang)
     return `<pre tabindex="0"><code>${escapeHtml(code)}</code></pre>`
   // Shiki throws if the lang wasn't actually loaded (some bundled langs fail
@@ -94,8 +93,6 @@ export interface SkillRenderContext {
   filePath: string
 }
 
-let renderContext: SkillRenderContext | null = null
-
 function isAbsoluteUrl(href: string): boolean {
   return /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
 }
@@ -123,8 +120,7 @@ function joinPath(base: string, rel: string): string {
   return segments.join('/')
 }
 
-function rewriteHref(href: string, kind: 'link' | 'image'): string {
-  const ctx = renderContext
+function rewriteHref(href: string, kind: 'link' | 'image', ctx?: SkillRenderContext): string {
   if (!ctx || !href || isAbsoluteUrl(href))
     return href
   const { path, suffix } = splitFragment(href)
@@ -149,47 +145,49 @@ function rewriteHref(href: string, kind: 'link' | 'image'): string {
 
 const SKILL_TAG_RE = /^<(\/?)([A-Z][A-Z0-9-]*)\s*>$/
 
-const skillMd = new Marked({
-  gfm: true,
-  async: false,
-  renderer: {
-    html({ text }: { text: string }) {
-      const m = text.match(SKILL_TAG_RE)
-      if (m)
-        return `<code class="skill-tag">&lt;${m[1]}${m[2]}&gt;</code>`
-      return escapeHtml(text)
+function createSkillMd(ctx: SkillRenderContext | undefined, highlighter: WebHighlighter | null): Marked {
+  return new Marked({
+    gfm: true,
+    async: false,
+    renderer: {
+      html({ text }: { text: string }) {
+        const m = text.match(SKILL_TAG_RE)
+        if (m)
+          return `<code class="skill-tag">&lt;${m[1]}${m[2]}&gt;</code>`
+        return escapeHtml(text)
+      },
+      link({ href, title, tokens }: { href: string, title?: string | null, tokens: unknown[] }) {
+        const safe = sanitizeUrl(rewriteHref(href, 'link', ctx))
+        const text = (this as { parser: { parseInline: (t: unknown[]) => string } }).parser.parseInline(tokens)
+        const t = title ? ` title="${escapeHtml(title)}"` : ''
+        const external = /^https?:\/\//i.test(safe)
+        const extra = external ? ' target="_blank" rel="noopener noreferrer"' : ''
+        return `<a href="${escapeHtml(safe)}"${t}${extra}>${text}</a>`
+      },
+      image({ href, title, text }: { href: string, title?: string | null, text: string }) {
+        const safe = sanitizeUrl(rewriteHref(href, 'image', ctx))
+        const t = title ? ` title="${escapeHtml(title)}"` : ''
+        return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text)}"${t}>`
+      },
+      heading(this: Renderer, token: Tokens.Heading) {
+        const content = this.parser.parseInline(token.tokens)
+        const level = Math.min(token.depth + 1, 6)
+        return `<h${level}>${content}</h${level}>\n`
+      },
+      tablecell(this: Renderer, token: Tokens.TableCell) {
+        const content = this.parser.parseInline(token.tokens)
+        const tag = token.header ? 'th' : 'td'
+        const scope = token.header ? ' scope="col"' : ''
+        const align = token.align ? ` align="${token.align}"` : ''
+        return `<${tag}${scope}${align}>${content}</${tag}>\n`
+      },
+      code({ text, lang }: Tokens.Code) {
+        const resolved = resolveLang(lang)
+        return highlightSync(highlighter, text, resolved)
+      },
     },
-    link({ href, title, tokens }: { href: string, title?: string | null, tokens: unknown[] }) {
-      const safe = sanitizeUrl(rewriteHref(href, 'link'))
-      const text = (this as { parser: { parseInline: (t: unknown[]) => string } }).parser.parseInline(tokens)
-      const t = title ? ` title="${escapeHtml(title)}"` : ''
-      const external = /^https?:\/\//i.test(safe)
-      const extra = external ? ' target="_blank" rel="noopener noreferrer"' : ''
-      return `<a href="${escapeHtml(safe)}"${t}${extra}>${text}</a>`
-    },
-    image({ href, title, text }: { href: string, title?: string | null, text: string }) {
-      const safe = sanitizeUrl(rewriteHref(href, 'image'))
-      const t = title ? ` title="${escapeHtml(title)}"` : ''
-      return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text)}"${t}>`
-    },
-    heading(this: Renderer, token: Tokens.Heading) {
-      const content = this.parser.parseInline(token.tokens)
-      const level = Math.min(token.depth + 1, 6)
-      return `<h${level}>${content}</h${level}>\n`
-    },
-    tablecell(this: Renderer, token: Tokens.TableCell) {
-      const content = this.parser.parseInline(token.tokens)
-      const tag = token.header ? 'th' : 'td'
-      const scope = token.header ? ' scope="col"' : ''
-      const align = token.align ? ` align="${token.align}"` : ''
-      return `<${tag}${scope}${align}>${content}</${tag}>\n`
-    },
-    code({ text, lang }: Tokens.Code) {
-      const resolved = resolveLang(lang)
-      return highlightSync(text, resolved)
-    },
-  },
-})
+  })
+}
 
 export interface ParsedSkillMd {
   frontmatter: Record<string, unknown>
@@ -231,6 +229,7 @@ export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promi
   }
 
   const needed = extractFenceLangs(body)
+  let highlighter: WebHighlighter | null = null
   if (needed.size) {
     highlighter = await getHighlighter()
     const loaded = new Set(highlighter.getLoadedLanguages())
@@ -245,14 +244,7 @@ export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promi
     }
   }
 
-  renderContext = ctx ?? null
-  let html: string
-  try {
-    html = skillMd.parse(body) as string
-  }
-  finally {
-    renderContext = null
-  }
+  let html = createSkillMd(ctx, highlighter).parse(body) as string
   html = html.replace(/<pre\b([^>]*)>/g, (match, attrs: string) => {
     if (/\btabindex=/.test(attrs))
       return match

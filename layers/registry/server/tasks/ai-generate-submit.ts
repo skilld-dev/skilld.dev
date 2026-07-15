@@ -1,6 +1,7 @@
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { extractJson } from '#shared/server/anthropic'
 import { pAll } from '#shared/server/p-all'
+import { getTaskEnv } from '#shared/server/task-env'
 import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '../utils/ai-prompts'
 /// <reference types="@cloudflare/workers-types" />
 import { putGenerated } from '../utils/skill-generated'
@@ -105,13 +106,12 @@ async function embedAndUpsert(
   summary.embeddingsWritten += 1
 }
 
-export default defineTask({
-  meta: {
-    name: 'ai-generate-submit',
-    description: 'Submit Anthropic batch for stale summary/tags/faq + run Workers AI for embedding/abstractness',
-  },
+export default defineScheduledTask({
+  name: 'ai-generate-submit',
+  cron: '15 * * * *',
+  description: 'Submit Anthropic batch for stale summary/tags/faq + run Workers AI for embedding/abstractness',
   async run({ context }) {
-    const env = (context as Record<string, any>).cloudflare?.env as Record<string, unknown> | undefined
+    const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
     const ai = env?.AI as AiBinding | undefined
     const vectorize = env?.SKILL_EMBEDDINGS as VectorizeBinding | undefined

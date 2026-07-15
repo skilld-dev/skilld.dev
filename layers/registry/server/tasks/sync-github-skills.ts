@@ -2,6 +2,7 @@ import type { SyncRepoStats } from '../utils/sync-repo'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { STALE_SYNC_SECONDS, SUBSCRIBED_REPO_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { pAll } from '#shared/server/p-all'
+import { getTaskEnv } from '#shared/server/task-env'
 /// <reference types="@cloudflare/workers-types" />
 import { resolveGithubBindings } from '../utils/github-client'
 import {
@@ -33,13 +34,12 @@ const CRON = '0 * * * *'
  * the curated featured/badge set, while the sync target is whatever has
  * skills in D1 (seeded ~1.4k repos, plus anything ingested later).
  */
-export default defineTask({
-  meta: {
-    name: 'sync-github-skills',
-    description: 'Sync skills, revisions, and activity from GitHub for every repo with skills in D1',
-  },
+export default defineScheduledTask({
+  name: 'sync-github-skills',
+  cron: '0 * * * *',
+  description: 'Sync skills, revisions, and activity from GitHub for every repo with skills in D1',
   async run({ context }) {
-    const env = (context as Record<string, any>).cloudflare?.env as Record<string, unknown> | undefined
+    const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
     if (!db) {
       console.warn('[sync-github-skills] D1 binding not available in task context')

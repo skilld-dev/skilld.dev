@@ -1,18 +1,13 @@
 // AES-GCM token encryption. Key supplied via NUXT_TOKEN_KEY (base64, 32 bytes).
 // Output format: base64(iv || ciphertext+tag) so decrypt is single-string in.
 
-let cachedKey: CryptoKey | null = null
-
 async function getKey(rawKey: string): Promise<CryptoKey> {
-  if (cachedKey)
-    return cachedKey
   if (!rawKey)
     throw createError({ statusCode: 500, message: 'NUXT_TOKEN_KEY missing' })
   const bytes = Uint8Array.from(atob(rawKey), c => c.charCodeAt(0))
   if (bytes.length !== 32)
     throw createError({ statusCode: 500, message: 'NUXT_TOKEN_KEY must be 32 bytes (base64)' })
-  cachedKey = await crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, ['encrypt', 'decrypt'])
-  return cachedKey
+  return await crypto.subtle.importKey('raw', bytes, 'AES-GCM', false, ['encrypt', 'decrypt'])
 }
 
 function toB64(buf: ArrayBuffer | Uint8Array): string {

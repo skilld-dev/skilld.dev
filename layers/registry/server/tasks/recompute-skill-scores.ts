@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { getTaskEnv } from '#shared/server/task-env'
 import { recomputeAllSkillScores } from '../utils/recompute-scores'
 
 const CRON = '0 3 * * *'
@@ -15,13 +16,12 @@ const CRON = '0 3 * * *'
  * Runs at 03:00 UTC daily, after sync-github-skills has had a full overnight
  * pass to land fresh repo metadata.
  */
-export default defineTask({
-  meta: {
-    name: 'recompute-skill-scores',
-    description: 'Full-table recompute of SEO indexability + trust scoring on skills',
-  },
+export default defineScheduledTask({
+  name: 'recompute-skill-scores',
+  cron: '0 3 * * *',
+  description: 'Full-table recompute of SEO indexability + trust scoring on skills',
   async run({ context }) {
-    const env = (context as Record<string, any>).cloudflare?.env as Record<string, unknown> | undefined
+    const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
     if (!db) {
       console.warn('[recompute-skill-scores] D1 binding not available in task context')

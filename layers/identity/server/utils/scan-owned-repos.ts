@@ -28,7 +28,7 @@ export async function scanOwnedRepos(opts: {
   login: string
   userToken: string
   db: D1Database
-  env: Record<string, unknown>
+  env: Cloudflare.Env
 }): Promise<ScanResult> {
   const { login, userToken, db, env } = opts
   const seen = new Set<string>()

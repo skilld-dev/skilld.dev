@@ -4,7 +4,7 @@ import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
 const { isBot } = useBotDetection()
 
 const { data, status, error, refresh } = useFetch<TagProfile>(
-  () => '/api/tags/vue',
+  () => '/api/tags/vue?view=data',
   {
     key: 'tag-vue',
     lazy: !isBot.value,

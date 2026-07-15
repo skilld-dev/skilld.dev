@@ -1,4 +1,4 @@
-// Cloudflare Workers `send_email` binding. Configured in nuxt.config.ts as
+// Cloudflare Workers `send_email` binding. Configured in wrangler.jsonc as
 // `send_email: [{ name: 'EMAIL' }]`; `mail.skilld.dev` must be a verified
 // sender domain in the Cloudflare dashboard with DKIM/SPF/DMARC set up.
 //
@@ -7,14 +7,9 @@
 // arbitrary destinations. Until then `send()` will fail with an
 // "unverified destination" error and the digest_runs row gets status='failed'.
 import type { H3Event } from 'h3'
-import { createMimeMessage } from 'mimetext'
 
 const FROM_ADDR = 'noreply@mail.skilld.dev'
 const FROM_NAME = 'skilld'
-
-interface SendEmailBinding {
-  send: (msg: unknown) => Promise<void>
-}
 
 export interface SendEmailInput {
   to: string
@@ -26,47 +21,31 @@ export interface SendEmailInput {
 
 export interface SendEmailResult {
   ok: boolean
-  // The Cloudflare binding doesn't return a provider id; we synthesise one
-  // from a per-message UUID so digest_runs.resend_id remains useful.
+  // Cloudflare's provider ID is persisted in digest_runs.resend_id.
   messageId?: string
   error?: string
 }
 
 export async function sendEmail(event: H3Event, input: SendEmailInput): Promise<SendEmailResult> {
-  const env = event.context.cloudflare?.env as Record<string, unknown> | undefined
-  return sendEmailWithEnv(env, input)
+  return sendEmailWithEnv(event.context.platform?.env, input)
 }
 
-export async function sendEmailWithEnv(env: Record<string, unknown> | undefined, input: SendEmailInput): Promise<SendEmailResult> {
-  const binding = env?.EMAIL as SendEmailBinding | undefined
+export async function sendEmailWithEnv(env: Cloudflare.Env | undefined, input: SendEmailInput): Promise<SendEmailResult> {
+  const binding = env?.EMAIL
   if (!binding) {
     return { ok: false, error: 'EMAIL binding missing (configure send_email in wrangler)' }
   }
 
-  const messageId = `<${crypto.randomUUID()}@mail.skilld.dev>`
-  const msg = createMimeMessage()
-  msg.setSender({ name: FROM_NAME, addr: FROM_ADDR })
-  msg.setRecipient(input.to)
-  msg.setSubject(input.subject)
-  msg.setHeader('Message-ID', messageId)
-  if (input.headers) {
-    for (const [k, v] of Object.entries(input.headers))
-      msg.setHeader(k, v)
-  }
-  if (input.text)
-    msg.addMessage({ contentType: 'text/plain', data: input.text })
-  msg.addMessage({ contentType: 'text/html', data: input.html })
-
-  // EmailMessage class lives in `cloudflare:email` (workers built-in).
-  // Dynamic import keeps the dev bundle happy when the binding is absent.
-  const { EmailMessage } = await import('cloudflare:email') as {
-    EmailMessage: new (from: string, to: string, raw: string) => unknown
-  }
-  const cfMessage = new EmailMessage(FROM_ADDR, input.to, msg.asRaw())
-
   try {
-    await binding.send(cfMessage)
-    return { ok: true, messageId }
+    const result = await binding.send({
+      to: input.to,
+      from: { email: FROM_ADDR, name: FROM_NAME },
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      headers: input.headers,
+    })
+    return { ok: true, messageId: result.messageId }
   }
   catch (err) {
     return { ok: false, error: (err as Error).message }

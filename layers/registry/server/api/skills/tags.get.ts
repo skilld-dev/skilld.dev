@@ -46,7 +46,7 @@ export default defineCachedEventHandler(async (event): Promise<TagFacetsResponse
   const total = tags.reduce((n, t) => n + t.count, 0)
   return { tags, total }
 }, {
-  maxAge: 60 * 5,
-  swr: true,
-  getKey: () => 'skills:tag-facets:v1',
+  maxAge: 60,
+  swr: false,
+  name: 'skills-tag-facets-origin-v1',
 })

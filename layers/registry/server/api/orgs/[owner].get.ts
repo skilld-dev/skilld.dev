@@ -249,10 +249,10 @@ export default defineCachedEventHandler(async (event) => {
 
   return profile
 }, {
-  maxAge: 60 * 5,
-  swr: true,
+  maxAge: 60,
+  swr: false,
   getKey: (event) => {
     const owner = getRouterParam(event, 'owner')
-    return `org:v4:${(owner || '').toLowerCase()}`
+    return `org-origin:v1:${(owner || '').toLowerCase()}`
   },
 })

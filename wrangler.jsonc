@@ -7,6 +7,10 @@
   "limits": {
     "cpu_ms": 300000
   },
+  "cache": {
+    "enabled": true,
+    "cross_version_cache": false
+  },
   "d1_databases": [
     { "binding": "DB", "database_name": "skilld-db", "database_id": "a5e53f35-f5e5-4987-8c67-c0175addc7cc" }
   ],
@@ -25,22 +29,23 @@
     "remote": true
   },
   "vectorize": [
-    { "binding": "SKILL_EMBEDDINGS", "index_name": "skill-embeddings" }
+    { "binding": "SKILL_EMBEDDINGS", "index_name": "skill-embeddings", "remote": true }
   ],
-  "durable_objects": {
-    "bindings": [
-      { "name": "$DurableObject", "class_name": "$DurableObject" }
-    ]
-  },
   "migrations": [
-    { "tag": "v1", "new_classes": ["$DurableObject"] }
+    { "tag": "v1", "new_classes": ["$DurableObject"] },
+    { "tag": "v2", "deleted_classes": ["$DurableObject"] }
   ],
   "keep_vars": true,
   "observability": {
+    "enabled": true,
     "logs": {
       "enabled": true,
       "head_sampling_rate": 1,
       "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01
     }
   },
   "routes": [

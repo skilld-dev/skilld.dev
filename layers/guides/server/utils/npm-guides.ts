@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { getDB } from '#server/utils/db'
+import { getDB, retryIdempotentD1Write } from '#server/utils/db'
 
 /** Per-type change counts (change8-style badges). */
 export interface BucketCounts {
@@ -153,7 +153,7 @@ export async function listGuidesForSitemap(event: H3Event): Promise<{ slug: stri
 
 /** Upsert a generated guide. `generatedAt` is supplied by the ingester. */
 export function upsertGuide(db: D1Database, guide: IngestGuide, generatedAt: string): Promise<unknown> {
-  return db
+  return retryIdempotentD1Write(() => db
     .prepare(`INSERT INTO npm_guides
       (slug, package_name, version, tag, prerelease, from_version, repo_url, released_at, title, markdown, supersedes, release_buckets, model, generated_at, count_breaking, count_features, count_fixes, count_improvements)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -195,5 +195,5 @@ export function upsertGuide(db: D1Database, guide: IngestGuide, generatedAt: str
       (guide.counts ?? ZERO_COUNTS).fixes,
       (guide.counts ?? ZERO_COUNTS).improvements,
     )
-    .run()
+    .run())
 }

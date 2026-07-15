@@ -50,7 +50,7 @@ export default defineApiHandler({
       skillPath ? getSkillCommits(skill.owner, skill.repo, skillPath) : Promise.resolve([]),
       findRelatedSkills(event, { owner: skill.owner, repo: skill.repo, excludeName: skill.name, limit: 6 }),
       getCoOccurrenceNeighbors(platform.db, skill.name),
-      getEmbeddingNeighbors(platform.env.SKILL_EMBEDDINGS as Vectorize | undefined, { owner: skill.owner, repo: skill.repo, name: skill.name }),
+      getEmbeddingNeighbors(platform.env.SKILL_EMBEDDINGS, { owner: skill.owner, repo: skill.repo, name: skill.name }),
     ])
 
     const [coOccurrenceSkills, semanticSiblings] = await resolveNeighborSkills(

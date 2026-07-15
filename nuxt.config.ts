@@ -1,17 +1,8 @@
-const scheduledTasks = {
-  '0 * * * *': ['sync-github-skills', 'send-digests'],
-  '15 * * * *': ['ai-generate-submit'],
-  '30 * * * *': ['sync-social-mentions'],
-  '20 */6 * * *': ['reconcile-rendered'],
-  '45 * * * *': ['ai-generate-poll'],
-  '*/5 * * * *': ['drain-skill-dirty'],
-  '0 3 * * *': ['recompute-skill-scores'],
-}
-
 export default defineNuxtConfig({
   extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/guides', './layers/marketing'],
 
   modules: [
+    'nuxt-cf-jobs',
     './modules/mdxg/src/module',
     '@nuxt/eslint',
     '@nuxt/ui',
@@ -25,6 +16,18 @@ export default defineNuxtConfig({
     '@vueuse/nuxt',
     'nuxt-auth-utils',
   ],
+
+  cfJobs: {
+    // Discover each layer's server/tasks directory. Cron expressions live with
+    // their handlers; the module derives Nitro task registration, scheduling,
+    // and Cloudflare triggers from that single source of truth.
+    tasksDir: true,
+    scheduledTasks: process.env.NODE_ENV === 'production',
+    // This app currently uses scheduled tasks only. Durable recovery requires
+    // the nuxt-cf-jobs D1 schema and queue consumers, neither of which exists yet.
+    reconcile: false,
+    queues: {},
+  },
 
   scripts: {
     registry: {
@@ -91,15 +94,10 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    preset: 'cloudflare-durable',
+    preset: 'cloudflare-module',
     cloudflare: {
       deployConfig: true,
       nodeCompat: true,
-      wrangler: {
-        triggers: {
-          crons: Object.keys(scheduledTasks),
-        },
-      },
     },
     storage: {
       data: {
@@ -113,13 +111,24 @@ export default defineNuxtConfig({
     },
     experimental: {
       tasks: true,
-      websocket: true,
       wasm: true,
     },
-    externals: {
-      external: ['cloudflare:email'],
+  },
+
+  content: {
+    database: {
+      type: 'd1',
+      bindingName: 'DB',
     },
-    scheduledTasks,
+  },
+
+  ogImage: {
+    security: {
+      // Production gets its stable key from NUXT_OG_IMAGE_SECRET. A fixed,
+      // non-sensitive local key keeps signed dev URLs valid across HMR builds.
+      secret: process.env.NUXT_OG_IMAGE_SECRET
+        || (process.env.NODE_ENV === 'development' ? 'skilld-local-development' : undefined),
+    },
   },
 
   // SWR caching only kicks in for production builds; in dev every request

@@ -27,6 +27,8 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=8192
           NUXT_SESSION_PASSWORD: ${{ secrets.NUXT_SESSION_PASSWORD }}
+          NUXT_OG_IMAGE_SECRET: ${{ secrets.NUXT_OG_IMAGE_SECRET }}
+          NUXT_AI_READY_RUNTIME_SYNC_SECRET: ${{ secrets.NUXT_AI_READY_RUNTIME_SYNC_SECRET }}
 
       - name: Deploy
         run: npx wrangler --cwd .output deploy

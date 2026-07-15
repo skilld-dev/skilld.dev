@@ -432,8 +432,7 @@ async function renderLive(
 
   // Authenticated GitHub trees API (matches sync-repo.ts). Recursive listing
   // surfaces nested or dotfile-mirrored layouts the candidates above miss.
-  const cfEnv = (event.context as { cloudflare?: { env?: Record<string, unknown> } }).cloudflare?.env
-  const bindings = resolveGithubBindings(cfEnv)
+  const bindings = resolveGithubBindings(event.context.platform?.env)
   const treeRes = await getTree(owner, repo, branch, bindings).catch(() => null)
   const match = treeRes?.data?.tree.find(
     e => e.type === 'blob' && e.path.endsWith(`/${name}/SKILL.md`),

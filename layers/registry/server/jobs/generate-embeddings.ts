@@ -125,7 +125,7 @@ const NEIGHBOR_CACHE_TTL = 60 * 60 * 6
 const NEIGHBOR_TOP_K = 10
 
 export async function getEmbeddingNeighbors(
-  vectorize: Vectorize | undefined,
+  vectorize: VectorizeIndex | undefined,
   skill: { owner: string, repo: string, name: string },
 ): Promise<EmbeddingNeighbor[]> {
   if (!vectorize)
@@ -140,12 +140,13 @@ export async function getEmbeddingNeighbors(
   if (cached)
     return cached
 
-  const matches = await vectorize
-    .queryById(id, { topK: NEIGHBOR_TOP_K + 1, returnMetadata: 'indexed' })
-    .catch((err: Error) => {
-      console.warn(`[embedding-neighbors] queryById failed for ${naturalKey}:`, err.message)
-      return null
-    })
+  const matches = await queryByVectorId(vectorize, id, {
+    topK: NEIGHBOR_TOP_K + 1,
+    returnMetadata: 'indexed',
+  }).catch((err: Error) => {
+    console.warn(`[embedding-neighbors] vector query failed for ${naturalKey}:`, err.message)
+    return null
+  })
 
   if (!matches?.matches?.length)
     return []
@@ -166,4 +167,26 @@ export async function getEmbeddingNeighbors(
 
   await useStorage('cache').setItem(cacheKey, neighbors, { ttl: NEIGHBOR_CACHE_TTL })
   return neighbors
+}
+
+interface QueryByIdVectorize {
+  queryById: (vectorId: string, options?: VectorizeQueryOptions) => Promise<VectorizeMatches>
+}
+
+function supportsQueryById(vectorize: VectorizeIndex): vectorize is VectorizeIndex & QueryByIdVectorize {
+  return 'queryById' in vectorize && typeof vectorize.queryById === 'function'
+}
+
+async function queryByVectorId(
+  vectorize: VectorizeIndex,
+  id: string,
+  options: VectorizeQueryOptions,
+): Promise<VectorizeMatches> {
+  if (supportsQueryById(vectorize))
+    return await vectorize.queryById(id, options)
+
+  const [source] = await vectorize.getByIds([id])
+  if (!source)
+    return { matches: [], count: 0 }
+  return await vectorize.query(source.values, options)
 }
