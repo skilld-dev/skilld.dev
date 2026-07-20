@@ -25,10 +25,6 @@ describe('sendEmail', () => {
   })
 
   it('returns provider failures to the digest runner', async () => {
-    const send = vi.fn(async () => {
-      throw new Error('sender not verified')
-    })
-
     await expect(sendEmail({
       to: 'person@example.com',
       subject: 'Welcome',
