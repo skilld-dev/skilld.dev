@@ -87,7 +87,7 @@ export default defineNuxtConfig({
     email: {
       from: {
         name: 'skilld',
-        email: 'noreply@mail.skilld.dev'
+        email: 'noreply@mail.skilld.dev',
       }
     },
     public: {
@@ -118,7 +118,7 @@ export default defineNuxtConfig({
     experimental: {
       tasks: true,
       wasm: true,
-      asyncContext: true
+      asyncContext: true,
     },
   },
 
