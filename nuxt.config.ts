@@ -88,7 +88,7 @@ export default defineNuxtConfig({
       from: {
         name: 'skilld',
         email: 'noreply@mail.skilld.dev',
-      }
+      },
     },
     public: {
       algolia: {
