@@ -35,7 +35,7 @@ export default defineApiHandler({
 </div>`
     const text = `Confirm this email for skilld digests:\n\n${link}\n\nThis link expires in 24 hours. If you didn't request this, ignore this email.`
 
-    const res = await sendEmail(event, { to: newEmail, subject: 'Confirm your skilld digest email', html, text })
+    const res = await sendEmail({ to: newEmail, subject: 'Confirm your skilld digest email', html, text })
     return { ok: res.ok, error: res.error }
   },
 })

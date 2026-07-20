@@ -6,10 +6,6 @@
 // Cloudflare dashboard until the account has Send Email enabled for
 // arbitrary destinations. Until then `send()` will fail with an
 // "unverified destination" error and the digest_runs row gets status='failed'.
-import type { H3Event } from 'h3'
-
-const FROM_ADDR = 'noreply@mail.skilld.dev'
-const FROM_NAME = 'skilld'
 
 export interface SendEmailInput {
   to: string
@@ -26,20 +22,22 @@ export interface SendEmailResult {
   error?: string
 }
 
-export async function sendEmail(event: H3Event, input: SendEmailInput): Promise<SendEmailResult> {
-  return sendEmailWithEnv(event.context.platform?.env, input)
-}
+export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
+  const event = useEvent()
+  const env = event.context.platform?.env
 
-export async function sendEmailWithEnv(env: Cloudflare.Env | undefined, input: SendEmailInput): Promise<SendEmailResult> {
   const binding = env?.EMAIL
+
   if (!binding) {
     return { ok: false, error: 'EMAIL binding missing (configure send_email in wrangler)' }
   }
 
+  const { email: { from } } = useRuntimeConfig()
+
   try {
     const result = await binding.send({
       to: input.to,
-      from: { email: FROM_ADDR, name: FROM_NAME },
+      from,
       subject: input.subject,
       html: input.html,
       text: input.text,
