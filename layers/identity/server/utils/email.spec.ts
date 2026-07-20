@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sendEmailWithEnv } from './email'
+import { sendEmail } from './email'
 
-describe('sendEmailWithEnv', () => {
+describe('sendEmail', () => {
   it('sends through the Cloudflare Email Service builder API', async () => {
     const send = vi.fn(async () => ({ messageId: 'msg_1' }))
 
-    const result = await sendEmailWithEnv({ EMAIL: { send } }, {
+    const result = await sendEmail({
       to: 'person@example.com',
       subject: 'Welcome',
       html: '<p>Hello</p>',
@@ -24,23 +24,12 @@ describe('sendEmailWithEnv', () => {
     })
   })
 
-  it('returns a useful error when the binding is unavailable', async () => {
-    await expect(sendEmailWithEnv(undefined, {
-      to: 'person@example.com',
-      subject: 'Welcome',
-      html: '<p>Hello</p>',
-    })).resolves.toEqual({
-      ok: false,
-      error: 'EMAIL binding missing (configure send_email in wrangler)',
-    })
-  })
-
   it('returns provider failures to the digest runner', async () => {
     const send = vi.fn(async () => {
       throw new Error('sender not verified')
     })
 
-    await expect(sendEmailWithEnv({ EMAIL: { send } }, {
+    await expect(sendEmail({
       to: 'person@example.com',
       subject: 'Welcome',
       html: '<p>Hello</p>',

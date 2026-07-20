@@ -9,7 +9,7 @@ import {
 import { summariseChanges } from '../utils/digest-summary'
 /// <reference types="@cloudflare/workers-types" />
 import { renderDigest } from '../utils/digest-template'
-import { sendEmailWithEnv, signUnsubToken } from '../utils/email'
+import { sendEmail, signUnsubToken } from '../utils/email'
 
 const CRON = '0 * * * *'
 
@@ -103,7 +103,7 @@ export default defineScheduledTask({
         })),
       })
 
-      const result = await sendEmailWithEnv(env, {
+      const result = await sendEmail({
         to: recipient,
         subject: rendered.subject,
         html: rendered.html,
