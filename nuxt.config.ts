@@ -84,6 +84,12 @@ export default defineNuxtConfig({
         scope: ['read:user', 'user:email'],
       },
     },
+    email: {
+      from: {
+        name: 'skilld',
+        email: 'noreply@mail.skilld.dev',
+      },
+    },
     public: {
       algolia: {
         appId: 'OFCNCOG2CU',
@@ -112,6 +118,7 @@ export default defineNuxtConfig({
     experimental: {
       tasks: true,
       wasm: true,
+      asyncContext: true,
     },
   },
 
