@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatTimeAgo } from '@vueuse/core'
+
 const props = defineProps<{
   owner: string
   repo: string
@@ -559,7 +561,10 @@ const currentRelatedItems = computed(() => {
 const commitsWithAgo = computed(() => {
   return (relatedData.value?.commits ?? []).map((c) => {
     const d = new Date(c.date)
-    return { ...c, relative: useTimeAgo(d).value, absolute: formatDateTitle(d) }
+    // Pure formatter. useTimeAgo here would register a fresh 30s interval per
+    // commit on every recompute, outside any owner scope, so none of those
+    // intervals would ever be disposed.
+    return { ...c, relative: formatTimeAgo(d), absolute: formatDateTitle(d) }
   })
 })
 
@@ -906,6 +911,7 @@ useHead(computed(() => ({
               v-if="data.pushedAt"
               class="data-label inline-flex items-center gap-1"
               :title="formatDateTitle(data.pushedAt)"
+              data-allow-mismatch="text"
             >
               <UIcon
                 name="i-lucide-clock"
@@ -1684,6 +1690,7 @@ useHead(computed(() => ({
                       :datetime="commit.date"
                       :title="commit.absolute"
                       class="font-mono"
+                      data-allow-mismatch="text"
                     >{{ commit.relative }}</time>
                     <span aria-hidden="true">·</span>
                     <code class="font-mono">{{ commit.shortSha }}</code>

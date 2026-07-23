@@ -31,6 +31,10 @@ const headline = computed(() => {
 
 const fingerprint = computed(() => data.value?.topTags.slice(0, 3).map(t => t.label).join(', ') ?? '')
 
+// Bound once in setup. Calling useTimeAgo from the template registered a new
+// interval on every re-render, none of which were ever disposed.
+const syncedAgo = useTimeAgo(() => data.value?.fetchedAt ?? 0)
+
 const now = useTimestamp({ interval: 60_000 })
 const syncStale = computed(() => {
   const profile = data.value
@@ -458,7 +462,7 @@ useSchemaOrg(computed(() => {
 
       <p class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 text-xs text-muted">
         <span class="sr-only">{{ headline }}.</span>
-        Synced {{ useTimeAgo(data.fetchedAt).value }}
+        Synced <span data-allow-mismatch="text">{{ syncedAgo }}</span>
       </p>
     </template>
   </div>

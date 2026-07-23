@@ -6,9 +6,9 @@ The public site is healthy, no repos became newly broken in the 24-hour window, 
 
 1. Vectorize is missing 346 eligible skills. D1 claims 344 of them have current embeddings, so the normal worker will not repair them.
 2. New skills inside known repos are being found, but new-repo discovery is not an autonomous production pipeline. The scheduler ignores 5,295 unbroken repo candidates that claim skill files but have no admitted skill rows.
-3. GitHub sync commits `last_tree_sha` before blob processing succeeds. One partial blob response can quarantine skills and suppress the retry permanently.
+3. [GitHub](https://github.com) sync commits `last_tree_sha` before blob processing succeeds. One partial blob response can quarantine skills and suppress the retry permanently.
 4. A weekly digest subscriber has no deliverable address. The task skips the user before it can write a failure, leaving 1,076 unseen activity rows at gather time, 1,089 on a later rerun, with no alert.
-5. The migration ledger says all 69 migrations ran, but `install_events` and two migration indexes are absent. Production data cannot report installs. Sentry issue reads also return HTTP 403, leaving one `exceededMemory` outcome unattributed.
+5. The migration ledger says all 69 migrations ran, but `install_events` and two migration indexes are absent. Production data cannot report installs. [Sentry](https://sentry.io) issue reads also return HTTP 403, leaving one `exceededMemory` outcome unattributed.
 
 AMBER is appropriate because these are real data and discovery defects, not a current front-door outage. Missing Vectorize entries reduce semantic recall for about 12.8% of eligible skills.
 
@@ -16,7 +16,7 @@ AMBER is appropriate because these are real data and discovery defects, not a cu
 
 Window: `2026-07-22T00:41:00.087Z` through `2026-07-23T00:41:00.087Z`.
 
-All production actions were read-only. The daily gatherer ran without `--save`. D1 inspection used `wrangler d1 execute ... --remote --command 'SELECT ...'`, `PRAGMA` reads, and `EXPLAIN QUERY PLAN`. Vectorize inspection used `wrangler vectorize info` and `wrangler vectorize list-vectors`. Cloudflare, GitHub Actions, and Sentry were queried without changing state. No migration, retry, deployment, D1 write, Sentry change, or source-code edit was made. This report is the only file created.
+All production actions were read-only. The daily gatherer ran without `--save`. D1 inspection used `wrangler d1 execute ... --remote --command 'SELECT ...'`, `PRAGMA` reads, and `EXPLAIN QUERY PLAN`. Vectorize inspection used `wrangler vectorize info` and `wrangler vectorize list-vectors`. [Cloudflare](https://cloudflare.com), GitHub Actions, and Sentry were queried without changing state. No migration, retry, deployment, D1 write, Sentry change, or source-code edit was made. This report is the only file created.
 
 The gatherer captured an old deployment while a deployment was finishing. Production migration `0069` was applied at `2026-07-23 00:38:46`; deployment version `5f018...`, commit `e2c45`, completed at `00:41:08Z`; schedules changed at `00:41:10Z`. The post-deploy schema and schedules are used below.
 
@@ -76,8 +76,8 @@ Age is measured at `2026-07-23T00:41:00.087Z`. `n/a` means no pending row. `Unkn
 | 24-hour throughput | 42 repo checks; 0 newly broken repos; 0 sync failures. Three new skills were admitted, each inside a repo that already had skills. No new-repo throughput can be measured |
 | Pending age | Normal queue: 1 due, oldest/p50/p95 36.72 hours. Subscribed queue: 5 due, oldest/p50/p95 1.82 hours |
 | Failure and retry | Scheduled network failures leave admitted repos due. Owner scan failures have no durable retry or scan record. Broken and skill-less repo candidates are excluded from scheduled sync. No overlap lock exists |
-| Deduplication | Repo upserts are keyed by owner/repo. Activity has no natural-key uniqueness, so concurrent or repeated inserts can duplicate. ETags apply to REST paths, not the GraphQL summary fetch used here |
-| Silent drop | `last_tree_sha` advances before blob processing. `blobsRes.data ?? new Map()` converts a failed blob batch into empty data; parsing skips files; existing skills are quarantined; the committed tree SHA prevents retry. A new repo can be left with a committed SHA and no skill, then excluded forever |
+| Deduplication | Repo upserts are keyed by owner/repo. Activity has no natural-key uniqueness, so concurrent or repeated inserts can duplicate. ETags apply to REST paths, not the [GraphQL](https://graphql.org) summary fetch used here |
+| Silent drop | `last_tree_sha` advances before blob processing. `blobsRes.data ?? new Map()`{lang="ts"} converts a failed blob batch into empty data; parsing skips files; existing skills are quarantined; the committed tree SHA prevents retry. A new repo can be left with a committed SHA and no skill, then excluded forever |
 | Cost | Current observed GitHub work is modest at 42 checks/day, but a run can issue one GraphQL request plus tree/blob work for each of 250 repos. Request count and rate-limit consumption are not recorded |
 
 #### Organic discovery verdict: partial
@@ -95,7 +95,7 @@ There are direct correctness defects even when an owner does scan:
 * Search accepts a root `SKILL.md`; `syncRepo` accepts only paths ending `/SKILL.md`. A root-only repo is reported as synced with zero skills and then marked broken.
 * `reposSynced` counts `status='ok'` or a SHA skip, even when `skillsUpserted=0`.
 * If a repo already has the same tree SHA, owner verification returns early and never promotes its existing skills to `owner_verified=1`.
-* If blob loading fails after the repo SHA write, the repo has no skill rows. The scheduler's `EXISTS (SELECT 1 FROM skills ...)` predicate then prevents recovery.
+* If blob loading fails after the repo SHA write, the repo has no skill rows. The scheduler's `EXISTS (SELECT 1 FROM skills ...)`{lang="ts"} predicate then prevents recovery.
 * The indexability gate does not persist rejected skill candidates. Its comment says an existing row can later graduate, but rejected rows do not exist and their repo is not revisited.
 
 The inventory shows the scale of that last point: all 7,067 skill-less repos claim at least one skill file in `repo_skill_count`; 5,775 have a committed tree SHA; 5,295 are unbroken. Two repo rows whose owner matches a current user also claim skill files and have committed SHAs but no skills. Those two predate migration `0063`, so they demonstrate the inert state, not a recent scan regression.
@@ -134,7 +134,7 @@ Discovery has no durable candidate queue, scan history, source, cursor, rejectio
 | Deduplication | Dirty table is one row per skill. Queue query groups and sorts, using a scan plus temporary B-tree |
 | Integrity | Current collection, reason, and social counters match the implemented formula. The formula itself omits repo in curator matching |
 | Silent corruption | Updates use owner/name without repo. `computeFromRow` can re-enable rows on broken repos because it ignores `repos.broken_since`, `repo_missing`, and stored `source_resolved` |
-| Indexing | Candidate read starts from `repos_broken_idx`, uses correlated indexes, then a temporary order. Update plan uses `idx_skills_name_lookup(name, owner)` and cannot isolate repo collisions |
+| Indexing | Candidate read starts from `repos_broken_idx`, uses correlated indexes, then a temporary order. Update plan uses `idx_skills_name_lookup(name, owner)`{lang="ts"} and cannot isolate repo collisions |
 | Cost | Full scoring consumed 32.288 seconds of Worker wall time. D1 rows read and task CPU are not stored, so dollar cost is unknown |
 
 `seo_index_synced_at` is older than 24 hours for 2,778 skills. This is not a failed-run count; unchanged rows do not receive a freshness write, so the field cannot prove full-run coverage.
@@ -189,7 +189,7 @@ Two poll correctness risks need tests. A batch can become `completed` after part
 | Item | Result |
 |---|---|
 | Input | Rendered skill text selected by AI submit |
-| Output | D1 `skill_generated(kind='embedding')`; Vectorize index `skill-embeddings`, 768 dimensions |
+| Output | D1 `skill_generated(kind='embedding')`{lang="ts"}; Vectorize index `skill-embeddings`, 768 dimensions |
 | Trigger | Inside hourly AI submit; semantic query at request time |
 | Volume | Vectorize reports 3,037 vectors, processed through `2026-07-23T00:16:34.561Z` |
 | 24-hour throughput | 96 unique embedding marker rows touched; call/upsert count unknown |
@@ -334,10 +334,10 @@ Some sets overlap. For example, activity orphans and duplicates must not be adde
 
 | Area | Unit/type | Boundary behavior |
 |---|---|---|
-| `repos`, `skills`, activity, revisions, subscriptions, digests, sync jobs | Unix seconds | JavaScript uses `Math.floor(Date.now()/1000)`; GitHub ISO dates parse to seconds |
+| `repos`, `skills`, activity, revisions, subscriptions, digests, sync jobs | Unix seconds | JavaScript uses `Math.floor(Date.now()/1000)`{lang="ts"}; GitHub ISO dates parse to seconds |
 | `ai_batches`, submissions, costs | Unix seconds | Anthropic timestamps and polling cutoffs convert at the API boundary |
 | `skill_generated.generated_at` | ISO 8601 text | Compared as text for display; content SHA is the freshness key |
-| `ai_ready_pages.indexed_at`, `indexnow_synced_at` | Unix milliseconds | Runtime uses `Date.now()`; converting these as seconds would inflate dates by 1,000 |
+| `ai_ready_pages.indexed_at`, `indexnow_synced_at` | Unix milliseconds | Runtime uses `Date.now()`{lang="ts"}; converting these as seconds would inflate dates by 1,000 |
 | AI-ready cron/log/sitemap timing | Unix milliseconds | `_ai_ready_info` values are JSON strings containing millisecond epochs |
 | `daily_health_checks.created_at` | Unix seconds | New application migration follows the main schema convention |
 | `d1_migrations.applied_at` | Text timestamp | Ledger metadata, not application event time |
@@ -733,14 +733,14 @@ These plans used the implementation SQL with literal snapshot cutoffs and limits
 
 | Stage/query | Exact plan detail |
 |---|---|
-| General GitHub due queue | `SEARCH r USING INDEX repos_broken_idx (broken_since=?)`; correlated `SEARCH s USING COVERING INDEX idx_skills_owner_repo (owner=? AND repo=?)`; `USE TEMP B-TREE FOR ORDER BY` |
-| Subscribed GitHub due queue | Same repo and skill lookups; `SEARCH sub USING COVERING INDEX idx_subs_repo (owner=? AND repo=?)`; temporary B-trees for group and order |
+| General GitHub due queue | `SEARCH r USING INDEX repos_broken_idx (broken_since=?)`{lang="ts"}; correlated `SEARCH s USING COVERING INDEX idx_skills_owner_repo (owner=? AND repo=?)`{lang="ts"}; `USE TEMP B-TREE FOR ORDER BY` |
+| Subscribed GitHub due queue | Same repo and skill lookups; `SEARCH sub USING COVERING INDEX idx_subs_repo (owner=? AND repo=?)`{lang="ts"}; temporary B-trees for group and order |
 | Dirty queue picker | `SCAN skill_dirty USING INDEX sqlite_autoindex_skill_dirty_1`; `USE TEMP B-TREE FOR ORDER BY` |
-| Render reconcile picker | `SEARCH r USING INDEX repos_broken_idx (broken_since=?)`; `SEARCH s USING INDEX idx_skills_owner_repo (owner=? AND repo=?)`; temporary B-trees for distinct and order |
-| AI stale selector | Repo and skill lookups use `repos_broken_idx` and `idx_skills_owner_repo`; all five correlated kind probes use `sqlite_autoindex_skill_generated_1 (owner=? AND repo=? AND name=? AND kind=?)`; temporary order by installs |
-| Digest selector | `SEARCH sub USING INDEX idx_subs_user (user_id=?)`; repo and skill primary keys; `SEARCH a USING INDEX idx_activity_skill (owner=? AND repo=? AND name=?)`; temporary group and order |
-| Scoring update | `SEARCH skills USING COVERING INDEX idx_skills_name_lookup (name=? AND owner=?)`; this confirms the incomplete owner/name mutation key |
-| IndexNow pending | `SEARCH ai_ready_pages USING INDEX idx_ai_ready_pages_indexed (indexed=?)`; the forced partial plan is `SCAN ai_ready_pages USING INDEX idx_ai_ready_pages_indexnow_pending` |
+| Render reconcile picker | `SEARCH r USING INDEX repos_broken_idx (broken_since=?)`{lang="ts"}; `SEARCH s USING INDEX idx_skills_owner_repo (owner=? AND repo=?)`{lang="ts"}; temporary B-trees for distinct and order |
+| AI stale selector | Repo and skill lookups use `repos_broken_idx` and `idx_skills_owner_repo`; all five correlated kind probes use `sqlite_autoindex_skill_generated_1 (owner=? AND repo=? AND name=? AND kind=?)`{lang="ts"}; temporary order by installs |
+| Digest selector | `SEARCH sub USING INDEX idx_subs_user (user_id=?)`{lang="ts"}; repo and skill primary keys; `SEARCH a USING INDEX idx_activity_skill (owner=? AND repo=? AND name=?)`{lang="ts"}; temporary group and order |
+| Scoring update | `SEARCH skills USING COVERING INDEX idx_skills_name_lookup (name=? AND owner=?)`{lang="ts"}; this confirms the incomplete owner/name mutation key |
+| IndexNow pending | `SEARCH ai_ready_pages USING INDEX idx_ai_ready_pages_indexed (indexed=?)`{lang="ts"}; the forced partial plan is `SCAN ai_ready_pages USING INDEX idx_ai_ready_pages_indexnow_pending` |
 | cf-jobs dispatch/recovery | `SCAN jobs`; `USE TEMP B-TREE FOR ORDER BY` for both paths |
 
 Required-index assessment:
@@ -752,7 +752,7 @@ Required-index assessment:
 | Dirty scoring | Queue is empty and current cost is small. At scale, the grouped picker needs a queue shape or index that orders by earliest `queued_at` without scanning/sorting |
 | Rendering | Add a selective pending/failure index only after null rows receive an explicit state; current owner/repo path cannot select failure age efficiently |
 | AI batches/generated | Generated primary key makes kind probes efficient. Selection still sorts the eligible skill set; split-by-kind queueing removes more work than another broad index |
-| Vectorize | External index has no SQLite plan. Required control is D1-to-Vectorize parity, not another D1 index |
+| Vectorize | External index has no [SQLite](https://sqlite.org) plan. Required control is D1-to-Vectorize parity, not another D1 index |
 | IndexNow | Required partial index exists. Planner statistics are false, so the runtime plan does not use it |
 | Digests | Current indexes support the small workload. A unique delivery-window claim and activity event identity are correctness requirements |
 | cf-jobs | `idx_jobs_dispatchable`, `idx_jobs_stale_reserved`, and `idx_failed_jobs_batch` are required by installed 0.14 before adoption |

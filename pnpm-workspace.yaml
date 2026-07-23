@@ -8,8 +8,8 @@ shellEmulator: true
 trustPolicy: no-downgrade
 
 catalog:
-  '@antfu/eslint-config': ^9.1.0
-  '@cloudflare/workers-types': ^5.20260721.1
+  '@antfu/eslint-config': ^9.2.0
+  '@cloudflare/workers-types': ^5.20260722.1
   '@iconify-json/lucide': ^1.2.118
   '@iconify-json/simple-icons': ^1.2.91
   '@iconify-json/vscode-icons': ^1.2.67
@@ -23,14 +23,14 @@ catalog:
   '@nuxt/ui': ^4.10.0
   '@nuxtjs/html-validator': ^2.1.0
   '@nuxtjs/mdc': ^0.22.2
-  '@nuxtjs/seo': ^5.3.3
+  '@nuxtjs/seo': ^5.3.4
   '@playwright/test': ^1.61.1
   '@resvg/resvg-js': ^2.6.2
   '@sentry/nuxt': ^10.67.0
   '@shikijs/langs': ^4.3.1
   '@shikijs/themes': ^4.3.1
-  '@takumi-rs/core': ^2.4.0
-  '@takumi-rs/wasm': ^2.4.0
+  '@takumi-rs/core': ^2.4.1
+  '@takumi-rs/wasm': ^2.4.1
   '@types/node': ^26.1.1
   '@vue/test-utils': ^2.4.11
   '@vueuse/core': ^14.3.0
@@ -42,11 +42,11 @@ catalog:
   eslint-plugin-harlanzw: ^0.17.0
   happy-dom: ^20.11.0
   import-in-the-middle: ^3.3.2
-  lint-staged: ^17.1.0
+  lint-staged: ^17.1.1
   marked: ^18.0.7
   motion-v: ^2.3.0
   nuxt: ^4.5.0
-  nuxt-ai-ready: ^1.5.7
+  nuxt-ai-ready: ^1.5.8
   nuxt-auth-utils: ^0.5.29
   nuxt-cf-jobs: ^0.14.0
   nuxt-og-image: ^6.7.4
