@@ -59,6 +59,7 @@
     "shiki": "catalog:",
     "skilld-protocol": "catalog:",
     "tailwindcss": "catalog:",
+    "vue": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

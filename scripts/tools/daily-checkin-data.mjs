@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -188,7 +188,7 @@ const d1 = probe(() => {
   const prodMigrationHead = has('d1_migrations')
     ? d1Query(`SELECT MAX(name) name FROM d1_migrations`)[0]?.name ?? null
     : null
-  const localMigrationHead = readdirSync(join(root, 'migrations')).filter(file => /^\d+.*\.sql$/.test(file)).sort().at(-1) ?? null
+  const localMigrationHead = readdirSync(join(root, 'migrations')).filter(file => /^\d.*\.sql$/.test(file)).sort().at(-1) ?? null
 
   return {
     tables: [...tables],
@@ -229,7 +229,7 @@ const workers = await probeAsync(async () => {
   const query = `query { viewer { accounts(filter: {accountTag: "5904138d55ca25d5670dca6adf99894e"}) { workersInvocationsAdaptive(limit: 100, filter: {datetime_geq: "${sinceIso}", datetime_leq: "${now.toISOString()}"}) { dimensions { scriptName status } sum { requests } } } } }`
   const response = await fetch('https://api.cloudflare.com/client/v4/graphql', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${cloudflareToken()}`, 'Content-Type': 'application/json' },
+    headers: { 'Authorization': `Bearer ${cloudflareToken()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
   })
   const body = await response.json()

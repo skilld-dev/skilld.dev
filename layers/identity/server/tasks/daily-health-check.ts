@@ -44,7 +44,8 @@ export default defineScheduledTask({
         workerVersion: workerVersion(env),
       }),
       send: input => sendEmailWithEnv(env, { ...input, from }),
-    }).then(result => ({ _tag: 'Completed' as const, result }))
+    })
+      .then(result => ({ _tag: 'Completed' as const, result }))
       .catch(error => ({
         _tag: 'InfrastructureFailure' as const,
         error: error instanceof Error ? error.message : String(error),

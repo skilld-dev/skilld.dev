@@ -1,3 +1,4 @@
+import type { DailyHealthCheckSummary } from './daily-health-check'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -6,7 +7,6 @@ import {
   renderDailyHealthCheckHtml,
   renderDailyHealthCheckText,
   sendDailyHealthCheck,
-  type DailyHealthCheckSummary,
 } from './daily-health-check'
 
 function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthCheckSummary {
