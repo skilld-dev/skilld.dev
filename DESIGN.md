@@ -185,9 +185,30 @@ components:
 | `.data-label` | `font-mono text-xs text-[var(--ui-text-muted)] tabular-nums` | Inline metric labels in lists and cards |
 | `.surface-warm` | warm dark bg `oklch(0.16 0.01 60)` + warm border | Card or panel backgrounds in dark mode |
 | `.surface-warm-elevated` | slightly lighter warm bg `oklch(0.20 0.014 60)` + warm border | Elevated panels, dropdowns, popovers in dark mode |
+| `.editorial-band` / `__content` | isolated section shell that keeps atmosphere behind readable content | Full-width journey bands and page mastheads |
+| `.editorial-atmosphere` | mode-aware rose, ember, or stone edge gradient with masked geometry | One low-strength atmosphere layer per major band |
+| `.editorial-ledger` | border-block list with divided rows and no outer card chrome | Results, evidence, updates, and directory lists |
+| `.editorial-state` | consistent bordered loading, empty, or error panel | Async sections that need an explicit fallback |
+| `.outcome-index` / `__item` | numbered task-first choice grid with clear action affordance | Routes where users should start from intent |
 | `.skill-prose` | typographic shell for rendered SKILL.md markdown | Wrap rendered markdown content (skill detail views) |
 | `.skill-markdown .shiki` | shiki dual-theme styling via `--shiki-light` / `--shiki-dark` vars | Raw markdown view with code highlighting |
 | `.skip-link` | offscreen-until-focus accessibility skip link | Keyboard navigation bypass to main content |
+
+## Editorial Journey Patterns
+
+Homepage patterns become system primitives only when they help a user make the next decision. Reuse their hierarchy and interaction rules, then compose each route around its specific job.
+
+- **Atmospheric masthead**: use `EditorialMasthead` on first-level discovery and curation routes. Lead with a plain-language outcome, not the taxonomy name. Titles use `clamp(2.75rem, ..., 5rem)`, stay under 16 characters per line where practical, and pair with one explanatory paragraph.
+- **Atmosphere**: use one `.editorial-atmosphere` layer per band. Choose rose for discovery, ember for curation, stone for evidence or directories. Keep data on the quiet centre of the mask. Atmosphere never replaces borders or surface contrast.
+- **Outcome index**: use `OutcomeClusterGrid` when visitors know their problem but not the registry vocabulary. Numbered routes explain the result in user voice, then state how many real skills are available.
+- **Evidence ledger**: use `.editorial-ledger` for long or changing inventory. Each row answers what it is, who or where it came from, why it matters, and where the click goes. Prefer rows over repeated cards once more than six items are visible.
+- **Lead and supporting picks**: curation pages may feature one dominant recommendation and up to two supporting picks. Show rationale before metadata. Do not duplicate featured items in the following directory.
+- **Directional actions**: the next useful action belongs at the end of the relevant row or band, with a 44px minimum target. Avoid detached CTA cards that repeat the section heading.
+- **Provenance line**: author or organization avatar, handle, source path, and freshness are evidence. Keep them visually quieter than the skill or collection name, but never hide all provenance behind hover.
+- **Async states**: loading, empty, and error states preserve the same spatial footprint as loaded content. Errors offer a scoped retry. Empty states explain the value and give one next action.
+- **Responsive ownership**: shared compositions are container-aware. Define `container-type: inline-size` on the owning shell before using `@container`; keep a readable single-column default. Large inventories may use `content-visibility: auto` only with `contain-intrinsic-size`.
+- **Journey flow**: intent → shortlist → provenance → inspect → install or watch. Each first-level route should make its position in this sequence obvious.
+- **Depth rule**: first-level discovery pages can use large editorial type and atmosphere. Skill detail pages stay dense and evidence-led; do not wrap `/gh/...` pages in a marketing masthead.
 
 ## Brand Noise Field
 
@@ -263,3 +284,5 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Section atmosphere**: low-chroma warm-stone and rose gradients may distinguish homepage bands. They stay masked to edges, use mode-specific opacity, and never sit behind data as a full-strength fill.
 - **Collections remain primary curation**: directory links may be quiet, but Collections retain stronger hierarchy than publisher taxonomy.
 - **Hero skill proof**: the hero uses a real-skill timeline grouped by distinct developers and organizations, with visible GitHub avatars and source paths. A top-and-bottom mask blends it into the atmosphere; hover and keyboard focus pause the drift; reduced motion freezes it. No duplicated entries or fake skill data.
+- **Homepage patterns are journey primitives**: atmosphere, outcome indexes, evidence ledgers, provenance lines, and lead/supporting picks now form the reusable editorial layer. Reuse their rules on discovery routes while preserving a distinct composition for each page.
+- **First-level route hierarchy**: `/skills`, outcome pages, and `/collections` use larger plain-language mastheads and explicit next steps. Skill detail remains dense and unchanged.

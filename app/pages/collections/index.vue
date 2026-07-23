@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import CollectionAvatar from './_CollectionAvatar.vue'
+
 interface IndexCollection {
   name: string
   slug: string
@@ -19,13 +21,18 @@ interface IndexResponse {
   fetchedAt: string
 }
 
+type CopyState
+  = | { _tag: 'idle' }
+    | { _tag: 'copied', key: string }
+    | { _tag: 'error', key: string, message: string }
+
 const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch<IndexResponse>('/api/collections', {
   lazy: !isBot.value,
 })
 
 const title = 'Collections'
-const description = 'Curated bundles of agent skills from developers on skilld. Install any collection with one command.'
+const description = 'Curated, install-ready sets of agent skills with a clear rationale and visible sources.'
 
 useSeoMeta({
   title: `${title} — skilld`,
@@ -39,293 +46,495 @@ defineOgImage('Page.takumi', {
   description,
 }, { alt: 'Collections directory on skilld' })
 
-const copied = ref<string | null>(null)
-function copyInstall(handle: string, slug: string) {
-  navigator.clipboard.writeText(collectionInstallCmd(handle, slug))
-  copied.value = `${handle}/${slug}`
-  setTimeout(() => {
-    if (copied.value === `${handle}/${slug}`)
-      copied.value = null
-  }, 2000)
+function collectionKey(collection: IndexCollection): string {
+  return `${collection.authorLogin}/${collection.slug}`
 }
+
+const featuredCollections = computed(() => data.value?.featured.slice(0, 3) ?? [])
+const leadCollection = computed(() => featuredCollections.value[0] ?? null)
+const supportingCollections = computed(() => featuredCollections.value.slice(1, 3))
+const directoryCollections = computed(() => {
+  const seen = new Set(featuredCollections.value.map(collectionKey))
+
+  return (data.value?.recent ?? []).filter((collection) => {
+    const key = collectionKey(collection)
+    if (seen.has(key))
+      return false
+
+    seen.add(key)
+    return true
+  })
+})
+
+const copyState = refAutoReset<CopyState>({ _tag: 'idle' }, 2500)
+
+async function copyInstall(handle: string, slug: string) {
+  const key = `${handle}/${slug}`
+  const command = collectionInstallCmd(handle, slug)
+  const writeText = navigator.clipboard?.writeText.bind(navigator.clipboard)
+
+  if (!writeText) {
+    copyState.value = {
+      _tag: 'error',
+      key,
+      message: 'Could not copy. Select the command and copy it manually.',
+    }
+    return
+  }
+
+  copyState.value = await writeText(command)
+    .then((): CopyState => ({ _tag: 'copied', key }))
+    .catch((copyError): CopyState => {
+      console.warn('[collections] Could not copy install command:', copyError)
+      return {
+        _tag: 'error',
+        key,
+        message: 'Could not copy. Select the command and copy it manually.',
+      }
+    })
+}
+
+function isCopied(collection: IndexCollection): boolean {
+  return copyState.value._tag === 'copied'
+    && copyState.value.key === collectionKey(collection)
+}
+
+const copyAnnouncement = computed(() => {
+  if (copyState.value._tag === 'copied')
+    return 'Install command copied to clipboard.'
+  if (copyState.value._tag === 'error')
+    return copyState.value.message
+  return ''
+})
 </script>
 
 <template>
-  <div>
-    <section
-      class="mx-auto max-w-5xl px-4 sm:px-6 pt-12 pb-6 md:pt-16 md:pb-8"
-      aria-labelledby="collections-heading"
+  <div class="overflow-clip">
+    <EditorialMasthead
+      label="Curated skill sets"
+      title="Install a stack, not a pile of skills."
+      description="Collections bundle compatible skills around a real workflow. Read the curator's rationale, inspect every source, then install the complete set with one command."
+      palette="ember"
+      heading-id="collections-heading"
     >
-      <h1
-        id="collections-heading"
-        class="font-mono text-2xl sm:text-3xl font-medium tracking-tight"
-      >
-        Collections
-      </h1>
-      <p class="mt-3 text-sm text-muted max-w-2xl leading-relaxed">
-        Curated bundles of agent skills, assembled by developers whose taste you trust.
-        Each collection is a signed, install-ready recipe; one command pulls the full set into your agent.
-      </p>
+      <template #aside>
+        <ol class="editorial-ledger list-none p-0">
+          <li class="flex gap-3 py-3">
+            <span class="data-label">01</span>
+            <span class="text-sm leading-relaxed">Understand why the skills belong together.</span>
+          </li>
+          <li class="flex gap-3 py-3">
+            <span class="data-label">02</span>
+            <span class="text-sm leading-relaxed">Inspect the curator and every source.</span>
+          </li>
+          <li class="flex gap-3 py-3">
+            <span class="data-label">03</span>
+            <span class="text-sm leading-relaxed">Install the set, then watch it for changes.</span>
+          </li>
+        </ol>
+      </template>
 
-      <dl
-        v-if="data?.total"
-        class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2"
-      >
-        <div class="data-label">
-          <dt class="sr-only">
-            Total collections
-          </dt>
-          <dd>{{ data.total }} {{ data.total === 1 ? 'collection' : 'collections' }}</dd>
-        </div>
-        <div
-          v-if="data.fetchedAt"
-          class="data-label"
-        >
-          <dt class="sr-only">
-            Synced
-          </dt>
-          <dd>Synced {{ useTimeAgo(data.fetchedAt).value }}</dd>
-        </div>
-      </dl>
-    </section>
+      <div class="flex flex-wrap items-center gap-3">
+        <UButton
+          to="/collections/new"
+          label="Publish a collection"
+          icon="i-lucide-plus"
+          trailing-icon="i-lucide-arrow-right"
+          class="min-h-11"
+        />
+        <UButton
+          to="/skills"
+          label="Find individual skills"
+          color="neutral"
+          variant="ghost"
+          class="min-h-11"
+        />
+        <span v-if="data?.total" class="data-label sm:ml-auto">
+          {{ data.total }} {{ data.total === 1 ? 'collection' : 'collections' }}
+        </span>
+      </div>
+    </EditorialMasthead>
 
-    <USeparator />
+    <span aria-live="polite" class="sr-only">{{ copyAnnouncement }}</span>
 
-    <span
-      aria-live="polite"
-      class="sr-only"
-    >{{ copied ? 'Install command copied to clipboard' : '' }}</span>
-
-    <!-- Loading -->
     <section
       v-if="status === 'pending'"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+      class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
       aria-busy="true"
+      aria-label="Loading collections"
     >
-      <USkeleton class="h-4 w-24 mb-6" />
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div
-          v-for="i in 4"
-          :key="i"
-          class="rounded-lg border border-default p-4"
-        >
-          <USkeleton class="h-5 w-2/3" />
-          <USkeleton class="mt-2 h-3 w-full" />
-          <USkeleton class="mt-1 h-3 w-3/4" />
-          <div class="mt-3 flex items-center gap-2">
-            <USkeleton class="size-5 rounded-full" />
-            <USkeleton class="h-3 w-20" />
-          </div>
+      <USkeleton class="h-4 w-32" />
+      <USkeleton class="mt-4 h-12 w-2/3" />
+      <div class="mt-8 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(16rem,0.5fr)]">
+        <USkeleton class="h-80 rounded-lg" />
+        <div class="grid gap-3">
+          <USkeleton class="h-36 rounded-lg" />
+          <USkeleton class="h-36 rounded-lg" />
         </div>
       </div>
     </section>
 
-    <!-- Error -->
     <section
       v-else-if="error"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+      class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
     >
-      <div
-        role="alert"
-        class="rounded-lg border border-default p-8 text-center"
-      >
-        <UIcon
-          name="i-lucide-alert-circle"
-          class="mx-auto size-8 text-muted"
-          aria-hidden="true"
-        />
-        <p class="mt-3 text-sm">
-          Couldn't load collections. Check your connection and try again.
+      <div role="alert" class="editorial-state">
+        <p class="font-medium">
+          Couldn't load collections.
+        </p>
+        <p class="mt-1 text-base text-muted">
+          Check your connection and try this directory again.
         </p>
         <UButton
-          label="Retry"
-          size="sm"
-          variant="outline"
+          label="Retry collections"
           color="neutral"
-          class="mt-4"
-          @click="refresh()"
+          variant="outline"
+          class="mt-4 min-h-11"
+          @click="() => refresh()"
         />
       </div>
     </section>
 
-    <!-- Empty (no collections on the site yet) -->
     <section
       v-else-if="!data?.total"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+      class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
     >
-      <CollectionsEmptyCTA />
+      <div class="editorial-state" role="status">
+        <p class="font-medium">
+          No collections yet.
+        </p>
+        <p class="mt-1 max-w-xl text-base leading-relaxed text-muted">
+          Curators bundle the skills they rely on into inspectable sets that anyone can install with one command.
+        </p>
+        <UButton
+          to="/collections/new"
+          label="Publish the first collection"
+          trailing-icon="i-lucide-arrow-right"
+          class="mt-4 min-h-11"
+        />
+      </div>
     </section>
 
     <template v-else>
-      <!-- Featured -->
       <section
-        v-if="data.featured.length"
-        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+        v-if="leadCollection"
+        class="editorial-band border-b border-default bg-muted"
         aria-labelledby="featured-collections-heading"
       >
-        <div class="flex items-center justify-between mb-6">
-          <h2
-            id="featured-collections-heading"
-            class="section-label"
-          >
-            Featured
-          </h2>
-        </div>
+        <div
+          class="editorial-atmosphere"
+          data-palette="rose"
+          data-geometry="wash"
+          data-intensity="subtle"
+          aria-hidden="true"
+        />
+        <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+          <div class="mb-8">
+            <p class="section-label">
+              Curated starting points
+            </p>
+            <h2 id="featured-collections-heading" class="collections-section-title mt-3 max-w-[15ch]">
+              Start with a set that explains itself.
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              The rationale comes first. Skill count and install command support the decision.
+            </p>
+          </div>
 
-        <ul class="grid grid-cols-1 gap-3 md:grid-cols-2 list-none p-0">
-          <li
-            v-for="c in data.featured"
-            :key="`${c.authorLogin}/${c.slug}`"
-          >
-            <article class="group h-full rounded-lg border border-default p-5 transition-colors duration-200 hover:border-[var(--ui-text-muted)]">
-              <h3 class="font-mono text-sm font-medium">
-                <NuxtLink
-                  :to="`/@${c.authorLogin}/${c.slug}`"
-                  class="hover:text-muted transition-colors"
-                >
-                  {{ c.name }}
-                </NuxtLink>
-              </h3>
-              <p
-                v-if="c.preambleExcerpt || c.preamble"
-                class="mt-2 text-xs text-muted leading-relaxed line-clamp-3"
-              >
-                {{ c.preambleExcerpt || c.preamble }}
-              </p>
-
-              <div
-                v-if="c.skills.length"
-                class="mt-3 flex flex-wrap gap-1.5"
-              >
-                <UBadge
-                  v-for="skill in c.skills.slice(0, 4)"
-                  :key="skill"
-                  :label="skill"
-                  variant="subtle"
-                  color="primary"
-                  size="xs"
-                />
-              </div>
-
-              <div class="mt-4 flex items-center gap-2">
-                <NuxtLink
-                  :to="`/@${c.authorLogin}`"
-                  class="flex items-center gap-2 min-w-0 flex-1 text-xs hover:text-muted transition-colors"
-                >
-                  <img
-                    v-if="c.authorAvatar"
-                    :src="c.authorAvatar"
-                    :alt="`Avatar for ${c.authorDisplayName || c.authorLogin}`"
-                    width="20"
-                    height="20"
-                    loading="lazy"
-                    decoding="async"
-                    class="size-5 rounded-full"
+          <div class="collections-featured-shell">
+            <div class="collections-featured-layout">
+              <article class="collection-lead">
+                <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <p class="data-label">
+                      Editor's starting point
+                    </p>
+                    <h3 class="mt-3 text-3xl font-semibold leading-tight tracking-[-0.035em] text-balance">
+                      <NuxtLink
+                        :to="`/@${leadCollection.authorLogin}/${leadCollection.slug}`"
+                        class="transition-colors hover:text-muted"
+                      >
+                        {{ leadCollection.name }}
+                      </NuxtLink>
+                    </h3>
+                  </div>
+                  <NuxtLink
+                    :to="`/@${leadCollection.authorLogin}`"
+                    class="flex shrink-0 items-center gap-3"
                   >
-                  <span class="truncate">{{ c.authorDisplayName || c.authorLogin }}</span>
-                </NuxtLink>
-                <span class="data-label shrink-0">{{ c.skillCount }} skills</span>
-              </div>
+                    <CollectionAvatar
+                      :src="leadCollection.authorAvatar"
+                      :name="leadCollection.authorDisplayName || leadCollection.authorLogin"
+                      size="lg"
+                    />
+                    <span class="min-w-0">
+                      <span class="data-label block">Curated by</span>
+                      <span class="mt-1 block truncate font-mono text-sm">@{{ leadCollection.authorLogin }}</span>
+                    </span>
+                  </NuxtLink>
+                </div>
 
-              <div class="mt-3 flex items-center gap-2">
-                <code class="flex-1 truncate rounded bg-muted px-2.5 py-1.5 font-mono text-xs text-muted">
-                  {{ collectionInstallCmd(c.authorLogin, c.slug) }}
-                </code>
+                <div v-if="leadCollection.preambleExcerpt || leadCollection.preamble" class="mt-6 border-t border-default pt-6">
+                  <p class="data-label">
+                    Why this set
+                  </p>
+                  <p class="mt-2 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+                    {{ leadCollection.preambleExcerpt || leadCollection.preamble }}
+                  </p>
+                </div>
+
+                <div class="mt-6 border-t border-default pt-6">
+                  <div class="flex items-center justify-between gap-4">
+                    <p class="data-label">
+                      Inside the collection
+                    </p>
+                    <p class="data-label">
+                      {{ leadCollection.skillCount }} {{ leadCollection.skillCount === 1 ? 'skill' : 'skills' }}
+                    </p>
+                  </div>
+                  <ul v-if="leadCollection.skills.length" class="mt-3 grid grid-cols-1 border-y border-default sm:grid-cols-2">
+                    <li
+                      v-for="skill in leadCollection.skills.slice(0, 6)"
+                      :key="skill"
+                      class="border-b border-default px-1 py-3 font-mono text-sm last:border-b-0 sm:odd:border-r"
+                    >
+                      {{ skill }}
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="mt-6 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <code
+                    tabindex="0"
+                    class="block min-w-0 overflow-x-auto rounded-lg border border-default bg-muted px-3 py-3 font-mono text-sm whitespace-nowrap"
+                  >{{ collectionInstallCmd(leadCollection.authorLogin, leadCollection.slug) }}</code>
+                  <UButton
+                    :icon="isCopied(leadCollection) ? 'i-lucide-check' : 'i-lucide-copy'"
+                    :label="isCopied(leadCollection) ? 'Copied' : 'Copy command'"
+                    color="neutral"
+                    variant="outline"
+                    class="min-h-11 justify-center"
+                    @click="copyInstall(leadCollection.authorLogin, leadCollection.slug)"
+                  />
+                </div>
+
                 <UButton
-                  :icon="copied === `${c.authorLogin}/${c.slug}` ? 'i-lucide-check' : 'i-lucide-copy'"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  :aria-label="copied === `${c.authorLogin}/${c.slug}` ? 'Copied' : `Copy install command for ${c.name}`"
-                  @click="copyInstall(c.authorLogin, c.slug)"
+                  :to="`/@${leadCollection.authorLogin}/${leadCollection.slug}`"
+                  label="Inspect this collection"
+                  trailing-icon="i-lucide-arrow-right"
+                  class="mt-5 min-h-11"
                 />
+              </article>
+
+              <div v-if="supportingCollections.length" class="collection-supporting">
+                <NuxtLink
+                  v-for="collection in supportingCollections"
+                  :key="collectionKey(collection)"
+                  :to="`/@${collection.authorLogin}/${collection.slug}`"
+                  class="collection-supporting-row group"
+                >
+                  <span class="flex items-center justify-between gap-4">
+                    <span class="data-label">Supporting pick</span>
+                    <UIcon
+                      name="i-lucide-arrow-up-right"
+                      class="size-4 text-muted transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                      aria-hidden="true"
+                    />
+                  </span>
+                  <span class="mt-4 block text-xl font-semibold leading-tight tracking-[-0.025em]">
+                    {{ collection.name }}
+                  </span>
+                  <span
+                    v-if="collection.preambleExcerpt || collection.preamble"
+                    class="mt-2 block text-base leading-relaxed text-muted text-pretty"
+                  >
+                    {{ collection.preambleExcerpt || collection.preamble }}
+                  </span>
+                  <span class="mt-5 flex items-center gap-2">
+                    <CollectionAvatar
+                      :src="collection.authorAvatar"
+                      :name="collection.authorDisplayName || collection.authorLogin"
+                      size="sm"
+                    />
+                    <span class="font-mono text-xs">@{{ collection.authorLogin }}</span>
+                    <span class="data-label ml-auto">{{ collection.skillCount }} skills</span>
+                  </span>
+                </NuxtLink>
               </div>
-            </article>
-          </li>
-        </ul>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <USeparator v-if="data.featured.length && data.recent.length" />
-
-      <!-- Recent -->
       <section
-        v-if="data.recent.length"
-        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
-        aria-labelledby="recent-collections-heading"
+        v-if="directoryCollections.length"
+        class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
+        aria-labelledby="collections-directory-heading"
       >
-        <h2
-          id="recent-collections-heading"
-          class="section-label mb-6"
-        >
-          Recent
-        </h2>
+        <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="section-label">
+              Collection directory
+            </p>
+            <h2 id="collections-directory-heading" class="collections-section-title mt-3 max-w-[16ch]">
+              Find another stack for the job.
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              Continue through recently refreshed collections, with each curator and rationale kept in view.
+            </p>
+          </div>
+          <p class="data-label">
+            {{ directoryCollections.length }} more
+          </p>
+        </div>
 
-        <ul class="grid grid-cols-1 gap-3 md:grid-cols-2 list-none p-0">
-          <li
-            v-for="c in data.recent"
-            :key="`${c.authorLogin}/${c.slug}`"
-          >
+        <ul class="editorial-ledger list-none p-0">
+          <li v-for="collection in directoryCollections" :key="collectionKey(collection)">
             <NuxtLink
-              :to="`/@${c.authorLogin}/${c.slug}`"
-              class="group block h-full rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+              :to="`/@${collection.authorLogin}/${collection.slug}`"
+              class="collection-directory-row group"
             >
-              <h3 class="font-mono text-sm font-medium">
-                {{ c.name }}
-              </h3>
-              <p
-                v-if="c.preambleExcerpt || c.preamble"
-                class="mt-1 text-xs text-muted leading-relaxed line-clamp-2"
-              >
-                {{ c.preambleExcerpt || c.preamble }}
-              </p>
-              <div class="mt-3 flex items-center gap-2">
-                <img
-                  v-if="c.authorAvatar"
-                  :src="c.authorAvatar"
-                  :alt="`Avatar for ${c.authorDisplayName || c.authorLogin}`"
-                  width="20"
-                  height="20"
-                  loading="lazy"
-                  decoding="async"
-                  class="size-5 rounded-full"
+              <CollectionAvatar
+                :src="collection.authorAvatar"
+                :name="collection.authorDisplayName || collection.authorLogin"
+              />
+              <span class="min-w-0">
+                <span class="block text-lg font-semibold tracking-tight">{{ collection.name }}</span>
+                <span
+                  v-if="collection.preambleExcerpt || collection.preamble"
+                  class="mt-1 block text-base leading-relaxed text-muted text-pretty"
                 >
-                <span class="text-xs truncate flex-1">{{ c.authorDisplayName || c.authorLogin }}</span>
-                <span class="data-label shrink-0">{{ c.skillCount }} skills</span>
-              </div>
+                  {{ collection.preambleExcerpt || collection.preamble }}
+                </span>
+                <span class="mt-2 block font-mono text-xs text-muted">@{{ collection.authorLogin }}</span>
+              </span>
+              <span class="data-label whitespace-nowrap">{{ collection.skillCount }} skills</span>
+              <UIcon
+                name="i-lucide-arrow-up-right"
+                class="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                aria-hidden="true"
+              />
             </NuxtLink>
           </li>
         </ul>
       </section>
     </template>
 
-    <USeparator />
-
-    <!-- CTA -->
     <section
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-12 md:py-16"
+      class="editorial-band border-t border-default"
       aria-labelledby="collections-cta-heading"
     >
-      <div class="rounded-lg border border-default p-6 sm:p-8 text-center">
-        <h2
-          id="collections-cta-heading"
-          class="font-mono text-lg font-medium"
-        >
-          Have a stack worth sharing?
-        </h2>
-        <p class="mt-2 text-sm text-muted max-w-md mx-auto">
-          Bundle the skills you reach for into a named collection. Anyone can install the full set with
-          <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs">npx -y skilld add @you/name</code>.
-        </p>
-        <div class="mt-5">
+      <div
+        class="editorial-atmosphere"
+        data-palette="stone"
+        data-geometry="bloom"
+        data-intensity="subtle"
+        aria-hidden="true"
+      />
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+        <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <p class="section-label">
+              Add your judgment
+            </p>
+            <h2 id="collections-cta-heading" class="collections-section-title mt-3 max-w-[14ch]">
+              Have a stack worth sharing?
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              Name the workflow, explain why the skills belong together, and publish one inspectable install command.
+            </p>
+          </div>
           <UButton
             to="/collections/new"
             label="Publish a collection"
             icon="i-lucide-plus"
             trailing-icon="i-lucide-arrow-right"
-            size="sm"
+            size="lg"
+            class="min-h-11 shrink-0 self-start lg:self-end"
           />
         </div>
       </div>
     </section>
   </div>
 </template>
+
+<style scoped>
+.collections-section-title {
+  font-size: clamp(2.25rem, 1.85rem + 1.8vw, 3.5rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+.collections-featured-shell {
+  container-name: featured-collections;
+  container-type: inline-size;
+}
+
+.collections-featured-layout {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.collection-lead,
+.collection-supporting-row {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+}
+
+.collection-lead {
+  padding: 1.25rem;
+}
+
+.collection-supporting {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.collection-supporting-row {
+  display: flex;
+  min-height: 12rem;
+  flex-direction: column;
+  padding: 1.25rem;
+  transition: border-color 200ms ease-out, background-color 200ms ease-out;
+}
+
+.collection-directory-row {
+  display: grid;
+  min-height: 7.5rem;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: start;
+  gap: 1rem;
+  padding-block: 1.25rem;
+  color: var(--ui-text);
+}
+
+@container featured-collections (min-width: 52rem) {
+  .collections-featured-layout {
+    grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 0.5fr);
+  }
+
+  .collection-lead {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 39.999rem) {
+  .collection-directory-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .collection-directory-row > .data-label {
+    grid-column: 2;
+  }
+}
+
+@media (hover: hover) {
+  .collection-supporting-row:hover {
+    border-color: var(--ui-text-muted);
+    background: var(--ui-bg-muted);
+  }
+}
+</style>

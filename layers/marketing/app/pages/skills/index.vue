@@ -2,8 +2,8 @@
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 
 useSeoMeta({
-  title: 'Skills — skilld',
-  description: 'Browse and filter curated skills by tag. Search the registry and combine multiple tags to narrow down what your agent needs.',
+  title: 'Find skills for your AI agent — skilld',
+  description: 'Start with the work you need done, then inspect source-backed agent skills from open-source developers and official publishers.',
 })
 
 defineOgImage('Page.takumi', {
@@ -69,11 +69,15 @@ const tagBySlug = computed(() => {
 })
 
 // Featured (only when nothing is filtered)
-const { data: featuredData, status: featuredStatus } = useFetch('/api/skills/featured', {
+const {
+  data: featuredData,
+  status: featuredStatus,
+  error: featuredError,
+  refresh: refreshFeatured,
+} = useFetch('/api/skills/featured', {
   key: 'skills-featured-sections',
-  query: { orgs: 6, perOrg: 6, devs: 18, perDev: 12 },
+  query: { orgs: 4, perOrg: 6, devs: 6, perDev: 8 },
   lazy: !isBot.value,
-  immediate: showFeatured.value,
 })
 
 // Registry list (always; filters when active, candidate-only when not)
@@ -86,10 +90,16 @@ const registryQuery = computed(() => ({
   ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
   ...(showFeatured.value ? { trustTier: 'candidate' } : {}),
 }))
-const { data: registryData, status: registryStatus } = useFetch('/api/skills', {
+const {
+  data: registryData,
+  status: registryStatus,
+  error: registryError,
+  refresh: refreshRegistry,
+} = useFetch('/api/skills', {
   query: registryQuery,
   watch: [registryQuery],
   lazy: !isBot.value,
+  immediate: isFiltering.value,
 })
 
 const totalPages = computed(() => registryData.value?.pages ?? 1)
@@ -155,245 +165,287 @@ function clearOwner() {
 </script>
 
 <template>
-  <div>
-    <section
-      class="mx-auto max-w-5xl px-4 sm:px-6 pt-12 pb-6 md:pt-16 md:pb-8"
-      aria-labelledby="skills-heading"
+  <div class="overflow-clip">
+    <EditorialMasthead
+      label="Skill registry"
+      title="Find the right skill for the work in front of you."
+      description="Start with an outcome, a maintainer you trust, or a precise search. Every result leads back to source you can inspect before you install."
+      palette="rose"
+      heading-id="skills-heading"
     >
-      <h1
-        id="skills-heading"
-        class="font-mono text-2xl sm:text-3xl font-medium tracking-tight"
-      >
-        Skills
-      </h1>
-      <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
-        Search the registry by name, owner, or description. Combine tags to narrow down what your agent needs.
-      </p>
+      <template #aside>
+        <ol class="editorial-ledger list-none p-0">
+          <li class="flex gap-3 py-3">
+            <span class="data-label">01</span>
+            <span class="text-sm leading-relaxed">Choose the outcome you need.</span>
+          </li>
+          <li class="flex gap-3 py-3">
+            <span class="data-label">02</span>
+            <span class="text-sm leading-relaxed">Check the author and source path.</span>
+          </li>
+          <li class="flex gap-3 py-3">
+            <span class="data-label">03</span>
+            <span class="text-sm leading-relaxed">Inspect, install, then watch for changes.</span>
+          </li>
+        </ol>
+      </template>
 
       <!-- Search + filter row -->
-      <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div class="relative max-w-md flex-1">
-          <label for="skill-search" class="sr-only">Search skills</label>
-          <UInput
-            id="skill-search"
-            ref="searchInput"
-            v-model="search"
-            placeholder="Search by name, owner, or description..."
-            icon="i-lucide-search"
-            size="lg"
-            class="font-mono w-full"
-            :loading="isLoading"
-          >
-            <template #trailing>
-              <UKbd
-                v-if="!search && !searchFocused"
-                value="/"
-                size="sm"
-              />
-              <UButton
-                v-else-if="search"
-                icon="i-lucide-x"
-                color="neutral"
-                variant="link"
+      <div class="skills-search-shell">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div class="relative flex-1">
+            <label for="skill-search" class="sr-only">Search skills</label>
+            <UInput
+              id="skill-search"
+              ref="searchInput"
+              v-model="search"
+              placeholder="Search a skill, owner, repo, or task…"
+              icon="i-lucide-search"
+              size="xl"
+              class="font-mono w-full [&_input]:min-h-11"
+              :loading="isLoading"
+            >
+              <template #trailing>
+                <UKbd
+                  v-if="!search && !searchFocused"
+                  value="/"
+                  size="sm"
+                />
+                <UButton
+                  v-else-if="search"
+                  icon="i-lucide-x"
+                  color="neutral"
+                  variant="link"
+                  size="xs"
+                  aria-label="Clear search"
+                  @click="() => { search = '' }"
+                />
+              </template>
+            </UInput>
+          </div>
+
+          <UPopover v-model:open="tagPopoverOpen" :ui="{ content: 'w-80 p-0' }">
+            <UButton
+              icon="i-lucide-tags"
+              color="neutral"
+              :variant="tags.length ? 'subtle' : 'outline'"
+              size="lg"
+              class="min-h-11 font-mono"
+            >
+              Tags
+              <UBadge
+                v-if="tags.length"
+                :label="String(tags.length)"
+                color="primary"
+                variant="solid"
                 size="xs"
-                aria-label="Clear search"
-                @click="() => { search = '' }"
+                class="font-mono"
               />
+            </UButton>
+
+            <template #content>
+              <div class="p-3 border-b border-default">
+                <UInput
+                  v-model="tagSearch"
+                  placeholder="Filter tags..."
+                  icon="i-lucide-search"
+                  size="sm"
+                  class="font-mono w-full"
+                />
+              </div>
+              <div class="max-h-72 overflow-y-auto py-1">
+                <button
+                  v-for="t in filteredTagList"
+                  :key="t.slug"
+                  type="button"
+                  class="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-elevated"
+                  :class="tags.includes(t.slug) ? 'text-highlighted' : 'text-default'"
+                  :disabled="t.count === 0 && !tags.includes(t.slug)"
+                  @click="toggleTag(t.slug)"
+                >
+                  <span class="flex items-center gap-2 min-w-0">
+                    <UIcon
+                      :name="tags.includes(t.slug) ? 'i-lucide-check-square' : 'i-lucide-square'"
+                      class="size-4 shrink-0"
+                      :class="tags.includes(t.slug) ? 'text-primary' : 'text-muted'"
+                    />
+                    <span class="font-mono text-sm truncate">{{ t.label }}</span>
+                  </span>
+                  <span class="data-label shrink-0">{{ t.count }}</span>
+                </button>
+                <p
+                  v-if="filteredTagList.length === 0"
+                  class="px-3 py-4 text-center text-xs text-muted"
+                >
+                  No tags match.
+                </p>
+              </div>
             </template>
-          </UInput>
-        </div>
+          </UPopover>
 
-        <UPopover v-model:open="tagPopoverOpen" :ui="{ content: 'w-80 p-0' }">
-          <UButton
-            icon="i-lucide-tags"
-            color="neutral"
-            :variant="tags.length ? 'subtle' : 'outline'"
-            size="md"
-            class="font-mono"
-          >
-            Tags
-            <UBadge
-              v-if="tags.length"
-              :label="String(tags.length)"
-              color="primary"
-              variant="solid"
-              size="xs"
-              class="font-mono"
-            />
-          </UButton>
-
-          <template #content>
-            <div class="p-3 border-b border-default">
-              <UInput
-                v-model="tagSearch"
-                placeholder="Filter tags..."
-                icon="i-lucide-search"
-                size="sm"
-                class="font-mono w-full"
-              />
-            </div>
-            <div class="max-h-72 overflow-y-auto py-1">
+          <div class="flex items-center gap-2 sm:ml-auto">
+            <div class="flex items-center border border-default rounded-lg overflow-hidden">
               <button
-                v-for="t in filteredTagList"
-                :key="t.slug"
                 type="button"
-                class="w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left text-sm hover:bg-elevated transition-colors"
-                :class="tags.includes(t.slug) ? 'text-highlighted' : 'text-default'"
-                :disabled="t.count === 0 && !tags.includes(t.slug)"
-                @click="toggleTag(t.slug)"
+                class="grid min-h-11 min-w-11 place-items-center transition-colors duration-200" :class="[
+                  view === 'grid' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
+                ]"
+                aria-label="Grid view"
+                @click="view = 'grid'"
               >
-                <span class="flex items-center gap-2 min-w-0">
-                  <UIcon
-                    :name="tags.includes(t.slug) ? 'i-lucide-check-square' : 'i-lucide-square'"
-                    class="size-4 shrink-0"
-                    :class="tags.includes(t.slug) ? 'text-primary' : 'text-muted'"
-                  />
-                  <span class="font-mono text-sm truncate">{{ t.label }}</span>
-                </span>
-                <span class="data-label shrink-0">{{ t.count }}</span>
+                <UIcon name="i-lucide-layout-grid" class="size-4" />
               </button>
-              <p
-                v-if="filteredTagList.length === 0"
-                class="px-3 py-4 text-center text-xs text-muted"
+              <button
+                type="button"
+                class="grid min-h-11 min-w-11 place-items-center transition-colors duration-200" :class="[
+                  view === 'list' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
+                ]"
+                aria-label="List view"
+                @click="view = 'list'"
               >
-                No tags match.
-              </p>
+                <UIcon name="i-lucide-list" class="size-4" />
+              </button>
             </div>
-          </template>
-        </UPopover>
-
-        <div class="flex items-center gap-2 sm:ml-auto">
-          <div class="flex items-center border border-default rounded-lg overflow-hidden">
-            <button
-              type="button"
-              class="p-1.5 transition-colors duration-200" :class="[
-                view === 'grid' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
-              ]"
-              aria-label="Grid view"
-              @click="view = 'grid'"
-            >
-              <UIcon name="i-lucide-layout-grid" class="size-4" />
-            </button>
-            <button
-              type="button"
-              class="p-1.5 transition-colors duration-200" :class="[
-                view === 'list' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
-              ]"
-              aria-label="List view"
-              @click="view = 'list'"
-            >
-              <UIcon name="i-lucide-list" class="size-4" />
-            </button>
           </div>
         </div>
-      </div>
 
-      <!-- Popular tags chipbar (shown when no tag selected, as discovery) -->
-      <div
-        v-if="!tags.length && popularTags.length"
-        class="mt-4 flex flex-wrap items-center gap-2"
-      >
-        <span class="data-label uppercase tracking-widest">Popular</span>
-        <button
-          v-for="t in popularTags"
-          :key="t.slug"
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-full border border-default px-2.5 py-1 font-mono text-xs text-muted hover:text-default hover:border-[var(--ui-text-muted)] transition-colors"
-          @click="toggleTag(t.slug)"
+        <!-- Popular tags chipbar (shown when no tag selected, as discovery) -->
+        <div
+          v-if="!tags.length && popularTags.length"
+          class="mt-4 flex flex-wrap items-center gap-2"
         >
-          {{ t.label }}
-          <span class="text-[10px] opacity-70">{{ t.count }}</span>
-        </button>
-      </div>
+          <span class="data-label uppercase tracking-widest">Popular</span>
+          <button
+            v-for="t in popularTags"
+            :key="t.slug"
+            type="button"
+            class="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-default px-3 py-2 font-mono text-xs text-muted transition-colors hover:border-[var(--ui-text-muted)] hover:text-default"
+            @click="toggleTag(t.slug)"
+          >
+            {{ t.label }}
+            <span class="text-[10px] opacity-70">{{ t.count }}</span>
+          </button>
+        </div>
 
-      <!-- Active filter chips (selected tags + owner + AND/OR toggle) -->
-      <div
-        v-if="isFiltering"
-        class="mt-4 flex flex-wrap items-center gap-2"
-      >
-        <UBadge
-          v-if="owner"
-          :label="`Owner: ${owner}`"
-          variant="subtle"
-          color="neutral"
-          size="sm"
-          class="font-mono"
+        <!-- Active filter chips (selected tags + owner + AND/OR toggle) -->
+        <div
+          v-if="isFiltering"
+          class="mt-4 flex flex-wrap items-center gap-2"
         >
-          <template #trailing>
+          <span
+            v-if="owner"
+            class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-default bg-elevated pl-3 pr-1 font-mono text-xs"
+          >
+            Owner: {{ owner }}
             <button
               type="button"
               aria-label="Clear owner"
-              class="ml-1 -mr-0.5"
+              class="grid size-10 place-items-center opacity-70 transition-opacity hover:opacity-100"
               @click="clearOwner"
             >
               <UIcon name="i-lucide-x" class="size-3" />
             </button>
-          </template>
-        </UBadge>
+          </span>
 
-        <span
-          v-for="slug in tags"
-          :key="slug"
-          class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 font-mono text-xs text-primary"
-        >
-          {{ tagBySlug.get(slug)?.label ?? slug }}
-          <button
-            type="button"
-            class="ml-0.5 hover:opacity-100 opacity-70 transition-opacity"
-            :aria-label="`Remove ${slug} filter`"
-            @click="removeTag(slug)"
+          <span
+            v-for="slug in tags"
+            :key="slug"
+            class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 pl-3 pr-1 font-mono text-xs text-primary"
           >
-            <UIcon name="i-lucide-x" class="size-3" />
-          </button>
-        </span>
+            {{ tagBySlug.get(slug)?.label ?? slug }}
+            <button
+              type="button"
+              class="grid size-10 place-items-center opacity-70 transition-opacity hover:opacity-100"
+              :aria-label="`Remove ${slug} filter`"
+              @click="removeTag(slug)"
+            >
+              <UIcon name="i-lucide-x" class="size-3" />
+            </button>
+          </span>
 
-        <div v-if="tags.length > 1" class="inline-flex items-center border border-default rounded-full overflow-hidden">
-          <button
-            type="button"
-            class="px-2.5 py-1 font-mono text-xs transition-colors"
-            :class="tagMode === 'and' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
-            @click="tagMode = 'and'"
-          >
-            AND
-          </button>
-          <button
-            type="button"
-            class="px-2.5 py-1 font-mono text-xs transition-colors"
-            :class="tagMode === 'or' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
-            @click="tagMode = 'or'"
-          >
-            OR
-          </button>
+          <div v-if="tags.length > 1" class="inline-flex min-h-11 items-center overflow-hidden rounded-lg border border-default">
+            <button
+              type="button"
+              class="min-h-11 px-3 py-2 font-mono text-xs transition-colors"
+              :class="tagMode === 'and' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+              @click="tagMode = 'and'"
+            >
+              AND
+            </button>
+            <button
+              type="button"
+              class="min-h-11 px-3 py-2 font-mono text-xs transition-colors"
+              :class="tagMode === 'or' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+              @click="tagMode = 'or'"
+            >
+              OR
+            </button>
+          </div>
+
+          <UButton
+            icon="i-lucide-x"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            label="Clear all"
+            class="ml-auto min-h-11"
+            @click="clearAll"
+          />
         </div>
+      </div>
+    </EditorialMasthead>
 
-        <UButton
-          icon="i-lucide-x"
-          size="xs"
-          color="neutral"
-          variant="ghost"
-          label="Clear all"
-          class="ml-auto"
-          @click="clearAll"
-        />
+    <section
+      v-if="!isFiltering"
+      class="editorial-band border-b border-default bg-muted"
+      aria-labelledby="skills-outcomes-heading"
+    >
+      <div
+        class="editorial-atmosphere"
+        data-palette="stone"
+        data-geometry="wash"
+        data-intensity="subtle"
+        aria-hidden="true"
+      />
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+        <div class="grid gap-8 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] lg:gap-12">
+          <div>
+            <p class="section-label">
+              Start with the work
+            </p>
+            <h2 id="skills-outcomes-heading" class="skills-section-title mt-4 max-w-[13ch]">
+              What should your agent get better at?
+            </h2>
+            <p id="skills-outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
+              These paths group skills by the job they help with, even when the maintainers and tools differ.
+            </p>
+          </div>
+          <OutcomeClusterGrid aria-describedby="skills-outcomes-description" />
+        </div>
       </div>
     </section>
 
-    <USeparator />
+    <USeparator v-else />
 
     <!-- ===== FILTERED MODE: registry results ===== -->
     <section
       v-if="isFiltering"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+      class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
       aria-labelledby="results-heading"
     >
-      <div class="mb-6 flex items-baseline gap-3 flex-wrap">
-        <h2
-          id="results-heading"
-          class="font-mono text-xl font-medium tracking-tight"
-        >
-          Results
-        </h2>
-        <span v-if="registryData" class="data-label">
+      <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p class="section-label">
+            Search results
+          </p>
+          <h2
+            id="results-heading"
+            class="skills-section-title mt-3"
+          >
+            Skills that match
+          </h2>
+        </div>
+        <span v-if="registryData" class="data-label pb-1">
           {{ registryData.total }} {{ registryData.total === 1 ? 'skill' : 'skills' }}
         </span>
       </div>
@@ -427,27 +479,34 @@ function clearOwner() {
         </div>
       </div>
 
-      <div
-        v-else-if="registryStatus === 'error'"
-        role="alert"
-        class="rounded-lg border border-default p-8 text-center"
-      >
-        <UIcon name="i-lucide-alert-circle" class="mx-auto size-8 text-muted" aria-hidden="true" />
-        <p class="mt-3 text-sm">
-          Couldn't load skills. Check your connection and try again.
+      <div v-else-if="registryError" role="alert" class="editorial-state">
+        <p class="font-medium">
+          Couldn't load matching skills.
         </p>
+        <p class="mt-1 text-base text-muted">
+          Check your connection and try this search again.
+        </p>
+        <UButton
+          label="Retry search"
+          color="neutral"
+          variant="outline"
+          class="mt-4 min-h-11"
+          @click="() => refreshRegistry()"
+        />
       </div>
 
       <div
         v-else-if="registryData && registryData.items.length === 0"
-        class="rounded-lg border border-default p-8 text-center"
+        class="editorial-state"
       >
-        <UIcon name="i-lucide-search-x" class="mx-auto size-8 text-muted" aria-hidden="true" />
-        <p class="mt-3 text-sm">
+        <p class="font-medium">
+          No skills match yet.
+        </p>
+        <p class="mt-1 text-base text-muted">
           No skills match these filters. Try removing a tag or broadening your search.
         </p>
         <UButton
-          class="mt-4"
+          class="mt-4 min-h-11"
           size="sm"
           color="neutral"
           variant="outline"
@@ -506,19 +565,29 @@ function clearOwner() {
     <!-- ===== DEFAULT MODE: Featured ===== -->
     <template v-else>
       <section
-        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+        class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
         aria-labelledby="developers-heading"
       >
-        <div class="mb-6">
-          <h2
-            id="developers-heading"
-            class="font-mono text-xl font-medium tracking-tight"
-          >
-            Developers
-          </h2>
-          <p class="mt-1 text-sm text-muted leading-relaxed">
-            Skills published by individual developers, with the person behind the stack up front.
-          </p>
+        <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="section-label">
+              Maintainer-led starting points
+            </p>
+            <h2 id="developers-heading" class="skills-section-title mt-3 max-w-[17ch]">
+              Follow the judgment behind the skill.
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              Start with developers whose work you already trust, then inspect the source and the rest of their stack.
+            </p>
+          </div>
+          <UButton
+            to="/skills/official"
+            label="Browse official publishers"
+            color="neutral"
+            variant="ghost"
+            trailing-icon="i-lucide-arrow-right"
+            class="min-h-11 shrink-0 self-start sm:self-end"
+          />
         </div>
 
         <div
@@ -541,115 +610,188 @@ function clearOwner() {
           </div>
         </div>
 
-        <div
-          v-else-if="featuredData?.devSections.length"
-          class="space-y-0"
-        >
+        <div v-else-if="featuredError" class="editorial-state" role="alert">
+          <p class="font-medium">
+            Couldn't load maintainer-led skills.
+          </p>
+          <p class="mt-1 text-base text-muted">
+            Check your connection and try this section again.
+          </p>
+          <UButton
+            label="Retry maintainers"
+            color="neutral"
+            variant="outline"
+            class="mt-4 min-h-11"
+            @click="() => refreshFeatured()"
+          />
+        </div>
+
+        <div v-else-if="featuredData?.devSections.length" class="space-y-0">
           <DeveloperSkillSection
-            v-for="section in featuredData.devSections"
+            v-for="section in featuredData.devSections.slice(0, 4)"
             :key="`${section.owner}/${section.repo}`"
             :section
           />
         </div>
-      </section>
 
-      <USeparator />
-
-      <section
-        class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
-        aria-labelledby="official-heading"
-      >
-        <div class="mb-6">
-          <h2
-            id="official-heading"
-            class="font-mono text-xl font-medium tracking-tight"
-          >
-            Official
-          </h2>
-          <p class="mt-1 text-sm text-muted leading-relaxed">
-            Skills published by the companies and organizations that build the underlying technology.
+        <div v-else class="editorial-state" role="status">
+          <p class="font-medium">
+            No maintainer-led picks are available yet.
+          </p>
+          <p class="mt-1 text-base text-muted">
+            Search the full registry while this directory is being prepared.
           </p>
         </div>
+      </section>
 
+      <section
+        v-if="!featuredError"
+        class="editorial-band border-t border-default"
+        aria-labelledby="official-heading"
+      >
         <div
-          v-if="featuredStatus === 'pending' && !featuredData"
-          class="space-y-8"
-          aria-busy="true"
-          aria-label="Loading official providers"
-        >
-          <div v-for="i in 3" :key="i" class="space-y-3">
-            <div class="flex items-center gap-3">
-              <USkeleton class="size-8 rounded-full" />
-              <USkeleton class="h-4 w-32" />
+          class="editorial-atmosphere"
+          data-palette="ember"
+          data-geometry="bloom"
+          data-intensity="subtle"
+          aria-hidden="true"
+        />
+        <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+          <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p class="section-label">
+                Direct from the source
+              </p>
+              <h2 id="official-heading" class="skills-section-title mt-3 max-w-[16ch]">
+                Skills from the teams building your tools.
+              </h2>
+              <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+                Use official guidance when the framework, platform, or product itself should define the defaults.
+              </p>
             </div>
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <USkeleton v-for="j in 3" :key="j" class="h-20 rounded-lg" />
+            <UButton
+              to="/skills/official"
+              label="View every publisher"
+              color="neutral"
+              variant="outline"
+              trailing-icon="i-lucide-arrow-right"
+              class="min-h-11 shrink-0 self-start sm:self-end"
+            />
+          </div>
+
+          <div
+            v-if="featuredStatus === 'pending' && !featuredData"
+            class="space-y-8"
+            aria-busy="true"
+            aria-label="Loading official providers"
+          >
+            <div v-for="i in 3" :key="i" class="space-y-3">
+              <div class="flex items-center gap-3">
+                <USkeleton class="size-8 rounded-full" />
+                <USkeleton class="h-4 w-32" />
+              </div>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <USkeleton v-for="j in 3" :key="j" class="h-32 rounded-lg" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div
-          v-else-if="featuredData?.sections.length"
-          class="space-y-10"
-        >
           <div
-            v-for="section in featuredData.sections"
-            :key="`${section.owner}/${section.repo}`"
+            v-else-if="featuredData?.sections.length"
+            class="space-y-10"
           >
-            <div class="mb-3 flex items-center gap-3">
-              <NuxtLink
-                :to="ownerHubPath(section.owner)"
-                :aria-label="`${section.owner} profile`"
-                class="shrink-0"
-              >
-                <img
-                  :src="`https://github.com/${section.owner}.png?size=64`"
-                  :alt="`${section.owner} avatar`"
-                  width="32"
-                  height="32"
-                  class="size-8 rounded-full bg-muted"
-                  loading="lazy"
-                >
-              </NuxtLink>
-              <h3 class="font-mono text-sm font-medium">
+            <div
+              v-for="section in featuredData.sections.slice(0, 3)"
+              :key="`${section.owner}/${section.repo}`"
+            >
+              <div class="mb-4 flex items-center gap-3">
                 <NuxtLink
                   :to="ownerHubPath(section.owner)"
-                  class="hover:text-muted transition-colors"
+                  :aria-label="`${section.owner} profile`"
+                  class="shrink-0"
                 >
-                  {{ section.owner }}
+                  <img
+                    :src="`https://github.com/${section.owner}.png?size=80`"
+                    :alt="`${section.owner} avatar`"
+                    width="40"
+                    height="40"
+                    class="size-10 rounded-full border-2 border-[var(--ui-bg)] bg-muted outline outline-1 outline-[var(--ui-border)]"
+                    loading="lazy"
+                    decoding="async"
+                  >
                 </NuxtLink>
-              </h3>
-              <span class="data-label shrink-0">
-                {{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }}
-              </span>
-              <NuxtLink
-                :to="ownerHubPath(section.owner)"
-                class="ml-auto font-mono text-xs text-muted hover:text-default transition-colors"
+                <div class="min-w-0">
+                  <h3 class="font-mono text-base font-medium">
+                    <NuxtLink
+                      :to="ownerHubPath(section.owner)"
+                      class="transition-colors hover:text-muted"
+                    >
+                      {{ section.owner }}
+                    </NuxtLink>
+                  </h3>
+                  <span class="data-label">
+                    {{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }} in the registry
+                  </span>
+                </div>
+                <UButton
+                  :to="ownerHubPath(section.owner)"
+                  label="View source"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  trailing-icon="i-lucide-arrow-up-right"
+                  class="ml-auto min-h-11 shrink-0"
+                />
+              </div>
+
+              <ul
+                v-if="view === 'grid'"
+                class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
               >
-                View profile →
-              </NuxtLink>
+                <li v-for="skill in section.skills.slice(0, 3)" :key="skill.slug">
+                  <SkillCard :skill show-tags />
+                </li>
+              </ul>
+
+              <ul
+                v-else
+                class="editorial-ledger list-none p-0"
+              >
+                <li v-for="skill in section.skills.slice(0, 3)" :key="skill.slug">
+                  <SkillCard :skill variant="list" show-tags />
+                </li>
+              </ul>
             </div>
+          </div>
 
-            <ul
-              v-if="view === 'grid'"
-              class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
-            >
-              <li v-for="skill in section.skills" :key="skill.slug">
-                <SkillCard :skill show-tags />
-              </li>
-            </ul>
-
-            <ul
-              v-else
-              class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
-            >
-              <li v-for="skill in section.skills" :key="skill.slug">
-                <SkillCard :skill variant="list" show-tags />
-              </li>
-            </ul>
+          <div v-else class="editorial-state" role="status">
+            <p class="font-medium">
+              No official publishers are available yet.
+            </p>
+            <p class="mt-1 text-base text-muted">
+              Browse maintainer-led skills while official sources are being indexed.
+            </p>
           </div>
         </div>
       </section>
     </template>
   </div>
 </template>
+
+<style scoped>
+.skills-search-shell {
+  max-width: 52rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: color-mix(in oklab, var(--ui-bg) 82%, transparent);
+  padding: 1rem;
+}
+
+.skills-section-title {
+  font-size: clamp(2.25rem, 1.85rem + 1.8vw, 3.5rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+</style>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { highlightToHtml } from '#shared/shiki'
+
 const route = useRoute()
 const owner = computed(() => String(route.params.owner ?? ''))
 const repo = computed(() => String(route.params.repo ?? ''))
@@ -42,46 +44,17 @@ const githubUrl = computed(() => {
 const sourceHtml = ref<string | null>(null)
 const sourceError = ref<string | null>(null)
 
-async function renderSource(raw: string, type: string) {
+async function renderSource(raw: string) {
   sourceError.value = null
   try {
-    const { codeToHtml } = await import('shiki')
-    const lang = type === 'data' ? guessLang(file.value) : guessLang(file.value) || 'text'
-    sourceHtml.value = await codeToHtml(raw, {
-      lang: lang || 'text',
-      themes: { light: 'github-light', dark: 'github-dark' },
-      defaultColor: false,
-    })
+    const ext = file.value.toLowerCase().split('.').pop() ?? ''
+    // null means the extension isn't one we ship a grammar for; render the
+    // source unhighlighted rather than failing.
+    sourceHtml.value = await highlightToHtml(raw, ext)
   }
   catch (err) {
     sourceError.value = err instanceof Error ? err.message : 'Failed to render source'
   }
-}
-
-function guessLang(path: string): string {
-  const ext = path.toLowerCase().split('.').pop() ?? ''
-  const map: Record<string, string> = {
-    js: 'javascript',
-    ts: 'typescript',
-    tsx: 'tsx',
-    jsx: 'jsx',
-    py: 'python',
-    rb: 'ruby',
-    rs: 'rust',
-    go: 'go',
-    sh: 'bash',
-    bash: 'bash',
-    zsh: 'bash',
-    json: 'json',
-    yaml: 'yaml',
-    yml: 'yaml',
-    toml: 'toml',
-    sql: 'sql',
-    md: 'markdown',
-    html: 'html',
-    css: 'css',
-  }
-  return map[ext] ?? ''
 }
 
 watch(
@@ -92,7 +65,7 @@ watch(
     if (data.value.type === 'markdown')
       return
     sourceHtml.value = null
-    renderSource(raw, data.value.type)
+    renderSource(raw)
   },
   { immediate: true },
 )

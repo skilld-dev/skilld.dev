@@ -351,8 +351,12 @@ const skillModel = computed(() => {
 
 const contentView = ref<'preview' | 'markdown'>('preview')
 const rawHtml = ref<string | null>(null)
+// Set when the file's language has no bundled grammar; rendered as plain text
+// so an unsupported extension doesn't leave the viewer stuck on the skeleton.
+const rawPlain = ref<string | null>(null)
 const rawError = ref<string | null>(null)
 
+import { highlightToHtml } from '#shared/shiki'
 import { shikiLangFromPath } from '../utils/skill-file-tree'
 
 // Path of the doc currently active in the viewer, relative to the skill folder.
@@ -469,14 +473,14 @@ function onPreviewClick(e: MouseEvent) {
 
 async function renderRaw(raw: string) {
   rawError.value = null
+  rawPlain.value = null
   try {
-    const { codeToHtml } = await import('shiki')
     const lang = activeDocPath.value ? shikiLangFromPath(activeDocPath.value) : 'markdown'
-    rawHtml.value = await codeToHtml(raw, {
-      lang,
-      themes: { light: 'github-light', dark: 'github-dark' },
-      defaultColor: false,
-    })
+    const html = await highlightToHtml(raw, lang)
+    if (html)
+      rawHtml.value = html
+    else
+      rawPlain.value = raw
   }
   catch (err) {
     rawError.value = err instanceof Error ? err.message : 'Failed to render markdown'
@@ -486,9 +490,10 @@ async function renderRaw(raw: string) {
 watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
   if (raw !== prevRaw) {
     rawHtml.value = null
+    rawPlain.value = null
     rawError.value = null
   }
-  if (!import.meta.client || view !== 'markdown' || !raw || rawHtml.value)
+  if (!import.meta.client || view !== 'markdown' || !raw || rawHtml.value || rawPlain.value)
     return
   renderRaw(raw)
 })
@@ -1161,6 +1166,10 @@ useHead(computed(() => ({
                 v-if="rawHtml"
                 v-html="rawHtml"
               />
+              <pre
+                v-else-if="rawPlain"
+                class="p-4 sm:p-6 overflow-auto text-xs whitespace-pre-wrap"
+              >{{ rawPlain }}</pre>
               <div
                 v-else-if="rawError"
                 class="flex items-start gap-3 p-4 sm:p-6 text-sm"

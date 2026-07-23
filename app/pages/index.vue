@@ -2,7 +2,7 @@
 import type { FeaturedCollectionsResponse } from '~~/server/api/collections/featured.get'
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
-import HomepageClusterGrid from './_HomepageClusterGrid.vue'
+import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 
 const title = 'Curated skills for AI agents · skilld'
 const description = 'Find source-backed skills that give AI agents better ways to design, debug, test, and ship. Browse by task, inspect the source, and install with one command.'
@@ -223,19 +223,19 @@ const registryLinks = [
 <template>
   <div class="home-page overflow-clip">
     <section
-      class="home-band home-band--hero border-b border-default"
+      class="editorial-band home-band--hero border-b border-default"
       aria-labelledby="hero-heading"
     >
       <NoiseField :opacity="0.24" />
       <div
-        class="home-atmosphere"
+        class="editorial-atmosphere"
         data-palette="rose"
         data-geometry="sky"
         data-intensity="ambient"
         aria-hidden="true"
       />
 
-      <div class="home-band__content mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 md:pb-24 md:pt-24">
+      <div class="editorial-band__content mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 md:pb-24 md:pt-24">
         <div class="home-hero-grid grid items-center gap-12 lg:grid-cols-[minmax(0,1.18fr)_minmax(24rem,0.82fr)] lg:gap-12 xl:gap-16">
           <div class="home-hero-copy min-w-0">
             <p class="section-label mb-5">
@@ -341,10 +341,10 @@ const registryLinks = [
 
     <section
       id="outcomes"
-      class="home-band home-outcomes-band border-b border-default"
+      class="editorial-band home-outcomes-band border-b border-default"
       aria-labelledby="outcomes-heading"
     >
-      <div class="home-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="grid gap-8 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] lg:gap-12">
           <div class="home-outcomes-intro">
             <p class="section-label">
@@ -357,25 +357,25 @@ const registryLinks = [
               Start with the outcome. Each path gathers skills that solve the same kind of problem, even when they come from different maintainers.
             </p>
           </div>
-          <HomepageClusterGrid aria-describedby="outcomes-description" />
+          <OutcomeClusterGrid aria-describedby="outcomes-description" />
         </div>
       </div>
     </section>
 
     <section
       id="featured-focus"
-      class="home-band home-featured-band border-b border-default"
+      class="editorial-band home-featured-band border-b border-default"
       aria-labelledby="featured-focus-heading"
     >
       <div
-        class="home-atmosphere"
+        class="editorial-atmosphere"
         data-palette="ember"
         data-geometry="wash"
         data-intensity="subtle"
         aria-hidden="true"
       />
 
-      <div class="home-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-featured-heading">
           <div class="min-w-0">
             <p class="section-label">
@@ -580,18 +580,18 @@ const registryLinks = [
 
     <section
       id="install-confidence"
-      class="home-band home-confidence-band border-b border-default bg-muted"
+      class="editorial-band home-confidence-band border-b border-default bg-muted"
       aria-labelledby="install-confidence-heading"
     >
       <div
-        class="home-atmosphere"
+        class="editorial-atmosphere"
         data-palette="stone"
         data-geometry="wash"
         data-intensity="subtle"
         aria-hidden="true"
       />
 
-      <div class="home-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-confidence-heading">
           <div class="min-w-0">
             <p class="section-label">
@@ -751,18 +751,18 @@ const registryLinks = [
 
     <section
       id="freshness"
-      class="home-band home-freshness-band border-b border-default"
+      class="editorial-band home-freshness-band border-b border-default"
       aria-labelledby="freshness-heading"
     >
       <div
-        class="home-atmosphere"
+        class="editorial-atmosphere"
         data-palette="stone"
         data-geometry="bloom"
         data-intensity="subtle"
         aria-hidden="true"
       />
 
-      <div class="home-band__content home-freshness-shell mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content home-freshness-shell mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <header class="home-freshness-header">
           <p class="section-label">
             Keep your agent current
@@ -969,17 +969,17 @@ const registryLinks = [
 
     <section
       id="explore-registry"
-      class="home-band home-registry border-b border-default"
+      class="editorial-band home-registry border-b border-default"
       aria-labelledby="explore-registry-heading"
     >
       <div
-        class="home-atmosphere"
+        class="editorial-atmosphere"
         data-palette="stone"
         data-geometry="wash"
         data-intensity="subtle"
         aria-hidden="true"
       />
-      <div class="home-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-registry-intro">
           <div>
             <p class="section-label">
@@ -1030,17 +1030,17 @@ const registryLinks = [
 
     <section
       id="publish"
-      class="home-band home-band--publish"
+      class="editorial-band home-band--publish"
       aria-labelledby="publish-heading"
     >
       <div
-        class="home-atmosphere"
+        class="editorial-atmosphere"
         data-palette="rose"
         data-geometry="bloom"
         data-intensity="subtle"
         aria-hidden="true"
       />
-      <div class="home-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-publish-intro">
           <div>
             <p class="section-label">

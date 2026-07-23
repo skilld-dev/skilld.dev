@@ -24,9 +24,9 @@ const clusters = computed(() => data.value?.items ?? [])
 </script>
 
 <template>
-  <div>
-    <div v-if="status === 'pending'" class="home-outcomes-grid" aria-busy="true">
-      <div v-for="i in 6" :key="i" class="home-outcomes-skeleton">
+  <div class="outcome-index-shell">
+    <div v-if="status === 'pending'" class="outcome-index" aria-busy="true">
+      <div v-for="i in 6" :key="i" class="outcome-index__skeleton">
         <div class="flex items-center justify-between gap-4">
           <USkeleton class="h-4 w-7" />
           <USkeleton class="size-4" />
@@ -37,7 +37,7 @@ const clusters = computed(() => data.value?.items ?? [])
       </div>
     </div>
 
-    <div v-else-if="error" class="home-outcomes-state" role="alert">
+    <div v-else-if="error" class="editorial-state" role="alert">
       <p class="font-medium">
         Could not load task-based discovery.
       </p>
@@ -62,11 +62,11 @@ const clusters = computed(() => data.value?.items ?? [])
       </div>
     </div>
 
-    <ul v-else-if="clusters.length" class="home-outcomes-grid list-none p-0">
+    <ul v-else-if="clusters.length" class="outcome-index list-none p-0">
       <li v-for="(cluster, index) in clusters" :key="cluster.slug" class="min-w-0">
         <NuxtLink
           :to="`/skills/${cluster.slug}`"
-          class="home-outcomes-card group"
+          class="outcome-index__item group"
         >
           <div class="flex items-center justify-between gap-4">
             <span class="flex items-center gap-3">
@@ -90,7 +90,7 @@ const clusters = computed(() => data.value?.items ?? [])
       </li>
     </ul>
 
-    <div v-else class="home-outcomes-state">
+    <div v-else class="editorial-state">
       <p class="font-medium">
         No task groups are available yet.
       </p>

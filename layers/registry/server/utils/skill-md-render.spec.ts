@@ -14,6 +14,41 @@ describe('parseSkillMd', () => {
     expect(html).toContain('<td align="right">Editing</td>')
   })
 
+  it('highlights fenced code for languages we bundle a grammar for', async () => {
+    const { html } = await parseSkillMd([
+      '```bash',
+      'npx skilld add gh:owner/repo',
+      '```',
+    ].join('\n'))
+
+    expect(html).toContain('class="shiki')
+    // `defaultColor: false` emits per-span vars for both themes rather than
+    // baking one theme's colours into the markup.
+    expect(html).toContain('--shiki-light')
+    expect(html).toContain('--shiki-dark')
+  })
+
+  it('resolves fence aliases onto their canonical grammar', async () => {
+    const [ts, alias] = await Promise.all([
+      parseSkillMd('```typescript\nconst a: number = 1\n```'),
+      parseSkillMd('```ts\nconst a: number = 1\n```'),
+    ])
+
+    expect(alias.html).toContain('class="shiki')
+    expect(alias.html).toBe(ts.html)
+  })
+
+  it('falls back to a plain block for languages we do not bundle', async () => {
+    const { html } = await parseSkillMd([
+      '```brainfuck',
+      '++++[>++++<-]',
+      '```',
+    ].join('\n'))
+
+    expect(html).not.toContain('class="shiki')
+    expect(html).toContain('<pre tabindex="0"><code>++++[&gt;++++&lt;-]')
+  })
+
   it('keeps relative links scoped to each render', async () => {
     const [first, second] = await Promise.all([
       parseSkillMd('[Guide](guide.md)', {

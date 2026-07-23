@@ -1,53 +1,21 @@
 import type { Renderer, Tokens } from 'marked'
-import type { BundledLanguage, HighlighterGeneric } from 'shiki/bundle/web'
+import type { HighlighterCore } from 'shiki/types'
+import type { SkilldLang } from '#shared/shiki'
 import { Marked } from 'marked'
-import { bundledLanguages, createHighlighter } from 'shiki/bundle/web'
+import { loadShikiHighlighter, resolveShikiLang, SHIKI_THEMES } from '#shared/shiki'
 
-type WebHighlighter = HighlighterGeneric<BundledLanguage, 'github-light' | 'github-dark'>
-
-let highlighterPromise: Promise<WebHighlighter> | null = null
-function getHighlighter(): Promise<WebHighlighter> {
-  if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      themes: ['github-light', 'github-dark'],
-      langs: [],
-    }) as Promise<WebHighlighter>
-  }
-  return highlighterPromise
-}
-
-const LANG_ALIASES: Record<string, BundledLanguage> = {
-  sh: 'bash',
-  shell: 'bash',
-  zsh: 'bash',
-  yml: 'yaml',
-  js: 'javascript',
-  ts: 'typescript',
-  py: 'python',
-}
-
-function resolveLang(raw: string | undefined | null): BundledLanguage | null {
-  if (!raw)
-    return null
-  const lang = raw.trim().toLowerCase().split(/\s+/)[0]!
-  if (!lang)
-    return null
-  const aliased = LANG_ALIASES[lang] ?? (lang as BundledLanguage)
-  return aliased in bundledLanguages ? aliased : null
-}
-
-function extractFenceLangs(body: string): Set<BundledLanguage> {
-  const langs = new Set<BundledLanguage>()
+function extractFenceLangs(body: string): Set<SkilldLang> {
+  const langs = new Set<SkilldLang>()
   const re = /(?:^|\n)\s{0,3}(?:```|~~~)([^\n`~]*)/g
   for (const match of body.matchAll(re)) {
-    const resolved = resolveLang(match[1])
+    const resolved = resolveShikiLang(match[1])
     if (resolved)
       langs.add(resolved)
   }
   return langs
 }
 
-function highlightSync(highlighter: WebHighlighter | null, code: string, lang: BundledLanguage | null): string {
+function highlightSync(highlighter: HighlighterCore | null, code: string, lang: SkilldLang | null): string {
   if (!highlighter || !lang)
     return `<pre tabindex="0"><code>${escapeHtml(code)}</code></pre>`
   // Shiki throws if the lang wasn't actually loaded (some bundled langs fail
@@ -56,7 +24,7 @@ function highlightSync(highlighter: WebHighlighter | null, code: string, lang: B
   try {
     return highlighter.codeToHtml(code, {
       lang,
-      themes: { light: 'github-light', dark: 'github-dark' },
+      themes: SHIKI_THEMES,
       defaultColor: false,
     })
   }
@@ -145,7 +113,7 @@ function rewriteHref(href: string, kind: 'link' | 'image', ctx?: SkillRenderCont
 
 const SKILL_TAG_RE = /^<(\/?)([A-Z][A-Z0-9-]*)\s*>$/
 
-function createSkillMd(ctx: SkillRenderContext | undefined, highlighter: WebHighlighter | null): Marked {
+function createSkillMd(ctx: SkillRenderContext | undefined, highlighter: HighlighterCore | null): Marked {
   return new Marked({
     gfm: true,
     async: false,
@@ -182,7 +150,7 @@ function createSkillMd(ctx: SkillRenderContext | undefined, highlighter: WebHigh
         return `<${tag}${scope}${align}>${content}</${tag}>\n`
       },
       code({ text, lang }: Tokens.Code) {
-        const resolved = resolveLang(lang)
+        const resolved = resolveShikiLang(lang)
         return highlightSync(highlighter, text, resolved)
       },
     },
@@ -229,20 +197,10 @@ export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promi
   }
 
   const needed = extractFenceLangs(body)
-  let highlighter: WebHighlighter | null = null
-  if (needed.size) {
-    highlighter = await getHighlighter()
-    const loaded = new Set(highlighter.getLoadedLanguages())
-    const toLoad = [...needed].filter(l => !loaded.has(l))
-    if (toLoad.length) {
-      // Some bundled langs (e.g. nested grammars) can fail to load; swallow
-      // here so the page still renders — highlightSync also falls back to
-      // plain pre per-block if codeToHtml throws.
-      await highlighter.loadLanguage(...toLoad).catch((err) => {
-        console.warn('[skill-md-render] loadLanguage failed', toLoad, err)
-      })
-    }
-  }
+  // Grammars that fail to load are dropped inside loadShikiHighlighter, and
+  // highlightSync falls back to a plain pre per block, so a bad fence costs one
+  // unhighlighted block rather than the page render.
+  const highlighter = needed.size ? await loadShikiHighlighter(needed) : null
 
   let html = createSkillMd(ctx, highlighter).parse(body) as string
   html = html.replace(/<pre\b([^>]*)>/g, (match, attrs: string) => {
