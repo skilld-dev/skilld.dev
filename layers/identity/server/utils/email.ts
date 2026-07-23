@@ -9,6 +9,7 @@
 
 export interface SendEmailInput {
   to: string
+  from?: EmailAddress
   subject: string
   html: string
   text?: string
@@ -22,32 +23,35 @@ export interface SendEmailResult {
   error?: string
 }
 
-export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
-  const event = useEvent()
-  const env = event.context.platform?.env
-
+export async function sendEmailWithEnv(
+  env: Pick<Cloudflare.Env, 'EMAIL'> | undefined,
+  input: SendEmailInput,
+): Promise<SendEmailResult> {
   const binding = env?.EMAIL
 
   if (!binding) {
     return { ok: false, error: 'EMAIL binding missing (configure send_email in wrangler)' }
   }
 
-  const { email: { from } } = useRuntimeConfig()
+  const from = input.from ?? useRuntimeConfig().email.from
+  return await binding.send({
+    to: input.to,
+    from,
+    subject: input.subject,
+    html: input.html,
+    text: input.text,
+    headers: input.headers,
+  })
+    .then(result => ({ ok: true as const, messageId: result.messageId }))
+    .catch(error => ({
+      ok: false as const,
+      error: error instanceof Error ? error.message : String(error),
+    }))
+}
 
-  try {
-    const result = await binding.send({
-      to: input.to,
-      from,
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-      headers: input.headers,
-    })
-    return { ok: true, messageId: result.messageId }
-  }
-  catch (err) {
-    return { ok: false, error: (err as Error).message }
-  }
+export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
+  const event = useEvent()
+  return await sendEmailWithEnv(event.context.platform?.env, input)
 }
 
 // HMAC-SHA256 signed unsubscribe token. base64url(payload).base64url(sig).

@@ -48,7 +48,13 @@ describe('d1 migration bootstrap', () => {
          WHERE type = 'index' AND name = 'idx_jobs_claimable'`,
       ).get()
       expect(cfJobClaimIndex).toBeTruthy()
-      expect(migrations.at(-1)).toBe('0068_cf_jobs.sql')
+
+      const healthCheckTable = sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'table' AND name = 'daily_health_checks'`,
+      ).get()
+      expect(healthCheckTable).toBeTruthy()
+      expect(migrations.at(-1)).toBe('0069_daily_health_checks.sql')
     }
     finally {
       sqlite.close()

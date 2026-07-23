@@ -1,0 +1,253 @@
+import Database from 'better-sqlite3'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  buildDailyHealthCheck,
+  evaluateDailyHealthStatus,
+  renderDailyHealthCheckHtml,
+  renderDailyHealthCheckText,
+  sendDailyHealthCheck,
+  type DailyHealthCheckSummary,
+} from './daily-health-check'
+
+function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthCheckSummary {
+  return {
+    status: 'GREEN',
+    reasons: ['All monitored systems are healthy.'],
+    warnings: [],
+    window: {
+      reportDate: '2026-07-23',
+      timeZone: 'Australia/Melbourne',
+      from: '2026-07-21T22:00:00Z',
+      to: '2026-07-22T22:00:00Z',
+      workerVersion: null,
+    },
+    frontDoor: {
+      checks: [
+        { url: 'https://skilld.dev/', status: 200 },
+        { url: 'https://skilld.dev/skills', status: 200 },
+      ],
+    },
+    inventory: {
+      skills: 3074,
+      repos: 7363,
+      owners: 9567,
+      users: 20,
+      collections: 10,
+      watchedRepos: 30,
+      brokenRepos: 1794,
+    },
+    activity: {
+      newSkills24h: 3,
+      repoChanges24h: 7,
+      installEvents24h: 12,
+      newUsers24h: 1,
+      digestsSent24h: 4,
+      digestsFailed24h: 0,
+    },
+    pipeline: {
+      syncJobs: [{ name: 'sync-github-skills', status: 'ok', lastRunAt: 1_774_473_600, stale: false, error: null }],
+      newlyBrokenRepos24h: 0,
+      skillSyncFailures24h: 0,
+      staleDirtySkills: 0,
+      aiBatchesSubmitted: 0,
+      aiBatchesStuck: 0,
+      aiBatchesFailed24h: 0,
+      failedJobs24h: 0,
+      staleReservedJobs: 0,
+      openFailedBatches: 0,
+      failedJobDetails: [],
+    },
+    cost: {
+      estimatedAiUsd24h: 0.12,
+      estimatedAiUsdMonth: 2.34,
+    },
+    ...overrides,
+  }
+}
+
+function createDb() {
+  const sqlite = new Database(':memory:')
+  sqlite.exec(`
+    CREATE TABLE daily_health_checks (
+      report_date TEXT PRIMARY KEY,
+      health_status TEXT NOT NULL,
+      delivery_status TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      claimed_at INTEGER NOT NULL,
+      sent_at INTEGER,
+      message_id TEXT,
+      error TEXT,
+      summary_json TEXT NOT NULL
+    )
+  `)
+
+  const db = {
+    prepare(sql: string) {
+      let bindings: unknown[] = []
+      const statement = {
+        bind(...values: unknown[]) {
+          bindings = values
+          return statement
+        },
+        async run() {
+          const prepared = expandNumberedPlaceholders(sql, bindings)
+          const result = sqlite.prepare(prepared.sql).run(...prepared.bindings)
+          return { success: true, meta: { changes: result.changes } }
+        },
+        async all<T>() {
+          const prepared = expandNumberedPlaceholders(sql, bindings)
+          return { results: sqlite.prepare(prepared.sql).all(...prepared.bindings) as T[] }
+        },
+        async first<T>() {
+          const prepared = expandNumberedPlaceholders(sql, bindings)
+          return (sqlite.prepare(prepared.sql).get(...prepared.bindings) as T | undefined) ?? null
+        },
+      }
+      return statement
+    },
+  } as unknown as D1Database
+
+  return { db, sqlite }
+}
+
+function expandNumberedPlaceholders(sql: string, bindings: unknown[]): { sql: string, bindings: unknown[] } {
+  const expanded: unknown[] = []
+  const normalized = sql.replace(/\?(\d+)/g, (_, raw: string) => {
+    expanded.push(bindings[Number(raw) - 1])
+    return '?'
+  })
+  return { sql: normalized, bindings: expanded.length ? expanded : bindings }
+}
+
+describe('evaluateDailyHealthStatus', () => {
+  it('keeps the quiet baseline green', () => {
+    const input = summary()
+    expect(evaluateDailyHealthStatus(input)).toEqual({
+      status: 'GREEN',
+      reasons: ['All monitored systems are healthy.'],
+    })
+  })
+
+  it('marks a homepage outage red', () => {
+    const input = summary({
+      frontDoor: { checks: [{ url: 'https://skilld.dev/', status: 503 }] },
+    })
+    expect(evaluateDailyHealthStatus(input)).toEqual({
+      status: 'RED',
+      reasons: ['Homepage returned HTTP 503.'],
+    })
+  })
+
+  it('marks failed digest delivery red and stalled AI amber', () => {
+    const failed = summary({ activity: { ...summary().activity, digestsFailed24h: 2 } })
+    expect(evaluateDailyHealthStatus(failed).status).toBe('RED')
+
+    const stalled = summary({ pipeline: { ...summary().pipeline, aiBatchesStuck: 1 } })
+    expect(evaluateDailyHealthStatus(stalled)).toEqual({
+      status: 'AMBER',
+      reasons: ['1 AI batch has been submitted for over 3 hours.'],
+    })
+  })
+})
+
+describe('buildDailyHealthCheck', () => {
+  it('loads the production-shaped D1 metrics with their correct timestamp units', async () => {
+    const { db, sqlite } = createDb()
+    const now = new Date('2026-07-22T22:05:00Z')
+    const nowSec = Math.floor(now.getTime() / 1000)
+    sqlite.exec(`
+      CREATE TABLE skills (first_seen_at INTEGER, sync_status TEXT, last_synced_at INTEGER);
+      CREATE TABLE repos (broken_since INTEGER);
+      CREATE TABLE owners (owner TEXT);
+      CREATE TABLE users (created_at INTEGER);
+      CREATE TABLE collections_v2 (deleted_at INTEGER);
+      CREATE TABLE user_starred_repos (owner TEXT, repo TEXT);
+      CREATE TABLE activity (owner TEXT, repo TEXT, occurred_at INTEGER);
+      CREATE TABLE install_events (occurred_at INTEGER);
+      CREATE TABLE digest_runs (status TEXT, sent_at INTEGER, window_end INTEGER);
+      CREATE TABLE skill_dirty (queued_at INTEGER);
+      CREATE TABLE ai_batches (status TEXT, submitted_at INTEGER, completed_at INTEGER);
+      CREATE TABLE failed_jobs (queue TEXT, job_type TEXT, exception TEXT, failed_at INTEGER);
+      CREATE TABLE jobs (reserved_at INTEGER, completed_at INTEGER, failed_at INTEGER);
+      CREATE TABLE job_batches (failed_jobs INTEGER, finished_at INTEGER);
+      CREATE TABLE sync_jobs (name TEXT, cron TEXT, enabled INTEGER, stale_after_seconds INTEGER, last_run_at INTEGER, last_status TEXT, last_error TEXT);
+      CREATE TABLE ai_batch_costs (submitted_at INTEGER, est_cost_usd REAL);
+
+      INSERT INTO skills VALUES (${nowSec - 60}, 'ok', ${nowSec - 60});
+      INSERT INTO repos VALUES (NULL);
+      INSERT INTO owners VALUES ('owner');
+      INSERT INTO users VALUES (${nowSec - 60});
+      INSERT INTO collections_v2 VALUES (NULL);
+      INSERT INTO user_starred_repos VALUES ('owner', 'repo');
+      INSERT INTO activity VALUES ('owner', 'repo', ${nowSec - 60});
+      INSERT INTO install_events VALUES (${now.getTime() - 60_000});
+      INSERT INTO digest_runs VALUES ('sent', ${nowSec - 60}, ${nowSec - 60});
+      INSERT INTO sync_jobs VALUES ('sync-github-skills', '0 * * * *', 1, NULL, ${nowSec - 60}, 'ok', NULL);
+      INSERT INTO ai_batch_costs VALUES (${nowSec - 60}, 0.15);
+    `)
+
+    const fetcher = vi.fn().mockResolvedValue({ status: 200 }) as unknown as typeof fetch
+    const built = await buildDailyHealthCheck(db, { now, fetcher, workerVersion: 'version-1' })
+
+    expect(built.status).toBe('GREEN')
+    expect(built.warnings).toEqual([])
+    expect(built.inventory).toMatchObject({ skills: 1, repos: 1, users: 1, watchedRepos: 1 })
+    expect(built.activity).toMatchObject({ newSkills24h: 1, repoChanges24h: 1, installEvents24h: 1, digestsSent24h: 1 })
+    expect(built.cost.estimatedAiUsd24h).toBe(0.15)
+    sqlite.close()
+  })
+})
+
+describe('daily health rendering', () => {
+  it('renders text and escapes untrusted HTML', () => {
+    const input = summary({
+      reasons: ['Pipeline <degraded>'],
+      pipeline: {
+        ...summary().pipeline,
+        failedJobDetails: [{ queue: 'sync', jobType: '<script>', exception: 'boom & burn', count: 2 }],
+      },
+    })
+
+    expect(renderDailyHealthCheckText(input)).toContain('skilld daily health check: GREEN')
+    expect(renderDailyHealthCheckHtml(input)).toContain('Pipeline &lt;degraded&gt;')
+    expect(renderDailyHealthCheckHtml(input)).not.toContain('<script>')
+  })
+})
+
+describe('sendDailyHealthCheck', () => {
+  const sqliteDbs: Database.Database[] = []
+
+  afterEach(() => {
+    sqliteDbs.splice(0).forEach(db => db.close())
+  })
+
+  it('claims the report date before sending and deduplicates retries', async () => {
+    const { db, sqlite } = createDb()
+    sqliteDbs.push(sqlite)
+    const send = vi.fn().mockResolvedValue({ ok: true, messageId: 'msg_1' })
+    const build = vi.fn().mockResolvedValue(summary())
+    const input = { now: new Date('2026-07-22T22:05:00Z'), to: 'ops@example.com', build, send }
+
+    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Sent', messageId: 'msg_1' })
+    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Duplicate' })
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it('records a failed delivery and allows a retry', async () => {
+    const { db, sqlite } = createDb()
+    sqliteDbs.push(sqlite)
+    const send = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: 'temporary failure' })
+      .mockResolvedValueOnce({ ok: true, messageId: 'msg_2' })
+    const input = {
+      now: new Date('2026-07-22T22:05:00Z'),
+      to: 'ops@example.com',
+      build: vi.fn().mockResolvedValue(summary()),
+      send,
+    }
+
+    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'SendFailed', error: 'temporary failure' })
+    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Sent', messageId: 'msg_2' })
+    expect(send).toHaveBeenCalledTimes(2)
+  })
+})

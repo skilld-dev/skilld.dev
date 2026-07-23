@@ -1,3 +1,9 @@
+import { existsSync } from 'node:fs'
+import { SENTRY_DSN } from './shared/sentry'
+
+const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
+  || existsSync('.env.sentry-build-plugin')
+
 export default defineNuxtConfig({
   extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/guides', './layers/marketing'],
 
@@ -15,6 +21,7 @@ export default defineNuxtConfig({
     'motion-v/nuxt',
     '@vueuse/nuxt',
     'nuxt-auth-utils',
+    '@sentry/nuxt/module',
   ],
 
   cfJobs: {
@@ -76,6 +83,7 @@ export default defineNuxtConfig({
     sessionPassword: '',
     adminSecret: '',
     tokenKey: '',
+    healthCheckNotifyTo: 'harlan@harlanzw.com',
     publicSiteUrl: 'https://skilld.dev',
     oauth: {
       github: {
@@ -89,6 +97,12 @@ export default defineNuxtConfig({
         name: 'skilld',
         email: 'noreply@mail.skilld.dev',
       },
+    },
+    sentry: {
+      dsn: SENTRY_DSN,
+      enabled: process.env.NODE_ENV === 'production',
+      environment: 'production',
+      tracesSampleRate: 0.05,
     },
     public: {
       algolia: {
@@ -146,6 +160,7 @@ export default defineNuxtConfig({
   // D1 per request), always fresh. D1 reads are cheap at current traffic; re-add
   // targeted caching here if/when traffic warrants it.
   routeRules: {},
+
   future: {
     compatibilityVersion: 5,
   },
@@ -230,5 +245,27 @@ export default defineNuxtConfig({
         includeAppSources: false,
       },
     },
+  },
+
+  sentry: {
+    enabled: process.env.NODE_ENV === 'production',
+    org: 'harlan-zw',
+    project: 'skilld',
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    sourcemaps: {
+      disable: !hasSentryAuthToken,
+      filesToDeleteAfterUpload: ['**/*.map'],
+    },
+    bundleSizeOptimizations: {
+      excludeReplayShadowDom: true,
+      excludeReplayIframe: true,
+      excludeReplayWorker: true,
+    },
+    telemetry: false,
+  },
+
+  sourcemap: {
+    client: hasSentryAuthToken ? 'hidden' : false,
+    server: false,
   },
 })

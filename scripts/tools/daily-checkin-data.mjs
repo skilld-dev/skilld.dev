@@ -1,0 +1,314 @@
+#!/usr/bin/env node
+
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const checkinDir = join(root, 'docs/ops/checkins')
+const statePath = join(checkinDir, 'state.json')
+const save = process.argv.includes('--save')
+const now = new Date()
+const defaultSince = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+const state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null
+const since = new Date(state?.lastRunAt || defaultSince)
+const sinceIso = since.toISOString()
+const sinceSec = Math.floor(since.getTime() / 1000)
+const sinceMs = since.getTime()
+const wrangler = join(root, 'node_modules/.bin/wrangler')
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? root,
+    encoding: 'utf8',
+    maxBuffer: 20 * 1024 * 1024,
+    env: { ...process.env, NO_COLOR: '1' },
+  })
+  if (result.status !== 0)
+    throw new Error((result.stderr || result.stdout || `${command} exited ${result.status}`).trim().slice(0, 800))
+  return result.stdout.trim()
+}
+
+function probe(load) {
+  try {
+    return load()
+  }
+  catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+async function probeAsync(load) {
+  return await load().catch(error => ({ error: error instanceof Error ? error.message : String(error) }))
+}
+
+function commandJson(command, args) {
+  return JSON.parse(run(command, args))
+}
+
+function d1Query(sql) {
+  const output = commandJson(wrangler, [
+    'd1',
+    'execute',
+    'DB',
+    '--remote',
+    '--json',
+    '--config',
+    'wrangler.jsonc',
+    '--command',
+    sql,
+  ])
+  const statement = output[0]
+  if (!statement?.success)
+    throw new Error('D1 query did not succeed')
+  return statement.results ?? []
+}
+
+function approximateSha(deployedAt) {
+  if (!deployedAt)
+    return null
+  return run('git', ['rev-list', '-1', `--before=${deployedAt}`, 'HEAD']) || null
+}
+
+const git = probe(() => {
+  const dirty = run('git', ['status', '--short']).split('\n').filter(Boolean)
+  const commits = run('git', ['log', `--since=${sinceIso}`, '--pretty=format:%H%x09%aI%x09%s'])
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [sha, authoredAt, ...subject] = line.split('\t')
+      return { sha, authoredAt, subject: subject.join('\t') }
+    })
+  return {
+    branch: run('git', ['branch', '--show-current']),
+    head: run('git', ['rev-parse', 'HEAD']),
+    dirtyFiles: dirty,
+    commitsSinceLastRun: commits,
+  }
+})
+
+const deploy = probe(() => {
+  const deployments = commandJson(wrangler, ['deployments', 'list', '--json', '--config', 'wrangler.jsonc'])
+  const latest = [...deployments].sort((a, b) => String(b.created_on).localeCompare(String(a.created_on)))[0] ?? null
+  return {
+    latest: latest && {
+      id: latest.id,
+      createdOn: latest.created_on,
+      versionId: latest.versions?.find(version => version.percentage === 100)?.version_id ?? latest.versions?.[0]?.version_id ?? null,
+      message: latest.annotations?.['workers/message'] ?? null,
+      approxDeployedSha: approximateSha(latest.created_on),
+    },
+  }
+})
+
+const ci = probe(() => {
+  const rows = commandJson('gh', [
+    'run',
+    'list',
+    '--limit',
+    '20',
+    '--json',
+    'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url',
+  ])
+  const deployments = rows.filter(row => row.workflowName === 'Deploy to Cloudflare')
+  let consecutiveFailures = 0
+  for (const row of deployments) {
+    if (row.conclusion === 'success')
+      break
+    if (row.status === 'completed')
+      consecutiveFailures++
+  }
+  return { consecutiveFailures, recent: rows.slice(0, 10) }
+})
+
+const http = await probeAsync(async () => {
+  const entries = await Promise.all([
+    'https://skilld.dev/',
+    'https://skilld.dev/skills',
+    'https://skilld.dev/guides',
+  ].map(async (url) => {
+    const hit = async () => await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15_000),
+    }).then(response => response.status).catch(() => null)
+    const firstAttempt = await hit()
+    if (firstAttempt === 200)
+      return [url, 200]
+    const status = await hit()
+    return [url, status === firstAttempt ? status : { status, firstAttempt }]
+  }))
+  return Object.fromEntries(entries)
+})
+
+const d1 = probe(() => {
+  const tableRows = d1Query(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)
+  const tables = new Set(tableRows.map(row => row.name))
+  const has = table => tables.has(table)
+
+  const inventoryParts = [
+    has('skills') ? `(SELECT COUNT(*) FROM skills) AS skills` : 'NULL AS skills',
+    has('repos') ? `(SELECT COUNT(*) FROM repos) AS repos` : 'NULL AS repos',
+    has('owners') ? `(SELECT COUNT(*) FROM owners) AS owners` : 'NULL AS owners',
+    has('users') ? `(SELECT COUNT(*) FROM users) AS users` : 'NULL AS users',
+    has('collections_v2') ? `(SELECT COUNT(*) FROM collections_v2 WHERE deleted_at IS NULL) AS collections` : 'NULL AS collections',
+    has('repos') ? `(SELECT COUNT(*) FROM repos WHERE broken_since IS NOT NULL) AS broken_repos` : 'NULL AS broken_repos',
+  ]
+  const activityParts = [
+    has('skills') ? `(SELECT COUNT(*) FROM skills WHERE first_seen_at >= ${sinceSec}) AS new_skills` : 'NULL AS new_skills',
+    has('activity') ? `(SELECT COUNT(DISTINCT owner || '/' || repo) FROM activity WHERE occurred_at >= ${sinceSec}) AS changed_repos` : 'NULL AS changed_repos',
+    has('install_events') ? `(SELECT COUNT(*) FROM install_events WHERE occurred_at >= ${sinceMs}) AS install_events` : 'NULL AS install_events',
+    has('users') ? `(SELECT COUNT(*) FROM users WHERE created_at >= ${sinceSec}) AS new_users` : 'NULL AS new_users',
+    has('digest_runs') ? `(SELECT COUNT(*) FROM digest_runs WHERE status = 'sent' AND sent_at >= ${sinceSec}) AS digests_sent` : 'NULL AS digests_sent',
+    has('digest_runs') ? `(SELECT COUNT(*) FROM digest_runs WHERE status = 'failed' AND window_end >= ${sinceSec}) AS digests_failed` : 'NULL AS digests_failed',
+  ]
+  const pipelineParts = [
+    has('repos') ? `(SELECT COUNT(*) FROM repos WHERE broken_since >= ${sinceSec}) AS newly_broken_repos` : 'NULL AS newly_broken_repos',
+    has('skills') ? `(SELECT COUNT(*) FROM skills WHERE sync_status IS NOT NULL AND sync_status != 'ok' AND last_synced_at >= ${sinceSec}) AS skill_sync_failures` : 'NULL AS skill_sync_failures',
+    has('skill_dirty') ? `(SELECT COUNT(*) FROM skill_dirty WHERE queued_at < ${Math.floor(now.getTime() / 1000) - 3600}) AS stale_dirty_skills` : 'NULL AS stale_dirty_skills',
+    has('ai_batches') ? `(SELECT COUNT(*) FROM ai_batches WHERE status = 'submitted') AS ai_submitted` : 'NULL AS ai_submitted',
+    has('ai_batches') ? `(SELECT COUNT(*) FROM ai_batches WHERE status = 'submitted' AND submitted_at < ${Math.floor(now.getTime() / 1000) - 10800}) AS ai_stuck` : 'NULL AS ai_stuck',
+    has('ai_batches') ? `(SELECT COUNT(*) FROM ai_batches WHERE status IN ('failed','expired') AND COALESCE(completed_at, submitted_at) >= ${sinceSec}) AS ai_failed` : 'NULL AS ai_failed',
+    has('failed_jobs') ? `(SELECT COUNT(*) FROM failed_jobs WHERE failed_at >= ${sinceSec}) AS failed_jobs` : 'NULL AS failed_jobs',
+    has('jobs') ? `(SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ${Math.floor(now.getTime() / 1000) - 900} AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs` : 'NULL AS stale_reserved_jobs',
+  ]
+  const costParts = [
+    has('ai_batch_costs') ? `(SELECT COALESCE(SUM(est_cost_usd), 0) FROM ai_batch_costs WHERE submitted_at >= ${sinceSec}) AS ai_cost_usd` : 'NULL AS ai_cost_usd',
+  ]
+
+  const syncJobs = has('sync_jobs')
+    ? d1Query(`SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error FROM sync_jobs WHERE enabled = 1 ORDER BY name`)
+    : null
+  const failedJobFingerprints = has('failed_jobs')
+    ? d1Query(`SELECT queue, job_type, substr(exception, 1, 160) exception, COUNT(*) count FROM failed_jobs WHERE failed_at >= ${sinceSec} GROUP BY queue, job_type, substr(exception, 1, 160) ORDER BY count DESC LIMIT 10`)
+    : null
+  const healthEmail = has('daily_health_checks')
+    ? d1Query(`SELECT report_date, health_status, delivery_status, recipient, sent_at, error FROM daily_health_checks ORDER BY report_date DESC LIMIT 2`)
+    : null
+  const prodMigrationHead = has('d1_migrations')
+    ? d1Query(`SELECT MAX(name) name FROM d1_migrations`)[0]?.name ?? null
+    : null
+  const localMigrationHead = readdirSync(join(root, 'migrations')).filter(file => /^\d+.*\.sql$/.test(file)).sort().at(-1) ?? null
+
+  return {
+    tables: [...tables],
+    inventory: d1Query(`SELECT ${inventoryParts.join(', ')}`)[0],
+    activity: d1Query(`SELECT ${activityParts.join(', ')}`)[0],
+    pipeline: d1Query(`SELECT ${pipelineParts.join(', ')}`)[0],
+    cost: d1Query(`SELECT ${costParts.join(', ')}`)[0],
+    syncJobs,
+    failedJobFingerprints,
+    healthEmail,
+    migrations: { localHead: localMigrationHead, prodHead: prodMigrationHead },
+    missingExpectedTables: [
+      'skills',
+      'repos',
+      'owners',
+      'users',
+      'activity',
+      'install_events',
+      'sync_jobs',
+      'jobs',
+      'failed_jobs',
+      'daily_health_checks',
+    ].filter(table => !has(table)),
+  }
+})
+
+function cloudflareToken() {
+  const environmentToken = process.env.CLOUDFLARE_USAGE_TOKEN || process.env.CLOUDFLARE_API_TOKEN || process.env.CF_API_TOKEN
+  if (environmentToken)
+    return environmentToken
+  const auth = commandJson(wrangler, ['auth', 'token', '--json'])
+  if (!auth.token)
+    throw new Error('Cloudflare token unavailable')
+  return auth.token
+}
+
+const workers = await probeAsync(async () => {
+  const query = `query { viewer { accounts(filter: {accountTag: "5904138d55ca25d5670dca6adf99894e"}) { workersInvocationsAdaptive(limit: 100, filter: {datetime_geq: "${sinceIso}", datetime_leq: "${now.toISOString()}"}) { dimensions { scriptName status } sum { requests } } } } }`
+  const response = await fetch('https://api.cloudflare.com/client/v4/graphql', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${cloudflareToken()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  })
+  const body = await response.json()
+  if (!response.ok || body.errors?.length)
+    throw new Error(`Cloudflare GraphQL ${response.status}: ${JSON.stringify(body.errors ?? body).slice(0, 300)}`)
+  const rows = body.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive ?? []
+  const outcomes = {}
+  for (const row of rows) {
+    if (row.dimensions.scriptName !== 'skilld-dev')
+      continue
+    const status = row.dimensions.status
+    outcomes[status] = (outcomes[status] ?? 0) + row.sum.requests
+  }
+  return {
+    outcomes,
+    nonOk: Object.entries(outcomes)
+      .filter(([status]) => !['success', 'clientDisconnected', 'responseStreamDisconnected'].includes(status))
+      .map(([status, requests]) => ({ status, requests })),
+  }
+})
+
+const sentry = await probeAsync(async () => {
+  const tokenFile = join(root, '.env.sentry-build-plugin')
+  if (!existsSync(tokenFile))
+    throw new Error('.env.sentry-build-plugin missing')
+  const token = readFileSync(tokenFile, 'utf8').match(/^SENTRY_AUTH_TOKEN=(\S+)/m)?.[1]
+  if (!token)
+    throw new Error('SENTRY_AUTH_TOKEN missing from .env.sentry-build-plugin')
+  const query = encodeURIComponent(`project:skilld is:unresolved firstSeen:>${sinceIso.slice(0, 19)}`)
+  const response = await fetch(`https://sentry.io/api/0/organizations/harlan-zw/issues/?query=${query}&sort=freq&limit=10`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok)
+    throw new Error(`Sentry issues ${response.status}; SENTRY_AUTH_TOKEN needs project or organization read access`)
+  const issues = await response.json()
+  return {
+    newIssues: issues.map(issue => ({
+      shortId: issue.shortId,
+      title: String(issue.title).slice(0, 160),
+      count: Number(issue.count),
+      userCount: issue.userCount,
+      firstSeen: issue.firstSeen,
+      lastSeen: issue.lastSeen,
+    })),
+  }
+})
+
+const doc = {
+  generatedAt: now.toISOString(),
+  since: sinceIso,
+  git,
+  deploy,
+  ci,
+  http,
+  d1,
+  workers,
+  sentry,
+}
+
+console.log(JSON.stringify(doc, null, 2))
+
+const failedProbes = Object.entries({ git, deploy, ci, http, d1, workers, sentry }).filter(([, value]) => value?.error)
+if (failedProbes.length)
+  console.error(`WARN ${failedProbes.length} probes failed: ${failedProbes.map(([name]) => name).join(', ')}. Missing data is not health.`)
+
+if (save) {
+  mkdirSync(checkinDir, { recursive: true })
+  const archivePath = join(checkinDir, `${now.toISOString().slice(0, 10)}.json`)
+  if (existsSync(archivePath)) {
+    const time = now.toISOString().slice(11, 16).replace(':', '')
+    const rerunPath = archivePath.replace(/\.json$/, `.rerun-${time}.json`)
+    writeFileSync(rerunPath, `${JSON.stringify(doc, null, 2)}\n`)
+    console.error(`Same-day rerun wrote ${rerunPath}. The morning baseline and state were not changed.`)
+  }
+  else {
+    writeFileSync(archivePath, `${JSON.stringify(doc, null, 2)}\n`)
+    if (!d1.error)
+      writeFileSync(statePath, `${JSON.stringify({ lastRunAt: now.toISOString() }, null, 2)}\n`)
+    else
+      console.error('State was not advanced because the D1 probe failed.')
+  }
+}

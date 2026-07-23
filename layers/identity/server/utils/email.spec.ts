@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { sendEmail } from './email'
+import { sendEmail, sendEmailWithEnv } from './email'
 
 // `useEvent` is a Nitro server-only autoimport (nitropack/runtime/internal/context),
 // which the `environment: 'nuxt'` test setup does NOT inject — unlike `useRuntimeConfig`
@@ -51,5 +51,17 @@ describe('sendEmail', () => {
       subject: 'Welcome',
       html: '<p>Hello</p>',
     })).resolves.toEqual({ ok: false, error: 'sender not verified' })
+  })
+
+  it('accepts explicit task dependencies', async () => {
+    send.mockResolvedValue({ messageId: 'msg_task' })
+
+    await expect(sendEmailWithEnv({ EMAIL: { send } } as unknown as Pick<Cloudflare.Env, 'EMAIL'>, {
+      to: 'ops@example.com',
+      from: { email: 'noreply@mail.skilld.dev', name: 'skilld' },
+      subject: 'Health',
+      html: '<p>Healthy</p>',
+      text: 'Healthy',
+    })).resolves.toEqual({ ok: true, messageId: 'msg_task' })
   })
 })

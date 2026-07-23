@@ -21,6 +21,9 @@
   "analytics_engine_datasets": [
     { "binding": "SKILLD_ANALYTICS", "dataset": "skilld_cli_v1" }
   ],
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA"
+  },
   "send_email": [
     { "name": "EMAIL" }
   ],
