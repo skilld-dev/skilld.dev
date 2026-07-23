@@ -1,6 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { ScheduleHealth } from '#shared/schedule-policy'
 import type { SendEmailInput, SendEmailResult } from './email'
+import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
 
 const MELBOURNE_TIME_ZONE = 'Australia/Melbourne'
 const DAY_SECONDS = 24 * 60 * 60
@@ -50,6 +52,10 @@ export interface DailyHealthCheckSummary {
       lastRunAt: number | null
       stale: boolean
       error: string | null
+    }>
+    scheduledRuns: Array<{
+      taskName: string
+      health: ScheduleHealth
     }>
     newlyBrokenRepos24h: number
     skillSyncFailures24h: number
@@ -116,6 +122,15 @@ interface SyncJobRow {
   last_error: string | null
 }
 
+interface ScheduledRunRow {
+  task_name: string
+  status: 'started' | 'succeeded' | 'failed' | 'expired'
+  started_at: number
+  expires_at: number
+  finished_at: number | null
+  error: string | null
+}
+
 interface FailedJobRow {
   queue: string
   job_type: string
@@ -128,10 +143,38 @@ interface CostRow {
   estimated_ai_usd_month: number
 }
 
+export const SCHEDULE_HEALTH_LATEST_RUNS_SQL = `
+  WITH ranked_scheduled_runs AS (
+    SELECT
+      task_name,
+      status,
+      started_at,
+      expires_at,
+      finished_at,
+      error,
+      ROW_NUMBER() OVER (
+        PARTITION BY task_name
+        ORDER BY started_at DESC, run_id DESC
+      ) AS recency
+    FROM scheduled_runs
+    INDEXED BY idx_scheduled_runs_task_latest
+  )
+  SELECT
+    task_name,
+    status,
+    started_at,
+    expires_at,
+    finished_at,
+    error
+  FROM ranked_scheduled_runs
+  WHERE recency = 1
+`
+
 export type DailyHealthCheckSendResult
-  = | { _tag: 'Sent', reportDate: string, status: DailyHealthStatus, to: string, messageId?: string }
+  = | { _tag: 'Sent', reportDate: string, status: DailyHealthStatus, to: string, messageId: string }
     | { _tag: 'Duplicate', reportDate: string, to: string }
     | { _tag: 'SendFailed', reportDate: string, status: DailyHealthStatus, to: string, error: string }
+    | { _tag: 'Uncertain', reportDate: string, status: DailyHealthStatus, to: string, error: string }
 
 type SummaryBuilder = (db: D1Database, options: { now: Date }) => Promise<DailyHealthCheckSummary>
 type EmailSender = (input: SendEmailInput) => Promise<SendEmailResult>
@@ -255,6 +298,12 @@ export function evaluateDailyHealthStatus(
   const partialSyncJobs = summary.pipeline.syncJobs.filter(job => job.status === 'partial')
   if (partialSyncJobs.length)
     amber.push(`Scheduled tasks partially failed: ${partialSyncJobs.map(job => job.name).join(', ')}.`)
+  const unhealthyScheduledRuns = summary.pipeline.scheduledRuns.filter(run => run.health.alertable)
+  if (unhealthyScheduledRuns.length) {
+    red.push(`Scheduled run history is unhealthy: ${unhealthyScheduledRuns
+      .map(run => `${run.taskName} (${run.health._tag})`)
+      .join(', ')}.`)
+  }
   if (summary.pipeline.newlyBrokenRepos24h > 0)
     amber.push(`${plural(summary.pipeline.newlyBrokenRepos24h, 'repository')} became unavailable in 24 hours.`)
   if (summary.pipeline.skillSyncFailures24h > 0)
@@ -328,7 +377,10 @@ async function loadActivity(
       (SELECT COUNT(DISTINCT owner || '/' || repo) FROM activity WHERE occurred_at >= ?1) AS repo_changes_24h,
       (SELECT COUNT(*) FROM users WHERE created_at >= ?1) AS new_users_24h,
       (SELECT COUNT(*) FROM digest_runs WHERE status = 'sent' AND sent_at >= ?1) AS digests_sent_24h,
-      (SELECT COUNT(*) FROM digest_runs WHERE status = 'failed' AND window_end >= ?1) AS digests_failed_24h
+      ((SELECT COUNT(*) FROM digest_runs
+        WHERE status = 'failed' AND finished_at >= ?1)
+       + (SELECT COUNT(*) FROM digest_runs
+          WHERE status IN ('sending', 'uncertain'))) AS digests_failed_24h
   `, [sinceSec])
   const installs = await capture(warnings, 'install activity', { install_events_24h: 0 }, () => first<InstallActivityRow>(db, `
     SELECT COUNT(*) AS install_events_24h
@@ -346,7 +398,7 @@ async function loadActivity(
 }
 
 async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): Promise<DailyHealthCheckSummary['pipeline']> {
-  const [row, jobRows, failedJobRows] = await Promise.all([
+  const [row, jobRows, scheduledRunRows, failedJobRows] = await Promise.all([
     first<PipelineRow>(db, `
       SELECT
         (SELECT COUNT(*) FROM repos WHERE broken_since >= ?1) AS newly_broken_repos_24h,
@@ -365,6 +417,7 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
       WHERE enabled = 1
       ORDER BY name
     `),
+    all<ScheduledRunRow>(db, SCHEDULE_HEALTH_LATEST_RUNS_SQL),
     all<FailedJobRow>(db, `
       SELECT queue, job_type, substr(exception, 1, 160) AS exception, COUNT(*) AS count
       FROM failed_jobs
@@ -375,6 +428,7 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
     `, [sinceSec]),
   ])
 
+  const latestScheduledRun = new Map(scheduledRunRows.map(run => [run.task_name, run]))
   return {
     syncJobs: jobRows.map(job => ({
       name: job.name,
@@ -383,6 +437,21 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
       stale: job.last_run_at === null || job.last_run_at < nowSec - staleAfterSeconds(job),
       error: job.last_error,
     })),
+    scheduledRuns: SCHEDULE_POLICY.map((policy) => {
+      const latest = latestScheduledRun.get(policy.taskName)
+      return {
+        taskName: policy.taskName,
+        health: evaluateScheduleHealth(policy, latest
+          ? {
+              status: latest.status,
+              startedAt: latest.started_at,
+              expiresAt: latest.expires_at,
+              finishedAt: latest.finished_at,
+              error: latest.error,
+            }
+          : null, nowSec),
+      }
+    }),
     newlyBrokenRepos24h: numberValue(row.newly_broken_repos_24h),
     skillSyncFailures24h: numberValue(row.skill_sync_failures_24h),
     staleDirtySkills: numberValue(row.stale_dirty_skills),
@@ -445,6 +514,10 @@ export async function buildDailyHealthCheck(
   }, () => loadActivity(db, sinceSec, sinceMs, warnings))
   const pipeline = await capture(warnings, 'pipeline', {
     syncJobs: [],
+    scheduledRuns: SCHEDULE_POLICY.map(policy => ({
+      taskName: policy.taskName,
+      health: evaluateScheduleHealth(policy, null, Math.floor(now.getTime() / 1000)),
+    })),
     newlyBrokenRepos24h: 0,
     skillSyncFailures24h: 0,
     staleDirtySkills: 0,
@@ -493,6 +566,9 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
   const unhealthyTasks = summary.pipeline.syncJobs
     .filter(job => job.stale || (job.status !== null && job.status !== 'ok'))
     .map(job => `${job.name}: ${job.stale ? 'stale' : job.status}${job.error ? `, ${job.error}` : ''}`)
+  const unhealthyRuns = summary.pipeline.scheduledRuns
+    .filter(run => run.health.alertable)
+    .map(run => `${run.taskName}: ${run.health._tag}`)
 
   return [
     `skilld daily health check: ${summary.status}`,
@@ -522,7 +598,7 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     `- jobs: ${summary.pipeline.failedJobs24h} failed in 24 hours, ${summary.pipeline.staleReservedJobs} stale reserved, ${summary.pipeline.openFailedBatches} open failed batches`,
     '',
     'Scheduled task issues:',
-    plainList(unhealthyTasks),
+    plainList([...unhealthyTasks, ...unhealthyRuns]),
     '',
     'Failed job fingerprints:',
     plainList(failedJobs),
@@ -552,6 +628,9 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
   const unhealthyTasks = summary.pipeline.syncJobs
     .filter(job => job.stale || (job.status !== null && job.status !== 'ok'))
     .map(job => `${job.name}: ${job.stale ? 'stale' : job.status}${job.error ? `, ${job.error}` : ''}`)
+  const unhealthyRuns = summary.pipeline.scheduledRuns
+    .filter(run => run.health.alertable)
+    .map(run => `${run.taskName}: ${run.health._tag}`)
   const failedJobs = summary.pipeline.failedJobDetails.map(item => `${item.queue}/${item.jobType}: ${item.count}, ${item.exception}`)
 
   return `<!doctype html>
@@ -598,7 +677,7 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
       ].join(''))}
     </tr>
     <tr><td colspan="2" style="padding:8px"><table role="presentation" style="width:100%;background:#fff;border:1px solid #e4e7ec;border-radius:10px"><tr><td style="padding:14px 18px">
-      <div style="font-size:14px;font-weight:700;margin-bottom:6px">Scheduled task issues</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(unhealthyTasks)}</ul>
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px">Scheduled task issues</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList([...unhealthyTasks, ...unhealthyRuns])}</ul>
       <div style="font-size:14px;font-weight:700;margin-bottom:6px">Failed job fingerprints</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(failedJobs)}</ul>
       ${summary.warnings.length ? `<div style="font-size:14px;font-weight:700;margin-bottom:6px">Report warnings</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(summary.warnings)}</ul>` : ''}
     </td></tr></table></td></tr>
@@ -650,24 +729,40 @@ export async function sendDailyHealthCheck(
     subject: `skilld health: ${summary.status} (${summary.window.reportDate})`,
     html: renderDailyHealthCheckHtml(summary),
     text: renderDailyHealthCheckText(summary),
-  }).catch((error): SendEmailResult => ({ ok: false, error: errorMessage(error) }))
+  }).then(
+    result => result,
+    (error): SendEmailResult => ({
+      _tag: 'uncertain',
+      error: errorMessage(error),
+    }),
+  )
 
-  if (delivery.ok) {
+  if (delivery._tag === 'accepted') {
     await db.prepare(`
       UPDATE daily_health_checks
       SET delivery_status = 'sent', sent_at = ?2, message_id = ?3, error = NULL
       WHERE report_date = ?1
-    `).bind(summary.window.reportDate, claimedAt, delivery.messageId ?? null).run()
+    `).bind(summary.window.reportDate, claimedAt, delivery.messageId).run()
     return {
       _tag: 'Sent',
       reportDate: summary.window.reportDate,
       status: summary.status,
       to: options.to,
-      ...(delivery.messageId ? { messageId: delivery.messageId } : {}),
+      messageId: delivery.messageId,
     }
   }
 
-  const error = delivery.error ?? 'unknown email delivery failure'
+  if (delivery._tag === 'uncertain') {
+    return {
+      _tag: 'Uncertain',
+      reportDate: summary.window.reportDate,
+      status: summary.status,
+      to: options.to,
+      error: delivery.error,
+    }
+  }
+
+  const error = delivery.error
   await db.prepare(`
     UPDATE daily_health_checks
     SET delivery_status = 'failed', error = ?2

@@ -1,11 +1,23 @@
+import type {
+  EmbeddingAiBinding,
+  EmbeddingEffectDependencies,
+  EmbeddingEffectResult,
+  EmbeddingVectorizeBinding,
+} from '../utils/embedding-effect'
+import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { extractJson } from '#shared/server/anthropic'
 import { pAll } from '#shared/server/p-all'
 import { getTaskEnv } from '#shared/server/task-env'
 import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '../utils/ai-prompts'
+import {
+  embeddingEffectSummary,
+  embeddingPreflightResult,
+  runEmbeddingEffect,
+} from '../utils/embedding-effect'
 /// <reference types="@cloudflare/workers-types" />
 import { putGenerated } from '../utils/skill-generated'
-import { vectorIdFor } from '../utils/vector-id'
 
 const CRON = '15 * * * *'
 // Bounded so a single backfill spike can't blow Anthropic batch spend.
@@ -29,9 +41,7 @@ const HAIKU_GENERATION_PAUSED = true
 const ANTHROPIC_BATCH_URL = 'https://api.anthropic.com/v1/messages/batches'
 const ANTHROPIC_VERSION = '2023-06-01'
 
-const EMBEDDING_MODEL = '@cf/baai/bge-base-en-v1.5'
 const ABSTRACTNESS_MODEL = '@cf/meta/llama-3.2-1b-instruct'
-const VECTORIZE_DIM = 768
 
 interface StaleSkillRow {
   owner: string
@@ -42,13 +52,8 @@ interface StaleSkillRow {
   display_name: string | null
 }
 
-interface AiBinding {
-  run: (model: string, input: Record<string, unknown>) => Promise<unknown>
-}
-
-interface VectorizeBinding {
-  upsert: (vectors: VectorizeVector[]) => Promise<unknown>
-}
+type AiBinding = EmbeddingAiBinding
+type VectorizeBinding = EmbeddingVectorizeBinding
 
 interface BatchRequestItem {
   custom_id: string
@@ -67,45 +72,6 @@ function encodeCustomId(index: number, kind: string): string {
   return `${index}-${kind}`
 }
 
-// Embed a skill's rendered SKILL.md and upsert it into the Vectorize index,
-// recording the embedding marker in skill_generated. Idempotent (upsert + sha
-// marker), so safe to call from both the generation batch and the backfill sweep.
-async function embedAndUpsert(
-  db: D1Database,
-  ai: AiBinding,
-  vectorize: VectorizeBinding,
-  skill: StaleSkillRow,
-  summary: { embeddingsWritten: number, errors: string[] },
-): Promise<void> {
-  const input = (skill.rendered_raw ?? '').slice(0, 8000)
-  const embed = await ai.run(EMBEDDING_MODEL, { text: [input] }).catch((err) => {
-    summary.errors.push(`embed ${skill.owner}/${skill.name}: ${(err as Error).message}`)
-    return null
-  })
-  // Workers AI returns { data: number[][], shape: [n, dim] }
-  const vec = (embed as { data?: number[][] } | null)?.data?.[0]
-  if (!vec || vec.length !== VECTORIZE_DIM)
-    return
-
-  const vectorId = await vectorIdFor(skill)
-  await vectorize.upsert([{
-    id: vectorId,
-    values: vec,
-    metadata: { sha: skill.current_sha, owner: skill.owner, repo: skill.repo, name: skill.name },
-  }]).catch((err) => {
-    summary.errors.push(`vectorize ${skill.owner}/${skill.name}: ${(err as Error).message}`)
-  })
-  await putGenerated(db, {
-    owner: skill.owner,
-    repo: skill.repo,
-    name: skill.name,
-    kind: 'embedding',
-    sha: skill.current_sha,
-    payload: { stored_in: 'vectorize', dim: VECTORIZE_DIM },
-  })
-  summary.embeddingsWritten += 1
-}
-
 export default defineScheduledTask({
   name: 'ai-generate-submit',
   cron: '15 * * * *',
@@ -117,7 +83,7 @@ export default defineScheduledTask({
     const vectorize = env?.SKILL_EMBEDDINGS as VectorizeBinding | undefined
     const apiKey = (env?.ANTHROPIC_API_KEY as string | undefined) || process.env.ANTHROPIC_API_KEY
 
-    if (!db) {
+    if (!env || !db) {
       console.warn('[ai-generate-submit] D1 binding missing')
       return { result: { error: 'no-db' } }
     }
@@ -125,27 +91,34 @@ export default defineScheduledTask({
       console.warn('[ai-generate-submit] ANTHROPIC_API_KEY missing — batch submit skipped')
     }
 
-    const startedAt = Date.now()
-    return runSubmit(db, ai, vectorize, apiKey)
-      .then(async (result) => {
-        const status = (result.result.errors?.length ?? 0) > 0 ? 'partial' : 'ok'
-        await reportJobRun(db, 'ai-generate-submit', {
-          cron: CRON,
-          status,
-          durationMs: Date.now() - startedAt,
-          error: result.result.errors?.length ? result.result.errors.slice(0, 3).join('; ') : null,
+    return await runObservedScheduledTask({
+      db,
+      env,
+      context,
+      policy: observedSchedulePolicy('ai-generate-submit'),
+    }, async () => {
+      const startedAt = Date.now()
+      return await runSubmit(db, ai, vectorize, apiKey)
+        .then(async (result) => {
+          const status = (result.result.errors?.length ?? 0) > 0 ? 'partial' : 'ok'
+          await reportJobRun(db, 'ai-generate-submit', {
+            cron: CRON,
+            status,
+            durationMs: Date.now() - startedAt,
+            error: result.result.errors?.length ? result.result.errors.slice(0, 3).join('; ') : null,
+          })
+          return result
         })
-        return result
-      })
-      .catch(async (err) => {
-        await reportJobRun(db, 'ai-generate-submit', {
-          cron: CRON,
-          status: 'error',
-          durationMs: Date.now() - startedAt,
-          error: (err as Error).message,
+        .catch(async (err) => {
+          await reportJobRun(db, 'ai-generate-submit', {
+            cron: CRON,
+            status: 'error',
+            durationMs: Date.now() - startedAt,
+            error: (err as Error).message,
+          })
+          throw err
         })
-        throw err
-      })
+    })
   },
 })
 
@@ -211,18 +184,61 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
 
   const summary = {
     scanned: skills.length,
+    embeddingPreflightFailures: 0,
+    embeddingAttempts: 0,
     embeddingsWritten: 0,
+    embeddingsProviderFailed: 0,
+    embeddingsRejected: 0,
+    embeddingsMarkerFailed: 0,
     abstractnessWritten: 0,
     batchSubmitted: false,
     batchSize: 0,
     errors: [] as string[],
   }
 
+  const embeddingPreflight = embeddingPreflightResult({
+    eligible: skills.length,
+    hasAi: Boolean(ai),
+    hasVectorize: Boolean(vectorize),
+  })
+  if (embeddingPreflight._tag === 'missing_bindings') {
+    summary.embeddingPreflightFailures += 1
+    summary.errors.push(embeddingPreflight.error)
+  }
+
+  const recordEmbeddingResult = (skill: StaleSkillRow, result: EmbeddingEffectResult) => {
+    const effect = embeddingEffectSummary(result)
+    summary.embeddingAttempts += 1
+    summary.embeddingsWritten += effect.written
+    summary.embeddingsProviderFailed += effect.providerFailed
+    summary.embeddingsRejected += effect.rejected
+    summary.embeddingsMarkerFailed += effect.markerFailed
+    if (effect.error)
+      summary.errors.push(`${skill.owner}/${skill.repo}/${skill.name}: ${effect.error}`)
+  }
+
+  const embeddingDeps: EmbeddingEffectDependencies | null = ai && vectorize
+    ? {
+        db,
+        ai,
+        vectorize,
+        now: () => Math.floor(Date.now() / 1_000),
+        newAttemptId: () => crypto.randomUUID(),
+      }
+    : null
+
+  const runEmbedding = (deps: EmbeddingEffectDependencies, skill: StaleSkillRow) => runEmbeddingEffect(deps, {
+    owner: skill.owner,
+    repo: skill.repo,
+    name: skill.name,
+    currentSha: skill.current_sha,
+    renderedRaw: skill.rendered_raw!,
+  })
+
   // --- 1. Workers AI: embedding + abstractness, parallelised ---
-  await pAll(skills, AI_CONCURRENCY, async (skill) => {
+  const generationResults = await pAll(skills, AI_CONCURRENCY, async (skill) => {
     // Embedding
-    if (ai && vectorize)
-      await embedAndUpsert(db, ai, vectorize, skill, summary)
+    const embeddingResult = embeddingDeps ? await runEmbedding(embeddingDeps, skill) : null
 
     // Abstractness
     if (ai) {
@@ -260,12 +276,20 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
         summary.abstractnessWritten += 1
       }
     }
+    return { embeddingResult }
   })
+  for (let index = 0; index < generationResults.length; index++) {
+    const result = generationResults[index]!
+    if (result.status === 'rejected')
+      throw result.reason
+    if (result.value.embeddingResult)
+      recordEmbeddingResult(skills[index]!, result.value.embeddingResult)
+  }
 
   // --- 1b. Embedding-only backfill: catch up missing vectors fast (no
   // Anthropic spend), so search recall converges in a few cron ticks rather
   // than trickling at BATCH_LIMIT/run behind the generation queue. ---
-  if (ai && vectorize) {
+  if (embeddingDeps) {
     const missing = await db
       .prepare(
         `SELECT s.owner, s.repo, s.name, s.current_sha, s.rendered_raw, s.display_name
@@ -288,7 +312,17 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
       .all<StaleSkillRow>()
     const toEmbed = (missing.results ?? []).filter(r => r.rendered_raw && r.current_sha)
     if (toEmbed.length) {
-      await pAll(toEmbed, AI_CONCURRENCY, skill => embedAndUpsert(db, ai, vectorize, skill, summary))
+      const embeddingResults = await pAll(
+        toEmbed,
+        AI_CONCURRENCY,
+        skill => runEmbedding(embeddingDeps, skill),
+      )
+      for (let index = 0; index < embeddingResults.length; index++) {
+        const result = embeddingResults[index]!
+        if (result.status === 'rejected')
+          throw result.reason
+        recordEmbeddingResult(toEmbed[index]!, result.value)
+      }
       summary.scanned += toEmbed.length
     }
   }

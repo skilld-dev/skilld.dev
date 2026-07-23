@@ -17,16 +17,22 @@ export interface DigestUser {
 export interface DigestEntry {
   owner: string
   repo: string
-  skillName: string
-  description: string | null
-  commitCount: number
-  commitMessages: string[]
+  skillNames: string[]
+  skills: Array<{
+    name: string
+    description: string | null
+    changeCount: number
+    commitMessages: string[]
+  }>
+  changeCount: number
 }
 
 export interface DigestSelection {
   user: DigestUser
   windowStart: number
   windowEnd: number
+  cursorStart: number
+  cursorEnd: number
   entries: DigestEntry[]
 }
 
@@ -40,10 +46,6 @@ export function shouldFireForUser(user: DigestUser, nowSec: number): boolean {
     return false
   if (!user.onboarded_at)
     return false
-  const target = (user.digest_email || user.email || '').trim()
-  if (!target)
-    return false
-
   // Project nowSec into the user's timezone using Intl. We get hour + dow.
   let hour: number
   let dow: number
@@ -76,64 +78,154 @@ export async function selectDigestForUser(
   db: D1Database,
   user: DigestUser,
   nowSec: number,
-  opts: { windowStart?: number } = {},
+  opts: {
+    windowStart?: number
+    cursorStart?: number
+    cursorEnd?: number
+  } = {},
 ): Promise<DigestSelection | null> {
-  // Window: from MAX(last digest_runs.window_end, onboarded_at) to now.
-  const last = await db.prepare(
-    `SELECT MAX(window_end) AS we FROM digest_runs WHERE user_id = ?1`,
-  ).bind(user.id).first<{ we: number | null }>()
-  const windowStart = opts.windowStart ?? Math.max(last?.we ?? 0, user.onboarded_at ?? 0)
+  const windowStart = opts.windowStart ?? user.onboarded_at ?? 0
   const windowEnd = nowSec
+  const cursorStart = opts.cursorStart ?? await activityCursorAt(db, windowStart)
+  const cursorEnd = opts.cursorEnd ?? await activityCursorAt(db, windowEnd)
 
-  // Aggregate activity rows joined to skill_subscriptions for this user.
-  // Group by (owner, repo). One repo with many skills folds into one entry —
-  // pick the lowest skill name alphabetically for the displayed link.
   const rows = await db.prepare(
-    `SELECT s.owner, s.repo, s.name AS skill_name, s.description AS description,
-            COUNT(*) AS commit_count
+    `SELECT s.owner, s.repo, COUNT(*) AS change_count
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
      JOIN skill_subscriptions sub ON sub.user_id = ?1 AND sub.owner = s.owner AND sub.repo = s.repo
-     WHERE a.occurred_at > ?2 AND a.occurred_at <= ?3
-       AND (sub.muted_until IS NULL OR sub.muted_until <= ?3)
+     WHERE a.id > ?2 AND a.id <= ?3
+       AND (sub.muted_until IS NULL OR sub.muted_until <= ?4)
        AND r.repo_kind != 'aggregator'
      GROUP BY s.owner, s.repo
-     ORDER BY commit_count DESC, s.owner ASC, s.repo ASC
+     ORDER BY change_count DESC, s.owner ASC, s.repo ASC
      LIMIT 30`,
-  ).bind(user.id, windowStart, windowEnd).all<{
+  ).bind(user.id, cursorStart, cursorEnd, windowEnd).all<{
     owner: string
     repo: string
-    skill_name: string
-    description: string | null
-    commit_count: number
+    change_count: number
   }>()
 
   const groups = rows.results ?? []
   if (!groups.length) {
-    return { user, windowStart, windowEnd, entries: [] }
+    return { user, windowStart, windowEnd, cursorStart, cursorEnd, entries: [] }
   }
 
-  // Pull recent commit messages per group via a follow-up batch.
-  const messageStmts = groups.map(g => db.prepare(
-    `SELECT message FROM skill_revisions
-     WHERE owner = ?1 AND repo = ?2 AND name = ?3 AND modified_at > ?4 AND modified_at <= ?5
-     ORDER BY modified_at DESC LIMIT 20`,
-  ).bind(g.owner, g.repo, g.skill_name, windowStart, windowEnd))
-  const batch = messageStmts.length ? await db.batch<{ message: string | null }>(messageStmts) : []
+  const detailStatements = groups.map(group => db.prepare(
+    `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at
+     FROM activity a
+     JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
+     WHERE a.owner = ?1
+       AND a.repo = ?2
+       AND a.id > ?3
+       AND a.id <= ?4
+     ORDER BY a.id DESC`,
+  ).bind(group.owner, group.repo, cursorStart, cursorEnd))
+  const details = await db.batch<{
+    id: number
+    skill_name: string
+    description: string | null
+    occurred_at: number
+  }>(detailStatements)
 
-  const entries: DigestEntry[] = groups.map((g, i) => ({
-    owner: g.owner,
-    repo: g.repo,
-    skillName: g.skill_name,
-    description: g.description,
-    commitCount: g.commit_count,
-    commitMessages: ((batch[i]?.results ?? []) as Array<{ message: string | null }>)
-      .map(r => r.message)
-      .filter((m): m is string => !!m && m.trim().length > 0),
-  }))
+  const selectedSkills: Array<{
+    entryIndex: number
+    skillIndex: number
+    owner: string
+    repo: string
+    name: string
+    sourceStart: number
+    sourceEnd: number
+  }> = []
+  const entries: DigestEntry[] = groups.map((group, entryIndex) => {
+    const rows = details[entryIndex]?.results ?? []
+    const bySkill = new Map<string, {
+      name: string
+      description: string | null
+      changeCount: number
+      commitMessages: string[]
+      sourceStart: number
+      sourceEnd: number
+    }>()
+    for (const row of rows) {
+      const skill = bySkill.get(row.skill_name) ?? {
+        name: row.skill_name,
+        description: row.description,
+        changeCount: 0,
+        commitMessages: [],
+        sourceStart: row.occurred_at,
+        sourceEnd: row.occurred_at,
+      }
+      skill.changeCount += 1
+      skill.sourceStart = Math.min(skill.sourceStart, row.occurred_at)
+      skill.sourceEnd = Math.max(skill.sourceEnd, row.occurred_at)
+      bySkill.set(row.skill_name, skill)
+    }
+    if (rows.length !== group.change_count)
+      throw new Error(`Digest activity count changed during selection for ${group.owner}/${group.repo}`)
+    const selected = [...bySkill.values()].sort((a, b) => a.name.localeCompare(b.name))
+    const skills = selected.map(skill => ({
+      name: skill.name,
+      description: skill.description,
+      changeCount: skill.changeCount,
+      commitMessages: skill.commitMessages,
+    }))
+    selected.forEach((skill, skillIndex) => selectedSkills.push({
+      entryIndex,
+      skillIndex,
+      owner: group.owner,
+      repo: group.repo,
+      name: skill.name,
+      sourceStart: skill.sourceStart,
+      sourceEnd: skill.sourceEnd,
+    }))
+    return {
+      owner: group.owner,
+      repo: group.repo,
+      skillNames: skills.map(skill => skill.name),
+      skills,
+      changeCount: rows.length,
+    }
+  })
 
-  return { user, windowStart, windowEnd, entries }
+  const messageStatements = selectedSkills.map(skill => db.prepare(
+    `SELECT message
+     FROM skill_revisions
+     WHERE owner = ?1
+       AND repo = ?2
+       AND name = ?3
+       AND modified_at >= ?4
+       AND modified_at <= ?5
+       AND message IS NOT NULL
+       AND trim(message) != ''
+     ORDER BY modified_at DESC
+     LIMIT 20`,
+  ).bind(
+    skill.owner,
+    skill.repo,
+    skill.name,
+    skill.sourceStart,
+    skill.sourceEnd,
+  ))
+  const messages = messageStatements.length
+    ? await db.batch<{ message: string }>(messageStatements)
+    : []
+  selectedSkills.forEach((selected, index) => {
+    entries[selected.entryIndex]!.skills[selected.skillIndex]!.commitMessages
+      = (messages[index]?.results ?? []).map(row => row.message)
+  })
+
+  return { user, windowStart, windowEnd, cursorStart, cursorEnd, entries }
+}
+
+async function activityCursorAt(db: D1Database, ingestedAt: number): Promise<number> {
+  const row = await db.prepare(
+    `SELECT COALESCE(MAX(id), 0) AS cursor
+     FROM activity
+     WHERE ingested_at <= ?1`,
+  ).bind(ingestedAt).first<{ cursor: number }>()
+  return row?.cursor ?? 0
 }
 
 export async function loadDigestEligibleUsers(db: D1Database): Promise<DigestUser[]> {

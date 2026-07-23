@@ -10,18 +10,13 @@
 // with role 'user'|'assistant', max_tokens required. Response is the raw
 // Anthropic message: `content` is an array of typed blocks; we read the
 // first text block.
-interface AiBinding {
+export interface AiBinding {
   run: (model: string, input: {
     messages: Array<{ role: 'user' | 'assistant', content: string }>
     max_tokens: number
     system?: string
     temperature?: number
-  }) => Promise<AnthropicAiResult>
-}
-
-interface AnthropicAiResult {
-  content?: Array<{ type: string, text?: string }>
-  stop_reason?: string | null
+  }) => Promise<unknown>
 }
 
 // Anthropic Haiku 4.5 brokered through Workers AI. The binding handles auth;
@@ -33,15 +28,22 @@ const MODEL = 'anthropic/claude-haiku-4.5'
 export interface SubscriptionContext {
   owner: string
   repo: string
-  skillName: string
-  description: string | null
+  skills: Array<{
+    name: string
+    description: string | null
+    changeCount: number
+  }>
 }
 
 export interface RepoChange {
   owner: string
   repo: string
-  // First ~20 commit messages this window.
-  commitMessages: string[]
+  totalChangeCount: number
+  skills: Array<{
+    name: string
+    changeCount: number
+    commitMessages: string[]
+  }>
   // First ~3000 chars of unified SKILL.md diff (or empty if SHA-only).
   diffExcerpt: string
 }
@@ -58,18 +60,34 @@ export interface SummariseInput {
   changes: RepoChange[]
 }
 
-export interface SummariseResult {
-  summaries: SkillSummary[]
-}
+export type SummariseResult
+  = {
+    _tag: 'summarized'
+    summaries: SkillSummary[]
+    usage: { inputTokens: number, outputTokens: number } | null
+  }
+  | {
+    _tag: 'fallback'
+    reason: 'no_changes' | 'binding_missing' | 'provider_failure' | 'empty_response' | 'invalid_response'
+    error?: string
+  }
 
-export async function summariseChanges(input: SummariseInput): Promise<SummariseResult | null> {
-  if (!input.ai || !input.changes.length)
-    return null
+export async function summariseChanges(input: SummariseInput): Promise<SummariseResult> {
+  if (!input.changes.length)
+    return { _tag: 'fallback', reason: 'no_changes' }
 
   const subs = [...input.subscriptions].sort((a, b) =>
     `${a.owner}/${a.repo}`.localeCompare(`${b.owner}/${b.repo}`))
   const subBlock = subs
-    .map(s => `- ${s.owner}/${s.repo} (${s.skillName})${s.description ? `: ${s.description}` : ''}`)
+    .map((subscription) => {
+      const skills = subscription.skills
+        .map(skill =>
+          `${skill.name} (${skill.changeCount} change${skill.changeCount === 1 ? '' : 's'})${
+            skill.description ? `: ${skill.description}` : ''
+          }`)
+        .join('; ')
+      return `- ${subscription.owner}/${subscription.repo}: ${skills}`
+    })
     .join('\n')
 
   const systemPrompt = `You write one-sentence summaries of changes to AI agent skills for a weekly digest email.
@@ -83,32 +101,126 @@ Output JSON only, no prose, with this exact shape:
 {"summaries":[{"owner":"...","repo":"...","sentence":"..."}]}`
 
   const changesBlock = input.changes.map((c) => {
-    const commits = c.commitMessages.slice(0, 20).map(m => `  - ${m}`).join('\n')
-    return `### ${c.owner}/${c.repo}\nCommits:\n${commits || '  (no commit messages)'}\n\nDiff excerpt:\n${c.diffExcerpt.slice(0, 3000) || '(SHA-only update — diff unavailable)'}`
+    const skills = c.skills.map((skill) => {
+      const commits = skill.commitMessages.slice(0, 20).map(m => `    - ${m}`).join('\n')
+      return `  - ${skill.name}: ${skill.changeCount} change${skill.changeCount === 1 ? '' : 's'}\n${commits || '    (no commit messages)'}`
+    }).join('\n')
+    return `### ${c.owner}/${c.repo}: ${c.totalChangeCount} changes\nSkills:\n${skills}\n\nDiff excerpt:\n${c.diffExcerpt.slice(0, 3000) || '(SHA-only update; diff unavailable)'}`
   }).join('\n\n')
 
   const userPrompt = `This week's changes:\n\n${changesBlock}`
 
-  const out = await input.ai.run(MODEL, {
+  const outcome = await input.ai.run(MODEL, {
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     max_tokens: 1024,
-  }).catch(() => null)
+  }).then(
+    value => ({ _tag: 'response' as const, value }),
+    error => ({
+      _tag: 'failure' as const,
+      error: error instanceof Error ? error.message : String(error),
+    }),
+  )
+  if (outcome._tag === 'failure') {
+    return {
+      _tag: 'fallback',
+      reason: 'provider_failure',
+      error: outcome.error,
+    }
+  }
 
-  const text = (out?.content ?? [])
-    .filter(b => b.type === 'text' && typeof b.text === 'string')
-    .map(b => b.text!)
-    .join('')
-  if (!text)
-    return null
+  const parsedResponse = parseAiResponse(outcome.value)
+  if (parsedResponse._tag === 'invalid')
+    return { _tag: 'fallback', reason: parsedResponse.reason }
 
-  const json = extractJson<{ summaries?: SkillSummary[] }>(text)
-  if (!json?.summaries)
-    return null
+  const json = extractJson<unknown>(parsedResponse.text)
+  const summaries = parseSummaries(json)
+  if (!summaries)
+    return { _tag: 'fallback', reason: 'invalid_response' }
 
   return {
-    summaries: json.summaries.filter(s => s.owner && s.repo && s.sentence),
+    _tag: 'summarized',
+    summaries,
+    usage: parsedResponse.usage,
   }
+}
+
+type ParsedAiResponse
+  = {
+    _tag: 'parsed'
+    text: string
+    usage: { inputTokens: number, outputTokens: number } | null
+  }
+  | { _tag: 'invalid', reason: 'empty_response' | 'invalid_response' }
+
+function parseAiResponse(value: unknown): ParsedAiResponse {
+  if (typeof value !== 'object' || value === null || !('content' in value) || !Array.isArray(value.content))
+    return { _tag: 'invalid', reason: 'invalid_response' }
+  const text = value.content
+    .filter((block): block is { type: 'text', text: string } =>
+      typeof block === 'object'
+      && block !== null
+      && 'type' in block
+      && block.type === 'text'
+      && 'text' in block
+      && typeof block.text === 'string')
+    .map(block => block.text)
+    .join('')
+  if (!text)
+    return { _tag: 'invalid', reason: 'empty_response' }
+  return {
+    _tag: 'parsed',
+    text,
+    usage: 'usage' in value ? parseUsage(value.usage) : null,
+  }
+}
+
+function parseUsage(value: unknown): { inputTokens: number, outputTokens: number } | null {
+  if (typeof value !== 'object'
+    || value === null
+    || !('input_tokens' in value)
+    || !('output_tokens' in value)
+    || !Number.isInteger(value.input_tokens)
+    || !Number.isInteger(value.output_tokens)
+    || (value.input_tokens as number) < 0
+    || (value.output_tokens as number) < 0) {
+    return null
+  }
+  return {
+    inputTokens: value.input_tokens as number,
+    outputTokens: value.output_tokens as number,
+  }
+}
+
+function parseSummaries(value: unknown): SkillSummary[] | null {
+  if (typeof value !== 'object'
+    || value === null
+    || !('summaries' in value)
+    || !Array.isArray(value.summaries)) {
+    return null
+  }
+  const summaries: SkillSummary[] = []
+  for (const item of value.summaries) {
+    if (typeof item !== 'object'
+      || item === null
+      || !('owner' in item)
+      || !('repo' in item)
+      || !('sentence' in item)
+      || typeof item.owner !== 'string'
+      || typeof item.repo !== 'string'
+      || typeof item.sentence !== 'string'
+      || !item.owner.trim()
+      || !item.repo.trim()
+      || !item.sentence.trim()) {
+      return null
+    }
+    summaries.push({
+      owner: item.owner,
+      repo: item.repo,
+      sentence: item.sentence,
+    })
+  }
+  return summaries
 }
 
 function extractJson<T>(text: string): T | null {

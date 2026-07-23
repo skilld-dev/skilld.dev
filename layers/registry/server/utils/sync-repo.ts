@@ -11,7 +11,7 @@ import { resolveSkillTrust } from './skill-trust'
 export interface SyncRepoStats {
   owner: string
   repo: string
-  status: 'ok' | 'skipped-pushed-at' | 'skipped-tree-sha' | 'failed' | 'rate-limited'
+  status: 'indexed' | 'verified-only' | 'rejected' | 'skipped-pushed-at' | 'skipped-tree-sha' | 'failed' | 'rate-limited'
   reason?: string
   skillsSeen: number
   skillsUpserted: number
@@ -120,15 +120,15 @@ async function loadExistingRepo(db: D1Database, owner: string, repo: string): Pr
  * This is the scheduler's repo-level freshness cursor and also keeps cheap
  * metadata current without rewriting every skill row in the repo.
  */
-async function markRepoSummaryChecked(
+function markRepoSummaryCheckedStatement(
   db: D1Database,
   owner: string,
   repo: string,
   meta: RepoMeta,
   pushedAt: number | null,
   checkedAt: number,
-): Promise<void> {
-  await db
+): D1PreparedStatement {
+  return db
     .prepare(
       `UPDATE repos
        SET default_branch = ?,
@@ -150,7 +150,41 @@ async function markRepoSummaryChecked(
       owner,
       repo,
     )
-    .run()
+}
+
+async function repoHasAdmittedSkills(db: D1Database, owner: string, repo: string): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT 1 AS admitted FROM skills WHERE owner = ? AND repo = ? LIMIT 1`)
+    .bind(owner, repo)
+    .first<{ admitted: number }>()
+  return row?.admitted === 1
+}
+
+async function markUnchangedOwnerVerified(
+  db: D1Database,
+  owner: string,
+  repo: string,
+  meta: RepoMeta,
+  pushedAt: number | null,
+  checkedAt: number,
+): Promise<void> {
+  await db.batch([
+    markRepoSummaryCheckedStatement(db, owner, repo, meta, pushedAt, checkedAt),
+    db.prepare(
+      `UPDATE skills
+       SET owner_verified = 1
+       WHERE owner = ? AND repo = ?`,
+    ).bind(owner, repo),
+    db.prepare(
+      `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
+       SELECT owner, repo, name, 'owner_verified', ?, 0
+       FROM skills
+       WHERE owner = ? AND repo = ?
+       ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
+         queued_at = excluded.queued_at,
+         attempts = 0`,
+    ).bind(checkedAt, owner, repo),
+  ])
 }
 
 async function markRepoMissing(db: D1Database, owner: string, repo: string, now: number): Promise<void> {
@@ -241,7 +275,7 @@ export async function syncRepo(
   const stats: SyncRepoStats = {
     owner,
     repo,
-    status: 'ok',
+    status: 'failed',
     skillsSeen: 0,
     skillsUpserted: 0,
     revisionsInserted: 0,
@@ -274,50 +308,67 @@ export async function syncRepo(
   const checkedAt = nowSec()
 
   const existingRepo = await loadExistingRepo(db, owner, repo)
+  const hasAdmittedSkills = await repoHasAdmittedSkills(db, owner, repo)
 
-  // GraphQL gave us the head tree SHA in the same request. If it matches
-  // our cached value, the repo is unchanged and we skip the REST getTree
-  // call entirely — saving one subrequest per unchanged repo.
-  if (existingRepo?.last_tree_sha && headTreeSha && existingRepo.last_tree_sha === headTreeSha) {
-    await markRepoSummaryChecked(db, owner, repo, meta, repoPushedAt, checkedAt)
-    stats.status = 'skipped-tree-sha'
+  const markUnchanged = async (status: 'skipped-tree-sha' | 'skipped-pushed-at'): Promise<SyncRepoStats> => {
+    if (opts.ownerVerified) {
+      await markUnchangedOwnerVerified(db, owner, repo, meta, repoPushedAt, checkedAt)
+      stats.status = 'verified-only'
+      return stats
+    }
+    await markRepoSummaryCheckedStatement(db, owner, repo, meta, repoPushedAt, checkedAt).run()
+    stats.status = status
     return stats
   }
 
+  // GraphQL gave us the head tree SHA in the same request. If it matches
+  // our cached value, the repo is unchanged and we skip the REST getTree
+  // call entirely. Skill-less candidates deliberately bypass this cursor.
+  if (hasAdmittedSkills && existingRepo?.last_tree_sha && headTreeSha && existingRepo.last_tree_sha === headTreeSha)
+    return markUnchanged('skipped-tree-sha')
+
   if (
-    existingRepo?.pushed_at != null
+    hasAdmittedSkills
+    && existingRepo?.pushed_at != null
     && existingRepo.last_tree_sha != null
     && repoPushedAt != null
     && existingRepo.pushed_at >= repoPushedAt
   ) {
-    await markRepoSummaryChecked(db, owner, repo, meta, repoPushedAt, checkedAt)
-    stats.status = 'skipped-pushed-at'
-    return stats
+    return markUnchanged('skipped-pushed-at')
   }
 
   const treeRes = await getTree(owner, repo, branch, bindings)
   logRateLimit(`tree ${owner}/${repo}`, treeRes.rateLimit)
 
   if (!treeRes.data) {
-    stats.status = 'failed'
-    stats.reason = `tree fetch ${treeRes.status}`
+    stats.status = treeRes.status === 403 || treeRes.status === 429 ? 'rate-limited' : 'failed'
+    stats.reason = `tree_fetch_failed:${treeRes.status}`
     return stats
   }
 
   const tree = treeRes.data
-  if (existingRepo?.last_tree_sha && existingRepo.last_tree_sha === tree.sha) {
-    await markRepoSummaryChecked(db, owner, repo, meta, repoPushedAt, checkedAt)
-    stats.status = 'skipped-tree-sha'
+  if (tree.truncated) {
+    stats.status = 'failed'
+    stats.reason = 'tree_truncated'
     return stats
   }
+  if (hasAdmittedSkills && existingRepo?.last_tree_sha && existingRepo.last_tree_sha === tree.sha)
+    return markUnchanged('skipped-tree-sha')
 
   // The common unchanged-repo paths above need only the single repos row.
   // Delay the potentially many-row skills read until content actually changed.
   const existing = await loadExistingSkills(db, owner, repo)
 
   const skillFiles: SkillSnapshot[] = []
+  let hasRootSkill = false
   for (const entry of tree.tree) {
-    if (entry.type !== 'blob' || !entry.path.endsWith(SKILL_FILE_SUFFIX))
+    if (entry.type !== 'blob')
+      continue
+    if (entry.path === 'SKILL.md') {
+      hasRootSkill = true
+      continue
+    }
+    if (!entry.path.endsWith(SKILL_FILE_SUFFIX))
       continue
     const dirName = dirNameFromSkillPath(entry.path)
     if (!dirName)
@@ -336,44 +387,64 @@ export async function syncRepo(
   const repoKind: RepoKind = kindOverride ?? classifyRepoKind(skillFiles.length)
   const repoKindSource: 'computed' | 'override' = kindOverride ? 'override' : 'computed'
 
-  // Upsert the per-repo row. Repo-level facts (stars, branch, tree sha,
-  // kind, broken_since, …) live on `repos` after 0034. `repo_kind_source =
-  // 'override'` rows are immutable from sync.
-  await db
-    .prepare(
-      `INSERT INTO repos (
-         owner, repo, default_branch, stars, forks, pushed_at, repo_created_at,
-         repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
-         repo_skill_count, broken_since
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
-       ON CONFLICT(owner, repo) DO UPDATE SET
-         default_branch = excluded.default_branch,
-         stars = excluded.stars,
-         forks = excluded.forks,
-         pushed_at = excluded.pushed_at,
-         repo_created_at = excluded.repo_created_at,
-         repo_meta_synced_at = excluded.repo_meta_synced_at,
-         last_tree_sha = excluded.last_tree_sha,
-         repo_kind = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind ELSE excluded.repo_kind END,
-         repo_kind_source = repos.repo_kind_source,
-         repo_skill_count = excluded.repo_skill_count,
-         broken_since = NULL`,
-    )
-    .bind(
-      owner,
-      repo,
-      branch,
-      stars,
-      forks,
-      repoPushedAt,
-      repoCreatedAt,
-      now,
-      tree.sha,
-      repoKind,
-      repoKindSource,
-      skillFiles.length,
-    )
-    .run()
+  const repoWrite = (brokenSince: number | null): D1PreparedStatement => db.prepare(
+    `INSERT INTO repos (
+       owner, repo, default_branch, stars, forks, pushed_at, repo_created_at,
+       repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
+       repo_skill_count, broken_since
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(owner, repo) DO UPDATE SET
+       default_branch = excluded.default_branch,
+       stars = excluded.stars,
+       forks = excluded.forks,
+       pushed_at = excluded.pushed_at,
+       repo_created_at = excluded.repo_created_at,
+       repo_meta_synced_at = excluded.repo_meta_synced_at,
+       last_tree_sha = excluded.last_tree_sha,
+       repo_kind = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind ELSE excluded.repo_kind END,
+       repo_kind_source = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind_source ELSE excluded.repo_kind_source END,
+       repo_skill_count = excluded.repo_skill_count,
+       broken_since = excluded.broken_since`,
+  ).bind(
+    owner,
+    repo,
+    branch,
+    stars,
+    forks,
+    repoPushedAt,
+    repoCreatedAt,
+    now,
+    tree.sha,
+    repoKind,
+    repoKindSource,
+    skillFiles.length,
+    brokenSince,
+  )
+
+  if (skillFiles.length === 0) {
+    const statements: D1PreparedStatement[] = []
+    for (const [name] of existing) {
+      statements.push(db.prepare(
+        `UPDATE skills
+         SET source_resolved = 0,
+             seo_indexable = 0,
+             seo_index_score = MIN(seo_index_score, 0),
+             seo_index_reasons = '["source_missing"]',
+             seo_index_synced_at = ?,
+             trust_tier = 'quarantined',
+             trust_source = 'computed',
+             trust_score = -50,
+             trust_reasons = '["source_missing"]',
+             trust_synced_at = ?
+         WHERE owner = ? AND repo = ? AND name = ?`,
+      ).bind(now, now, owner, repo, name))
+    }
+    statements.push(repoWrite(now))
+    await db.batch(statements)
+    stats.status = 'rejected'
+    stats.reason = hasRootSkill ? 'root_skill_unsupported' : 'no_supported_skill_paths'
+    return stats
+  }
 
   // Batch-fetch all blob contents in one GraphQL request, replacing N
   // raw.githubusercontent.com fetches (per-IP-throttled, ignores auth).
@@ -382,14 +453,30 @@ export async function syncRepo(
   // changed path: 2 (was 2N for N skills).
   const blobsRes = await getBlobsBatch(owner, repo, branch, skillFiles.map(f => f.path), bindings)
   logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
-  const blobs = blobsRes.data ?? new Map<string, string>()
+  if (!blobsRes.data) {
+    stats.status = blobsRes.status === 403 || blobsRes.status === 429 ? 'rate-limited' : 'failed'
+    stats.reason = `blob_batch_failed:${blobsRes.status}`
+    return stats
+  }
+  const blobs = blobsRes.data
+  const missingBlobPath = skillFiles.find(file => !blobs.has(file.path))?.path
+  if (missingBlobPath) {
+    stats.status = 'failed'
+    stats.reason = `blob_batch_partial:${missingBlobPath}`
+    return stats
+  }
 
   const changedPaths: string[] = []
+  const parsedFiles: Array<SkillSnapshot & { raw: string, parsed: NonNullable<ReturnType<typeof parseSkillFile>> }> = []
   for (const file of skillFiles) {
-    const raw = blobs.get(file.path) ?? ''
+    const raw = blobs.get(file.path)!
     const parsed = parseSkillFile(raw, file.dirName)
-    if (!parsed)
-      continue
+    if (!parsed) {
+      stats.status = 'rejected'
+      stats.reason = `skill_parse_rejected:${file.path}`
+      return stats
+    }
+    parsedFiles.push({ ...file, raw, parsed })
     const prev = existing.get(parsed.name)
     if (prev?.current_sha !== file.treeSha)
       changedPaths.push(file.path)
@@ -399,15 +486,26 @@ export async function syncRepo(
   // skills (cap 30) saves the per-skill perPage branch.
   const commitsRes = await getCommitsBatch(owner, repo, changedPaths, FIRST_SYNC_COMMIT_CAP, bindings)
   logRateLimit(`commits-batch ${owner}/${repo}`, commitsRes.rateLimit)
-  const commitsByPath = commitsRes.data ?? new Map()
+  if (!commitsRes.data) {
+    stats.status = commitsRes.status === 403 || commitsRes.status === 429 ? 'rate-limited' : 'failed'
+    stats.reason = `commit_batch_failed:${commitsRes.status}`
+    return stats
+  }
+  const commitsByPath = commitsRes.data
+  const missingCommitPath = changedPaths.find(path => !commitsByPath.has(path))
+  if (missingCommitPath) {
+    stats.status = 'failed'
+    stats.reason = `commit_batch_partial:${missingCommitPath}`
+    return stats
+  }
 
   const seenNames = new Set<string>()
+  const writes: D1PreparedStatement[] = []
+  const revisionWriteIndexes: number[] = []
+  const activityWriteIndexes: number[] = []
 
-  for (const file of skillFiles) {
-    const raw = blobs.get(file.path) ?? ''
-    const parsed = parseSkillFile(raw, file.dirName)
-    if (!parsed)
-      continue
+  for (const file of parsedFiles) {
+    const { raw, parsed } = file
     seenNames.add(parsed.name)
 
     const prev = existing.get(parsed.name)
@@ -475,21 +573,16 @@ export async function syncRepo(
         const occurredAt = epoch(c.commit.author.date)
         if (occurredAt == null)
           continue
-        const insert = await db
-          .prepare(
-            `INSERT OR IGNORE INTO skill_revisions (owner, repo, name, sha, modified_at, author_login, message)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .bind(owner, repo, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message)
-          .run()
-        if (insert.meta?.changes)
-          stats.revisionsInserted += insert.meta.changes
+        revisionWriteIndexes.push(writes.length)
+        writes.push(db.prepare(
+          `INSERT OR IGNORE INTO skill_revisions (owner, repo, name, sha, modified_at, author_login, message)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(owner, repo, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message))
       }
     }
 
-    await db
-      .prepare(
-        `INSERT INTO skills (
+    writes.push(db.prepare(
+      `INSERT INTO skills (
            name, owner, repo, display_name, installs, slug,
            description,
            current_sha, modified_at, first_seen_at, references_count, assets,
@@ -499,7 +592,11 @@ export async function syncRepo(
            trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
            rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at,
            owner_verified
-         ) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?, ?, ?, ?)
+         ) VALUES (
+           ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok',
+           ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+           'ok', ?, ?, ?, ?, ?
+         )
          ON CONFLICT(owner, repo, name) DO UPDATE SET
            display_name = excluded.display_name,
            slug = excluded.slug,
@@ -528,67 +625,102 @@ export async function syncRepo(
            rendered_html = excluded.rendered_html,
            rendered_at = excluded.rendered_at,
            owner_verified = MAX(skills.owner_verified, excluded.owner_verified)`,
-      )
-      .bind(
-        parsed.name,
-        owner,
-        repo,
-        parsed.displayName,
-        `${owner}/${parsed.name}`,
-        description,
-        file.treeSha,
-        modifiedAt,
-        firstSeenAt,
-        refsCount,
-        JSON.stringify(assets),
-        now,
-        isOfficial ? 1 : 0,
-        indexability.score,
-        indexability.indexable ? 1 : 0,
-        JSON.stringify(indexability.reasons),
-        now,
-        trust.tier,
-        trust.source,
-        trust.score,
-        JSON.stringify(trust.reasons),
-        now,
-        file.path,
-        raw,
-        JSON.stringify(rendered.frontmatter),
-        rendered.html,
-        now,
-        ownerVerified ? 1 : 0,
-      )
-      .run()
+    ).bind(
+      parsed.name,
+      owner,
+      repo,
+      parsed.displayName,
+      `${owner}/${parsed.name}`,
+      description,
+      file.treeSha,
+      modifiedAt,
+      firstSeenAt,
+      refsCount,
+      JSON.stringify(assets),
+      now,
+      isOfficial ? 1 : 0,
+      indexability.score,
+      indexability.indexable ? 1 : 0,
+      JSON.stringify(indexability.reasons),
+      now,
+      trust.tier,
+      trust.source,
+      trust.score,
+      JSON.stringify(trust.reasons),
+      now,
+      file.path,
+      raw,
+      JSON.stringify(rendered.frontmatter),
+      rendered.html,
+      now,
+      ownerVerified ? 1 : 0,
+    ))
     stats.skillsUpserted += 1
 
+    if (ownerVerified) {
+      writes.push(db.prepare(
+        `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
+         VALUES (?, ?, ?, 'owner_verified', ?, 0)
+         ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
+           queued_at = excluded.queued_at,
+           attempts = 0`,
+      ).bind(owner, repo, parsed.name, now))
+    }
+
     if (isNewToRegistry) {
-      await db
-        .prepare(
-          `INSERT INTO activity (type, owner, repo, name, occurred_at, sha)
-           VALUES ('skill_published', ?, ?, ?, ?, ?)`,
-        )
-        .bind(owner, repo, parsed.name, modifiedAt ?? now, file.treeSha)
-        .run()
-      stats.activityEmitted += 1
+      const occurredAt = modifiedAt ?? now
+      activityWriteIndexes.push(writes.length)
+      writes.push(db.prepare(
+        `INSERT INTO activity (type, owner, repo, name, occurred_at, ingested_at, sha)
+         SELECT 'skill_published', ?, ?, ?, ?, ?, ?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM activity
+           WHERE type = 'skill_published' AND owner = ? AND repo = ? AND name = ?
+             AND sha IS ?
+         )`,
+      ).bind(
+        owner,
+        repo,
+        parsed.name,
+        occurredAt,
+        now,
+        file.treeSha,
+        owner,
+        repo,
+        parsed.name,
+        file.treeSha,
+      ))
     }
     else if (contentChanged) {
-      await db
-        .prepare(
-          `INSERT INTO activity (type, owner, repo, name, occurred_at, sha)
-           VALUES ('skill_updated', ?, ?, ?, ?, ?)`,
-        )
-        .bind(owner, repo, parsed.name, modifiedAt ?? now, file.treeSha)
-        .run()
-      stats.activityEmitted += 1
+      const occurredAt = modifiedAt ?? now
+      activityWriteIndexes.push(writes.length)
+      writes.push(db.prepare(
+        `INSERT INTO activity (type, owner, repo, name, occurred_at, ingested_at, sha)
+         SELECT 'skill_updated', ?, ?, ?, ?, ?, ?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM activity
+           WHERE type = 'skill_updated' AND owner = ? AND repo = ? AND name = ?
+             AND sha IS ?
+         )`,
+      ).bind(
+        owner,
+        repo,
+        parsed.name,
+        occurredAt,
+        now,
+        file.treeSha,
+        owner,
+        repo,
+        parsed.name,
+        file.treeSha,
+      ))
     }
   }
 
   for (const [name] of existing) {
     if (!seenNames.has(name)) {
-      await db
-        .prepare(
-          `UPDATE skills
+      writes.push(db.prepare(
+        `UPDATE skills
            SET source_resolved = 0,
                seo_indexable = 0,
                seo_index_score = MIN(seo_index_score, 0),
@@ -599,22 +731,28 @@ export async function syncRepo(
                trust_score = -50,
                trust_reasons = '["source_missing"]',
                trust_synced_at = ?
-           WHERE owner = ? AND repo = ? AND name = ?`,
-        )
-        .bind(now, now, owner, repo, name)
-        .run()
+         WHERE owner = ? AND repo = ? AND name = ?`,
+      ).bind(now, now, owner, repo, name))
     }
   }
 
-  // If no skill files were seen at all in this sync, mark the whole repo
-  // broken. Individual skill removals are tracked via the per-skill UPDATE
-  // above.
-  if (skillFiles.length === 0) {
-    await db
-      .prepare(`UPDATE repos SET broken_since = COALESCE(broken_since, ?) WHERE owner = ? AND repo = ?`)
-      .bind(now, owner, repo)
-      .run()
+  // The content cursor is part of the same D1 transaction as every revision,
+  // skill, activity, and quarantine decision. A failed batch cannot
+  // acknowledge the GitHub tree.
+  writes.push(repoWrite(null))
+  const results = await db.batch(writes)
+
+  for (const index of revisionWriteIndexes)
+    stats.revisionsInserted += results[index]?.meta?.changes ?? 0
+  for (const index of activityWriteIndexes)
+    stats.activityEmitted += results[index]?.meta?.changes ?? 0
+
+  if (stats.skillsUpserted === 0) {
+    stats.status = 'rejected'
+    stats.reason = 'trust_inputs_insufficient'
+    return stats
   }
 
+  stats.status = 'indexed'
   return stats
 }

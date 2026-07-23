@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { learnContentPath } from '../../utils/learn-content-path'
+
 const route = useRoute()
 const slug = computed(() => {
   const params = route.params.slug
   return Array.isArray(params) ? params.join('/') : (params ?? '')
 })
 
-const path = computed(() => `/${slug.value}` || '/index')
+const path = computed(() => learnContentPath(route.params.slug))
 
 const { data } = await useAsyncData(`learn-${slug.value}`, () => {
   return queryCollection('learn').path(path.value).first()
@@ -32,10 +34,36 @@ useHead({
 </script>
 
 <template>
-  <article class="mx-auto max-w-3xl px-4 sm:px-6 py-12 prose prose-stone dark:prose-invert">
+  <article class="learn-article mx-auto max-w-3xl px-4 py-12 prose prose-stone sm:px-6 dark:prose-invert">
+    <header v-if="data" class="not-prose mb-10">
+      <p class="section-label">
+        Authoring guide
+      </p>
+      <h1 class="mt-4 text-4xl font-semibold leading-tight tracking-tight text-balance md:text-5xl">
+        {{ data.title }}
+      </h1>
+      <p class="mt-5 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+        {{ data.description }}
+      </p>
+    </header>
     <ContentRenderer
       v-if="data"
       :value="data"
     />
   </article>
 </template>
+
+<style scoped>
+.learn-article :deep(a) {
+  color: var(--ui-text);
+  text-decoration-color: var(--ui-color-primary-500);
+}
+
+.learn-article :deep(a:hover) {
+  color: var(--ui-text-muted);
+}
+
+.learn-article :deep(pre code span) {
+  color: var(--ui-text) !important;
+}
+</style>

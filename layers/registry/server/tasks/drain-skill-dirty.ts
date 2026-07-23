@@ -1,6 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { getTaskEnv } from '#shared/server/task-env'
 import {
   recomputeIndexabilityForSkill,
@@ -42,46 +44,52 @@ export default defineScheduledTask({
   async run({ context }) {
     const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
-    if (!db) {
+    if (!env || !db) {
       console.warn('[drain-skill-dirty] D1 binding not available in task context')
       return { result: { error: 'no-db' } }
     }
 
-    const startedAt = Date.now()
-    const picked = await db
-      .prepare(
-        `SELECT owner, repo, name, MIN(queued_at) AS queued_at
+    return await runObservedScheduledTask({
+      db,
+      env,
+      context,
+      policy: observedSchedulePolicy('drain-skill-dirty'),
+    }, async () => {
+      const startedAt = Date.now()
+      const picked = await db
+        .prepare(
+          `SELECT owner, repo, name, MIN(queued_at) AS queued_at
          FROM skill_dirty
          GROUP BY owner, repo, name
          ORDER BY queued_at ASC
          LIMIT ?1`,
-      )
-      .bind(BATCH)
-      .all<DirtyRow & { queued_at: number }>()
+        )
+        .bind(BATCH)
+        .all<DirtyRow & { queued_at: number }>()
 
-    const rows = picked.results ?? []
-    if (!rows.length) {
-      await reportJobRun(db, 'drain-skill-dirty', {
-        cron: CRON,
-        status: 'ok',
-        durationMs: Date.now() - startedAt,
-      })
-      return { result: { drained: 0 } }
-    }
+      const rows = picked.results ?? []
+      if (!rows.length) {
+        await reportJobRun(db, 'drain-skill-dirty', {
+          cron: CRON,
+          status: 'ok',
+          durationMs: Date.now() - startedAt,
+        })
+        return { result: { drained: 0 } }
+      }
 
-    let updated = 0
-    let failed = 0
-    const successful: DirtyRow[] = []
-    for (const { owner, repo, name } of rows) {
+      let updated = 0
+      let failed = 0
+      const successful: DirtyRow[] = []
+      for (const { owner, repo, name } of rows) {
       // Single UPDATE that pulls live counts via correlated subqueries.
       // Formulas mirror /admin/integrity drift checks exactly:
       //   curator_count          = collection_skills_v2 rows under non-deleted collections matched by (owner, name)
       //   curator_reason_count   = same, filtered to rows with reason text length >= 20
       //   approved_social_count  = skill_social_posts rows with status='approved' matched by skill_slug
       //   author_social_count    = same, filtered to role='author'
-      await db
-        .prepare(
-          `UPDATE skills
+        await db
+          .prepare(
+            `UPDATE skills
            SET
              curator_count = (
                SELECT COUNT(*)
@@ -114,54 +122,55 @@ export default defineScheduledTask({
                  AND sp.role = 'author'
              )
            WHERE owner = ?1 AND repo = ?2 AND name = ?3`,
-        )
-        .bind(owner, repo, name)
-        .run()
-        .then(async () => {
+          )
+          .bind(owner, repo, name)
+          .run()
+          .then(async () => {
           // Counters just moved; re-score indexability + trust for this
           // skill so seo_index_score / trust_tier track the new inputs.
           // Indexability writes both sets of columns in one UPDATE; trust
           // helper is a no-op when indexability already covered the change.
-          await recomputeIndexabilityForSkill(db, { owner, repo, name })
-          await recomputeTrustForSkill(db, { owner, repo, name })
-          updated++
-          successful.push({ owner, repo, name })
-        })
-        .catch(async (err) => {
-          failed++
-          console.warn(`[drain-skill-dirty] recompute failed for ${owner}/${repo}/${name}:`, err)
-          await db
-            .prepare(
-              `UPDATE skill_dirty SET attempts = attempts + 1
+            await recomputeIndexabilityForSkill(db, { owner, repo, name })
+            await recomputeTrustForSkill(db, { owner, repo, name })
+            updated++
+            successful.push({ owner, repo, name })
+          })
+          .catch(async (err) => {
+            failed++
+            console.warn(`[drain-skill-dirty] recompute failed for ${owner}/${repo}/${name}:`, err)
+            await db
+              .prepare(
+                `UPDATE skill_dirty SET attempts = attempts + 1
                WHERE owner = ?1 AND repo = ?2 AND name = ?3`,
-            )
-            .bind(owner, repo, name)
-            .run()
-            .catch((updateErr) => {
-              console.warn(`[drain-skill-dirty] failed to bump attempts for ${owner}/${repo}/${name}:`, updateErr)
-            })
+              )
+              .bind(owner, repo, name)
+              .run()
+              .catch((updateErr) => {
+                console.warn(`[drain-skill-dirty] failed to bump attempts for ${owner}/${repo}/${name}:`, updateErr)
+              })
+          })
+      }
+
+      // Only delete the rows we successfully recomputed. Failed ones stay
+      // queued (with bumped attempts) for the next drain to retry.
+      if (successful.length) {
+        const deletes = successful.map(({ owner, repo, name }) =>
+          db.prepare(
+            `DELETE FROM skill_dirty WHERE owner = ?1 AND repo = ?2 AND name = ?3`,
+          ).bind(owner, repo, name),
+        )
+        await db.batch(deletes).catch((err) => {
+          console.warn('[drain-skill-dirty] cleanup delete failed:', err)
         })
-    }
+      }
 
-    // Only delete the rows we successfully recomputed. Failed ones stay
-    // queued (with bumped attempts) for the next drain to retry.
-    if (successful.length) {
-      const deletes = successful.map(({ owner, repo, name }) =>
-        db.prepare(
-          `DELETE FROM skill_dirty WHERE owner = ?1 AND repo = ?2 AND name = ?3`,
-        ).bind(owner, repo, name),
-      )
-      await db.batch(deletes).catch((err) => {
-        console.warn('[drain-skill-dirty] cleanup delete failed:', err)
+      await reportJobRun(db, 'drain-skill-dirty', {
+        cron: CRON,
+        status: failed > 0 ? (updated > 0 ? 'partial' : 'error') : 'ok',
+        durationMs: Date.now() - startedAt,
+        error: failed > 0 ? `${failed} recomputes failed` : null,
       })
-    }
-
-    await reportJobRun(db, 'drain-skill-dirty', {
-      cron: CRON,
-      status: failed > 0 ? (updated > 0 ? 'partial' : 'error') : 'ok',
-      durationMs: Date.now() - startedAt,
-      error: failed > 0 ? `${failed} recomputes failed` : null,
+      return { result: { drained: updated, failed, scanned: rows.length } }
     })
-    return { result: { drained: updated, failed, scanned: rows.length } }
   },
 })

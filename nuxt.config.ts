@@ -60,7 +60,7 @@ export default defineNuxtConfig({
       type: 'd1',
       bindingName: 'DB',
     },
-    cron: true,
+    cron: false,
     runtimeSync: true,
     indexNow: true,
   },
@@ -212,9 +212,23 @@ export default defineNuxtConfig({
     ],
   },
 
+  // `serverBundle: 'local'` shipped all of lucide + vscode-icons + simple-icons
+  // into the Worker (8.85 MB) for the ~270 icons actually used. Every icon name
+  // in this codebase is a static literal, so scanning resolves them all and
+  // inlines just those; anything the scanner misses falls back to the Iconify
+  // API rather than rendering nothing. See docs/ops/bundle-baseline-2026-07-23.md.
   icon: {
-    serverBundle: 'local',
-    collections: ['lucide', 'vscode-icons', 'simple-icons'],
+    serverBundle: false,
+    clientBundle: {
+      scan: {
+        // Icon names also live in plain TS (file-tree extension map, cluster
+        // definitions), which the default globs skip for performance.
+        globInclude: ['**/*.{vue,jsx,tsx,md,mdc,mdx}', 'app/**/*.ts', 'layers/**/*.ts'],
+      },
+      includeCustomCollections: true,
+      // ~270 icons overflow the 256 KB default.
+      sizeLimitKb: 1024,
+    },
   },
 
   sitemap: {

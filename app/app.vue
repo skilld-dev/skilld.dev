@@ -89,7 +89,11 @@ onKeyDown('?', (e) => {
           size="sm"
           class="hidden lg:inline-flex"
         />
-        <UColorModeButton />
+        <UColorModeButton
+          color="neutral"
+          variant="ghost"
+          size="sm"
+        />
 
         <ClientOnly>
           <template v-if="isAuthenticated && user">

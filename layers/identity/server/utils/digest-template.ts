@@ -5,12 +5,15 @@
 export interface DigestRepoEntry {
   owner: string
   repo: string
-  skillName: string
-  commitCount: number
+  skillNames: string[]
+  skills: Array<{
+    name: string
+    changeCount: number
+    commitMessages: string[]
+  }>
+  changeCount: number
   // Optional AI sentence; if absent we render the bullet list as the body.
   summary?: string | null
-  // Last few commit messages for the "what changed" fallback.
-  commitMessages: string[]
 }
 
 export interface DigestRenderInput {
@@ -41,12 +44,14 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
   const subject = `[skilld] ${repoLabel} updated this week`
 
   const itemsHtml = entries.map((e) => {
-    const skillUrl = `https://skilld.dev/gh/${e.owner}/${e.repo}/${encodeURIComponent(e.skillName)}`
+    const skillUrl = `https://skilld.dev/gh/${e.owner}/${e.repo}/${encodeURIComponent(e.skillNames[0]!)}`
     const repoUrl = `https://github.com/${e.owner}/${e.repo}`
     const body = e.summary
       ? `<p style="margin:6px 0 0 0;color:#333;">${esc(e.summary)}</p>`
       : `<ul style="margin:6px 0 0 0;padding-left:18px;color:#333;">${
-        e.commitMessages.slice(0, 4).map(m => `<li>${esc(m)}</li>`).join('')
+        e.skills.flatMap(skill =>
+          skill.commitMessages.slice(0, 4).map(message =>
+            `<li>${esc(skill.name)}: ${esc(message)}</li>`)).join('')
       }</ul>`
     return `
 <tr><td style="padding:14px 0;border-bottom:1px solid #eee;">
@@ -54,18 +59,21 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
     <a href="${esc(skillUrl)}" style="color:#111;text-decoration:none;">${esc(e.owner)}/${esc(e.repo)}</a>
   </div>
   <div style="color:#666;font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;">
-    ${e.commitCount} commit${e.commitCount === 1 ? '' : 's'} · <a href="${esc(repoUrl)}" style="color:#666;">github</a>
+    ${esc(e.skillNames.join(', '))} · ${e.changeCount} change${e.changeCount === 1 ? '' : 's'} · <a href="${esc(repoUrl)}" style="color:#666;">github</a>
   </div>
   ${body}
 </td></tr>`
   }).join('')
 
   const itemsText = entries.map((e) => {
-    const lines = [`* ${e.owner}/${e.repo} (${e.commitCount} commits)`]
-    if (e.summary)
+    const lines = [`* ${e.owner}/${e.repo}: ${e.skillNames.join(', ')} (${e.changeCount} changes)`]
+    if (e.summary) {
       lines.push(`  ${e.summary}`)
-    else
-      lines.push(...e.commitMessages.slice(0, 4).map(m => `  - ${m}`))
+    }
+    else {
+      lines.push(...e.skills.flatMap(skill =>
+        skill.commitMessages.slice(0, 4).map(message => `  - ${skill.name}: ${message}`)))
+    }
     return lines.join('\n')
   }).join('\n\n')
 
@@ -90,7 +98,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
 </table>
 </body></html>`
 
-  const text = `skilld digest — ${fmtDate(windowStart)} to ${fmtDate(windowEnd)}
+  const text = `skilld digest: ${fmtDate(windowStart)} to ${fmtDate(windowEnd)}
 
 Hey @${login}, ${repoLabel} you watch updated:
 

@@ -195,7 +195,7 @@ The animated noise field (CLI origin: `skilld/src/ui.ts`) is the single kinetic 
 
 ## Homepage Editorial Direction
 
-The homepage should stop leading with broad category browsing and instead make a small number of high-value, author-led skill sets feel installable. This is equivalent to the current **Collection** system, but the editorial unit may contain one repo, several skills across compatible repos, or a single standout skill. The user-facing promise is: **skills from developers you already trust, grouped by the job they help your agent do better.**
+The homepage leads with a plain explanation and task-first discovery, then makes a small number of high-value, author-led skill sets feel installable. This is equivalent to the current **Collection** system, but the editorial unit may contain one repo, several skills across compatible repos, or a single standout skill. The user-facing promise is: **source-backed skills, grouped by the job they help your agent do better.**
 
 ### High-Value Developer Skills
 
@@ -233,11 +233,14 @@ These are editorial sets, not necessarily database collections yet. If a set has
 
 ### Homepage Layout Rules
 
-- **Hero**: lead with trust and specificity, not a question. Preferred direction: "Install skills from developers you already trust." Supporting copy should mention named developers and installable sets. Keep one primary CTA to browse featured sets and one secondary CTA to browse all skills.
-- **First content section**: `Featured skill sets`. Show 4-6 editorial cards before any generic category grid. Each card needs: set name, one-line rationale, author avatar stack, author/repo provenance line, 3-6 visible skills, `N skills`, and a compact install/browse action.
+- **Hero**: teach the term "agent skill" in plain language, provide direct registry search, and keep one browse-all escape hatch. The hero alone may widen to `max-w-7xl`; pair the copy with a masked developer and organization timeline made from real registry skills and GitHub avatars. Trust language must be supported by visible provenance.
+- **First content section**: `What are you trying to do?`. Use the six stable outcome routes so visitors can start from their problem before learning registry taxonomy.
+- **Editorial focus**: follow outcomes with a rotatable `Featured focus`. Frontend design is the current focus, not a permanent product boundary. Show one dominant set and no more than two compact supporting sets.
 - **Single-skill sets**: allowed and encouraged when the author/skill is strong enough, e.g. `pbakaus/impeccable`. Do not hide them in a generic list because they only contain one skill.
 - **Pairing signal**: when multiple authors appear in a set, show a small mono line such as `Works with Addy Osmani + Julien Thibeaut`. The point is compatibility and taste transfer, not volume.
-- **Section order**: Hero -> Featured skill sets -> Trusted developers -> Recently updated -> Browse by domain -> Watch CTA. Domain/category browsing becomes a lower-priority escape hatch.
+- **Section order**: Hero -> Outcomes -> Featured focus -> Install with confidence -> Keep your agent current -> Explore the registry -> Publish.
+- **Freshness hierarchy**: Recently updated outranks New to skilld. Newness is not a quality claim. Fold Watch your stack into this section.
+- **Registry terminology**: Skills, Collections, and Official publishers are the three browse escape hatches. Do not recreate separate Devs, Orgs, and Curators sections.
 - **Card density**: use the existing bordered card pattern, but each editorial card should read like a Wirecutter pick: compact rationale first, metadata second. Avoid nested cards; skill names can be inline badges or a divided list.
 - **Copy rule**: do not say "top", "best", or "popular" unless the reason is visible. Say "Chosen because..." or "Useful when..." and connect the author to the workflow.
 
@@ -253,3 +256,10 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Darkened rose-500 token**: `oklch(0.555 0.225 17.32)` overrides Tailwind's default so white-on-primary clears AA. Do not revert; do not introduce a second rose.
 - **No pure black**: dark mode bg starts at `oklch(0.14 0.008 60)`. If a surface looks too light, deepen via OKLCH chroma+hue, not by going to `#000`.
 - **PDS abbreviation rule**: never spell out "Personal Data Server" in UI copy; always pair "PDS" with a tooltip on first introduction in a view.
+- **Task-first homepage**: orientation and outcome discovery precede editorial inventory. Confirmed in the 2026-07 homepage rethink.
+- **Frontend is a rotatable editorial focus**: it may dominate the current feature band but must not redefine skilld as a frontend-only registry.
+- **One composition per homepage band**: maintainer timeline, numbered outcome index, lead-and-supporting editorial pick, evidence chain, activity ledger, browse map, and contribution ledger. Repeating equal card grids weakens the page narrative.
+- **Evidence before freshness**: show provenance, editorial rationale, and a real install command before recent activity.
+- **Section atmosphere**: low-chroma warm-stone and rose gradients may distinguish homepage bands. They stay masked to edges, use mode-specific opacity, and never sit behind data as a full-strength fill.
+- **Collections remain primary curation**: directory links may be quiet, but Collections retain stronger hierarchy than publisher taxonomy.
+- **Hero skill proof**: the hero uses a real-skill timeline grouped by distinct developers and organizations, with visible GitHub avatars and source paths. A top-and-bottom mask blends it into the atmosphere; hover and keyboard focus pause the drift; reduced motion freezes it. No duplicated entries or fake skill data.

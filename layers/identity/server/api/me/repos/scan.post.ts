@@ -2,7 +2,7 @@ import { defineApiHandler } from '#shared/server/handler'
 import { authenticated } from '../../../policies/authenticated'
 import { ReposScanBody } from '../../../schemas/repos'
 import { decryptToken } from '../../../utils/crypto'
-import { scanOwnedRepos } from '../../../utils/scan-owned-repos'
+import { ownedRepoScanResponse, scanOwnedRepos } from '../../../utils/scan-owned-repos'
 import { requireUserRow } from '../../../utils/users'
 
 export default defineApiHandler({
@@ -28,6 +28,6 @@ export default defineApiHandler({
       env,
     })
 
-    return { ok: true as const, ...result }
+    return ownedRepoScanResponse(result)
   },
 })

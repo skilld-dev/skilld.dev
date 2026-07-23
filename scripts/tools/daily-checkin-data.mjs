@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseSentryIssuesResponse } from './sentry-observability.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const checkinDir = join(root, 'docs/ops/checkins')
@@ -251,31 +252,52 @@ const workers = await probeAsync(async () => {
   }
 })
 
-const sentry = await probeAsync(async () => {
+const sentry = await (async () => {
   const tokenFile = join(root, '.env.sentry-build-plugin')
-  if (!existsSync(tokenFile))
-    throw new Error('.env.sentry-build-plugin missing')
+  if (!existsSync(tokenFile)) {
+    return {
+      _tag: 'missing_observability',
+      status: null,
+      diagnostic: '.env.sentry-build-plugin missing',
+    }
+  }
   const token = readFileSync(tokenFile, 'utf8').match(/^SENTRY_AUTH_TOKEN=(\S+)/m)?.[1]
-  if (!token)
-    throw new Error('SENTRY_AUTH_TOKEN missing from .env.sentry-build-plugin')
+  if (!token) {
+    return {
+      _tag: 'missing_observability',
+      status: null,
+      diagnostic: 'SENTRY_AUTH_TOKEN missing from .env.sentry-build-plugin',
+    }
+  }
   const query = encodeURIComponent(`project:skilld is:unresolved firstSeen:>${sinceIso.slice(0, 19)}`)
   const response = await fetch(`https://sentry.io/api/0/organizations/harlan-zw/issues/?query=${query}&sort=freq&limit=10`, {
     headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!response.ok)
-    throw new Error(`Sentry issues ${response.status}; SENTRY_AUTH_TOKEN needs project or organization read access`)
-  const issues = await response.json()
-  return {
-    newIssues: issues.map(issue => ({
-      shortId: issue.shortId,
-      title: String(issue.title).slice(0, 160),
-      count: Number(issue.count),
-      userCount: issue.userCount,
-      firstSeen: issue.firstSeen,
-      lastSeen: issue.lastSeen,
-    })),
+  }).catch(error => ({
+    networkError: error instanceof Error ? error.message : String(error),
+  }))
+  if ('networkError' in response) {
+    return {
+      _tag: 'provider_failure',
+      status: null,
+      diagnostic: `Sentry issues request failed: ${response.networkError}`,
+    }
   }
-})
+  const issues = await response.json().catch(error => ({
+    parseError: error instanceof Error ? error.message : String(error),
+  }))
+  if (issues?.parseError) {
+    return {
+      _tag: 'parse_failure',
+      status: response.status,
+      diagnostic: `Sentry issues response was not JSON: ${issues.parseError}`,
+    }
+  }
+  return parseSentryIssuesResponse(response.status, issues)
+})().catch(error => ({
+  _tag: 'provider_failure',
+  status: null,
+  diagnostic: error instanceof Error ? error.message : String(error),
+}))
 
 const doc = {
   generatedAt: now.toISOString(),
@@ -291,7 +313,9 @@ const doc = {
 
 console.log(JSON.stringify(doc, null, 2))
 
-const failedProbes = Object.entries({ git, deploy, ci, http, d1, workers, sentry }).filter(([, value]) => value?.error)
+const failedProbes = Object.entries({ git, deploy, ci, http, d1, workers, sentry }).filter(([name, value]) =>
+  value?.error || (name === 'sentry' && value?._tag !== 'available'),
+)
 if (failedProbes.length)
   console.error(`WARN ${failedProbes.length} probes failed: ${failedProbes.map(([name]) => name).join(', ')}. Missing data is not health.`)
 

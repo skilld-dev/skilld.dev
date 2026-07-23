@@ -1,4 +1,4 @@
-import { scanOwnedRepos } from '../../utils/scan-owned-repos'
+import { ownedRepoScanWarning, scanOwnedRepos } from '../../utils/scan-owned-repos'
 import { upsertUserFromGithub } from '../../utils/users'
 import { handleWatchAction } from '../../utils/watch-actions'
 
@@ -29,8 +29,12 @@ export default defineOAuthGitHubEventHandler({
           userToken: accessToken,
           db: platform.db,
           env: platform.env,
+        }).then((result) => {
+          const warning = ownedRepoScanWarning(result)
+          if (warning)
+            console.warn(`[oauth] owned-repo scan incomplete for @${row.login}`, warning)
         }).catch((err) => {
-          console.warn(`[oauth] owned-repo scan failed for @${row.login}:`, err)
+          console.warn(`[oauth] owned-repo scan failed for @${row.login}`, err)
         })
         const cfCtx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
         if (cfCtx?.waitUntil)

@@ -1,5 +1,7 @@
 import type { GeneratedKind } from '../utils/skill-generated'
+import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { extractJson } from '#shared/server/anthropic'
 import { getTaskEnv } from '#shared/server/task-env'
 /// <reference types="@cloudflare/workers-types" />
@@ -98,35 +100,48 @@ export default defineScheduledTask({
     const db = env?.DB as D1Database | undefined
     const apiKey = (env?.ANTHROPIC_API_KEY as string | undefined) || process.env.ANTHROPIC_API_KEY
 
-    if (!db) {
+    if (!env || !db) {
       console.warn('[ai-generate-poll] D1 binding missing')
       return { result: { error: 'no-db' } }
     }
-    if (!apiKey) {
-      console.warn('[ai-generate-poll] ANTHROPIC_API_KEY missing')
-      return { result: { error: 'no-api-key' } }
-    }
-
-    const startedAt = Date.now()
-    try {
-      const result = await pollBatches(db, apiKey)
-      await reportJobRun(db, 'ai-generate-poll', {
-        cron: CRON,
-        status: (result.failed ?? 0) > 0 ? 'partial' : 'ok',
-        durationMs: Date.now() - startedAt,
-        error: (result.failed ?? 0) > 0 ? `${result.failed} batches failed` : null,
-      })
-      return { result }
-    }
-    catch (err) {
-      await reportJobRun(db, 'ai-generate-poll', {
-        cron: CRON,
-        status: 'error',
-        durationMs: Date.now() - startedAt,
-        error: (err as Error).message,
-      })
-      throw err
-    }
+    return await runObservedScheduledTask({
+      db,
+      env,
+      context,
+      policy: observedSchedulePolicy('ai-generate-poll'),
+    }, async () => {
+      const startedAt = Date.now()
+      if (!apiKey) {
+        const error = 'ANTHROPIC_API_KEY missing'
+        console.warn(`[ai-generate-poll] ${error}`)
+        await reportJobRun(db, 'ai-generate-poll', {
+          cron: CRON,
+          status: 'error',
+          durationMs: Date.now() - startedAt,
+          error,
+        })
+        throw new Error(error)
+      }
+      try {
+        const result = await pollBatches(db, apiKey)
+        await reportJobRun(db, 'ai-generate-poll', {
+          cron: CRON,
+          status: (result.failed ?? 0) > 0 ? 'partial' : 'ok',
+          durationMs: Date.now() - startedAt,
+          error: (result.failed ?? 0) > 0 ? `${result.failed} batches failed` : null,
+        })
+        return { result }
+      }
+      catch (err) {
+        await reportJobRun(db, 'ai-generate-poll', {
+          cron: CRON,
+          status: 'error',
+          durationMs: Date.now() - startedAt,
+          error: (err as Error).message,
+        })
+        throw err
+      }
+    })
   },
 })
 

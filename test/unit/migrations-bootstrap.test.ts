@@ -54,7 +54,190 @@ describe('d1 migration bootstrap', () => {
          WHERE type = 'table' AND name = 'daily_health_checks'`,
       ).get()
       expect(healthCheckTable).toBeTruthy()
-      expect(migrations.at(-1)).toBe('0069_daily_health_checks.sql')
+
+      const discoveryCandidate = sqlite.prepare(
+        `SELECT sql FROM sqlite_schema
+         WHERE type = 'table' AND name = 'discovery_candidates'`,
+      ).get() as { sql: string } | undefined
+      expect(discoveryCandidate?.sql).toContain('first_discovered_at')
+      expect(discoveryCandidate?.sql).toContain('rejection_reason')
+      expect(discoveryCandidate?.sql).toContain('retry_state')
+
+      const validCandidatePrefix = `
+        INSERT INTO discovery_candidates (
+          owner, repo, source, first_discovered_at, last_discovered_at,
+          outcome, rejection_reason, last_error, retry_state, next_retry_at,
+          claimed_at, claim_token
+        )`
+      const invalidCandidates = [
+        `VALUES ('invalid', 'ready-indexed', 'manual', 1, 1, 'indexed', NULL, NULL, 'ready', NULL, NULL, NULL)`,
+        `VALUES ('invalid', 'retry-pending', 'manual', 1, 1, 'pending', NULL, NULL, 'retry_scheduled', 2, NULL, NULL)`,
+        `VALUES ('invalid', 'complete-rejected', 'manual', 1, 1, 'rejected', 'reason', NULL, 'complete', NULL, NULL, NULL)`,
+        `VALUES ('invalid', 'rejected-no-reason', 'manual', 1, 1, 'rejected', NULL, NULL, 'exhausted', NULL, NULL, NULL)`,
+        `VALUES ('invalid', 'failure-no-error', 'manual', 1, 1, 'retryable_failure', NULL, NULL, 'exhausted', NULL, NULL, NULL)`,
+        `VALUES ('invalid', 'ready-next-retry', 'manual', 1, 1, 'pending', NULL, NULL, 'ready', 2, NULL, NULL)`,
+        `VALUES ('invalid', 'claimed-no-token', 'manual', 1, 1, 'pending', NULL, NULL, 'claimed', NULL, 2, NULL)`,
+      ]
+      for (const values of invalidCandidates)
+        expect(() => sqlite.exec(`${validCandidatePrefix} ${values}`)).toThrow()
+
+      const discoveryDueIndex = sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_discovery_candidates_due'`,
+      ).get()
+      expect(discoveryDueIndex).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_activity_sync_dedupe'`,
+      ).get()).toBeTruthy()
+
+      const embeddingAttempts = sqlite.prepare(
+        `SELECT sql FROM sqlite_schema
+         WHERE type = 'table' AND name = 'embedding_attempts'`,
+      ).get() as { sql: string } | undefined
+      expect(embeddingAttempts?.sql).toContain('vector_succeeded_marker_failed')
+      expect(embeddingAttempts?.sql).toContain('provider_failed')
+      expect(embeddingAttempts?.sql).toContain('rejected')
+      expect(embeddingAttempts?.sql).toContain('completed')
+      expect(() => sqlite.exec(`
+        INSERT INTO embedding_attempts (
+          attempt_id, owner, repo, name, vector_id, content_sha, state,
+          provider_stage, started_at, finished_at, error_code, error_message
+        ) VALUES (
+          'invalid-complete', 'acme', 'skills', 'one', 'vector', 'sha', 'completed',
+          NULL, 1, NULL, NULL, NULL
+        );
+      `)).toThrow()
+      expect(() => sqlite.exec(`
+        INSERT INTO embedding_attempts (
+          attempt_id, owner, repo, name, vector_id, content_sha, state,
+          provider_stage, started_at, finished_at, error_code, error_message
+        ) VALUES (
+          'invalid-failure', 'acme', 'skills', 'one', 'vector', 'sha', 'provider_failed',
+          'vectorize', 1, 2, NULL, NULL
+        );
+      `)).toThrow()
+      expect(() => sqlite.exec(`
+        INSERT INTO embedding_attempts (
+          attempt_id, owner, repo, name, vector_id, content_sha, state,
+          provider_stage, started_at, finished_at, error_code, error_message
+        ) VALUES (
+          'invalid-time', 'acme', 'skills', 'one', 'vector', 'sha', 'completed',
+          NULL, 2, 1, NULL, NULL
+        );
+      `)).toThrow()
+
+      const activityColumns = sqlite.prepare(`PRAGMA table_info(activity)`).all() as Array<{ name: string }>
+      expect(activityColumns.map(column => column.name)).toContain('ingested_at')
+      const digestRuns = sqlite.prepare(
+        `SELECT sql FROM sqlite_schema
+         WHERE type = 'table' AND name = 'digest_runs'`,
+      ).get() as { sql: string } | undefined
+      expect(digestRuns?.sql).toContain(`'claimed'`)
+      expect(digestRuns?.sql).toContain(`'sending'`)
+      expect(digestRuns?.sql).toContain(`'failed'`)
+      expect(digestRuns?.sql).toContain(`'sent'`)
+      expect(digestRuns?.sql).toContain(`'skipped'`)
+      expect(digestRuns?.sql).toContain(`'uncertain'`)
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_digest_cursor'`,
+      ).get()).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'trigger' AND name = 'activity_require_ingested_at'`,
+      ).get()).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'trigger' AND name = 'activity_preserve_ingested_at'`,
+      ).get()).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_jobs_dispatchable'`,
+      ).get()).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_jobs_stale_reserved'`,
+      ).get()).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_failed_jobs_batch'`,
+      ).get()).toBeTruthy()
+      const scheduledRuns = sqlite.prepare(
+        `SELECT sql FROM sqlite_schema
+         WHERE type = 'table' AND name = 'scheduled_runs'`,
+      ).get() as { sql: string } | undefined
+      expect(scheduledRuns?.sql).toContain(`'started'`)
+      expect(scheduledRuns?.sql).toContain(`'succeeded'`)
+      expect(scheduledRuns?.sql).toContain(`'failed'`)
+      expect(scheduledRuns?.sql).toContain(`'expired'`)
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_scheduled_runs_task_latest'`,
+      ).get()).toBeTruthy()
+      expect(migrations.at(-1)).toBe('0074_scheduled_run_history.sql')
+    }
+    finally {
+      sqlite.close()
+    }
+  })
+
+  it('upgrades an existing database without backfilling historical repos', () => {
+    const sqlite = new Database(':memory:')
+    const migrationsDir = resolve(process.cwd(), 'migrations')
+    const migrations = readdirSync(migrationsDir)
+      .filter(file => file.endsWith('.sql'))
+      .sort()
+
+    try {
+      for (const migration of migrations.filter(file => file < '0070_discovery_candidates.sql'))
+        sqlite.exec(readFileSync(resolve(migrationsDir, migration), 'utf8'))
+
+      sqlite.prepare(
+        `INSERT INTO repos (owner, repo, repo_skill_count)
+         VALUES ('historical', 'candidate', 1)`,
+      ).run()
+      sqlite.exec(readFileSync(resolve(migrationsDir, '0070_discovery_candidates.sql'), 'utf8'))
+      sqlite.exec(readFileSync(resolve(migrationsDir, '0071_embedding_attempts.sql'), 'utf8'))
+
+      sqlite.exec(`
+        INSERT INTO users (
+          github_id, login, email_opt_in, digest_frequency, digest_hour,
+          timezone, onboarded_at, created_at, last_login_at
+        ) VALUES (
+          1, 'legacy-digest-user', 1, 'weekly', 9,
+          'UTC', 1, 1, 1
+        );
+        INSERT INTO activity (type, owner, repo, name, occurred_at, sha)
+        VALUES ('skill_updated', 'historical', 'candidate', 'one', 5, 'sha');
+        INSERT INTO digest_runs (
+          user_id, window_start, window_end, change_count, status,
+          resend_id, ai_summary_used, sent_at, error
+        ) VALUES (
+          1, 0, 10, 1, 'queued',
+          NULL, 0, NULL, NULL
+        );
+      `)
+      sqlite.exec(readFileSync(resolve(migrationsDir, '0072_digest_delivery.sql'), 'utf8'))
+      sqlite.exec(readFileSync(resolve(migrationsDir, '0073_repair_schema_drift.sql'), 'utf8'))
+
+      expect(sqlite.prepare(`SELECT count(*) FROM discovery_candidates`).pluck().get()).toBe(0)
+      expect(sqlite.prepare(`SELECT count(*) FROM repos`).pluck().get()).toBe(1)
+      expect(sqlite.prepare(`SELECT count(*) FROM embedding_attempts`).pluck().get()).toBe(0)
+      expect(sqlite.prepare(
+        `SELECT status, cursor_start, cursor_end, error_code
+         FROM digest_runs`,
+      ).get()).toEqual({
+        status: 'failed',
+        cursor_start: 0,
+        cursor_end: 1,
+        error_code: 'legacy_queued',
+      })
+      expect(sqlite.prepare(`SELECT ingested_at FROM activity`).pluck().get()).toBe(5)
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_jobs_dispatchable'`,
+      ).get()).toBeTruthy()
     }
     finally {
       sqlite.close()

@@ -1,6 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { getTaskEnv } from '#shared/server/task-env'
 import { buildDailyHealthCheck, sendDailyHealthCheck } from '../utils/daily-health-check'
 import { sendEmailWithEnv } from '../utils/email'
@@ -30,42 +32,52 @@ export default defineScheduledTask({
       return { result: { _tag: 'MissingBindings' as const } }
     }
 
-    const config = useRuntimeConfig()
-    const to = String(config.healthCheckNotifyTo || DEFAULT_OPERATOR_EMAIL).trim()
-    const from = config.email.from as EmailAddress
-    const now = new Date()
-    const startedAt = Date.now()
+    return await runObservedScheduledTask({
+      db,
+      env,
+      context,
+      policy: observedSchedulePolicy('daily-health-check'),
+    }, async () => {
+      const config = useRuntimeConfig()
+      const to = String(config.healthCheckNotifyTo || DEFAULT_OPERATOR_EMAIL).trim()
+      const from = config.email.from as EmailAddress
+      const now = new Date()
+      const startedAt = Date.now()
 
-    const attempt = await sendDailyHealthCheck(db, {
-      now,
-      to,
-      build: (database, options) => buildDailyHealthCheck(database, {
-        ...options,
-        workerVersion: workerVersion(env),
-      }),
-      send: input => sendEmailWithEnv(env, { ...input, from }),
+      const attempt = await sendDailyHealthCheck(db, {
+        now,
+        to,
+        build: (database, options) => buildDailyHealthCheck(database, {
+          ...options,
+          workerVersion: workerVersion(env),
+        }),
+        send: input => sendEmailWithEnv(env, { ...input, from }),
+      })
+        .then(result => ({ _tag: 'Completed' as const, result }))
+        .catch(error => ({
+          _tag: 'InfrastructureFailure' as const,
+          error: error instanceof Error ? error.message : String(error),
+        }))
+
+      const deliveryFailed = attempt._tag === 'Completed'
+        && (attempt.result._tag === 'SendFailed' || attempt.result._tag === 'Uncertain')
+      const error = attempt._tag === 'InfrastructureFailure'
+        ? attempt.error
+        : deliveryFailed
+          ? attempt.result.error
+          : null
+
+      await reportJobRun(db, 'daily-health-check', {
+        cron: CRON,
+        status: error ? 'error' : 'ok',
+        durationMs: Date.now() - startedAt,
+        error,
+        staleAfterSeconds: 36 * 60 * 60,
+      })
+
+      if (attempt._tag === 'InfrastructureFailure')
+        throw new Error(attempt.error)
+      return { result: attempt }
     })
-      .then(result => ({ _tag: 'Completed' as const, result }))
-      .catch(error => ({
-        _tag: 'InfrastructureFailure' as const,
-        error: error instanceof Error ? error.message : String(error),
-      }))
-
-    const deliveryFailed = attempt._tag === 'Completed' && attempt.result._tag === 'SendFailed'
-    const error = attempt._tag === 'InfrastructureFailure'
-      ? attempt.error
-      : deliveryFailed
-        ? attempt.result.error
-        : null
-
-    await reportJobRun(db, 'daily-health-check', {
-      cron: CRON,
-      status: error ? 'error' : 'ok',
-      durationMs: Date.now() - startedAt,
-      error,
-      staleAfterSeconds: 36 * 60 * 60,
-    })
-
-    return { result: attempt }
   },
 })

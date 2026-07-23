@@ -1,5 +1,7 @@
+import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 /// <reference types="@cloudflare/workers-types" />
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { pAll } from '#shared/server/p-all'
 import { getTaskEnv } from '#shared/server/task-env'
 
@@ -164,77 +166,49 @@ export default defineScheduledTask({
   async run({ context }) {
     const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
-    if (!db) {
+    if (!env || !db) {
       console.warn('[sync-social-mentions] D1 binding not available')
       return { result: { error: 'no-db' } }
     }
 
-    const startedAt = Date.now()
+    return await runObservedScheduledTask({
+      db,
+      env,
+      context,
+      policy: observedSchedulePolicy('sync-social-mentions'),
+    }, async () => {
+      const startedAt = Date.now()
 
-    const topSkillsRes = await db
-      .prepare(
-        `SELECT owner, repo, name, slug, trust_score
+      const topSkillsRes = await db
+        .prepare(
+          `SELECT owner, repo, name, slug, trust_score
          FROM skills
          ORDER BY trust_score DESC, installs DESC, owner ASC, name ASC
          LIMIT ?1`,
-      )
-      .bind(TOP_N_REPOS)
-      .all<SkillRow>()
-    const topSkills = topSkillsRes.results ?? []
+        )
+        .bind(TOP_N_REPOS)
+        .all<SkillRow>()
+      const topSkills = topSkillsRes.results ?? []
 
-    const bySlug = new Map<string, SkillRow>()
-    for (const s of topSkills)
-      bySlug.set(s.slug, s)
+      const bySlug = new Map<string, SkillRow>()
+      for (const s of topSkills)
+        bySlug.set(s.slug, s)
 
-    const pending: PendingInsert[] = []
+      const pending: PendingInsert[] = []
 
-    const siteHits = await hnSearch('skilld.dev')
-    for (const hit of siteHits) {
-      const slugFromUrl = parseSkilldSlugFromUrl(hit.url) ?? parseSkilldSlugFromUrl(hit.story_text)
-      if (!slugFromUrl)
-        continue
-      const matched = bySlug.get(slugFromUrl)
-        ?? topSkills.find(s => slugFromUrl.startsWith(`${s.owner}/${s.repo}`))
-      if (!matched)
-        continue
-      const points = hit.points ?? 0
-      const role = hit.author.toLowerCase() === matched.owner.toLowerCase() ? 'author' : 'community'
-      pending.push({
-        skillSlug: matched.slug,
-        postUrl: `https://news.ycombinator.com/item?id=${hit.objectID}`,
-        postId: hit.objectID,
-        authorHandle: hit.author,
-        textExtract: truncate(hit.title ?? hit.story_text ?? '', 500),
-        title: hit.title,
-        score: points,
-        postedAt: hit.created_at_i,
-        status: points >= HN_AUTO_APPROVE ? 'approved' : 'pending',
-        role,
-      })
-    }
-
-    const repoTargets = topSkills
-      .filter((s, i, arr) => arr.findIndex(x => x.owner === s.owner && x.repo === s.repo) === i)
-      .slice(0, TOP_N_REPOS)
-
-    const hnRepoResults = await pAll(repoTargets, HN_CONCURRENCY, async (s) => {
-      const q = `github.com/${s.owner}/${s.repo}`
-      const hits = await hnSearch(q)
-      return { skill: s, hits }
-    })
-
-    for (const r of hnRepoResults) {
-      if (r.status !== 'fulfilled')
-        continue
-      const { skill, hits } = r.value
-      for (const hit of hits) {
-        const parsed = parseGithubRepoFromUrl(hit.url) ?? parseGithubRepoFromUrl(hit.story_text)
-        if (!parsed || parsed.owner !== skill.owner.toLowerCase() || parsed.repo !== skill.repo.toLowerCase())
+      const siteHits = await hnSearch('skilld.dev')
+      for (const hit of siteHits) {
+        const slugFromUrl = parseSkilldSlugFromUrl(hit.url) ?? parseSkilldSlugFromUrl(hit.story_text)
+        if (!slugFromUrl)
+          continue
+        const matched = bySlug.get(slugFromUrl)
+          ?? topSkills.find(s => slugFromUrl.startsWith(`${s.owner}/${s.repo}`))
+        if (!matched)
           continue
         const points = hit.points ?? 0
-        const role = hit.author.toLowerCase() === skill.owner.toLowerCase() ? 'author' : 'community'
+        const role = hit.author.toLowerCase() === matched.owner.toLowerCase() ? 'author' : 'community'
         pending.push({
-          skillSlug: skill.slug,
+          skillSlug: matched.slug,
           postUrl: `https://news.ycombinator.com/item?id=${hit.objectID}`,
           postId: hit.objectID,
           authorHandle: hit.author,
@@ -246,29 +220,64 @@ export default defineScheduledTask({
           role,
         })
       }
-    }
 
-    const { inserted, dirtySkills } = await insertPosts(db, pending)
+      const repoTargets = topSkills
+        .filter((s, i, arr) => arr.findIndex(x => x.owner === s.owner && x.repo === s.repo) === i)
+        .slice(0, TOP_N_REPOS)
 
-    const dirtyRows = topSkills.filter(s => dirtySkills.has(s.slug))
-    const enqueued = await enqueueDirty(db, dirtyRows)
+      const hnRepoResults = await pAll(repoTargets, HN_CONCURRENCY, async (s) => {
+        const q = `github.com/${s.owner}/${s.repo}`
+        const hits = await hnSearch(q)
+        return { skill: s, hits }
+      })
 
-    const summary = {
-      topSkills: topSkills.length,
-      repoTargets: repoTargets.length,
-      hnSiteHits: siteHits.length,
-      hnRepoQueries: repoTargets.length,
-      pending: pending.length,
-      inserted,
-      dirtyEnqueued: enqueued,
-      elapsedMs: Date.now() - startedAt,
-    }
-    console.warn('[sync-social-mentions] done', summary)
-    await reportJobRun(db, 'sync-social-mentions', {
-      cron: CRON,
-      status: 'ok',
-      durationMs: summary.elapsedMs,
+      for (const r of hnRepoResults) {
+        if (r.status !== 'fulfilled')
+          continue
+        const { skill, hits } = r.value
+        for (const hit of hits) {
+          const parsed = parseGithubRepoFromUrl(hit.url) ?? parseGithubRepoFromUrl(hit.story_text)
+          if (!parsed || parsed.owner !== skill.owner.toLowerCase() || parsed.repo !== skill.repo.toLowerCase())
+            continue
+          const points = hit.points ?? 0
+          const role = hit.author.toLowerCase() === skill.owner.toLowerCase() ? 'author' : 'community'
+          pending.push({
+            skillSlug: skill.slug,
+            postUrl: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+            postId: hit.objectID,
+            authorHandle: hit.author,
+            textExtract: truncate(hit.title ?? hit.story_text ?? '', 500),
+            title: hit.title,
+            score: points,
+            postedAt: hit.created_at_i,
+            status: points >= HN_AUTO_APPROVE ? 'approved' : 'pending',
+            role,
+          })
+        }
+      }
+
+      const { inserted, dirtySkills } = await insertPosts(db, pending)
+
+      const dirtyRows = topSkills.filter(s => dirtySkills.has(s.slug))
+      const enqueued = await enqueueDirty(db, dirtyRows)
+
+      const summary = {
+        topSkills: topSkills.length,
+        repoTargets: repoTargets.length,
+        hnSiteHits: siteHits.length,
+        hnRepoQueries: repoTargets.length,
+        pending: pending.length,
+        inserted,
+        dirtyEnqueued: enqueued,
+        elapsedMs: Date.now() - startedAt,
+      }
+      console.warn('[sync-social-mentions] done', summary)
+      await reportJobRun(db, 'sync-social-mentions', {
+        cron: CRON,
+        status: 'ok',
+        durationMs: summary.elapsedMs,
+      })
+      return { result: summary }
     })
-    return { result: summary }
   },
 })

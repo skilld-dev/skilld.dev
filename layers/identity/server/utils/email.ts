@@ -16,12 +16,10 @@ export interface SendEmailInput {
   headers?: Record<string, string>
 }
 
-export interface SendEmailResult {
-  ok: boolean
-  // Cloudflare's provider ID is persisted in digest_runs.resend_id.
-  messageId?: string
-  error?: string
-}
+export type SendEmailResult
+  = { _tag: 'accepted', messageId: string }
+    | { _tag: 'rejected', error: string }
+    | { _tag: 'uncertain', error: string }
 
 export async function sendEmailWithEnv(
   env: Pick<Cloudflare.Env, 'EMAIL'> | undefined,
@@ -30,23 +28,55 @@ export async function sendEmailWithEnv(
   const binding = env?.EMAIL
 
   if (!binding) {
-    return { ok: false, error: 'EMAIL binding missing (configure send_email in wrangler)' }
+    return {
+      _tag: 'rejected',
+      error: 'EMAIL binding missing (configure send_email in wrangler)',
+    }
   }
 
   const from = input.from ?? useRuntimeConfig().email.from
-  return await binding.send({
+  const outcome = await binding.send({
     to: input.to,
     from,
     subject: input.subject,
     html: input.html,
     text: input.text,
     headers: input.headers,
-  })
-    .then(result => ({ ok: true as const, messageId: result.messageId }))
-    .catch(error => ({
-      ok: false as const,
+  }).then(
+    result => ({ _tag: 'response' as const, result: result as unknown }),
+    error => ({
+      _tag: 'failure' as const,
       error: error instanceof Error ? error.message : String(error),
-    }))
+    }),
+  )
+  if (outcome._tag === 'failure') {
+    return {
+      _tag: 'rejected',
+      error: outcome.error,
+    }
+  }
+  const messageId = parseProviderMessageId(outcome.result)
+  if (!messageId) {
+    return {
+      _tag: 'uncertain',
+      error: 'Email provider returned success without a nonempty message ID',
+    }
+  }
+  return {
+    _tag: 'accepted',
+    messageId,
+  }
+}
+
+function parseProviderMessageId(value: unknown): string | null {
+  if (typeof value !== 'object'
+    || value === null
+    || !('messageId' in value)
+    || typeof value.messageId !== 'string') {
+    return null
+  }
+  const messageId = value.messageId.trim()
+  return messageId || null
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {

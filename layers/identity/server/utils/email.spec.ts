@@ -32,7 +32,10 @@ describe('sendEmail', () => {
       headers: { 'List-Unsubscribe': '<https://skilld.dev/unsubscribe>' },
     })
 
-    expect(result).toEqual({ ok: true, messageId: 'msg_1' })
+    expect(result).toEqual({
+      _tag: 'accepted',
+      messageId: 'msg_1',
+    })
     expect(send).toHaveBeenCalledWith({
       to: 'person@example.com',
       from: { email: 'noreply@mail.skilld.dev', name: 'skilld' },
@@ -50,7 +53,10 @@ describe('sendEmail', () => {
       to: 'person@example.com',
       subject: 'Welcome',
       html: '<p>Hello</p>',
-    })).resolves.toEqual({ ok: false, error: 'sender not verified' })
+    })).resolves.toEqual({
+      _tag: 'rejected',
+      error: 'sender not verified',
+    })
   })
 
   it('accepts explicit task dependencies', async () => {
@@ -62,6 +68,37 @@ describe('sendEmail', () => {
       subject: 'Health',
       html: '<p>Healthy</p>',
       text: 'Healthy',
-    })).resolves.toEqual({ ok: true, messageId: 'msg_task' })
+    })).resolves.toEqual({
+      _tag: 'accepted',
+      messageId: 'msg_task',
+    })
+  })
+
+  it.each([
+    [{}, 'missing'],
+    [{ messageId: '' }, 'empty'],
+    [{ messageId: 42 }, 'non-string'],
+  ])('returns uncertain for malformed provider success: %s', async (providerResult) => {
+    send.mockResolvedValue(providerResult)
+
+    await expect(sendEmail({
+      to: 'person@example.com',
+      subject: 'Welcome',
+      html: '<p>Hello</p>',
+    })).resolves.toEqual({
+      _tag: 'uncertain',
+      error: 'Email provider returned success without a nonempty message ID',
+    })
+  })
+
+  it('returns rejected when the email binding is missing', async () => {
+    await expect(sendEmailWithEnv(undefined, {
+      to: 'person@example.com',
+      subject: 'Welcome',
+      html: '<p>Hello</p>',
+    })).resolves.toMatchObject({
+      _tag: 'rejected',
+      error: 'EMAIL binding missing (configure send_email in wrangler)',
+    })
   })
 })

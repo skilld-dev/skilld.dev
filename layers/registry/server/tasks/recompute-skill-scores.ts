@@ -1,6 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { getTaskEnv } from '#shared/server/task-env'
 import { recomputeAllSkillScores } from '../utils/recompute-scores'
 
@@ -23,35 +25,44 @@ export default defineScheduledTask({
   async run({ context }) {
     const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
-    if (!db) {
+    if (!env || !db) {
       console.warn('[recompute-skill-scores] D1 binding not available in task context')
       return { result: { error: 'no-db' } }
     }
 
-    const startedAt = Date.now()
-    let result: Awaited<ReturnType<typeof recomputeAllSkillScores>> | null = null
-    let error: string | null = null
-    try {
-      result = await recomputeAllSkillScores(db)
-    }
-    catch (err) {
-      error = (err as Error).message
-    }
-    const elapsedMs = Date.now() - startedAt
+    return await runObservedScheduledTask({
+      db,
+      env,
+      context,
+      policy: observedSchedulePolicy('recompute-skill-scores'),
+    }, async () => {
+      const startedAt = Date.now()
+      let result: Awaited<ReturnType<typeof recomputeAllSkillScores>> | null = null
+      let error: string | null = null
+      try {
+        result = await recomputeAllSkillScores(db)
+      }
+      catch (err) {
+        error = (err as Error).message
+      }
+      const elapsedMs = Date.now() - startedAt
 
-    const status = error ? 'error' : 'ok'
-    console.warn(
-      `[recompute-skill-scores] done in ${elapsedMs}ms status=${status}`,
-      result ?? { error },
-    )
+      const status = error ? 'error' : 'ok'
+      console.warn(
+        `[recompute-skill-scores] done in ${elapsedMs}ms status=${status}`,
+        result ?? { error },
+      )
 
-    await reportJobRun(db, 'recompute-skill-scores', {
-      cron: CRON,
-      status,
-      durationMs: elapsedMs,
-      error,
+      await reportJobRun(db, 'recompute-skill-scores', {
+        cron: CRON,
+        status,
+        durationMs: elapsedMs,
+        error,
+      })
+
+      if (error)
+        throw new Error(error)
+      return { result: { ...(result ?? {}), elapsedMs, error } }
     })
-
-    return { result: { ...(result ?? {}), elapsedMs, error } }
   },
 })

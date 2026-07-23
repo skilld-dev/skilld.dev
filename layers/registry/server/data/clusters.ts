@@ -37,7 +37,7 @@ export const CLUSTERS: Cluster[] = [
     slug: 'master-agent',
     label: 'Master your agent',
     icon: 'i-lucide-zap',
-    userVoice: 'I want sub-agents, verification, and parallel execution — not a single chat.',
+    userVoice: 'I want sub-agents, verification, and parallel execution across a real workflow.',
     categories: ['agent-meta'],
     pinnedExamples: [
       'obra/using-superpowers',
@@ -51,7 +51,7 @@ export const CLUSTERS: Cluster[] = [
     slug: 'docs',
     label: 'Help me write docs & specs',
     icon: 'i-lucide-pencil-line',
-    userVoice: 'I want READMEs, PRDs, and internal comms — without the AI slop.',
+    userVoice: 'I want READMEs, PRDs, and internal comms without the AI slop.',
     categories: ['docs-writing', 'doc-writing', 'documentation', 'content-writing'],
     pinnedExamples: [
       'anthropics/doc-coauthoring',
@@ -79,7 +79,7 @@ export const CLUSTERS: Cluster[] = [
     slug: 'debug',
     label: 'Debug like an engineer',
     icon: 'i-lucide-bug',
-    userVoice: 'I want my agent to investigate before guessing — reproduce, isolate, then fix.',
+    userVoice: 'I want my agent to investigate before guessing: reproduce, isolate, then fix.',
     categories: ['debugging', 'browser-automation'],
     pinnedExamples: [
       'obra/systematic-debugging',

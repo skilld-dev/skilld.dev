@@ -55,6 +55,7 @@ describe('syncRepo freshness cursor', () => {
         modified_at INTEGER,
         first_seen_at INTEGER,
         last_synced_at INTEGER,
+        owner_verified INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (owner, repo, name)
       );
       CREATE TABLE repos (
@@ -72,6 +73,17 @@ describe('syncRepo freshness cursor', () => {
       );
       INSERT INTO repos VALUES
         ('acme', 'skills', 'main', 1, 1, 100, 50, 75, 'same-tree', NULL);
+      INSERT INTO skills (owner, repo, name, current_sha, owner_verified)
+      VALUES ('acme', 'skills', 'one', 'skill-sha', 0);
+      CREATE TABLE skill_dirty (
+        owner TEXT NOT NULL,
+        repo TEXT NOT NULL,
+        name TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        queued_at INTEGER NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (owner, repo, name, reason)
+      );
     `)
     statements = []
     db = wrapSqlite(sqlite, statements)
@@ -94,7 +106,7 @@ describe('syncRepo freshness cursor', () => {
 
     expect(result.status).toBe('skipped-tree-sha')
     expect(github.getTree).not.toHaveBeenCalled()
-    expect(statements.some(sql => sql.includes('FROM skills WHERE owner'))).toBe(false)
+    expect(statements.some(sql => sql.includes('SELECT name, current_sha'))).toBe(false)
     expect(row).toEqual({
       default_branch: 'trunk',
       stars: 42,
@@ -124,8 +136,21 @@ describe('syncRepo freshness cursor', () => {
 
     expect(result.status).toBe('skipped-tree-sha')
     expect(github.getTree).toHaveBeenCalledOnce()
-    expect(statements.some(sql => sql.includes('FROM skills WHERE owner'))).toBe(false)
+    expect(statements.some(sql => sql.includes('SELECT name, current_sha'))).toBe(false)
     expect(checkedAt).toBe(1783900800)
+  })
+
+  it('applies owner verification and queues exact recomputation on an unchanged tree', async () => {
+    const result = await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+
+    expect(result.status).toBe('verified-only')
+    expect(sqlite.prepare(`SELECT owner_verified FROM skills`).pluck().get()).toBe(1)
+    expect(sqlite.prepare(`SELECT owner, repo, name, reason FROM skill_dirty`).get()).toEqual({
+      owner: 'acme',
+      repo: 'skills',
+      name: 'one',
+      reason: 'owner_verified',
+    })
   })
 })
 
@@ -137,7 +162,8 @@ function wrapSqlite(sqlite: Database.Database, statements: string[]): D1Database
         bind(...params: unknown[]) {
           return {
             async run() {
-              return sqlite.prepare(sql).run(...params)
+              const result = sqlite.prepare(sql).run(...params)
+              return { meta: { changes: result.changes } }
             },
             async all<T>() {
               return { results: sqlite.prepare(sql).all(...params) as T[] }
@@ -148,6 +174,10 @@ function wrapSqlite(sqlite: Database.Database, statements: string[]): D1Database
           }
         },
       }
+    },
+    async batch(batchStatements: Array<{ run: () => Promise<unknown> }>) {
+      const transaction = sqlite.transaction(() => batchStatements.map(statement => statement.run()))
+      return await Promise.all(transaction())
     },
   } as unknown as D1Database
 }

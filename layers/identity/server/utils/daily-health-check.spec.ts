@@ -1,6 +1,7 @@
 import type { DailyHealthCheckSummary } from './daily-health-check'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { SCHEDULE_POLICY } from '#shared/schedule-policy'
 import {
   buildDailyHealthCheck,
   evaluateDailyHealthStatus,
@@ -46,6 +47,7 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
     },
     pipeline: {
       syncJobs: [{ name: 'sync-github-skills', status: 'ok', lastRunAt: 1_774_473_600, stale: false, error: null }],
+      scheduledRuns: [{ taskName: 'sync-github-skills', health: { _tag: 'healthy', alertable: false } }],
       newlyBrokenRepos24h: 0,
       skillSyncFailures24h: 0,
       staleDirtySkills: 0,
@@ -148,6 +150,19 @@ describe('evaluateDailyHealthStatus', () => {
       reasons: ['1 AI batch has been submitted for over 3 hours.'],
     })
   })
+
+  it('marks missing scheduled cadence red', () => {
+    const missing = summary({
+      pipeline: {
+        ...summary().pipeline,
+        scheduledRuns: [{ taskName: 'sync-github-skills', health: { _tag: 'missing_run', alertable: true } }],
+      },
+    })
+    expect(evaluateDailyHealthStatus(missing)).toEqual({
+      status: 'RED',
+      reasons: ['Scheduled run history is unhealthy: sync-github-skills (missing_run).'],
+    })
+  })
 })
 
 describe('buildDailyHealthCheck', () => {
@@ -164,13 +179,30 @@ describe('buildDailyHealthCheck', () => {
       CREATE TABLE user_starred_repos (owner TEXT, repo TEXT);
       CREATE TABLE activity (owner TEXT, repo TEXT, occurred_at INTEGER);
       CREATE TABLE install_events (occurred_at INTEGER);
-      CREATE TABLE digest_runs (status TEXT, sent_at INTEGER, window_end INTEGER);
+      CREATE TABLE digest_runs (
+        status TEXT,
+        sent_at INTEGER,
+        window_end INTEGER,
+        finished_at INTEGER,
+        sending_at INTEGER
+      );
       CREATE TABLE skill_dirty (queued_at INTEGER);
       CREATE TABLE ai_batches (status TEXT, submitted_at INTEGER, completed_at INTEGER);
       CREATE TABLE failed_jobs (queue TEXT, job_type TEXT, exception TEXT, failed_at INTEGER);
       CREATE TABLE jobs (reserved_at INTEGER, completed_at INTEGER, failed_at INTEGER);
       CREATE TABLE job_batches (failed_jobs INTEGER, finished_at INTEGER);
       CREATE TABLE sync_jobs (name TEXT, cron TEXT, enabled INTEGER, stale_after_seconds INTEGER, last_run_at INTEGER, last_status TEXT, last_error TEXT);
+      CREATE TABLE scheduled_runs (
+        run_id TEXT PRIMARY KEY,
+        task_name TEXT,
+        status TEXT,
+        started_at INTEGER,
+        expires_at INTEGER,
+        finished_at INTEGER,
+        error TEXT
+      );
+      CREATE INDEX idx_scheduled_runs_task_latest
+        ON scheduled_runs(task_name, started_at DESC, run_id DESC);
       CREATE TABLE ai_batch_costs (submitted_at INTEGER, est_cost_usd REAL);
 
       INSERT INTO skills VALUES (${nowSec - 60}, 'ok', ${nowSec - 60});
@@ -181,10 +213,24 @@ describe('buildDailyHealthCheck', () => {
       INSERT INTO user_starred_repos VALUES ('owner', 'repo');
       INSERT INTO activity VALUES ('owner', 'repo', ${nowSec - 60});
       INSERT INTO install_events VALUES (${now.getTime() - 60_000});
-      INSERT INTO digest_runs VALUES ('sent', ${nowSec - 60}, ${nowSec - 60});
+      INSERT INTO digest_runs VALUES ('sent', ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60});
       INSERT INTO sync_jobs VALUES ('sync-github-skills', '0 * * * *', 1, NULL, ${nowSec - 60}, 'ok', NULL);
       INSERT INTO ai_batch_costs VALUES (${nowSec - 60}, 0.15);
     `)
+    const insertScheduledRun = sqlite.prepare(`
+      INSERT INTO scheduled_runs (
+        run_id, task_name, status, started_at, expires_at, finished_at, error
+      ) VALUES (?, ?, 'succeeded', ?, ?, ?, NULL)
+    `)
+    for (const policy of SCHEDULE_POLICY) {
+      insertScheduledRun.run(
+        `run-${policy.taskName}`,
+        policy.taskName,
+        nowSec - 60,
+        nowSec + 60,
+        nowSec - 30,
+      )
+    }
 
     const fetcher = vi.fn().mockResolvedValue({ status: 200 }) as unknown as typeof fetch
     const built = await buildDailyHealthCheck(db, { now, fetcher, workerVersion: 'version-1' })
@@ -194,6 +240,13 @@ describe('buildDailyHealthCheck', () => {
     expect(built.inventory).toMatchObject({ skills: 1, repos: 1, users: 1, watchedRepos: 1 })
     expect(built.activity).toMatchObject({ newSkills24h: 1, repoChanges24h: 1, installEvents24h: 1, digestsSent24h: 1 })
     expect(built.cost.estimatedAiUsd24h).toBe(0.15)
+
+    sqlite.exec(`
+      INSERT INTO digest_runs VALUES ('uncertain', NULL, ${nowSec - 90_000}, ${nowSec - 90_000}, ${nowSec - 90_000});
+    `)
+    const uncertain = await buildDailyHealthCheck(db, { now, fetcher, workerVersion: 'version-1' })
+    expect(uncertain.activity.digestsFailed24h).toBe(1)
+    expect(uncertain.status).toBe('RED')
     sqlite.close()
   })
 })
@@ -224,7 +277,10 @@ describe('sendDailyHealthCheck', () => {
   it('claims the report date before sending and deduplicates retries', async () => {
     const { db, sqlite } = createDb()
     sqliteDbs.push(sqlite)
-    const send = vi.fn().mockResolvedValue({ ok: true, messageId: 'msg_1' })
+    const send = vi.fn().mockResolvedValue({
+      _tag: 'accepted',
+      messageId: 'msg_1',
+    })
     const build = vi.fn().mockResolvedValue(summary())
     const input = { now: new Date('2026-07-22T22:05:00Z'), to: 'ops@example.com', build, send }
 
@@ -237,8 +293,14 @@ describe('sendDailyHealthCheck', () => {
     const { db, sqlite } = createDb()
     sqliteDbs.push(sqlite)
     const send = vi.fn()
-      .mockResolvedValueOnce({ ok: false, error: 'temporary failure' })
-      .mockResolvedValueOnce({ ok: true, messageId: 'msg_2' })
+      .mockResolvedValueOnce({
+        _tag: 'rejected',
+        error: 'temporary failure',
+      })
+      .mockResolvedValueOnce({
+        _tag: 'accepted',
+        messageId: 'msg_2',
+      })
     const input = {
       now: new Date('2026-07-22T22:05:00Z'),
       to: 'ops@example.com',
@@ -249,5 +311,30 @@ describe('sendDailyHealthCheck', () => {
     await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'SendFailed', error: 'temporary failure' })
     await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Sent', messageId: 'msg_2' })
     expect(send).toHaveBeenCalledTimes(2)
+  })
+
+  it('leaves uncertain delivery in sending so a duplicate cannot resend', async () => {
+    const { db, sqlite } = createDb()
+    sqliteDbs.push(sqlite)
+    const send = vi.fn().mockResolvedValue({
+      _tag: 'uncertain',
+      error: 'provider acknowledgement malformed',
+    })
+    const input = {
+      now: new Date('2026-07-22T22:05:00Z'),
+      to: 'ops@example.com',
+      build: vi.fn().mockResolvedValue(summary()),
+      send,
+    }
+
+    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({
+      _tag: 'Uncertain',
+      error: 'provider acknowledgement malformed',
+    })
+    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Duplicate' })
+    expect(sqlite.prepare(
+      `SELECT delivery_status, error FROM daily_health_checks`,
+    ).get()).toEqual({ delivery_status: 'sending', error: null })
+    expect(send).toHaveBeenCalledTimes(1)
   })
 })
