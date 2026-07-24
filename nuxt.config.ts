@@ -74,6 +74,10 @@ export default defineNuxtConfig({
     url: 'https://skilld.dev',
     name: 'skilld',
     description: 'Curated agent skills from trusted open-source developers',
+    // Middle dot (U+00B7): a small, vertically centred separator for the title
+    // template ('Page · skilld'), replacing unhead's default pipe. Matches the
+    // separator the homepage already hardcodes.
+    titleSeparator: '·',
   },
 
   aiReady: {
