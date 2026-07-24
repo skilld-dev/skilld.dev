@@ -35,7 +35,7 @@ const title = 'Collections'
 const description = 'Curated, install-ready sets of agent skills with a clear rationale and visible sources.'
 
 useSeoMeta({
-  title: `${title} — skilld`,
+  title,
   description,
   ogTitle: title,
   ogDescription: description,

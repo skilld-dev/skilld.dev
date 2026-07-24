@@ -2,7 +2,7 @@
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 
 useSeoMeta({
-  title: 'Find skills for your AI agent — skilld',
+  title: 'Find skills for your AI agent',
   description: 'Start with the work you need done, then inspect source-backed agent skills from open-source developers and official publishers.',
 })
 

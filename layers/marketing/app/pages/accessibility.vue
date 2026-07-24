@@ -1,6 +1,6 @@
 <script setup lang="ts">
 useSeoMeta({
-  title: 'Accessibility — skilld',
+  title: 'Accessibility',
   description: 'Accessibility statement for skilld.dev. Our approach to building an inclusive experience.',
 })
 

@@ -2,7 +2,7 @@
 import type { SkillsStats } from '#layers/registry/server/api/skills/stats.get'
 
 useSeoMeta({
-  title: 'Stats — skilld',
+  title: 'Stats',
   description: 'Trust signals across the registry: star distribution, maintenance, age, top owners, installs vs stars, and skills per repo.',
 })
 
