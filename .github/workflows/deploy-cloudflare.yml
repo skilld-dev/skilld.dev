@@ -21,6 +21,19 @@ jobs:
 
       - run: pnpm i
 
+      # Persists + accumulates prior deploys' client chunks across builds so old
+      # browser sessions still resolve their old _nuxt chunks during a rollout
+      # (nuxt-skew-protection, fs storage). Keyed on the SHA so every build saves
+      # a fresh entry; the prefix restore-key restores the previous accumulated
+      # set. Mirrors nuxtseo.com/apps/site.
+      - name: Cache skew-protection assets
+        uses: actions/cache@v5
+        with:
+          path: node_modules/.cache/nuxt-seo
+          key: nuxt-skew-prod-${{ github.sha }}
+          restore-keys: |
+            nuxt-skew-prod-
+
       - name: Build
         run: pnpm build
         timeout-minutes: 15
@@ -32,10 +45,6 @@ jobs:
           # Enables Sentry source-map upload + release injection so client errors
           # are un-minified and tagged with a release (fixes release: None on SKILLD-1).
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          # nuxt-skew-protection persists this build's assets to the SKEW_PROTECTION
-          # KV namespace via the wrangler CLI during the build (compiled hook).
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy
         run: npx wrangler --cwd .output deploy
