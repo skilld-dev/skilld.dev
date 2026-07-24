@@ -75,8 +75,8 @@ describe('accessibility: component coverage', () => {
   // Components that are skipped with documented reasons
   const SKIPPED_COMPONENTS = [
     'DeveloperSkillSection', // Static section component, tested at page level
-    'HomepageClusterGrid', // Static content section, tested at page level
-    'HomepageHowItWorks', // Static content section, tested at page level
+    'EditorialMasthead', // Presentational masthead section, tested at page level
+    'OutcomeClusterGrid', // Content section (fetches /api/clusters), tested at page level
     'KeyboardShortcutsModal.client', // Client-only modal requires full app context
     'NoiseField.client', // Decorative client-only canvas
     'OgBrand', // OG image component, rendered server-side only

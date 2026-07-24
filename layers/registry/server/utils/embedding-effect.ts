@@ -43,7 +43,7 @@ export type EmbeddingEffectResult
       attemptId: string
       vectorId: string
       stage: 'ai' | 'vectorize'
-      reason: 'malformed_embedding' | 'malformed_acknowledgement' | 'acknowledgement_mismatch'
+      reason: 'malformed_embedding' | 'malformed_acknowledgement'
     }
     | {
       _tag: 'vector_succeeded_marker_failed'
@@ -159,21 +159,19 @@ function parseEmbeddingResponse(value: unknown): ParseResult<number[]> {
   return { _tag: 'ok', value: vector }
 }
 
+// Vectorize V2 upsert is asynchronous: it returns { mutationId } acknowledging
+// the write is queued, not a synchronous { count, ids }. A non-empty mutationId
+// is the acknowledgement; the vector becomes queryable shortly after.
 function parseVectorizeAcknowledgement(
   value: unknown,
-  expectedId: string,
 ): ParseResult<'confirmed'> {
   if (typeof value !== 'object'
     || value === null
-    || !('count' in value)
-    || !Number.isInteger(value.count)
-    || !('ids' in value)
-    || !Array.isArray(value.ids)
-    || value.ids.some(id => typeof id !== 'string')) {
+    || !('mutationId' in value)
+    || typeof value.mutationId !== 'string'
+    || value.mutationId.length === 0) {
     return { _tag: 'error', reason: 'malformed_acknowledgement' }
   }
-  if (value.count !== 1 || !value.ids.includes(expectedId))
-    return { _tag: 'error', reason: 'acknowledgement_mismatch' }
   return { _tag: 'ok', value: 'confirmed' }
 }
 
@@ -350,19 +348,16 @@ export async function runEmbeddingEffect(
     }
   }
 
-  const acknowledgement = parseVectorizeAcknowledgement(acknowledgementOutcome.response, vectorId)
+  const acknowledgement = parseVectorizeAcknowledgement(acknowledgementOutcome.response)
   if (acknowledgement._tag === 'error') {
-    const reason = acknowledgement.reason === 'malformed_acknowledgement'
-      ? 'malformed_acknowledgement'
-      : 'acknowledgement_mismatch'
     await recordFailure(deps, attemptId, {
       state: 'rejected',
       stage: 'vectorize',
-      code: reason,
-      message: `Vectorize upsert ${reason}`,
+      code: 'malformed_acknowledgement',
+      message: 'Vectorize upsert malformed_acknowledgement',
       providerResponse: acknowledgementOutcome.response,
     })
-    return { _tag: 'rejected', attemptId, vectorId, stage: 'vectorize', reason }
+    return { _tag: 'rejected', attemptId, vectorId, stage: 'vectorize', reason: 'malformed_acknowledgement' }
   }
 
   const markerOutcome = await persistMarkerAndCompletion(deps, skill, attemptId, vectorId).then(

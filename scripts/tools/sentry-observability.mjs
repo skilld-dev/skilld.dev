@@ -16,7 +16,9 @@ export function parseSentryIssuesResponse(status, body) {
     return {
       _tag: 'missing_observability',
       status,
-      diagnostic: `Sentry authorization failed with HTTP ${status}.`,
+      diagnostic: status === 403
+        ? 'Sentry token lacks issue-read permission (HTTP 403). The build-plugin token only covers source-map uploads; mint an org auth token with event:read + org:read scope and set SENTRY_AUTH_TOKEN.'
+        : 'Sentry authorization failed with HTTP 401 (token missing or expired).',
     }
   }
   if (status < 200 || status >= 300) {

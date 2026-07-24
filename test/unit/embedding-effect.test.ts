@@ -75,13 +75,13 @@ describe('embedding effect', () => {
     expect(result).toMatchObject({
       _tag: 'rejected',
       stage: 'vectorize',
-      reason: 'acknowledgement_mismatch',
+      reason: 'malformed_acknowledgement',
     })
     expect(markerCount()).toBe(0)
     expect(latestAttempt()).toMatchObject({
       state: 'rejected',
       provider_stage: 'vectorize',
-      error_code: 'acknowledgement_mismatch',
+      error_code: 'malformed_acknowledgement',
     })
   })
 
@@ -112,7 +112,7 @@ describe('embedding effect', () => {
     const upsert = vi.fn(async (input: VectorizeVector[]) => {
       for (const vector of input)
         vectors.set(vector.id, vector)
-      return { count: 1, ids: [input[0]!.id] }
+      return { mutationId: 'mutation-retry' }
     })
     const deps = makeDependencies({ vectorizeUpsert: upsert })
     failNextMarkerBatch = true
@@ -136,7 +136,7 @@ describe('embedding effect', () => {
   it('retries after provider failure and restores the marker', async () => {
     const upsert = vi.fn()
       .mockRejectedValueOnce(new Error('Vectorize unavailable'))
-      .mockImplementationOnce(async (input: VectorizeVector[]) => ({ count: 1, ids: [input[0]!.id] }))
+      .mockImplementationOnce(async () => ({ mutationId: 'mutation-recover' }))
     const deps = makeDependencies({ vectorizeUpsert: upsert })
 
     const failed = await runEmbeddingEffect(deps, skill())
@@ -148,7 +148,7 @@ describe('embedding effect', () => {
   })
 
   it('keeps repeated confirmed success idempotent', async () => {
-    const upsert = vi.fn(async (input: VectorizeVector[]) => ({ count: 1, ids: [input[0]!.id] }))
+    const upsert = vi.fn(async () => ({ mutationId: 'mutation-idempotent' }))
     const deps = makeDependencies({ vectorizeUpsert: upsert })
 
     const first = await runEmbeddingEffect(deps, skill())
@@ -180,19 +180,33 @@ describe('embedding effect', () => {
     expect(latestAttempt()).toMatchObject({ state: 'provider_failed' })
   })
 
+  it('completes when Vectorize returns an async mutation acknowledgement', async () => {
+    const deps = makeDependencies({
+      vectorizeUpsert: vi.fn(async () => ({ mutationId: 'async-shape' })),
+    })
+
+    const result = await runEmbeddingEffect(deps, skill())
+
+    expect(result).toMatchObject({ _tag: 'completed' })
+    expect(markerCount()).toBe(1)
+    expect(latestAttempt()).toMatchObject({ state: 'completed', error_code: null })
+  })
+
   it.each([
-    [{ mutationId: 'async-shape' }, 'malformed_acknowledgement'],
-    [{ count: 1, ids: ['wrong-id'] }, 'acknowledgement_mismatch'],
-  ])('records malformed or mismatched provider acknowledgement %# as rejection', async (acknowledgement, reason) => {
+    [{ count: 1, ids: ['wrong-id'] }],
+    [{ mutationId: '' }],
+    [{ mutationId: 123 }],
+    [{}],
+  ])('records a malformed provider acknowledgement %# as rejection', async (acknowledgement) => {
     const deps = makeDependencies({
       vectorizeUpsert: vi.fn(async () => acknowledgement),
     })
 
     const result = await runEmbeddingEffect(deps, skill())
 
-    expect(result).toMatchObject({ _tag: 'rejected', stage: 'vectorize', reason })
+    expect(result).toMatchObject({ _tag: 'rejected', stage: 'vectorize', reason: 'malformed_acknowledgement' })
     expect(markerCount()).toBe(0)
-    expect(latestAttempt()).toMatchObject({ state: 'rejected', error_code: reason })
+    expect(latestAttempt()).toMatchObject({ state: 'rejected', error_code: 'malformed_acknowledgement' })
   })
 
   it('summarizes every tagged failure explicitly for the scheduled task', () => {
@@ -215,8 +229,8 @@ describe('embedding effect', () => {
       _tag: 'rejected',
       ...common,
       stage: 'vectorize',
-      reason: 'acknowledgement_mismatch',
-    })).toMatchObject({ rejected: 1, error: 'embedding vectorize rejected: acknowledgement_mismatch' })
+      reason: 'malformed_acknowledgement',
+    })).toMatchObject({ rejected: 1, error: 'embedding vectorize rejected: malformed_acknowledgement' })
     expect(embeddingEffectSummary({
       _tag: 'vector_succeeded_marker_failed',
       ...common,
@@ -250,7 +264,7 @@ describe('embedding effect', () => {
         upsert: overrides.vectorizeUpsert ?? (async (input) => {
           for (const vector of input)
             vectors.set(vector.id, vector)
-          return { count: 1, ids: [input[0]!.id] }
+          return { mutationId: 'mutation-default' }
         }),
       },
       now: () => 1_000 + attemptSequence,

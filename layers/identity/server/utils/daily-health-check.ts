@@ -332,12 +332,38 @@ const FRONT_DOOR_URLS = [
   'https://skilld.dev/guides',
 ] as const
 
-async function loadFrontDoor(fetcher: typeof fetch): Promise<DailyHealthCheckSummary['frontDoor']> {
+const FRONT_DOOR_MAX_ATTEMPTS = 3
+const FRONT_DOOR_RETRY_DELAY_MS = 1_500
+const realSleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+
+export interface FrontDoorProbeOptions {
+  attempts?: number
+  retryDelayMs?: number
+  sleep?: (ms: number) => Promise<void>
+}
+
+// Front door probes retry before settling: a single transient 522/timeout must
+// not flip the whole operator report RED. A 200 on any attempt passes; a status
+// that never reaches 200 is reported as-is so a sustained outage still escalates.
+export async function loadFrontDoor(
+  fetcher: typeof fetch,
+  options: FrontDoorProbeOptions = {},
+): Promise<DailyHealthCheckSummary['frontDoor']> {
+  const attempts = options.attempts ?? FRONT_DOOR_MAX_ATTEMPTS
+  const retryDelayMs = options.retryDelayMs ?? FRONT_DOOR_RETRY_DELAY_MS
+  const sleep = options.sleep ?? realSleep
   const checks = await Promise.all(FRONT_DOOR_URLS.map(async (url) => {
-    const status = await fetcher(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(15_000),
-    }).then(response => response.status).catch(() => null)
+    let status: number | null = null
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      status = await fetcher(url, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15_000),
+      }).then(response => response.status).catch(() => null)
+      if (status === 200)
+        break
+      if (attempt < attempts)
+        await sleep(retryDelayMs)
+    }
     return { url, status }
   }))
   return { checks }
