@@ -22,6 +22,7 @@ export default defineNuxtConfig({
     '@vueuse/nuxt',
     'nuxt-auth-utils',
     '@sentry/nuxt/module',
+    'nuxt-skew-protection',
   ],
 
   cfJobs: {
@@ -34,6 +35,32 @@ export default defineNuxtConfig({
     // the nuxt-cf-jobs D1 schema and queue consumers, neither of which exists yet.
     reconcile: false,
     queues: {},
+  },
+
+  // Version skew protection: after a deploy, clients still running the previous
+  // build fetch old hashed chunks. Instead of 404ing (Sentry SKILLD-4), old
+  // assets are retained in the SKEW_PROTECTION KV namespace and served back.
+  // cloudflare-module has no WebSocket support (that needs cloudflare-durable),
+  // so updates are detected via polling. Build-time writes go through the
+  // wrangler CLI (namespaceId); runtime reads go through the KV binding.
+  skewProtection: {
+    enabled: process.env.NODE_ENV === 'production',
+    updateStrategy: 'polling',
+    // Silently reload to the new build when the user goes idle rather than
+    // showing a prompt (which would need a <SkewNotification/> on the anonymous
+    // SEO surface). Old assets are served meanwhile, so nothing 404s regardless.
+    reloadStrategy: 'idle',
+    // Persist each build's assets to KV only from CI. The runtime KV read mount
+    // is always active (set whenever storage.driver exists), but the build-time
+    // writes shell out to hundreds of `wrangler kv put` calls against prod KV,
+    // which we don't want a local `pnpm build` doing (and local OAuth lacks the
+    // KV scope anyway). GitHub Actions sets CI=true.
+    bundleAssets: !!process.env.CI,
+    storage: {
+      driver: 'cloudflare-kv-binding',
+      binding: 'SKEW_PROTECTION',
+      namespaceId: '399c1b7cc7994c31a5e9abc7e65b2bea',
+    },
   },
 
   scripts: {

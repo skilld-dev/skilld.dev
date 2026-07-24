@@ -16,7 +16,10 @@
   ],
   "kv_namespaces": [
     { "binding": "KV_CACHE", "id": "187e636458cb49faa2ae14743adc7736" },
-    { "binding": "KV_DATA", "id": "cf3d794a55f84192a30f520686e1d932" }
+    { "binding": "KV_DATA", "id": "cf3d794a55f84192a30f520686e1d932" },
+    // Versioned build assets for nuxt-skew-protection: serves old hashed chunks
+    // to clients on a previous deployment so they never 404 (Sentry SKILLD-4).
+    { "binding": "SKEW_PROTECTION", "id": "399c1b7cc7994c31a5e9abc7e65b2bea" }
   ],
   "analytics_engine_datasets": [
     { "binding": "SKILLD_ANALYTICS", "dataset": "skilld_cli_v1" }
