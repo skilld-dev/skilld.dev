@@ -8,7 +8,7 @@ useSeoMeta({
 
 defineOgImage('Page.takumi', {
   title: 'Stats',
-  description: 'Trust signals across the registry.',
+  description: 'Charts for repository maintenance, age, stars, and installs.',
 }, { alt: 'Skills stats on skilld' })
 
 const { isBot } = useBotDetection()
@@ -59,7 +59,7 @@ const summaryMetrics = computed(() => {
         Stats
       </h1>
       <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
-        Six charts on repository age, maintenance, stars, installs, owners, and how skills are distributed.
+        Compare repository age, maintenance, stars, and installs. Owner and skill counts fill in the rest.
       </p>
     </section>
 
@@ -250,7 +250,7 @@ const summaryMetrics = computed(() => {
                 Installs vs stars
               </h3>
               <p class="font-mono text-xs text-muted">
-                Top {{ data?.scatter.length ?? 0 }} skills with signal · log-log · divergence is the read
+                Top {{ data?.scatter.length ?? 0 }} skills with both values · log scale · compare installs with stars
               </p>
             </header>
             <div v-if="status === 'pending' && !data">

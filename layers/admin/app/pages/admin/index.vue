@@ -221,7 +221,7 @@ const recoveryCards = computed(() => [
           Integrity checks
         </h1>
         <p class="mt-1 max-w-2xl text-sm text-muted">
-          Registry signals that can make skill pages thin, stale, uncrawlable, or inconsistent with generated pages.
+          Find skill pages with stale data, missing source, or weak search metadata.
         </p>
         <p
           v-if="data?.generatedAt"
@@ -476,7 +476,7 @@ const recoveryCards = computed(() => [
             v-if="!trustDistribution.length"
             class="text-sm text-muted"
           >
-            Trust tier distribution will appear here once the integrity API exposes it.
+            The integrity API did not return trust tiers.
           </div>
 
           <div
@@ -518,7 +518,7 @@ const recoveryCards = computed(() => [
             v-if="!trustSourceDistribution.length"
             class="text-sm text-muted"
           >
-            Trust source distribution will appear here once the integrity API exposes it.
+            The integrity API did not return trust sources.
           </div>
 
           <div

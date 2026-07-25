@@ -169,7 +169,7 @@ function clearOwner() {
     <EditorialMasthead
       label="Skill registry"
       title="Search the skill registry."
-      description="Search by task, maintainer, package, or tag. Open any result to read its source before installing."
+      description="Search by task, maintainer, package, or tag. Every result opens to the original SKILL.md."
       palette="rose"
       heading-id="skills-heading"
     >
@@ -177,15 +177,15 @@ function clearOwner() {
         <ol class="editorial-ledger list-none p-0">
           <li class="flex gap-3 py-3">
             <span class="data-label">01</span>
-            <span class="text-sm leading-relaxed">Search for the job you need done.</span>
+            <span class="text-sm leading-relaxed">Describe the job.</span>
           </li>
           <li class="flex gap-3 py-3">
             <span class="data-label">02</span>
-            <span class="text-sm leading-relaxed">Read the source and check who wrote it.</span>
+            <span class="text-sm leading-relaxed">Open the SKILL.md.</span>
           </li>
           <li class="flex gap-3 py-3">
             <span class="data-label">03</span>
-            <span class="text-sm leading-relaxed">Install it, then watch the repo for changes.</span>
+            <span class="text-sm leading-relaxed">Follow the repo if you depend on it.</span>
           </li>
         </ol>
       </template>
@@ -417,7 +417,7 @@ function clearOwner() {
               What should your agent get better at?
             </h2>
             <p id="skills-outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              These paths group skills by the job they help with, even when the maintainers and tools differ.
+              Task groups mix tools and maintainers. The job is what connects them.
             </p>
           </div>
           <OutcomeClusterGrid aria-describedby="skills-outcomes-description" />
@@ -500,10 +500,10 @@ function clearOwner() {
         class="editorial-state"
       >
         <p class="font-medium">
-          No skills match yet.
+          Nothing matched.
         </p>
         <p class="mt-1 text-base text-muted">
-          No skills match these filters. Try removing a tag or broadening your search.
+          Remove a tag or try a broader search.
         </p>
         <UButton
           class="mt-4 min-h-11"
@@ -636,10 +636,10 @@ function clearOwner() {
 
         <div v-else class="editorial-state" role="status">
           <p class="font-medium">
-            No maintainer-led picks are available yet.
+            No maintainer picks are available.
           </p>
           <p class="mt-1 text-base text-muted">
-            Search the full registry while this directory is being prepared.
+            Search by maintainer or package instead.
           </p>
         </div>
       </section>
@@ -663,10 +663,10 @@ function clearOwner() {
                 Official publishers
               </p>
               <h2 id="official-heading" class="skills-section-title mt-3 max-w-[16ch]">
-                Guidance from the teams behind the tools.
+                Skills from the teams behind the tools.
               </h2>
               <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-                Use these when you want the framework or platform's own defaults.
+                The publisher is the organization that maintains the framework or platform.
               </p>
             </div>
             <UButton
@@ -766,10 +766,10 @@ function clearOwner() {
 
           <div v-else class="editorial-state" role="status">
             <p class="font-medium">
-              No official publishers are available yet.
+              No official publishers are listed yet.
             </p>
             <p class="mt-1 text-base text-muted">
-              Browse maintainer-led skills while official sources are being indexed.
+              Search for a publisher by name instead.
             </p>
           </div>
         </div>

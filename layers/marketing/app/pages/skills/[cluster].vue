@@ -170,7 +170,7 @@ defineOgImage('Page.takumi', {
               Open these three first.
             </h2>
             <p class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              These are the first matches in this group. Read each description and open the source before installing.
+              Descriptions are brief. Open the repository for the full instructions.
             </p>
           </div>
 
@@ -222,7 +222,7 @@ defineOgImage('Page.takumi', {
             Browse the rest.
           </h2>
           <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted">
-            These all target the same kind of work. Install counts provide context only.
+            These all target the same kind of work. We show install counts for context.
           </p>
         </div>
         <p class="data-label">

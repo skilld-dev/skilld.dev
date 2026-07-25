@@ -14,7 +14,7 @@ updatedAt: 2026-05-13
 
 If you maintain an [npm](https://npmjs.com) package, your README is already drifting from your code. Agents that pull "latest docs" from a generic indexer get a snapshot of yesterday plus whatever stale Stack Overflow answer ranked well. The fix is to ship a SKILL.md with the package itself, versioned alongside the code, so the agent reads what you published.
 
-This guide walks through `skilld author package`: what it reads, what it writes, and how consumers pick it up. The output follows the [Agent Skills specification](https://agentskills.io/home) and is compatible with [antfu's skills-npm convention](https://github.com/antfu/skills-npm), so consumers using either toolchain see the same files.
+The output follows the [Agent Skills specification](https://agentskills.io/home) and works with [antfu's skills-npm convention](https://github.com/antfu/skills-npm). Both toolchains use the same files.
 
 ## What `skilld author` does
 
@@ -27,7 +27,7 @@ cd path/to/your-package
 npx skilld author package
 ```
 
-That's the whole authoring loop for a single package. For a monorepo, run the same command from the root and pick which packages should ship skills.
+For a monorepo, run the same command from the root and pick which packages should ship skills.
 
 ## What the command reads, in order
 
@@ -65,7 +65,7 @@ The frontmatter is doing more work than it looks like. The `description` field i
 - `vue-router` produces matches for `vue-router` and `vue router`
 - A repo name like `motion-v` produces `motion-v` and `motion v`
 
-The description always includes the phrase `ALWAYS use when editing ... or code importing "<package>"`. Agents see that, prioritize accordingly, and load the skill in the right contexts without you wiring anything up.
+The description always includes the phrase `ALWAYS use when editing ... or code importing "<package>"`. Agents match that phrase when deciding whether to load the skill.
 
 The references block is a markdown link list pointing at the original sources: `package.json`, README, docs index, issues, discussions, releases. After a consumer installs the skill in a project, those links resolve to local files under `references/`. Agents can crack them open when they need more than the summary.
 
@@ -86,7 +86,7 @@ Each selected package gets its own `skills/<name>/` directory and its own `packa
 
 Packages without their own repo URL inherit the repo URL from the monorepo root, so issue and discussion fetching works for every package in the workspace.
 
-## Flags worth knowing
+## Flags
 
 | Flag | What it does |
 |---|---|
@@ -96,7 +96,7 @@ Packages without their own repo URL inherit the repo URL from the monorepo root,
 | `-f` | Clear the reference cache and refetch everything. Use after major doc rewrites. |
 | `--debug` | Save raw LLM output under `logs/`. Useful for tuning prompts. |
 
-`-o` is the only one with a sharp edge worth flagging: if you write outside `skills/`, the `package.json` patch is skipped. Add the path to `files` manually if you want it published.
+Writing outside `skills/` with `-o` skips the `package.json` patch. Add the path to `files` yourself if you want npm to publish it.
 
 ## What consumers see
 
@@ -117,7 +117,7 @@ Or wire it into their own `package.json` so it runs on every install:
 }
 ```
 
-`skilld prepare` walks the consumer's `node_modules`, finds every package shipping a `skills/` directory, and links them into the agent config. No registry lookup, no network call. The skill is files in `node_modules`, the way the rest of the JavaScript ecosystem works.
+`skilld prepare` walks the consumer's `node_modules`, finds every package shipping a `skills/` directory, and links them into the agent config. No registry lookup, no network call. The skills remain ordinary files under `node_modules`.
 
 Consumers who already use [`skills-npm`](https://github.com/antfu/skills-npm) get the same result. Skilld auto-detects skills-npm packages and uses them when available, so you can author with skilld and ship to either ecosystem without a second pipeline.
 
@@ -125,7 +125,7 @@ Consumers who already use [`skills-npm`](https://github.com/antfu/skills-npm) ge
 
 Author once, then regenerate on the same cadence you cut releases. The cache is keyed on package name and version, so a fresh release with a new changelog entry will pick up new content automatically. For local iteration, pass `-f` to force a refetch.
 
-A common pattern is a release script that runs `skilld author package -y` after the version bump and before `npm publish`. The skill ships with the tarball, the consumer's `skilld prepare` finds it, and the agent has accurate docs for the exact version installed.
+In a release script, run `skilld author package -y` after the version bump and before `npm publish`. The tarball will contain guidance for that exact version.
 
 ## What skilld does not do
 
@@ -133,7 +133,7 @@ It does not write your README. If your docs are thin, the skill will be thin. Th
 
 Skills stay as markdown files in your repo. You can read them, edit them, commit them, and revert them like any other source file. The LLM runs while generating those files; agents do not need it at runtime.
 
-If you want to see what a finished skill looks like before authoring one yourself, the [official providers](/skills/official) page lists packages skilld maintains skills for directly.
+See [official providers](/skills/official) for finished examples.
 
 ## Related
 

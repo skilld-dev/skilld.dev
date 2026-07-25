@@ -245,7 +245,7 @@ const registryLinks = [
               Find skills your AI agent can actually use.
             </h1>
             <p class="mt-6 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
-              Skills are reusable instructions for agents. Search by the job you need done, read the source, and install what fits.
+              Skills are instructions an agent can reuse. Tell us what you're working on, then check the source before you install anything.
             </p>
 
             <form
@@ -354,7 +354,7 @@ const registryLinks = [
               What are you trying to do?
             </h2>
             <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              Pick the job you need help with. Results can span several tools and maintainers.
+              Pick the job. The matching skills may span several tools and maintainers.
             </p>
           </div>
           <OutcomeClusterGrid aria-describedby="outcomes-description" />
@@ -385,7 +385,7 @@ const registryLinks = [
               Frontend design
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Help your agent make better frontend decisions, from accessible markup and motion to patterns that fit the framework.
+              Frontend skills covering accessibility, motion, and framework-specific component work.
             </p>
           </div>
           <UButton
@@ -598,11 +598,11 @@ const registryLinks = [
               Before you install
             </p>
             <h2 id="install-confidence-heading" class="home-confidence-title mt-4 text-balance">
-              Read the instructions and check who wrote them.
+              Check the source and the maintainer.
             </h2>
           </div>
           <p class="home-confidence-intro text-base leading-relaxed text-muted text-pretty">
-            Every skill links to its maintainer and source. Collections also explain why the curator grouped them.
+            Skill pages keep the maintainer and source attached. Collections add a note from the curator.
           </p>
         </div>
 
@@ -616,7 +616,7 @@ const registryLinks = [
               <div class="home-confidence-step-body home-confidence-inspect">
                 <div class="min-w-0">
                   <p class="data-label">
-                    Real collection example
+                    From the registry
                   </p>
                   <h3 class="home-confidence-collection-title mt-2 text-balance">
                     {{ leadCollection.name }}
@@ -768,10 +768,10 @@ const registryLinks = [
             Keep your agent current
           </p>
           <h2 id="freshness-heading" class="home-freshness-title mt-4 max-w-[15ch] font-semibold text-balance">
-            Check what changed.
+            See which sources changed.
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-            Recent updates come from source changes. New additions have their own list, since recency says nothing about quality.
+            Source changes and newly added skills have separate feeds. Newness gets no quality boost.
           </p>
         </header>
 
@@ -851,10 +851,10 @@ const registryLinks = [
             <div v-else class="home-freshness-state home-freshness-state--primary" role="status">
               <div>
                 <p class="font-medium">
-                  No recent updates yet.
+                  The update feed is quiet.
                 </p>
                 <p class="mt-1 max-w-md text-base leading-relaxed text-muted">
-                  Browse the registry while maintainers publish their next changes.
+                  No source changes have landed here yet.
                 </p>
                 <UButton to="/skills" label="Browse skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
               </div>
@@ -955,10 +955,10 @@ const registryLinks = [
             </ul>
             <div v-else class="home-freshness-state home-freshness-state--secondary" role="status">
               <p class="font-medium">
-                No new official skills yet.
+                No official skills added yet.
               </p>
               <p class="mt-1 text-base leading-relaxed text-muted">
-                Browse existing official publishers and their maintained skills.
+                You can still browse existing publishers.
               </p>
               <UButton to="/skills/official" label="View publishers" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
             </div>
@@ -986,11 +986,11 @@ const registryLinks = [
               Browse deeper
             </p>
             <h2 id="explore-registry-heading" class="home-section-title home-registry-title mt-4 text-balance">
-              Three ways into the registry.
+              Collections, search, or publishers.
             </h2>
           </div>
           <p class="home-registry-summary">
-            Use a collection for a ready-made setup. Search the full index for a specific job, or browse official publishers by name.
+            Want a full setup? Open Collections. Know the package or maintainer? Search the index. Official publishers have their own directory.
           </p>
         </div>
 
@@ -1047,11 +1047,11 @@ const registryLinks = [
               Contribute
             </p>
             <h2 id="publish-heading" class="home-section-title home-publish-title mt-4 text-balance">
-              Share what works for you.
+              Publish your own setup.
             </h2>
           </div>
           <p class="home-publish-summary">
-            Package maintainers can ship guidance with their code. Anyone can publish the set of skills they use for a particular job.
+            Maintain a package? Ship agent guidance with the code. Built a setup you rely on? Publish it as a collection.
           </p>
         </div>
 
@@ -1068,7 +1068,7 @@ const registryLinks = [
               <span class="home-publish-copy">
                 <span class="home-publish-path-title">Publish package skills</span>
                 <span class="home-publish-description">
-                  Keep agent guidance beside the package and version it with the code it explains.
+                  Ship agent guidance in the package, on the same release cycle as the code.
                 </span>
               </span>
               <span class="home-publish-action">
@@ -1089,7 +1089,7 @@ const registryLinks = [
               <span class="home-publish-copy">
                 <span class="home-publish-path-title">Publish a collection</span>
                 <span class="home-publish-description">
-                  Bundle the skills you reach for into one named set that anyone can inspect and install.
+                  Turn the skills you use into a collection others can open and install.
                 </span>
               </span>
               <span class="home-publish-action">

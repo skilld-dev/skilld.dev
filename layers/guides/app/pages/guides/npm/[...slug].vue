@@ -277,10 +277,10 @@ useSchemaOrg(() => {
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="font-medium text-sm">
-            Give your agent this upgrade
+            Run this upgrade with your agent
           </p>
           <p class="text-xs text-muted mt-0.5">
-            Install the {{ meta.packageName }} package skill, or hand the raw guide to your agent.
+            Install the {{ meta.packageName }} package skill, or paste the raw guide into your agent.
           </p>
         </div>
         <div class="flex items-center gap-2 shrink-0">

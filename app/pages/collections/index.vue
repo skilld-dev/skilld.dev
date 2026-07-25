@@ -113,7 +113,7 @@ const copyAnnouncement = computed(() => {
     <EditorialMasthead
       label="Collections"
       title="Install a set someone has already thought through."
-      description="Each collection tells you who made it, why the skills belong together, and where they came from. Install the set with one command."
+      description="Every collection has a curator note and links to the original repositories. If it fits your setup, install the set with one command."
       palette="ember"
       heading-id="collections-heading"
     >
@@ -121,15 +121,15 @@ const copyAnnouncement = computed(() => {
         <ol class="editorial-ledger list-none p-0">
           <li class="flex gap-3 py-3">
             <span class="data-label">01</span>
-            <span class="text-sm leading-relaxed">Read why the curator grouped these skills.</span>
+            <span class="text-sm leading-relaxed">Why did the curator group these skills?</span>
           </li>
           <li class="flex gap-3 py-3">
             <span class="data-label">02</span>
-            <span class="text-sm leading-relaxed">Open any source that looks unfamiliar.</span>
+            <span class="text-sm leading-relaxed">Who maintains the source?</span>
           </li>
           <li class="flex gap-3 py-3">
             <span class="data-label">03</span>
-            <span class="text-sm leading-relaxed">Copy the install command when the set fits.</span>
+            <span class="text-sm leading-relaxed">One command installs the set.</span>
           </li>
         </ol>
       </template>
@@ -231,13 +231,13 @@ const copyAnnouncement = computed(() => {
         <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
           <div class="mb-8">
             <p class="section-label">
-              Collections worth opening
+              Featured collections
             </p>
             <h2 id="featured-collections-heading" class="collections-section-title mt-3 max-w-[15ch]">
-              See the reasoning before the install command.
+              Read the curator's note first.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Each collection includes curator notes and a ready-to-copy command. Every skill still links to source.
+              Then check the source. If the set fits, the install command is ready.
             </p>
           </div>
 
@@ -380,7 +380,7 @@ const copyAnnouncement = computed(() => {
               More collections
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Recently updated, with the curator and their notes shown up front.
+              These were updated most recently. The curator's note stays visible.
             </p>
           </div>
           <p class="data-label">

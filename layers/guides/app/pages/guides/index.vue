@@ -12,7 +12,7 @@ const { data: guides } = await useFetch<GuideSummary[]>('/api/npm-guides')
 
 useSeoMeta({
   title: 'npm migration guides',
-  description: 'Step-by-step upgrade guides for popular npm packages, written for AI agents. Breaking changes, new features, and a migration checklist per package.',
+  description: 'Give an agent the exact changes it needs to upgrade an npm package.',
 })
 </script>
 
@@ -23,7 +23,7 @@ useSeoMeta({
         Migration guides
       </h1>
       <p class="mt-2 text-muted">
-        Upgrade guides for popular npm packages, written for AI agents to execute.
+        Give your agent the exact changes it needs for an npm package upgrade.
       </p>
     </header>
 

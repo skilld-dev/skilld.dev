@@ -90,7 +90,7 @@ export async function summariseChanges(input: SummariseInput): Promise<Summarise
     })
     .join('\n')
 
-  const systemPrompt = `You write one-sentence summaries of changes to AI agent skills for a weekly digest email.
+  const systemPrompt = `You write one-sentence summaries of changes to AI agent skills for a change digest email.
 
 For each repo with changes, return one sentence (max ~20 words) describing what changed and why a developer using this skill might care. Be concrete; no marketing fluff.
 
@@ -108,7 +108,7 @@ Output JSON only, no prose, with this exact shape:
     return `### ${c.owner}/${c.repo}: ${c.totalChangeCount} changes\nSkills:\n${skills}\n\nDiff excerpt:\n${c.diffExcerpt.slice(0, 3000) || '(SHA-only update; diff unavailable)'}`
   }).join('\n\n')
 
-  const userPrompt = `This week's changes:\n\n${changesBlock}`
+  const userPrompt = `Recent changes:\n\n${changesBlock}`
 
   const outcome = await input.ai.run(MODEL, {
     system: systemPrompt,

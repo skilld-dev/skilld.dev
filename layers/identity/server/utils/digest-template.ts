@@ -41,7 +41,7 @@ function fmtDate(epoch: number): string {
 export function renderDigest(input: DigestRenderInput): DigestRender {
   const { entries, unsubscribeUrl, windowStart, windowEnd, login } = input
   const repoLabel = entries.length === 1 ? '1 repo' : `${entries.length} repos`
-  const subject = `[skilld] ${repoLabel} updated this week`
+  const subject = `[skilld] ${repoLabel} changed`
 
   const itemsHtml = entries.map((e) => {
     const skillUrl = `https://skilld.dev/gh/${e.owner}/${e.repo}/${encodeURIComponent(e.skillNames[0]!)}`
@@ -84,7 +84,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
     <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="background:#fff;border:1px solid #eee;border-radius:8px;padding:24px;font-family:-apple-system,Segoe UI,Inter,Roboto,sans-serif;">
       <tr><td>
         <div style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:14px;color:#666;">skilld digest</div>
-        <h1 style="margin:6px 0 0 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;">Hey @${esc(login)}, ${repoLabel} you watch updated</h1>
+        <h1 style="margin:6px 0 0 0;font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;">Hey @${esc(login)}, ${repoLabel} you watch changed</h1>
         <div style="color:#999;font-size:12px;font-family:'IBM Plex Mono',ui-monospace,monospace;">${fmtDate(windowStart)} → ${fmtDate(windowEnd)}</div>
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:16px;">
           ${itemsHtml}
@@ -100,7 +100,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
 
   const text = `skilld digest: ${fmtDate(windowStart)} to ${fmtDate(windowEnd)}
 
-Hey @${login}, ${repoLabel} you watch updated:
+Hey @${login}, ${repoLabel} you watch changed:
 
 ${itemsText}
 

@@ -808,7 +808,7 @@ useHead(computed(() => ({
                   variant="solid"
                   color="primary"
                   size="xs"
-                  title="Published by the org behind this technology"
+                  title="Published by the organization that maintains this project"
                 />
               </div>
               <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-sm text-muted">
@@ -1250,7 +1250,7 @@ useHead(computed(() => ({
                   {{ data.resolutionStatus === 'path_missing' ? 'SKILL.md not found in source repository' : 'Could not load SKILL.md' }}
                 </p>
                 <p class="mt-1 text-muted">
-                  The skill is still in the registry with {{ data.installs.toLocaleString() }} installs, but the source file isn't where the registry expects it. The repo may have been restructured or the skill removed.
+                  The registry still has this skill and its {{ data.installs.toLocaleString() }} installs, but the source file moved or was removed.
                 </p>
                 <UButton
                   :href="data.githubUrl"
@@ -1281,7 +1281,7 @@ useHead(computed(() => ({
               {{ data.summary.text }}
             </p>
             <p class="mt-4 text-xs text-muted">
-              Generated from this skill's SKILL.md.
+              Based on the current SKILL.md.
             </p>
           </section>
 
@@ -1315,7 +1315,7 @@ useHead(computed(() => ({
               </details>
             </div>
             <p class="mt-3 text-xs text-muted">
-              Generated from the skill's SKILL.md. Refreshed when the source changes.
+              Based on the current SKILL.md. These answers refresh after source changes.
             </p>
           </section>
         </div>

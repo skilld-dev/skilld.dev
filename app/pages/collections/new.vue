@@ -69,7 +69,7 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
       Publish a collection
     </h1>
     <p class="mt-2 text-sm text-muted leading-relaxed">
-      Bundle the skills you reach for. Anyone can install the full set with one command.
+      Put the skills you use for one job in a collection. One command installs the set.
     </p>
 
     <div
@@ -165,7 +165,7 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
             >
             <input
               v-model="s.reason"
-              placeholder="why? (optional)"
+              placeholder="Why this skill? (optional)"
               class="flex-1 rounded border border-default bg-default px-2 py-1 text-xs"
             >
             <UButton

@@ -49,7 +49,7 @@ useSeoMeta({ title: 'Email opt-in · skilld', robots: 'noindex' })
       <label class="flex items-start gap-3 cursor-pointer">
         <input v-model="optIn" type="checkbox" class="mt-0.5">
         <span class="text-sm text-muted leading-relaxed">
-          Email me when watched repos have changes.
+          Email me when a watched repo changes.
         </span>
       </label>
 
