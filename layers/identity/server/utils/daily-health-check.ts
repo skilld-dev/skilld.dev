@@ -289,8 +289,14 @@ export function evaluateDailyHealthStatus(
     red.push(`${plural(summary.pipeline.staleReservedJobs, 'job')} remained reserved for over 15 minutes.`)
 
   const erroredSyncJobs = summary.pipeline.syncJobs.filter(job => job.status === 'error')
-  if (erroredSyncJobs.length)
-    red.push(`Scheduled tasks failed: ${erroredSyncJobs.map(job => job.name).join(', ')}.`)
+  if (erroredSyncJobs.length) {
+    // The task name alone does not tell the operator what to do. A rejected
+    // GitHub credential took the whole sync pipeline down for two days behind
+    // the reason "Scheduled tasks failed: sync-github-skills".
+    red.push(`Scheduled tasks failed: ${erroredSyncJobs
+      .map(job => (job.error ? `${job.name} (${job.error})` : job.name))
+      .join(', ')}.`)
+  }
   const staleSyncJobs = summary.pipeline.syncJobs.filter(job => job.stale)
   if (staleSyncJobs.length)
     red.push(`Scheduled tasks are stale: ${staleSyncJobs.map(job => job.name).join(', ')}.`)
@@ -319,10 +325,12 @@ export function evaluateDailyHealthStatus(
   if (summary.warnings.length > 0)
     amber.push(`${plural(summary.warnings.length, 'report probe')} failed.`)
 
-  if (red.length)
-    return { status: 'RED', reasons: red }
-  if (amber.length)
-    return { status: 'AMBER', reasons: amber }
+  // Report every finding, ordered by severity, rather than only the winning
+  // tier. Returning `red` alone meant one loud red hid every amber underneath
+  // it: on 2026-07-25 the sole reason was a front-door probe artefact while the
+  // GitHub sync had been failing for two days one severity level below.
+  if (red.length || amber.length)
+    return { status: red.length ? 'RED' : 'AMBER', reasons: [...red, ...amber] }
   return { status: 'GREEN', reasons: ['All monitored systems are healthy.'] }
 }
 

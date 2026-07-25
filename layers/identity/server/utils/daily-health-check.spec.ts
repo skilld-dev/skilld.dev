@@ -370,3 +370,64 @@ describe('frontDoorFetcher', () => {
     expect(evaluateDailyHealthStatus(summary({ frontDoor: result }))).toMatchObject({ status: 'RED' })
   })
 })
+
+describe('verdict reason completeness', () => {
+  // 2026-07-25: the operator email's only reason was "Homepage returned HTTP 522",
+  // a self-fetch artefact, while sync-github-skills was degrading underneath it.
+  // Amber reasons were computed and then discarded because a red existed, so the
+  // real problem stayed invisible for two days.
+  it('keeps amber reasons visible when the verdict is red', () => {
+    const input = summary({
+      frontDoor: { checks: [{ url: 'https://skilld.dev/', status: 522 }] },
+      pipeline: {
+        ...summary().pipeline,
+        syncJobs: [
+          { name: 'sync-github-skills', status: 'partial', lastRunAt: 1, stale: false, error: 'failed=4' },
+        ],
+        staleDirtySkills: 3,
+      },
+    })
+
+    const result = evaluateDailyHealthStatus(input)
+
+    expect(result.status).toBe('RED')
+    expect(result.reasons).toContain('Homepage returned HTTP 522.')
+    expect(result.reasons.some(r => r.includes('sync-github-skills'))).toBe(true)
+    expect(result.reasons.some(r => r.includes('dirty skill'))).toBe(true)
+  })
+
+  it('orders red reasons before amber ones', () => {
+    const input = summary({
+      activity: { ...summary().activity, digestsFailed24h: 1 },
+      pipeline: { ...summary().pipeline, staleDirtySkills: 1 },
+    })
+
+    const result = evaluateDailyHealthStatus(input)
+
+    expect(result.reasons[0]).toContain('digest delivery')
+    expect(result.reasons.at(-1)).toContain('dirty skill')
+  })
+
+  // A rejected credential took the whole GitHub pipeline down for two days.
+  // "Scheduled tasks failed: sync-github-skills" does not tell the operator to
+  // rotate a token, so the actionable error text has to reach the email.
+  it('names a rejected credential instead of only the task', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        syncJobs: [{
+          name: 'sync-github-skills',
+          status: 'error',
+          lastRunAt: 1,
+          stale: false,
+          error: 'github credential rejected (401): rotate GITHUB_TOKEN',
+        }],
+      },
+    })
+
+    const result = evaluateDailyHealthStatus(input)
+
+    expect(result.status).toBe('RED')
+    expect(result.reasons.some(r => r.includes('rotate GITHUB_TOKEN'))).toBe(true)
+  })
+})
