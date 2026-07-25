@@ -1,6 +1,6 @@
 ---
 title: How to ship an agent skill with your npm package
-description: Generate a SKILL.md from your package's docs, issues, and changelog, then publish it so every agent picks it up on install.
+description: Generate a SKILL.md from your package docs and ship it in the npm tarball.
 relatedPages:
   - path: /skills/guide
     title: Skills guide
@@ -55,7 +55,7 @@ You can also pick **Prompt only**, which writes the prompts into `.skilld/` with
 
 Pick a model on first run; skilld remembers it. Subsequent runs use the same model unless you pass `-m`.
 
-## The output, anatomized
+## What gets generated
 
 The generated SKILL.md has three parts: frontmatter, a references block, and the LLM-written body.
 
@@ -131,7 +131,7 @@ A common pattern is a release script that runs `skilld author package -y` after 
 
 It does not write your README. If your docs are thin, the skill will be thin. The LLM compresses what's there; it does not invent capabilities.
 
-It does not hide behind a service. Skills are markdown files in your repo. You can read them, edit them, commit them, and revert them like any other source file. The LLM is a code-gen step, not a runtime dependency.
+Skills stay as markdown files in your repo. You can read them, edit them, commit them, and revert them like any other source file. The LLM runs while generating those files; agents do not need it at runtime.
 
 If you want to see what a finished skill looks like before authoring one yourself, the [official providers](/skills/official) page lists packages skilld maintains skills for directly.
 

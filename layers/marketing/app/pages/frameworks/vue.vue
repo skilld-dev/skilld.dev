@@ -46,11 +46,11 @@ useSeoMeta({
   title: 'Skills for Vue',
   description: () => {
     if (!data.value)
-      return 'Curated agent skills for Vue components, composables, and reactivity.'
-    return `${data.value.totalSkills} agent skills for Vue, from ${data.value.topOwners.length}+ developers shipping in production.`
+      return 'Agent skills for Vue 3 components, composables, reactivity, and testing.'
+    return `Browse ${data.value.totalSkills} Vue agent skills from ${data.value.topOwners.length}+ maintainers. Every result links to source.`
   },
   ogTitle: 'Skills for Vue',
-  ogDescription: 'Curated agent skills for Vue components, composables, and reactivity.',
+  ogDescription: 'Agent skills for Vue 3 components, composables, reactivity, and testing.',
   ogUrl: canonicalUrl,
   twitterCard: 'summary_large_image',
 })
@@ -61,7 +61,7 @@ useHead({
 
 defineOgImage('Page.takumi', {
   title: 'Skills for Vue',
-  description: 'Curated agent skills for Vue components, composables, and reactivity.',
+  description: 'Agent skills for Vue 3 components, composables, reactivity, and testing.',
 }, {
   alt: 'Skills for Vue on skilld',
 })
@@ -184,7 +184,7 @@ useSchemaOrg(computed(() => {
           Skills for Vue
         </h1>
         <p class="mt-3 text-sm md:text-base text-muted leading-relaxed max-w-2xl">
-          Curated agent skills for Vue 3 components, composables, reactivity, and testing, from developers shipping in production.
+          Agent skills for Vue 3 components, composables, reactivity, and testing. Every result links to its SKILL.md source.
         </p>
         <div class="mt-5 flex items-center gap-3 flex-wrap">
           <span class="data-label">

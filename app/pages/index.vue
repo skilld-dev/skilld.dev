@@ -5,7 +5,7 @@ import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 
 const title = 'Curated skills for AI agents · skilld'
-const description = 'Find source-backed skills that give AI agents better ways to design, debug, test, and ship. Browse by task, inspect the source, and install with one command.'
+const description = 'Browse source-backed skills from open-source maintainers. Search by task, read the SKILL.md, and install with one command.'
 
 useSeoMeta({
   title,
@@ -242,10 +242,10 @@ const registryLinks = [
               Source-backed skills for AI agents
             </p>
             <h1 id="hero-heading" class="home-display home-display--split max-w-[11ch] font-semibold tracking-[-0.045em] text-balance">
-              Give your AI agent better ways to work.
+              Find skills your AI agent can actually use.
             </h1>
             <p class="mt-6 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
-              A skill is a reusable set of instructions for an agent. skilld helps you find curated skills from open-source maintainers for designing, debugging, testing, shipping, and more.
+              Skills are reusable instructions for agents. Search by the job you need done, read the source, and install what fits.
             </p>
 
             <form
@@ -286,7 +286,7 @@ const registryLinks = [
                 class="min-h-11"
               />
               <p class="font-mono text-xs text-muted">
-                Inspect the source · install with one command · update when it changes
+                Every listing links to source. Install with one command.
               </p>
             </div>
           </div>
@@ -348,13 +348,13 @@ const registryLinks = [
         <div class="grid gap-8 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] lg:gap-12">
           <div class="home-outcomes-intro">
             <p class="section-label">
-              Find a useful starting point
+              Browse by outcome
             </p>
             <h2 id="outcomes-heading" class="home-outcomes-title mt-4 max-w-[12ch] font-semibold text-balance">
               What are you trying to do?
             </h2>
             <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              Start with the outcome. Each path gathers skills that solve the same kind of problem, even when they come from different maintainers.
+              Pick the job you need help with. Results can span several tools and maintainers.
             </p>
           </div>
           <OutcomeClusterGrid aria-describedby="outcomes-description" />
@@ -385,7 +385,7 @@ const registryLinks = [
               Frontend design
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Skills for giving agents stronger visual judgment, accessible defaults, purposeful motion, and framework-native frontend habits.
+              Help your agent make better frontend decisions, from accessible markup and motion to patterns that fit the framework.
             </p>
           </div>
           <UButton
@@ -565,7 +565,7 @@ const registryLinks = [
             No featured skill sets yet.
           </p>
           <p class="mt-1 text-base text-muted">
-            Browse individual skills while the next editorial focus is being assembled.
+            Browse individual skills instead.
           </p>
           <UButton
             to="/skills"
@@ -595,14 +595,14 @@ const registryLinks = [
         <div class="home-confidence-heading">
           <div class="min-w-0">
             <p class="section-label">
-              Install with confidence
+              Before you install
             </p>
             <h2 id="install-confidence-heading" class="home-confidence-title mt-4 text-balance">
-              Know what you are giving your agent.
+              Read the instructions and check who wrote them.
             </h2>
           </div>
           <p class="home-confidence-intro text-base leading-relaxed text-muted text-pretty">
-            Every skill keeps its maintainer and source attached. Collections add the editorial reason, so you can inspect the instructions before installing them.
+            Every skill links to its maintainer and source. Collections also explain why the curator grouped them.
           </p>
         </div>
 
@@ -768,10 +768,10 @@ const registryLinks = [
             Keep your agent current
           </p>
           <h2 id="freshness-heading" class="home-freshness-title mt-4 max-w-[15ch] font-semibold text-balance">
-            See what changed, then decide what matters.
+            Check what changed.
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-            Updates show maintained skills. New additions show what has entered the registry, without treating newness as a quality score.
+            Recent updates come from source changes. New additions have their own list, since recency says nothing about quality.
           </p>
         </header>
 
@@ -986,11 +986,11 @@ const registryLinks = [
               Browse deeper
             </p>
             <h2 id="explore-registry-heading" class="home-section-title home-registry-title mt-4 text-balance">
-              Choose the route that fits the work.
+              Three ways into the registry.
             </h2>
           </div>
           <p class="home-registry-summary">
-            Start with a curated set, search the full index, or trace skills back to an official publisher.
+            Use a collection for a ready-made setup. Search the full index for a specific job, or browse official publishers by name.
           </p>
         </div>
 
@@ -1044,14 +1044,14 @@ const registryLinks = [
         <div class="home-publish-intro">
           <div>
             <p class="section-label">
-              Add your judgment
+              Contribute
             </p>
             <h2 id="publish-heading" class="home-section-title home-publish-title mt-4 text-balance">
-              Make the registry more useful.
+              Share what works for you.
             </h2>
           </div>
           <p class="home-publish-summary">
-            Maintainers can ship current guidance with their package. Practitioners can collect the skills they rely on into an installable setup.
+            Package maintainers can ship guidance with their code. Anyone can publish the set of skills they use for a particular job.
           </p>
         </div>
 

@@ -4,7 +4,7 @@ import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { getTaskEnv } from '#shared/server/task-env'
-import { buildDailyHealthCheck, sendDailyHealthCheck } from '../utils/daily-health-check'
+import { buildDailyHealthCheck, frontDoorFetcher, sendDailyHealthCheck } from '../utils/daily-health-check'
 import { sendEmailWithEnv } from '../utils/email'
 
 const CRON = '0 22 * * *'
@@ -49,6 +49,7 @@ export default defineScheduledTask({
         to,
         build: (database, options) => buildDailyHealthCheck(database, {
           ...options,
+          fetcher: frontDoorFetcher(env),
           workerVersion: workerVersion(env),
         }),
         send: input => sendEmailWithEnv(env, { ...input, from }),

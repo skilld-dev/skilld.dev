@@ -15,7 +15,10 @@ async function watchNow() {
   const res = await $fetch<{ ok: boolean }>('/api/me/subscriptions', {
     method: 'POST',
     body: { source: 'manual', repos: [{ owner: props.owner, repo: props.repo }] },
-  }).catch(() => null)
+  }).catch((error) => {
+    console.warn(`[watch-skill] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
   submitting.value = false
   if (res?.ok)
     watched.value = true

@@ -100,7 +100,10 @@ export async function requireUserRow(event: H3Event): Promise<UserRow> {
   // Cookie session (nuxt-auth-utils) OR bearer-resolved user populated by
   // `defineApiHandler` on `event.context.user`. Bearer path must be honored
   // here so the CLI can hit any `/me/*` endpoint that uses requireUserRow.
-  const session = await getUserSession(event).catch(() => null)
+  const session = await getUserSession(event).catch((error) => {
+    console.warn(`[user-session] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
   const ctxUser = event.context.user as { id?: number } | undefined
   const id = (session?.user as { id?: number } | undefined)?.id ?? ctxUser?.id
   if (!id)

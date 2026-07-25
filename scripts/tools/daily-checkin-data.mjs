@@ -2,6 +2,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseSentryIssuesResponse } from './sentry-observability.mjs'
@@ -129,10 +130,15 @@ const http = await probeAsync(async () => {
     'https://skilld.dev/skills',
     'https://skilld.dev/guides',
   ].map(async (url) => {
+    // A transport failure is itself a front-door result, so it becomes a null
+    // status the report prints rather than an exception that kills the probe.
     const hit = async () => await fetch(url, {
       redirect: 'follow',
       signal: AbortSignal.timeout(15_000),
-    }).then(response => response.status).catch(() => null)
+    }).then(response => response.status).catch((error) => {
+      console.warn(`[http] ${url} ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     const firstAttempt = await hit()
     if (firstAttempt === 200)
       return [url, 200]
@@ -252,23 +258,40 @@ const workers = await probeAsync(async () => {
   }
 })
 
+// Token sources in descending order of read scope. `.env.sentry-build-plugin`
+// holds the build-plugin token, which only carries source-map upload scope and
+// 403s on the issues API, so it is the last resort rather than the first.
+function sentryToken() {
+  if (process.env.SENTRY_AUTH_TOKEN)
+    return { token: process.env.SENTRY_AUTH_TOKEN, source: 'SENTRY_AUTH_TOKEN env' }
+
+  const rcPath = join(homedir(), '.sentryclirc')
+  if (existsSync(rcPath)) {
+    const rcToken = readFileSync(rcPath, 'utf8').match(/^token\s*=\s*(\S+)/m)?.[1]
+    if (rcToken)
+      return { token: rcToken, source: '~/.sentryclirc' }
+  }
+
+  const buildPluginPath = join(root, '.env.sentry-build-plugin')
+  if (existsSync(buildPluginPath)) {
+    const buildToken = readFileSync(buildPluginPath, 'utf8').match(/^SENTRY_AUTH_TOKEN=(\S+)/m)?.[1]
+    if (buildToken)
+      return { token: buildToken, source: '.env.sentry-build-plugin' }
+  }
+
+  return null
+}
+
 const sentry = await (async () => {
-  const tokenFile = join(root, '.env.sentry-build-plugin')
-  if (!existsSync(tokenFile)) {
+  const resolved = sentryToken()
+  if (!resolved) {
     return {
       _tag: 'missing_observability',
       status: null,
-      diagnostic: '.env.sentry-build-plugin missing',
+      diagnostic: 'No Sentry token found in SENTRY_AUTH_TOKEN, ~/.sentryclirc, or .env.sentry-build-plugin.',
     }
   }
-  const token = readFileSync(tokenFile, 'utf8').match(/^SENTRY_AUTH_TOKEN=(\S+)/m)?.[1]
-  if (!token) {
-    return {
-      _tag: 'missing_observability',
-      status: null,
-      diagnostic: 'SENTRY_AUTH_TOKEN missing from .env.sentry-build-plugin',
-    }
-  }
+  const { token, source: tokenSource } = resolved
   const query = encodeURIComponent(`project:skilld is:unresolved firstSeen:>${sinceIso.slice(0, 19)}`)
   const response = await fetch(`https://sentry.io/api/0/organizations/harlan-zw/issues/?query=${query}&sort=freq&limit=10`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -292,7 +315,7 @@ const sentry = await (async () => {
       diagnostic: `Sentry issues response was not JSON: ${issues.parseError}`,
     }
   }
-  return parseSentryIssuesResponse(response.status, issues)
+  return parseSentryIssuesResponse(response.status, issues, tokenSource)
 })().catch(error => ({
   _tag: 'provider_failure',
   status: null,

@@ -153,6 +153,11 @@ export default defineScheduledTask({
         if (stats.rateLimitRemaining != null && stats.rateLimitRemaining < lowestRemaining)
           lowestRemaining = stats.rateLimitRemaining
 
+        // An unauthorized credential fails every remaining repo identically, so
+        // stop the cycle instead of burning the whole candidate list on it.
+        if (stats.status === 'unauthorized')
+          aborted = true
+
         if (stats.status === 'rate-limited' || (stats.rateLimitRemaining != null && stats.rateLimitRemaining < RATE_LIMIT_GUARD))
           aborted = true
 
@@ -185,6 +190,7 @@ export default defineScheduledTask({
         reposCandidateStateFailed: 0,
         reposFailed: 0,
         reposRateLimited: 0,
+        reposUnauthorized: 0,
         skillsUpserted: 0,
         revisionsInserted: 0,
         activityEmitted: 0,
@@ -248,6 +254,9 @@ export default defineScheduledTask({
         else if (stats.status === 'rate-limited') {
           summary.reposRateLimited += 1
         }
+        else if (stats.status === 'unauthorized') {
+          summary.reposUnauthorized += 1
+        }
         else {
           summary.reposSkipped += 1
         }
@@ -262,14 +271,23 @@ export default defineScheduledTask({
       if (failures.length)
         console.warn('[sync-github-skills] failures', failures)
 
-      const status = summary.reposFailed > 0 || summary.reposRateLimited > 0
-        ? (summary.reposIndexed > 0 || summary.reposVerifiedOnly > 0 ? 'partial' : 'error')
-        : 'ok'
+      // A rejected credential is reported on its own so the operator sees the
+      // cause instead of a failure count that names ten innocent repositories.
+      const status = summary.reposUnauthorized > 0
+        ? 'error'
+        : summary.reposFailed > 0 || summary.reposRateLimited > 0
+          ? (summary.reposIndexed > 0 || summary.reposVerifiedOnly > 0 ? 'partial' : 'error')
+          : 'ok'
+      const error = summary.reposUnauthorized > 0
+        ? 'github credential rejected (401): rotate GITHUB_TOKEN'
+        : status === 'ok'
+          ? null
+          : `failed=${summary.reposFailed} rate-limited=${summary.reposRateLimited}`
       await reportJobRun(db, 'sync-github-skills', {
         cron: CRON,
         status,
         durationMs: elapsedMs,
-        error: status === 'ok' ? null : `failed=${summary.reposFailed} rate-limited=${summary.reposRateLimited}`,
+        error,
       })
 
       return { result: { ...summary, elapsedMs, rateLimitLowest: lowestRemainingDisplay, failures } }

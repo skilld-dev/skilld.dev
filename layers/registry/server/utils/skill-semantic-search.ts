@@ -61,14 +61,20 @@ export async function semanticSkillSearch(event: H3Event, query: string, topK = 
   if (!ai || !vectorize)
     return null
 
-  const embed = await ai.run(EMBEDDING_MODEL, { text: [query] }).catch(() => null)
+  const embed = await ai.run(EMBEDDING_MODEL, { text: [query] }).catch((error) => {
+    console.warn(`[semantic-search] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
   const vec = (embed as { data?: number[][] } | null)?.data?.[0]
   if (!vec || vec.length !== VECTORIZE_DIM)
     return null
 
   const res = await vectorize
     .query(vec, { topK, returnValues: false, returnMetadata: 'none' })
-    .catch(() => null)
+    .catch((error) => {
+      console.warn(`[semantic-search] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
   if (!res?.matches?.length)
     return []
 

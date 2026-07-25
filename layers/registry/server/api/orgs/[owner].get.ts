@@ -63,7 +63,10 @@ async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerR
       'User-Agent': 'skilld.dev',
       'Accept': 'application/vnd.github+json',
     },
-  }).catch(() => null)
+  }).catch((error) => {
+    console.warn(`[orgs] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
 
   if (!res || !res.ok) {
     if (res?.status === 404) {
@@ -181,7 +184,10 @@ export default defineCachedEventHandler(async (event) => {
       r.description = cached
       return
     }
-    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${owner}/${r.repo}`).catch(() => null)
+    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${owner}/${r.repo}`).catch((error) => {
+      console.warn(`[orgs] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     const desc = data?.repo?.description?.trim() || null
     await useStorage('cache').setItem(cacheKey, desc, { ttl: 60 * 60 * 6 })
     r.description = desc

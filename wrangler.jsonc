@@ -27,6 +27,14 @@
   "send_email": [
     { "name": "EMAIL" }
   ],
+  // Self binding for the daily health check's front-door probe. A plain
+  // fetch('https://skilld.dev/') from inside this Worker leaves the runtime and
+  // comes back 522, which pinned the operator email RED while real traffic was
+  // fine. SELF.fetch dispatches straight to this Worker's fetch handler, so the
+  // probe measures whether the app still renders instead of the loopback path.
+  "services": [
+    { "binding": "SELF", "service": "skilld-dev" }
+  ],
   "ai": {
     "binding": "AI",
     "remote": true

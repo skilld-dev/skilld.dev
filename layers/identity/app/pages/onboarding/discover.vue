@@ -92,6 +92,8 @@ onMounted(() => {
   preselectAll()
 })
 
+const actionFailed = useActionFailure()
+
 const submitting = ref(false)
 async function watchSelected() {
   if (!selected.value.size) {
@@ -106,7 +108,7 @@ async function watchSelected() {
   await $fetch('/api/me/subscriptions', {
     method: 'POST',
     body: { source: 'star-import', repos },
-  }).catch(() => null)
+  }).catch(actionFailed('start watching those repos'))
   submitting.value = false
   await navigateTo('/onboarding/cadence')
 }

@@ -46,11 +46,11 @@ useSeoMeta({
   title: 'Skills for Next.js',
   description: () => {
     if (!data.value)
-      return 'Curated agent skills for Next.js app router, server components, and routing.'
-    return `${data.value.totalSkills} agent skills for Next.js, from ${data.value.topOwners.length}+ developers shipping in production.`
+      return 'Agent skills for the Next.js App Router, Server Components, caching, and routing.'
+    return `Browse ${data.value.totalSkills} Next.js agent skills from ${data.value.topOwners.length}+ maintainers. Every result links to source.`
   },
   ogTitle: 'Skills for Next.js',
-  ogDescription: 'Curated agent skills for Next.js app router, server components, and routing.',
+  ogDescription: 'Agent skills for the Next.js App Router, Server Components, caching, and routing.',
   ogUrl: canonicalUrl,
   twitterCard: 'summary_large_image',
 })
@@ -61,7 +61,7 @@ useHead({
 
 defineOgImage('Page.takumi', {
   title: 'Skills for Next.js',
-  description: 'Curated agent skills for Next.js app router, server components, and routing.',
+  description: 'Agent skills for the Next.js App Router, Server Components, caching, and routing.',
 }, {
   alt: 'Skills for Next.js on skilld',
 })
@@ -184,7 +184,7 @@ useSchemaOrg(computed(() => {
           Skills for Next.js
         </h1>
         <p class="mt-3 text-sm md:text-base text-muted leading-relaxed max-w-2xl">
-          Curated agent skills for Next.js app router, server components, caching, and modern routing, from developers shipping in production.
+          Agent skills for the Next.js App Router, Server Components, caching, and routing. Every result links to its SKILL.md source.
         </p>
         <div class="mt-5 flex items-center gap-3 flex-wrap">
           <span class="data-label">

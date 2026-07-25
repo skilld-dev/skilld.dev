@@ -38,13 +38,15 @@ const tzItems = computed(() => {
   return [...new Set(zones)].map(z => ({ value: z, label: z }))
 })
 
+const actionFailed = useActionFailure()
+
 const submitting = ref(false)
 async function save() {
   submitting.value = true
   await $fetch('/api/me/cadence', {
     method: 'PATCH',
     body: { frequency: frequency.value, dow: dow.value, hour: hour.value, timezone: timezone.value },
-  }).catch(() => null)
+  }).catch(actionFailed('save your digest schedule'))
   submitting.value = false
   await navigateTo('/onboarding/email')
 }
@@ -59,7 +61,7 @@ useSeoMeta({ title: 'Choose your cadence · skilld', robots: 'noindex' })
       Digest email schedule
     </h1>
     <p class="mt-2 text-sm text-muted">
-      A "digest" is a single email summarising recent SKILL.md changes across the repos you watch. Choose how often you'd like it.
+      A digest combines recent SKILL.md changes from the repos you watch. Choose how often it arrives.
     </p>
 
     <div class="mt-6 space-y-4">

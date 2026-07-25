@@ -336,6 +336,23 @@ const FRONT_DOOR_MAX_ATTEMPTS = 3
 const FRONT_DOOR_RETRY_DELAY_MS = 1_500
 const realSleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 
+// A plain fetch to https://skilld.dev/ from inside this Worker leaves the
+// runtime, fails to route back, and returns 522 every time, which pinned the
+// operator email RED for days while real traffic served fine. The SELF service
+// binding dispatches straight to this Worker's fetch handler, so the probe
+// answers "does the app still render" instead of measuring the loopback. It
+// deliberately skips DNS, TLS, and the edge; those belong to an external prober.
+// A missing binding rejects rather than falling back to the public URL, because
+// a silent fallback would reintroduce the 522 that made this report untrustworthy.
+export function frontDoorFetcher(env: { SELF?: Fetcher }): typeof fetch {
+  const self = env.SELF
+  if (!self) {
+    console.warn('[daily-health-check] SELF service binding missing; front door cannot be probed')
+    return () => Promise.reject(new Error('SELF service binding not configured'))
+  }
+  return ((input, init) => self.fetch(input as RequestInfo, init as RequestInit)) as typeof fetch
+}
+
 export interface FrontDoorProbeOptions {
   attempts?: number
   retryDelayMs?: number
@@ -345,6 +362,8 @@ export interface FrontDoorProbeOptions {
 // Front door probes retry before settling: a single transient 522/timeout must
 // not flip the whole operator report RED. A 200 on any attempt passes; a status
 // that never reaches 200 is reported as-is so a sustained outage still escalates.
+// In production the caller passes the SELF service binding as the fetcher, since
+// a public-URL fetch from inside this Worker never routes back and always 522s.
 export async function loadFrontDoor(
   fetcher: typeof fetch,
   options: FrontDoorProbeOptions = {},
@@ -355,10 +374,16 @@ export async function loadFrontDoor(
   const checks = await Promise.all(FRONT_DOOR_URLS.map(async (url) => {
     let status: number | null = null
     for (let attempt = 1; attempt <= attempts; attempt++) {
+      // A transport failure is a front-door result, not an exception: null is
+      // carried into the report so the operator sees "no response" instead of
+      // the probe collapsing the whole summary.
       status = await fetcher(url, {
         redirect: 'follow',
         signal: AbortSignal.timeout(15_000),
-      }).then(response => response.status).catch(() => null)
+      }).then(response => response.status).catch((error) => {
+        console.warn(`[health-check] ${url} attempt ${attempt}: ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
       if (status === 200)
         break
       if (attempt < attempts)

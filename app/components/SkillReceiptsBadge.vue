@@ -8,7 +8,7 @@ const { compact = false } = defineProps<{
 <template>
   <span
     class="inline-flex items-center gap-1 font-mono text-xs text-muted"
-    title="Verifiable provenance available — view receipts on the skill page"
+    title="Verifiable provenance available. View receipts on the skill page."
   >
     <UIcon
       name="i-lucide-shield-check"

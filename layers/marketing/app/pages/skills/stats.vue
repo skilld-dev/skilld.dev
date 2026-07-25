@@ -3,7 +3,7 @@ import type { SkillsStats } from '#layers/registry/server/api/skills/stats.get'
 
 useSeoMeta({
   title: 'Stats',
-  description: 'Trust signals across the registry: star distribution, maintenance, age, top owners, installs vs stars, and skills per repo.',
+  description: 'Six charts covering repository age, maintenance, stars, installs, owners, and skill counts.',
 })
 
 defineOgImage('Page.takumi', {
@@ -59,7 +59,7 @@ const summaryMetrics = computed(() => {
         Stats
       </h1>
       <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
-        Trust signals across the registry. Six views on what to install and who to follow.
+        Six charts on repository age, maintenance, stars, installs, owners, and how skills are distributed.
       </p>
     </section>
 

@@ -99,20 +99,30 @@ function pickSkills(): SkillPick[] {
   throw new Error('pass --slug, --slugs-file, or --all')
 }
 
+// Prototype fetches degrade to null so one unreachable repo does not stop the
+// batch, but the reason has to reach the operator or a run of empty results
+// looks like "no skills found" instead of "the network was down".
+function warnNull(label: string) {
+  return (error: unknown) => {
+    console.warn(`[${label}] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }
+}
+
 async function fetchSkillMd(owner: string, repo: string, name: string): Promise<{ raw: string, description: string | null } | null> {
   // Ungh finds the default branch; once known, hit raw.githubusercontent.
-  const meta = await fetch(`https://ungh.cc/repos/${owner}/${repo}`).then(r => r.json() as Promise<{ repo?: { defaultBranch: string, description: string | null } }>).catch(() => null)
+  const meta = await fetch(`https://ungh.cc/repos/${owner}/${repo}`).then(r => r.json() as Promise<{ repo?: { defaultBranch: string, description: string | null } }>).catch(warnNull(`repo meta ${owner}/${repo}`))
   if (!meta?.repo)
     return null
   const branch = meta.repo.defaultBranch
-  const tree = await fetch(`https://ungh.cc/repos/${owner}/${repo}/files/${branch}`).then(r => r.json() as Promise<{ files?: { path: string }[] }>).catch(() => null)
+  const tree = await fetch(`https://ungh.cc/repos/${owner}/${repo}/files/${branch}`).then(r => r.json() as Promise<{ files?: { path: string }[] }>).catch(warnNull(`repo tree ${owner}/${repo}@${branch}`))
   const skillFiles = tree?.files?.filter(f => f.path.endsWith('SKILL.md')) ?? []
   const hit
     = skillFiles.find(f => f.path.endsWith(`/${name}/SKILL.md`) || f.path === `${name}/SKILL.md`)
       ?? (skillFiles.length === 1 ? skillFiles[0] : skillFiles.find(f => f.path.split('/').includes(name)))
   if (!hit)
     return null
-  const raw = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${hit.path}`).then(r => r.text()).catch(() => null)
+  const raw = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${hit.path}`).then(r => r.text()).catch(warnNull(`SKILL.md ${owner}/${repo}/${hit.path}`))
   if (!raw)
     return null
   return { raw, description: meta.repo.description }

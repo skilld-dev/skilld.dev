@@ -164,13 +164,13 @@ defineOgImage('Page.takumi', {
         <div class="grid gap-8 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:gap-12">
           <div>
             <p class="section-label">
-              A useful starting sequence
+              A quick first pass
             </p>
             <h2 id="starting-sequence-heading" class="cluster-section-title mt-4 max-w-[13ch]">
-              Start with these three.
+              Open these three first.
             </h2>
             <p class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              These source-backed skills lead this outcome group. Read each description, then inspect the repository before installing.
+              These are the first matches in this group. Read each description and open the source before installing.
             </p>
           </div>
 
@@ -216,13 +216,13 @@ defineOgImage('Page.takumi', {
       <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p class="section-label">
-            Full outcome directory
+            All matching skills
           </p>
           <h2 id="cluster-directory-heading" class="cluster-section-title mt-3">
-            Explore every matching skill.
+            Browse the rest.
           </h2>
           <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted">
-            Grouped by the work they help with. Install counts are context, not an editorial ranking.
+            These all target the same kind of work. Install counts provide context only.
           </p>
         </div>
         <p class="data-label">
@@ -249,7 +249,7 @@ defineOgImage('Page.takumi', {
           No skills here yet.
         </p>
         <p class="mt-1 text-base text-muted">
-          Browse another outcome while this group is being prepared.
+          Try another outcome. This one has no indexed skills yet.
         </p>
         <UButton
           to="/skills"

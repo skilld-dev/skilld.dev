@@ -46,11 +46,11 @@ useSeoMeta({
   title: 'Skills for React',
   description: () => {
     if (!data.value)
-      return 'Curated agent skills for React components, hooks, and modern patterns.'
-    return `${data.value.totalSkills} agent skills for React, from ${data.value.topOwners.length}+ developers shipping in production.`
+      return 'Agent skills for React components, hooks, state management, and current patterns.'
+    return `Browse ${data.value.totalSkills} React agent skills from ${data.value.topOwners.length}+ maintainers. Every result links to source.`
   },
   ogTitle: 'Skills for React',
-  ogDescription: 'Curated agent skills for React components, hooks, and modern patterns.',
+  ogDescription: 'Agent skills for React components, hooks, state management, and current patterns.',
   ogUrl: canonicalUrl,
   twitterCard: 'summary_large_image',
 })
@@ -61,7 +61,7 @@ useHead({
 
 defineOgImage('Page.takumi', {
   title: 'Skills for React',
-  description: 'Curated agent skills for React components, hooks, and modern patterns.',
+  description: 'Agent skills for React components, hooks, state management, and current patterns.',
 }, {
   alt: 'Skills for React on skilld',
 })
@@ -184,7 +184,7 @@ useSchemaOrg(computed(() => {
           Skills for React
         </h1>
         <p class="mt-3 text-sm md:text-base text-muted leading-relaxed max-w-2xl">
-          Curated agent skills for React components, hooks, state management, and modern patterns, from developers shipping in production.
+          Agent skills for React components, hooks, state management, and current patterns. Every result links to its SKILL.md source.
         </p>
         <div class="mt-5 flex items-center gap-3 flex-wrap">
           <span class="data-label">

@@ -3,12 +3,12 @@ import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 
 useSeoMeta({
   title: 'Find skills for your AI agent',
-  description: 'Start with the work you need done, then inspect source-backed agent skills from open-source developers and official publishers.',
+  description: 'Search agent skills by task, maintainer, package, or tag. Every result links to its source.',
 })
 
 defineOgImage('Page.takumi', {
   title: 'Skills',
-  description: 'Browse curated skills from official providers and the wider community.',
+  description: 'Search the skill registry by task, package, maintainer, or tag.',
 }, { alt: 'Skills on skilld' })
 
 const route = useRoute()
@@ -168,8 +168,8 @@ function clearOwner() {
   <div class="overflow-clip">
     <EditorialMasthead
       label="Skill registry"
-      title="Find the right skill for the work in front of you."
-      description="Start with an outcome, a maintainer you trust, or a precise search. Every result leads back to source you can inspect before you install."
+      title="Search the skill registry."
+      description="Search by task, maintainer, package, or tag. Open any result to read its source before installing."
       palette="rose"
       heading-id="skills-heading"
     >
@@ -177,15 +177,15 @@ function clearOwner() {
         <ol class="editorial-ledger list-none p-0">
           <li class="flex gap-3 py-3">
             <span class="data-label">01</span>
-            <span class="text-sm leading-relaxed">Choose the outcome you need.</span>
+            <span class="text-sm leading-relaxed">Search for the job you need done.</span>
           </li>
           <li class="flex gap-3 py-3">
             <span class="data-label">02</span>
-            <span class="text-sm leading-relaxed">Check the author and source path.</span>
+            <span class="text-sm leading-relaxed">Read the source and check who wrote it.</span>
           </li>
           <li class="flex gap-3 py-3">
             <span class="data-label">03</span>
-            <span class="text-sm leading-relaxed">Inspect, install, then watch for changes.</span>
+            <span class="text-sm leading-relaxed">Install it, then watch the repo for changes.</span>
           </li>
         </ol>
       </template>
@@ -411,7 +411,7 @@ function clearOwner() {
         <div class="grid gap-8 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] lg:gap-12">
           <div>
             <p class="section-label">
-              Start with the work
+              Browse by task
             </p>
             <h2 id="skills-outcomes-heading" class="skills-section-title mt-4 max-w-[13ch]">
               What should your agent get better at?
@@ -571,13 +571,13 @@ function clearOwner() {
         <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p class="section-label">
-              Maintainer-led starting points
+              Skills from working developers
             </p>
             <h2 id="developers-heading" class="skills-section-title mt-3 max-w-[17ch]">
-              Follow the judgment behind the skill.
+              Browse by maintainer.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Start with developers whose work you already trust, then inspect the source and the rest of their stack.
+              Know whose work you trust? Start there, then open the skill's source before you install it.
             </p>
           </div>
           <UButton
@@ -660,13 +660,13 @@ function clearOwner() {
           <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="section-label">
-                Direct from the source
+                Official publishers
               </p>
               <h2 id="official-heading" class="skills-section-title mt-3 max-w-[16ch]">
-                Skills from the teams building your tools.
+                Guidance from the teams behind the tools.
               </h2>
               <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-                Use official guidance when the framework, platform, or product itself should define the defaults.
+                Use these when you want the framework or platform's own defaults.
               </p>
             </div>
             <UButton

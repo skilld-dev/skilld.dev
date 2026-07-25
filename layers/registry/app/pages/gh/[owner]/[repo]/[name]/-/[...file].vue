@@ -70,7 +70,7 @@ watch(
   { immediate: true },
 )
 
-const pageTitle = computed(() => `${fileName.value} — ${name.value}`)
+const pageTitle = computed(() => `${fileName.value} · ${name.value}`)
 useSeoMeta({
   title: () => pageTitle.value,
   description: () => `Reference file from the ${name.value} skill by ${owner.value}.`,

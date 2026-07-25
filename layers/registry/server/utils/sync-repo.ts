@@ -11,7 +11,7 @@ import { resolveSkillTrust } from './skill-trust'
 export interface SyncRepoStats {
   owner: string
   repo: string
-  status: 'indexed' | 'verified-only' | 'rejected' | 'skipped-pushed-at' | 'skipped-tree-sha' | 'failed' | 'rate-limited'
+  status: 'indexed' | 'verified-only' | 'rejected' | 'skipped-pushed-at' | 'skipped-tree-sha' | 'failed' | 'rate-limited' | 'unauthorized'
   reason?: string
   skillsSeen: number
   skillsUpserted: number
@@ -286,6 +286,15 @@ export async function syncRepo(
   logRateLimit(`repo ${owner}/${repo}`, repoRes.rateLimit)
   if (repoRes.rateLimit)
     stats.rateLimitRemaining = repoRes.rateLimit.remaining
+
+  // A 401 is the credential, not the repository. Reporting it per repo made an
+  // expired GITHUB_TOKEN look like ten unrelated repo failures that repeated
+  // every hour, so it gets its own status the caller can bail on.
+  if (repoRes.status === 401) {
+    stats.status = 'unauthorized'
+    stats.reason = 'github credential rejected (401)'
+    return stats
+  }
 
   if (repoRes.status === 403 || repoRes.status === 429) {
     stats.status = 'rate-limited'

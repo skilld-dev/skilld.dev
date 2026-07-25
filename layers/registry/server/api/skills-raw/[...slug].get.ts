@@ -32,12 +32,18 @@ export default defineApiHandler({
 
     const repoMeta = await $fetch<{ defaultBranch?: string }>(
       `https://ungh.cc/repos/${skill.owner}/${skill.repo}`,
-    ).catch(() => null)
+    ).catch((error) => {
+      console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     const branch = repoMeta?.defaultBranch || 'main'
 
     const treeRes = await $fetch<{ files?: { path: string }[] }>(
       `https://ungh.cc/repos/${skill.owner}/${skill.repo}/files/${branch}`,
-    ).catch(() => null)
+    ).catch((error) => {
+      console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
 
     const files = treeRes?.files ?? []
     const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -57,7 +63,10 @@ export default defineApiHandler({
     }
 
     const rawUrl = `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/${branch}/${skillPath}`
-    const body = await $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => null)
+    const body = await $fetch<string>(rawUrl, { responseType: 'text' }).catch((error) => {
+      console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
 
     if (!body) {
       await useStorage('cache').setItem(

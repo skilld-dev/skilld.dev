@@ -7,13 +7,20 @@ import {
 describe('sentry observability', () => {
   it('makes HTTP 403 visible and never interprets it as zero issues', () => {
     const result = parseSentryIssuesResponse(403, { detail: 'Forbidden' })
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       _tag: 'missing_observability',
       status: 403,
-      diagnostic: 'Sentry authorization failed with HTTP 403.',
     })
+    expect(result.diagnostic).toContain('lacks issue-read permission')
     expect(countObservabilityFailures(result)).toBe(1)
     expect(result).not.toHaveProperty('newIssues')
+  })
+
+  it('names the token source so a scope failure is actionable', () => {
+    const result = parseSentryIssuesResponse(403, { detail: 'Forbidden' }, '.env.sentry-build-plugin')
+    expect(result.diagnostic).toContain('Token came from .env.sentry-build-plugin.')
+    expect(parseSentryIssuesResponse(401, { detail: 'Unauthorized' }, '~/.sentryclirc').diagnostic)
+      .toContain('Token came from ~/.sentryclirc.')
   })
 
   it('parses successful issue responses at the boundary', () => {

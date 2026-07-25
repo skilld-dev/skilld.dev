@@ -78,7 +78,10 @@ export function defineApiHandler<
       body = parsed.data as z.infer<S>
     }
 
-    const session = await getUserSession(event).catch(() => null) as UserSession | null
+    const session = await getUserSession(event).catch((error) => {
+      console.warn(`[api-handler] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    }) as UserSession | null
     const bearerUser = session?.user ? null : await resolveBearerUser(event)
     const user = session?.user ?? bearerUser
 

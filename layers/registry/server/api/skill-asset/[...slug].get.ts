@@ -104,7 +104,10 @@ export default defineApiHandler({
     // Resolve the skill directory by re-finding the SKILL.md path.
     const treeRes = await $fetch<{ files?: { path: string }[] }>(
       `https://ungh.cc/repos/${skill.owner}/${skill.repo}/files/${branch}`,
-    ).catch(() => null)
+    ).catch((error) => {
+      console.warn(`[skill-asset] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
     const skillMdPath = (treeRes?.files ?? []).find(f =>
       f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
@@ -128,7 +131,10 @@ export default defineApiHandler({
     const skillDir = skillMdPath.replace(/\/SKILL\.md$/, '')
     const fullPath = `${skillDir}/${filePath}`
     const rawUrl = `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/${branch}/${fullPath}`
-    const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => null)
+    const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch((error) => {
+      console.warn(`[skill-asset] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
 
     if (raw === null) {
       await useStorage('cache').setItem(cacheKey, {

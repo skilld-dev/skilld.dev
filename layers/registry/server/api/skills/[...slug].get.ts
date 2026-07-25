@@ -415,7 +415,10 @@ async function renderLive(
   ]
   for (const path of candidates) {
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`
-    const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
+    const raw = await $fetch<string>(url, { responseType: 'text' }).catch((error) => {
+      console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     if (raw) {
       const skillDir = path.replace(/\/SKILL\.md$/, '')
       const parsed = await parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
@@ -433,13 +436,19 @@ async function renderLive(
   // Authenticated GitHub trees API (matches sync-repo.ts). Recursive listing
   // surfaces nested or dotfile-mirrored layouts the candidates above miss.
   const bindings = resolveGithubBindings(event.context.platform?.env)
-  const treeRes = await getTree(owner, repo, branch, bindings).catch(() => null)
+  const treeRes = await getTree(owner, repo, branch, bindings).catch((error) => {
+    console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
   const match = treeRes?.data?.tree.find(
     e => e.type === 'blob' && e.path.endsWith(`/${name}/SKILL.md`),
   )
   if (match) {
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${match.path}`
-    const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => null)
+    const raw = await $fetch<string>(url, { responseType: 'text' }).catch((error) => {
+      console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     if (raw) {
       const skillDir = match.path.replace(/\/SKILL\.md$/, '')
       const parsed = await parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })

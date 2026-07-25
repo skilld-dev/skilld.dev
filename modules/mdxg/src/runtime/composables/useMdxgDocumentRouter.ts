@@ -131,7 +131,10 @@ export function useMdxgDocumentRouter(opts: UseMdxgRouterOptions): UseMdxgRouter
       href,
       fragment,
       fromDocId: fromDocId ?? currentId.value,
-    }).catch(() => null)
+    }).catch((error) => {
+      console.warn(`[mdxg-router] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
   }
 
   function back() {

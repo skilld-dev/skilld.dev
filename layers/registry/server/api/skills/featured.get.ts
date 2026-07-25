@@ -17,7 +17,10 @@ interface OwnerProfileRow {
 async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerProfileRow | null> {
   const res = await fetch(`https://api.github.com/users/${owner}`, {
     headers: { 'User-Agent': 'skilld.dev', 'Accept': 'application/vnd.github+json' },
-  }).catch(() => null)
+  }).catch((error) => {
+    console.warn(`[skills-featured] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
 
   if (!res?.ok)
     return null
@@ -70,7 +73,10 @@ async function loadOwnerProfiles(owners: string[], db: D1Database): Promise<Map<
       .prepare('SELECT name, bio, last_synced_at, sync_status FROM owners WHERE owner = ?')
       .bind(owner)
       .first<OwnerProfileRow>()
-      .catch(() => null)
+      .catch((error) => {
+        console.warn(`[skills-featured] ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
 
     if (cached && cached.sync_status !== '404' && cached.last_synced_at && cached.last_synced_at > now - OWNER_FRESH_SECONDS) {
       profiles.set(owner, cached)

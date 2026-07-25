@@ -235,8 +235,13 @@ async function warmSkill(skill: SkillRow): Promise<{ broken: BrokenEntry | null,
   }
 
   if (!SKIP_RELATED) {
+    // Cache warming only. A miss here costs the next visitor one slow render,
+    // so the seed run should keep going rather than abort the whole batch.
     await fetch(`${BASE}/api/skill-related/${skill.slug}`, { headers: { 'user-agent': 'skilld-seed/1' } })
-      .catch(() => null)
+      .catch((error) => {
+        console.warn(`[seed] related warm failed for ${skill.slug}: ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
   }
 
   const status = inferStatus(critical)

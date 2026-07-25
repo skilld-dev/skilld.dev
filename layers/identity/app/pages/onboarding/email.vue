@@ -7,14 +7,16 @@ const { fetchSession } = useAuth()
 const email = ref(me.value?.digest_email || me.value?.email || '')
 const optIn = ref(true)
 
+const actionFailed = useActionFailure()
+
 const submitting = ref(false)
 async function finish() {
   submitting.value = true
   await $fetch('/api/me/email', {
     method: 'PATCH',
     body: { digest_email: email.value, email_opt_in: optIn.value },
-  }).catch(() => null)
-  await $fetch('/api/me/onboarded', { method: 'POST' }).catch(() => null)
+  }).catch(actionFailed('save your digest email'))
+  await $fetch('/api/me/onboarded', { method: 'POST' }).catch(actionFailed('finish setting up your account'))
   await fetchSession()
   submitting.value = false
   await navigateTo('/me?welcome=1')
@@ -30,7 +32,7 @@ useSeoMeta({ title: 'Email opt-in · skilld', robots: 'noindex' })
       Email
     </h1>
     <p class="mt-2 text-sm text-muted">
-      Where should we send the digest? You can change this any time from your dashboard.
+      Tell us where to send change digests. You can update this later from your dashboard.
     </p>
 
     <div class="mt-6 space-y-4">
@@ -47,7 +49,7 @@ useSeoMeta({ title: 'Email opt-in · skilld', robots: 'noindex' })
       <label class="flex items-start gap-3 cursor-pointer">
         <input v-model="optIn" type="checkbox" class="mt-0.5">
         <span class="text-sm text-muted leading-relaxed">
-          Send me the digest when watched repos change. (Required to receive emails.)
+          Email me when watched repos have changes.
         </span>
       </label>
 

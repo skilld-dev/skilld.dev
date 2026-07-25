@@ -21,7 +21,7 @@ const totalStars = computed(() => data.value!.totalStars)
 
 const title = computed(() => `${tag.value.label} skills · skilld`)
 const description = computed(
-  () => `${tag.value.description}. ${totalSkills.value} curated Claude skills tagged ${tag.value.label}.`,
+  () => `Browse ${totalSkills.value} agent skills tagged ${tag.value.label}. ${tag.value.description}.`,
 )
 
 useSeoMeta({

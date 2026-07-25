@@ -114,7 +114,10 @@ async function ghRequest<T>(
   const cacheKey = etagKey(url)
   let cached: CachedEntry<T> | null = null
   if (bindings.KV_CACHE) {
-    cached = await bindings.KV_CACHE.get<CachedEntry<T>>(cacheKey, 'json').catch(() => null)
+    cached = await bindings.KV_CACHE.get<CachedEntry<T>>(cacheKey, 'json').catch((error) => {
+      console.warn(`[github-client] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     if (cached?.etag)
       headers.set('If-None-Match', cached.etag)
   }

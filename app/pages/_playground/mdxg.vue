@@ -18,7 +18,7 @@ const SOURCES: Record<string, { title: string, source: string }> = {
 title: MDXG Playground Index
 ---
 
-Welcome to the **mdxg** playground. Three docs are loaded here, linked to each other; click any link below to exercise Document Links in place — no full page reload, history pushes, prefetch on hover.
+Welcome to the **mdxg** playground. Three linked docs are loaded here. Click a link below to test in-place navigation, history updates, and hover prefetching.
 
 \`\`\`ts
 import { parseMdxg } from 'nuxt-mdxg'
@@ -92,7 +92,7 @@ Cross-page nav lists every H1/H2 in document order. Active state tracks the curr
 
 ## Page Outline
 
-H3–H6 within the **current** page only. This page has these third-level entries:
+H3 through H6 within the **current** page only. This page has these third-level entries:
 
 ### Anchor one
 
@@ -108,7 +108,7 @@ Some prose for anchor three. Linking to [the tutorial](./tutorial.md) demonstrat
 
 ## Search
 
-Search runs across all virtual pages. Try typing \`anchor\` in the sidebar — three matches will appear.
+Search runs across all virtual pages. Type \`anchor\` in the sidebar to see three matches.
 
 ## Code Blocks
 

@@ -803,7 +803,10 @@ export default defineApiHandler({
     const jobRows = await db
       .prepare(`SELECT name, cron, enabled, stale_after_seconds, last_run_at, last_status, last_error, last_duration_ms, run_count FROM sync_jobs`)
       .all<SyncJobRow>()
-      .catch(() => null)
+      .catch((error) => {
+        console.warn(`[admin-integrity] ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
 
     if (jobRows?.results?.length) {
       const stalled: SyncJobRow[] = []
@@ -874,7 +877,10 @@ export default defineApiHandler({
       )
       .bind(thirtyDaysAgo)
       .first<AiSpendRow>()
-      .catch(() => null)
+      .catch((error) => {
+        console.warn(`[admin-integrity] ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
 
     const recentRegenRows = await db
       .prepare(
@@ -886,7 +892,10 @@ export default defineApiHandler({
          LIMIT 5`,
       )
       .all<RecentRegenRow>()
-      .catch(() => null)
+      .catch((error) => {
+        console.warn(`[admin-integrity] ${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
 
     const aiSpend: AiSpendSummary | null = spendRow
       ? {

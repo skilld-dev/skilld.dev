@@ -70,7 +70,10 @@ export default defineApiHandler({
 
     const tree = await $fetch<{ files?: { path: string, size?: number }[] }>(
       `https://ungh.cc/repos/${skill.owner}/${skill.repo}/files/${branch}`,
-    ).catch(() => null)
+    ).catch((error) => {
+      console.warn(`[skill-files] ${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
 
     if (!tree?.files?.length) {
       const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [] }

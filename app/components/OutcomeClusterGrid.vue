@@ -95,7 +95,7 @@ const clusters = computed(() => data.value?.items ?? [])
         No task groups are available yet.
       </p>
       <p class="mt-1 text-base text-muted">
-        Browse the full registry while task-based discovery is being prepared.
+        You can still browse every indexed skill.
       </p>
       <UButton
         to="/skills"

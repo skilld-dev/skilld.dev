@@ -46,11 +46,11 @@ useSeoMeta({
   title: 'Skills for Nuxt',
   description: () => {
     if (!data.value)
-      return 'Curated agent skills for Nuxt apps, modules, and Nitro routes.'
-    return `${data.value.totalSkills} agent skills for Nuxt, from ${data.value.topOwners.length}+ developers shipping in production.`
+      return 'Agent skills for Nuxt apps, modules, and Nitro routes, with links to source.'
+    return `Browse ${data.value.totalSkills} Nuxt agent skills from ${data.value.topOwners.length}+ maintainers. Every result links to source.`
   },
   ogTitle: 'Skills for Nuxt',
-  ogDescription: 'Curated agent skills for Nuxt apps, modules, and Nitro routes.',
+  ogDescription: 'Agent skills for Nuxt apps, modules, and Nitro routes, with links to source.',
   ogUrl: canonicalUrl,
   twitterCard: 'summary_large_image',
 })
@@ -61,7 +61,7 @@ useHead({
 
 defineOgImage('Page.takumi', {
   title: 'Skills for Nuxt',
-  description: 'Curated agent skills for Nuxt apps, modules, and Nitro routes.',
+  description: 'Agent skills for Nuxt apps, modules, and Nitro routes, with links to source.',
 }, {
   alt: 'Skills for Nuxt on skilld',
 })
@@ -189,7 +189,7 @@ useSchemaOrg(computed(() => {
           Skills for Nuxt
         </h1>
         <p class="mt-3 text-sm md:text-base text-muted leading-relaxed max-w-2xl">
-          Curated agent skills for Nuxt apps, modules, and Nitro routes, from developers shipping in production.
+          Agent skills for Nuxt apps, modules, and Nitro routes. Every result links to its SKILL.md source.
         </p>
         <div class="mt-5 flex items-center gap-3 flex-wrap">
           <span class="data-label">

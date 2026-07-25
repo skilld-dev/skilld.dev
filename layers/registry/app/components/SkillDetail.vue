@@ -898,7 +898,7 @@ useHead(computed(() => ({
             <span
               v-if="displayInstalls > 0"
               class="data-label inline-flex items-center gap-1"
-              :title="liveSkill?.fetchedAt ? `Weekly installs from skills.sh — refreshed ${formatDateTitle(liveSkill.fetchedAt)}` : 'Weekly installs from skills.sh'"
+              :title="liveSkill?.fetchedAt ? `Weekly installs from skills.sh, refreshed ${formatDateTitle(liveSkill.fetchedAt)}` : 'Weekly installs from skills.sh'"
             >
               <UIcon
                 name="i-lucide-trending-up"

@@ -32,7 +32,7 @@ const { data, status, error, refresh } = useFetch<IndexResponse>('/api/collectio
 })
 
 const title = 'Collections'
-const description = 'Curated, install-ready sets of agent skills with a clear rationale and visible sources.'
+const description = 'Installable skill collections with curator notes and links to every source.'
 
 useSeoMeta({
   title,
@@ -111,9 +111,9 @@ const copyAnnouncement = computed(() => {
 <template>
   <div class="overflow-clip">
     <EditorialMasthead
-      label="Curated skill sets"
-      title="Install a stack, not a pile of skills."
-      description="Collections bundle compatible skills around a real workflow. Read the curator's rationale, inspect every source, then install the complete set with one command."
+      label="Collections"
+      title="Install a set someone has already thought through."
+      description="Each collection tells you who made it, why the skills belong together, and where they came from. Install the set with one command."
       palette="ember"
       heading-id="collections-heading"
     >
@@ -121,15 +121,15 @@ const copyAnnouncement = computed(() => {
         <ol class="editorial-ledger list-none p-0">
           <li class="flex gap-3 py-3">
             <span class="data-label">01</span>
-            <span class="text-sm leading-relaxed">Understand why the skills belong together.</span>
+            <span class="text-sm leading-relaxed">Read why the curator grouped these skills.</span>
           </li>
           <li class="flex gap-3 py-3">
             <span class="data-label">02</span>
-            <span class="text-sm leading-relaxed">Inspect the curator and every source.</span>
+            <span class="text-sm leading-relaxed">Open any source that looks unfamiliar.</span>
           </li>
           <li class="flex gap-3 py-3">
             <span class="data-label">03</span>
-            <span class="text-sm leading-relaxed">Install the set, then watch it for changes.</span>
+            <span class="text-sm leading-relaxed">Copy the install command when the set fits.</span>
           </li>
         </ol>
       </template>
@@ -204,7 +204,7 @@ const copyAnnouncement = computed(() => {
           No collections yet.
         </p>
         <p class="mt-1 max-w-xl text-base leading-relaxed text-muted">
-          Curators bundle the skills they rely on into inspectable sets that anyone can install with one command.
+          A collection groups skills for one job and explains why they work together.
         </p>
         <UButton
           to="/collections/new"
@@ -231,13 +231,13 @@ const copyAnnouncement = computed(() => {
         <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
           <div class="mb-8">
             <p class="section-label">
-              Curated starting points
+              Collections worth opening
             </p>
             <h2 id="featured-collections-heading" class="collections-section-title mt-3 max-w-[15ch]">
-              Start with a set that explains itself.
+              See the reasoning before the install command.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              The rationale comes first. Skill count and install command support the decision.
+              Each collection includes curator notes and a ready-to-copy command. Every skill still links to source.
             </p>
           </div>
 
@@ -377,10 +377,10 @@ const copyAnnouncement = computed(() => {
               Collection directory
             </p>
             <h2 id="collections-directory-heading" class="collections-section-title mt-3 max-w-[16ch]">
-              Find another stack for the job.
+              More collections
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Continue through recently refreshed collections, with each curator and rationale kept in view.
+              Recently updated, with the curator and their notes shown up front.
             </p>
           </div>
           <p class="data-label">
@@ -435,13 +435,13 @@ const copyAnnouncement = computed(() => {
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
             <p class="section-label">
-              Add your judgment
+              From your setup
             </p>
             <h2 id="collections-cta-heading" class="collections-section-title mt-3 max-w-[14ch]">
-              Have a stack worth sharing?
+              Got a setup others could use?
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Name the workflow, explain why the skills belong together, and publish one inspectable install command.
+              Share the skills you use for one workflow. Add a short note about why they work together.
             </p>
           </div>
           <UButton

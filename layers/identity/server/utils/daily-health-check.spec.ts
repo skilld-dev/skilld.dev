@@ -5,6 +5,8 @@ import { SCHEDULE_POLICY } from '#shared/schedule-policy'
 import {
   buildDailyHealthCheck,
   evaluateDailyHealthStatus,
+  frontDoorFetcher,
+  loadFrontDoor,
   renderDailyHealthCheckHtml,
   renderDailyHealthCheckText,
   sendDailyHealthCheck,
@@ -336,5 +338,35 @@ describe('sendDailyHealthCheck', () => {
       `SELECT delivery_status, error FROM daily_health_checks`,
     ).get()).toEqual({ delivery_status: 'sending', error: null })
     expect(send).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('frontDoorFetcher', () => {
+  it('probes through the SELF binding rather than the public URL', async () => {
+    const selfFetch = vi.fn().mockResolvedValue({ status: 200 })
+    const fetcher = frontDoorFetcher({ SELF: { fetch: selfFetch } as unknown as Fetcher })
+
+    const result = await loadFrontDoor(fetcher, { attempts: 1 })
+
+    expect(result.checks.every(check => check.status === 200)).toBe(true)
+    expect(selfFetch).toHaveBeenCalledTimes(3)
+    expect(selfFetch.mock.calls.map(call => call[0])).toEqual([
+      'https://skilld.dev/',
+      'https://skilld.dev/skills',
+      'https://skilld.dev/guides',
+    ])
+  })
+
+  it('reports a missing binding as a failed probe instead of falling back to the 522 path', async () => {
+    const fetcher = frontDoorFetcher({})
+
+    const result = await loadFrontDoor(fetcher, { attempts: 1 })
+
+    expect(result.checks).toEqual([
+      { url: 'https://skilld.dev/', status: null },
+      { url: 'https://skilld.dev/skills', status: null },
+      { url: 'https://skilld.dev/guides', status: null },
+    ])
+    expect(evaluateDailyHealthStatus(summary({ frontDoor: result }))).toMatchObject({ status: 'RED' })
   })
 })

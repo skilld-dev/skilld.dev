@@ -13,7 +13,10 @@ async function watchNow() {
   submitting.value = true
   const res = await $fetch<{ ok: boolean }>(`/api/collections/by-author/${props.login}/${props.slug}/watch`, {
     method: 'POST',
-  }).catch(() => null)
+  }).catch((error) => {
+    console.warn(`[watch-collection] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
   submitting.value = false
   if (res?.ok)
     watched.value = true

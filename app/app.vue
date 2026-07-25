@@ -3,7 +3,7 @@ import { onKeyDown } from '@vueuse/core'
 import { isEditableElement } from '~/utils/input'
 
 const title = 'skilld'
-const description = 'Curated agent skills from trusted open-source developers'
+const description = 'Agent skills from trusted open-source maintainers, with links to source'
 
 const shortcutsModalOpen = ref(false)
 const { isAuthenticated, user, logout } = useAuth()
@@ -23,7 +23,7 @@ useSeoMeta({
   twitterCard: 'summary_large_image',
 })
 
-defineOgImage('Page.takumi', {}, { alt: 'skilld — curated agent skills from trusted open-source developers' })
+defineOgImage('Page.takumi', {}, { alt: 'skilld, agent skills from trusted open-source maintainers' })
 
 // Global keyboard shortcuts
 onKeyDown('/', async (e) => {

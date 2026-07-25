@@ -1,12 +1,12 @@
 <script setup lang="ts">
 useSeoMeta({
   title: 'Accessibility',
-  description: 'Accessibility statement for skilld.dev. Our approach to building an inclusive experience.',
+  description: 'How skilld.dev handles accessibility and where it still falls short.',
 })
 
 defineOgImage('Page.takumi', {
   title: 'Accessibility',
-  description: 'Our approach to building an inclusive experience.',
+  description: 'How skilld.dev handles accessibility.',
 }, { alt: 'Accessibility statement for skilld.dev' })
 </script>
 
@@ -18,7 +18,7 @@ defineOgImage('Page.takumi', {
           Accessibility
         </h1>
         <p class="mt-3 text-sm text-muted leading-relaxed">
-          skilld.dev is committed to providing an accessible experience for everyone.
+          We want skilld.dev to work for everyone.
         </p>
       </header>
 
@@ -33,8 +33,8 @@ defineOgImage('Page.takumi', {
           Our approach
         </h2>
         <p class="text-sm text-muted leading-relaxed">
-          We build skilld.dev with accessibility as a core requirement, not an afterthought.
-          Our target is WCAG 2.1 AA conformance across all pages and interactions.
+          Accessibility is part of every UI change. We aim for WCAG 2.1 AA
+          across all pages and interactions.
         </p>
       </section>
 
@@ -105,8 +105,8 @@ defineOgImage('Page.takumi', {
           Known limitations
         </h2>
         <p class="text-sm text-muted leading-relaxed">
-          skilld.dev is under active development. Some pages and features may not yet meet our accessibility goals.
-          We are working to address these as the platform grows.
+          We are still building skilld.dev, and some pages may miss our accessibility target.
+          If you find one, please tell us.
         </p>
       </section>
 
@@ -121,14 +121,14 @@ defineOgImage('Page.takumi', {
           Feedback
         </h2>
         <p class="text-sm text-muted leading-relaxed">
-          If you encounter an accessibility barrier on skilld.dev, please
+          Found an accessibility barrier? Please
           <a
             href="https://github.com/harlan-zw/skilld/issues"
             target="_blank"
             rel="noopener noreferrer"
             class="text-default underline underline-offset-2 hover:text-[var(--color-primary-500)]"
           >open an issue on GitHub</a>.
-          We take all feedback seriously and will work to resolve issues promptly.
+          Include the page and what got in your way.
         </p>
       </section>
     </article>

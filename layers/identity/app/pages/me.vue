@@ -12,16 +12,18 @@ interface Subscription {
 const { data: me, refresh: refreshMe } = await useFetch('/api/me')
 const { data: subs, refresh: refreshSubs } = await useFetch<{ items: Subscription[] }>('/api/me/subscriptions')
 
+const actionFailed = useActionFailure()
+
 const syncing = ref(false)
 async function sync() {
   syncing.value = true
-  await $fetch('/api/me/stars/sync', { method: 'POST' }).catch(() => null)
+  await $fetch('/api/me/stars/sync', { method: 'POST' }).catch(actionFailed('sync your starred repos'))
   syncing.value = false
   await refreshMe()
 }
 
 async function unwatch(owner: string, repo: string) {
-  await $fetch(`/api/me/subscriptions/${owner}/${repo}`, { method: 'DELETE' }).catch(() => null)
+  await $fetch(`/api/me/subscriptions/${owner}/${repo}`, { method: 'DELETE' }).catch(actionFailed('stop watching that repo'))
   await refreshSubs()
 }
 
@@ -33,7 +35,7 @@ const cadence = reactive({
   timezone: me.value?.timezone ?? 'UTC',
 })
 async function saveCadence() {
-  await $fetch('/api/me/cadence', { method: 'PATCH', body: cadence }).catch(() => null)
+  await $fetch('/api/me/cadence', { method: 'PATCH', body: cadence }).catch(actionFailed('save your digest schedule'))
   await refreshMe()
   showCadence.value = false
 }
@@ -44,7 +46,7 @@ const emailForm = reactive({
   email_opt_in: !!me.value?.email_opt_in,
 })
 async function saveEmail() {
-  await $fetch('/api/me/email', { method: 'PATCH', body: emailForm }).catch(() => null)
+  await $fetch('/api/me/email', { method: 'PATCH', body: emailForm }).catch(actionFailed('save your digest email'))
   await refreshMe()
   showEmail.value = false
 }
@@ -70,7 +72,7 @@ onMounted(() => {
 
 function fmtDate(ts: number | null | undefined): string {
   if (!ts)
-    return '—'
+    return 'Not yet'
   return new Date(ts * 1000).toLocaleString()
 }
 </script>
@@ -133,7 +135,7 @@ function fmtDate(ts: number | null | undefined): string {
           Email
         </h2>
         <p class="mt-2 text-sm font-mono break-all">
-          {{ me?.digest_email || me?.email || '—' }}
+          {{ me?.digest_email || me?.email || 'No email set' }}
         </p>
         <p class="text-xs text-muted mt-1">
           {{ me?.email_opt_in ? 'Opted in' : 'Not opted in' }}
@@ -213,7 +215,7 @@ function fmtDate(ts: number | null | undefined): string {
         Digest history
       </h2>
       <p class="mt-2 text-sm text-muted">
-        No digests sent yet — coming with Phase 3.
+        No digests sent yet.
       </p>
     </div>
   </section>

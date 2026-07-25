@@ -11,14 +11,15 @@ function nonnegativeInteger(value) {
   return Number.isSafeInteger(parsed) ? parsed : null
 }
 
-export function parseSentryIssuesResponse(status, body) {
+export function parseSentryIssuesResponse(status, body, tokenSource) {
   if (status === 401 || status === 403) {
+    const origin = tokenSource ? ` Token came from ${tokenSource}.` : ''
     return {
       _tag: 'missing_observability',
       status,
       diagnostic: status === 403
-        ? 'Sentry token lacks issue-read permission (HTTP 403). The build-plugin token only covers source-map uploads; mint an org auth token with event:read + org:read scope and set SENTRY_AUTH_TOKEN.'
-        : 'Sentry authorization failed with HTTP 401 (token missing or expired).',
+        ? `Sentry token lacks issue-read permission (HTTP 403).${origin} Use a token with event:read + org:read, such as the one sentry-cli writes to ~/.sentryclirc.`
+        : `Sentry authorization failed with HTTP 401 (token missing or expired).${origin}`,
     }
   }
   if (status < 200 || status >= 300) {
