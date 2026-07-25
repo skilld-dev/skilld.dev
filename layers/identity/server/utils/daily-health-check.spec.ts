@@ -65,6 +65,9 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
       estimatedAiUsd24h: 0.12,
       estimatedAiUsdMonth: 2.34,
     },
+    credentials: {
+      githubToken: { _tag: 'healthy', daysRemaining: 89 },
+    },
     ...overrides,
   }
 }
@@ -429,5 +432,31 @@ describe('verdict reason completeness', () => {
 
     expect(result.status).toBe('RED')
     expect(result.reasons.some(r => r.includes('rotate GITHUB_TOKEN'))).toBe(true)
+  })
+})
+
+describe('credential expiry gate', () => {
+  it('stays quiet while the token has plenty of life', () => {
+    const input = summary({ credentials: { githubToken: { _tag: 'healthy', daysRemaining: 89 } } })
+    expect(evaluateDailyHealthStatus(input).status).toBe('GREEN')
+  })
+
+  it('warns inside the renewal window, while there is still time to act', () => {
+    const input = summary({ credentials: { githubToken: { _tag: 'expiring', daysRemaining: 10 } } })
+    const result = evaluateDailyHealthStatus(input)
+    expect(result.status).toBe('AMBER')
+    expect(result.reasons.some(r => r.includes('10 days'))).toBe(true)
+  })
+
+  it('goes red once the deadline passes, which is the outage we already had', () => {
+    const input = summary({ credentials: { githubToken: { _tag: 'expired', daysRemaining: -3 } } })
+    const result = evaluateDailyHealthStatus(input)
+    expect(result.status).toBe('RED')
+    expect(result.reasons.some(r => r.includes('GITHUB_TOKEN'))).toBe(true)
+  })
+
+  it('says nothing when the expiry could not be read', () => {
+    const input = summary({ credentials: { githubToken: { _tag: 'unknown' } } })
+    expect(evaluateDailyHealthStatus(input).status).toBe('GREEN')
   })
 })

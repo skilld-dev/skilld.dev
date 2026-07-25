@@ -50,6 +50,7 @@ export default defineScheduledTask({
         build: (database, options) => buildDailyHealthCheck(database, {
           ...options,
           fetcher: frontDoorFetcher(env),
+          githubToken: env.GITHUB_TOKEN,
           workerVersion: workerVersion(env),
         }),
         send: input => sendEmailWithEnv(env, { ...input, from }),

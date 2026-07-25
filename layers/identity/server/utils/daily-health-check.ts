@@ -1,7 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { TokenExpiryStatus } from '~~/layers/registry/server/utils/github-token-expiry'
 import type { ScheduleHealth } from '#shared/schedule-policy'
 import type { SendEmailInput, SendEmailResult } from './email'
+import { parseTokenExpiry, tokenExpiryStatus } from '~~/layers/registry/server/utils/github-token-expiry'
 import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
 
 const MELBOURNE_TIME_ZONE = 'Australia/Melbourne'
@@ -76,6 +78,9 @@ export interface DailyHealthCheckSummary {
   cost: {
     estimatedAiUsd24h: number
     estimatedAiUsdMonth: number
+  }
+  credentials: {
+    githubToken: TokenExpiryStatus
   }
 }
 
@@ -190,6 +195,41 @@ interface BuildDailyHealthCheckOptions {
   now?: Date
   fetcher?: typeof fetch
   workerVersion?: string | null
+  githubToken?: string
+  /**
+   * Deliberately separate from `fetcher`. That one is the SELF service binding,
+   * which dispatches every request to this Worker, so reusing it here would
+   * send the GitHub probe to our own front door.
+   */
+  githubFetcher?: typeof fetch
+}
+
+/**
+ * One cheap authenticated call. GitHub answers with
+ * `github-authentication-token-expiration`, so the credential deadline is read
+ * from the same place that would reject the token once it passes.
+ */
+export async function loadGithubTokenExpiry(
+  token: string | undefined,
+  now: Date,
+  fetcher: typeof fetch = fetch,
+): Promise<TokenExpiryStatus> {
+  if (!token)
+    return { _tag: 'unknown' }
+  const res = await fetcher('https://api.github.com/user', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'User-Agent': 'skilld.dev',
+      'Accept': 'application/vnd.github+json',
+    },
+    signal: AbortSignal.timeout(10_000),
+  }).catch((error) => {
+    console.warn(`[health-check] token expiry probe failed: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
+  if (!res)
+    return { _tag: 'unknown' }
+  return tokenExpiryStatus(parseTokenExpiry(res.headers), now)
 }
 
 function numberValue(value: unknown): number {
@@ -324,6 +364,15 @@ export function evaluateDailyHealthStatus(
     amber.push(`${plural(summary.pipeline.openFailedBatches, 'job batch', 'job batches')} remains open with failures.`)
   if (summary.warnings.length > 0)
     amber.push(`${plural(summary.warnings.length, 'report probe')} failed.`)
+
+  // An expired credential already cost two days of dead sync. GitHub returns
+  // the deadline on every authenticated response, so it is worth surfacing
+  // while rotating is still routine rather than an incident.
+  const token = summary.credentials.githubToken
+  if (token._tag === 'expired')
+    red.push(`GITHUB_TOKEN expired ${plural(Math.abs(token.daysRemaining), 'day')} ago. Rotate it: sync is down until you do.`)
+  else if (token._tag === 'expiring')
+    amber.push(`GITHUB_TOKEN expires in ${plural(token.daysRemaining, 'day')}. Rotate it before sync starts failing.`)
 
   // Report every finding, ordered by severity, rather than only the winning
   // tier. Returning `red` alone meant one loud red hid every amber underneath
@@ -593,6 +642,15 @@ export async function buildDailyHealthCheck(
     estimatedAiUsdMonth: 0,
   }, () => loadCost(db, sinceSec, monthStartSec))
 
+  const credentials = {
+    githubToken: await capture<TokenExpiryStatus>(
+      warnings,
+      'github token expiry',
+      { _tag: 'unknown' },
+      () => loadGithubTokenExpiry(options.githubToken, now, options.githubFetcher ?? fetch),
+    ),
+  }
+
   const withoutStatus = {
     warnings,
     window: {
@@ -607,6 +665,7 @@ export async function buildDailyHealthCheck(
     activity,
     pipeline,
     cost,
+    credentials,
   }
   const evaluated = evaluateDailyHealthStatus(withoutStatus)
   return { ...withoutStatus, ...evaluated }
