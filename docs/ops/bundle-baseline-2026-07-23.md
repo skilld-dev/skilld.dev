@@ -18,7 +18,7 @@ on a production cold start.
 
 ## Baseline → after
 
-Items 1 and 2 below are fixed. Items 3–5 are still open.
+Items 1 through 3 below are fixed. Items 4 and 5 are still open.
 
 | Metric | Before | After |
 | --- | --- | --- |
@@ -83,12 +83,13 @@ to the 13 configured langs and 3 themes. Three app-level call sites did it:
 The grammar chunks are dynamic imports, so they never cost eval time, but they
 cost gzip budget, build time, and feed problem 3.
 
-Fixed by `shared/shiki.ts`, now the single Shiki entrypoint for the app. It builds
-a `createHighlighterCore` singleton on the JS regex engine (workerd can't
-instantiate the Oniguruma Wasm at SSR time) with one explicit dynamic import per
-language, so only those chunks get emitted. It imports `shiki/core`,
-`shiki/types` and `shiki/engine/javascript`, thin re-exports that carry no
-bundle map, plus `@shikijs/langs` and `@shikijs/themes` as direct deps.
+Fixed by `shared/shiki.ts`, now the single Shiki implementation entrypoint for
+the app. It builds a `createHighlighterCore` singleton on the JS regex engine
+with one explicit dynamic import per language, so only those chunks get emitted.
+The lightweight language resolver lives in `shared/shiki-language.ts`, which
+lets callers decide whether highlighting is needed before importing the parser.
+Direct `@shikijs/core` and `@shikijs/engine-javascript` imports also avoid
+Nitro's `unwasm` export condition selecting Shiki's Oniguruma build.
 
 The bundled set is 53 languages, chosen as roughly the intersection of what
 `bundle/web` covered and what realistically appears in SKILL.md fences and skill
@@ -100,25 +101,75 @@ skeleton, so a null highlight result would have left the viewer stuck on it.
 Three tests in `skill-md-render.spec.ts` cover the highlight path, alias
 resolution, and the plain-text fallback.
 
-### 3. Public-asset manifest inlined into the eager entrypoint: 427 KB → 228 KB, still open
+### 3. Public asset manifest inlined into the eager entrypoint (FIXED)
 
-`chunks/virtual/precomputed.mjs` is a table of every file in `.output/public`
-(path, etag, mtime, size, mime), imported by `nitro.mjs` and parsed on **every**
-cold start. `.output/server/wrangler.json` already declares an `ASSETS` binding
-pointing at `../public`, so Workers Assets serves these files before the Worker
-runs, so the Worker-side table is dead weight.
+Nuxt Analyze showed the generated public asset data module contributing 237 KB
+to the eager graph. `.output/server/wrangler.json` already declares an `ASSETS`
+binding pointing at `../public`, so Wrangler serves these files before the
+Worker runs.
 
-Fixing problem 2 took it from 427 KB to 228 KB by cutting the file count from
-1997 to 533, but it's still ~12% of the eager entrypoint and the remaining bytes
-are pure overhead. Removing it means stopping Nitro from emitting the manifest at
-all when the preset serves assets via the binding.
+`nuxt.config.ts` now aliases `#nitro-internal-virtual/public-assets-data` to an
+empty module for the Cloudflare build. Local Wrangler checks confirmed
+`/favicon.svg`, `/_nuxt/builds/latest.json`, and a hashed client chunk are served
+from `.output/public` with exact byte matches. Missing routes still reach Nitro.
+
+`chunks/virtual/precomputed.mjs` remains, but inspection showed that it is Nuxt's
+client dependency and preload manifest, not the public asset table.
+
+#### 2026-07-25 measurements
+
+Measured from the same dirty working tree before and after the Shiki and public
+asset changes:
+
+| Metric | Before | After | Change |
+| --- | --- | --- | --- |
+| Wrangler startup CPU profile | 124.237 ms | 101.511 ms | **-18.3%** |
+| Active sampled CPU | 53.898 ms | 44.204 ms | **-18.0%** |
+| `__init` sampled CPU | 11.644 ms | 8.389 ms | **-28.0%** |
+| `chunks/nitro/nitro.mjs` | 1,476,115 B | 1,395,688 B | **-5.4%** |
+| Wrangler bundled entry | 9,768,357 B | 9,535,212 B | **-2.4%** |
+| Wrangler upload | 13,332.03 KiB | 13,104.35 KiB | **-1.7%** |
+| Wrangler upload gzip | 3,447.40 KiB | 3,393.32 KiB | **-1.6%** |
+
+`onig.wasm` is gone from `.output/server`. The seven-run Miniflare harness moved
+from 1368 ms to 1479 ms median, while warm ping moved from 6.9 ms to 7.6 ms.
+That process-level benchmark is noisy enough to conflict with Wrangler's CPU
+profile, so use it as a coarse regression signal rather than a release claim.
+
+Production version 193 was sampled before these changes. `/api/ping` had 7 ms
+median Worker CPU and 11.5 ms median wall time across 12 requests. `/` had 107 ms
+median Worker CPU and 318.5 ms median wall time across 12 requests. The root
+route is now dominated by application rendering and data access rather than
+Worker initialization.
 
 ### 4. `takumi_wasm`: 3.74 MB raw / 1.56 MB gzip
 
 `nuxt-og-image`'s renderer. This is a single Wasm blob and the largest gzip line
-item in the Worker after the icons. Worth deciding whether OG image generation
-belongs in the main Worker or a separate one; it's ~19% of the gzip budget for a
-feature that never runs on a page render.
+item in the Worker after the icons.
+
+On 2026-07-25, a production experiment compared the embedded renderer with a
+dedicated Worker reached through an RPC service binding. Three fresh versions
+of each application variant and renderer were deployed to the skilld Cloudflare
+account, sampled in SYD, then deleted.
+
+| Production metric | Embedded | Dedicated renderer |
+| --- | ---: | ---: |
+| Application upload gzip | 1,807.60 KiB | 277.67 KiB |
+| Application startup, median across four deploys | 30 ms | 29 ms |
+| Dynamic ping CPU, median across five requests | 2 ms | 2 ms |
+| First OG internal time after a fresh version, median | 4 ms | 154 ms |
+| Warm OG wall time, median across five requests | 32 ms | 40 ms |
+| Warm OG CPU, median across five requests | 31 ms | about 37 ms combined |
+
+The renderer Worker itself had 11 ms median deployment startup. The application
+startup and normal request CPU did not improve. The first OG request paid about
+150 ms to activate and call the renderer service. Warm OG work was also slightly
+slower once the application and renderer CPU were combined.
+
+Conclusion: keep Takumi embedded for latency. The service split is useful only
+for deployment size or isolation, neither of which is currently a constraint.
+The failed first renderer upload also confirmed unnamed RPC entrypoints require
+a `fetch` handler. No service split package code was retained.
 
 ### 5. Smaller server-side items
 
@@ -144,15 +195,14 @@ against D1, so the client-side [SQLite](https://sqlite.org) path may be unused. 
 well-behaved: `reka-ui` 306 KB and `@nuxt/ui` 303 KB are the largest remaining
 entries.
 
-`onig.wasm` (467 KB raw / 159 KB gzip) also survives in the Worker even though
-nothing should be using the Oniguruma engine. Worth tracing.
+`onig.wasm` previously survived in the Worker because Nitro's `unwasm` export
+condition resolved `shiki/core` to Shiki's Wasm-aware build. Direct package
+imports remove it.
 
 ## Remaining work
 
-1. Move OG image rendering out of the main Worker: ~1.56 MB gzip, ~42% of what's left.
-2. Drop the Worker-side public-asset table: 228 KB off every cold start.
-3. Trace the surviving `onig.wasm`: 159 KB gzip for an engine nothing calls.
-4. Check whether the client-side SQLite path is reachable at all.
+1. Check whether the client-side SQLite path is reachable at all.
+2. Profile eager server dependencies such as `emojilib`, `parse5`, and `yaml`.
 
 Re-run `pnpm perf:cold-start` after each; `--max-entrypoint-bytes` can lock in a
-regression budget now that the entrypoint has settled around 1.96 MB.
+regression budget now that the entrypoint has settled around 1.40 MB.

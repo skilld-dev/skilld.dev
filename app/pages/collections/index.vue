@@ -435,7 +435,7 @@ const copyAnnouncement = computed(() => {
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
             <p class="section-label">
-              From your setup
+              Your setup
             </p>
             <h2 id="collections-cta-heading" class="collections-section-title mt-3 max-w-[14ch]">
               Got a setup others could use?

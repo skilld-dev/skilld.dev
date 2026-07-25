@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { highlightToHtml } from '#shared/shiki'
-
 const route = useRoute()
 const owner = computed(() => String(route.params.owner ?? ''))
 const repo = computed(() => String(route.params.repo ?? ''))
@@ -48,6 +46,7 @@ async function renderSource(raw: string) {
   sourceError.value = null
   try {
     const ext = file.value.toLowerCase().split('.').pop() ?? ''
+    const { highlightToHtml } = await import('#shared/shiki')
     // null means the extension isn't one we ship a grammar for; render the
     // source unhighlighted rather than failing.
     sourceHtml.value = await highlightToHtml(raw, ext)

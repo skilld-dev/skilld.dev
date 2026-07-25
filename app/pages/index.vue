@@ -21,6 +21,20 @@ useHead({
 
 defineOgImage('Splash.takumi', {}, { alt: 'skilld, curated skills for AI agents' })
 
+const serverTimingHeader = useResponseHeader('Server-Timing')
+const homeDataStartedAt = performance.now()
+const homeDataTimings: string[] = []
+
+function withHomeDataTiming<T>(name: string, request: Promise<T>): Promise<T> {
+  if (import.meta.client)
+    return request
+
+  const startedAt = performance.now()
+  return request.finally(() => {
+    homeDataTimings.push(`${name};dur=${(performance.now() - startedAt).toFixed(1)}`)
+  })
+}
+
 const searchQuery = ref('')
 
 function searchSkills() {
@@ -48,16 +62,21 @@ const [
     refresh: refreshPublishes,
   },
 ] = await Promise.all([
-  useFetch<FeaturedCollectionsResponse>('/api/collections/featured', {
+  withHomeDataTiming('home-featured', useFetch<FeaturedCollectionsResponse>('/api/collections/featured', {
     key: 'home-featured-collections-v5',
-  }),
-  useFetch<RecentUpdatesResponse>('/api/feed/recent-updates', {
+  })),
+  withHomeDataTiming('home-updates', useFetch<RecentUpdatesResponse>('/api/feed/recent-updates', {
     key: 'home-recent-updates-v2',
-  }),
-  useFetch<RecentPublishesResponse>('/api/feed/recent-publishes', {
+  })),
+  withHomeDataTiming('home-publishes', useFetch<RecentPublishesResponse>('/api/feed/recent-publishes', {
     key: 'home-recent-publishes-v2',
-  }),
+  })),
 ])
+
+if (import.meta.server) {
+  homeDataTimings.push(`home-data;dur=${(performance.now() - homeDataStartedAt).toFixed(1)}`)
+  serverTimingHeader.value = homeDataTimings.join(', ')
+}
 
 const featuredCollections = computed(() =>
   (collectionsData.value?.items ?? []).map(collection => ({
@@ -602,7 +621,7 @@ const registryLinks = [
             </h2>
           </div>
           <p class="home-confidence-intro text-base leading-relaxed text-muted text-pretty">
-            Skill pages keep the maintainer and source attached. Collections add a note from the curator.
+            Every skill page shows who maintains it and where the SKILL.md lives. Collections add a note from the curator.
           </p>
         </div>
 

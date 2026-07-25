@@ -358,7 +358,6 @@ const rawHtml = ref<string | null>(null)
 const rawPlain = ref<string | null>(null)
 const rawError = ref<string | null>(null)
 
-import { highlightToHtml } from '#shared/shiki'
 import { shikiLangFromPath } from '../utils/skill-file-tree'
 
 // Path of the doc currently active in the viewer, relative to the skill folder.
@@ -478,6 +477,7 @@ async function renderRaw(raw: string) {
   rawPlain.value = null
   try {
     const lang = activeDocPath.value ? shikiLangFromPath(activeDocPath.value) : 'markdown'
+    const { highlightToHtml } = await import('#shared/shiki')
     const html = await highlightToHtml(raw, lang)
     if (html)
       rawHtml.value = html

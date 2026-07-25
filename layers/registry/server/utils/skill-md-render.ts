@@ -1,8 +1,8 @@
+import type { HighlighterCore } from '@shikijs/core'
 import type { Renderer, Tokens } from 'marked'
-import type { HighlighterCore } from 'shiki/types'
-import type { SkilldLang } from '#shared/shiki'
+import type { SkilldLang } from '#shared/shiki-language'
 import { Marked } from 'marked'
-import { loadShikiHighlighter, resolveShikiLang, SHIKI_THEMES } from '#shared/shiki'
+import { resolveShikiLang, SHIKI_THEMES } from '#shared/shiki-language'
 
 function extractFenceLangs(body: string): Set<SkilldLang> {
   const langs = new Set<SkilldLang>()
@@ -200,7 +200,9 @@ export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promi
   // Grammars that fail to load are dropped inside loadShikiHighlighter, and
   // highlightSync falls back to a plain pre per block, so a bad fence costs one
   // unhighlighted block rather than the page render.
-  const highlighter = needed.size ? await loadShikiHighlighter(needed) : null
+  const highlighter = needed.size
+    ? await import('#shared/shiki').then(({ loadShikiHighlighter }) => loadShikiHighlighter(needed))
+    : null
 
   let html = createSkillMd(ctx, highlighter).parse(body) as string
   html = html.replace(/<pre\b([^>]*)>/g, (match, attrs: string) => {

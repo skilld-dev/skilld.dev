@@ -164,10 +164,10 @@ defineOgImage('Page.takumi', {
         <div class="grid gap-8 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:gap-12">
           <div>
             <p class="section-label">
-              A quick first pass
+              First up
             </p>
             <h2 id="starting-sequence-heading" class="cluster-section-title mt-4 max-w-[13ch]">
-              Open these three first.
+              Three skills to inspect.
             </h2>
             <p class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
               Descriptions are brief. Open the repository for the full instructions.

@@ -29,7 +29,7 @@ export default defineApiHandler({
     const html = `<!doctype html><meta charset=utf-8><title>Confirm your email</title>
 <div style="font-family:sans-serif;max-width:480px;margin:24px auto;">
 <h1 style="font-size:18px;">Confirm this email for skilld digests</h1>
-<p>Click the link below to start receiving the weekly digest at this address:</p>
+<p>Confirm this address to receive skilld change digests:</p>
 <p><a href="${link}">${link}</a></p>
 <p style="color:#666;font-size:12px;">This link expires in 24 hours. If you didn't request this, ignore this email.</p>
 </div>`

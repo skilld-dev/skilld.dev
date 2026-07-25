@@ -123,7 +123,7 @@ useSeoMeta({ title: 'Discover skills · skilld', robots: 'noindex' })
       Watch what you've already starred
     </h1>
     <p class="mt-2 text-sm text-muted">
-      We scan your starred GitHub repos with "skill" in the name and match them against the registry. Pick what you want to follow; you'll get a digest only when those skills change.
+      We check starred GitHub repos with "skill" in the name against the registry. Choose the ones to watch. You'll only get a digest when one changes.
     </p>
 
     <div class="mt-4 flex flex-wrap items-center gap-3">

@@ -1,8 +1,8 @@
-// `shiki/core`, `shiki/types` and `shiki/engine/javascript` are thin re-exports
-// that carry no bundle map — importing bare `shiki` is what drags the full one in.
-import type { HighlighterCore, LanguageRegistration, ThemeRegistration } from 'shiki/types'
-import { createHighlighterCore } from 'shiki/core'
-import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
+import type { HighlighterCore, LanguageRegistration, ThemeRegistration } from '@shikijs/core'
+import type { SkilldLang } from './shiki-language'
+import { createHighlighterCore } from '@shikijs/core'
+import { createJavaScriptRegexEngine } from '@shikijs/engine-javascript'
+import { LANG_LOADERS, resolveShikiLang, SHIKI_THEMES } from './shiki-language'
 
 // Importing `shiki` (or `shiki/bundle/web`) pulls Shiki's full bundle map into
 // the graph: 253 language chunks, 65 themes, and the Oniguruma WASM engine —
@@ -18,118 +18,6 @@ import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 // shows up in SKILL.md fences and skill source files. Adding one costs ~20-40 KB
 // raw in a lazily-loaded chunk, so err toward including a plausible language
 // rather than dropping a code block to plain text.
-const LANG_LOADERS = {
-  astro: () => import('@shikijs/langs/astro'),
-  bash: () => import('@shikijs/langs/shellscript'),
-  c: () => import('@shikijs/langs/c'),
-  clojure: () => import('@shikijs/langs/clojure'),
-  cpp: () => import('@shikijs/langs/cpp'),
-  csharp: () => import('@shikijs/langs/csharp'),
-  css: () => import('@shikijs/langs/css'),
-  csv: () => import('@shikijs/langs/csv'),
-  dart: () => import('@shikijs/langs/dart'),
-  diff: () => import('@shikijs/langs/diff'),
-  dockerfile: () => import('@shikijs/langs/docker'),
-  elixir: () => import('@shikijs/langs/elixir'),
-  go: () => import('@shikijs/langs/go'),
-  graphql: () => import('@shikijs/langs/graphql'),
-  haskell: () => import('@shikijs/langs/haskell'),
-  html: () => import('@shikijs/langs/html'),
-  http: () => import('@shikijs/langs/http'),
-  ini: () => import('@shikijs/langs/ini'),
-  java: () => import('@shikijs/langs/java'),
-  javascript: () => import('@shikijs/langs/javascript'),
-  json: () => import('@shikijs/langs/json'),
-  json5: () => import('@shikijs/langs/json5'),
-  jsonc: () => import('@shikijs/langs/jsonc'),
-  jsx: () => import('@shikijs/langs/jsx'),
-  kotlin: () => import('@shikijs/langs/kotlin'),
-  less: () => import('@shikijs/langs/less'),
-  lua: () => import('@shikijs/langs/lua'),
-  makefile: () => import('@shikijs/langs/make'),
-  markdown: () => import('@shikijs/langs/markdown'),
-  mdc: () => import('@shikijs/langs/mdc'),
-  mdx: () => import('@shikijs/langs/mdx'),
-  nginx: () => import('@shikijs/langs/nginx'),
-  perl: () => import('@shikijs/langs/perl'),
-  php: () => import('@shikijs/langs/php'),
-  powershell: () => import('@shikijs/langs/powershell'),
-  python: () => import('@shikijs/langs/python'),
-  r: () => import('@shikijs/langs/r'),
-  regex: () => import('@shikijs/langs/regexp'),
-  ruby: () => import('@shikijs/langs/ruby'),
-  rust: () => import('@shikijs/langs/rust'),
-  sass: () => import('@shikijs/langs/sass'),
-  scala: () => import('@shikijs/langs/scala'),
-  scss: () => import('@shikijs/langs/scss'),
-  sql: () => import('@shikijs/langs/sql'),
-  svelte: () => import('@shikijs/langs/svelte'),
-  swift: () => import('@shikijs/langs/swift'),
-  toml: () => import('@shikijs/langs/toml'),
-  tsx: () => import('@shikijs/langs/tsx'),
-  typescript: () => import('@shikijs/langs/typescript'),
-  vue: () => import('@shikijs/langs/vue'),
-  xml: () => import('@shikijs/langs/xml'),
-  yaml: () => import('@shikijs/langs/yaml'),
-  zig: () => import('@shikijs/langs/zig'),
-} satisfies Record<string, () => Promise<unknown>>
-
-export type SkilldLang = keyof typeof LANG_LOADERS
-
-// Fence tags and file extensions map onto the canonical ids above. Shiki knows
-// most of these aliases itself, but it only learns them once the owning grammar
-// is loaded, and we need to resolve the id *before* deciding what to load.
-const LANG_ALIASES: Record<string, SkilldLang> = {
-  'c++': 'cpp',
-  'cjs': 'javascript',
-  'cs': 'csharp',
-  'cts': 'typescript',
-  'docker': 'dockerfile',
-  'ex': 'elixir',
-  'exs': 'elixir',
-  'env': 'bash',
-  'fish': 'bash',
-  'gql': 'graphql',
-  'hs': 'haskell',
-  'js': 'javascript',
-  'jsonl': 'json',
-  'kt': 'kotlin',
-  'make': 'makefile',
-  'md': 'markdown',
-  'mjs': 'javascript',
-  'mts': 'typescript',
-  'pl': 'perl',
-  'postcss': 'css',
-  'ps1': 'powershell',
-  'py': 'python',
-  'rb': 'ruby',
-  'regexp': 'regex',
-  'rs': 'rust',
-  'sh': 'bash',
-  'shell': 'bash',
-  'shellscript': 'bash',
-  'ts': 'typescript',
-  'yml': 'yaml',
-  'zsh': 'bash',
-}
-
-export const SHIKI_THEMES = { light: 'github-light', dark: 'github-dark' } as const
-
-/**
- * Resolve a fence tag or extension to a language we can actually highlight.
- * Returns null for anything unsupported so callers can fall back to plain text.
- */
-export function resolveShikiLang(raw: string | null | undefined): SkilldLang | null {
-  if (!raw)
-    return null
-  const lang = raw.trim().toLowerCase().split(/\s+/)[0]
-  if (!lang)
-    return null
-  if (lang in LANG_ALIASES)
-    return LANG_ALIASES[lang]!
-  return lang in LANG_LOADERS ? lang as SkilldLang : null
-}
-
 let highlighterPromise: Promise<HighlighterCore> | null = null
 
 function getHighlighter(): Promise<HighlighterCore> {

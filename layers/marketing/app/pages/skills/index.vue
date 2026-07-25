@@ -571,7 +571,7 @@ function clearOwner() {
         <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p class="section-label">
-              Skills from working developers
+              From maintainers
             </p>
             <h2 id="developers-heading" class="skills-section-title mt-3 max-w-[17ch]">
               Browse by maintainer.
@@ -666,7 +666,7 @@ function clearOwner() {
                 Skills from the teams behind the tools.
               </h2>
               <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-                The publisher is the organization that maintains the framework or platform.
+                These skills come from the organization that maintains each framework or platform.
               </p>
             </div>
             <UButton

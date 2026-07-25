@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { onKeyDown } from '@vueuse/core'
+import { onClickOutside, onKeyDown } from '@vueuse/core'
 import { isEditableElement } from '~/utils/input'
 
 const title = 'skilld'
 const description = 'Agent skills from trusted open-source maintainers, with links to source'
 
 const shortcutsModalOpen = ref(false)
+const mobileNavigationOpen = ref(false)
+const mobileNavigation = useTemplateRef('mobileNavigation')
+const mobileNavigationToggle = useTemplateRef('mobileNavigationToggle')
+const route = useRoute()
 const { isAuthenticated, user, logout } = useAuth()
 
 const { enabled: kbdEnabled } = useKeyboardShortcuts()
@@ -45,6 +49,18 @@ onKeyDown('?', (e) => {
   e.preventDefault()
   shortcutsModalOpen.value = true
 }, { dedupe: true })
+
+onKeyDown('Escape', () => {
+  mobileNavigationOpen.value = false
+}, { dedupe: true })
+
+onClickOutside(mobileNavigation, () => {
+  mobileNavigationOpen.value = false
+}, { ignore: [mobileNavigationToggle] })
+
+watch(() => route.fullPath, () => {
+  mobileNavigationOpen.value = false
+})
 </script>
 
 <template>
@@ -61,7 +77,7 @@ onKeyDown('?', (e) => {
     <!-- Route change announcements for screen readers -->
     <NuxtRouteAnnouncer />
 
-    <UHeader>
+    <UHeader :toggle="false">
       <template #left>
         <NuxtLink
           to="/"
@@ -133,36 +149,57 @@ onKeyDown('?', (e) => {
             />
           </template>
         </ClientOnly>
+
+        <UButton
+          id="mobile-navigation-toggle"
+          ref="mobileNavigationToggle"
+          :icon="mobileNavigationOpen ? 'i-lucide-x' : 'i-lucide-menu'"
+          color="neutral"
+          variant="ghost"
+          class="lg:hidden -me-1.5"
+          :aria-label="mobileNavigationOpen ? 'Close menu' : 'Open menu'"
+          aria-controls="mobile-navigation"
+          :aria-expanded="mobileNavigationOpen"
+          @click="mobileNavigationOpen = !mobileNavigationOpen"
+        />
       </template>
 
-      <template #body>
-        <nav
-          class="flex flex-col gap-1 p-4"
-          aria-label="Mobile navigation"
+      <template #bottom>
+        <div
+          id="mobile-navigation"
+          ref="mobileNavigation"
+          v-show="mobileNavigationOpen"
+          class="absolute inset-x-0 top-full border-b border-default bg-default shadow-lg lg:hidden"
         >
-          <UButton
-            to="/skills"
-            label="Skills"
-            color="neutral"
-            variant="ghost"
-            block
-            class="justify-start"
-          />
-          <UButton
-            to="/collections"
-            label="Collections"
-            color="neutral"
-            variant="ghost"
-            block
-            class="justify-start"
-          />
-        </nav>
+          <nav
+            class="flex flex-col gap-1 p-4 sm:px-6"
+            aria-label="Mobile navigation"
+          >
+            <UButton
+              to="/skills"
+              label="Skills"
+              color="neutral"
+              variant="ghost"
+              block
+              class="justify-start"
+            />
+            <UButton
+              to="/collections"
+              label="Collections"
+              color="neutral"
+              variant="ghost"
+              block
+              class="justify-start"
+            />
+          </nav>
+        </div>
       </template>
     </UHeader>
 
     <UMain
       id="main-content"
       tabindex="-1"
+      class="[contain:style]"
     >
       <NuxtPage />
     </UMain>

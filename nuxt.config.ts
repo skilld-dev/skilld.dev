@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { SENTRY_DSN } from './shared/sentry'
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
@@ -52,9 +53,9 @@ export default defineNuxtConfig({
     // showing a prompt (which would need a <SkewNotification/> on the anonymous
     // SEO surface). Old assets are served meanwhile, so nothing 404s regardless.
     reloadStrategy: 'idle',
-    // Edge-cached HTML can reference old chunks well after a deploy, so retain
-    // more than the default 10 versions (dedup keeps each cache entry small).
-    maxNumberOfVersions: 30,
+    // Pages render dynamically, so three versions cover active clients without
+    // carrying weeks of obsolete assets into every Worker upload.
+    maxNumberOfVersions: 3,
   },
 
   scripts: {
@@ -140,6 +141,14 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'cloudflare-module',
+    alias: {
+      // Cloudflare's ASSETS binding is authoritative in production and local
+      // Wrangler preview. Avoid parsing Nitro's per-file public asset table in
+      // every new isolate.
+      '#nitro-internal-virtual/public-assets-data': fileURLToPath(
+        new URL('./server/runtime/cloudflare-public-assets.ts', import.meta.url),
+      ),
+    },
     cloudflare: {
       deployConfig: true,
       nodeCompat: true,
