@@ -2,6 +2,23 @@
 
 const API_BASE = 'https://api.github.com'
 const GRAPHQL_URL = 'https://api.github.com/graphql'
+
+/**
+ * Aliases per batched GraphQL request. One alias per file in a single query is
+ * what broke: `affaan-m/everything-claude-code` has 890 SKILL.md files, which
+ * built a 61 KB query that GitHub answered with an nginx 502 after 10.8s, so
+ * the repo failed every hour for days. Measured against that repo: 890 aliases
+ * 502s, 50 per request returns 200 across 18 requests, 25 works but costs more
+ * round trips for no benefit.
+ */
+export const GRAPHQL_BATCH_SIZE = 50
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size))
+  return out
+}
 const RAW_BASE = 'https://raw.githubusercontent.com'
 
 export interface GithubBindings {
@@ -299,7 +316,15 @@ async function gqlPost<T>(
   const rateLimit = parseRateLimit(res.headers)
   if (!res.ok)
     return { status: res.status, data: null, rateLimit }
-  const body = await res.json() as { data?: T, errors?: Array<{ type?: string, message?: string }> }
+  // A gateway can answer 200 with a truncated or non-JSON body. Parsing that
+  // eagerly threw `Unexpected end of JSON input` out of the client and reached
+  // the sync summary as an opaque reason with no status attached.
+  const body = await res.json().catch((error) => {
+    console.warn(`[github-client] GraphQL 200 with unparseable body: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }) as { data?: T, errors?: Array<{ type?: string, message?: string }> } | null
+  if (!body)
+    return { status: 502, data: null, rateLimit }
   if (body.errors?.length) {
     const notFound = body.errors.some(e => e.type === 'NOT_FOUND')
     return { status: notFound ? 404 : 502, data: null, rateLimit }
@@ -324,24 +349,32 @@ export async function getBlobsBatch(
   if (paths.length === 0)
     return { status: 200, data: new Map(), rateLimit: null, notModified: false }
   const unique = [...new Set(paths)]
-  const varDecls = ['$owner:String!', '$repo:String!', ...unique.map((_, i) => `$expr${i}:String!`)]
-  const aliases = unique.map((_, i) => `b${i}:object(expression:$expr${i}){... on Blob{text}}`).join(' ')
-  const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){${aliases}}}`
-  const variables: Record<string, string> = { owner, repo }
-  unique.forEach((p, i) => {
-    variables[`expr${i}`] = `${branch}:${p}`
-  })
-
-  const out = await gqlPost<{ repository: Record<string, { text?: string } | null> | null }>(query, variables, bindings)
-  if (!out.data?.repository)
-    return { status: out.status, data: null, rateLimit: out.rateLimit, notModified: false }
   const map = new Map<string, string>()
-  unique.forEach((p, i) => {
-    const text = out.data!.repository![`b${i}`]?.text
-    if (typeof text === 'string')
-      map.set(p, text)
-  })
-  return { status: 200, data: map, rateLimit: out.rateLimit, notModified: false }
+  let rateLimit: RateLimitInfo | null = null
+
+  for (const batch of chunk(unique, GRAPHQL_BATCH_SIZE)) {
+    const varDecls = ['$owner:String!', '$repo:String!', ...batch.map((_, i) => `$expr${i}:String!`)]
+    const aliases = batch.map((_, i) => `b${i}:object(expression:$expr${i}){... on Blob{text}}`).join(' ')
+    const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){${aliases}}}`
+    const variables: Record<string, string> = { owner, repo }
+    batch.forEach((p, i) => {
+      variables[`expr${i}`] = `${branch}:${p}`
+    })
+
+    const out = await gqlPost<{ repository: Record<string, { text?: string } | null> | null }>(query, variables, bindings)
+    rateLimit = out.rateLimit ?? rateLimit
+    // A partial map would look like a repo that lost files, and the caller
+    // would delete skills it simply failed to read. Fail the whole batch.
+    if (!out.data?.repository)
+      return { status: out.status, data: null, rateLimit, notModified: false }
+    batch.forEach((p, i) => {
+      const text = out.data!.repository![`b${i}`]?.text
+      if (typeof text === 'string')
+        map.set(p, text)
+    })
+  }
+
+  return { status: 200, data: map, rateLimit, notModified: false }
 }
 
 /**
@@ -359,36 +392,45 @@ export async function getCommitsBatch(
   if (paths.length === 0)
     return { status: 200, data: new Map(), rateLimit: null, notModified: false }
   const unique = [...new Set(paths)]
-  const varDecls = ['$owner:String!', '$repo:String!', ...unique.map((_, i) => `$path${i}:String!`)]
-  const histories = unique.map((_, i) =>
-    `h${i}:history(first:${perPage},path:$path${i}){nodes{oid message author{name email date user{login}}}}`,
-  ).join(' ')
-  const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){defaultBranchRef{target{... on Commit{${histories}}}}}}`
-  const variables: Record<string, string> = { owner, repo }
-  unique.forEach((p, i) => {
-    variables[`path${i}`] = p
-  })
 
   interface GqlCommit { oid: string, message: string, author?: { name?: string, email?: string, date: string, user?: { login?: string } | null } | null }
   interface GqlResponse { repository: { defaultBranchRef: { target: Record<string, { nodes: GqlCommit[] } | null> | null } | null } | null }
 
-  const out = await gqlPost<GqlResponse>(query, variables, bindings)
-  const target = out.data?.repository?.defaultBranchRef?.target
-  if (!target)
-    return { status: out.status, data: null, rateLimit: out.rateLimit, notModified: false }
   const map = new Map<string, CommitEntry[]>()
-  unique.forEach((p, i) => {
-    const nodes = target[`h${i}`]?.nodes ?? []
-    map.set(p, nodes.map(c => ({
-      sha: c.oid,
-      commit: {
-        author: { name: c.author?.name, email: c.author?.email, date: c.author?.date ?? '' },
-        message: c.message,
-      },
-      author: c.author?.user ? { login: c.author.user.login } : null,
-    })))
-  })
-  return { status: 200, data: map, rateLimit: out.rateLimit, notModified: false }
+  let rateLimit: RateLimitInfo | null = null
+
+  // History queries are heavier per alias than blobs, so they share the blob
+  // batch ceiling rather than getting a larger one.
+  for (const batch of chunk(unique, GRAPHQL_BATCH_SIZE)) {
+    const varDecls = ['$owner:String!', '$repo:String!', ...batch.map((_, i) => `$path${i}:String!`)]
+    const histories = batch.map((_, i) =>
+      `h${i}:history(first:${perPage},path:$path${i}){nodes{oid message author{name email date user{login}}}}`,
+    ).join(' ')
+    const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){defaultBranchRef{target{... on Commit{${histories}}}}}}`
+    const variables: Record<string, string> = { owner, repo }
+    batch.forEach((p, i) => {
+      variables[`path${i}`] = p
+    })
+
+    const out = await gqlPost<GqlResponse>(query, variables, bindings)
+    rateLimit = out.rateLimit ?? rateLimit
+    const target = out.data?.repository?.defaultBranchRef?.target
+    if (!target)
+      return { status: out.status, data: null, rateLimit, notModified: false }
+    batch.forEach((p, i) => {
+      const nodes = target[`h${i}`]?.nodes ?? []
+      map.set(p, nodes.map(c => ({
+        sha: c.oid,
+        commit: {
+          author: { name: c.author?.name, email: c.author?.email, date: c.author?.date ?? '' },
+          message: c.message,
+        },
+        author: c.author?.user ? { login: c.author.user.login } : null,
+      })))
+    })
+  }
+
+  return { status: 200, data: map, rateLimit, notModified: false }
 }
 
 /**
