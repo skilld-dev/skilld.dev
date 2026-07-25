@@ -131,7 +131,7 @@ asset changes:
 | Wrangler upload | 13,332.03 KiB | 13,104.35 KiB | **-1.7%** |
 | Wrangler upload gzip | 3,447.40 KiB | 3,393.32 KiB | **-1.6%** |
 
-`onig.wasm` is gone from `.output/server`. The seven-run Miniflare harness moved
+`onig.wasm` is gone from `.output/server`. The seven-run Miniflare benchmark moved
 from 1368 ms to 1479 ms median, while warm ping moved from 6.9 ms to 7.6 ms.
 That process-level benchmark is noisy enough to conflict with Wrangler's CPU
 profile, so use it as a coarse regression signal rather than a release claim.

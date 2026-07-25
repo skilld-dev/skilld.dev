@@ -167,8 +167,8 @@ watch(() => route.fullPath, () => {
       <template #bottom>
         <div
           id="mobile-navigation"
-          ref="mobileNavigation"
           v-show="mobileNavigationOpen"
+          ref="mobileNavigation"
           class="absolute inset-x-0 top-full border-b border-default bg-default shadow-lg lg:hidden"
         >
           <nav
