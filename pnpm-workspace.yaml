@@ -2,7 +2,7 @@ minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20260715.1'
   - miniflare@4.20260710.0
   - wrangler@4.111.0
-  - nuxt-cf-jobs@0.14.0
+  - nuxt-cf-jobs@0.14.5
 shellEmulator: true
 
 trustPolicy: no-downgrade
@@ -50,7 +50,7 @@ catalog:
   nuxt: ^4.5.0
   nuxt-ai-ready: ^1.5.8
   nuxt-auth-utils: ^0.5.29
-  nuxt-cf-jobs: ^0.14.0
+  nuxt-cf-jobs: ^0.14.5
   nuxt-og-image: ^6.7.4
   nuxt-skew-protection: ^1.3.1
   skilld-protocol: ^2.0.0

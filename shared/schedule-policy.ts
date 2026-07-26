@@ -17,6 +17,8 @@ export type SchedulePolicy = ObservedSchedulePolicy | ExemptSchedulePolicy
 
 export type ScheduledRunStatus = 'started' | 'succeeded' | 'failed' | 'expired'
 
+export const INFRASTRUCTURE_CRONS = ['*/2 * * * *'] as const
+
 export interface LatestScheduledRun {
   status: ScheduledRunStatus
   startedAt: number
@@ -51,6 +53,7 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'ai-generate-poll', cron: '45 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'ai-generate-submit', cron: '15 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'ai-ready:cron', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
+  { _tag: 'observed', taskName: 'backfill-skill-assets', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'daily-health-check', cron: '0 22 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'drain-skill-dirty', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'recompute-skill-scores', cron: '0 3 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 60 * 60 },

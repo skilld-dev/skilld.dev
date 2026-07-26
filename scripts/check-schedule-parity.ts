@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { SCHEDULE_POLICY } from '../shared/schedule-policy'
+import { INFRASTRUCTURE_CRONS, SCHEDULE_POLICY } from '../shared/schedule-policy'
 import {
   calculateScheduleParity,
   loadCloudflareSchedules,
@@ -18,7 +18,10 @@ if (mode._tag === 'invalid')
   throw new Error(mode.reason)
 
 const tasks = discoverScheduledTasks(root)
-const expected = [...new Set(tasks.map(task => task.cron))].sort()
+// nuxt-cf-jobs adds its durable outbox recovery trigger independently of app
+// task discovery. Keep it in deployment parity without treating it as an
+// observed product task.
+const expected = [...new Set([...tasks.map(task => task.cron), ...INFRASTRUCTURE_CRONS])].sort()
 const generated = parseGeneratedCrons(
   readFileSync(resolve(root, '.nuxt/cf-jobs/crons.suggested.toml'), 'utf8'),
 )

@@ -204,6 +204,18 @@ describe('d1 schema verifier', () => {
     })
   })
 
+  it('accepts a complete historical ledger when migration order is explicitly relaxed', () => {
+    const contract = buildExpectedSchemaContract(migrationsDir)
+    const [first, second, ...rest] = contract.migrationNames
+    const actual = snapshotFromContract(contract, {
+      migrationLedger: [second!, first!, ...rest],
+    })
+
+    expect(verifyD1Schema(contract, actual, {
+      allowHistoricalMigrationOrder: true,
+    })).toMatchObject({ _tag: 'pass' })
+  })
+
   it('passes a clean full replay with an exact ledger', () => {
     const contract = buildExpectedSchemaContract(migrationsDir)
 
@@ -253,7 +265,7 @@ describe('nuxt-cf-jobs schema contract', () => {
       distributedSchemaSource,
     })).toMatchObject({
       _tag: 'fail',
-      issues: [{ _tag: 'package_version_mismatch', expected: '0.14.0', actual: '0.15.0' }],
+      issues: [{ _tag: 'package_version_mismatch', expected: '0.14.5', actual: '0.15.0' }],
     })
   })
 })

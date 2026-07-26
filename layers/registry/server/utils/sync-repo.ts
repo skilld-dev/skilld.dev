@@ -11,13 +11,21 @@ import { resolveSkillTrust } from './skill-trust'
 export interface SyncRepoStats {
   owner: string
   repo: string
-  status: 'indexed' | 'verified-only' | 'rejected' | 'skipped-pushed-at' | 'skipped-tree-sha' | 'failed' | 'rate-limited' | 'unauthorized'
+  status: 'indexed' | 'continuing' | 'restart-required' | 'verified-only' | 'rejected' | 'skipped-pushed-at' | 'skipped-tree-sha' | 'failed' | 'rate-limited' | 'unauthorized'
   reason?: string
   skillsSeen: number
   skillsUpserted: number
   revisionsInserted: number
   activityEmitted: number
   rateLimitRemaining?: number
+  rateLimitResetAt?: number
+  continuation?: SyncRepoContinuation
+}
+
+export interface SyncRepoContinuation {
+  treeSha: string
+  checkedAt: number
+  nextOffset: number
 }
 
 interface ExistingSkill {
@@ -26,12 +34,40 @@ interface ExistingSkill {
   modified_at: number | null
   first_seen_at: number | null
   last_synced_at: number | null
+  references_count: number
+  assets: string
+  rendered_skill_path: string | null
+  rendered_status: string | null
+  owner_verified: number
 }
 
 interface ExistingRepo {
   last_tree_sha: string | null
   pushed_at: number | null
 }
+
+export type RefreshRepoAssetsResult
+  = | {
+    _tag: 'refreshed'
+    owner: string
+    repo: string
+    skillsSeen: number
+    skillsChanged: number
+    pathsMissing: number
+    rateLimitRemaining?: number
+    rateLimitResetAt?: number
+  }
+  | {
+    _tag: 'failed'
+    owner: string
+    repo: string
+    reason: string
+    retryable: boolean
+    rateLimited: boolean
+    unauthorized: boolean
+    rateLimitRemaining?: number
+    rateLimitResetAt?: number
+  }
 
 const SKILL_FILE_SUFFIX = '/SKILL.md'
 const FIRST_SYNC_COMMIT_CAP = 30
@@ -138,7 +174,9 @@ function collectAssetsByDir(
 async function loadExistingSkills(db: D1Database, owner: string, repo: string): Promise<Map<string, ExistingSkill>> {
   const res = await db
     .prepare(
-      `SELECT name, current_sha, modified_at, first_seen_at, last_synced_at
+      `SELECT name, current_sha, modified_at, first_seen_at, last_synced_at,
+              references_count, assets, rendered_skill_path, rendered_status,
+              owner_verified
        FROM skills WHERE owner = ? AND repo = ?`,
     )
     .bind(owner, repo)
@@ -147,6 +185,122 @@ async function loadExistingSkills(db: D1Database, owner: string, repo: string): 
   for (const row of res.results ?? [])
     map.set(row.name, row)
   return map
+}
+
+export async function refreshRepoAssets(
+  owner: string,
+  repo: string,
+  bindings: GithubBindings,
+  db: D1Database,
+): Promise<RefreshRepoAssetsResult> {
+  const repoRes = await getRepoSummary(owner, repo, bindings)
+  logRateLimit(`asset-backfill repo ${owner}/${repo}`, repoRes.rateLimit)
+  const rate: Pick<SyncRepoStats, 'rateLimitRemaining' | 'rateLimitResetAt'> = {
+    ...(repoRes.rateLimit ? { rateLimitRemaining: repoRes.rateLimit.remaining, rateLimitResetAt: repoRes.rateLimit.reset } : {}),
+  }
+  if (!repoRes.data) {
+    return {
+      _tag: 'failed',
+      owner,
+      repo,
+      reason: `repo fetch ${repoRes.status}`,
+      retryable: repoRes.status === 403 || repoRes.status === 429 || repoRes.status >= 500,
+      rateLimited: repoRes.status === 403 || repoRes.status === 429,
+      unauthorized: repoRes.status === 401,
+      ...rate,
+    }
+  }
+
+  const branch = repoRes.data.meta.default_branch || 'main'
+  const treeRes = await getTree(owner, repo, branch, bindings)
+  logRateLimit(`asset-backfill tree ${owner}/${repo}`, treeRes.rateLimit)
+  const rateLimitRemaining = Math.min(
+    rate.rateLimitRemaining ?? Number.POSITIVE_INFINITY,
+    treeRes.rateLimit?.remaining ?? Number.POSITIVE_INFINITY,
+  )
+  const rateLimitResetAt = Math.max(rate.rateLimitResetAt ?? 0, treeRes.rateLimit?.reset ?? 0)
+  const finalRate = {
+    ...(Number.isFinite(rateLimitRemaining) ? { rateLimitRemaining } : {}),
+    ...(rateLimitResetAt > 0 ? { rateLimitResetAt } : {}),
+  }
+  if (!treeRes.data) {
+    return {
+      _tag: 'failed',
+      owner,
+      repo,
+      reason: `tree fetch ${treeRes.status}`,
+      retryable: treeRes.status === 403 || treeRes.status === 429 || treeRes.status >= 500,
+      rateLimited: treeRes.status === 403 || treeRes.status === 429,
+      unauthorized: treeRes.status === 401,
+      ...finalRate,
+    }
+  }
+  if (treeRes.data.truncated) {
+    return {
+      _tag: 'failed',
+      owner,
+      repo,
+      reason: 'tree truncated',
+      retryable: false,
+      rateLimited: false,
+      unauthorized: false,
+      ...finalRate,
+    }
+  }
+
+  const existing = [...(await loadExistingSkills(db, owner, repo)).values()]
+  const skillPaths = new Set(
+    treeRes.data.tree
+      .filter(entry => entry.type === 'blob' && entry.path.endsWith(SKILL_FILE_SUFFIX))
+      .map(entry => entry.path),
+  )
+  let skillsChanged = 0
+  let pathsMissing = 0
+  const now = nowSec()
+
+  for (const slice of slices(existing, SKILL_SLICE_SIZE)) {
+    const withPath = slice.flatMap((skill) => {
+      const path = skill.rendered_skill_path
+      if (!path || !skillPaths.has(path)) {
+        pathsMissing += 1
+        return []
+      }
+      return [{ skill, dirPath: path.slice(0, -SKILL_FILE_SUFFIX.length) }]
+    })
+    const assetsByDir = collectAssetsByDir(treeRes.data.tree, new Set(withPath.map(item => item.dirPath)))
+    const writes: D1PreparedStatement[] = []
+    for (const { skill, dirPath } of withPath) {
+      const assets = assetsByDir.get(dirPath) ?? []
+      const assetsJson = JSON.stringify(assets)
+      if (skill.references_count === assets.length && skill.assets === assetsJson)
+        continue
+      skillsChanged += 1
+      writes.push(db.prepare(
+        `UPDATE skills
+         SET references_count = ?, assets = ?
+         WHERE owner = ? AND repo = ? AND name = ?`,
+      ).bind(assets.length, assetsJson, owner, repo, skill.name))
+      writes.push(db.prepare(
+        `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
+         VALUES (?, ?, ?, 'references_changed', ?, 0)
+         ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
+           queued_at = excluded.queued_at,
+           attempts = 0`,
+      ).bind(owner, repo, skill.name, now))
+    }
+    if (writes.length > 0)
+      await db.batch(writes)
+  }
+
+  return {
+    _tag: 'refreshed',
+    owner,
+    repo,
+    skillsSeen: existing.length,
+    skillsChanged,
+    pathsMissing,
+    ...finalRate,
+  }
 }
 
 async function loadExistingRepo(db: D1Database, owner: string, repo: string): Promise<ExistingRepo | null> {
@@ -307,6 +461,22 @@ export interface SyncRepoOptions {
    * owner-verified (a primary trust signal → indexable by default).
    */
   ownerVerified?: boolean
+  /**
+   * Bypass repo and per-skill content cursors. Used by rendered-content repair,
+   * where an unchanged Git tree still needs a fresh render.
+   */
+  forceContent?: boolean
+  /**
+   * Resume a large repository from a durable checkpoint. The tree snapshot and
+   * check timestamp keep final cursor and quarantine decisions atomic across
+   * multiple Worker invocations.
+   */
+  continuation?: SyncRepoContinuation
+  /**
+   * Maximum SKILL.md paths to inspect in this invocation. Omit for the
+   * synchronous full-repo behavior used outside durable jobs.
+   */
+  maxSkillFiles?: number
 }
 
 export async function syncRepo(
@@ -325,11 +495,18 @@ export async function syncRepo(
     revisionsInserted: 0,
     activityEmitted: 0,
   }
+  const trackRateLimit = (rateLimit: { remaining: number, reset: number } | null): void => {
+    if (!rateLimit)
+      return
+    stats.rateLimitRemaining = stats.rateLimitRemaining == null
+      ? rateLimit.remaining
+      : Math.min(stats.rateLimitRemaining, rateLimit.remaining)
+    stats.rateLimitResetAt = Math.max(stats.rateLimitResetAt ?? 0, rateLimit.reset)
+  }
 
   const repoRes = await getRepoSummary(owner, repo, bindings)
   logRateLimit(`repo ${owner}/${repo}`, repoRes.rateLimit)
-  if (repoRes.rateLimit)
-    stats.rateLimitRemaining = repoRes.rateLimit.remaining
+  trackRateLimit(repoRes.rateLimit)
 
   // A 401 is the credential, not the repository. Reporting it per repo made an
   // expired GITHUB_TOKEN look like ten unrelated repo failures that repeated
@@ -358,7 +535,7 @@ export async function syncRepo(
   const headTreeSha = repoRes.data.headTreeSha
   const branch = meta.default_branch || 'main'
   const repoPushedAt = epoch(meta.pushed_at)
-  const checkedAt = nowSec()
+  const checkedAt = opts.continuation?.checkedAt ?? nowSec()
 
   const existingRepo = await loadExistingRepo(db, owner, repo)
   const hasAdmittedSkills = await repoHasAdmittedSkills(db, owner, repo)
@@ -377,11 +554,13 @@ export async function syncRepo(
   // GraphQL gave us the head tree SHA in the same request. If it matches
   // our cached value, the repo is unchanged and we skip the REST getTree
   // call entirely. Skill-less candidates deliberately bypass this cursor.
-  if (hasAdmittedSkills && existingRepo?.last_tree_sha && headTreeSha && existingRepo.last_tree_sha === headTreeSha)
+  if (!opts.continuation && !opts.forceContent && hasAdmittedSkills && existingRepo?.last_tree_sha && headTreeSha && existingRepo.last_tree_sha === headTreeSha)
     return markUnchanged('skipped-tree-sha')
 
   if (
-    hasAdmittedSkills
+    !opts.continuation
+    && !opts.forceContent
+    && hasAdmittedSkills
     && existingRepo?.pushed_at != null
     && existingRepo.last_tree_sha != null
     && repoPushedAt != null
@@ -392,6 +571,7 @@ export async function syncRepo(
 
   const treeRes = await getTree(owner, repo, branch, bindings)
   logRateLimit(`tree ${owner}/${repo}`, treeRes.rateLimit)
+  trackRateLimit(treeRes.rateLimit)
 
   if (!treeRes.data) {
     stats.status = treeRes.status === 403 || treeRes.status === 429 ? 'rate-limited' : 'failed'
@@ -405,7 +585,12 @@ export async function syncRepo(
     stats.reason = 'tree_truncated'
     return stats
   }
-  if (hasAdmittedSkills && existingRepo?.last_tree_sha && existingRepo.last_tree_sha === tree.sha)
+  if (opts.continuation && opts.continuation.treeSha !== tree.sha) {
+    stats.status = 'restart-required'
+    stats.reason = 'tree_changed_during_continuation'
+    return stats
+  }
+  if (!opts.continuation && !opts.forceContent && hasAdmittedSkills && existingRepo?.last_tree_sha && existingRepo.last_tree_sha === tree.sha)
     return markUnchanged('skipped-tree-sha')
 
   // The common unchanged-repo paths above need only the single repos row.
@@ -504,35 +689,127 @@ export async function syncRepo(
     return stats
   }
 
-  // Content moves one slice at a time: fetch, render, write, release. Holding
-  // the whole repo is what killed the isolate on 2026-07-26; see
-  // SKILL_SLICE_SIZE. Names seen accumulate across slices because the
-  // disappeared-skill judgement below needs the whole repo, but names are
-  // cheap where blobs and rendered HTML are not.
+  const existingByPath = new Map<string, ExistingSkill>()
+  for (const skill of existing.values()) {
+    if (skill.rendered_skill_path)
+      existingByPath.set(skill.rendered_skill_path, skill)
+  }
+
+  // Content moves one slice at a time: select changed paths, fetch, admit,
+  // render, write, release. Names seen accumulate across slices because the
+  // disappeared-skill judgement below needs the whole repo.
   const seenNames = new Set<string>()
+  const chunkStart = Math.max(0, opts.continuation?.nextOffset ?? 0)
+  const chunkSize = opts.maxSkillFiles == null
+    ? skillFiles.length
+    : Math.max(1, Math.floor(opts.maxSkillFiles))
+  const chunkEnd = Math.min(skillFiles.length, chunkStart + chunkSize)
+  const chunkFiles = skillFiles.slice(chunkStart, chunkEnd)
+  const isFinalChunk = chunkEnd >= skillFiles.length
 
-  for (const slice of slices(skillFiles, SKILL_SLICE_SIZE)) {
-    // One blob request per slice, replacing N raw.githubusercontent.com
-    // fetches (per-IP-throttled, ignores auth). Commits for the changed paths
-    // in the same slice follow in a second request.
-    const blobsRes = await getBlobsBatch(owner, repo, branch, slice.map(f => f.path), bindings)
-    logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
-    if (!blobsRes.data) {
-      stats.status = blobsRes.status === 403 || blobsRes.status === 429 ? 'rate-limited' : 'failed'
-      stats.reason = `blob_batch_failed:${blobsRes.status}`
-      return stats
-    }
-    const blobs = blobsRes.data
-    const missingBlobPath = slice.find(file => !blobs.has(file.path))?.path
-    if (missingBlobPath) {
-      stats.status = 'failed'
-      stats.reason = `blob_batch_partial:${missingBlobPath}`
-      return stats
-    }
+  for (const slice of slices(chunkFiles, SKILL_SLICE_SIZE)) {
+    const assetsByDir = collectAssetsByDir(tree.tree, new Set(slice.map(f => f.dirPath)))
+    const writes: D1PreparedStatement[] = []
+    const revisionWriteIndexes: number[] = []
+    const activityWriteIndexes: number[] = []
 
-    const changedPaths: string[] = []
-    const parsedFiles: Array<SkillSnapshot & { raw: string, parsed: NonNullable<ReturnType<typeof parseSkillFile>> }> = []
+    const contentFiles: SkillSnapshot[] = []
     for (const file of slice) {
+      const prev = existingByPath.get(file.path)
+      const needsContent = opts.forceContent
+        || !prev
+        || prev.current_sha !== file.treeSha
+        || prev.rendered_status !== 'ok'
+      if (needsContent) {
+        contentFiles.push(file)
+        continue
+      }
+
+      const assets = assetsByDir.get(file.dirPath) ?? []
+      const refsCount = assets.length
+      const assetsJson = JSON.stringify(assets)
+      const referencesChanged = prev.references_count !== refsCount || prev.assets !== assetsJson
+      const ownerVerificationChanged = opts.ownerVerified === true && prev.owner_verified !== 1
+
+      seenNames.add(prev.name)
+      writes.push(db.prepare(
+        `UPDATE skills
+         SET references_count = ?,
+             assets = ?,
+             last_synced_at = ?,
+             sync_status = 'ok',
+             source_resolved = 1,
+             owner_verified = MAX(owner_verified, ?)
+         WHERE owner = ? AND repo = ? AND name = ?`,
+      ).bind(
+        refsCount,
+        assetsJson,
+        now,
+        opts.ownerVerified ? 1 : 0,
+        owner,
+        repo,
+        prev.name,
+      ))
+      stats.skillsUpserted += 1
+
+      if (referencesChanged) {
+        writes.push(db.prepare(
+          `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
+           VALUES (?, ?, ?, 'references_changed', ?, 0)
+           ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
+             queued_at = excluded.queued_at,
+             attempts = 0`,
+        ).bind(owner, repo, prev.name, now))
+      }
+      if (ownerVerificationChanged) {
+        writes.push(db.prepare(
+          `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
+           VALUES (?, ?, ?, 'owner_verified', ?, 0)
+           ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
+             queued_at = excluded.queued_at,
+             attempts = 0`,
+        ).bind(owner, repo, prev.name, now))
+      }
+    }
+
+    const blobs = new Map<string, string>()
+    if (contentFiles.length > 0) {
+      const blobsRes = await getBlobsBatch(owner, repo, branch, contentFiles.map(file => file.path), bindings)
+      logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
+      trackRateLimit(blobsRes.rateLimit)
+      if (!blobsRes.data) {
+        stats.status = blobsRes.status === 403 || blobsRes.status === 429 ? 'rate-limited' : 'failed'
+        stats.reason = `blob_batch_failed:${blobsRes.status}`
+        return stats
+      }
+      for (const [path, raw] of blobsRes.data)
+        blobs.set(path, raw)
+      const missingBlobPath = contentFiles.find(file => !blobs.has(file.path))?.path
+      if (missingBlobPath) {
+        stats.status = 'failed'
+        stats.reason = `blob_batch_partial:${missingBlobPath}`
+        return stats
+      }
+    }
+
+    type ParsedWork = SkillSnapshot & {
+      raw: string
+      parsed: NonNullable<ReturnType<typeof parseSkillFile>>
+      prev: ExistingSkill | undefined
+      assets: SkillAsset[]
+      refsCount: number
+      description: string | null
+      isNewToRegistry: boolean
+      contentChanged: boolean
+      isOfficial: boolean
+      ownerVerified: boolean
+      trust: ReturnType<typeof resolveSkillTrust>
+      indexability: ReturnType<typeof scoreSkillIndexability>
+    }
+    const admittedFiles: ParsedWork[] = []
+    const changedPaths: string[] = []
+
+    for (const file of contentFiles) {
       const raw = blobs.get(file.path)!
       const parsed = parseSkillFile(raw, file.dirName)
       if (!parsed) {
@@ -540,55 +817,13 @@ export async function syncRepo(
         stats.reason = `skill_parse_rejected:${file.path}`
         return stats
       }
-      parsedFiles.push({ ...file, raw, parsed })
-      const prev = existing.get(parsed.name)
-      if (prev?.current_sha !== file.treeSha)
-        changedPaths.push(file.path)
-    }
-    // Use the higher per-file cap unconditionally: the GraphQL fan-out is one
-    // request regardless of perPage, so paying the extra commit nodes for new
-    // skills (cap 30) saves the per-skill perPage branch.
-    const commitsRes = await getCommitsBatch(owner, repo, changedPaths, FIRST_SYNC_COMMIT_CAP, bindings)
-    logRateLimit(`commits-batch ${owner}/${repo}`, commitsRes.rateLimit)
-    if (!commitsRes.data) {
-      stats.status = commitsRes.status === 403 || commitsRes.status === 429 ? 'rate-limited' : 'failed'
-      stats.reason = `commit_batch_failed:${commitsRes.status}`
-      return stats
-    }
-    const commitsByPath = commitsRes.data
-    const missingCommitPath = changedPaths.find(path => !commitsByPath.has(path))
-    if (missingCommitPath) {
-      stats.status = 'failed'
-      stats.reason = `commit_batch_partial:${missingCommitPath}`
-      return stats
-    }
-
-    const assetsByDir = collectAssetsByDir(tree.tree, new Set(slice.map(f => f.dirPath)))
-
-    const writes: D1PreparedStatement[] = []
-    const revisionWriteIndexes: number[] = []
-    const activityWriteIndexes: number[] = []
-
-    for (const file of parsedFiles) {
-      const { raw, parsed } = file
-      seenNames.add(parsed.name)
 
       const prev = existing.get(parsed.name)
       const assets = assetsByDir.get(file.dirPath) ?? []
       const refsCount = assets.length
       const description = parsed.description || repoDescription
-      const skillDir = file.path.replace(/\/SKILL\.md$/, '')
-      const rendered = await parseSkillMd(raw, {
-        owner,
-        repo,
-        name: parsed.name,
-        branch,
-        skillDir,
-        filePath: '',
-      })
       const isNewToRegistry = !prev || prev.current_sha == null
       const contentChanged = prev?.current_sha !== file.treeSha
-      const firstSeenAt = prev?.first_seen_at ?? now
       const isOfficial = isOfficialSkillRepo(owner, repo)
       const trust = resolveSkillTrust({
         owner,
@@ -627,6 +862,72 @@ export async function syncRepo(
       const admit = !isNewToRegistry || isOfficial || ownerVerified || indexability.indexable
       if (!admit)
         continue
+
+      seenNames.add(parsed.name)
+      admittedFiles.push({
+        ...file,
+        raw,
+        parsed,
+        prev,
+        assets,
+        refsCount,
+        description,
+        isNewToRegistry,
+        contentChanged,
+        isOfficial,
+        ownerVerified,
+        trust,
+        indexability,
+      })
+      if (contentChanged)
+        changedPaths.push(file.path)
+    }
+
+    const commitsByPath: NonNullable<Awaited<ReturnType<typeof getCommitsBatch>>['data']> = new Map()
+    if (changedPaths.length > 0) {
+      const commitsRes = await getCommitsBatch(owner, repo, changedPaths, FIRST_SYNC_COMMIT_CAP, bindings)
+      logRateLimit(`commits-batch ${owner}/${repo}`, commitsRes.rateLimit)
+      trackRateLimit(commitsRes.rateLimit)
+      if (!commitsRes.data) {
+        stats.status = commitsRes.status === 403 || commitsRes.status === 429 ? 'rate-limited' : 'failed'
+        stats.reason = `commit_batch_failed:${commitsRes.status}`
+        return stats
+      }
+      for (const [path, commits] of commitsRes.data)
+        commitsByPath.set(path, commits)
+      const missingCommitPath = changedPaths.find(path => !commitsByPath.has(path))
+      if (missingCommitPath) {
+        stats.status = 'failed'
+        stats.reason = `commit_batch_partial:${missingCommitPath}`
+        return stats
+      }
+    }
+
+    for (const file of admittedFiles) {
+      const {
+        raw,
+        parsed,
+        prev,
+        assets,
+        refsCount,
+        description,
+        isNewToRegistry,
+        contentChanged,
+        isOfficial,
+        ownerVerified,
+        trust,
+        indexability,
+      } = file
+      const firstSeenAt = prev?.first_seen_at ?? now
+      const skillDir = file.path.replace(/\/SKILL\.md$/, '')
+      const rendered = await parseSkillMd(raw, {
+        owner,
+        repo,
+        name: parsed.name,
+        branch,
+        skillDir,
+        filePath: '',
+      })
 
       let modifiedAt = prev?.modified_at ?? null
       if (contentChanged) {
@@ -795,11 +1096,22 @@ export async function syncRepo(
     }
   }
 
+  if (!isFinalChunk) {
+    stats.status = 'continuing'
+    stats.continuation = {
+      treeSha: tree.sha,
+      checkedAt: now,
+      nextOffset: chunkEnd,
+    }
+    return stats
+  }
+
   // Only now is the full set of surviving names known, so the disappeared-skill
-  // judgement has to wait for every slice.
+  // judgement has to wait for every chunk. Rows acknowledged by an earlier
+  // invocation carry this run's stable last_synced_at checkpoint.
   const finalWrites: D1PreparedStatement[] = []
-  for (const [name] of existing) {
-    if (!seenNames.has(name)) {
+  for (const [name, skill] of existing) {
+    if (!seenNames.has(name) && skill.last_synced_at !== now) {
       finalWrites.push(db.prepare(
         `UPDATE skills
            SET source_resolved = 0,
@@ -823,7 +1135,9 @@ export async function syncRepo(
   finalWrites.push(repoWrite(null))
   await db.batch(finalWrites)
 
-  if (stats.skillsUpserted === 0) {
+  const acknowledgedBeforeThisChunk = [...existing.values()]
+    .some(skill => skill.last_synced_at === now)
+  if (stats.skillsUpserted === 0 && !acknowledgedBeforeThisChunk) {
     stats.status = 'rejected'
     stats.reason = 'trust_inputs_insufficient'
     return stats

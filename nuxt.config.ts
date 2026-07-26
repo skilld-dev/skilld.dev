@@ -32,10 +32,36 @@ export default defineNuxtConfig({
     // and Cloudflare triggers from that single source of truth.
     tasksDir: true,
     scheduledTasks: process.env.NODE_ENV === 'production',
-    // This app currently uses scheduled tasks only. Durable recovery requires
-    // the nuxt-cf-jobs D1 schema and queue consumers, neither of which exists yet.
-    reconcile: false,
-    queues: {},
+    reconcile: {
+      d1Binding: 'DB',
+      staleSeconds: 20 * 60,
+      orphanedSeconds: 2 * 60,
+      orphanedBatchSeconds: 24 * 60 * 60,
+      limit: 100,
+    },
+    queues: {
+      'repo-sync': {
+        binding: 'REPO_SYNC_QUEUE',
+        queueName: 'skilld-repo-sync',
+        maxBatchSize: 1,
+        maxBatchTimeout: 1,
+        maxConcurrency: 1,
+        maxRetries: 100,
+        retryDelay: 60,
+        deadLetterQueue: 'skilld-repo-sync-dlq',
+        deadLetterQueueBinding: 'REPO_SYNC_DLQ',
+      },
+      'repo-sync-dlq': {
+        binding: 'REPO_SYNC_DLQ',
+        queueName: 'skilld-repo-sync-dlq',
+        maxBatchSize: 1,
+        maxBatchTimeout: 1,
+        maxConcurrency: 1,
+        maxRetries: 3,
+        retryDelay: 60,
+      },
+    },
+    wranglerPath: 'wrangler.jsonc',
   },
 
   // Version skew protection: after a deploy, clients still running the previous
@@ -88,7 +114,7 @@ export default defineNuxtConfig({
     },
     cron: false,
     runtimeSync: true,
-    indexNow: true,
+    indexNow: false,
   },
 
   app: {

@@ -13,7 +13,7 @@ import {
   parseGeneratedCrons,
   parseScheduledTasksDocument,
 } from '../../scripts/lib/scheduled-task-source'
-import { SCHEDULE_POLICY } from '../../shared/schedule-policy'
+import { INFRASTRUCTURE_CRONS, SCHEDULE_POLICY } from '../../shared/schedule-policy'
 
 describe('scheduled task coverage and parity', () => {
   it('fails loudly when a discovered scheduled task is not static and parseable', () => {
@@ -41,7 +41,7 @@ describe('scheduled task coverage and parity', () => {
 
   it('observes every scheduled task with no exemptions', () => {
     const tasks = discoverScheduledTasks(process.cwd())
-    expect(tasks).toHaveLength(10)
+    expect(tasks).toHaveLength(11)
     expect(SCHEDULE_POLICY.filter(entry => entry._tag === 'exempt')).toEqual([])
     expect(SCHEDULE_POLICY.map(entry => entry.taskName).sort())
       .toEqual(tasks.map(task => task.name).sort())
@@ -64,7 +64,7 @@ describe('scheduled task coverage and parity', () => {
     const tasks = discoverScheduledTasks(process.cwd())
     const generated = parseGeneratedCrons(readFileSync(resolve(process.cwd(), '.nuxt/cf-jobs/crons.suggested.toml'), 'utf8'))
     const documented = parseScheduledTasksDocument(readFileSync(resolve(process.cwd(), 'CRON.md'), 'utf8'))
-    const expectedCrons = [...new Set(tasks.map(task => task.cron))].sort()
+    const expectedCrons = [...new Set([...tasks.map(task => task.cron), ...INFRASTRUCTURE_CRONS])].sort()
 
     expect(generated.sort()).toEqual(expectedCrons)
     expect(documented).toEqual(tasks)

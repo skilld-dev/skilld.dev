@@ -9,11 +9,12 @@ const github = vi.hoisted(() => ({
   getTree: vi.fn(),
   logRateLimit: vi.fn(),
 }))
-
-vi.mock('../../layers/registry/server/utils/github-client', () => github)
-vi.mock('../../layers/registry/server/utils/skill-md-render', () => ({
+const renderer = vi.hoisted(() => ({
   parseSkillMd: vi.fn(async (raw: string) => ({ frontmatter: {}, body: raw, html: `<p>${raw}</p>` })),
 }))
+
+vi.mock('../../layers/registry/server/utils/github-client', () => github)
+vi.mock('../../layers/registry/server/utils/skill-md-render', () => renderer)
 
 const rawSkill = (name: string) => `---\nname: ${name}\ndescription: ${name} description\n---\n# ${name}`
 
@@ -167,6 +168,175 @@ describe('syncRepo content acknowledgement', () => {
       reason: 'trust_inputs_insufficient',
       skillsUpserted: 0,
     })
+    expect(renderer.parseSkillMd).not.toHaveBeenCalled()
+    expect(github.getCommitsBatch).not.toHaveBeenCalled()
+  })
+
+  it('fetches and renders only content whose tree SHA changed', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    insertSkill(sqlite, 'two', 'two-old')
+    setRendered(sqlite, 'one', 'skills/one/SKILL.md')
+    setRendered(sqlite, 'two', 'skills/two/SKILL.md')
+    github.getTree.mockResolvedValue(tree([
+      { path: 'skills/one/SKILL.md', sha: 'one-new' },
+      { path: 'skills/two/SKILL.md', sha: 'two-old' },
+    ]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result.status).toBe('indexed')
+    expect(github.getBlobsBatch).toHaveBeenCalledWith(
+      'acme',
+      'skills',
+      'main',
+      ['skills/one/SKILL.md'],
+      {},
+    )
+    expect(renderer.parseSkillMd).toHaveBeenCalledTimes(1)
+    expect(renderer.parseSkillMd.mock.calls[0]?.[0]).toBe(rawSkill('One'))
+  })
+
+  it('keeps unchanged names seen and refreshes their tree-derived fields', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    setRendered(sqlite, 'one', 'skills/one/SKILL.md')
+    github.getTree.mockResolvedValue({
+      ...tree([{ path: 'skills/one/SKILL.md', sha: 'one-old' }]),
+      data: {
+        sha: 'new-tree',
+        tree: [
+          { path: 'skills/one/SKILL.md', sha: 'one-old', type: 'blob' },
+          { path: 'skills/one/reference.md', sha: 'ref', type: 'blob', size: 12 },
+        ],
+      },
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result.status).toBe('indexed')
+    expect(github.getBlobsBatch).not.toHaveBeenCalled()
+    expect(renderer.parseSkillMd).not.toHaveBeenCalled()
+    expect(sqlite.prepare(
+      `SELECT source_resolved, references_count, assets, last_synced_at FROM skills WHERE name = 'one'`,
+    ).get()).toEqual({
+      source_resolved: 1,
+      references_count: 1,
+      assets: JSON.stringify([{ path: 'reference.md', size: 12, type: 'markdown' }]),
+      last_synced_at: 1783900800,
+    })
+    expect(sqlite.prepare(`SELECT reason FROM skill_dirty`).pluck().all()).toEqual(['references_changed'])
+  })
+
+  it('falls back to content work for a null rendered path and self-heals it', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-old' }]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    await syncRepo('acme', 'skills', {}, db)
+
+    expect(renderer.parseSkillMd).toHaveBeenCalledTimes(1)
+    expect(sqlite.prepare(`SELECT rendered_skill_path FROM skills WHERE name = 'one'`).pluck().get())
+      .toBe('skills/one/SKILL.md')
+  })
+
+  it('forces content repair through unchanged repo cursors without adding revisions', async () => {
+    insertRepo(sqlite, 'same-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    setRendered(sqlite, 'one', 'skills/one/SKILL.md', 'fetch_failed')
+    github.getRepoSummary.mockResolvedValue(repoSummary('same-tree'))
+    github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-old' }], 'same-tree'))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db, { forceContent: true })
+
+    expect(result.status).toBe('indexed')
+    expect(github.getTree).toHaveBeenCalledTimes(1)
+    expect(renderer.parseSkillMd).toHaveBeenCalledTimes(1)
+    expect(github.getCommitsBatch).not.toHaveBeenCalled()
+    expect(sqlite.prepare(`SELECT count(*) FROM skill_revisions`).pluck().get()).toBe(0)
+  })
+
+  it('checkpoints a large repo without advancing its cursor or quarantining later paths', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    insertSkill(sqlite, 'two', 'two-old')
+    setRendered(sqlite, 'one', 'skills/one/SKILL.md')
+    setRendered(sqlite, 'two', 'skills/two/SKILL.md')
+    github.getTree.mockResolvedValue(tree([
+      { path: 'skills/one/SKILL.md', sha: 'one-old' },
+      { path: 'skills/two/SKILL.md', sha: 'two-old' },
+    ]))
+
+    const first = await syncRepo('acme', 'skills', {}, db, { maxSkillFiles: 1 })
+
+    expect(first).toMatchObject({
+      status: 'continuing',
+      continuation: {
+        treeSha: 'new-tree',
+        checkedAt: 1783900800,
+        nextOffset: 1,
+      },
+    })
+    expect(sqlite.prepare(`SELECT last_tree_sha FROM repos`).pluck().get()).toBe('old-tree')
+    expect(sqlite.prepare(`SELECT name, source_resolved FROM skills ORDER BY name`).all()).toEqual([
+      { name: 'one', source_resolved: 1 },
+      { name: 'two', source_resolved: 1 },
+    ])
+
+    const second = await syncRepo('acme', 'skills', {}, db, {
+      continuation: first.continuation,
+      maxSkillFiles: 1,
+    })
+
+    expect(second.status).toBe('indexed')
+    expect(sqlite.prepare(`SELECT last_tree_sha FROM repos`).pluck().get()).toBe('new-tree')
+    expect(sqlite.prepare(`SELECT name, source_resolved FROM skills ORDER BY name`).all()).toEqual([
+      { name: 'one', source_resolved: 1 },
+      { name: 'two', source_resolved: 1 },
+    ])
+  })
+
+  it('asks the durable job to restart when its tree changes between checkpoints', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    setRendered(sqlite, 'one', 'skills/one/SKILL.md')
+    github.getTree.mockResolvedValue(tree(
+      [{ path: 'skills/one/SKILL.md', sha: 'one-old' }],
+      'replacement-tree',
+    ))
+
+    const result = await syncRepo('acme', 'skills', {}, db, {
+      continuation: {
+        treeSha: 'stale-tree',
+        checkedAt: 1783900000,
+        nextOffset: 1,
+      },
+      maxSkillFiles: 1,
+    })
+
+    expect(result).toMatchObject({
+      status: 'restart-required',
+      reason: 'tree_changed_during_continuation',
+    })
+    expect(sqlite.prepare(`SELECT last_tree_sha FROM repos`).pluck().get()).toBe('old-tree')
   })
 
   it('emits one activity row across concurrent syncs', async () => {
@@ -293,6 +463,19 @@ function insertSkill(sqlite: Database.Database, name: string, sha: string): void
        owner, repo, name, display_name, slug, current_sha, first_seen_at, source_resolved
      ) VALUES ('acme', 'skills', ?, ?, ?, ?, 1, 1)`,
   ).run(name, name, `acme/${name}`, sha)
+}
+
+function setRendered(
+  sqlite: Database.Database,
+  name: string,
+  path: string,
+  status = 'ok',
+): void {
+  sqlite.prepare(
+    `UPDATE skills
+     SET rendered_skill_path = ?, rendered_status = ?, rendered_raw = 'old', rendered_html = '<p>old</p>'
+     WHERE owner = 'acme' AND repo = 'skills' AND name = ?`,
+  ).run(path, status, name)
 }
 
 interface BoundStatement {

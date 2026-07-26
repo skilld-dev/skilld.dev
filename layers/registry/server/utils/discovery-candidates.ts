@@ -194,6 +194,27 @@ export async function claimDiscoveryCandidate(
   db: D1Database,
   input: ClaimDiscoveryCandidateInput,
 ): Promise<ClaimDiscoveryCandidateResult> {
+  const resumed = await db.prepare(
+    `UPDATE discovery_candidates
+     SET claimed_at = ?
+     WHERE owner = ? AND repo = ?
+       AND retry_state = 'claimed'
+       AND claim_token = ?
+     RETURNING attempt_count, owner_verified`,
+  ).bind(
+    input.now,
+    input.owner,
+    input.repo,
+    input.token,
+  ).first<ClaimedCandidateRow>()
+  if (resumed) {
+    return {
+      _tag: 'claimed',
+      attemptCount: resumed.attempt_count,
+      ownerVerified: resumed.owner_verified === 1,
+    }
+  }
+
   const result = await db.prepare(
     `UPDATE discovery_candidates
      SET last_attempted_at = ?,

@@ -37,6 +37,13 @@ describe('d1 schema verification script', () => {
     })
   })
 
+  it('allows one quoted table name in foreign key inspection', () => {
+    expect(assertReadOnlyInspectionQuery(`PRAGMA foreign_key_list("skills")`))
+      .toEqual({ _tag: 'allowed' })
+    expect(assertReadOnlyInspectionQuery(`PRAGMA foreign_key_list("skills"); DELETE FROM skills`))
+      .toMatchObject({ _tag: 'rejected' })
+  })
+
   it('rejects malformed Wrangler JSON', async () => {
     const execFile = vi.fn<SchemaVerifyExecFile>(async () => ({
       stdout: '{not-json',
@@ -50,35 +57,45 @@ describe('d1 schema verification script', () => {
 
   it('collects only approved reads and returns a tagged verification result', async () => {
     const contract = buildExpectedSchemaContract(resolve(process.cwd(), 'migrations'))
-    const resultSets = [
-      contract.migrationNames.map((name, index) => ({ id: index + 1, name })),
-      contract.objects.map(object => ({
-        type: object.type,
-        name: object.name,
-        table_name: object.tableName,
-        sql: object.sql,
-      })),
-      contract.foreignKeys.map(foreignKey => ({
-        table_name: foreignKey.tableName,
-        referenced_table: foreignKey.referencedTable,
-        from_column: foreignKey.from,
-        to_column: foreignKey.to,
-        on_update: foreignKey.onUpdate,
-        on_delete: foreignKey.onDelete,
-        match: foreignKey.match,
-      })),
-      [],
-    ]
     const execFile = vi.fn<SchemaVerifyExecFile>(async (_file, args) => {
       const commandIndex = args.indexOf('--command')
+      const command = args[commandIndex + 1]!
       expect(commandIndex).toBeGreaterThan(-1)
       expect(args).toContain('--remote')
       expect(args).toContain('--json')
-      expect(assertReadOnlyInspectionQuery(args[commandIndex + 1]!)).toEqual({ _tag: 'allowed' })
+      expect(assertReadOnlyInspectionQuery(command)).toEqual({ _tag: 'allowed' })
+      let results: unknown[]
+      if (command.includes('FROM d1_migrations')) {
+        results = contract.migrationNames.map((name, index) => ({ id: index + 1, name }))
+      }
+      else if (command.includes('FROM sqlite_master')) {
+        results = contract.objects.map(object => ({
+          type: object.type,
+          name: object.name,
+          table_name: object.tableName,
+          sql: object.sql,
+        }))
+      }
+      else if (command.startsWith('PRAGMA foreign_key_list')) {
+        const tableName = command.match(/^PRAGMA foreign_key_list\("([^"]+)"\)$/)?.[1]
+        results = contract.foreignKeys
+          .filter(foreignKey => foreignKey.tableName === tableName)
+          .map(foreignKey => ({
+            table: foreignKey.referencedTable,
+            from: foreignKey.from,
+            to: foreignKey.to,
+            on_update: foreignKey.onUpdate,
+            on_delete: foreignKey.onDelete,
+            match: foreignKey.match,
+          }))
+      }
+      else {
+        results = []
+      }
       return {
         stdout: JSON.stringify([{
           success: true,
-          results: resultSets.shift(),
+          results,
         }]),
         stderr: '',
       }
@@ -92,6 +109,7 @@ describe('d1 schema verification script', () => {
       _tag: 'completed',
       verification: { _tag: 'pass' },
     })
-    expect(execFile).toHaveBeenCalledTimes(4)
+    const tableCount = contract.objects.filter(object => object.type === 'table').length
+    expect(execFile).toHaveBeenCalledTimes(tableCount + 3)
   })
 })

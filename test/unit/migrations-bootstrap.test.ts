@@ -175,7 +175,19 @@ describe('d1 migration bootstrap', () => {
         `SELECT name FROM sqlite_schema
          WHERE type = 'index' AND name = 'idx_scheduled_runs_task_latest'`,
       ).get()).toBeTruthy()
-      expect(migrations.at(-1)).toBe('0075_homepage_read_indexes.sql')
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'table' AND name = 'github_sync_control'`,
+      ).get()).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'table' AND name = 'registry_maintenance'`,
+      ).get()).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'table' AND name = 'repo_sync_progress'`,
+      ).get()).toBeTruthy()
+      expect(migrations.at(-1)).toBe('0077_repo_sync_progress.sql')
     }
     finally {
       sqlite.close()

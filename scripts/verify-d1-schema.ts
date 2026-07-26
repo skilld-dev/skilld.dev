@@ -55,23 +55,9 @@ const inspectionQueries = {
     SELECT type, name, tbl_name AS table_name, sql
     FROM sqlite_master
     WHERE name NOT LIKE 'sqlite_%'
+      AND name NOT GLOB '_cf_*'
       AND sql IS NOT NULL
     ORDER BY type, name
-  `,
-  foreignKeys: `
-    SELECT
-      m.name AS table_name,
-      fk."table" AS referenced_table,
-      fk."from" AS from_column,
-      fk."to" AS to_column,
-      fk.on_update,
-      fk.on_delete,
-      fk.match
-    FROM sqlite_master AS m
-    JOIN pragma_foreign_key_list(m.name) AS fk
-    WHERE m.type = 'table'
-      AND m.name NOT LIKE 'sqlite_%'
-    ORDER BY m.name, fk.id, fk.seq
   `,
   foreignKeyCheck: `PRAGMA foreign_key_check`,
 } as const
@@ -85,6 +71,8 @@ export function assertReadOnlyInspectionQuery(sql: string): ReadOnlyQueryResult 
   if (/--|\/\*/.test(trimmed))
     return { _tag: 'rejected', reason: 'comments_not_allowed' }
   if (/^PRAGMA\s+foreign_key_check(?:\s*\(\s*\))?$/i.test(trimmed))
+    return { _tag: 'allowed' }
+  if (/^PRAGMA\s+foreign_key_list\("[A-Z_]\w*"\)$/i.test(trimmed))
     return { _tag: 'allowed' }
   if (!/^SELECT\b/i.test(trimmed))
     return { _tag: 'rejected', reason: 'select_or_foreign_key_check_required' }
@@ -161,7 +149,17 @@ export async function runD1SchemaVerifyCli(
 
   const ledger = parseLedgerRows(await execute(inspectionQueries.ledger))
   const objects = parseObjectRows(await execute(inspectionQueries.objects))
-  const foreignKeys = parseForeignKeyRows(await execute(inspectionQueries.foreignKeys))
+  const tableNames = objects
+    .filter(object => object.type === 'table')
+    .map(object => object.name)
+  const foreignKeys = (await Promise.all(tableNames.map(async (tableName) => {
+    if (!/^[A-Z_]\w*$/i.test(tableName))
+      throw new Error(`Unsafe schema table name: ${tableName}`)
+    return parseForeignKeyRows(
+      await execute(`PRAGMA foreign_key_list("${tableName}")`),
+      tableName,
+    )
+  }))).flat()
   const foreignKeyViolations = parseForeignKeyCheckRows(
     await execute(inspectionQueries.foreignKeyCheck),
   )
@@ -176,7 +174,11 @@ export async function runD1SchemaVerifyCli(
   )
   return {
     _tag: 'completed',
-    verification: verifyD1Schema(contract, actual),
+    verification: verifyD1Schema(contract, actual, {
+      // Production predates the filename-order contract. Completeness,
+      // uniqueness, objects, indexes, and foreign keys remain exact.
+      allowHistoricalMigrationOrder: true,
+    }),
   }
 }
 
@@ -225,23 +227,22 @@ function parseObjectRows(rows: unknown[]): SchemaObject[] {
   })
 }
 
-function parseForeignKeyRows(rows: unknown[]): ForeignKeyShape[] {
+function parseForeignKeyRows(rows: unknown[], tableName: string): ForeignKeyShape[] {
   return rows.map((row) => {
     if (!isRecord(row)
-      || typeof row.table_name !== 'string'
-      || typeof row.referenced_table !== 'string'
-      || typeof row.from_column !== 'string'
-      || typeof row.to_column !== 'string'
+      || typeof row.table !== 'string'
+      || typeof row.from !== 'string'
+      || typeof row.to !== 'string'
       || typeof row.on_update !== 'string'
       || typeof row.on_delete !== 'string'
       || typeof row.match !== 'string') {
       throw new Error('Malformed Wrangler D1 JSON: invalid foreign-key row')
     }
     return {
-      tableName: row.table_name,
-      referencedTable: row.referenced_table,
-      from: row.from_column,
-      to: row.to_column,
+      tableName,
+      referencedTable: row.table,
+      from: row.from,
+      to: row.to,
       onUpdate: row.on_update,
       onDelete: row.on_delete,
       match: row.match,

@@ -129,7 +129,7 @@ export type CfJobsPackageVerificationResult
     | { _tag: 'fail', issues: PackageContractIssue[] }
 
 export const CF_JOBS_SCHEMA_CONTRACT = {
-  version: '0.14.0',
+  version: '0.14.5',
   indexes: [
     {
       name: 'idx_jobs_dispatchable',
@@ -283,7 +283,10 @@ export function snapshotSqliteDatabase(
 export function verifyD1Schema(
   contract: SchemaContract,
   actual: SchemaSnapshot,
-  options: { ignoredExpectedObjects?: readonly IgnoredExpectedObject[] } = {},
+  options: {
+    ignoredExpectedObjects?: readonly IgnoredExpectedObject[]
+    allowHistoricalMigrationOrder?: boolean
+  } = {},
 ): SchemaVerificationResult {
   const issues: SchemaVerificationIssue[] = []
   const ignored = new Set(
@@ -308,7 +311,7 @@ export function verifyD1Schema(
       issues.push({ _tag: 'migration_duplicate', name, count })
   }
   const ledgerMatches = arraysEqual(contract.migrationNames, actual.migrationLedger)
-  if (!ledgerMatches) {
+  if (!ledgerMatches && !options.allowHistoricalMigrationOrder) {
     issues.push({
       _tag: 'migration_order_mismatch',
       expected: [...contract.migrationNames],

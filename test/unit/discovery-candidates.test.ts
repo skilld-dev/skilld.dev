@@ -153,6 +153,40 @@ describe('durable discovery candidates', () => {
     })
   })
 
+  it('resumes the same durable job claim without consuming another attempt', async () => {
+    await upsertDiscoveryCandidate(db, {
+      owner: 'acme',
+      repo: 'skills',
+      source: 'owned_scan',
+      discoveredAt: 100,
+      ownerVerified: true,
+    })
+    await claimDiscoveryCandidate(db, {
+      owner: 'acme',
+      repo: 'skills',
+      now: 101,
+      staleBefore: 1,
+      token: 'job-1',
+    })
+
+    const resumed = await claimDiscoveryCandidate(db, {
+      owner: 'acme',
+      repo: 'skills',
+      now: 200,
+      staleBefore: 50,
+      token: 'job-1',
+    })
+
+    expect(resumed).toEqual({ _tag: 'claimed', attemptCount: 1, ownerVerified: true })
+    expect(sqlite.prepare(
+      `SELECT attempt_count, claimed_at, claim_token FROM discovery_candidates`,
+    ).get()).toEqual({
+      attempt_count: 1,
+      claimed_at: 200,
+      claim_token: 'job-1',
+    })
+  })
+
   it('does not let rediscovery steal an active claim', async () => {
     await upsertDiscoveryCandidate(db, {
       owner: 'acme',

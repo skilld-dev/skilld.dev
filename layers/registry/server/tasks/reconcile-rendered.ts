@@ -1,27 +1,13 @@
+import { createRegistryJobBatch } from '~~/server/utils/registry-jobs-runtime'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { RECONCILE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { getTaskEnv } from '#shared/server/task-env'
-/// <reference types="@cloudflare/workers-types" />
-import { resolveGithubBindings } from '../utils/github-client'
-import { syncRepo } from '../utils/sync-repo'
 
 const BATCH = 50
 const CRON = '20 */6 * * *'
 
-/**
- * Periodically re-sync skills whose last render failed (path_missing or
- * fetch_failed) and haven't been touched in 6h+. The hot-path detail handler
- * does a live render fallback on the first cold visit, but rows that never
- * get visited again stay broken in cache. This task picks a small batch per
- * run, groups by (owner, repo), and replays syncRepo on each — which rewrites
- * rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter,
- * rendered_html, rendered_at as a side effect.
- *
- * Kept to N=50/run so it doesn't dominate the hourly cron budget alongside
- * sync-github-skills and send-digests.
- */
 export default defineScheduledTask({
   name: 'reconcile-rendered',
   cron: '20 */6 * * *',
@@ -47,7 +33,7 @@ export default defineScheduledTask({
           `SELECT DISTINCT s.owner, s.repo
          FROM skills s
          JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-         WHERE s.rendered_status IN ('path_missing', 'fetch_failed')
+         WHERE (s.rendered_status IS NULL OR s.rendered_status != 'ok' OR s.rendered_skill_path IS NULL)
            AND (s.last_synced_at IS NULL OR s.last_synced_at < ?1)
            AND r.broken_since IS NULL
          ORDER BY s.last_synced_at IS NULL DESC, s.last_synced_at ASC
@@ -62,26 +48,29 @@ export default defineScheduledTask({
         return { result: { reconciled: 0 } }
       }
 
-      const bindings = resolveGithubBindings(env)
-      let ok = 0
-      let failed = 0
-      for (const { owner, repo } of repos) {
-        const result = await syncRepo(owner, repo, bindings, db).catch((err) => {
-          console.warn(`[reconcile-rendered] sync ${owner}/${repo} failed:`, err)
-          return null
-        })
-        if (result)
-          ok++
-        else
-          failed++
-      }
+      const batch = await createRegistryJobBatch(
+        env as Cloudflare.Env & Record<string, unknown>,
+        {
+          name: `render-repair:${Math.floor(startedAt / 1000)}`,
+          jobs: repos.map(({ owner, repo }) => ({ operation: 'render', owner, repo })),
+        },
+      )
+      const failed = batch.dispatched.filter(result => result.status !== 'sent').length
+      const ok = repos.length - failed
       await reportJobRun(db, 'reconcile-rendered', {
         cron: CRON,
         status: failed > 0 ? (ok > 0 ? 'partial' : 'error') : 'ok',
         durationMs: Date.now() - startedAt,
         error: failed > 0 ? `${failed}/${repos.length} repos failed` : null,
       })
-      return { result: { reconciled: ok, failed, scanned: repos.length } }
+      return {
+        result: {
+          batchId: batch.batchId,
+          queued: repos.length,
+          dispatched: ok,
+          deferredToRecovery: failed,
+        },
+      }
     })
   },
 })
