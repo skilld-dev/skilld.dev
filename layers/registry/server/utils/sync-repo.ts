@@ -36,6 +36,28 @@ interface ExistingRepo {
 const SKILL_FILE_SUFFIX = '/SKILL.md'
 const FIRST_SYNC_COMMIT_CAP = 30
 
+/**
+ * Skills fetched, rendered, and written per pass.
+ *
+ * Chunking the batched GraphQL query bounded the *request* but every chunk was
+ * merged into one repo-wide Map, so a repo with ~900 skills still materialised
+ * every SKILL.md, its commit history, and its rendered HTML at once. On
+ * 2026-07-26 that killed the isolate with exceededMemory on every hourly tick.
+ * Slicing bounds the working set by this constant instead of by repo size.
+ *
+ * Kept at the GraphQL batch ceiling so one slice is still one blob request and
+ * one commit request. Raising it re-inflates the peak; lowering it costs
+ * requests without lowering the peak below one alias batch.
+ */
+export const SKILL_SLICE_SIZE = 50
+
+function slices<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size))
+  return out
+}
+
 function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
@@ -455,280 +477,301 @@ export async function syncRepo(
     return stats
   }
 
-  // Batch-fetch all blob contents in one GraphQL request, replacing N
-  // raw.githubusercontent.com fetches (per-IP-throttled, ignores auth).
-  // Then determine which paths' content changed and batch-fetch commits
-  // for those in a second GraphQL request. Net subrequest cost for the
-  // changed path: 2 (was 2N for N skills).
-  const blobsRes = await getBlobsBatch(owner, repo, branch, skillFiles.map(f => f.path), bindings)
-  logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
-  if (!blobsRes.data) {
-    stats.status = blobsRes.status === 403 || blobsRes.status === 429 ? 'rate-limited' : 'failed'
-    stats.reason = `blob_batch_failed:${blobsRes.status}`
-    return stats
-  }
-  const blobs = blobsRes.data
-  const missingBlobPath = skillFiles.find(file => !blobs.has(file.path))?.path
-  if (missingBlobPath) {
-    stats.status = 'failed'
-    stats.reason = `blob_batch_partial:${missingBlobPath}`
-    return stats
-  }
+  // Content moves one slice at a time: fetch, render, write, release. Holding
+  // the whole repo is what killed the isolate on 2026-07-26; see
+  // SKILL_SLICE_SIZE. Names seen accumulate across slices because the
+  // disappeared-skill judgement below needs the whole repo, but names are
+  // cheap where blobs and rendered HTML are not.
+  const seenNames = new Set<string>()
 
-  const changedPaths: string[] = []
-  const parsedFiles: Array<SkillSnapshot & { raw: string, parsed: NonNullable<ReturnType<typeof parseSkillFile>> }> = []
-  for (const file of skillFiles) {
-    const raw = blobs.get(file.path)!
-    const parsed = parseSkillFile(raw, file.dirName)
-    if (!parsed) {
-      stats.status = 'rejected'
-      stats.reason = `skill_parse_rejected:${file.path}`
+  for (const slice of slices(skillFiles, SKILL_SLICE_SIZE)) {
+    // One blob request per slice, replacing N raw.githubusercontent.com
+    // fetches (per-IP-throttled, ignores auth). Commits for the changed paths
+    // in the same slice follow in a second request.
+    const blobsRes = await getBlobsBatch(owner, repo, branch, slice.map(f => f.path), bindings)
+    logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
+    if (!blobsRes.data) {
+      stats.status = blobsRes.status === 403 || blobsRes.status === 429 ? 'rate-limited' : 'failed'
+      stats.reason = `blob_batch_failed:${blobsRes.status}`
       return stats
     }
-    parsedFiles.push({ ...file, raw, parsed })
-    const prev = existing.get(parsed.name)
-    if (prev?.current_sha !== file.treeSha)
-      changedPaths.push(file.path)
-  }
-  // Use the higher per-file cap unconditionally: the GraphQL fan-out is one
-  // request regardless of perPage, so paying the extra commit nodes for new
-  // skills (cap 30) saves the per-skill perPage branch.
-  const commitsRes = await getCommitsBatch(owner, repo, changedPaths, FIRST_SYNC_COMMIT_CAP, bindings)
-  logRateLimit(`commits-batch ${owner}/${repo}`, commitsRes.rateLimit)
-  if (!commitsRes.data) {
-    stats.status = commitsRes.status === 403 || commitsRes.status === 429 ? 'rate-limited' : 'failed'
-    stats.reason = `commit_batch_failed:${commitsRes.status}`
-    return stats
-  }
-  const commitsByPath = commitsRes.data
-  const missingCommitPath = changedPaths.find(path => !commitsByPath.has(path))
-  if (missingCommitPath) {
-    stats.status = 'failed'
-    stats.reason = `commit_batch_partial:${missingCommitPath}`
-    return stats
-  }
+    const blobs = blobsRes.data
+    const missingBlobPath = slice.find(file => !blobs.has(file.path))?.path
+    if (missingBlobPath) {
+      stats.status = 'failed'
+      stats.reason = `blob_batch_partial:${missingBlobPath}`
+      return stats
+    }
 
-  const seenNames = new Set<string>()
-  const writes: D1PreparedStatement[] = []
-  const revisionWriteIndexes: number[] = []
-  const activityWriteIndexes: number[] = []
+    const changedPaths: string[] = []
+    const parsedFiles: Array<SkillSnapshot & { raw: string, parsed: NonNullable<ReturnType<typeof parseSkillFile>> }> = []
+    for (const file of slice) {
+      const raw = blobs.get(file.path)!
+      const parsed = parseSkillFile(raw, file.dirName)
+      if (!parsed) {
+        stats.status = 'rejected'
+        stats.reason = `skill_parse_rejected:${file.path}`
+        return stats
+      }
+      parsedFiles.push({ ...file, raw, parsed })
+      const prev = existing.get(parsed.name)
+      if (prev?.current_sha !== file.treeSha)
+        changedPaths.push(file.path)
+    }
+    // Use the higher per-file cap unconditionally: the GraphQL fan-out is one
+    // request regardless of perPage, so paying the extra commit nodes for new
+    // skills (cap 30) saves the per-skill perPage branch.
+    const commitsRes = await getCommitsBatch(owner, repo, changedPaths, FIRST_SYNC_COMMIT_CAP, bindings)
+    logRateLimit(`commits-batch ${owner}/${repo}`, commitsRes.rateLimit)
+    if (!commitsRes.data) {
+      stats.status = commitsRes.status === 403 || commitsRes.status === 429 ? 'rate-limited' : 'failed'
+      stats.reason = `commit_batch_failed:${commitsRes.status}`
+      return stats
+    }
+    const commitsByPath = commitsRes.data
+    const missingCommitPath = changedPaths.find(path => !commitsByPath.has(path))
+    if (missingCommitPath) {
+      stats.status = 'failed'
+      stats.reason = `commit_batch_partial:${missingCommitPath}`
+      return stats
+    }
 
-  for (const file of parsedFiles) {
-    const { raw, parsed } = file
-    seenNames.add(parsed.name)
+    const writes: D1PreparedStatement[] = []
+    const revisionWriteIndexes: number[] = []
+    const activityWriteIndexes: number[] = []
 
-    const prev = existing.get(parsed.name)
-    const assets = collectAssets(tree.tree, file.dirName)
-    const refsCount = assets.length
-    const description = parsed.description || repoDescription
-    const skillDir = file.path.replace(/\/SKILL\.md$/, '')
-    const rendered = await parseSkillMd(raw, {
-      owner,
-      repo,
-      name: parsed.name,
-      branch,
-      skillDir,
-      filePath: '',
-    })
-    const isNewToRegistry = !prev || prev.current_sha == null
-    const contentChanged = prev?.current_sha !== file.treeSha
-    const firstSeenAt = prev?.first_seen_at ?? now
-    const isOfficial = isOfficialSkillRepo(owner, repo)
-    const trust = resolveSkillTrust({
-      owner,
-      repo,
-      sourceResolved: true,
-      installs: 0,
-      curatorReasonCount: 0,
-      approvedSocialCount: 0,
-      repoSkillCount: skillFiles.length,
-      overrideTier: repoOverride?.tier,
-      overrideReason: repoOverride?.reason,
-    })
-    const ownerVerified = opts.ownerVerified === true
-    const indexability = scoreSkillIndexability({
-      isOfficial,
-      ownerVerified,
-      sourceResolved: true,
-      trustTier: trust.tier,
-      curatorCount: 0,
-      curatorReasonCount: 0,
-      approvedSocialCount: 0,
-      authorSocialCount: 0,
-      installs: 0,
-      stars,
-      pushedAt: repoPushedAt,
-      referencesCount: refsCount,
-      description,
-      repoSkillCount: skillFiles.length,
-    }, now)
+    for (const file of parsedFiles) {
+      const { raw, parsed } = file
+      seenNames.add(parsed.name)
 
-    // Indexable-only ingestion gate. The passive crawl must not repopulate the
-    // long tail we retired: a brand-new skill is persisted only if it is
-    // official, owner-verified, or already clears the indexability bar on first
-    // sync. Existing rows always continue to update (and can graduate via the
-    // nightly recompute). Skipped before any revisions/skills write.
-    const admit = !isNewToRegistry || isOfficial || ownerVerified || indexability.indexable
-    if (!admit)
-      continue
+      const prev = existing.get(parsed.name)
+      const assets = collectAssets(tree.tree, file.dirName)
+      const refsCount = assets.length
+      const description = parsed.description || repoDescription
+      const skillDir = file.path.replace(/\/SKILL\.md$/, '')
+      const rendered = await parseSkillMd(raw, {
+        owner,
+        repo,
+        name: parsed.name,
+        branch,
+        skillDir,
+        filePath: '',
+      })
+      const isNewToRegistry = !prev || prev.current_sha == null
+      const contentChanged = prev?.current_sha !== file.treeSha
+      const firstSeenAt = prev?.first_seen_at ?? now
+      const isOfficial = isOfficialSkillRepo(owner, repo)
+      const trust = resolveSkillTrust({
+        owner,
+        repo,
+        sourceResolved: true,
+        installs: 0,
+        curatorReasonCount: 0,
+        approvedSocialCount: 0,
+        repoSkillCount: skillFiles.length,
+        overrideTier: repoOverride?.tier,
+        overrideReason: repoOverride?.reason,
+      })
+      const ownerVerified = opts.ownerVerified === true
+      const indexability = scoreSkillIndexability({
+        isOfficial,
+        ownerVerified,
+        sourceResolved: true,
+        trustTier: trust.tier,
+        curatorCount: 0,
+        curatorReasonCount: 0,
+        approvedSocialCount: 0,
+        authorSocialCount: 0,
+        installs: 0,
+        stars,
+        pushedAt: repoPushedAt,
+        referencesCount: refsCount,
+        description,
+        repoSkillCount: skillFiles.length,
+      }, now)
 
-    let modifiedAt = prev?.modified_at ?? null
-    if (contentChanged) {
-      const commits = commitsByPath.get(file.path) ?? []
-      if (commits[0])
-        modifiedAt = epoch(commits[0].commit.author.date)
+      // Indexable-only ingestion gate. The passive crawl must not repopulate the
+      // long tail we retired: a brand-new skill is persisted only if it is
+      // official, owner-verified, or already clears the indexability bar on first
+      // sync. Existing rows always continue to update (and can graduate via the
+      // nightly recompute). Skipped before any revisions/skills write.
+      const admit = !isNewToRegistry || isOfficial || ownerVerified || indexability.indexable
+      if (!admit)
+        continue
 
-      for (const c of commits) {
-        const occurredAt = epoch(c.commit.author.date)
-        if (occurredAt == null)
-          continue
-        revisionWriteIndexes.push(writes.length)
+      let modifiedAt = prev?.modified_at ?? null
+      if (contentChanged) {
+        const commits = commitsByPath.get(file.path) ?? []
+        if (commits[0])
+          modifiedAt = epoch(commits[0].commit.author.date)
+
+        for (const c of commits) {
+          const occurredAt = epoch(c.commit.author.date)
+          if (occurredAt == null)
+            continue
+          revisionWriteIndexes.push(writes.length)
+          writes.push(db.prepare(
+            `INSERT OR IGNORE INTO skill_revisions (owner, repo, name, sha, modified_at, author_login, message)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          ).bind(owner, repo, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message))
+        }
+      }
+
+      writes.push(db.prepare(
+        `INSERT INTO skills (
+             name, owner, repo, display_name, installs, slug,
+             description,
+             current_sha, modified_at, first_seen_at, references_count, assets,
+             last_synced_at, sync_status,
+             is_official, source_resolved, seo_index_score, seo_indexable,
+             seo_index_reasons, seo_index_synced_at,
+             trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
+             rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at,
+             owner_verified
+           ) VALUES (
+             ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok',
+             ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+             'ok', ?, ?, ?, ?, ?
+           )
+           ON CONFLICT(owner, repo, name) DO UPDATE SET
+             display_name = excluded.display_name,
+             slug = excluded.slug,
+             description = COALESCE(excluded.description, skills.description),
+             current_sha = excluded.current_sha,
+             modified_at = COALESCE(excluded.modified_at, skills.modified_at),
+             references_count = excluded.references_count,
+             assets = excluded.assets,
+             last_synced_at = excluded.last_synced_at,
+             sync_status = 'ok',
+             is_official = excluded.is_official,
+             source_resolved = excluded.source_resolved,
+             seo_index_score = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_index_score ELSE skills.seo_index_score END,
+             seo_indexable = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_indexable ELSE skills.seo_indexable END,
+             seo_index_reasons = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_index_reasons ELSE skills.seo_index_reasons END,
+             seo_index_synced_at = COALESCE(skills.seo_index_synced_at, excluded.seo_index_synced_at),
+             trust_tier = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_tier ELSE skills.trust_tier END,
+             trust_source = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_source ELSE skills.trust_source END,
+             trust_score = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_score ELSE skills.trust_score END,
+             trust_reasons = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_reasons ELSE skills.trust_reasons END,
+             trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at),
+             rendered_skill_path = excluded.rendered_skill_path,
+             rendered_status = excluded.rendered_status,
+             rendered_raw = excluded.rendered_raw,
+             rendered_frontmatter = excluded.rendered_frontmatter,
+             rendered_html = excluded.rendered_html,
+             rendered_at = excluded.rendered_at,
+             owner_verified = MAX(skills.owner_verified, excluded.owner_verified)`,
+      ).bind(
+        parsed.name,
+        owner,
+        repo,
+        parsed.displayName,
+        `${owner}/${parsed.name}`,
+        description,
+        file.treeSha,
+        modifiedAt,
+        firstSeenAt,
+        refsCount,
+        JSON.stringify(assets),
+        now,
+        isOfficial ? 1 : 0,
+        indexability.score,
+        indexability.indexable ? 1 : 0,
+        JSON.stringify(indexability.reasons),
+        now,
+        trust.tier,
+        trust.source,
+        trust.score,
+        JSON.stringify(trust.reasons),
+        now,
+        file.path,
+        raw,
+        JSON.stringify(rendered.frontmatter),
+        rendered.html,
+        now,
+        ownerVerified ? 1 : 0,
+      ))
+      stats.skillsUpserted += 1
+
+      if (ownerVerified) {
         writes.push(db.prepare(
-          `INSERT OR IGNORE INTO skill_revisions (owner, repo, name, sha, modified_at, author_login, message)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(owner, repo, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message))
+          `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
+           VALUES (?, ?, ?, 'owner_verified', ?, 0)
+           ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
+             queued_at = excluded.queued_at,
+             attempts = 0`,
+        ).bind(owner, repo, parsed.name, now))
+      }
+
+      if (isNewToRegistry) {
+        const occurredAt = modifiedAt ?? now
+        activityWriteIndexes.push(writes.length)
+        writes.push(db.prepare(
+          `INSERT INTO activity (type, owner, repo, name, occurred_at, ingested_at, sha)
+           SELECT 'skill_published', ?, ?, ?, ?, ?, ?
+           WHERE NOT EXISTS (
+             SELECT 1 FROM activity
+             WHERE type = 'skill_published' AND owner = ? AND repo = ? AND name = ?
+               AND sha IS ?
+           )`,
+        ).bind(
+          owner,
+          repo,
+          parsed.name,
+          occurredAt,
+          now,
+          file.treeSha,
+          owner,
+          repo,
+          parsed.name,
+          file.treeSha,
+        ))
+      }
+      else if (contentChanged) {
+        const occurredAt = modifiedAt ?? now
+        activityWriteIndexes.push(writes.length)
+        writes.push(db.prepare(
+          `INSERT INTO activity (type, owner, repo, name, occurred_at, ingested_at, sha)
+           SELECT 'skill_updated', ?, ?, ?, ?, ?, ?
+           WHERE NOT EXISTS (
+             SELECT 1 FROM activity
+             WHERE type = 'skill_updated' AND owner = ? AND repo = ? AND name = ?
+               AND sha IS ?
+           )`,
+        ).bind(
+          owner,
+          repo,
+          parsed.name,
+          occurredAt,
+          now,
+          file.treeSha,
+          owner,
+          repo,
+          parsed.name,
+          file.treeSha,
+        ))
       }
     }
 
-    writes.push(db.prepare(
-      `INSERT INTO skills (
-           name, owner, repo, display_name, installs, slug,
-           description,
-           current_sha, modified_at, first_seen_at, references_count, assets,
-           last_synced_at, sync_status,
-           is_official, source_resolved, seo_index_score, seo_indexable,
-           seo_index_reasons, seo_index_synced_at,
-           trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-           rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at,
-           owner_verified
-         ) VALUES (
-           ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok',
-           ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-           'ok', ?, ?, ?, ?, ?
-         )
-         ON CONFLICT(owner, repo, name) DO UPDATE SET
-           display_name = excluded.display_name,
-           slug = excluded.slug,
-           description = COALESCE(excluded.description, skills.description),
-           current_sha = excluded.current_sha,
-           modified_at = COALESCE(excluded.modified_at, skills.modified_at),
-           references_count = excluded.references_count,
-           assets = excluded.assets,
-           last_synced_at = excluded.last_synced_at,
-           sync_status = 'ok',
-           is_official = excluded.is_official,
-           source_resolved = excluded.source_resolved,
-           seo_index_score = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_index_score ELSE skills.seo_index_score END,
-           seo_indexable = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_indexable ELSE skills.seo_indexable END,
-           seo_index_reasons = CASE WHEN skills.seo_index_synced_at IS NULL THEN excluded.seo_index_reasons ELSE skills.seo_index_reasons END,
-           seo_index_synced_at = COALESCE(skills.seo_index_synced_at, excluded.seo_index_synced_at),
-           trust_tier = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_tier ELSE skills.trust_tier END,
-           trust_source = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_source ELSE skills.trust_source END,
-           trust_score = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_score ELSE skills.trust_score END,
-           trust_reasons = CASE WHEN skills.trust_synced_at IS NULL THEN excluded.trust_reasons ELSE skills.trust_reasons END,
-           trust_synced_at = COALESCE(skills.trust_synced_at, excluded.trust_synced_at),
-           rendered_skill_path = excluded.rendered_skill_path,
-           rendered_status = excluded.rendered_status,
-           rendered_raw = excluded.rendered_raw,
-           rendered_frontmatter = excluded.rendered_frontmatter,
-           rendered_html = excluded.rendered_html,
-           rendered_at = excluded.rendered_at,
-           owner_verified = MAX(skills.owner_verified, excluded.owner_verified)`,
-    ).bind(
-      parsed.name,
-      owner,
-      repo,
-      parsed.displayName,
-      `${owner}/${parsed.name}`,
-      description,
-      file.treeSha,
-      modifiedAt,
-      firstSeenAt,
-      refsCount,
-      JSON.stringify(assets),
-      now,
-      isOfficial ? 1 : 0,
-      indexability.score,
-      indexability.indexable ? 1 : 0,
-      JSON.stringify(indexability.reasons),
-      now,
-      trust.tier,
-      trust.source,
-      trust.score,
-      JSON.stringify(trust.reasons),
-      now,
-      file.path,
-      raw,
-      JSON.stringify(rendered.frontmatter),
-      rendered.html,
-      now,
-      ownerVerified ? 1 : 0,
-    ))
-    stats.skillsUpserted += 1
-
-    if (ownerVerified) {
-      writes.push(db.prepare(
-        `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
-         VALUES (?, ?, ?, 'owner_verified', ?, 0)
-         ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
-           queued_at = excluded.queued_at,
-           attempts = 0`,
-      ).bind(owner, repo, parsed.name, now))
-    }
-
-    if (isNewToRegistry) {
-      const occurredAt = modifiedAt ?? now
-      activityWriteIndexes.push(writes.length)
-      writes.push(db.prepare(
-        `INSERT INTO activity (type, owner, repo, name, occurred_at, ingested_at, sha)
-         SELECT 'skill_published', ?, ?, ?, ?, ?, ?
-         WHERE NOT EXISTS (
-           SELECT 1 FROM activity
-           WHERE type = 'skill_published' AND owner = ? AND repo = ? AND name = ?
-             AND sha IS ?
-         )`,
-      ).bind(
-        owner,
-        repo,
-        parsed.name,
-        occurredAt,
-        now,
-        file.treeSha,
-        owner,
-        repo,
-        parsed.name,
-        file.treeSha,
-      ))
-    }
-    else if (contentChanged) {
-      const occurredAt = modifiedAt ?? now
-      activityWriteIndexes.push(writes.length)
-      writes.push(db.prepare(
-        `INSERT INTO activity (type, owner, repo, name, occurred_at, ingested_at, sha)
-         SELECT 'skill_updated', ?, ?, ?, ?, ?, ?
-         WHERE NOT EXISTS (
-           SELECT 1 FROM activity
-           WHERE type = 'skill_updated' AND owner = ? AND repo = ? AND name = ?
-             AND sha IS ?
-         )`,
-      ).bind(
-        owner,
-        repo,
-        parsed.name,
-        occurredAt,
-        now,
-        file.treeSha,
-        owner,
-        repo,
-        parsed.name,
-        file.treeSha,
-      ))
+    // Each slice commits on its own so its blobs, rendered HTML, and prepared
+    // statements can be released before the next slice is fetched. Every write
+    // here is idempotent (upsert, INSERT OR IGNORE, or guarded by NOT EXISTS),
+    // so a run that dies mid-repo is replayed safely rather than lost.
+    if (writes.length > 0) {
+      const results = await db.batch(writes)
+      for (const index of revisionWriteIndexes)
+        stats.revisionsInserted += results[index]?.meta?.changes ?? 0
+      for (const index of activityWriteIndexes)
+        stats.activityEmitted += results[index]?.meta?.changes ?? 0
     }
   }
 
+  // Only now is the full set of surviving names known, so the disappeared-skill
+  // judgement has to wait for every slice.
+  const finalWrites: D1PreparedStatement[] = []
   for (const [name] of existing) {
     if (!seenNames.has(name)) {
-      writes.push(db.prepare(
+      finalWrites.push(db.prepare(
         `UPDATE skills
            SET source_resolved = 0,
                seo_indexable = 0,
@@ -745,16 +788,11 @@ export async function syncRepo(
     }
   }
 
-  // The content cursor is part of the same D1 transaction as every revision,
-  // skill, activity, and quarantine decision. A failed batch cannot
-  // acknowledge the GitHub tree.
-  writes.push(repoWrite(null))
-  const results = await db.batch(writes)
-
-  for (const index of revisionWriteIndexes)
-    stats.revisionsInserted += results[index]?.meta?.changes ?? 0
-  for (const index of activityWriteIndexes)
-    stats.activityEmitted += results[index]?.meta?.changes ?? 0
+  // The content cursor is written last and only once every slice has committed.
+  // A run that fails partway leaves the tree unacknowledged, so the next run
+  // reprocesses the repo instead of skipping the slices it never read.
+  finalWrites.push(repoWrite(null))
+  await db.batch(finalWrites)
 
   if (stats.skillsUpserted === 0) {
     stats.status = 'rejected'
