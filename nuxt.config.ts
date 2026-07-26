@@ -118,6 +118,7 @@ export default defineNuxtConfig({
   },
 
   app: {
+    buildAssetsDir: '/_nuxt/v2/',
     head: {
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
@@ -219,7 +220,13 @@ export default defineNuxtConfig({
   // render — which caused repeated confusion. Pages now render dynamically (SSR +
   // D1 per request), always fresh. D1 reads are cheap at current traffic; re-add
   // targeted caching here if/when traffic warrants it.
-  routeRules: {},
+  routeRules: {
+    '/_nuxt/v2/**': {
+      headers: {
+        'cloudflare-cdn-cache-control': 'max-age=60',
+      },
+    },
+  },
 
   future: {
     compatibilityVersion: 5,

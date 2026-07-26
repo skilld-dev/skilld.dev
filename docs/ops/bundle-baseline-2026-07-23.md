@@ -109,7 +109,7 @@ binding pointing at `../public`, so Wrangler serves these files before the
 Worker runs.
 
 `nuxt.config.ts` now aliases `#nitro-internal-virtual/public-assets-data` to an
-empty module for the Cloudflare build. Local Wrangler checks confirmed
+empty module for the [Cloudflare](https://cloudflare.com) build. Local Wrangler checks confirmed
 `/favicon.svg`, `/_nuxt/builds/latest.json`, and a hashed client chunk are served
 from `.output/public` with exact byte matches. Missing routes still reach Nitro.
 

@@ -9,12 +9,12 @@ trustPolicy: no-downgrade
 
 catalog:
   '@antfu/eslint-config': ^9.2.0
-  '@cloudflare/workers-types': ^5.20260723.1
-  '@iconify-json/lucide': ^1.2.118
+  '@cloudflare/workers-types': ^5.20260724.1
+  '@iconify-json/lucide': ^1.2.119
   '@iconify-json/simple-icons': ^1.2.91
   '@iconify-json/vscode-icons': ^1.2.67
   '@nuxt/a11y': 1.0.0-alpha.1
-  '@nuxt/content': ^3.15.1
+  '@nuxt/content': ^3.15.2
   '@nuxt/eslint': ^1.16.0
   '@nuxt/fonts': ^0.14.0
   '@nuxt/kit': ^4.5.0
@@ -24,15 +24,15 @@ catalog:
   '@nuxtjs/html-validator': ^2.1.0
   '@nuxtjs/mdc': ^0.22.2
   '@nuxtjs/seo': ^5.3.6
-  '@playwright/test': ^1.61.1
+  '@playwright/test': ^1.62.0
   '@resvg/resvg-js': ^2.6.2
-  '@sentry/nuxt': ^10.67.0
+  '@sentry/nuxt': ^10.68.0
   '@shikijs/core': ^4.3.1
   '@shikijs/engine-javascript': ^4.3.1
   '@shikijs/langs': ^4.3.1
   '@shikijs/themes': ^4.3.1
-  '@takumi-rs/core': ^2.4.1
-  '@takumi-rs/wasm': ^2.4.1
+  '@takumi-rs/core': ^2.4.2
+  '@takumi-rs/wasm': ^2.4.2
   '@types/node': ^26.1.1
   '@vue/test-utils': ^2.4.11
   '@vueuse/core': ^14.3.0
@@ -40,11 +40,11 @@ catalog:
   algoliasearch: ^5.56.0
   axe-core: ^4.12.1
   better-sqlite3: ^13.0.1
-  eslint: ^10.7.0
+  eslint: ^10.8.0
   eslint-plugin-harlanzw: ^0.17.1
   happy-dom: ^20.11.1
   import-in-the-middle: ^3.3.2
-  lint-staged: ^17.1.1
+  lint-staged: ^17.2.0
   marked: ^18.0.7
   motion-v: ^2.3.0
   nuxt: ^4.5.0
@@ -60,7 +60,7 @@ catalog:
   vitest: ^4.1.10
   vue: 3.5.40
   vue-tsc: ^3.3.8
-  wrangler: ^4.113.0
+  wrangler: ^4.114.0
   zod: ^4.4.3
 ignoredBuiltDependencies:
   - '@parcel/watcher'

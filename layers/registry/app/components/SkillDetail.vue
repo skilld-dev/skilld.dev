@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatTimeAgo } from '@vueuse/core'
+import { resolveSkillTitle } from '../utils/skill-title'
 
 const props = defineProps<{
   owner: string
@@ -669,9 +670,10 @@ useSchemaOrg(computed(() => {
 }))
 
 const skillTitle = computed(() => {
-  if (!data.value)
-    return 'Skill'
-  return `${data.value.name} by ${data.value.owner}`
+  return resolveSkillTitle(data.value, {
+    name: name.value,
+    owner: owner.value,
+  })
 })
 
 const skillDescription = computed(() => {
