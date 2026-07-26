@@ -180,6 +180,66 @@ describe('syncRepo bounded working set', () => {
     expect(sqlite.prepare(`SELECT count(*) FROM skills`).pluck().get()).toBe(SKILL_SLICE_SIZE)
   })
 
+  // collectAssets was handed `dirName`, the bare directory *name*, and used it
+  // as a path prefix. A skill at `skills/one/SKILL.md` has dirName `one`, which
+  // never prefixes `skills/one/reference.md`, so every nested skill recorded
+  // zero references. In production that was 2769 of 2883 nested skills.
+  it('collects assets for a nested skill', async () => {
+    insertRepo(sqlite, 'old-tree')
+    github.getTree.mockResolvedValue({
+      status: 200,
+      data: {
+        sha: 'new-tree',
+        tree: [
+          { path: 'skills/one/SKILL.md', sha: 'one-new', type: 'blob' },
+          { path: 'skills/one/reference.md', sha: 'ref', type: 'blob', size: 12 },
+          { path: 'skills/one/run.py', sha: 'py', type: 'blob', size: 34 },
+          { path: 'skills/one/LICENSE', sha: 'lic', type: 'blob', size: 5 },
+        ],
+      },
+      rateLimit: null,
+      notModified: false,
+    })
+    github.getBlobsBatch.mockImplementation(serveRequestedBlobs())
+
+    await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+
+    const row = sqlite.prepare(`SELECT references_count, assets FROM skills`).get() as {
+      references_count: number
+      assets: string
+    }
+    expect(row.references_count).toBe(2)
+    expect(JSON.parse(row.assets).map((a: { path: string }) => a.path)).toEqual(['reference.md', 'run.py'])
+  })
+
+  // Same root cause, opposite symptom: a bare name can match an unrelated
+  // top-level directory and attribute its files to the skill.
+  it('does not borrow assets from an unrelated directory of the same name', async () => {
+    insertRepo(sqlite, 'old-tree')
+    github.getTree.mockResolvedValue({
+      status: 200,
+      data: {
+        sha: 'new-tree',
+        tree: [
+          { path: 'skills/one/SKILL.md', sha: 'one-new', type: 'blob' },
+          { path: 'one/unrelated.md', sha: 'x', type: 'blob', size: 9 },
+        ],
+      },
+      rateLimit: null,
+      notModified: false,
+    })
+    github.getBlobsBatch.mockImplementation(serveRequestedBlobs())
+
+    await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+
+    const row = sqlite.prepare(`SELECT references_count, assets FROM skills`).get() as {
+      references_count: number
+      assets: string
+    }
+    expect(row.references_count).toBe(0)
+    expect(JSON.parse(row.assets)).toEqual([])
+  })
+
   it('quarantines skills that disappeared, judged across every slice', async () => {
     insertRepo(sqlite, 'old-tree')
     insertSkill(sqlite, 'gone', 'gone-sha')

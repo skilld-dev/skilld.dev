@@ -96,24 +96,43 @@ function classifyAsset(path: string): SkillAsset['type'] {
 
 const ASSET_IGNORE = /(?:^|\/)(?:LICENSE(?:\.[^/]+)?|\.DS_Store|\.gitignore|\.gitattributes)$/i
 
-function collectAssets(
+/**
+ * Bucket a repo's blobs by the skill directories that own them, in one pass.
+ *
+ * The previous per-skill scan walked the whole tree once per SKILL.md, and it
+ * was handed `dirName` (the bare directory name) where a path prefix was
+ * needed. A skill at `skills/one/SKILL.md` has dirName `one`, which never
+ * prefixes `skills/one/reference.md`, so nested skills recorded no references
+ * at all while a top-level directory that happened to share the name donated
+ * its files instead.
+ *
+ * Called per slice, so the map stays bounded like the rest of the working set.
+ */
+function collectAssetsByDir(
   tree: { path: string, type: string, size?: number }[],
-  skillDir: string,
-): SkillAsset[] {
-  const prefix = `${skillDir}/`
-  const assets: SkillAsset[] = []
+  skillDirs: Set<string>,
+): Map<string, SkillAsset[]> {
+  const byDir = new Map<string, SkillAsset[]>()
+  for (const dir of skillDirs)
+    byDir.set(dir, [])
   for (const e of tree) {
-    if (e.type !== 'blob' || !e.path.startsWith(prefix))
+    if (e.type !== 'blob')
       continue
-    const rel = e.path.slice(prefix.length)
-    if (!rel || rel === 'SKILL.md')
-      continue
-    if (ASSET_IGNORE.test(rel))
-      continue
-    assets.push({ path: rel, size: e.size ?? 0, type: classifyAsset(rel) })
+    // An asset belongs to every skill directory above it, which keeps the
+    // prefix semantics intact when skills nest inside one another.
+    for (let slash = e.path.indexOf('/'); slash !== -1; slash = e.path.indexOf('/', slash + 1)) {
+      const bucket = byDir.get(e.path.slice(0, slash))
+      if (!bucket)
+        continue
+      const rel = e.path.slice(slash + 1)
+      if (!rel || rel === 'SKILL.md' || ASSET_IGNORE.test(rel))
+        continue
+      bucket.push({ path: rel, size: e.size ?? 0, type: classifyAsset(rel) })
+    }
   }
-  assets.sort((a, b) => a.path.localeCompare(b.path))
-  return assets
+  for (const assets of byDir.values())
+    assets.sort((a, b) => a.path.localeCompare(b.path))
+  return byDir
 }
 
 async function loadExistingSkills(db: D1Database, owner: string, repo: string): Promise<Map<string, ExistingSkill>> {
@@ -244,7 +263,10 @@ async function markRepoMissing(db: D1Database, owner: string, repo: string, now:
 
 interface SkillSnapshot {
   path: string
+  /** Bare directory name, the fallback for a skill's declared name. */
   dirName: string
+  /** Full directory path, the prefix every asset of this skill shares. */
+  dirPath: string
   treeSha: string
 }
 
@@ -404,7 +426,12 @@ export async function syncRepo(
     const dirName = dirNameFromSkillPath(entry.path)
     if (!dirName)
       continue
-    skillFiles.push({ path: entry.path, dirName, treeSha: entry.sha })
+    skillFiles.push({
+      path: entry.path,
+      dirName,
+      dirPath: entry.path.slice(0, -SKILL_FILE_SUFFIX.length),
+      treeSha: entry.sha,
+    })
   }
   stats.skillsSeen = skillFiles.length
 
@@ -536,6 +563,8 @@ export async function syncRepo(
       return stats
     }
 
+    const assetsByDir = collectAssetsByDir(tree.tree, new Set(slice.map(f => f.dirPath)))
+
     const writes: D1PreparedStatement[] = []
     const revisionWriteIndexes: number[] = []
     const activityWriteIndexes: number[] = []
@@ -545,7 +574,7 @@ export async function syncRepo(
       seenNames.add(parsed.name)
 
       const prev = existing.get(parsed.name)
-      const assets = collectAssets(tree.tree, file.dirName)
+      const assets = assetsByDir.get(file.dirPath) ?? []
       const refsCount = assets.length
       const description = parsed.description || repoDescription
       const skillDir = file.path.replace(/\/SKILL\.md$/, '')
