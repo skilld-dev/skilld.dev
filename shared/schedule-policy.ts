@@ -25,6 +25,19 @@ export interface LatestScheduledRun {
   error: string | null
 }
 
+/**
+ * Both ends of a task's recent history.
+ *
+ * `latest` alone cannot answer "is this task healthy": a task that fires hourly
+ * and dies every time always has a run in flight, and a sampler that shares its
+ * tick will only ever see that one. `latestTerminal` is the last run that
+ * actually reached a verdict.
+ */
+export interface ScheduledRunHistory {
+  latest: LatestScheduledRun | null
+  latestTerminal: LatestScheduledRun | null
+}
+
 export type ScheduleHealth
   = | { _tag: 'healthy', alertable: false }
     | { _tag: 'exempt', alertable: false, reason: string }
@@ -54,13 +67,22 @@ export function observedSchedulePolicy(taskName: string): ObservedSchedulePolicy
   return policy
 }
 
+function terminalVerdict(run: LatestScheduledRun): ScheduleHealth | null {
+  if (run.status === 'failed')
+    return { _tag: 'latest_failed', alertable: true, error: run.error ?? 'scheduled task failed' }
+  if (run.status === 'expired')
+    return { _tag: 'latest_expired', alertable: true, error: run.error ?? 'scheduled task expired' }
+  return null
+}
+
 export function evaluateScheduleHealth(
   policy: SchedulePolicy,
-  latest: LatestScheduledRun | null,
+  history: ScheduledRunHistory,
   nowSeconds: number,
 ): ScheduleHealth {
   if (policy._tag === 'exempt')
     return { _tag: 'exempt', alertable: false, reason: policy.reason }
+  const { latest, latestTerminal } = history
   if (!latest)
     return { _tag: 'missing_run', alertable: true }
   if (latest.status === 'started') {
@@ -71,12 +93,14 @@ export function evaluateScheduleHealth(
         overdueSeconds: nowSeconds - latest.expiresAt,
       }
     }
-    return { _tag: 'healthy', alertable: false }
+    // A run in flight proves the trigger fired, not that the task works. Fall
+    // back to the last run that reached a verdict so an hourly task that dies
+    // every time cannot read as healthy to a sampler sharing its tick.
+    return latestTerminal ? terminalVerdict(latestTerminal) ?? { _tag: 'healthy', alertable: false } : { _tag: 'healthy', alertable: false }
   }
-  if (latest.status === 'failed')
-    return { _tag: 'latest_failed', alertable: true, error: latest.error ?? 'scheduled task failed' }
-  if (latest.status === 'expired')
-    return { _tag: 'latest_expired', alertable: true, error: latest.error ?? 'scheduled task expired' }
+  const verdict = terminalVerdict(latest)
+  if (verdict)
+    return verdict
   const silenceSeconds = nowSeconds - latest.startedAt
   if (silenceSeconds > policy.maxSilenceSeconds)
     return { _tag: 'missing_cadence', alertable: true, silenceSeconds }

@@ -114,33 +114,100 @@ describe('scheduled run lifecycle', () => {
 
   it('surfaces a missing cadence as alertable', () => {
     const policy = SCHEDULE_POLICY.find(entry => entry._tag === 'observed')!
-    const result = evaluateScheduleHealth(policy, null, 10_000)
+    const result = evaluateScheduleHealth(policy, { latest: null, latestTerminal: null }, 10_000)
     expect(result).toMatchObject({ _tag: 'missing_run', alertable: true })
   })
 
   it('surfaces latest failure, expiry, and overdue started attempts', () => {
     const policy = SCHEDULE_POLICY.find(entry => entry._tag === 'observed')!
-    expect(evaluateScheduleHealth(policy, {
+    const failed = {
       status: 'failed',
       startedAt: 9_000,
       expiresAt: 9_300,
       finishedAt: 9_100,
       error: 'failed',
-    }, 10_000)).toMatchObject({ _tag: 'latest_failed', alertable: true })
-    expect(evaluateScheduleHealth(policy, {
+    } as const
+    const expired = {
       status: 'expired',
       startedAt: 9_000,
       expiresAt: 9_300,
       finishedAt: 9_301,
       error: 'expired',
-    }, 10_000)).toMatchObject({ _tag: 'latest_expired', alertable: true })
+    } as const
+    expect(evaluateScheduleHealth(policy, { latest: failed, latestTerminal: failed }, 10_000))
+      .toMatchObject({ _tag: 'latest_failed', alertable: true })
+    expect(evaluateScheduleHealth(policy, { latest: expired, latestTerminal: expired }, 10_000))
+      .toMatchObject({ _tag: 'latest_expired', alertable: true })
     expect(evaluateScheduleHealth(policy, {
+      latest: {
+        status: 'started',
+        startedAt: 9_000,
+        expiresAt: 9_300,
+        finishedAt: null,
+        error: null,
+      },
+      latestTerminal: null,
+    }, 10_000)).toMatchObject({ _tag: 'overdue_started', alertable: true })
+  })
+
+  // daily-health-check fires on `0 22 * * *` and the hourly tasks on `0 * * * *`,
+  // so it always samples the run that is still in flight. On 2026-07-26 that
+  // reported sync-github-skills healthy through ten consecutive expiries.
+  it('does not let a run in flight mask the last completed verdict', () => {
+    const policy = SCHEDULE_POLICY.find(entry => entry._tag === 'observed')!
+    const inFlight = {
       status: 'started',
-      startedAt: 9_000,
-      expiresAt: 9_300,
+      startedAt: 9_900,
+      expiresAt: 12_000,
       finishedAt: null,
       error: null,
-    }, 10_000)).toMatchObject({ _tag: 'overdue_started', alertable: true })
+    } as const
+
+    expect(evaluateScheduleHealth(policy, {
+      latest: inFlight,
+      latestTerminal: {
+        status: 'expired',
+        startedAt: 9_000,
+        expiresAt: 9_300,
+        finishedAt: 9_301,
+        error: 'run expired before terminal state was recorded',
+      },
+    }, 10_000)).toMatchObject({
+      _tag: 'latest_expired',
+      alertable: true,
+      error: 'run expired before terminal state was recorded',
+    })
+
+    expect(evaluateScheduleHealth(policy, {
+      latest: inFlight,
+      latestTerminal: {
+        status: 'failed',
+        startedAt: 9_000,
+        expiresAt: 9_300,
+        finishedAt: 9_100,
+        error: 'boom',
+      },
+    }, 10_000)).toMatchObject({ _tag: 'latest_failed', alertable: true, error: 'boom' })
+  })
+
+  it('stays healthy when a run in flight follows a success', () => {
+    const policy = SCHEDULE_POLICY.find(entry => entry._tag === 'observed')!
+    expect(evaluateScheduleHealth(policy, {
+      latest: {
+        status: 'started',
+        startedAt: 9_900,
+        expiresAt: 12_000,
+        finishedAt: null,
+        error: null,
+      },
+      latestTerminal: {
+        status: 'succeeded',
+        startedAt: 9_000,
+        expiresAt: 9_300,
+        finishedAt: 9_050,
+        error: null,
+      },
+    }, 10_000)).toMatchObject({ _tag: 'healthy', alertable: false })
   })
 
   it('propagates terminal persistence failure without losing the task outcome', async () => {

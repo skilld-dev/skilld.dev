@@ -1,9 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { TokenExpiryStatus } from '~~/layers/registry/server/utils/github-token-expiry'
-import type { ScheduleHealth } from '#shared/schedule-policy'
+import type { TokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
+import type { LatestScheduledRun, ScheduleHealth } from '#shared/schedule-policy'
 import type { SendEmailInput, SendEmailResult } from './email'
-import { parseTokenExpiry, tokenExpiryStatus } from '~~/layers/registry/server/utils/github-token-expiry'
+import { parseTokenExpiry, tokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
 
 const MELBOURNE_TIME_ZONE = 'Australia/Melbourne'
@@ -128,6 +128,7 @@ interface SyncJobRow {
 }
 
 interface ScheduledRunRow {
+  slot: 'latest' | 'terminal'
   task_name: string
   status: 'started' | 'succeeded' | 'failed' | 'expired'
   started_at: number
@@ -148,6 +149,14 @@ interface CostRow {
   estimated_ai_usd_month: number
 }
 
+/**
+ * The latest run per task, and the latest run that reached a verdict.
+ *
+ * Those are the same row unless a run is in flight, which is exactly when this
+ * check runs: it shares a top-of-hour tick with every hourly task. Reading only
+ * the latest row reported sync-github-skills healthy through ten consecutive
+ * expiries on 2026-07-26.
+ */
 export const SCHEDULE_HEALTH_LATEST_RUNS_SQL = `
   WITH ranked_scheduled_runs AS (
     SELECT
@@ -163,15 +172,29 @@ export const SCHEDULE_HEALTH_LATEST_RUNS_SQL = `
       ) AS recency
     FROM scheduled_runs
     INDEXED BY idx_scheduled_runs_task_latest
+  ),
+  ranked_terminal_runs AS (
+    SELECT
+      task_name,
+      status,
+      started_at,
+      expires_at,
+      finished_at,
+      error,
+      ROW_NUMBER() OVER (
+        PARTITION BY task_name
+        ORDER BY started_at DESC, run_id DESC
+      ) AS recency
+    FROM scheduled_runs
+    INDEXED BY idx_scheduled_runs_task_latest
+    WHERE status != 'started'
   )
-  SELECT
-    task_name,
-    status,
-    started_at,
-    expires_at,
-    finished_at,
-    error
+  SELECT 'latest' AS slot, task_name, status, started_at, expires_at, finished_at, error
   FROM ranked_scheduled_runs
+  WHERE recency = 1
+  UNION ALL
+  SELECT 'terminal' AS slot, task_name, status, started_at, expires_at, finished_at, error
+  FROM ranked_terminal_runs
   WHERE recency = 1
 `
 
@@ -536,7 +559,19 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
     `, [sinceSec]),
   ])
 
-  const latestScheduledRun = new Map(scheduledRunRows.map(run => [run.task_name, run]))
+  const scheduledRun = (slot: ScheduledRunRow['slot']): Map<string, ScheduledRunRow> =>
+    new Map(scheduledRunRows.filter(run => run.slot === slot).map(run => [run.task_name, run]))
+  const latestScheduledRun = scheduledRun('latest')
+  const latestTerminalRun = scheduledRun('terminal')
+  const asRun = (row: ScheduledRunRow | undefined): LatestScheduledRun | null => row
+    ? {
+        status: row.status,
+        startedAt: row.started_at,
+        expiresAt: row.expires_at,
+        finishedAt: row.finished_at,
+        error: row.error,
+      }
+    : null
   return {
     syncJobs: jobRows.map(job => ({
       name: job.name,
@@ -545,21 +580,13 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
       stale: job.last_run_at === null || job.last_run_at < nowSec - staleAfterSeconds(job),
       error: job.last_error,
     })),
-    scheduledRuns: SCHEDULE_POLICY.map((policy) => {
-      const latest = latestScheduledRun.get(policy.taskName)
-      return {
-        taskName: policy.taskName,
-        health: evaluateScheduleHealth(policy, latest
-          ? {
-              status: latest.status,
-              startedAt: latest.started_at,
-              expiresAt: latest.expires_at,
-              finishedAt: latest.finished_at,
-              error: latest.error,
-            }
-          : null, nowSec),
-      }
-    }),
+    scheduledRuns: SCHEDULE_POLICY.map(policy => ({
+      taskName: policy.taskName,
+      health: evaluateScheduleHealth(policy, {
+        latest: asRun(latestScheduledRun.get(policy.taskName)),
+        latestTerminal: asRun(latestTerminalRun.get(policy.taskName)),
+      }, nowSec),
+    })),
     newlyBrokenRepos24h: numberValue(row.newly_broken_repos_24h),
     skillSyncFailures24h: numberValue(row.skill_sync_failures_24h),
     staleDirtySkills: numberValue(row.stale_dirty_skills),
@@ -624,7 +651,7 @@ export async function buildDailyHealthCheck(
     syncJobs: [],
     scheduledRuns: SCHEDULE_POLICY.map(policy => ({
       taskName: policy.taskName,
-      health: evaluateScheduleHealth(policy, null, Math.floor(now.getTime() / 1000)),
+      health: evaluateScheduleHealth(policy, { latest: null, latestTerminal: null }, Math.floor(now.getTime() / 1000)),
     })),
     newlyBrokenRepos24h: 0,
     skillSyncFailures24h: 0,
