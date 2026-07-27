@@ -32,13 +32,13 @@ describe('embedding parity CLI', () => {
           results: [{ ...eligible, current_sha: 'sha-current', marker_sha: 'sha-current' }],
         }])
       }
-      if (args[1] === 'list-vectors' && !args.includes('--cursor')) {
+      if (args[1] === 'list-vectors' && !args.some(value => value.startsWith('--cursor'))) {
         return json({
           vectors: [{ id: expectedId }],
           count: 1,
           totalCount: 2,
           isTruncated: true,
-          nextCursor: 'next-page',
+          nextCursor: '-next-page',
         })
       }
       if (args[1] === 'list-vectors') {
@@ -82,8 +82,7 @@ describe('embedding parity CLI', () => {
       '--count',
       '1000',
       '--json',
-      '--cursor',
-      'next-page',
+      '--cursor=-next-page',
     ])
     expect(calls).toContainEqual([
       'vectorize',

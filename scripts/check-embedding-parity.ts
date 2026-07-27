@@ -217,7 +217,7 @@ async function listAllVectorIds(
       '--count',
       '1000',
       '--json',
-      ...(cursor ? ['--cursor', cursor] : []),
+      ...(cursor ? [`--cursor=${cursor}`] : []),
     ]
     const page = parseListVectorsPage((await execute(wranglerPath, args)).stdout)
     if (expectedTotal !== null && page.totalCount !== expectedTotal)
