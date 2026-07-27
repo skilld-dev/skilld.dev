@@ -2,6 +2,7 @@ import type { AbstractnessPayload } from '../../layers/registry/server/utils/ai-
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  ABSTRACTNESS_MODEL,
   ABSTRACTNESS_PROMPT_VERSION,
   abstractnessResponseText,
   buildAbstractnessUserPrompt,
@@ -81,6 +82,7 @@ describe('ai generation work', () => {
 
     expect(embeddings.map(skill => skill.name)).toEqual(['needs-embedding'])
     expect(abstractness.map(skill => skill.name)).toEqual([
+      'paused-only',
       'stale-classifier',
       'needs-embedding',
       'needs-abstractness',
@@ -91,7 +93,7 @@ describe('ai generation work', () => {
     const limits = runtimeGenerationLimits()
 
     expect(limits.embedding).toBeGreaterThan(0)
-    expect(limits.embedding).toBeLessThanOrEqual(50)
+    expect(limits.embedding).toBeLessThanOrEqual(25)
     expect(limits.abstractness).toBeGreaterThan(0)
     expect(
       limits.embedding * limits.embeddingQueriesPerItem
@@ -101,6 +103,7 @@ describe('ai generation work', () => {
   })
 
   it('requests constrained classifier JSON and accepts object responses', () => {
+    expect(ABSTRACTNESS_MODEL).toBe('@cf/meta/llama-3.1-8b-instruct-fast')
     expect(ABSTRACTNESS_RESPONSE_FORMAT).toMatchObject({
       type: 'json_schema',
       json_schema: {
@@ -188,7 +191,7 @@ describe('ai generation work', () => {
       sha: 'sha-abstract',
       payload: JSON.stringify({
         ...payload,
-        model: '@cf/meta/llama-3.2-1b-instruct',
+        model: ABSTRACTNESS_MODEL,
         promptVersion: ABSTRACTNESS_PROMPT_VERSION,
       }),
     })

@@ -3,8 +3,8 @@
 import { ABSTRACTNESS_CATEGORIES } from './ai-prompts'
 
 export type RuntimeGeneratedKind = 'embedding' | 'abstractness'
-export const ABSTRACTNESS_MODEL = '@cf/meta/llama-3.2-1b-instruct'
-export const ABSTRACTNESS_PROMPT_VERSION = '2026-07-27-v2'
+export const ABSTRACTNESS_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast'
+export const ABSTRACTNESS_PROMPT_VERSION = '2026-07-27-v3'
 
 export function runtimeGenerationLimits() {
   const invocationQueryLimit = 1_000
@@ -17,7 +17,7 @@ export function runtimeGenerationLimits() {
     / (embeddingQueriesPerItem + abstractnessQueriesPerItem),
   )
   return {
-    embedding: Math.min(sharedLimit, 50),
+    embedding: Math.min(sharedLimit, 25),
     abstractness: sharedLimit,
     embeddingQueriesPerItem,
     abstractnessQueriesPerItem,

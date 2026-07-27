@@ -8,7 +8,7 @@
  *  - `tags`      JSON array of 5-10 lowercase tags
  *  - `faq`       JSON array of 3-5 { question, answer } objects
  *
- * A fourth kind, `abstractness`, runs through Workers AI llama-3.2-1b
+ * A fourth kind, `abstractness`, runs through Workers AI llama-3.1-8b-fast
  * (deterministic classification, separate prompt below).
  */
 
@@ -53,7 +53,7 @@ Examples of good output:
 
 Stay within the requested format. Do not add explanations, apologies, or meta-commentary.`
 
-// Abstractness classifier runs through Workers AI llama-3.2-1b-instruct,
+// Abstractness classifier runs through Workers AI llama-3.1-8b-instruct-fast,
 // deterministic single-label. Output is a JSON object the 0023 migration
 // schema understands: { kind, package, category }.
 export const ABSTRACTNESS_CATEGORIES = [
