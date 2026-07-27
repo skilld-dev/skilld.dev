@@ -658,6 +658,7 @@ export default defineApiHandler({
             WHERE c.deleted_at IS NULL
               AND cs.name = s.name
               AND cs.owner = s.owner
+              AND cs.repo = s.repo
           )
           OR s.curator_reason_count != (
             SELECT COUNT(*)
@@ -666,6 +667,7 @@ export default defineApiHandler({
             WHERE c.deleted_at IS NULL
               AND cs.name = s.name
               AND cs.owner = s.owner
+              AND cs.repo = s.repo
               AND length(trim(COALESCE(cs.reason, ''))) >= 20
           )`,
           issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
@@ -678,6 +680,7 @@ export default defineApiHandler({
               WHERE c.deleted_at IS NULL
                 AND cs.name = s.name
                 AND cs.owner = s.owner
+                AND cs.repo = s.repo
             )
             || '/' ||
             (
@@ -687,6 +690,7 @@ export default defineApiHandler({
               WHERE c.deleted_at IS NULL
                 AND cs.name = s.name
                 AND cs.owner = s.owner
+                AND cs.repo = s.repo
                 AND length(trim(COALESCE(cs.reason, ''))) >= 20
             ) AS value
           FROM skills s
@@ -697,6 +701,7 @@ export default defineApiHandler({
             WHERE c.deleted_at IS NULL
               AND cs.name = s.name
               AND cs.owner = s.owner
+              AND cs.repo = s.repo
           )
           OR s.curator_reason_count != (
             SELECT COUNT(*)
@@ -705,6 +710,7 @@ export default defineApiHandler({
             WHERE c.deleted_at IS NULL
               AND cs.name = s.name
               AND cs.owner = s.owner
+              AND cs.repo = s.repo
               AND length(trim(COALESCE(cs.reason, ''))) >= 20
           )
           ORDER BY s.installs DESC

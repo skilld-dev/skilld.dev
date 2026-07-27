@@ -34,6 +34,7 @@ interface ScoreRow {
   installs: number
   stars: number
   pushed_at: number | null
+  repo_broken_since: number | null
   description: string | null
   current_sha: string | null
   sync_status: string | null
@@ -68,6 +69,7 @@ const BASE_SELECT = `
   s.installs,
   r.stars,
   r.pushed_at,
+  r.broken_since AS repo_broken_since,
   s.description,
   s.current_sha,
   s.sync_status,
@@ -95,6 +97,7 @@ const BASE_SELECT = `
     WHERE c.deleted_at IS NULL
       AND cs.name = s.name
       AND cs.owner = s.owner
+      AND cs.repo = s.repo
   ) AS curator_count,
   (
     SELECT COUNT(*)
@@ -103,6 +106,7 @@ const BASE_SELECT = `
     WHERE c.deleted_at IS NULL
       AND cs.name = s.name
       AND cs.owner = s.owner
+      AND cs.repo = s.repo
       AND length(trim(COALESCE(cs.reason, ''))) >= 20
   ) AS curator_reason_count,
   (
@@ -141,8 +145,8 @@ function computeFromRow(row: ScoreRow, now: number): {
   const isOfficial = isOfficialSkillRepo(row.owner, row.repo)
   const sourceResolved = Boolean(
     row.current_sha
-    && row.sync_status !== 'path_missing'
-    && row.sync_status !== 'fetch_failed',
+    && row.sync_status === 'ok'
+    && row.repo_broken_since === null,
   )
   const trust = resolveSkillTrust({
     owner: row.owner,
@@ -234,7 +238,7 @@ function updateIndexabilityStmt(
          trust_score = ?13,
          trust_reasons = ?14,
          trust_synced_at = ?10
-       WHERE owner = ?15 AND name = ?16`,
+       WHERE owner = ?15 AND repo = ?16 AND name = ?17`,
     )
     .bind(
       isOfficial ? 1 : 0,
@@ -252,6 +256,7 @@ function updateIndexabilityStmt(
       trust.score,
       JSON.stringify(trust.reasons),
       row.owner,
+      row.repo,
       row.name,
     )
 }
@@ -270,7 +275,7 @@ function updateTrustStmt(
          trust_score = ?3,
          trust_reasons = ?4,
          trust_synced_at = ?5
-       WHERE owner = ?6 AND name = ?7`,
+       WHERE owner = ?6 AND repo = ?7 AND name = ?8`,
     )
     .bind(
       trust.tier,
@@ -279,6 +284,7 @@ function updateTrustStmt(
       JSON.stringify(trust.reasons),
       now,
       row.owner,
+      row.repo,
       row.name,
     )
 }
@@ -336,7 +342,7 @@ export async function recomputeAllSkillScores(
   const res = await db
     .prepare(
       `SELECT ${BASE_SELECT} ${FROM_JOIN}
-       ORDER BY s.installs DESC, r.stars DESC, s.owner ASC, s.name ASC
+       ORDER BY s.installs DESC, r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC
        ${limitClause}`,
     )
     .all<ScoreRow>()

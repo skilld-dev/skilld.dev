@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDocumentVisibility, useElementSize, useMouseInElement, useRafFn } from '@vueuse/core'
+import { isUsableWebGL2Context } from '../utils/webgl-context'
 
 const props = withDefaults(defineProps<{
   opacity?: number
@@ -216,14 +217,15 @@ function initGL() {
   if (!canvas)
     return false
 
-  gl = canvas.getContext('webgl2', {
+  const context = canvas.getContext('webgl2', {
     alpha: true,
     premultipliedAlpha: false,
     antialias: false,
     powerPreference: 'low-power',
   })
-  if (!gl)
+  if (!isUsableWebGL2Context(context))
     return false
+  gl = context
 
   program = createProgram(gl, VERT, FRAG)
   if (!program)

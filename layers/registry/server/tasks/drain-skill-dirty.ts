@@ -83,7 +83,7 @@ export default defineScheduledTask({
       for (const { owner, repo, name } of rows) {
       // Single UPDATE that pulls live counts via correlated subqueries.
       // Formulas mirror /admin/integrity drift checks exactly:
-      //   curator_count          = collection_skills_v2 rows under non-deleted collections matched by (owner, name)
+      //   curator_count          = collection_skills_v2 rows under non-deleted collections matched by full skill identity
       //   curator_reason_count   = same, filtered to rows with reason text length >= 20
       //   approved_social_count  = skill_social_posts rows with status='approved' matched by skill_slug
       //   author_social_count    = same, filtered to role='author'
@@ -97,6 +97,7 @@ export default defineScheduledTask({
                JOIN collections_v2 c ON c.id = cs.collection_id
                WHERE c.deleted_at IS NULL
                  AND cs.owner = skills.owner
+                 AND cs.repo = skills.repo
                  AND cs.name = skills.name
              ),
              curator_reason_count = (
@@ -105,6 +106,7 @@ export default defineScheduledTask({
                JOIN collections_v2 c ON c.id = cs.collection_id
                WHERE c.deleted_at IS NULL
                  AND cs.owner = skills.owner
+                 AND cs.repo = skills.repo
                  AND cs.name = skills.name
                  AND length(trim(COALESCE(cs.reason, ''))) >= 20
              ),

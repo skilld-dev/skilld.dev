@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
+import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
 useSeoMeta({
   title: 'Find skills for your AI agent',
@@ -94,20 +95,40 @@ const {
   data: registryData,
   status: registryStatus,
   error: registryError,
+  execute: executeRegistry,
   refresh: refreshRegistry,
 } = useFetch('/api/skills', {
   query: registryQuery,
-  watch: [registryQuery],
+  watch: false,
   lazy: !isBot.value,
-  immediate: isFiltering.value,
+  immediate: false,
 })
 
-const totalPages = computed(() => registryData.value?.pages ?? 1)
-const isLoading = computed(() => registryStatus.value === 'pending' && !registryData.value)
+watch(registryQuery, async () => {
+  if (isFiltering.value)
+    await executeRegistry()
+}, { deep: true })
+
+if (isFiltering.value)
+  await executeRegistry()
+
+const registryView = computed(() => resolveRegistryViewState({
+  data: registryData.value,
+  error: registryError.value,
+  status: registryStatus.value,
+}))
+const totalPages = computed(() =>
+  registryView.value._tag === 'ready' ? registryView.value.data.pages : 1,
+)
+const isLoading = computed(() =>
+  isFiltering.value && registryView.value._tag === 'loading',
+)
 
 const searchInput = ref<{ inputRef?: HTMLInputElement } | null>(null)
 const activeElement = useActiveElement()
-const searchFocused = computed(() => activeElement.value === searchInput.value?.inputRef)
+const searchFocused = computed(() =>
+  isInputFocused(activeElement.value, searchInput.value?.inputRef),
+)
 
 onKeyStroke('/', (e) => {
   const el = searchInput.value?.inputRef
@@ -445,8 +466,8 @@ function clearOwner() {
             Skills that match
           </h2>
         </div>
-        <span v-if="registryData" class="data-label pb-1">
-          {{ registryData.total }} {{ registryData.total === 1 ? 'skill' : 'skills' }}
+        <span v-if="registryView._tag === 'ready'" class="data-label pb-1">
+          {{ registryView.data.total }} {{ registryView.data.total === 1 ? 'skill' : 'skills' }}
         </span>
       </div>
 
@@ -454,11 +475,11 @@ function clearOwner() {
         <template v-if="isLoading">
           Loading...
         </template>
-        <template v-else-if="registryData && registryData.items.length === 0">
+        <template v-else-if="registryView._tag === 'ready' && registryView.data.items.length === 0">
           No skills found.
         </template>
-        <template v-else-if="registryData">
-          {{ registryData.total }} skills.
+        <template v-else-if="registryView._tag === 'ready'">
+          {{ registryView.data.total }} skills.
         </template>
       </div>
 
@@ -466,11 +487,12 @@ function clearOwner() {
         v-if="isLoading"
         :class="view === 'grid' ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'flex flex-col gap-2'"
         aria-busy="true"
-        aria-label="Loading"
+        aria-label="Loading matching skills"
       >
         <div
           v-for="i in 12"
           :key="i"
+          data-loading-skill
           class="rounded-lg border border-default p-4"
         >
           <USkeleton class="h-4 w-3/4" />
@@ -479,7 +501,7 @@ function clearOwner() {
         </div>
       </div>
 
-      <div v-else-if="registryError" role="alert" class="editorial-state">
+      <div v-else-if="registryView._tag === 'error'" role="alert" class="editorial-state">
         <p class="font-medium">
           Couldn't load matching skills.
         </p>
@@ -496,7 +518,7 @@ function clearOwner() {
       </div>
 
       <div
-        v-else-if="registryData && registryData.items.length === 0"
+        v-else-if="registryView._tag === 'ready' && registryView.data.items.length === 0"
         class="editorial-state"
       >
         <p class="font-medium">
@@ -516,19 +538,19 @@ function clearOwner() {
       </div>
 
       <ul
-        v-else-if="view === 'grid'"
+        v-else-if="registryView._tag === 'ready' && view === 'grid'"
         class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
       >
-        <li v-for="skill in registryData!.items" :key="skill.slug">
+        <li v-for="skill in registryView.data.items" :key="skill.slug">
           <SkillCard :skill show-tags show-owner-path />
         </li>
       </ul>
 
       <ul
-        v-else
+        v-else-if="registryView._tag === 'ready'"
         class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
       >
-        <li v-for="skill in registryData!.items" :key="skill.slug">
+        <li v-for="skill in registryView.data.items" :key="skill.slug">
           <SkillCard :skill variant="list" show-tags show-owner-path />
         </li>
       </ul>
