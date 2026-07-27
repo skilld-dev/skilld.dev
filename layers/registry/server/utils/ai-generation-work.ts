@@ -280,7 +280,7 @@ export async function persistAbstractness(
   const denormalizedChanges = Number(results[1]?.meta.changes ?? 0)
   if (sourceChanges === 0 && denormalizedChanges === 0)
     return { _tag: 'source_changed' }
-  if (sourceChanges !== 1 || denormalizedChanges !== 1)
+  if (sourceChanges !== 1 || denormalizedChanges < 1)
     throw new Error(`abstractness persistence was not atomic: source=${sourceChanges} denormalized=${denormalizedChanges}`)
   return { _tag: 'written' }
 }

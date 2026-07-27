@@ -175,6 +175,32 @@ describe('ai generation work', () => {
     })
   })
 
+  it('accepts D1 change counts amplified by skills FTS triggers', async () => {
+    const statement = {
+      bind: () => statement,
+    } as unknown as D1PreparedStatement
+    const triggeredDb = {
+      prepare: () => statement,
+      batch: async () => [
+        { meta: { changes: 1 } },
+        { meta: { changes: 5 } },
+      ],
+    } as unknown as D1Database
+
+    const result = await persistAbstractness(triggeredDb, {
+      owner: 'acme',
+      repo: 'skills',
+      name: 'needs-abstractness',
+      currentSha: 'sha-abstract',
+    }, {
+      kind: 'abstract',
+      package: null,
+      category: 'planning',
+    }, 1_785_107_600)
+
+    expect(result).toEqual({ _tag: 'written' })
+  })
+
   it('does not persist a stale classifier result after the source SHA changes', async () => {
     sqlite.prepare(
       `UPDATE skills SET current_sha = 'sha-new'
