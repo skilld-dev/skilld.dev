@@ -93,7 +93,7 @@ describe('ai generation work', () => {
     const limits = runtimeGenerationLimits()
 
     expect(limits.embedding).toBeGreaterThan(0)
-    expect(limits.embedding).toBeLessThanOrEqual(25)
+    expect(limits.embedding).toBeLessThanOrEqual(24)
     expect(limits.abstractness).toBeGreaterThan(0)
     expect(
       limits.embedding * limits.embeddingQueriesPerItem
