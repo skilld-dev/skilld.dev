@@ -42,8 +42,11 @@ export function parseSentryIssuesResponse(status, body, tokenSource) {
     const count = nonnegativeInteger(issue?.count)
     const userCount = nonnegativeInteger(issue?.userCount)
     if (!issue
+      || typeof issue.id !== 'string'
       || typeof issue.shortId !== 'string'
       || typeof issue.title !== 'string'
+      || typeof issue.culprit !== 'string'
+      || typeof issue.permalink !== 'string'
       || count === null
       || userCount === null
       || typeof issue.firstSeen !== 'string'
@@ -55,8 +58,11 @@ export function parseSentryIssuesResponse(status, body, tokenSource) {
       }
     }
     newIssues.push({
+      id: issue.id,
       shortId: issue.shortId,
       title: issue.title.slice(0, 160),
+      culprit: issue.culprit.slice(0, 240),
+      permalink: issue.permalink,
       count,
       userCount,
       firstSeen: issue.firstSeen,

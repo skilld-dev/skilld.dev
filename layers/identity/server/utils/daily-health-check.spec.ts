@@ -50,7 +50,8 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
     pipeline: {
       syncJobs: [{ name: 'sync-github-skills', status: 'ok', lastRunAt: 1_774_473_600, stale: false, error: null }],
       scheduledRuns: [{ taskName: 'sync-github-skills', health: { _tag: 'healthy', alertable: false } }],
-      newlyBrokenRepos24h: 0,
+      newlyBrokenReposTotal24h: 0,
+      newlyBrokenReposImpacted24h: 0,
       skillSyncFailures24h: 0,
       staleDirtySkills: 0,
       aiBatchesSubmitted: 0,
@@ -179,6 +180,31 @@ describe('evaluateDailyHealthStatus', () => {
     })
   })
 
+  it('keeps unengaged source removal informational and flags user impact amber', () => {
+    const informational = summary({
+      pipeline: {
+        ...summary().pipeline,
+        newlyBrokenReposTotal24h: 1,
+        newlyBrokenReposImpacted24h: 0,
+      },
+    })
+    expect(evaluateDailyHealthStatus(informational)).toEqual({
+      status: 'GREEN',
+      reasons: ['All monitored systems are healthy.'],
+    })
+
+    const impacted = summary({
+      pipeline: {
+        ...informational.pipeline,
+        newlyBrokenReposImpacted24h: 1,
+      },
+    })
+    expect(evaluateDailyHealthStatus(impacted)).toEqual({
+      status: 'AMBER',
+      reasons: ['1 user-impacting repository became unavailable in 24 hours.'],
+    })
+  })
+
   it('marks missing scheduled cadence red', () => {
     const missing = summary({
       pipeline: {
@@ -199,14 +225,16 @@ describe('buildDailyHealthCheck', () => {
     const now = new Date('2026-07-22T22:05:00Z')
     const nowSec = Math.floor(now.getTime() / 1000)
     sqlite.exec(`
-      CREATE TABLE skills (first_seen_at INTEGER, sync_status TEXT, last_synced_at INTEGER);
-      CREATE TABLE repos (broken_since INTEGER);
+      CREATE TABLE skills (owner TEXT, repo TEXT, first_seen_at INTEGER, sync_status TEXT, last_synced_at INTEGER);
+      CREATE TABLE repos (owner TEXT, repo TEXT, broken_since INTEGER);
       CREATE TABLE owners (owner TEXT);
       CREATE TABLE users (created_at INTEGER);
       CREATE TABLE collections_v2 (deleted_at INTEGER);
       CREATE TABLE user_starred_repos (owner TEXT, repo TEXT);
-      CREATE TABLE activity (owner TEXT, repo TEXT, occurred_at INTEGER);
-      CREATE TABLE install_events (occurred_at INTEGER);
+      CREATE TABLE skill_subscriptions (owner TEXT, repo TEXT);
+      CREATE TABLE collection_skills_v2 (owner TEXT, repo TEXT);
+      CREATE TABLE activity (owner TEXT, repo TEXT, name TEXT, occurred_at INTEGER);
+      CREATE TABLE install_events (slug TEXT, occurred_at INTEGER);
       CREATE TABLE digest_runs (
         status TEXT,
         sent_at INTEGER,
@@ -240,14 +268,15 @@ describe('buildDailyHealthCheck', () => {
         ON scheduled_runs(task_name, started_at DESC, run_id DESC);
       CREATE TABLE ai_batch_costs (submitted_at INTEGER, est_cost_usd REAL);
 
-      INSERT INTO skills VALUES (${nowSec - 60}, 'ok', ${nowSec - 60});
-      INSERT INTO repos VALUES (NULL);
+      INSERT INTO skills VALUES ('owner', 'repo', ${nowSec - 60}, 'ok', ${nowSec - 60});
+      INSERT INTO repos VALUES ('owner', 'repo', NULL);
+      INSERT INTO repos VALUES ('deleted-owner', 'deleted-repo', ${nowSec - 60});
       INSERT INTO owners VALUES ('owner');
       INSERT INTO users VALUES (${nowSec - 60});
       INSERT INTO collections_v2 VALUES (NULL);
       INSERT INTO user_starred_repos VALUES ('owner', 'repo');
-      INSERT INTO activity VALUES ('owner', 'repo', ${nowSec - 60});
-      INSERT INTO install_events VALUES (${now.getTime() - 60_000});
+      INSERT INTO activity VALUES ('owner', 'repo', 'skill', ${nowSec - 60});
+      INSERT INTO install_events VALUES ('owner/skill', ${now.getTime() - 60_000});
       INSERT INTO digest_runs VALUES ('sent', ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60});
       INSERT INTO sync_jobs VALUES ('sync-github-skills', '0 * * * *', 1, NULL, ${nowSec - 60}, 'ok', NULL);
       INSERT INTO ai_batch_costs VALUES (${nowSec - 60}, 0.15);
@@ -275,8 +304,12 @@ describe('buildDailyHealthCheck', () => {
 
     expect(built.status).toBe('GREEN')
     expect(built.warnings).toEqual([])
-    expect(built.inventory).toMatchObject({ skills: 1, repos: 1, users: 1, watchedRepos: 1 })
+    expect(built.inventory).toMatchObject({ skills: 1, repos: 2, users: 1, watchedRepos: 1 })
     expect(built.activity).toMatchObject({ newSkills24h: 1, repoChanges24h: 1, installEvents24h: 1, digestsSent24h: 1 })
+    expect(built.pipeline).toMatchObject({
+      newlyBrokenReposTotal24h: 1,
+      newlyBrokenReposImpacted24h: 0,
+    })
     expect(built.pipeline.discoveryCandidatesExhausted).toBe(0)
     expect(built.cost.estimatedAiUsd24h).toBe(0.15)
 

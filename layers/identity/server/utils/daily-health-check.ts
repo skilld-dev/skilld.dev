@@ -60,7 +60,8 @@ export interface DailyHealthCheckSummary {
       taskName: string
       health: ScheduleHealth
     }>
-    newlyBrokenRepos24h: number
+    newlyBrokenReposTotal24h: number
+    newlyBrokenReposImpacted24h: number
     skillSyncFailures24h: number
     staleDirtySkills: number
     aiBatchesSubmitted: number
@@ -111,7 +112,8 @@ interface InstallActivityRow {
 }
 
 interface PipelineRow {
-  newly_broken_repos_24h: number
+  newly_broken_repos_total_24h: number
+  newly_broken_repos_impacted_24h: number
   skill_sync_failures_24h: number
   stale_dirty_skills: number
   ai_batches_submitted: number
@@ -380,8 +382,8 @@ export function evaluateDailyHealthStatus(
       .map(run => `${run.taskName} (${run.health._tag})`)
       .join(', ')}.`)
   }
-  if (summary.pipeline.newlyBrokenRepos24h > 0)
-    amber.push(`${plural(summary.pipeline.newlyBrokenRepos24h, 'repository')} became unavailable in 24 hours.`)
+  if (summary.pipeline.newlyBrokenReposImpacted24h > 0)
+    amber.push(`${plural(summary.pipeline.newlyBrokenReposImpacted24h, 'user-impacting repository')} became unavailable in 24 hours.`)
   if (summary.pipeline.skillSyncFailures24h > 0)
     amber.push(`${plural(summary.pipeline.skillSyncFailures24h, 'skill')} recorded a new sync failure in 24 hours.`)
   if (summary.pipeline.staleDirtySkills > 0)
@@ -548,7 +550,34 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
   const [row, jobRows, scheduledRunRows, failedJobRows] = await Promise.all([
     first<PipelineRow>(db, `
       SELECT
-        (SELECT COUNT(*) FROM repos WHERE broken_since >= ?1) AS newly_broken_repos_24h,
+        (SELECT COUNT(*) FROM repos WHERE broken_since >= ?1) AS newly_broken_repos_total_24h,
+        (SELECT COUNT(*)
+         FROM repos r
+         WHERE r.broken_since >= ?1
+           AND (
+             EXISTS (
+               SELECT 1 FROM skills s
+               WHERE s.owner = r.owner AND s.repo = r.repo
+             )
+             OR EXISTS (
+               SELECT 1 FROM user_starred_repos usr
+               WHERE usr.owner = r.owner AND usr.repo = r.repo
+             )
+             OR EXISTS (
+               SELECT 1 FROM skill_subscriptions sub
+               WHERE sub.owner = r.owner AND sub.repo = r.repo
+             )
+             OR EXISTS (
+               SELECT 1 FROM collection_skills_v2 cs
+               WHERE cs.owner = r.owner AND cs.repo = r.repo
+             )
+             OR EXISTS (
+               SELECT 1
+               FROM activity a
+               JOIN install_events ie ON ie.slug = a.owner || '/' || a.name
+               WHERE a.owner = r.owner AND a.repo = r.repo
+             )
+           )) AS newly_broken_repos_impacted_24h,
         (SELECT COUNT(*) FROM skills WHERE sync_status IS NOT NULL AND sync_status != 'ok' AND last_synced_at >= ?1) AS skill_sync_failures_24h,
         (SELECT COUNT(*) FROM skill_dirty WHERE queued_at < ?2) AS stale_dirty_skills,
         (SELECT COUNT(*) FROM ai_batches WHERE status = 'submitted') AS ai_batches_submitted,
@@ -620,7 +649,8 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
         latestTerminal: asRun(latestTerminalRun.get(policy.taskName)),
       }, nowSec),
     })),
-    newlyBrokenRepos24h: numberValue(row.newly_broken_repos_24h),
+    newlyBrokenReposTotal24h: numberValue(row.newly_broken_repos_total_24h),
+    newlyBrokenReposImpacted24h: numberValue(row.newly_broken_repos_impacted_24h),
     skillSyncFailures24h: numberValue(row.skill_sync_failures_24h),
     staleDirtySkills: numberValue(row.stale_dirty_skills),
     aiBatchesSubmitted: numberValue(row.ai_batches_submitted),
@@ -689,7 +719,8 @@ export async function buildDailyHealthCheck(
       taskName: policy.taskName,
       health: evaluateScheduleHealth(policy, { latest: null, latestTerminal: null }, Math.floor(now.getTime() / 1000)),
     })),
-    newlyBrokenRepos24h: 0,
+    newlyBrokenReposTotal24h: 0,
+    newlyBrokenReposImpacted24h: 0,
     skillSyncFailures24h: 0,
     staleDirtySkills: 0,
     aiBatchesSubmitted: 0,
@@ -776,7 +807,7 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     `- ${summary.activity.newUsers24h} new users, ${summary.activity.digestsSent24h} digests sent, ${summary.activity.digestsFailed24h} failed`,
     '',
     'Pipeline:',
-    `- ${summary.pipeline.newlyBrokenRepos24h} newly broken repos, ${summary.pipeline.skillSyncFailures24h} new skill sync failures`,
+    `- newly broken repos: ${summary.pipeline.newlyBrokenReposTotal24h} total, ${summary.pipeline.newlyBrokenReposImpacted24h} user-impacting; ${summary.pipeline.skillSyncFailures24h} new skill sync failures`,
     `- ${summary.pipeline.staleDirtySkills} dirty skills waiting over 1 hour`,
     `- AI batches: ${summary.pipeline.aiBatchesSubmitted} submitted, ${summary.pipeline.aiBatchesStuck} stuck, ${summary.pipeline.aiBatchesFailed24h} failed in 24 hours`,
     `- jobs: ${summary.pipeline.failedJobs24h} failed in 24 hours, ${summary.pipeline.staleReservedJobs} stale reserved, ${summary.pipeline.openFailedBatches} open failed batches`,
@@ -848,7 +879,7 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
         metric('known broken repos', summary.inventory.brokenRepos),
       ].join(''))}
       ${card('Pipeline', [
-        metric('new broken / sync failures', `${summary.pipeline.newlyBrokenRepos24h} / ${summary.pipeline.skillSyncFailures24h}`),
+        metric('new broken total / impacting', `${summary.pipeline.newlyBrokenReposTotal24h} / ${summary.pipeline.newlyBrokenReposImpacted24h}`),
         metric('dirty skills over 1h', summary.pipeline.staleDirtySkills),
         metric('AI submitted / stuck / failed', `${summary.pipeline.aiBatchesSubmitted} / ${summary.pipeline.aiBatchesStuck} / ${summary.pipeline.aiBatchesFailed24h}`),
         metric('jobs failed / stale reserved', `${summary.pipeline.failedJobs24h} / ${summary.pipeline.staleReservedJobs}`),

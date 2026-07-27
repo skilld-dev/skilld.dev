@@ -25,8 +25,11 @@ describe('sentry observability', () => {
 
   it('parses successful issue responses at the boundary', () => {
     expect(parseSentryIssuesResponse(200, [{
+      id: '12345',
       shortId: 'SKILLD-1',
       title: 'Failure',
+      culprit: '/skills',
+      permalink: 'https://example.sentry.io/issues/12345/',
       count: '3',
       userCount: 2,
       firstSeen: '2026-07-23T00:00:00Z',
@@ -34,8 +37,11 @@ describe('sentry observability', () => {
     }])).toEqual({
       _tag: 'available',
       newIssues: [{
+        id: '12345',
         shortId: 'SKILLD-1',
         title: 'Failure',
+        culprit: '/skills',
+        permalink: 'https://example.sentry.io/issues/12345/',
         count: 3,
         userCount: 2,
         firstSeen: '2026-07-23T00:00:00Z',
@@ -60,8 +66,11 @@ describe('sentry observability', () => {
     ['fractional user count', 3, '1.5'],
   ])('rejects %s', (_label, count, userCount) => {
     expect(parseSentryIssuesResponse(200, [{
+      id: '12345',
       shortId: 'SKILLD-1',
       title: 'Failure',
+      culprit: '/skills',
+      permalink: 'https://example.sentry.io/issues/12345/',
       count,
       userCount,
       firstSeen: '2026-07-23T00:00:00Z',

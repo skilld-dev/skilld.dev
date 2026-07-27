@@ -5,6 +5,10 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  parseHealthEmailRows,
+  summarizeWorkflowRuns,
+} from './daily-checkin-observability.mjs'
 import { parseSentryIssuesResponse } from './sentry-observability.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -113,15 +117,10 @@ const ci = probe(() => {
     '--json',
     'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url',
   ])
-  const deployments = rows.filter(row => row.workflowName === 'Deploy to Cloudflare')
-  let consecutiveFailures = 0
-  for (const row of deployments) {
-    if (row.conclusion === 'success')
-      break
-    if (row.status === 'completed')
-      consecutiveFailures++
+  return {
+    workflows: summarizeWorkflowRuns(rows, ['Test', 'Deploy to Cloudflare']),
+    recent: rows.slice(0, 10),
   }
-  return { consecutiveFailures, recent: rows.slice(0, 10) }
 })
 
 const http = await probeAsync(async () => {
@@ -170,7 +169,10 @@ const d1 = probe(() => {
     has('digest_runs') ? `(SELECT COUNT(*) FROM digest_runs WHERE status = 'failed' AND window_end >= ${sinceSec}) AS digests_failed` : 'NULL AS digests_failed',
   ]
   const pipelineParts = [
-    has('repos') ? `(SELECT COUNT(*) FROM repos WHERE broken_since >= ${sinceSec}) AS newly_broken_repos` : 'NULL AS newly_broken_repos',
+    has('repos') ? `(SELECT COUNT(*) FROM repos WHERE broken_since >= ${sinceSec}) AS newly_broken_repos_total` : 'NULL AS newly_broken_repos_total',
+    has('repos') && has('skills') && has('user_starred_repos') && has('skill_subscriptions') && has('collection_skills_v2') && has('activity') && has('install_events')
+      ? `(SELECT COUNT(*) FROM repos r WHERE r.broken_since >= ${sinceSec} AND (EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) OR EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) OR EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) OR EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) OR EXISTS (SELECT 1 FROM activity a JOIN install_events ie ON ie.slug = a.owner || '/' || a.name WHERE a.owner = r.owner AND a.repo = r.repo))) AS newly_broken_repos_impacted`
+      : 'NULL AS newly_broken_repos_impacted',
     has('skills') ? `(SELECT COUNT(*) FROM skills WHERE sync_status IS NOT NULL AND sync_status != 'ok' AND last_synced_at >= ${sinceSec}) AS skill_sync_failures` : 'NULL AS skill_sync_failures',
     has('skill_dirty') ? `(SELECT COUNT(*) FROM skill_dirty WHERE queued_at < ${Math.floor(now.getTime() / 1000) - 3600}) AS stale_dirty_skills` : 'NULL AS stale_dirty_skills',
     has('ai_batches') ? `(SELECT COUNT(*) FROM ai_batches WHERE status = 'submitted') AS ai_submitted` : 'NULL AS ai_submitted',
@@ -187,10 +189,16 @@ const d1 = probe(() => {
     ? d1Query(`SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error FROM sync_jobs WHERE enabled = 1 ORDER BY name`)
     : null
   const failedJobFingerprints = has('failed_jobs')
-    ? d1Query(`SELECT queue, job_type, substr(exception, 1, 160) exception, COUNT(*) count FROM failed_jobs WHERE failed_at >= ${sinceSec} GROUP BY queue, job_type, substr(exception, 1, 160) ORDER BY count DESC LIMIT 10`)
+    ? d1Query(`SELECT queue, job_type, substr(exception, 1, 160) exception, COUNT(*) count, MIN(failed_at) first_failed_at, MAX(failed_at) last_failed_at FROM failed_jobs WHERE failed_at >= ${sinceSec} GROUP BY queue, job_type, substr(exception, 1, 160) ORDER BY count DESC LIMIT 10`)
     : null
   const healthEmail = has('daily_health_checks')
-    ? d1Query(`SELECT report_date, health_status, delivery_status, recipient, sent_at, error FROM daily_health_checks ORDER BY report_date DESC LIMIT 2`)
+    ? parseHealthEmailRows(d1Query(`SELECT report_date, health_status, delivery_status, recipient, sent_at, error, summary_json FROM daily_health_checks ORDER BY report_date DESC LIMIT 2`))
+    : null
+  const recentJobBatches = has('job_batches')
+    ? d1Query(`SELECT id, name, total_jobs, pending_jobs, failed_jobs, created_at, updated_at, finished_at FROM job_batches ORDER BY updated_at DESC LIMIT 10`)
+    : null
+  const registryMaintenance = has('registry_maintenance')
+    ? d1Query(`SELECT name, status, batch_id, updated_at, last_error FROM registry_maintenance ORDER BY updated_at DESC`)
     : null
   const prodMigrationHead = has('d1_migrations')
     ? d1Query(`SELECT MAX(name) name FROM d1_migrations`)[0]?.name ?? null
@@ -206,6 +214,8 @@ const d1 = probe(() => {
     syncJobs,
     failedJobFingerprints,
     healthEmail,
+    recentJobBatches,
+    registryMaintenance,
     migrations: { localHead: localMigrationHead, prodHead: prodMigrationHead },
     missingExpectedTables: [
       'skills',
