@@ -16,7 +16,7 @@ Persistent fingerprints found by the daily check-in. Add rows only after evidenc
 | `Test` CI workflow red every commit | GitHub Actions | resolved 2026-07-25 | 2026-07-24 | 0 | Cause was lint, not tests: 43 em-dash errors in `docs/ops` plus 49 `no-silent-catch` across 26 files. All three jobs now green. |
 | `recompute-skill-scores (missing_run)`{lang="ts"} | daily-health-check | resolved 2026-07-25 | 2026-07-24 | 0 | Bootstrap artefact of migration `0074`: `scheduled_runs` had no prior history to compare against. Two consecutive successes since, on cadence. |
 | `run expired before terminal state was recorded` | ai-ready:cron | resolved 2026-07-27 | 2026-07-25 | 0 new | Started 2026-07-24T23:10:41Z and hit the 300-second ceiling. The following 24-hour window recorded 288 successful runs, with no stale nonterminal scheduled runs. |
-| IndexNow 429 for 8 days, pinned at max backoff | ai-ready:cron | resolved 2026-07-27 | 2026-07-26 | 0 new | IndexNow submission was disabled in SHA `ed9d0d8`. The last submit remains 2026-07-18T00:20:05Z while later `ai-ready:cron` ticks succeed. |
+| IndexNow 429 for 8 days, pinned at max backoff | ai-ready:cron | resolved 2026-07-27 | 2026-07-26 | 0 new | SHA `ed9d0d8` disabled IndexNow submission. The last submit remains 2026-07-18T00:20:05Z while later `ai-ready:cron` ticks succeed. |
 | `SKILLD-A` reading `items` of undefined | GET /skills | resolved 2026-07-27 | 2026-07-27 | 0 new | SHA `ed9d0d8` deployed tagged loading, error, and ready states, an explicit filter request, and a hydration guard. The last event came from a pre-fix release; Sentry now marks `SKILLD-A` resolved. |
 | `SKILLD-9` `getShaderParameter` is not a function | GET / | resolved 2026-07-27 | 2026-07-27 | 0 new | SHA `ed9d0d8` deployed the WebGL operation boundary. The only event came from a pre-fix release; Sentry now marks `SKILLD-9` resolved. |
 | Worker binding types stale on deployed HEAD | GitHub Actions Test | resolved 2026-07-27 | 2026-07-27 | 0 | Deploy and Test both passed on SHA `ed9d0d8`; production maps to the same SHA. |
@@ -26,6 +26,21 @@ Persistent fingerprints found by the daily check-in. Add rows only after evidenc
 | Renamed repos keep their old identity | sync-github-skills | resolved 2026-07-27 | 2026-07-25 | 11 redirects | ADR-0002 freezes registry identity and public `/gh` URLs. Migration `0078` stores GitHub's canonical source owner/repo separately. The successful 14:00 sync populated canonical source identities, including `video-db/claude-code` to `video-db/pair-programmer`. |
 | D1 and Vectorize parity drift | embedding parity | resolved 2026-07-27 | 2026-07-27 | 0 drift | The deployed audit, repair, and orphan-pruning workflow completed. Final remote audit: 2,771 eligible, 2,771 present, zero missing, stale, or orphan vectors, with the alarm clear. |
 | Historical skillless repositories never staged | sync-github-skills | resolved 2026-07-27 | 2026-07-27 | 249 staged | Migration `0079` added the historical inventory source. The first successful scheduler pass staged 249 candidates: 239 terminal rejects, 9 ready, and 1 retry scheduled. |
+
+## Closure semantics
+
+`Resolved` closes the incident and its defective mechanism. It does not imply that a bounded background migration has processed every eligible row. Production acceptance and backlog convergence stay visible below until their own exit conditions pass.
+
+Run `pnpm registry:convergence` for a read-only production snapshot. Incomplete convergence does not fail CI or activate notifications.
+
+## Convergence watches
+
+| Watch | Status at 2026-07-27 14:55 AEST | Exit condition |
+| --- | --- | --- |
+| Daily health sampler production acceptance | awaiting natural run | The next 08:00 AEST `daily-health-check` succeeds on deployed code. Do not trigger it manually because the task can email users. |
+| Canonical source identity coverage | 1 of 274 active skill repositories | Every active skill repository has a canonical source identity. |
+| Historical skillless discovery | 249 of 5,295 repositories staged | `historicalDiscovery.remaining` reaches zero. |
+| Abstractness classifier v3 | 844 of 2,771 eligible skills | `abstractnessV3.remaining` reaches zero. |
 
 ## Corrections
 

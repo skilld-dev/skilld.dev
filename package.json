@@ -30,6 +30,8 @@
     "seo:audit-supported": "npx tsx scripts/audit-supported-indexable-skills.ts",
     "seo:curate-supported": "npx tsx scripts/curate-supported-source.ts",
     "embeddings:parity": "tsx scripts/check-embedding-parity.ts",
+    "production:smoke": "tsx scripts/check-production-smoke.ts",
+    "registry:convergence": "tsx scripts/check-registry-convergence.ts",
     "db:schema:verify": "tsx scripts/verify-d1-schema.ts",
     "cron:docs": "tsx scripts/generate-cron-docs.ts --write",
     "cron:docs:check": "tsx scripts/generate-cron-docs.ts --check",
