@@ -23,22 +23,23 @@ describe('production deployment order', () => {
     expect(workflow).toContain('cancel-in-progress: false')
   })
 
-  it('builds, migrates D1, then deploys the Worker', () => {
+  it('builds, migrates D1, then runs the guarded production deployment', () => {
     const build = workflow.indexOf('- name: Build')
     const migrate = workflow.indexOf('- name: Apply D1 migrations')
-    const deploy = workflow.indexOf('- name: Deploy')
+    const deploy = workflow.indexOf('- name: Deploy, smoke, and rollback on failure')
 
     expect(build).toBeGreaterThan(-1)
     expect(migrate).toBeGreaterThan(build)
     expect(deploy).toBeGreaterThan(migrate)
     expect(workflow).toContain('run: pnpm db:migrations:prod')
+    expect(workflow).toContain('run: pnpm production:deploy')
   })
 
-  it('runs the production smoke contract after deployment', () => {
-    const deploy = workflow.indexOf('- name: Deploy')
-    const smoke = workflow.indexOf('- name: Smoke production routes')
-
-    expect(smoke).toBeGreaterThan(deploy)
-    expect(workflow).toContain('run: pnpm production:smoke')
+  it('delegates deploy, smoke, and explicit rollback to one guarded command', () => {
+    expect(workflow).not.toContain('run: npx wrangler --cwd .output deploy')
+    expect(workflow).not.toContain('- name: Smoke production routes')
+    expect(workflow).toContain('GITHUB_SHA:')
+    expect(workflow).toContain('CLOUDFLARE_API_TOKEN:')
+    expect(workflow).toContain('CLOUDFLARE_ACCOUNT_ID:')
   })
 })
