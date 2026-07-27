@@ -17,7 +17,8 @@ export function runtimeGenerationLimits() {
     / (embeddingQueriesPerItem + abstractnessQueriesPerItem),
   )
   return {
-    embedding: Math.min(sharedLimit, 24),
+    // Leave headroom for concurrent production reads against the shared index.
+    embedding: Math.min(sharedLimit, 20),
     abstractness: sharedLimit,
     embeddingQueriesPerItem,
     abstractnessQueriesPerItem,
