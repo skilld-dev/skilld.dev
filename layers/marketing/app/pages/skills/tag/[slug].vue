@@ -5,10 +5,10 @@ const route = useRoute()
 const tagSlug = computed(() => route.params.slug as string)
 
 const { data, error } = await useFetch<TagProfile>(
-  () => `/api/tags/${tagSlug.value}`,
+  () => `/api/tags/${tagSlug.value}?view=data`,
 )
 
-if (error.value || !data.value) {
+if (error.value || !data.value?.tag) {
   throw createError({ statusCode: 404, statusMessage: 'Unknown tag' })
 }
 
