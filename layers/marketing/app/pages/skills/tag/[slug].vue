@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
+import { getTagRedirect } from '#layers/registry/server/utils/tag-quality'
 
 const route = useRoute()
 const tagSlug = computed(() => route.params.slug as string)
+const tagRedirect = getTagRedirect(tagSlug.value)
+
+if (tagRedirect)
+  await navigateTo(tagRedirect, { redirectCode: 301 })
 
 const { data, error } = await useFetch<TagProfile>(
   () => `/api/tags/${tagSlug.value}?view=data`,
