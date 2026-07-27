@@ -80,6 +80,28 @@ export const ABSTRACTNESS_CATEGORIES = [
   'testing',
 ] as const
 
+export const ABSTRACTNESS_RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      kind: {
+        type: 'string',
+        enum: ['abstract', 'package-specific'],
+      },
+      package: {
+        type: ['string', 'null'],
+      },
+      category: {
+        type: 'string',
+        enum: ABSTRACTNESS_CATEGORIES,
+      },
+    },
+    required: ['kind', 'package', 'category'],
+  },
+} as const
+
 export const ABSTRACTNESS_SYSTEM_PROMPT = `You classify SKILL.md files for skilld.dev.
 
 Output a single JSON object, no prose, no fences, with this exact shape:

@@ -13,6 +13,7 @@ import { pAll } from '#shared/server/p-all'
 import { getTaskEnv } from '#shared/server/task-env'
 import {
   ABSTRACTNESS_MODEL,
+  abstractnessResponseText,
   buildAbstractnessUserPrompt,
   parseAbstractnessPayload,
   persistAbstractness,
@@ -20,7 +21,12 @@ import {
   selectMissingBatchSkills,
   selectMissingGeneratedSkills,
 } from '../utils/ai-generation-work'
-import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '../utils/ai-prompts'
+import {
+  ABSTRACTNESS_RESPONSE_FORMAT,
+  ABSTRACTNESS_SYSTEM_PROMPT,
+  BATCH_KINDS,
+  SHARED_SYSTEM_PROMPT,
+} from '../utils/ai-prompts'
 import {
   embeddingEffectSummary,
   embeddingPreflightResult,
@@ -64,23 +70,6 @@ interface BatchRequestItem {
 // the original mapping in payload-by-index so the poll task can resolve.
 function encodeCustomId(index: number, kind: string): string {
   return `${index}-${kind}`
-}
-
-function responseText(value: unknown): string {
-  if (typeof value !== 'object' || value === null)
-    return ''
-  if ('response' in value && typeof value.response === 'string')
-    return value.response
-  if (!('content' in value) || !Array.isArray(value.content))
-    return ''
-  return value.content.map((item) => {
-    return typeof item === 'object'
-      && item !== null
-      && 'text' in item
-      && typeof item.text === 'string'
-      ? item.text
-      : ''
-  }).join('')
 }
 
 export default defineScheduledTask({
@@ -230,6 +219,7 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
         ],
         max_tokens: 128,
         temperature: 0,
+        response_format: ABSTRACTNESS_RESPONSE_FORMAT,
       }).then(
         response => ({ _tag: 'response' as const, response }),
         error => ({
@@ -240,7 +230,7 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
       if (provider._tag === 'provider_failed')
         return provider
 
-      const parsed = parseAbstractnessPayload(extractJson<unknown>(responseText(provider.response)))
+      const parsed = parseAbstractnessPayload(extractJson<unknown>(abstractnessResponseText(provider.response)))
       if (parsed._tag === 'error')
         return { _tag: 'rejected' as const, reason: parsed.reason }
       const persisted = await persistAbstractness(

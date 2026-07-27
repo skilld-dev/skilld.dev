@@ -17,7 +17,7 @@ export function runtimeGenerationLimits() {
     / (embeddingQueriesPerItem + abstractnessQueriesPerItem),
   )
   return {
-    embedding: sharedLimit,
+    embedding: Math.min(sharedLimit, 50),
     abstractness: sharedLimit,
     embeddingQueriesPerItem,
     abstractnessQueriesPerItem,
@@ -186,6 +186,23 @@ function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null
+}
+
+export function abstractnessResponseText(value: unknown): string {
+  const candidate = record(value)
+  if (!candidate)
+    return ''
+  if ('response' in candidate) {
+    return typeof candidate.response === 'string'
+      ? candidate.response
+      : JSON.stringify(candidate.response)
+  }
+  if (!Array.isArray(candidate.content))
+    return ''
+  return candidate.content.map((item) => {
+    const content = record(item)
+    return content && typeof content.text === 'string' ? content.text : ''
+  }).join('')
 }
 
 export function parseAbstractnessPayload(value: unknown): AbstractnessParseResult {

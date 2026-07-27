@@ -3,13 +3,17 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   ABSTRACTNESS_PROMPT_VERSION,
+  abstractnessResponseText,
   buildAbstractnessUserPrompt,
   parseAbstractnessPayload,
   persistAbstractness,
   runtimeGenerationLimits,
   selectMissingGeneratedSkills,
 } from '../../layers/registry/server/utils/ai-generation-work'
-import { ABSTRACTNESS_SYSTEM_PROMPT } from '../../layers/registry/server/utils/ai-prompts'
+import {
+  ABSTRACTNESS_RESPONSE_FORMAT,
+  ABSTRACTNESS_SYSTEM_PROMPT,
+} from '../../layers/registry/server/utils/ai-prompts'
 
 describe('ai generation work', () => {
   let sqlite: Database.Database
@@ -87,12 +91,35 @@ describe('ai generation work', () => {
     const limits = runtimeGenerationLimits()
 
     expect(limits.embedding).toBeGreaterThan(0)
+    expect(limits.embedding).toBeLessThanOrEqual(50)
     expect(limits.abstractness).toBeGreaterThan(0)
     expect(
       limits.embedding * limits.embeddingQueriesPerItem
       + limits.abstractness * limits.abstractnessQueriesPerItem
       + limits.reservedQueries,
     ).toBeLessThanOrEqual(limits.invocationQueryLimit)
+  })
+
+  it('requests constrained classifier JSON and accepts object responses', () => {
+    expect(ABSTRACTNESS_RESPONSE_FORMAT).toMatchObject({
+      type: 'json_schema',
+      json_schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['kind', 'package', 'category'],
+        properties: {
+          kind: { enum: ['abstract', 'package-specific'] },
+          category: { enum: expect.arrayContaining(['testing', 'documentation']) },
+        },
+      },
+    })
+    expect(abstractnessResponseText({
+      response: {
+        kind: 'abstract',
+        package: null,
+        category: 'testing',
+      },
+    })).toBe('{"kind":"abstract","package":null,"category":"testing"}')
   })
 
   it('parses classifier output into a precise payload', () => {
