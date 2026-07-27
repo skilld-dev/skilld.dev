@@ -10,6 +10,7 @@ interface ActivityRow {
   description: string | null
   slug: string | null
   sync_status: string | null
+  change_summary: string | null
 }
 
 interface SkillEntry {
@@ -22,6 +23,7 @@ interface SkillEntry {
   sha: string
   occurredAt: number
   hasReceipts: boolean
+  changeSummary: string | null
 }
 
 interface SkillCard extends SkillEntry {
@@ -36,6 +38,7 @@ interface RepoCard {
   avatarUrl: string
   occurredAt: number
   skillCount: number
+  changeSummary: string | null
   skills: { name: string, displayName: string, slug: string }[]
 }
 
@@ -53,17 +56,44 @@ function avatarFor(owner: string): string {
   return `https://github.com/${owner}.png?size=80`
 }
 
+function summarizeChange(message: string | null): string | null {
+  const firstLine = message
+    ?.split('\n')
+    .map(line => line.trim())
+    .find(Boolean)
+  if (!firstLine)
+    return null
+  return firstLine.length > 180 ? `${firstLine.slice(0, 177)}…` : firstLine
+}
+
 export default defineCachedEventHandler(
   async (event): Promise<RecentUpdatesResponse> => {
     const db = getDB(event)
     const res = await db
       .prepare(
         `SELECT a.owner, a.name, a.occurred_at, a.sha,
-                s.display_name, s.repo, s.description, s.slug, s.sync_status
+                s.display_name, s.repo, s.description, s.slug, s.sync_status,
+                revisions.message AS change_summary
          FROM activity a
          INNER JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
          INNER JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
-         WHERE a.type = 'skill_updated' AND r.stars >= 100
+         LEFT JOIN skill_revisions revisions
+           ON revisions.owner = a.owner
+          AND revisions.repo = a.repo
+          AND revisions.name = a.name
+          AND revisions.sha = (
+            SELECT candidate.sha
+            FROM skill_revisions candidate
+            WHERE candidate.owner = a.owner
+              AND candidate.repo = a.repo
+              AND candidate.name = a.name
+              AND candidate.modified_at <= a.occurred_at
+            ORDER BY candidate.modified_at DESC, candidate.sha DESC
+            LIMIT 1
+          )
+         WHERE a.type = 'skill_updated'
+           AND r.stars >= 100
+           AND s.is_abstract = 1 AND s.is_official = 1
          ORDER BY a.occurred_at DESC
          LIMIT ?`,
       )
@@ -81,6 +111,7 @@ export default defineCachedEventHandler(
       sha: row.sha,
       occurredAt: row.occurred_at,
       hasReceipts: row.sync_status === 'ok',
+      changeSummary: summarizeChange(row.change_summary),
     }))
 
     // Group by (owner, repo) preserving order of first appearance.
@@ -108,6 +139,7 @@ export default defineCachedEventHandler(
           avatarUrl: avatarFor(head.owner),
           occurredAt: Math.max(...entries.map(e => e.occurredAt)),
           skillCount: entries.length,
+          changeSummary: entries.find(entry => entry.changeSummary)?.changeSummary ?? null,
           skills: entries.slice(0, 6).map(e => ({
             name: e.name,
             displayName: e.displayName,

@@ -3,6 +3,7 @@
 import type { TokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import type { LatestScheduledRun, ScheduleHealth } from '#shared/schedule-policy'
 import type { SendEmailInput, SendEmailResult } from './email'
+import { TERMINAL_DISCOVERY_REJECTION_REASONS } from '#layers/registry/server/utils/discovery-candidates'
 import { parseTokenExpiry, tokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
 
@@ -68,6 +69,9 @@ export interface DailyHealthCheckSummary {
     failedJobs24h: number
     staleReservedJobs: number
     openFailedBatches: number
+    discoveryCandidatesExhausted: number
+    discoveryCandidatesOverdue: number
+    discoveryClaimsStale: number
     failedJobDetails: Array<{
       queue: string
       jobType: string
@@ -116,6 +120,9 @@ interface PipelineRow {
   failed_jobs_24h: number
   stale_reserved_jobs: number
   open_failed_batches: number
+  discovery_candidates_exhausted: number
+  discovery_candidates_overdue: number
+  discovery_claims_stale: number
 }
 
 interface SyncJobRow {
@@ -385,6 +392,12 @@ export function evaluateDailyHealthStatus(
     amber.push(`${plural(summary.pipeline.aiBatchesFailed24h, 'AI batch', 'AI batches')} failed in 24 hours.`)
   if (summary.pipeline.openFailedBatches > 0)
     amber.push(`${plural(summary.pipeline.openFailedBatches, 'job batch', 'job batches')} remains open with failures.`)
+  if (summary.pipeline.discoveryCandidatesExhausted > 0)
+    amber.push(`${plural(summary.pipeline.discoveryCandidatesExhausted, 'discovery candidate')} exhausted automatic retries.`)
+  if (summary.pipeline.discoveryCandidatesOverdue > 0)
+    amber.push(`${plural(summary.pipeline.discoveryCandidatesOverdue, 'discovery candidate')} ${summary.pipeline.discoveryCandidatesOverdue === 1 ? 'is' : 'are'} overdue for retry.`)
+  if (summary.pipeline.discoveryClaimsStale > 0)
+    amber.push(`${plural(summary.pipeline.discoveryClaimsStale, 'discovery claim')} remained active for over 1 hour.`)
   if (summary.warnings.length > 0)
     amber.push(`${plural(summary.warnings.length, 'report probe')} failed.`)
 
@@ -529,6 +542,9 @@ async function loadActivity(
 }
 
 async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): Promise<DailyHealthCheckSummary['pipeline']> {
+  const terminalDiscoveryRejections = TERMINAL_DISCOVERY_REJECTION_REASONS
+    .map(reason => `'${reason}'`)
+    .join(', ')
   const [row, jobRows, scheduledRunRows, failedJobRows] = await Promise.all([
     first<PipelineRow>(db, `
       SELECT
@@ -540,8 +556,25 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
         (SELECT COUNT(*) FROM ai_batches WHERE status IN ('failed', 'expired') AND COALESCE(completed_at, submitted_at) >= ?1) AS ai_batches_failed_24h,
         (SELECT COUNT(*) FROM failed_jobs WHERE failed_at >= ?1) AS failed_jobs_24h,
         (SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ?4 AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs,
-        (SELECT COUNT(*) FROM job_batches WHERE failed_jobs > 0 AND finished_at IS NULL) AS open_failed_batches
-    `, [sinceSec, nowSec - DIRTY_STUCK_SECONDS, nowSec - AI_STUCK_SECONDS, nowSec - RESERVED_STUCK_SECONDS]),
+        (SELECT COUNT(*) FROM job_batches WHERE failed_jobs > 0 AND finished_at IS NULL) AS open_failed_batches,
+        (SELECT COUNT(*) FROM discovery_candidates
+          WHERE retry_state = 'exhausted'
+            AND NOT (
+              outcome = 'rejected'
+              AND rejection_reason IN (${terminalDiscoveryRejections})
+            )) AS discovery_candidates_exhausted,
+        (SELECT COUNT(*) FROM discovery_candidates
+          WHERE retry_state = 'retry_scheduled' AND next_retry_at < ?5) AS discovery_candidates_overdue,
+        (SELECT COUNT(*) FROM discovery_candidates
+          WHERE retry_state = 'claimed' AND claimed_at < ?6) AS discovery_claims_stale
+    `, [
+      sinceSec,
+      nowSec - DIRTY_STUCK_SECONDS,
+      nowSec - AI_STUCK_SECONDS,
+      nowSec - RESERVED_STUCK_SECONDS,
+      nowSec - CLAIM_STALE_SECONDS,
+      nowSec - CLAIM_STALE_SECONDS,
+    ]),
     all<SyncJobRow>(db, `
       SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error
       FROM sync_jobs
@@ -596,6 +629,9 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
     failedJobs24h: numberValue(row.failed_jobs_24h),
     staleReservedJobs: numberValue(row.stale_reserved_jobs),
     openFailedBatches: numberValue(row.open_failed_batches),
+    discoveryCandidatesExhausted: numberValue(row.discovery_candidates_exhausted),
+    discoveryCandidatesOverdue: numberValue(row.discovery_candidates_overdue),
+    discoveryClaimsStale: numberValue(row.discovery_claims_stale),
     failedJobDetails: failedJobRows.map(failure => ({
       queue: failure.queue,
       jobType: failure.job_type,
@@ -662,6 +698,9 @@ export async function buildDailyHealthCheck(
     failedJobs24h: 0,
     staleReservedJobs: 0,
     openFailedBatches: 0,
+    discoveryCandidatesExhausted: 0,
+    discoveryCandidatesOverdue: 0,
+    discoveryClaimsStale: 0,
     failedJobDetails: [],
   }, () => loadPipeline(db, Math.floor(now.getTime() / 1000), sinceSec))
   const cost = await capture(warnings, 'AI cost', {
@@ -741,6 +780,7 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     `- ${summary.pipeline.staleDirtySkills} dirty skills waiting over 1 hour`,
     `- AI batches: ${summary.pipeline.aiBatchesSubmitted} submitted, ${summary.pipeline.aiBatchesStuck} stuck, ${summary.pipeline.aiBatchesFailed24h} failed in 24 hours`,
     `- jobs: ${summary.pipeline.failedJobs24h} failed in 24 hours, ${summary.pipeline.staleReservedJobs} stale reserved, ${summary.pipeline.openFailedBatches} open failed batches`,
+    `- discovery: ${summary.pipeline.discoveryCandidatesExhausted} exhausted, ${summary.pipeline.discoveryCandidatesOverdue} overdue retries, ${summary.pipeline.discoveryClaimsStale} stale claims`,
     '',
     'Scheduled task issues:',
     plainList([...unhealthyTasks, ...unhealthyRuns]),
@@ -813,6 +853,7 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
         metric('AI submitted / stuck / failed', `${summary.pipeline.aiBatchesSubmitted} / ${summary.pipeline.aiBatchesStuck} / ${summary.pipeline.aiBatchesFailed24h}`),
         metric('jobs failed / stale reserved', `${summary.pipeline.failedJobs24h} / ${summary.pipeline.staleReservedJobs}`),
         metric('open failed batches', summary.pipeline.openFailedBatches),
+        metric('discovery exhausted / overdue / stale', `${summary.pipeline.discoveryCandidatesExhausted} / ${summary.pipeline.discoveryCandidatesOverdue} / ${summary.pipeline.discoveryClaimsStale}`),
       ].join(''))}
     </tr>
     <tr>

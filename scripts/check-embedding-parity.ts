@@ -25,8 +25,41 @@ export interface RemoteParityCliDependencies {
 }
 
 export type RemoteParityCliResult
-  = | { _tag: 'refused', reason: 'remote_dry_run_required' }
-    | { _tag: 'completed', parity: EmbeddingParityResult }
+  = | {
+    _tag: 'refused'
+    reason: 'remote_dry_run_required' | 'remote_apply_required'
+  }
+  | {
+    _tag: 'completed'
+    parity: EmbeddingParityResult
+    alarm: EmbeddingParityAlarm
+  }
+  | {
+    _tag: 'repair_queued'
+    parity: EmbeddingParityResult
+    candidates: number
+    markersInvalidated: number
+  }
+  | {
+    _tag: 'orphan_cleanup_queued'
+    parity: EmbeddingParityResult
+    candidates: number
+    deletionsQueued: number
+    retainedAfterRecheck: number
+  }
+
+export type EmbeddingParityAlarm
+  = | { _tag: 'clear' }
+    | { _tag: 'triggered', missing: number, stale: number, orphan: number }
+
+type RemoteParityCommand
+  = | { _tag: 'audit', alarm: boolean }
+    | { _tag: 'repair' }
+    | { _tag: 'prune_orphans' }
+    | {
+      _tag: 'refused'
+      reason: 'remote_dry_run_required' | 'remote_apply_required'
+    }
 
 interface ListVectorsPage {
   ids: string[]
@@ -36,7 +69,8 @@ interface ListVectorsPage {
 }
 
 const VECTOR_INDEX = 'skill-embeddings'
-const VECTOR_READ_CHUNK = 100
+const VECTOR_READ_CHUNK = 20
+const VECTOR_DELETE_CHUNK = 100
 
 function parseJson(stdout: string, label: string): unknown {
   try {
@@ -84,7 +118,9 @@ function parseListVectorsPage(stdout: string): ListVectorsPage {
     || !Number.isSafeInteger(value.count)
     || !Number.isSafeInteger(value.totalCount)
     || typeof value.isTruncated !== 'boolean'
-    || (value.nextCursor !== null && typeof value.nextCursor !== 'string')) {
+    || (value.nextCursor !== undefined
+      && value.nextCursor !== null
+      && typeof value.nextCursor !== 'string')) {
     throw new Error('Malformed Vectorize list-vectors JSON: invalid page')
   }
   const ids = value.vectors.map((candidate) => {
@@ -100,8 +136,50 @@ function parseListVectorsPage(stdout: string): ListVectorsPage {
     ids,
     totalCount: value.totalCount,
     isTruncated: value.isTruncated,
-    nextCursor: value.nextCursor,
+    nextCursor: typeof value.nextCursor === 'string' ? value.nextCursor : null,
   }
+}
+
+function parseCommand(args: string[]): RemoteParityCommand {
+  const flags = new Set(args)
+  const hasMutationFlag = flags.has('--repair')
+    || flags.has('--prune-orphans')
+    || flags.has('--apply')
+  if (hasMutationFlag) {
+    const exactRepair = args.length === 3
+      && flags.has('--remote')
+      && flags.has('--repair')
+      && flags.has('--apply')
+    if (exactRepair)
+      return { _tag: 'repair' }
+    const exactPrune = args.length === 3
+      && flags.has('--remote')
+      && flags.has('--prune-orphans')
+      && flags.has('--apply')
+    return exactPrune
+      ? { _tag: 'prune_orphans' }
+      : { _tag: 'refused', reason: 'remote_apply_required' }
+  }
+  const exactAudit = (args.length === 2 || args.length === 3)
+    && flags.has('--remote')
+    && flags.has('--dry-run')
+    && (args.length === 2 || flags.has('--alarm'))
+  return exactAudit
+    ? { _tag: 'audit', alarm: flags.has('--alarm') }
+    : { _tag: 'refused', reason: 'remote_dry_run_required' }
+}
+
+export function embeddingParityAlarm(parity: EmbeddingParityResult): EmbeddingParityAlarm {
+  return parity.counts.missing > 0
+    || parity.counts.stale > 0
+    || parity.counts.orphan > 0
+    ? {
+        _tag: 'triggered',
+        missing: parity.counts.missing,
+        stale: parity.counts.stale,
+        orphan: parity.counts.orphan,
+      }
+    : { _tag: 'clear' }
 }
 
 function parseGetVectors(result: ExecFileResult): EmbeddingParityVector[] {
@@ -181,18 +259,86 @@ async function getExpectedVectors(
   return vectors
 }
 
-export async function runRemoteEmbeddingParityCli(
-  args: string[],
-  deps: RemoteParityCliDependencies,
-): Promise<RemoteParityCliResult> {
-  const exactFlags = args.length === 2
-    && args.includes('--remote')
-    && args.includes('--dry-run')
-  if (!exactFlags)
-    return { _tag: 'refused', reason: 'remote_dry_run_required' }
+function sqlString(value: string): string {
+  return `'${value.replaceAll('\'', '\'\'')}'`
+}
 
-  const wranglerPath = deps.wranglerPath ?? resolve(process.cwd(), 'node_modules/.bin/wrangler')
-  const d1 = await deps.execFile(wranglerPath, [
+function parseMutationChanges(stdout: string): number {
+  const value = parseJson(stdout, 'D1 repair')
+  if (!Array.isArray(value) || value.length !== 1 || !isRecord(value[0])
+    || value[0].success !== true || !isRecord(value[0].meta)
+    || !Number.isSafeInteger(value[0].meta.changes)) {
+    throw new Error('Malformed D1 repair JSON: expected one successful mutation result')
+  }
+  return value[0].meta.changes as number
+}
+
+async function invalidateEmbeddingMarkers(
+  execute: ParityExecFile,
+  wranglerPath: string,
+  rows: EligibleEmbeddingRow[],
+): Promise<number> {
+  const chunkSize = 50
+  let changes = 0
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    const chunk = rows.slice(index, index + chunkSize)
+    const values = chunk.map(row => `(
+      ${sqlString(row.owner)},
+      ${sqlString(row.repo)},
+      ${sqlString(row.name)},
+      ${sqlString(row.currentSha)}
+    )`).join(',')
+    const sql = `
+      WITH candidates(owner, repo, name, content_sha) AS (VALUES ${values})
+      DELETE FROM skill_generated AS marker
+      WHERE marker.kind = 'embedding'
+        AND EXISTS (
+          SELECT 1
+          FROM candidates
+          WHERE marker.owner = candidates.owner
+            AND marker.repo = candidates.repo
+            AND marker.name = candidates.name
+            AND marker.sha = candidates.content_sha
+        )
+    `
+    const result = await execute(wranglerPath, [
+      'd1',
+      'execute',
+      'DB',
+      '--remote',
+      '--command',
+      sql,
+      '--json',
+    ])
+    changes += parseMutationChanges(result.stdout)
+  }
+  return changes
+}
+
+async function deleteOrphanVectors(
+  execute: ParityExecFile,
+  wranglerPath: string,
+  ids: string[],
+): Promise<number> {
+  let queued = 0
+  for (let index = 0; index < ids.length; index += VECTOR_DELETE_CHUNK) {
+    const chunk = ids.slice(index, index + VECTOR_DELETE_CHUNK)
+    await execute(wranglerPath, [
+      'vectorize',
+      'delete-vectors',
+      VECTOR_INDEX,
+      ...chunk.map(id => `--ids=${id}`),
+    ])
+    queued += chunk.length
+  }
+  return queued
+}
+
+async function loadEligibleRows(
+  execute: ParityExecFile,
+  wranglerPath: string,
+): Promise<EligibleEmbeddingRow[]> {
+  const d1 = await execute(wranglerPath, [
     'd1',
     'execute',
     'DB',
@@ -201,13 +347,72 @@ export async function runRemoteEmbeddingParityCli(
     ELIGIBLE_EMBEDDINGS_SQL,
     '--json',
   ])
-  const eligible = parseD1Rows(d1.stdout)
+  return parseD1Rows(d1.stdout)
+}
+
+export async function runRemoteEmbeddingParityCli(
+  args: string[],
+  deps: RemoteParityCliDependencies,
+): Promise<RemoteParityCliResult> {
+  const command = parseCommand(args)
+  if (command._tag === 'refused')
+    return command
+
+  const wranglerPath = deps.wranglerPath ?? resolve(process.cwd(), 'node_modules/.bin/wrangler')
+  const eligible = await loadEligibleRows(deps.execFile, wranglerPath)
   const inventoryIds = await listAllVectorIds(deps.execFile, wranglerPath)
-  const expectedIds = await Promise.all(eligible.map(row => vectorIdFor(row)))
-  const vectors = await getExpectedVectors(deps.execFile, wranglerPath, expectedIds)
+  const identities = await Promise.all(eligible.map(async row => ({
+    id: await vectorIdFor(row),
+    row,
+  })))
+  const inventory = new Set(inventoryIds)
+  const vectors = await getExpectedVectors(
+    deps.execFile,
+    wranglerPath,
+    identities.filter(identity => inventory.has(identity.id)).map(identity => identity.id),
+  )
+  const parity = await calculateEmbeddingParity(eligible, vectors, inventoryIds)
+  if (command._tag === 'audit') {
+    return {
+      _tag: 'completed',
+      parity,
+      alarm: embeddingParityAlarm(parity),
+    }
+  }
+  if (command._tag === 'prune_orphans') {
+    const freshEligible = await loadEligibleRows(deps.execFile, wranglerPath)
+    const freshExpectedIds = new Set(
+      await Promise.all(freshEligible.map(row => vectorIdFor(row))),
+    )
+    const deletableIds = parity.ids.orphan.filter(id => !freshExpectedIds.has(id))
+    const deletionsQueued = await deleteOrphanVectors(
+      deps.execFile,
+      wranglerPath,
+      deletableIds,
+    )
+    return {
+      _tag: 'orphan_cleanup_queued',
+      parity,
+      candidates: parity.ids.orphan.length,
+      deletionsQueued,
+      retainedAfterRecheck: parity.ids.orphan.length - deletableIds.length,
+    }
+  }
+
+  const repairIds = new Set([...parity.ids.missing, ...parity.ids.stale])
+  const candidates = identities
+    .filter(identity => repairIds.has(identity.id))
+    .map(identity => identity.row)
+  const markersInvalidated = await invalidateEmbeddingMarkers(
+    deps.execFile,
+    wranglerPath,
+    candidates,
+  )
   return {
-    _tag: 'completed',
-    parity: await calculateEmbeddingParity(eligible, vectors, inventoryIds),
+    _tag: 'repair_queued',
+    parity,
+    candidates: candidates.length,
+    markersInvalidated,
   }
 }
 
@@ -222,13 +427,22 @@ const execFile: ParityExecFile = (file, args) => new Promise((resolvePromise, re
 })
 
 async function main(): Promise<void> {
-  const result = await runRemoteEmbeddingParityCli(process.argv.slice(2), { execFile })
+  const args = process.argv.slice(2)
+  const result = await runRemoteEmbeddingParityCli(args, { execFile })
   if (result._tag === 'refused') {
-    console.error('Refused: embedding parity requires explicit --remote --dry-run')
+    const requirement = result.reason === 'remote_apply_required'
+      ? '--remote --repair --apply or --remote --prune-orphans --apply'
+      : '--remote --dry-run'
+    console.error(`Refused: embedding parity requires explicit ${requirement}`)
     process.exitCode = 2
     return
   }
-  console.log(JSON.stringify(result.parity, null, 2))
+  console.log(JSON.stringify(result, null, 2))
+  if (result._tag === 'completed'
+    && args.includes('--alarm')
+    && result.alarm._tag === 'triggered') {
+    process.exitCode = 1
+  }
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : null

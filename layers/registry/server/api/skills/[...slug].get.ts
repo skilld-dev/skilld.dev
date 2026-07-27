@@ -6,6 +6,7 @@ import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { getTree, resolveGithubBindings } from '../../utils/github-client'
+import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { getGenerated } from '../../utils/skill-generated'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkill } from '../../utils/skills-registry'
@@ -126,6 +127,8 @@ interface SkillDetailRow {
   pushed_at: number | null
   repo_created_at: number | null
   default_branch: string | null
+  source_owner: string | null
+  source_repo: string | null
   // sync/revision
   current_sha: string | null
   modified_at: number | null
@@ -167,12 +170,11 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const githubUrl = `https://github.com/${skill.owner}/${skill.repo}`
-
     const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow] = await Promise.all([
       getEndorsementsForSkill(platform.db, skill.name),
       platform.db
         .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
+                         r.source_owner, r.source_repo,
                          s.current_sha, s.modified_at, s.references_count, s.assets, s.last_synced_at, s.sync_status,
                          s.seo_index_score, s.seo_indexable, s.seo_index_reasons, s.seo_index_synced_at,
                          s.curator_count, s.curator_reason_count, s.approved_social_count, s.author_social_count,
@@ -192,6 +194,8 @@ export default defineApiHandler({
       getGenerated<SummaryPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'summary' }),
     ])
 
+    const source = resolveRepoSourceIdentityFromRow(skill, row)
+    const githubUrl = `https://github.com/${source.owner}/${source.repo}`
     const branch = row?.default_branch || 'main'
 
     // Warm path: render is in D1. Cold path (legacy rows or fetch_failed
@@ -201,8 +205,8 @@ export default defineApiHandler({
     if (row?.rendered_html && row.rendered_status === 'ok') {
       const reparsed = row.rendered_raw
         ? await parseSkillMd(row.rendered_raw, {
-            owner: skill.owner,
-            repo: skill.repo,
+            owner: source.owner,
+            repo: source.repo,
             name: skill.name,
             branch,
             skillDir: row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? '',
@@ -219,7 +223,7 @@ export default defineApiHandler({
       }
     }
     else {
-      rendered = await renderLive(event, skill.owner, skill.repo, skill.name, branch)
+      rendered = await renderLive(event, source.owner, source.repo, skill.name, branch)
       // Cache cold-path result back to D1 so subsequent visits hit the warm
       // path. Fire-and-forget; missing waitUntil context (e.g. local dev)
       // just means we await it inline.
@@ -229,7 +233,7 @@ export default defineApiHandler({
     // Stale refresh: only fire when rendered_at older than threshold.
     const renderedAge = secondsAgo(row?.rendered_at)
     if (row?.rendered_html && renderedAge != null && renderedAge > LIVE_RENDER_STALE_SECONDS)
-      scheduleRefresh(event, platform.db, skill.owner, skill.repo, skill.name, branch)
+      scheduleRefresh(event, platform.db, skill, source, skill.name, branch)
 
     const rawAiTags = tagRow?.payload.tags ?? []
     const tags = rawAiTags
@@ -488,9 +492,16 @@ function schedulePersist(event: H3Event, db: D1Database, owner: string, repo: st
   runAfterResponse(event, promise)
 }
 
-function scheduleRefresh(event: H3Event, db: D1Database, owner: string, repo: string, name: string, branch: string): void {
+function scheduleRefresh(
+  event: H3Event,
+  db: D1Database,
+  registry: { owner: string, repo: string },
+  source: { owner: string, repo: string },
+  name: string,
+  branch: string,
+): void {
   const promise = (async () => {
-    const live = await renderLive(event, owner, repo, name, branch)
+    const live = await renderLive(event, source.owner, source.repo, name, branch)
     if (live.status !== 'ok' || !live.html)
       return
     await db
@@ -501,13 +512,13 @@ function scheduleRefresh(event: H3Event, db: D1Database, owner: string, repo: st
         JSON.stringify(live.frontmatter ?? {}),
         live.html,
         Math.floor(Date.now() / 1000),
-        owner,
-        repo,
+        registry.owner,
+        registry.repo,
         name,
       )
       .run()
   })().catch((err) => {
-    console.warn(`[skills] stale refresh failed for ${owner}/${repo}/${name}:`, err)
+    console.warn(`[skills] stale refresh failed for ${registry.owner}/${registry.repo}/${name}:`, err)
   })
   runAfterResponse(event, promise)
 }

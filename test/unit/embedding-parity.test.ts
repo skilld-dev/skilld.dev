@@ -83,6 +83,58 @@ describe('embedding parity', () => {
     expect(parseEmbeddingParityMode(['--remote', '--dry-run'])).toEqual({ _tag: 'remote_dry_run' })
     expect(parseEmbeddingParityMode([])).toEqual({ _tag: 'local_dry_run' })
   })
+
+  it('keeps binding reads within the Vectorize getByIds limit', async () => {
+    const rows = Array.from({ length: 21 }, (_, index) =>
+      eligible(`skill-${index}`, `sha-${index}`, `sha-${index}`))
+    const ids = await Promise.all(rows.map(row => vectorIdFor(row)))
+    const chunkSizes: number[] = []
+    const db = {
+      prepare() {
+        return {
+          bind() {
+            return {
+              async all() {
+                return {
+                  results: rows.map(row => ({
+                    owner: row.owner,
+                    repo: row.repo,
+                    name: row.name,
+                    current_sha: row.currentSha,
+                    marker_sha: row.markerSha,
+                  })),
+                }
+              },
+            }
+          },
+        }
+      },
+    } as D1Database
+
+    const result = await runEmbeddingParityCheck(
+      { _tag: 'local_dry_run' },
+      {
+        db,
+        vectorize: {
+          getByIds: async (requested) => {
+            chunkSizes.push(requested.length)
+            return requested.map((id) => {
+              const index = ids.indexOf(id)
+              return {
+                id,
+                values: [],
+                metadata: { sha: `sha-${index}` },
+              }
+            })
+          },
+        },
+        listVectorIds: async () => ids,
+      },
+    )
+
+    expect(result.counts.present).toBe(21)
+    expect(chunkSizes).toEqual([20, 1])
+  })
 })
 
 function eligible(name: string, currentSha: string, markerSha: string | null): EligibleEmbeddingRow {

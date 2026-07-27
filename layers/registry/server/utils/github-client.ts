@@ -171,6 +171,10 @@ export async function getRepo(
 
 interface RepoSummaryGqlResponse {
   repository: {
+    name: string
+    nameWithOwner: string
+    url: string
+    owner: { login: string }
     description: string | null
     stargazerCount: number
     forkCount: number
@@ -207,6 +211,7 @@ export async function getRepoSummary(
 ): Promise<FetchOutcome<RepoSummary>> {
   const query = `query($owner:String!,$repo:String!){
     repository(owner:$owner,name:$repo){
+      name nameWithOwner url owner{login}
       description stargazerCount forkCount pushedAt createdAt isArchived isFork
       defaultBranchRef{name target{... on Commit{oid tree{oid}}}}
     }
@@ -240,10 +245,10 @@ export async function getRepoSummary(
 
   const branch = r.defaultBranchRef?.name || 'main'
   const meta: RepoMeta = {
-    name: repo,
-    full_name: `${owner}/${repo}`,
-    html_url: `https://github.com/${owner}/${repo}`,
-    owner: { login: owner },
+    name: r.name,
+    full_name: r.nameWithOwner,
+    html_url: r.url,
+    owner: { login: r.owner.login },
     default_branch: branch,
     description: r.description,
     stargazers_count: r.stargazerCount,

@@ -7,11 +7,15 @@ import { getTaskEnv } from '#shared/server/task-env'
 import {
   DISCOVERY_SYNC_CANDIDATES_SQL,
   GENERAL_SYNC_CANDIDATES_SQL,
+  historicalDiscoveryStageCapacity,
   prioritizeRepoSyncCandidates,
+  STAGE_HISTORICAL_DISCOVERY_CANDIDATES_SQL,
   SUBSCRIBED_SYNC_CANDIDATES_SQL,
 } from '../utils/sync-candidates'
 
 const MAX_REPOS_PER_RUN = 250
+const MAX_HISTORICAL_CANDIDATES_PER_RUN = 250
+const GENERAL_REPOS_RESERVE = 50
 const CRON = '0 * * * *'
 const CLAIM_STALE_SECONDS = 30 * 60
 
@@ -37,23 +41,52 @@ export default defineScheduledTask({
       const now = Math.floor(startedAt / 1000)
       const [subRows, stalenessRows, discoveryRows] = await Promise.all([
         db.prepare(SUBSCRIBED_SYNC_CANDIDATES_SQL)
-          .bind(now - SUBSCRIBED_REPO_STALE_SECONDS)
+          .bind(now - SUBSCRIBED_REPO_STALE_SECONDS, MAX_REPOS_PER_RUN)
           .all<{ owner: string, repo: string, ls: number | null, owner_verified: number }>(),
         db.prepare(GENERAL_SYNC_CANDIDATES_SQL)
-          .bind(now - STALE_SYNC_SECONDS)
+          .bind(now - STALE_SYNC_SECONDS, MAX_REPOS_PER_RUN)
           .all<{ owner: string, repo: string, ls: number | null, owner_verified: number }>(),
         db.prepare(DISCOVERY_SYNC_CANDIDATES_SQL)
-          .bind(now, now - CLAIM_STALE_SECONDS)
+          .bind(now, now - CLAIM_STALE_SECONDS, MAX_REPOS_PER_RUN)
           .all<{ owner: string, repo: string, ls: number | null, owner_verified: number }>(),
       ])
+      const subscriberCandidates = subRows.results ?? []
+      const generalCandidates = stalenessRows.results ?? []
+      let discoveryCandidates = discoveryRows.results ?? []
+      const stageLimit = historicalDiscoveryStageCapacity(
+        subscriberCandidates,
+        generalCandidates,
+        discoveryCandidates,
+        {
+          limit: MAX_REPOS_PER_RUN,
+          generalReserve: GENERAL_REPOS_RESERVE,
+          maxHistorical: MAX_HISTORICAL_CANDIDATES_PER_RUN,
+        },
+      )
+      let stagedHistorical = 0
+      if (stageLimit > 0) {
+        const staged = await db.prepare(STAGE_HISTORICAL_DISCOVERY_CANDIDATES_SQL)
+          .bind(now, stageLimit)
+          .run()
+        stagedHistorical = Number(staged.meta.changes ?? 0)
+        if (stagedHistorical > 0) {
+          const refreshedDiscovery = await db.prepare(DISCOVERY_SYNC_CANDIDATES_SQL)
+            .bind(now, now - CLAIM_STALE_SECONDS, MAX_REPOS_PER_RUN)
+            .all<{ owner: string, repo: string, ls: number | null, owner_verified: number }>()
+          discoveryCandidates = refreshedDiscovery.results ?? []
+        }
+      }
       const discoveryKeys = new Set(
-        (discoveryRows.results ?? []).map(row => `${row.owner}/${row.repo}`),
+        discoveryCandidates.map(row => `${row.owner}/${row.repo}`),
       )
       const { ordered, deferred } = prioritizeRepoSyncCandidates(
-        subRows.results ?? [],
-        stalenessRows.results ?? [],
-        discoveryRows.results ?? [],
-        MAX_REPOS_PER_RUN,
+        subscriberCandidates,
+        generalCandidates,
+        discoveryCandidates,
+        {
+          limit: MAX_REPOS_PER_RUN,
+          generalReserve: GENERAL_REPOS_RESERVE,
+        },
       )
 
       if (ordered.length === 0) {
@@ -62,7 +95,7 @@ export default defineScheduledTask({
           status: 'ok',
           durationMs: Date.now() - startedAt,
         })
-        return { result: { queued: 0, deferred } }
+        return { result: { queued: 0, deferred, stagedHistorical } }
       }
 
       const batch = await createRegistryJobBatch(
@@ -94,6 +127,7 @@ export default defineScheduledTask({
           batchId: batch.batchId,
           queued: batch.jobIds.length,
           deferred,
+          stagedHistorical,
           dispatchFailed: dispatchFailed.length,
         },
       }

@@ -56,14 +56,43 @@ Stay within the requested format. Do not add explanations, apologies, or meta-co
 // Abstractness classifier runs through Workers AI llama-3.2-1b-instruct,
 // deterministic single-label. Output is a JSON object the 0023 migration
 // schema understands: { kind, package, category }.
+export const ABSTRACTNESS_CATEGORIES = [
+  'auth',
+  'automation',
+  'ci-cd',
+  'code-review',
+  'data-modeling',
+  'deployment',
+  'design',
+  'documentation',
+  'framework',
+  'incident-response',
+  'migrations',
+  'observability',
+  'performance',
+  'planning',
+  'project-management',
+  'refactoring',
+  'release-management',
+  'rendering',
+  'scraping',
+  'security',
+  'testing',
+] as const
+
 export const ABSTRACTNESS_SYSTEM_PROMPT = `You classify SKILL.md files for skilld.dev.
 
 Output a single JSON object, no prose, no fences, with this exact shape:
 {"kind": "abstract" | "package-specific", "package": string | null, "category": string}
 
 Rules:
-- "abstract" = the skill teaches a general workflow, methodology, or meta-pattern that isn't tied to one library/framework (e.g. "writing release notes", "TDD discipline", "code review checklist").
-- "package-specific" = the skill targets a specific package, framework, CLI, or service (e.g. "drizzle migrations", "nuxt-ui components", "stripe checkout"). When package-specific, set "package" to the canonical lowercase package or product slug (e.g. "drizzle", "nuxt-ui", "stripe"). Otherwise "package" is null.
-- "category" is a short lowercase phrase describing the work domain. Examples: "testing", "migrations", "auth", "scraping", "deployment", "documentation", "planning", "refactoring", "data-modeling", "ci-cd", "rendering".
+- Label "abstract" only when the instructions transfer unchanged across unrelated repositories, organizations, tools, CLIs, and services.
+- Label "package-specific" when successful use depends on any named package, framework, CLI, service, repository identity, organization convention, internal role, internal command, repository path, vendor workflow, or project-specific schema.
+- Mandatory named CLIs and commands are package-specific even when the surrounding workflow sounds general.
+- Repository-specific work includes repo-local work summaries, PR reviews, PR feedback classifiers, device automation, release procedures, and incident procedures. Label it package-specific when it uses local commands, roles, labels, paths, or conventions.
+- For package-specific output, set "package" to the canonical lowercase package, product, service, or repository slug. For abstract output, set "package" to null.
+- "category" must be exactly one of: ${ABSTRACTNESS_CATEGORIES.map(category => `"${category}"`).join(', ')}.
+- Content writing and Markdown conversion use the "documentation" category. This category rule does not make a repository-specific workflow abstract.
+- When uncertain, choose "package-specific".
 
 Output only the JSON object. No markdown, no prose.`

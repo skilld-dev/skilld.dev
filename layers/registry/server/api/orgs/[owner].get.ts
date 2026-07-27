@@ -3,6 +3,7 @@ import type { RegistrySkill } from '../../utils/skills-registry'
 import { getDB } from '#server/utils/db'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
+import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { querySkills } from '../../utils/skills-registry'
 
@@ -173,18 +174,20 @@ export default defineCachedEventHandler(async (event) => {
     repoMap.set(skill.repo, entry)
   }
   const repos = [...repoMap.values()].sort((a, b) => b.count - a.count)
+  const sourceIdentities = await resolveRepoSourceIdentitiesForOwner(db, owner)
 
   // Pull the actual GitHub repo description (not the top skill's description)
   // for each repo, via ungh.cc which we already use for repo metadata. Cached
   // for 6 hours; misses leave `description` as null.
   await Promise.all(repos.map(async (r) => {
-    const cacheKey = `github:repo-desc:${owner}/${r.repo}`
+    const source = sourceIdentities.get(r.repo) ?? { owner, repo: r.repo }
+    const cacheKey = `github:repo-desc:v2:${source.owner}/${source.repo}`
     const cached = await useStorage('cache').getItem<string | null>(cacheKey)
     if (cached) {
       r.description = cached
       return
     }
-    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${owner}/${r.repo}`).catch((error) => {
+    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${source.owner}/${source.repo}`).catch((error) => {
       console.warn(`[orgs] ${error instanceof Error ? error.message : String(error)}`)
       return null
     })

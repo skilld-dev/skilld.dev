@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CollectionAvatar from './_CollectionAvatar.vue'
+import CollectionAvatar from '../../components/collections/_CollectionAvatar.vue'
 
 interface IndexCollection {
   name: string

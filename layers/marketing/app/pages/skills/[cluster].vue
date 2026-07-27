@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { resolveClusterViewState } from '../../utils/cluster-view-state'
+
 interface ClusterSkill {
   owner: string
   name: string
@@ -27,16 +29,26 @@ interface ClusterDetailResponse {
 const route = useRoute()
 const clusterSlug = computed(() => route.params.cluster as string)
 
-const { data, error } = await useFetch<ClusterDetailResponse>(
+const { data, error, status, refresh } = useLazyFetch<ClusterDetailResponse>(
   () => `/api/clusters/${clusterSlug.value}`,
 )
 
-if (error.value || !data.value)
-  throw createError({ statusCode: 404, statusMessage: 'Unknown cluster' })
+const clusterView = computed(() => resolveClusterViewState({
+  data: data.value,
+  error: error.value,
+  status: status.value,
+}))
 
-const cluster = computed(() => data.value!.cluster)
-const skills = computed(() => data.value!.items)
-const total = computed(() => data.value!.total)
+watch(clusterView, (view) => {
+  if (view._tag === 'not-found')
+    showError(createError({ statusCode: 404, statusMessage: 'Unknown cluster' }))
+}, { immediate: true })
+
+const clusterData = computed(() =>
+  clusterView.value._tag === 'ready' ? clusterView.value.data : null,
+)
+const skills = computed(() => clusterData.value?.items ?? [])
+const total = computed(() => clusterData.value?.total ?? 0)
 const leadingSkills = computed(() => skills.value.slice(0, 3))
 const remainingSkills = computed(() => skills.value.slice(3))
 const visibleCount = ref(15)
@@ -53,9 +65,13 @@ function showMore() {
   visibleCount.value += 15
 }
 
-const title = computed(() => `${cluster.value.label} · skilld`)
+const title = computed(() =>
+  clusterData.value ? clusterData.value.cluster.label : 'Outcome skills',
+)
 const description = computed(
-  () => `${cluster.value.userVoice} ${total.value} curated skills.`,
+  () => clusterData.value
+    ? `${clusterData.value.cluster.userVoice} ${total.value} curated skills.`
+    : 'Browse skills grouped by the outcome they help your agent achieve.',
 )
 
 useSeoMeta({
@@ -66,17 +82,62 @@ useSeoMeta({
 })
 
 defineOgImage('Page.takumi', {
-  title: cluster.value.label,
-  description: cluster.value.userVoice,
-}, { alt: `${cluster.value.label} on skilld` })
+  title: clusterData.value?.cluster.label ?? 'Outcome skills',
+  description: clusterData.value?.cluster.userVoice ?? 'Browse skills by outcome.',
+}, { alt: `${clusterData.value?.cluster.label ?? 'Outcome skills'} on skilld` })
 </script>
 
 <template>
   <div class="overflow-clip">
+    <section
+      v-if="clusterView._tag === 'loading'"
+      class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
+      aria-busy="true"
+      aria-label="Loading outcome skills"
+    >
+      <div class="editorial-state">
+        <USkeleton class="h-4 w-28" />
+        <USkeleton class="mt-4 h-10 w-72 max-w-full" />
+        <USkeleton class="mt-4 h-4 w-full max-w-xl" />
+      </div>
+    </section>
+
+    <section
+      v-else-if="clusterView._tag === 'error'"
+      class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
+      aria-labelledby="cluster-error-heading"
+    >
+      <div class="editorial-state" role="alert">
+        <h1 id="cluster-error-heading" class="text-xl font-semibold">
+          Could not load this outcome.
+        </h1>
+        <p class="mt-2 text-base text-muted">
+          Check your connection and try this outcome again.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-3">
+          <UButton
+            label="Retry outcome"
+            color="neutral"
+            variant="outline"
+            class="min-h-11"
+            @click="() => refresh()"
+          />
+          <UButton
+            to="/skills"
+            label="Browse every outcome"
+            color="neutral"
+            variant="ghost"
+            class="min-h-11"
+          />
+        </div>
+      </div>
+    </section>
+
     <EditorialMasthead
+      v-else-if="clusterData"
       label="Outcome"
-      :title="cluster.label"
-      :description="cluster.userVoice"
+      :title="clusterData.cluster.label"
+      :description="clusterData.cluster.userVoice"
       palette="rose"
       heading-id="cluster-heading"
     >
@@ -149,7 +210,7 @@ defineOgImage('Page.takumi', {
     </EditorialMasthead>
 
     <section
-      v-if="leadingSkills.length"
+      v-if="clusterData && leadingSkills.length"
       class="editorial-band border-b border-default bg-muted"
       aria-labelledby="starting-sequence-heading"
     >
@@ -210,6 +271,7 @@ defineOgImage('Page.takumi', {
     </section>
 
     <section
+      v-if="clusterData"
       class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
       aria-labelledby="cluster-directory-heading"
     >

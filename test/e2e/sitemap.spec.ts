@@ -1,3 +1,4 @@
+import { CLUSTERS } from '../../layers/registry/server/data/clusters'
 import { expect, test } from './test-utils'
 
 test.describe('multi-sitemap', () => {
@@ -29,9 +30,10 @@ test.describe('multi-sitemap', () => {
     expect(xml).toContain('<loc>')
     const locs = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), m => new URL(m[1]!).pathname)
     expect(locs.length).toBeGreaterThan(0)
-    for (const loc of locs) {
-      expect(loc).toMatch(/^\/gh\//)
-    }
+    const outcomeLocs = CLUSTERS.map(cluster => `/skills/${cluster.slug}`)
+    expect(locs.filter(loc => outcomeLocs.includes(loc))).toEqual(outcomeLocs)
+    for (const loc of locs)
+      expect(loc).toMatch(/^\/(?:gh\/|skills\/(?:plan|master-agent|docs|review|debug|ship)$)/)
   })
 
   test('people sitemap is valid and scoped to /people/', async ({ page, baseURL }) => {

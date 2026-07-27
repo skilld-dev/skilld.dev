@@ -3,6 +3,7 @@
 import type { GithubBindings, RepoMeta } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
+import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
 import { parseSkillFile } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
 import { parseSkillMd } from './skill-md-render'
@@ -44,6 +45,8 @@ interface ExistingSkill {
 interface ExistingRepo {
   last_tree_sha: string | null
   pushed_at: number | null
+  source_owner: string | null
+  source_repo: string | null
 }
 
 export type RefreshRepoAssetsResult
@@ -193,7 +196,9 @@ export async function refreshRepoAssets(
   bindings: GithubBindings,
   db: D1Database,
 ): Promise<RefreshRepoAssetsResult> {
-  const repoRes = await getRepoSummary(owner, repo, bindings)
+  const existingRepo = await loadExistingRepo(db, owner, repo)
+  const requestSource = resolveRepoSourceIdentityFromRow({ owner, repo }, existingRepo)
+  const repoRes = await getRepoSummary(requestSource.owner, requestSource.repo, bindings)
   logRateLimit(`asset-backfill repo ${owner}/${repo}`, repoRes.rateLimit)
   const rate: Pick<SyncRepoStats, 'rateLimitRemaining' | 'rateLimitResetAt'> = {
     ...(repoRes.rateLimit ? { rateLimitRemaining: repoRes.rateLimit.remaining, rateLimitResetAt: repoRes.rateLimit.reset } : {}),
@@ -212,7 +217,14 @@ export async function refreshRepoAssets(
   }
 
   const branch = repoRes.data.meta.default_branch || 'main'
-  const treeRes = await getTree(owner, repo, branch, bindings)
+  const sourceOwner = repoRes.data.meta.owner.login
+  const sourceRepo = repoRes.data.meta.name
+  await db.prepare(`
+    UPDATE repos
+    SET source_owner = ?, source_repo = ?
+    WHERE owner = ? AND repo = ?
+  `).bind(sourceOwner, sourceRepo, owner, repo).run()
+  const treeRes = await getTree(sourceOwner, sourceRepo, branch, bindings)
   logRateLimit(`asset-backfill tree ${owner}/${repo}`, treeRes.rateLimit)
   const rateLimitRemaining = Math.min(
     rate.rateLimitRemaining ?? Number.POSITIVE_INFINITY,
@@ -305,7 +317,11 @@ export async function refreshRepoAssets(
 
 async function loadExistingRepo(db: D1Database, owner: string, repo: string): Promise<ExistingRepo | null> {
   return await db
-    .prepare(`SELECT last_tree_sha, pushed_at FROM repos WHERE owner = ? AND repo = ?`)
+    .prepare(`
+      SELECT last_tree_sha, pushed_at, source_owner, source_repo
+      FROM repos
+      WHERE owner = ? AND repo = ?
+    `)
     .bind(owner, repo)
     .first<ExistingRepo>()
 }
@@ -332,7 +348,9 @@ function markRepoSummaryCheckedStatement(
            pushed_at = ?,
            repo_created_at = ?,
            repo_meta_synced_at = ?,
-           broken_since = NULL
+           broken_since = NULL,
+           source_owner = ?,
+           source_repo = ?
        WHERE owner = ? AND repo = ?`,
     )
     .bind(
@@ -342,6 +360,8 @@ function markRepoSummaryCheckedStatement(
       pushedAt,
       epoch(meta.created_at),
       checkedAt,
+      meta.owner.login,
+      meta.name,
       owner,
       repo,
     )
@@ -504,7 +524,9 @@ export async function syncRepo(
     stats.rateLimitResetAt = Math.max(stats.rateLimitResetAt ?? 0, rateLimit.reset)
   }
 
-  const repoRes = await getRepoSummary(owner, repo, bindings)
+  const existingRepo = await loadExistingRepo(db, owner, repo)
+  const requestSource = resolveRepoSourceIdentityFromRow({ owner, repo }, existingRepo)
+  const repoRes = await getRepoSummary(requestSource.owner, requestSource.repo, bindings)
   logRateLimit(`repo ${owner}/${repo}`, repoRes.rateLimit)
   trackRateLimit(repoRes.rateLimit)
 
@@ -532,12 +554,13 @@ export async function syncRepo(
   }
 
   const meta = repoRes.data.meta
+  const sourceOwner = meta.owner.login
+  const sourceRepo = meta.name
   const headTreeSha = repoRes.data.headTreeSha
   const branch = meta.default_branch || 'main'
   const repoPushedAt = epoch(meta.pushed_at)
   const checkedAt = opts.continuation?.checkedAt ?? nowSec()
 
-  const existingRepo = await loadExistingRepo(db, owner, repo)
   const hasAdmittedSkills = await repoHasAdmittedSkills(db, owner, repo)
 
   const markUnchanged = async (status: 'skipped-tree-sha' | 'skipped-pushed-at'): Promise<SyncRepoStats> => {
@@ -569,7 +592,7 @@ export async function syncRepo(
     return markUnchanged('skipped-pushed-at')
   }
 
-  const treeRes = await getTree(owner, repo, branch, bindings)
+  const treeRes = await getTree(sourceOwner, sourceRepo, branch, bindings)
   logRateLimit(`tree ${owner}/${repo}`, treeRes.rateLimit)
   trackRateLimit(treeRes.rateLimit)
 
@@ -634,8 +657,8 @@ export async function syncRepo(
     `INSERT INTO repos (
        owner, repo, default_branch, stars, forks, pushed_at, repo_created_at,
        repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
-       repo_skill_count, broken_since
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       repo_skill_count, broken_since, source_owner, source_repo
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(owner, repo) DO UPDATE SET
        default_branch = excluded.default_branch,
        stars = excluded.stars,
@@ -647,7 +670,9 @@ export async function syncRepo(
        repo_kind = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind ELSE excluded.repo_kind END,
        repo_kind_source = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind_source ELSE excluded.repo_kind_source END,
        repo_skill_count = excluded.repo_skill_count,
-       broken_since = excluded.broken_since`,
+       broken_since = excluded.broken_since,
+       source_owner = excluded.source_owner,
+       source_repo = excluded.source_repo`,
   ).bind(
     owner,
     repo,
@@ -662,6 +687,8 @@ export async function syncRepo(
     repoKindSource,
     skillFiles.length,
     brokenSince,
+    sourceOwner,
+    sourceRepo,
   )
 
   if (skillFiles.length === 0) {
@@ -774,7 +801,7 @@ export async function syncRepo(
 
     const blobs = new Map<string, string>()
     if (contentFiles.length > 0) {
-      const blobsRes = await getBlobsBatch(owner, repo, branch, contentFiles.map(file => file.path), bindings)
+      const blobsRes = await getBlobsBatch(sourceOwner, sourceRepo, branch, contentFiles.map(file => file.path), bindings)
       logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
       trackRateLimit(blobsRes.rateLimit)
       if (!blobsRes.data) {
@@ -885,7 +912,7 @@ export async function syncRepo(
 
     const commitsByPath: NonNullable<Awaited<ReturnType<typeof getCommitsBatch>>['data']> = new Map()
     if (changedPaths.length > 0) {
-      const commitsRes = await getCommitsBatch(owner, repo, changedPaths, FIRST_SYNC_COMMIT_CAP, bindings)
+      const commitsRes = await getCommitsBatch(sourceOwner, sourceRepo, changedPaths, FIRST_SYNC_COMMIT_CAP, bindings)
       logRateLimit(`commits-batch ${owner}/${repo}`, commitsRes.rateLimit)
       trackRateLimit(commitsRes.rateLimit)
       if (!commitsRes.data) {
@@ -921,8 +948,8 @@ export async function syncRepo(
       const firstSeenAt = prev?.first_seen_at ?? now
       const skillDir = file.path.replace(/\/SKILL\.md$/, '')
       const rendered = await parseSkillMd(raw, {
-        owner,
-        repo,
+        owner: sourceOwner,
+        repo: sourceRepo,
         name: parsed.name,
         branch,
         skillDir,

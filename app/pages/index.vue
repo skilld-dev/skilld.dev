@@ -202,7 +202,10 @@ function recentUpdateTitle(item: RecentUpdateCard): string {
 
 function recentUpdateDescription(item: RecentUpdateCard): string {
   if (item.kind === 'skill')
-    return item.description ?? `${item.owner}/${item.repo}`
+    return item.changeSummary ?? item.description ?? `${item.owner}/${item.repo}`
+
+  if (item.changeSummary)
+    return item.changeSummary
 
   const names = item.skills.slice(0, 3).map(skill => `/${skill.name}`).join(' · ')
   return item.skillCount > 3 ? `${names} · +${item.skillCount - 3} more` : names

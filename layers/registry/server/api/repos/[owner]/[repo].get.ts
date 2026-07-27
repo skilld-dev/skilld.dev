@@ -1,4 +1,7 @@
+import { getDB } from '#server/utils/db'
 import { getRepo, getTree, resolveGithubBindings } from '../../../utils/github-client'
+import { resolveRepoSourceIdentity } from '../../../utils/repo-source-identity'
+import { buildUnavailableRepoSourceProfile } from '../../../utils/repo-source-profile'
 
 export interface RepoSourceProfile {
   owner: string
@@ -25,13 +28,22 @@ export default defineCachedEventHandler(async (event) => {
 
   const owner = ownerParam.toLowerCase()
   const repo = repoParam.toLowerCase()
-  const bindings = resolveGithubBindings(event.context.cloudflare?.env)
+  const db = getDB(event)
+  const source = await resolveRepoSourceIdentity(db, { owner, repo })
+  const bindings = resolveGithubBindings(event.context.platform.env)
 
-  const repoRes = await getRepo(owner, repo, bindings)
+  const repoRes = await getRepo(source.owner, source.repo, bindings)
   if (repoRes.status === 404)
     throw createError({ statusCode: 404, message: 'Repository not found' })
-  if (!repoRes.data)
-    throw createError({ statusCode: repoRes.status || 502, message: 'Could not load repository' })
+  if (!repoRes.data) {
+    console.warn(JSON.stringify({
+      event: 'repo_source_profile_unavailable',
+      owner,
+      repo,
+      upstreamStatus: repoRes.status || null,
+    }))
+    return buildUnavailableRepoSourceProfile(owner, repo) satisfies RepoSourceProfile
+  }
 
   const meta = repoRes.data
   const repoOwner = meta.owner.login

@@ -58,7 +58,7 @@ function skillPath(skill: DeveloperSkill) {
           <h3 class="text-base font-medium">
             <NuxtLink
               :to="ownerHubPath(section.owner)"
-              class="hover:text-muted transition-colors"
+              class="inline-flex min-h-11 items-center hover:text-muted transition-colors"
             >
               {{ section.displayName || section.owner }}
             </NuxtLink>
@@ -81,7 +81,7 @@ function skillPath(skill: DeveloperSkill) {
         variant="ghost"
         size="xs"
         trailing-icon="i-lucide-arrow-right"
-        class="self-start"
+        class="min-h-11 self-start"
       />
     </div>
 

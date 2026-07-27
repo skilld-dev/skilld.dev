@@ -1,4 +1,5 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
 
 const FILES_CACHE_TTL = 60 * 60 * 6
@@ -19,6 +20,8 @@ interface SkillFilesPayload {
 interface SkillFilesRow {
   default_branch: string | null
   rendered_skill_path: string | null
+  source_owner: string | null
+  source_repo: string | null
 }
 
 function classify(path: string): SkillFile['type'] {
@@ -54,7 +57,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
     const row = await platform.db
-      .prepare(`SELECT r.default_branch, s.rendered_skill_path
+      .prepare(`SELECT r.default_branch, r.source_owner, r.source_repo, s.rendered_skill_path
                 FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
                 WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
       .bind(skill.owner, skill.repo, skill.name)
@@ -62,14 +65,15 @@ export default defineApiHandler({
     if (!row)
       throw createError({ statusCode: 404, message: 'Skill metadata missing' })
 
+    const source = resolveRepoSourceIdentityFromRow(skill, row)
     const branch = row.default_branch || 'main'
-    const cacheKey = `skills:files:v1:${skill.owner}/${skill.repo}/${skill.name}:${branch}`
+    const cacheKey = `skills:files:v2:${source.owner}/${source.repo}/${skill.name}:${branch}`
     const cached = await useStorage('cache').getItem<SkillFilesPayload>(cacheKey)
     if (cached)
       return cached
 
     const tree = await $fetch<{ files?: { path: string, size?: number }[] }>(
-      `https://ungh.cc/repos/${skill.owner}/${skill.repo}/files/${branch}`,
+      `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
     ).catch((error) => {
       console.warn(`[skill-files] ${error instanceof Error ? error.message : String(error)}`)
       return null

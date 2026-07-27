@@ -59,6 +59,9 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
       failedJobs24h: 0,
       staleReservedJobs: 0,
       openFailedBatches: 0,
+      discoveryCandidatesExhausted: 0,
+      discoveryCandidatesOverdue: 0,
+      discoveryClaimsStale: 0,
       failedJobDetails: [],
     },
     cost: {
@@ -156,6 +159,26 @@ describe('evaluateDailyHealthStatus', () => {
     })
   })
 
+  it('surfaces exhausted and stalled discovery retries', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        discoveryCandidatesExhausted: 2,
+        discoveryCandidatesOverdue: 3,
+        discoveryClaimsStale: 1,
+      },
+    })
+
+    expect(evaluateDailyHealthStatus(input)).toEqual({
+      status: 'AMBER',
+      reasons: [
+        '2 discovery candidates exhausted automatic retries.',
+        '3 discovery candidates are overdue for retry.',
+        '1 discovery claim remained active for over 1 hour.',
+      ],
+    })
+  })
+
   it('marks missing scheduled cadence red', () => {
     const missing = summary({
       pipeline: {
@@ -196,6 +219,13 @@ describe('buildDailyHealthCheck', () => {
       CREATE TABLE failed_jobs (queue TEXT, job_type TEXT, exception TEXT, failed_at INTEGER);
       CREATE TABLE jobs (reserved_at INTEGER, completed_at INTEGER, failed_at INTEGER);
       CREATE TABLE job_batches (failed_jobs INTEGER, finished_at INTEGER);
+      CREATE TABLE discovery_candidates (
+        retry_state TEXT,
+        outcome TEXT,
+        rejection_reason TEXT,
+        next_retry_at INTEGER,
+        claimed_at INTEGER
+      );
       CREATE TABLE sync_jobs (name TEXT, cron TEXT, enabled INTEGER, stale_after_seconds INTEGER, last_run_at INTEGER, last_status TEXT, last_error TEXT);
       CREATE TABLE scheduled_runs (
         run_id TEXT PRIMARY KEY,
@@ -221,6 +251,9 @@ describe('buildDailyHealthCheck', () => {
       INSERT INTO digest_runs VALUES ('sent', ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60});
       INSERT INTO sync_jobs VALUES ('sync-github-skills', '0 * * * *', 1, NULL, ${nowSec - 60}, 'ok', NULL);
       INSERT INTO ai_batch_costs VALUES (${nowSec - 60}, 0.15);
+      INSERT INTO discovery_candidates VALUES (
+        'exhausted', 'rejected', 'no_supported_skill_paths', NULL, NULL
+      );
     `)
     const insertScheduledRun = sqlite.prepare(`
       INSERT INTO scheduled_runs (
@@ -244,13 +277,18 @@ describe('buildDailyHealthCheck', () => {
     expect(built.warnings).toEqual([])
     expect(built.inventory).toMatchObject({ skills: 1, repos: 1, users: 1, watchedRepos: 1 })
     expect(built.activity).toMatchObject({ newSkills24h: 1, repoChanges24h: 1, installEvents24h: 1, digestsSent24h: 1 })
+    expect(built.pipeline.discoveryCandidatesExhausted).toBe(0)
     expect(built.cost.estimatedAiUsd24h).toBe(0.15)
 
     sqlite.exec(`
       INSERT INTO digest_runs VALUES ('uncertain', NULL, ${nowSec - 90_000}, ${nowSec - 90_000}, ${nowSec - 90_000});
+      INSERT INTO discovery_candidates VALUES (
+        'exhausted', 'retryable_failure', NULL, NULL, NULL
+      );
     `)
     const uncertain = await buildDailyHealthCheck(db, { now, fetcher, workerVersion: 'version-1' })
     expect(uncertain.activity.digestsFailed24h).toBe(1)
+    expect(uncertain.pipeline.discoveryCandidatesExhausted).toBe(1)
     expect(uncertain.status).toBe('RED')
     sqlite.close()
   })

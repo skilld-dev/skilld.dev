@@ -1,4 +1,5 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findSkill } from '../../utils/skills-registry'
 
@@ -18,6 +19,8 @@ interface AssetCache {
 interface SkillAssetRow {
   default_branch: string | null
   assets: string | null
+  source_owner: string | null
+  source_repo: string | null
 }
 
 interface RegisteredAsset {
@@ -60,7 +63,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
     const row = await platform.db
-      .prepare(`SELECT r.default_branch, s.assets
+      .prepare(`SELECT r.default_branch, r.source_owner, r.source_repo, s.assets
                 FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
                 WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
       .bind(skill.owner, skill.repo, skill.name)
@@ -69,6 +72,7 @@ export default defineApiHandler({
     if (!row)
       throw createError({ statusCode: 404, message: 'Skill metadata missing' })
 
+    const source = resolveRepoSourceIdentityFromRow(skill, row)
     let registered: RegisteredAsset[] = []
     if (row.assets) {
       try {
@@ -93,7 +97,7 @@ export default defineApiHandler({
       ?? { path: filePath, size: 0, type: classifyAsset(filePath) }
 
     const branch = row.default_branch || 'main'
-    const cacheKey = `skills:asset:v1:${skill.owner}/${skill.repo}/${skill.name}:${filePath}:${branch}`
+    const cacheKey = `skills:asset:v2:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
     const cached = await useStorage('cache').getItem<AssetCache>(cacheKey)
     if (cached) {
       if (cached.status === 'missing')
@@ -103,7 +107,7 @@ export default defineApiHandler({
 
     // Resolve the skill directory by re-finding the SKILL.md path.
     const treeRes = await $fetch<{ files?: { path: string }[] }>(
-      `https://ungh.cc/repos/${skill.owner}/${skill.repo}/files/${branch}`,
+      `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
     ).catch((error) => {
       console.warn(`[skill-asset] ${error instanceof Error ? error.message : String(error)}`)
       return null
@@ -130,7 +134,7 @@ export default defineApiHandler({
 
     const skillDir = skillMdPath.replace(/\/SKILL\.md$/, '')
     const fullPath = `${skillDir}/${filePath}`
-    const rawUrl = `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/${branch}/${fullPath}`
+    const rawUrl = `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${branch}/${fullPath}`
     const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch((error) => {
       console.warn(`[skill-asset] ${error instanceof Error ? error.message : String(error)}`)
       return null
@@ -153,8 +157,8 @@ export default defineApiHandler({
     let html: string | null = null
     if (type === 'markdown') {
       const parsed = await parseSkillMd(raw, {
-        owner: skill.owner,
-        repo: skill.repo,
+        owner: source.owner,
+        repo: source.repo,
         name: skill.name,
         branch,
         skillDir,

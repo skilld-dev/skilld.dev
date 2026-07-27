@@ -2,7 +2,7 @@
 
 import type { SyncRepoStats } from './sync-repo'
 
-export type DiscoverySource = 'owned_scan' | 'github_search' | 'manual'
+export type DiscoverySource = 'owned_scan' | 'github_search' | 'historical_inventory' | 'manual'
 
 interface DiscoveredCandidateBase {
   owner: string
@@ -264,6 +264,18 @@ function retryDelaySeconds(attemptCount: number): number {
   return Math.min(24 * 3600, 3600 * 2 ** Math.max(0, attemptCount - 1))
 }
 
+export const TERMINAL_DISCOVERY_REJECTION_REASONS = [
+  'no_supported_skill_paths',
+  'root_skill_unsupported',
+  'trust_inputs_insufficient',
+] as const
+
+const TERMINAL_REJECTION_REASONS = new Set<string>(TERMINAL_DISCOVERY_REJECTION_REASONS)
+
+function isTerminalDiscoveryOutcome(outcome: DiscoveryAttemptOutcome): boolean {
+  return outcome._tag === 'rejected' && TERMINAL_REJECTION_REASONS.has(outcome.reason)
+}
+
 export async function finishDiscoveryCandidateAttempt(
   db: D1Database,
   input: FinishDiscoveryCandidateAttemptInput,
@@ -281,7 +293,8 @@ export async function finishDiscoveryCandidateAttempt(
   const complete = input.outcome._tag === 'indexed'
     || input.outcome._tag === 'verified_only'
     || input.outcome._tag === 'already_admitted'
-  const exhausted = !complete && row.attempt_count >= maxAttempts
+  const exhausted = !complete
+    && (isTerminalDiscoveryOutcome(input.outcome) || row.attempt_count >= maxAttempts)
   const rejectionReason = input.outcome._tag === 'rejected' ? input.outcome.reason : null
   const lastError = input.outcome._tag === 'retryable_failure' ? input.outcome.error : null
   const nextRetryAt = complete || exhausted

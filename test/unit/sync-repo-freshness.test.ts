@@ -69,9 +69,14 @@ describe('syncRepo freshness cursor', () => {
         repo_meta_synced_at INTEGER,
         last_tree_sha TEXT,
         broken_since INTEGER,
+        source_owner TEXT,
+        source_repo TEXT,
         PRIMARY KEY (owner, repo)
       );
-      INSERT INTO repos VALUES
+      INSERT INTO repos (
+        owner, repo, default_branch, stars, forks, pushed_at, repo_created_at,
+        repo_meta_synced_at, last_tree_sha, broken_since
+      ) VALUES
         ('acme', 'skills', 'main', 1, 1, 100, 50, 75, 'same-tree', NULL);
       INSERT INTO skills (owner, repo, name, current_sha, owner_verified)
       VALUES ('acme', 'skills', 'one', 'skill-sha', 0);

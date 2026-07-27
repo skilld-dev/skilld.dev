@@ -1,4 +1,5 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
 
 const RAW_CACHE_TTL = 60 * 5
@@ -12,7 +13,7 @@ interface RawCache {
 }
 
 export default defineApiHandler({
-  handler: async ({ event }) => {
+  handler: async ({ event, platform }) => {
     const slug = getRouterParam(event, 'slug')
     if (!slug)
       throw createError({ statusCode: 400, message: 'Missing skill slug' })
@@ -21,17 +22,18 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const cacheKey = `skills:raw:v1:${skill.owner}/${skill.repo}/${skill.name}`
+    const source = await resolveRepoSourceIdentity(platform.db, skill)
+    const cacheKey = `skills:raw:v2:${source.owner}/${source.repo}/${skill.name}`
     const cached = await useStorage('cache').getItem<RawCache>(cacheKey)
     if (cached?.status === 'ok' && cached.body) {
       setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
       setHeader(event, 'cache-control', 'public, max-age=300')
-      setHeader(event, 'x-skilld-source', `${skill.owner}/${skill.repo}@${cached.branch}/${cached.path}`)
+      setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${cached.branch}/${cached.path}`)
       return cached.body
     }
 
     const repoMeta = await $fetch<{ defaultBranch?: string }>(
-      `https://ungh.cc/repos/${skill.owner}/${skill.repo}`,
+      `https://ungh.cc/repos/${source.owner}/${source.repo}`,
     ).catch((error) => {
       console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
       return null
@@ -39,7 +41,7 @@ export default defineApiHandler({
     const branch = repoMeta?.defaultBranch || 'main'
 
     const treeRes = await $fetch<{ files?: { path: string }[] }>(
-      `https://ungh.cc/repos/${skill.owner}/${skill.repo}/files/${branch}`,
+      `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
     ).catch((error) => {
       console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
       return null
@@ -62,7 +64,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'SKILL.md not found in repository' })
     }
 
-    const rawUrl = `https://raw.githubusercontent.com/${skill.owner}/${skill.repo}/${branch}/${skillPath}`
+    const rawUrl = `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${branch}/${skillPath}`
     const body = await $fetch<string>(rawUrl, { responseType: 'text' }).catch((error) => {
       console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
       return null
@@ -85,7 +87,7 @@ export default defineApiHandler({
 
     setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
     setHeader(event, 'cache-control', 'public, max-age=300')
-    setHeader(event, 'x-skilld-source', `${skill.owner}/${skill.repo}@${branch}/${skillPath}`)
+    setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${branch}/${skillPath}`)
     return body
   },
 })

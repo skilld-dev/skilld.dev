@@ -226,9 +226,9 @@ describe('durable discovery candidates', () => {
   })
 
   it.each([
-    ['retry_scheduled', 5],
-    ['exhausted', 1],
-  ])('keeps an unchanged %s candidate bounded across rediscovery', async (expectedState, maxAttempts) => {
+    ['retry_scheduled', 5, 'unclassified_rejection'],
+    ['exhausted', 1, 'unclassified_rejection'],
+  ])('keeps an unchanged %s candidate bounded across rediscovery', async (expectedState, maxAttempts, reason) => {
     await upsertDiscoveryCandidate(db, {
       owner: 'acme',
       repo: 'bounded',
@@ -249,7 +249,7 @@ describe('durable discovery candidates', () => {
       token: 'first',
       now: 102,
       maxAttempts,
-      outcome: { _tag: 'rejected', reason: 'trust_inputs_insufficient' },
+      outcome: { _tag: 'rejected', reason },
     })
 
     await upsertDiscoveryCandidate(db, {
@@ -269,6 +269,78 @@ describe('durable discovery candidates', () => {
       attempt_count: 1,
       outcome: 'rejected',
       retry_state: expectedState,
+    })
+  })
+
+  it.each([
+    'no_supported_skill_paths',
+    'root_skill_unsupported',
+    'trust_inputs_insufficient',
+  ])('exhausts deterministic rejection %s after the first attempt', async (reason) => {
+    await upsertDiscoveryCandidate(db, {
+      owner: 'acme',
+      repo: 'terminal',
+      source: 'historical_inventory',
+      discoveredAt: 100,
+      ownerVerified: false,
+    })
+    await claimDiscoveryCandidate(db, {
+      owner: 'acme',
+      repo: 'terminal',
+      now: 101,
+      staleBefore: 1,
+      token: 'first',
+    })
+
+    await finishDiscoveryCandidateAttempt(db, {
+      owner: 'acme',
+      repo: 'terminal',
+      token: 'first',
+      now: 102,
+      outcome: { _tag: 'rejected', reason },
+    })
+
+    expect(sqlite.prepare(
+      `SELECT attempt_count, outcome, rejection_reason, retry_state, next_retry_at
+       FROM discovery_candidates`,
+    ).get()).toEqual({
+      attempt_count: 1,
+      outcome: 'rejected',
+      rejection_reason: reason,
+      retry_state: 'exhausted',
+      next_retry_at: null,
+    })
+  })
+
+  it('retries an unclassified rejection because its permanence is unknown', async () => {
+    await upsertDiscoveryCandidate(db, {
+      owner: 'acme',
+      repo: 'unknown',
+      source: 'github_search',
+      discoveredAt: 100,
+      ownerVerified: false,
+    })
+    await claimDiscoveryCandidate(db, {
+      owner: 'acme',
+      repo: 'unknown',
+      now: 101,
+      staleBefore: 1,
+      token: 'first',
+    })
+
+    await finishDiscoveryCandidateAttempt(db, {
+      owner: 'acme',
+      repo: 'unknown',
+      token: 'first',
+      now: 102,
+      outcome: { _tag: 'rejected', reason: 'unclassified_rejection' },
+    })
+
+    expect(sqlite.prepare(
+      `SELECT retry_state, next_retry_at FROM discovery_candidates`,
+    ).get()).toEqual({
+      retry_state: 'retry_scheduled',
+      next_retry_at: 3702,
     })
   })
 

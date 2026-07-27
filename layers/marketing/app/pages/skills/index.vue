@@ -730,7 +730,7 @@ function clearOwner() {
                 <NuxtLink
                   :to="ownerHubPath(section.owner)"
                   :aria-label="`${section.owner} profile`"
-                  class="shrink-0"
+                  class="inline-flex size-11 shrink-0 items-center justify-center"
                 >
                   <img
                     :src="`https://github.com/${section.owner}.png?size=80`"
@@ -746,7 +746,7 @@ function clearOwner() {
                   <h3 class="font-mono text-base font-medium">
                     <NuxtLink
                       :to="ownerHubPath(section.owner)"
-                      class="transition-colors hover:text-muted"
+                      class="inline-flex min-h-11 items-center transition-colors hover:text-muted"
                     >
                       {{ section.owner }}
                     </NuxtLink>

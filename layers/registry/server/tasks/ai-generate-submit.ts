@@ -1,3 +1,4 @@
+import type { GenerationSkill } from '../utils/ai-generation-work'
 import type {
   EmbeddingAiBinding,
   EmbeddingEffectDependencies,
@@ -10,6 +11,15 @@ import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { extractJson } from '#shared/server/anthropic'
 import { pAll } from '#shared/server/p-all'
 import { getTaskEnv } from '#shared/server/task-env'
+import {
+  ABSTRACTNESS_MODEL,
+  buildAbstractnessUserPrompt,
+  parseAbstractnessPayload,
+  persistAbstractness,
+  runtimeGenerationLimits,
+  selectMissingBatchSkills,
+  selectMissingGeneratedSkills,
+} from '../utils/ai-generation-work'
 import { ABSTRACTNESS_SYSTEM_PROMPT, BATCH_KINDS, SHARED_SYSTEM_PROMPT } from '../utils/ai-prompts'
 import {
   embeddingEffectSummary,
@@ -17,16 +27,11 @@ import {
   runEmbeddingEffect,
 } from '../utils/embedding-effect'
 /// <reference types="@cloudflare/workers-types" />
-import { putGenerated } from '../utils/skill-generated'
 
 const CRON = '15 * * * *'
 // Bounded so a single backfill spike can't blow Anthropic batch spend.
 // Steady state is much lower thanks to the ai_generated_sha short-circuit.
 const BATCH_LIMIT = 50
-// Embeddings are cheap (Workers AI, no Anthropic spend) and gate search recall,
-// so catch them up on a separate, larger sweep decoupled from the Anthropic-
-// limited generation batch. Kept under the 1000-subrequest cap (200 * ~3 calls).
-const EMBED_BACKFILL_LIMIT = 200
 // Cloudflare Vectorize free tier rate-limits upserts aggressively (429
 // VECTOR_UPSERT_ERROR 40041 at concurrency 8). 3 is the sustainable
 // ceiling observed in production; wall time goes 7s → ~18s, still well
@@ -40,17 +45,6 @@ const HAIKU_MODEL = 'claude-haiku-4-5-20251001'
 const HAIKU_GENERATION_PAUSED = true
 const ANTHROPIC_BATCH_URL = 'https://api.anthropic.com/v1/messages/batches'
 const ANTHROPIC_VERSION = '2023-06-01'
-
-const ABSTRACTNESS_MODEL = '@cf/meta/llama-3.2-1b-instruct'
-
-interface StaleSkillRow {
-  owner: string
-  repo: string
-  name: string
-  current_sha: string
-  rendered_raw: string | null
-  display_name: string | null
-}
 
 type AiBinding = EmbeddingAiBinding
 type VectorizeBinding = EmbeddingVectorizeBinding
@@ -72,6 +66,23 @@ function encodeCustomId(index: number, kind: string): string {
   return `${index}-${kind}`
 }
 
+function responseText(value: unknown): string {
+  if (typeof value !== 'object' || value === null)
+    return ''
+  if ('response' in value && typeof value.response === 'string')
+    return value.response
+  if (!('content' in value) || !Array.isArray(value.content))
+    return ''
+  return value.content.map((item) => {
+    return typeof item === 'object'
+      && item !== null
+      && 'text' in item
+      && typeof item.text === 'string'
+      ? item.text
+      : ''
+  }).join('')
+}
+
 export default defineScheduledTask({
   name: 'ai-generate-submit',
   cron: '15 * * * *',
@@ -87,7 +98,7 @@ export default defineScheduledTask({
       console.warn('[ai-generate-submit] D1 binding missing')
       return { result: { error: 'no-db' } }
     }
-    if (!apiKey) {
+    if (!apiKey && !HAIKU_GENERATION_PAUSED) {
       console.warn('[ai-generate-submit] ANTHROPIC_API_KEY missing — batch submit skipped')
     }
 
@@ -123,81 +134,39 @@ export default defineScheduledTask({
 })
 
 async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: VectorizeBinding | undefined, apiKey: string | undefined) {
-  // Find skills where ANY of summary/tags/faq is stale or missing.
-  // Also pull rendered_raw so we don't re-fetch from GitHub.
-  const stale = await db
-    .prepare(
-      `SELECT s.owner, s.repo, s.name, s.current_sha, s.rendered_raw, s.display_name
-         FROM skills s
-         JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-         WHERE r.broken_since IS NULL
-           AND s.current_sha IS NOT NULL
-           AND s.rendered_raw IS NOT NULL
-           AND s.rendered_status = 'ok'
-           AND s.seo_indexable = 1
-           AND (s.ai_generated_sha IS NULL OR s.ai_generated_sha != s.current_sha)
-           AND (
-             NOT EXISTS (
-               SELECT 1 FROM skill_generated g
-               WHERE g.owner = s.owner AND g.repo = s.repo AND g.name = s.name
-                 AND g.kind = 'summary' AND g.sha = s.current_sha
-             )
-             OR NOT EXISTS (
-               SELECT 1 FROM skill_generated g
-               WHERE g.owner = s.owner AND g.repo = s.repo AND g.name = s.name
-                 AND g.kind = 'tags' AND g.sha = s.current_sha
-             )
-             OR NOT EXISTS (
-               SELECT 1 FROM skill_generated g
-               WHERE g.owner = s.owner AND g.repo = s.repo AND g.name = s.name
-                 AND g.kind = 'faq' AND g.sha = s.current_sha
-             )
-             OR NOT EXISTS (
-               SELECT 1 FROM skill_generated g
-               WHERE g.owner = s.owner AND g.repo = s.repo AND g.name = s.name
-                 AND g.kind = 'embedding' AND g.sha = s.current_sha
-             )
-             OR NOT EXISTS (
-               SELECT 1 FROM skill_generated g
-               WHERE g.owner = s.owner AND g.repo = s.repo AND g.name = s.name
-                 AND g.kind = 'abstractness' AND g.sha = s.current_sha
-             )
-           )
-         ORDER BY s.installs DESC
-         LIMIT ?1`,
-    )
-    .bind(BATCH_LIMIT)
-    .all<StaleSkillRow>()
-
-  const skills = (stale.results ?? []).filter(r => r.rendered_raw && r.current_sha)
-  if (!skills.length)
-    return { result: { scanned: 0, message: 'nothing stale' } }
-
-  // Build batch index for custom_id resolution. Persisted alongside the
-  // ai_batches row so the poll task can map results back to skills.
-  const indexMap = skills.map(s => ({
-    owner: s.owner,
-    repo: s.repo,
-    name: s.name,
-    sha: s.current_sha,
-  }))
+  const runtimeLimits = runtimeGenerationLimits()
+  const [embeddingSkills, abstractnessSkills, batchSkills] = await Promise.all([
+    selectMissingGeneratedSkills(db, 'embedding', runtimeLimits.embedding),
+    selectMissingGeneratedSkills(db, 'abstractness', runtimeLimits.abstractness),
+    HAIKU_GENERATION_PAUSED
+      ? Promise.resolve([])
+      : selectMissingBatchSkills(db, BATCH_LIMIT),
+  ])
+  const scanned = new Set(
+    [...embeddingSkills, ...abstractnessSkills, ...batchSkills]
+      .map(skill => `${skill.owner}/${skill.repo}/${skill.name}`),
+  ).size
 
   const summary = {
-    scanned: skills.length,
+    scanned,
     embeddingPreflightFailures: 0,
     embeddingAttempts: 0,
     embeddingsWritten: 0,
     embeddingsProviderFailed: 0,
     embeddingsRejected: 0,
     embeddingsMarkerFailed: 0,
+    abstractnessAttempts: 0,
     abstractnessWritten: 0,
+    abstractnessProviderFailed: 0,
+    abstractnessRejected: 0,
+    abstractnessSourceChanged: 0,
     batchSubmitted: false,
     batchSize: 0,
     errors: [] as string[],
   }
 
   const embeddingPreflight = embeddingPreflightResult({
-    eligible: skills.length,
+    eligible: embeddingSkills.length,
     hasAi: Boolean(ai),
     hasVectorize: Boolean(vectorize),
   })
@@ -206,7 +175,10 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
     summary.errors.push(embeddingPreflight.error)
   }
 
-  const recordEmbeddingResult = (skill: StaleSkillRow, result: EmbeddingEffectResult) => {
+  if (abstractnessSkills.length > 0 && !ai)
+    summary.errors.push('abstractness binding missing: ai')
+
+  const recordEmbeddingResult = (skill: GenerationSkill, result: EmbeddingEffectResult) => {
     const effect = embeddingEffectSummary(result)
     summary.embeddingAttempts += 1
     summary.embeddingsWritten += effect.written
@@ -227,113 +199,96 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
       }
     : null
 
-  const runEmbedding = (deps: EmbeddingEffectDependencies, skill: StaleSkillRow) => runEmbeddingEffect(deps, {
+  const runEmbedding = (deps: EmbeddingEffectDependencies, skill: GenerationSkill) => runEmbeddingEffect(deps, {
     owner: skill.owner,
     repo: skill.repo,
     name: skill.name,
-    currentSha: skill.current_sha,
-    renderedRaw: skill.rendered_raw!,
+    currentSha: skill.currentSha,
+    renderedRaw: skill.renderedRaw,
   })
 
-  // --- 1. Workers AI: embedding + abstractness, parallelised ---
-  const generationResults = await pAll(skills, AI_CONCURRENCY, async (skill) => {
-    // Embedding
-    const embeddingResult = embeddingDeps ? await runEmbedding(embeddingDeps, skill) : null
+  if (embeddingDeps) {
+    const results = await pAll(
+      embeddingSkills,
+      AI_CONCURRENCY,
+      skill => runEmbedding(embeddingDeps, skill),
+    )
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index]!
+      if (result.status === 'rejected')
+        throw result.reason
+      recordEmbeddingResult(embeddingSkills[index]!, result.value)
+    }
+  }
 
-    // Abstractness
-    if (ai) {
-      const userPrompt = `SKILL.md content:\n\n${(skill.rendered_raw ?? '').slice(0, 6000)}\n\nClassify and output the JSON object.`
-      const out = await ai.run(ABSTRACTNESS_MODEL, {
+  if (ai) {
+    const results = await pAll(abstractnessSkills, AI_CONCURRENCY, async (skill) => {
+      const provider = await ai.run(ABSTRACTNESS_MODEL, {
         messages: [
           { role: 'system', content: ABSTRACTNESS_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
+          { role: 'user', content: buildAbstractnessUserPrompt(skill) },
         ],
         max_tokens: 128,
         temperature: 0,
-      }).catch((err) => {
-        summary.errors.push(`abstract ${skill.owner}/${skill.name}: ${(err as Error).message}`)
-        return null
-      })
+      }).then(
+        response => ({ _tag: 'response' as const, response }),
+        error => ({
+          _tag: 'provider_failed' as const,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      )
+      if (provider._tag === 'provider_failed')
+        return provider
 
-      // Workers AI llama returns { response: string } typically.
-      const text = (out as { response?: string, content?: Array<{ text?: string }> } | null)?.response
-        ?? (out as { content?: Array<{ text?: string }> } | null)?.content?.map(c => c.text ?? '').join('')
-        ?? ''
-      const parsed = extractJson<{ kind?: string, package?: string | null, category?: string }>(text)
-      if (parsed?.kind && parsed?.category) {
-        await putGenerated(db, {
-          owner: skill.owner,
-          repo: skill.repo,
-          name: skill.name,
-          kind: 'abstractness',
-          sha: skill.current_sha,
-          payload: {
-            kind: parsed.kind,
-            package: parsed.package ?? null,
-            category: parsed.category,
-          },
-        })
+      const parsed = parseAbstractnessPayload(extractJson<unknown>(responseText(provider.response)))
+      if (parsed._tag === 'error')
+        return { _tag: 'rejected' as const, reason: parsed.reason }
+      const persisted = await persistAbstractness(
+        db,
+        skill,
+        parsed.value,
+        Math.floor(Date.now() / 1_000),
+      )
+      return persisted
+    })
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index]!
+      if (result.status === 'rejected')
+        throw result.reason
+      summary.abstractnessAttempts += 1
+      if (result.value._tag === 'written') {
         summary.abstractnessWritten += 1
       }
-    }
-    return { embeddingResult }
-  })
-  for (let index = 0; index < generationResults.length; index++) {
-    const result = generationResults[index]!
-    if (result.status === 'rejected')
-      throw result.reason
-    if (result.value.embeddingResult)
-      recordEmbeddingResult(skills[index]!, result.value.embeddingResult)
-  }
-
-  // --- 1b. Embedding-only backfill: catch up missing vectors fast (no
-  // Anthropic spend), so search recall converges in a few cron ticks rather
-  // than trickling at BATCH_LIMIT/run behind the generation queue. ---
-  if (embeddingDeps) {
-    const missing = await db
-      .prepare(
-        `SELECT s.owner, s.repo, s.name, s.current_sha, s.rendered_raw, s.display_name
-           FROM skills s
-           JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-           WHERE r.broken_since IS NULL
-             AND s.current_sha IS NOT NULL
-             AND s.rendered_raw IS NOT NULL
-             AND s.rendered_status = 'ok'
-             AND s.seo_indexable = 1
-             AND NOT EXISTS (
-               SELECT 1 FROM skill_generated g
-               WHERE g.owner = s.owner AND g.repo = s.repo AND g.name = s.name
-                 AND g.kind = 'embedding' AND g.sha = s.current_sha
-             )
-           ORDER BY s.installs DESC
-           LIMIT ?1`,
-      )
-      .bind(EMBED_BACKFILL_LIMIT)
-      .all<StaleSkillRow>()
-    const toEmbed = (missing.results ?? []).filter(r => r.rendered_raw && r.current_sha)
-    if (toEmbed.length) {
-      const embeddingResults = await pAll(
-        toEmbed,
-        AI_CONCURRENCY,
-        skill => runEmbedding(embeddingDeps, skill),
-      )
-      for (let index = 0; index < embeddingResults.length; index++) {
-        const result = embeddingResults[index]!
-        if (result.status === 'rejected')
-          throw result.reason
-        recordEmbeddingResult(toEmbed[index]!, result.value)
+      else if (result.value._tag === 'source_changed') {
+        summary.abstractnessSourceChanged += 1
       }
-      summary.scanned += toEmbed.length
+      else if (result.value._tag === 'provider_failed') {
+        summary.abstractnessProviderFailed += 1
+        summary.errors.push(
+          `abstract ${abstractnessSkills[index]!.owner}/${abstractnessSkills[index]!.repo}/${abstractnessSkills[index]!.name}: ${result.value.error}`,
+        )
+      }
+      else {
+        summary.abstractnessRejected += 1
+        summary.errors.push(
+          `abstract ${abstractnessSkills[index]!.owner}/${abstractnessSkills[index]!.repo}/${abstractnessSkills[index]!.name}: ${result.value.reason}`,
+        )
+      }
     }
   }
 
-  // --- 2. Async: summary/tags/faq via Anthropic Batch API ---
-  if (apiKey && !HAIKU_GENERATION_PAUSED) {
+  if (apiKey && !HAIKU_GENERATION_PAUSED && batchSkills.length > 0) {
+    const indexMap = batchSkills.map(skill => ({
+      owner: skill.owner,
+      repo: skill.repo,
+      name: skill.name,
+      sha: skill.currentSha,
+    }))
     const requests: BatchRequestItem[] = []
-    for (let i = 0; i < skills.length; i++) {
-      const skill = skills[i]!
-      const body = (skill.rendered_raw ?? '').slice(0, 12000)
-      const displayName = skill.display_name || skill.name
+    for (let i = 0; i < batchSkills.length; i++) {
+      const skill = batchSkills[i]!
+      const body = skill.renderedRaw.slice(0, 12000)
+      const displayName = skill.displayName || skill.name
       for (const kind of BATCH_KINDS) {
         const userPrompt = `Skill: ${skill.owner}/${skill.repo} — ${displayName}\nOutput kind: ${kind}\n\nSKILL.md content:\n\n${body}\n\nReturn the ${kind} output now, in the format specified by the system prompt.`
         requests.push({
@@ -380,7 +335,7 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
           .bind(
             data.id,
             JSON.stringify(BATCH_KINDS),
-            skills.length,
+            batchSkills.length,
             submittedAt,
             JSON.stringify(indexMap),
           ),
@@ -389,7 +344,7 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
             `INSERT INTO ai_batch_costs (anthropic_batch_id, skill_count, request_count, submitted_at)
                VALUES (?, ?, ?, ?)`,
           )
-          .bind(data.id, skills.length, requests.length, submittedAt),
+          .bind(data.id, batchSkills.length, requests.length, submittedAt),
       ])
 
       summary.batchSubmitted = true

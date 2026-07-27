@@ -187,7 +187,14 @@ describe('d1 migration bootstrap', () => {
         `SELECT name FROM sqlite_schema
          WHERE type = 'table' AND name = 'repo_sync_progress'`,
       ).get()).toBeTruthy()
-      expect(migrations.at(-1)).toBe('0077_repo_sync_progress.sql')
+      expect(sqlite.prepare(`PRAGMA table_info(repos)`).all()
+        .map(column => (column as { name: string }).name))
+        .toEqual(expect.arrayContaining(['source_owner', 'source_repo']))
+      expect((sqlite.prepare(`
+        SELECT sql FROM sqlite_schema
+        WHERE type = 'table' AND name = 'discovery_candidates'
+      `).get() as { sql: string }).sql).toContain(`'historical_inventory'`)
+      expect(migrations.at(-1)).toBe('0079_discovery_historical_source.sql')
     }
     finally {
       sqlite.close()
@@ -211,6 +218,19 @@ describe('d1 migration bootstrap', () => {
       ).run()
       sqlite.exec(readFileSync(resolve(migrationsDir, '0070_discovery_candidates.sql'), 'utf8'))
       sqlite.exec(readFileSync(resolve(migrationsDir, '0071_embedding_attempts.sql'), 'utf8'))
+      sqlite.exec(`
+        INSERT INTO discovery_candidates (
+          owner, repo, source, first_discovered_at, last_discovered_at,
+          last_attempted_at, attempt_count, outcome, rejection_reason, last_error,
+          retry_state, next_retry_at, owner_verified, reconsideration_count,
+          claimed_at, claim_token
+        ) VALUES (
+          'historical', 'candidate', 'github_search', 10, 20,
+          21, 3, 'pending', NULL, NULL,
+          'claimed', NULL, 1, 2,
+          22, 'claim-token'
+        );
+      `)
 
       sqlite.exec(`
         INSERT INTO users (
@@ -232,9 +252,39 @@ describe('d1 migration bootstrap', () => {
       `)
       sqlite.exec(readFileSync(resolve(migrationsDir, '0072_digest_delivery.sql'), 'utf8'))
       sqlite.exec(readFileSync(resolve(migrationsDir, '0073_repair_schema_drift.sql'), 'utf8'))
+      for (const migration of migrations.filter(file =>
+        file >= '0074_scheduled_run_history.sql'
+        && file <= '0079_discovery_historical_source.sql')) {
+        sqlite.exec(readFileSync(resolve(migrationsDir, migration), 'utf8'))
+      }
 
-      expect(sqlite.prepare(`SELECT count(*) FROM discovery_candidates`).pluck().get()).toBe(0)
+      expect(sqlite.prepare(`SELECT * FROM discovery_candidates`).get()).toMatchObject({
+        owner: 'historical',
+        repo: 'candidate',
+        source: 'github_search',
+        first_discovered_at: 10,
+        last_discovered_at: 20,
+        last_attempted_at: 21,
+        attempt_count: 3,
+        outcome: 'pending',
+        rejection_reason: null,
+        last_error: null,
+        retry_state: 'claimed',
+        next_retry_at: null,
+        owner_verified: 1,
+        reconsideration_count: 2,
+        claimed_at: 22,
+        claim_token: 'claim-token',
+      })
       expect(sqlite.prepare(`SELECT count(*) FROM repos`).pluck().get()).toBe(1)
+      expect(sqlite.prepare(`SELECT source_owner, source_repo FROM repos`).get()).toEqual({
+        source_owner: null,
+        source_repo: null,
+      })
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_discovery_candidates_due'`,
+      ).get()).toBeTruthy()
       expect(sqlite.prepare(`SELECT count(*) FROM embedding_attempts`).pluck().get()).toBe(0)
       expect(sqlite.prepare(
         `SELECT status, cursor_start, cursor_end, error_code

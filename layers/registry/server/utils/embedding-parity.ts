@@ -73,7 +73,7 @@ export type EmbeddingParityMode
 
 export type EmbeddingParityDryRunMode = Exclude<EmbeddingParityMode, { _tag: 'refused' }>
 
-const VECTOR_READ_CHUNK = 100
+const VECTOR_READ_CHUNK = 20
 
 export function parseEmbeddingParityMode(args: string[]): EmbeddingParityMode {
   const remote = args.includes('--remote')
