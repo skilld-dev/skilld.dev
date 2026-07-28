@@ -15,6 +15,7 @@ import {
 } from '../../../layers/registry/server/utils/github-sync-control'
 import {
   refreshRepoAssets,
+  SKILL_SLICE_SIZE,
   syncRepo,
 } from '../../../layers/registry/server/utils/sync-repo'
 
@@ -46,7 +47,7 @@ type RegistryJobContext = JobContext<RegistryJobEnv, D1Database, Console>
 
 const DISCOVERY_CLAIM_STALE_SECONDS = 30 * 60
 const REPO_PROGRESS_STALE_SECONDS = 30 * 60
-const SKILL_PATHS_PER_INVOCATION = 500
+const SKILL_PATHS_PER_INVOCATION = SKILL_SLICE_SIZE
 
 interface RepoProgressRow {
   job_id: string
