@@ -181,4 +181,36 @@ describe('production smoke contract', () => {
     expect(delayedProbeAttempts).toBe(2)
     expect(delayedCleanUrlPoisoned).toBe(false)
   })
+
+  it('refetches the page when rollout HTML and assets are temporarily skewed', async () => {
+    let pageRequests = 0
+    const fetch: SmokeFetch = vi.fn(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/skills/leaderboard') {
+        pageRequests++
+        return new Response(
+          `<script src="/_nuxt/v2/${pageRequests === 1 ? 'stale' : 'ready'}.js"></script>`,
+          {
+            status: 200,
+            headers: { 'content-type': 'text/html' },
+          },
+        )
+      }
+      return new Response('', {
+        status: url.pathname === '/_nuxt/v2/ready.js' ? 200 : 404,
+      })
+    })
+
+    const result = await runProductionSmoke({
+      baseUrl: 'https://skilld.dev',
+      attempts: 2,
+      retryDelayMs: 0,
+      fetch,
+      wait: vi.fn(async () => {}),
+      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+    })
+
+    expect(result._tag).toBe('passed')
+    expect(pageRequests).toBe(2)
+  })
 })

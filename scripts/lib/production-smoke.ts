@@ -166,6 +166,122 @@ async function checkWithRetries(
   }
 }
 
+async function checkLeaderboardAssetCoherence(
+  dependencies: ProductionSmokeDependencies,
+  input: {
+    fetch: SmokeFetch
+    attempts: number
+    retryDelayMs: number
+    wait: (milliseconds: number) => Promise<void>
+  },
+): Promise<
+  | { _tag: 'passed' }
+  | {
+    _tag: 'failed'
+    failures: Array<{
+      path: string
+      attempts: number
+      result: Extract<SmokeEvaluation, { _tag: 'failed' }>
+    }>
+  }
+> {
+  let latestFailures: Array<{
+    path: string
+    attempts: number
+    result: Extract<SmokeEvaluation, { _tag: 'failed' }>
+  }> = []
+
+  for (let attempt = 1; attempt <= input.attempts; attempt++) {
+    const page = await observe(input.fetch, dependencies.baseUrl, '/skills/leaderboard')
+    if ('_tag' in page) {
+      latestFailures = [{
+        path: '/skills/leaderboard',
+        attempts: attempt,
+        result: page,
+      }]
+    }
+    else {
+      const pageEvaluation = evaluateSmokeObservation(
+        { path: '/skills/leaderboard', status: 200 },
+        page,
+      )
+      if (pageEvaluation._tag === 'failed') {
+        latestFailures = [{
+          path: '/skills/leaderboard',
+          attempts: attempt,
+          result: pageEvaluation,
+        }]
+      }
+      else {
+        const assets = page.contentType?.includes('text/html')
+          ? extractNuxtAssets(page.body)
+          : []
+        if (assets.length === 0) {
+          latestFailures = [{
+            path: '/skills/leaderboard',
+            attempts: attempt,
+            result: {
+              _tag: 'failed',
+              reason: 'asset_manifest_empty',
+              expected: 'Nuxt assets',
+              actual: 'none',
+            },
+          }]
+        }
+        else {
+          const probeToken = `${Date.now()}-${attempt}`
+          const readinessResults = await Promise.all(assets.map(reportPath =>
+            checkWithRetries(dependencies, {
+              fetch: input.fetch,
+              attempts: 1,
+              retryDelayMs: 0,
+              wait: input.wait,
+              requestPath: `${reportPath}?production-smoke=${probeToken}`,
+              reportPath,
+            }),
+          ))
+          const readinessFailures = readinessResults.filter(result => result._tag === 'failed')
+          if (readinessFailures.length === 0) {
+            const cleanResults = await Promise.all(assets.map(requestPath =>
+              checkWithRetries(dependencies, {
+                fetch: input.fetch,
+                attempts: 1,
+                retryDelayMs: 0,
+                wait: input.wait,
+                requestPath,
+                reportPath: requestPath,
+              }),
+            ))
+            const cleanFailures = cleanResults.filter(result => result._tag === 'failed')
+            if (cleanFailures.length === 0)
+              return { _tag: 'passed' }
+            latestFailures = cleanFailures.map(failure => ({
+              path: failure.path,
+              attempts: attempt,
+              result: failure.result,
+            }))
+          }
+          else {
+            latestFailures = readinessFailures.map(failure => ({
+              path: failure.path,
+              attempts: attempt,
+              result: failure.result,
+            }))
+          }
+        }
+      }
+    }
+
+    if (attempt < input.attempts)
+      await input.wait(input.retryDelayMs)
+  }
+
+  return {
+    _tag: 'failed',
+    failures: latestFailures,
+  }
+}
+
 export async function runProductionSmoke(
   dependencies: ProductionSmokeDependencies,
 ): Promise<ProductionSmokeResult> {
@@ -187,10 +303,6 @@ export async function runProductionSmoke(
           _tag: 'passed' as const,
           path: expectation.path,
           attempts: attempt,
-          assets: expectation.path === '/skills/leaderboard'
-            && observation.contentType?.includes('text/html')
-            ? extractNuxtAssets(observation.body)
-            : [],
         }
       }
       latestFailure = evaluation
@@ -217,71 +329,15 @@ export async function runProductionSmoke(
     }
   }
 
-  const assets = [...new Set(results.flatMap(result =>
-    result._tag === 'passed' ? result.assets : [],
-  ))]
-  if (expectations.some(expectation => expectation.path === '/skills/leaderboard')
-    && assets.length === 0) {
-    return {
-      _tag: 'failed',
-      failures: [{
-        path: '/skills/leaderboard',
-        attempts: 1,
-        result: {
-          _tag: 'failed',
-          reason: 'asset_manifest_empty',
-          expected: 'Nuxt assets',
-          actual: 'none',
-        },
-      }],
-    }
-  }
-
-  if (assets.length > 0) {
-    const probeToken = Date.now()
-    const readinessResults = await Promise.all(assets.map(reportPath =>
-      checkWithRetries(dependencies, {
-        fetch,
-        attempts,
-        retryDelayMs,
-        wait,
-        requestPath: `${reportPath}?production-smoke=${probeToken}`,
-        reportPath,
-      }),
-    ))
-    const readinessFailures = readinessResults.filter(result => result._tag === 'failed')
-    if (readinessFailures.length) {
-      return {
-        _tag: 'failed',
-        failures: readinessFailures.map(failure => ({
-          path: failure.path,
-          attempts: failure.attempts,
-          result: failure.result,
-        })),
-      }
-    }
-
-    const assetResults = await Promise.all(assets.map(requestPath =>
-      checkWithRetries(dependencies, {
-        fetch,
-        attempts,
-        retryDelayMs,
-        wait,
-        requestPath,
-        reportPath: requestPath,
-      }),
-    ))
-    const assetFailures = assetResults.filter(result => result._tag === 'failed')
-    if (assetFailures.length) {
-      return {
-        _tag: 'failed',
-        failures: assetFailures.map(failure => ({
-          path: failure.path,
-          attempts: failure.attempts,
-          result: failure.result,
-        })),
-      }
-    }
+  if (expectations.some(expectation => expectation.path === '/skills/leaderboard')) {
+    const coherence = await checkLeaderboardAssetCoherence(dependencies, {
+      fetch,
+      attempts,
+      retryDelayMs,
+      wait,
+    })
+    if (coherence._tag === 'failed')
+      return coherence
   }
 
   return {
