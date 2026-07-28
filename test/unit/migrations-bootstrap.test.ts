@@ -196,7 +196,18 @@ describe('d1 migration bootstrap', () => {
       expect((sqlite.prepare(`
         SELECT sql FROM sqlite_schema
         WHERE type = 'table' AND name = 'discovery_candidates'
-      `).get() as { sql: string }).sql).toContain(`'historical_inventory'`)
+      `).get() as { sql: string }).sql).toContain(`'skills_sh'`)
+      expect(sqlite.prepare(`
+        SELECT name FROM sqlite_schema
+        WHERE type = 'table' AND name = 'skills_sh_crawl_runs'
+      `).get()).toBeTruthy()
+      expect(sqlite.prepare(`
+        SELECT name FROM sqlite_schema
+        WHERE type = 'table' AND name = 'skills_sh_discovery_observations'
+      `).get()).toBeTruthy()
+      expect(sqlite.prepare(`PRAGMA table_info(skills_sh_crawl_runs)`).all()
+        .map(column => (column as { name: string }).name))
+        .toContain('leaderboard_repos_seeded')
       expect(sqlite.prepare(`
         SELECT status, reviewed_by
         FROM skill_repo_eligibility
@@ -214,7 +225,7 @@ describe('d1 migration bootstrap', () => {
         outcome: 'pending',
         retry_state: 'ready',
       })
-      expect(migrations.at(-1)).toBe('0085_repo_descriptions.sql')
+      expect(migrations.at(-1)).toBe('0086_skills_sh_discovery.sql')
     }
     finally {
       sqlite.close()

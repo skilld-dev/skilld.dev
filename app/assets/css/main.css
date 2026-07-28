@@ -488,6 +488,7 @@
 }
 
 .home-featured-avatar,
+.home-featured-skill-avatar,
 .home-featured-support-avatar {
   flex: none;
   border: 2px solid var(--ui-bg);
@@ -522,12 +523,15 @@
   grid-template-columns: minmax(0, 1fr);
   margin-top: 0.75rem;
   padding: 0;
-  border-top: 1px solid var(--ui-border);
+  border-block: 1px solid var(--ui-border);
   list-style: none;
 }
 
 .home-featured-skills > li {
   min-width: 0;
+}
+
+.home-featured-skills > li:not(:last-child) {
   border-bottom: 1px solid var(--ui-border);
 }
 
@@ -536,11 +540,16 @@
   min-width: 0;
   min-height: 4.75rem;
   height: 100%;
-  flex-direction: column;
-  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
   padding: 0.75rem;
   overflow-wrap: anywhere;
   transition: background-color 200ms ease-out;
+}
+
+.home-featured-skill-avatar {
+  width: 2rem;
+  height: 2rem;
 }
 
 .home-featured-skill:focus-visible,
@@ -552,8 +561,6 @@
 .home-featured-install {
   min-width: 0;
   margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--ui-border);
 }
 
 .home-featured-install__heading {
@@ -617,13 +624,24 @@
   min-height: 11rem;
   height: 100%;
   flex-direction: column;
+  background: color-mix(in oklab, var(--ui-bg-muted) 32%, var(--ui-bg));
   padding: 1.25rem;
   transition: background-color 200ms ease-out, border-color 200ms ease-out;
 }
 
 .home-featured-support-avatar {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2rem;
+  height: 2rem;
+}
+
+.home-featured-owner-stack {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.home-featured-owner-stack > * + * {
+  margin-left: -0.5rem;
 }
 
 .home-featured-support-arrow {
@@ -673,8 +691,16 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .home-featured-skills > li:not(:last-child) {
+    border-bottom: 0;
+  }
+
   .home-featured-skills > li:nth-child(odd) {
     border-right: 1px solid var(--ui-border);
+  }
+
+  .home-featured-skills > li:nth-child(n+3) {
+    border-top: 1px solid var(--ui-border);
   }
 }
 
@@ -689,17 +715,6 @@
     grid-template-rows: repeat(2, auto);
   }
 
-  .home-featured-skills {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .home-featured-skills > li:nth-child(odd) {
-    border-right: 0;
-  }
-
-  .home-featured-skills > li:not(:nth-child(3n)) {
-    border-right: 1px solid var(--ui-border);
-  }
 }
 
 @media (hover: hover) {

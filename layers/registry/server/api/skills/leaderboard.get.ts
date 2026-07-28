@@ -21,9 +21,10 @@ export interface SkillsLeaderboardItem {
   skillCount: number
   topSkill: {
     name: string
-    displayName: string
+    slug: string
+    description: string | null
     installs: number
-    registryUrl: string
+    modifiedAt: number | null
   }
   pushedAt: number | null
   starsSyncedAt: number | null
@@ -77,9 +78,10 @@ export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
         skillCount: row.skill_count,
         topSkill: {
           name: row.top_skill_name,
-          displayName: row.top_skill_display_name,
+          slug: row.top_skill_slug,
+          description: row.top_skill_description,
           installs: row.top_skill_installs,
-          registryUrl: `/gh/${row.owner}/${row.repo}/${encodeURIComponent(row.top_skill_name)}`,
+          modifiedAt: row.top_skill_modified_at,
         },
         pushedAt: row.pushed_at,
         starsSyncedAt: row.repo_meta_synced_at,

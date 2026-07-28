@@ -5,8 +5,10 @@ export interface SkillsLeaderboardDbRow {
   stars: number
   skill_count: number
   top_skill_name: string
-  top_skill_display_name: string
+  top_skill_slug: string
+  top_skill_description: string | null
   top_skill_installs: number
+  top_skill_modified_at: number | null
   pushed_at: number | null
   repo_meta_synced_at: number | null
   reviewed_at: number
@@ -37,8 +39,10 @@ export const SKILLS_LEADERBOARD_SQL = `
       s.owner,
       s.repo,
       s.name,
-      s.display_name,
+      s.slug,
+      s.description,
       s.installs,
+      s.modified_at,
       COUNT(*) OVER (
         PARTITION BY s.owner, s.repo
       ) AS skill_count,
@@ -60,8 +64,10 @@ export const SKILLS_LEADERBOARD_SQL = `
     repository.stars,
     s.skill_count,
     s.name AS top_skill_name,
-    s.display_name AS top_skill_display_name,
+    s.slug AS top_skill_slug,
+    s.description AS top_skill_description,
     s.installs AS top_skill_installs,
+    s.modified_at AS top_skill_modified_at,
     repository.pushed_at,
     repository.repo_meta_synced_at,
     repository.reviewed_at

@@ -2,7 +2,7 @@
 -- Idempotent: updates these collection slugs and replaces only their entries.
 --
 -- Picks are informed by the vercel-labs/skills find-skills SKILL.md workflow:
--- https://skills.sh leaderboard, install counts >= ~40K, trusted sources.
+-- https://skills.sh adoption, source trust, current maintenance, and task coverage.
 -- All owner/repo/name triplets verified against the local skills table so
 -- the homepage links resolve.
 
@@ -54,7 +54,7 @@ INSERT INTO collections_v2 (
   (SELECT id FROM users WHERE login = 'harlan-zw'),
   'typescript-engineering-stack',
   'Codebase architecture',
-  'Use this before a refactor gets messy. It covers domain language, architecture review, tests, debugging, and a plan you can execute.',
+  'Plan structural changes with clear domain language, architecture review, tests, debugging, and an executable plan.',
   1,
   CAST(strftime('%s','now') AS INTEGER) + 190,
   CAST(strftime('%s','now') AS INTEGER),
@@ -109,7 +109,7 @@ INSERT INTO collections_v2 (
   (SELECT id FROM users WHERE login = 'harlan-zw'),
   'agent-workflow-stack',
   'Agent workflow',
-  'For changes that take more than one pass: split the work, run independent tasks in parallel, verify the result, then clean up the branch.',
+  'Run multi-pass changes with focused delegation, parallel work, verification, and a clean branch handoff.',
   1,
   CAST(strftime('%s','now') AS INTEGER) + 180,
   CAST(strftime('%s','now') AS INTEGER),
@@ -120,7 +120,7 @@ INSERT INTO collections_v2 (
   (SELECT id FROM users WHERE login = 'harlan-zw'),
   'agent-building-stack',
   'Agent builder essentials',
-  'Start here when your agent needs a new capability. Search for an existing skill, write one when needed, or connect a tool through MCP.',
+  'Find and install an existing skill, create and validate one when needed, or connect a new tool through MCP.',
   1,
   CAST(strftime('%s','now') AS INTEGER) + 200,
   CAST(strftime('%s','now') AS INTEGER),
@@ -286,12 +286,12 @@ INSERT INTO collection_skills_v2 (collection_id, position, owner, repo, name, re
 ((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-workflow-stack'), 5, 'obra', 'superpowers', 'executing-plans', 'Move through written steps without redesigning the plan midway through execution.'),
 
 -- agent-building-stack
-((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 0, 'anthropics', 'skills', 'skill-creator', 'Author a new SKILL.md that agents can load and apply reliably.'),
-((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 1, 'vercel-labs', 'skills', 'find-skills', 'Search the wider skill ecosystem before building a capability from scratch.'),
-((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 2, 'anthropics', 'skills', 'mcp-builder', 'Design and wire up a Model Context Protocol server for a new tool.'),
-((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 3, 'obra', 'superpowers', 'writing-skills', 'Capture reusable expertise as a focused SKILL.md with clear triggers.'),
-((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 4, 'anthropics', 'skills', 'template', 'Start from Anthropic''s official skill scaffold and fill in the capability.'),
-((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 5, 'obra', 'superpowers', 'using-superpowers', 'Compose authored skills into a repeatable runtime workflow.'),
+((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 0, 'vercel-labs', 'skills', 'find-skills', 'Search the wider skill ecosystem before building a capability from scratch.'),
+((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 1, 'openai', 'skills', 'skill-installer', 'Install a curated skill or pull one directly from a public or private GitHub repository.'),
+((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 2, 'anthropics', 'skills', 'skill-creator', 'Author a concise SKILL.md that agents can discover, load, and apply reliably.'),
+((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 3, 'obra', 'superpowers', 'writing-skills', 'Test skill behavior against pressure scenarios, then refine its triggers and instructions.'),
+((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 4, 'callstackincubator', 'agent-skills', 'validate-skills', 'Check skill structure, metadata, loading paths, and authoring practices before publishing.'),
+((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'agent-building-stack'), 5, 'anthropics', 'skills', 'mcp-builder', 'Design and wire up a Model Context Protocol server for a new tool.'),
 
 -- browser-automation-stack
 ((SELECT id FROM collections_v2 WHERE author_user_id = (SELECT id FROM users WHERE login = 'harlan-zw') AND slug = 'browser-automation-stack'), 0, 'microsoft', 'playwright-cli', 'playwright-cli', 'Microsoft''s Playwright CLI skill for driving real browsers end to end: navigation, selectors, and reliable assertions.'),

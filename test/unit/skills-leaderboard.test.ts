@@ -15,8 +15,10 @@ interface LeaderboardRow {
   stars: number
   skill_count: number
   top_skill_name: string
-  top_skill_display_name: string
+  top_skill_slug: string
+  top_skill_description: string | null
   top_skill_installs: number
+  top_skill_modified_at: number | null
 }
 
 describe('skills leaderboard eligibility', () => {
@@ -45,7 +47,9 @@ describe('skills leaderboard eligibility', () => {
         name TEXT NOT NULL,
         display_name TEXT NOT NULL,
         slug TEXT NOT NULL,
+        description TEXT,
         installs INTEGER NOT NULL DEFAULT 0,
+        modified_at INTEGER,
         PRIMARY KEY (owner, repo, name)
       );
     `)
@@ -112,8 +116,10 @@ describe('skills leaderboard eligibility', () => {
         repo_meta_synced_at: null,
         reviewed_at: expect.any(Number),
         top_skill_name: 'nuxt-frontend-design',
-        top_skill_display_name: 'Nuxt Frontend Design',
+        top_skill_slug: 'nuxt-frontend-design',
+        top_skill_description: null,
         top_skill_installs: 120,
+        top_skill_modified_at: null,
       },
     ])
   })
@@ -121,7 +127,14 @@ describe('skills leaderboard eligibility', () => {
   it('surfaces the most installed skill from each repository', () => {
     insertRepo('creator', 'generic-skills', 100)
     insertSkill('creator', 'generic-skills', 'less-popular', 20)
-    insertSkill('creator', 'generic-skills', 'most-popular', 500)
+    insertSkill(
+      'creator',
+      'generic-skills',
+      'most-popular',
+      500,
+      'The skill users install most.',
+      1_700_000_000,
+    )
     insertSkill('creator', 'generic-skills', 'also-less-popular', 100)
     insertEligibility('creator', 'generic-skills', 'eligible')
 
@@ -133,8 +146,10 @@ describe('skills leaderboard eligibility', () => {
       repo: 'generic-skills',
       skill_count: 3,
       top_skill_name: 'most-popular',
-      top_skill_display_name: 'Most Popular',
+      top_skill_slug: 'most-popular',
+      top_skill_description: 'The skill users install most.',
       top_skill_installs: 500,
+      top_skill_modified_at: 1_700_000_000,
     }))
   })
 
@@ -198,10 +213,18 @@ describe('skills leaderboard eligibility', () => {
     `).run(owner, repo, description, stars, brokenSince)
   }
 
-  function insertSkill(owner: string, repo: string, name: string, installs = 0) {
+  function insertSkill(
+    owner: string,
+    repo: string,
+    name: string,
+    installs = 0,
+    description: string | null = null,
+    modifiedAt: number | null = null,
+  ) {
     sqlite.prepare(`
-      INSERT INTO skills (owner, repo, name, display_name, slug, installs)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO skills (
+        owner, repo, name, display_name, slug, description, installs, modified_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       owner,
       repo,
@@ -210,7 +233,9 @@ describe('skills leaderboard eligibility', () => {
         segment.charAt(0).toUpperCase() + segment.slice(1),
       ).join(' '),
       name,
+      description,
       installs,
+      modifiedAt,
     )
   }
 

@@ -71,6 +71,20 @@ describe('homepage activation', () => {
     expect(homepageSource).not.toContain('navigator.clipboard')
   })
 
+  it('shows the curator once and attributes collection skills to their source owners', () => {
+    expect(homepageSource.match(/leadCollection\.authorLogin\}\.png\?size=/g)).toHaveLength(1)
+    expect(homepageSource).toMatch(/github\.com\/\$\{skill\.owner\}\.png\?size=64/)
+    expect(homepageSource).toContain('collectionSkillOwners(collection)')
+    expect(homepageSource).not.toContain('collection.authorLogin}?s=')
+  })
+
+  it('keeps the avatar-enriched skill grid readable without three-column compression', () => {
+    const mainCss = readFileSync(resolve(root, 'app/assets/css/main.css'), 'utf8')
+
+    expect(mainCss).not.toContain('grid-template-columns: repeat(3, minmax(0, 1fr));')
+    expect(mainCss).not.toContain('.home-featured-skills > li:not(:nth-child(3n))')
+  })
+
   it('removes repeated decision sections', () => {
     expect(homepageSource).not.toContain('id="install-confidence"')
     expect(homepageSource).not.toContain('id="explore-registry"')
@@ -120,6 +134,32 @@ describe('homepage activation', () => {
         { slug: 'agent-building-stack', skill_count: 6 },
         { slug: 'typescript-engineering-stack', skill_count: 6 },
         { slug: 'agent-workflow-stack', skill_count: 6 },
+      ])
+    }
+    finally {
+      sqlite.close()
+    }
+  })
+
+  it('covers the complete agent capability lifecycle without bootstrap-only entries', () => {
+    const sqlite = seedHomepageCollections()
+
+    try {
+      const skills = sqlite.prepare(`
+        SELECT cs.owner, cs.repo, cs.name
+        FROM collection_skills_v2 cs
+        JOIN collections_v2 c ON c.id = cs.collection_id
+        WHERE c.slug = 'agent-building-stack'
+        ORDER BY cs.position
+      `).all()
+
+      expect(skills).toEqual([
+        { owner: 'vercel-labs', repo: 'skills', name: 'find-skills' },
+        { owner: 'openai', repo: 'skills', name: 'skill-installer' },
+        { owner: 'anthropics', repo: 'skills', name: 'skill-creator' },
+        { owner: 'obra', repo: 'superpowers', name: 'writing-skills' },
+        { owner: 'callstackincubator', repo: 'agent-skills', name: 'validate-skills' },
+        { owner: 'anthropics', repo: 'skills', name: 'mcp-builder' },
       ])
     }
     finally {

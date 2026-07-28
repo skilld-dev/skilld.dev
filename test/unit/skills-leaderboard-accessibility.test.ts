@@ -25,7 +25,6 @@ describe('skills leaderboard accessibility contract', () => {
   })
 
   it('keeps metric labels in the accessibility tree at every breakpoint', () => {
-    expect(leaderboardSource).toContain('<span class="sr-only">Featured skill installs: </span>')
     expect(leaderboardSource).toContain('<span class="sr-only">Skill count: </span>')
     expect(leaderboardSource).toContain('<span class="sr-only">GitHub stars: </span>')
     expect(leaderboardSource).toContain(
@@ -36,11 +35,15 @@ describe('skills leaderboard accessibility contract', () => {
     )
   })
 
-  it('features the most popular skill within each repository row', () => {
-    expect(leaderboardSource).toContain('item.topSkill.displayName')
-    expect(leaderboardSource).toContain('item.topSkill.registryUrl')
-    expect(leaderboardSource).toContain('Most popular skill')
-    expect(leaderboardSource).toContain('leaderboard-row__featured')
+  it('embeds the existing skill card for each repository top skill', () => {
+    expect(leaderboardSource).toContain('<SkillCard')
+    expect(leaderboardSource).toContain('<span class="sr-only">Top skill installs: </span>')
+    expect(leaderboardSource).toContain('item.topSkill.description')
+    expect(leaderboardSource).toContain('item.topSkill.modifiedAt')
+    expect(leaderboardSource).toContain('signal="installs"')
+    expect(leaderboardSource).toContain('timestamp-label="Updated"')
+    expect(leaderboardSource).not.toContain('Most popular skill')
+    expect(leaderboardSource).not.toContain('leaderboard-row__featured')
     expect(leaderboardSource).toContain('container-type: inline-size')
     expect(leaderboardSource).toContain('min-h-11')
     expect(leaderboardSource).toContain(`.leaderboard-row__repository {

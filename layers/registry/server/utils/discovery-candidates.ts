@@ -2,7 +2,12 @@
 
 import type { SyncRepoStats } from './sync-repo'
 
-export type DiscoverySource = 'owned_scan' | 'github_search' | 'historical_inventory' | 'manual'
+export type DiscoverySource
+  = | 'owned_scan'
+    | 'github_search'
+    | 'historical_inventory'
+    | 'manual'
+    | 'skills_sh'
 
 interface DiscoveredCandidateBase {
   owner: string

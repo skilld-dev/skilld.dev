@@ -33,6 +33,7 @@
     "production:deploy": "tsx scripts/deploy-production.ts",
     "production:smoke": "tsx scripts/check-production-smoke.ts",
     "registry:convergence": "tsx scripts/check-registry-convergence.ts",
+    "crawl:skills-sh": "tsx scripts/crawl-skills-sh.ts",
     "db:schema:verify": "tsx scripts/verify-d1-schema.ts",
     "cron:docs": "tsx scripts/generate-cron-docs.ts --write",
     "cron:docs:check": "tsx scripts/generate-cron-docs.ts --check",

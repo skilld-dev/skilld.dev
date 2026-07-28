@@ -218,24 +218,24 @@ function formatDate(timestamp: number | null): string | null {
                   >
                     {{ item.description }}
                   </p>
-                  <div class="leaderboard-row__featured">
-                    <span class="data-label">Most popular skill</span>
-                    <NuxtLink
-                      :to="item.topSkill.registryUrl"
-                      class="leaderboard-row__featured-link min-h-11"
-                      :aria-label="`Open ${item.topSkill.displayName} skill`"
-                    >
-                      {{ item.topSkill.displayName }}
-                      <UIcon
-                        name="i-lucide-arrow-up-right"
-                        class="size-3.5 shrink-0 text-muted"
-                        aria-hidden="true"
-                      />
-                    </NuxtLink>
-                    <span class="leaderboard-row__featured-installs">
-                      <span class="sr-only">Featured skill installs: </span>
-                      {{ item.topSkill.installs.toLocaleString() }} installs
-                    </span>
+                  <div class="leaderboard-row__top-skill">
+                    <span class="sr-only">Top skill installs: </span>
+                    <span class="sr-only">{{ item.topSkill.installs.toLocaleString() }}</span>
+                    <SkillCard
+                      :skill="{
+                        owner: item.owner,
+                        repo: item.repo,
+                        name: item.topSkill.name,
+                        slug: item.topSkill.slug,
+                        description: item.topSkill.description,
+                        installs: item.topSkill.installs,
+                        modifiedAt: item.topSkill.modifiedAt,
+                      }"
+                      signal="installs"
+                      :show-copy="false"
+                      show-owner-path
+                      timestamp-label="Updated"
+                    />
                   </div>
                 </div>
               </div>
@@ -372,59 +372,9 @@ function formatDate(timestamp: number | null): string | null {
   object-fit: cover;
 }
 
-.leaderboard-row__featured {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.125rem 0.75rem;
-  align-items: center;
+.leaderboard-row__top-skill {
   margin-block-start: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: var(--ui-bg-muted);
-}
-
-.leaderboard-row__featured > .data-label {
-  grid-column: 1 / -1;
-}
-
-.leaderboard-row__featured-link {
-  display: inline-flex;
   min-width: 0;
-  align-items: center;
-  gap: 0.375rem;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--ui-text);
-  text-decoration: underline;
-  text-decoration-color: var(--ui-border-accented);
-  text-underline-offset: 0.25rem;
-  transition: color 200ms;
-}
-
-.leaderboard-row__featured-link:hover,
-.leaderboard-row__featured-link:focus-visible {
-  color: var(--ui-primary);
-}
-
-.leaderboard-row__featured-installs {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-text-muted);
-  white-space: nowrap;
-}
-
-@container (min-width: 28rem) {
-  .leaderboard-row__featured {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    column-gap: 0.875rem;
-  }
-
-  .leaderboard-row__featured > .data-label {
-    grid-column: auto;
-  }
 }
 
 .leaderboard-row__metrics {

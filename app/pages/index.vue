@@ -98,6 +98,7 @@ const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
 
 type FeaturedCollectionSkill = FeaturedCollectionsResponse['items'][number]['skills'][number]
+type FeaturedCollection = FeaturedCollectionsResponse['items'][number]
 
 interface FeaturedPeopleResponse {
   devSections: FeaturedPersonSection[]
@@ -129,6 +130,14 @@ function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
 
 function featuredCollectionSkillLabel(skill: FeaturedCollectionSkill): string {
   return skill.name ? `/${skill.name}` : skill.repo
+}
+
+function collectionSkillOwners(collection: FeaturedCollection): string[] {
+  return [...new Set(collection.skills.map(skill => skill.owner))].slice(0, 3)
+}
+
+function collectionSkillOwnerLabel(collection: FeaturedCollection): string {
+  return collectionSkillOwners(collection).map(owner => `@${owner}`).join(' + ')
 }
 
 const fallbackPersonNamesByOwner = new Map<string, string>(
@@ -427,7 +436,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               </div>
               <div class="home-featured-curator">
                 <img
-                  :src="`https://avatars.githubusercontent.com/${leadCollection.authorLogin}?s=112`"
+                  :src="`https://github.com/${leadCollection.authorLogin}.png?size=112`"
                   alt=""
                   width="56"
                   height="56"
@@ -474,11 +483,22 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   class="home-featured-skill group"
                   :aria-label="`${featuredCollectionSkillLabel(skill)} by ${skill.owner}`"
                 >
-                  <span class="font-mono text-sm font-medium">
-                    {{ featuredCollectionSkillLabel(skill) }}
-                  </span>
-                  <span class="mt-1 text-sm text-muted">
-                    {{ skill.owner }}/{{ skill.repo }}
+                  <img
+                    :src="`https://github.com/${skill.owner}.png?size=64`"
+                    alt=""
+                    width="32"
+                    height="32"
+                    class="home-featured-skill-avatar"
+                    loading="lazy"
+                    decoding="async"
+                  >
+                  <span class="min-w-0">
+                    <span class="block font-mono text-sm font-medium">
+                      {{ featuredCollectionSkillLabel(skill) }}
+                    </span>
+                    <span class="mt-1 block text-sm text-muted">
+                      {{ skill.owner }}/{{ skill.repo }}
+                    </span>
                   </span>
                 </NuxtLink>
               </li>
@@ -547,17 +567,21 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               >
                 <div class="flex items-center justify-between gap-3">
                   <div class="flex min-w-0 items-center gap-3">
-                    <img
-                      :src="`https://avatars.githubusercontent.com/${collection.authorLogin}?s=72`"
-                      alt=""
-                      width="36"
-                      height="36"
-                      class="home-featured-support-avatar"
-                      loading="lazy"
-                      decoding="async"
-                    >
+                    <span class="home-featured-owner-stack" aria-hidden="true">
+                      <img
+                        v-for="owner in collectionSkillOwners(collection)"
+                        :key="owner"
+                        :src="`https://github.com/${owner}.png?size=64`"
+                        alt=""
+                        width="32"
+                        height="32"
+                        class="home-featured-support-avatar"
+                        loading="lazy"
+                        decoding="async"
+                      >
+                    </span>
                     <p class="data-label truncate">
-                      Also useful · @{{ collection.authorLogin }}
+                      Skills by {{ collectionSkillOwnerLabel(collection) }}
                     </p>
                   </div>
                   <UIcon name="i-lucide-arrow-up-right" class="home-featured-support-arrow size-4 shrink-0" aria-hidden="true" />
