@@ -47,7 +47,7 @@
         "max_retries": 100,
         "retry_delay": 60,
         "dead_letter_queue": "skilld-repo-sync-dlq",
-        "max_concurrency": 1
+        "max_concurrency": 5
       },
       {
         "queue": "skilld-repo-sync-dlq",

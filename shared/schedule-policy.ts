@@ -61,6 +61,7 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'reconcile-rendered', cron: '20 */6 * * *', maxSilenceSeconds: 15 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'send-digests', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'sync-github-skills', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
+  { _tag: 'observed', taskName: 'sync-reviewed-skill-repos', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'sync-social-mentions', cron: '30 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
 ] as const satisfies readonly SchedulePolicy[]
 

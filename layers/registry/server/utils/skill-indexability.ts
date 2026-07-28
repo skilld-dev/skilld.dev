@@ -52,6 +52,14 @@ export function scoreSkillIndexability(input: SkillIndexabilityInput, now = Math
     score += 3
     reasons.push('curator_reason')
   }
+  else if (input.trustTier === 'trusted-curator') {
+    score += 3
+    reasons.push('trusted_curator')
+  }
+  else if (input.trustTier === 'trusted-author') {
+    score += 3
+    reasons.push('trusted_author')
+  }
   else if (input.curatorCount > 0) {
     score += 1
     reasons.push('curator_saved')
@@ -122,6 +130,8 @@ export function scoreSkillIndexability(input: SkillIndexabilityInput, now = Math
   const hasPrimaryTrustSignal = input.curatorReasonCount > 0
     || input.isOfficial
     || input.ownerVerified
+    || input.trustTier === 'trusted-author'
+    || input.trustTier === 'trusted-curator'
     || input.authorSocialCount > 0
     || input.approvedSocialCount > 0
     || input.installs >= SEO_INSTALLS_STRONG

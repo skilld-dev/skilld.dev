@@ -8,6 +8,7 @@ export interface SkillRepoReviewCandidate {
   stars: number
   skillCount: number
   pushedAt: number | null
+  lane: 'indexed' | 'trust-gated'
 }
 
 export interface SkillRepoReviewDecision {
@@ -39,6 +40,7 @@ interface CandidateRow {
   stars: number
   skill_count: number
   pushed_at: number | null
+  lane: 'indexed' | 'trust-gated'
 }
 
 interface DecisionRow {
@@ -76,13 +78,14 @@ export async function listSkillRepoReviewQueue(
 ): Promise<SkillRepoReviewQueue> {
   const [candidateResult, decisionResult, stuckResult] = await Promise.all([
     db.prepare(`
-      WITH repository_inventory AS (
+      WITH indexed_inventory AS (
         SELECT
           r.owner,
           r.repo,
           r.stars,
           r.pushed_at,
-          COUNT(s.name) AS skill_count
+          COUNT(s.name) AS skill_count,
+          'indexed' AS lane
         FROM repos AS r
         JOIN owners AS owner
           ON owner.owner = r.owner
@@ -92,14 +95,46 @@ export async function listSkillRepoReviewQueue(
          AND s.repo = r.repo
         WHERE r.broken_since IS NULL
         GROUP BY r.owner, r.repo, r.stars, r.pushed_at
-        HAVING COUNT(s.name) >= 2
+        HAVING COUNT(s.name) >= 1
+      ),
+      trust_gated_inventory AS (
+        SELECT
+          r.owner,
+          r.repo,
+          r.stars,
+          r.pushed_at,
+          r.repo_skill_count AS skill_count,
+          'trust-gated' AS lane
+        FROM repos AS r
+        JOIN owners AS owner
+          ON owner.owner = r.owner
+         AND owner.kind = 'user'
+        JOIN discovery_candidates AS discovery
+          ON discovery.owner = r.owner
+         AND discovery.repo = r.repo
+         AND discovery.outcome = 'rejected'
+         AND discovery.rejection_reason = 'trust_inputs_insufficient'
+        WHERE r.broken_since IS NULL
+          AND r.repo_skill_count >= 1
+          AND NOT EXISTS (
+            SELECT 1
+            FROM skills AS skill
+            WHERE skill.owner = r.owner
+              AND skill.repo = r.repo
+          )
+      ),
+      repository_inventory AS (
+        SELECT * FROM indexed_inventory
+        UNION ALL
+        SELECT * FROM trust_gated_inventory
       )
       SELECT
         inventory.owner,
         inventory.repo,
         inventory.stars,
         inventory.skill_count,
-        inventory.pushed_at
+        inventory.pushed_at,
+        inventory.lane
       FROM repository_inventory AS inventory
       LEFT JOIN skill_repo_eligibility AS review
         ON review.owner = inventory.owner
@@ -176,6 +211,7 @@ export async function listSkillRepoReviewQueue(
       stars: row.stars,
       skillCount: row.skill_count,
       pushedAt: row.pushed_at,
+      lane: row.lane,
     })),
     decisions: (decisionResult.results ?? []).map(row => ({
       owner: row.owner,
@@ -223,7 +259,7 @@ export async function recordSkillRepoReview(
       return { _tag: 'owner_not_individual' }
   }
 
-  await db.prepare(`
+  const reviewStatement = db.prepare(`
     INSERT INTO skill_repo_eligibility (
       owner, repo, status, reason, reviewed_by, reviewed_at
     ) VALUES (?, ?, ?, ?, ?, ?)
@@ -239,10 +275,41 @@ export async function recordSkillRepoReview(
     input.reason,
     input.reviewedBy,
     input.reviewedAt,
-  ).run()
+  )
 
-  if (input.status === 'rejected')
+  if (input.status === 'rejected') {
+    await db.batch([
+      reviewStatement,
+      db.prepare(`
+        DELETE FROM repo_trust_overrides
+        WHERE owner = ?
+          AND repo = ?
+          AND source = 'leaderboard-review'
+      `).bind(input.owner, input.repo),
+    ])
     return { _tag: 'rejected' }
+  }
+
+  await db.batch([
+    reviewStatement,
+    db.prepare(`
+      INSERT INTO repo_trust_overrides (
+        owner, repo, tier, source, reason, reviewed_by, reviewed_at
+      ) VALUES (?, ?, 'trusted-curator', 'leaderboard-review', ?, ?, ?)
+      ON CONFLICT(owner, repo) DO UPDATE SET
+        tier = excluded.tier,
+        source = excluded.source,
+        reason = excluded.reason,
+        reviewed_by = excluded.reviewed_by,
+        reviewed_at = excluded.reviewed_at
+    `).bind(
+      input.owner,
+      input.repo,
+      input.reason,
+      input.reviewedBy,
+      input.reviewedAt,
+    ),
+  ])
 
   const visibility = await db.prepare(`
     SELECT CASE WHEN EXISTS (

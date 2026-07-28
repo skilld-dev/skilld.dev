@@ -20,6 +20,7 @@ describe('skill repository review workflow', () => {
         repo TEXT NOT NULL,
         stars INTEGER NOT NULL DEFAULT 0,
         pushed_at INTEGER,
+        repo_skill_count INTEGER NOT NULL DEFAULT 0,
         broken_since INTEGER,
         PRIMARY KEY (owner, repo)
       );
@@ -33,6 +34,24 @@ describe('skill repository review workflow', () => {
         name TEXT NOT NULL,
         PRIMARY KEY (owner, repo, name)
       );
+      CREATE TABLE discovery_candidates (
+        owner TEXT NOT NULL,
+        repo TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        rejection_reason TEXT,
+        retry_state TEXT NOT NULL,
+        PRIMARY KEY (owner, repo)
+      );
+      CREATE TABLE repo_trust_overrides (
+        owner TEXT NOT NULL,
+        repo TEXT NOT NULL,
+        tier TEXT NOT NULL,
+        source TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        reviewed_by TEXT NOT NULL,
+        reviewed_at INTEGER NOT NULL,
+        PRIMARY KEY (owner, repo)
+      );
     `)
     insertOwner('harlan-zw', 'user')
     sqlite.exec(readFileSync(
@@ -44,7 +63,7 @@ describe('skill repository review workflow', () => {
 
   afterEach(() => sqlite.close())
 
-  it('lists multi-skill candidates and keeps recent decisions separate', async () => {
+  it('lists indexed single-skill and multi-skill candidates', async () => {
     insertRepo('candidate', 'skills', 120)
     insertSkill('candidate', 'skills', 'one')
     insertSkill('candidate', 'skills', 'two')
@@ -69,10 +88,18 @@ describe('skill repository review workflow', () => {
 
     expect(result.candidates).toEqual([
       expect.objectContaining({
+        owner: 'single',
+        repo: 'skill',
+        stars: 500,
+        skillCount: 1,
+        lane: 'indexed',
+      }),
+      expect.objectContaining({
         owner: 'candidate',
         repo: 'skills',
         stars: 120,
         skillCount: 2,
+        lane: 'indexed',
       }),
     ])
     expect(result.decisions).toEqual([
@@ -85,6 +112,31 @@ describe('skill repository review workflow', () => {
         owner: 'harlan-zw',
         repo: 'harlan-agent-kit',
         status: 'eligible',
+      }),
+    ])
+  })
+
+  it('lists individual trust-gated inventories for editorial review', async () => {
+    insertRepo('candidate', 'skills', 120, null, 'user', 4)
+    sqlite.prepare(`
+      INSERT INTO discovery_candidates (
+        owner, repo, outcome, rejection_reason, retry_state
+      ) VALUES ('candidate', 'skills', 'rejected', 'trust_inputs_insufficient', 'exhausted')
+    `).run()
+
+    const result = await listSkillRepoReviewQueue(db, {
+      now: 1_000,
+      candidateLimit: 50,
+      decisionLimit: 20,
+    })
+
+    expect(result.candidates).toEqual([
+      expect.objectContaining({
+        owner: 'candidate',
+        repo: 'skills',
+        stars: 120,
+        skillCount: 4,
+        lane: 'trust-gated',
       }),
     ])
   })
@@ -108,6 +160,17 @@ describe('skill repository review workflow', () => {
       WHERE owner = 'candidate' AND repo = 'skills'
     `).get()).toEqual({
       status: 'eligible',
+      reason: 'Repository primarily distributes agent skills.',
+      reviewed_by: 'reviewer@example.com',
+      reviewed_at: 1_000,
+    })
+    expect(sqlite.prepare(`
+      SELECT tier, source, reason, reviewed_by, reviewed_at
+      FROM repo_trust_overrides
+      WHERE owner = 'candidate' AND repo = 'skills'
+    `).get()).toEqual({
+      tier: 'trusted-curator',
+      source: 'leaderboard-review',
       reason: 'Repository primarily distributes agent skills.',
       reviewed_by: 'reviewer@example.com',
       reviewed_at: 1_000,
@@ -158,6 +221,16 @@ describe('skill repository review workflow', () => {
   })
 
   it('records a rejection without requesting sync', async () => {
+    insertOwner('product', 'user')
+    sqlite.prepare(`
+      INSERT INTO repo_trust_overrides (
+        owner, repo, tier, source, reason, reviewed_by, reviewed_at
+      ) VALUES (
+        'product', 'app', 'trusted-curator', 'leaderboard-review',
+        'Old approval', 'reviewer@example.com', 900
+      )
+    `).run()
+
     await expect(recordSkillRepoReview(db, {
       owner: 'product',
       repo: 'app',
@@ -166,6 +239,11 @@ describe('skill repository review workflow', () => {
       reviewedBy: 'reviewer@example.com',
       reviewedAt: 1_000,
     })).resolves.toEqual({ _tag: 'rejected' })
+
+    expect(sqlite.prepare(`
+      SELECT 1 FROM repo_trust_overrides
+      WHERE owner = 'product' AND repo = 'app'
+    `).get()).toBeUndefined()
   })
 
   it('surfaces eligible decisions still invisible after fifteen minutes', async () => {
@@ -206,12 +284,13 @@ describe('skill repository review workflow', () => {
     stars: number,
     brokenSince: number | null = null,
     ownerKind: 'user' | 'org' = 'user',
+    repoSkillCount = 0,
   ) {
     insertOwner(owner, ownerKind)
     sqlite.prepare(`
-      INSERT INTO repos (owner, repo, stars, broken_since)
-      VALUES (?, ?, ?, ?)
-    `).run(owner, repo, stars, brokenSince)
+      INSERT INTO repos (owner, repo, stars, repo_skill_count, broken_since)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(owner, repo, stars, repoSkillCount, brokenSince)
   }
 
   function insertOwner(owner: string, kind: 'user' | 'org') {
@@ -248,6 +327,16 @@ function wrapSqlite(sqlite: Database.Database): D1Database {
     prepare(sql: string) {
       let values: unknown[] = []
       const statement = {
+        executeSync() {
+          const result = sqlite.prepare(sql).run(...values)
+          return {
+            success: true,
+            meta: {
+              changes: result.changes,
+              last_row_id: result.lastInsertRowid,
+            },
+          } as D1Result<unknown>
+        },
         bind(...bindings: unknown[]) {
           values = bindings
           return statement
@@ -263,17 +352,18 @@ function wrapSqlite(sqlite: Database.Database): D1Database {
           return (sqlite.prepare(sql).get(...values) as T | undefined) ?? null
         },
         async run() {
-          const result = sqlite.prepare(sql).run(...values)
-          return {
-            success: true,
-            meta: {
-              changes: result.changes,
-              last_row_id: result.lastInsertRowid,
-            },
-          }
+          return statement.executeSync()
         },
       }
       return statement
     },
+    async batch(statements: BoundStatement[]) {
+      const transaction = sqlite.transaction(() => statements.map(statement => statement.executeSync()))
+      return transaction()
+    },
   } as D1Database
+}
+
+interface BoundStatement {
+  executeSync: () => D1Result<unknown>
 }

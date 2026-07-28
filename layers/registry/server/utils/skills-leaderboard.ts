@@ -75,3 +75,13 @@ export const SKILLS_LEADERBOARD_SQL = `
     repository.owner COLLATE NOCASE ASC,
     repository.repo COLLATE NOCASE ASC
 `
+
+export const SKILLS_LEADERBOARD_PAGE_SQL = `
+  ${SKILLS_LEADERBOARD_SQL}
+  LIMIT ? OFFSET ?
+`
+
+export const SKILLS_LEADERBOARD_COUNT_SQL = `
+  SELECT COUNT(*) AS total
+  FROM (${SKILLS_LEADERBOARD_SQL})
+`

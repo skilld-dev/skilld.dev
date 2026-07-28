@@ -57,7 +57,7 @@ export default defineNuxtConfig({
         queueName: 'skilld-repo-review-sync',
         maxBatchSize: 1,
         maxBatchTimeout: 1,
-        maxConcurrency: 1,
+        maxConcurrency: 5,
         maxRetries: 100,
         retryDelay: 60,
         deadLetterQueue: 'skilld-repo-sync-dlq',

@@ -11,7 +11,7 @@ const mainCss = readFileSync(resolve(root, 'app/assets/css/main.css'), 'utf8')
 
 describe('skills leaderboard accessibility contract', () => {
   it('describes purpose review without claiming repository verification', () => {
-    expect(leaderboardSource).toContain(`reviewed {{ items.length === 1 ? 'repo' : 'repos' }}`)
+    expect(leaderboardSource).toContain(`reviewed {{ data.total === 1 ? 'repo' : 'repos' }}`)
     expect(leaderboardSource).toContain('Purpose reviewed')
     expect(leaderboardSource).not.toContain('verified {{')
     expect(leaderboardSource).not.toContain('Skills-only repo')

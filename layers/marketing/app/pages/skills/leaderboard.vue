@@ -12,17 +12,30 @@ defineOgImage('Page.takumi', {
 }, { alt: 'Agent skill repository leaderboard on skilld' })
 
 const { isBot } = useBotDetection()
+const route = useRoute()
+const page = computed(() => {
+  const value = Number(route.query.page)
+  return Number.isInteger(value) && value > 0 ? value : 1
+})
 const { data, status, error, refresh } = useFetch<SkillsLeaderboardResponse>(
   '/api/skills/leaderboard',
   {
     key: 'skills-leaderboard-v2',
     lazy: !isBot.value,
+    query: { page },
   },
 )
 
 const items = computed(() => data.value?.items ?? [])
 const isLoading = computed(() => status.value === 'pending' && !data.value)
 const formattedSyncDate = computed(() => formatDate(data.value?.starsSyncedAt ?? null))
+const pageCount = computed(() => data.value?.pageCount ?? 1)
+
+function pageLocation(target: number): { path: string, query?: { page: number } } {
+  return target <= 1
+    ? { path: '/skills/leaderboard' }
+    : { path: '/skills/leaderboard', query: { page: target } }
+}
 
 function formatDate(timestamp: number | null): string | null {
   if (!timestamp)
@@ -76,7 +89,7 @@ function formatDate(timestamp: number | null): string | null {
             </h2>
           </div>
           <p v-if="data" class="data-label">
-            {{ items.length }} reviewed {{ items.length === 1 ? 'repo' : 'repos' }}
+            {{ data.total }} reviewed {{ data.total === 1 ? 'repo' : 'repos' }}
             <template v-if="formattedSyncDate">
               · stars synced {{ formattedSyncDate }}
             </template>
@@ -246,6 +259,34 @@ function formatDate(timestamp: number | null): string | null {
               />
             </li>
           </ol>
+
+          <nav
+            v-if="pageCount > 1"
+            class="mt-8 flex items-center justify-between gap-4 border-t border-default pt-6"
+            aria-label="Leaderboard pages"
+          >
+            <UButton
+              label="Previous"
+              icon="i-lucide-arrow-left"
+              color="neutral"
+              variant="outline"
+              :to="pageLocation(page - 1)"
+              :disabled="page <= 1"
+              class="min-h-11"
+            />
+            <span class="data-label">
+              Page {{ page }} of {{ pageCount }}
+            </span>
+            <UButton
+              label="Next"
+              trailing-icon="i-lucide-arrow-right"
+              color="neutral"
+              variant="outline"
+              :to="pageLocation(page + 1)"
+              :disabled="page >= pageCount"
+              class="min-h-11"
+            />
+          </nav>
         </template>
       </section>
 

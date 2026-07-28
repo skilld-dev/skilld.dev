@@ -2,7 +2,7 @@
 
 Generated from literal `defineScheduledTask` declarations. Run `pnpm cron:docs` after schedule changes.
 
-Tasks: 12. Unique Cloudflare triggers: 9.
+Tasks: 13. Unique Cloudflare triggers: 9.
 
 | Task | Cron | Source |
 | --- | --- | --- |
@@ -17,4 +17,5 @@ Tasks: 12. Unique Cloudflare triggers: 9.
 | `reconcile-rendered` | `20 */6 * * *` | `layers/registry/server/tasks/reconcile-rendered.ts` |
 | `send-digests` | `0 * * * *` | `layers/identity/server/tasks/send-digests.ts` |
 | `sync-github-skills` | `0 * * * *` | `layers/registry/server/tasks/sync-github-skills.ts` |
+| `sync-reviewed-skill-repos` | `*/5 * * * *` | `layers/registry/server/tasks/sync-reviewed-skill-repos.ts` |
 | `sync-social-mentions` | `30 * * * *` | `layers/registry/server/tasks/sync-social-mentions.ts` |

@@ -17,6 +17,7 @@ interface ReviewCandidate {
   stars: number
   skillCount: number
   pushedAt: number | null
+  lane: 'indexed' | 'trust-gated'
 }
 
 interface ReviewDecision {
@@ -220,7 +221,7 @@ async function retryQueue(decision: ReviewDecision) {
           No repositories waiting for review
         </p>
         <p class="mt-1 text-sm text-muted">
-          New multi-skill repositories appear here after inventory sync.
+          Indexed and trust-gated repositories appear here after inventory discovery.
         </p>
       </div>
 
@@ -243,6 +244,7 @@ async function retryQueue(decision: ReviewDecision) {
               </a>
               <p class="text-sm text-muted">
                 {{ candidate.skillCount }} skills, {{ candidate.stars.toLocaleString() }} stars
+                · {{ candidate.lane === 'trust-gated' ? 'awaiting curated trust' : 'indexed' }}
               </p>
             </div>
           </div>

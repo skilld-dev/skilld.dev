@@ -211,7 +211,7 @@ describe('d1 migration bootstrap', () => {
         outcome: 'pending',
         retry_state: 'ready',
       })
-      expect(migrations.at(-1)).toBe('0083_seed_skill_repo_reviews.sql')
+      expect(migrations.at(-1)).toBe('0084_expand_reviewed_skill_repositories.sql')
     }
     finally {
       sqlite.close()

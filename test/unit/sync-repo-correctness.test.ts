@@ -240,6 +240,37 @@ describe('syncRepo content acknowledgement', () => {
     expect(github.getCommitsBatch).not.toHaveBeenCalled()
   })
 
+  it('admits a new skill after a curated repository review', async () => {
+    sqlite.prepare(`
+      INSERT INTO repo_trust_overrides (
+        owner, repo, tier, reason
+      ) VALUES ('acme', 'skills', 'trusted-curator', 'Reviewed generic skill repository')
+    `).run()
+    github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-new' }]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({
+      status: 'indexed',
+      skillsUpserted: 1,
+    })
+    expect(sqlite.prepare(`
+      SELECT trust_tier, trust_source, seo_indexable
+      FROM skills
+      WHERE owner = 'acme' AND repo = 'skills' AND name = 'one'
+    `).get()).toEqual({
+      trust_tier: 'trusted-curator',
+      trust_source: 'manual',
+      seo_indexable: 1,
+    })
+  })
+
   it('fetches and renders only content whose tree SHA changed', async () => {
     insertRepo(sqlite, 'old-tree')
     insertSkill(sqlite, 'one', 'one-old')

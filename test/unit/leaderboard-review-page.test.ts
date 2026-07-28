@@ -16,6 +16,11 @@ const reviewJobSource = readFileSync(
   resolve(root, 'server/jobs/registry/review-repo-sync.ts'),
   'utf8',
 )
+const reviewSyncTaskSource = readFileSync(
+  resolve(root, 'layers/registry/server/tasks/sync-reviewed-skill-repos.ts'),
+  'utf8',
+)
+const schedulePolicy = readFileSync(resolve(root, 'shared/schedule-policy.ts'), 'utf8')
 const nuxtConfig = readFileSync(resolve(root, 'nuxt.config.ts'), 'utf8')
 const wranglerConfig = readFileSync(resolve(root, 'wrangler.jsonc'), 'utf8')
 
@@ -51,5 +56,9 @@ describe('leaderboard repository review page contract', () => {
     expect(nuxtConfig).toContain(`binding: 'REPO_REVIEW_SYNC_QUEUE'`)
     expect(wranglerConfig).toContain('"binding": "REPO_REVIEW_SYNC_QUEUE"')
     expect(wranglerConfig).toContain('"queue": "skilld-repo-review-sync"')
+    expect(reviewSyncTaskSource).toContain(`name: 'sync-reviewed-skill-repos'`)
+    expect(reviewSyncTaskSource).toContain('skill_repo_review_sync_outbox')
+    expect(reviewSyncTaskSource).toContain('createRegistryReviewJobBatch')
+    expect(schedulePolicy).toContain(`taskName: 'sync-reviewed-skill-repos'`)
   })
 })

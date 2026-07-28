@@ -1,6 +1,16 @@
 import type { SkillsLeaderboardDbRow } from '../../utils/skills-leaderboard'
+import { z } from 'zod'
 import { defineApiHandler } from '#shared/server/handler'
-import { SKILLS_LEADERBOARD_SQL } from '../../utils/skills-leaderboard'
+import {
+  SKILLS_LEADERBOARD_COUNT_SQL,
+  SKILLS_LEADERBOARD_PAGE_SQL,
+} from '../../utils/skills-leaderboard'
+
+const query = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+})
+
+const PAGE_SIZE = 50
 
 export interface SkillsLeaderboardItem {
   rank: number
@@ -29,14 +39,27 @@ export interface SkillsLeaderboardResponse {
   eligibility: 'reviewed_individual_generic_skill_repositories'
   featuredSkillRanking: 'installs'
   starsSyncedAt: number | null
+  page: number
+  pageSize: number
+  pageCount: number
+  total: number
 }
 
-export default defineApiHandler<never, SkillsLeaderboardResponse>({
-  handler: async ({ platform }): Promise<SkillsLeaderboardResponse> => {
-    const result = await platform.db
-      .prepare(SKILLS_LEADERBOARD_SQL)
-      .all<SkillsLeaderboardDbRow>()
+export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
+  schema: query,
+  handler: async ({ body, platform }): Promise<SkillsLeaderboardResponse> => {
+    const offset = (body.page - 1) * PAGE_SIZE
+    const [result, countRow] = await Promise.all([
+      platform.db
+        .prepare(SKILLS_LEADERBOARD_PAGE_SQL)
+        .bind(PAGE_SIZE, offset)
+        .all<SkillsLeaderboardDbRow>(),
+      platform.db
+        .prepare(SKILLS_LEADERBOARD_COUNT_SQL)
+        .first<{ total: number }>(),
+    ])
     const rows = result.results ?? []
+    const total = countRow?.total ?? 0
     const starsSyncedAt = rows.reduce<number | null>(
       (latest, row) => row.repo_meta_synced_at == null
         ? latest
@@ -46,7 +69,7 @@ export default defineApiHandler<never, SkillsLeaderboardResponse>({
 
     return {
       items: rows.map((row, index) => ({
-        rank: index + 1,
+        rank: offset + index + 1,
         owner: row.owner,
         repo: row.repo,
         stars: row.stars,
@@ -69,6 +92,10 @@ export default defineApiHandler<never, SkillsLeaderboardResponse>({
       eligibility: 'reviewed_individual_generic_skill_repositories',
       featuredSkillRanking: 'installs',
       starsSyncedAt,
+      page: body.page,
+      pageSize: PAGE_SIZE,
+      pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+      total,
     }
   },
 })

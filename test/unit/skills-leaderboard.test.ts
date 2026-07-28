@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { SKILLS_LEADERBOARD_SQL } from '../../layers/registry/server/utils/skills-leaderboard'
+import {
+  SKILLS_LEADERBOARD_COUNT_SQL,
+  SKILLS_LEADERBOARD_PAGE_SQL,
+  SKILLS_LEADERBOARD_SQL,
+} from '../../layers/registry/server/utils/skills-leaderboard'
 
 interface LeaderboardRow {
   owner: string
@@ -144,6 +148,23 @@ describe('skills leaderboard eligibility', () => {
       'alpha/skills',
       'zeta/skills',
     ])
+  })
+
+  it('paginates repositories without changing their global rank order', () => {
+    for (const [owner, stars] of [['alpha', 40], ['beta', 30], ['gamma', 20], ['zeta', 10]] as const) {
+      insertRepo(owner, 'skills', stars)
+      insertSkill(owner, 'skills', 'one')
+      insertEligibility(owner, 'skills', 'eligible')
+    }
+
+    const rows = sqlite.prepare(SKILLS_LEADERBOARD_PAGE_SQL).all(2, 1) as LeaderboardRow[]
+    const count = sqlite.prepare(SKILLS_LEADERBOARD_COUNT_SQL).get() as { total: number }
+
+    expect(rows.map(row => `${row.owner}/${row.repo}`)).toEqual([
+      'beta/skills',
+      'gamma/skills',
+    ])
+    expect(count.total).toBe(4)
   })
 
   function insertOwner(owner: string, kind: 'user' | 'org') {
