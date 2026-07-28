@@ -242,7 +242,7 @@ describe('buildDailyHealthCheck', () => {
     sqlite.exec(`
       CREATE TABLE skills (owner TEXT, repo TEXT, name TEXT, first_seen_at INTEGER, sync_status TEXT, last_synced_at INTEGER);
       CREATE TABLE repos (owner TEXT, repo TEXT, broken_since INTEGER);
-      CREATE TABLE owners (owner TEXT);
+      CREATE TABLE owners (owner TEXT, kind TEXT);
       CREATE TABLE users (created_at INTEGER);
       CREATE TABLE collections_v2 (deleted_at INTEGER);
       CREATE TABLE user_starred_repos (owner TEXT, repo TEXT);
@@ -294,7 +294,7 @@ describe('buildDailyHealthCheck', () => {
       INSERT INTO skills VALUES ('owner', 'repo', 'skill', ${nowSec - 60}, 'ok', ${nowSec - 60});
       INSERT INTO repos VALUES ('owner', 'repo', NULL);
       INSERT INTO repos VALUES ('deleted-owner', 'deleted-repo', ${nowSec - 60});
-      INSERT INTO owners VALUES ('owner');
+      INSERT INTO owners VALUES ('owner', 'user');
       INSERT INTO users VALUES (${nowSec - 60});
       INSERT INTO collections_v2 VALUES (NULL);
       INSERT INTO user_starred_repos VALUES ('owner', 'repo');
@@ -344,6 +344,12 @@ describe('buildDailyHealthCheck', () => {
       );
       INSERT INTO skill_repo_eligibility VALUES (
         'missing-owner', 'missing-repo', 'eligible', 'Reviewed purpose', 'test',
+        ${nowSec - 901}
+      );
+      INSERT INTO owners VALUES ('missing-owner', 'user');
+      INSERT INTO owners VALUES ('organization', 'org');
+      INSERT INTO skill_repo_eligibility VALUES (
+        'organization', 'missing-repo', 'eligible', 'Reviewed purpose', 'test',
         ${nowSec - 901}
       );
     `)

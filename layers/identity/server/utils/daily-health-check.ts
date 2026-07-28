@@ -605,6 +605,12 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
          FROM skill_repo_eligibility AS review
          WHERE review.status = 'eligible'
            AND review.reviewed_at < ?7
+           AND EXISTS (
+             SELECT 1
+             FROM owners AS owner
+             WHERE owner.owner = review.owner
+               AND owner.kind = 'user'
+           )
            AND NOT EXISTS (
              SELECT 1
              FROM repos AS r

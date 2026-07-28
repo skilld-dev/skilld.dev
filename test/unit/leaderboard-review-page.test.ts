@@ -26,6 +26,8 @@ describe('leaderboard repository review page contract', () => {
     expect(pageSource).toContain('v-else-if="error"')
     expect(pageSource).toContain('No repositories waiting for review')
     expect(pageSource).toContain('Retry queue')
+    expect(pageSource).toContain('Individual GitHub user')
+    expect(pageSource).toContain('reusable, generic agent skills')
   })
 
   it('uses a labeled validated form with visible mutation feedback', () => {

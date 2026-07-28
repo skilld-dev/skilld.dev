@@ -1,6 +1,14 @@
--- A deliberately small hand-reviewed cohort gives the leaderboard a useful
--- starting point. INSERT OR IGNORE preserves any decision already made by an
--- operator before this migration reaches an environment.
+-- A deliberately narrow cohort of individual GitHub creators. Each repository
+-- primarily publishes reusable, generally applicable agent skills.
+UPDATE skill_repo_eligibility
+SET
+  reason = 'Individual creator repository publishing reusable development and product workflow skills.',
+  reviewed_at = unixepoch()
+WHERE owner = 'harlan-zw'
+  AND repo = 'harlan-agent-kit'
+  AND status = 'eligible'
+  AND reviewed_by = 'harlan';
+
 INSERT OR IGNORE INTO skill_repo_eligibility (
   owner,
   repo,
@@ -9,32 +17,17 @@ INSERT OR IGNORE INTO skill_repo_eligibility (
   reviewed_by,
   reviewed_at
 ) VALUES
-  ('anthropics', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('openai', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('mattpocock', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('addyosmani', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('antfu', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('auth0', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('clerk', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('cloudflare', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('coreyhaines31', 'marketingskills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('datadog-labs', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('emilkowalski', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('expo', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('flutter', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('getsentry', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('github', 'awesome-copilot', 'eligible', 'Repository is dedicated to distributing agent skills and plugin resources.', 'harlan', unixepoch()),
-  ('google-labs-code', 'stitch-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('huggingface', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('ibelick', 'ui-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('jeffallan', 'claude-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('jimliu', 'baoyu-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('kepano', 'obsidian-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('langchain-ai', 'langchain-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('launchdarkly', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('trailofbits', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('vercel-labs', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('wordpress', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
-  ('anthropics', 'claude-plugins-official', 'eligible', 'Repository is dedicated to distributing an agent plugin and skill catalog.', 'harlan', unixepoch()),
-  ('anthropics', 'knowledge-work-plugins', 'eligible', 'Repository is dedicated to distributing agent plugins and bundled skills.', 'harlan', unixepoch()),
-  ('harlan-zw', 'harlan-agent-kit', 'eligible', 'Repository is dedicated to distributing agent skills and plugin metadata.', 'harlan', unixepoch());
+  ('obra', 'superpowers', 'eligible', 'Individual creator repository publishing reusable software development workflow skills.', 'harlan', unixepoch()),
+  ('mattpocock', 'skills', 'eligible', 'Individual creator repository publishing reusable software engineering guidance skills.', 'harlan', unixepoch()),
+  ('garrytan', 'gstack', 'eligible', 'Individual creator repository publishing reusable end-to-end software development skills.', 'harlan', unixepoch()),
+  ('addyosmani', 'agent-skills', 'eligible', 'Individual creator repository publishing reusable web engineering and quality skills.', 'harlan', unixepoch()),
+  ('pbakaus', 'impeccable', 'eligible', 'Individual creator repository publishing reusable frontend design and review skills.', 'harlan', unixepoch()),
+  ('coreyhaines31', 'marketingskills', 'eligible', 'Individual creator repository publishing reusable marketing strategy and execution skills.', 'harlan', unixepoch()),
+  ('wshobson', 'agents', 'eligible', 'Individual creator repository publishing a broad collection of reusable engineering skills.', 'harlan', unixepoch()),
+  ('jimliu', 'baoyu-skills', 'eligible', 'Individual creator repository publishing reusable writing, media, and publishing skills.', 'harlan', unixepoch()),
+  ('emilkowalski', 'skills', 'eligible', 'Individual creator repository publishing reusable interface and interaction design skills.', 'harlan', unixepoch()),
+  ('jeffallan', 'claude-skills', 'eligible', 'Individual creator repository publishing a broad collection of reusable software engineering skills.', 'harlan', unixepoch()),
+  ('ibelick', 'ui-skills', 'eligible', 'Individual creator repository publishing reusable interface design and review skills.', 'harlan', unixepoch()),
+  ('antfu', 'skills', 'eligible', 'Individual creator repository publishing reusable web development workflow skills.', 'harlan', unixepoch()),
+  ('intellectronica', 'agent-skills', 'eligible', 'Individual creator repository publishing reusable research and software workflow skills.', 'harlan', unixepoch()),
+  ('harlan-zw', 'harlan-agent-kit', 'eligible', 'Individual creator repository publishing reusable development and product workflow skills.', 'harlan', unixepoch());

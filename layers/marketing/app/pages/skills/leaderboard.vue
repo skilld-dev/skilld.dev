@@ -3,19 +3,19 @@ import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skil
 
 useSeoMeta({
   title: 'Agent skill repository leaderboard',
-  description: 'Dedicated agent skill and plugin repositories, reviewed for eligibility and ranked by current GitHub stars.',
+  description: 'Reusable skill repositories from individual GitHub creators, reviewed for eligibility and ranked by current GitHub stars.',
 })
 
 defineOgImage('Page.takumi', {
   title: 'Skill repo leaderboard',
-  description: 'Reviewed skill and plugin repositories, ranked by GitHub stars.',
+  description: 'Individual creators publishing reusable agent skills, ranked by GitHub stars.',
 }, { alt: 'Agent skill repository leaderboard on skilld' })
 
 const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch<SkillsLeaderboardResponse>(
   '/api/skills/leaderboard',
   {
-    key: 'skills-leaderboard-v1',
+    key: 'skills-leaderboard-v2',
     lazy: !isBot.value,
   },
 )
@@ -41,7 +41,7 @@ function formatDate(timestamp: number | null): string | null {
     <EditorialMasthead
       label="Leaderboard"
       title="Skill repos, ranked."
-      description="Dedicated agent skill and plugin repositories, ranked by GitHub stars. Every repository is reviewed before it can appear."
+      description="Repositories from individual creators publishing reusable agent skills, ranked by GitHub stars. Every repository is reviewed before it can appear."
       palette="stone"
       geometry="wash"
       heading-id="leaderboard-heading"
@@ -52,10 +52,10 @@ function formatDate(timestamp: number | null): string | null {
             Admission rule
           </p>
           <p class="mt-3 text-base font-medium text-default">
-            Skills are the product.
+            Individual creators. Generic skills.
           </p>
           <p class="mt-2 max-w-sm text-base leading-relaxed text-muted">
-            Multi-skill repositories and plugin bundles qualify. General products with incidental skills do not.
+            Organization-owned repositories, vendor catalogs, project rules, prompts, bookmarks, and narrow app packs do not qualify.
           </p>
         </div>
       </template>
@@ -189,7 +189,7 @@ function formatDate(timestamp: number | null): string | null {
                   <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span class="inline-flex items-center gap-1 font-mono text-xs text-muted">
                       <UIcon name="i-lucide-badge-check" class="size-3.5" aria-hidden="true" />
-                      Purpose reviewed
+                      Individual creator · Purpose reviewed
                     </span>
                     <time
                       v-if="item.pushedAt"
@@ -202,12 +202,25 @@ function formatDate(timestamp: number | null): string | null {
                   <p class="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
                     {{ item.eligibilityReason }}
                   </p>
+                  <div class="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span class="data-label">Most popular skill</span>
+                    <NuxtLink
+                      :to="item.topSkill.registryUrl"
+                      class="font-mono text-sm font-medium text-default underline decoration-default underline-offset-4 transition-colors hover:text-primary"
+                    >
+                      {{ item.topSkill.displayName }}
+                    </NuxtLink>
+                    <span class="font-mono text-xs tabular-nums text-muted">
+                      <span class="sr-only">Featured skill installs: </span>
+                      {{ item.topSkill.installs.toLocaleString() }} installs
+                    </span>
+                  </div>
                 </div>
               </div>
 
               <div class="leaderboard-row__metrics">
                 <span class="leaderboard-row__metric">
-                  <span class="sr-only">Skills: </span>
+                  <span class="sr-only">Skill count: </span>
                   <span class="leaderboard-row__mobile-label" aria-hidden="true">Skills</span>
                   <span class="tabular-nums">{{ item.skillCount.toLocaleString() }}</span>
                 </span>
@@ -251,10 +264,10 @@ function formatDate(timestamp: number | null): string | null {
           </div>
           <div class="max-w-2xl space-y-4 text-base leading-relaxed text-muted">
             <p>
-              A reviewer must confirm that distributing agent skills or a plugin bundle is the repository's primary purpose. Documentation, assets, scripts, and tests are allowed.
+              A reviewer must confirm that the owner is an individual GitHub user and the repository primarily publishes reusable, generic agent skills. Documentation, assets, scripts, and tests are allowed.
             </p>
             <p>
-              General applications and libraries are excluded, even when they contain a <code class="font-mono text-sm text-default">SKILL.md</code>. Eligible repositories are ranked by their latest synced GitHub star count; ties sort by repository name.
+              Organizations, vendor catalogs, app-specific packs, prompts, bookmarks, and general applications are excluded. Repositories rank by current GitHub stars. Each row features its most installed skill; ties sort by skill name.
             </p>
           </div>
         </div>

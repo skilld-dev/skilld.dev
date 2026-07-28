@@ -9,6 +9,9 @@ interface LeaderboardRow {
   repo: string
   stars: number
   skill_count: number
+  top_skill_name: string
+  top_skill_display_name: string
+  top_skill_installs: number
 }
 
 describe('skills leaderboard eligibility', () => {
@@ -26,13 +29,21 @@ describe('skills leaderboard eligibility', () => {
         broken_since INTEGER,
         PRIMARY KEY (owner, repo)
       );
+      CREATE TABLE owners (
+        owner TEXT PRIMARY KEY,
+        kind TEXT
+      );
       CREATE TABLE skills (
         owner TEXT NOT NULL,
         repo TEXT NOT NULL,
         name TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        installs INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (owner, repo, name)
       );
     `)
+    insertOwner('harlan-zw', 'user')
     sqlite.exec(readFileSync(
       resolve(process.cwd(), 'migrations/0080_skill_repo_eligibility.sql'),
       'utf8',
@@ -50,28 +61,32 @@ describe('skills leaderboard eligibility', () => {
       owner: 'harlan-zw',
       repo: 'harlan-agent-kit',
       status: 'eligible',
-      reason: 'Repository is dedicated to distributing agent skills and plugin metadata.',
+      reason: 'Individual creator repository publishing reusable development and product workflow skills.',
       reviewed_by: 'harlan',
     })
   })
 
-  it('returns only reviewed, active repositories containing skills', () => {
+  it('returns only reviewed, active repositories owned by individual users', () => {
     insertRepo('harlan-zw', 'harlan-agent-kit', 3)
-    insertSkill('harlan-zw', 'harlan-agent-kit', 'nuxt-frontend-design')
+    insertSkill('harlan-zw', 'harlan-agent-kit', 'nuxt-frontend-design', 120)
 
     insertRepo('popular', 'unreviewed-skills', 100_000)
     insertSkill('popular', 'unreviewed-skills', 'one')
 
-    insertRepo('acme', 'rejected-skills', 50_000)
+    insertRepo('acme', 'rejected-skills', 50_000, null, 'org')
     insertSkill('acme', 'rejected-skills', 'one')
     insertEligibility('acme', 'rejected-skills', 'rejected')
 
-    insertRepo('acme', 'broken-skills', 40_000, 1)
+    insertRepo('acme', 'broken-skills', 40_000, 1, 'org')
     insertSkill('acme', 'broken-skills', 'one')
     insertEligibility('acme', 'broken-skills', 'eligible')
 
-    insertRepo('acme', 'empty-skills', 30_000)
+    insertRepo('acme', 'empty-skills', 30_000, null, 'org')
     insertEligibility('acme', 'empty-skills', 'eligible')
+
+    insertRepo('organization', 'generic-skills', 20_000, null, 'org')
+    insertSkill('organization', 'generic-skills', 'one')
+    insertEligibility('organization', 'generic-skills', 'eligible')
 
     expect(sqlite.prepare(SKILLS_LEADERBOARD_SQL).all()).toEqual([
       {
@@ -81,10 +96,33 @@ describe('skills leaderboard eligibility', () => {
         skill_count: 1,
         pushed_at: null,
         repo_meta_synced_at: null,
-        eligibility_reason: 'Repository is dedicated to distributing agent skills and plugin metadata.',
+        eligibility_reason: 'Individual creator repository publishing reusable development and product workflow skills.',
         reviewed_at: expect.any(Number),
+        top_skill_name: 'nuxt-frontend-design',
+        top_skill_display_name: 'Nuxt Frontend Design',
+        top_skill_installs: 120,
       },
     ])
+  })
+
+  it('surfaces the most installed skill from each repository', () => {
+    insertRepo('creator', 'generic-skills', 100)
+    insertSkill('creator', 'generic-skills', 'less-popular', 20)
+    insertSkill('creator', 'generic-skills', 'most-popular', 500)
+    insertSkill('creator', 'generic-skills', 'also-less-popular', 100)
+    insertEligibility('creator', 'generic-skills', 'eligible')
+
+    const rows = sqlite.prepare(SKILLS_LEADERBOARD_SQL).all() as LeaderboardRow[]
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toEqual(expect.objectContaining({
+      owner: 'creator',
+      repo: 'generic-skills',
+      skill_count: 3,
+      top_skill_name: 'most-popular',
+      top_skill_display_name: 'Most Popular',
+      top_skill_installs: 500,
+    }))
   })
 
   it('ranks by stars with a stable lexical tie-break', () => {
@@ -108,18 +146,41 @@ describe('skills leaderboard eligibility', () => {
     ])
   })
 
-  function insertRepo(owner: string, repo: string, stars: number, brokenSince: number | null = null) {
+  function insertOwner(owner: string, kind: 'user' | 'org') {
+    sqlite.prepare(`
+      INSERT OR IGNORE INTO owners (owner, kind)
+      VALUES (?, ?)
+    `).run(owner, kind)
+  }
+
+  function insertRepo(
+    owner: string,
+    repo: string,
+    stars: number,
+    brokenSince: number | null = null,
+    ownerKind: 'user' | 'org' = 'user',
+  ) {
+    insertOwner(owner, ownerKind)
     sqlite.prepare(`
       INSERT INTO repos (owner, repo, stars, broken_since)
       VALUES (?, ?, ?, ?)
     `).run(owner, repo, stars, brokenSince)
   }
 
-  function insertSkill(owner: string, repo: string, name: string) {
+  function insertSkill(owner: string, repo: string, name: string, installs = 0) {
     sqlite.prepare(`
-      INSERT INTO skills (owner, repo, name)
-      VALUES (?, ?, ?)
-    `).run(owner, repo, name)
+      INSERT INTO skills (owner, repo, name, display_name, slug, installs)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      owner,
+      repo,
+      name,
+      name.split('-').map(segment =>
+        segment.charAt(0).toUpperCase() + segment.slice(1),
+      ).join(' '),
+      name,
+      installs,
+    )
   }
 
   function insertEligibility(

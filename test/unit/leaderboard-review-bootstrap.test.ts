@@ -4,7 +4,7 @@ import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
 describe('leaderboard review bootstrap', () => {
-  it('starts with a substantial hand-reviewed repository cohort', () => {
+  it('starts with a narrow cohort of individual creators publishing generic skills', () => {
     const sqlite = new Database(':memory:')
     sqlite.exec(readFileSync(
       resolve(process.cwd(), 'migrations/0080_skill_repo_eligibility.sql'),
@@ -27,15 +27,17 @@ describe('leaderboard review bootstrap', () => {
       reviewed_by: string
     }>
 
-    expect(rows.length).toBeGreaterThanOrEqual(25)
+    expect(rows.length).toBeGreaterThanOrEqual(10)
     expect(rows.every(row =>
       row.status === 'eligible'
       && row.reason.trim().length >= 20
       && row.reviewed_by.trim().length > 0,
     )).toBe(true)
-    expect(rows).toContainEqual(expect.objectContaining({ owner: 'anthropics', repo: 'skills' }))
-    expect(rows).toContainEqual(expect.objectContaining({ owner: 'openai', repo: 'skills' }))
     expect(rows).toContainEqual(expect.objectContaining({ owner: 'mattpocock', repo: 'skills' }))
+    expect(rows).toContainEqual(expect.objectContaining({ owner: 'obra', repo: 'superpowers' }))
+    expect(rows).not.toContainEqual(expect.objectContaining({ owner: 'anthropics' }))
+    expect(rows).not.toContainEqual(expect.objectContaining({ owner: 'openai' }))
+    expect(rows).not.toContainEqual(expect.objectContaining({ owner: 'cloudflare' }))
 
     sqlite.close()
   })

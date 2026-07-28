@@ -28,6 +28,13 @@ export default defineApiHandler({
       reviewedAt,
     })
 
+    if (result._tag === 'owner_not_individual') {
+      throw createError({
+        statusCode: 422,
+        statusMessage: 'Leaderboard repositories must belong to an individual GitHub user.',
+      })
+    }
+
     if (result._tag !== 'eligible_sync_required') {
       return {
         result: result._tag,

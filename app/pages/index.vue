@@ -242,8 +242,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             <p class="section-label mb-5">
               Reusable instructions for coding agents
             </p>
-            <h1 id="hero-heading" class="home-display home-display--split max-w-[11ch] font-semibold tracking-[-0.045em] text-balance">
-              Find the right skill for the job.
+            <h1 id="hero-heading" class="home-display home-display--split max-w-[13ch] font-semibold tracking-[-0.045em] text-balance">
+              Curated agent skills by humans.
             </h1>
             <p class="mt-6 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
               Search the work you need done. Open the SKILL.md, see who wrote it, then install it.

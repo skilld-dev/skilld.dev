@@ -1,6 +1,6 @@
 -- A leaderboard entry is an editorial decision, not a name or skill-count
 -- heuristic. Repositories remain excluded until a reviewer explicitly records
--- that their primary purpose is distributing agent skills or plugin bundles.
+-- that an individual creator primarily publishes reusable, generic skills.
 CREATE TABLE IF NOT EXISTS skill_repo_eligibility (
   owner TEXT NOT NULL,
   repo TEXT NOT NULL,
@@ -27,6 +27,6 @@ INSERT INTO skill_repo_eligibility (
   'harlan-zw',
   'harlan-agent-kit',
   'eligible',
-  'Repository is dedicated to distributing agent skills and plugin metadata.',
+  'Individual creator repository publishing reusable development and product workflow skills.',
   'harlan'
 );

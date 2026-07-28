@@ -62,6 +62,10 @@ interface VisibilityRow {
   visible: number
 }
 
+interface OwnerKindRow {
+  kind: string | null
+}
+
 export async function listSkillRepoReviewQueue(
   db: D1Database,
   input: {
@@ -80,6 +84,9 @@ export async function listSkillRepoReviewQueue(
           r.pushed_at,
           COUNT(s.name) AS skill_count
         FROM repos AS r
+        JOIN owners AS owner
+          ON owner.owner = r.owner
+         AND owner.kind = 'user'
         JOIN skills AS s
           ON s.owner = r.owner
          AND s.repo = r.repo
@@ -115,6 +122,9 @@ export async function listSkillRepoReviewQueue(
         CASE WHEN EXISTS (
           SELECT 1
           FROM repos AS r
+          JOIN owners AS owner
+            ON owner.owner = r.owner
+           AND owner.kind = 'user'
           JOIN skills AS s
             ON s.owner = r.owner
            AND s.repo = r.repo
@@ -139,6 +149,12 @@ export async function listSkillRepoReviewQueue(
       FROM skill_repo_eligibility AS review
       WHERE review.status = 'eligible'
         AND review.reviewed_at < ?
+        AND EXISTS (
+          SELECT 1
+          FROM owners AS owner
+          WHERE owner.owner = review.owner
+            AND owner.kind = 'user'
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM repos AS r
@@ -182,6 +198,7 @@ export async function listSkillRepoReviewQueue(
 export type RecordSkillRepoReviewResult
   = | { _tag: 'eligible_visible' }
     | { _tag: 'eligible_sync_required' }
+    | { _tag: 'owner_not_individual' }
     | { _tag: 'rejected' }
 
 export async function recordSkillRepoReview(
@@ -195,6 +212,17 @@ export async function recordSkillRepoReview(
     reviewedAt: number
   },
 ): Promise<RecordSkillRepoReviewResult> {
+  if (input.status === 'eligible') {
+    const owner = await db.prepare(`
+      SELECT kind
+      FROM owners
+      WHERE owner = ?
+    `).bind(input.owner).first<OwnerKindRow>()
+
+    if (owner?.kind !== 'user')
+      return { _tag: 'owner_not_individual' }
+  }
+
   await db.prepare(`
     INSERT INTO skill_repo_eligibility (
       owner, repo, status, reason, reviewed_by, reviewed_at
@@ -220,6 +248,9 @@ export async function recordSkillRepoReview(
     SELECT CASE WHEN EXISTS (
       SELECT 1
       FROM repos AS r
+      JOIN owners AS owner
+        ON owner.owner = r.owner
+       AND owner.kind = 'user'
       JOIN skills AS s
         ON s.owner = r.owner
        AND s.repo = r.repo

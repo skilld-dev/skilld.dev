@@ -8,6 +8,12 @@ export interface SkillsLeaderboardItem {
   repo: string
   stars: number
   skillCount: number
+  topSkill: {
+    name: string
+    displayName: string
+    installs: number
+    registryUrl: string
+  }
   pushedAt: number | null
   starsSyncedAt: number | null
   eligibilityReason: string
@@ -20,7 +26,8 @@ export interface SkillsLeaderboardItem {
 export interface SkillsLeaderboardResponse {
   items: SkillsLeaderboardItem[]
   ranking: 'github_stars'
-  eligibility: 'reviewed_skills_only_repositories'
+  eligibility: 'reviewed_individual_generic_skill_repositories'
+  featuredSkillRanking: 'installs'
   starsSyncedAt: number | null
 }
 
@@ -44,6 +51,12 @@ export default defineApiHandler<never, SkillsLeaderboardResponse>({
         repo: row.repo,
         stars: row.stars,
         skillCount: row.skill_count,
+        topSkill: {
+          name: row.top_skill_name,
+          displayName: row.top_skill_display_name,
+          installs: row.top_skill_installs,
+          registryUrl: `/gh/${row.owner}/${row.repo}/${encodeURIComponent(row.top_skill_name)}`,
+        },
         pushedAt: row.pushed_at,
         starsSyncedAt: row.repo_meta_synced_at,
         eligibilityReason: row.eligibility_reason,
@@ -53,7 +66,8 @@ export default defineApiHandler<never, SkillsLeaderboardResponse>({
         registryUrl: `/gh/${row.owner}/${row.repo}`,
       })),
       ranking: 'github_stars',
-      eligibility: 'reviewed_skills_only_repositories',
+      eligibility: 'reviewed_individual_generic_skill_repositories',
+      featuredSkillRanking: 'installs',
       starsSyncedAt,
     }
   },

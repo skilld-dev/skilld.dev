@@ -3,6 +3,9 @@ export interface SkillsLeaderboardDbRow {
   repo: string
   stars: number
   skill_count: number
+  top_skill_name: string
+  top_skill_display_name: string
+  top_skill_installs: number
   pushed_at: number | null
   repo_meta_synced_at: number | null
   eligibility_reason: string
@@ -10,35 +13,65 @@ export interface SkillsLeaderboardDbRow {
 }
 
 export const SKILLS_LEADERBOARD_SQL = `
+  WITH eligible_repositories AS (
+    SELECT
+      r.owner,
+      r.repo,
+      r.stars,
+      r.pushed_at,
+      r.repo_meta_synced_at,
+      eligibility.reason AS eligibility_reason,
+      eligibility.reviewed_at
+    FROM skill_repo_eligibility AS eligibility
+    JOIN repos AS r
+      ON r.owner = eligibility.owner
+     AND r.repo = eligibility.repo
+    JOIN owners AS owner
+      ON owner.owner = r.owner
+     AND owner.kind = 'user'
+    WHERE eligibility.status = 'eligible'
+      AND r.broken_since IS NULL
+  ),
+  ranked_skills AS (
+    SELECT
+      s.owner,
+      s.repo,
+      s.name,
+      s.display_name,
+      s.installs,
+      COUNT(*) OVER (
+        PARTITION BY s.owner, s.repo
+      ) AS skill_count,
+      ROW_NUMBER() OVER (
+        PARTITION BY s.owner, s.repo
+        ORDER BY
+          s.installs DESC,
+          s.name COLLATE NOCASE ASC
+      ) AS popularity_rank
+    FROM skills AS s
+    JOIN eligible_repositories AS repository
+      ON repository.owner = s.owner
+     AND repository.repo = s.repo
+  )
   SELECT
-    r.owner,
-    r.repo,
-    r.stars,
-    COUNT(s.name) AS skill_count,
-    r.pushed_at,
-    r.repo_meta_synced_at,
-    eligibility.reason AS eligibility_reason,
-    eligibility.reviewed_at
-  FROM skill_repo_eligibility AS eligibility
-  JOIN repos AS r
-    ON r.owner = eligibility.owner
-   AND r.repo = eligibility.repo
-  JOIN skills AS s
-    ON s.owner = r.owner
-   AND s.repo = r.repo
-  WHERE eligibility.status = 'eligible'
-    AND r.broken_since IS NULL
-  GROUP BY
-    r.owner,
-    r.repo,
-    r.stars,
-    r.pushed_at,
-    r.repo_meta_synced_at,
-    eligibility.reason,
-    eligibility.reviewed_at
-  HAVING COUNT(s.name) > 0
+    repository.owner,
+    repository.repo,
+    repository.stars,
+    s.skill_count,
+    s.name AS top_skill_name,
+    s.display_name AS top_skill_display_name,
+    s.installs AS top_skill_installs,
+    repository.pushed_at,
+    repository.repo_meta_synced_at,
+    repository.eligibility_reason,
+    repository.reviewed_at
+  FROM eligible_repositories AS repository
+  JOIN ranked_skills AS s
+    ON s.owner = repository.owner
+   AND s.repo = repository.repo
+   AND s.popularity_rank = 1
   ORDER BY
-    r.stars DESC,
-    r.owner COLLATE NOCASE ASC,
-    r.repo COLLATE NOCASE ASC
+    repository.stars DESC,
+    repository.owner COLLATE NOCASE ASC,
+    repository.repo COLLATE NOCASE ASC
 `

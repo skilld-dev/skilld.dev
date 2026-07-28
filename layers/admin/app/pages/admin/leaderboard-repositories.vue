@@ -69,7 +69,7 @@ watch(candidates, (rows) => {
     const key = repositoryKey(candidate)
     formState[key] ??= {
       status: 'eligible',
-      reason: 'Repository primarily distributes agent skills.',
+      reason: 'Individual creator repository publishing reusable, generic agent skills.',
     }
   }
 }, { immediate: true })
@@ -141,7 +141,7 @@ async function retryQueue(decision: ReviewDecision) {
           Repository reviews
         </h1>
         <p class="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
-          Admit repositories whose primary purpose is distributing agent skills or plugin bundles.
+          Individual GitHub user repositories only. Their primary purpose must be publishing reusable, generic agent skills.
         </p>
       </div>
       <UButton
@@ -154,6 +154,14 @@ async function retryQueue(decision: ReviewDecision) {
         @click="refresh()"
       />
     </header>
+
+    <UAlert
+      color="neutral"
+      variant="subtle"
+      icon="i-lucide-list-checks"
+      title="Admission checklist"
+      description="Confirm an individual GitHub user owns it, generic reusable skills are the primary content, and it is not a vendor catalog, project rule set, prompt collection, bookmark list, or narrow app pack."
+    />
 
     <UAlert
       v-if="stuckApprovals.length"

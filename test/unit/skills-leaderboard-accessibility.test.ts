@@ -25,7 +25,8 @@ describe('skills leaderboard accessibility contract', () => {
   })
 
   it('keeps metric labels in the accessibility tree at every breakpoint', () => {
-    expect(leaderboardSource).toContain('<span class="sr-only">Skills: </span>')
+    expect(leaderboardSource).toContain('<span class="sr-only">Featured skill installs: </span>')
+    expect(leaderboardSource).toContain('<span class="sr-only">Skill count: </span>')
     expect(leaderboardSource).toContain('<span class="sr-only">GitHub stars: </span>')
     expect(leaderboardSource).toContain(
       '<span class="leaderboard-row__mobile-label" aria-hidden="true">Skills</span>',
@@ -33,6 +34,12 @@ describe('skills leaderboard accessibility contract', () => {
     expect(leaderboardSource).toContain(
       '<span class="leaderboard-row__mobile-label" aria-hidden="true">Stars</span>',
     )
+  })
+
+  it('features the most popular skill within each repository row', () => {
+    expect(leaderboardSource).toContain('item.topSkill.displayName')
+    expect(leaderboardSource).toContain('item.topSkill.registryUrl')
+    expect(leaderboardSource).toContain('Most popular skill')
   })
 
   it('shows the repository owner avatar without repeating adjacent link text', () => {

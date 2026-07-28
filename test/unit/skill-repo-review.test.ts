@@ -23,6 +23,10 @@ describe('skill repository review workflow', () => {
         broken_since INTEGER,
         PRIMARY KEY (owner, repo)
       );
+      CREATE TABLE owners (
+        owner TEXT PRIMARY KEY,
+        kind TEXT
+      );
       CREATE TABLE skills (
         owner TEXT NOT NULL,
         repo TEXT NOT NULL,
@@ -30,6 +34,7 @@ describe('skill repository review workflow', () => {
         PRIMARY KEY (owner, repo, name)
       );
     `)
+    insertOwner('harlan-zw', 'user')
     sqlite.exec(readFileSync(
       resolve(process.cwd(), 'migrations/0080_skill_repo_eligibility.sql'),
       'utf8',
@@ -46,6 +51,10 @@ describe('skill repository review workflow', () => {
 
     insertRepo('single', 'skill', 500)
     insertSkill('single', 'skill', 'only')
+
+    insertRepo('organization', 'skills', 1_000, null, 'org')
+    insertSkill('organization', 'skills', 'one')
+    insertSkill('organization', 'skills', 'two')
 
     insertRepo('reviewed', 'skills', 90)
     insertSkill('reviewed', 'skills', 'one')
@@ -106,6 +115,8 @@ describe('skill repository review workflow', () => {
   })
 
   it('requests priority sync for an eligible repository without active skills', async () => {
+    insertOwner('new-owner', 'user')
+
     await expect(recordSkillRepoReview(db, {
       owner: 'new-owner',
       repo: 'new-skills',
@@ -114,6 +125,36 @@ describe('skill repository review workflow', () => {
       reviewedBy: 'reviewer@example.com',
       reviewedAt: 1_000,
     })).resolves.toEqual({ _tag: 'eligible_sync_required' })
+  })
+
+  it('refuses to approve organization-owned repositories', async () => {
+    insertOwner('organization', 'org')
+
+    await expect(recordSkillRepoReview(db, {
+      owner: 'organization',
+      repo: 'skills',
+      status: 'eligible',
+      reason: 'Repository distributes reusable generic agent skills.',
+      reviewedBy: 'reviewer@example.com',
+      reviewedAt: 1_000,
+    })).resolves.toEqual({ _tag: 'owner_not_individual' })
+
+    expect(sqlite.prepare(`
+      SELECT 1
+      FROM skill_repo_eligibility
+      WHERE owner = 'organization' AND repo = 'skills'
+    `).get()).toBeUndefined()
+  })
+
+  it('refuses to approve repositories whose owner identity is unknown', async () => {
+    await expect(recordSkillRepoReview(db, {
+      owner: 'unknown',
+      repo: 'skills',
+      status: 'eligible',
+      reason: 'Repository distributes reusable generic agent skills.',
+      reviewedBy: 'reviewer@example.com',
+      reviewedAt: 1_000,
+    })).resolves.toEqual({ _tag: 'owner_not_individual' })
   })
 
   it('records a rejection without requesting sync', async () => {
@@ -159,11 +200,25 @@ describe('skill repository review workflow', () => {
     ])
   })
 
-  function insertRepo(owner: string, repo: string, stars: number, brokenSince: number | null = null) {
+  function insertRepo(
+    owner: string,
+    repo: string,
+    stars: number,
+    brokenSince: number | null = null,
+    ownerKind: 'user' | 'org' = 'user',
+  ) {
+    insertOwner(owner, ownerKind)
     sqlite.prepare(`
       INSERT INTO repos (owner, repo, stars, broken_since)
       VALUES (?, ?, ?, ?)
     `).run(owner, repo, stars, brokenSince)
+  }
+
+  function insertOwner(owner: string, kind: 'user' | 'org') {
+    sqlite.prepare(`
+      INSERT OR REPLACE INTO owners (owner, kind)
+      VALUES (?, ?)
+    `).run(owner, kind)
   }
 
   function insertSkill(owner: string, repo: string, name: string) {
@@ -179,6 +234,7 @@ describe('skill repository review workflow', () => {
     status: 'eligible' | 'rejected',
     reviewedAt: number,
   ) {
+    insertOwner(owner, 'user')
     sqlite.prepare(`
       INSERT INTO skill_repo_eligibility (
         owner, repo, status, reason, reviewed_by, reviewed_at
