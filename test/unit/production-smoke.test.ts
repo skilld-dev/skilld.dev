@@ -13,6 +13,7 @@ describe('production smoke contract', () => {
       { path: '/skills', status: 200 },
       { path: '/collections', status: 200 },
       { path: '/guides', status: 200 },
+      { path: '/skills/leaderboard', status: 200 },
       { path: '/skills/not-a-real-outcome', status: 404 },
       { path: '/collections/_CollectionAvatar', status: 404 },
       { path: '/skills/tag/plan', status: 301, location: '/skills/plan' },
@@ -48,13 +49,23 @@ describe('production smoke contract', () => {
       const url = new URL(String(input))
       const count = (attempts.get(url.pathname) ?? 0) + 1
       attempts.set(url.pathname, count)
+      if (url.pathname === '/_nuxt/v2/app.js')
+        return new Response('', { status: 200 })
       const expectation = PRODUCTION_SMOKE_EXPECTATIONS.find(item => item.path === url.pathname)!
       if (url.pathname === '/skills' && count === 1)
         return new Response('', { status: 503 })
-      return new Response('', {
-        status: expectation.status,
-        headers: expectation.location ? { location: expectation.location } : undefined,
-      })
+      return new Response(
+        url.pathname === '/skills/leaderboard'
+          ? '<script src="/_nuxt/v2/app.js"></script>'
+          : '',
+        {
+          status: expectation.status,
+          headers: {
+            ...(expectation.location ? { location: expectation.location } : {}),
+            ...(url.pathname === '/skills/leaderboard' ? { 'content-type': 'text/html' } : {}),
+          },
+        },
+      )
     })
 
     const result = await runProductionSmoke({
@@ -87,6 +98,43 @@ describe('production smoke contract', () => {
           reason: 'network_error',
           expected: 'response',
           actual: 'offline',
+        },
+      }],
+    })
+  })
+
+  it('fails when the leaderboard references an unavailable Nuxt asset', async () => {
+    const fetch: SmokeFetch = vi.fn(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/skills/leaderboard') {
+        return new Response(
+          '<html><head><link rel="modulepreload" href="/_nuxt/v2/missing.js"></head></html>',
+          {
+            status: 200,
+            headers: { 'content-type': 'text/html' },
+          },
+        )
+      }
+      return new Response('', { status: 404 })
+    })
+
+    const result = await runProductionSmoke({
+      baseUrl: 'https://skilld.dev',
+      attempts: 1,
+      fetch,
+      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+    })
+
+    expect(result).toEqual({
+      _tag: 'failed',
+      failures: [{
+        path: '/_nuxt/v2/missing.js',
+        attempts: 1,
+        result: {
+          _tag: 'failed',
+          reason: 'status_mismatch',
+          expected: '200',
+          actual: '404',
         },
       }],
     })

@@ -13,7 +13,7 @@ export type SmokeEvaluation
   = | { _tag: 'passed' }
     | {
       _tag: 'failed'
-      reason: 'status_mismatch' | 'location_mismatch' | 'network_error'
+      reason: 'status_mismatch' | 'location_mismatch' | 'network_error' | 'asset_manifest_empty'
       expected: string
       actual: string
     }
@@ -48,6 +48,7 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   { path: '/skills', status: 200 },
   { path: '/collections', status: 200 },
   { path: '/guides', status: 200 },
+  { path: '/skills/leaderboard', status: 200 },
   { path: '/skills/not-a-real-outcome', status: 404 },
   { path: '/collections/_CollectionAvatar', status: 404 },
   { path: '/skills/tag/plan', status: 301, location: '/skills/plan' },
@@ -89,20 +90,22 @@ async function observe(
   fetch: SmokeFetch,
   baseUrl: string,
   path: string,
-): Promise<SmokeObservation | Extract<SmokeEvaluation, { _tag: 'failed' }>> {
+): Promise<
+  | SmokeObservation & { body: string, contentType: string | null }
+  | Extract<SmokeEvaluation, { _tag: 'failed' }>
+> {
   return fetch(new URL(path, baseUrl).toString(), {
     redirect: 'manual',
     headers: {
       'cache-control': 'no-cache',
       'user-agent': 'skilld-production-smoke/1',
     },
-  }).then(async (response) => {
-    await response.arrayBuffer()
-    return {
-      status: response.status,
-      location: response.headers.get('location'),
-    }
-  }).catch((error: unknown) => ({
+  }).then(async response => ({
+    status: response.status,
+    location: response.headers.get('location'),
+    contentType: response.headers.get('content-type'),
+    body: await response.text(),
+  })).catch((error: unknown) => ({
     _tag: 'failed' as const,
     reason: 'network_error' as const,
     expected: 'response',
@@ -110,10 +113,63 @@ async function observe(
   }))
 }
 
+function extractNuxtAssets(html: string): string[] {
+  const assets = new Set<string>()
+  const tags = html.matchAll(/<(?:script|link)\b[^>]*>/gi)
+  for (const match of tags) {
+    const source = match[0].match(/\b(?:src|href)=["']([^"']+)["']/i)?.[1]
+    if (source && /^\/_nuxt\/v2\/[^?#]+\.(?:css|js)$/.test(source))
+      assets.add(source)
+  }
+  return [...assets]
+}
+
+async function checkWithRetries(
+  dependencies: ProductionSmokeDependencies,
+  input: {
+    fetch: SmokeFetch
+    attempts: number
+    retryDelayMs: number
+    wait: (milliseconds: number) => Promise<void>
+    requestPath: string
+    reportPath: string
+  },
+): Promise<
+  | { _tag: 'passed', path: string, attempts: number }
+  | {
+    _tag: 'failed'
+    path: string
+    attempts: number
+    result: Extract<SmokeEvaluation, { _tag: 'failed' }>
+  }
+> {
+  let latestFailure: Extract<SmokeEvaluation, { _tag: 'failed' }> | null = null
+  for (let attempt = 1; attempt <= input.attempts; attempt++) {
+    const observation = await observe(input.fetch, dependencies.baseUrl, input.requestPath)
+    const evaluation = '_tag' in observation
+      ? observation
+      : evaluateSmokeObservation(
+          { path: input.reportPath, status: 200 },
+          observation,
+        )
+    if (evaluation._tag === 'passed')
+      return { _tag: 'passed', path: input.reportPath, attempts: attempt }
+    latestFailure = evaluation
+    if (attempt < input.attempts)
+      await input.wait(input.retryDelayMs)
+  }
+  return {
+    _tag: 'failed',
+    path: input.reportPath,
+    attempts: input.attempts,
+    result: latestFailure!,
+  }
+}
+
 export async function runProductionSmoke(
   dependencies: ProductionSmokeDependencies,
 ): Promise<ProductionSmokeResult> {
-  const attempts = Math.max(1, Math.floor(dependencies.attempts ?? 6))
+  const attempts = Math.max(1, Math.floor(dependencies.attempts ?? 12))
   const retryDelayMs = Math.max(0, Math.floor(dependencies.retryDelayMs ?? 5_000))
   const expectations = dependencies.expectations ?? PRODUCTION_SMOKE_EXPECTATIONS
   const fetch = dependencies.fetch ?? globalThis.fetch
@@ -126,8 +182,17 @@ export async function runProductionSmoke(
       const evaluation = '_tag' in observation
         ? observation
         : evaluateSmokeObservation(expectation, observation)
-      if (evaluation._tag === 'passed')
-        return { _tag: 'passed' as const, path: expectation.path, attempts: attempt }
+      if (evaluation._tag === 'passed') {
+        return {
+          _tag: 'passed' as const,
+          path: expectation.path,
+          attempts: attempt,
+          assets: expectation.path === '/skills/leaderboard'
+            && observation.contentType?.includes('text/html')
+            ? extractNuxtAssets(observation.body)
+            : [],
+        }
+      }
       latestFailure = evaluation
       if (attempt < attempts)
         await wait(retryDelayMs)
@@ -151,6 +216,70 @@ export async function runProductionSmoke(
       })),
     }
   }
+
+  const assets = [...new Set(results.flatMap(result =>
+    result._tag === 'passed' ? result.assets : [],
+  ))]
+  if (expectations.some(expectation => expectation.path === '/skills/leaderboard')
+    && assets.length === 0) {
+    return {
+      _tag: 'failed',
+      failures: [{
+        path: '/skills/leaderboard',
+        attempts: 1,
+        result: {
+          _tag: 'failed',
+          reason: 'asset_manifest_empty',
+          expected: 'Nuxt assets',
+          actual: 'none',
+        },
+      }],
+    }
+  }
+
+  if (assets.length > 0) {
+    const readiness = await checkWithRetries(dependencies, {
+      fetch,
+      attempts,
+      retryDelayMs,
+      wait,
+      requestPath: `${assets[0]}?production-smoke=${Date.now()}`,
+      reportPath: assets[0]!,
+    })
+    if (readiness._tag === 'failed') {
+      return {
+        _tag: 'failed',
+        failures: [{
+          path: readiness.path,
+          attempts: readiness.attempts,
+          result: readiness.result,
+        }],
+      }
+    }
+
+    const assetResults = await Promise.all(assets.map(requestPath =>
+      checkWithRetries(dependencies, {
+        fetch,
+        attempts,
+        retryDelayMs,
+        wait,
+        requestPath,
+        reportPath: requestPath,
+      }),
+    ))
+    const assetFailures = assetResults.filter(result => result._tag === 'failed')
+    if (assetFailures.length) {
+      return {
+        _tag: 'failed',
+        failures: assetFailures.map(failure => ({
+          path: failure.path,
+          attempts: failure.attempts,
+          result: failure.result,
+        })),
+      }
+    }
+  }
+
   return {
     _tag: 'passed',
     checks: results.map(result => ({ path: result.path, attempts: result.attempts })),
