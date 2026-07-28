@@ -63,6 +63,7 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
       discoveryCandidatesExhausted: 0,
       discoveryCandidatesOverdue: 0,
       discoveryClaimsStale: 0,
+      leaderboardApprovalsStuck: 0,
       failedJobDetails: [],
     },
     cost: {
@@ -180,6 +181,20 @@ describe('evaluateDailyHealthStatus', () => {
     })
   })
 
+  it('alerts when reviewed leaderboard repositories remain invisible', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        leaderboardApprovalsStuck: 2,
+      },
+    })
+
+    expect(evaluateDailyHealthStatus(input)).toEqual({
+      status: 'AMBER',
+      reasons: ['2 reviewed leaderboard repositories remained invisible for over 15 minutes.'],
+    })
+  })
+
   it('keeps unengaged source removal informational and flags user impact amber', () => {
     const informational = summary({
       pipeline: {
@@ -225,7 +240,7 @@ describe('buildDailyHealthCheck', () => {
     const now = new Date('2026-07-22T22:05:00Z')
     const nowSec = Math.floor(now.getTime() / 1000)
     sqlite.exec(`
-      CREATE TABLE skills (owner TEXT, repo TEXT, first_seen_at INTEGER, sync_status TEXT, last_synced_at INTEGER);
+      CREATE TABLE skills (owner TEXT, repo TEXT, name TEXT, first_seen_at INTEGER, sync_status TEXT, last_synced_at INTEGER);
       CREATE TABLE repos (owner TEXT, repo TEXT, broken_since INTEGER);
       CREATE TABLE owners (owner TEXT);
       CREATE TABLE users (created_at INTEGER);
@@ -254,6 +269,14 @@ describe('buildDailyHealthCheck', () => {
         next_retry_at INTEGER,
         claimed_at INTEGER
       );
+      CREATE TABLE skill_repo_eligibility (
+        owner TEXT,
+        repo TEXT,
+        status TEXT,
+        reason TEXT,
+        reviewed_by TEXT,
+        reviewed_at INTEGER
+      );
       CREATE TABLE sync_jobs (name TEXT, cron TEXT, enabled INTEGER, stale_after_seconds INTEGER, last_run_at INTEGER, last_status TEXT, last_error TEXT);
       CREATE TABLE scheduled_runs (
         run_id TEXT PRIMARY KEY,
@@ -268,7 +291,7 @@ describe('buildDailyHealthCheck', () => {
         ON scheduled_runs(task_name, started_at DESC, run_id DESC);
       CREATE TABLE ai_batch_costs (submitted_at INTEGER, est_cost_usd REAL);
 
-      INSERT INTO skills VALUES ('owner', 'repo', ${nowSec - 60}, 'ok', ${nowSec - 60});
+      INSERT INTO skills VALUES ('owner', 'repo', 'skill', ${nowSec - 60}, 'ok', ${nowSec - 60});
       INSERT INTO repos VALUES ('owner', 'repo', NULL);
       INSERT INTO repos VALUES ('deleted-owner', 'deleted-repo', ${nowSec - 60});
       INSERT INTO owners VALUES ('owner');
@@ -311,6 +334,7 @@ describe('buildDailyHealthCheck', () => {
       newlyBrokenReposImpacted24h: 0,
     })
     expect(built.pipeline.discoveryCandidatesExhausted).toBe(0)
+    expect(built.pipeline.leaderboardApprovalsStuck).toBe(0)
     expect(built.cost.estimatedAiUsd24h).toBe(0.15)
 
     sqlite.exec(`
@@ -318,10 +342,15 @@ describe('buildDailyHealthCheck', () => {
       INSERT INTO discovery_candidates VALUES (
         'exhausted', 'retryable_failure', NULL, NULL, NULL
       );
+      INSERT INTO skill_repo_eligibility VALUES (
+        'missing-owner', 'missing-repo', 'eligible', 'Reviewed purpose', 'test',
+        ${nowSec - 901}
+      );
     `)
     const uncertain = await buildDailyHealthCheck(db, { now, fetcher, workerVersion: 'version-1' })
     expect(uncertain.activity.digestsFailed24h).toBe(1)
     expect(uncertain.pipeline.discoveryCandidatesExhausted).toBe(1)
+    expect(uncertain.pipeline.leaderboardApprovalsStuck).toBe(1)
     expect(uncertain.status).toBe('RED')
     sqlite.close()
   })

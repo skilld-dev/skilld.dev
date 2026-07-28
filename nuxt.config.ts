@@ -52,6 +52,17 @@ export default defineNuxtConfig({
         deadLetterQueue: 'skilld-repo-sync-dlq',
         deadLetterQueueBinding: 'REPO_SYNC_DLQ',
       },
+      'repo-review-sync': {
+        binding: 'REPO_REVIEW_SYNC_QUEUE',
+        queueName: 'skilld-repo-review-sync',
+        maxBatchSize: 1,
+        maxBatchTimeout: 1,
+        maxConcurrency: 1,
+        maxRetries: 100,
+        retryDelay: 60,
+        deadLetterQueue: 'skilld-repo-sync-dlq',
+        deadLetterQueueBinding: 'REPO_SYNC_DLQ',
+      },
       'repo-sync-dlq': {
         binding: 'REPO_SYNC_DLQ',
         queueName: 'skilld-repo-sync-dlq',

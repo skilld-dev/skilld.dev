@@ -27,11 +27,21 @@
   "queues": {
     "producers": [
       { "binding": "REPO_SYNC_QUEUE", "queue": "skilld-repo-sync" },
+      { "binding": "REPO_REVIEW_SYNC_QUEUE", "queue": "skilld-repo-review-sync" },
       { "binding": "REPO_SYNC_DLQ", "queue": "skilld-repo-sync-dlq" }
     ],
     "consumers": [
       {
         "queue": "skilld-repo-sync",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 100,
+        "retry_delay": 60,
+        "dead_letter_queue": "skilld-repo-sync-dlq",
+        "max_concurrency": 1
+      },
+      {
+        "queue": "skilld-repo-review-sync",
         "max_batch_size": 1,
         "max_batch_timeout": 1,
         "max_retries": 100,

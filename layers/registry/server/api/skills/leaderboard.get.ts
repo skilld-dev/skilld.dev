@@ -11,7 +11,7 @@ export interface SkillsLeaderboardItem {
   pushedAt: number | null
   starsSyncedAt: number | null
   eligibilityReason: string
-  verifiedAt: number
+  reviewedAt: number
   avatarUrl: string
   githubUrl: string
   registryUrl: string
@@ -47,7 +47,7 @@ export default defineApiHandler<never, SkillsLeaderboardResponse>({
         pushedAt: row.pushed_at,
         starsSyncedAt: row.repo_meta_synced_at,
         eligibilityReason: row.eligibility_reason,
-        verifiedAt: row.reviewed_at,
+        reviewedAt: row.reviewed_at,
         avatarUrl: `https://github.com/${encodeURIComponent(row.owner)}.png?size=96`,
         githubUrl: `https://github.com/${row.owner}/${row.repo}`,
         registryUrl: `/gh/${row.owner}/${row.repo}`,

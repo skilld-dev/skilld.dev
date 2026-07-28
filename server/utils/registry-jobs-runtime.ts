@@ -6,6 +6,7 @@ import { createDurableRuntime, prepareJob } from '#cf-jobs/app'
 
 type RegistryJobEnv = Cloudflare.Env & Record<string, unknown>
 export type RegistryRepoJobPayload = JobPayload<'registry/repo-maintenance'>
+export type RegistryReviewRepoJobPayload = JobPayload<'registry/review-repo-sync'>
 
 function attemptsFromStoredJob(job: unknown): number {
   if (typeof job !== 'object' || job === null || !('attempts' in job))
@@ -59,6 +60,23 @@ export async function createRegistryJobBatch(
 ) {
   const records = await Promise.all(input.jobs.map(payload => prepareJob({
     name: 'registry/repo-maintenance',
+    payload,
+  })))
+  return await createRegistryJobsRuntime(env).createBatch({
+    name: input.name,
+    jobs: records,
+  })
+}
+
+export async function createRegistryReviewJobBatch(
+  env: RegistryJobEnv,
+  input: {
+    name: string
+    jobs: RegistryReviewRepoJobPayload[]
+  },
+) {
+  const records = await Promise.all(input.jobs.map(payload => prepareJob({
+    name: 'registry/review-repo-sync',
     payload,
   })))
   return await createRegistryJobsRuntime(env).createBatch({

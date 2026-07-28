@@ -1,0 +1,40 @@
+-- A deliberately small hand-reviewed cohort gives the leaderboard a useful
+-- starting point. INSERT OR IGNORE preserves any decision already made by an
+-- operator before this migration reaches an environment.
+INSERT OR IGNORE INTO skill_repo_eligibility (
+  owner,
+  repo,
+  status,
+  reason,
+  reviewed_by,
+  reviewed_at
+) VALUES
+  ('anthropics', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('openai', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('mattpocock', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('addyosmani', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('antfu', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('auth0', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('clerk', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('cloudflare', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('coreyhaines31', 'marketingskills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('datadog-labs', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('emilkowalski', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('expo', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('flutter', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('getsentry', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('github', 'awesome-copilot', 'eligible', 'Repository is dedicated to distributing agent skills and plugin resources.', 'harlan', unixepoch()),
+  ('google-labs-code', 'stitch-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('huggingface', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('ibelick', 'ui-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('jeffallan', 'claude-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('jimliu', 'baoyu-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('kepano', 'obsidian-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('langchain-ai', 'langchain-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('launchdarkly', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('trailofbits', 'skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('vercel-labs', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('wordpress', 'agent-skills', 'eligible', 'Repository is dedicated to distributing agent skills and supporting assets.', 'harlan', unixepoch()),
+  ('anthropics', 'claude-plugins-official', 'eligible', 'Repository is dedicated to distributing an agent plugin and skill catalog.', 'harlan', unixepoch()),
+  ('anthropics', 'knowledge-work-plugins', 'eligible', 'Repository is dedicated to distributing agent plugins and bundled skills.', 'harlan', unixepoch()),
+  ('harlan-zw', 'harlan-agent-kit', 'eligible', 'Repository is dedicated to distributing agent skills and plugin metadata.', 'harlan', unixepoch());

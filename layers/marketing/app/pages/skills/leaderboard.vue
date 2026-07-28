@@ -76,7 +76,7 @@ function formatDate(timestamp: number | null): string | null {
             </h2>
           </div>
           <p v-if="data" class="data-label">
-            {{ items.length }} verified {{ items.length === 1 ? 'repo' : 'repos' }}
+            {{ items.length }} reviewed {{ items.length === 1 ? 'repo' : 'repos' }}
             <template v-if="formattedSyncDate">
               · stars synced {{ formattedSyncDate }}
             </template>
@@ -189,7 +189,7 @@ function formatDate(timestamp: number | null): string | null {
                   <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span class="inline-flex items-center gap-1 font-mono text-xs text-muted">
                       <UIcon name="i-lucide-badge-check" class="size-3.5" aria-hidden="true" />
-                      Skills-only repo
+                      Purpose reviewed
                     </span>
                     <time
                       v-if="item.pushedAt"

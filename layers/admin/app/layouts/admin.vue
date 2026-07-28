@@ -12,6 +12,11 @@ const links: NavigationMenuItem[] = [
     to: '/admin',
     exact: true,
   },
+  {
+    label: 'Repository reviews',
+    icon: 'i-lucide-list-checks',
+    to: '/admin/leaderboard-repositories',
+  },
 ]
 </script>
 
@@ -54,7 +59,7 @@ const links: NavigationMenuItem[] = [
         />
       </aside>
 
-      <main class="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
+      <main id="main-content" tabindex="-1" class="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
         <slot />
       </main>
     </div>
