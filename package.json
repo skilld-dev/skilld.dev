@@ -3,7 +3,7 @@
   "type": "module",
   "private": true,
   "packageManager": "pnpm@11.17.0",
-  "description": "Agent skills from trusted open-source maintainers, with links to source",
+  "description": "Agent skills written by real maintainers in their own GitHub repos, with links to source",
   "author": {
     "name": "Harlan Wilton",
     "email": "harlan@harlanzw.com",

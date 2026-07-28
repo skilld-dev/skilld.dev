@@ -12,8 +12,8 @@ import {
   selectHomepagePersonSkills,
 } from '../utils/homepage-person-skills'
 
-const title = 'Curated skills for AI agents · skilld'
-const description = 'Search reusable agent skills by task or maintainer. Read the source SKILL.md before you install.'
+const title = 'Curated agent skills by humans · skilld'
+const description = 'Agent skills written by real maintainers in their own GitHub repos. See who wrote it and read the SKILL.md before you install.'
 
 useSeoMeta({
   title,
@@ -27,7 +27,7 @@ useHead({
   templateParams: { separator: '·' },
 })
 
-defineOgImage('Splash.takumi', {}, { alt: 'skilld, curated skills for AI agents' })
+defineOgImage('Splash.takumi', {}, { alt: 'skilld, curated agent skills by humans' })
 
 const serverTimingHeader = useResponseHeader('Server-Timing')
 const homeDataStartedAt = performance.now()
@@ -242,11 +242,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             <p class="section-label mb-5">
               Reusable instructions for coding agents
             </p>
+            <!-- The eyebrow names the category for anyone who has not met a
+                 SKILL.md yet; the heading and subhead carry the provenance
+                 claim that separates this from a generated skill dump. -->
             <h1 id="hero-heading" class="home-display home-display--split max-w-[13ch] font-semibold tracking-[-0.045em] text-balance">
               Curated agent skills by humans.
             </h1>
             <p class="mt-6 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
-              Search the work you need done. Open the SKILL.md, see who wrote it, then install it.
+              Every skill here is a SKILL.md someone wrote in their own repo. Search the work you need done, see who wrote it, then install it.
             </p>
 
             <form
