@@ -24,10 +24,10 @@ const {
   showOwnerPath = false,
   showTags = false,
   timestampLabel,
-  timestampFormat = 'absolute',
+  timestampFormat,
 } = defineProps<{
   skill: SkillLike
-  variant?: 'grid' | 'list' | 'compact'
+  variant?: 'grid' | 'list' | 'condensed'
   signal?: 'installs' | 'stars' | 'auto' | 'none'
   showDescription?: boolean
   showCopy?: boolean
@@ -41,7 +41,7 @@ const {
 const installCmd = computed(() => gitInstallCmd(skill.owner, skill.repo, skill.name))
 const { copy, copied } = useInstallCopy(
   installCmd,
-  variant === 'compact' ? 'skill-card-compact' : variant === 'list' ? 'skill-card-list' : 'skill-card',
+  variant === 'condensed' ? 'skill-card-condensed' : variant === 'list' ? 'skill-card-list' : 'skill-card',
   () => ({ kind: 'skill', owner: skill.owner, name: skill.name }),
 )
 
@@ -69,29 +69,15 @@ function formatCount(n: number): string {
   return n.toLocaleString()
 }
 
-function formatTimestamp(epochSeconds: number): string {
-  return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(epochSeconds * 1000))
-}
-
-const renderNow = useState('render:now', () => Number(new Date()))
-function formatRelative(epochSeconds: number): string {
-  const diff = renderNow.value - epochSeconds * 1000
-  const days = Math.floor(diff / 86_400_000)
-  if (days < 1)
-    return 'today'
-  if (days < 2)
-    return 'yesterday'
-  if (days < 30)
-    return `${days}d ago`
-  if (days < 365)
-    return `${Math.floor(days / 30)}mo ago`
-  return `${Math.floor(days / 365)}y ago`
-}
+const resolvedTimestampFormat = computed(() =>
+  timestampFormat ?? (variant === 'condensed' ? 'relative' : 'absolute'),
+)
+const shouldShowOwnerPath = computed(() =>
+  showOwnerPath && variant !== 'condensed',
+)
+const skillLinkAriaLabel = computed(() =>
+  variant === 'condensed' ? `/${skill.name}` : `/${skill.name} by ${skill.owner}`,
+)
 
 const timestampSeconds = computed<number | null>(() => {
   if (typeof skill.occurredAt === 'number')
@@ -106,14 +92,6 @@ const timestampSeconds = computed<number | null>(() => {
 const timestampDate = computed(() =>
   timestampSeconds.value != null ? new Date(timestampSeconds.value * 1000) : null,
 )
-
-const formattedTimestamp = computed(() => {
-  if (timestampSeconds.value == null)
-    return null
-  return timestampFormat === 'relative'
-    ? formatRelative(timestampSeconds.value)
-    : formatTimestamp(timestampSeconds.value)
-})
 
 const resolvedSignal = computed<'installs' | 'stars' | null>(() => {
   if (signal === 'none')
@@ -134,23 +112,25 @@ const resolvedSignal = computed<'installs' | 'stars' | null>(() => {
 const linkClasses = computed(() => {
   if (variant === 'list')
     return 'flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated'
-  if (variant === 'compact')
-    return 'flex h-full flex-col rounded-lg border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]'
+  if (variant === 'condensed')
+    return 'flex h-full min-h-11 flex-col rounded-lg border border-default px-3 py-2.5 transition-colors duration-200 hover:border-[var(--ui-text-muted)]'
   return 'flex h-full min-h-[8.5rem] flex-col rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]'
 })
 
-const buttonPositionClass = computed(() =>
-  variant === 'list' ? 'top-1/2 right-3 -translate-y-1/2' : 'top-3 right-3',
-)
+const buttonPositionClass = computed(() => {
+  if (variant === 'list')
+    return 'top-1/2 right-3 -translate-y-1/2'
+  return variant === 'condensed' ? 'top-2 right-2' : 'top-3 right-3'
+})
 
-const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
+const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
 </script>
 
 <template>
   <div class="group relative h-full">
     <NuxtLink
       :to="skillPath"
-      :aria-label="`/${skill.name} by ${skill.owner}`"
+      :aria-label="skillLinkAriaLabel"
       :class="linkClasses"
     >
       <template v-if="variant === 'list'">
@@ -198,12 +178,26 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
               class="size-3"
               aria-hidden="true"
             />
-            <time
-              :datetime="timestampDate.toISOString()"
-              :title="timestampDate.toISOString()"
-            >
-              {{ timestampLabel }} {{ formattedTimestamp }}
-            </time>
+            <span>{{ timestampLabel }}</span>
+            <NuxtTime
+              v-if="resolvedTimestampFormat === 'relative'"
+              :datetime="timestampDate"
+              locale="en"
+              relative
+              numeric="always"
+              relative-style="long"
+              :title="true"
+            />
+            <NuxtTime
+              v-else
+              :datetime="timestampDate"
+              locale="en"
+              month="short"
+              day="numeric"
+              year="numeric"
+              time-zone="UTC"
+              :title="true"
+            />
           </p>
           <p
             v-if="showDescription && skill.description"
@@ -238,7 +232,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
             /{{ skill.name }}
           </p>
           <span
-            v-if="!showOwnerPath && resolvedSignal === 'installs'"
+            v-if="!shouldShowOwnerPath && resolvedSignal === 'installs'"
             class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
             :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
             :title="`${(skill.installs ?? 0).toLocaleString()} weekly installs`"
@@ -247,7 +241,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
             {{ formatCount(skill.installs ?? 0) }}
           </span>
           <span
-            v-else-if="!showOwnerPath && resolvedSignal === 'stars'"
+            v-else-if="!shouldShowOwnerPath && resolvedSignal === 'stars'"
             class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
             :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
             :title="`${(skill.stars ?? 0).toLocaleString()} GitHub stars`"
@@ -257,7 +251,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
           </span>
         </div>
         <div
-          v-if="showOwnerPath"
+          v-if="shouldShowOwnerPath"
           class="mt-0.5 flex items-center gap-1.5"
         >
           <img
@@ -293,19 +287,34 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
         </div>
         <p
           v-if="timestampLabel && timestampDate"
-          class="mt-2 inline-flex items-center gap-1 text-xs text-muted"
+          class="inline-flex items-center gap-1 text-xs text-muted"
+          :class="variant === 'condensed' ? 'mt-1.5' : 'mt-2'"
         >
           <UIcon
             name="i-lucide-calendar-days"
             class="size-3"
             aria-hidden="true"
           />
-          <time
-            :datetime="timestampDate.toISOString()"
-            :title="timestampDate.toISOString()"
-          >
-            {{ timestampLabel }} {{ formattedTimestamp }}
-          </time>
+          <span>{{ timestampLabel }}</span>
+          <NuxtTime
+            v-if="resolvedTimestampFormat === 'relative'"
+            :datetime="timestampDate"
+            locale="en"
+            relative
+            numeric="always"
+            relative-style="long"
+            :title="true"
+          />
+          <NuxtTime
+            v-else
+            :datetime="timestampDate"
+            locale="en"
+            month="short"
+            day="numeric"
+            year="numeric"
+            time-zone="UTC"
+            :title="true"
+          />
         </p>
         <div
           v-if="showTags && skill.tags?.length"
@@ -322,8 +331,11 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'compact')
           />
         </div>
         <p
-          v-if="showDescription && variant !== 'compact' && skill.description"
-          class="mt-2 text-xs text-muted leading-relaxed line-clamp-3"
+          v-if="showDescription && skill.description"
+          class="text-muted leading-relaxed"
+          :class="variant === 'condensed'
+            ? 'mt-1.5 text-sm line-clamp-2'
+            : 'mt-2 text-xs line-clamp-3'"
         >
           {{ skill.description }}
         </p>

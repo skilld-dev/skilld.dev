@@ -278,6 +278,7 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Darkened rose-500 token**: `oklch(0.555 0.225 17.32)` overrides Tailwind's default so white-on-primary clears AA. Do not revert; do not introduce a second rose.
 - **No pure black**: dark mode bg starts at `oklch(0.14 0.008 60)`. If a surface looks too light, deepen via OKLCH chroma+hue, not by going to `#000`.
 - **PDS abbreviation rule**: never spell out "Personal Data Server" in UI copy; always pair "PDS" with a tooltip on first introduction in a view.
+- **Unknown install counts stay hidden**: an install value of zero can represent missing ingestion data, so cards omit the metric visually and semantically until a positive count is known.
 - **Task-first homepage**: orientation and outcome discovery precede editorial inventory. Confirmed in the 2026-07 homepage rethink.
 - **Frontend is a rotatable editorial focus**: it may dominate the current feature band but must not redefine skilld as a frontend-only registry.
 - **One composition per homepage band**: maintainer timeline, numbered outcome index, lead-and-supporting editorial pick, evidence chain, activity ledger, browse map, and contribution ledger. Repeating equal card grids weakens the page narrative.

@@ -186,8 +186,8 @@ function formatDate(timestamp: number | null): string | null {
                 <img
                   :src="item.avatarUrl"
                   alt=""
-                  width="40"
-                  height="40"
+                  width="36"
+                  height="36"
                   class="leaderboard-row__avatar"
                   loading="lazy"
                   decoding="async"
@@ -214,13 +214,17 @@ function formatDate(timestamp: number | null): string | null {
                   </div>
                   <p
                     v-if="item.description"
-                    class="mt-2 max-w-2xl text-sm leading-relaxed text-muted"
+                    class="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted line-clamp-2"
                   >
                     {{ item.description }}
                   </p>
                   <div class="leaderboard-row__top-skill">
-                    <span class="sr-only">Top skill installs: </span>
-                    <span class="sr-only">{{ item.topSkill.installs.toLocaleString() }}</span>
+                    <span
+                      v-if="item.topSkill.installs > 0"
+                      class="sr-only"
+                    >
+                      Top skill installs: {{ item.topSkill.installs.toLocaleString() }}
+                    </span>
                     <SkillCard
                       :skill="{
                         owner: item.owner,
@@ -231,10 +235,11 @@ function formatDate(timestamp: number | null): string | null {
                         installs: item.topSkill.installs,
                         modifiedAt: item.topSkill.modifiedAt,
                       }"
+                      variant="condensed"
                       signal="installs"
                       :show-copy="false"
-                      show-owner-path
                       timestamp-label="Updated"
+                      timestamp-format="relative"
                     />
                   </div>
                 </div>
@@ -336,11 +341,11 @@ function formatDate(timestamp: number | null): string | null {
   grid-template-columns: 2.5rem minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: start;
-  padding-block: 1.25rem;
+  padding-block: 1rem;
 }
 
 .leaderboard-row__rank {
-  padding-block-start: 0.75rem;
+  padding-block-start: 0.5rem;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
@@ -351,7 +356,7 @@ function formatDate(timestamp: number | null): string | null {
   grid-column: 2 / -1;
   display: flex;
   min-width: 0;
-  gap: 0.75rem;
+  gap: 0.625rem;
   align-items: flex-start;
 }
 
@@ -362,8 +367,8 @@ function formatDate(timestamp: number | null): string | null {
 }
 
 .leaderboard-row__avatar {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
   margin-block-start: 0.125rem;
   flex: none;
   border: 1px solid var(--ui-border);
@@ -373,7 +378,7 @@ function formatDate(timestamp: number | null): string | null {
 }
 
 .leaderboard-row__top-skill {
-  margin-block-start: 0.75rem;
+  margin-block-start: 0.5rem;
   min-width: 0;
 }
 
