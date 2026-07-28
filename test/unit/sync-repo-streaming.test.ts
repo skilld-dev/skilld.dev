@@ -266,7 +266,7 @@ function createDatabase(): Database.Database {
     CREATE TABLE repos (
       owner TEXT NOT NULL, repo TEXT NOT NULL, default_branch TEXT, stars INTEGER NOT NULL DEFAULT 0,
       forks INTEGER NOT NULL DEFAULT 0, pushed_at INTEGER, repo_created_at INTEGER,
-      repo_meta_synced_at INTEGER, last_tree_sha TEXT, repo_kind TEXT NOT NULL DEFAULT 'creator',
+      repo_meta_synced_at INTEGER, description TEXT, last_tree_sha TEXT, repo_kind TEXT NOT NULL DEFAULT 'creator',
       repo_kind_source TEXT NOT NULL DEFAULT 'computed', repo_skill_count INTEGER NOT NULL DEFAULT 0,
       broken_since INTEGER, source_owner TEXT, source_repo TEXT, PRIMARY KEY (owner, repo)
     );

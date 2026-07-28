@@ -189,7 +189,10 @@ describe('d1 migration bootstrap', () => {
       ).get()).toBeTruthy()
       expect(sqlite.prepare(`PRAGMA table_info(repos)`).all()
         .map(column => (column as { name: string }).name))
-        .toEqual(expect.arrayContaining(['source_owner', 'source_repo']))
+        .toEqual(expect.arrayContaining(['source_owner', 'source_repo', 'description']))
+      expect(sqlite.prepare(`PRAGMA table_info(skill_repo_review_sync_outbox)`).all()
+        .map(column => (column as { name: string }).name))
+        .toContain('claim_discovery')
       expect((sqlite.prepare(`
         SELECT sql FROM sqlite_schema
         WHERE type = 'table' AND name = 'discovery_candidates'
@@ -211,7 +214,7 @@ describe('d1 migration bootstrap', () => {
         outcome: 'pending',
         retry_state: 'ready',
       })
-      expect(migrations.at(-1)).toBe('0084_expand_reviewed_skill_repositories.sql')
+      expect(migrations.at(-1)).toBe('0085_repo_descriptions.sql')
     }
     finally {
       sqlite.close()

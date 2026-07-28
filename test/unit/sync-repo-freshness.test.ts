@@ -67,6 +67,7 @@ describe('syncRepo freshness cursor', () => {
         pushed_at INTEGER,
         repo_created_at INTEGER,
         repo_meta_synced_at INTEGER,
+        description TEXT,
         last_tree_sha TEXT,
         broken_since INTEGER,
         source_owner TEXT,

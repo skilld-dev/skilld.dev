@@ -345,6 +345,7 @@ function markRepoSummaryCheckedStatement(
        SET default_branch = ?,
            stars = ?,
            forks = ?,
+           description = ?,
            pushed_at = ?,
            repo_created_at = ?,
            repo_meta_synced_at = ?,
@@ -357,6 +358,7 @@ function markRepoSummaryCheckedStatement(
       meta.default_branch || 'main',
       meta.stargazers_count ?? 0,
       meta.forks_count ?? 0,
+      meta.description?.trim() || null,
       pushedAt,
       epoch(meta.created_at),
       checkedAt,
@@ -655,14 +657,15 @@ export async function syncRepo(
 
   const repoWrite = (brokenSince: number | null): D1PreparedStatement => db.prepare(
     `INSERT INTO repos (
-       owner, repo, default_branch, stars, forks, pushed_at, repo_created_at,
+       owner, repo, default_branch, stars, forks, description, pushed_at, repo_created_at,
        repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
        repo_skill_count, broken_since, source_owner, source_repo
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(owner, repo) DO UPDATE SET
        default_branch = excluded.default_branch,
        stars = excluded.stars,
        forks = excluded.forks,
+       description = excluded.description,
        pushed_at = excluded.pushed_at,
        repo_created_at = excluded.repo_created_at,
        repo_meta_synced_at = excluded.repo_meta_synced_at,
@@ -679,6 +682,7 @@ export async function syncRepo(
     branch,
     stars,
     forks,
+    repoDescription,
     repoPushedAt,
     repoCreatedAt,
     now,

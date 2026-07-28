@@ -192,7 +192,7 @@ function formatDate(timestamp: number | null): string | null {
                   loading="lazy"
                   decoding="async"
                 >
-                <div class="min-w-0 flex-1">
+                <div class="leaderboard-row__content">
                   <NuxtLink
                     :to="item.registryUrl"
                     class="inline-flex min-h-11 max-w-full items-center font-mono text-base font-medium text-default transition-colors duration-200 hover:text-primary focus-visible:text-primary"
@@ -212,18 +212,27 @@ function formatDate(timestamp: number | null): string | null {
                       Updated {{ formatDate(item.pushedAt) }}
                     </time>
                   </div>
-                  <p class="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-                    {{ item.eligibilityReason }}
+                  <p
+                    v-if="item.description"
+                    class="mt-2 max-w-2xl text-sm leading-relaxed text-muted"
+                  >
+                    {{ item.description }}
                   </p>
-                  <div class="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <div class="leaderboard-row__featured">
                     <span class="data-label">Most popular skill</span>
                     <NuxtLink
                       :to="item.topSkill.registryUrl"
-                      class="font-mono text-sm font-medium text-default underline decoration-default underline-offset-4 transition-colors hover:text-primary"
+                      class="leaderboard-row__featured-link min-h-11"
+                      :aria-label="`Open ${item.topSkill.displayName} skill`"
                     >
                       {{ item.topSkill.displayName }}
+                      <UIcon
+                        name="i-lucide-arrow-up-right"
+                        class="size-3.5 shrink-0 text-muted"
+                        aria-hidden="true"
+                      />
                     </NuxtLink>
-                    <span class="font-mono text-xs tabular-nums text-muted">
+                    <span class="leaderboard-row__featured-installs">
                       <span class="sr-only">Featured skill installs: </span>
                       {{ item.topSkill.installs.toLocaleString() }} installs
                     </span>
@@ -339,10 +348,17 @@ function formatDate(timestamp: number | null): string | null {
 }
 
 .leaderboard-row__repository {
+  grid-column: 2 / -1;
   display: flex;
   min-width: 0;
   gap: 0.75rem;
   align-items: flex-start;
+}
+
+.leaderboard-row__content {
+  min-width: 0;
+  flex: 1;
+  container-type: inline-size;
 }
 
 .leaderboard-row__avatar {
@@ -356,8 +372,63 @@ function formatDate(timestamp: number | null): string | null {
   object-fit: cover;
 }
 
+.leaderboard-row__featured {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.125rem 0.75rem;
+  align-items: center;
+  margin-block-start: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-muted);
+}
+
+.leaderboard-row__featured > .data-label {
+  grid-column: 1 / -1;
+}
+
+.leaderboard-row__featured-link {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ui-text);
+  text-decoration: underline;
+  text-decoration-color: var(--ui-border-accented);
+  text-underline-offset: 0.25rem;
+  transition: color 200ms;
+}
+
+.leaderboard-row__featured-link:hover,
+.leaderboard-row__featured-link:focus-visible {
+  color: var(--ui-primary);
+}
+
+.leaderboard-row__featured-installs {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+}
+
+@container (min-width: 28rem) {
+  .leaderboard-row__featured {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 0.875rem;
+  }
+
+  .leaderboard-row__featured > .data-label {
+    grid-column: auto;
+  }
+}
+
 .leaderboard-row__metrics {
-  grid-column: 2 / -1;
+  grid-column: 2;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
@@ -365,7 +436,8 @@ function formatDate(timestamp: number | null): string | null {
 
 .leaderboard-row__github {
   grid-column: 3;
-  grid-row: 1;
+  grid-row: 2;
+  align-self: center;
 }
 
 .leaderboard-row__metric {
@@ -414,8 +486,14 @@ function formatDate(timestamp: number | null): string | null {
     align-self: center;
   }
 
+  .leaderboard-row__repository {
+    grid-column: auto;
+  }
+
   .leaderboard-row__github {
     grid-column: 4;
+    grid-row: 1;
+    align-self: start;
   }
 
   .leaderboard-row__metric {

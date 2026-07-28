@@ -62,7 +62,10 @@ describe('leaderboard repository review page contract', () => {
     expect(wranglerConfig).toContain('"queue": "skilld-repo-review-sync"')
     expect(reviewSyncTaskSource).toContain(`name: 'sync-reviewed-skill-repos'`)
     expect(reviewSyncTaskSource).toContain('skill_repo_review_sync_outbox')
+    expect(reviewSyncTaskSource).toContain('claim_discovery')
+    expect(reviewSyncTaskSource).toContain('claimDiscovery: claim_discovery === 1')
     expect(reviewSyncTaskSource).toContain('createRegistryReviewJobBatch')
+    expect(reviewJobSource).toContain('claimDiscovery: z.boolean()')
     expect(schedulePolicy).toContain(`taskName: 'sync-reviewed-skill-repos'`)
   })
 

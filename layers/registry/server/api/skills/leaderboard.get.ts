@@ -16,6 +16,7 @@ export interface SkillsLeaderboardItem {
   rank: number
   owner: string
   repo: string
+  description: string | null
   stars: number
   skillCount: number
   topSkill: {
@@ -26,7 +27,6 @@ export interface SkillsLeaderboardItem {
   }
   pushedAt: number | null
   starsSyncedAt: number | null
-  eligibilityReason: string
   reviewedAt: number
   avatarUrl: string
   githubUrl: string
@@ -72,6 +72,7 @@ export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
         rank: offset + index + 1,
         owner: row.owner,
         repo: row.repo,
+        description: row.description,
         stars: row.stars,
         skillCount: row.skill_count,
         topSkill: {
@@ -82,7 +83,6 @@ export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
         },
         pushedAt: row.pushed_at,
         starsSyncedAt: row.repo_meta_synced_at,
-        eligibilityReason: row.eligibility_reason,
         reviewedAt: row.reviewed_at,
         avatarUrl: `https://github.com/${encodeURIComponent(row.owner)}.png?size=96`,
         githubUrl: `https://github.com/${row.owner}/${row.repo}`,

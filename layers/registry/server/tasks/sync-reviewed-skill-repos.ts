@@ -27,7 +27,7 @@ export default defineScheduledTask({
     }, async () => {
       const startedAt = Date.now()
       const result = await db.prepare(`
-        SELECT outbox.owner, outbox.repo
+        SELECT outbox.owner, outbox.repo, outbox.claim_discovery
         FROM skill_repo_review_sync_outbox AS outbox
         JOIN skill_repo_eligibility AS review
           ON review.owner = outbox.owner
@@ -35,7 +35,7 @@ export default defineScheduledTask({
          AND review.status = 'eligible'
         ORDER BY outbox.queued_at, outbox.owner, outbox.repo
         LIMIT ?
-      `).bind(BATCH_SIZE).all<{ owner: string, repo: string }>()
+      `).bind(BATCH_SIZE).all<{ owner: string, repo: string, claim_discovery: number }>()
       const repos = result.results ?? []
 
       if (repos.length === 0) {
@@ -51,12 +51,12 @@ export default defineScheduledTask({
         env as Cloudflare.Env & Record<string, unknown>,
         {
           name: `reviewed-skill-repos:${Math.floor(startedAt / 1000)}`,
-          jobs: repos.map(({ owner, repo }) => ({
+          jobs: repos.map(({ owner, repo, claim_discovery }) => ({
             operation: 'sync',
             owner,
             repo,
             ownerVerified: false,
-            claimDiscovery: true,
+            claimDiscovery: claim_discovery === 1,
           })),
         },
       )

@@ -1,6 +1,7 @@
 export interface SkillsLeaderboardDbRow {
   owner: string
   repo: string
+  description: string | null
   stars: number
   skill_count: number
   top_skill_name: string
@@ -8,7 +9,6 @@ export interface SkillsLeaderboardDbRow {
   top_skill_installs: number
   pushed_at: number | null
   repo_meta_synced_at: number | null
-  eligibility_reason: string
   reviewed_at: number
 }
 
@@ -17,10 +17,10 @@ export const SKILLS_LEADERBOARD_SQL = `
     SELECT
       r.owner,
       r.repo,
+      r.description,
       r.stars,
       r.pushed_at,
       r.repo_meta_synced_at,
-      eligibility.reason AS eligibility_reason,
       eligibility.reviewed_at
     FROM skill_repo_eligibility AS eligibility
     JOIN repos AS r
@@ -56,6 +56,7 @@ export const SKILLS_LEADERBOARD_SQL = `
   SELECT
     repository.owner,
     repository.repo,
+    repository.description,
     repository.stars,
     s.skill_count,
     s.name AS top_skill_name,
@@ -63,7 +64,6 @@ export const SKILLS_LEADERBOARD_SQL = `
     s.installs AS top_skill_installs,
     repository.pushed_at,
     repository.repo_meta_synced_at,
-    repository.eligibility_reason,
     repository.reviewed_at
   FROM eligible_repositories AS repository
   JOIN ranked_skills AS s

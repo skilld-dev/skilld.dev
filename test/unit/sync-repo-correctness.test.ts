@@ -333,6 +333,17 @@ describe('syncRepo content acknowledgement', () => {
     expect(sqlite.prepare(`SELECT reason FROM skill_dirty`).pluck().all()).toEqual(['references_changed'])
   })
 
+  it('refreshes the repository description when its skill tree is unchanged', async () => {
+    insertRepo(sqlite, 'new-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result.status).toBe('skipped-tree-sha')
+    expect(sqlite.prepare(`SELECT description FROM repos`).pluck().get()).toBe('Skills')
+    expect(github.getTree).not.toHaveBeenCalled()
+  })
+
   it('falls back to content work for a null rendered path and self-heals it', async () => {
     insertRepo(sqlite, 'old-tree')
     insertSkill(sqlite, 'one', 'one-old')
@@ -505,7 +516,7 @@ function createDatabase(): Database.Database {
     CREATE TABLE repos (
       owner TEXT NOT NULL, repo TEXT NOT NULL, default_branch TEXT, stars INTEGER NOT NULL DEFAULT 0,
       forks INTEGER NOT NULL DEFAULT 0, pushed_at INTEGER, repo_created_at INTEGER,
-      repo_meta_synced_at INTEGER, last_tree_sha TEXT, repo_kind TEXT NOT NULL DEFAULT 'creator',
+      repo_meta_synced_at INTEGER, description TEXT, last_tree_sha TEXT, repo_kind TEXT NOT NULL DEFAULT 'creator',
       repo_kind_source TEXT NOT NULL DEFAULT 'computed', repo_skill_count INTEGER NOT NULL DEFAULT 0,
       broken_since INTEGER, source_owner TEXT, source_repo TEXT, PRIMARY KEY (owner, repo)
     );

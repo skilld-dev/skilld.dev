@@ -40,6 +40,16 @@ describe('skills leaderboard accessibility contract', () => {
     expect(leaderboardSource).toContain('item.topSkill.displayName')
     expect(leaderboardSource).toContain('item.topSkill.registryUrl')
     expect(leaderboardSource).toContain('Most popular skill')
+    expect(leaderboardSource).toContain('leaderboard-row__featured')
+    expect(leaderboardSource).toContain('container-type: inline-size')
+    expect(leaderboardSource).toContain('min-h-11')
+    expect(leaderboardSource).toContain(`.leaderboard-row__repository {
+  grid-column: 2 / -1;`)
+  })
+
+  it('shows GitHub repository descriptions without exposing review rationale', () => {
+    expect(leaderboardSource).toContain('item.description')
+    expect(leaderboardSource).not.toContain('item.eligibilityReason')
   })
 
   it('shows the repository owner avatar without repeating adjacent link text', () => {

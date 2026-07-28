@@ -8,7 +8,7 @@ const input = z.object({
   owner: z.string().trim().min(1).max(100),
   repo: z.string().trim().min(1).max(100),
   ownerVerified: z.boolean(),
-  claimDiscovery: z.literal(true),
+  claimDiscovery: z.boolean(),
 })
 
 export default defineJob({

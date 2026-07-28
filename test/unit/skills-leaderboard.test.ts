@@ -11,6 +11,7 @@ import {
 interface LeaderboardRow {
   owner: string
   repo: string
+  description: string | null
   stars: number
   skill_count: number
   top_skill_name: string
@@ -27,6 +28,7 @@ describe('skills leaderboard eligibility', () => {
       CREATE TABLE repos (
         owner TEXT NOT NULL,
         repo TEXT NOT NULL,
+        description TEXT,
         stars INTEGER NOT NULL DEFAULT 0,
         pushed_at INTEGER,
         repo_meta_synced_at INTEGER,
@@ -71,7 +73,14 @@ describe('skills leaderboard eligibility', () => {
   })
 
   it('returns only reviewed, active repositories owned by individual users', () => {
-    insertRepo('harlan-zw', 'harlan-agent-kit', 3)
+    insertRepo(
+      'harlan-zw',
+      'harlan-agent-kit',
+      3,
+      null,
+      'user',
+      'Reusable agent skills maintained by Harlan.',
+    )
     insertSkill('harlan-zw', 'harlan-agent-kit', 'nuxt-frontend-design', 120)
 
     insertRepo('popular', 'unreviewed-skills', 100_000)
@@ -96,11 +105,11 @@ describe('skills leaderboard eligibility', () => {
       {
         owner: 'harlan-zw',
         repo: 'harlan-agent-kit',
+        description: 'Reusable agent skills maintained by Harlan.',
         stars: 3,
         skill_count: 1,
         pushed_at: null,
         repo_meta_synced_at: null,
-        eligibility_reason: 'Individual creator repository publishing reusable development and product workflow skills.',
         reviewed_at: expect.any(Number),
         top_skill_name: 'nuxt-frontend-design',
         top_skill_display_name: 'Nuxt Frontend Design',
@@ -180,12 +189,13 @@ describe('skills leaderboard eligibility', () => {
     stars: number,
     brokenSince: number | null = null,
     ownerKind: 'user' | 'org' = 'user',
+    description: string | null = null,
   ) {
     insertOwner(owner, ownerKind)
     sqlite.prepare(`
-      INSERT INTO repos (owner, repo, stars, broken_since)
-      VALUES (?, ?, ?, ?)
-    `).run(owner, repo, stars, brokenSince)
+      INSERT INTO repos (owner, repo, description, stars, broken_since)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(owner, repo, description, stars, brokenSince)
   }
 
   function insertSkill(owner: string, repo: string, name: string, installs = 0) {
