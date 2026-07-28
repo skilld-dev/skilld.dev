@@ -1,0 +1,573 @@
+{
+  "generatedAt": "2026-07-27T02:45:52.572Z",
+  "since": "2026-07-27T01:55:32.093Z",
+  "git": {
+    "branch": "main",
+    "head": "ed9d0d89dfa6e57687616cad222b4b7032923d99",
+    "dirtyFiles": [
+      "M scripts/tools/daily-checkin-data.mjs",
+      " M scripts/tools/sentry-observability.mjs",
+      " M test/unit/sentry-observability.test.ts",
+      "?? .claude/context/jobs/guide-page-redesign-0530-1517/",
+      "?? .claude/context/jobs/home-page-rethink-0723-1126/",
+      "?? .claude/context/jobs/homepage-section-pol-0723-1333/",
+      "?? .claude/context/jobs/mdxg-review-inline-0514-1517/",
+      "?? .claude/context/jobs/receipts-trust-hub-0509-1317/",
+      "?? .claude/context/jobs/registry-journey-0723-1800/",
+      "?? .claude/context/jobs/tag-audit-0616/",
+      "?? .claude/scheduled_tasks.lock",
+      "?? .claude/skills/daily-checkin/",
+      "?? docs/ops/checkins/2026-07-27.json",
+      "?? docs/ops/checkins/2026-07-27.md",
+      "?? docs/ops/checkins/2026-07-27.rerun-0242.json",
+      "?? img.png",
+      "?? scripts/tools/daily-checkin-observability.mjs",
+      "?? test/unit/daily-checkin-observability.test.ts"
+    ],
+    "commitsSinceLastRun": [
+      {
+        "sha": "ed9d0d89dfa6e57687616cad222b4b7032923d99",
+        "authoredAt": "2026-07-27T12:41:43+10:00",
+        "subject": "chore: bump"
+      }
+    ]
+  },
+  "deploy": {
+    "latest": {
+      "id": "9aa95b02-151d-4c8b-b705-c63c458bfda1",
+      "createdOn": "2026-07-27T02:44:47.676777Z",
+      "versionId": "176bbffb-84c9-4169-b367-b24e2729db80",
+      "message": null,
+      "approxDeployedSha": "ed9d0d89dfa6e57687616cad222b4b7032923d99"
+    }
+  },
+  "ci": {
+    "workflows": [
+      {
+        "name": "Test",
+        "latestRun": {
+          "conclusion": "success",
+          "createdAt": "2026-07-27T02:41:51Z",
+          "databaseId": 30232789760,
+          "displayTitle": "chore: bump",
+          "headSha": "ed9d0d89dfa6e57687616cad222b4b7032923d99",
+          "status": "completed",
+          "updatedAt": "2026-07-27T02:44:31Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30232789760",
+          "workflowName": "Test"
+        },
+        "latestCompletedRun": {
+          "conclusion": "success",
+          "createdAt": "2026-07-27T02:41:51Z",
+          "databaseId": 30232789760,
+          "displayTitle": "chore: bump",
+          "headSha": "ed9d0d89dfa6e57687616cad222b4b7032923d99",
+          "status": "completed",
+          "updatedAt": "2026-07-27T02:44:31Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30232789760",
+          "workflowName": "Test"
+        },
+        "state": {
+          "_tag": "success"
+        }
+      },
+      {
+        "name": "Deploy to Cloudflare",
+        "latestRun": {
+          "conclusion": "success",
+          "createdAt": "2026-07-27T02:41:51Z",
+          "databaseId": 30232789769,
+          "displayTitle": "chore: bump",
+          "headSha": "ed9d0d89dfa6e57687616cad222b4b7032923d99",
+          "status": "completed",
+          "updatedAt": "2026-07-27T02:44:55Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30232789769",
+          "workflowName": "Deploy to Cloudflare"
+        },
+        "latestCompletedRun": {
+          "conclusion": "success",
+          "createdAt": "2026-07-27T02:41:51Z",
+          "databaseId": 30232789769,
+          "displayTitle": "chore: bump",
+          "headSha": "ed9d0d89dfa6e57687616cad222b4b7032923d99",
+          "status": "completed",
+          "updatedAt": "2026-07-27T02:44:55Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30232789769",
+          "workflowName": "Deploy to Cloudflare"
+        },
+        "state": {
+          "_tag": "success"
+        }
+      }
+    ],
+    "recent": [
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-27T02:41:51Z",
+        "databaseId": 30232789769,
+        "displayTitle": "chore: bump",
+        "headSha": "ed9d0d89dfa6e57687616cad222b4b7032923d99",
+        "status": "completed",
+        "updatedAt": "2026-07-27T02:44:55Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30232789769",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-27T02:41:51Z",
+        "databaseId": 30232789760,
+        "displayTitle": "chore: bump",
+        "headSha": "ed9d0d89dfa6e57687616cad222b4b7032923d99",
+        "status": "completed",
+        "updatedAt": "2026-07-27T02:44:31Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30232789760",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-26T09:56:05Z",
+        "databaseId": 30197347843,
+        "displayTitle": "chore: bump",
+        "headSha": "7dbd59acdd282a2aef84ef5f6a431e7771a5d9c3",
+        "status": "completed",
+        "updatedAt": "2026-07-26T09:59:39Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30197347843",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "failure",
+        "createdAt": "2026-07-26T09:56:05Z",
+        "databaseId": 30197347840,
+        "displayTitle": "chore: bump",
+        "headSha": "7dbd59acdd282a2aef84ef5f6a431e7771a5d9c3",
+        "status": "completed",
+        "updatedAt": "2026-07-26T09:58:43Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30197347840",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-26T07:11:40Z",
+        "databaseId": 30192361210,
+        "displayTitle": "chore: bump",
+        "headSha": "0b6dd0d4d9be67a77877e0ae966552bbf0a1b9b0",
+        "status": "completed",
+        "updatedAt": "2026-07-26T07:14:53Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30192361210",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-26T07:11:40Z",
+        "databaseId": 30192361206,
+        "displayTitle": "chore: bump",
+        "headSha": "0b6dd0d4d9be67a77877e0ae966552bbf0a1b9b0",
+        "status": "completed",
+        "updatedAt": "2026-07-26T07:14:33Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30192361206",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-26T01:39:18Z",
+        "databaseId": 30183245256,
+        "displayTitle": "chore(ops): correct the IndexNow finding, record the health-check fix",
+        "headSha": "a2244cad6ae411b25f8edb4c8ed480ef6cf4be65",
+        "status": "completed",
+        "updatedAt": "2026-07-26T01:42:11Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30183245256",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-26T01:39:18Z",
+        "databaseId": 30183245251,
+        "displayTitle": "chore(ops): correct the IndexNow finding, record the health-check fix",
+        "headSha": "a2244cad6ae411b25f8edb4c8ed480ef6cf4be65",
+        "status": "completed",
+        "updatedAt": "2026-07-26T01:42:06Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30183245251",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-26T01:36:44Z",
+        "databaseId": 30183173637,
+        "displayTitle": "fix(sync): give a nested skill its own assets instead of a stranger's",
+        "headSha": "84f43b4d7a554c66fb2d7c7164dd41c8848d312b",
+        "status": "completed",
+        "updatedAt": "2026-07-26T01:39:27Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30183173637",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-07-26T01:36:44Z",
+        "databaseId": 30183173621,
+        "displayTitle": "fix(sync): give a nested skill its own assets instead of a stranger's",
+        "headSha": "84f43b4d7a554c66fb2d7c7164dd41c8848d312b",
+        "status": "completed",
+        "updatedAt": "2026-07-26T01:39:42Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/30183173621",
+        "workflowName": "Deploy to Cloudflare"
+      }
+    ]
+  },
+  "http": {
+    "https://skilld.dev/": 200,
+    "https://skilld.dev/skills": 200,
+    "https://skilld.dev/guides": 200
+  },
+  "d1": {
+    "tables": [
+      "_ai_ready_info",
+      "_cf_KV",
+      "_content_frameworks",
+      "_content_info",
+      "_content_learn",
+      "activity",
+      "ai_batch_costs",
+      "ai_batches",
+      "ai_ready_cron_runs",
+      "ai_ready_indexnow_log",
+      "ai_ready_pages",
+      "ai_ready_pages_fts",
+      "ai_ready_pages_fts_config",
+      "ai_ready_pages_fts_data",
+      "ai_ready_pages_fts_docsize",
+      "ai_ready_pages_fts_idx",
+      "ai_ready_sitemaps",
+      "cli_auth_codes",
+      "cli_device_sessions",
+      "cli_tokens",
+      "collection_skills_v2",
+      "collections_v2",
+      "d1_migrations",
+      "daily_health_checks",
+      "digest_runs",
+      "discovery_candidates",
+      "embedding_attempts",
+      "failed_jobs",
+      "github_sync_control",
+      "install_events",
+      "job_batches",
+      "jobs",
+      "npm_guides",
+      "owners",
+      "registry_maintenance",
+      "repo_kind_overrides",
+      "repo_sync_progress",
+      "repo_trust_overrides",
+      "repos",
+      "scheduled_runs",
+      "skill_dirty",
+      "skill_generated",
+      "skill_revisions",
+      "skill_social_posts",
+      "skill_subscriptions",
+      "skills",
+      "skills_fts",
+      "skills_fts_config",
+      "skills_fts_data",
+      "skills_fts_docsize",
+      "skills_fts_idx",
+      "sqlite_sequence",
+      "sqlite_stat1",
+      "supported_repos",
+      "supported_skills",
+      "sync_jobs",
+      "tag_decisions",
+      "user_starred_repos",
+      "users"
+    ],
+    "inventory": {
+      "skills": 3121,
+      "repos": 7363,
+      "owners": 9569,
+      "users": 17,
+      "collections": 18,
+      "broken_repos": 1794
+    },
+    "activity": {
+      "new_skills": 0,
+      "changed_repos": 0,
+      "install_events": 0,
+      "new_users": 0,
+      "digests_sent": 0,
+      "digests_failed": 0
+    },
+    "pipeline": {
+      "newly_broken_repos": 0,
+      "skill_sync_failures": 0,
+      "stale_dirty_skills": 0,
+      "ai_submitted": 0,
+      "ai_stuck": 0,
+      "ai_failed": 0,
+      "failed_jobs": 0,
+      "stale_reserved_jobs": 0
+    },
+    "cost": {
+      "ai_cost_usd": 0
+    },
+    "syncJobs": [
+      {
+        "name": "ai-generate-poll",
+        "cron": "45 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785120313,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "ai-generate-submit",
+        "cron": "15 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785118555,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "ai-ready:cron",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785120316,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "backfill-skill-assets",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785120313,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "daily-health-check",
+        "cron": "0 22 * * *",
+        "stale_after_seconds": 129600,
+        "last_run_at": 1785103257,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "drain-skill-dirty",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785120313,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "recompute-skill-scores",
+        "cron": "0 3 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785034873,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "reconcile-rendered",
+        "cron": "20 */6 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785111651,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "send-digests",
+        "cron": "0 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785117649,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-github-skills",
+        "cron": "0 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785117651,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-social-mentions",
+        "cron": "30 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1785119414,
+        "last_status": "ok",
+        "last_error": null
+      }
+    ],
+    "failedJobFingerprints": [],
+    "healthEmail": [
+      {
+        "reportDate": "2026-07-27",
+        "healthStatus": "RED",
+        "deliveryStatus": "sent",
+        "recipient": "harlan@harlanzw.com",
+        "sentAt": 1785103249,
+        "error": null,
+        "reasons": [
+          "178 jobs failed in 24 hours."
+        ],
+        "warnings": [],
+        "window": {
+          "reportDate": "2026-07-27",
+          "timeZone": "Australia/Melbourne",
+          "from": "2026-07-25T22:00:49Z",
+          "to": "2026-07-26T22:00:49Z",
+          "workerVersion": "2cade213 deployed 2026-07-26T09:59:07.316213Z"
+        }
+      },
+      {
+        "reportDate": "2026-07-26",
+        "healthStatus": "RED",
+        "deliveryStatus": "sent",
+        "recipient": "harlan@harlanzw.com",
+        "sentAt": 1785016803,
+        "error": null,
+        "reasons": [
+          "Scheduled tasks failed: sync-github-skills (failed=4 rate-limited=0).",
+          "Scheduled tasks are stale: sync-github-skills.",
+          "Scheduled tasks partially failed: ai-ready:cron."
+        ],
+        "warnings": [],
+        "window": {
+          "reportDate": "2026-07-26",
+          "timeZone": "Australia/Melbourne",
+          "from": "2026-07-24T22:00:03Z",
+          "to": "2026-07-25T22:00:03Z",
+          "workerVersion": "3d04247e deployed 2026-07-25T14:55:39.351777Z"
+        }
+      }
+    ],
+    "recentJobBatches": [
+      {
+        "id": "21c87b2d-2400-4c22-aaf9-01b228042fab",
+        "name": "registry-sync:1785117649",
+        "total_jobs": 1,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785117649,
+        "updated_at": 1785117654,
+        "finished_at": 1785117654
+      },
+      {
+        "id": "00ff1b96-4cb0-40e2-8b21-780b02f0ee49",
+        "name": "registry-sync:1785114049",
+        "total_jobs": 4,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785114050,
+        "updated_at": 1785114062,
+        "finished_at": 1785114062
+      },
+      {
+        "id": "f54a0f2b-2891-4f55-a251-a3bbf146bc47",
+        "name": "render-repair:1785111649",
+        "total_jobs": 12,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785111650,
+        "updated_at": 1785111749,
+        "finished_at": 1785111749
+      },
+      {
+        "id": "75398e48-5050-4508-8e2c-6cf266f4b1cf",
+        "name": "registry-sync:1785110450",
+        "total_jobs": 2,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785110450,
+        "updated_at": 1785110458,
+        "finished_at": 1785110458
+      },
+      {
+        "id": "a032eacc-785d-47ad-92de-5910c2344dcb",
+        "name": "registry-sync:1785106849",
+        "total_jobs": 5,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785106849,
+        "updated_at": 1785106866,
+        "finished_at": 1785106866
+      },
+      {
+        "id": "029bad42-2eaa-447d-a93e-94ad2c7ef3b2",
+        "name": "registry-sync:1785103249",
+        "total_jobs": 2,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785103250,
+        "updated_at": 1785103257,
+        "finished_at": 1785103257
+      },
+      {
+        "id": "1f9465fd-d425-4684-a892-68f44ba29e41",
+        "name": "registry-sync:1785099650",
+        "total_jobs": 5,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785099650,
+        "updated_at": 1785099669,
+        "finished_at": 1785099669
+      },
+      {
+        "id": "51c1ad3c-14f5-4893-b9a2-a82d0c8eda17",
+        "name": "registry-sync:1785096050",
+        "total_jobs": 2,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785096051,
+        "updated_at": 1785096058,
+        "finished_at": 1785096058
+      },
+      {
+        "id": "3138de9e-9a26-404b-b03a-78fcff0d66c6",
+        "name": "registry-sync:1785092450",
+        "total_jobs": 4,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785092450,
+        "updated_at": 1785092463,
+        "finished_at": 1785092463
+      },
+      {
+        "id": "10e26bfe-3730-4d60-aa05-84737d1b053c",
+        "name": "render-repair:1785090049",
+        "total_jobs": 12,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1785090050,
+        "updated_at": 1785090150,
+        "finished_at": 1785090150
+      }
+    ],
+    "registryMaintenance": [
+      {
+        "name": "nested-assets-v1",
+        "status": "complete",
+        "batch_id": "d9530bca-ad97-498d-af66-e491be12e13c",
+        "updated_at": 1785036660,
+        "last_error": null
+      }
+    ],
+    "migrations": {
+      "localHead": "0077_repo_sync_progress.sql",
+      "prodHead": "0077_repo_sync_progress.sql"
+    },
+    "missingExpectedTables": []
+  },
+  "workers": {
+    "outcomes": {
+      "clientDisconnected": 10,
+      "success": 1697
+    },
+    "nonOk": []
+  },
+  "sentry": {
+    "_tag": "available",
+    "newIssues": []
+  }
+}

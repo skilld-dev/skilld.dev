@@ -1,6 +1,9 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   parseHealthEmailRows,
+  parseWorkflowName,
   summarizeWorkflowRuns,
 } from '../../scripts/tools/daily-checkin-observability.mjs'
 
@@ -115,5 +118,30 @@ describe('daily check-in observability', () => {
       error: null,
       summary_json: '{',
     }])).toThrow('invalid summary_json')
+  })
+})
+
+describe('workflow gate coverage', () => {
+  it('reads the declared workflow name so a new workflow joins the gate automatically', () => {
+    expect(parseWorkflowName(readFileSync(
+      resolve(process.cwd(), '.github/workflows/embedding-parity.yml'),
+      'utf8',
+    ))).toBe('Embedding parity alarm')
+  })
+
+  it('accepts a quoted name and ignores names nested under other keys', () => {
+    expect(parseWorkflowName('name: "Deploy to Cloudflare"\njobs:\n  audit:\n    name: inner\n')).toBe('Deploy to Cloudflare')
+  })
+
+  it('returns null when a definition declares no name', () => {
+    expect(parseWorkflowName('on:\n  push:\n')).toBe(null)
+  })
+
+  it('gates every workflow the repository defines', () => {
+    const declared = readdirSync(resolve(process.cwd(), '.github/workflows'))
+      .filter(file => /\.ya?ml$/.test(file))
+      .map(file => parseWorkflowName(readFileSync(resolve(process.cwd(), '.github/workflows', file), 'utf8')))
+    expect(declared).not.toContain(null)
+    expect(declared).toContain('Embedding parity alarm')
   })
 })

@@ -19,6 +19,17 @@ function completedState(runs) {
   return { _tag: 'failure', consecutiveFailures }
 }
 
+// The gate must cover every workflow the repository defines, not a hand-kept
+// list. A hardcoded list silently drops any workflow added later, which is how
+// a failing scheduled alarm can sit outside the health verdict for a full day.
+export function parseWorkflowName(source) {
+  const declared = source.match(/^name:([^\n]*)$/m)?.[1]?.trim()
+  if (!declared)
+    return null
+  const unquoted = declared.replace(/^(['"])(.*)\1$/, '$2').trim()
+  return unquoted || null
+}
+
 export function summarizeWorkflowRuns(rows, requiredWorkflowNames) {
   return requiredWorkflowNames.map((name) => {
     const runs = rows.filter(row => row.workflowName === name)

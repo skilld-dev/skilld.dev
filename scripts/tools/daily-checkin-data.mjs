@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   parseHealthEmailRows,
+  parseWorkflowName,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
 import { parseSentryIssuesResponse } from './sentry-observability.mjs'
@@ -108,18 +109,25 @@ const deploy = probe(() => {
   }
 })
 
+const runFields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
+
 const ci = probe(() => {
-  const rows = commandJson('gh', [
-    'run',
-    'list',
-    '--limit',
-    '20',
-    '--json',
-    'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url',
-  ])
+  const workflowDir = join(root, '.github/workflows')
+  const definedWorkflows = readdirSync(workflowDir)
+    .filter(file => /\.ya?ml$/.test(file))
+    .map(file => parseWorkflowName(readFileSync(join(workflowDir, file), 'utf8')))
+    .filter(Boolean)
+    .sort()
+  // A low-cadence workflow can fall outside a flat recent-runs page, and an
+  // absent row reads as `missing`, which is an observability gap rather than a
+  // health signal. Each workflow is therefore paged on its own name.
+  const perWorkflowRows = definedWorkflows.flatMap(name =>
+    commandJson('gh', ['run', 'list', '--workflow', name, '--limit', '10', '--json', runFields]),
+  )
+  const recent = commandJson('gh', ['run', 'list', '--limit', '20', '--json', runFields])
   return {
-    workflows: summarizeWorkflowRuns(rows, ['Test', 'Deploy to Cloudflare']),
-    recent: rows.slice(0, 10),
+    workflows: summarizeWorkflowRuns(perWorkflowRows, definedWorkflows),
+    recent: recent.slice(0, 10),
   }
 })
 
@@ -203,7 +211,18 @@ const d1 = probe(() => {
   const prodMigrationHead = has('d1_migrations')
     ? d1Query(`SELECT MAX(name) name FROM d1_migrations`)[0]?.name ?? null
     : null
-  const localMigrationHead = readdirSync(join(root, 'migrations')).filter(file => /^\d.*\.sql$/.test(file)).sort().at(-1) ?? null
+  // Drift means production is behind the code that shipped, so the local head
+  // is read from HEAD rather than the working tree. Unmerged migrations are
+  // work in progress and are reported separately instead of as drift.
+  const isMigration = file => /^\d.*\.sql$/.test(file)
+  const committedMigrations = run('git', ['ls-tree', '--name-only', 'HEAD', 'migrations/'])
+    .split('\n')
+    .map(path => path.slice('migrations/'.length))
+    .filter(isMigration)
+    .sort()
+  const workingTreeMigrations = readdirSync(join(root, 'migrations')).filter(isMigration).sort()
+  const localMigrationHead = committedMigrations.at(-1) ?? null
+  const uncommittedMigrations = workingTreeMigrations.filter(file => !committedMigrations.includes(file))
 
   return {
     tables: [...tables],
@@ -216,7 +235,7 @@ const d1 = probe(() => {
     healthEmail,
     recentJobBatches,
     registryMaintenance,
-    migrations: { localHead: localMigrationHead, prodHead: prodMigrationHead },
+    migrations: { localHead: localMigrationHead, prodHead: prodMigrationHead, uncommitted: uncommittedMigrations },
     missingExpectedTables: [
       'skills',
       'repos',
