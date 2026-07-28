@@ -122,11 +122,9 @@ describe('daily check-in observability', () => {
 })
 
 describe('workflow gate coverage', () => {
-  it('reads the declared workflow name so a new workflow joins the gate automatically', () => {
-    expect(parseWorkflowName(readFileSync(
-      resolve(process.cwd(), '.github/workflows/embedding-parity.yml'),
-      'utf8',
-    ))).toBe('Embedding parity alarm')
+  it('reads the declared name so a new workflow joins the gate automatically', () => {
+    expect(parseWorkflowName('name: Embedding parity alarm\n\non:\n  schedule:\n    - cron: \'35 20 * * *\'\n'))
+      .toBe('Embedding parity alarm')
   })
 
   it('accepts a quoted name and ignores names nested under other keys', () => {
@@ -137,11 +135,17 @@ describe('workflow gate coverage', () => {
     expect(parseWorkflowName('on:\n  push:\n')).toBe(null)
   })
 
-  it('gates every workflow the repository defines', () => {
-    const declared = readdirSync(resolve(process.cwd(), '.github/workflows'))
+  // Pinning a workflow by name would make this fail whenever one is legitimately
+  // added or retired. What the gate actually depends on is that every definition
+  // present resolves to a name, so none can silently fall outside the verdict.
+  it('resolves a name for every workflow the repository defines', () => {
+    const files = readdirSync(resolve(process.cwd(), '.github/workflows'))
       .filter(file => /\.ya?ml$/.test(file))
+    const declared = files
       .map(file => parseWorkflowName(readFileSync(resolve(process.cwd(), '.github/workflows', file), 'utf8')))
+
+    expect(files.length).toBeGreaterThan(0)
     expect(declared).not.toContain(null)
-    expect(declared).toContain('Embedding parity alarm')
+    expect(new Set(declared).size).toBe(declared.length)
   })
 })
