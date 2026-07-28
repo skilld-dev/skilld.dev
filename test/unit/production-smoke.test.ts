@@ -139,4 +139,46 @@ describe('production smoke contract', () => {
       }],
     })
   })
+
+  it('waits for every asset before requesting its cacheable URL', async () => {
+    let delayedProbeAttempts = 0
+    let delayedCleanUrlPoisoned = false
+    const fetch: SmokeFetch = vi.fn(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/skills/leaderboard') {
+        return new Response(
+          '<script src="/_nuxt/v2/ready.js"></script><link rel="modulepreload" href="/_nuxt/v2/delayed.js">',
+          {
+            status: 200,
+            headers: { 'content-type': 'text/html' },
+          },
+        )
+      }
+      if (url.pathname === '/_nuxt/v2/ready.js')
+        return new Response('', { status: 200 })
+      if (url.pathname === '/_nuxt/v2/delayed.js' && url.search) {
+        delayedProbeAttempts++
+        return new Response('', { status: delayedProbeAttempts >= 2 ? 200 : 404 })
+      }
+      if (url.pathname === '/_nuxt/v2/delayed.js') {
+        if (delayedProbeAttempts < 2)
+          delayedCleanUrlPoisoned = true
+        return new Response('', { status: delayedCleanUrlPoisoned ? 404 : 200 })
+      }
+      return new Response('', { status: 404 })
+    })
+
+    const result = await runProductionSmoke({
+      baseUrl: 'https://skilld.dev',
+      attempts: 2,
+      retryDelayMs: 0,
+      fetch,
+      wait: vi.fn(async () => {}),
+      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+    })
+
+    expect(result._tag).toBe('passed')
+    expect(delayedProbeAttempts).toBe(2)
+    expect(delayedCleanUrlPoisoned).toBe(false)
+  })
 })

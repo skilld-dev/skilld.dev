@@ -238,22 +238,26 @@ export async function runProductionSmoke(
   }
 
   if (assets.length > 0) {
-    const readiness = await checkWithRetries(dependencies, {
-      fetch,
-      attempts,
-      retryDelayMs,
-      wait,
-      requestPath: `${assets[0]}?production-smoke=${Date.now()}`,
-      reportPath: assets[0]!,
-    })
-    if (readiness._tag === 'failed') {
+    const probeToken = Date.now()
+    const readinessResults = await Promise.all(assets.map(reportPath =>
+      checkWithRetries(dependencies, {
+        fetch,
+        attempts,
+        retryDelayMs,
+        wait,
+        requestPath: `${reportPath}?production-smoke=${probeToken}`,
+        reportPath,
+      }),
+    ))
+    const readinessFailures = readinessResults.filter(result => result._tag === 'failed')
+    if (readinessFailures.length) {
       return {
         _tag: 'failed',
-        failures: [{
-          path: readiness.path,
-          attempts: readiness.attempts,
-          result: readiness.result,
-        }],
+        failures: readinessFailures.map(failure => ({
+          path: failure.path,
+          attempts: failure.attempts,
+          result: failure.result,
+        })),
       }
     }
 
