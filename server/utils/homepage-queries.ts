@@ -14,6 +14,7 @@ export function featuredCollectionSkillsSql(placeholders: string): string {
             JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
             WHERE cs.collection_id IN (${placeholders})
               AND (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)
+              AND s.trust_tier IN ('official', 'trusted-curator')
               AND s.source_resolved = 1
               AND s.rendered_status = 'ok'
           )

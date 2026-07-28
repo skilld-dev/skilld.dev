@@ -124,6 +124,7 @@ components:
 - **Buttons**: solid primary for main CTAs; outline neutral for secondary; ghost for inline actions. Every button uses `font-mono`. Solid variant is the default (`button.defaultVariants.variant: 'solid'`).
 - **Cards**: 1px border + warm surface. Hover transitions on border-color only. No glow, no shadow, no nested cards (use spacing + dividers for inner hierarchy).
 - **Avatars**: `rounded-full`, stack with `-space-x-2`, `border-2 border-[var(--ui-bg)]` for separation in groups.
+- **Skill source lists**: use `SkillSourceList` when a shortlist needs visible author, handle, repository, and source-linked skill name. `stream` is a vertically scrollable discovery preview; `grid` is for bounded related-skill groups. Idle auto-scroll pauses for hover, focus, touch, and reduced motion. Mixed 20-item discovery streams should represent at least 10 people and cap each person at 2 skills.
 - **Badges**: `subtle` variant, size `xs`, mono font, by default. Use for stack labels and agent compatibility.
 - **Inputs**: `outline` variant, mono font, `px-3 py-2`. No bottom-border-only or pill shapes.
 - **Tooltips**: use `UiTooltip` (built on `UPopover` hover mode) for any tooltip with title + description. `UTooltip` is reserved for single-line hints on icon buttons.

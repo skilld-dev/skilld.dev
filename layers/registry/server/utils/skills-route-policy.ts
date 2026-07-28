@@ -9,6 +9,7 @@ const marketingPaths = new Set([
   '/skills',
   '/skills/',
   '/skills/guide',
+  '/skills/leaderboard',
   '/skills/official',
   '/skills/stats',
   ...CLUSTERS.map(cluster => `/skills/${cluster.slug}`),

@@ -1744,36 +1744,11 @@ useHead(computed(() => ({
         size="xs"
         class="mb-4"
       />
-      <div class="grid gap-3 sm:grid-cols-2">
-        <NuxtLink
-          v-for="item in currentRelatedItems"
-          :key="`${relatedTab}-${item.slug}`"
-          :to="repoSkillPath(item.owner, item.repo, item.name)"
-          class="group flex items-start gap-3 rounded-lg border border-default p-4 transition-colors hover:border-inverted/30"
-        >
-          <img
-            :src="`https://github.com/${item.owner}.png?size=48`"
-            :alt="`${item.owner} avatar`"
-            width="24"
-            height="24"
-            class="size-6 shrink-0 rounded-md border border-default mt-0.5"
-          >
-          <div class="min-w-0 flex-1">
-            <div class="truncate font-mono text-sm">
-              /{{ item.name }}
-            </div>
-            <div class="data-label mt-0.5 truncate">
-              {{ item.owner }}{{ item.repo !== 'skills' ? `/${item.repo}` : '' }}
-            </div>
-            <p
-              v-if="item.description"
-              class="mt-2 line-clamp-2 text-sm text-muted"
-            >
-              {{ item.description }}
-            </p>
-          </div>
-        </NuxtLink>
-      </div>
+      <SkillSourceList
+        :items="currentRelatedItems"
+        variant="grid"
+        aria-label="Related skills"
+      />
     </section>
   </template>
 </template>

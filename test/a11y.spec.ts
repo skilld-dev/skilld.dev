@@ -69,6 +69,30 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
   })
+
+  it('skillSourceList has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/SkillSourceList.vue').then(m => m.default),
+      {
+        attachTo: container,
+        props: {
+          items: [{
+            owner: 'antfu',
+            repo: 'skills',
+            name: 'vite',
+            displayName: 'Vite',
+            maintainerName: 'Anthony Fu',
+          }],
+          variant: 'stream',
+          ariaLabel: 'Person-authored skills',
+        },
+      },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
 })
 
 describe('accessibility: component coverage', () => {
@@ -112,7 +136,7 @@ describe('accessibility: component coverage', () => {
     // If this test fails, add an axe-core test for the new component
     for (const name of untestedComponents) {
       expect(
-        SKIPPED_COMPONENTS.includes(name) || ['AddToCollection.client', 'AppLogo'].includes(name),
+        SKIPPED_COMPONENTS.includes(name) || ['AddToCollection.client', 'AppLogo', 'SkillSourceList'].includes(name),
         `Component "${name}" needs an accessibility test or should be added to SKIPPED_COMPONENTS with a reason`,
       ).toBe(true)
     }

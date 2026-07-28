@@ -2,10 +2,18 @@
 import type { FeaturedCollectionsResponse } from '~~/server/api/collections/featured.get'
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
+import type { SkillSourceItem } from '../types/skill-source'
+import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
+import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
+import {
+  HOMEPAGE_PERSON_MINIMUM,
+  HOMEPAGE_SKILL_LIMIT,
+  selectHomepagePersonSkills,
+} from '../utils/homepage-person-skills'
 
 const title = 'Curated skills for AI agents · skilld'
-const description = 'Browse source-backed skills from open-source maintainers. Search by task, read the SKILL.md, and install with one command.'
+const description = 'Search reusable agent skills by task or maintainer. Read the source SKILL.md before you install.'
 
 useSeoMeta({
   title,
@@ -63,7 +71,7 @@ const [
   },
 ] = await Promise.all([
   withHomeDataTiming('home-featured', useFetch<FeaturedCollectionsResponse>('/api/collections/featured', {
-    key: 'home-featured-collections-v5',
+    key: 'home-featured-collections-v6',
   })),
   withHomeDataTiming('home-updates', useFetch<RecentUpdatesResponse>('/api/feed/recent-updates', {
     key: 'home-recent-updates-v2',
@@ -91,15 +99,27 @@ const recentPublishes = computed(() => publishesData.value?.items ?? [])
 
 type FeaturedCollectionSkill = FeaturedCollectionsResponse['items'][number]['skills'][number]
 
-interface HeroSkillCard {
-  key: string
-  owner: string
-  title: string
-  ownerPath: string
-  avatarUrl: string
-  collectionName: string
-  to: string
+interface FeaturedPeopleResponse {
+  devSections: FeaturedPersonSection[]
 }
+
+const {
+  data: peopleSkillsData,
+  execute: loadPeopleSkills,
+} = await useFetch<FeaturedPeopleResponse>('/api/skills/featured', {
+  key: 'home-person-skills-v1',
+  query: {
+    orgs: 0,
+    perOrg: 1,
+    devs: 20,
+    perDev: 2,
+  },
+  server: false,
+  lazy: true,
+  immediate: false,
+})
+
+onMounted(() => loadPeopleSkills())
 
 function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
   return skill.name
@@ -111,27 +131,21 @@ function featuredCollectionSkillLabel(skill: FeaturedCollectionSkill): string {
   return skill.name ? `/${skill.name}` : skill.repo
 }
 
-const heroSkillCards = computed<HeroSkillCard[]>(() => {
-  const seenOwners = new Set<string>()
+const fallbackPersonNamesByOwner = new Map<string, string>(
+  homepagePersonSkillFallbacks.map(skill => [skill.owner, skill.maintainerName]),
+)
 
-  return featuredCollections.value
-    .flatMap(collection => collection.skills.map((skill): HeroSkillCard => ({
-      key: `${skill.owner}/${skill.repo}/${skill.name ?? 'repo'}`,
-      owner: skill.owner,
-      title: skill.displayName ?? featuredCollectionSkillLabel(skill),
-      ownerPath: `${skill.owner}/${skill.repo}`,
-      avatarUrl: `https://github.com/${skill.owner}.png?size=96`,
-      collectionName: collection.name,
-      to: featuredCollectionSkillPath(skill),
-    })))
-    .filter((skill) => {
-      if (seenOwners.has(skill.owner))
-        return false
+const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
+  const liveSkills = selectHomepagePersonSkills(
+    peopleSkillsData.value?.devSections ?? [],
+    fallbackPersonNamesByOwner,
+  )
+  const livePeople = new Set(liveSkills.map(skill => skill.owner))
 
-      seenOwners.add(skill.owner)
-      return true
-    })
-    .slice(0, 5)
+  return liveSkills.length === HOMEPAGE_SKILL_LIMIT
+    && livePeople.size >= HOMEPAGE_PERSON_MINIMUM
+    ? liveSkills
+    : homepagePersonSkillFallbacks
 })
 
 const installCommand = computed(() => {
@@ -141,29 +155,24 @@ const installCommand = computed(() => {
     : ''
 })
 
-type CopyState
-  = | { _tag: 'idle' }
-    | { _tag: 'copied' }
-    | { _tag: 'error', message: string }
+const installTarget = computed<InstallTarget | null>(() => {
+  const collection = leadCollection.value
+  return collection
+    ? { kind: 'collection', handle: collection.authorLogin, slug: collection.slug }
+    : null
+})
+const { copy: copyFeaturedInstall } = useInstallCopy(
+  installCommand,
+  'homepage-featured-collection',
+  installTarget,
+)
+const copyState = refAutoReset<InstallCopyResult | { _tag: 'idle' }>({ _tag: 'idle' }, 2500)
 
-const copyState = refAutoReset<CopyState>({ _tag: 'idle' }, 2500)
 async function copyInstallCommand() {
-  const command = installCommand.value
-  if (!command)
+  if (!installCommand.value)
     return
 
-  const writeText = navigator.clipboard?.writeText.bind(navigator.clipboard)
-  if (!writeText) {
-    copyState.value = { _tag: 'error', message: 'Could not copy. Select the command and copy it manually.' }
-    return
-  }
-
-  copyState.value = await writeText(command)
-    .then((): CopyState => ({ _tag: 'copied' }))
-    .catch((error): CopyState => {
-      console.warn('[homepage] Could not copy install command:', error)
-      return { _tag: 'error', message: 'Could not copy. Select the command and copy it manually.' }
-    })
+  copyState.value = await copyFeaturedInstall()
 }
 
 const renderNow = useState('render:now', () => Number(new Date()))
@@ -210,36 +219,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
   const names = item.skills.slice(0, 3).map(skill => `/${skill.name}`).join(' · ')
   return item.skillCount > 3 ? `${names} · +${item.skillCount - 3} more` : names
 }
-
-const registryLinks = [
-  {
-    label: 'Collections',
-    description: 'Install an opinionated set of compatible skills with one command.',
-    to: '/collections',
-    icon: 'i-lucide-layers',
-    kicker: 'Curated path',
-    action: 'Browse collections',
-    featured: true,
-  },
-  {
-    label: 'All skills',
-    description: 'Search by name, maintainer, package, or the work you need done.',
-    to: '/skills',
-    icon: 'i-lucide-search',
-    kicker: 'Full index',
-    action: 'Search all skills',
-    featured: false,
-  },
-  {
-    label: 'Official publishers',
-    description: 'Browse skills from maintainers and the organizations behind your tools.',
-    to: '/skills/official',
-    icon: 'i-lucide-badge-check',
-    kicker: 'Source directory',
-    action: 'View publishers',
-    featured: false,
-  },
-]
 </script>
 
 <template>
@@ -261,13 +240,13 @@ const registryLinks = [
         <div class="home-hero-grid grid items-center gap-12 lg:grid-cols-[minmax(0,1.18fr)_minmax(24rem,0.82fr)] lg:gap-12 xl:gap-16">
           <div class="home-hero-copy min-w-0">
             <p class="section-label mb-5">
-              Source-backed skills for AI agents
+              Reusable instructions for coding agents
             </p>
             <h1 id="hero-heading" class="home-display home-display--split max-w-[11ch] font-semibold tracking-[-0.045em] text-balance">
-              Find skills your AI agent can actually use.
+              Find the right skill for the job.
             </h1>
             <p class="mt-6 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
-              Skills are instructions an agent can reuse. Tell us what you're working on, then check the source before you install anything.
+              Search the work you need done. Open the SKILL.md, see who wrote it, then install it.
             </p>
 
             <form
@@ -284,7 +263,7 @@ const registryLinks = [
                 name="q"
                 type="search"
                 autocomplete="off"
-                placeholder="Search skills, packages, or maintainers…"
+                placeholder="Try “debug a flaky test” or a maintainer…"
                 icon="i-lucide-search"
                 size="xl"
                 class="min-w-0 flex-1 [&_input]:min-h-11"
@@ -308,54 +287,23 @@ const registryLinks = [
                 class="min-h-11"
               />
               <p class="font-mono text-xs text-muted">
-                Every listing links to source. Install with one command.
+                Every result links to its source SKILL.md.
               </p>
             </div>
           </div>
 
-          <div v-if="heroSkillCards.length >= 4" class="min-w-0">
-            <div class="home-hero-proof-head flex items-center justify-between gap-4 px-1 pb-3">
+          <div class="min-w-0">
+            <div class="home-hero-proof-head px-1 pb-3">
               <p class="data-label">
-                Maintainers in the registry
-              </p>
-              <p class="font-mono text-xs text-muted">
-                {{ heroSkillCards.length }} sources
+                Skills from people who do the work
               </p>
             </div>
-            <div class="home-skill-proof" data-testid="hero-skill-proof">
-              <ul class="home-skill-timeline list-none p-0">
-                <li v-for="skill in heroSkillCards" :key="skill.key">
-                  <NuxtLink :to="skill.to" class="home-skill-timeline__item group">
-                    <span class="home-skill-timeline__avatar">
-                      <img
-                        :src="skill.avatarUrl"
-                        alt=""
-                        width="40"
-                        height="40"
-                        class="size-10 rounded-full border-2 border-[var(--ui-bg)] bg-default"
-                        decoding="async"
-                      >
-                    </span>
-                    <span class="home-skill-timeline__card">
-                      <span class="flex min-w-0 items-start justify-between gap-3">
-                        <span class="min-w-0">
-                          <span class="block truncate font-mono text-xs text-muted">
-                            @{{ skill.owner }} · {{ skill.collectionName }}
-                          </span>
-                          <span class="mt-1 block truncate text-base font-semibold tracking-tight text-default">
-                            {{ skill.title }}
-                          </span>
-                          <span class="mt-1 block truncate font-mono text-xs text-muted">
-                            {{ skill.ownerPath }}
-                          </span>
-                        </span>
-                        <UIcon name="i-lucide-arrow-up-right" class="home-skill-timeline__arrow mt-0.5 size-4 shrink-0 text-muted transition-colors group-hover:text-default" aria-hidden="true" />
-                      </span>
-                    </span>
-                  </NuxtLink>
-                </li>
-              </ul>
-            </div>
+            <SkillSourceList
+              :items="heroSkillCards"
+              variant="stream"
+              auto-scroll
+              aria-label="Person-authored skills"
+            />
           </div>
         </div>
       </div>
@@ -373,10 +321,10 @@ const registryLinks = [
               Browse by outcome
             </p>
             <h2 id="outcomes-heading" class="home-outcomes-title mt-4 max-w-[12ch] font-semibold text-balance">
-              What are you trying to do?
+              What should your agent do?
             </h2>
             <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              Pick the job. The matching skills may span several tools and maintainers.
+              Start with the job. Narrow by tool or maintainer later.
             </p>
           </div>
           <OutcomeClusterGrid aria-describedby="outcomes-description" />
@@ -401,13 +349,13 @@ const registryLinks = [
         <div class="home-featured-heading">
           <div class="min-w-0">
             <p class="section-label">
-              Featured focus
+              From the curator
             </p>
             <h2 id="featured-focus-heading" class="home-featured-title mt-4 text-balance">
-              Frontend design
+              Three collections I'd install first.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Frontend skills covering accessibility, motion, and framework-specific component work.
+              They cover the work around the code: finding a skill, planning a change, and checking the result.
             </p>
           </div>
           <UButton
@@ -468,7 +416,7 @@ const registryLinks = [
             <div class="home-featured-lead__intro">
               <div class="min-w-0">
                 <p class="data-label">
-                  Editor's starting point
+                  Start here
                 </p>
                 <h3 class="home-featured-lead__title mt-3 text-balance">
                   {{ leadCollection.name }}
@@ -497,7 +445,7 @@ const registryLinks = [
 
             <div v-if="leadCollection.preamble" class="home-featured-rationale">
               <p class="data-label">
-                Why start here
+                Why this collection
               </p>
               <p class="mt-2 max-w-2xl text-base leading-relaxed text-muted text-pretty">
                 {{ leadCollection.preamble }}
@@ -533,12 +481,55 @@ const registryLinks = [
               </li>
             </ul>
 
-            <UButton
-              :to="`/@${leadCollection.authorLogin}/${leadCollection.slug}`"
-              label="View this skill set"
-              trailing-icon="i-lucide-arrow-right"
-              class="mt-6 min-h-11"
-            />
+            <div class="home-featured-install">
+              <div class="home-featured-install__heading">
+                <div>
+                  <p class="data-label">
+                    Add all {{ leadCollection.skillCount }} skills
+                  </p>
+                  <p class="mt-2 text-base leading-relaxed text-muted">
+                    Run one command, or open the collection and check each source first.
+                  </p>
+                </div>
+                <UButton
+                  :to="`/@${leadCollection.authorLogin}/${leadCollection.slug}`"
+                  label="Inspect collection"
+                  color="neutral"
+                  variant="ghost"
+                  trailing-icon="i-lucide-arrow-up-right"
+                  class="min-h-11 shrink-0"
+                />
+              </div>
+              <div class="home-featured-command">
+                <code
+                  id="featured-install-command"
+                  tabindex="0"
+                >{{ installCommand }}</code>
+                <UButton
+                  :icon="copyState._tag === 'copied' ? 'i-lucide-check' : 'i-lucide-copy'"
+                  :label="copyState._tag === 'copied' ? 'Copied' : 'Copy install command'"
+                  color="neutral"
+                  variant="outline"
+                  class="home-featured-copy min-h-11 justify-center"
+                  @click="copyInstallCommand"
+                />
+              </div>
+              <p
+                class="home-featured-feedback text-sm"
+                :class="copyState._tag === 'error' ? 'text-error' : 'text-muted'"
+                aria-live="polite"
+              >
+                <template v-if="copyState._tag === 'copied'">
+                  Install command copied.
+                </template>
+                <template v-else-if="copyState._tag === 'error'">
+                  {{ copyState.message }}
+                </template>
+                <template v-else>
+                  Check the collection before you run the command.
+                </template>
+              </p>
+            </div>
           </article>
 
           <div v-if="supportingCollections.length" class="home-featured-support">
@@ -563,7 +554,7 @@ const registryLinks = [
                       decoding="async"
                     >
                     <p class="data-label truncate">
-                      Supporting set · @{{ collection.authorLogin }}
+                      Also useful · @{{ collection.authorLogin }}
                     </p>
                   </div>
                   <UIcon name="i-lucide-arrow-up-right" class="home-featured-support-arrow size-4 shrink-0" aria-hidden="true" />
@@ -575,7 +566,7 @@ const registryLinks = [
                   {{ collection.preamble }}
                 </p>
                 <p class="home-featured-support-meta font-mono text-xs text-muted">
-                  {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'skill' : 'skills' }} in this set
+                  {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'skill' : 'skills' }}
                 </p>
               </NuxtLink>
             </article>
@@ -584,185 +575,14 @@ const registryLinks = [
 
         <div v-else class="mt-10 rounded-lg border border-default bg-default p-6">
           <p class="font-medium">
-            No featured skill sets yet.
+            No featured collections right now.
           </p>
           <p class="mt-1 text-base text-muted">
-            Browse individual skills instead.
+            The full collection index is still available.
           </p>
           <UButton
-            to="/skills"
-            label="Browse all skills"
-            color="neutral"
-            variant="outline"
-            class="mt-4 min-h-11"
-          />
-        </div>
-      </div>
-    </section>
-
-    <section
-      id="install-confidence"
-      class="editorial-band home-confidence-band border-b border-default bg-muted"
-      aria-labelledby="install-confidence-heading"
-    >
-      <div
-        class="editorial-atmosphere"
-        data-palette="stone"
-        data-geometry="wash"
-        data-intensity="subtle"
-        aria-hidden="true"
-      />
-
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <div class="home-confidence-heading">
-          <div class="min-w-0">
-            <p class="section-label">
-              Before you install
-            </p>
-            <h2 id="install-confidence-heading" class="home-confidence-title mt-4 text-balance">
-              Check the source and the maintainer.
-            </h2>
-          </div>
-          <p class="home-confidence-intro text-base leading-relaxed text-muted text-pretty">
-            Every skill page shows who maintains it and where the SKILL.md lives. Collections add a note from the curator.
-          </p>
-        </div>
-
-        <article v-if="leadCollection" class="home-confidence-panel">
-          <ol class="home-confidence-chain">
-            <li class="home-confidence-step">
-              <p class="home-confidence-marker">
-                <span aria-hidden="true">01</span>
-                <span>Inspect</span>
-              </p>
-              <div class="home-confidence-step-body home-confidence-inspect">
-                <div class="min-w-0">
-                  <p class="data-label">
-                    From the registry
-                  </p>
-                  <h3 class="home-confidence-collection-title mt-2 text-balance">
-                    {{ leadCollection.name }}
-                  </h3>
-                </div>
-                <UButton
-                  :to="`/@${leadCollection.authorLogin}/${leadCollection.slug}`"
-                  label="Inspect the set"
-                  trailing-icon="i-lucide-arrow-up-right"
-                  class="home-confidence-inspect-action min-h-11 shrink-0"
-                />
-              </div>
-            </li>
-
-            <li class="home-confidence-step">
-              <p class="home-confidence-marker">
-                <span aria-hidden="true">02</span>
-                <span>Verify</span>
-              </p>
-              <div class="home-confidence-step-body home-confidence-proof">
-                <div>
-                  <h3 class="home-confidence-step-title">
-                    Provenance
-                  </h3>
-                  <dl class="home-confidence-facts">
-                    <div>
-                      <dt class="data-label">
-                        Curator
-                      </dt>
-                      <dd class="home-confidence-curator">
-                        <img
-                          :src="`https://avatars.githubusercontent.com/${leadCollection.authorLogin}?s=64`"
-                          alt=""
-                          width="32"
-                          height="32"
-                          loading="lazy"
-                          decoding="async"
-                        >
-                        <span>@{{ leadCollection.authorLogin }}</span>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class="data-label">
-                        Sources
-                      </dt>
-                      <dd>
-                        {{ new Set(leadCollection.skills.map(skill => `${skill.owner}/${skill.repo}`)).size }} repos
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class="data-label">
-                        Curated
-                      </dt>
-                      <dd>
-                        {{ formatRelative(leadCollection.updatedAt) }}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <div v-if="leadCollection.preamble" class="home-confidence-rationale">
-                  <p class="data-label">
-                    Why this set
-                  </p>
-                  <p class="mt-2 text-base leading-relaxed text-muted text-pretty">
-                    {{ leadCollection.preamble }}
-                  </p>
-                </div>
-              </div>
-            </li>
-
-            <li class="home-confidence-step">
-              <p class="home-confidence-marker">
-                <span aria-hidden="true">03</span>
-                <span>Install</span>
-              </p>
-              <div class="home-confidence-step-body">
-                <h3 class="home-confidence-step-title">
-                  Install the complete set
-                </h3>
-                <div class="home-confidence-command">
-                  <code
-                    id="featured-install-command"
-                    tabindex="0"
-                  >{{ installCommand }}</code>
-                  <UButton
-                    :icon="copyState._tag === 'copied' ? 'i-lucide-check' : 'i-lucide-copy'"
-                    :label="copyState._tag === 'copied' ? 'Copied' : 'Copy command'"
-                    color="neutral"
-                    variant="outline"
-                    class="home-confidence-copy min-h-11 justify-center"
-                    @click="copyInstallCommand"
-                  />
-                </div>
-                <p
-                  class="home-confidence-feedback text-base"
-                  :class="copyState._tag === 'error' ? 'text-error' : 'text-muted'"
-                  aria-live="polite"
-                >
-                  <template v-if="copyState._tag === 'copied'">
-                    Command copied to your clipboard.
-                  </template>
-                  <template v-else-if="copyState._tag === 'error'">
-                    {{ copyState.message }}
-                  </template>
-                  <template v-else>
-                    Review the collection before running the command.
-                  </template>
-                </p>
-              </div>
-            </li>
-          </ol>
-        </article>
-
-        <div v-else class="home-confidence-empty" role="status">
-          <p class="font-medium">
-            Install example unavailable.
-          </p>
-          <p class="mt-1 text-base text-muted">
-            Browse a skill to inspect its source and installation command directly.
-          </p>
-          <UButton
-            to="/skills"
-            label="Browse skills"
+            to="/collections"
+            label="Browse collections"
             color="neutral"
             variant="outline"
             class="mt-4 min-h-11"
@@ -790,10 +610,10 @@ const registryLinks = [
             Keep your agent current
           </p>
           <h2 id="freshness-heading" class="home-freshness-title mt-4 max-w-[15ch] font-semibold text-balance">
-            See which sources changed.
+            See what changed.
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-            Source changes and newly added skills have separate feeds. Newness gets no quality boost.
+            Updated skills and newly published skills have separate feeds. We don't rank new ones higher.
           </p>
         </header>
 
@@ -876,13 +696,13 @@ const registryLinks = [
                   The update feed is quiet.
                 </p>
                 <p class="mt-1 max-w-md text-base leading-relaxed text-muted">
-                  No source changes have landed here yet.
+                  No tracked source changes yet.
                 </p>
                 <UButton to="/skills" label="Browse skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
               </div>
             </div>
 
-            <aside class="home-freshness-watch" aria-labelledby="freshness-watch-heading">
+            <div class="home-freshness-watch">
               <div class="min-w-0">
                 <p class="data-label">
                   Weekly change digest
@@ -891,7 +711,7 @@ const registryLinks = [
                   Watch your stack for changes.
                 </h3>
                 <p class="mt-2 max-w-xl text-base leading-relaxed text-muted">
-                  Pick the repositories you depend on and get a weekly digest when their skills change.
+                  Get a weekly heads-up when the repositories you use change their skills.
                 </p>
               </div>
               <UButton
@@ -901,7 +721,7 @@ const registryLinks = [
                 trailing-icon="i-lucide-arrow-right"
                 class="min-h-11 shrink-0 self-start"
               />
-            </aside>
+            </div>
           </section>
 
           <section class="home-freshness-secondary" aria-labelledby="recent-publishes-heading">
@@ -990,67 +810,6 @@ const registryLinks = [
     </section>
 
     <section
-      id="explore-registry"
-      class="editorial-band home-registry border-b border-default"
-      aria-labelledby="explore-registry-heading"
-    >
-      <div
-        class="editorial-atmosphere"
-        data-palette="stone"
-        data-geometry="wash"
-        data-intensity="subtle"
-        aria-hidden="true"
-      />
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <div class="home-registry-intro">
-          <div>
-            <p class="section-label">
-              Browse deeper
-            </p>
-            <h2 id="explore-registry-heading" class="home-section-title home-registry-title mt-4 text-balance">
-              Collections, search, or publishers.
-            </h2>
-          </div>
-          <p class="home-registry-summary">
-            Want a full setup? Open Collections. Know the package or maintainer? Search the index. Official publishers have their own directory.
-          </p>
-        </div>
-
-        <ul class="home-registry-map list-none p-0">
-          <li
-            v-for="(link, index) in registryLinks"
-            :key="link.to"
-            :class="{ 'home-registry-map__primary': link.featured }"
-          >
-            <NuxtLink
-              :to="link.to"
-              class="home-registry-route group"
-              :class="{ 'home-registry-route--primary': link.featured }"
-            >
-              <span class="home-registry-route__topline">
-                <span class="home-registry-route__number">{{ String(index + 1).padStart(2, '0') }}</span>
-                <span class="home-registry-route__kicker">{{ link.kicker }}</span>
-              </span>
-              <span class="home-registry-route__body">
-                <span class="home-registry-route__icon">
-                  <UIcon :name="link.icon" class="size-5" aria-hidden="true" />
-                </span>
-                <span class="min-w-0">
-                  <span class="home-registry-route__label">{{ link.label }}</span>
-                  <span class="home-registry-route__description">{{ link.description }}</span>
-                </span>
-              </span>
-              <span class="home-registry-route__action">
-                {{ link.action }}
-                <UIcon name="i-lucide-arrow-up-right" class="home-registry-route__arrow size-4" aria-hidden="true" />
-              </span>
-            </NuxtLink>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <section
       id="publish"
       class="editorial-band home-band--publish"
       aria-labelledby="publish-heading"
@@ -1062,65 +821,36 @@ const registryLinks = [
         data-intensity="subtle"
         aria-hidden="true"
       />
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <div class="home-publish-intro">
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
+        <div class="home-publish-panel">
           <div>
             <p class="section-label">
-              Contribute
+              Share what works
             </p>
             <h2 id="publish-heading" class="home-section-title home-publish-title mt-4 text-balance">
-              Publish your own setup.
+              Got a setup you keep reusing?
             </h2>
+            <p class="home-publish-summary mt-4">
+              Ship guidance with your package, or bundle the skills you use into a collection.
+            </p>
           </div>
-          <p class="home-publish-summary">
-            Maintain a package? Ship agent guidance with the code. Built a setup you rely on? Publish it as a collection.
-          </p>
-        </div>
-
-        <ol class="home-publish-ledger">
-          <li>
-            <NuxtLink
+          <div class="home-publish-actions">
+            <UButton
               to="/learn/author-npm-package-skills"
-              class="home-publish-path"
-            >
-              <span class="home-publish-role">
-                <span class="home-publish-number" aria-hidden="true">01</span>
-                <span>For maintainers</span>
-              </span>
-              <span class="home-publish-copy">
-                <span class="home-publish-path-title">Publish package skills</span>
-                <span class="home-publish-description">
-                  Ship agent guidance in the package, on the same release cycle as the code.
-                </span>
-              </span>
-              <span class="home-publish-action">
-                Read the authoring guide
-                <UIcon name="i-lucide-arrow-right" class="home-publish-arrow size-4" aria-hidden="true" />
-              </span>
-            </NuxtLink>
-          </li>
-          <li>
-            <NuxtLink
+              label="Write a package skill"
+              color="neutral"
+              variant="outline"
+              trailing-icon="i-lucide-arrow-right"
+              class="min-h-11 justify-center"
+            />
+            <UButton
               to="/collections/new"
-              class="home-publish-path home-publish-path--primary"
-            >
-              <span class="home-publish-role">
-                <span class="home-publish-number" aria-hidden="true">02</span>
-                <span>For practitioners</span>
-              </span>
-              <span class="home-publish-copy">
-                <span class="home-publish-path-title">Publish a collection</span>
-                <span class="home-publish-description">
-                  Turn the skills you use into a collection others can open and install.
-                </span>
-              </span>
-              <span class="home-publish-action">
-                Create a collection
-                <UIcon name="i-lucide-arrow-right" class="home-publish-arrow size-4" aria-hidden="true" />
-              </span>
-            </NuxtLink>
-          </li>
-        </ol>
+              label="Create a collection"
+              trailing-icon="i-lucide-arrow-right"
+              class="min-h-11 justify-center"
+            />
+          </div>
+        </div>
       </div>
     </section>
   </div>

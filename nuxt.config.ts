@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { SENTRY_DSN } from './shared/sentry'
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
@@ -237,6 +238,7 @@ export default defineNuxtConfig({
   },
 
   vite: {
+    plugins: [dependencyPluginCompat()],
     optimizeDeps: {
       exclude: ['shiki'],
     },

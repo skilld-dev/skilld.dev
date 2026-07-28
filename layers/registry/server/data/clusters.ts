@@ -23,7 +23,7 @@ export const CLUSTERS: Cluster[] = [
     slug: 'plan',
     label: 'Plan before it codes',
     icon: 'i-lucide-list-checks',
-    userVoice: 'I want my agent to brainstorm, plan, then execute step by step.',
+    userVoice: 'Turn a rough idea into a plan the agent can work through.',
     categories: ['planning', 'testing-strategy'],
     pinnedExamples: [
       'obra/brainstorming',
@@ -35,9 +35,9 @@ export const CLUSTERS: Cluster[] = [
   },
   {
     slug: 'master-agent',
-    label: 'Master your agent',
+    label: 'Run a proper agent workflow',
     icon: 'i-lucide-zap',
-    userVoice: 'I want sub-agents, verification, and parallel execution across a real workflow.',
+    userVoice: 'Split work, delegate independent tasks, and verify each result.',
     categories: ['agent-meta'],
     pinnedExamples: [
       'obra/using-superpowers',
@@ -49,9 +49,9 @@ export const CLUSTERS: Cluster[] = [
   },
   {
     slug: 'docs',
-    label: 'Help me write docs & specs',
+    label: 'Write docs and specs',
     icon: 'i-lucide-pencil-line',
-    userVoice: 'I want READMEs, PRDs, and internal comms without the AI slop.',
+    userVoice: 'Draft READMEs, PRDs, and team updates without the usual AI filler.',
     categories: ['docs-writing', 'doc-writing', 'documentation', 'content-writing'],
     pinnedExamples: [
       'anthropics/doc-coauthoring',
@@ -63,9 +63,9 @@ export const CLUSTERS: Cluster[] = [
   },
   {
     slug: 'review',
-    label: 'Review and refactor my code',
+    label: 'Review or refactor code',
     icon: 'i-lucide-eye',
-    userVoice: 'I want a second reviewer and clean refactors that keep behaviour stable.',
+    userVoice: 'Get a second pass on the code, then refactor without changing behaviour.',
     categories: ['code-review', 'refactor'],
     pinnedExamples: [
       'obra/requesting-code-review',
@@ -77,9 +77,9 @@ export const CLUSTERS: Cluster[] = [
   },
   {
     slug: 'debug',
-    label: 'Debug like an engineer',
+    label: 'Track down a bug',
     icon: 'i-lucide-bug',
-    userVoice: 'I want my agent to investigate before guessing: reproduce, isolate, then fix.',
+    userVoice: 'Reproduce it, isolate the cause, then make the smallest fix.',
     categories: ['debugging', 'browser-automation'],
     pinnedExamples: [
       'obra/systematic-debugging',
@@ -89,9 +89,9 @@ export const CLUSTERS: Cluster[] = [
   },
   {
     slug: 'ship',
-    label: 'Ship cleanly',
+    label: 'Finish and ship',
     icon: 'i-lucide-git-branch',
-    userVoice: 'I want commits, branches, and releases that match how the team ships.',
+    userVoice: 'Prepare clean commits, branches, and release notes that fit the repo.',
     categories: ['git-workflow', 'devops'],
     pinnedExamples: [
       'obra/using-git-worktrees',

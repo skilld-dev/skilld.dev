@@ -39,18 +39,34 @@ export interface FeaturedCollectionsResponse {
   }>
 }
 
+const homepageCollectionSlugs = [
+  'agent-building-stack',
+  'typescript-engineering-stack',
+  'agent-workflow-stack',
+] as const
+
 export default defineCachedEventHandler(
   async (event): Promise<FeaturedCollectionsResponse> => {
     const db = getDB(event)
+    const slugPlaceholders = homepageCollectionSlugs.map(() => '?').join(',')
     const res = await db
       .prepare(
         `SELECT c.id, u.login AS author_login, c.slug, c.name, c.preamble, c.featured_at, c.updated_at
          FROM collections_v2 c
          JOIN users u ON u.id = c.author_user_id
-         WHERE c.featured = 1 AND c.deleted_at IS NULL
-         ORDER BY c.featured_at DESC
-         LIMIT 10`,
+         WHERE c.featured = 1
+           AND c.deleted_at IS NULL
+           AND u.login = 'harlan-zw'
+           AND c.slug IN (${slugPlaceholders})
+         ORDER BY CASE c.slug
+           WHEN 'agent-building-stack' THEN 0
+           WHEN 'typescript-engineering-stack' THEN 1
+           WHEN 'agent-workflow-stack' THEN 2
+           ELSE 3
+         END
+         LIMIT 3`,
       )
+      .bind(...homepageCollectionSlugs)
       .all<CollectionRow>()
     const rows = res.results ?? []
     const ids = rows.map(row => row.id)
@@ -90,5 +106,5 @@ export default defineCachedEventHandler(
     })
     return { items }
   },
-  { maxAge: 30, swr: false, name: 'collections-featured-origin-v1' },
+  { maxAge: 30, swr: false, name: 'collections-featured-origin-v2' },
 )

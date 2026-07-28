@@ -5,6 +5,7 @@ describe('skills route policy', () => {
   it('passes known marketing routes through', () => {
     expect(resolveSkillsRoute('/skills/plan', '')).toEqual({ _tag: 'pass' })
     expect(resolveSkillsRoute('/skills/tag/nuxt', '')).toEqual({ _tag: 'pass' })
+    expect(resolveSkillsRoute('/skills/leaderboard', '')).toEqual({ _tag: 'pass' })
   })
 
   it('returns a 404 decision for unknown one-segment outcomes', () => {
