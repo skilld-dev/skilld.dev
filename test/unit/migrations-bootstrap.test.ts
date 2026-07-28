@@ -194,7 +194,24 @@ describe('d1 migration bootstrap', () => {
         SELECT sql FROM sqlite_schema
         WHERE type = 'table' AND name = 'discovery_candidates'
       `).get() as { sql: string }).sql).toContain(`'historical_inventory'`)
-      expect(migrations.at(-1)).toBe('0079_discovery_historical_source.sql')
+      expect(sqlite.prepare(`
+        SELECT status, reviewed_by
+        FROM skill_repo_eligibility
+        WHERE owner = 'harlan-zw' AND repo = 'harlan-agent-kit'
+      `).get()).toEqual({
+        status: 'eligible',
+        reviewed_by: 'harlan',
+      })
+      expect(sqlite.prepare(`
+        SELECT source, outcome, retry_state
+        FROM discovery_candidates
+        WHERE owner = 'harlan-zw' AND repo = 'harlan-agent-kit'
+      `).get()).toEqual({
+        source: 'manual',
+        outcome: 'pending',
+        retry_state: 'ready',
+      })
+      expect(migrations.at(-1)).toBe('0082_digest_opt_in_requires_address.sql')
     }
     finally {
       sqlite.close()

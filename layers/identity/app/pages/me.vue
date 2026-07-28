@@ -35,9 +35,12 @@ const cadence = reactive({
   timezone: me.value?.timezone ?? 'UTC',
 })
 async function saveCadence() {
-  await $fetch('/api/me/cadence', { method: 'PATCH', body: cadence }).catch(actionFailed('save your digest schedule'))
+  const saved = await $fetch('/api/me/cadence', { method: 'PATCH', body: cadence }).catch(actionFailed('save your digest schedule'))
   await refreshMe()
-  showCadence.value = false
+  // A closed panel reads as a saved panel, so a rejected write keeps the form
+  // open on the values the user still needs to correct.
+  if (saved)
+    showCadence.value = false
 }
 
 const showEmail = ref(false)
@@ -45,10 +48,16 @@ const emailForm = reactive({
   digest_email: me.value?.digest_email ?? me.value?.email ?? '',
   email_opt_in: !!me.value?.email_opt_in,
 })
+const emailMissingAddress = computed(() =>
+  emailForm.email_opt_in && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(emailForm.digest_email.trim()),
+)
 async function saveEmail() {
-  await $fetch('/api/me/email', { method: 'PATCH', body: emailForm }).catch(actionFailed('save your digest email'))
+  if (emailMissingAddress.value)
+    return
+  const saved = await $fetch('/api/me/email', { method: 'PATCH', body: emailForm }).catch(actionFailed('save your digest email'))
   await refreshMe()
-  showEmail.value = false
+  if (saved)
+    showEmail.value = false
 }
 
 useSeoMeta({ title: 'Your dashboard · skilld', robots: 'noindex' })
@@ -149,9 +158,18 @@ function fmtDate(ts: number | null | undefined): string {
           @click="() => { showEmail = !showEmail }"
         />
         <div v-if="showEmail" class="mt-3 space-y-2">
-          <input v-model="emailForm.digest_email" type="email" class="w-full rounded border border-default bg-default px-2 py-1 font-mono text-xs">
+          <input
+            v-model="emailForm.digest_email"
+            type="email"
+            :aria-invalid="emailMissingAddress"
+            :aria-describedby="emailMissingAddress ? 'digest-email-error' : undefined"
+            class="w-full rounded border border-default bg-default px-2 py-1 font-mono text-xs"
+          >
           <label class="flex items-center gap-2 text-xs"><input v-model="emailForm.email_opt_in" type="checkbox"> Send me the digest</label>
-          <UButton size="xs" label="Save" @click="saveEmail" />
+          <p v-if="emailMissingAddress" id="digest-email-error" class="text-xs text-error">
+            Add an email address, or untick the box to stop digests.
+          </p>
+          <UButton size="xs" label="Save" :disabled="emailMissingAddress" @click="saveEmail" />
         </div>
       </div>
     </div>

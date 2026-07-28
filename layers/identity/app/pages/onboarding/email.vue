@@ -9,14 +9,28 @@ const optIn = ref(true)
 
 const actionFailed = useActionFailure()
 
+// Opting in needs somewhere to send the digest, so the address is required
+// exactly when the box is ticked.
+const missingAddress = computed(() => optIn.value && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(email.value.trim()))
+
 const submitting = ref(false)
 async function finish() {
+  if (missingAddress.value)
+    return
   submitting.value = true
-  await $fetch('/api/me/email', {
+  const saved = await $fetch('/api/me/email', {
     method: 'PATCH',
     body: { digest_email: email.value, email_opt_in: optIn.value },
   }).catch(actionFailed('save your digest email'))
-  await $fetch('/api/me/onboarded', { method: 'POST' }).catch(actionFailed('finish setting up your account'))
+  if (!saved) {
+    submitting.value = false
+    return
+  }
+  const onboarded = await $fetch('/api/me/onboarded', { method: 'POST' }).catch(actionFailed('finish setting up your account'))
+  if (!onboarded) {
+    submitting.value = false
+    return
+  }
   await fetchSession()
   submitting.value = false
   await navigateTo('/me?welcome=1')
@@ -42,8 +56,13 @@ useSeoMeta({ title: 'Email opt-in · skilld', robots: 'noindex' })
           id="email"
           v-model="email"
           type="email"
+          :aria-invalid="missingAddress"
+          :aria-describedby="missingAddress ? 'email-error' : undefined"
           class="mt-1 w-full rounded border border-default bg-default px-2 py-1 font-mono text-sm"
         >
+        <p v-if="missingAddress" id="email-error" class="mt-1 text-xs text-error">
+          Add an email address, or untick the box below to skip digests.
+        </p>
       </div>
 
       <label class="flex items-start gap-3 cursor-pointer">
@@ -69,6 +88,7 @@ useSeoMeta({ title: 'Email opt-in · skilld', robots: 'noindex' })
       />
       <UButton
         :loading="submitting"
+        :disabled="missingAddress"
         label="Finish"
         trailing-icon="i-lucide-check"
         size="sm"
