@@ -183,9 +183,16 @@ const d1 = probe(() => {
       : 'NULL AS newly_broken_repos_impacted',
     has('skills') ? `(SELECT COUNT(*) FROM skills WHERE sync_status IS NOT NULL AND sync_status != 'ok' AND last_synced_at >= ${sinceSec}) AS skill_sync_failures` : 'NULL AS skill_sync_failures',
     has('skill_dirty') ? `(SELECT COUNT(*) FROM skill_dirty WHERE queued_at < ${Math.floor(now.getTime() / 1000) - 3600}) AS stale_dirty_skills` : 'NULL AS stale_dirty_skills',
+    // `ai_batches` covers the Anthropic batch pipeline only, and embeddings never
+    // touch it, so these three read 0 while `HAIKU_GENERATION_PAUSED` holds. The
+    // embedding counters below are the ones that move; reading an AI-pipeline
+    // verdict off `ai_submitted` alone produced a wrong diagnosis on 2026-08-03.
     has('ai_batches') ? `(SELECT COUNT(*) FROM ai_batches WHERE status = 'submitted') AS ai_submitted` : 'NULL AS ai_submitted',
     has('ai_batches') ? `(SELECT COUNT(*) FROM ai_batches WHERE status = 'submitted' AND submitted_at < ${Math.floor(now.getTime() / 1000) - 10800}) AS ai_stuck` : 'NULL AS ai_stuck',
     has('ai_batches') ? `(SELECT COUNT(*) FROM ai_batches WHERE status IN ('failed','expired') AND COALESCE(completed_at, submitted_at) >= ${sinceSec}) AS ai_failed` : 'NULL AS ai_failed',
+    has('embedding_attempts') ? `(SELECT COUNT(*) FROM embedding_attempts WHERE state = 'completed' AND started_at >= ${sinceSec}) AS embeddings_completed` : 'NULL AS embeddings_completed',
+    has('embedding_attempts') ? `(SELECT COUNT(*) FROM embedding_attempts WHERE state IN ('provider_failed','rejected','vector_succeeded_marker_failed') AND started_at >= ${sinceSec}) AS embeddings_failed` : 'NULL AS embeddings_failed',
+    has('embedding_attempts') ? `(SELECT COUNT(*) FROM embedding_attempts WHERE state = 'started' AND started_at < ${Math.floor(now.getTime() / 1000) - 3600}) AS embeddings_stuck` : 'NULL AS embeddings_stuck',
     has('failed_jobs') ? `(SELECT COUNT(*) FROM failed_jobs WHERE failed_at >= ${sinceSec}) AS failed_jobs` : 'NULL AS failed_jobs',
     has('jobs') ? `(SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ${Math.floor(now.getTime() / 1000) - 900} AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs` : 'NULL AS stale_reserved_jobs',
   ]

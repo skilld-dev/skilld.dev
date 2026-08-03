@@ -104,6 +104,19 @@ async function unavailableClaimResult(
   return { _tag: 'state_changed' }
 }
 
+/**
+ * A retry can only help when the next attempt might see something different.
+ * `syncRepo` calls `markRepoMissing` for 404 and 410, so the codebase already
+ * treats those as the repository being gone, and a truncated tree is a property
+ * of the repository's size rather than a transient upstream state. 401 stays
+ * retryable on purpose: it means our credentials, not their repository.
+ */
+function isPermanentSyncFailure(error: string): boolean {
+  return error === 'tree_truncated'
+    || error === 'repo fetch 404'
+    || error === 'repo fetch 410'
+}
+
 export function discoveryOutcomeFromSyncStats(stats: SyncRepoStats): DiscoveryAttemptOutcome {
   if (stats.status === 'indexed' && stats.skillsUpserted > 0)
     return { _tag: 'indexed' }
@@ -113,12 +126,12 @@ export function discoveryOutcomeFromSyncStats(stats: SyncRepoStats): DiscoveryAt
     return { _tag: 'already_admitted' }
   if (stats.status === 'rejected')
     return { _tag: 'rejected', reason: stats.reason ?? 'rejected_without_reason' }
-  return {
-    _tag: 'retryable_failure',
-    error: stats.status === 'indexed'
-      ? 'indexed_without_upsert'
-      : stats.reason ?? `sync_${stats.status}`,
-  }
+  const error = stats.status === 'indexed'
+    ? 'indexed_without_upsert'
+    : stats.reason ?? `sync_${stats.status}`
+  if (isPermanentSyncFailure(error))
+    return { _tag: 'rejected', reason: error }
+  return { _tag: 'retryable_failure', error }
 }
 
 export async function upsertDiscoveryCandidate(

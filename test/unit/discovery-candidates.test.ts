@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   claimDiscoveryCandidate,
   classifyDiscoveryClaimUnavailable,
+  discoveryOutcomeFromSyncStats,
   finishDiscoveryCandidateAttempt,
   upsertDiscoveryCandidate,
 } from '../../layers/registry/server/utils/discovery-candidates'
@@ -445,3 +446,45 @@ function wrapSqlite(sqlite: Database.Database): D1Database {
     },
   } as unknown as D1Database
 }
+
+describe('sync failure permanence', () => {
+  // A candidate whose repository is gone cannot succeed on a retry. Classifying
+  // it as retryable burned five attempts each and then tripped the nightly
+  // "exhausted automatic retries" alarm: 86 of the 95 exhausted candidates on
+  // 2026-08-03 were `repo fetch 404`. `syncRepoAssetBackfill` already treats
+  // only 403, 429 and 5xx as retryable; this mirrors that.
+  it('rejects a repository that upstream reports as gone', () => {
+    for (const status of [404, 410]) {
+      expect(discoveryOutcomeFromSyncStats({
+        status: 'failed',
+        reason: `repo fetch ${status}`,
+      } as never)).toEqual({ _tag: 'rejected', reason: `repo fetch ${status}` })
+    }
+  })
+
+  it('rejects a tree the API cannot return whole', () => {
+    expect(discoveryOutcomeFromSyncStats({
+      status: 'failed',
+      reason: 'tree_truncated',
+    } as never)).toEqual({ _tag: 'rejected', reason: 'tree_truncated' })
+  })
+
+  it('keeps retrying throttled and server-side failures', () => {
+    for (const status of [403, 429, 500, 502]) {
+      expect(discoveryOutcomeFromSyncStats({
+        status: 'failed',
+        reason: `repo fetch ${status}`,
+      } as never)).toEqual({ _tag: 'retryable_failure', error: `repo fetch ${status}` })
+    }
+  })
+
+  it('keeps retrying a failure it cannot classify', () => {
+    expect(discoveryOutcomeFromSyncStats({
+      status: 'failed',
+      reason: 'blob_batch_partial:some/path/SKILL.md',
+    } as never)).toEqual({
+      _tag: 'retryable_failure',
+      error: 'blob_batch_partial:some/path/SKILL.md',
+    })
+  })
+})
