@@ -1,3 +1,4 @@
+import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
@@ -56,11 +57,7 @@ export default defineApiHandler({
     )?.path
 
     if (!skillPath) {
-      await useStorage('cache').setItem(
-        cacheKey,
-      { status: 'missing', body: null, branch, path: null } satisfies RawCache,
-      { ttl: RAW_MISSING_TTL },
-      )
+      await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
       throw createError({ statusCode: 404, message: 'SKILL.md not found in repository' })
     }
 
@@ -71,19 +68,11 @@ export default defineApiHandler({
     })
 
     if (!body) {
-      await useStorage('cache').setItem(
-        cacheKey,
-      { status: 'missing', body: null, branch, path: skillPath } satisfies RawCache,
-      { ttl: RAW_MISSING_TTL },
-      )
+      await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: skillPath } satisfies RawCache, { ttl: RAW_MISSING_TTL })
       throw createError({ statusCode: 502, message: 'Could not fetch SKILL.md' })
     }
 
-    await useStorage('cache').setItem(
-      cacheKey,
-    { status: 'ok', body, branch, path: skillPath } satisfies RawCache,
-    { ttl: RAW_CACHE_TTL },
-    )
+    await writeCache(useStorage('cache'), cacheKey, { status: 'ok', body, branch, path: skillPath } satisfies RawCache, { ttl: RAW_CACHE_TTL })
 
     setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
     setHeader(event, 'cache-control', 'public, max-age=300')

@@ -1,6 +1,7 @@
 import type { TagPayload } from '../../jobs/generate-tags'
 import type { RegistrySkill } from '../../utils/skills-registry'
 import { getDB } from '#server/utils/db'
+import { writeCache } from '#shared/server/cache'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
@@ -192,7 +193,7 @@ export default defineCachedEventHandler(async (event) => {
       return null
     })
     const desc = data?.repo?.description?.trim() || null
-    await useStorage('cache').setItem(cacheKey, desc, { ttl: 60 * 60 * 6 })
+    await writeCache(useStorage('cache'), cacheKey, desc, { ttl: 60 * 60 * 6 })
     r.description = desc
   }))
 

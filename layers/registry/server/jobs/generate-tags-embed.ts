@@ -14,6 +14,7 @@
  */
 import type { EmbeddingContext, EmbeddingSkill } from './generate-embeddings'
 import type { TagPayload } from './generate-tags'
+import { writeCache } from '#shared/server/cache'
 import { putGenerated, sha1 } from '../utils/skill-generated'
 import { generateEmbedding } from './generate-embeddings'
 import { TAXONOMY } from './taxonomy'
@@ -61,7 +62,7 @@ export async function getTagCentroids(ctx: EmbeddingContext): Promise<TagCentroi
       centroids.push({ slug: tag.slug, vector: emb.vector })
   }
 
-  await useStorage('cache').setItem(cacheKey, centroids, { ttl: 60 * 60 * 24 * 30 })
+  await writeCache(useStorage('cache'), cacheKey, centroids, { ttl: 60 * 60 * 24 * 30 })
   return centroids
 }
 

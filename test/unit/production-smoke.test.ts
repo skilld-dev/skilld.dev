@@ -182,6 +182,47 @@ describe('production smoke contract', () => {
     expect(delayedCleanUrlPoisoned).toBe(false)
   })
 
+  it('outwaits a CDN-cached 404 that predates the smoke', async () => {
+    // `/_nuxt/v2/**` carries `cloudflare-cdn-cache-control: max-age=60`, so a 404
+    // observed during rollout is pinned at the edge for the TTL. Origin is ready
+    // (the cache-busted probe passes) and the clean URL only recovers once the
+    // entry expires, so the retry cadence must outlast the TTL.
+    const cdnCacheTtlMs = 60_000
+    let elapsedMs = 0
+    const cleanRequests: number[] = []
+    const fetch: SmokeFetch = vi.fn(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/skills/leaderboard') {
+        return new Response(
+          '<script src="/_nuxt/v2/pinned.js"></script>',
+          { status: 200, headers: { 'content-type': 'text/html' } },
+        )
+      }
+      if (url.pathname !== '/_nuxt/v2/pinned.js')
+        return new Response('', { status: 404 })
+      if (url.search)
+        return new Response('', { status: 200 })
+      cleanRequests.push(elapsedMs)
+      return new Response('', { status: elapsedMs >= cdnCacheTtlMs ? 200 : 404 })
+    })
+
+    const result = await runProductionSmoke({
+      baseUrl: 'https://skilld.dev',
+      attempts: 12,
+      retryDelayMs: 5_000,
+      cdnCacheTtlMs,
+      fetch,
+      wait: vi.fn(async (milliseconds: number) => {
+        elapsedMs += milliseconds
+      }),
+      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+    })
+
+    expect(result._tag).toBe('passed')
+    expect(cleanRequests[0]).toBe(0)
+    expect(cleanRequests.at(-1)).toBeGreaterThanOrEqual(cdnCacheTtlMs)
+  })
+
   it('refetches the page when rollout HTML and assets are temporarily skewed', async () => {
     let pageRequests = 0
     const fetch: SmokeFetch = vi.fn(async (input) => {

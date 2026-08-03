@@ -24,10 +24,22 @@ export interface ProductionSmokeDependencies {
   baseUrl: string
   attempts?: number
   retryDelayMs?: number
+  /**
+   * `cloudflare-cdn-cache-control: max-age=60` on `/_nuxt/v2/**` (see routeRules
+   * in nuxt.config) pins a rollout 404 at the edge even once origin serves the
+   * asset. Keep this in step with that max-age.
+   */
+  cdnCacheTtlMs?: number
   expectations?: SmokeExpectation[]
   fetch?: SmokeFetch
   wait?: (milliseconds: number) => Promise<void>
 }
+
+/**
+ * A stale edge entry clears within one TTL. Two waits bound the deploy while
+ * still proving that a clean-URL 404 outliving the cache is a real fault.
+ */
+const MAX_STALE_CACHE_WAITS = 2
 
 export type ProductionSmokeResult
   = | {
@@ -172,6 +184,7 @@ async function checkLeaderboardAssetCoherence(
     fetch: SmokeFetch
     attempts: number
     retryDelayMs: number
+    cdnCacheTtlMs: number
     wait: (milliseconds: number) => Promise<void>
   },
 ): Promise<
@@ -190,8 +203,10 @@ async function checkLeaderboardAssetCoherence(
     attempts: number
     result: Extract<SmokeEvaluation, { _tag: 'failed' }>
   }> = []
+  let staleCacheWaits = 0
 
   for (let attempt = 1; attempt <= input.attempts; attempt++) {
+    let nextDelayMs = input.retryDelayMs
     const page = await observe(input.fetch, dependencies.baseUrl, '/skills/leaderboard')
     if ('_tag' in page) {
       latestFailures = [{
@@ -255,6 +270,13 @@ async function checkLeaderboardAssetCoherence(
             const cleanFailures = cleanResults.filter(result => result._tag === 'failed')
             if (cleanFailures.length === 0)
               return { _tag: 'passed' }
+            // Origin serves every asset, so a clean-URL failure is an edge entry
+            // cached before the smoke began. Outwait the TTL rather than spending
+            // the retry budget inside it.
+            if (staleCacheWaits < MAX_STALE_CACHE_WAITS) {
+              nextDelayMs = input.cdnCacheTtlMs
+              staleCacheWaits++
+            }
             latestFailures = cleanFailures.map(failure => ({
               path: failure.path,
               attempts: attempt,
@@ -273,7 +295,7 @@ async function checkLeaderboardAssetCoherence(
     }
 
     if (attempt < input.attempts)
-      await input.wait(input.retryDelayMs)
+      await input.wait(nextDelayMs)
   }
 
   return {
@@ -287,6 +309,7 @@ export async function runProductionSmoke(
 ): Promise<ProductionSmokeResult> {
   const attempts = Math.max(1, Math.floor(dependencies.attempts ?? 12))
   const retryDelayMs = Math.max(0, Math.floor(dependencies.retryDelayMs ?? 5_000))
+  const cdnCacheTtlMs = Math.max(0, Math.floor(dependencies.cdnCacheTtlMs ?? 60_000))
   const expectations = dependencies.expectations ?? PRODUCTION_SMOKE_EXPECTATIONS
   const fetch = dependencies.fetch ?? globalThis.fetch
   const wait = dependencies.wait ?? waitFor
@@ -334,6 +357,7 @@ export async function runProductionSmoke(
       fetch,
       attempts,
       retryDelayMs,
+      cdnCacheTtlMs,
       wait,
     })
     if (coherence._tag === 'failed')

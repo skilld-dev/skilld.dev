@@ -1,3 +1,4 @@
+import { writeCache } from '#shared/server/cache'
 /// <reference types="@cloudflare/workers-types" />
 /**
  * Embedding similarity prototype. Uses Voyage (voyage-3-lite is cheap; we only
@@ -165,7 +166,7 @@ export async function getEmbeddingNeighbors(
       break
   }
 
-  await useStorage('cache').setItem(cacheKey, neighbors, { ttl: NEIGHBOR_CACHE_TTL })
+  await writeCache(useStorage('cache'), cacheKey, neighbors, { ttl: NEIGHBOR_CACHE_TTL })
   return neighbors
 }
 

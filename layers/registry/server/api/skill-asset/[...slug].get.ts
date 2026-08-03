@@ -1,3 +1,4 @@
+import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { parseSkillMd } from '../../utils/skill-md-render'
@@ -120,7 +121,7 @@ export default defineApiHandler({
     )?.path
 
     if (!skillMdPath) {
-      await useStorage('cache').setItem(cacheKey, {
+      await writeCache(useStorage('cache'), cacheKey, {
         status: 'missing',
         raw: null,
         html: null,
@@ -141,7 +142,7 @@ export default defineApiHandler({
     })
 
     if (raw === null) {
-      await useStorage('cache').setItem(cacheKey, {
+      await writeCache(useStorage('cache'), cacheKey, {
         status: 'missing',
         raw: null,
         html: null,
@@ -176,7 +177,7 @@ export default defineApiHandler({
       branch,
       skillPath: skillMdPath,
     }
-    await useStorage('cache').setItem(cacheKey, result, { ttl: ASSET_CACHE_TTL })
+    await writeCache(useStorage('cache'), cacheKey, result, { ttl: ASSET_CACHE_TTL })
     return result
   },
 })

@@ -28,27 +28,9 @@ const { data: repoSource, status: repoSourceStatus, error: repoSourceError, refr
   },
 ) as ReturnType<typeof useFetch<RepoSourceProfile>>
 
-const repoSkills = computed(() => {
-  const profile = repoProfile.value
-  if (!profile)
-    return []
-  const hub = repoHub.value
-  const list = profile.skills.filter(skill => skill.repo.toLowerCase() === hub.repo.toLowerCase())
-  return [...list].sort((a, b) => {
-    const aT = a.modifiedAt ?? a.pushedAt ?? 0
-    const bT = b.modifiedAt ?? b.pushedAt ?? 0
-    if (bT !== aT)
-      return bT - aT
-    return (b.installs ?? 0) - (a.installs ?? 0)
-  })
-})
+const repoSkills = computed(() => selectRepoSkills(repoProfile.value, repoHub.value.repo))
 
-const repoInfo = computed(() => {
-  const hub = repoHub.value
-  if (!repoProfile.value)
-    return null
-  return repoProfile.value.repos.find(r => r.repo === hub.repo) ?? null
-})
+const repoInfo = computed(() => selectRepoInfo(repoProfile.value, repoHub.value.repo))
 
 const sourceDisplayName = computed(() => {
   const hub = repoHub.value

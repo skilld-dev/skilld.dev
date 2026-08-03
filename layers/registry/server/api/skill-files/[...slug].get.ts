@@ -1,3 +1,4 @@
+import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
@@ -81,7 +82,7 @@ export default defineApiHandler({
 
     if (!tree?.files?.length) {
       const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [] }
-      await useStorage('cache').setItem(cacheKey, empty, { ttl: FILES_MISSING_TTL })
+      await writeCache(useStorage('cache'), cacheKey, empty, { ttl: FILES_MISSING_TTL })
       return empty
     }
 
@@ -102,7 +103,7 @@ export default defineApiHandler({
 
     if (!skillDir) {
       const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [] }
-      await useStorage('cache').setItem(cacheKey, empty, { ttl: FILES_MISSING_TTL })
+      await writeCache(useStorage('cache'), cacheKey, empty, { ttl: FILES_MISSING_TTL })
       return empty
     }
 
@@ -116,7 +117,7 @@ export default defineApiHandler({
       }))
 
     const result: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files }
-    await useStorage('cache').setItem(cacheKey, result, { ttl: FILES_CACHE_TTL })
+    await writeCache(useStorage('cache'), cacheKey, result, { ttl: FILES_CACHE_TTL })
     return result
   },
 })

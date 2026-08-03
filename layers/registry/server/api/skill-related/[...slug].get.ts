@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
 import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
+import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
 import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
@@ -153,6 +154,6 @@ async function getSkillCommits(owner: string, repo: string, path: string): Promi
     verifiedReason: c.commit?.verification?.reason ?? 'unsigned',
   }))
 
-  await useStorage('cache').setItem(cacheKey, commits, { ttl: COMMITS_CACHE_TTL })
+  await writeCache(useStorage('cache'), cacheKey, commits, { ttl: COMMITS_CACHE_TTL })
   return commits
 }

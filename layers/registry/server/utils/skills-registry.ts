@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate-canonical'
 import type { SemanticHit } from './skill-semantic-search'
 import { getDB } from '#server/utils/db'
+import { writeCache } from '#shared/server/cache'
 import { JOIN_REPOS_SQL, notAggregatorSql, notBrokenSql } from './broken'
 import {
   duplicateWeakerSlugSet,
@@ -582,7 +583,7 @@ async function listDuplicateCandidateRows(
     `)
     .all<SkillDuplicateRow>()
   const rows = res.results ?? []
-  await useStorage('cache').setItem(cacheKey, rows, { ttl: DUPLICATE_CANDIDATES_TTL })
+  await writeCache(useStorage('cache'), cacheKey, rows, { ttl: DUPLICATE_CANDIDATES_TTL })
   return rows
 }
 
@@ -648,7 +649,7 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
   const entries = rows
     .filter(row => !weakerSupportedSlugs.has(skillSlug(row)))
     .map(row => ({ name: row.name, owner: row.owner, repo: row.repo }))
-  await useStorage('cache').setItem(cacheKey, entries, { ttl: DUPLICATE_CANDIDATES_TTL })
+  await writeCache(useStorage('cache'), cacheKey, entries, { ttl: DUPLICATE_CANDIDATES_TTL })
   return entries
 }
 

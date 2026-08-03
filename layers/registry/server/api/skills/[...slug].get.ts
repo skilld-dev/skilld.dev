@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { SkillDetailResponseSchema } from 'skilld-protocol/wire'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
+import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
@@ -539,7 +540,7 @@ async function getEndorsementsForSkill(db: D1Database, skillName: string): Promi
 
   if (!endorsementMap) {
     endorsementMap = await buildEndorsementMap(db)
-    await useStorage('cache').setItem(ENDORSEMENTS_CACHE_KEY, endorsementMap, { ttl: ENDORSEMENTS_CACHE_TTL })
+    await writeCache(useStorage('cache'), ENDORSEMENTS_CACHE_KEY, endorsementMap, { ttl: ENDORSEMENTS_CACHE_TTL })
   }
 
   return endorsementMap[skillName] ?? []
