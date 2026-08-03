@@ -30,6 +30,15 @@ export interface ProductionSmokeDependencies {
    * asset. Keep this in step with that max-age.
    */
   cdnCacheTtlMs?: number
+  /**
+   * Asset coherence gets a longer budget than the page checks. Assets are served
+   * by the per-version ASSETS binding, so mid-rollout the HTML can come from the
+   * new version while an asset request still lands on the old one and 404s. That
+   * window has outlasted the page budget in production (runs 30365494042 and
+   * 30782222458), and rolling back does not shorten it, since the rollback is
+   * itself another version switch.
+   */
+  assetCoherenceAttempts?: number
   expectations?: SmokeExpectation[]
   fetch?: SmokeFetch
   wait?: (milliseconds: number) => Promise<void>
@@ -310,6 +319,10 @@ export async function runProductionSmoke(
   const attempts = Math.max(1, Math.floor(dependencies.attempts ?? 12))
   const retryDelayMs = Math.max(0, Math.floor(dependencies.retryDelayMs ?? 5_000))
   const cdnCacheTtlMs = Math.max(0, Math.floor(dependencies.cdnCacheTtlMs ?? 60_000))
+  const assetCoherenceAttempts = Math.max(
+    attempts,
+    Math.floor(dependencies.assetCoherenceAttempts ?? 48),
+  )
   const expectations = dependencies.expectations ?? PRODUCTION_SMOKE_EXPECTATIONS
   const fetch = dependencies.fetch ?? globalThis.fetch
   const wait = dependencies.wait ?? waitFor
@@ -355,7 +368,7 @@ export async function runProductionSmoke(
   if (expectations.some(expectation => expectation.path === '/skills/leaderboard')) {
     const coherence = await checkLeaderboardAssetCoherence(dependencies, {
       fetch,
-      attempts,
+      attempts: assetCoherenceAttempts,
       retryDelayMs,
       cdnCacheTtlMs,
       wait,

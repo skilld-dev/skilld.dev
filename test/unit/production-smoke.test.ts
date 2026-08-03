@@ -121,6 +121,7 @@ describe('production smoke contract', () => {
     const result = await runProductionSmoke({
       baseUrl: 'https://skilld.dev',
       attempts: 1,
+      assetCoherenceAttempts: 1,
       fetch,
       expectations: [{ path: '/skills/leaderboard', status: 200 }],
     })
@@ -180,6 +181,39 @@ describe('production smoke contract', () => {
     expect(result._tag).toBe('passed')
     expect(delayedProbeAttempts).toBe(2)
     expect(delayedCleanUrlPoisoned).toBe(false)
+  })
+
+  it('keeps probing assets while a new version propagates past the page budget', async () => {
+    // Assets are served by the per-version ASSETS binding, so during a rollout the
+    // HTML can come from the new version while an asset request still lands on the
+    // old one and 404s. That window has outlasted the page budget in production, so
+    // asset coherence gets its own longer one.
+    let round = 0
+    const fetch: SmokeFetch = vi.fn(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/skills/leaderboard') {
+        round++
+        return new Response(
+          '<script src="/_nuxt/v2/propagating.js"></script>',
+          { status: 200, headers: { 'content-type': 'text/html' } },
+        )
+      }
+      if (url.pathname !== '/_nuxt/v2/propagating.js')
+        return new Response('', { status: 404 })
+      return new Response('', { status: round >= 20 ? 200 : 404 })
+    })
+
+    const result = await runProductionSmoke({
+      baseUrl: 'https://skilld.dev',
+      attempts: 12,
+      retryDelayMs: 0,
+      fetch,
+      wait: vi.fn(async () => {}),
+      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+    })
+
+    expect(result._tag).toBe('passed')
+    expect(round).toBeGreaterThanOrEqual(20)
   })
 
   it('outwaits a CDN-cached 404 that predates the smoke', async () => {
