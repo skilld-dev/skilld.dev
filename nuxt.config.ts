@@ -7,7 +7,7 @@ const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
 
 export default defineNuxtConfig({
-  extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing'],
+  extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing', './layers/mcp'],
 
   modules: [
     'nuxt-cf-jobs',
@@ -18,6 +18,7 @@ export default defineNuxtConfig({
     '@nuxt/scripts',
     '@nuxtjs/seo',
     'nuxt-ai-ready',
+    '@nuxtjs/mcp-toolkit',
     '@nuxt/a11y',
     '@nuxtjs/html-validator',
     'motion-v/nuxt',
@@ -127,6 +128,34 @@ export default defineNuxtConfig({
     cron: false,
     runtimeSync: true,
     indexNow: false,
+    mcp: {
+      tools: false,
+      resources: false,
+    },
+    mcpServerCard: {
+      name: 'dev.skilld/registry',
+      title: 'skilld.dev discovery',
+      description: 'Search curated agent skills and generate install commands.',
+      websiteUrl: 'https://skilld.dev',
+    },
+    agentSkills: {
+      skills: [{
+        source: 'local',
+        name: 'skilld-registry',
+        description: 'Search skilld.dev and generate verified skill installation commands.',
+        file: './skills/skilld-registry/SKILL.md',
+      }],
+    },
+  },
+
+  mcp: {
+    route: '/api/mcp',
+    name: 'skilld.dev discovery',
+    version: '1.0.0',
+    description: 'Discover curated agent skills with provenance and safe install-command handoff.',
+    instructions: 'Search first, inspect provenance before recommending a skill, then return an install command for the user to approve and run. This server never executes installs.',
+    sessions: false,
+    browserRedirect: '/',
   },
 
   app: {
