@@ -7,7 +7,6 @@ interface ClusterSkill {
   repo: string
   displayName: string
   description: string | null
-  installs: number
   stars: number
   modifiedAt: number | null
   slug: string
@@ -300,7 +299,7 @@ defineOgImage('Page.takumi', {
           <SkillCard
             :skill
             variant="grid"
-            signal="installs"
+            signal="stars"
             show-owner-path
           />
         </li>

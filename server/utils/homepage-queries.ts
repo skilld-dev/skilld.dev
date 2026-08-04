@@ -4,7 +4,7 @@ export function featuredCollectionSkillsSql(placeholders: string): string {
                    s.name, s.display_name,
                    ROW_NUMBER() OVER (
                      PARTITION BY cs.collection_id, cs.position
-                     ORDER BY s.installs DESC, s.name ASC
+                     ORDER BY s.modified_at DESC, s.name ASC
                    ) AS rn
             FROM collection_skills_v2 cs
             JOIN skills s

@@ -6,7 +6,7 @@ export const SkillsListQuery = z.object({
   q: z.string().trim().toLowerCase().default(''),
   page: z.coerce.number().int().min(1).catch(1),
   limit: z.coerce.number().int().min(1).max(200).catch(60),
-  sort: z.enum(['installs', 'name', 'owner']).catch('installs'),
+  sort: z.enum(['stars', 'name', 'owner']).catch('stars'),
   official: flag,
   excludeOfficial: flag,
   supported: flag,

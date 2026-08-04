@@ -15,7 +15,7 @@ import { resolve } from 'node:path'
 
 interface Registry {
   sources: string[]
-  skills: [name: string, sourceIdx: number, displayName: string, installs: number][]
+  skills: [name: string, sourceIdx: number, displayName: string, legacyMetric?: number][]
 }
 
 const raw = readFileSync(resolve(import.meta.dirname!, '../server/data/skills-registry.json'), 'utf-8')
@@ -25,13 +25,13 @@ const SINGLE_QUOTE_RE = /'/g
 const escape = (s: string) => s.replace(SINGLE_QUOTE_RE, '\'\'')
 
 const BATCH = 500
-const rows = registry.skills.map(([name, sourceIdx, displayName, installs]) => {
+const rows = registry.skills.map(([name, sourceIdx, displayName]) => {
   const source = registry.sources[sourceIdx]!
   const slashIdx = source.indexOf('/')
   const owner = source.slice(0, slashIdx)
   const repo = source.slice(slashIdx + 1)
   const slug = `${owner}/${name}`
-  return `('${escape(name)}','${escape(owner)}','${escape(repo)}','${escape(displayName)}',${installs},'${escape(slug)}')`
+  return `('${escape(name)}','${escape(owner)}','${escape(repo)}','${escape(displayName)}',0,'${escape(slug)}')`
 })
 
 process.stdout.write('DELETE FROM skills;\nDELETE FROM skills_fts;\n')

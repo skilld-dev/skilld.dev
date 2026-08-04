@@ -8,8 +8,8 @@
  * Strategy:
  *   1. Pull every row whose name doesn't match `/^[a-z0-9][a-z0-9-]*$/`.
  *   2. Compute the corrected slug via slugifySkillName.
- *   3. If (owner, new_slug) collides with an existing row, keep the higher
- *      install count and drop the loser. Otherwise UPDATE in place.
+ *   3. If (owner, repo, new_slug) collides with an existing row, keep the
+ *      existing canonical row. Otherwise update in place.
  *   4. Emit SQL on stdout. Pipe to wrangler.
  *
  * Usage:
@@ -24,14 +24,12 @@ interface BadRow {
   owner: string
   repo: string
   name: string
-  installs: number
 }
 
 interface CleanRow {
   owner: string
   repo: string
   name: string
-  installs: number
 }
 
 const SQUOTE_RE = /'/g
@@ -54,13 +52,13 @@ function d1<T>(sql: string): T[] {
 
 console.error('[fix-bad-slugs] querying bad rows...')
 const bad = d1<BadRow>(
-  `SELECT owner, repo, name, installs FROM skills WHERE name GLOB '*[^a-z0-9-]*'`,
+  `SELECT owner, repo, name FROM skills WHERE name GLOB '*[^a-z0-9-]*'`,
 )
 console.error(`[fix-bad-slugs] ${bad.length} bad rows`)
 
 console.error('[fix-bad-slugs] querying clean rows for collision check...')
 const clean = d1<CleanRow>(
-  `SELECT owner, repo, name, installs FROM skills WHERE name NOT GLOB '*[^a-z0-9-]*'`,
+  `SELECT owner, repo, name FROM skills WHERE name NOT GLOB '*[^a-z0-9-]*'`,
 )
 // Collision key is `(owner, repo, name)` — same owner/name across different
 // repos are now legal rows (post-0033) and must NOT be merged.
@@ -93,13 +91,7 @@ for (const row of bad) {
   const collision = cleanIndex.get(collisionKey)
 
   if (collision) {
-    // Merge: bump installs into existing clean row, delete the bad row.
-    if (row.installs > 0) {
-      console.log(
-        `UPDATE skills SET installs = installs + ${row.installs} `
-        + `WHERE owner = ${sqlText(row.owner)} AND repo = ${sqlText(row.repo)} AND name = ${sqlText(newName)};`,
-      )
-    }
+    // The existing clean row remains canonical.
     console.log(
       `DELETE FROM skills WHERE owner = ${sqlText(row.owner)} AND repo = ${sqlText(row.repo)} AND name = ${sqlText(row.name)};`,
     )
@@ -111,7 +103,7 @@ for (const row of bad) {
       `UPDATE skills SET name = ${sqlText(newName)}, slug = ${sqlText(`${row.owner}/${newName}`)} `
       + `WHERE owner = ${sqlText(row.owner)} AND repo = ${sqlText(row.repo)} AND name = ${sqlText(row.name)};`,
     )
-    cleanIndex.set(collisionKey, { owner: row.owner, repo: row.repo, name: newName, installs: row.installs })
+    cleanIndex.set(collisionKey, { owner: row.owner, repo: row.repo, name: newName })
     renames++
   }
 }

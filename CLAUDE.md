@@ -1,3 +1,7 @@
+## Vision
+
+`VISION.md` at the repo root is the product filter: mission, north-star user, money posture, game loop, 7 principles, anti-scope. Read it before any product, scope, design, or marketing decision. When it conflicts with existing code, VISION.md wins. `ROADMAP.md` holds the current horizons and the dated cull list (it superseded SCOPE.md).
+
 ## Two-loop product model
 
 Every change must serve one of two loops. If a feature doesn't, cut it.

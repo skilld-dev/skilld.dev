@@ -28,7 +28,7 @@ describe('skill source list', () => {
         name: `skill-${skillIndex}`,
         displayName: `Skill ${skillIndex}`,
         description: null,
-        installs: 100 - skillIndex,
+        stars: 100 - skillIndex,
       })),
     }))
     const selected = selectHomepagePersonSkills(sections, new Map())

@@ -87,7 +87,7 @@ function main(): void {
 
   const lines: string[] = []
   lines.push('# Skill abstractness classification — summary\n')
-  lines.push(`**Source:** \`/tmp/skilld-ux/top-skills.tsv\` (top 1200 skills by installs)`)
+  lines.push(`**Source:** \`/tmp/skilld-ux/top-skills.tsv\` (top 1200 skills by GitHub stars)`)
   lines.push(`**Classifier:** Haiku 4.5 via \`claude -p\` CLI`)
   lines.push(`**Records classified:** ${records.length}\n`)
   lines.push('## Overall counts\n')

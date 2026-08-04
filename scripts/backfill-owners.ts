@@ -2,7 +2,7 @@
  * Populate the `owners` table from GitHub /users/{owner}.
  *
  * - Pulls unique owners from skills (filtered by broken_since IS NULL),
- *   ordered by total installs DESC so high-impact authors land first.
+ *   ordered by GitHub stars so visible repositories land first.
  * - Skips owners with `last_synced_at` newer than `STALE_AFTER_HOURS`.
  * - Fetches /users/{owner}, captures kind/name/bio/blog/location/followers.
  * - Marks 404s with sync_status='404' so we don't retry them every run.
@@ -23,7 +23,7 @@ const CONCURRENCY = 6
 
 interface OwnerRow {
   owner: string
-  total_installs: number
+  max_stars: number
   skill_count: number
   last_synced_at: number | null
 }
@@ -88,15 +88,16 @@ async function main() {
   console.error(`[owners] querying top ${LIMIT} stale owners...`)
   const rows = d1<OwnerRow>(
     `SELECT s.owner,
-            SUM(s.installs) AS total_installs,
+            MAX(r.stars) AS max_stars,
             COUNT(*) AS skill_count,
             o.last_synced_at AS last_synced_at
      FROM skills s
+     JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
      LEFT JOIN owners o ON o.owner = s.owner
-     WHERE s.broken_since IS NULL
+     WHERE r.broken_since IS NULL
        AND (o.last_synced_at IS NULL OR o.last_synced_at < ${staleCutoff})
      GROUP BY s.owner
-     ORDER BY total_installs DESC
+     ORDER BY max_stars DESC, s.owner ASC
      LIMIT ${LIMIT}`,
   )
   console.error(`[owners] ${rows.length} owners to sync (stale cutoff = ${staleCutoff})`)

@@ -4,8 +4,6 @@
 // vercel-labs/openreview both shipping `web-design-guidelines`). Before the
 // migration, the second sync would clobber the first. This test pins:
 //   - both rows can coexist with PK (owner, repo, name)
-//   - the install-tracker UPDATE keyed on (owner, repo, name) updates only its
-//     own row, not its sibling
 //   - the digest selector groups by (owner, repo), not (owner, name)
 //   - skills_v exposes both rows (one per repo)
 
@@ -62,18 +60,6 @@ describe('skills (owner, repo, name) collision', () => {
     expect(rows[0]!.repo).toBe('agent-skills')
     expect(rows[1]!.repo).toBe('openreview')
     expect(rows[0]!.description).not.toBe(rows[1]!.description)
-  })
-
-  it('install-tracker UPDATE keyed on (owner, repo, name) does not bleed to siblings', () => {
-    // Mirrors layers/registry/server/api/skill-live/[...id].get.ts
-    sqlite
-      .prepare(`UPDATE skills SET installs = ? WHERE owner = ? AND repo = ? AND name = ?`)
-      .run(999, 'vercel-labs', 'agent-skills', 'web-design-guidelines')
-
-    const rows = sqlite.prepare(`SELECT repo, installs FROM skills ORDER BY repo`).all() as Array<{ repo: string, installs: number }>
-    expect(rows.find(r => r.repo === 'agent-skills')!.installs).toBe(999)
-    // Critical assertion: sibling row unchanged.
-    expect(rows.find(r => r.repo === 'openreview')!.installs).toBe(5)
   })
 
   it('the latent (owner, name)-only DELETE pattern would wipe both — verified as the regression', () => {

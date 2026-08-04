@@ -51,7 +51,6 @@ interface SkillRow {
   owner: string
   repo: string
   name: string
-  installs: number
   stars: number
   pushed_at: number | null
   description: string | null
@@ -168,7 +167,6 @@ function main() {
       s.owner,
       s.repo,
       s.name,
-      s.installs,
       r.stars,
       r.pushed_at,
       s.description,
@@ -213,7 +211,7 @@ function main() {
     JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
     LEFT JOIN repo_counts rc ON rc.owner = s.owner AND rc.repo = s.repo
     ${overrideJoin}
-    ORDER BY s.installs DESC, r.stars DESC, s.owner ASC, s.name ASC
+    ORDER BY r.stars DESC, s.owner ASC, s.name ASC
     ${limitClause}
   `)
 
@@ -230,7 +228,7 @@ function main() {
       owner: row.owner,
       repo: row.repo,
       sourceResolved,
-      installs: row.installs,
+      stars: row.stars,
       curatorReasonCount: row.curator_reason_count,
       approvedSocialCount: row.approved_social_count,
       repoSkillCount: row.repo_skill_count,
@@ -246,7 +244,6 @@ function main() {
       curatorReasonCount: row.curator_reason_count,
       approvedSocialCount: row.approved_social_count,
       authorSocialCount: row.author_social_count,
-      installs: row.installs,
       stars: row.stars,
       pushedAt: row.pushed_at,
       referencesCount: row.references_count ?? 0,

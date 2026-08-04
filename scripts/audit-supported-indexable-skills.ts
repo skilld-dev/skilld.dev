@@ -55,7 +55,6 @@ interface AuditRow {
   name: string
   display_name: string
   description: string | null
-  installs: number
   stars: number
   pushed_at: number | null
   default_branch: string | null
@@ -78,7 +77,7 @@ interface RepoIssue {
   repo: string
   count: number
   reason: string
-  maxInstalls: number
+  maxStars: number
 }
 
 interface DuplicateRecommendation {
@@ -93,7 +92,6 @@ interface DuplicateRecommendation {
     supportTierRank: number
     trustTier: string | null
     trustTierRank: number
-    installs: number
     stars: number
     pushedAt: number | null
     pushedAgeDays: number | null
@@ -158,7 +156,6 @@ function duplicateRecommendations(rows: AuditRow[]): DuplicateRecommendation[] {
           supportTierRank: signals.supportTierRank,
           trustTier: signals.trustTier,
           trustTierRank: signals.trustTierRank,
-          installs: signals.installs,
           stars: signals.stars,
           pushedAt: signals.pushedAt,
           pushedAgeDays: ageDays(row.pushed_at),
@@ -172,12 +169,12 @@ function repoHotspots(rows: AuditRow[], reason: string): RepoIssue[] {
   const byRepo = new Map<string, RepoIssue>()
   for (const row of rows) {
     const key = `${row.owner}/${row.repo}`
-    const issue = byRepo.get(key) ?? { owner: row.owner, repo: row.repo, count: 0, reason, maxInstalls: 0 }
+    const issue = byRepo.get(key) ?? { owner: row.owner, repo: row.repo, count: 0, reason, maxStars: 0 }
     issue.count++
-    issue.maxInstalls = Math.max(issue.maxInstalls, row.installs)
+    issue.maxStars = Math.max(issue.maxStars, row.stars)
     byRepo.set(key, issue)
   }
-  return [...byRepo.values()].sort((a, b) => b.count - a.count || b.maxInstalls - a.maxInstalls)
+  return [...byRepo.values()].sort((a, b) => b.count - a.count || b.maxStars - a.maxStars)
 }
 
 const rows = d1<AuditRow>(`
@@ -187,7 +184,6 @@ const rows = d1<AuditRow>(`
     s.name,
     s.display_name,
     s.description,
-    s.installs,
     r.stars,
     r.pushed_at,
     r.default_branch,
@@ -212,7 +208,7 @@ const rows = d1<AuditRow>(`
   WHERE ${NOT_BROKEN_SQL}
     AND s.seo_indexable = 1
     AND (${SUPPORTED_SKILL_SQL})
-  ORDER BY s.installs DESC, r.stars DESC, s.owner ASC, s.name ASC
+  ORDER BY r.stars DESC, s.owner ASC, s.name ASC
 `)
 
 const now = Math.floor(Date.now() / 1000)
@@ -258,7 +254,7 @@ const missingSourceFacts = rows
   .sort((a, b) =>
     sourceFactIssues(b).length - sourceFactIssues(a).length
     || sourceFactIssues(b, { includeWeakSignals: true }).length - sourceFactIssues(a, { includeWeakSignals: true }).length
-    || b.installs - a.installs,
+    || b.stars - a.stars,
   )
 
 if (values['missing-generated']) {
@@ -270,7 +266,6 @@ if (values['missing-generated']) {
   else {
     console.log(JSON.stringify(limited.map(row => ({
       slug: slug(row),
-      installs: row.installs,
       stars: row.stars,
       trustTier: row.trust_tier,
       seoIndexScore: row.seo_index_score,
@@ -307,7 +302,6 @@ if (values['missing-source-facts'] || values['critical-source-facts']) {
       issues: sourceFactIssues(row, { includeWeakSignals: !values['critical-source-facts'] }),
       supportTier: row.support_tier,
       trustTier: row.trust_tier,
-      installs: row.installs,
       stars: row.stars,
       pushedAgeDays: ageDays(row.pushed_at),
       referencesCount: row.references_count ?? 0,

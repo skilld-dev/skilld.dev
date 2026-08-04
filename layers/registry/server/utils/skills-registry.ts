@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate-canonical'
-import type { SemanticHit } from './skill-semantic-search'
+import type { AlternateSource, HybridSearchResult, SearchMode } from './skill-search'
 import { getDB } from '#server/utils/db'
 import { writeCache } from '#shared/server/cache'
 import { JOIN_REPOS_SQL, notAggregatorSql, notBrokenSql } from './broken'
@@ -9,10 +9,8 @@ import {
   findDuplicateGroupForSlug,
   skillSlug,
 } from './skill-duplicate-canonical'
-import { nameMatchBoost, semanticSkillSearch } from './skill-semantic-search'
+import { collapseSearchDuplicates, hybridSkillSearch, rankSearchResults } from './skill-search'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
-
-const WHITESPACE_RE = /\s+/
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
@@ -26,7 +24,6 @@ export interface RegistrySkill {
   owner: string
   repo: string
   displayName: string
-  installs: number
   slug: string
   stars: number
   description: string | null
@@ -36,6 +33,13 @@ export interface RegistrySkill {
   trustScore: number
   pushedAt: number | null
   modifiedAt: number | null
+  /**
+   * Set on search results only. When the same skill is mirrored across repos
+   * the group collapses to one canonical row; these describe the rest of the
+   * group so the UI can offer "also in 2 other repos".
+   */
+  sourceCount?: number
+  alternateSources?: AlternateSource[]
 }
 
 interface SkillRow {
@@ -43,7 +47,6 @@ interface SkillRow {
   owner: string
   repo: string
   display_name: string
-  installs: number
   slug: string
   stars: number | null
   description: string | null
@@ -61,7 +64,6 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     owner: row.owner,
     repo: row.repo,
     displayName: row.display_name,
-    installs: row.installs,
     slug: row.slug,
     stars: row.stars ?? 0,
     description: row.description ?? null,
@@ -84,7 +86,7 @@ export interface SkillsQuery {
   category?: string
   tags?: string[]
   tagMode?: 'and' | 'or'
-  sort?: 'installs' | 'name' | 'owner'
+  sort?: 'stars' | 'name' | 'owner'
   page?: number
   limit?: number
   officialOwners?: Set<string>
@@ -96,6 +98,8 @@ interface SkillsQueryResult {
   page: number
   pages: number
   facets: { owner: string, count: number }[]
+  /** Which retrieval lanes served this query. Absent when not searching. */
+  mode?: SearchMode
 }
 
 interface RepoRef {
@@ -121,32 +125,32 @@ function chunkRepos(repos: RepoRef[]): RepoRef[][] {
 
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
-  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'installs', page = 1, limit = 60, officialOwners } = opts
+  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', page = 1, limit = 60, officialOwners } = opts
 
   const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
 
-  // Search: semantic ranking over the Vectorize index, restricted to the
-  // matched skills. Falls back to lexical FTS5 when the AI/Vectorize bindings
-  // are unavailable (local dev). `null` => fell back, ranked in SQL below;
-  // a non-null array => semantic path, ranked in JS after fetch.
-  let semanticHits: SemanticHit[] | null = null
+  // Search: lexical (FTS5/BM25) and semantic (Vectorize) retrieval run in
+  // parallel and are fused by reciprocal rank. Both lanes matter — skills
+  // awaiting an embedding are only reachable lexically, and prose queries are
+  // only reachable semantically.
+  //
+  // The candidate pool arrives as one JSON array parameter rather than one
+  // bound param per hit, so the pool is no longer squeezed under D1's 100
+  // SQL-variable cap. That cap is why `total`, `pages` and the owner facets
+  // used to describe a 60-row sample instead of the real match set.
+  let searchHits: HybridSearchResult | null = null
   if (search) {
-    semanticHits = await semanticSkillSearch(event, search)
-    if (semanticHits === null) {
-      const ftsQuery = search.split(WHITESPACE_RE).map(t => `"${t}"*`).join(' ')
-      conditions.push('(s.owner, s.repo, s.name) IN (SELECT owner, repo, name FROM skills_fts WHERE skills_fts MATCH ?)')
-      params.push(ftsQuery)
-    }
-    else if (semanticHits.length === 0) {
-      return { items: [], total: 0, page, pages: 0, facets: [] }
-    }
-    else {
-      // One bound param per hit (concatenated key) keeps us under D1's 100
-      // SQL-variable cap, leaving headroom for the other filter params below.
-      conditions.push(`(s.owner || '/' || s.repo || '/' || s.name) IN (${semanticHits.map(() => '?').join(', ')})`)
-      params.push(...semanticHits.map(h => `${h.owner}/${h.repo}/${h.name}`))
-    }
+    searchHits = await hybridSkillSearch(event, search)
+    if (!searchHits.keys.length)
+      return { items: [], total: 0, page, pages: 0, facets: [], mode: searchHits.mode }
+    conditions.push(`(s.owner || '/' || s.repo || '/' || s.name) IN (SELECT value FROM json_each(?))`)
+    params.push(JSON.stringify(searchHits.keys))
+    // Deliberately not gated on `seo_indexable`. The registry table is already
+    // the curated corpus (5,669 rows, of which 5,255 are indexable), so the
+    // lexical lane reaches only 414 skills the semantic lane cannot — which is
+    // precisely the recall it was added for. Gating here would re-hide the
+    // skills still waiting on an embedding.
   }
 
   if (owner) {
@@ -203,43 +207,40 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
 
   const where = `WHERE ${conditions.join(' AND ')}`
 
-  // Semantic path: the result set is the (filtered) matched skills, ranked by
-  // cosine + name boost in JS, then paged. The match set is small (<= topK),
-  // so we fetch it whole rather than paginating in SQL.
-  if (semanticHits && semanticHits.length) {
-    // The IN clause already bounds the row set to the matched skills, so no
-    // SQL LIMIT is needed; ranking + paging happen in JS below.
+  // Search path: the IN clause already bounds the row set to the fused
+  // candidates, so we fetch it whole and rank, collapse and page in JS.
+  if (searchHits) {
     const rows = await db
       .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} ${where}`)
       .bind(...params)
       .all<SkillRow>()
-    const scoreByKey = new Map(semanticHits.map(h => [`${h.owner}/${h.repo}/${h.name}`, h.score]))
-    const ranked = (rows.results ?? [])
-      .map(rowToSkill)
-      .map(skill => ({
-        skill,
-        score: (scoreByKey.get(`${skill.owner}/${skill.repo}/${skill.name}`) ?? 0)
-          + nameMatchBoost(skill, search!),
-      }))
-      .sort((a, b) => b.score - a.score)
-      .map(x => x.skill)
 
-    const total = ranked.length
+    const ranked = rankSearchResults((rows.results ?? []).map(rowToSkill), searchHits.scoreByKey, search!)
+    // Forked skill collections mirror the same SKILL.md under several owners.
+    // Collapsing after ranking keeps each group at its best member's position.
+    const collapsed = collapseSearchDuplicates(ranked)
+
+    const total = collapsed.length
     const start = (page - 1) * limit
     const facetCounts = new Map<string, number>()
-    for (const s of ranked)
-      facetCounts.set(s.owner, (facetCounts.get(s.owner) ?? 0) + 1)
+    for (const group of collapsed)
+      facetCounts.set(group.skill.owner, (facetCounts.get(group.skill.owner) ?? 0) + 1)
     const facets = [...facetCounts.entries()]
       .map(([owner, count]) => ({ owner, count }))
-      .sort((a, b) => b.count - a.count)
+      .sort((a, b) => b.count - a.count || a.owner.localeCompare(b.owner))
       .slice(0, 20)
 
     return {
-      items: ranked.slice(start, start + limit),
+      items: collapsed.slice(start, start + limit).map(group => ({
+        ...group.skill,
+        sourceCount: group.sourceCount,
+        alternateSources: group.alternateSources,
+      })),
       total,
       page,
       pages: Math.ceil(total / limit),
       facets,
+      mode: searchHits.mode,
     }
   }
 
@@ -252,7 +253,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     orderBy = 's.name ASC'
   else if (sort === 'owner')
     orderBy = 's.owner ASC, s.name ASC'
-  else orderBy = 's.installs DESC'
+  else orderBy = 'r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC'
 
   const offset = (page - 1) * limit
   const dataStmt = db
@@ -290,7 +291,7 @@ export interface SkillLookup {
 /**
  * Resolve skill rows for a list of (packageName, owner?) pairs.
  * When owner is known, the exact (owner, name) row is returned. When owner
- * is missing (legacy collection entries), the highest-installs row for that
+ * is missing (legacy collection entries), the highest-starred repository row
  * name wins. Result is keyed by packageName.
  */
 export async function findSkillsByLookups(
@@ -324,7 +325,7 @@ export async function findSkillsByLookups(
       continue
     const row = owner
       ? candidates.find(c => c.owner === owner)
-      : [...candidates].sort((a, b) => b.installs - a.installs)[0]
+      : [...candidates].sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0) || a.repo.localeCompare(b.repo))[0]
     if (row)
       map.set(packageName, rowToSkill(row))
   }
@@ -447,8 +448,8 @@ export interface FeaturedOrgSection {
 }
 
 /**
- * For each owner in `owners`, return up to `perOrg` skills ranked by installs
- * desc, plus the owner's total skill count. Order of returned sections matches
+ * For each repository, return up to `perOrg` recently updated skills, plus its
+ * total skill count. Order of returned sections matches
  * the input `owners` array. Single SQL pass via window function.
  */
 export async function getFeaturedOfficialSections(
@@ -465,7 +466,7 @@ export async function getFeaturedOfficialSections(
     .prepare(
       `SELECT * FROM (
         SELECT ${SELECT_SKILL_ROW},
-          ROW_NUMBER() OVER (PARTITION BY s.owner, s.repo ORDER BY s.installs DESC, s.name ASC) AS rn,
+          ROW_NUMBER() OVER (PARTITION BY s.owner, s.repo ORDER BY s.modified_at DESC, s.name ASC) AS rn,
           COUNT(*) OVER (PARTITION BY s.owner, s.repo) AS repo_total
         ${FROM_SKILLS_JOIN_REPOS}
         WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
@@ -509,7 +510,6 @@ export interface SkillDuplicateSibling {
   owner: string
   repo: string
   displayName: string
-  installs: number
   stars: number
   slug: string
   supportTier: string | null
@@ -529,7 +529,6 @@ function duplicateRowToSibling(row: DuplicateCandidate): SkillDuplicateSibling {
     owner: row.owner,
     repo: row.repo,
     displayName: row.display_name,
-    installs: row.installs ?? 0,
     stars: row.stars ?? 0,
     slug: skillSlug(row),
     supportTier: row.support_tier,
@@ -564,7 +563,6 @@ async function listDuplicateCandidateRows(
         s.name,
         s.display_name,
         s.description,
-        s.installs,
         r.stars,
         r.pushed_at,
         supported_repos.support_tier,
@@ -627,7 +625,6 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
         s.repo,
         s.display_name,
         s.description,
-        s.installs,
         r.stars,
         r.pushed_at,
         supported_repos.support_tier,
@@ -670,10 +667,10 @@ export async function findRelatedSkills(
 
   const [repoResult, ownerResult] = await db.batch([
     db
-      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND s.repo = ? AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY s.installs DESC LIMIT ?`)
+      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND s.repo = ? AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?`)
       .bind(owner, repo, excludeName, limit),
     db
-      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY s.installs DESC LIMIT ?`)
+      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?`)
       .bind(owner, repo, excludeName, limit),
   ])
   const repoRows = (repoResult?.results ?? []) as SkillRow[]

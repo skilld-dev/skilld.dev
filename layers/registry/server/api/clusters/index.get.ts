@@ -1,8 +1,8 @@
 /**
  * Cluster grid data for the homepage.
  *
- * Returns one row per cluster with skillCount, totalInstalls, and the top
- * example skills (pinned + install-ranked fallbacks). All sourced from
+ * Returns one row per cluster with skillCount and top example skills. Pinned
+ * examples lead, followed by canonical GitHub star ranking. All sourced from
  * `skills` joined to `skill_generated(kind='abstractness')` filtered to
  * `payload.kind = 'abstract'`.
  */
@@ -16,7 +16,7 @@ interface SkillRow {
   name: string
   repo: string
   display_name: string
-  installs: number
+  stars: number
   category: string
 }
 
@@ -26,8 +26,7 @@ export interface ClusterCard {
   icon: string
   userVoice: string
   skillCount: number
-  totalInstalls: number
-  examples: { owner: string, name: string, repo: string, displayName: string, installs: number }[]
+  examples: { owner: string, name: string, repo: string, displayName: string, stars: number }[]
 }
 
 const EXAMPLES_PER_CARD = 5
@@ -41,11 +40,12 @@ export default defineCachedEventHandler(async (event) => {
 
   const placeholders = allCategories.map(() => '?').join(',')
   const sql = `
-    SELECT owner, name, repo, display_name, installs,
-           abstractness_category AS category
-    FROM skills
-    WHERE is_abstract = 1
-      AND abstractness_category IN (${placeholders})
+    SELECT s.owner, s.name, s.repo, s.display_name, r.stars,
+           s.abstractness_category AS category
+    FROM skills s
+    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+    WHERE s.is_abstract = 1
+      AND s.abstractness_category IN (${placeholders})
   `
   const res = await db.prepare(sql).bind(...allCategories).all<SkillRow>()
   const rows = res.results ?? []
@@ -67,24 +67,21 @@ export default defineCachedEventHandler(async (event) => {
     }
     const remaining = inCluster
       .filter(r => !seen.has(`${r.owner}/${r.name}`))
-      .sort((a, b) => b.installs - a.installs)
+      .sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name))
 
     const examples = [...pinned, ...remaining].slice(0, EXAMPLES_PER_CARD)
-    const totalInstalls = inCluster.reduce((s, r) => s + (r.installs || 0), 0)
-
     return {
       slug: c.slug,
       label: c.label,
       icon: c.icon,
       userVoice: c.userVoice,
       skillCount: inCluster.length,
-      totalInstalls,
       examples: examples.map(e => ({
         owner: e.owner,
         name: e.name,
         repo: e.repo,
         displayName: e.display_name,
-        installs: e.installs,
+        stars: e.stars,
       })),
     }
   })

@@ -92,7 +92,9 @@ function pickSkills(): SkillPick[] {
   if (values.all) {
     const limit = Math.max(1, Number(values.limit) || 5)
     const rows = d1Query<{ slug: string, owner: string, repo: string, name: string, display_name: string }>(
-      `SELECT slug, owner, repo, name, display_name FROM skills ORDER BY installs DESC LIMIT ${limit}`,
+      `SELECT s.slug, s.owner, s.repo, s.name, s.display_name
+       FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+       ORDER BY r.stars DESC, s.owner ASC, s.name ASC LIMIT ${limit}`,
     )
     return rows.map(r => ({ slug: r.slug, owner: r.owner, repo: r.repo, name: r.name, displayName: r.display_name }))
   }

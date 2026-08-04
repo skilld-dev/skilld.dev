@@ -19,7 +19,6 @@ interface RelatedSkill {
   repo: string
   displayName: string
   description: string | null
-  installs: number
   slug: string
 }
 
@@ -95,7 +94,6 @@ interface NeighborSkill {
   slug: string
   displayName: string
   description: string | null
-  installs: number
   score: number
 }
 
@@ -104,7 +102,6 @@ interface DuplicateSkill {
   owner: string
   repo: string
   displayName: string
-  installs: number
   stars: number
   slug: string
   supportTier: string | null
@@ -127,7 +124,6 @@ const { data, status, error, refresh } = useFetch(
   owner: string
   name: string
   displayName: string
-  installs: number
   githubUrl: string
   description: string | null
   stars: number
@@ -208,8 +204,6 @@ interface SkillAudit {
   riskLevel?: string
 }
 interface LiveSkill {
-  installs: number | null
-  formatted: string | null
   audits: SkillAudit[]
   fetchedAt: string
 }
@@ -245,7 +239,6 @@ const treeAssets = computed(() => {
   return data.value?.assets ?? []
 })
 
-const displayInstalls = computed(() => liveSkill.value?.installs ?? data.value?.installs ?? 0)
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
 
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
@@ -256,26 +249,13 @@ const installCmd = computed(() => {
   return gitInstallCmd(data.value.owner, data.value.repo, data.value.name)
 })
 
-const skillsShCmd = computed(() => {
-  if (!data.value)
-    return ''
-  return skillsShInstallCmd(data.value.owner, data.value.repo, data.value.name)
-})
-
-const installerTab = ref<'skilld' | 'skills'>('skilld')
-
-const installCmdActive = computed(() =>
-  installerTab.value === 'skilld' ? installCmd.value : skillsShCmd.value,
-)
-
 const { copy, copied } = useInstallCopy(
-  installCmdActive,
+  installCmd,
   'skill-page-hero',
   () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
 )
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
-const skillsShUrl = computed(() => data.value?.url ?? '')
 
 const HIDDEN_FRONTMATTER_KEYS = new Set(['name', 'description'])
 
@@ -524,11 +504,6 @@ watch(isNonMarkdownDoc, (nonMd) => {
   contentView.value = nonMd ? 'markdown' : 'preview'
 })
 
-const installerTabs = [
-  { label: 'skilld', value: 'skilld' },
-  { label: 'skills.sh', value: 'skills' },
-]
-
 const relatedTab = ref<string>('repo')
 
 const relatedTabsAvailable = computed<{ label: string, value: string, items: NeighborSkill[] | RelatedSkill[] }[]>(() => {
@@ -607,11 +582,11 @@ const duplicateReasonLabel = computed(() => {
     : 'same skill name'
 })
 
-function withSourceContext(text: string, owner: string, repo: string, max = 200): string {
-  const suffix = ` From ${owner}/${repo}.`
+const SEO_COMPATIBILITY = ' A Claude Code skill for Cursor, Codex, and other agents.'
+
+function withSeoContext(text: string, owner: string, repo: string, max = 200): string {
+  const suffix = `${SEO_COMPATIBILITY} From ${owner}/${repo}.`
   const collapsed = text.replace(/\s+/g, ' ').trim()
-  if (collapsed.includes(`${owner}/${repo}`))
-    return truncateReason(collapsed, max)
   if (collapsed.length + suffix.length <= max)
     return `${collapsed}${suffix}`
   return `${truncateReason(collapsed, Math.max(40, max - suffix.length))}${suffix}`
@@ -621,7 +596,7 @@ useSchemaOrg(computed(() => {
   if (!data.value)
     return []
   const d = data.value
-  const description = withSourceContext(d.description || `${d.name} Claude Code skill by ${d.owner}.`, d.owner, d.repo, 240)
+  const description = withSeoContext(d.description || `${d.name} by ${d.owner}.`, d.owner, d.repo, 240)
   return [
     defineSoftwareApp({
       '@id': `${skillPageUrl.value}#skill`,
@@ -644,7 +619,7 @@ useSchemaOrg(computed(() => {
     defineHowTo({
       '@id': `${skillPageUrl.value}#install`,
       'name': `Install ${d.name} with skilld`,
-      'description': `Install the ${d.name} skill into Claude Code.`,
+      'description': `Install the ${d.name} Claude Code skill for Cursor, Codex, and other agents.`,
       'totalTime': 'PT1M',
       'step': [
         {
@@ -682,7 +657,7 @@ const skillDescription = computed(() => {
   const base = data.value.summary?.text
     || data.value.description
     || `${data.value.name} skill by ${data.value.owner}. Install with: ${installCmd.value}`
-  return withSourceContext(base, data.value.owner, data.value.repo)
+  return withSeoContext(base, data.value.owner, data.value.repo)
 })
 
 useSeoMeta({
@@ -898,16 +873,12 @@ useHead(computed(() => ({
         <div class="mt-6 space-y-3">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
             <span
-              v-if="displayInstalls > 0"
+              v-if="data.stars > 0"
               class="data-label inline-flex items-center gap-1"
-              :title="liveSkill?.fetchedAt ? `Weekly installs from skills.sh, refreshed ${formatDateTitle(liveSkill.fetchedAt)}` : 'Weekly installs from skills.sh'"
+              :title="`${data.stars.toLocaleString()} GitHub stars`"
             >
-              <UIcon
-                name="i-lucide-trending-up"
-                class="size-3.5"
-                aria-hidden="true"
-              />
-              {{ liveSkill?.formatted ?? displayInstalls.toLocaleString() }}/wk
+              <UIcon name="i-lucide-star" class="size-3.5" aria-hidden="true" />
+              {{ data.stars.toLocaleString() }} GitHub stars
             </span>
             <span
               v-if="data.pushedAt"
@@ -981,18 +952,9 @@ useHead(computed(() => ({
           Install
         </h2>
         <div class="rounded-lg border border-default p-4 space-y-3">
-          <UTabs
-            v-model="installerTab"
-            :items="installerTabs"
-            :content="false"
-            color="neutral"
-            variant="link"
-            size="xs"
-            :ui="{ list: 'border-b border-default' }"
-          />
           <div class="flex items-center gap-2">
             <code class="flex-1 truncate rounded-lg border border-default bg-muted px-3 py-2 font-mono text-sm">
-              {{ installCmdActive }}
+              {{ installCmd }}
             </code>
             <UButton
               :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
@@ -1000,7 +962,7 @@ useHead(computed(() => ({
               variant="outline"
               size="sm"
               :aria-label="copied ? 'Copied' : 'Copy install command'"
-              @click="copy(installCmdActive)"
+              @click="copy(installCmd)"
             />
           </div>
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
@@ -1010,16 +972,6 @@ useHead(computed(() => ({
               rel="noopener"
               label="GitHub"
               icon="i-lucide-github"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-            />
-            <UButton
-              :href="skillsShUrl"
-              target="_blank"
-              rel="noopener"
-              label="skills.sh"
-              icon="i-lucide-external-link"
               size="xs"
               color="neutral"
               variant="ghost"
@@ -1252,7 +1204,7 @@ useHead(computed(() => ({
                   {{ data.resolutionStatus === 'path_missing' ? 'SKILL.md not found in source repository' : 'Could not load SKILL.md' }}
                 </p>
                 <p class="mt-1 text-muted">
-                  The registry still has this skill and its {{ data.installs.toLocaleString() }} installs, but the source file moved or was removed.
+                  The source file moved or was removed. Browse the repository to find its current location.
                 </p>
                 <UButton
                   :href="data.githubUrl"
@@ -1282,8 +1234,8 @@ useHead(computed(() => ({
             <p class="text-sm leading-relaxed">
               {{ data.summary.text }}
             </p>
-            <p class="mt-4 text-xs text-muted">
-              Based on the current SKILL.md.
+            <p class="mt-4 font-mono text-xs text-muted">
+              Generated from the current SKILL.md.
             </p>
           </section>
 
@@ -1316,8 +1268,8 @@ useHead(computed(() => ({
                 </div>
               </details>
             </div>
-            <p class="mt-3 text-xs text-muted">
-              Based on the current SKILL.md. These answers refresh after source changes.
+            <p class="mt-3 font-mono text-xs text-muted">
+              Generated from the current SKILL.md. These answers refresh after source changes.
             </p>
           </section>
         </div>
@@ -1337,18 +1289,9 @@ useHead(computed(() => ({
               Install
             </h2>
             <div class="rounded-lg border border-default p-4 space-y-3">
-              <UTabs
-                v-model="installerTab"
-                :items="installerTabs"
-                :content="false"
-                color="neutral"
-                variant="link"
-                size="xs"
-                :ui="{ list: 'border-b border-default' }"
-              />
               <div class="flex items-center gap-2">
                 <code class="flex-1 truncate rounded-md border border-default bg-muted px-2 py-1.5 font-mono text-xs">
-                  {{ installCmdActive }}
+                  {{ installCmd }}
                 </code>
                 <UButton
                   :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
@@ -1356,7 +1299,7 @@ useHead(computed(() => ({
                   variant="outline"
                   size="xs"
                   :aria-label="copied ? 'Copied' : 'Copy install command'"
-                  @click="copy(installCmdActive)"
+                  @click="copy(installCmd)"
                 />
               </div>
               <div style="min-height:1.75rem">
@@ -1369,16 +1312,6 @@ useHead(computed(() => ({
                   rel="noopener"
                   label="GitHub"
                   icon="i-lucide-github"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                />
-                <UButton
-                  :href="skillsShUrl"
-                  target="_blank"
-                  rel="noopener"
-                  label="skills.sh"
-                  icon="i-lucide-external-link"
                   size="xs"
                   color="neutral"
                   variant="ghost"
@@ -1414,7 +1347,7 @@ useHead(computed(() => ({
                 :key="sibling.slug"
                 :to="repoSkillPath(sibling.owner, sibling.repo, sibling.name)"
                 class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
-                :title="`${sibling.owner}/${sibling.repo} · ${sibling.installs.toLocaleString()} installs`"
+                :title="`${sibling.owner}/${sibling.repo} · ${sibling.stars.toLocaleString()} GitHub stars`"
               >
                 <UIcon
                   name="i-lucide-git-branch"

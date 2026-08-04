@@ -5,7 +5,7 @@
  * homepage should ONLY surface abstract skills.
  *
  * Input:  /tmp/skilld-ux/top-skills.tsv
- *         columns: name\towner\trepo\tinstalls\tstars\tdescription
+ *         columns: name\towner\trepo\tstars\tdescription
  * Output: /tmp/skilld-ux/classifications.jsonl
  *         one record per line, keyed by `${owner}/${name}`. Resume-safe.
  *
@@ -38,7 +38,6 @@ interface SkillRow {
   name: string
   owner: string
   repo: string
-  installs: number
   stars: number
   description: string
 }
@@ -62,12 +61,11 @@ function parseTsv(path: string): SkillRow[] {
   const raw = readFileSync(path, 'utf8')
   const lines = raw.split('\n').filter(Boolean)
   return lines.map((line) => {
-    const [name, owner, repo, installs, stars, ...rest] = line.split('\t')
+    const [name, owner, repo, stars, ...rest] = line.split('\t')
     return {
       name: name ?? '',
       owner: owner ?? '',
       repo: repo ?? '',
-      installs: Number.parseInt(installs ?? '0', 10) || 0,
       stars: Number.parseInt(stars ?? '0', 10) || 0,
       description: rest.join('\t'),
     }

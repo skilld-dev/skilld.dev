@@ -7,7 +7,7 @@ const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
 
 export default defineNuxtConfig({
-  extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/guides', './layers/marketing'],
+  extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing'],
 
   modules: [
     'nuxt-cf-jobs',
@@ -315,7 +315,7 @@ export default defineNuxtConfig({
     sitemaps: {
       pages: {
         includeAppSources: true,
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/guides/**'],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new'],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],
@@ -332,10 +332,6 @@ export default defineNuxtConfig({
       // the sitewide quality demotion. /orgs/* still 301s to /gh/* for link equity.
       tags: {
         sources: ['/api/__sitemap__/tags'],
-        includeAppSources: false,
-      },
-      guides: {
-        sources: ['/api/__sitemap__/npm-guides'],
         includeAppSources: false,
       },
     },

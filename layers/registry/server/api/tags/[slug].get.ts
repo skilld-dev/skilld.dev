@@ -5,6 +5,7 @@ import { getDB } from '#server/utils/db'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { notBrokenSql } from '../../utils/broken'
 import { getGeneratedBatch } from '../../utils/skill-generated'
+import { buildIdentifierFtsQuery } from '../../utils/skill-search'
 
 import { getTagRedirect, isQualityDerivedTag } from '../../utils/tag-quality'
 
@@ -71,7 +72,6 @@ interface SkillRow {
   owner: string
   repo: string
   display_name: string
-  installs: number
   slug: string
   stars: number | null
   description: string | null
@@ -85,7 +85,6 @@ function rowToSkill(r: SkillRow): RegistrySkill {
     owner: r.owner,
     repo: r.repo,
     displayName: r.display_name,
-    installs: r.installs,
     slug: r.slug,
     stars: r.stars ?? 0,
     description: r.description ?? null,
@@ -122,10 +121,12 @@ export default defineCachedEventHandler(async (event) => {
     const label = humanizeSlug(slug)
     tag = { slug, label, description: `Skills tagged ${label}.` }
   }
-  const ftsQuery = `"${slug}"*`
+  // Identifier-qualified on purpose: this page answers "which skills *are*
+  // this tag", not "which skills mention the word". See buildIdentifierFtsQuery.
+  const ftsQuery = buildIdentifierFtsQuery(slug) ?? `"${slug}"*`
 
   // Skills matching by:
-  //   1. FTS on name/owner/display_name/slug (broad, catches `nuxt-ui`, `nuxt`)
+  //   1. FTS on name/owner/repo/display_name/slug (broad, catches `nuxt-ui`, `nuxt`)
   //   2. Exact owner = slug (the official org's repos, e.g. owner='nuxt')
   //   3. AI-classified tags (skill_generated kind='tags')
   // stars/pushed_at/broken_since live on `repos` (post-0034); JOIN explicitly.
@@ -133,7 +134,7 @@ export default defineCachedEventHandler(async (event) => {
   // same-(owner,name) collisions.
   const skillsRes = await db
     .prepare(
-      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.installs, s.slug, r.stars, s.description, r.pushed_at, s.modified_at
+      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.description, r.pushed_at, s.modified_at
        FROM skills s
        JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
        WHERE ${NOT_BROKEN_SQL} AND (
@@ -145,7 +146,7 @@ export default defineCachedEventHandler(async (event) => {
              AND sg.kind = 'tags' AND je.value = ?
          )
        )
-       ORDER BY s.installs DESC, r.stars DESC, s.name ASC
+       ORDER BY r.stars DESC, s.name ASC
        LIMIT 200`,
     )
     .bind(ftsQuery, slug, slug)
@@ -155,18 +156,17 @@ export default defineCachedEventHandler(async (event) => {
   if (!skills.length)
     throw createError({ statusCode: 404, message: `No skills tagged ${slug}` })
 
-  const ownerAgg = new Map<string, { count: number, stars: number, installs: number }>()
+  const ownerAgg = new Map<string, { count: number, stars: number }>()
   for (const s of skills) {
-    const entry = ownerAgg.get(s.owner) ?? { count: 0, stars: 0, installs: 0 }
+    const entry = ownerAgg.get(s.owner) ?? { count: 0, stars: 0 }
     entry.count++
-    entry.installs += s.installs
     if (s.stars > entry.stars)
       entry.stars = s.stars
     ownerAgg.set(s.owner, entry)
   }
 
   const topOwners: TagOwner[] = [...ownerAgg.entries()]
-    .sort((a, b) => b[1].installs - a[1].installs || b[1].count - a[1].count)
+    .sort((a, b) => b[1].stars - a[1].stars || b[1].count - a[1].count)
     .slice(0, 8)
     .map(([owner, v]) => ({
       owner,

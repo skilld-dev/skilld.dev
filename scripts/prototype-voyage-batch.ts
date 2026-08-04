@@ -83,10 +83,11 @@ async function voyageBatch(inputs: string[]): Promise<number[][]> {
   return data.data.map(d => d.embedding)
 }
 
-// 1. Pick skills: start from top-installs + any skill that already has a row
-//    in skill_generated (so we fill in embeddings for ones we've touched).
-const topSkills = d1Exec(`SELECT owner, repo, name, display_name FROM skills ORDER BY installs DESC LIMIT ${LIMIT}`) as { owner: string, repo: string, name: string, display_name: string }[]
-console.log(`picked top-${LIMIT} skills by installs`)
+// 1. Pick skills from the most-starred canonical repositories.
+const topSkills = d1Exec(`SELECT s.owner, s.repo, s.name, s.display_name
+  FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+  ORDER BY r.stars DESC, s.owner ASC, s.name ASC LIMIT ${LIMIT}`) as { owner: string, repo: string, name: string, display_name: string }[]
+console.log(`picked top ${LIMIT} skills by GitHub stars`)
 
 const picked = topSkills
 console.log(`fetching SKILL.md for ${picked.length} skills in parallel...`)

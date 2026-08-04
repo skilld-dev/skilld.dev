@@ -25,8 +25,8 @@ describe('front door probe retry', () => {
     const result = await loadFrontDoor(fetcher, { attempts: 3, sleep: noSleep })
 
     expect(result.checks.every(check => check.status === 522)).toBe(true)
-    // 3 URLs x 3 attempts each.
-    expect(fetcher).toHaveBeenCalledTimes(9)
+    // 2 URLs x 3 attempts each.
+    expect(fetcher).toHaveBeenCalledTimes(6)
   })
 
   it('reports a probe failure (null) when every attempt throws', async () => {
@@ -44,7 +44,7 @@ describe('front door probe retry', () => {
 
     await loadFrontDoor(fetcher, { attempts: 3, sleep: noSleep })
 
-    // 3 URLs, one attempt each — no wasted retries on success.
-    expect(fetcher).toHaveBeenCalledTimes(3)
+    // 2 URLs, one attempt each. Successful probes do not retry.
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 })

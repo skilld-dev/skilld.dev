@@ -31,7 +31,6 @@ interface ScoreRow {
   owner: string
   repo: string
   name: string
-  installs: number
   stars: number
   pushed_at: number | null
   repo_broken_since: number | null
@@ -66,7 +65,6 @@ const BASE_SELECT = `
   s.owner,
   s.repo,
   s.name,
-  s.installs,
   r.stars,
   r.pushed_at,
   r.broken_since AS repo_broken_since,
@@ -152,7 +150,7 @@ function computeFromRow(row: ScoreRow, now: number): {
     owner: row.owner,
     repo: row.repo,
     sourceResolved,
-    installs: row.installs,
+    stars: row.stars,
     curatorReasonCount: row.curator_reason_count,
     approvedSocialCount: row.approved_social_count,
     repoSkillCount: row.repo_skill_count,
@@ -168,7 +166,6 @@ function computeFromRow(row: ScoreRow, now: number): {
     curatorReasonCount: row.curator_reason_count,
     approvedSocialCount: row.approved_social_count,
     authorSocialCount: row.author_social_count,
-    installs: row.installs,
     stars: row.stars,
     pushedAt: row.pushed_at,
     referencesCount: row.references_count ?? 0,
@@ -342,7 +339,7 @@ export async function recomputeAllSkillScores(
   const res = await db
     .prepare(
       `SELECT ${BASE_SELECT} ${FROM_JOIN}
-       ORDER BY s.installs DESC, r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC
+       ORDER BY r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC
        ${limitClause}`,
     )
     .all<ScoreRow>()

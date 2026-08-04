@@ -9,13 +9,6 @@ export interface StatsBin {
   count: number
 }
 
-export interface ScatterPoint {
-  name: string
-  owner: string
-  stars: number
-  installs: number
-}
-
 export interface OwnerLeader {
   owner: string
   stars: number
@@ -34,7 +27,6 @@ export interface SkillsStats {
   maintenance: StatsBin[]
   ageCohorts: StatsBin[]
   topOwners: OwnerLeader[]
-  scatter: ScatterPoint[]
   skillsPerRepo: StatsBin[]
 }
 
@@ -101,7 +93,6 @@ export default defineApiHandler<never, SkillsStats>({
       skillRepoStarsResult,
       repoMetaResult,
       ownersResult,
-      scatterResult,
       perRepoResult,
     ] = await db.batch([
       db
@@ -142,20 +133,7 @@ export default defineApiHandler<never, SkillsStats>({
         LIMIT 15`,
         ),
 
-      // Chart 5: scatter of skills with non-zero signal. With 80k+ skills in the
-      // registry (most with 0 stars, 0 installs), plotting everything is noise
-      // and makes the SVG unrenderable. Filter to skills with at least some
-      // signal and cap to keep the page light.
-      db
-        .prepare(
-          `SELECT s.name, s.owner, r.stars, s.installs
-        ${FROM}
-        WHERE ${NOT_BROKEN_SQL} AND (r.stars > 0 OR s.installs > 0)
-        ORDER BY (r.stars + s.installs) DESC
-        LIMIT 1500`,
-        ),
-
-      // Chart 6: count of skills per repo.
+      // Chart 5: count of skills per repo.
       db
         .prepare(
           `SELECT COUNT(*) AS n
@@ -168,7 +146,6 @@ export default defineApiHandler<never, SkillsStats>({
     const skillRepos = (skillRepoStarsResult?.results ?? []) as { owner: string, repo: string, stars: number }[]
     const repoMeta = (repoMetaResult?.results ?? []) as { owner: string, repo: string, pushed_at: number | null, repo_created_at: number | null }[]
     const ownerRows = (ownersResult?.results ?? []) as { owner: string, stars: number, skills: number }[]
-    const scatterRows = (scatterResult?.results ?? []) as { name: string, owner: string, stars: number, installs: number }[]
     const perRepoRows = (perRepoResult?.results ?? []) as { n: number }[]
     const starCounts = new Map(STAR_BINS.map(b => [b.label, 0]))
     for (const r of skillRepos) {
@@ -233,12 +210,6 @@ export default defineApiHandler<never, SkillsStats>({
         owner: o.owner,
         stars: o.stars ?? 0,
         skills: o.skills,
-      })),
-      scatter: scatterRows.map(s => ({
-        name: s.name,
-        owner: s.owner,
-        stars: s.stars ?? 0,
-        installs: s.installs ?? 0,
       })),
       skillsPerRepo: REPO_BINS.map(b => ({ label: b.label, count: perRepoCounts.get(b.label) ?? 0 })),
     }

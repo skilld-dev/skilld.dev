@@ -348,7 +348,7 @@ useHead(computed(() => ({
               v-for="skill in repoSkills"
               :key="skill.slug"
               :skill="skill"
-              signal="installs"
+              signal="stars"
               :show-copy="false"
               show-owner-path
               timestamp-label="Updated"

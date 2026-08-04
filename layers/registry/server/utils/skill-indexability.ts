@@ -2,8 +2,6 @@ import type { SkillTrustTier } from './skill-trust'
 import { officialRepos } from '../data/official-repos'
 
 export const SEO_INDEXABLE_MIN_SCORE = 4
-export const SEO_INSTALLS_STRONG = 1_000
-export const SEO_INSTALLS_SOME = 100
 export const SEO_RECENT_SECONDS = 180 * 86400
 export const SEO_STARS_STRONG = 500
 export const SEO_REPO_BROAD_SKILL_COUNT = 100
@@ -18,7 +16,6 @@ export interface SkillIndexabilityInput {
   curatorReasonCount: number
   approvedSocialCount: number
   authorSocialCount: number
-  installs: number
   stars: number
   pushedAt: number | null
   referencesCount: number
@@ -98,15 +95,6 @@ export function scoreSkillIndexability(input: SkillIndexabilityInput, now = Math
     reasons.push('community_social_proof')
   }
 
-  if (input.installs >= SEO_INSTALLS_STRONG) {
-    score += 2
-    reasons.push('strong_installs')
-  }
-  else if (input.installs >= SEO_INSTALLS_SOME) {
-    score += 1
-    reasons.push('some_installs')
-  }
-
   if (input.stars >= SEO_STARS_STRONG) {
     score += 1
     reasons.push('strong_github_stars')
@@ -134,7 +122,6 @@ export function scoreSkillIndexability(input: SkillIndexabilityInput, now = Math
     || input.trustTier === 'trusted-curator'
     || input.authorSocialCount > 0
     || input.approvedSocialCount > 0
-    || input.installs >= SEO_INSTALLS_STRONG
 
   if (!hasPrimaryTrustSignal)
     reasons.push('no_primary_trust_signal')

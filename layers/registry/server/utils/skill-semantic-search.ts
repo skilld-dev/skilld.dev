@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { H3Event } from 'h3'
 import { getDB } from '#server/utils/db'
+import { writeCache } from '#shared/server/cache'
 import { vectorIdFor } from './vector-id'
 
 // Same model + dim the AI generation pipeline embeds skills with
@@ -9,6 +10,20 @@ import { vectorIdFor } from './vector-id'
 const EMBEDDING_MODEL = '@cf/baai/bge-base-en-v1.5'
 const VECTORIZE_DIM = 768
 const ID_MAP_TTL_MS = 10 * 60 * 1000
+// Query vectors are a pure function of (model, text), so they only expire to
+// stop unbounded growth, not because they go stale.
+const QUERY_VECTOR_TTL = 60 * 60 * 24
+
+/**
+ * bge-* models are trained asymmetrically: passages are embedded bare, queries
+ * are embedded behind this instruction. Without it a short query lands in a
+ * slightly different region of the space than the documents it should match,
+ * which is why cosine scores were bunched into a narrow band and why word
+ * senses got confused ("stop memory leaks" retrieving agent-memory skills).
+ * Documents are embedded bare in embedding-effect.ts, so this belongs on the
+ * query side only.
+ */
+const QUERY_INSTRUCTION = 'Represent this sentence for searching relevant passages: '
 
 interface AiBinding {
   run: (model: string, input: Record<string, unknown>) => Promise<unknown>
@@ -52,25 +67,23 @@ async function getIdMap(db: D1Database): Promise<Map<string, SkillKey>> {
  * cosine similarity, or `null` when the AI / Vectorize bindings are absent
  * (e.g. local dev) so callers can fall back to lexical FTS.
  */
-// topK is capped well under D1's 100 bound-parameter limit: each hit becomes
-// one param in the IN clause, leaving headroom for owner/tag/category filters.
-export async function semanticSkillSearch(event: H3Event, query: string, topK = 60): Promise<SemanticHit[] | null> {
+// The candidate pool is passed to D1 as a single JSON array parameter
+// (json_each), so topK is no longer bounded by D1's 100 SQL-variable cap.
+export async function semanticSkillSearch(event: H3Event, query: string, topK = 200): Promise<SemanticHit[] | null> {
   const env = event.context.platform?.env
   const ai = env?.AI as AiBinding | undefined
   const vectorize = env?.SKILL_EMBEDDINGS
   if (!ai || !vectorize)
     return null
 
-  const embed = await ai.run(EMBEDDING_MODEL, { text: [query] }).catch((error) => {
-    console.warn(`[semantic-search] ${error instanceof Error ? error.message : String(error)}`)
-    return null
-  })
-  const vec = (embed as { data?: number[][] } | null)?.data?.[0]
-  if (!vec || vec.length !== VECTORIZE_DIM)
+  const vec = await embedQuery(ai, query)
+  if (!vec)
     return null
 
+  // Vectors carry owner/repo/name in metadata, so asking for it back avoids
+  // the sha256 id-map rebuild (a full scan of `skills`) on the search path.
   const res = await vectorize
-    .query(vec, { topK, returnValues: false, returnMetadata: 'none' })
+    .query(vec, { topK, returnValues: false, returnMetadata: 'all' })
     .catch((error) => {
       console.warn(`[semantic-search] ${error instanceof Error ? error.message : String(error)}`)
       return null
@@ -78,14 +91,68 @@ export async function semanticSkillSearch(event: H3Event, query: string, topK = 
   if (!res?.matches?.length)
     return []
 
-  const map = await getIdMap(getDB(event))
   const hits: SemanticHit[] = []
+  let needsIdMap = false
   for (const m of res.matches) {
-    const key = map.get(m.id)
+    const key = keyFromMetadata(m.metadata)
     if (key)
       hits.push({ ...key, score: m.score })
+    else
+      needsIdMap = true
   }
-  return hits
+  // Vectors written before metadata carried the key still need the id map.
+  if (!needsIdMap)
+    return hits
+
+  const map = await getIdMap(getDB(event))
+  return res.matches.flatMap((m) => {
+    const key = keyFromMetadata(m.metadata) ?? map.get(m.id)
+    return key ? [{ ...key, score: m.score }] : []
+  })
+}
+
+/**
+ * Embed the query, memoised in the KV cache. The model is deterministic, so a
+ * repeated query never needs a second inference. Search is typed one keystroke
+ * at a time, and the popular prefixes of popular queries repeat constantly:
+ * this is the difference between every keystroke paying for an inference and
+ * only the novel ones doing so.
+ */
+async function embedQuery(ai: AiBinding, query: string): Promise<number[] | null> {
+  const storage = useStorage('cache')
+  const cacheKey = `search:qvec:${await sha256Hex(query)}`
+  // A cache read failure is not a search failure: fall through to inference.
+  const cached = await storage.getItem<number[]>(cacheKey).catch((error) => {
+    console.warn(`[semantic-search] query vector cache read failed`, error)
+    return null
+  })
+  if (cached?.length === VECTORIZE_DIM)
+    return cached
+
+  const embed = await ai.run(EMBEDDING_MODEL, { text: [`${QUERY_INSTRUCTION}${query}`] }).catch((error) => {
+    console.warn(`[semantic-search] ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
+  const vec = (embed as { data?: number[][] } | null)?.data?.[0]
+  if (!vec || vec.length !== VECTORIZE_DIM)
+    return null
+
+  await writeCache(storage, cacheKey, vec, { ttl: QUERY_VECTOR_TTL })
+  return vec
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function keyFromMetadata(metadata: unknown): SkillKey | null {
+  if (!metadata || typeof metadata !== 'object')
+    return null
+  const { owner, repo, name } = metadata as Record<string, unknown>
+  if (typeof owner !== 'string' || typeof repo !== 'string' || typeof name !== 'string')
+    return null
+  return { owner, repo, name }
 }
 
 const WHITESPACE_RE = /\s+/

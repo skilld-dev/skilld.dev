@@ -29,7 +29,6 @@ interface NeighborSkill {
   slug: string
   displayName: string
   description: string | null
-  installs: number
   score: number
 }
 
@@ -103,7 +102,6 @@ async function resolveNeighborSkills(
           slug: row.slug,
           displayName: row.displayName,
           description: row.description,
-          installs: row.installs,
           score: Number(n[scoreKey]) || 0,
         }
       })

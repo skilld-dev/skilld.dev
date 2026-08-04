@@ -427,7 +427,7 @@ CREATE TABLE "skills" (
 );
 
 CREATE VIRTUAL TABLE skills_fts USING fts5(
-  name, owner, repo, display_name, slug,
+  name, owner, repo, display_name, slug, description,
   content=skills, content_rowid=rowid
 );
 
@@ -523,20 +523,20 @@ CREATE TRIGGER ai_ready_pages_au AFTER UPDATE ON ai_ready_pages BEGIN
     END;
 
 CREATE TRIGGER skills_ad AFTER DELETE ON skills BEGIN
-  INSERT INTO skills_fts(skills_fts, rowid, name, owner, repo, display_name, slug)
-  VALUES ('delete', old.rowid, old.name, old.owner, old.repo, old.display_name, old.slug);
+  INSERT INTO skills_fts(skills_fts, rowid, name, owner, repo, display_name, slug, description)
+  VALUES ('delete', old.rowid, old.name, old.owner, old.repo, old.display_name, old.slug, old.description);
 END;
 
 CREATE TRIGGER skills_ai AFTER INSERT ON skills BEGIN
-  INSERT INTO skills_fts(rowid, name, owner, repo, display_name, slug)
-  VALUES (new.rowid, new.name, new.owner, new.repo, new.display_name, new.slug);
+  INSERT INTO skills_fts(rowid, name, owner, repo, display_name, slug, description)
+  VALUES (new.rowid, new.name, new.owner, new.repo, new.display_name, new.slug, new.description);
 END;
 
 CREATE TRIGGER skills_au AFTER UPDATE ON skills BEGIN
-  INSERT INTO skills_fts(skills_fts, rowid, name, owner, repo, display_name, slug)
-  VALUES ('delete', old.rowid, old.name, old.owner, old.repo, old.display_name, old.slug);
-  INSERT INTO skills_fts(rowid, name, owner, repo, display_name, slug)
-  VALUES (new.rowid, new.name, new.owner, new.repo, new.display_name, new.slug);
+  INSERT INTO skills_fts(skills_fts, rowid, name, owner, repo, display_name, slug, description)
+  VALUES ('delete', old.rowid, old.name, old.owner, old.repo, old.display_name, old.slug, old.description);
+  INSERT INTO skills_fts(rowid, name, owner, repo, display_name, slug, description)
+  VALUES (new.rowid, new.name, new.owner, new.repo, new.display_name, new.slug, new.description);
 END;
 
 CREATE TABLE skill_dirty (

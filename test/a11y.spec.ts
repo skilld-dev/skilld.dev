@@ -93,6 +93,38 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
   })
+
+  it('skillSearchPanel has no violations in its resting state', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/SkillSearchPanel.vue').then(m => m.default),
+      { attachTo: container },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  // The trigger is a combobox, so its ARIA wiring is the part most likely to
+  // rot: aria-controls and aria-activedescendant must only reference the
+  // listbox while it is actually rendered.
+  it('skillSearchTrigger has no violations while closed', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/SkillSearchTrigger.vue').then(m => m.default),
+      { attachTo: container },
+    )
+
+    const combobox = container.querySelector('[role="combobox"]')
+    expect(combobox).not.toBeNull()
+    expect(combobox!.getAttribute('aria-expanded')).toBe('false')
+    expect(combobox!.hasAttribute('aria-controls')).toBe(false)
+    expect(combobox!.hasAttribute('aria-activedescendant')).toBe(false)
+
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
 })
 
 describe('accessibility: component coverage', () => {
@@ -136,7 +168,13 @@ describe('accessibility: component coverage', () => {
     // If this test fails, add an axe-core test for the new component
     for (const name of untestedComponents) {
       expect(
-        SKIPPED_COMPONENTS.includes(name) || ['AddToCollection.client', 'AppLogo', 'SkillSourceList'].includes(name),
+        SKIPPED_COMPONENTS.includes(name) || [
+          'AddToCollection.client',
+          'AppLogo',
+          'SkillSearchPanel',
+          'SkillSearchTrigger',
+          'SkillSourceList',
+        ].includes(name),
         `Component "${name}" needs an accessibility test or should be added to SKIPPED_COMPONENTS with a reason`,
       ).toBe(true)
     }

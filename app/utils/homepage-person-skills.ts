@@ -11,7 +11,7 @@ export interface FeaturedPersonSkill {
   name: string
   displayName: string
   description: string | null
-  installs: number
+  stars: number
 }
 
 export interface FeaturedPersonSection {
@@ -55,7 +55,7 @@ export function selectHomepagePersonSkills(
 
     for (const skill of section.skills) {
       const key = `${skill.owner}/${skill.repo}/${skill.name}`
-      if (skill.name === 'skill' || skill.installs <= 0 || seenSkills.has(key))
+      if (skill.name === 'skill' || seenSkills.has(key))
         continue
 
       seenSkills.add(key)
@@ -70,7 +70,7 @@ export function selectHomepagePersonSkills(
     .map(person => ({
       ...person,
       skills: [...person.skills]
-        .sort((left, right) => right.installs - left.installs)
+        .sort((left, right) => right.stars - left.stars || left.name.localeCompare(right.name))
         .slice(0, HOMEPAGE_SKILLS_PER_PERSON),
     }))
     .filter(person => person.skills.length > 0)
@@ -92,7 +92,7 @@ export function selectHomepagePersonSkills(
           ? person.displayName
           : fallbackNamesByOwner.get(person.owner) ?? person.owner,
         description: skill.description,
-        context: `${formatCompactCount(skill.installs)} weekly installs`,
+        context: skill.stars > 0 ? `${formatCompactCount(skill.stars)} GitHub stars` : null,
       })
 
       if (result.length === HOMEPAGE_SKILL_LIMIT)

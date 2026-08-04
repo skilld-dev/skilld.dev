@@ -35,7 +35,7 @@ export default defineApiHandler({
          SELECT s.owner, s.repo, s.name, s.target_package,
                 ROW_NUMBER() OVER (
                   PARTITION BY s.owner, s.repo
-                  ORDER BY s.installs DESC, s.name ASC
+                  ORDER BY s.modified_at DESC, s.name ASC
                 ) AS rn
          FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
          WHERE (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)

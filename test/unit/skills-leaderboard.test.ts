@@ -17,7 +17,6 @@ interface LeaderboardRow {
   top_skill_name: string
   top_skill_slug: string
   top_skill_description: string | null
-  top_skill_installs: number
   top_skill_modified_at: number | null
 }
 
@@ -118,21 +117,20 @@ describe('skills leaderboard eligibility', () => {
         top_skill_name: 'nuxt-frontend-design',
         top_skill_slug: 'nuxt-frontend-design',
         top_skill_description: null,
-        top_skill_installs: 120,
         top_skill_modified_at: null,
       },
     ])
   })
 
-  it('surfaces the most installed skill from each repository', () => {
+  it('surfaces the most recently updated skill from each repository', () => {
     insertRepo('creator', 'generic-skills', 100)
     insertSkill('creator', 'generic-skills', 'less-popular', 20)
     insertSkill(
       'creator',
       'generic-skills',
-      'most-popular',
+      'most-recent',
       500,
-      'The skill users install most.',
+      'The skill updated most recently.',
       1_700_000_000,
     )
     insertSkill('creator', 'generic-skills', 'also-less-popular', 100)
@@ -145,10 +143,9 @@ describe('skills leaderboard eligibility', () => {
       owner: 'creator',
       repo: 'generic-skills',
       skill_count: 3,
-      top_skill_name: 'most-popular',
-      top_skill_slug: 'most-popular',
-      top_skill_description: 'The skill users install most.',
-      top_skill_installs: 500,
+      top_skill_name: 'most-recent',
+      top_skill_slug: 'most-recent',
+      top_skill_description: 'The skill updated most recently.',
       top_skill_modified_at: 1_700_000_000,
     }))
   })

@@ -1,9 +1,9 @@
 /**
- * Backfill missing descriptions for the top-N (by installs) skills with
+ * Backfill missing descriptions for the top N skills by GitHub stars with
  * null description. Pure frontmatter parse, no AI, no other column updates.
  *
  * Strategy:
- *   1. Pull rows ordered by installs DESC where description IS NULL.
+ *   1. Pull rows ordered by repository stars where description IS NULL.
  *   2. Group by repo. For each repo, fetch the git tree once, build a
  *      dirName -> path map for every SKILL.md.
  *   3. For each skill row, look up the path by `name`, fetch raw SKILL.md,
@@ -29,7 +29,6 @@ interface SkillRow {
   repo: string
   name: string
   default_branch: string | null
-  installs: number
 }
 
 interface TreeEntry { path: string, type: string }
@@ -91,11 +90,11 @@ async function pAll<T>(items: T[], n: number, fn: (item: T, i: number) => Promis
 async function main() {
   console.error(`[backfill] querying top ${LIMIT} null-desc skills...`)
   const rows = d1<SkillRow>(
-    `SELECT s.owner, s.repo, s.name, r.default_branch, s.installs
+    `SELECT s.owner, s.repo, s.name, r.default_branch
      FROM skills s
      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
      WHERE s.description IS NULL AND r.broken_since IS NULL
-     ORDER BY s.installs DESC
+     ORDER BY r.stars DESC, s.owner ASC, s.name ASC
      LIMIT ${LIMIT}`,
   )
   console.error(`[backfill] ${rows.length} rows`)

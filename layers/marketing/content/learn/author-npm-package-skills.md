@@ -1,143 +1,126 @@
 ---
-title: How to ship an agent skill with your npm package
-description: Generate a SKILL.md from your package docs and ship it in the npm tarball.
+title: Bootstrap an agent skill for your npm package
+description: Start a SKILL.md draft from package docs, then edit, own, and publish it in your repository.
 relatedPages:
   - path: /skills/guide
     title: Skills guide
-  - path: /skills/official
-    title: Official package skills
+  - path: /skills
+    title: Browse skills
 createdAt: 2026-05-13
-updatedAt: 2026-05-13
+updatedAt: 2026-08-04
 ---
 
-**TL;DR.** `skilld author package` reads your `docs/`, `README`, `CHANGELOG`, and GitHub issues, then writes a SKILL.md into `skills/<name>/`. Patches `package.json` so it ships in your tarball. Consumers run `skilld prepare` and the skill links into their agent.
+**TL;DR.** `skilld author package` creates a starting draft from your package documentation. You review the draft, rewrite it where needed, and publish it from your own repository. Skilld provides the authoring aid. You edit and own the published skill.
 
-If you maintain an [npm](https://npmjs.com) package, your README is already drifting from your code. Agents that pull "latest docs" from a generic indexer get a snapshot of yesterday plus whatever stale Stack Overflow answer ranked well. The fix is to ship a SKILL.md with the package itself, versioned alongside the code, so the agent reads what you published.
+The command is for package maintainers who want a useful first pass without starting from an empty file. It does not publish a skill, claim authorship, or place the file in a skilld-owned registry. GitHub remains the source of record.
 
-The output follows the [Agent Skills specification](https://agentskills.io/home) and works with [antfu's skills-npm convention](https://github.com/antfu/skills-npm). Both toolchains use the same files.
+## Start the draft
 
-## What `skilld author` does
-
-`skilld author package` runs inside your package directory and produces a `skills/<name>/SKILL.md` file. It pulls from local docs, your changelog, and [GitHub](https://github.com) issues and discussions, then asks an LLM to compress that into a tight SKILL.md with the triggering frontmatter agents need.
-
-The command then patches `package.json` so `"skills"` lands in the `files` array. Anyone who installs your package can run `skilld prepare` and the skill drops into their agent config.
+Run the command inside the package you maintain:
 
 ```bash
 cd path/to/your-package
 npx skilld author package
 ```
 
-For a monorepo, run the same command from the root and pick which packages should ship skills.
+The command reads package material and writes a draft to `skills/<name>/SKILL.md`. It can also add the `skills` directory to the package `files` list.
 
-## What the command reads, in order
+The draft is a working document. Read every section before committing it. Remove claims you cannot support, add the judgment your users need, and make sure the instructions match the current release.
 
-The cascade is deterministic. Skilld walks it once, stops at the first hit, and caches the result:
+## What the command reads
 
-1. **`docs/` in the package directory.** All `.md` and `.mdx` files, walked recursively.
-2. **`docs/` or `docs/content/` at the monorepo root.** [Nuxt Content](https://content.nuxt.com) conventions are recognized.
-3. **[`llms.txt`](https://llmstxt.org/)** in the package, then the monorepo root.
-4. **`README.md`** (any case) in the package, then the monorepo root.
-5. **`CHANGELOG.md`** is always cached separately if present.
+The source cascade is deterministic:
 
-If you have rich documentation, write it once in `docs/` and let skilld pull from there. If you only have a README, that's fine; the output will be terser.
+1. `docs/` in the package directory, including Markdown and MDX files.
+2. `docs/` or `docs/content/` at the monorepo root.
+3. `llms.txt` in the package, then the monorepo root.
+4. `README.md` in the package, then the monorepo root.
+5. `CHANGELOG.md`, cached separately when present.
 
-When you install and authenticate the GitHub CLI (`gh`), skilld also fetches the most recent 30 issues and 20 discussions for the repo. They land in the cache as searchable references; the LLM uses them to surface gotchas users hit.
+With an authenticated GitHub CLI, the command can also collect recent issues and discussions as reference material. Those sources help expose recurring problems. They do not replace maintainer review.
 
-## What the LLM produces
+## What the draft contains
 
-After the cache fills, skilld asks an LLM to write specific sections. You pick which ones in the prompt:
+The starting draft can include:
 
-- **API changes.** New, renamed, and deprecated APIs from the version history. Adapts its item budget to how busy your changelog is.
-- **Best practices.** Gotchas, pitfalls, and patterns mined from issues, discussions, and docs.
-- **Custom section.** You supply a heading and instructions. Useful for migration notes ("Migrating from v2 to v3") or framework-specific patterns ("SSR setup").
+- API changes drawn from version history.
+- Practices and common problems drawn from documentation and issues.
+- A custom section defined by your prompt.
+- Links back to the source documentation.
 
-You can also pick **Prompt only**, which writes the prompts into `.skilld/` without calling the LLM. Run them in whatever model you prefer, paste the output back. Useful in CI where you don't want to spend tokens on every build.
+You can choose prompt-only mode to write prompts under `.skilld/` without calling a model. In either mode, the output remains a draft until you edit and approve it.
 
-Pick a model on first run; skilld remembers it. Subsequent runs use the same model unless you pass `-m`.
+## Review before publishing
 
-## What gets generated
+Check the draft as package source code:
 
-The generated SKILL.md has three parts: frontmatter, a references block, and the LLM-written body.
+1. Verify every command and code example against the current release.
+2. Remove generic advice that does not reflect your package.
+3. Add constraints, failure modes, and tradeoffs that only a maintainer would know.
+4. Keep the trigger description precise enough for agents to load the skill at the right time.
+5. Follow every reference link and remove stale material.
+6. Read the final diff, then commit it under your own name.
 
-The frontmatter is doing more work than it looks like. The `description` field is what agents match against when deciding whether to load your skill. Skilld builds it from your package description plus keyword variants:
+The published SKILL.md should reflect your judgment. If you would not sign off on a paragraph in your package documentation, do not ship it in the skill.
 
-- `@nuxt/ui` produces matches for `@nuxt/ui`, `nuxt/ui`, and `nuxt ui`
-- `vue-router` produces matches for `vue-router` and `vue router`
-- A repo name like `motion-v` produces `motion-v` and `motion v`
+## Monorepos
 
-The description always includes the phrase `ALWAYS use when editing ... or code importing "<package>"`. Agents match that phrase when deciding whether to load the skill.
-
-The references block is a markdown link list pointing at the original sources: `package.json`, README, docs index, issues, discussions, releases. After a consumer installs the skill in a project, those links resolve to local files under `references/`. Agents can crack them open when they need more than the summary.
-
-## Monorepo mode
-
-If your repo is a workspaces or [pnpm](https://pnpm.io) monorepo, skilld detects it and offers a multiselect. Pick the packages that should ship skills:
+From a workspace root, select the packages that need drafts:
 
 ```bash
 cd path/to/your-monorepo
 npx skilld author package
-# ◆ Which packages should ship skills?
+# ◆ Which packages need a skill draft?
 # ◻ @scope/core
 # ◻ @scope/utils
 # ◻ @scope/cli
 ```
 
-Each selected package gets its own `skills/<name>/` directory and its own `package.json` patch. Skilld resolves the LLM config (model, sections) once and reuses it across the batch.
-
-Packages without their own repo URL inherit the repo URL from the monorepo root, so issue and discussion fetching works for every package in the workspace.
+Each selected package receives its own `skills/<name>/` directory. Packages without a repository URL can inherit the root repository URL for reference collection.
 
 ## Flags
 
 | Flag | What it does |
 |---|---|
-| `-y` | Skip prompts. Uses the configured or recommended model and the default sections (api-changes, best-practices). |
-| `-m <id>`{lang="html"} | Force a specific enhancement model for this run. |
-| `-o <dir>`{lang="html"} | Write the skill somewhere other than `./skills/<name>/`. Must be a child of the package directory. |
-| `-f` | Clear the reference cache and refetch everything. Use after major doc rewrites. |
-| `--debug` | Save raw LLM output under `logs/`. Useful for tuning prompts. |
+| `-y` | Skip prompts and use the configured draft settings. |
+| `-m <id>`{lang="html"} | Select the model used for this draft. |
+| `-o <dir>`{lang="html"} | Write the draft to a child directory of the package. |
+| `-f` | Clear cached references and fetch them again. |
+| `--debug` | Save raw model output under `logs/` for inspection. |
 
-Writing outside `skills/` with `-o` skips the `package.json` patch. Add the path to `files` yourself if you want npm to publish it.
+Writing outside `skills/` with `-o` skips the package manifest change. Add the chosen path to `files` yourself if it belongs in the npm tarball.
 
-## What consumers see
+## Publish from your repository
 
-Once you publish, anyone who depends on your package can pull the skill with one command:
+Once the draft has passed maintainer review:
+
+1. Commit the SKILL.md to the package repository.
+2. Include the `skills` directory in the npm tarball when package distribution is useful.
+3. Publish the package or repository through your normal release process.
+4. Check the source link and install command after release.
+
+Skilld can discover and link to the file after you publish it. The file remains yours. Your repository carries its history, issues, ownership, and removal path.
+
+## What consumers run
+
+For a skill shipped with an npm package:
 
 ```bash
 npm install your-package
 npx skilld prepare
 ```
 
-Or wire it into their own `package.json` so it runs on every install:
+`skilld prepare` finds package skills and links them into supported agent directories. The skill remains an ordinary file under `node_modules`.
 
-```json
-{
-  "scripts": {
-    "prepare": "skilld prepare"
-  }
-}
-```
+The same layout works with [skills-npm](https://github.com/antfu/skills-npm), so maintainers can support either installer from the files they own.
 
-`skilld prepare` walks the consumer's `node_modules`, finds every package shipping a `skills/` directory, and links them into the agent config. No registry lookup, no network call. The skills remain ordinary files under `node_modules`.
+## Keep it current
 
-Consumers who already use [`skills-npm`](https://github.com/antfu/skills-npm) get the same result. Skilld auto-detects skills-npm packages and uses them when available, so you can author with skilld and ship to either ecosystem without a second pipeline.
-
-## When to regenerate
-
-Author once, then regenerate on the same cadence you cut releases. The cache is keyed on package name and version, so a fresh release with a new changelog entry will pick up new content automatically. For local iteration, pass `-f` to force a refetch.
-
-In a release script, run `skilld author package -y` after the version bump and before `npm publish`. The tarball will contain guidance for that exact version.
-
-## What skilld does not do
-
-It does not write your README. If your docs are thin, the skill will be thin. The LLM compresses what's there; it does not invent capabilities.
-
-Skills stay as markdown files in your repo. You can read them, edit them, commit them, and revert them like any other source file. The LLM runs while generating those files; agents do not need it at runtime.
-
-See [official providers](/skills/official) for finished examples.
+Review the skill when the package changes. Release automation may produce another draft, but a maintainer should inspect and approve the diff before publication. Version history remains useful only when the published guidance matches the code.
 
 ## Related
 
 - [Agent Skills specification](https://agentskills.io/home)
-- [antfu/skills-npm](https://github.com/antfu/skills-npm): convention for shipping skills in npm packages
-- [Claude Code skill best practices](https://code.claude.com/docs/en/skills#add-supporting-files): keep SKILL.md under 500 lines, push detail into references
+- [skills-npm](https://github.com/antfu/skills-npm)
+- [Claude Code skill best practices](https://code.claude.com/docs/en/skills#add-supporting-files)
 - [skilld on GitHub](https://github.com/skilld-dev/skilld)

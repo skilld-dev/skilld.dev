@@ -93,6 +93,7 @@ describe('homepage database hot paths', () => {
           name TEXT NOT NULL,
           display_name TEXT,
           installs INTEGER NOT NULL,
+          modified_at INTEGER,
           trust_tier TEXT NOT NULL,
           source_resolved INTEGER NOT NULL,
           rendered_status TEXT,
@@ -113,12 +114,12 @@ describe('homepage database hot paths', () => {
         INSERT INTO repos (owner, repo, broken_since)
         VALUES ('acme', 'skills', NULL), ('other', 'skills', NULL);
         INSERT INTO skills
-          (owner, repo, name, display_name, installs, trust_tier, source_resolved, rendered_status)
+          (owner, repo, name, display_name, installs, modified_at, trust_tier, source_resolved, rendered_status)
         VALUES
-          ('acme', 'skills', 'untrusted', 'Untrusted', 1000, 'candidate', 1, 'ok'),
-          ('acme', 'skills', 'top', 'Top', 100, 'official', 1, 'ok'),
-          ('acme', 'skills', 'named', 'Named', 5, 'trusted-curator', 1, 'ok'),
-          ('other', 'skills', 'unrelated', 'Unrelated', 1000, 'official', 1, 'ok');
+          ('acme', 'skills', 'untrusted', 'Untrusted', 1000, 400, 'candidate', 1, 'ok'),
+          ('acme', 'skills', 'top', 'Top', 100, 300, 'official', 1, 'ok'),
+          ('acme', 'skills', 'named', 'Named', 5, 100, 'trusted-curator', 1, 'ok'),
+          ('other', 'skills', 'unrelated', 'Unrelated', 1000, 200, 'official', 1, 'ok');
       `)
 
       const sql = featuredCollectionSkillsSql('?')

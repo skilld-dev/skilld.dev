@@ -135,7 +135,6 @@ const http = await probeAsync(async () => {
   const entries = await Promise.all([
     'https://skilld.dev/',
     'https://skilld.dev/skills',
-    'https://skilld.dev/guides',
   ].map(async (url) => {
     // A transport failure is itself a front-door result, so it becomes a null
     // status the report prints rather than an exception that kills the probe.

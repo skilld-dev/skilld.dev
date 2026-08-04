@@ -12,7 +12,7 @@ export interface DigestRepoEntry {
     commitMessages: string[]
   }>
   changeCount: number
-  // Optional AI sentence; if absent we render the bullet list as the body.
+  // Optional generated sentence; if absent we render commit messages.
   summary?: string | null
 }
 
@@ -47,7 +47,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
     const skillUrl = `https://skilld.dev/gh/${e.owner}/${e.repo}/${encodeURIComponent(e.skillNames[0]!)}`
     const repoUrl = `https://github.com/${e.owner}/${e.repo}`
     const body = e.summary
-      ? `<p style="margin:6px 0 0 0;color:#333;">${esc(e.summary)}</p>`
+      ? `<div style="margin:8px 0 0 0;color:#777;font-size:11px;font-family:'IBM Plex Mono',ui-monospace,monospace;">Generated summary</div><p style="margin:4px 0 0 0;color:#333;">${esc(e.summary)}</p>`
       : `<ul style="margin:6px 0 0 0;padding-left:18px;color:#333;">${
         e.skills.flatMap(skill =>
           skill.commitMessages.slice(0, 4).map(message =>
@@ -68,6 +68,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
   const itemsText = entries.map((e) => {
     const lines = [`* ${e.owner}/${e.repo}: ${e.skillNames.join(', ')} (${e.changeCount} changes)`]
     if (e.summary) {
+      lines.push('  Generated summary')
       lines.push(`  ${e.summary}`)
     }
     else {

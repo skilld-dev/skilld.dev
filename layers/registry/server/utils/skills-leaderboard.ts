@@ -7,7 +7,6 @@ export interface SkillsLeaderboardDbRow {
   top_skill_name: string
   top_skill_slug: string
   top_skill_description: string | null
-  top_skill_installs: number
   top_skill_modified_at: number | null
   pushed_at: number | null
   repo_meta_synced_at: number | null
@@ -41,7 +40,6 @@ export const SKILLS_LEADERBOARD_SQL = `
       s.name,
       s.slug,
       s.description,
-      s.installs,
       s.modified_at,
       COUNT(*) OVER (
         PARTITION BY s.owner, s.repo
@@ -49,9 +47,9 @@ export const SKILLS_LEADERBOARD_SQL = `
       ROW_NUMBER() OVER (
         PARTITION BY s.owner, s.repo
         ORDER BY
-          s.installs DESC,
+          s.modified_at DESC,
           s.name COLLATE NOCASE ASC
-      ) AS popularity_rank
+      ) AS recency_rank
     FROM skills AS s
     JOIN eligible_repositories AS repository
       ON repository.owner = s.owner
@@ -66,7 +64,6 @@ export const SKILLS_LEADERBOARD_SQL = `
     s.name AS top_skill_name,
     s.slug AS top_skill_slug,
     s.description AS top_skill_description,
-    s.installs AS top_skill_installs,
     s.modified_at AS top_skill_modified_at,
     repository.pushed_at,
     repository.repo_meta_synced_at,
@@ -75,7 +72,7 @@ export const SKILLS_LEADERBOARD_SQL = `
   JOIN ranked_skills AS s
     ON s.owner = repository.owner
    AND s.repo = repository.repo
-   AND s.popularity_rank = 1
+   AND s.recency_rank = 1
   ORDER BY
     repository.stars DESC,
     repository.owner COLLATE NOCASE ASC,

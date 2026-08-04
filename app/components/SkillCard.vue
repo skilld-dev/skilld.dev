@@ -5,7 +5,6 @@ interface SkillLike {
   name: string
   slug: string
   description?: string | null
-  installs?: number
   stars?: number
   tags?: string[]
   official?: boolean
@@ -28,7 +27,7 @@ const {
 } = defineProps<{
   skill: SkillLike
   variant?: 'grid' | 'list' | 'condensed'
-  signal?: 'installs' | 'stars' | 'auto' | 'none'
+  signal?: 'stars' | 'auto' | 'none'
   showDescription?: boolean
   showCopy?: boolean
   showOwnerAvatar?: boolean
@@ -61,14 +60,6 @@ function formatStars(n: number): string {
   return n.toLocaleString()
 }
 
-function formatCount(n: number): string {
-  if (n >= 1_000_000)
-    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
-  if (n >= 1_000)
-    return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
-  return n.toLocaleString()
-}
-
 const resolvedTimestampFormat = computed(() =>
   timestampFormat ?? (variant === 'condensed' ? 'relative' : 'absolute'),
 )
@@ -93,20 +84,11 @@ const timestampDate = computed(() =>
   timestampSeconds.value != null ? new Date(timestampSeconds.value * 1000) : null,
 )
 
-const resolvedSignal = computed<'installs' | 'stars' | null>(() => {
+const resolvedSignal = computed<'stars' | null>(() => {
   if (signal === 'none')
     return null
-  const installs = skill.installs ?? 0
   const stars = skill.stars ?? 0
-  if (signal === 'installs')
-    return installs > 0 ? 'installs' : null
-  if (signal === 'stars')
-    return stars > 0 ? 'stars' : null
-  if (installs > 0)
-    return 'installs'
-  if (stars > 0)
-    return 'stars'
-  return null
+  return stars > 0 ? 'stars' : null
 })
 
 const linkClasses = computed(() => {
@@ -207,16 +189,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
           </p>
         </div>
         <span
-          v-if="resolvedSignal === 'installs'"
-          class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
-          :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
-          :title="`${(skill.installs ?? 0).toLocaleString()} weekly installs`"
-        >
-          <UIcon name="i-lucide-arrow-down-to-line" class="size-3" aria-hidden="true" />
-          {{ formatCount(skill.installs ?? 0) }}
-        </span>
-        <span
-          v-else-if="resolvedSignal === 'stars'"
+          v-if="resolvedSignal === 'stars'"
           class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
           :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
           :title="`${(skill.stars ?? 0).toLocaleString()} GitHub stars`"
@@ -232,16 +205,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
             /{{ skill.name }}
           </p>
           <span
-            v-if="!shouldShowOwnerPath && resolvedSignal === 'installs'"
-            class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
-            :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
-            :title="`${(skill.installs ?? 0).toLocaleString()} weekly installs`"
-          >
-            <UIcon name="i-lucide-arrow-down-to-line" class="size-3" aria-hidden="true" />
-            {{ formatCount(skill.installs ?? 0) }}
-          </span>
-          <span
-            v-else-if="!shouldShowOwnerPath && resolvedSignal === 'stars'"
+            v-if="!shouldShowOwnerPath && resolvedSignal === 'stars'"
             class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
             :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
             :title="`${(skill.stars ?? 0).toLocaleString()} GitHub stars`"
@@ -267,16 +231,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
             {{ ownerPath }}
           </p>
           <span
-            v-if="resolvedSignal === 'installs'"
-            class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
-            :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
-            :title="`${(skill.installs ?? 0).toLocaleString()} weekly installs`"
-          >
-            <UIcon name="i-lucide-arrow-down-to-line" class="size-3" aria-hidden="true" />
-            {{ formatCount(skill.installs ?? 0) }}
-          </span>
-          <span
-            v-else-if="resolvedSignal === 'stars'"
+            v-if="resolvedSignal === 'stars'"
             class="data-label shrink-0 inline-flex items-center gap-1 transition-opacity"
             :class="signalFadesOnHover ? 'group-hover:opacity-0' : ''"
             :title="`${(skill.stars ?? 0).toLocaleString()} GitHub stars`"

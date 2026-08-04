@@ -464,11 +464,10 @@ describe('frontDoorFetcher', () => {
     const result = await loadFrontDoor(fetcher, { attempts: 1 })
 
     expect(result.checks.every(check => check.status === 200)).toBe(true)
-    expect(selfFetch).toHaveBeenCalledTimes(3)
+    expect(selfFetch).toHaveBeenCalledTimes(2)
     expect(selfFetch.mock.calls.map(call => call[0])).toEqual([
       'https://skilld.dev/',
       'https://skilld.dev/skills',
-      'https://skilld.dev/guides',
     ])
   })
 
@@ -480,7 +479,6 @@ describe('frontDoorFetcher', () => {
     expect(result.checks).toEqual([
       { url: 'https://skilld.dev/', status: null },
       { url: 'https://skilld.dev/skills', status: null },
-      { url: 'https://skilld.dev/guides', status: null },
     ])
     expect(evaluateDailyHealthStatus(summary({ frontDoor: result }))).toMatchObject({ status: 'RED' })
   })

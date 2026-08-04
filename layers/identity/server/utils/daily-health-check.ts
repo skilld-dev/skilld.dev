@@ -428,7 +428,6 @@ export function evaluateDailyHealthStatus(
 const FRONT_DOOR_URLS = [
   'https://skilld.dev/',
   'https://skilld.dev/skills',
-  'https://skilld.dev/guides',
 ] as const
 
 const FRONT_DOOR_MAX_ATTEMPTS = 3

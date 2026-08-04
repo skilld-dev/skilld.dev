@@ -4,7 +4,7 @@ interface ClusterExample {
   name: string
   repo: string
   displayName: string
-  installs: number
+  stars: number
 }
 
 interface ClusterCard {
@@ -13,7 +13,6 @@ interface ClusterCard {
   icon: string
   userVoice: string
   skillCount: number
-  totalInstalls: number
   examples: ClusterExample[]
 }
 

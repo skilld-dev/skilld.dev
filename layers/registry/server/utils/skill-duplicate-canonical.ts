@@ -6,7 +6,6 @@ export interface DuplicateCandidate {
   name: string
   display_name: string
   description: string | null
-  installs: number | null
   stars: number | null
   pushed_at: number | null
   support_tier: string | null
@@ -18,7 +17,6 @@ export interface DuplicateRankingSignals {
   supportTierRank: number
   trustTier: string | null
   trustTierRank: number
-  installs: number
   stars: number
   pushedAt: number | null
 }
@@ -67,17 +65,34 @@ export function duplicateRankingSignals(row: DuplicateCandidate): DuplicateRanki
     supportTierRank: row.support_tier ? SUPPORT_TIER_RANK[row.support_tier] ?? 0 : 0,
     trustTier: row.trust_tier,
     trustTierRank: row.trust_tier ? TRUST_TIER_RANK[row.trust_tier] ?? 0 : 0,
-    installs: row.installs ?? 0,
     stars: row.stars ?? 0,
     pushedAt: row.pushed_at ?? null,
   }
 }
 
+export type CanonicalSort = (a: DuplicateCandidate, b: DuplicateCandidate) => number
+
 export function canonicalDuplicateSort(a: DuplicateCandidate, b: DuplicateCandidate): number {
   const aSignals = duplicateRankingSignals(a)
   const bSignals = duplicateRankingSignals(b)
-  return bSignals.installs - aSignals.installs
-    || bSignals.supportTierRank - aSignals.supportTierRank
+  return bSignals.supportTierRank - aSignals.supportTierRank
+    || bSignals.trustTierRank - aSignals.trustTierRank
+    || bSignals.stars - aSignals.stars
+    || (bSignals.pushedAt ?? 0) - (aSignals.pushedAt ?? 0)
+    || skillSlug(a).localeCompare(skillSlug(b))
+}
+
+/**
+ * Canonical pick for user-facing discovery. Trust and support tier lead,
+ * GitHub stars only break provenance ties.
+ *
+ * VISION anti-scope 4: the mirrored copy we show is the one with the strongest
+ * provenance. Canonical GitHub stars are supporting evidence only.
+ */
+export function canonicalTrustFirstSort(a: DuplicateCandidate, b: DuplicateCandidate): number {
+  const aSignals = duplicateRankingSignals(a)
+  const bSignals = duplicateRankingSignals(b)
+  return bSignals.supportTierRank - aSignals.supportTierRank
     || bSignals.trustTierRank - aSignals.trustTierRank
     || bSignals.stars - aSignals.stars
     || (bSignals.pushedAt ?? 0) - (aSignals.pushedAt ?? 0)
@@ -86,6 +101,7 @@ export function canonicalDuplicateSort(a: DuplicateCandidate, b: DuplicateCandid
 
 export function findDuplicateCanonicalGroups<T extends DuplicateCandidate>(
   rows: T[],
+  canonicalSort: CanonicalSort = canonicalDuplicateSort,
 ): DuplicateGroupRecommendation<T>[] {
   const assigned = new Set<string>()
   const descriptionGroups = collectGroups(
@@ -94,6 +110,7 @@ export function findDuplicateCanonicalGroups<T extends DuplicateCandidate>(
     DUPLICATE_DESCRIPTION_MIN_LENGTH,
     'duplicate_description',
     assigned,
+    canonicalSort,
   )
 
   for (const group of descriptionGroups) {
@@ -107,6 +124,7 @@ export function findDuplicateCanonicalGroups<T extends DuplicateCandidate>(
     2,
     'duplicate_title',
     assigned,
+    canonicalSort,
   )
 
   return [...descriptionGroups, ...titleGroups]
@@ -139,6 +157,7 @@ function collectGroups<T extends DuplicateCandidate>(
   minLength: number,
   reason: DuplicateGroupReason,
   ignoredSlugs: Set<string>,
+  canonicalSort: CanonicalSort,
 ): DuplicateGroupRecommendation<T>[] {
   const byKey = new Map<string, T[]>()
   for (const row of rows) {
@@ -156,7 +175,7 @@ function collectGroups<T extends DuplicateCandidate>(
   return [...byKey.entries()]
     .filter(([, group]) => group.length > 1)
     .map(([value, group]) => {
-      const ranked = [...group].sort(canonicalDuplicateSort)
+      const ranked = [...group].sort(canonicalSort)
       return {
         reason,
         value,

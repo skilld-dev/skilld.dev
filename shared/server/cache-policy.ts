@@ -21,8 +21,19 @@ const EDGE_CACHE_RULES: EdgeCacheRule[] = [
   { path: /^\/api\/feed\/recent-updates$/, maxAge: 60 },
   { path: /^\/api\/feed\/recent-publishes$/, maxAge: 60 },
   { path: /^\/api\/skills-raw\/.+$/, maxAge: 300, preserveBrowserCache: true },
-  { path: /^\/api\/npm-guides-raw\/.+$/, maxAge: 3600, preserveBrowserCache: true },
   { path: /^\/api\/skills\/tags$/, maxAge: 300 },
+  // The client-side typeahead index. Large, identical for everyone, and only
+  // changes when the registry does, so it wants a long browser cache too.
+  {
+    path: /^\/api\/skills\/typeahead$/,
+    maxAge: 3600,
+    preserveBrowserCache: true,
+    staleWhileRevalidate: 86400,
+    staleIfError: 86400,
+  },
+  // Search and browse. The Workers cache key includes the query string, so
+  // each distinct query caches separately. Nothing here varies by user.
+  { path: /^\/api\/skills$/, maxAge: 120, staleWhileRevalidate: 600, staleIfError: 3600 },
   { path: /^\/api\/clusters$/, maxAge: 600 },
   { path: /^\/api\/clusters\/[^/]+$/, maxAge: 300 },
   { path: /^\/api\/orgs\/[^/]+$/, maxAge: 300 },

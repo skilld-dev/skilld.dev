@@ -37,12 +37,11 @@ describe('skills leaderboard accessibility contract', () => {
 
   it('embeds the existing skill card for each repository top skill', () => {
     expect(leaderboardSource).toContain('<SkillCard')
-    expect(leaderboardSource).toContain('v-if="item.topSkill.installs > 0"')
-    expect(leaderboardSource).toContain('Top skill installs: {{ item.topSkill.installs.toLocaleString() }}')
     expect(leaderboardSource).toContain('item.topSkill.description')
     expect(leaderboardSource).toContain('item.topSkill.modifiedAt')
+    expect(leaderboardSource).toContain('stars: item.stars')
     expect(leaderboardSource).toContain('variant="condensed"')
-    expect(leaderboardSource).toContain('signal="installs"')
+    expect(leaderboardSource).toContain('signal="stars"')
     expect(leaderboardSource).toContain('timestamp-label="Updated"')
     expect(leaderboardSource).not.toContain('show-owner-path')
     expect(leaderboardSource).not.toContain('Most popular skill')

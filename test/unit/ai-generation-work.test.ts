@@ -26,6 +26,7 @@ describe('ai generation work', () => {
       CREATE TABLE repos (
         owner TEXT NOT NULL,
         repo TEXT NOT NULL,
+        stars INTEGER,
         broken_since INTEGER,
         PRIMARY KEY (owner, repo)
       );
@@ -54,7 +55,7 @@ describe('ai generation work', () => {
         generated_at TEXT NOT NULL,
         PRIMARY KEY (owner, repo, name, kind)
       );
-      INSERT INTO repos VALUES ('acme', 'skills', NULL);
+      INSERT INTO repos VALUES ('acme', 'skills', 120, NULL);
       INSERT INTO skills (
         owner, repo, name, current_sha, rendered_raw, rendered_status,
         seo_indexable, installs, display_name
@@ -81,11 +82,14 @@ describe('ai generation work', () => {
     const abstractness = await selectMissingGeneratedSkills(db, 'abstractness', 50)
 
     expect(embeddings.map(skill => skill.name)).toEqual(['needs-embedding'])
+    // Selection is ordered by canonical GitHub stars, which are a repo-level
+    // fact, so every skill in this single fixture repo ties and the name
+    // tie-break decides. It used to be install-ordered.
     expect(abstractness.map(skill => skill.name)).toEqual([
+      'needs-abstractness',
+      'needs-embedding',
       'paused-only',
       'stale-classifier',
-      'needs-embedding',
-      'needs-abstractness',
     ])
   })
 

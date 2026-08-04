@@ -26,8 +26,7 @@ for (const s of data.skills) {
 const skills = data.skills.map(s => [
   s.name,
   sourceSet.get(s.owner + '/' + s.repo),
-  s.displayName,
-  s.installs
+  s.displayName
 ])
 const out = JSON.stringify({ sources, skills })
 require('fs').writeFileSync('$REGISTRY', out)

@@ -11,8 +11,7 @@
  * - Fetches the default branch tree, finds every SKILL.md.
  * - Reads the SKILL.md frontmatter for `name` and `description`; falls back to
  *   the directory name when frontmatter is missing.
- * - Upserts rows for the repo. Existing `installs` are preserved (skills.sh
- *   data) when the row already exists; new rows default to 0.
+ * - Upserts rows for the repo. The legacy install column remains neutral.
  * - Deletes rows for this owner+repo whose names no longer exist on GitHub
  *   (renames/removals), so the DB stays in sync with the live repo.
  */

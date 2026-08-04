@@ -24,18 +24,18 @@ describe('repo profile selectors', () => {
     expect(selectRepoInfo(null, 'widgets')).toBeNull()
   })
 
-  it('matches the requested repo case-insensitively and orders by recency then installs', () => {
+  it('matches the requested repo case-insensitively and orders by recency then name', () => {
     const profile = {
       skills: [
-        { repo: 'Widgets', name: 'a', modifiedAt: 100, installs: 1 },
-        { repo: 'widgets', name: 'b', modifiedAt: 300, installs: 2 },
-        { repo: 'other', name: 'c', modifiedAt: 900, installs: 9 },
-        { repo: 'widgets', name: 'd', modifiedAt: 300, installs: 7 },
+        { repo: 'Widgets', name: 'a', modifiedAt: 100 },
+        { repo: 'widgets', name: 'b', modifiedAt: 300 },
+        { repo: 'other', name: 'c', modifiedAt: 900 },
+        { repo: 'widgets', name: 'd', modifiedAt: 300 },
       ],
       repos: [{ repo: 'widgets', stars: 5 }],
     } as unknown as OrgProfile
 
-    expect(selectRepoSkills(profile, 'widgets').map(skill => skill.name)).toEqual(['d', 'b', 'a'])
+    expect(selectRepoSkills(profile, 'widgets').map(skill => skill.name)).toEqual(['b', 'd', 'a'])
     expect(selectRepoInfo(profile, 'widgets')?.stars).toBe(5)
   })
 

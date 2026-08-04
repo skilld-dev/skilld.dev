@@ -21,7 +21,6 @@ interface FeedRow {
   slug: string | null
   sync_status: string | null
   stars: number | null
-  installs: number | null
 }
 
 export interface RecentPublishesResponse {
@@ -36,7 +35,6 @@ export interface RecentPublishesResponse {
     occurredAt: number
     hasReceipts: boolean
     stars: number
-    installs: number
   }>
 }
 
@@ -48,7 +46,7 @@ export default defineCachedEventHandler(
       .prepare(
         `SELECT a.owner, a.name, a.occurred_at, a.sha,
                 s.display_name, s.repo, s.description, s.slug, s.sync_status,
-                r.stars, s.installs
+                r.stars
          FROM activity a
          LEFT JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
          LEFT JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
@@ -70,7 +68,6 @@ export default defineCachedEventHandler(
       occurredAt: row.occurred_at,
       hasReceipts: row.sync_status === 'ok',
       stars: row.stars ?? 0,
-      installs: row.installs ?? 0,
     }))
     return { items }
   },

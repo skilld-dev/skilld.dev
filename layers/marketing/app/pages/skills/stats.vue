@@ -3,12 +3,12 @@ import type { SkillsStats } from '#layers/registry/server/api/skills/stats.get'
 
 useSeoMeta({
   title: 'Stats',
-  description: 'Six charts covering repository age, maintenance, stars, installs, owners, and skill counts.',
+  description: 'Five charts covering repository age, maintenance, stars, owners, and skill counts.',
 })
 
 defineOgImage('Page.takumi', {
   title: 'Stats',
-  description: 'Charts for repository maintenance, age, stars, and installs.',
+  description: 'Charts for repository maintenance, age, stars, owners, and skill counts.',
 }, { alt: 'Skills stats on skilld' })
 
 const { isBot } = useBotDetection()
@@ -59,7 +59,7 @@ const summaryMetrics = computed(() => {
         Stats
       </h1>
       <p class="mt-2 text-sm text-muted max-w-lg leading-relaxed">
-        Compare repository age, maintenance, stars, and installs. Owner and skill counts fill in the rest.
+        Compare repository age, maintenance, stars, owners, and skill counts.
       </p>
     </section>
 
@@ -239,53 +239,28 @@ const summaryMetrics = computed(() => {
           />
         </Motion>
 
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Motion
-            as="article"
-            class="rounded-lg border border-default p-4 sm:p-5 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-            v-bind="entrance(4)"
-          >
-            <header class="mb-3">
-              <h3 class="font-mono text-sm font-medium">
-                Installs vs stars
-              </h3>
-              <p class="font-mono text-xs text-muted">
-                Top {{ data?.scatter.length ?? 0 }} skills with both values · log scale · compare installs with stars
-              </p>
-            </header>
-            <div v-if="status === 'pending' && !data">
-              <USkeleton class="h-[240px] w-full" />
-            </div>
-            <StatsScatter
-              v-else-if="data"
-              :ariaLabel="'Scatter of npm installs against GitHub stars on log-log scale'"
-              :points="data.scatter"
-            />
-          </Motion>
-
-          <Motion
-            as="article"
-            class="rounded-lg border border-default p-4 sm:p-5 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
-            v-bind="entrance(5)"
-          >
-            <header class="mb-3">
-              <h3 class="font-mono text-sm font-medium">
-                Skills per repo
-              </h3>
-              <p class="font-mono text-xs text-muted">
-                All active repos · how many skills each ships
-              </p>
-            </header>
-            <div v-if="status === 'pending' && !data">
-              <USkeleton class="h-[180px] w-full" />
-            </div>
-            <StatsBars
-              v-else-if="data"
-              :ariaLabel="'Distribution of how many skills each repo publishes'"
-              :bins="data.skillsPerRepo"
-            />
-          </Motion>
-        </div>
+        <Motion
+          as="article"
+          class="rounded-lg border border-default p-4 sm:p-5 transition-colors duration-200 hover:border-[var(--ui-text-muted)]"
+          v-bind="entrance(4)"
+        >
+          <header class="mb-3">
+            <h3 class="font-mono text-sm font-medium">
+              Skills per repo
+            </h3>
+            <p class="font-mono text-xs text-muted">
+              All active repos · how many skills each ships
+            </p>
+          </header>
+          <div v-if="status === 'pending' && !data">
+            <USkeleton class="h-[180px] w-full" />
+          </div>
+          <StatsBars
+            v-else-if="data"
+            :ariaLabel="'Distribution of how many skills each repo publishes'"
+            :bins="data.skillsPerRepo"
+          />
+        </Motion>
       </div>
     </section>
   </div>

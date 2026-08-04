@@ -16,7 +16,7 @@ export interface OfficialRepo {
  *   developer is the authoritative voice for that stack.
  *
  * Org entries seeded from skills.sh/official on 2026-03-30. User entries
- * seeded from registry on 2026-04-25 (top personal-scale repos by installs).
+ * seeded from registry on 2026-04-25, then maintained as a reviewed list.
  * Maintained manually.
  */
 export const officialRepos: OfficialRepo[] = [
@@ -69,6 +69,7 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'mcp-use', repo: 'mcp-use', kind: 'org' },
   { owner: 'medusajs', repo: 'medusa-agent-skills', kind: 'org' },
   { owner: 'microsoft', repo: 'github-copilot-for-azure', kind: 'org' },
+  { owner: 'microsoft', repo: 'playwright-cli', kind: 'org' },
   { owner: 'n8n-io', repo: 'n8n', kind: 'org' },
   { owner: 'neondatabase', repo: 'agent-skills', kind: 'org' },
   { owner: 'nuxt', repo: 'ui', kind: 'org' },
@@ -90,13 +91,18 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'stripe', repo: 'ai', kind: 'org' },
   { owner: 'supabase', repo: 'agent-skills', kind: 'org' },
   { owner: 'sveltejs', repo: 'mcp', kind: 'org' },
+  { owner: 'vuejs-ai', repo: 'skills', kind: 'org' },
+  { owner: 'vueuse', repo: 'skills', kind: 'org' },
   { owner: 'tavily-ai', repo: 'skills', kind: 'org' },
   { owner: 'tinybirdco', repo: 'tinybird-agent-skills', kind: 'org' },
   { owner: 'tldraw', repo: 'tldraw', kind: 'org' },
   { owner: 'triggerdotdev', repo: 'skills', kind: 'org' },
   { owner: 'upstash', repo: 'context7', kind: 'org' },
   { owner: 'vercel', repo: 'ai', kind: 'org' },
+  { owner: 'vercel', repo: 'next.js', kind: 'org' },
   { owner: 'vercel-labs', repo: 'agent-skills', kind: 'org' },
+  { owner: 'vercel-labs', repo: 'vercel-plugin', kind: 'org' },
+  { owner: 'vercel-labs', repo: 'agent-browser', kind: 'org' },
   { owner: 'webflow', repo: 'webflow-skills', kind: 'org' },
   { owner: 'wix', repo: 'skills', kind: 'org' },
   { owner: 'wordpress', repo: 'agent-skills', kind: 'org' },
@@ -116,5 +122,6 @@ export const officialRepos: OfficialRepo[] = [
   { owner: 'dimillian', repo: 'skills', kind: 'user' },
   { owner: 'onmax', repo: 'nuxt-skills', kind: 'user' },
   { owner: 'hyf0', repo: 'vue-skills', kind: 'user' },
+  { owner: 'emilkowalski', repo: 'skills', kind: 'user' },
   { owner: 'nutlope', repo: 'hallmark', kind: 'user' },
 ]

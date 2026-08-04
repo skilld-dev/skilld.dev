@@ -109,7 +109,7 @@ defineOgImage('Page.takumi', {
         <SkillCard
           :skill="s"
           variant="grid"
-          signal="installs"
+          signal="stars"
           show-owner-path
         />
       </li>

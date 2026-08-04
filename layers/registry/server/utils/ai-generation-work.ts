@@ -117,7 +117,7 @@ export async function selectMissingGeneratedSkills(
           AND generated.sha = s.current_sha
           ${freshnessPredicate}
       )
-    ORDER BY s.installs DESC
+    ORDER BY r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC
     LIMIT ?2`,
   )
   const rows = await (kind === 'abstractness'
@@ -169,7 +169,7 @@ export async function selectMissingBatchSkills(
             AND generated.sha = s.current_sha
         )
       )
-    ORDER BY s.installs DESC
+    ORDER BY r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC
     LIMIT ?1`,
   ).bind(boundedLimit).all<RawGenerationSkill>()
 

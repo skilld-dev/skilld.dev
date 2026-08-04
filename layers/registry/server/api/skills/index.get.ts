@@ -33,6 +33,7 @@ export default defineApiHandler({
       page: result.page,
       pages: result.pages,
       facets: { owners: result.facets.map(ownerFacetPresenter) },
+      mode: result.mode,
     }
   },
 })

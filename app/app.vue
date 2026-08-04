@@ -14,6 +14,7 @@ const isAdminLayout = computed(() => route.meta.layout === 'admin')
 const { isAuthenticated, user, logout } = useAuth()
 
 const { enabled: kbdEnabled } = useKeyboardShortcuts()
+const skillSearch = useSkillSearch()
 
 useHead({
   meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
@@ -30,18 +31,34 @@ useSeoMeta({
 
 defineOgImage('Page.takumi', {}, { alt: 'skilld, agent skills written by real maintainers' })
 
-// Global keyboard shortcuts
-onKeyDown('/', async (e) => {
+// Global keyboard shortcuts.
+// `/` prefers the page's own search field when there is one (the /skills
+// registry view), and otherwise opens the header search panel. Cmd/Ctrl+K
+// always opens the panel, since that is the shortcut users arrive expecting.
+function focusGlobalSearch(): void {
+  skillSearch.open.value = true
+  void skillSearch.loadTypeaheadIndex()
+  void nextTick(() => {
+    document.getElementById('global-skill-search')?.focus()
+  })
+}
+
+onKeyDown('/', (e) => {
   if (!kbdEnabled.value || isEditableElement(e.target))
     return
   e.preventDefault()
-  const searchInput = document.getElementById('skill-search') as HTMLInputElement | null
-  if (searchInput) {
-    searchInput.focus()
-  }
-  else {
-    return navigateTo('/skills')
-  }
+  const pageSearchInput = document.getElementById('skill-search') as HTMLInputElement | null
+  if (pageSearchInput)
+    pageSearchInput.focus()
+  else
+    focusGlobalSearch()
+}, { dedupe: true })
+
+onKeyDown('k', (e) => {
+  if (!e.metaKey && !e.ctrlKey)
+    return
+  e.preventDefault()
+  focusGlobalSearch()
 }, { dedupe: true })
 
 onKeyDown('?', (e) => {
@@ -95,6 +112,7 @@ watch(() => route.fullPath, () => {
         </template>
 
         <template #right>
+          <SkillSearchTrigger />
           <UButton
             to="/skills"
             label="Skills"

@@ -225,7 +225,12 @@ describe('d1 migration bootstrap', () => {
         outcome: 'pending',
         retry_state: 'ready',
       })
-      expect(migrations.at(-1)).toBe('0086_skills_sh_discovery.sql')
+      // The lexical search lane can only match what is in the FTS index; if
+      // `description` is missing, prose queries silently return nothing.
+      expect(sqlite.prepare(`PRAGMA table_info(skills_fts)`).all()
+        .map(column => (column as { name: string }).name))
+        .toEqual(['name', 'owner', 'repo', 'display_name', 'slug', 'description'])
+      expect(migrations.at(-1)).toBe('0087_skills_fts_description.sql')
     }
     finally {
       sqlite.close()

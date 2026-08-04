@@ -219,12 +219,6 @@ function formatDate(timestamp: number | null): string | null {
                     {{ item.description }}
                   </p>
                   <div class="leaderboard-row__top-skill">
-                    <span
-                      v-if="item.topSkill.installs > 0"
-                      class="sr-only"
-                    >
-                      Top skill installs: {{ item.topSkill.installs.toLocaleString() }}
-                    </span>
                     <SkillCard
                       :skill="{
                         owner: item.owner,
@@ -232,11 +226,11 @@ function formatDate(timestamp: number | null): string | null {
                         name: item.topSkill.name,
                         slug: item.topSkill.slug,
                         description: item.topSkill.description,
-                        installs: item.topSkill.installs,
+                        stars: item.stars,
                         modifiedAt: item.topSkill.modifiedAt,
                       }"
                       variant="condensed"
-                      signal="installs"
+                      signal="stars"
                       :show-copy="false"
                       timestamp-label="Updated"
                       timestamp-format="relative"
@@ -322,7 +316,7 @@ function formatDate(timestamp: number | null): string | null {
               A reviewer must confirm that the owner is an individual GitHub user and the repository primarily publishes reusable, generic agent skills. Documentation, assets, scripts, and tests are allowed.
             </p>
             <p>
-              Organizations, vendor catalogs, app-specific packs, prompts, bookmarks, and general applications are excluded. Repositories rank by current GitHub stars. Each row features its most installed skill; ties sort by skill name.
+              Organizations, vendor catalogs, app-specific collections, prompts, bookmarks, and general applications are excluded. Repositories rank by current GitHub stars. Each row features its most recently updated skill; ties sort by skill name.
             </p>
           </div>
         </div>

@@ -131,9 +131,23 @@ function fmtDate(ts: number | null | undefined): string {
               @click="() => { cadence.dow = d }"
             />
           </div>
-          <div v-if="cadence.frequency !== 'off'">
-            <input v-model.number="cadence.hour" type="number" min="0" max="23" class="w-16 rounded border border-default bg-default px-2 py-1 font-mono text-xs">
-            <input v-model="cadence.timezone" type="text" class="ml-2 rounded border border-default bg-default px-2 py-1 font-mono text-xs">
+          <div v-if="cadence.frequency !== 'off'" class="grid grid-cols-[7rem_minmax(0,1fr)] gap-2">
+            <UFormField label="Hour" name="digest-hour">
+              <UInputNumber
+                v-model="cadence.hour"
+                :min="0"
+                :max="23"
+                size="xs"
+                class="w-full font-mono"
+              />
+            </UFormField>
+            <UFormField label="Time zone" name="digest-timezone">
+              <UInput
+                v-model="cadence.timezone"
+                size="xs"
+                class="w-full font-mono"
+              />
+            </UFormField>
           </div>
           <UButton size="xs" label="Save" @click="saveCadence" />
         </div>

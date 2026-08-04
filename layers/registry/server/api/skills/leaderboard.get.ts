@@ -23,7 +23,6 @@ export interface SkillsLeaderboardItem {
     name: string
     slug: string
     description: string | null
-    installs: number
     modifiedAt: number | null
   }
   pushedAt: number | null
@@ -38,7 +37,7 @@ export interface SkillsLeaderboardResponse {
   items: SkillsLeaderboardItem[]
   ranking: 'github_stars'
   eligibility: 'reviewed_individual_generic_skill_repositories'
-  featuredSkillRanking: 'installs'
+  featuredSkillRanking: 'recently_updated'
   starsSyncedAt: number | null
   page: number
   pageSize: number
@@ -80,7 +79,6 @@ export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
           name: row.top_skill_name,
           slug: row.top_skill_slug,
           description: row.top_skill_description,
-          installs: row.top_skill_installs,
           modifiedAt: row.top_skill_modified_at,
         },
         pushedAt: row.pushed_at,
@@ -92,7 +90,7 @@ export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
       })),
       ranking: 'github_stars',
       eligibility: 'reviewed_individual_generic_skill_repositories',
-      featuredSkillRanking: 'installs',
+      featuredSkillRanking: 'recently_updated',
       starsSyncedAt,
       page: body.page,
       pageSize: PAGE_SIZE,

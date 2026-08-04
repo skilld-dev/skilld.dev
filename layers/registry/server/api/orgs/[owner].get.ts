@@ -150,7 +150,7 @@ export default defineCachedEventHandler(async (event) => {
   const [registryResult, ownerRow] = await Promise.all([
     querySkills(event, {
       owner,
-      sort: 'installs',
+      sort: 'stars',
       page: 1,
       limit: 200,
       officialOwners,

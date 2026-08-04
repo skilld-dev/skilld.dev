@@ -45,7 +45,7 @@ interface SkillRow {
   owner: string
   repo: string
   name: string
-  installs: number
+  stars: number
 }
 
 interface CriticalResponse {
@@ -87,7 +87,7 @@ interface BrokenEntry {
   owner: string
   repo: string
   name: string
-  installs: number
+  stars: number
   reason: string
   detail?: string
 }
@@ -186,8 +186,10 @@ function flagBroken(skills: SkillRow[], broken: BrokenEntry[]): void {
 
 function listSkills(): SkillRow[] {
   const limitClause = LIMIT ? ` LIMIT ${LIMIT}` : ''
-  const rows = d1Query<{ slug: string, owner: string, repo: string, name: string, installs: number }>(
-    `SELECT slug, owner, repo, name, installs FROM skills ORDER BY installs DESC${limitClause}`,
+  const rows = d1Query<SkillRow>(
+    `SELECT s.slug, s.owner, s.repo, s.name, r.stars
+     FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+     ORDER BY r.stars DESC, s.owner ASC, s.name ASC${limitClause}`,
   )
   return rows
 }
@@ -211,7 +213,7 @@ async function warmSkill(skill: SkillRow): Promise<{ broken: BrokenEntry | null,
           owner: skill.owner,
           repo: skill.repo,
           name: skill.name,
-          installs: skill.installs,
+          stars: skill.stars,
           reason: `http_${res.status}`,
         },
         meta: null,
@@ -226,7 +228,7 @@ async function warmSkill(skill: SkillRow): Promise<{ broken: BrokenEntry | null,
         owner: skill.owner,
         repo: skill.repo,
         name: skill.name,
-        installs: skill.installs,
+        stars: skill.stars,
         reason: 'fetch_error',
         detail: err instanceof Error ? err.message : String(err),
       },
@@ -266,7 +268,7 @@ async function warmSkill(skill: SkillRow): Promise<{ broken: BrokenEntry | null,
         owner: skill.owner,
         repo: skill.repo,
         name: skill.name,
-        installs: skill.installs,
+        stars: skill.stars,
         reason: status,
       },
       meta,
@@ -315,7 +317,7 @@ async function main() {
     }
   })
 
-  broken.sort((a, b) => b.installs - a.installs)
+  broken.sort((a, b) => b.stars - a.stars)
   await mkdir(dirname(OUT), { recursive: true })
   await writeFile(OUT, `${JSON.stringify({ generatedAt: new Date().toISOString(), base: BASE, total: skills.length, broken }, null, 2)}\n`)
 
@@ -333,9 +335,9 @@ async function main() {
   console.log(`  ${broken.length} broken → ${OUT}`)
   if (broken.length) {
     const top = broken.slice(0, 10)
-    console.log('\n  Top broken by installs:')
+    console.log('\n  Top broken by GitHub stars:')
     for (const b of top)
-      console.log(`    ${b.installs.toString().padStart(7)} ${b.slug.padEnd(50)} ${b.reason}`)
+      console.log(`    ${b.stars.toString().padStart(7)} ${b.slug.padEnd(50)} ${b.reason}`)
   }
 }
 

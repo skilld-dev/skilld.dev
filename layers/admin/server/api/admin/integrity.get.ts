@@ -328,7 +328,7 @@ export default defineApiHandler({
             COALESCE(datetime(seo_index_synced_at, 'unixepoch'), 'never') AS value
           FROM skills
           WHERE seo_index_synced_at IS NULL OR seo_index_synced_at < ${staleIndexabilityBefore}
-          ORDER BY COALESCE(seo_index_synced_at, 0) ASC, installs DESC
+          ORDER BY COALESCE(seo_index_synced_at, 0) ASC, owner ASC, repo ASC, name ASC
           LIMIT ?`,
           detail: 'Indexability scoring has not been synced in the last 24 hours.',
         }),
@@ -344,7 +344,7 @@ export default defineApiHandler({
             datetime(r.broken_since, 'unixepoch') AS value
           FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
           WHERE s.seo_indexable = 1 AND r.broken_since IS NOT NULL
-          ORDER BY r.broken_since DESC, s.installs DESC
+          ORDER BY r.broken_since DESC, s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'This skill is marked broken but still has seo_indexable = 1.',
         }),
@@ -360,7 +360,7 @@ export default defineApiHandler({
             COALESCE(sync_status, 'missing current_sha/source') AS value
           FROM skills
           WHERE seo_indexable = 1 AND (source_resolved = 0 OR current_sha IS NULL OR sync_status IN ('path_missing', 'fetch_failed'))
-          ORDER BY installs DESC
+          ORDER BY owner ASC, repo ASC, name ASC
           LIMIT ?`,
           detail: 'This skill is indexable but its source resolution signal is missing or failed.',
         }),
@@ -383,7 +383,7 @@ export default defineApiHandler({
           LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE s.seo_indexable = 1
             AND (s.description IS NULL OR length(trim(s.description)) < 40 OR g.owner IS NULL)
-          ORDER BY s.seo_index_score ASC, s.installs DESC
+          ORDER BY s.seo_index_score ASC, s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'This page is indexable but lacks enough page content support.',
         }),
@@ -407,7 +407,7 @@ export default defineApiHandler({
              OR name IS NULL OR trim(name) = ''
              OR slug IS NULL OR trim(slug) = ''
              OR display_name IS NULL OR trim(display_name) = ''
-          ORDER BY installs DESC
+          ORDER BY owner ASC, repo ASC, name ASC
           LIMIT ?`,
           detail: 'Required routing or display data is blank.',
         }),
@@ -423,7 +423,7 @@ export default defineApiHandler({
             owner || '/' || name AS value
           FROM skills
           WHERE slug != owner || '/' || name
-          ORDER BY installs DESC
+          ORDER BY owner ASC, repo ASC, name ASC
           LIMIT ?`,
           detail: 'Stored slug differs from the canonical registry slug.',
         }),
@@ -448,7 +448,7 @@ export default defineApiHandler({
             GROUP BY owner, repo, name
             HAVING COUNT(*) > 1
           ) d ON d.owner = s.owner AND d.repo = s.repo AND d.name = s.name
-          ORDER BY d.duplicates DESC, s.installs DESC
+          ORDER BY d.duplicates DESC, s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'Multiple rows map to the same public skill page.',
         }),
@@ -480,7 +480,7 @@ export default defineApiHandler({
             COALESCE(datetime(last_synced_at, 'unixepoch'), 'never') AS value
           FROM skills
           WHERE last_synced_at IS NULL OR last_synced_at < ${staleBefore}
-          ORDER BY COALESCE(last_synced_at, 0) ASC, installs DESC
+          ORDER BY COALESCE(last_synced_at, 0) ASC, owner ASC, repo ASC, name ASC
           LIMIT ?`,
           detail: 'Sync timestamp is missing or older than 36 hours.',
         }),
@@ -496,7 +496,7 @@ export default defineApiHandler({
             COALESCE(description, '') AS value
           FROM skills
           WHERE description IS NULL OR length(trim(description)) < 40
-          ORDER BY installs DESC
+          ORDER BY owner ASC, repo ASC, name ASC
           LIMIT ?`,
           detail: 'Description is missing or shorter than 40 characters.',
         }),
@@ -514,7 +514,7 @@ export default defineApiHandler({
           FROM skills s
           LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE g.owner IS NULL
-          ORDER BY s.installs DESC
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'No generated summary row exists for this skill.',
         }),
@@ -532,7 +532,7 @@ export default defineApiHandler({
           FROM skills s
           JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'summary'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha
-          ORDER BY s.installs DESC
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'Generated summary SHA does not match current source SHA.',
         }),
@@ -550,7 +550,7 @@ export default defineApiHandler({
           FROM skills s
           LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'tags'
           WHERE g.owner IS NULL
-          ORDER BY s.installs DESC
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'No generated tag row exists for this skill.',
         }),
@@ -568,7 +568,7 @@ export default defineApiHandler({
           FROM skills s
           JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'tags'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha
-          ORDER BY s.installs DESC
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'Generated tags SHA does not match current source SHA.',
         }),
@@ -586,7 +586,7 @@ export default defineApiHandler({
           FROM skills s
           LEFT JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'faq'
           WHERE g.owner IS NULL
-          ORDER BY s.installs DESC
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'No generated FAQ row exists for this skill.',
         }),
@@ -604,7 +604,7 @@ export default defineApiHandler({
           FROM skills s
           JOIN skill_generated g ON g.owner = s.owner AND g.repo = s.repo AND g.name = s.name AND g.kind = 'faq'
           WHERE s.current_sha IS NOT NULL AND g.sha != s.current_sha
-          ORDER BY s.installs DESC
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'Generated FAQ SHA does not match current source SHA.',
         }),
@@ -713,7 +713,7 @@ export default defineApiHandler({
               AND cs.repo = s.repo
               AND length(trim(COALESCE(cs.reason, ''))) >= 20
           )
-          ORDER BY s.installs DESC
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'Stored curator counts differ from live collection rows.',
         }),
@@ -753,7 +753,7 @@ export default defineApiHandler({
             SELECT COUNT(*) FROM skill_social_posts sp
             WHERE sp.skill_slug = s.slug AND sp.status = 'approved' AND sp.role = 'author'
           )
-          ORDER BY s.installs DESC
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
           LIMIT ?`,
           detail: 'Stored social counts differ from approved social rows.',
         }),
@@ -772,7 +772,10 @@ export default defineApiHandler({
             WHERE seo_indexable = 0
               AND (
                 is_official = 1
-                OR installs >= 1000
+                OR EXISTS (
+                  SELECT 1 FROM repos r
+                  WHERE r.owner = skills.owner AND r.repo = skills.repo AND r.stars >= 100
+                )
                 OR curator_reason_count > 0
                 OR author_social_count > 0
               )`,
@@ -782,7 +785,7 @@ export default defineApiHandler({
             FROM skills
             WHERE seo_indexable = 0
               AND trust_tier IN ('official', 'trusted-author', 'trusted-curator', 'candidate')
-            ORDER BY trust_score DESC, installs DESC
+            ORDER BY trust_score DESC, owner ASC, repo ASC, name ASC
             LIMIT ?`
             : `SELECT slug, owner, repo, name, display_name,
               'score ' || seo_index_score || ': ' || seo_index_reasons AS value
@@ -790,11 +793,14 @@ export default defineApiHandler({
             WHERE seo_indexable = 0
               AND (
                 is_official = 1
-                OR installs >= 1000
+                OR EXISTS (
+                  SELECT 1 FROM repos r
+                  WHERE r.owner = skills.owner AND r.repo = skills.repo AND r.stars >= 100
+                )
                 OR curator_reason_count > 0
                 OR author_social_count > 0
               )
-            ORDER BY seo_index_score DESC, installs DESC
+            ORDER BY seo_index_score DESC, owner ASC, repo ASC, name ASC
             LIMIT ?`,
           detail: 'This skill has a primary trust signal but is currently noindexed.',
         }),

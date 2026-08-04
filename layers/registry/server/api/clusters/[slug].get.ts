@@ -7,7 +7,6 @@ interface SkillRow {
   repo: string
   display_name: string
   description: string | null
-  installs: number
   stars: number
   modified_at: number | null
 }
@@ -39,12 +38,12 @@ export default defineCachedEventHandler(async (event) => {
   // stars moved to `repos` in migration 0034; JOIN explicitly.
   const listSql = `
     SELECT s.owner, s.name, s.repo, s.display_name, s.description,
-           s.installs, r.stars, s.modified_at
+           r.stars, s.modified_at
     FROM skills s
     JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
     WHERE s.is_abstract = 1
       AND s.abstractness_category IN (${placeholders})
-    ORDER BY s.installs DESC, r.stars DESC
+    ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC
     LIMIT ? OFFSET ?
   `
   const res = await db.prepare(listSql).bind(...cluster.categories, limit, offset).all<SkillRow>()
@@ -55,7 +54,6 @@ export default defineCachedEventHandler(async (event) => {
     repo: s.repo,
     displayName: s.display_name,
     description: s.description,
-    installs: s.installs,
     stars: s.stars,
     modifiedAt: s.modified_at,
     slug: `${s.owner}/${s.repo}/${s.name}`,

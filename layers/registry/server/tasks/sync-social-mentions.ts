@@ -181,9 +181,10 @@ export default defineScheduledTask({
 
       const topSkillsRes = await db
         .prepare(
-          `SELECT owner, repo, name, slug, trust_score
-         FROM skills
-         ORDER BY trust_score DESC, installs DESC, owner ASC, name ASC
+          `SELECT s.owner, s.repo, s.name, s.slug, s.trust_score
+         FROM skills s
+         LEFT JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+         ORDER BY s.trust_score DESC, COALESCE(r.stars, 0) DESC, s.owner ASC, s.name ASC
          LIMIT ?1`,
         )
         .bind(TOP_N_REPOS)

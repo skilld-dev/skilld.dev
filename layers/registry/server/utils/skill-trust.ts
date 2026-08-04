@@ -1,9 +1,9 @@
 import { officialRepos } from '../data/official-repos'
 
 export type SkillTrustTier = 'official' | 'trusted-author' | 'trusted-curator' | 'candidate' | 'untrusted' | 'quarantined'
-export type SkillTrustSource = 'manual' | 'official-list' | 'curator-reason' | 'downloads' | 'social-proof' | 'repo-scale' | 'computed'
+export type SkillTrustSource = 'manual' | 'official-list' | 'curator-reason' | 'github-stars' | 'social-proof' | 'repo-scale' | 'computed'
 
-export const TRUST_DOWNLOADS_CANDIDATE = 1_000
+export const TRUST_STARS_CANDIDATE = 100
 export const TRUST_SOCIAL_CANDIDATE = 1
 export const TRUST_LARGE_REPO_SKILL_COUNT = 300
 
@@ -11,7 +11,7 @@ export interface SkillTrustInput {
   owner: string
   repo: string
   sourceResolved: boolean
-  installs: number
+  stars: number
   curatorReasonCount: number
   approvedSocialCount: number
   repoSkillCount: number
@@ -83,9 +83,9 @@ export function resolveSkillTrust(input: SkillTrustInput): SkillTrustResult {
     reasons.push('large_repo')
   }
 
-  if (input.installs >= TRUST_DOWNLOADS_CANDIDATE) {
+  if (input.stars >= TRUST_STARS_CANDIDATE) {
     score += 40
-    reasons.push('high_downloads')
+    reasons.push('high_github_stars')
   }
 
   if (input.approvedSocialCount >= TRUST_SOCIAL_CANDIDATE) {
@@ -96,7 +96,7 @@ export function resolveSkillTrust(input: SkillTrustInput): SkillTrustResult {
   if (score >= 40) {
     return {
       tier: 'candidate',
-      source: input.installs >= TRUST_DOWNLOADS_CANDIDATE ? 'downloads' : 'social-proof',
+      source: input.stars >= TRUST_STARS_CANDIDATE ? 'github-stars' : 'social-proof',
       score,
       reasons,
     }

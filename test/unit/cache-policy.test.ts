@@ -12,7 +12,6 @@ describe('workers cache policy', () => {
     ['/api/feed/recent-updates', 60],
     ['/api/feed/recent-publishes', 60],
     ['/api/skills-raw/cloudflare/workers/agents', 300],
-    ['/api/npm-guides-raw/%40nuxt%2Fkit/3-to-4', 3600],
     ['/api/skills/tags', 300],
     ['/api/clusters', 600],
     ['/api/clusters/frameworks', 300],

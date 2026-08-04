@@ -59,7 +59,7 @@ The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gi
 | Term | Definition | Usage notes |
 |------|-----------|-------------|
 | **skill** | A SKILL.md file that gives an AI agent domain knowledge | Lowercase always. Not "plugin", "extension", or "module" |
-| **package skill** | A skill tied to a specific npm package and version, authored by skilld | Canonical, one per package, installed via `npm:` prefix |
+| **package skill** | A skill tied to a specific npm package, bootstrapped with `skilld author` and owned, edited, and published by its maintainer in their own repo | Never platform-authored; the platform publishes no skills (VISION anti-scope 1) |
 | **guide skill** | A curation tag on skilld.dev for skills not tied to a package | Distributed as git skills, tagged for filtering in browse views |
 | **collection** | A curated bundle of skills assembled by a collection author | Not "preset", "pack", "bundle", or "kit" in UI (fine in marketing prose) |
 | **author** / **curator** | A developer who maintains one or more collections on skilld. Identity is their GitHub login. | Either word is fine; "curator" reads warmer in editorial copy, "author" in product UI |

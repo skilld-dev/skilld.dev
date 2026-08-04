@@ -34,6 +34,7 @@ describe('collection manifest endpoint', () => {
         name TEXT NOT NULL,
         target_package TEXT,
         installs INTEGER NOT NULL DEFAULT 0,
+        modified_at INTEGER,
         source_resolved INTEGER NOT NULL DEFAULT 0,
         rendered_status TEXT
       );
@@ -48,8 +49,8 @@ describe('collection manifest endpoint', () => {
       INSERT INTO collections_v2 VALUES (2, 1, 'empty', 'Empty', NULL, NULL);
       INSERT INTO collection_skills_v2 VALUES (1, 1, 'nuxt', 'nuxt', 'nuxt');
       INSERT INTO collection_skills_v2 VALUES (1, 2, 'other', 'repo', 'tool');
-      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'nuxt', 0, 1, 'ok');
-      INSERT INTO skills VALUES ('other', 'repo', 'tool', NULL, 0, 1, 'ok');
+      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'nuxt', 0, 100, 1, 'ok');
+      INSERT INTO skills VALUES ('other', 'repo', 'tool', NULL, 0, 100, 1, 'ok');
       INSERT INTO repos VALUES ('nuxt', 'nuxt', NULL);
       INSERT INTO repos VALUES ('other', 'repo', NULL);
     `)

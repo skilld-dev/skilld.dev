@@ -71,6 +71,16 @@ describe('homepage activation', () => {
     expect(homepageSource).not.toContain('navigator.clipboard')
   })
 
+  it('puts a copyable install command before search in the hero', () => {
+    const commandIndex = homepageSource.indexOf('id="hero-install-command"')
+    const searchIndex = homepageSource.indexOf('id="home-skill-search"')
+
+    expect(commandIndex).toBeGreaterThan(-1)
+    expect(commandIndex).toBeLessThan(searchIndex)
+    expect(homepageSource).toContain('copyHeroInstallCommand')
+    expect(homepageSource).toContain('gitInstallCmd(\'antfu\', \'skills\')')
+  })
+
   it('shows the curator once and attributes collection skills to their source owners', () => {
     expect(homepageSource.match(/leadCollection\.authorLogin\}\.png\?size=/g)).toHaveLength(1)
     expect(homepageSource).toMatch(/github\.com\/\$\{skill\.owner\}\.png\?size=64/)
@@ -95,7 +105,7 @@ describe('homepage activation', () => {
     expect(homepageSource).not.toContain('<aside class="home-freshness-watch"')
   })
 
-  it('features the three collections supported by production behavior and trust', () => {
+  it('features the beachhead trio ordered by featured_at', () => {
     const sqlite = seedHomepageCollections()
 
     try {
@@ -103,13 +113,15 @@ describe('homepage activation', () => {
         SELECT slug
         FROM collections_v2
         WHERE featured = 1
+          AND deleted_at IS NULL
         ORDER BY featured_at DESC
+        LIMIT 3
       `).all() as Array<{ slug: string }>
 
       expect(featured.map(row => row.slug)).toEqual([
-        'agent-building-stack',
-        'typescript-engineering-stack',
-        'agent-workflow-stack',
+        'design-engineering-essentials',
+        'essentials',
+        'vue-nuxt',
       ])
     }
     finally {
@@ -126,15 +138,36 @@ describe('homepage activation', () => {
         FROM collections_v2 c
         LEFT JOIN collection_skills_v2 cs ON cs.collection_id = c.id
         WHERE c.featured = 1
+          AND c.deleted_at IS NULL
         GROUP BY c.id
         ORDER BY c.featured_at DESC
+        LIMIT 3
       `).all() as Array<{ slug: string, skill_count: number }>
 
       expect(counts).toEqual([
-        { slug: 'agent-building-stack', skill_count: 6 },
-        { slug: 'typescript-engineering-stack', skill_count: 6 },
-        { slug: 'agent-workflow-stack', skill_count: 6 },
+        { slug: 'design-engineering-essentials', skill_count: 10 },
+        { slug: 'essentials', skill_count: 8 },
+        { slug: 'vue-nuxt', skill_count: 9 },
       ])
+    }
+    finally {
+      sqlite.close()
+    }
+  })
+
+  it('never cites install counts in collection copy', () => {
+    const sqlite = seedHomepageCollections()
+
+    try {
+      const tainted = sqlite.prepare(`
+        SELECT COUNT(*) AS n
+        FROM collection_skills_v2
+        WHERE reason LIKE '%K installs%'
+           OR reason LIKE '%most-installed%'
+           OR reason LIKE '%leaderboard-top%'
+      `).get() as { n: number }
+
+      expect(tainted.n).toBe(0)
     }
     finally {
       sqlite.close()
@@ -149,7 +182,7 @@ describe('homepage activation', () => {
         SELECT cs.owner, cs.repo, cs.name
         FROM collection_skills_v2 cs
         JOIN collections_v2 c ON c.id = cs.collection_id
-        WHERE c.slug = 'agent-building-stack'
+        WHERE c.slug = 'agent-building'
         ORDER BY cs.position
       `).all()
 

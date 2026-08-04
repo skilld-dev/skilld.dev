@@ -20,7 +20,7 @@ export function selectRepoSkills(profile: OrgProfile | null | undefined, repo: s
       const bTime = b.modifiedAt ?? b.pushedAt ?? 0
       if (bTime !== aTime)
         return bTime - aTime
-      return (b.installs ?? 0) - (a.installs ?? 0)
+      return a.name.localeCompare(b.name)
     })
 }
 

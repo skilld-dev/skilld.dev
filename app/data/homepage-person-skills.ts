@@ -7,7 +7,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'using-superpowers',
     displayName: 'Using Superpowers',
     maintainerName: 'Jesse Vincent',
-    context: '82.7k weekly installs',
   },
   {
     owner: 'mattpocock',
@@ -15,7 +14,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'grill-me',
     displayName: 'Grill Me',
     maintainerName: 'Matt Pocock',
-    context: '89.3k weekly installs',
   },
   {
     owner: 'garrytan',
@@ -23,7 +21,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'retro',
     displayName: 'Retro',
     maintainerName: 'Garry Tan',
-    context: '52 weekly installs',
   },
   {
     owner: 'pbakaus',
@@ -31,7 +28,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'impeccable',
     displayName: 'Impeccable',
     maintainerName: 'Paul Bakaus',
-    context: '64.4k weekly installs',
   },
   {
     owner: 'kepano',
@@ -39,7 +35,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'obsidian-bases',
     displayName: 'Obsidian Bases',
     maintainerName: 'Steph Ango',
-    context: '22.3k weekly installs',
   },
   {
     owner: 'jimliu',
@@ -47,7 +42,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'baoyu-image-gen',
     displayName: 'Baoyu Image Gen',
     maintainerName: 'Jim Liu 宝玉',
-    context: '19.4k weekly installs',
   },
   {
     owner: 'ibelick',
@@ -55,7 +49,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'fixing-motion-performance',
     displayName: 'Fixing Motion Performance',
     maintainerName: 'Julien Thibeaut',
-    context: '13.5k weekly installs',
   },
   {
     owner: 'antfu',
@@ -63,7 +56,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'vite',
     displayName: 'Vite',
     maintainerName: 'Anthony Fu',
-    context: '20k weekly installs',
   },
   {
     owner: 'dimillian',
@@ -71,7 +63,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'swiftui-liquid-glass',
     displayName: 'SwiftUI Liquid Glass',
     maintainerName: 'Thomas Ricouard',
-    context: '2.8k weekly installs',
   },
   {
     owner: 'hyf0',
@@ -79,7 +70,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'vue-debug-guides',
     displayName: 'Vue Debug Guides',
     maintainerName: 'hyf0',
-    context: '12.8k weekly installs',
   },
   {
     owner: 'obra',
@@ -87,7 +77,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'writing-plans',
     displayName: 'Writing Plans',
     maintainerName: 'Jesse Vincent',
-    context: '81k weekly installs',
   },
   {
     owner: 'mattpocock',
@@ -95,7 +84,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'improve-codebase-architecture',
     displayName: 'Improve Codebase Architecture',
     maintainerName: 'Matt Pocock',
-    context: '59.3k weekly installs',
   },
   {
     owner: 'garrytan',
@@ -103,7 +91,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'autoplan',
     displayName: 'Autoplan',
     maintainerName: 'Garry Tan',
-    context: '27 weekly installs',
   },
   {
     owner: 'kepano',
@@ -111,7 +98,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'json-canvas',
     displayName: 'JSON Canvas',
     maintainerName: 'Steph Ango',
-    context: '17.1k weekly installs',
   },
   {
     owner: 'jimliu',
@@ -119,7 +105,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'baoyu-markdown-to-html',
     displayName: 'Baoyu Markdown To HTML',
     maintainerName: 'Jim Liu 宝玉',
-    context: '19k weekly installs',
   },
   {
     owner: 'ibelick',
@@ -127,7 +112,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'fixing-accessibility',
     displayName: 'Fixing Accessibility',
     maintainerName: 'Julien Thibeaut',
-    context: '10.1k weekly installs',
   },
   {
     owner: 'antfu',
@@ -135,7 +119,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'vitest',
     displayName: 'Vitest',
     maintainerName: 'Anthony Fu',
-    context: '16.3k weekly installs',
   },
   {
     owner: 'dimillian',
@@ -143,7 +126,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'swiftui-performance-audit',
     displayName: 'SwiftUI Performance Audit',
     maintainerName: 'Thomas Ricouard',
-    context: '2.4k weekly installs',
   },
   {
     owner: 'hyf0',
@@ -151,7 +133,6 @@ export const homepagePersonSkillFallbacks = [
     name: 'vue-best-practices',
     displayName: 'Vue Best Practices',
     maintainerName: 'hyf0',
-    context: '8.9k weekly installs',
   },
   {
     owner: 'addyosmani',
@@ -159,6 +140,5 @@ export const homepagePersonSkillFallbacks = [
     name: 'performance',
     displayName: 'Performance',
     maintainerName: 'Addy Osmani',
-    context: '4.1k weekly installs',
   },
 ] as const satisfies readonly SkillSourceItem[]

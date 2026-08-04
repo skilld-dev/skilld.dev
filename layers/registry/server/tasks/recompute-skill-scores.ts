@@ -12,7 +12,7 @@ const CRON = '0 3 * * *'
  * Scheduled task: daily full-table recompute of SEO indexability + trust
  * scoring on the skills table. The dirty-queue drain handles targeted
  * per-skill recompute when counters move; this task is the safety net that
- * catches drift from inputs the drain doesn't watch (installs/stars/pushed_at
+ * catches drift from inputs the drain doesn't watch (stars/pushed_at
  * landed by sync-github-skills, official-repo list changes, override edits).
  *
  * Runs at 03:00 UTC daily, after sync-github-skills has had a full overnight

@@ -164,12 +164,31 @@ const installCommand = computed(() => {
     : ''
 })
 
+const fallbackHeroInstallCommand = gitInstallCmd('antfu', 'skills')
+
 const installTarget = computed<InstallTarget | null>(() => {
   const collection = leadCollection.value
   return collection
     ? { kind: 'collection', handle: collection.authorLogin, slug: collection.slug }
     : null
 })
+const heroInstallCommand = computed(() => installCommand.value || fallbackHeroInstallCommand)
+const heroInstallTarget = computed<InstallTarget>(() => installTarget.value ?? {
+  kind: 'skill',
+  owner: 'antfu',
+  name: 'skills',
+})
+const { copy: copyHeroInstall } = useInstallCopy(
+  heroInstallCommand,
+  'homepage-hero',
+  heroInstallTarget,
+)
+const heroCopyState = refAutoReset<InstallCopyResult | { _tag: 'idle' }>({ _tag: 'idle' }, 2500)
+
+async function copyHeroInstallCommand() {
+  heroCopyState.value = await copyHeroInstall()
+}
+
 const { copy: copyFeaturedInstall } = useInstallCopy(
   installCommand,
   'homepage-featured-collection',
@@ -261,8 +280,40 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Every skill here is a SKILL.md someone wrote in their own repo. Search the work you need done, see who wrote it, then install it.
             </p>
 
+            <div class="mt-7 max-w-2xl">
+              <p class="data-label mb-2">
+                Install a curated collection
+              </p>
+              <div class="flex min-w-0 items-stretch overflow-hidden rounded-lg border border-default bg-muted/60">
+                <code
+                  id="hero-install-command"
+                  tabindex="0"
+                  class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap px-4 py-3 font-mono text-sm leading-6"
+                >{{ heroInstallCommand }}</code>
+                <UButton
+                  :icon="heroCopyState._tag === 'copied' ? 'i-lucide-check' : 'i-lucide-copy'"
+                  :label="heroCopyState._tag === 'copied' ? 'Copied' : 'Copy'"
+                  color="neutral"
+                  variant="ghost"
+                  class="min-h-11 shrink-0 rounded-none border-l border-default px-4"
+                  @click="copyHeroInstallCommand"
+                />
+              </div>
+              <p
+                class="sr-only"
+                aria-live="polite"
+              >
+                <template v-if="heroCopyState._tag === 'copied'">
+                  Install command copied.
+                </template>
+                <template v-else-if="heroCopyState._tag === 'error'">
+                  {{ heroCopyState.message }}
+                </template>
+              </p>
+            </div>
+
             <form
-              class="mt-9 flex max-w-2xl flex-col gap-3 sm:flex-row"
+              class="mt-7 flex max-w-2xl flex-col gap-3 sm:flex-row"
               role="search"
               action="/skills"
               method="get"
@@ -763,7 +814,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 </h3>
               </div>
               <UButton
-                to="/skills/official"
+                to="/skills"
                 label="View publishers"
                 color="neutral"
                 variant="ghost"
@@ -829,7 +880,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <p class="mt-1 text-base leading-relaxed text-muted">
                 You can still browse existing publishers.
               </p>
-              <UButton to="/skills/official" label="View publishers" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
+              <UButton to="/skills" label="View publishers" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
             </div>
           </section>
         </div>
@@ -858,13 +909,13 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Got a setup you keep reusing?
             </h2>
             <p class="home-publish-summary mt-4">
-              Ship guidance with your package, or bundle the skills you use into a collection.
+              skilld author starts a draft. You edit, own, and publish it in your repository, or bundle skills into a collection.
             </p>
           </div>
           <div class="home-publish-actions">
             <UButton
               to="/learn/author-npm-package-skills"
-              label="Write a package skill"
+              label="Bootstrap a package draft"
               color="neutral"
               variant="outline"
               trailing-icon="i-lucide-arrow-right"

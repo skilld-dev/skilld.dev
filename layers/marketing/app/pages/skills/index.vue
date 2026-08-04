@@ -85,7 +85,7 @@ const {
 const registryQuery = computed(() => ({
   page: page.value,
   limit: PAGE_SIZE,
-  sort: 'installs',
+  sort: 'stars',
   ...(debouncedSearch.value ? { q: debouncedSearch.value } : {}),
   ...(owner.value ? { owner: owner.value } : {}),
   ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
