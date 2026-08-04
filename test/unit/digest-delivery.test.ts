@@ -476,6 +476,43 @@ describe('digest delivery', () => {
     })
   })
 
+  it('sends instrumented HTML when an instrument dependency is provided', async () => {
+    seedActivity(sqlite, { id: 1, name: 'alpha', occurredAt: 100, ingestedAt: 7_100, sha: 'sha-a' })
+    const send = vi.fn(async (_input: { html: string }) => ({ _tag: 'accepted' as const, messageId: 'message-1' }))
+    const instrument = vi.fn(async (input: { html: string, runId: number }) =>
+      `${input.html}<!--instrumented:${input.runId}-->`)
+
+    const result = await runDigestDeliveryForUser(
+      dependencies({ send, instrument }),
+      digestUser(),
+      { scheduledAt: 7_299, siteUrl: 'https://skilld.dev' },
+    )
+
+    expect(result).toMatchObject({ _tag: 'sent' })
+    expect(instrument).toHaveBeenCalledTimes(1)
+    const runId = Number(runRow().id)
+    expect(instrument).toHaveBeenCalledWith(expect.objectContaining({ runId }))
+    expect(send.mock.calls[0]![0]!.html).toContain(`<!--instrumented:${runId}-->`)
+  })
+
+  it('falls back to uninstrumented HTML when instrumentation throws', async () => {
+    seedActivity(sqlite, { id: 1, name: 'alpha', occurredAt: 100, ingestedAt: 7_100, sha: 'sha-a' })
+    const send = vi.fn(async (_input: { html: string }) => ({ _tag: 'accepted' as const, messageId: 'message-1' }))
+    const instrument = vi.fn(async () => {
+      throw new Error('tracking exploded')
+    })
+
+    const result = await runDigestDeliveryForUser(
+      dependencies({ send, instrument }),
+      digestUser(),
+      { scheduledAt: 7_299, siteUrl: 'https://skilld.dev' },
+    )
+
+    expect(result).toMatchObject({ _tag: 'sent' })
+    expect(send.mock.calls[0]![0]!.html).toContain('skilld digest')
+    expect(send.mock.calls[0]![0]!.html).not.toContain('instrumented')
+  })
+
   function dependencies(
     overrides: Partial<DigestDeliveryDependencies> = {},
   ): DigestDeliveryDependencies {

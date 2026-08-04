@@ -90,14 +90,14 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
 const enc = new TextEncoder()
 const dec = new TextDecoder()
 
-function b64urlEncode(buf: ArrayBuffer | Uint8Array): string {
+export function b64urlEncode(buf: ArrayBuffer | Uint8Array): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf)
   let s = ''
   for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]!)
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
+export function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4))
   const norm = s.replace(/-/g, '+').replace(/_/g, '/') + pad
   const bin = atob(norm)
@@ -106,7 +106,7 @@ function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   return out
 }
 
-async function hmacKey(secret: string): Promise<CryptoKey> {
+export async function hmacKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
 }
 

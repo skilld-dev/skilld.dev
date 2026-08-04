@@ -13,6 +13,7 @@ import {
 } from '../utils/digest-select'
 import { summariseChanges } from '../utils/digest-summary'
 import { renderDigest } from '../utils/digest-template'
+import { instrumentDigestHtml } from '../utils/digest-tracking'
 import { sendEmailWithEnv, signUnsubToken } from '../utils/email'
 
 const CRON = '0 * * * *'
@@ -68,6 +69,11 @@ export default defineScheduledTask({
             : async () => ({ _tag: 'fallback', reason: 'binding_missing' }),
           render: renderDigest,
           signUnsubscribe: userId => signUnsubToken(userId, tokenKey),
+          instrument: input => instrumentDigestHtml(input.html, {
+            runId: input.runId,
+            siteUrl,
+            secret: tokenKey,
+          }),
           send: input => sendEmailWithEnv(env, { ...input, from: emailFrom }),
         }, user, {
           scheduledAt,

@@ -53,6 +53,12 @@ export interface DigestDeliveryDependencies {
   summarise: (input: DigestSummaryInput) => Promise<SummariseResult>
   render: (input: DigestRenderInput) => DigestRender
   signUnsubscribe: (userId: number) => Promise<string>
+  /**
+   * Optional open/click instrumentation applied to the rendered HTML just
+   * before send (pixel + wrapped links; see digest-tracking.ts). Failures
+   * fall back to the uninstrumented HTML — tracking never blocks delivery.
+   */
+  instrument?: (input: { html: string, runId: number }) => Promise<string>
   send: (input: SendEmailInput) => Promise<SendEmailResult>
 }
 
@@ -631,11 +637,15 @@ export async function runDigestDeliveryForUser(
     })),
   })
 
+  const html = deps.instrument
+    ? await deps.instrument({ html: rendered.html, runId: run.id }).catch(() => rendered.html)
+    : rendered.html
+
   await transitionToSending(deps, run, selection, summary)
   const provider = await deps.send({
     to: recipient,
     subject: rendered.subject,
-    html: rendered.html,
+    html,
     text: rendered.text,
     headers: {
       'List-Unsubscribe': `<${unsubscribeUrl}>`,
