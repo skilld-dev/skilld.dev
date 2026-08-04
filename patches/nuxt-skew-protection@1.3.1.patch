@@ -1,0 +1,70 @@
+diff --git a/dist/module.mjs b/dist/module.mjs
+index 76bad6f55a19da6c719f4a32a5a8c970911f1cfa..0c6bbd04d67f7d2bca79cd084090dbffc444daf2 100644
+--- a/dist/module.mjs
++++ b/dist/module.mjs
+@@ -27,7 +27,9 @@ function resolveBasePath(input = {}) {
+   let mount = "";
+   if (assetsDir.startsWith("/")) {
+     const segments = trimSlashes(assetsDir).split("/").filter(Boolean);
+-    mount = segments.slice(0, -1).join("/");
++    const nuxtAssetsIndex = segments.indexOf("_nuxt");
++    const mountEnd = nuxtAssetsIndex === -1 ? segments.length - 1 : nuxtAssetsIndex;
++    mount = segments.slice(0, mountEnd).join("/");
+   }
+   if (!mount)
+     mount = trimSlashes(app.baseURL || "");
+@@ -294,15 +296,17 @@ function createAssetManager(options) {
+   });
+   const retentionDays = options.retentionDays || 7;
+   const maxNumberOfVersions = options.maxNumberOfVersions || 20;
++  const buildAssetsDir = (options.buildAssetsDir || "/_nuxt/").replace(/^\/+|\/+$/g, "");
++  const buildAssetsPath = `/${buildAssetsDir}`;
+   async function getAssetsFromBuild(publicDir) {
+     const startTime = Date.now();
+-    const nuxtDir = join$1(publicDir, "_nuxt");
++    const nuxtDir = join$1(publicDir, buildAssetsDir);
+     logger.debug(`Scanning build assets from ${nuxtDir}`);
+     const assets = [];
+     const nuxtFiles = await getFilesRecursively(nuxtDir);
+     for (const file of nuxtFiles) {
+       const relativePath = file.replace(nuxtDir, "");
+-      assets.push(`_nuxt${relativePath}`);
++      assets.push(`${buildAssetsDir}${relativePath}`);
+     }
+     logger.debug(`Found ${assets.length} assets in ${formatDuration(Date.now() - startTime)}`);
+     return assets;
+@@ -619,7 +623,7 @@ function createAssetManager(options) {
+   }
+   async function augmentBuildMetadata(buildId, publicDir, serverDir) {
+     const manifest = await getVersionManifest(storage);
+-    const latestPath = join$1(publicDir, "_nuxt", "builds", "latest.json");
++    const latestPath = join$1(publicDir, buildAssetsDir, "builds", "latest.json");
+     let newLatestContent;
+     try {
+       const latestData = await promises.readFile(latestPath, "utf-8");
+@@ -641,7 +645,7 @@ function createAssetManager(options) {
+         logger.warn("Failed to augment builds/latest.json:", error);
+       }
+     }
+-    const metaPath = join$1(publicDir, "_nuxt", "builds", "meta", `${buildId}.json`);
++    const metaPath = join$1(publicDir, buildAssetsDir, "builds", "meta", `${buildId}.json`);
+     try {
+       const metaData = await promises.readFile(metaPath, "utf-8");
+       const metaJson = JSON.parse(metaData);
+@@ -659,7 +663,7 @@ function createAssetManager(options) {
+       }
+     }
+     if (serverDir && newLatestContent) {
+-      await patchNitroManifest(serverDir, "/_nuxt/builds/latest.json", newLatestContent);
++      await patchNitroManifest(serverDir, `${buildAssetsPath}/builds/latest.json`, newLatestContent);
+     }
+   }
+   async function patchNitroManifest(serverDir, assetPath, newContent) {
+@@ -1052,6 +1056,7 @@ export {}
+             const publicDir = nitro.options.output.publicDir;
+             assetManager = createAssetManager({
+               ...options,
++              buildAssetsDir: nuxt.options.app.buildAssetsDir,
+               driver: await resolveBuildTimeDriver(options.storage)
+             });
+             const assets = await assetManager.getAssetsFromBuild(publicDir);

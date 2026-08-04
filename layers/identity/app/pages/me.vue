@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { StarsSyncResponse } from '../utils/sync-starred-repos'
+import { syncStarredRepos } from '../utils/sync-starred-repos'
+
 definePageMeta({ middleware: ['auth'] })
 
 interface Subscription {
@@ -17,7 +20,8 @@ const actionFailed = useActionFailure()
 const syncing = ref(false)
 async function sync() {
   syncing.value = true
-  await $fetch('/api/me/stars/sync', { method: 'POST' }).catch(actionFailed('sync your starred repos'))
+  await syncStarredRepos((_request, options) => $fetch<StarsSyncResponse>('/api/me/stars/sync', options))
+    .catch(actionFailed('sync your starred repos'))
   syncing.value = false
   await refreshMe()
 }
@@ -60,7 +64,7 @@ async function saveEmail() {
     showEmail.value = false
 }
 
-useSeoMeta({ title: 'Your dashboard · skilld', robots: 'noindex' })
+useSeoMeta({ title: 'Your dashboard', robots: 'noindex' })
 
 const route = useRoute()
 const toast = useToast()

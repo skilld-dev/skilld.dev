@@ -3,6 +3,7 @@
 import type { GithubBindings, RepoMeta } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
+import { repoStarObservationStatements } from './repo-history'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
 import { skillContentSha256 } from './skill-content-hash'
 import { parseSkillFile } from './skill-frontmatter'
@@ -388,6 +389,7 @@ async function markUnchangedOwnerVerified(
 ): Promise<void> {
   await db.batch([
     markRepoSummaryCheckedStatement(db, owner, repo, meta, pushedAt, checkedAt),
+    ...repoStarObservationStatements(db, owner, repo, meta.stargazers_count ?? 0, checkedAt),
     db.prepare(
       `UPDATE skills
        SET owner_verified = 1
@@ -580,7 +582,10 @@ export async function syncRepo(
       stats.status = 'verified-only'
       return stats
     }
-    await markRepoSummaryCheckedStatement(db, owner, repo, meta, repoPushedAt, checkedAt).run()
+    await db.batch([
+      markRepoSummaryCheckedStatement(db, owner, repo, meta, repoPushedAt, checkedAt),
+      ...repoStarObservationStatements(db, owner, repo, meta.stargazers_count ?? 0, checkedAt),
+    ])
     stats.status = status
     return stats
   }
@@ -724,6 +729,7 @@ export async function syncRepo(
       ).bind(now, now, owner, repo, name))
     }
     statements.push(repoWrite(now))
+    statements.push(...repoStarObservationStatements(db, owner, repo, stars, now))
     await db.batch(statements)
     stats.status = 'rejected'
     stats.reason = hasRootSkill ? 'root_skill_unsupported' : 'no_supported_skill_paths'
@@ -1178,6 +1184,7 @@ export async function syncRepo(
   // A run that fails partway leaves the tree unacknowledged, so the next run
   // reprocesses the repo instead of skipping the slices it never read.
   finalWrites.push(repoWrite(null))
+  finalWrites.push(...repoStarObservationStatements(db, owner, repo, stars, now))
   await db.batch(finalWrites)
 
   const acknowledgedBeforeThisChunk = [...existing.values()]

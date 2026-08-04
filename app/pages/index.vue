@@ -2,8 +2,14 @@
 import type { FeaturedCollectionsResponse } from '~~/server/api/collections/featured.get'
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
+import type { AskSkillEvent, AskSkillResult } from '#shared/ask-skill-search'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
+import {
+  AskSkillsRequestSchema,
+  consumeNdjsonChunk,
+  parseAskSkillEventLine,
+} from '#shared/ask-skill-search'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
@@ -44,11 +50,231 @@ function withHomeDataTiming<T>(name: string, request: Promise<T>): Promise<T> {
 }
 
 const searchQuery = ref('')
+const searchInput = useTemplateRef<{ inputRef?: HTMLInputElement }>('searchInput')
+
+type AskSkillState
+  = | { _tag: 'idle' }
+    | { _tag: 'loading', query: string }
+    | { _tag: 'streaming', query: string, items: AskSkillResult[], answer: string }
+    | { _tag: 'ready', query: string, items: AskSkillResult[], answer: string }
+    | { _tag: 'empty', query: string }
+    | { _tag: 'error', query: string, items: AskSkillResult[], answer: string, message: string }
+
+const askState = shallowRef<AskSkillState>({ _tag: 'idle' })
+const askValidationError = ref('')
+const askAnnouncement = ref('')
+const copyAnnouncement = ref('')
+let askController: AbortController | null = null
+
+const askPending = computed(() => askState.value._tag === 'loading' || askState.value._tag === 'streaming')
+const askItems = computed(() => {
+  const state = askState.value
+  return state._tag === 'streaming' || state._tag === 'ready' || state._tag === 'error'
+    ? state.items
+    : []
+})
+const askAnswer = computed(() => {
+  const state = askState.value
+  return state._tag === 'streaming' || state._tag === 'ready' || state._tag === 'error'
+    ? state.answer
+    : ''
+})
+const askStatusLabel = computed(() => {
+  if (askState.value._tag === 'loading')
+    return 'Searching'
+  if (askState.value._tag === 'streaming')
+    return 'Answering'
+  if (askState.value._tag === 'ready')
+    return 'Ready'
+  if (askState.value._tag === 'empty')
+    return 'No matches'
+  if (askState.value._tag === 'error')
+    return 'Partial result'
+  return ''
+})
+
+const selectedInstallCommand = ref('')
+const selectedInstallSkill = shallowRef<AskSkillResult | null>(null)
+const copiedInstallKey = refAutoReset('', 2000)
+const { copy: copyAskInstall } = useInstallCopy(
+  selectedInstallCommand,
+  'homepage-ask-ai',
+  () => selectedInstallSkill.value
+    ? { kind: 'skill', owner: selectedInstallSkill.value.owner, name: selectedInstallSkill.value.name }
+    : null,
+)
 
 function searchSkills() {
+  askController?.abort()
   const q = searchQuery.value.trim()
   return navigateTo(q ? { path: '/skills', query: { q } } : '/skills')
 }
+
+function askSkillKey(skill: AskSkillResult): string {
+  return `${skill.owner}/${skill.repo}/${skill.name}`
+}
+
+function askTrustLabel(skill: AskSkillResult): string {
+  if (skill.official || skill.trustTier === 'official')
+    return 'Official'
+  if (skill.trustTier === 'trusted-author')
+    return 'Trusted author'
+  if (skill.trustTier === 'trusted-curator')
+    return 'Curator reviewed'
+  if (skill.trustTier === 'candidate')
+    return 'Candidate'
+  if (skill.trustTier === 'quarantined')
+    return 'Source unavailable'
+  return 'Unreviewed'
+}
+
+function failAskSkills(message: string): void {
+  const state = askState.value
+  askState.value = {
+    _tag: 'error',
+    query: state._tag !== 'idle' ? state.query : searchQuery.value.trim(),
+    items: state._tag === 'streaming' || state._tag === 'ready' || state._tag === 'error' ? state.items : [],
+    answer: state._tag === 'streaming' || state._tag === 'ready' || state._tag === 'error' ? state.answer : '',
+    message,
+  }
+  askAnnouncement.value = message
+}
+
+function applyAskSkillEvent(event: AskSkillEvent): boolean {
+  if (event._tag === 'results') {
+    askState.value = event.items.length
+      ? { _tag: 'streaming', query: event.query, items: event.items, answer: '' }
+      : { _tag: 'empty', query: event.query }
+    return true
+  }
+
+  if (event._tag === 'delta') {
+    const state = askState.value
+    if (state._tag !== 'streaming')
+      throw new Error('Ask AI returned text before registry results.')
+    askState.value = { ...state, answer: `${state.answer}${event.text}` }
+    return true
+  }
+
+  if (event._tag === 'error') {
+    failAskSkills(event.message)
+    return false
+  }
+
+  const state = askState.value
+  if (state._tag === 'streaming') {
+    askState.value = { ...state, _tag: 'ready' }
+    askAnnouncement.value = `AI recommendation ready with ${state.items.length} skill${state.items.length === 1 ? '' : 's'}.`
+  }
+  else if (state._tag === 'empty') {
+    askAnnouncement.value = 'No matching skills found.'
+  }
+  return false
+}
+
+async function readAskSkillStream(response: Response): Promise<void> {
+  if (!response.ok)
+    throw new Error(`Ask AI request failed with ${response.status}.`)
+  if (!response.body)
+    throw new Error('Ask AI returned no response stream.')
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let finished = false
+
+  while (!finished) {
+    const { done, value } = await reader.read()
+    const consumed = consumeNdjsonChunk(buffer, decoder.decode(value, { stream: !done }))
+    buffer = consumed.rest
+
+    for (const line of consumed.lines) {
+      const parsed = parseAskSkillEventLine(line)
+      if (parsed._tag === 'error')
+        throw new Error(parsed.message)
+      if (!applyAskSkillEvent(parsed.data)) {
+        finished = true
+        break
+      }
+    }
+
+    if (done)
+      break
+  }
+
+  if (!finished && buffer.trim()) {
+    const parsed = parseAskSkillEventLine(buffer.trim())
+    if (parsed._tag === 'error')
+      throw new Error(parsed.message)
+    finished = !applyAskSkillEvent(parsed.data)
+  }
+
+  if (!finished)
+    throw new Error('Ask AI response ended before completion.')
+}
+
+async function askSkills(): Promise<void> {
+  const parsed = AskSkillsRequestSchema.safeParse({ query: searchQuery.value })
+  if (!parsed.success) {
+    askValidationError.value = searchQuery.value.trim().length < 2
+      ? 'Describe the task in at least 2 characters.'
+      : 'Keep the request under 240 characters.'
+    searchInput.value?.inputRef?.focus()
+    return
+  }
+
+  askValidationError.value = ''
+  askAnnouncement.value = ''
+  searchQuery.value = parsed.data.query
+  askController?.abort()
+  const controller = new AbortController()
+  askController = controller
+  askState.value = { _tag: 'loading', query: parsed.data.query }
+
+  const result = await fetch('/api/skills/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(parsed.data),
+    signal: controller.signal,
+  })
+    .then(readAskSkillStream)
+    .then(() => ({ _tag: 'ok' as const }))
+    .catch(error => ({ _tag: 'error' as const, error }))
+
+  if (askController === controller)
+    askController = null
+  if (controller.signal.aborted)
+    return
+  if (result._tag === 'error') {
+    console.warn('[ask-skills] request failed', result.error)
+    failAskSkills('Could not finish the AI recommendation. The registry results, if loaded, are still usable.')
+  }
+}
+
+async function retryAskSkills(): Promise<void> {
+  if (askState.value._tag !== 'idle')
+    searchQuery.value = askState.value.query
+  await askSkills()
+}
+
+async function copyAskInstallCommand(skill: AskSkillResult): Promise<void> {
+  selectedInstallCommand.value = skill.installCommand
+  selectedInstallSkill.value = skill
+  const result = await copyAskInstall(skill.installCommand)
+  if (result._tag === 'copied') {
+    copiedInstallKey.value = askSkillKey(skill)
+    copyAnnouncement.value = `Install command copied for ${skill.name}.`
+  }
+  else {
+    copyAnnouncement.value = result.message
+  }
+}
+
+watch(searchQuery, () => {
+  askValidationError.value = ''
+})
+
+onBeforeUnmount(() => askController?.abort())
 
 const [
   {
@@ -317,28 +543,61 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               role="search"
               action="/skills"
               method="get"
-              @submit.prevent="searchSkills"
+              @submit.prevent="askSkills"
             >
-              <label for="home-skill-search" class="sr-only">Search skills</label>
+              <label for="home-skill-search" class="sr-only">Describe the skill you need</label>
               <UInput
                 id="home-skill-search"
+                ref="searchInput"
                 v-model="searchQuery"
                 name="q"
                 type="search"
                 autocomplete="off"
                 placeholder="Try “debug a flaky test” or a maintainer…"
-                icon="i-lucide-search"
+                icon="i-lucide-sparkles"
                 size="xl"
                 class="min-w-0 flex-1 [&_input]:min-h-11"
+                maxlength="240"
+                :aria-invalid="askValidationError ? 'true' : undefined"
+                :aria-describedby="askValidationError ? 'home-skill-search-error' : 'home-skill-search-help'"
               />
-              <UButton
-                type="submit"
-                label="Search skills"
-                trailing-icon="i-lucide-arrow-right"
-                size="xl"
-                class="min-h-11 justify-center"
-              />
+              <div class="grid grid-cols-2 gap-2 sm:flex">
+                <UButton
+                  type="submit"
+                  label="Ask AI"
+                  icon="i-lucide-sparkles"
+                  size="xl"
+                  :loading="askPending"
+                  class="min-h-11 justify-center"
+                />
+                <UButton
+                  type="button"
+                  label="Search"
+                  trailing-icon="i-lucide-arrow-right"
+                  color="neutral"
+                  variant="outline"
+                  size="xl"
+                  class="min-h-11 justify-center"
+                  @click="searchSkills"
+                />
+              </div>
             </form>
+
+            <p
+              v-if="askValidationError"
+              id="home-skill-search-error"
+              role="alert"
+              class="mt-2 max-w-2xl text-sm text-error"
+            >
+              {{ askValidationError }}
+            </p>
+            <p
+              v-else
+              id="home-skill-search-help"
+              class="mt-2 max-w-2xl font-mono text-xs text-muted"
+            >
+              Ask AI explains the top registry matches. Search opens the full result set.
+            </p>
 
             <div class="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
               <UButton
@@ -369,6 +628,170 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             />
           </div>
         </div>
+
+        <section
+          v-if="askState._tag !== 'idle'"
+          class="mt-12 border-t border-default pt-8"
+          aria-labelledby="ask-skill-results-heading"
+          :aria-busy="askPending"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="section-label">
+                AI-assisted registry search
+              </p>
+              <h2 id="ask-skill-results-heading" class="mt-2 text-xl font-semibold text-highlighted">
+                Recommended skills
+              </h2>
+            </div>
+            <UBadge
+              :label="askStatusLabel"
+              color="neutral"
+              variant="subtle"
+              class="font-mono"
+            />
+          </div>
+
+          <div
+            v-if="askState._tag === 'loading'"
+            class="mt-6 flex min-h-24 items-center gap-3 rounded-lg border border-default px-4 py-5 text-sm text-muted"
+          >
+            <UIcon name="i-lucide-loader-circle" class="size-4 motion-safe:animate-spin" aria-hidden="true" />
+            Searching the registry…
+          </div>
+
+          <template v-else>
+            <div
+              v-if="askAnswer || askState._tag === 'streaming'"
+              class="mt-6 rounded-lg border border-default bg-muted/40 px-4 py-4 sm:px-5"
+            >
+              <div class="flex items-center gap-2">
+                <UIcon name="i-lucide-sparkles" class="size-4 text-primary" aria-hidden="true" />
+                <p class="data-label">
+                  Why these match
+                </p>
+                <UIcon
+                  v-if="askState._tag === 'streaming'"
+                  name="i-lucide-loader-circle"
+                  class="ms-auto size-4 text-muted motion-safe:animate-spin"
+                  aria-hidden="true"
+                />
+              </div>
+              <p class="mt-3 max-w-4xl whitespace-pre-line text-sm leading-relaxed text-highlighted sm:text-base">
+                {{ askAnswer || 'Reading the ranked shortlist…' }}
+              </p>
+            </div>
+
+            <div
+              v-if="askState._tag === 'error'"
+              class="mt-6 flex flex-col gap-3 rounded-lg border border-default px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p class="text-sm font-medium text-highlighted">
+                  AI summary interrupted
+                </p>
+                <p class="mt-1 text-sm text-muted">
+                  {{ askState.message }}
+                </p>
+              </div>
+              <UButton
+                label="Retry"
+                icon="i-lucide-refresh-cw"
+                color="neutral"
+                variant="outline"
+                class="min-h-11 shrink-0 justify-center"
+                @click="retryAskSkills"
+              />
+            </div>
+
+            <div
+              v-if="askState._tag === 'empty'"
+              class="mt-6 rounded-lg border border-default px-4 py-5"
+            >
+              <p class="text-sm font-medium text-highlighted">
+                Nothing matched that request.
+              </p>
+              <p class="mt-1 text-sm text-muted">
+                Try a broader description, or open the full registry.
+              </p>
+              <UButton
+                to="/skills"
+                label="Browse skills"
+                color="neutral"
+                variant="outline"
+                class="mt-4 min-h-11"
+              />
+            </div>
+
+            <ol
+              v-if="askItems.length"
+              class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              aria-label="Ranked skill recommendations"
+            >
+              <li
+                v-for="(skill, index) in askItems"
+                :key="askSkillKey(skill)"
+                class="flex min-w-0 flex-col rounded-lg border border-default bg-default p-4"
+              >
+                <div class="flex items-start gap-3">
+                  <span class="data-label flex size-6 shrink-0 items-center justify-center rounded-full border border-default">
+                    {{ index + 1 }}
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <NuxtLink
+                      :to="skill.path"
+                      class="block truncate font-mono text-sm font-medium text-highlighted hover:text-primary"
+                    >
+                      /{{ skill.name }}
+                    </NuxtLink>
+                    <p class="mt-0.5 truncate font-mono text-xs text-muted">
+                      {{ skill.owner }}/{{ skill.repo }}
+                    </p>
+                  </div>
+                  <UBadge
+                    :label="askTrustLabel(skill)"
+                    color="neutral"
+                    variant="subtle"
+                    size="xs"
+                    class="shrink-0 font-mono"
+                  />
+                </div>
+
+                <p v-if="skill.description" class="mt-3 line-clamp-3 text-sm leading-relaxed text-muted">
+                  {{ skill.description }}
+                </p>
+                <p v-if="skill.stars > 0" class="data-label mt-3 inline-flex items-center gap-1">
+                  <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
+                  {{ formatGithubStars(skill.stars) }} GitHub stars
+                </p>
+
+                <div class="mt-auto pt-4">
+                  <div class="flex min-w-0 items-stretch overflow-hidden rounded-lg border border-default bg-muted/60">
+                    <code
+                      tabindex="0"
+                      class="flex min-h-11 min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap px-3 font-mono text-xs"
+                    >{{ skill.installCommand }}</code>
+                    <UButton
+                      :icon="copiedInstallKey === askSkillKey(skill) ? 'i-lucide-check' : 'i-lucide-copy'"
+                      color="neutral"
+                      variant="ghost"
+                      class="min-h-11 shrink-0 rounded-none border-l border-default"
+                      :aria-label="copiedInstallKey === askSkillKey(skill) ? 'Copied' : `Copy install command for ${skill.name}`"
+                      @click="copyAskInstallCommand(skill)"
+                    />
+                  </div>
+                </div>
+              </li>
+            </ol>
+          </template>
+        </section>
+
+        <p class="sr-only" aria-live="polite">
+          {{ askAnnouncement }}
+        </p>
+        <p class="sr-only" aria-live="polite">
+          {{ copyAnnouncement }}
+        </p>
       </div>
     </section>
 

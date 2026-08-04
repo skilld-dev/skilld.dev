@@ -1,13 +1,6 @@
 import type { HistoryPoint, StarHistory } from '../../../../utils/repo-history'
-import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
-import { resolveGithubBindings } from '../../../../utils/github-client'
-import { buildCumulativeSkillHistory, fetchGithubStarHistory } from '../../../../utils/repo-history'
-import { resolveRepoSourceIdentity } from '../../../../utils/repo-source-identity'
-
-const STAR_HISTORY_TTL = 60 * 60 * 24
-const STAR_HISTORY_FAILURE_TTL = 60 * 15
-const STAR_HISTORY_PAGE_BUDGET = 16
+import { buildCumulativeSkillHistory, buildObservedStarHistory } from '../../../../utils/repo-history'
 
 interface SkillHistoryRow {
   first_seen_at: number | null
@@ -15,6 +8,11 @@ interface SkillHistoryRow {
 
 interface RepoHistoryRow {
   repo_created_at: number | null
+}
+
+interface StarObservationRow {
+  observed_day: number
+  stars: number
 }
 
 export interface RepoHistoryResponse {
@@ -26,44 +24,6 @@ export interface RepoHistoryResponse {
   starHistory: StarHistory
 }
 
-function parseHistoryPoints(input: unknown): HistoryPoint[] | null {
-  if (!Array.isArray(input) || input.length > 64)
-    return null
-  const points: HistoryPoint[] = []
-  for (const candidate of input) {
-    if (!candidate || typeof candidate !== 'object')
-      return null
-    const at = 'at' in candidate ? candidate.at : null
-    const value = 'value' in candidate ? candidate.value : null
-    if (typeof at !== 'number' || !Number.isFinite(at) || typeof value !== 'number' || !Number.isFinite(value))
-      return null
-    points.push({ at, value })
-  }
-  return points
-}
-
-function parseCachedStarHistory(input: unknown): StarHistory | null {
-  if (!input || typeof input !== 'object' || !('_tag' in input) || !('sampledAt' in input))
-    return null
-  if (typeof input.sampledAt !== 'number' || !Number.isFinite(input.sampledAt))
-    return null
-  if (input._tag === 'ready' && 'points' in input) {
-    const points = parseHistoryPoints(input.points)
-    return points
-      ? { _tag: 'ready', approximate: true, points, sampledAt: input.sampledAt }
-      : null
-  }
-  if (input._tag === 'unavailable' && 'reason' in input && 'status' in input) {
-    const reasons = ['github_status', 'invalid_response', 'network'] as const
-    const reason = reasons.find(candidate => candidate === input.reason)
-    const status = input.status
-    if (!reason || (status !== null && (typeof status !== 'number' || !Number.isFinite(status))))
-      return null
-    return { _tag: 'unavailable', reason, status, sampledAt: input.sampledAt }
-  }
-  return null
-}
-
 export default defineApiHandler<never, RepoHistoryResponse>({
   handler: async ({ event, platform }) => {
     const ownerParam = getRouterParam(event, 'owner')
@@ -71,13 +31,10 @@ export default defineApiHandler<never, RepoHistoryResponse>({
     if (!ownerParam || !repoParam)
       throw createError({ statusCode: 400, message: 'Missing owner or repo parameter' })
 
-    const registry = {
-      owner: ownerParam.toLowerCase(),
-      repo: repoParam.toLowerCase(),
-    }
+    const owner = ownerParam.toLowerCase()
+    const repo = repoParam.toLowerCase()
     const now = Math.floor(Date.now() / 1000)
-    const [source, skillRows, repoRow] = await Promise.all([
-      resolveRepoSourceIdentity(platform.db, registry),
+    const [skillRows, repoRow, starRows] = await Promise.all([
       platform.db
         .prepare(`
           SELECT first_seen_at
@@ -85,7 +42,7 @@ export default defineApiHandler<never, RepoHistoryResponse>({
           WHERE owner = ? AND repo = ?
           ORDER BY first_seen_at
         `)
-        .bind(registry.owner, registry.repo)
+        .bind(owner, repo)
         .all<SkillHistoryRow>(),
       platform.db
         .prepare(`
@@ -93,41 +50,23 @@ export default defineApiHandler<never, RepoHistoryResponse>({
           FROM repos
           WHERE owner = ? AND repo = ?
         `)
-        .bind(registry.owner, registry.repo)
+        .bind(owner, repo)
         .first<RepoHistoryRow>(),
+      platform.db
+        .prepare(`
+          SELECT observed_day, stars
+          FROM (
+            SELECT observed_day, stars
+            FROM repo_star_observations
+            WHERE owner = ? AND repo = ?
+            ORDER BY observed_day DESC
+            LIMIT 90
+          )
+          ORDER BY observed_day
+        `)
+        .bind(owner, repo)
+        .all<StarObservationRow>(),
     ])
-
-    const cacheKey = `repo-star-history:v1:${source.owner.toLowerCase()}/${source.repo.toLowerCase()}`
-    const storage = useStorage('cache')
-    const cached = await storage.getItem<unknown>(cacheKey).catch((error) => {
-      console.warn(`[repo-history] cache read failed for ${cacheKey}`, error)
-      return null
-    })
-    let starHistory = parseCachedStarHistory(cached)
-    if (!starHistory) {
-      starHistory = await fetchGithubStarHistory(
-        source.owner,
-        source.repo,
-        resolveGithubBindings(platform.env),
-        {
-          fetch: globalThis.fetch,
-          now: () => now,
-          pageBudget: STAR_HISTORY_PAGE_BUDGET,
-        },
-      )
-      if (starHistory._tag === 'unavailable') {
-        console.warn(JSON.stringify({
-          event: 'repo_star_history_unavailable',
-          owner: source.owner,
-          repo: source.repo,
-          reason: starHistory.reason,
-          upstreamStatus: starHistory.status,
-        }))
-      }
-      await writeCache(storage, cacheKey, starHistory, {
-        ttl: starHistory._tag === 'ready' ? STAR_HISTORY_TTL : STAR_HISTORY_FAILURE_TTL,
-      })
-    }
 
     setResponseHeader(event, 'Cache-Control', 'public, max-age=300, s-maxage=3600')
     return {
@@ -141,7 +80,12 @@ export default defineApiHandler<never, RepoHistoryResponse>({
           repoRow?.repo_created_at,
         ),
       },
-      starHistory,
+      starHistory: buildObservedStarHistory(
+        (starRows.results ?? []).map(row => ({
+          observedDay: row.observed_day,
+          stars: row.stars,
+        })),
+      ),
     }
   },
 })

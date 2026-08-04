@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
+import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
 import { SENTRY_DSN } from './shared/sentry'
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
@@ -8,6 +9,17 @@ const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
 
 export default defineNuxtConfig({
   extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing', './layers/mcp'],
+
+  hooks: {
+    'nitro:config': (nitroConfig) => {
+      // Cloudflare serves existing files before the Worker. Let misses enter
+      // Nitro so its build-asset route can return a non-cacheable 404.
+      nitroConfig.publicAssets = withBuildAssetMissFallthrough(
+        nitroConfig.publicAssets || [],
+        '/_nuxt/v2/',
+      )
+    },
+  },
 
   modules: [
     'nuxt-cf-jobs',
@@ -87,6 +99,9 @@ export default defineNuxtConfig({
   // no WebSocket support (that needs cloudflare-durable), so updates poll.
   skewProtection: {
     enabled: process.env.NODE_ENV === 'production',
+    // Keep runtime endpoints at the root. The nested `/v2/` asset namespace is
+    // a cache generation, not an application mount point.
+    basePath: '/__skew',
     updateStrategy: 'polling',
     // Silently reload to the new build when the user goes idle rather than
     // showing a prompt (which would need a <SkewNotification/> on the anonymous
@@ -267,6 +282,7 @@ export default defineNuxtConfig({
   routeRules: {
     '/_nuxt/v2/**': {
       headers: {
+        'cache-control': 'public, max-age=31536000, immutable',
         'cloudflare-cdn-cache-control': 'max-age=60',
       },
     },

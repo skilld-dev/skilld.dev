@@ -15,7 +15,7 @@ watchEffect(async () => {
 })
 
 useSeoMeta({
-  title: 'Sign in · skilld',
+  title: 'Sign in',
   description: 'Sign in with GitHub to watch repos, save collections, and receive change digests.',
   robots: 'noindex',
 })

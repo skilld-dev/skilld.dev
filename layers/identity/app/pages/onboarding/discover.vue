@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
+import { syncStarredRepos } from '../../utils/sync-starred-repos'
+
 definePageMeta({ middleware: ['auth'] })
 
 interface Skill {
@@ -14,16 +17,6 @@ interface StarredRepo {
   watching: boolean
   skills: Skill[]
 }
-interface SyncResponse {
-  ok: true
-  page: number
-  fetched: number
-  total: number
-  matched: number
-  hasMore: boolean
-  syncedAt: number | null
-}
-
 const { data, refresh, status } = await useFetch<{ items: StarredRepo[], syncedAt: number | null }>('/api/me/starred')
 
 const skillItems = computed(() => (data.value?.items ?? []).filter(r => r.hasSkill))
@@ -60,17 +53,10 @@ async function syncStars() {
   syncError.value = null
   syncProgress.value = { page: 0, total: 0, matched: 0 }
   try {
-    let page = 1
-    while (page <= 10) {
-      const r = await $fetch<SyncResponse>('/api/me/stars/sync', {
-        method: 'POST',
-        query: { page },
-      })
-      syncProgress.value = { page: r.page, total: r.total, matched: r.matched }
-      if (!r.hasMore)
-        break
-      page += 1
-    }
+    await syncStarredRepos(
+      (_request, options) => $fetch<StarsSyncResponse>('/api/me/stars/sync', options),
+      (r) => { syncProgress.value = { page: r.page, total: r.total, matched: r.matched } },
+    )
     await refresh()
     preselectAll()
   }

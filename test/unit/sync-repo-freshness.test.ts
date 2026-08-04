@@ -12,7 +12,7 @@ const github = vi.hoisted(() => ({
 
 vi.mock('../../layers/registry/server/utils/github-client', () => github)
 
-function repoSummary(headTreeSha: string | null = 'same-tree') {
+function repoSummary(headTreeSha: string | null = 'same-tree', stars = 42) {
   return {
     status: 200,
     data: {
@@ -24,7 +24,7 @@ function repoSummary(headTreeSha: string | null = 'same-tree') {
         owner: { login: 'acme' },
         default_branch: 'trunk',
         description: 'Skills',
-        stargazers_count: 42,
+        stargazers_count: stars,
         forks_count: 7,
         pushed_at: '2026-07-12T12:00:00Z',
         created_at: '2025-01-01T00:00:00Z',
@@ -90,6 +90,13 @@ describe('syncRepo freshness cursor', () => {
         attempts INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (owner, repo, name, reason)
       );
+      CREATE TABLE repo_star_observations (
+        owner TEXT NOT NULL,
+        repo TEXT NOT NULL,
+        observed_day INTEGER NOT NULL,
+        stars INTEGER NOT NULL,
+        PRIMARY KEY (owner, repo, observed_day)
+      );
     `)
     statements = []
     db = wrapSqlite(sqlite, statements)
@@ -122,6 +129,41 @@ describe('syncRepo freshness cursor', () => {
       repo_meta_synced_at: 1783900800,
       broken_since: null,
     })
+    expect(sqlite.prepare(`SELECT observed_day, stars FROM repo_star_observations`).get()).toEqual({
+      observed_day: 1783900800,
+      stars: 42,
+    })
+  })
+
+  it('keeps one exact observation per UTC day and updates that day in place', async () => {
+    await syncRepo('acme', 'skills', {}, db)
+    github.getRepoSummary.mockResolvedValue(repoSummary('same-tree', 43))
+    await syncRepo('acme', 'skills', {}, db)
+
+    expect(sqlite.prepare(`SELECT observed_day, stars FROM repo_star_observations`).all()).toEqual([
+      { observed_day: 1783900800, stars: 43 },
+    ])
+
+    vi.setSystemTime(new Date('2026-07-14T00:00:00Z'))
+    github.getRepoSummary.mockResolvedValue(repoSummary('same-tree', 44))
+    await syncRepo('acme', 'skills', {}, db)
+
+    expect(sqlite.prepare(`SELECT observed_day, stars FROM repo_star_observations ORDER BY observed_day`).all()).toEqual([
+      { observed_day: 1783900800, stars: 43 },
+      { observed_day: 1783987200, stars: 44 },
+    ])
+  })
+
+  it('prunes observations outside the rolling 90 day window', async () => {
+    await syncRepo('acme', 'skills', {}, db)
+
+    vi.setSystemTime(new Date('2026-10-11T00:00:00Z'))
+    github.getRepoSummary.mockResolvedValue(repoSummary('same-tree', 50))
+    await syncRepo('acme', 'skills', {}, db)
+
+    expect(sqlite.prepare(`SELECT observed_day, stars FROM repo_star_observations`).all()).toEqual([
+      { observed_day: 1791676800, stars: 50 },
+    ])
   })
 
   it('also advances freshness when the REST tree confirms no change', async () => {

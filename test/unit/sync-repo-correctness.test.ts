@@ -616,6 +616,10 @@ function createDatabase(): Database.Database {
       reviewed_at INTEGER NOT NULL DEFAULT (unixepoch()),
       PRIMARY KEY (owner, repo)
     );
+    CREATE TABLE repo_star_observations (
+      owner TEXT NOT NULL, repo TEXT NOT NULL, observed_day INTEGER NOT NULL,
+      stars INTEGER NOT NULL, PRIMARY KEY (owner, repo, observed_day)
+    );
   `)
   return sqlite
 }

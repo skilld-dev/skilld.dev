@@ -65,6 +65,7 @@ const historyKey = computed(() => `${repoHub.value.owner}/${repoHub.value.repo}`
 const {
   data: repoHistory,
   status: repoHistoryStatus,
+  error: repoHistoryError,
   execute: loadRepoHistory,
   clear: clearRepoHistory,
 } = useLazyFetch<RepoHistoryResponse>(
@@ -94,6 +95,20 @@ const starHistoryPoints = computed(() =>
     ? repoHistory.value.starHistory.points
     : [],
 )
+const starHistoryDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  year: 'numeric',
+})
+const starHistoryTrackingLabel = computed(() => {
+  const history = repoHistory.value?.starHistory
+  if (!history)
+    return null
+  if (history._tag === 'collecting')
+    return `Tracking since ${starHistoryDateFormatter.format(history.trackedSince * 1000)}`
+  if (history._tag === 'untracked')
+    return 'Tracking soon'
+  return null
+})
 
 const sourceAvatar = computed(() => {
   const o = sourceHub.value.owner ?? repoProfile.value?.owner
@@ -415,6 +430,20 @@ useHead(computed(() => ({
                     label="GitHub stars"
                     approximate
                   />
+                  <span
+                    v-else-if="starHistoryTrackingLabel"
+                    class="block text-right text-[10px] leading-tight text-muted"
+                    :title="starHistoryTrackingLabel"
+                  >
+                    {{ starHistoryTrackingLabel }}
+                  </span>
+                  <span
+                    v-else-if="repoHistoryStatus === 'error' || repoHistoryError"
+                    class="block text-right text-[10px] leading-tight text-muted"
+                    title="GitHub star history is temporarily unavailable"
+                  >
+                    History unavailable
+                  </span>
                 </div>
               </div>
             </li>

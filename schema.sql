@@ -295,6 +295,15 @@ CREATE TABLE repo_kind_overrides (
   PRIMARY KEY (owner, repo)
 );
 
+CREATE TABLE repo_star_observations (
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  observed_day INTEGER NOT NULL CHECK (observed_day >= 0 AND observed_day % 86400 = 0),
+  stars INTEGER NOT NULL CHECK (stars >= 0),
+  PRIMARY KEY (owner, repo, observed_day),
+  FOREIGN KEY (owner, repo) REFERENCES repos(owner, repo) ON DELETE CASCADE
+);
+
 CREATE TABLE repo_trust_overrides (
   owner TEXT NOT NULL,
   repo TEXT NOT NULL,

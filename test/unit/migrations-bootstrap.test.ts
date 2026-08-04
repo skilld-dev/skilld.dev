@@ -254,7 +254,14 @@ describe('d1 migration bootstrap', () => {
       expect(sqlite.prepare(`PRAGMA table_info(skills_fts)`).all()
         .map(column => (column as { name: string }).name))
         .toEqual(['name', 'owner', 'repo', 'display_name', 'slug', 'description'])
-      expect(migrations.at(-1)).toBe('0089_skill_content_identity.sql')
+      const seededStarObservation = sqlite.prepare(`
+        SELECT observed_day, stars
+        FROM repo_star_observations
+        WHERE owner = 'label-test' AND repo = 'skills'
+      `).get() as { observed_day: number, stars: number }
+      expect(seededStarObservation.stars).toBe(0)
+      expect(seededStarObservation.observed_day % 86_400).toBe(0)
+      expect(migrations.at(-1)).toBe('0090_repo_star_observations.sql')
     }
     finally {
       sqlite.close()
