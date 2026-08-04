@@ -1,6 +1,6 @@
 import { defineMcpHandler, defineMcpTool } from '@nuxtjs/mcp-toolkit/server'
 import { createError, getHeader } from 'h3'
-import { mcpTools } from '../utils/mcp-tools'
+import { mcpTools } from '../../shared/mcp-tools'
 
 const MAX_MCP_BODY_BYTES = 64 * 1024
 
