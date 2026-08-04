@@ -1,4 +1,3 @@
-import type { ToolAnnotations } from '@nuxtjs/mcp-toolkit/server'
 import { z } from 'zod'
 import {
   collectionInstallCommand,
@@ -34,11 +33,18 @@ export interface McpToolResult {
   isError?: boolean
 }
 
+export interface McpToolAnnotations {
+  readOnlyHint?: boolean
+  destructiveHint?: boolean
+  idempotentHint?: boolean
+  openWorldHint?: boolean
+}
+
 export interface McpTool {
   name: string
   description: string
   inputSchema: Record<string, z.ZodType>
-  annotations: ToolAnnotations
+  annotations: McpToolAnnotations
   run: (deps: McpToolDeps, args: unknown, signal?: AbortSignal) => Promise<McpToolResult>
 }
 
