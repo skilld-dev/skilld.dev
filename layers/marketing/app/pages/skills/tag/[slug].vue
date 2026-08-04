@@ -64,7 +64,9 @@ defineOgImage('Page.takumi', {
     <p class="mt-2 font-mono text-xs text-muted tabular-nums">
       {{ totalSkills }} {{ totalSkills === 1 ? 'skill' : 'skills' }}
       <span class="mx-1.5 text-default/30">·</span>
-      {{ totalStars.toLocaleString() }} stars
+      <span :title="`${totalStars.toLocaleString()} GitHub stars`">
+        {{ formatGithubStars(totalStars) }} stars
+      </span>
     </p>
 
     <div

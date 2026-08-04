@@ -7,13 +7,13 @@ interface SortableRepoSkill {
 }
 
 export const REPO_SKILL_SORT_OPTIONS: { label: string, value: RepoSkillSort }[] = [
-  { label: 'Recently added', value: 'added' },
   { label: 'Recently updated', value: 'updated' },
+  { label: 'Recently added', value: 'added' },
   { label: 'Name', value: 'name' },
 ]
 
 export function parseRepoSkillSort(value: unknown): RepoSkillSort {
-  return value === 'updated' || value === 'name' ? value : 'added'
+  return value === 'added' || value === 'name' ? value : 'updated'
 }
 
 function compareTimestampDescending(a: number | null | undefined, b: number | null | undefined): number {

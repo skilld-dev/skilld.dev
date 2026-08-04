@@ -797,14 +797,14 @@ useHead(computed(() => ({
                 <span
                   v-if="data.stars"
                   class="inline-flex items-center gap-1"
-                  title="Repository stars on GitHub"
+                  :title="`${data.stars.toLocaleString()} GitHub stars`"
                 >
                   <UIcon
                     name="i-lucide-star"
                     class="size-3.5"
                     aria-hidden="true"
                   />
-                  {{ data.stars.toLocaleString() }}
+                  {{ formatGithubStars(data.stars) }}
                 </span>
                 <span
                   v-if="data.forks"
@@ -897,7 +897,7 @@ useHead(computed(() => ({
               :title="`${data.stars.toLocaleString()} GitHub stars`"
             >
               <UIcon name="i-lucide-star" class="size-3.5" aria-hidden="true" />
-              {{ data.stars.toLocaleString() }} GitHub stars
+              {{ formatGithubStars(data.stars) }} GitHub stars
             </span>
             <span
               v-if="data.pushedAt"

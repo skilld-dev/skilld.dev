@@ -100,10 +100,10 @@ const signInHref = computed(() => loginUrl({ returnTo: route.fullPath, action: '
             label="Sign in"
             icon="i-lucide-github"
             size="sm"
-            color="neutral"
+            color="primary"
             variant="solid"
             block
-            class="mt-3"
+            class="mt-3 min-h-11"
           />
         </div>
 

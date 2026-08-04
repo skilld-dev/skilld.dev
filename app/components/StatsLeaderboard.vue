@@ -59,8 +59,11 @@ const summary = computed(() => {
             :style="{ width: `${(safeLog(row.stars) / max) * 100}%` }"
           />
         </div>
-        <span class="font-mono text-xs text-default tabular-nums whitespace-nowrap">
-          {{ row.stars.toLocaleString() }}
+        <span
+          class="font-mono text-xs text-default tabular-nums whitespace-nowrap"
+          :title="`${row.stars.toLocaleString()} GitHub stars`"
+        >
+          {{ formatGithubStars(row.stars) }}
           <span class="text-muted">★ · {{ row.skills }} sk</span>
         </span>
       </li>

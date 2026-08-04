@@ -21,14 +21,6 @@ defineProps<{
   section: DeveloperSection
 }>()
 
-function formatStars(n = 0): string {
-  if (n >= 10000)
-    return `${Math.round(n / 1000)}k`
-  if (n >= 1000)
-    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
-  return n.toLocaleString()
-}
-
 function skillPath(skill: DeveloperSkill) {
   return repoSkillPath(skill.owner, skill.repo, skill.name)
 }
@@ -119,7 +111,7 @@ function skillPath(skill: DeveloperSkill) {
                 :title="`${skill.stars.toLocaleString()} GitHub stars`"
               >
                 <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-                {{ formatStars(skill.stars) }}
+                {{ formatGithubStars(skill.stars) }}
               </span>
             </div>
           </NuxtLink>

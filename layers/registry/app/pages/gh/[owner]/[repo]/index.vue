@@ -149,7 +149,7 @@ const groupingOptions = [
 async function setSkillSort(value: unknown) {
   const sort = parseRepoSkillSort(value)
   const query = { ...route.query }
-  if (sort === 'added')
+  if (sort === 'updated')
     delete query.sort
   else
     query.sort = sort
@@ -485,7 +485,7 @@ useHead(computed(() => ({
           </div>
           <div
             v-else-if="sortedRepoSkills.length && !groupedSkills"
-            class="grid gap-3 lg:grid-cols-2"
+            class="grid gap-3"
           >
             <RepoSkillCard
               v-for="skill in sortedRepoSkills"

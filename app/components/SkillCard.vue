@@ -52,14 +52,6 @@ const ownerPath = computed(() =>
   `${skill.owner}${skill.repo !== 'skills' ? `/${skill.repo}` : ''}`,
 )
 
-function formatStars(n: number): string {
-  if (n >= 10000)
-    return `${Math.round(n / 1000)}k`
-  if (n >= 1000)
-    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
-  return n.toLocaleString()
-}
-
 const resolvedTimestampFormat = computed(() =>
   timestampFormat ?? (variant === 'condensed' ? 'relative' : 'absolute'),
 )
@@ -195,7 +187,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
           :title="`${(skill.stars ?? 0).toLocaleString()} GitHub stars`"
         >
           <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-          {{ formatStars(skill.stars ?? 0) }}
+          {{ formatGithubStars(skill.stars ?? 0) }}
         </span>
       </template>
 
@@ -211,7 +203,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
             :title="`${(skill.stars ?? 0).toLocaleString()} GitHub stars`"
           >
             <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-            {{ formatStars(skill.stars ?? 0) }}
+            {{ formatGithubStars(skill.stars ?? 0) }}
           </span>
         </div>
         <div
@@ -237,7 +229,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
             :title="`${(skill.stars ?? 0).toLocaleString()} GitHub stars`"
           >
             <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-            {{ formatStars(skill.stars ?? 0) }}
+            {{ formatGithubStars(skill.stars ?? 0) }}
           </span>
         </div>
         <p

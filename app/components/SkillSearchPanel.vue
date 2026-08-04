@@ -49,14 +49,6 @@ function ownerPath(skill: SearchSkill): string {
   return `${skill.owner}${skill.repo !== 'skills' ? `/${skill.repo}` : ''}`
 }
 
-function abbreviate(n: number): string {
-  if (n >= 1_000_000)
-    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
-  if (n >= 1_000)
-    return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
-  return n.toLocaleString()
-}
-
 /**
  * One labelled signal per row: canonical GitHub stars, the evidence the
  * registry ranks on. Zero is omitted rather than rendered, since an unknown
@@ -64,7 +56,7 @@ function abbreviate(n: number): string {
  */
 function signalLabel(skill: SearchSkill): string | null {
   const stars = skill.stars ?? 0
-  return stars > 0 ? `${abbreviate(stars)} GitHub stars` : null
+  return stars > 0 ? `${formatGithubStars(stars)} GitHub stars` : null
 }
 
 function timestampFor(skill: SearchSkill): Date | null {

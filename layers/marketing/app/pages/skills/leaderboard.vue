@@ -248,9 +248,12 @@ function formatDate(timestamp: number | null): string | null {
                 <span class="leaderboard-row__metric">
                   <span class="sr-only">GitHub stars: </span>
                   <span class="leaderboard-row__mobile-label" aria-hidden="true">Stars</span>
-                  <span class="inline-flex items-center justify-end gap-1 tabular-nums">
+                  <span
+                    class="inline-flex items-center justify-end gap-1 tabular-nums"
+                    :title="`${item.stars.toLocaleString()} GitHub stars`"
+                  >
                     <UIcon name="i-lucide-star" class="size-3.5 text-muted" aria-hidden="true" />
-                    {{ item.stars.toLocaleString() }}
+                    {{ formatGithubStars(item.stars) }}
                   </span>
                 </span>
               </div>

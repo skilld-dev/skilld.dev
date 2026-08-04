@@ -6,19 +6,19 @@ interface RepoSkill {
   description?: string | null
   dependencies?: string[]
   modifiedAt?: number | null
-  firstSeenAt?: number | null
 }
 
 const { skill } = defineProps<{
   skill: RepoSkill
 }>()
 
-interface FormattedDate {
-  label: string
+interface ParsedDate {
+  date: Date
+  iso: string
   title: string
 }
 
-function formatDate(timestamp: number | null | undefined): FormattedDate | null {
+function parseDate(timestamp: number | null | undefined): ParsedDate | null {
   if (!timestamp)
     return null
 
@@ -27,19 +27,15 @@ function formatDate(timestamp: number | null | undefined): FormattedDate | null 
     return null
 
   return {
-    label: new Intl.DateTimeFormat(undefined, {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(date),
+    date,
+    iso: date.toISOString(),
     title: new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(date),
   }
 }
 
-const addedAt = computed(() => formatDate(skill.firstSeenAt))
-const modifiedAt = computed(() => {
-  const formatted = formatDate(skill.modifiedAt)
-  return formatted?.label === addedAt.value?.label ? null : formatted
+const modifiedAt = computed(() => parseDate(skill.modifiedAt))
+const modifiedAtAgo = useTimeAgo(computed(() => modifiedAt.value?.date ?? new Date(0)), {
+  updateInterval: 60_000,
 })
 const visibleDependencies = computed(() => skill.dependencies?.slice(0, 3) ?? [])
 const hiddenDependencies = computed(() => skill.dependencies?.slice(3) ?? [])
@@ -64,38 +60,22 @@ const hiddenDependenciesLabel = computed(() => hiddenDependencies.value.map(name
       </p>
     </NuxtLink>
     <div
-      v-if="addedAt || modifiedAt || skill.dependencies?.length"
+      v-if="modifiedAt || skill.dependencies?.length"
       class="pointer-events-none relative z-10 mt-4 flex flex-col items-start gap-3 border-t border-default pt-3"
     >
-      <div
-        v-if="addedAt || modifiedAt"
-        class="flex flex-wrap items-center gap-x-4 gap-y-2"
+      <time
+        v-if="modifiedAt"
+        class="data-label inline-flex items-center gap-1.5"
+        :datetime="modifiedAt.iso"
+        :title="`Last updated ${modifiedAt.title}`"
       >
-        <span
-          v-if="addedAt"
-          class="data-label inline-flex items-center gap-1.5"
-          :title="`First indexed ${addedAt.title}`"
-        >
-          <UIcon
-            name="i-lucide-calendar-plus"
-            class="size-3.5"
-            aria-hidden="true"
-          />
-          Added {{ addedAt.label }}
-        </span>
-        <span
-          v-if="modifiedAt"
-          class="data-label inline-flex items-center gap-1.5"
-          :title="`Last updated ${modifiedAt.title}`"
-        >
-          <UIcon
-            name="i-lucide-clock"
-            class="size-3.5"
-            aria-hidden="true"
-          />
-          Updated {{ modifiedAt.label }}
-        </span>
-      </div>
+        <UIcon
+          name="i-lucide-clock"
+          class="size-3.5"
+          aria-hidden="true"
+        />
+        Updated {{ modifiedAtAgo }}
+      </time>
       <div
         v-if="skill.dependencies?.length"
         class="flex w-full max-w-full flex-wrap items-center gap-2"

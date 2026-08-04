@@ -1,4 +1,5 @@
 import type { SkillSourceItem } from '../types/skill-source'
+import { formatGithubStars } from './github-stars'
 
 export const HOMEPAGE_SKILL_LIMIT = 20
 export const HOMEPAGE_PERSON_MINIMUM = 10
@@ -25,14 +26,6 @@ interface PersonSkillBucket {
   owner: string
   displayName: string
   skills: FeaturedPersonSkill[]
-}
-
-function formatCompactCount(count: number): string {
-  if (count >= 1_000_000)
-    return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
-  if (count >= 1_000)
-    return `${(count / 1_000).toFixed(1).replace(/\.0$/, '')}k`
-  return count.toLocaleString()
 }
 
 export function selectHomepagePersonSkills(
@@ -92,7 +85,7 @@ export function selectHomepagePersonSkills(
           ? person.displayName
           : fallbackNamesByOwner.get(person.owner) ?? person.owner,
         description: skill.description,
-        context: skill.stars > 0 ? `${formatCompactCount(skill.stars)} GitHub stars` : null,
+        context: skill.stars > 0 ? `${formatGithubStars(skill.stars)} GitHub stars` : null,
       })
 
       if (result.length === HOMEPAGE_SKILL_LIMIT)

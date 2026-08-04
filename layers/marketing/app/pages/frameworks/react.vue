@@ -32,14 +32,6 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
   return repoSkillPath(skill.owner, skill.repo, skill.name)
 }
 
-function formatStars(n: number): string {
-  if (n >= 10000)
-    return `${Math.round(n / 1000)}k`
-  if (n >= 1000)
-    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
-  return n.toLocaleString()
-}
-
 const syncedAgo = useTimeAgo(() => data.value?.fetchedAt ?? 0)
 
 useSeoMeta({
@@ -199,7 +191,7 @@ useSchemaOrg(computed(() => {
             :title="`${data.totalStars.toLocaleString()} GitHub stars combined`"
           >
             <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-            {{ formatStars(data.totalStars) }}
+            {{ formatGithubStars(data.totalStars) }}
           </span>
         </div>
         <div class="mt-5 flex items-center gap-2 flex-wrap">
@@ -273,7 +265,7 @@ useSchemaOrg(computed(() => {
                   class="data-label inline-flex items-center gap-1"
                 >
                   <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-                  {{ formatStars(o.stars) }}
+                  {{ formatGithubStars(o.stars) }}
                 </span>
               </div>
             </NuxtLink>

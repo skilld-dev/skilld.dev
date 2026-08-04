@@ -63,14 +63,6 @@ function skillPath(skill: { owner: string, repo: string, name: string }) {
   return repoSkillPath(skill.owner, skill.repo, skill.name)
 }
 
-function formatStars(n: number): string {
-  if (n >= 10000)
-    return `${Math.round(n / 1000)}k`
-  if (n >= 1000)
-    return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
-  return n.toLocaleString()
-}
-
 function ensureProtocol(url: string): string {
   if (!url)
     return ''
@@ -304,7 +296,7 @@ useSchemaOrg(computed(() => {
                 class="size-3"
                 aria-hidden="true"
               />
-              {{ formatStars(data.totalStars) }}
+              {{ formatGithubStars(data.totalStars) }}
             </span>
             <span
               v-if="data.location"
@@ -425,7 +417,7 @@ useSchemaOrg(computed(() => {
                       class="data-label inline-flex items-center gap-1"
                     >
                       <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
-                      {{ formatStars(repo.stars) }}
+                      {{ formatGithubStars(repo.stars) }}
                     </span>
                   </div>
                 </div>
