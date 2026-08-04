@@ -172,7 +172,7 @@ const { data, status, error, refresh } = useFetch(
     syncedAt: number | null
   }
   duplicateGroup: {
-    reason: 'duplicate_description' | 'duplicate_title'
+    reason: 'duplicate_content'
     canonical: DuplicateSkill
     isCanonical: boolean
     siblings: DuplicateSkill[]
@@ -576,11 +576,6 @@ const canonicalSkillPagePath = computed(() => {
 const canonicalSkillPageUrl = computed(() => {
   return `${siteOrigin}${canonicalSkillPagePath.value}`
 })
-const duplicateReasonLabel = computed(() => {
-  return duplicateGroup.value?.reason === 'duplicate_description'
-    ? 'same skill description'
-    : 'same skill name'
-})
 
 const SEO_COMPATIBILITY = ' A Claude Code skill for Cursor, Codex, and other agents.'
 
@@ -854,7 +849,7 @@ useHead(computed(() => ({
                 >
                   {{ duplicateGroup.canonical.owner }}/{{ duplicateGroup.canonical.repo }}/{{ duplicateGroup.canonical.name }}
                 </NuxtLink>
-                based on the {{ duplicateReasonLabel }}.
+                based on identical SKILL.md content.
               </p>
             </div>
             <UButton

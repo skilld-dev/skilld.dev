@@ -1,4 +1,4 @@
-export type DuplicateGroupReason = 'duplicate_description' | 'duplicate_title'
+export type DuplicateGroupReason = 'duplicate_content'
 
 export interface DuplicateCandidate {
   owner: string
@@ -6,6 +6,7 @@ export interface DuplicateCandidate {
   name: string
   display_name: string
   description: string | null
+  rendered_raw_sha256: string | null
   stars: number | null
   pushed_at: number | null
   support_tier: string | null
@@ -29,7 +30,7 @@ export interface DuplicateGroupRecommendation<T extends DuplicateCandidate = Dup
   rows: T[]
 }
 
-export const DUPLICATE_DESCRIPTION_MIN_LENGTH = 80
+const SHA256_HEX_LENGTH = 64
 
 const SUPPORT_TIER_RANK: Record<string, number> = {
   'core-official': 4,
@@ -103,31 +104,13 @@ export function findDuplicateCanonicalGroups<T extends DuplicateCandidate>(
   rows: T[],
   canonicalSort: CanonicalSort = canonicalDuplicateSort,
 ): DuplicateGroupRecommendation<T>[] {
-  const assigned = new Set<string>()
-  const descriptionGroups = collectGroups(
+  return collectGroups(
     rows,
-    row => normalizeDuplicateText(row.description),
-    DUPLICATE_DESCRIPTION_MIN_LENGTH,
-    'duplicate_description',
-    assigned,
+    row => (row.rendered_raw_sha256 ?? '').trim().toLowerCase(),
+    SHA256_HEX_LENGTH,
+    'duplicate_content',
     canonicalSort,
   )
-
-  for (const group of descriptionGroups) {
-    for (const row of group.rows)
-      assigned.add(skillSlug(row))
-  }
-
-  const titleGroups = collectGroups(
-    rows.filter(row => !assigned.has(skillSlug(row))),
-    row => normalizeDuplicateText(row.display_name),
-    2,
-    'duplicate_title',
-    assigned,
-    canonicalSort,
-  )
-
-  return [...descriptionGroups, ...titleGroups]
     .sort((a, b) => b.rows.length - a.rows.length || skillSlug(a.canonical).localeCompare(skillSlug(b.canonical)))
 }
 
@@ -156,14 +139,10 @@ function collectGroups<T extends DuplicateCandidate>(
   key: (row: T) => string,
   minLength: number,
   reason: DuplicateGroupReason,
-  ignoredSlugs: Set<string>,
   canonicalSort: CanonicalSort,
 ): DuplicateGroupRecommendation<T>[] {
   const byKey = new Map<string, T[]>()
   for (const row of rows) {
-    const slug = skillSlug(row)
-    if (ignoredSlugs.has(slug))
-      continue
     const value = key(row)
     if (value.length < minLength)
       continue

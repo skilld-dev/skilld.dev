@@ -75,6 +75,7 @@ interface SkillRow {
   slug: string
   stars: number | null
   description: string | null
+  rendered_raw_sha256: string | null
   pushed_at: number | null
   modified_at: number | null
 }
@@ -88,6 +89,7 @@ function rowToSkill(r: SkillRow): RegistrySkill {
     slug: r.slug,
     stars: r.stars ?? 0,
     description: r.description ?? null,
+    renderedRawSha256: r.rendered_raw_sha256 ?? null,
     pushedAt: r.pushed_at ?? null,
     modifiedAt: r.modified_at ?? null,
     seoIndexScore: 0,
@@ -134,7 +136,7 @@ export default defineCachedEventHandler(async (event) => {
   // same-(owner,name) collisions.
   const skillsRes = await db
     .prepare(
-      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.description, r.pushed_at, s.modified_at
+      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.description, s.rendered_raw_sha256, r.pushed_at, s.modified_at
        FROM skills s
        JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
        WHERE ${NOT_BROKEN_SQL} AND (

@@ -8,6 +8,7 @@ import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { SkillDetailResponseSchema } from '../../schemas/skill-responses'
 import { getTree, resolveGithubBindings } from '../../utils/github-client'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
+import { skillContentSha256 } from '../../utils/skill-content-hash'
 import { getGenerated } from '../../utils/skill-generated'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkill } from '../../utils/skills-registry'
@@ -470,21 +471,23 @@ async function renderLive(
 }
 
 function schedulePersist(event: H3Event, db: D1Database, owner: string, repo: string, name: string, rendered: RenderedView): void {
-  if (rendered.status !== 'ok' || !rendered.html)
+  if (rendered.status !== 'ok' || !rendered.html || rendered.raw === null)
     return
-  const promise = db
-    .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND repo = ? AND name = ?`)
-    .bind(
-      rendered.skillPath,
-      rendered.raw,
-      JSON.stringify(rendered.frontmatter ?? {}),
-      rendered.html,
-      Math.floor(Date.now() / 1000),
-      owner,
-      repo,
-      name,
-    )
-    .run()
+  const promise = skillContentSha256(rendered.raw)
+    .then(renderedRawSha256 => db
+      .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_raw_sha256 = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND repo = ? AND name = ?`)
+      .bind(
+        rendered.skillPath,
+        rendered.raw,
+        renderedRawSha256,
+        JSON.stringify(rendered.frontmatter ?? {}),
+        rendered.html,
+        Math.floor(Date.now() / 1000),
+        owner,
+        repo,
+        name,
+      )
+      .run())
     .catch((err) => {
       console.warn(`[skills] persist rendered failed for ${owner}/${repo}/${name}:`, err)
     })
@@ -501,13 +504,15 @@ function scheduleRefresh(
 ): void {
   const promise = (async () => {
     const live = await renderLive(event, source.owner, source.repo, name, branch)
-    if (live.status !== 'ok' || !live.html)
+    if (live.status !== 'ok' || !live.html || live.raw === null)
       return
+    const renderedRawSha256 = await skillContentSha256(live.raw)
     await db
-      .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND repo = ? AND name = ?`)
+      .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_raw_sha256 = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND repo = ? AND name = ?`)
       .bind(
         live.skillPath,
         live.raw,
+        renderedRawSha256,
         JSON.stringify(live.frontmatter ?? {}),
         live.html,
         Math.floor(Date.now() / 1000),

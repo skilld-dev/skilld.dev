@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { skillContentSha256 } from '../../layers/registry/server/utils/skill-content-hash'
 import { syncRepo } from '../../layers/registry/server/utils/sync-repo'
 
 const github = vi.hoisted(() => ({
@@ -96,8 +97,12 @@ describe('syncRepo content acknowledgement', () => {
     expect(result.status).toBe('indexed')
     expect(sqlite.prepare(`SELECT name FROM skills ORDER BY name`).pluck().all()).toEqual(['one', 'two'])
     expect(sqlite.prepare(
-      `SELECT is_official, source_resolved FROM skills WHERE name = 'two'`,
-    ).get()).toEqual({ is_official: 0, source_resolved: 1 })
+      `SELECT is_official, source_resolved, rendered_raw_sha256 FROM skills WHERE name = 'two'`,
+    ).get()).toEqual({
+      is_official: 0,
+      source_resolved: 1,
+      rendered_raw_sha256: await skillContentSha256(rawSkill('Two')),
+    })
     expect(sqlite.prepare(`SELECT last_tree_sha FROM repos`).pluck().get()).toBe('new-tree')
   })
 
@@ -578,7 +583,7 @@ function createDatabase(): Database.Database {
       seo_index_reasons TEXT NOT NULL DEFAULT '[]', seo_index_synced_at INTEGER,
       trust_tier TEXT NOT NULL DEFAULT 'untrusted', trust_source TEXT NOT NULL DEFAULT 'computed',
       trust_score INTEGER NOT NULL DEFAULT 0, trust_reasons TEXT NOT NULL DEFAULT '[]', trust_synced_at INTEGER,
-      rendered_skill_path TEXT, rendered_status TEXT, rendered_raw TEXT, rendered_frontmatter TEXT,
+      rendered_skill_path TEXT, rendered_status TEXT, rendered_raw TEXT, rendered_raw_sha256 TEXT, rendered_frontmatter TEXT,
       rendered_html TEXT, rendered_at INTEGER, owner_verified INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (owner, repo, name)
     );

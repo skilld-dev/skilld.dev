@@ -4,6 +4,7 @@ import type { GithubBindings, RepoMeta } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
+import { skillContentSha256 } from './skill-content-hash'
 import { parseSkillFile } from './skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
 import { parseSkillMd } from './skill-md-render'
@@ -969,6 +970,7 @@ export async function syncRepo(
         skillDir,
         filePath: '',
       })
+      const renderedRawSha256 = await skillContentSha256(raw)
 
       let modifiedAt = prev?.modified_at ?? null
       if (contentChanged) {
@@ -997,12 +999,12 @@ export async function syncRepo(
              is_official, source_resolved, seo_index_score, seo_indexable,
              seo_index_reasons, seo_index_synced_at,
              trust_tier, trust_source, trust_score, trust_reasons, trust_synced_at,
-             rendered_skill_path, rendered_status, rendered_raw, rendered_frontmatter, rendered_html, rendered_at,
+             rendered_skill_path, rendered_status, rendered_raw, rendered_raw_sha256, rendered_frontmatter, rendered_html, rendered_at,
              owner_verified
            ) VALUES (
              ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'ok',
              ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-             'ok', ?, ?, ?, ?, ?
+             'ok', ?, ?, ?, ?, ?, ?
            )
            ON CONFLICT(owner, repo, name) DO UPDATE SET
              display_name = excluded.display_name,
@@ -1028,6 +1030,7 @@ export async function syncRepo(
              rendered_skill_path = excluded.rendered_skill_path,
              rendered_status = excluded.rendered_status,
              rendered_raw = excluded.rendered_raw,
+             rendered_raw_sha256 = excluded.rendered_raw_sha256,
              rendered_frontmatter = excluded.rendered_frontmatter,
              rendered_html = excluded.rendered_html,
              rendered_at = excluded.rendered_at,
@@ -1057,6 +1060,7 @@ export async function syncRepo(
         now,
         file.path,
         raw,
+        renderedRawSha256,
         JSON.stringify(rendered.frontmatter),
         rendered.html,
         now,

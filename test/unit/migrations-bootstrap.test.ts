@@ -37,6 +37,7 @@ describe('d1 migration bootstrap', () => {
       const skillColumns = sqlite.prepare('PRAGMA table_info(skills)').all() as Array<{ name: string }>
       const skillColumnNames = skillColumns.map(column => column.name)
       expect(skillColumnNames).toContain('owner_verified')
+      expect(skillColumnNames).toContain('rendered_raw_sha256')
       expect(skillColumnNames).not.toContain('stars')
       expect(sqlite.prepare(
         `SELECT owner, repo, description FROM skills WHERE name = 'migration-check'`,
@@ -253,7 +254,7 @@ describe('d1 migration bootstrap', () => {
       expect(sqlite.prepare(`PRAGMA table_info(skills_fts)`).all()
         .map(column => (column as { name: string }).name))
         .toEqual(['name', 'owner', 'repo', 'display_name', 'slug', 'description'])
-      expect(migrations.at(-1)).toBe('0088_skill_labels_from_source.sql')
+      expect(migrations.at(-1)).toBe('0089_skill_content_identity.sql')
     }
     finally {
       sqlite.close()

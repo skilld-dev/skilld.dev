@@ -18,8 +18,8 @@ import {
   duplicateRankingSignals,
   findDuplicateCanonicalGroups,
   skillSlug,
-} from '../server/utils/skill-duplicate-canonical'
-import { SUPPORTED_SKILL_SQL } from '../server/utils/supported-sources'
+} from '../layers/registry/server/utils/skill-duplicate-canonical'
+import { SUPPORTED_SKILL_SQL } from '../layers/registry/server/utils/supported-sources'
 
 const ACCOUNT_ID = '5904138d55ca25d5670dca6adf99894e'
 const ONE_DAY_SECONDS = 86400
@@ -55,6 +55,7 @@ interface AuditRow {
   name: string
   display_name: string
   description: string | null
+  rendered_raw_sha256: string | null
   stars: number
   pushed_at: number | null
   default_branch: string | null
@@ -184,6 +185,7 @@ const rows = d1<AuditRow>(`
     s.name,
     s.display_name,
     s.description,
+    s.rendered_raw_sha256,
     r.stars,
     r.pushed_at,
     r.default_branch,
@@ -219,10 +221,8 @@ const shortDescriptions = rows.filter((r) => {
   return Boolean(desc && desc.length < LOW_DESCRIPTION_CHARS)
 })
 const duplicateCanonicalRecommendations = duplicateRecommendations(rows)
-const duplicateTitleRecommendations = duplicateCanonicalRecommendations.filter(r => r.reason === 'duplicate_title')
-const duplicateDescriptionRecommendations = duplicateCanonicalRecommendations.filter(r => r.reason === 'duplicate_description')
-const duplicateTitleGroups = duplicateTitleRecommendations.map(g => ({ value: g.value, rows: g.rows.map(r => r.slug) }))
-const duplicateDescriptionGroups = duplicateDescriptionRecommendations.map(g => ({ value: g.value, rows: g.rows.map(r => r.slug) }))
+const duplicateContentRecommendations = duplicateCanonicalRecommendations.filter(r => r.reason === 'duplicate_content')
+const duplicateContentGroups = duplicateContentRecommendations.map(g => ({ value: g.value, rows: g.rows.map(r => r.slug) }))
 const weakerDuplicateSlugs = duplicateCanonicalRecommendations.flatMap(r => r.duplicateSlugs)
 const lowContentDepth = rows.filter((r) => {
   const descLength = r.description?.trim().length ?? 0
@@ -318,8 +318,7 @@ const report = {
   counts: {
     missingDescriptions: missingDescriptions.length,
     shortDescriptions: shortDescriptions.length,
-    duplicateTitleGroups: duplicateTitleRecommendations.length,
-    duplicateDescriptionGroups: duplicateDescriptionRecommendations.length,
+    duplicateContentGroups: duplicateContentRecommendations.length,
     weakerDuplicateSkills: weakerDuplicateSlugs.length,
     lowContentDepth: lowContentDepth.length,
     staleRepos: staleRepos.length,
@@ -347,10 +346,8 @@ const report = {
       defaultBranch: r.default_branch,
       pushedAt: r.pushed_at,
     })),
-    duplicateTitles: top(duplicateTitleGroups, sampleLimit).map(g => ({ title: g.value, count: g.rows.length, slugs: top(g.rows, 8) })),
-    duplicateDescriptions: top(duplicateDescriptionGroups, sampleLimit).map(g => ({ count: g.rows.length, sample: g.value.slice(0, 120), slugs: top(g.rows, 8) })),
-    duplicateTitleRecommendations: top(duplicateTitleRecommendations, sampleLimit),
-    duplicateDescriptionRecommendations: top(duplicateDescriptionRecommendations, sampleLimit),
+    duplicateContent: top(duplicateContentGroups, sampleLimit).map(g => ({ count: g.rows.length, sha256: g.value, slugs: top(g.rows, 8) })),
+    duplicateContentRecommendations: top(duplicateContentRecommendations, sampleLimit),
     duplicateCanonicalRecommendations: top(duplicateCanonicalRecommendations, sampleLimit),
     missingCriticalSourceFacts: top(missingCriticalSourceFacts, sampleLimit).map(r => ({
       slug: slug(r),
@@ -396,11 +393,8 @@ console.log('')
 console.log('## Top Broken/Empty Metadata')
 printList(report.samples.brokenOrEmptyMetadata)
 console.log('')
-console.log('## Duplicate Title Groups')
-printList(report.samples.duplicateTitles)
-console.log('')
-console.log('## Duplicate Description Groups')
-printList(report.samples.duplicateDescriptions)
+console.log('## Duplicate Content Groups')
+printList(report.samples.duplicateContent)
 console.log('')
 console.log('## Duplicate Canonical Recommendations')
 printList(report.samples.duplicateCanonicalRecommendations)

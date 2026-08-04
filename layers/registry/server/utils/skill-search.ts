@@ -6,7 +6,6 @@ import {
   canonicalTrustFirstSort,
   duplicateRankingSignals,
   findDuplicateCanonicalGroups,
-  normalizeDuplicateText,
   skillSlug,
 } from './skill-duplicate-canonical'
 import { nameMatchBoost, semanticSkillSearch } from './skill-semantic-search'
@@ -171,6 +170,7 @@ function toDuplicateCandidate(skill: RegistrySkill): DuplicateCandidate {
     name: skill.name,
     display_name: skill.displayName,
     description: skill.description,
+    rendered_raw_sha256: skill.renderedRawSha256,
     stars: skill.stars,
     pushed_at: skill.pushedAt,
     // Support tier is not on RegistrySkill; trust tier alone breaks the ties
@@ -230,56 +230,7 @@ export function collapseSearchDuplicates(skills: RegistrySkill[]): CollapsedSear
     })
   }
 
-  return mergeByTitle(collapsed)
-}
-
-/**
- * Fold rows that survived as separate groups but carry the same title.
- *
- * Grouping is description-first, so forks that edited their description end up
- * in different groups and the same skill name renders twice. Within a single
- * result list an identical title is duplication the user can see, whatever the
- * descriptions say.
- */
-function mergeByTitle(collapsed: CollapsedSearchResult[]): CollapsedSearchResult[] {
-  const byTitle = new Map<string, CollapsedSearchResult>()
-  const order: string[] = []
-
-  for (const entry of collapsed) {
-    const title = normalizeDuplicateText(entry.skill.displayName) || skillKey(entry.skill)
-    const existing = byTitle.get(title)
-    if (!existing) {
-      byTitle.set(title, entry)
-      order.push(title)
-      continue
-    }
-
-    // Keep the earlier (better-ranked) position, but let provenance decide
-    // which copy represents the merged row.
-    const winner = canonicalTrustFirstSort(
-      toDuplicateCandidate(existing.skill),
-      toDuplicateCandidate(entry.skill),
-    ) <= 0
-      ? existing
-      : entry
-    const loser = winner === existing ? entry : existing
-
-    byTitle.set(title, {
-      skill: winner.skill,
-      sourceCount: existing.sourceCount + entry.sourceCount,
-      alternateSources: [
-        ...winner.alternateSources,
-        {
-          owner: loser.skill.owner,
-          repo: loser.skill.repo,
-          slug: loser.skill.slug,
-        },
-        ...loser.alternateSources,
-      ],
-    })
-  }
-
-  return order.map(title => byTitle.get(title)!)
+  return collapsed
 }
 
 export type SearchMode = 'hybrid' | 'lexical' | 'semantic'

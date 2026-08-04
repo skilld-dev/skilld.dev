@@ -27,6 +27,7 @@ export interface RegistrySkill {
   slug: string
   stars: number
   description: string | null
+  renderedRawSha256: string | null
   seoIndexScore: number
   seoIndexable: boolean
   trustTier: string
@@ -50,6 +51,7 @@ interface SkillRow {
   slug: string
   stars: number | null
   description: string | null
+  rendered_raw_sha256: string | null
   seo_index_score: number | null
   seo_indexable: number | null
   trust_tier: string | null
@@ -67,6 +69,7 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     slug: row.slug,
     stars: row.stars ?? 0,
     description: row.description ?? null,
+    renderedRawSha256: row.rendered_raw_sha256 ?? null,
     seoIndexScore: row.seo_index_score ?? 0,
     seoIndexable: row.seo_indexable === 1,
     trustTier: row.trust_tier ?? 'untrusted',
@@ -563,6 +566,7 @@ async function listDuplicateCandidateRows(
         s.name,
         s.display_name,
         s.description,
+        s.rendered_raw_sha256,
         r.stars,
         r.pushed_at,
         supported_repos.support_tier,
@@ -625,6 +629,7 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
         s.repo,
         s.display_name,
         s.description,
+        s.rendered_raw_sha256,
         r.stars,
         r.pushed_at,
         supported_repos.support_tier,

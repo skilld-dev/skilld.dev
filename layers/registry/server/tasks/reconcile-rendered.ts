@@ -11,7 +11,7 @@ const CRON = '20 */6 * * *'
 export default defineScheduledTask({
   name: 'reconcile-rendered',
   cron: '20 */6 * * *',
-  description: 'Re-sync skills with non-ok rendered_status that have gone stale',
+  description: 'Re-sync skills with missing rendered content identity or stale render failures',
   async run({ context }) {
     const env = getTaskEnv(context)
     const db = env?.DB as D1Database | undefined
@@ -33,7 +33,7 @@ export default defineScheduledTask({
           `SELECT DISTINCT s.owner, s.repo
          FROM skills s
          JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-         WHERE (s.rendered_status IS NULL OR s.rendered_status != 'ok' OR s.rendered_skill_path IS NULL)
+         WHERE (s.rendered_status IS NULL OR s.rendered_status != 'ok' OR s.rendered_skill_path IS NULL OR s.rendered_raw_sha256 IS NULL)
            AND (s.last_synced_at IS NULL OR s.last_synced_at < ?1)
            AND r.broken_since IS NULL
          ORDER BY s.last_synced_at IS NULL DESC, s.last_synced_at ASC
