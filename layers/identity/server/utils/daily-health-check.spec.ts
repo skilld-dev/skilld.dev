@@ -306,6 +306,12 @@ describe('buildDailyHealthCheck', () => {
       INSERT INTO discovery_candidates VALUES (
         'exhausted', 'rejected', 'no_supported_skill_paths', NULL, NULL
       );
+      -- A rejection is a decision whatever its reason; dynamic reasons like a
+      -- parse failure's path can never match a static reason list, so the alarm
+      -- must key on the outcome, not the reason.
+      INSERT INTO discovery_candidates VALUES (
+        'exhausted', 'rejected', 'skill_parse_rejected:skills/one/SKILL.md', NULL, NULL
+      );
     `)
     const insertScheduledRun = sqlite.prepare(`
       INSERT INTO scheduled_runs (

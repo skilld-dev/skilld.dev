@@ -277,6 +277,9 @@ describe('durable discovery candidates', () => {
     'no_supported_skill_paths',
     'root_skill_unsupported',
     'trust_inputs_insufficient',
+    'repo fetch 404',
+    'repo fetch 410',
+    'tree_truncated',
   ])('exhausts deterministic rejection %s after the first attempt', async (reason) => {
     await upsertDiscoveryCandidate(db, {
       owner: 'acme',

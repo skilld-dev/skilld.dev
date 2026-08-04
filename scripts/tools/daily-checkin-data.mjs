@@ -192,7 +192,10 @@ const d1 = probe(() => {
     has('ai_batches') ? `(SELECT COUNT(*) FROM ai_batches WHERE status IN ('failed','expired') AND COALESCE(completed_at, submitted_at) >= ${sinceSec}) AS ai_failed` : 'NULL AS ai_failed',
     has('embedding_attempts') ? `(SELECT COUNT(*) FROM embedding_attempts WHERE state = 'completed' AND started_at >= ${sinceSec}) AS embeddings_completed` : 'NULL AS embeddings_completed',
     has('embedding_attempts') ? `(SELECT COUNT(*) FROM embedding_attempts WHERE state IN ('provider_failed','rejected','vector_succeeded_marker_failed') AND started_at >= ${sinceSec}) AS embeddings_failed` : 'NULL AS embeddings_failed',
-    has('embedding_attempts') ? `(SELECT COUNT(*) FROM embedding_attempts WHERE state = 'started' AND started_at < ${Math.floor(now.getTime() / 1000) - 3600}) AS embeddings_stuck` : 'NULL AS embeddings_stuck',
+    // Bounded below at 7 days: `started` rows abandoned by a closed incident
+    // otherwise read as a live fault forever (6 rows from Jul 23/29 did exactly
+    // that on 2026-08-04). A row stuck past 7 days is history, not an incident.
+    has('embedding_attempts') ? `(SELECT COUNT(*) FROM embedding_attempts WHERE state = 'started' AND started_at < ${Math.floor(now.getTime() / 1000) - 3600} AND started_at >= ${Math.floor(now.getTime() / 1000) - 604800}) AS embeddings_stuck` : 'NULL AS embeddings_stuck',
     has('failed_jobs') ? `(SELECT COUNT(*) FROM failed_jobs WHERE failed_at >= ${sinceSec}) AS failed_jobs` : 'NULL AS failed_jobs',
     has('jobs') ? `(SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ${Math.floor(now.getTime() / 1000) - 900} AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs` : 'NULL AS stale_reserved_jobs',
   ]

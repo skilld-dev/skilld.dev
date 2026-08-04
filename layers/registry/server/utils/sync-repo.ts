@@ -468,6 +468,14 @@ async function getRepoKindOverride(db: D1Database, owner: string, repo: string):
   return row?.kind ?? null
 }
 
+async function hasEligibleReview(db: D1Database, owner: string, repo: string): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT 1 AS present FROM skill_repo_eligibility WHERE owner = ? AND repo = ? AND status = 'eligible'`)
+    .bind(owner, repo)
+    .first<{ present: number }>()
+  return row !== null
+}
+
 function classifyRepoKind(skillCount: number): RepoKind {
   if (skillCount > 100)
     return 'aggregator'
@@ -651,6 +659,7 @@ export async function syncRepo(
   const repoCreatedAt = epoch(meta.created_at)
   const repoDescription = meta.description?.trim() || null
   const repoOverride = await getRepoTrustOverride(db, owner, repo)
+  const reviewEligible = await hasEligibleReview(db, owner, repo)
   const kindOverride = await getRepoKindOverride(db, owner, repo)
   const repoKind: RepoKind = kindOverride ?? classifyRepoKind(skillFiles.length)
   const repoKindSource: 'computed' | 'override' = kindOverride ? 'override' : 'computed'
@@ -887,10 +896,12 @@ export async function syncRepo(
 
       // Indexable-only ingestion gate. The passive crawl must not repopulate the
       // long tail we retired: a brand-new skill is persisted only if it is
-      // official, owner-verified, or already clears the indexability bar on first
-      // sync. Existing rows always continue to update (and can graduate via the
-      // nightly recompute). Skipped before any revisions/skills write.
-      const admit = !isNewToRegistry || isOfficial || ownerVerified || indexability.indexable
+      // official, owner-verified, editorially reviewed as eligible, or already
+      // clears the indexability bar on first sync. An eligible review admits the
+      // skill without granting SEO indexability. Existing rows always continue
+      // to update (and can graduate via the nightly recompute). Skipped before
+      // any revisions/skills write.
+      const admit = !isNewToRegistry || isOfficial || ownerVerified || reviewEligible || indexability.indexable
       if (!admit)
         continue
 

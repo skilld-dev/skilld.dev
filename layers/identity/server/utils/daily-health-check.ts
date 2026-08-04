@@ -3,7 +3,6 @@
 import type { TokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import type { LatestScheduledRun, ScheduleHealth } from '#shared/schedule-policy'
 import type { SendEmailInput, SendEmailResult } from './email'
-import { TERMINAL_DISCOVERY_REJECTION_REASONS } from '#layers/registry/server/utils/discovery-candidates'
 import { parseTokenExpiry, tokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
 
@@ -549,9 +548,6 @@ async function loadActivity(
 }
 
 async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): Promise<DailyHealthCheckSummary['pipeline']> {
-  const terminalDiscoveryRejections = TERMINAL_DISCOVERY_REJECTION_REASONS
-    .map(reason => `'${reason}'`)
-    .join(', ')
   const [row, jobRows, scheduledRunRows, failedJobRows] = await Promise.all([
     first<PipelineRow>(db, `
       SELECT
@@ -591,12 +587,13 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
         (SELECT COUNT(*) FROM failed_jobs WHERE failed_at >= ?1) AS failed_jobs_24h,
         (SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ?4 AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs,
         (SELECT COUNT(*) FROM job_batches WHERE failed_jobs > 0 AND finished_at IS NULL) AS open_failed_batches,
+        -- A rejection is a decision whatever its reason (parse failures carry
+        -- the offending path in the reason, so no static list can match them).
+        -- The alarm exists for candidates that ran out of retries with no
+        -- decision recorded, and only 'retryable_failure' means that.
         (SELECT COUNT(*) FROM discovery_candidates
           WHERE retry_state = 'exhausted'
-            AND NOT (
-              outcome = 'rejected'
-              AND rejection_reason IN (${terminalDiscoveryRejections})
-            )) AS discovery_candidates_exhausted,
+            AND outcome = 'retryable_failure') AS discovery_candidates_exhausted,
         (SELECT COUNT(*) FROM discovery_candidates
           WHERE retry_state = 'retry_scheduled' AND next_retry_at < ?5) AS discovery_candidates_overdue,
         (SELECT COUNT(*) FROM discovery_candidates

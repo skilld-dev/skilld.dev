@@ -306,6 +306,13 @@ function createDatabase(): Database.Database {
       owner TEXT NOT NULL, repo TEXT NOT NULL, kind TEXT NOT NULL,
       PRIMARY KEY (owner, repo)
     );
+    CREATE TABLE skill_repo_eligibility (
+      owner TEXT NOT NULL, repo TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('eligible', 'rejected')),
+      reason TEXT NOT NULL, reviewed_by TEXT NOT NULL,
+      reviewed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      PRIMARY KEY (owner, repo)
+    );
   `)
   return sqlite
 }

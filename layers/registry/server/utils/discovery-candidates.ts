@@ -286,6 +286,12 @@ export const TERMINAL_DISCOVERY_REJECTION_REASONS = [
   'no_supported_skill_paths',
   'root_skill_unsupported',
   'trust_inputs_insufficient',
+  // Permanent sync failures: retrying a repository upstream reports as gone
+  // (or one whose tree exceeds the API's limits) burns the full attempt budget
+  // to learn nothing new, then trips the exhausted-retries alarm.
+  'repo fetch 404',
+  'repo fetch 410',
+  'tree_truncated',
 ] as const
 
 const TERMINAL_REJECTION_REASONS = new Set<string>(TERMINAL_DISCOVERY_REJECTION_REASONS)

@@ -271,6 +271,54 @@ describe('syncRepo content acknowledgement', () => {
     })
   })
 
+  it('admits new skills from a repository with an eligible leaderboard review', async () => {
+    sqlite.prepare(`
+      INSERT INTO skill_repo_eligibility (
+        owner, repo, status, reason, reviewed_by
+      ) VALUES ('acme', 'skills', 'eligible', 'Individual creator publishing reusable skills', 'harlan-zw')
+    `).run()
+    github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-new' }]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({
+      status: 'indexed',
+      skillsUpserted: 1,
+    })
+    // The review admits the skill to the registry without granting SEO
+    // indexability; the scaled-content suppression bar still applies.
+    expect(sqlite.prepare(`
+      SELECT seo_indexable FROM skills
+      WHERE owner = 'acme' AND repo = 'skills' AND name = 'one'
+    `).get()).toEqual({ seo_indexable: 0 })
+  })
+
+  it('does not admit new skills from a repository whose review is rejected', async () => {
+    sqlite.prepare(`
+      INSERT INTO skill_repo_eligibility (
+        owner, repo, status, reason, reviewed_by
+      ) VALUES ('acme', 'skills', 'rejected', 'Aggregated third-party content', 'harlan-zw')
+    `).run()
+    github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-new' }]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({ status: 'rejected', reason: 'trust_inputs_insufficient' })
+    expect(sqlite.prepare(`SELECT count(*) FROM skills`).pluck().get()).toBe(0)
+  })
+
   it('fetches and renders only content whose tree SHA changed', async () => {
     insertRepo(sqlite, 'old-tree')
     insertSkill(sqlite, 'one', 'one-old')
@@ -554,6 +602,13 @@ function createDatabase(): Database.Database {
     );
     CREATE TABLE repo_kind_overrides (
       owner TEXT NOT NULL, repo TEXT NOT NULL, kind TEXT NOT NULL,
+      PRIMARY KEY (owner, repo)
+    );
+    CREATE TABLE skill_repo_eligibility (
+      owner TEXT NOT NULL, repo TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('eligible', 'rejected')),
+      reason TEXT NOT NULL, reviewed_by TEXT NOT NULL,
+      reviewed_at INTEGER NOT NULL DEFAULT (unixepoch()),
       PRIMARY KEY (owner, repo)
     );
   `)
