@@ -56,10 +56,6 @@ export function skillSlug(row: Pick<DuplicateCandidate, 'owner' | 'repo' | 'name
   return `${row.owner}/${row.repo}/${row.name}`
 }
 
-export function normalizeDuplicateText(value: string | null | undefined): string {
-  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
-}
-
 export function duplicateRankingSignals(row: DuplicateCandidate): DuplicateRankingSignals {
   return {
     supportTier: row.support_tier,
@@ -119,10 +115,6 @@ export function findDuplicateGroupForSlug<T extends DuplicateCandidate>(
   slug: string,
 ): DuplicateGroupRecommendation<T> | null {
   return findDuplicateCanonicalGroups(rows).find(group => group.rows.some(row => skillSlug(row) === slug)) ?? null
-}
-
-export function duplicateCanonicalSlugSet(rows: DuplicateCandidate[]): Set<string> {
-  return new Set(findDuplicateCanonicalGroups(rows).map(group => skillSlug(group.canonical)))
 }
 
 export function duplicateWeakerSlugSet(rows: DuplicateCandidate[]): Set<string> {

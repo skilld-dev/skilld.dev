@@ -589,11 +589,6 @@ async function listDuplicateCandidateRows(
   return rows
 }
 
-export async function findSupportedDuplicateGroupForSkill(event: H3Event, slug: string): Promise<SkillDuplicateGroup | null> {
-  const rows = await listDuplicateCandidateRows(event, { supportedOnly: true })
-  return findDuplicateGroupInRows(rows, slug)
-}
-
 export async function findDuplicateGroupForSkill(event: H3Event, slug: string): Promise<SkillDuplicateGroup | null> {
   const rows = await listDuplicateCandidateRows(event, { supportedOnly: false, includeAggregators: true })
   return findDuplicateGroupInRows(rows, slug)
