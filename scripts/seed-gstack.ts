@@ -9,69 +9,17 @@
  *   npx wrangler d1 execute skilld-db --local --file=scripts/seed-gstack.sql
  */
 
+import { parseSkillFile } from '../layers/registry/server/utils/skill-frontmatter'
+
 interface TreeEntry {
   path: string
   type: string
   sha: string
 }
 
-interface Frontmatter {
-  name?: string
-  description?: string
-}
-
 const OWNER = 'garrytan'
 const REPO = 'gstack'
 const BRANCH = 'main'
-
-function parseFrontmatter(md: string): Frontmatter {
-  const m = md.match(/^---\n([\s\S]*?)\n---/)
-  if (!m)
-    return {}
-  const fm: Frontmatter = {}
-  const lines = m[1]!.split('\n')
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!
-    const kv = line.match(/^(\w[\w-]*):(.*)$/)
-    if (!kv)
-      continue
-    const [, key, rawVal] = kv as [string, string, string]
-    const val = rawVal.trim()
-
-    let value = ''
-    if (val === '|' || val === '>') {
-      // YAML block scalar — collect indented lines following.
-      const blockLines: string[] = []
-      const blockStart = i + 1
-      while (i + 1 < lines.length) {
-        const next = lines[i + 1]!
-        if (!next.startsWith('  ') && next.trim() !== '')
-          break
-        blockLines.push(next.replace(/^ {2}/, ''))
-        i++
-      }
-      void blockStart
-      value = val === '>' ? blockLines.join(' ').replace(/\s+/g, ' ').trim() : blockLines.join('\n').trim()
-    }
-    else {
-      value = val.replace(/^["']|["']$/g, '').trim()
-    }
-
-    if (key === 'name')
-      fm.name = value
-    else if (key === 'description')
-      fm.description = value.replace(/\s+/g, ' ').trim()
-  }
-  return fm
-}
-
-function titleCase(slug: string): string {
-  return slug
-    .replace(/[-_/]/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase())
-    .trim()
-}
 
 function sqlEscape(value: string | number | null): string {
   if (value === null)
@@ -123,17 +71,19 @@ async function main() {
       process.stderr.write(`  SKIP ${entry.path}: fetch failed\n`)
       continue
     }
-    const fm = parseFrontmatter(content)
     const dirName = entry.path.split('/')[0]!
-    const skillName = (fm.name || dirName).toLowerCase().replace(/\s+/g, '-')
-    const displayName = fm.name || titleCase(dirName)
+    const parsed = parseSkillFile(content, dirName)
+    if (!parsed) {
+      process.stderr.write(`  SKIP ${entry.path}: invalid skill directory\n`)
+      continue
+    }
     rows.push({
-      name: skillName,
-      displayName,
-      description: fm.description ?? null,
+      name: parsed.name,
+      displayName: parsed.displayName,
+      description: parsed.description,
       skillPath: entry.path,
     })
-    process.stderr.write(`  ${skillName} — ${(fm.description ?? '').slice(0, 80)}\n`)
+    process.stderr.write(`  ${parsed.name}: ${(parsed.description ?? '').slice(0, 80)}\n`)
   }
 
   const now = Math.floor(Date.now() / 1000)

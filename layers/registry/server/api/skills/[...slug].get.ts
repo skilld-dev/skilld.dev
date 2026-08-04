@@ -1,11 +1,11 @@
 import type { H3Event } from 'h3'
-import { SkillDetailResponseSchema } from 'skilld-protocol/wire'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
+import { SkillDetailResponseSchema } from '../../schemas/skill-responses'
 import { getTree, resolveGithubBindings } from '../../utils/github-client'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { getGenerated } from '../../utils/skill-generated'

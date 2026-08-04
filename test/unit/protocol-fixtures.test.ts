@@ -20,8 +20,6 @@ import {
   OauthRefreshInputSchema,
   OauthTokenInputSchema,
   OidcExchangeInputSchema,
-  SkillDetailResponseSchema,
-  SkillLiveResponseSchema,
   SkillsResolveInputSchema,
   SkillsResolveResponseSchema,
   TokenResponseSchema,
@@ -30,8 +28,6 @@ import { describe, expect, it } from 'vitest'
 
 describe('skilld-protocol fixtures round-trip in site', () => {
   it.each([
-    ['audit.skillLivePass', SkillLiveResponseSchema, fixtures.audit.skillLivePass],
-    ['audit.skillLiveWarn', SkillLiveResponseSchema, fixtures.audit.skillLiveWarn],
     ['audit.entryFail', AuditEntrySchema, fixtures.audit.entryFail],
     ['auth.tokenResponse', TokenResponseSchema, fixtures.auth.tokenResponse],
     ['device.startResponse', DeviceStartResponseSchema, fixtures.device.startResponse],
@@ -48,7 +44,6 @@ describe('skilld-protocol fixtures round-trip in site', () => {
     ['device.pollInput', DevicePollInputSchema, fixtures.device.pollInput],
     ['skills.resolveInput', SkillsResolveInputSchema, fixtures.skills.resolveInput],
     ['skills.resolveResponse', SkillsResolveResponseSchema, fixtures.skills.resolveResponse],
-    ['skills.detail', SkillDetailResponseSchema, fixtures.skills.detail],
   ] as const)('%s parses cleanly', (_name, schema, value) => {
     const result = schema.safeParse(value)
     if (!result.success)

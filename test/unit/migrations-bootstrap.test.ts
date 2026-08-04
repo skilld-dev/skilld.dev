@@ -19,6 +19,18 @@ describe('d1 migration bootstrap', () => {
             VALUES ('migration-check', 'skilld-dev', 'skills', 'Migration Check', 'skilld-dev/migration-check', 'preserved');
           `)
         }
+        if (migration === '0088_skill_labels_from_source.sql') {
+          sqlite.exec(`
+            INSERT INTO repos (owner, repo) VALUES ('label-test', 'skills');
+            INSERT INTO skills (
+              owner, repo, name, display_name, slug, rendered_frontmatter
+            ) VALUES
+              ('label-test', 'skills', 'slug-name', 'Slug Name', 'label-test/slug-name', '{"name":"source-name"}'),
+              ('label-test', 'skills', 'source-acronym', 'Source Acronym', 'label-test/source-acronym', '{"name":"API"}'),
+              ('label-test', 'skills', 'missing-name', 'Missing Name', 'label-test/missing-name', '{"description":"No name"}'),
+              ('label-test', 'skills', 'invalid-cache', 'Invalid Cache', 'label-test/invalid-cache', 'invalid json');
+          `)
+        }
         sqlite.exec(readFileSync(resolve(migrationsDir, migration), 'utf8'))
       }
 
@@ -29,6 +41,17 @@ describe('d1 migration bootstrap', () => {
       expect(sqlite.prepare(
         `SELECT owner, repo, description FROM skills WHERE name = 'migration-check'`,
       ).get()).toEqual({ owner: 'skilld-dev', repo: 'skills', description: 'preserved' })
+      expect(sqlite.prepare(`
+        SELECT name, display_name
+        FROM skills
+        WHERE owner = 'label-test'
+        ORDER BY name
+      `).all()).toEqual([
+        { name: 'invalid-cache', display_name: 'invalid-cache' },
+        { name: 'missing-name', display_name: 'missing-name' },
+        { name: 'slug-name', display_name: 'source-name' },
+        { name: 'source-acronym', display_name: 'API' },
+      ])
 
       const pendingIndex = sqlite.prepare(
         `SELECT name FROM sqlite_schema
@@ -230,7 +253,7 @@ describe('d1 migration bootstrap', () => {
       expect(sqlite.prepare(`PRAGMA table_info(skills_fts)`).all()
         .map(column => (column as { name: string }).name))
         .toEqual(['name', 'owner', 'repo', 'display_name', 'slug', 'description'])
-      expect(migrations.at(-1)).toBe('0087_skills_fts_description.sql')
+      expect(migrations.at(-1)).toBe('0088_skill_labels_from_source.sql')
     }
     finally {
       sqlite.close()

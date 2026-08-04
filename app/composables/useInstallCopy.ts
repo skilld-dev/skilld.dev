@@ -23,7 +23,11 @@ export function useInstallCopy(
   surface: string,
   target: MaybeRefOrGetter<InstallTarget | null>,
 ) {
-  const { copy: rawCopy, copied, isSupported } = useClipboard({ source, copiedDuring: 2000 })
+  const { copy: rawCopy, copied, isSupported } = useClipboard({
+    source,
+    copiedDuring: 2000,
+    legacy: true,
+  })
 
   async function copy(value?: string): Promise<InstallCopyResult> {
     const t = toValue(target)

@@ -33,6 +33,7 @@ async function watchNow() {
     size="sm"
     color="neutral"
     variant="outline"
+    class="min-h-11 justify-start"
   />
   <UButton
     v-else-if="watched"
@@ -41,6 +42,7 @@ async function watchNow() {
     size="sm"
     color="neutral"
     variant="ghost"
+    class="min-h-11 justify-start"
     disabled
   />
   <UButton
@@ -51,6 +53,7 @@ async function watchNow() {
     size="sm"
     color="neutral"
     variant="outline"
+    class="min-h-11 justify-start"
     @click="watchNow"
   />
 </template>

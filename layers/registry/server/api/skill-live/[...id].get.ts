@@ -1,15 +1,10 @@
 import type { AuditEntry } from 'skilld-protocol/wire'
+import type { SkillAuditResponse } from '../../schemas/skill-responses'
+import { SkillAuditResponseSchema } from '../../schemas/skill-responses'
 
 interface SkillsShAuditResponse {
   id?: string
   audits?: AuditEntry[]
-}
-
-interface SkillAuditResponse {
-  id: string
-  audits: AuditEntry[]
-  source: 'skills.sh'
-  fetchedAt: string
 }
 
 async function fetchAuditsFromApi(id: string): Promise<AuditEntry[]> {
@@ -40,12 +35,12 @@ export default defineCachedEventHandler(async (event): Promise<SkillAuditRespons
   const id = segments.join('/')
   const audits = await fetchAuditsFromApi(id)
 
-  return {
+  return SkillAuditResponseSchema.parse({
     id,
     audits,
     source: 'skills.sh',
     fetchedAt: new Date().toISOString(),
-  }
+  })
 }, {
   maxAge: 60 * 60, // 1 hour fresh
   staleMaxAge: 60 * 60 * 24 * 7, // 1 week stale-while-revalidate window

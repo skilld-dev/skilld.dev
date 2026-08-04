@@ -15,6 +15,7 @@ describe('skill source list', () => {
     expect([...Map.groupBy(homepagePersonSkillFallbacks, skill => skill.owner).values()]
       .every(skills => skills.length <= 2)).toBe(true)
     expect(homepagePersonSkillFallbacks.every(skill => skill.maintainerName)).toBe(true)
+    expect(homepagePersonSkillFallbacks.every(skill => skill.displayName === skill.name)).toBe(true)
   })
 
   it('caps each person at two skills while filling the stream', () => {

@@ -255,13 +255,10 @@ export default defineNuxtConfig({
     },
   },
 
-  // Shiki highlighting for mdc-rendered content (npm migration guides via mdxg).
-  // `shikiEngine: 'javascript'` uses Shiki's JS regex engine instead of the
-  // Oniguruma WASM engine, which Cloudflare workerd can't load at SSR time —
-  // this lets the mdxg highlighter run server-side (see modules/mdxg). `diff`
-  // is the dominant lang in the guides and is NOT in mdc's default set, so it
-  // must be listed explicitly. Dual theme keys (light/dark) emit per-span
-  // `--shiki-light`/`--shiki-dark` CSS vars consumed in app/assets/css/main.css.
+  // Shiki highlighting for server-rendered MDC and raw skill markdown.
+  // The JavaScript regex engine works in Cloudflare workerd without
+  // Oniguruma WASM. Explicit languages cover common SKILL.md examples.
+  // Dual themes emit the CSS variables consumed by app/assets/css/main.css.
   mdc: {
     highlight: {
       shikiEngine: 'javascript',

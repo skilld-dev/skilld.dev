@@ -7,8 +7,9 @@
 
 import { officialRepos } from '#layers/registry/server/data/official-repos'
 import { getDB } from '#server/utils/db'
+import { buildOfficialOwnerFilter } from '../../utils/recent-publishes-query'
 
-const officialOwners = officialRepos.map(r => r.owner)
+const officialOwnerFilter = buildOfficialOwnerFilter(officialRepos.map(r => r.owner))
 
 interface FeedRow {
   owner: string
@@ -41,7 +42,6 @@ export interface RecentPublishesResponse {
 export default defineCachedEventHandler(
   async (event): Promise<RecentPublishesResponse> => {
     const db = getDB(event)
-    const placeholders = officialOwners.map(() => '?').join(',')
     const res = await db
       .prepare(
         `SELECT a.owner, a.name, a.occurred_at, a.sha,
@@ -51,11 +51,11 @@ export default defineCachedEventHandler(
          LEFT JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
          LEFT JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
          WHERE a.type = 'skill_published'
-           AND a.owner IN (${placeholders})
+           AND ${officialOwnerFilter.sql}
          ORDER BY a.occurred_at DESC
          LIMIT 12`,
       )
-      .bind(...officialOwners)
+      .bind(...officialOwnerFilter.params)
       .all<FeedRow>()
     const items = (res.results ?? []).map(row => ({
       owner: row.owner,
