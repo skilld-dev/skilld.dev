@@ -161,6 +161,9 @@ export default defineNuxtConfig({
   app: {
     buildAssetsDir: '/_nuxt/v2/',
     head: {
+      meta: [
+        { 'http-equiv': 'origin-trial', 'content': 'Auy85A/20M9GxT7GTSdCadWBhdADJXRmviBX/6dWjyQKWCCDVntG9PObBqShEmvEeMeRudWz7MyZf7y9SkaZMAwAAABKeyJvcmlnaW4iOiJodHRwczovL3NraWxsZC5kZXY6NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTc5NDg3MzYwMH0=' },
+      ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
