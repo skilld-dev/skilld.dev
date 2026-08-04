@@ -75,9 +75,9 @@ describe('parseSkillMd', () => {
     expect(second.html).not.toContain('first-owner')
   })
 
-  it('links valid same-repository skill references in prose', async () => {
+  it('preserves inline markdown while linking same-repository skill references', async () => {
     const parsed = await parseSkillMd(
-      'Use /tdd before /diagnose. Keep `/tdd`, /unknown, and https://example.com/tdd unchanged.',
+      'Use `/tdd` before /diagnose with **care**. Keep `CONTEXT.md`, [linked `/tdd`](https://example.com/docs), /unknown, and https://example.com/tdd unchanged.',
       {
         owner: 'acme',
         repo: 'skills',
@@ -91,7 +91,11 @@ describe('parseSkillMd', () => {
 
     expect(parsed.dependencies).toEqual(['tdd'])
     expect(parsed.html).toContain('<a href="/gh/acme/skills/tdd" data-skill-dependency="tdd">/tdd</a>')
-    expect(parsed.html).toContain('<code>/tdd</code>')
+    expect(parsed.html).not.toContain('`/tdd`')
+    expect(parsed.html).toContain('<strong>care</strong>')
+    expect(parsed.html).toContain('<code>CONTEXT.md</code>')
+    expect(parsed.html.match(/data-skill-dependency/g)).toHaveLength(1)
+    expect(parsed.html).toContain('linked <code>/tdd</code></a>')
     expect(parsed.html).toContain('/diagnose')
     expect(parsed.html).toContain('/unknown')
     expect(parsed.html).toContain('https://example.com/tdd')

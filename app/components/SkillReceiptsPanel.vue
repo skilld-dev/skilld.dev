@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { SkillAudit } from '../utils/skill-audit-overview'
+import { resolveSkillAuditOverview } from '../utils/skill-audit-overview'
+
 interface SkillProvenance {
   owner: string
   repo: string
@@ -12,15 +15,6 @@ interface SkillProvenance {
   referencesCount: number
   lastSyncedAt: number | null
   syncStatus: string | null
-}
-
-interface SkillAudit {
-  provider: string
-  slug: string
-  status: 'pass' | 'warn' | 'fail' | string
-  summary?: string
-  auditedAt?: string
-  riskLevel?: string
 }
 
 interface MaturitySummary {
@@ -64,12 +58,10 @@ const shortSha = computed(() =>
 )
 
 const AUDIT_META: Record<string, { icon: string, klass: string }> = {
-  pass: { icon: 'i-lucide-shield-check', klass: 'text-emerald-500' },
-  warn: { icon: 'i-lucide-shield-alert', klass: 'text-amber-500' },
-  fail: { icon: 'i-lucide-shield-x', klass: 'text-rose-500' },
+  pass: { icon: 'i-lucide-shield-check', klass: 'text-success' },
+  warn: { icon: 'i-lucide-shield-alert', klass: 'text-warning' },
+  fail: { icon: 'i-lucide-shield-x', klass: 'text-error' },
 }
-const PASS_AUDIT_META = AUDIT_META.pass!
-const WARN_AUDIT_META = AUDIT_META.warn!
 const FAIL_AUDIT_META = AUDIT_META.fail!
 function auditMeta(a: SkillAudit) {
   return AUDIT_META[a.status] ?? FAIL_AUDIT_META
@@ -87,51 +79,18 @@ function relativeDay(iso: string) {
   return `${Math.floor(days / 365)}y`
 }
 
-const auditOverview = computed(() => {
-  const failed = audits.filter(a => a.status === 'fail').length
-  const warned = audits.filter(a => a.status === 'warn').length
-  const passed = audits.filter(a => a.status === 'pass').length
-  const latestAuditedAt = audits
-    .map(a => a.auditedAt)
-    .filter((date): date is string => Boolean(date))
-    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
-  const riskLevels = audits
-    .map(a => a.riskLevel?.toUpperCase())
-    .filter((risk): risk is string => Boolean(risk))
+const auditOverview = computed(() => resolveSkillAuditOverview(audits))
 
-  if (failed > 0) {
-    return {
-      icon: FAIL_AUDIT_META.icon,
-      klass: FAIL_AUDIT_META.klass,
-      label: `${failed} alert${failed === 1 ? '' : 's'}`,
-      detail: `${audits.length} checks`,
-      latestAuditedAt,
-    }
-  }
-
-  if (warned > 0) {
-    return {
-      icon: WARN_AUDIT_META.icon,
-      klass: WARN_AUDIT_META.klass,
-      label: `${warned} warning${warned === 1 ? '' : 's'}`,
-      detail: `${audits.length} checks`,
-      latestAuditedAt,
-    }
-  }
-
-  return {
-    icon: PASS_AUDIT_META.icon,
-    klass: PASS_AUDIT_META.klass,
-    label: 'No alerts',
-    detail: `${passed || audits.length} check${(passed || audits.length) === 1 ? '' : 's'}${riskLevels.length ? ` · Risk ${riskLevels[0]}` : ''}`,
-    latestAuditedAt,
-  }
-})
+const AUDIT_TONE_CLASS = {
+  success: 'text-success',
+  warning: 'text-warning',
+  error: 'text-error',
+} as const
 
 const MATURITY_META: Record<MaturitySummary['cadence'], { icon: string, label: string, hint: string, klass: string }> = {
-  active: { icon: 'i-lucide-activity', label: 'Active', hint: 'Updated in the last 30 days', klass: 'text-emerald-500' },
+  active: { icon: 'i-lucide-activity', label: 'Active', hint: 'Updated in the last 30 days', klass: 'text-success' },
   steady: { icon: 'i-lucide-minus', label: 'Steady', hint: 'Updated in the last 6 months', klass: 'text-muted' },
-  dormant: { icon: 'i-lucide-moon', label: 'Dormant', hint: 'No updates in 6+ months', klass: 'text-amber-500' },
+  dormant: { icon: 'i-lucide-moon', label: 'Dormant', hint: 'No updates in 6+ months', klass: 'text-warning' },
 }
 
 const hasStatus = computed(() => Boolean(maturity || verifiedSummary))
@@ -164,13 +123,13 @@ const hasActions = computed(() => Boolean(provenance.skillFileUrl || provenance.
 
     <div class="rounded-lg border border-default min-h-[3.5rem]">
       <details
-        v-if="audits.length"
+        v-if="auditOverview"
         class="group"
       >
         <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors [&::-webkit-details-marker]:hidden">
           <UIcon
             :name="auditOverview.icon"
-            :class="auditOverview.klass"
+            :class="AUDIT_TONE_CLASS[auditOverview.tone]"
             class="size-4 shrink-0"
             aria-hidden="true"
           />
@@ -261,7 +220,7 @@ const hasActions = computed(() => Boolean(provenance.skillFileUrl || provenance.
             <UIcon
               name="i-lucide-key-round"
               class="size-3.5 shrink-0"
-              :class="verifiedSummary.verified === verifiedSummary.total ? 'text-emerald-500' : 'text-muted'"
+              :class="verifiedSummary.verified === verifiedSummary.total ? 'text-success' : 'text-muted'"
               aria-hidden="true"
             />
             <span class="tabular-nums">{{ verifiedSummary.verified }}/{{ verifiedSummary.total }}</span> signed

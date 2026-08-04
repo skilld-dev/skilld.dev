@@ -124,6 +124,13 @@ function createSkillMd(
   const dependencies = new Set<string>()
   const tokenizeSkillReferences = createSkillReferenceTokenizer(ctx?.skillNames ?? [], ctx?.name ?? '')
   let linkDepth = 0
+  const renderDependency = (name: string): string => {
+    dependencies.add(name)
+    const owner = ctx?.registryOwner ?? ctx?.owner ?? ''
+    const repo = ctx?.registryRepo ?? ctx?.repo ?? ''
+    const href = `/gh/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(name)}`
+    return `<a href="${href}" data-skill-dependency="${escapeHtml(name)}">/${escapeHtml(name)}</a>`
+  }
   const marked = new Marked({
     gfm: true,
     async: false,
@@ -144,20 +151,26 @@ function createSkillMd(
         const extra = external ? ' target="_blank" rel="noopener noreferrer"' : ''
         return `<a href="${escapeHtml(safe)}"${t}${extra}>${text}</a>`
       },
-      text(token: Tokens.Text | Tokens.Escape) {
+      text(this: Renderer, token: Tokens.Text | Tokens.Escape) {
+        if (token.type === 'text' && token.tokens?.length)
+          return this.parser.parseInline(token.tokens)
         if (token.type === 'escape' || linkDepth > 0 || !ctx?.skillNames?.length)
           return escapeHtml(token.text)
-        const owner = ctx.registryOwner ?? ctx.owner
-        const repo = ctx.registryRepo ?? ctx.repo
         return tokenizeSkillReferences(token.text)
           .map((part) => {
             if (part._tag === 'text')
               return escapeHtml(part.value)
-            dependencies.add(part.name)
-            const href = `/gh/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(part.name)}`
-            return `<a href="${href}" data-skill-dependency="${escapeHtml(part.name)}">/${escapeHtml(part.name)}</a>`
+            return renderDependency(part.name)
           })
           .join('')
+      },
+      codespan({ text }: Tokens.Codespan) {
+        if (linkDepth > 0)
+          return `<code>${escapeHtml(text)}</code>`
+        const parts = tokenizeSkillReferences(text)
+        if (parts.length === 1 && parts[0]?._tag === 'dependency')
+          return renderDependency(parts[0].name)
+        return `<code>${escapeHtml(text)}</code>`
       },
       image({ href, title, text }: { href: string, title?: string | null, text: string }) {
         const safe = sanitizeUrl(rewriteHref(href, 'image', ctx))

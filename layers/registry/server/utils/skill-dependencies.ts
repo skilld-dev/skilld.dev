@@ -16,7 +16,7 @@ export interface SkillDependencySource {
   raw: string | null
 }
 
-const SKIP_TOKEN_TYPES = new Set(['code', 'codespan', 'escape', 'html', 'image', 'link', 'tag'])
+const SKIP_TOKEN_TYPES = new Set(['code', 'escape', 'html', 'image', 'link', 'tag'])
 const CHILD_KEYS = ['tokens', 'items', 'header', 'rows'] as const
 
 function markdownBody(raw: string): string {
@@ -86,6 +86,12 @@ function collectDependencies(
   const token = value as Token & Record<string, unknown>
   if (typeof token.type === 'string' && SKIP_TOKEN_TYPES.has(token.type))
     return
+  if (token.type === 'codespan' && typeof token.text === 'string') {
+    const parts = tokenize(token.text)
+    if (parts.length === 1 && parts[0]?._tag === 'dependency')
+      dependencies.add(parts[0].name)
+    return
+  }
   if (token.type === 'text' && typeof token.text === 'string') {
     for (const part of tokenize(token.text)) {
       if (part._tag === 'dependency')

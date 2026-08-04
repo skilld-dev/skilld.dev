@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
+import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { resolveSkillTitle } from '../utils/skill-title'
 
 const props = defineProps<{
@@ -196,14 +198,6 @@ watch(slug, () => {
   refreshRelated()
 })
 
-interface SkillAudit {
-  provider: string
-  slug: string
-  status: 'pass' | 'warn' | 'fail' | string
-  summary?: string
-  auditedAt?: string
-  riskLevel?: string
-}
 interface LiveSkill {
   audits: SkillAudit[]
   fetchedAt: string
@@ -241,6 +235,13 @@ const treeAssets = computed(() => {
 })
 
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
+const auditOverview = computed(() => resolveSkillAuditOverview(audits.value))
+
+const AUDIT_TONE_CLASS = {
+  success: 'text-success',
+  warning: 'text-warning',
+  error: 'text-error',
+} as const
 
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 
@@ -505,7 +506,7 @@ watch(isNonMarkdownDoc, (nonMd) => {
   contentView.value = nonMd ? 'markdown' : 'preview'
 })
 
-const relatedTab = ref<string>('repo')
+const relatedTab = ref<string>('similar')
 
 const relatedTabsAvailable = computed<{ label: string, value: string, items: NeighborSkill[] | RelatedSkill[] }[]>(() => {
   const tabs: { label: string, value: string, items: NeighborSkill[] | RelatedSkill[] }[] = []
@@ -513,12 +514,12 @@ const relatedTabsAvailable = computed<{ label: string, value: string, items: Nei
   const paired = relatedData.value?.coOccurrenceSkills ?? []
   const similar = relatedData.value?.semanticSiblings ?? []
   const ownerItems = relatedData.value?.relatedOwnerSkills ?? []
-  if (repoItems.length)
-    tabs.push({ label: `From ${data.value?.owner ?? ''}/${data.value?.repo ?? ''}`, value: 'repo', items: repoItems })
-  if (paired.length)
-    tabs.push({ label: 'Paired with', value: 'paired', items: paired })
   if (similar.length)
     tabs.push({ label: 'Similar', value: 'similar', items: similar })
+  if (paired.length)
+    tabs.push({ label: 'Paired with', value: 'paired', items: paired })
+  if (repoItems.length)
+    tabs.push({ label: `From ${data.value?.owner ?? ''}/${data.value?.repo ?? ''}`, value: 'repo', items: repoItems })
   if (ownerItems.length)
     tabs.push({ label: `Other by ${data.value?.owner ?? ''}`, value: 'owner', items: ownerItems })
   return tabs
@@ -913,51 +914,20 @@ useHead(computed(() => ({
               Updated {{ pushedAtAgo }}
             </span>
             <a
-              v-if="data.provenance"
+              v-if="auditOverview"
               href="#receipts"
-              class="data-label inline-flex items-center gap-1 hover:text-default transition-colors"
-              title="View trust signals: audits, signed commits, source provenance"
+              class="inline-flex items-center gap-1 font-mono text-xs transition-colors hover:brightness-110"
+              :class="AUDIT_TONE_CLASS[auditOverview.tone]"
+              :title="`Security checks: ${auditOverview.label} · ${auditOverview.detail}. View full trust signals.`"
             >
               <UIcon
-                name="i-lucide-shield-check"
+                :name="auditOverview.icon"
                 class="size-3.5"
                 aria-hidden="true"
               />
-              Trust
+              {{ auditOverview.label }}
+              <span class="text-muted">· {{ auditOverview.detail }}</span>
             </a>
-          </div>
-
-          <div
-            v-if="data.tags.length || data.keywords?.length"
-            class="flex flex-wrap gap-1.5"
-          >
-            <NuxtLink
-              v-for="tag in data.tags"
-              :key="tag.slug"
-              :to="`/skills/tag/${tag.slug}`"
-              class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
-              :title="tag.description"
-            >
-              <UIcon
-                name="i-lucide-tag"
-                class="size-3"
-                aria-hidden="true"
-              />
-              {{ tag.label }}
-            </NuxtLink>
-            <NuxtLink
-              v-for="kw in data.keywords"
-              :key="`kw-${kw}`"
-              :to="`/skills/tag/${kw}`"
-              class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
-            >
-              <UIcon
-                name="i-lucide-hash"
-                class="size-3"
-                aria-hidden="true"
-              />
-              {{ kw }}
-            </NuxtLink>
           </div>
         </div>
       </template>
@@ -1438,6 +1408,56 @@ useHead(computed(() => ({
                 </dd>
               </div>
             </dl>
+          </section>
+
+          <section
+            v-if="data.tags.length || data.keywords?.length"
+            aria-labelledby="topics-heading"
+          >
+            <h2
+              id="topics-heading"
+              class="section-label mb-3"
+            >
+              Topics
+            </h2>
+            <ul
+              role="list"
+              class="flex flex-wrap gap-1.5"
+            >
+              <li
+                v-for="tag in data.tags"
+                :key="tag.slug"
+              >
+                <NuxtLink
+                  :to="`/skills/tag/${tag.slug}`"
+                  class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
+                  :title="tag.description"
+                >
+                  <UIcon
+                    name="i-lucide-tag"
+                    class="size-3"
+                    aria-hidden="true"
+                  />
+                  {{ tag.label }}
+                </NuxtLink>
+              </li>
+              <li
+                v-for="kw in data.keywords"
+                :key="`kw-${kw}`"
+              >
+                <NuxtLink
+                  :to="`/skills/tag/${kw}`"
+                  class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
+                >
+                  <UIcon
+                    name="i-lucide-hash"
+                    class="size-3"
+                    aria-hidden="true"
+                  />
+                  {{ kw }}
+                </NuxtLink>
+              </li>
+            </ul>
           </section>
 
           <section

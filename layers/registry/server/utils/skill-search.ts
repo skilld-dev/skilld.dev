@@ -18,7 +18,9 @@ import { nameMatchBoost, semanticSkillSearch } from './skill-semantic-search'
 export const RRF_K = 60
 
 /** Candidate pool depth per retriever. */
-export const SEMANTIC_TOP_K = 200
+// Vectorize caps metadata-rich queries at 50. That metadata carries the
+// owner/repo/name key needed to hydrate each opaque vector id.
+export const SEMANTIC_TOP_K = 50
 export const LEXICAL_TOP_K = 200
 
 const WHITESPACE_RE = /\s+/

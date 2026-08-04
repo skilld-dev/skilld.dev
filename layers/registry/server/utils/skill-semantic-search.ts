@@ -9,6 +9,7 @@ import { vectorIdFor } from './vector-id'
 // indexed skill vectors.
 const EMBEDDING_MODEL = '@cf/baai/bge-base-en-v1.5'
 const VECTORIZE_DIM = 768
+const VECTORIZE_METADATA_TOP_K = 50
 const ID_MAP_TTL_MS = 10 * 60 * 1000
 // Query vectors are a pure function of (model, text), so they only expire to
 // stop unbounded growth, not because they go stale.
@@ -38,6 +39,10 @@ interface SkillKey {
 export interface SemanticHit extends SkillKey {
   /** Cosine similarity from Vectorize, 0..1. */
   score: number
+}
+
+export function clampSemanticTopK(requested: number): number {
+  return Math.min(VECTORIZE_METADATA_TOP_K, Math.max(1, requested))
 }
 
 // Vectorize ids are sha256(owner/repo/name) (vector-id.ts), which we can't
@@ -83,7 +88,7 @@ export async function semanticSkillSearch(event: H3Event, query: string, topK = 
   // Vectors carry owner/repo/name in metadata, so asking for it back avoids
   // the sha256 id-map rebuild (a full scan of `skills`) on the search path.
   const res = await vectorize
-    .query(vec, { topK, returnValues: false, returnMetadata: 'all' })
+    .query(vec, { topK: clampSemanticTopK(topK), returnValues: false, returnMetadata: 'all' })
     .catch((error) => {
       console.warn(`[semantic-search] ${error instanceof Error ? error.message : String(error)}`)
       return null

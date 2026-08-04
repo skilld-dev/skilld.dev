@@ -24,7 +24,7 @@ describe('skill dependencies', () => {
       raw,
       ['current', 'tdd', 'review', 'linked'],
       'current',
-    )).toEqual(['tdd', 'review'])
+    )).toEqual(['tdd', 'review', 'linked'])
   })
 
   it('excludes unknown skills, path segments, and self references', () => {
