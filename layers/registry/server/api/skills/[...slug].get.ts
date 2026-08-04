@@ -161,6 +161,10 @@ interface SkillDetailRow {
   rendered_at: number | null
 }
 
+interface RepoSkillNameRow {
+  name: string
+}
+
 export default defineApiHandler({
   response: SkillDetailResponseSchema,
   handler: async ({ event, platform }) => {
@@ -172,7 +176,7 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow] = await Promise.all([
+    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows] = await Promise.all([
       getEndorsementsForSkill(platform.db, skill.name),
       platform.db
         .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
@@ -194,11 +198,16 @@ export default defineApiHandler({
       getGenerated<FaqPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'faq' }),
       getGenerated<TagPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'tags' }),
       getGenerated<SummaryPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'summary' }),
+      platform.db
+        .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
+        .bind(skill.owner, skill.repo)
+        .all<RepoSkillNameRow>(),
     ])
 
     const source = resolveRepoSourceIdentityFromRow(skill, row)
     const githubUrl = `https://github.com/${source.owner}/${source.repo}`
     const branch = row?.default_branch || 'main'
+    const repoSkillNames = (repoSkillRows.results ?? []).map(candidate => candidate.name)
 
     // Warm path: render is in D1. Cold path (legacy rows or fetch_failed
     // status): fall back to a live render so the first visit still works,
@@ -213,6 +222,9 @@ export default defineApiHandler({
             branch,
             skillDir: row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? '',
             filePath: '',
+            skillNames: repoSkillNames,
+            registryOwner: skill.owner,
+            registryRepo: skill.repo,
           })
         : null
       rendered = {
@@ -221,11 +233,20 @@ export default defineApiHandler({
         frontmatter: reparsed?.frontmatter ?? parseFrontmatterJson(row.rendered_frontmatter),
         body: reparsed?.body ?? stripFrontmatter(row.rendered_raw ?? ''),
         html: reparsed?.html ?? row.rendered_html,
+        dependencies: reparsed?.dependencies ?? [],
         status: 'ok',
       }
     }
     else {
-      rendered = await renderLive(event, source.owner, source.repo, skill.name, branch)
+      rendered = await renderLive(event, {
+        sourceOwner: source.owner,
+        sourceRepo: source.repo,
+        registryOwner: skill.owner,
+        registryRepo: skill.repo,
+        name: skill.name,
+        branch,
+        skillNames: repoSkillNames,
+      })
       // Cache cold-path result back to D1 so subsequent visits hit the warm
       // path. Fire-and-forget; missing waitUntil context (e.g. local dev)
       // just means we await it inline.
@@ -235,7 +256,7 @@ export default defineApiHandler({
     // Stale refresh: only fire when rendered_at older than threshold.
     const renderedAge = secondsAgo(row?.rendered_at)
     if (row?.rendered_html && renderedAge != null && renderedAge > LIVE_RENDER_STALE_SECONDS)
-      scheduleRefresh(event, platform.db, skill, source, skill.name, branch)
+      scheduleRefresh(event, platform.db, skill, source, skill.name, branch, repoSkillNames)
 
     const rawAiTags = tagRow?.payload.tags ?? []
     const tags = rawAiTags
@@ -276,6 +297,7 @@ export default defineApiHandler({
       resolutionStatus: rendered.status,
       content: rendered.body,
       contentHtml: rendered.html,
+      dependencies: rendered.dependencies,
       frontmatter: rendered.frontmatter,
       raw: rendered.raw,
       assets,
@@ -378,7 +400,18 @@ interface RenderedView {
   frontmatter: Record<string, unknown> | null
   body: string | null
   html: string | null
+  dependencies: string[]
   status: 'ok' | 'path_missing' | 'fetch_failed'
+}
+
+interface RenderLiveOptions {
+  sourceOwner: string
+  sourceRepo: string
+  registryOwner: string
+  registryRepo: string
+  name: string
+  branch: string
+  skillNames: string[]
 }
 
 function parseFrontmatterJson(value: string | null): Record<string, unknown> | null {
@@ -405,11 +438,9 @@ function stripFrontmatter(raw: string): string {
 // (e.g. Claude plugin repos mirroring under `.claude/skills/<name>/SKILL.md`).
 async function renderLive(
   event: H3Event,
-  owner: string,
-  repo: string,
-  name: string,
-  branch: string,
+  options: RenderLiveOptions,
 ): Promise<RenderedView> {
+  const { sourceOwner, sourceRepo, registryOwner, registryRepo, name, branch, skillNames } = options
   const candidates = [
     `skills/${name}/SKILL.md`,
     `${name}/SKILL.md`,
@@ -418,20 +449,31 @@ async function renderLive(
     `plugin/skills/${name}/SKILL.md`,
   ]
   for (const path of candidates) {
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`
+    const url = `https://raw.githubusercontent.com/${sourceOwner}/${sourceRepo}/${branch}/${path}`
     const raw = await $fetch<string>(url, { responseType: 'text' }).catch((error) => {
       console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
       return null
     })
     if (raw) {
       const skillDir = path.replace(/\/SKILL\.md$/, '')
-      const parsed = await parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
+      const parsed = await parseSkillMd(raw, {
+        owner: sourceOwner,
+        repo: sourceRepo,
+        name,
+        branch,
+        skillDir,
+        filePath: '',
+        skillNames,
+        registryOwner,
+        registryRepo,
+      })
       return {
         skillPath: path,
         raw,
         frontmatter: parsed.frontmatter,
         body: parsed.body,
         html: parsed.html,
+        dependencies: parsed.dependencies,
         status: 'ok',
       }
     }
@@ -440,7 +482,7 @@ async function renderLive(
   // Authenticated GitHub trees API (matches sync-repo.ts). Recursive listing
   // surfaces nested or dotfile-mirrored layouts the candidates above miss.
   const bindings = resolveGithubBindings(event.context.platform?.env)
-  const treeRes = await getTree(owner, repo, branch, bindings).catch((error) => {
+  const treeRes = await getTree(sourceOwner, sourceRepo, branch, bindings).catch((error) => {
     console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
     return null
   })
@@ -448,26 +490,37 @@ async function renderLive(
     e => e.type === 'blob' && e.path.endsWith(`/${name}/SKILL.md`),
   )
   if (match) {
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${match.path}`
+    const url = `https://raw.githubusercontent.com/${sourceOwner}/${sourceRepo}/${branch}/${match.path}`
     const raw = await $fetch<string>(url, { responseType: 'text' }).catch((error) => {
       console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
       return null
     })
     if (raw) {
       const skillDir = match.path.replace(/\/SKILL\.md$/, '')
-      const parsed = await parseSkillMd(raw, { owner, repo, name, branch, skillDir, filePath: '' })
+      const parsed = await parseSkillMd(raw, {
+        owner: sourceOwner,
+        repo: sourceRepo,
+        name,
+        branch,
+        skillDir,
+        filePath: '',
+        skillNames,
+        registryOwner,
+        registryRepo,
+      })
       return {
         skillPath: match.path,
         raw,
         frontmatter: parsed.frontmatter,
         body: parsed.body,
         html: parsed.html,
+        dependencies: parsed.dependencies,
         status: 'ok',
       }
     }
   }
 
-  return { skillPath: null, raw: null, frontmatter: null, body: null, html: null, status: 'path_missing' }
+  return { skillPath: null, raw: null, frontmatter: null, body: null, html: null, dependencies: [], status: 'path_missing' }
 }
 
 function schedulePersist(event: H3Event, db: D1Database, owner: string, repo: string, name: string, rendered: RenderedView): void {
@@ -501,9 +554,18 @@ function scheduleRefresh(
   source: { owner: string, repo: string },
   name: string,
   branch: string,
+  skillNames: string[],
 ): void {
   const promise = (async () => {
-    const live = await renderLive(event, source.owner, source.repo, name, branch)
+    const live = await renderLive(event, {
+      sourceOwner: source.owner,
+      sourceRepo: source.repo,
+      registryOwner: registry.owner,
+      registryRepo: registry.repo,
+      name,
+      branch,
+      skillNames,
+    })
     if (live.status !== 'ok' || !live.html || live.raw === null)
       return
     const renderedRawSha256 = await skillContentSha256(live.raw)

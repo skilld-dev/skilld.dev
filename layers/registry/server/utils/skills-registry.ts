@@ -4,6 +4,7 @@ import type { AlternateSource, HybridSearchResult, SearchMode } from './skill-se
 import { getDB } from '#server/utils/db'
 import { writeCache } from '#shared/server/cache'
 import { JOIN_REPOS_SQL, notAggregatorSql, notBrokenSql } from './broken'
+import { buildSkillDependencyMap, skillDependencyKey } from './skill-dependencies'
 import {
   duplicateWeakerSlugSet,
   findDuplicateGroupForSlug,
@@ -34,6 +35,7 @@ export interface RegistrySkill {
   trustScore: number
   pushedAt: number | null
   modifiedAt: number | null
+  dependencies?: string[]
   /**
    * Set on search results only. When the same skill is mirrored across repos
    * the group collapses to one canonical row; these describe the rest of the
@@ -58,6 +60,7 @@ interface SkillRow {
   trust_score: number | null
   pushed_at: number | null
   modified_at: number | null
+  rendered_raw: string | null
 }
 
 function rowToSkill(row: SkillRow): RegistrySkill {
@@ -79,6 +82,21 @@ function rowToSkill(row: SkillRow): RegistrySkill {
   }
 }
 
+function rowsToSkills(rows: SkillRow[], includeDependencies: boolean): RegistrySkill[] {
+  if (!includeDependencies)
+    return rows.map(rowToSkill)
+  const dependencyMap = buildSkillDependencyMap(rows.map(row => ({
+    owner: row.owner,
+    repo: row.repo,
+    name: row.name,
+    raw: row.rendered_raw,
+  })))
+  return rows.map(row => ({
+    ...rowToSkill(row),
+    dependencies: dependencyMap.get(skillDependencyKey(row.owner, row.repo, row.name)) ?? [],
+  }))
+}
+
 export interface SkillsQuery {
   search?: string
   owner?: string
@@ -93,6 +111,7 @@ export interface SkillsQuery {
   page?: number
   limit?: number
   officialOwners?: Set<string>
+  includeDependencies?: boolean
 }
 
 interface SkillsQueryResult {
@@ -128,7 +147,7 @@ function chunkRepos(repos: RepoRef[]): RepoRef[][] {
 
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
-  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', page = 1, limit = 60, officialOwners } = opts
+  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', page = 1, limit = 60, officialOwners, includeDependencies = false } = opts
 
   const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
@@ -218,7 +237,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
       .bind(...params)
       .all<SkillRow>()
 
-    const ranked = rankSearchResults((rows.results ?? []).map(rowToSkill), searchHits.scoreByKey, search!)
+    const ranked = rankSearchResults(rowsToSkills(rows.results ?? [], includeDependencies), searchHits.scoreByKey, search!)
     // Forked skill collections mirror the same SKILL.md under several owners.
     // Collapsing after ranking keeps each group at its best member's position.
     const collapsed = collapseSearchDuplicates(ranked)
@@ -278,7 +297,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   const facets = (facetResult?.results ?? []) as { owner: string, count: number }[]
 
   return {
-    items: dataRows.map(rowToSkill),
+    items: rowsToSkills(dataRows, includeDependencies),
     total: countRes?.total ?? 0,
     page,
     pages: Math.ceil((countRes?.total ?? 0) / limit),

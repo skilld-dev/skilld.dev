@@ -140,6 +140,7 @@ const { data, status, error, refresh } = useFetch(
   keywords: string[]
   faqs: FaqItem[]
   summary: SkillSummary | null
+  dependencies: string[]
   provenance: {
     owner: string
     repo: string
@@ -826,6 +827,29 @@ useHead(computed(() => ({
           >
             {{ data.description }}
           </p>
+
+          <div
+            v-if="data.dependencies?.length"
+            class="mt-3 flex flex-wrap items-center gap-1.5"
+            aria-label="Required skills"
+          >
+            <span class="data-label mr-1 inline-flex items-center gap-1">
+              <UIcon
+                name="i-lucide-workflow"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              Requires
+            </span>
+            <NuxtLink
+              v-for="dependency in data.dependencies"
+              :key="dependency"
+              :to="repoSkillPath(data.owner, data.repo, dependency)"
+              class="rounded-md border border-default px-2 py-1 font-mono text-xs text-muted transition-colors hover:border-inverted/30 hover:text-default"
+            >
+              /{{ dependency }}
+            </NuxtLink>
+          </div>
 
           <div
             v-if="isWeakerDuplicate && duplicateGroup"

@@ -74,4 +74,26 @@ describe('parseSkillMd', () => {
     expect(second.html).toContain('/gh/second-owner/second-repo/second-skill/-/guide.md')
     expect(second.html).not.toContain('first-owner')
   })
+
+  it('links valid same-repository skill references in prose', async () => {
+    const parsed = await parseSkillMd(
+      'Use /tdd before /diagnose. Keep `/tdd`, /unknown, and https://example.com/tdd unchanged.',
+      {
+        owner: 'acme',
+        repo: 'skills',
+        name: 'diagnose',
+        branch: 'main',
+        skillDir: 'skills/diagnose',
+        filePath: '',
+        skillNames: ['diagnose', 'tdd'],
+      },
+    )
+
+    expect(parsed.dependencies).toEqual(['tdd'])
+    expect(parsed.html).toContain('<a href="/gh/acme/skills/tdd" data-skill-dependency="tdd">/tdd</a>')
+    expect(parsed.html).toContain('<code>/tdd</code>')
+    expect(parsed.html).toContain('/diagnose')
+    expect(parsed.html).toContain('/unknown')
+    expect(parsed.html).toContain('https://example.com/tdd')
+  })
 })

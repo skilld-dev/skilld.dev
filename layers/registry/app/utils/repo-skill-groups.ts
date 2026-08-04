@@ -74,3 +74,7 @@ export function groupRepoSkills<T extends NamedSkill>(skills: T[], sourcePaths: 
       skills: groupSkills,
     }))
 }
+
+export function hasRepoFolderGrouping<T>(groups: RepoSkillGroup<T>[]): boolean {
+  return groups.some(group => group.key !== 'other' && group.key !== 'skills')
+}

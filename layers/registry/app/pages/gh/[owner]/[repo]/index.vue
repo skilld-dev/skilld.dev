@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { OrgProfile } from '../../../../../server/api/orgs/[owner].get'
 import type { RepoSourceProfile } from '../../../../../server/api/repos/[owner]/[repo].get'
+import type { RepoHistoryResponse } from '../../../../../server/api/repos/[owner]/[repo]/history.get'
+import RepoSkillCard from './_RepoSkillCard.vue'
+import RepoSparkline from './_RepoSparkline.vue'
 
 const route = useRoute()
 const owner = computed(() => String(route.params.owner ?? ''))
@@ -53,6 +56,43 @@ const sourceForks = computed(() =>
   repoSource.value?.forks ?? 0,
 )
 
+const repoStatsSection = useTemplateRef<HTMLElement>('repoStatsSection')
+const repoStatsVisible = ref(false)
+const requestedHistoryKey = ref<string | null>(null)
+const historyKey = computed(() => `${repoHub.value.owner}/${repoHub.value.repo}`)
+const {
+  data: repoHistory,
+  status: repoHistoryStatus,
+  execute: loadRepoHistory,
+  clear: clearRepoHistory,
+} = useLazyFetch<RepoHistoryResponse>(
+  () => `/api/repos/${repoHub.value.owner}/${repoHub.value.repo}/history`,
+  {
+    server: false,
+    immediate: false,
+    watch: false,
+  },
+)
+
+useIntersectionObserver(repoStatsSection, ([entry]) => {
+  repoStatsVisible.value = Boolean(entry?.isIntersecting)
+})
+
+watch([repoStatsVisible, historyKey], ([visible, key]) => {
+  if (!visible || requestedHistoryKey.value === key)
+    return
+  requestedHistoryKey.value = key
+  clearRepoHistory()
+  void loadRepoHistory()
+}, { flush: 'post' })
+
+const skillHistoryPoints = computed(() => repoHistory.value?.skillHistory.points ?? [])
+const starHistoryPoints = computed(() =>
+  repoHistory.value?.starHistory._tag === 'ready'
+    ? repoHistory.value.starHistory.points
+    : [],
+)
+
 const sourceAvatar = computed(() => {
   const o = sourceHub.value.owner ?? repoProfile.value?.owner
   return o ? `https://github.com/${o}.png` : ''
@@ -95,21 +135,7 @@ const sourcePushedAtDate = computed(() => sourcePushedAt.value ? new Date(source
 const sourcePushedAtAgo = useTimeAgo(computed(() => sourcePushedAtDate.value ?? new Date(0)))
 
 const skillGroups = computed(() => groupRepoSkills(repoSkills.value, sourceSkillFiles.value))
-const largestSkillGroup = computed(() => Math.max(1, ...skillGroups.value.map(group => group.skills.length)))
-const skillDistributionLabel = computed(() =>
-  `Skills by folder: ${skillGroups.value.map(group => `${group.label}, ${group.skills.length}`).join('; ')}`,
-)
-
-function skillGroupBarClass(count: number): string {
-  const ratio = count / largestSkillGroup.value
-  if (ratio >= 0.75)
-    return 'h-full'
-  if (ratio >= 0.5)
-    return 'h-3/4'
-  if (ratio >= 0.25)
-    return 'h-1/2'
-  return 'h-1/4'
-}
+const hasFolderGrouping = computed(() => hasRepoFolderGrouping(skillGroups.value))
 
 const skilldInitCmd = computed(() => 'npx -y skilld')
 
@@ -301,7 +327,7 @@ useHead(computed(() => ({
           </div>
         </div>
 
-        <section class="mt-6" aria-labelledby="repo-stats-heading">
+        <section ref="repoStatsSection" class="mt-6" aria-labelledby="repo-stats-heading">
           <h2 id="repo-stats-heading" class="sr-only">
             Repository statistics
           </h2>
@@ -316,18 +342,16 @@ useHead(computed(() => ({
                 <p v-else class="font-mono text-xl font-medium tabular-nums">
                   {{ repoSkills.length.toLocaleString() }}
                 </p>
-                <div
-                  v-if="skillGroups.length > 1"
-                  class="flex h-7 w-16 items-end gap-0.5"
-                  role="img"
-                  :aria-label="skillDistributionLabel"
-                >
-                  <span
-                    v-for="group in skillGroups"
-                    :key="group.key"
-                    class="min-w-1 flex-1 rounded-sm bg-primary/65"
-                    :class="skillGroupBarClass(group.skills.length)"
-                    :title="`${group.label}: ${group.skills.length} skills`"
+                <div class="h-7 w-20 shrink-0 sm:w-24">
+                  <USkeleton
+                    v-if="repoHistoryStatus === 'pending'"
+                    class="h-full w-full"
+                    aria-label="Loading indexed skill history"
+                  />
+                  <RepoSparkline
+                    v-else-if="skillHistoryPoints.length"
+                    :points="skillHistoryPoints"
+                    label="Indexed skills"
                   />
                 </div>
               </div>
@@ -347,9 +371,24 @@ useHead(computed(() => ({
                 <UIcon name="i-lucide-star" class="size-3.5" aria-hidden="true" />
                 GitHub stars
               </p>
-              <p class="mt-2 font-mono text-xl font-medium tabular-nums">
-                {{ sourceStars.toLocaleString() }}
-              </p>
+              <div class="mt-2 flex min-h-8 items-end justify-between gap-3">
+                <p class="font-mono text-xl font-medium tabular-nums">
+                  {{ sourceStars.toLocaleString() }}
+                </p>
+                <div class="h-7 w-20 shrink-0 sm:w-24">
+                  <USkeleton
+                    v-if="repoHistoryStatus === 'pending'"
+                    class="h-full w-full"
+                    aria-label="Loading GitHub star history"
+                  />
+                  <RepoSparkline
+                    v-else-if="starHistoryPoints.length"
+                    :points="starHistoryPoints"
+                    label="GitHub stars"
+                    approximate
+                  />
+                </div>
+              </div>
             </li>
             <li class="rounded-lg border border-default bg-muted/30 p-3">
               <p class="data-label inline-flex items-center gap-1.5">
@@ -368,7 +407,7 @@ useHead(computed(() => ({
         <section aria-labelledby="repo-skills-heading">
           <div class="mb-4 flex items-center justify-between gap-3">
             <h2 id="repo-skills-heading" class="section-label">
-              Skills by folder
+              {{ hasFolderGrouping ? 'Skills by folder' : 'Skills' }}
             </h2>
             <span v-if="repoSkills.length" class="data-label shrink-0">
               {{ repoSkills.length }} total
@@ -381,6 +420,16 @@ useHead(computed(() => ({
           >
             <span class="sr-only">Loading indexed skills</span>
             <USkeleton v-for="index in 6" :key="index" class="h-24 w-full" />
+          </div>
+          <div
+            v-else-if="repoSkills.length && !hasFolderGrouping"
+            class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            <RepoSkillCard
+              v-for="skill in repoSkills"
+              :key="skill.slug"
+              :skill="skill"
+            />
           </div>
           <div v-else-if="skillGroups.length" class="space-y-8">
             <section
@@ -400,15 +449,10 @@ useHead(computed(() => ({
                 </span>
               </div>
               <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                <SkillCard
+                <RepoSkillCard
                   v-for="skill in group.skills"
                   :key="skill.slug"
                   :skill="skill"
-                  variant="condensed"
-                  signal="none"
-                  :show-copy="false"
-                  :show-owner-avatar="false"
-                  :show-owner-path="false"
                 />
               </div>
             </section>

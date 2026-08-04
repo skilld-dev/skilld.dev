@@ -3,6 +3,7 @@ import type { Renderer, Tokens } from 'marked'
 import type { SkilldLang } from '#shared/shiki-language'
 import { Marked } from 'marked'
 import { resolveShikiLang, SHIKI_THEMES } from '#shared/shiki-language'
+import { createSkillReferenceTokenizer } from './skill-dependencies'
 
 function extractFenceLangs(body: string): Set<SkilldLang> {
   const langs = new Set<SkilldLang>()
@@ -59,6 +60,9 @@ export interface SkillRenderContext {
   // Path of the markdown file being rendered, relative to skillDir.
   // Empty string when rendering SKILL.md.
   filePath: string
+  skillNames?: string[]
+  registryOwner?: string
+  registryRepo?: string
 }
 
 function isAbsoluteUrl(href: string): boolean {
@@ -113,8 +117,14 @@ function rewriteHref(href: string, kind: 'link' | 'image', ctx?: SkillRenderCont
 
 const SKILL_TAG_RE = /^<(\/?)([A-Z][A-Z0-9-]*)\s*>$/
 
-function createSkillMd(ctx: SkillRenderContext | undefined, highlighter: HighlighterCore | null): Marked {
-  return new Marked({
+function createSkillMd(
+  ctx: SkillRenderContext | undefined,
+  highlighter: HighlighterCore | null,
+): { marked: Marked, dependencies: Set<string> } {
+  const dependencies = new Set<string>()
+  const tokenizeSkillReferences = createSkillReferenceTokenizer(ctx?.skillNames ?? [], ctx?.name ?? '')
+  let linkDepth = 0
+  const marked = new Marked({
     gfm: true,
     async: false,
     renderer: {
@@ -126,11 +136,28 @@ function createSkillMd(ctx: SkillRenderContext | undefined, highlighter: Highlig
       },
       link({ href, title, tokens }: { href: string, title?: string | null, tokens: unknown[] }) {
         const safe = sanitizeUrl(rewriteHref(href, 'link', ctx))
+        linkDepth++
         const text = (this as { parser: { parseInline: (t: unknown[]) => string } }).parser.parseInline(tokens)
+        linkDepth--
         const t = title ? ` title="${escapeHtml(title)}"` : ''
         const external = /^https?:\/\//i.test(safe)
         const extra = external ? ' target="_blank" rel="noopener noreferrer"' : ''
         return `<a href="${escapeHtml(safe)}"${t}${extra}>${text}</a>`
+      },
+      text(token: Tokens.Text | Tokens.Escape) {
+        if (token.type === 'escape' || linkDepth > 0 || !ctx?.skillNames?.length)
+          return escapeHtml(token.text)
+        const owner = ctx.registryOwner ?? ctx.owner
+        const repo = ctx.registryRepo ?? ctx.repo
+        return tokenizeSkillReferences(token.text)
+          .map((part) => {
+            if (part._tag === 'text')
+              return escapeHtml(part.value)
+            dependencies.add(part.name)
+            const href = `/gh/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(part.name)}`
+            return `<a href="${href}" data-skill-dependency="${escapeHtml(part.name)}">/${escapeHtml(part.name)}</a>`
+          })
+          .join('')
       },
       image({ href, title, text }: { href: string, title?: string | null, text: string }) {
         const safe = sanitizeUrl(rewriteHref(href, 'image', ctx))
@@ -155,12 +182,14 @@ function createSkillMd(ctx: SkillRenderContext | undefined, highlighter: Highlig
       },
     },
   })
+  return { marked, dependencies }
 }
 
 export interface ParsedSkillMd {
   frontmatter: Record<string, unknown>
   body: string
   html: string
+  dependencies: string[]
 }
 
 function parseFrontmatterValue(value: string): unknown {
@@ -204,11 +233,12 @@ export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promi
     ? await import('#shared/shiki').then(({ loadShikiHighlighter }) => loadShikiHighlighter(needed))
     : null
 
-  let html = createSkillMd(ctx, highlighter).parse(body) as string
+  const renderer = createSkillMd(ctx, highlighter)
+  let html = renderer.marked.parse(body) as string
   html = html.replace(/<pre\b([^>]*)>/g, (match, attrs: string) => {
     if (/\btabindex=/.test(attrs))
       return match
     return `<pre tabindex="0"${attrs}>`
   })
-  return { frontmatter, body, html }
+  return { frontmatter, body, html, dependencies: [...renderer.dependencies] }
 }

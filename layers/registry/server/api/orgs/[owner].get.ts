@@ -154,6 +154,7 @@ export default defineCachedEventHandler(async (event) => {
       page: 1,
       limit: 200,
       officialOwners,
+      includeDependencies: true,
     }),
     loadOwner(owner, db),
   ])
@@ -263,6 +264,6 @@ export default defineCachedEventHandler(async (event) => {
   swr: false,
   getKey: (event) => {
     const owner = getRouterParam(event, 'owner')
-    return `org-origin:v1:${(owner || '').toLowerCase()}`
+    return `org-origin:v2:${(owner || '').toLowerCase()}`
   },
 })

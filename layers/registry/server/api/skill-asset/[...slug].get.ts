@@ -24,6 +24,10 @@ interface SkillAssetRow {
   source_repo: string | null
 }
 
+interface RepoSkillNameRow {
+  name: string
+}
+
 interface RegisteredAsset {
   path: string
   size: number
@@ -63,12 +67,18 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const row = await platform.db
-      .prepare(`SELECT r.default_branch, r.source_owner, r.source_repo, s.assets
-                FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-                WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
-      .bind(skill.owner, skill.repo, skill.name)
-      .first<SkillAssetRow>()
+    const [row, repoSkillRows] = await Promise.all([
+      platform.db
+        .prepare(`SELECT r.default_branch, r.source_owner, r.source_repo, s.assets
+                  FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+                  WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
+        .bind(skill.owner, skill.repo, skill.name)
+        .first<SkillAssetRow>(),
+      platform.db
+        .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
+        .bind(skill.owner, skill.repo)
+        .all<RepoSkillNameRow>(),
+    ])
 
     if (!row)
       throw createError({ statusCode: 404, message: 'Skill metadata missing' })
@@ -98,7 +108,7 @@ export default defineApiHandler({
       ?? { path: filePath, size: 0, type: classifyAsset(filePath) }
 
     const branch = row.default_branch || 'main'
-    const cacheKey = `skills:asset:v2:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
+    const cacheKey = `skills:asset:v3:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
     const cached = await useStorage('cache').getItem<AssetCache>(cacheKey)
     if (cached) {
       if (cached.status === 'missing')
@@ -164,6 +174,9 @@ export default defineApiHandler({
         branch,
         skillDir,
         filePath,
+        skillNames: (repoSkillRows.results ?? []).map(candidate => candidate.name),
+        registryOwner: skill.owner,
+        registryRepo: skill.repo,
       })
       html = parsed.html
     }
