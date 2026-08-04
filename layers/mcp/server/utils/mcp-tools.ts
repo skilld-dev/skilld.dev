@@ -1,3 +1,4 @@
+import type { ToolAnnotations } from '@nuxtjs/mcp-toolkit/server'
 import { z } from 'zod'
 import {
   collectionInstallCommand,
@@ -7,6 +8,7 @@ import {
 } from './mcp-install-command'
 
 const SITE = 'https://skilld.dev'
+const MAX_RESULT_CHARS = 48_000
 
 /**
  * Tools read the registry and app layers over their public HTTP APIs only
@@ -14,7 +16,11 @@ const SITE = 'https://skilld.dev'
  * utils). The fetcher is injected so handlers stay pure and unit-testable.
  */
 export interface McpToolDeps {
-  fetchApi: <T>(path: string, opts?: { query?: Record<string, string | number> }) => Promise<T>
+  fetchApi: <T>(path: string, opts?: {
+    query?: Record<string, string | number>
+    signal?: AbortSignal
+  }) => Promise<T>
+  reportError: (operation: string, error: unknown) => void
 }
 
 interface TextContent {
@@ -31,13 +37,17 @@ export interface McpToolResult {
 export interface McpTool {
   name: string
   description: string
-  inputSchema: Record<string, unknown>
-  run: (deps: McpToolDeps, args: unknown) => Promise<McpToolResult>
+  inputSchema: Record<string, z.ZodType>
+  annotations: ToolAnnotations
+  run: (deps: McpToolDeps, args: unknown, signal?: AbortSignal) => Promise<McpToolResult>
 }
 
 function ok(data: Record<string, unknown>): McpToolResult {
+  const text = JSON.stringify(data, null, 2)
+  if (text.length > MAX_RESULT_CHARS)
+    return fail('Result exceeded the MCP output limit. Request fewer items.')
   return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+    content: [{ type: 'text', text }],
     structuredContent: data,
   }
 }
@@ -51,8 +61,15 @@ function isNotFound(error: unknown): boolean {
   return e?.statusCode === 404 || e?.status === 404 || e?.response?.status === 404
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+function failUnexpected(deps: McpToolDeps, operation: string, error: unknown): McpToolResult {
+  deps.reportError(operation, error)
+  return fail(`${operation} failed. Try again later.`)
+}
+
+function truncate(value: string | null, maxLength: number): string | null {
+  if (!value || value.length <= maxLength)
+    return value
+  return `${value.slice(0, maxLength - 1)}…`
 }
 
 function epochToIso(sec: number | null | undefined): string | null {
@@ -131,28 +148,30 @@ interface CollectionDetailResponse {
 // --- tools ---
 
 const SearchArgs = z.object({
-  query: z.string().trim().min(1),
-  limit: z.number().int().min(1).max(50).default(10),
+  query: z.string().trim().min(1).max(200).describe('What the skill should help with, such as "nuxt seo" or "database migrations"'),
+  limit: z.number().int().min(1).max(20).default(10).describe('Maximum results to return'),
 })
 
 const searchSkills: McpTool = {
   name: 'search_skills',
   description: 'Search the skilld.dev registry for agent skills (semantic + lexical ranking). Skills are markdown instructions published by maintainers in their own GitHub repos; results work with any coding agent. Returns ranked matches with source repo, trust tier, and the install command a user can run.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: { type: 'string', description: 'What the skill should help with, e.g. "nuxt seo" or "database migrations"' },
-      limit: { type: 'integer', minimum: 1, maximum: 50, default: 10, description: 'Maximum results to return' },
-    },
-    required: ['query'],
+  inputSchema: SearchArgs.shape,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
   },
-  run: async (deps, args) => {
+  run: async (deps, args, signal) => {
     const parsed = SearchArgs.safeParse(args)
     if (!parsed.success)
       return fail(`Invalid arguments: ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`)
     const { query, limit } = parsed.data
     try {
-      const res = await deps.fetchApi<SkillListResponse>('/api/skills', { query: { q: query, limit } })
+      const res = await deps.fetchApi<SkillListResponse>('/api/skills', {
+        query: { q: query, limit },
+        signal,
+      })
       return ok({
         query,
         total: res.total,
@@ -161,7 +180,7 @@ const searchSkills: McpTool = {
           repo: s.repo,
           name: s.name,
           displayName: s.displayName,
-          description: s.description,
+          description: truncate(s.description, 500),
           installs: s.installs,
           stars: s.stars,
           trustTier: s.trustTier,
@@ -172,30 +191,28 @@ const searchSkills: McpTool = {
       })
     }
     catch (error) {
-      return fail(`Search failed: ${errorMessage(error)}`)
+      return failUnexpected(deps, 'Search', error)
     }
   },
 }
 
 const GetSkillArgs = z.object({
-  owner: z.string().trim().min(1),
-  repo: z.string().trim().min(1),
-  name: z.string().trim().min(1),
+  owner: z.string().trim().min(1).max(100).regex(/^[\w.-]+$/).describe('GitHub owner'),
+  repo: z.string().trim().min(1).max(100).regex(/^[\w.-]+$/).describe('GitHub repository name'),
+  name: z.string().trim().min(1).max(100).regex(/^[\w.-]+$/).describe('Skill name'),
 })
 
 const getSkill: McpTool = {
   name: 'get_skill',
   description: 'Look up one skill by owner/repo/name. Returns detail plus provenance: who publishes it, the exact SKILL.md source file and commit on GitHub, and freshness (last repo push, last content change, last registry sync).',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      owner: { type: 'string', description: 'GitHub owner (user or org)' },
-      repo: { type: 'string', description: 'GitHub repository name' },
-      name: { type: 'string', description: 'Skill name (directory containing SKILL.md)' },
-    },
-    required: ['owner', 'repo', 'name'],
+  inputSchema: GetSkillArgs.shape,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
   },
-  run: async (deps, args) => {
+  run: async (deps, args, signal) => {
     const parsed = GetSkillArgs.safeParse(args)
     if (!parsed.success)
       return fail('Invalid arguments: owner, repo and name are required strings')
@@ -203,18 +220,23 @@ const getSkill: McpTool = {
     try {
       const s = await deps.fetchApi<SkillDetailResponse>(
         `/api/skills/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(name)}`,
+        { signal },
       )
       return ok({
         owner: s.owner,
         repo: s.repo,
         name: s.name,
         displayName: s.displayName,
-        description: s.description,
+        description: truncate(s.description, 1_000),
         installs: s.installs,
         stars: s.stars,
         forks: s.forks,
         tier: s.tier,
-        trust: { tier: s.trust.tier, score: s.trust.score, reasons: s.trust.reasons },
+        trust: {
+          tier: s.trust.tier,
+          score: s.trust.score,
+          reasons: s.trust.reasons.slice(0, 10).map(reason => truncate(reason, 500)),
+        },
         url: `${SITE}/gh/${s.owner}/${s.repo}/${s.name}`,
         installCommand: repoInstallCommand(s.owner, s.repo, s.name),
         provenance: {
@@ -237,52 +259,59 @@ const getSkill: McpTool = {
     catch (error) {
       if (isNotFound(error))
         return fail(`Skill not found: ${owner}/${repo}/${name}. Try search_skills to find the right ref.`)
-      return fail(`Lookup failed: ${errorMessage(error)}`)
+      return failUnexpected(deps, 'Skill lookup', error)
     }
   },
 }
 
 const GetCollectionArgs = z.object({
-  login: z.string().trim().min(1),
-  slug: z.string().trim().min(1),
+  login: z.string().trim().min(1).max(100).regex(/^[\w.-]+$/).describe('Curator GitHub login'),
+  slug: z.string().trim().min(1).max(100).regex(/^[\w.-]+$/).describe('Collection slug'),
+  limit: z.number().int().min(1).max(50).default(25).describe('Maximum skills to return'),
+  offset: z.number().int().min(0).max(10_000).default(0).describe('Skills to skip for pagination'),
 })
 
 const getCollection: McpTool = {
   name: 'get_collection',
   description: 'Look up a curated collection by curator login and collection slug (the /@login/slug pages on skilld.dev). Returns the collection, its skills with the curator\'s reasons, and the one-command install for the whole collection.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      login: { type: 'string', description: 'Curator GitHub login' },
-      slug: { type: 'string', description: 'Collection slug' },
-    },
-    required: ['login', 'slug'],
+  inputSchema: GetCollectionArgs.shape,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
   },
-  run: async (deps, args) => {
+  run: async (deps, args, signal) => {
     const parsed = GetCollectionArgs.safeParse(args)
     if (!parsed.success)
       return fail('Invalid arguments: login and slug are required strings')
-    const { login, slug } = parsed.data
+    const { login, slug, limit, offset } = parsed.data
     try {
       const c = await deps.fetchApi<CollectionDetailResponse>(
         `/api/collections/by-author/${encodeURIComponent(login)}/${encodeURIComponent(slug)}`,
+        { signal },
       )
+      const skills = c.skills.slice(offset, offset + limit)
       return ok({
         author: c.authorLogin,
         slug: c.slug,
         name: c.name,
-        preamble: c.preamble,
+        preamble: truncate(c.preamble, 2_000),
         featured: c.featured,
         updatedAt: epochToIso(c.updatedAt),
         url: `${SITE}/@${c.authorLogin}/${c.slug}`,
         installCommand: collectionInstallCommand(c.authorLogin, c.slug),
-        skills: c.skills.map(s => ({
+        totalSkills: c.skills.length,
+        offset,
+        limit,
+        hasMore: offset + skills.length < c.skills.length,
+        skills: skills.map(s => ({
           position: s.position,
           owner: s.owner,
           repo: s.repo,
           name: s.name,
           displayName: s.displayName,
-          reason: s.reason,
+          reason: truncate(s.reason, 1_000),
           url: s.name ? `${SITE}/gh/${s.owner}/${s.repo}/${s.name}` : `${SITE}/gh/${s.owner}/${s.repo}`,
           installCommand: repoInstallCommand(s.owner, s.repo, s.name ?? undefined),
         })),
@@ -291,24 +320,24 @@ const getCollection: McpTool = {
     catch (error) {
       if (isNotFound(error))
         return fail(`Collection not found: @${login}/${slug}`)
-      return fail(`Lookup failed: ${errorMessage(error)}`)
+      return failUnexpected(deps, 'Collection lookup', error)
     }
   },
 }
 
 const InstallCommandArgs = z.object({
-  ref: z.string().trim().min(1),
+  ref: z.string().trim().min(1).max(300).describe('Skill, repo, collection, curator, or npm package reference'),
 })
 
 const installCommand: McpTool = {
   name: 'install_command',
   description: 'Return the exact skilld CLI command that installs a skill, repo, collection, curator, or package ref. Accepted refs: "owner/repo", "gh:owner/repo", "owner/repo/skill-name", "@login", "@login/collection-slug", "npm:package". This tool only returns the command as text for the user to run; nothing is executed.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      ref: { type: 'string', description: 'Ref to install, e.g. "gh:nuxt/nuxt", "anthropics/skills/skill-creator", or "@harlan-zw/nuxt-stack"' },
-    },
-    required: ['ref'],
+  inputSchema: InstallCommandArgs.shape,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
   },
   run: async (_deps, args) => {
     const parsed = InstallCommandArgs.safeParse(args)
