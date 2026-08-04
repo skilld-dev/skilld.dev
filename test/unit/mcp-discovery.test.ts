@@ -1,7 +1,7 @@
-import type { McpToolDeps, McpToolResult } from '../../layers/mcp/server/utils/mcp-tools'
+import type { McpToolDeps, McpToolResult } from '../../layers/mcp/shared/mcp-tools'
 import { describe, expect, it, vi } from 'vitest'
-import { installCommandFor, parseInstallRef } from '../../layers/mcp/server/utils/mcp-install-command'
-import { mcpTools } from '../../layers/mcp/server/utils/mcp-tools'
+import { installCommandFor, parseInstallRef } from '../../layers/mcp/shared/mcp-install-command'
+import { mcpTools } from '../../layers/mcp/shared/mcp-tools'
 
 const unexpectedFetch = vi.fn(() => {
   throw new Error('unexpected fetch')
