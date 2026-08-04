@@ -7,6 +7,7 @@ import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { querySkills } from '../../utils/skills-registry'
+import { isTrustedAuthorOwner } from '../../utils/trusted-author-sources'
 
 export type OrgKind = 'org' | 'user'
 
@@ -40,6 +41,7 @@ export interface OrgProfile {
   skills: RegistrySkill[]
   lastSyncedAt: number | null
   syncStatus: 'ok' | 'failed' | 'never' | null
+  seoIndexable: boolean
   fetchedAt: string
 }
 
@@ -255,6 +257,7 @@ export default defineCachedEventHandler(async (event) => {
     skills: registryResult.items,
     lastSyncedAt,
     syncStatus,
+    seoIndexable: isTrustedAuthorOwner(owner),
     fetchedAt: new Date().toISOString(),
   }
 
@@ -264,6 +267,6 @@ export default defineCachedEventHandler(async (event) => {
   swr: false,
   getKey: (event) => {
     const owner = getRouterParam(event, 'owner')
-    return `org-origin:v2:${(owner || '').toLowerCase()}`
+    return `org-origin:v3:${(owner || '').toLowerCase()}`
   },
 })

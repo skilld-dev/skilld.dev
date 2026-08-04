@@ -114,7 +114,7 @@ useSeoMeta({
     return `${data.value.totalSkills} agent skills ${verb} ${data.value.displayName}.`
   },
   ogUrl: canonicalUrl,
-  robots: 'noindex,follow',
+  robots: () => data.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
   twitterCard: 'summary_large_image',
 })
 

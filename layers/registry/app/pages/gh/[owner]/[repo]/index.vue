@@ -2,6 +2,7 @@
 import type { OrgProfile } from '../../../../../server/api/orgs/[owner].get'
 import type { RepoSourceProfile } from '../../../../../server/api/repos/[owner]/[repo].get'
 import type { RepoHistoryResponse } from '../../../../../server/api/repos/[owner]/[repo]/history.get'
+import { parseRepoSkillSort, REPO_SKILL_SORT_OPTIONS, sortRepoSkills } from '../../../../utils/repo-skill-layout'
 import RepoSkillCard from './_RepoSkillCard.vue'
 import RepoSparkline from './_RepoSparkline.vue'
 
@@ -11,14 +12,15 @@ const repo = computed(() => String(route.params.repo ?? ''))
 const repoHub = computed(() => ({ owner: owner.value, repo: repo.value }))
 const sourceHub = computed(() => repoHub.value)
 const { isBot } = useBotDetection()
+const fetchRepoProfileOnServer = isBot.value
 
 const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = useFetch<OrgProfile>(
   () => `/api/orgs/${sourceHub.value.owner}`,
   {
     watch: [sourceHub],
-    lazy: !isBot.value,
-    immediate: false,
-    server: false,
+    lazy: !fetchRepoProfileOnServer,
+    immediate: fetchRepoProfileOnServer,
+    server: fetchRepoProfileOnServer,
   },
 ) as ReturnType<typeof useFetch<OrgProfile>>
 
@@ -134,8 +136,34 @@ const sourcePushedAt = computed(() => repoSource.value?.pushedAt ?? null)
 const sourcePushedAtDate = computed(() => sourcePushedAt.value ? new Date(sourcePushedAt.value) : null)
 const sourcePushedAtAgo = useTimeAgo(computed(() => sourcePushedAtDate.value ?? new Date(0)))
 
-const skillGroups = computed(() => groupRepoSkills(repoSkills.value, sourceSkillFiles.value))
+const skillSort = computed(() => parseRepoSkillSort(route.query.sort))
+const sortedRepoSkills = computed(() => sortRepoSkills(repoSkills.value, skillSort.value))
+const skillGroups = computed(() => groupRepoSkills(sortedRepoSkills.value, sourceSkillFiles.value))
 const hasFolderGrouping = computed(() => hasRepoFolderGrouping(skillGroups.value))
+const groupedSkills = computed(() => hasFolderGrouping.value && route.query.group !== '0')
+const groupingOptions = [
+  { value: true, label: 'Group by folder', icon: 'i-lucide-folder-tree' },
+  { value: false, label: 'Show a flat list', icon: 'i-lucide-rows-3' },
+]
+
+async function setSkillSort(value: unknown) {
+  const sort = parseRepoSkillSort(value)
+  const query = { ...route.query }
+  if (sort === 'added')
+    delete query.sort
+  else
+    query.sort = sort
+  await navigateTo({ query }, { replace: true })
+}
+
+async function setGroupedSkills(value: boolean) {
+  const query = { ...route.query }
+  if (value)
+    delete query.group
+  else
+    query.group = '0'
+  await navigateTo({ query }, { replace: true })
+}
 
 const skilldInitCmd = computed(() => 'npx -y skilld')
 
@@ -164,7 +192,7 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
-  robots: 'noindex,follow',
+  robots: () => repoSource.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
@@ -405,28 +433,62 @@ useHead(computed(() => ({
         <USeparator class="my-8" />
 
         <section aria-labelledby="repo-skills-heading">
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <h2 id="repo-skills-heading" class="section-label">
-              {{ hasFolderGrouping ? 'Skills by folder' : 'Skills' }}
-            </h2>
-            <span v-if="repoSkills.length" class="data-label shrink-0">
-              {{ repoSkills.length }} total
-            </span>
+          <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-3">
+              <h2 id="repo-skills-heading" class="section-label">
+                {{ groupedSkills ? 'Skills by folder' : 'Skills' }}
+              </h2>
+              <span v-if="repoSkills.length" class="data-label shrink-0">
+                {{ repoSkills.length }} total
+              </span>
+            </div>
+            <div v-if="repoSkills.length" class="flex items-center gap-2">
+              <label for="repo-skill-sort" class="sr-only">Sort skills</label>
+              <USelect
+                id="repo-skill-sort"
+                :model-value="skillSort"
+                :items="REPO_SKILL_SORT_OPTIONS"
+                aria-label="Sort skills"
+                size="sm"
+                class="min-w-42"
+                @update:model-value="setSkillSort"
+              />
+              <div
+                v-if="hasFolderGrouping"
+                role="group"
+                aria-label="Skill grouping"
+                class="flex items-center gap-0.5 rounded-lg border border-default bg-muted/40 p-0.5"
+              >
+                <button
+                  v-for="option in groupingOptions"
+                  :key="String(option.value)"
+                  type="button"
+                  :aria-label="option.label"
+                  :aria-pressed="groupedSkills === option.value"
+                  :title="option.label"
+                  class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md text-muted outline-none transition-colors hover:text-default focus-visible:ring-2 focus-visible:ring-primary sm:size-8"
+                  :class="groupedSkills === option.value ? 'bg-default text-default shadow-sm' : ''"
+                  @click="setGroupedSkills(option.value)"
+                >
+                  <UIcon :name="option.icon" class="size-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
           </div>
           <div
             v-if="repoSkillsLoading"
-            class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+            class="grid gap-3 lg:grid-cols-2"
             aria-busy="true"
           >
             <span class="sr-only">Loading indexed skills</span>
             <USkeleton v-for="index in 6" :key="index" class="h-24 w-full" />
           </div>
           <div
-            v-else-if="repoSkills.length && !hasFolderGrouping"
-            class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+            v-else-if="sortedRepoSkills.length && !groupedSkills"
+            class="grid gap-3 lg:grid-cols-2"
           >
             <RepoSkillCard
-              v-for="skill in repoSkills"
+              v-for="skill in sortedRepoSkills"
               :key="skill.slug"
               :skill="skill"
             />
@@ -448,7 +510,7 @@ useHead(computed(() => ({
                   {{ group.skills.length }} {{ group.skills.length === 1 ? 'skill' : 'skills' }}
                 </span>
               </div>
-              <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div class="mt-3 grid gap-3 lg:grid-cols-2">
                 <RepoSkillCard
                   v-for="skill in group.skills"
                   :key="skill.slug"

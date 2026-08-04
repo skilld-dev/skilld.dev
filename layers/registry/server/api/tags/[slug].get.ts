@@ -78,6 +78,7 @@ interface SkillRow {
   rendered_raw_sha256: string | null
   pushed_at: number | null
   modified_at: number | null
+  first_seen_at: number | null
 }
 
 function rowToSkill(r: SkillRow): RegistrySkill {
@@ -92,6 +93,7 @@ function rowToSkill(r: SkillRow): RegistrySkill {
     renderedRawSha256: r.rendered_raw_sha256 ?? null,
     pushedAt: r.pushed_at ?? null,
     modifiedAt: r.modified_at ?? null,
+    firstSeenAt: r.first_seen_at ?? null,
     seoIndexScore: 0,
     seoIndexable: false,
     trustTier: 'untrusted',
@@ -136,7 +138,7 @@ export default defineCachedEventHandler(async (event) => {
   // same-(owner,name) collisions.
   const skillsRes = await db
     .prepare(
-      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.description, s.rendered_raw_sha256, r.pushed_at, s.modified_at
+      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.description, s.rendered_raw_sha256, r.pushed_at, s.modified_at, s.first_seen_at
        FROM skills s
        JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
        WHERE ${NOT_BROKEN_SQL} AND (

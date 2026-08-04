@@ -35,6 +35,7 @@ export interface RegistrySkill {
   trustScore: number
   pushedAt: number | null
   modifiedAt: number | null
+  firstSeenAt: number | null
   dependencies?: string[]
   /**
    * Set on search results only. When the same skill is mirrored across repos
@@ -60,6 +61,7 @@ interface SkillRow {
   trust_score: number | null
   pushed_at: number | null
   modified_at: number | null
+  first_seen_at: number | null
   rendered_raw: string | null
 }
 
@@ -79,6 +81,7 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     trustScore: row.trust_score ?? 0,
     pushedAt: row.pushed_at ?? null,
     modifiedAt: row.modified_at ?? null,
+    firstSeenAt: row.first_seen_at ?? null,
   }
 }
 

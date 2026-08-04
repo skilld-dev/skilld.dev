@@ -323,6 +323,10 @@ export default defineNuxtConfig({
         sources: ['/api/__sitemap__/authors'],
         includeAppSources: false,
       },
+      sources: {
+        sources: ['/api/__sitemap__/trusted-authors'],
+        includeAppSources: false,
+      },
       // `orgs` removed: it listed every owner hub (/gh/<owner>) unconditionally,
       // but those pages render noindex,follow. Advertising noindex URLs in the
       // sitemap was the bulk of GSC "Crawled – currently not indexed" (~8k) and

@@ -2,6 +2,7 @@ import { getDB } from '#server/utils/db'
 import { getRepo, getTree, resolveGithubBindings } from '../../../utils/github-client'
 import { resolveRepoSourceIdentity } from '../../../utils/repo-source-identity'
 import { buildUnavailableRepoSourceProfile } from '../../../utils/repo-source-profile'
+import { isTrustedAuthorRepo } from '../../../utils/trusted-author-sources'
 
 export interface RepoSourceProfile {
   owner: string
@@ -18,6 +19,7 @@ export interface RepoSourceProfile {
   skillFileScanStatus: 'ok' | 'unavailable' | 'truncated'
   skillFileCount: number
   skillFiles: string[]
+  seoIndexable: boolean
 }
 
 export default defineCachedEventHandler(async (event) => {
@@ -28,6 +30,7 @@ export default defineCachedEventHandler(async (event) => {
 
   const owner = ownerParam.toLowerCase()
   const repo = repoParam.toLowerCase()
+  const seoIndexable = isTrustedAuthorRepo(owner, repo)
   const db = getDB(event)
   const source = await resolveRepoSourceIdentity(db, { owner, repo })
   const bindings = resolveGithubBindings(event.context.platform.env)
@@ -42,7 +45,10 @@ export default defineCachedEventHandler(async (event) => {
       repo,
       upstreamStatus: repoRes.status || null,
     }))
-    return buildUnavailableRepoSourceProfile(owner, repo) satisfies RepoSourceProfile
+    return {
+      ...buildUnavailableRepoSourceProfile(owner, repo),
+      seoIndexable,
+    } satisfies RepoSourceProfile
   }
 
   const meta = repoRes.data
@@ -74,6 +80,7 @@ export default defineCachedEventHandler(async (event) => {
     skillFileScanStatus,
     skillFileCount: skillFiles.length,
     skillFiles,
+    seoIndexable,
   } satisfies RepoSourceProfile
 }, {
   maxAge: 60 * 15,
@@ -81,6 +88,6 @@ export default defineCachedEventHandler(async (event) => {
   getKey: (event) => {
     const owner = (getRouterParam(event, 'owner') ?? '').toLowerCase()
     const repo = (getRouterParam(event, 'repo') ?? '').toLowerCase()
-    return `repo-source:v1:${owner}/${repo}`
+    return `repo-source:v2:${owner}/${repo}`
   },
 })

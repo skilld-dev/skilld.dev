@@ -7,7 +7,7 @@ test.describe('multi-sitemap', () => {
     expect(res.status()).toBe(200)
     const xml = await res.text()
 
-    for (const name of ['pages', 'skills', 'people']) {
+    for (const name of ['pages', 'skills', 'authors', 'sources', 'tags']) {
       expect(xml).toContain(`/__sitemap__/${name}.xml`)
     }
   })
@@ -19,7 +19,7 @@ test.describe('multi-sitemap', () => {
 
     expect(xml).toContain('/accessibility')
     expect(xml).not.toMatch(/<loc>[^<]*\/skills\/[^<]+<\/loc>/)
-    expect(xml).not.toMatch(/<loc>[^<]*\/people\/[^<]+<\/loc>/)
+    expect(xml).not.toMatch(/<loc>[^<]*\/@[^<]+<\/loc>/)
   })
 
   test('skills sitemap returns valid entries', async ({ page, baseURL }) => {
@@ -36,15 +36,26 @@ test.describe('multi-sitemap', () => {
       expect(loc).toMatch(/^\/(?:gh\/|skills\/(?:plan|master-agent|docs|review|debug|ship)$)/)
   })
 
-  test('people sitemap is valid and scoped to /people/', async ({ page, baseURL }) => {
-    const res = await page.request.get(`${baseURL}/__sitemap__/people.xml`)
+  test('authors sitemap is valid and scoped to /@', async ({ page, baseURL }) => {
+    const res = await page.request.get(`${baseURL}/__sitemap__/authors.xml`)
     expect(res.status()).toBe(200)
     const xml = await res.text()
     expect(xml).toContain('<urlset')
 
     const locs = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), m => new URL(m[1]!).pathname)
-    for (const loc of locs) {
-      expect(loc).toMatch(/^\/people\//)
-    }
+    for (const loc of locs)
+      expect(loc).toMatch(/^\/@[^/]+(?:\/[^/]+)?$/)
+  })
+
+  test('trusted source sitemap contains only owner and repository hubs', async ({ page, baseURL }) => {
+    const res = await page.request.get(`${baseURL}/__sitemap__/sources.xml`)
+    expect(res.status()).toBe(200)
+    const xml = await res.text()
+    expect(xml).toContain('<urlset')
+
+    const locs = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), m => new URL(m[1]!).pathname)
+    expect(locs.length).toBeGreaterThan(0)
+    for (const loc of locs)
+      expect(loc).toMatch(/^\/gh\/[^/]+(?:\/[^/]+)?$/)
   })
 })
