@@ -49,6 +49,17 @@ jobs:
           restore-keys: |
             nuxt-skew-prod-
 
+      # A missing, rotated, or wrong-org SENTRY_AUTH_TOKEN does NOT fail the
+      # build: nuxt.config gates `sourcemaps.disable` on token presence and the
+      # sentry bundler plugin logs upload failures as warnings, so a bad secret
+      # ships a green deploy whose client errors regress to minified frames
+      # (the 2026-07-24 incident). Verify the token can read harlan-zw/skilld
+      # before paying for the build. Mirrors nuxtseo.com's deploy preflight.
+      - name: Verify Sentry token
+        run: node scripts/tools/verify-sentry-token.mjs
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
       - name: Build
         run: pnpm build
         timeout-minutes: 15
