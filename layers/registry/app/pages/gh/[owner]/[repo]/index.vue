@@ -9,7 +9,7 @@ const repoHub = computed(() => ({ owner: owner.value, repo: repo.value }))
 const sourceHub = computed(() => repoHub.value)
 const { isBot } = useBotDetection()
 
-const { data: repoProfile, refresh: refreshRepo } = useFetch<OrgProfile>(
+const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = useFetch<OrgProfile>(
   () => `/api/orgs/${sourceHub.value.owner}`,
   {
     watch: [sourceHub],
@@ -29,6 +29,9 @@ const { data: repoSource, status: repoSourceStatus, error: repoSourceError, refr
 ) as ReturnType<typeof useFetch<RepoSourceProfile>>
 
 const repoSkills = computed(() => selectRepoSkills(repoProfile.value, repoHub.value.repo))
+const repoSkillsLoading = computed(() =>
+  !repoProfile.value && (repoProfileStatus.value === 'idle' || repoProfileStatus.value === 'pending'),
+)
 
 const repoInfo = computed(() => selectRepoInfo(repoProfile.value, repoHub.value.repo))
 
@@ -88,11 +91,25 @@ const flatSkillName = computed<string | null>(() => {
 
 const sourceDefaultBranch = computed(() => repoSource.value?.defaultBranch ?? null)
 const sourcePushedAt = computed(() => repoSource.value?.pushedAt ?? null)
-const sourceCreatedAt = computed(() => repoSource.value?.createdAt ?? null)
 const sourcePushedAtDate = computed(() => sourcePushedAt.value ? new Date(sourcePushedAt.value) : null)
-const sourceCreatedAtDate = computed(() => sourceCreatedAt.value ? new Date(sourceCreatedAt.value) : null)
 const sourcePushedAtAgo = useTimeAgo(computed(() => sourcePushedAtDate.value ?? new Date(0)))
-const sourceCreatedAtAgo = useTimeAgo(computed(() => sourceCreatedAtDate.value ?? new Date(0)))
+
+const skillGroups = computed(() => groupRepoSkills(repoSkills.value, sourceSkillFiles.value))
+const largestSkillGroup = computed(() => Math.max(1, ...skillGroups.value.map(group => group.skills.length)))
+const skillDistributionLabel = computed(() =>
+  `Skills by folder: ${skillGroups.value.map(group => `${group.label}, ${group.skills.length}`).join('; ')}`,
+)
+
+function skillGroupBarClass(count: number): string {
+  const ratio = count / largestSkillGroup.value
+  if (ratio >= 0.75)
+    return 'h-full'
+  if (ratio >= 0.5)
+    return 'h-3/4'
+  if (ratio >= 0.25)
+    return 'h-1/2'
+  return 'h-1/4'
+}
 
 const skilldInitCmd = computed(() => 'npx -y skilld')
 
@@ -167,6 +184,7 @@ useHead(computed(() => ({
         aria-busy="true"
         class="space-y-4"
       >
+        <span class="sr-only">Loading repository details</span>
         <div class="flex items-start gap-3">
           <USkeleton class="size-12 rounded-md" />
           <div class="min-w-0 flex-1 space-y-2">
@@ -175,7 +193,9 @@ useHead(computed(() => ({
           </div>
         </div>
         <USkeleton class="h-4 w-full max-w-xl" />
-        <USkeleton class="h-24 w-full" />
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <USkeleton v-for="index in 4" :key="index" class="h-20 w-full" />
+        </div>
       </div>
 
       <div
@@ -227,7 +247,7 @@ useHead(computed(() => ({
               :alt="`${sourceHub.owner ?? repoProfile?.owner} avatar`"
               width="48"
               height="48"
-              class="size-12 rounded-md border border-default"
+              class="size-12 rounded-full border border-default"
             >
           </NuxtLink>
           <div class="min-w-0 flex-1">
@@ -243,48 +263,7 @@ useHead(computed(() => ({
             >
               {{ sourceDescription }}
             </p>
-            <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span class="data-label inline-flex items-center gap-1">
-                <UIcon
-                  name="i-lucide-package"
-                  class="size-3.5"
-                  aria-hidden="true"
-                />
-                {{ repoSkills.length }} {{ repoSkills.length === 1 ? 'skill' : 'skills' }}
-              </span>
-              <span
-                v-if="sourceStars"
-                class="data-label inline-flex items-center gap-1"
-              >
-                <UIcon
-                  name="i-lucide-star"
-                  class="size-3.5"
-                  aria-hidden="true"
-                />
-                {{ sourceStars.toLocaleString() }}
-              </span>
-              <span
-                v-if="sourceForks"
-                class="data-label inline-flex items-center gap-1"
-              >
-                <UIcon
-                  name="i-lucide-git-fork"
-                  class="size-3.5"
-                  aria-hidden="true"
-                />
-                {{ sourceForks.toLocaleString() }}
-              </span>
-              <span
-                v-if="repoSource && repoSource.skillFileScanStatus === 'ok'"
-                class="data-label inline-flex items-center gap-1"
-              >
-                <UIcon
-                  name="i-lucide-file-text"
-                  class="size-3.5"
-                  aria-hidden="true"
-                />
-                {{ repoSource.skillFileCount }} SKILL.md
-              </span>
+            <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
               <span
                 v-if="sourceDefaultBranch"
                 class="data-label inline-flex items-center gap-1"
@@ -308,18 +287,6 @@ useHead(computed(() => ({
                 />
                 Updated {{ sourcePushedAtAgo }}
               </span>
-              <span
-                v-if="sourceCreatedAt"
-                class="data-label inline-flex items-center gap-1"
-                :title="new Date(sourceCreatedAt).toLocaleDateString()"
-              >
-                <UIcon
-                  name="i-lucide-sparkles"
-                  class="size-3.5"
-                  aria-hidden="true"
-                />
-                Created {{ sourceCreatedAtAgo }}
-              </span>
               <UButton
                 :href="repoHubGithubUrl"
                 target="_blank"
@@ -334,60 +301,124 @@ useHead(computed(() => ({
           </div>
         </div>
 
+        <section class="mt-6" aria-labelledby="repo-stats-heading">
+          <h2 id="repo-stats-heading" class="sr-only">
+            Repository statistics
+          </h2>
+          <ul class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <li class="rounded-lg border border-default bg-muted/30 p-3">
+              <p class="data-label inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-package" class="size-3.5" aria-hidden="true" />
+                Indexed skills
+              </p>
+              <div class="mt-2 flex min-h-8 items-end justify-between gap-3">
+                <USkeleton v-if="repoSkillsLoading" class="h-7 w-12" />
+                <p v-else class="font-mono text-xl font-medium tabular-nums">
+                  {{ repoSkills.length.toLocaleString() }}
+                </p>
+                <div
+                  v-if="skillGroups.length > 1"
+                  class="flex h-7 w-16 items-end gap-0.5"
+                  role="img"
+                  :aria-label="skillDistributionLabel"
+                >
+                  <span
+                    v-for="group in skillGroups"
+                    :key="group.key"
+                    class="min-w-1 flex-1 rounded-sm bg-primary/65"
+                    :class="skillGroupBarClass(group.skills.length)"
+                    :title="`${group.label}: ${group.skills.length} skills`"
+                  />
+                </div>
+              </div>
+            </li>
+            <li class="rounded-lg border border-default bg-muted/30 p-3">
+              <p class="data-label inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-folder-tree" class="size-3.5" aria-hidden="true" />
+                Skill groups
+              </p>
+              <USkeleton v-if="repoSkillsLoading" class="mt-2 h-7 w-10" />
+              <p v-else class="mt-2 font-mono text-xl font-medium tabular-nums">
+                {{ skillGroups.length.toLocaleString() }}
+              </p>
+            </li>
+            <li class="rounded-lg border border-default bg-muted/30 p-3">
+              <p class="data-label inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-star" class="size-3.5" aria-hidden="true" />
+                GitHub stars
+              </p>
+              <p class="mt-2 font-mono text-xl font-medium tabular-nums">
+                {{ sourceStars.toLocaleString() }}
+              </p>
+            </li>
+            <li class="rounded-lg border border-default bg-muted/30 p-3">
+              <p class="data-label inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-git-fork" class="size-3.5" aria-hidden="true" />
+                Forks
+              </p>
+              <p class="mt-2 font-mono text-xl font-medium tabular-nums">
+                {{ sourceForks.toLocaleString() }}
+              </p>
+            </li>
+          </ul>
+        </section>
+
         <USeparator class="my-8" />
 
         <section aria-labelledby="repo-skills-heading">
-          <h2
-            id="repo-skills-heading"
-            class="section-label mb-3"
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h2 id="repo-skills-heading" class="section-label">
+              Skills by folder
+            </h2>
+            <span v-if="repoSkills.length" class="data-label shrink-0">
+              {{ repoSkills.length }} total
+            </span>
+          </div>
+          <div
+            v-if="repoSkillsLoading"
+            class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+            aria-busy="true"
           >
-            Indexed skills
-          </h2>
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <SkillCard
-              v-for="skill in repoSkills"
-              :key="skill.slug"
-              :skill="skill"
-              signal="stars"
-              :show-copy="false"
-              show-owner-path
-              timestamp-label="Updated"
-            />
+            <span class="sr-only">Loading indexed skills</span>
+            <USkeleton v-for="index in 6" :key="index" class="h-24 w-full" />
+          </div>
+          <div v-else-if="skillGroups.length" class="space-y-8">
+            <section
+              v-for="group in skillGroups"
+              :key="group.key"
+              :aria-labelledby="`skill-group-${group.key}`"
+            >
+              <div class="flex items-center gap-3 border-b border-default pb-2">
+                <h3
+                  :id="`skill-group-${group.key}`"
+                  class="font-mono text-sm font-medium"
+                >
+                  {{ group.label }}
+                </h3>
+                <span class="data-label">
+                  {{ group.skills.length }} {{ group.skills.length === 1 ? 'skill' : 'skills' }}
+                </span>
+              </div>
+              <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <SkillCard
+                  v-for="skill in group.skills"
+                  :key="skill.slug"
+                  :skill="skill"
+                  variant="condensed"
+                  signal="none"
+                  :show-copy="false"
+                  :show-owner-avatar="false"
+                  :show-owner-path="false"
+                />
+              </div>
+            </section>
           </div>
           <p
-            v-if="!repoSkills.length && !sourceConfirmedNoSkillMd"
+            v-else-if="!sourceConfirmedNoSkillMd"
             class="text-sm text-muted leading-relaxed"
           >
             No indexed skills for this repository yet.
           </p>
-          <div
-            v-if="sourceSkillFiles.length"
-            class="mt-6 rounded-lg border border-default p-4"
-          >
-            <h3 class="font-mono text-sm font-medium">
-              SKILL.md files
-            </h3>
-            <ul class="mt-3 space-y-2">
-              <li
-                v-for="path in sourceSkillFiles"
-                :key="path"
-              >
-                <a
-                  :href="`${repoHubGithubUrl}/blob/${sourceDefaultBranch}/${path}`"
-                  target="_blank"
-                  rel="noopener"
-                  class="inline-flex min-w-0 items-center gap-2 font-mono text-xs text-muted hover:text-default transition-colors"
-                >
-                  <UIcon
-                    name="i-lucide-file-text"
-                    class="size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span class="truncate">{{ path }}</span>
-                </a>
-              </li>
-            </ul>
-          </div>
           <div
             v-if="repoSourceScanNotice"
             class="mt-6 flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
