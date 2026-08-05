@@ -1,0 +1,33 @@
+-- The heaviest query in the registry scanned the whole skills table every run.
+--
+-- Measured with `wrangler d1 insights skilld-db --time-period 7d` on 2026-08-05:
+-- 11,576 runs, 102.7ms average, 6,793 rows read per run, 78.6M rows total and
+-- 1,189,148ms of D1 time, the largest single consumer on the database.
+--
+-- `querySkills` matches a batch of skills by their identity path
+-- (`skills-registry.ts:172`):
+--
+--   (s.owner || '/' || s.repo || '/' || s.name) IN (SELECT value FROM json_each(?))
+--
+-- No index can serve a concatenated expression, so SQLite scanned `skills` in
+-- full for every lookup. 6,793 rows read against 6,553 rows in the table is
+-- exactly that: one whole scan, however few identities the caller asked for.
+--
+-- Production plan before:
+--   SCAN s
+--   LIST SUBQUERY 1 / SCAN json_each VIRTUAL TABLE INDEX 1:
+--   CREATE BLOOM FILTER
+--   SEARCH r USING INDEX sqlite_autoindex_repos_1 (owner=? AND repo=?)
+--
+-- With an index over the same expression, verified on a copy of the local
+-- database:
+--   SEARCH s USING INDEX idx_skills_identity_path (<expr>=?)
+--   LIST SUBQUERY 1 / SCAN json_each VIRTUAL TABLE INDEX 1:
+--   SEARCH r USING INDEX sqlite_autoindex_repos_1 (owner=? AND repo=?)
+--
+-- The expression is written exactly as the query writes it, without the table
+-- alias, because SQLite only uses an expression index when the two match after
+-- normalisation. Changing either side without the other silently returns the
+-- scan.
+CREATE INDEX IF NOT EXISTS idx_skills_identity_path
+  ON skills((owner || '/' || repo || '/' || name));

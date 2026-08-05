@@ -270,7 +270,16 @@ describe('d1 migration bootstrap', () => {
         SELECT name FROM sqlite_master
         WHERE type = 'index' AND name = 'idx_ai_ready_pages_indexed_is_error'
       `).pluck().get()).toBe('idx_ai_ready_pages_indexed_is_error')
-      expect(migrations.at(-1)).toBe('0091_ai_ready_pages_status_index.sql')
+      // `querySkills` matches identities as `owner || '/' || repo || '/' || name`,
+      // which no ordinary index can serve, so without this the batch lookup scans
+      // the whole skills table on every call. SQLite only uses an expression index
+      // when both sides match after normalisation, so the stored expression is
+      // asserted verbatim: editing one side alone silently restores the scan.
+      expect(sqlite.prepare(`
+        SELECT sql FROM sqlite_master
+        WHERE type = 'index' AND name = 'idx_skills_identity_path'
+      `).pluck().get()).toContain(`(owner || '/' || repo || '/' || name)`)
+      expect(migrations.at(-1)).toBe('0092_skills_identity_path_index.sql')
     }
     finally {
       sqlite.close()
