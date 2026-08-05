@@ -7,6 +7,7 @@ import { getTaskEnv } from '#shared/server/task-env'
 import {
   auditEmbeddingParityViaBindings,
   embeddingParityAuditAlarm,
+  pruneOrphanEmbeddings,
 } from '../utils/embedding-parity'
 
 const CRON = '0 21 * * *'
@@ -60,7 +61,8 @@ export default defineScheduledTask({
       if (alarm._tag === 'unsettled') {
         // The index moved while the audit read it, so the count cannot decide
         // orphans. Report it and let the next run rule, rather than alarm on a
-        // number that was never stable.
+        // number that was never stable. Pruning is skipped for the same reason:
+        // an unread index is no basis for deleting from it.
         await reportJobRun(db, 'embedding-parity-audit', {
           cron: CRON,
           status: 'partial',
@@ -70,22 +72,49 @@ export default defineScheduledTask({
         return { result: { alarm, ...summary } }
       }
 
+      // Prune after the audit, never before. Vectorize deletes asynchronously, so
+      // a prune running first would leave a mutation in flight and the audit
+      // would report `unsettled` every night it deleted anything, masking real
+      // drift. Tonight's audit judges the state the prune inherited; tomorrow's
+      // confirms the deletion landed.
+      const prune = await pruneOrphanEmbeddings({ db, vectorize })
+      if (prune.refusal) {
+        console.warn(
+          `[embedding-parity-audit] prune refused: ${prune.refusal.candidates} candidates against ${prune.refusal.eligible} eligible`,
+        )
+      }
+
+      const pruneNote = prune.refusal
+        ? `; prune refused (${prune.refusal.candidates} candidates against ${prune.refusal.eligible} eligible)`
+        : prune.deferred > 0
+          ? `; pruned ${prune.deleted}, ${prune.deferred} deferred`
+          : prune.deleted > 0
+            ? `; pruned ${prune.deleted}`
+            : ''
+
       await reportJobRun(db, 'embedding-parity-audit', {
         cron: CRON,
-        status: alarm._tag === 'triggered' ? 'error' : 'ok',
+        status: alarm._tag === 'triggered' || prune.refusal ? 'error' : 'ok',
         durationMs: Date.now() - startedAt,
         error: alarm._tag === 'triggered'
-          ? `Parity drift: ${alarm.missing} missing, ${alarm.stale} stale, ${alarm.orphan} orphan`
-          : null,
+          ? `Parity drift: ${alarm.missing} missing, ${alarm.stale} stale, ${alarm.orphan} orphan${pruneNote}`
+          : prune.refusal
+            ? `Orphan prune refused: ${prune.refusal.candidates} candidates against ${prune.refusal.eligible} eligible`
+            : null,
       })
 
       if (alarm._tag === 'triggered') {
         throw new Error(
-          `Embedding parity drift: ${alarm.missing} missing, ${alarm.stale} stale, ${alarm.orphan} orphan`,
+          `Embedding parity drift: ${alarm.missing} missing, ${alarm.stale} stale, ${alarm.orphan} orphan${pruneNote}`,
+        )
+      }
+      if (prune.refusal) {
+        throw new Error(
+          `Orphan prune refused: ${prune.refusal.candidates} candidates against ${prune.refusal.eligible} eligible`,
         )
       }
 
-      return { result: { alarm, ...summary } }
+      return { result: { alarm, ...summary, prune } }
     })
   },
 })

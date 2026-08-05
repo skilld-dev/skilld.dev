@@ -315,3 +315,168 @@ export async function runEmbeddingParityCheck(
   }
   return calculateEmbeddingParity(eligible, vectors, inventoryIds)
 }
+
+/**
+ * Vectors leak because nothing deletes them when a skill leaves the eligible set.
+ * `sync-repo.ts` keeps the row and sets `seo_indexable = 0` when a skill file
+ * disappears upstream, so every upstream removal strands a vector permanently.
+ * Orphans grew 53 → 98 → 678 across three nights while manual pruning cleared
+ * 106, which is the shape of a leak the manual path cannot outrun.
+ *
+ * The audit above cannot fix this on its own: the binding has no enumeration, so
+ * it derives orphans as a count and never as ids. D1 can name them. `vectorIdFor`
+ * hashes owner/repo/name with no sha in it, so any skill still carrying an
+ * `embedding` marker while failing the eligibility predicate is exactly one
+ * strandable vector, addressable by id without reading the index at all.
+ */
+const PRUNE_CANDIDATE_SQL = `
+  SELECT s.owner, s.repo, s.name
+  FROM skills s
+  LEFT JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+  JOIN skill_generated marker
+    ON marker.owner = s.owner
+   AND marker.repo = s.repo
+   AND marker.name = s.name
+   AND marker.kind = 'embedding'
+  WHERE NOT (
+    r.broken_since IS NULL
+    AND s.current_sha IS NOT NULL
+    AND s.rendered_raw IS NOT NULL
+    AND s.rendered_status = 'ok'
+    AND s.seo_indexable = 1
+  )
+  ORDER BY s.owner ASC, s.repo ASC, s.name ASC
+`
+
+/**
+ * A prune reads eligibility to decide what to delete, so a bug in that read is a
+ * mass-deletion bug. The share guard is the backstop against that specific
+ * failure, where the predicate stops matching and most of the index looks
+ * strandable at once.
+ *
+ * It is deliberately not a backlog guard. Production on 2026-08-05 held 826
+ * candidates against 5,424 eligible, a 15% share built up over months with no
+ * automatic pruning, so a tight threshold would refuse every night and never
+ * drain. Half the index is the line no ordinary leak reaches; the per-run cap
+ * below is what bounds each individual run.
+ */
+export const MAX_PRUNE_SHARE = 0.5
+
+/** Deletions attempted per run, so a single run can never empty the index. */
+export const MAX_PRUNE_PER_RUN = 500
+
+/** Vectorize rejects unbounded id lists, so deletes go out in chunks. */
+const PRUNE_DELETE_CHUNK = 100
+
+export interface PruneCandidate {
+  owner: string
+  repo: string
+  name: string
+}
+
+export type EmbeddingPrunePlan
+  = | { _tag: 'nothing_to_prune' }
+    | {
+      _tag: 'refused'
+      reason: 'candidate_share_exceeded'
+      candidates: number
+      eligible: number
+      share: number
+    }
+    | {
+      _tag: 'prune'
+      candidates: PruneCandidate[]
+      deferred: number
+    }
+
+/**
+ * Decide what a run may delete, separately from deleting it. Keeping the
+ * judgement pure is what makes the guard rail testable without a live index.
+ */
+export function planEmbeddingPrune(
+  candidates: PruneCandidate[],
+  eligible: number,
+): EmbeddingPrunePlan {
+  if (candidates.length === 0)
+    return { _tag: 'nothing_to_prune' }
+
+  // An empty eligible set is itself the failure the guard exists for: every
+  // vector in the index would look strandable.
+  const share = eligible > 0 ? candidates.length / eligible : Number.POSITIVE_INFINITY
+  if (share > MAX_PRUNE_SHARE) {
+    return {
+      _tag: 'refused',
+      reason: 'candidate_share_exceeded',
+      candidates: candidates.length,
+      eligible,
+      share,
+    }
+  }
+
+  return {
+    _tag: 'prune',
+    candidates: candidates.slice(0, MAX_PRUNE_PER_RUN),
+    deferred: Math.max(0, candidates.length - MAX_PRUNE_PER_RUN),
+  }
+}
+
+export interface EmbeddingPruneDependencies {
+  db: D1Database
+  vectorize: Pick<VectorizeIndex, 'deleteByIds'>
+}
+
+export interface EmbeddingPruneOutcome {
+  plan: EmbeddingPrunePlan['_tag']
+  deleted: number
+  deferred: number
+  refusal?: Extract<EmbeddingPrunePlan, { _tag: 'refused' }>
+}
+
+export async function selectPruneCandidates(db: D1Database): Promise<PruneCandidate[]> {
+  const rows = await db.prepare(PRUNE_CANDIDATE_SQL).bind().all<PruneCandidate>()
+  return rows.results ?? []
+}
+
+export async function countEligibleEmbeddings(db: D1Database): Promise<number> {
+  const row = await db.prepare(
+    `SELECT COUNT(*) AS eligible FROM (${ELIGIBLE_EMBEDDINGS_SQL})`,
+  ).first<{ eligible: number }>()
+  return Number(row?.eligible ?? 0)
+}
+
+/**
+ * Delete the vectors, then their markers. That order matters: a marker outliving
+ * its vector reappears as a candidate on the next run and is deleted again
+ * harmlessly, while a marker deleted first would hide a vector the run failed to
+ * remove and strand it beyond reach.
+ */
+export async function pruneOrphanEmbeddings(
+  deps: EmbeddingPruneDependencies,
+): Promise<EmbeddingPruneOutcome> {
+  const [candidates, eligible] = await Promise.all([
+    selectPruneCandidates(deps.db),
+    countEligibleEmbeddings(deps.db),
+  ])
+  const plan = planEmbeddingPrune(candidates, eligible)
+
+  if (plan._tag === 'nothing_to_prune')
+    return { plan: plan._tag, deleted: 0, deferred: 0 }
+  if (plan._tag === 'refused')
+    return { plan: plan._tag, deleted: 0, deferred: candidates.length, refusal: plan }
+
+  const ids = await Promise.all(plan.candidates.map(candidate => vectorIdFor(candidate)))
+  let deleted = 0
+  for (let index = 0; index < ids.length; index += PRUNE_DELETE_CHUNK) {
+    const chunk = ids.slice(index, index + PRUNE_DELETE_CHUNK)
+    await deps.vectorize.deleteByIds(chunk)
+    deleted += chunk.length
+    await deps.db.batch(plan.candidates
+      .slice(index, index + PRUNE_DELETE_CHUNK)
+      .map(candidate => deps.db.prepare(
+        `DELETE FROM skill_generated
+         WHERE owner = ? AND repo = ? AND name = ? AND kind = 'embedding'`,
+      ).bind(candidate.owner, candidate.repo, candidate.name)))
+  }
+
+  return { plan: plan._tag, deleted, deferred: plan.deferred }
+}
