@@ -1,0 +1,40 @@
+import { writeCache } from '#shared/server/cache'
+import {
+  GONE_SKILLS_CACHE_KEY,
+  GONE_SKILLS_CACHE_TTL,
+  selectGoneSkillKeys,
+  skillKeyFromPath,
+} from '../utils/source-gone-skills'
+
+/**
+ * Answer 410 for a skill whose source was deleted upstream, while still letting
+ * the page render the last indexed copy.
+ *
+ * The status is set rather than thrown on purpose. Throwing would replace a
+ * useful tombstone with an error page, and 410 is perfectly valid with a body:
+ * a crawler learns the resource is permanently gone, a reader still sees what
+ * the skill was and why installing it will fail.
+ *
+ * The key set is cached because this runs on every `/gh` request, and an
+ * uncached per-request D1 read on a hot path is exactly what produced the
+ * 2026-08-04 overload burst. One query an hour returns about 130 rows.
+ */
+export default defineEventHandler(async (event) => {
+  const key = skillKeyFromPath(getRequestURL(event).pathname)
+  if (!key)
+    return
+
+  const db = event.context.platform?.db
+  if (!db)
+    return
+
+  const cache = useStorage('cache')
+  let keys = await cache.getItem<string[]>(GONE_SKILLS_CACHE_KEY)
+  if (!Array.isArray(keys)) {
+    keys = await selectGoneSkillKeys(db)
+    await writeCache(cache, GONE_SKILLS_CACHE_KEY, keys, { ttl: GONE_SKILLS_CACHE_TTL })
+  }
+
+  if (keys.includes(key))
+    setResponseStatus(event, 410)
+})
