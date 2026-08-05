@@ -1,8 +1,9 @@
 -- The heaviest query in the registry scanned the whole skills table every run.
 --
--- Measured with `wrangler d1 insights skilld-db --time-period 7d` on 2026-08-05:
--- 11,576 runs, 102.7ms average, 6,793 rows read per run, 78.6M rows total and
--- 1,189,148ms of D1 time, the largest single consumer on the database.
+-- Measured with `wrangler d1 insights skilld-db` on 2026-08-05: 102.7ms average
+-- and 6,793 rows read per run, the largest single consumer of D1 time on the
+-- database. Per-run figures only, because `wrangler d1 insights` ignores
+-- `--time-period` and the span behind its totals cannot be stated.
 --
 -- `querySkills` matches a batch of skills by their identity path
 -- (`skills-registry.ts:172`):

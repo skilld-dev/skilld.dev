@@ -1,12 +1,14 @@
 -- The ai-ready status counters were the largest single source of D1 load.
 --
--- Measured with `wrangler d1 insights skilld-db --time-period 7d` on 2026-08-05:
--- the ai-ready:cron status query ran 1,739 times reading 430,099 rows each
--- (747.9M rows total, 421ms average) and its sibling page counter ran 2,141
--- times reading 143,319 rows each (306.8M rows total, 128ms average). Together
--- they read over a billion rows a week and account for roughly a million
--- milliseconds of D1 time, on a table holding 143,470 rows. That is the
+-- Measured with `wrangler d1 insights skilld-db` on 2026-08-05: the ai-ready:cron
+-- status query averaged 430,099 rows read per run at 421ms, and its sibling page
+-- counter 143,319 rows at 128ms, on a table holding 143,470 rows. Between them
+-- they were the largest source of D1 time on the database, which is the
 -- background pressure the 2026-08-04 `D1 DB is overloaded` burst surfaced under.
+--
+-- Per-run figures only. `wrangler d1 insights` ignores `--time-period` (1d, 3d
+-- and 7d return byte-identical output), so the span behind its totals is
+-- whatever D1 retains and cannot be stated. Averages and rankings are unaffected.
 --
 -- The cause is index selectivity, not query volume. `ai_ready_pages` carries
 -- single-column indexes on `indexed` and on `is_error`, and the planner picks
