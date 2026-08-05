@@ -38,8 +38,12 @@ describe('source-gone skills', () => {
     )
   })
 
-  it('answers 410 rather than 200 for a permanently gone skill', () => {
-    expect(component).toContain('setResponseStatus(event, 410)')
+  // The status code is NOT set here. Skill detail is fetched client-side, so the
+  // component never runs during SSR and `setResponseStatus` from it did nothing:
+  // production kept answering 200 with `sourceGone` absent from the SSR payload.
+  // Serving 410 needs a Nitro-layer decision, tracked separately.
+  it('does not pretend to set a status code from a client-fetched component', () => {
+    expect(component).not.toContain('setResponseStatus')
   })
 
   it('says installing will fail, since that is what the reader needs', () => {

@@ -240,20 +240,6 @@ const sourceUnavailableDetail = computed(() => data.value?.sourceGone
   ? 'This skill no longer exists upstream, so installing it will fail. What you see below is the last copy skilld indexed.'
   : 'The source file moved or was removed. Browse the repository to find its current location.')
 
-// Serve the removed skill as 410 rather than 200. The page still renders the
-// last indexed copy, which is useful to a reader, but a crawler needs to be
-// told the resource is permanently gone instead of treating it as live. Only
-// reachable when the fetch resolved during SSR, which is the bot path.
-if (import.meta.server) {
-  watchEffect(() => {
-    if (!data.value?.sourceGone)
-      return
-    const event = useRequestEvent()
-    if (event)
-      setResponseStatus(event, 410)
-  })
-}
-
 const { data: skillFiles } = useFetch(
   () => `/api/skill-files/${slug.value}`,
   { watch: [slug], lazy: true, server: false, immediate: true, default: () => null },
