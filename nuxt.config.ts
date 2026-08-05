@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
-import { SENTRY_DSN } from './shared/sentry'
+import { SENTRY_DSN, sentryRelease } from './shared/sentry'
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
@@ -214,6 +214,7 @@ export default defineNuxtConfig({
       dsn: SENTRY_DSN,
       enabled: process.env.NODE_ENV === 'production',
       environment: 'production',
+      release: sentryRelease() ?? '',
       tracesSampleRate: 0.05,
     },
     public: {
@@ -391,6 +392,9 @@ export default defineNuxtConfig({
     org: 'harlan-zw',
     project: 'skilld',
     authToken: process.env.SENTRY_AUTH_TOKEN,
+    // Pin the name the bundler plugin associates sourcemaps with, so it matches
+    // the release the runtime reports instead of whatever it infers.
+    release: { name: sentryRelease() },
     sourcemaps: {
       disable: !hasSentryAuthToken,
       filesToDeleteAfterUpload: ['**/*.map'],

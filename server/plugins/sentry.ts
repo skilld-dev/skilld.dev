@@ -9,6 +9,9 @@ export default defineNitroPlugin((nitroApp) => {
   sentryCloudflareNitroPlugin({
     dsn: sentry.dsn,
     environment: sentry.environment,
+    // Empty when a build carried no commit, and the SDK must see undefined
+    // rather than an empty string or every event reports release "".
+    release: sentry.release || undefined,
     tracesSampleRate: sentry.tracesSampleRate,
     dataCollection: createSentryDataCollection(),
   })(nitroApp)

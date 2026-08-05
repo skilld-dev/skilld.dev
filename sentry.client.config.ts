@@ -2,6 +2,10 @@ import * as Sentry from '@sentry/nuxt'
 import { createSentryDataCollection, SENTRY_DSN } from './shared/sentry'
 
 if (!import.meta.dev) {
+  // No `release` here on purpose. The Sentry bundler plugin injects the release
+  // it was configured with into the client bundle, and the SDK reads that when
+  // the option is absent. Passing it explicitly would mean reading process.env
+  // from browser code, which is not reliably defined.
   Sentry.init({
     dsn: SENTRY_DSN,
     environment: 'production',
