@@ -67,6 +67,8 @@ interface SourceFacts {
   }
   source: {
     resolved: boolean
+    /** The sync found the SKILL.md gone upstream, whatever the cached render says. */
+    gone: boolean
     resolutionStatus: 'ok' | 'path_missing' | 'fetch_failed'
     skillPath: string | null
     currentSha: string | null
@@ -136,6 +138,12 @@ const { data, status, error, refresh } = useFetch(
   branch: string
   skillPath: string | null
   resolutionStatus: 'ok' | 'path_missing' | 'fetch_failed'
+  /**
+   * The SKILL.md no longer exists upstream. Independent of `resolutionStatus`,
+   * which only describes the cached render and stays `ok` indefinitely after
+   * the file is deleted.
+   */
+  sourceGone: boolean
   tier: 'official-org' | 'official-user' | 'community'
   sourceFacts: SourceFacts
   tags: SkillTag[]
@@ -215,6 +223,36 @@ const { data: liveSkill } = useAsyncData<LiveSkill | null>(
     default: () => null,
   },
 )
+
+// A skill whose SKILL.md was deleted upstream still renders perfectly from the
+// cached copy, so nothing on the page told the reader it was gone. `sourceGone`
+// is the sync's verdict and is reported ahead of the render status, which only
+// ever describes the cache.
+const sourceUnavailableTitle = computed(() => {
+  if (data.value?.sourceGone)
+    return 'Removed from the source repository'
+  return data.value?.resolutionStatus === 'path_missing'
+    ? 'SKILL.md not found in source repository'
+    : 'Could not load SKILL.md'
+})
+
+const sourceUnavailableDetail = computed(() => data.value?.sourceGone
+  ? 'This skill no longer exists upstream, so installing it will fail. What you see below is the last copy skilld indexed.'
+  : 'The source file moved or was removed. Browse the repository to find its current location.')
+
+// Serve the removed skill as 410 rather than 200. The page still renders the
+// last indexed copy, which is useful to a reader, but a crawler needs to be
+// told the resource is permanently gone instead of treating it as live. Only
+// reachable when the fetch resolved during SSR, which is the bot path.
+if (import.meta.server) {
+  watchEffect(() => {
+    if (!data.value?.sourceGone)
+      return
+    const event = useRequestEvent()
+    if (event)
+      setResponseStatus(event, 410)
+  })
+}
 
 const { data: skillFiles } = useFetch(
   () => `/api/skill-files/${slug.value}`,
@@ -1170,7 +1208,7 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="data.resolutionStatus && data.resolutionStatus !== 'ok'"
+            v-if="(data.resolutionStatus && data.resolutionStatus !== 'ok') || data.sourceGone"
             aria-labelledby="broken-heading"
           >
             <h2
@@ -1190,10 +1228,10 @@ useHead(computed(() => ({
               />
               <div class="flex-1">
                 <p class="font-medium">
-                  {{ data.resolutionStatus === 'path_missing' ? 'SKILL.md not found in source repository' : 'Could not load SKILL.md' }}
+                  {{ sourceUnavailableTitle }}
                 </p>
                 <p class="mt-1 text-muted">
-                  The source file moved or was removed. Browse the repository to find its current location.
+                  {{ sourceUnavailableDetail }}
                 </p>
                 <UButton
                   :href="data.githubUrl"

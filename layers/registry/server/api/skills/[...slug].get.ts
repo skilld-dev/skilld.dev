@@ -132,6 +132,12 @@ interface SkillDetailRow {
   source_owner: string | null
   source_repo: string | null
   // sync/revision
+  /**
+   * The sync's verdict on whether the SKILL.md is still present upstream. Zero
+   * means it is gone, which the cached render cannot tell you: a removed skill
+   * keeps rendering perfectly from `rendered_raw` forever.
+   */
+  source_resolved: number | null
   current_sha: string | null
   modified_at: number | null
   references_count: number | null
@@ -182,6 +188,7 @@ export default defineApiHandler({
         .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
                          r.source_owner, r.source_repo,
                          s.current_sha, s.modified_at, s.references_count, s.assets, s.last_synced_at, s.sync_status,
+                         s.source_resolved,
                          s.seo_index_score, s.seo_indexable, s.seo_index_reasons, s.seo_index_synced_at,
                          s.curator_count, s.curator_reason_count, s.approved_social_count, s.author_social_count,
                          s.trust_tier, s.trust_source, s.trust_score, s.trust_reasons, s.trust_synced_at,
@@ -281,7 +288,14 @@ export default defineApiHandler({
     }
     const allowedTools = parseAllowedTools(rendered.frontmatter)
     const capability = classifyAllowedTools(allowedTools)
-    const sourceResolved = Boolean(rendered.status === 'ok' && rendered.skillPath && rendered.raw)
+    // `rendered.*` describes the cached copy, which survives the file being
+    // deleted upstream, so it can only ever say "we can still render this". The
+    // stored `source_resolved` is the sync's verdict on whether the file is
+    // still there. Reading only the former reported `resolved: true` for skills
+    // whose SKILL.md upstream had been 404 for months.
+    const sourceGone = row?.source_resolved === 0
+    const sourceResolved = !sourceGone
+      && Boolean(rendered.status === 'ok' && rendered.skillPath && rendered.raw)
     const sourceCommitSha = latestCommit?.sha ?? row?.current_sha ?? null
     const pushedAtIso = epochToIso(row?.pushed_at)
     const createdAtIso = epochToIso(row?.repo_created_at)
@@ -295,6 +309,7 @@ export default defineApiHandler({
       skillPath: rendered.skillPath,
       branch,
       resolutionStatus: rendered.status,
+      sourceGone,
       content: rendered.body,
       contentHtml: rendered.html,
       dependencies: rendered.dependencies,
@@ -325,6 +340,7 @@ export default defineApiHandler({
         },
         source: {
           resolved: sourceResolved,
+          gone: sourceGone,
           resolutionStatus: rendered.status,
           skillPath: rendered.skillPath,
           currentSha: row?.current_sha ?? null,
