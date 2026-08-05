@@ -1,0 +1,38 @@
+-- Finish the ai-ready status counters that `0091` only half fixed.
+--
+-- `0091` cut the pending counter to a covering seek reading 0 rows, but the
+-- combined status query still read 286,861 rows, and the remainder is the
+-- indexnow subquery:
+--
+--   SELECT COUNT(*) FROM ai_ready_pages
+--   WHERE indexed = 1 AND is_error = 0
+--     AND (indexnow_synced_at IS NULL OR indexnow_synced_at < indexed_at)
+--
+-- It reads 143,391 rows to return 171, at 254ms.
+--
+-- `idx_ai_ready_pages_indexnow_pending` is a partial index over exactly that
+-- predicate holding exactly those 171 rows, and SQLite will not use it. That was
+-- first blamed on missing statistics. `ANALYZE ai_ready_pages` on 2026-08-05
+-- disproved it: the refreshed stats say the partial index holds 171 rows
+-- (`171 1`) against 143,470 for the composite, and the planner still chose the
+-- composite. SQLite cannot prove a query implies a partial index whose WHERE
+-- contains an OR term, so no amount of statistics will match it.
+--
+-- What is left to fix is the table lookups. The plan seeks
+-- `idx_ai_ready_pages_indexed_is_error` but that index carries neither
+-- `indexnow_synced_at` nor `indexed_at`, so each of the 143,391 matches fetches
+-- its row to evaluate the OR. Carrying both columns in the index makes the scan
+-- covering and keeps the work inside the index pages.
+--
+-- The `ANALYZE` above is left in place: it costs nothing to keep, the numbers it
+-- wrote are accurate, and both `0091` and `0092` were re-measured afterwards and
+-- were unaffected (0 rows and 5 rows respectively).
+CREATE INDEX IF NOT EXISTS idx_ai_ready_pages_indexnow_scan
+  ON ai_ready_pages(indexed, is_error, indexnow_synced_at, indexed_at);
+
+-- Measured on production after applying. The subquery went from 254ms to 13.1ms
+-- and its plan from SEARCH to SEARCH ... USING COVERING INDEX; the combined
+-- status query went from 421ms (before 0091) to 21.7ms. Rows read is unchanged
+-- at 143,391, because SQLite counts index entries as rows read, so this buys
+-- latency and D1 queue pressure rather than a smaller billed row count. Latency
+-- is what the overload burst was made of.

@@ -279,7 +279,15 @@ describe('d1 migration bootstrap', () => {
         SELECT sql FROM sqlite_master
         WHERE type = 'index' AND name = 'idx_skills_identity_path'
       `).pluck().get()).toContain(`(owner || '/' || repo || '/' || name)`)
-      expect(migrations.at(-1)).toBe('0092_skills_identity_path_index.sql')
+      // The indexnow counter reads 143k index entries whatever we do, because
+      // SQLite cannot match a partial index whose WHERE contains an OR. Carrying
+      // the two extra columns makes that scan covering, which is the difference
+      // between 254ms and 13ms.
+      expect(sqlite.prepare(`
+        SELECT sql FROM sqlite_master
+        WHERE type = 'index' AND name = 'idx_ai_ready_pages_indexnow_scan'
+      `).pluck().get()).toContain('indexnow_synced_at')
+      expect(migrations.at(-1)).toBe('0093_ai_ready_indexnow_covering_index.sql')
     }
     finally {
       sqlite.close()
