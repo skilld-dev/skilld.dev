@@ -261,7 +261,16 @@ describe('d1 migration bootstrap', () => {
       `).get() as { observed_day: number, stars: number }
       expect(seededStarObservation.stars).toBe(0)
       expect(seededStarObservation.observed_day % 86_400).toBe(0)
-      expect(migrations.at(-1)).toBe('0090_repo_star_observations.sql')
+      // The ai-ready status counters read the whole table without this, because
+      // the planner picks the near-useless `is_error` index for
+      // `indexed = ? AND is_error = 0`. `ai_ready_pages` belongs to the
+      // nuxt-ai-ready module, so `0065` creates it here for exactly this reason
+      // and `0091` only adds to it; a fresh database must still get the index.
+      expect(sqlite.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'index' AND name = 'idx_ai_ready_pages_indexed_is_error'
+      `).pluck().get()).toBe('idx_ai_ready_pages_indexed_is_error')
+      expect(migrations.at(-1)).toBe('0091_ai_ready_pages_status_index.sql')
     }
     finally {
       sqlite.close()
