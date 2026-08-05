@@ -1,0 +1,31 @@
+-- The ai-ready status counters were the largest single source of D1 load.
+--
+-- Measured with `wrangler d1 insights skilld-db --time-period 7d` on 2026-08-05:
+-- the ai-ready:cron status query ran 1,739 times reading 430,099 rows each
+-- (747.9M rows total, 421ms average) and its sibling page counter ran 2,141
+-- times reading 143,319 rows each (306.8M rows total, 128ms average). Together
+-- they read over a billion rows a week and account for roughly a million
+-- milliseconds of D1 time, on a table holding 143,470 rows. That is the
+-- background pressure the 2026-08-04 `D1 DB is overloaded` burst surfaced under.
+--
+-- The cause is index selectivity, not query volume. `ai_ready_pages` carries
+-- single-column indexes on `indexed` and on `is_error`, and the planner picks
+-- `idx_ai_ready_pages_is_error` for `WHERE indexed = ? AND is_error = 0`:
+--
+--   SEARCH ai_ready_pages USING INDEX idx_ai_ready_pages_is_error (is_error=?)
+--
+-- Every row in the table is `is_error = 0` except 80, so that index matches
+-- almost everything and `indexed` is then filtered row by row. Production holds
+-- 143,390 rows at `indexed = 1, is_error = 0`, 80 at `indexed = 1, is_error = 1`,
+-- and none at all at `indexed = 0`. The pending-pages counter therefore reads the
+-- whole table on every run to return zero.
+--
+-- A composite index leads on the column that discriminates, so `indexed = 0`
+-- seeks to an empty range instead of scanning, and the `indexed = 1` counters
+-- scan a narrow covering index rather than the full row payload.
+--
+-- `ai_ready_pages` belongs to the `nuxt-ai-ready` module, which creates its own
+-- schema at runtime. This index is additive and guarded, so the module keeps
+-- ownership of the table and this migration only adds to it.
+CREATE INDEX IF NOT EXISTS idx_ai_ready_pages_indexed_is_error
+  ON ai_ready_pages(indexed, is_error);
