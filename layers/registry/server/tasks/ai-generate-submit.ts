@@ -15,6 +15,7 @@ import {
   ABSTRACTNESS_MODEL,
   abstractnessResponseText,
   buildAbstractnessUserPrompt,
+  countMissingEmbeddings,
   parseAbstractnessPayload,
   persistAbstractness,
   runtimeGenerationLimits,
@@ -123,7 +124,9 @@ export default defineScheduledTask({
 })
 
 async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: VectorizeBinding | undefined, apiKey: string | undefined) {
-  const runtimeLimits = runtimeGenerationLimits()
+  const runtimeLimits = runtimeGenerationLimits({
+    embedding: await countMissingEmbeddings(db),
+  })
   const [embeddingSkills, abstractnessSkills, batchSkills] = await Promise.all([
     selectMissingGeneratedSkills(db, 'embedding', runtimeLimits.embedding),
     selectMissingGeneratedSkills(db, 'abstractness', runtimeLimits.abstractness),

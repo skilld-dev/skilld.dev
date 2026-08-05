@@ -6,20 +6,61 @@ export type RuntimeGeneratedKind = 'embedding' | 'abstractness'
 export const ABSTRACTNESS_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast'
 export const ABSTRACTNESS_PROMPT_VERSION = '2026-07-27-v3'
 
-export function runtimeGenerationLimits() {
+/**
+ * Steady-state embeddings per hourly run. Deliberately low to leave headroom for
+ * concurrent production reads against the shared index.
+ */
+export const EMBEDDING_STEADY_LIMIT = 20
+
+/**
+ * Ceiling when the backlog proves the steady rate is not keeping up. 100 per run
+ * is 2,400 a day, which clears the largest ingest window recorded so far (879
+ * skills on 2026-08-04) with margin, while still bounding how much write pressure
+ * a single run can put on Vectorize.
+ */
+export const EMBEDDING_BURST_LIMIT = 100
+
+/**
+ * Embeddings starve whenever ingest outruns a fixed cap. On 2026-08-04, 879 skills
+ * arrived against a 480-a-day ceiling and the nightly parity audit went red with
+ * 479 missing, so semantic search could not see a day of new skills.
+ *
+ * The cap is adaptive rather than simply larger. With no measured backlog the
+ * steady limit applies unchanged, so ordinary days keep their read headroom. Once
+ * the backlog exceeds what the steady rate can clear, the limit rises toward the
+ * burst ceiling and is then clamped by the invocation's D1 query budget, which is
+ * the real constraint: embeddings and abstractness share one budget, and
+ * abstractness keeps a reserved floor so a large embedding backlog cannot starve
+ * it out entirely.
+ */
+export function runtimeGenerationLimits(backlog?: { embedding: number }) {
   const invocationQueryLimit = 1_000
   const reservedQueries = 150
   // Start + marker/completion batch + failure recording when that batch fails.
   const embeddingQueriesPerItem = 4
   const abstractnessQueriesPerItem = 2
+  const queryBudget = invocationQueryLimit - reservedQueries
   const sharedLimit = Math.floor(
-    (invocationQueryLimit - reservedQueries)
-    / (embeddingQueriesPerItem + abstractnessQueriesPerItem),
+    queryBudget / (embeddingQueriesPerItem + abstractnessQueriesPerItem),
   )
+  const abstractnessFloor = Math.min(sharedLimit, 20)
+  const embeddingQueryCeiling = Math.floor(
+    (queryBudget - abstractnessFloor * abstractnessQueriesPerItem) / embeddingQueriesPerItem,
+  )
+
+  const pending = Math.max(0, Math.floor(backlog?.embedding ?? 0))
+  const embedding = Math.min(
+    Math.max(EMBEDDING_STEADY_LIMIT, Math.min(pending, EMBEDDING_BURST_LIMIT)),
+    embeddingQueryCeiling,
+  )
+  const abstractness = Math.max(
+    abstractnessFloor,
+    Math.floor((queryBudget - embedding * embeddingQueriesPerItem) / abstractnessQueriesPerItem),
+  )
+
   return {
-    // Leave headroom for concurrent production reads against the shared index.
-    embedding: Math.min(sharedLimit, 20),
-    abstractness: sharedLimit,
+    embedding,
+    abstractness: Math.min(abstractness, sharedLimit),
     embeddingQueriesPerItem,
     abstractnessQueriesPerItem,
     reservedQueries,
@@ -83,6 +124,27 @@ const ELIGIBLE_SKILL_SQL = `
     AND s.rendered_status = 'ok'
     AND s.seo_indexable = 1
 `
+
+/**
+ * Count the embedding backlog so the limit can respond to it. One extra query
+ * against a budget of 850 is a cheap price for not silently falling behind.
+ */
+export async function countMissingEmbeddings(db: D1Database): Promise<number> {
+  const row = await db.prepare(
+    `SELECT COUNT(*) AS pending FROM (${ELIGIBLE_SKILL_SQL}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM skill_generated generated
+        WHERE generated.owner = s.owner
+          AND generated.repo = s.repo
+          AND generated.name = s.name
+          AND generated.kind = 'embedding'
+          AND generated.sha = s.current_sha
+      )
+    )`,
+  ).first<{ pending: number }>()
+  return Number(row?.pending ?? 0)
+}
 
 const abstractnessCategories = new Set<string>(ABSTRACTNESS_CATEGORIES)
 

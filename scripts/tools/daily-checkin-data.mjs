@@ -131,6 +131,10 @@ const ci = probe(() => {
   }
 })
 
+// Loop 1 front door only. `/guides` was probed until 2026-08-04 and was dropped
+// when guides were retired; it now answers 410 by design, so a 200 there would be
+// the regression. Removing a probe silently reads as a passing probe, so any future
+// removal belongs here in writing.
 const http = await probeAsync(async () => {
   const entries = await Promise.all([
     'https://skilld.dev/',

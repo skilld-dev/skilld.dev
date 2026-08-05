@@ -7,7 +7,7 @@ import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
 import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
 import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
-import { relatedSkillSearchQuery, selectRelatedSkillFallbacks } from '../../utils/skill-related'
+import { RELATED_CACHE_TTL, relatedCacheKey, relatedSkillSearchQuery, selectRelatedSkillFallbacks } from '../../utils/skill-related'
 import { findRelatedSkills, findSkill, findSkillsByLookups, querySkills } from '../../utils/skills-registry'
 
 const COMMITS_CACHE_TTL = 60 * 60 * 12
@@ -34,6 +34,16 @@ interface NeighborSkill {
   score: number
 }
 
+type RelatedSkills = Awaited<ReturnType<typeof findRelatedSkills>>
+
+interface SkillRelatedResponse {
+  commits: SkillCommit[]
+  relatedRepoSkills: RelatedSkills['sameRepo']
+  relatedOwnerSkills: RelatedSkills['sameOwner']
+  coOccurrenceSkills: NeighborSkill[]
+  semanticSiblings: NeighborSkill[]
+}
+
 export default defineApiHandler({
   handler: async ({ event, platform }) => {
     const slug = getRouterParam(event, 'slug')
@@ -43,6 +53,11 @@ export default defineApiHandler({
     const skill = await findSkill(event, slug)
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
+
+    const cacheKey = relatedCacheKey(skill)
+    const cached = await useStorage('cache').getItem<SkillRelatedResponse>(cacheKey)
+    if (cached)
+      return cached
 
     // skillPath is needed for commits; cheap KV lookup since the critical handler primed it
     const skillPath = await useStorage('cache').getItem<string | null>(
@@ -67,13 +82,16 @@ export default defineApiHandler({
       ? embeddedSemanticSiblings
       : await findFallbackSemanticSiblings(event, skill)
 
-    return {
+    const response: SkillRelatedResponse = {
       commits,
       relatedRepoSkills: related.sameRepo,
       relatedOwnerSkills: related.sameOwner,
       coOccurrenceSkills,
       semanticSiblings,
     }
+
+    await writeCache(useStorage('cache'), cacheKey, response, { ttl: RELATED_CACHE_TTL })
+    return response
   },
 })
 
