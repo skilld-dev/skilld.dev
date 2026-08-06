@@ -324,6 +324,10 @@ function sentryToken() {
   return null
 }
 
+// Recurrences now share the page with new issues, so the cap has to hold
+// both. `truncatedAtLimit` reports when it did not.
+const SENTRY_ISSUE_LIMIT = 25
+
 const sentry = await (async () => {
   const resolved = sentryToken()
   if (!resolved) {
@@ -334,8 +338,11 @@ const sentry = await (async () => {
     }
   }
   const { token, source: tokenSource } = resolved
-  const query = encodeURIComponent(`project:skilld is:unresolved firstSeen:>${sinceIso.slice(0, 19)}`)
-  const response = await fetch(`https://sentry.io/api/0/organizations/harlan-zw/issues/?query=${query}&sort=freq&limit=10`, {
+  // `lastSeen` catches an issue that fired again on an id we already know;
+  // `firstSeen` could only ever report births, which is how 686 post-deploy
+  // errors reached the 2026-08-06 archive as silence.
+  const query = encodeURIComponent(`project:skilld is:unresolved lastSeen:>${sinceIso.slice(0, 19)}`)
+  const response = await fetch(`https://sentry.io/api/0/organizations/harlan-zw/issues/?query=${query}&sort=freq&limit=${SENTRY_ISSUE_LIMIT}`, {
     headers: { Authorization: `Bearer ${token}` },
   }).catch(error => ({
     networkError: error instanceof Error ? error.message : String(error),
@@ -357,7 +364,7 @@ const sentry = await (async () => {
       diagnostic: `Sentry issues response was not JSON: ${issues.parseError}`,
     }
   }
-  return parseSentryIssuesResponse(response.status, issues, tokenSource)
+  return parseSentryIssuesResponse(response.status, issues, tokenSource, sinceIso, SENTRY_ISSUE_LIMIT)
 })().catch(error => ({
   _tag: 'provider_failure',
   status: null,
