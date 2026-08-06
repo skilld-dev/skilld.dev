@@ -180,8 +180,12 @@ export default defineNuxtConfig({
         { 'http-equiv': 'origin-trial', 'content': 'Auy85A/20M9GxT7GTSdCadWBhdADJXRmviBX/6dWjyQKWCCDVntG9PObBqShEmvEeMeRudWz7MyZf7y9SkaZMAwAAABKeyJvcmlnaW4iOiJodHRwczovL3NraWxsZC5kZXY6NDQzIiwiZmVhdHVyZSI6IldlYk1DUCIsImV4cGlyeSI6MTc5NDg3MzYwMH0=' },
       ],
       link: [
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        // Explicit `sizes` on both: without it, browsers/crawlers see two
+        // `rel="icon"` links both implicitly claiming "any" size, and pick
+        // between them arbitrarily. The SVG genuinely scales to any size; the
+        // .ico is a fixed multi-size bitmap, so it declares what it contains.
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg', sizes: 'any' },
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico', sizes: '16x16 32x32 48x48' },
       ],
     },
   },
@@ -287,6 +291,19 @@ export default defineNuxtConfig({
         'cloudflare-cdn-cache-control': 'max-age=60',
       },
     },
+    // Dev-only sandbox (404s in production, see app/pages/_playground/mdxg.vue).
+    // Google had it indexed from before that gate landed; block crawling so it
+    // drops out instead of recurring as a broken-page finding.
+    '/_playground/**': { robots: false } as any,
+    // Raw API responses (e.g. /api/skills-raw/** serves text/markdown SKILL.md
+    // content for agents/tools). Not HTML documents, so title/viewport/lang/OG
+    // checks against them are meaningless. Keep them fetchable (routes stay
+    // live for the MCP server and AI agents that call them directly) but tell
+    // crawlers not to index them as pages.
+    '/api/**': { robots: false } as any,
+    // OAuth redirect stubs (layers/identity/server/routes/auth/*) — they 302
+    // straight to GitHub with no document to add an H1/title to.
+    '/auth/**': { robots: false } as any,
   },
 
   future: {
@@ -361,7 +378,7 @@ export default defineNuxtConfig({
     sitemaps: {
       pages: {
         includeAppSources: true,
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new'],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**'],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],

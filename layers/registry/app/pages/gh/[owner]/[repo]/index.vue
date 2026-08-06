@@ -24,7 +24,7 @@ const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = u
   },
 ) as ReturnType<typeof useFetch<OrgProfile>>
 
-const { data: repoSource, status: repoSourceStatus, error: repoSourceError, refresh: refreshRepoSource } = useFetch<RepoSourceProfile>(
+const repoSourceFetch = useFetch<RepoSourceProfile>(
   () => `/api/repos/${repoHub.value.owner}/${repoHub.value.repo}`,
   {
     watch: [repoHub],
@@ -32,6 +32,19 @@ const { data: repoSource, status: repoSourceStatus, error: repoSourceError, refr
     immediate: true,
   },
 ) as ReturnType<typeof useFetch<RepoSourceProfile>>
+// Bots render blocking (see fetchRepoProfileOnServer above), so the fetch has
+// settled by the time setup() continues here. A confirmed-missing repo
+// (`/api/repos/.../....get.ts` throws 404 once GitHub itself says 404) was
+// rendering the "Source not found" card with a 200 status — a soft 404 that
+// let nonexistent owner/repo URLs (e.g. from stale tag/collection data) sit
+// in the index. Transient upstream failures don't throw there, so this only
+// fires for genuine not-found repos.
+if (fetchRepoProfileOnServer)
+  await repoSourceFetch
+const { data: repoSource, status: repoSourceStatus, error: repoSourceError, refresh: refreshRepoSource } = repoSourceFetch
+if (fetchRepoProfileOnServer && repoSourceError.value?.statusCode === 404) {
+  throw createError({ statusCode: 404, statusMessage: 'Repository not found', fatal: true })
+}
 
 const repoSkills = computed(() => selectRepoSkills(repoProfile.value, repoHub.value.repo))
 const repoSkillsLoading = computed(() =>

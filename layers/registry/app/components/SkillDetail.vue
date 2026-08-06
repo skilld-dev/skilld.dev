@@ -115,9 +115,21 @@ interface DuplicateSkill {
 const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch(
   () => `/api/skills/${slug.value}`,
-  { watch: [slug], lazy: !isBot.value, immediate: true },
+  {
+    watch: [slug],
+    lazy: !isBot.value,
+    immediate: true,
+    // `content` (the unrendered markdown body) rides along in the API
+    // response but nothing here reads it — `contentHtml` is what renders.
+    // Dropping it before it enters Nuxt's hydration payload cuts ~100KB off
+    // every skill page (Nuxt SEO Pro flagged large SKILL.mds as
+    // payload-too-heavy).
+    transform: (input: { content: string | null } & Record<string, unknown>) => {
+      const { content: _content, ...rest } = input
+      return rest
+    },
+  },
 ) as ReturnType<typeof useFetch<{
-  content: string | null
   contentHtml: string | null
   frontmatter: Record<string, unknown> | null
   raw: string | null
