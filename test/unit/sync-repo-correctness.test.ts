@@ -65,6 +65,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getCommitsBatch.mockImplementation(async (_owner, _repo, paths: string[]) => ({
       status: 200,
       data: new Map(paths.map(path => [path, []])),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     }))
@@ -88,6 +89,7 @@ describe('syncRepo content acknowledgement', () => {
         ['skills/one/SKILL.md', rawSkill('One')],
         ['skills/two/SKILL.md', rawSkill('Two')],
       ]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -125,6 +127,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -197,6 +200,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -230,6 +234,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -255,6 +260,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -286,6 +292,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -314,6 +321,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -337,6 +345,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -404,6 +413,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -424,6 +434,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -507,6 +518,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -533,6 +545,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })
@@ -553,6 +566,7 @@ describe('syncRepo content acknowledgement', () => {
     github.getBlobsBatch.mockResolvedValue({
       status: 200,
       data: new Map([['skills/one/SKILL.md', rawSkill('One')]]),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     })

@@ -337,12 +337,26 @@ async function gqlPost<T>(
   return { status: 200, data: body.data ?? null, rateLimit }
 }
 
+export interface BlobBatchOutcome extends FetchOutcome<Map<string, string>> {
+  /**
+   * Paths GitHub answered with a blob it will not hand back as text, because
+   * it classifies the contents as binary. These exist upstream, so they are
+   * not missing, and no retry can turn them into text.
+   */
+  unreadable: Set<string>
+}
+
 /**
  * Batch-fetch SKILL.md blob contents for N paths in one GraphQL request.
  * Replaces N raw.githubusercontent.com fetches (which are per-IP rate-limited
  * post-May-2025 and ignore auth headers) with a single deterministic
  * authenticated request. Returns Map<path, text>; missing/non-Blob entries
  * are absent from the map so callers can fall back per path.
+ *
+ * `text` alone cannot tell a missing blob from an unreadable one: GitHub
+ * returns null for both. `isBinary` separates them, and the difference decides
+ * whether retrying is worth anything. `lev-os/agents` lost 2,853 skills for
+ * eight days to that conflation (2026-08-06).
  */
 export async function getBlobsBatch(
   owner: string,
@@ -350,36 +364,39 @@ export async function getBlobsBatch(
   branch: string,
   paths: string[],
   bindings: GithubBindings,
-): Promise<FetchOutcome<Map<string, string>>> {
+): Promise<BlobBatchOutcome> {
   if (paths.length === 0)
-    return { status: 200, data: new Map(), rateLimit: null, notModified: false }
+    return { status: 200, data: new Map(), unreadable: new Set(), rateLimit: null, notModified: false }
   const unique = [...new Set(paths)]
   const map = new Map<string, string>()
+  const unreadable = new Set<string>()
   let rateLimit: RateLimitInfo | null = null
 
   for (const batch of chunk(unique, GRAPHQL_BATCH_SIZE)) {
     const varDecls = ['$owner:String!', '$repo:String!', ...batch.map((_, i) => `$expr${i}:String!`)]
-    const aliases = batch.map((_, i) => `b${i}:object(expression:$expr${i}){... on Blob{text}}`).join(' ')
+    const aliases = batch.map((_, i) => `b${i}:object(expression:$expr${i}){... on Blob{text isBinary}}`).join(' ')
     const query = `query(${varDecls.join(',')}){repository(owner:$owner,name:$repo){${aliases}}}`
     const variables: Record<string, string> = { owner, repo }
     batch.forEach((p, i) => {
       variables[`expr${i}`] = `${branch}:${p}`
     })
 
-    const out = await gqlPost<{ repository: Record<string, { text?: string } | null> | null }>(query, variables, bindings)
+    const out = await gqlPost<{ repository: Record<string, { text?: string | null, isBinary?: boolean } | null> | null }>(query, variables, bindings)
     rateLimit = out.rateLimit ?? rateLimit
     // A partial map would look like a repo that lost files, and the caller
     // would delete skills it simply failed to read. Fail the whole batch.
     if (!out.data?.repository)
-      return { status: out.status, data: null, rateLimit, notModified: false }
+      return { status: out.status, data: null, unreadable, rateLimit, notModified: false }
     batch.forEach((p, i) => {
-      const text = out.data!.repository![`b${i}`]?.text
-      if (typeof text === 'string')
-        map.set(p, text)
+      const blob = out.data!.repository![`b${i}`]
+      if (typeof blob?.text === 'string')
+        map.set(p, blob.text)
+      else if (blob?.isBinary)
+        unreadable.add(p)
     })
   }
 
-  return { status: 200, data: map, rateLimit, notModified: false }
+  return { status: 200, data: map, unreadable, rateLimit, notModified: false }
 }
 
 /**
