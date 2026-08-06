@@ -18,6 +18,8 @@ export interface SyncRepoStats {
   reason?: string
   skillsSeen: number
   skillsUpserted: number
+  /** Files present upstream that GitHub will not return as text. */
+  skillsUnreadable: number
   revisionsInserted: number
   activityEmitted: number
   rateLimitRemaining?: number
@@ -525,6 +527,7 @@ export async function syncRepo(
     status: 'failed',
     skillsSeen: 0,
     skillsUpserted: 0,
+    skillsUnreadable: 0,
     revisionsInserted: 0,
     activityEmitted: 0,
   }
@@ -820,6 +823,7 @@ export async function syncRepo(
     }
 
     const blobs = new Map<string, string>()
+    const unreadablePaths = new Set<string>()
     if (contentFiles.length > 0) {
       const blobsRes = await getBlobsBatch(sourceOwner, sourceRepo, branch, contentFiles.map(file => file.path), bindings)
       logRateLimit(`blobs ${owner}/${repo}`, blobsRes.rateLimit)
@@ -831,7 +835,12 @@ export async function syncRepo(
       }
       for (const [path, raw] of blobsRes.data)
         blobs.set(path, raw)
-      const missingBlobPath = contentFiles.find(file => !blobs.has(file.path))?.path
+      for (const path of blobsRes.unreadable)
+        unreadablePaths.add(path)
+      // Only a genuinely absent blob is a partial read. A blob GitHub reports
+      // as binary is present and permanently unreadable, so failing the repo
+      // over it burns retries forever and holds every sibling skill hostage.
+      const missingBlobPath = contentFiles.find(file => !blobs.has(file.path) && !unreadablePaths.has(file.path))?.path
       if (missingBlobPath) {
         stats.status = 'failed'
         stats.reason = `blob_batch_partial:${missingBlobPath}`
@@ -857,6 +866,18 @@ export async function syncRepo(
     const changedPaths: string[] = []
 
     for (const file of contentFiles) {
+      if (unreadablePaths.has(file.path)) {
+        // The file is there, GitHub just will not return it as text. Keep any
+        // row already built from it alive: the disappeared-skill sweep below
+        // quarantines every name it does not see, and "we could not read it"
+        // is not "the author deleted it".
+        const previouslyIndexed = existing.get(file.dirName)
+        if (previouslyIndexed)
+          seenNames.add(previouslyIndexed.name)
+        stats.skillsUnreadable += 1
+        continue
+      }
+
       const raw = blobs.get(file.path)!
       const parsed = parseSkillFile(raw, file.dirName)
       if (!parsed) {

@@ -104,3 +104,44 @@ describe('graphQL batch chunking', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('getBlobsBatch binary classification', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('separates a blob GitHub will not return text for from a blob that is absent', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Response(JSON.stringify({
+      data: {
+        repository: {
+          b0: { text: 'readable', isBinary: false },
+          b1: { text: null, isBinary: true },
+          b2: null,
+        },
+      },
+    }), { status: 200 })))
+
+    const result = await getBlobsBatch('lev-os', 'agents', 'main', [
+      'skills/ok/SKILL.md',
+      'skills/binary/SKILL.md',
+      'skills/gone/SKILL.md',
+    ], { GITHUB_TOKEN: 'test-token' })
+
+    expect(result.status).toBe(200)
+    expect(result.data?.get('skills/ok/SKILL.md')).toBe('readable')
+    expect(result.data?.has('skills/binary/SKILL.md')).toBe(false)
+    expect([...result.unreadable]).toEqual(['skills/binary/SKILL.md'])
+    // Absent stays absent: the caller must still treat it as a partial read.
+    expect(result.unreadable.has('skills/gone/SKILL.md')).toBe(false)
+  })
+
+  it('asks GitHub for isBinary so null text can be told apart from a missing blob', async () => {
+    const fetchMock = vi.fn(() => new Response(JSON.stringify({ data: { repository: { b0: { text: 'x', isBinary: false } } } }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getBlobsBatch('owner', 'repo', 'main', ['skills/one/SKILL.md'], { GITHUB_TOKEN: 'test-token' })
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0]![1] as { body: string }).body)) as { query: string }
+    expect(body.query).toContain('isBinary')
+  })
+})

@@ -62,6 +62,7 @@ function serveRequestedBlobs() {
   return async (_owner: string, _repo: string, _branch: string, paths: string[]) => ({
     status: 200,
     data: new Map(paths.map(path => [path, rawSkill(path.split('/')[1]!)])),
+    unreadable: new Set(),
     rateLimit: null,
     notModified: false,
   })
@@ -81,6 +82,7 @@ describe('syncRepo bounded working set', () => {
     github.getCommitsBatch.mockImplementation(async (_owner, _repo, paths: string[]) => ({
       status: 200,
       data: new Map(paths.map(path => [path, []])),
+      unreadable: new Set(),
       rateLimit: null,
       notModified: false,
     }))
@@ -146,6 +148,7 @@ describe('syncRepo bounded working set', () => {
       return {
         status: 200,
         data: new Map(paths.map(path => [path, rawSkill(path.split('/')[1]!)])),
+        unreadable: new Set(),
         rateLimit: null,
         notModified: false,
       }
@@ -170,6 +173,7 @@ describe('syncRepo bounded working set', () => {
       return {
         status: 200,
         data: new Map(paths.map(path => [path, rawSkill(path.split('/')[1]!)])),
+        unreadable: new Set(),
         rateLimit: null,
         notModified: false,
       }
