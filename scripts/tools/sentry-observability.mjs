@@ -11,7 +11,16 @@ function nonnegativeInteger(value) {
   return Number.isSafeInteger(parsed) ? parsed : null
 }
 
-export function parseSentryIssuesResponse(status, body, tokenSource) {
+/**
+ * Split issues by whether the window created them or merely saw them again.
+ *
+ * The probe used to ask Sentry for `firstSeen:>{since}`, which can only ever
+ * report first occurrences. On 2026-08-06 that hid 686 events recurring on five
+ * known ids, all of them after the deploy that was supposed to fix those ids,
+ * and the archive recorded a clean night. A recurrence is the signal that a fix
+ * did not hold, so it has to reach the report on its own.
+ */
+export function parseSentryIssuesResponse(status, body, tokenSource, sinceIso, limit) {
   if (status === 401 || status === 403) {
     const origin = tokenSource ? ` Token came from ${tokenSource}.` : ''
     return {
@@ -36,7 +45,9 @@ export function parseSentryIssuesResponse(status, body, tokenSource) {
       diagnostic: 'Sentry issues response was not an array.',
     }
   }
+  const windowStart = typeof sinceIso === 'string' ? Date.parse(sinceIso) : Number.NaN
   const newIssues = []
+  const recurringIssues = []
   for (const candidate of body) {
     const issue = record(candidate)
     const count = nonnegativeInteger(issue?.count)
@@ -57,7 +68,7 @@ export function parseSentryIssuesResponse(status, body, tokenSource) {
         diagnostic: 'Sentry issues response contained an invalid issue.',
       }
     }
-    newIssues.push({
+    const parsed = {
       id: issue.id,
       shortId: issue.shortId,
       title: issue.title.slice(0, 160),
@@ -67,9 +78,23 @@ export function parseSentryIssuesResponse(status, body, tokenSource) {
       userCount,
       firstSeen: issue.firstSeen,
       lastSeen: issue.lastSeen,
-    })
+    }
+    // An unparseable window start must not silently reclassify everything as a
+    // recurrence, so an unknown boundary keeps the old, louder reading.
+    const bornInWindow = Number.isNaN(windowStart) || Date.parse(issue.firstSeen) >= windowStart
+    if (bornInWindow)
+      newIssues.push(parsed)
+    else
+      recurringIssues.push(parsed)
   }
-  return { _tag: 'available', newIssues }
+  return {
+    _tag: 'available',
+    newIssues,
+    recurringIssues,
+    // A full page means Sentry had more to say. Reporting the cap keeps a
+    // truncated list from reading as a complete one.
+    truncatedAtLimit: typeof limit === 'number' && body.length >= limit,
+  }
 }
 
 export function countObservabilityFailures(result) {
