@@ -57,23 +57,47 @@ function seedHomepageCollections(): Database.Database {
 }
 
 describe('homepage activation', () => {
-  it('keeps the focused hero compact and documented', () => {
-    expect(heroSource).toContain('py-12')
-    expect(heroSource).toContain('md:py-16')
-    expect(heroSource).not.toContain('md:py-24')
-    expect(designSource).toContain('**Focused hero**')
-    expect(designSource).not.toContain('**Hero skill proof**')
+  it('gives the hero more width and air than the bands below it, and documents why', () => {
+    expect(heroSource).toContain('max-w-7xl')
+    expect(heroSource).toContain('md:py-24')
+    expect(homepageSource).toContain('editorial-band__content mx-auto max-w-5xl')
+    expect(designSource).toContain('**Split hero with proof rail**')
+    expect(designSource).not.toContain('**Focused hero**')
   })
 
-  it('keeps the hero to one heading, one paragraph, and two calls to action', () => {
+  it('pairs the hero copy with the person-authored skill rail', () => {
     expect(heroSource.match(/<h1\b/g)).toHaveLength(1)
-    expect(heroSource.match(/<p\b/g)).toHaveLength(1)
     expect(heroSource.match(/<UButton\b/g)).toHaveLength(2)
     expect(heroSource).toContain('label="Search skills"')
     expect(heroSource).toContain('label="Explore community"')
+    expect(heroSource).toContain('<SkillSourceList')
+    expect(heroSource).toContain('auto-scroll')
     expect(heroSource).not.toContain('<UInput')
-    expect(heroSource).not.toContain('<SkillSourceList')
     expect(heroSource).not.toContain('<code')
+  })
+
+  it('asks visitors what they work on and shows who writes for each track', () => {
+    const outcomesSource = homepageSource.slice(
+      homepageSource.indexOf('id="outcomes"'),
+      homepageSource.indexOf('id="featured-focus"'),
+    )
+    const clusterGrid = readFileSync(resolve(root, 'app/components/OutcomeClusterGrid.vue'), 'utf8')
+
+    expect(outcomesSource).toContain('What do you work on?')
+    expect(outcomesSource).not.toContain('What should your agent do?')
+    expect(clusterGrid).toContain('outcome-index__avatars')
+    expect(clusterGrid).toContain('authorSummary(cluster)')
+  })
+
+  it('promotes the curator directory on the homepage', () => {
+    const communitySource = homepageSource.slice(
+      homepageSource.indexOf('id="community"'),
+      homepageSource.indexOf('id="freshness"'),
+    )
+
+    expect(communitySource).toContain('Curators you can follow.')
+    expect(communitySource).toContain('to="/community"')
+    expect(communitySource).toMatch(/to="`\/@\$\{curator\.login\}`"/)
   })
 
   it('tracks the featured collection install from the primary decision point', () => {

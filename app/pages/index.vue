@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import type { FeaturedCollectionsResponse } from '~~/server/api/collections/featured.get'
+import type { CommunityDirectoryResponse } from '~~/server/api/community.get'
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
+import type { SkillSourceItem } from '../types/skill-source'
+import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
+import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
+import {
+  HOMEPAGE_PERSON_MINIMUM,
+  HOMEPAGE_SKILL_LIMIT,
+  selectHomepagePersonSkills,
+} from '../utils/homepage-person-skills'
 
 const title = 'Curated agent skills by humans · skilld'
 const description = 'Agent skills written by real maintainers in their own GitHub repos. See who wrote it and read the SKILL.md before you install.'
@@ -54,6 +63,10 @@ const [
     error: publishesError,
     refresh: refreshPublishes,
   },
+  {
+    data: communityData,
+    status: communityStatus,
+  },
 ] = await Promise.all([
   withHomeDataTiming('home-featured', useFetch<FeaturedCollectionsResponse>('/api/collections/featured', {
     key: 'home-featured-collections-v6',
@@ -63,6 +76,9 @@ const [
   })),
   withHomeDataTiming('home-publishes', useFetch<RecentPublishesResponse>('/api/feed/recent-publishes', {
     key: 'home-recent-publishes-v2',
+  })),
+  withHomeDataTiming('home-community', useFetch<CommunityDirectoryResponse>('/api/community', {
+    key: 'home-community-v1',
   })),
 ])
 
@@ -82,8 +98,59 @@ const supportingCollections = computed(() => featuredCollections.value.slice(1, 
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
 
+const communityCurators = computed(() => (communityData.value?.items ?? []).slice(0, 6))
+const communityTotal = computed(() => communityData.value?.total ?? 0)
+
+function curatorName(curator: { name: string | null, login: string }): string {
+  return curator.name || `@${curator.login}`
+}
+
+function curatorSummary(curator: { collectionCount: number, skillCount: number }): string {
+  return [
+    curator.collectionCount
+      ? `${curator.collectionCount} ${curator.collectionCount === 1 ? 'collection' : 'collections'}`
+      : null,
+    curator.skillCount
+      ? `${curator.skillCount} ${curator.skillCount === 1 ? 'skill' : 'skills'}`
+      : null,
+  ].filter(Boolean).join(' · ')
+}
+
 type FeaturedCollectionSkill = FeaturedCollectionsResponse['items'][number]['skills'][number]
 type FeaturedCollection = FeaturedCollectionsResponse['items'][number]
+
+interface FeaturedPeopleResponse {
+  devSections: FeaturedPersonSection[]
+}
+
+// The hero rail is decoration on top of the headline, so it loads after
+// hydration and falls back to a hand-picked set when the live data is thin.
+const { data: peopleSkillsData, execute: loadPeopleSkills } = await useFetch<FeaturedPeopleResponse>('/api/skills/featured', {
+  key: 'home-person-skills-v1',
+  query: { orgs: 0, perOrg: 1, devs: 20, perDev: 2 },
+  server: false,
+  lazy: true,
+  immediate: false,
+})
+
+onMounted(() => loadPeopleSkills())
+
+const fallbackPersonNamesByOwner = new Map<string, string>(
+  homepagePersonSkillFallbacks.map(skill => [skill.owner, skill.maintainerName]),
+)
+
+const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
+  const liveSkills = selectHomepagePersonSkills(
+    peopleSkillsData.value?.devSections ?? [],
+    fallbackPersonNamesByOwner,
+  )
+  const livePeople = new Set(liveSkills.map(skill => skill.owner))
+
+  return liveSkills.length === HOMEPAGE_SKILL_LIMIT
+    && livePeople.size >= HOMEPAGE_PERSON_MINIMUM
+    ? liveSkills
+    : homepagePersonSkillFallbacks
+})
 
 function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
   return skill.name
@@ -191,30 +258,46 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         aria-hidden="true"
       />
 
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <div class="max-w-3xl">
-          <h1 id="hero-heading" class="home-display max-w-[13ch] font-semibold tracking-[-0.045em] text-balance">
-            Curated agent skills by humans.
-          </h1>
-          <p class="mt-6 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
-            Every skill is a SKILL.md written in its author's own repo, so you can see who made it and read the source before installing.
-          </p>
-          <div class="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <UButton
-              to="/skills"
-              label="Search skills"
-              trailing-icon="i-lucide-arrow-right"
-              size="xl"
-              class="min-h-11 justify-center"
-            />
-            <UButton
-              to="/community"
-              label="Explore community"
-              color="neutral"
-              variant="outline"
-              trailing-icon="i-lucide-arrow-right"
-              size="xl"
-              class="min-h-11 justify-center"
+      <!-- The hero runs wider than the editorial bands below it so the proof
+           rail sits beside the headline instead of compressing it. -->
+      <div class="editorial-band__content mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
+        <div class="home-hero-grid">
+          <div class="home-hero-copy min-w-0">
+            <h1 id="hero-heading" class="home-display home-display--split max-w-[14ch] font-semibold tracking-[-0.045em] text-balance">
+              Curated agent skills by humans.
+            </h1>
+            <p class="mt-8 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
+              Every skill is a SKILL.md written in its author's own repo, so you can see who made it and read the source before installing.
+            </p>
+            <div class="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+              <UButton
+                to="/skills"
+                label="Search skills"
+                trailing-icon="i-lucide-arrow-right"
+                size="xl"
+                class="min-h-11 justify-center"
+              />
+              <UButton
+                to="/community"
+                label="Explore community"
+                color="neutral"
+                variant="outline"
+                trailing-icon="i-lucide-arrow-right"
+                size="xl"
+                class="min-h-11 justify-center"
+              />
+            </div>
+          </div>
+
+          <div class="home-hero-proof min-w-0">
+            <p class="data-label px-1 pb-3">
+              Skills from people who do the work
+            </p>
+            <SkillSourceList
+              :items="heroSkillCards"
+              variant="stream"
+              auto-scroll
+              aria-label="Person-authored skills"
             />
           </div>
         </div>
@@ -230,13 +313,13 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="grid gap-8 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] lg:gap-12">
           <div class="home-outcomes-intro">
             <p class="section-label">
-              Browse by outcome
+              Pick your track
             </p>
             <h2 id="outcomes-heading" class="home-outcomes-title mt-4 max-w-[12ch] font-semibold text-balance">
-              What should your agent do?
+              What do you work on?
             </h2>
             <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              Start with the job. Narrow by tool or maintainer later.
+              Choose the work you actually do. Each track shows who writes skills for it.
             </p>
           </div>
           <OutcomeClusterGrid aria-describedby="outcomes-description" />
@@ -510,6 +593,103 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           <UButton
             to="/community"
             label="Browse the community"
+            color="neutral"
+            variant="outline"
+            class="mt-4 min-h-11"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section
+      id="community"
+      class="editorial-band home-community-band border-b border-default"
+      aria-labelledby="community-heading"
+    >
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+        <div class="home-featured-heading">
+          <div class="min-w-0">
+            <p class="section-label">
+              The people behind it
+            </p>
+            <h2 id="community-heading" class="home-featured-title mt-4 text-balance">
+              Curators you can follow.
+            </h2>
+            <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
+              <template v-if="communityTotal">
+                {{ communityTotal }} {{ communityTotal === 1 ? 'person publishes' : 'people publish' }} collections on skilld. Open a profile to see what they keep installed.
+              </template>
+              <template v-else>
+                Open a profile to see the collections someone keeps installed.
+              </template>
+            </p>
+          </div>
+          <UButton
+            to="/community"
+            label="Browse the directory"
+            color="neutral"
+            variant="ghost"
+            trailing-icon="i-lucide-arrow-right"
+            class="min-h-11 shrink-0 self-start"
+          />
+        </div>
+
+        <div v-if="communityStatus === 'pending'" class="home-community-grid mt-8" aria-busy="true">
+          <div v-for="i in 6" :key="i" class="home-community-card">
+            <div class="flex items-center gap-3">
+              <USkeleton class="size-10 shrink-0 rounded-full" />
+              <div class="min-w-0 flex-1">
+                <USkeleton class="h-4 w-2/3" />
+                <USkeleton class="mt-2 h-3 w-1/2" />
+              </div>
+            </div>
+            <USkeleton class="mt-5 h-4 w-4/5" />
+          </div>
+        </div>
+
+        <ul v-else-if="communityCurators.length" class="home-community-grid mt-8 list-none p-0">
+          <li v-for="curator in communityCurators" :key="curator.login" class="min-w-0">
+            <NuxtLink :to="`/@${curator.login}`" class="home-community-card group">
+              <div class="flex items-center gap-3">
+                <img
+                  :src="curator.avatar || `https://github.com/${curator.login}.png?size=80`"
+                  alt=""
+                  width="40"
+                  height="40"
+                  class="home-community-avatar"
+                  loading="lazy"
+                  decoding="async"
+                >
+                <div class="min-w-0 flex-1">
+                  <p class="truncate font-semibold tracking-tight">
+                    {{ curatorName(curator) }}
+                  </p>
+                  <p class="truncate font-mono text-xs text-muted">
+                    @{{ curator.login }}
+                  </p>
+                </div>
+                <UIcon name="i-lucide-arrow-up-right" class="size-4 shrink-0 text-muted" aria-hidden="true" />
+              </div>
+              <p v-if="curator.topCollection" class="mt-4 truncate text-sm">
+                {{ curator.topCollection.name }}
+              </p>
+              <p class="data-label mt-2">
+                {{ curatorSummary(curator) }}
+              </p>
+            </NuxtLink>
+          </li>
+        </ul>
+
+        <div v-else class="mt-8 rounded-lg border border-default bg-default p-6">
+          <p class="font-medium">
+            No curators are listed yet.
+          </p>
+          <p class="mt-1 text-base text-muted">
+            Publish a collection and your profile joins the directory.
+          </p>
+          <UButton
+            to="/collections/new"
+            label="Create a collection"
             color="neutral"
             variant="outline"
             class="mt-4 min-h-11"

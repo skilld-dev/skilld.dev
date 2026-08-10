@@ -26,10 +26,14 @@ export interface ClusterCard {
   icon: string
   userVoice: string
   skillCount: number
+  authorCount: number
+  /** Distinct GitHub logins behind the cluster, most-starred first. */
+  authors: string[]
   examples: { owner: string, name: string, repo: string, displayName: string, stars: number }[]
 }
 
 const EXAMPLES_PER_CARD = 5
+const AUTHORS_PER_CARD = 5
 
 export default defineCachedEventHandler(async (event) => {
   const db = getDB(event)
@@ -70,12 +74,24 @@ export default defineCachedEventHandler(async (event) => {
       .sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name))
 
     const examples = [...pinned, ...remaining].slice(0, EXAMPLES_PER_CARD)
+
+    // Avatars answer "who writes this kind of skill", so they rank by the
+    // author's reach rather than by whichever example happened to be pinned.
+    const authors: string[] = []
+    const byStars = [...inCluster].sort((a, b) => b.stars - a.stars || a.owner.localeCompare(b.owner))
+    for (const row of byStars) {
+      if (!authors.includes(row.owner))
+        authors.push(row.owner)
+    }
+
     return {
       slug: c.slug,
       label: c.label,
       icon: c.icon,
       userVoice: c.userVoice,
       skillCount: inCluster.length,
+      authorCount: authors.length,
+      authors: authors.slice(0, AUTHORS_PER_CARD),
       examples: examples.map(e => ({
         owner: e.owner,
         name: e.name,
@@ -86,9 +102,15 @@ export default defineCachedEventHandler(async (event) => {
     }
   })
 
-  return { items }
+  // An empty track is a dead end for the visitor who picks it, so the grid
+  // only carries tracks that have something behind them. The pages stay live.
+  const populated = items
+    .filter(item => item.skillCount > 0)
+    .sort((a, b) => b.skillCount - a.skillCount)
+
+  return { items: populated }
 }, {
   maxAge: 60,
   swr: false,
-  name: 'clusters-index-origin-v1',
+  name: 'clusters-index-origin-v2',
 })

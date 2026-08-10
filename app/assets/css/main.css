@@ -292,7 +292,36 @@
 
 .home-display {
   font-size: clamp(3rem, 1.6rem + 6.2vw, 6.75rem);
-  line-height: 0.98;
+  line-height: 1.04;
+}
+
+/*
+ * Split hero: the headline shares the band with the proof rail, so it trades
+ * peak size for line spacing that lets three lines of display type breathe.
+ */
+.home-display--split {
+  font-size: clamp(2.75rem, 1.5rem + 4.4vw, 5.25rem);
+  line-height: 1.08;
+}
+
+.home-hero-grid {
+  display: grid;
+  min-width: 0;
+  gap: 3rem;
+  align-items: center;
+}
+
+@media (min-width: 64rem) {
+  .home-hero-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(22rem, 0.85fr);
+    gap: 4rem;
+  }
+}
+
+@media (min-width: 80rem) {
+  .home-hero-grid {
+    gap: 5rem;
+  }
 }
 
 .home-section-title {
@@ -403,6 +432,32 @@
   padding: 1rem;
 }
 
+.outcome-index__authors {
+  display: flex;
+  min-width: 0;
+  margin-top: 1rem;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.outcome-index__avatars {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.outcome-index__avatar {
+  block-size: 1.5rem;
+  inline-size: 1.5rem;
+  border: 2px solid var(--ui-bg);
+  border-radius: 999px;
+  background: var(--ui-bg-muted);
+}
+
+.outcome-index__avatar + .outcome-index__avatar {
+  margin-inline-start: -0.5rem;
+}
+
 @container outcome-index (min-width: 40rem) {
   .outcome-index {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -429,6 +484,54 @@
   display: grid;
   gap: 1.5rem;
   align-items: end;
+}
+
+.home-community-band {
+  background: color-mix(in oklab, var(--ui-bg) 94%, var(--ui-bg-muted));
+}
+
+.home-community-grid {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.home-community-card {
+  display: block;
+  min-width: 0;
+  height: 100%;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  padding: 1rem;
+  transition: border-color 200ms ease-out;
+}
+
+.home-community-avatar {
+  block-size: 2.5rem;
+  inline-size: 2.5rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--ui-bg-muted);
+}
+
+@media (hover: hover) {
+  .home-community-card:hover {
+    border-color: var(--ui-text-muted);
+  }
+}
+
+@media (min-width: 40rem) {
+  .home-community-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .home-community-grid {
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  }
 }
 
 .home-featured-title {

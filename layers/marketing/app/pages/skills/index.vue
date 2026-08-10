@@ -15,7 +15,6 @@ defineOgImage('Page.takumi', {
 const route = useRoute()
 const search = ref((route.query.q as string) || '')
 const page = ref(Number(route.query.page) || 1)
-const view = ref<'grid' | 'list'>((route.query.view as 'grid' | 'list') || 'grid')
 const owner = ref((route.query.owner as string) || '')
 const tags = ref<string[]>(
   ((route.query.tags as string) || '')
@@ -29,14 +28,12 @@ const tagMode = ref<'and' | 'or'>(((route.query.mode as 'and' | 'or') === 'or' ?
 const sort = ref<'stars' | 'likes'>((route.query.sort as string) === 'likes' ? 'likes' : 'stars')
 const debouncedSearch = refDebounced(search, 300)
 
-watch([debouncedSearch, page, view, owner, tags, tagMode, sort], async () => {
+watch([debouncedSearch, page, owner, tags, tagMode, sort], async () => {
   const query: Record<string, string> = {}
   if (debouncedSearch.value)
     query.q = debouncedSearch.value
   if (page.value > 1)
     query.page = String(page.value)
-  if (view.value !== 'grid')
-    query.view = view.value
   if (owner.value)
     query.owner = owner.value
   if (tags.value.length)
@@ -48,17 +45,18 @@ watch([debouncedSearch, page, view, owner, tags, tagMode, sort], async () => {
   await navigateTo({ query }, { replace: true })
 }, { deep: true })
 
-watch([debouncedSearch, tags, owner, tagMode, sort], () => {
+watch([debouncedSearch, tags, owner, tagMode], () => {
   page.value = 1
 }, { deep: true })
 
-const PAGE_SIZE = 21
+// The table is dense enough to carry a full screen of skills, so the page size
+// is sized to the surface rather than to a card grid.
+const PAGE_SIZE = 60
 const { isBot } = useBotDetection()
 
 const isFiltering = computed(() =>
   !!debouncedSearch.value || tags.value.length > 0 || !!owner.value,
 )
-const showFeatured = computed(() => !isFiltering.value)
 
 // Tag facets
 const { data: tagFacets } = useFetch('/api/skills/tags', {
@@ -74,19 +72,42 @@ const tagBySlug = computed(() => {
   return map
 })
 
-// Featured (only when nothing is filtered)
+// Publishers and maintainers strip (only when nothing is filtered)
 const {
   data: featuredData,
   status: featuredStatus,
-  error: featuredError,
-  refresh: refreshFeatured,
 } = useFetch('/api/skills/featured', {
-  key: 'skills-featured-sections',
-  query: { orgs: 4, perOrg: 6, devs: 6, perDev: 8 },
+  key: 'skills-publisher-strip',
+  query: { orgs: 6, perOrg: 1, devs: 8, perDev: 1 },
   lazy: !isBot.value,
 })
 
-// Registry list (always; filters when active, candidate-only when not)
+interface PublisherChip {
+  owner: string
+  totalSkills: number
+  official: boolean
+}
+
+const publishers = computed<PublisherChip[]>(() => {
+  const orgs = (featuredData.value?.sections ?? []).map(section => ({
+    owner: section.owner,
+    totalSkills: section.totalSkills,
+    official: true,
+  }))
+  const devs = (featuredData.value?.devSections ?? []).map(section => ({
+    owner: section.owner,
+    totalSkills: section.totalSkills,
+    official: false,
+  }))
+  const seen = new Set<string>()
+  return [...orgs, ...devs].filter((entry) => {
+    if (seen.has(entry.owner))
+      return false
+    seen.add(entry.owner)
+    return true
+  })
+})
+
 const registryQuery = computed(() => ({
   page: page.value,
   limit: PAGE_SIZE,
@@ -94,28 +115,17 @@ const registryQuery = computed(() => ({
   ...(debouncedSearch.value ? { q: debouncedSearch.value } : {}),
   ...(owner.value ? { owner: owner.value } : {}),
   ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
-  ...(showFeatured.value ? { trustTier: 'candidate' } : {}),
 }))
 const {
   data: registryData,
   status: registryStatus,
   error: registryError,
-  execute: executeRegistry,
   refresh: refreshRegistry,
-} = useFetch('/api/skills', {
+} = await useFetch('/api/skills', {
+  key: 'skills-registry-table',
   query: registryQuery,
-  watch: false,
   lazy: !isBot.value,
-  immediate: false,
 })
-
-watch(registryQuery, async () => {
-  if (isFiltering.value)
-    await executeRegistry()
-}, { deep: true })
-
-if (isFiltering.value)
-  await executeRegistry()
 
 const registryView = computed(() => resolveRegistryViewState({
   data: registryData.value,
@@ -125,9 +135,7 @@ const registryView = computed(() => resolveRegistryViewState({
 const totalPages = computed(() =>
   registryView.value._tag === 'ready' ? registryView.value.data.pages : 1,
 )
-const isLoading = computed(() =>
-  isFiltering.value && registryView.value._tag === 'loading',
-)
+const isLoading = computed(() => registryView.value._tag === 'loading')
 
 const searchInput = ref<{ inputRef?: HTMLInputElement } | null>(null)
 const activeElement = useActiveElement()
@@ -188,6 +196,10 @@ const filteredTagList = computed<TagFacet[]>(() => {
 function clearOwner() {
   owner.value = ''
 }
+
+function selectOwner(next: string) {
+  owner.value = owner.value === next ? '' : next
+}
 </script>
 
 <template>
@@ -196,268 +208,271 @@ function clearOwner() {
       title="Skills"
       description="Search by task, maintainer, package, or tag. Every result opens to the original SKILL.md."
       heading-id="skills-heading"
+    />
+
+    <section
+      class="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-10"
+      aria-labelledby="results-heading"
     >
-      <!-- Search + filter row -->
-      <div class="skills-search-shell">
-        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
-          <div class="relative col-span-2 min-w-0 sm:col-span-1">
-            <label for="skill-search" class="sr-only">Search skills</label>
-            <UInput
-              id="skill-search"
-              ref="searchInput"
-              v-model="search"
-              placeholder="Search a skill, owner, repo, or task…"
-              icon="i-lucide-search"
-              size="xl"
-              class="font-mono w-full [&_input]:min-h-11"
-              :loading="isLoading"
-            >
-              <template #trailing>
-                <UKbd
-                  v-if="!search && !searchFocused"
-                  value="/"
-                  size="sm"
-                />
-                <UButton
-                  v-else-if="search"
-                  icon="i-lucide-x"
-                  color="neutral"
-                  variant="link"
-                  size="xs"
-                  aria-label="Clear search"
-                  @click="() => { search = '' }"
-                />
-              </template>
-            </UInput>
-          </div>
-
-          <UPopover v-model:open="tagPopoverOpen" :ui="{ content: 'w-80 p-0' }">
-            <UButton
-              icon="i-lucide-tags"
-              color="neutral"
-              :variant="tags.length ? 'subtle' : 'outline'"
-              size="lg"
-              class="min-h-11 font-mono"
-            >
-              Tags
-              <UBadge
-                v-if="tags.length"
-                :label="String(tags.length)"
-                color="primary"
-                variant="solid"
-                size="xs"
-                class="font-mono"
+      <!-- Search sits with the results it filters, not in the page header -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="relative min-w-0 flex-1">
+          <label for="skill-search" class="sr-only">Search skills</label>
+          <UInput
+            id="skill-search"
+            ref="searchInput"
+            v-model="search"
+            placeholder="Search a skill, owner, repo, or task…"
+            icon="i-lucide-search"
+            variant="none"
+            size="lg"
+            class="font-mono w-full border-b border-default [&_input]:min-h-11"
+            :loading="isLoading"
+          >
+            <template #trailing>
+              <UKbd
+                v-if="!search && !searchFocused"
+                value="/"
+                size="sm"
               />
-            </UButton>
-
-            <template #content>
-              <div class="p-3 border-b border-default">
-                <UInput
-                  v-model="tagSearch"
-                  placeholder="Filter tags…"
-                  aria-label="Filter tags"
-                  icon="i-lucide-search"
-                  size="sm"
-                  class="font-mono w-full"
-                />
-              </div>
-              <div class="max-h-72 overflow-y-auto py-1">
-                <button
-                  v-for="t in filteredTagList"
-                  :key="t.slug"
-                  type="button"
-                  class="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-elevated"
-                  :class="tags.includes(t.slug) ? 'text-highlighted' : 'text-default'"
-                  :disabled="t.count === 0 && !tags.includes(t.slug)"
-                  @click="toggleTag(t.slug)"
-                >
-                  <span class="flex items-center gap-2 min-w-0">
-                    <UIcon
-                      :name="tags.includes(t.slug) ? 'i-lucide-check-square' : 'i-lucide-square'"
-                      class="size-4 shrink-0"
-                      :class="tags.includes(t.slug) ? 'text-primary' : 'text-muted'"
-                    />
-                    <span class="font-mono text-sm truncate">{{ t.label }}</span>
-                  </span>
-                  <span class="data-label shrink-0">{{ t.count }}</span>
-                </button>
-                <p
-                  v-if="filteredTagList.length === 0"
-                  class="px-3 py-4 text-center text-xs text-muted"
-                >
-                  No tags match.
-                </p>
-              </div>
+              <UButton
+                v-else-if="search"
+                icon="i-lucide-x"
+                color="neutral"
+                variant="link"
+                size="xs"
+                aria-label="Clear search"
+                @click="() => { search = '' }"
+              />
             </template>
-          </UPopover>
-
-          <div class="flex items-center gap-2 justify-self-end">
-            <div class="flex items-center border border-default rounded-lg overflow-hidden">
-              <button
-                type="button"
-                class="grid min-h-11 min-w-11 place-items-center transition-colors duration-200" :class="[
-                  view === 'grid' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
-                ]"
-                aria-label="Grid view"
-                :aria-pressed="view === 'grid'"
-                @click="view = 'grid'"
-              >
-                <UIcon name="i-lucide-layout-grid" class="size-4" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                class="grid min-h-11 min-w-11 place-items-center transition-colors duration-200" :class="[
-                  view === 'list' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
-                ]"
-                aria-label="List view"
-                :aria-pressed="view === 'list'"
-                @click="view = 'list'"
-              >
-                <UIcon name="i-lucide-list" class="size-4" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
+          </UInput>
         </div>
 
-        <!-- Popular tags chipbar (shown when no tag selected, as discovery) -->
-        <div
-          v-if="!tags.length && popularTags.length"
-          class="mt-4 flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
-        >
-          <span class="data-label shrink-0 uppercase tracking-widest">Popular</span>
-          <button
-            v-for="t in popularTags"
-            :key="t.slug"
-            type="button"
-            class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-default px-3 py-2 font-mono text-xs text-muted transition-colors hover:border-[var(--ui-text-muted)] hover:text-default"
-            @click="toggleTag(t.slug)"
+        <UPopover v-model:open="tagPopoverOpen" :ui="{ content: 'w-80 p-0' }">
+          <UButton
+            icon="i-lucide-tags"
+            color="neutral"
+            :variant="tags.length ? 'subtle' : 'ghost'"
+            size="md"
+            class="min-h-11 font-mono"
           >
-            {{ t.label }}
-            <span class="text-xs tabular-nums">{{ t.count }}</span>
+            Tags
+            <UBadge
+              v-if="tags.length"
+              :label="String(tags.length)"
+              color="primary"
+              variant="solid"
+              size="xs"
+              class="font-mono"
+            />
+          </UButton>
+
+          <template #content>
+            <div class="p-3 border-b border-default">
+              <UInput
+                v-model="tagSearch"
+                placeholder="Filter tags…"
+                aria-label="Filter tags"
+                icon="i-lucide-search"
+                size="sm"
+                class="font-mono w-full"
+              />
+            </div>
+            <div class="max-h-72 overflow-y-auto py-1">
+              <button
+                v-for="t in filteredTagList"
+                :key="t.slug"
+                type="button"
+                class="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-elevated"
+                :class="tags.includes(t.slug) ? 'text-highlighted' : 'text-default'"
+                :disabled="t.count === 0 && !tags.includes(t.slug)"
+                @click="toggleTag(t.slug)"
+              >
+                <span class="flex items-center gap-2 min-w-0">
+                  <UIcon
+                    :name="tags.includes(t.slug) ? 'i-lucide-check-square' : 'i-lucide-square'"
+                    class="size-4 shrink-0"
+                    :class="tags.includes(t.slug) ? 'text-primary' : 'text-muted'"
+                  />
+                  <span class="font-mono text-sm truncate">{{ t.label }}</span>
+                </span>
+                <span class="data-label shrink-0">{{ t.count }}</span>
+              </button>
+              <p
+                v-if="filteredTagList.length === 0"
+                class="px-3 py-4 text-center text-xs text-muted"
+              >
+                No tags match.
+              </p>
+            </div>
+          </template>
+        </UPopover>
+      </div>
+
+      <!-- Popular tags chipbar (shown when no tag selected, as discovery) -->
+      <div
+        v-if="!tags.length && popularTags.length"
+        class="mt-4 flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
+      >
+        <span class="data-label shrink-0 uppercase tracking-widest">Popular</span>
+        <button
+          v-for="t in popularTags"
+          :key="t.slug"
+          type="button"
+          class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-default px-3 py-2 font-mono text-xs text-muted transition-colors hover:border-[var(--ui-text-muted)] hover:text-default"
+          @click="toggleTag(t.slug)"
+        >
+          {{ t.label }}
+          <span class="text-xs tabular-nums">{{ t.count }}</span>
+        </button>
+      </div>
+
+      <!-- Active filter chips (selected tags + owner + AND/OR toggle) -->
+      <div
+        v-if="isFiltering"
+        class="mt-4 flex flex-wrap items-center gap-2"
+      >
+        <span
+          v-if="owner"
+          class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-default bg-elevated pl-3 pr-1 font-mono text-xs"
+        >
+          Owner: {{ owner }}
+          <button
+            type="button"
+            aria-label="Clear owner"
+            class="grid size-10 place-items-center opacity-70 transition-opacity hover:opacity-100"
+            @click="clearOwner"
+          >
+            <UIcon name="i-lucide-x" class="size-3" />
+          </button>
+        </span>
+
+        <span
+          v-for="slug in tags"
+          :key="slug"
+          class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 pl-3 pr-1 font-mono text-xs text-primary"
+        >
+          {{ tagBySlug.get(slug)?.label ?? slug }}
+          <button
+            type="button"
+            class="grid size-10 place-items-center opacity-70 transition-opacity hover:opacity-100"
+            :aria-label="`Remove ${slug} filter`"
+            @click="removeTag(slug)"
+          >
+            <UIcon name="i-lucide-x" class="size-3" />
+          </button>
+        </span>
+
+        <div v-if="tags.length > 1" class="inline-flex min-h-11 items-center overflow-hidden rounded-lg border border-default">
+          <button
+            type="button"
+            class="min-h-11 px-3 py-2 font-mono text-xs transition-colors"
+            :class="tagMode === 'and' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+            @click="tagMode = 'and'"
+          >
+            AND
+          </button>
+          <button
+            type="button"
+            class="min-h-11 px-3 py-2 font-mono text-xs transition-colors"
+            :class="tagMode === 'or' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+            @click="tagMode = 'or'"
+          >
+            OR
           </button>
         </div>
 
-        <!-- Active filter chips (selected tags + owner + AND/OR toggle) -->
+        <UButton
+          icon="i-lucide-x"
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          label="Clear all"
+          class="ml-auto min-h-11"
+          @click="clearAll"
+        />
+      </div>
+
+      <!-- Publishers and maintainers: a one-line jump into a single owner -->
+      <div v-if="!isFiltering" class="mt-6">
+        <p id="publishers-label" class="section-label">
+          Publishers and maintainers
+        </p>
         <div
-          v-if="isFiltering"
-          class="mt-4 flex flex-wrap items-center gap-2"
+          v-if="featuredStatus === 'pending' && !featuredData"
+          class="mt-3 flex flex-wrap gap-2"
+          aria-busy="true"
         >
-          <span
-            v-if="owner"
-            class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-default bg-elevated pl-3 pr-1 font-mono text-xs"
+          <USkeleton v-for="i in 8" :key="i" class="h-11 w-32 rounded-lg" />
+        </div>
+        <div
+          v-else-if="publishers.length"
+          class="mt-3 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
+          role="group"
+          aria-labelledby="publishers-label"
+        >
+          <button
+            v-for="publisher in publishers"
+            :key="publisher.owner"
+            type="button"
+            class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-default px-3 font-mono text-xs transition-colors hover:border-[var(--ui-text-muted)]"
+            :aria-pressed="owner === publisher.owner"
+            @click="selectOwner(publisher.owner)"
           >
-            Owner: {{ owner }}
-            <button
-              type="button"
-              aria-label="Clear owner"
-              class="grid size-10 place-items-center opacity-70 transition-opacity hover:opacity-100"
-              @click="clearOwner"
+            <img
+              :src="`https://github.com/${publisher.owner}.png?size=32`"
+              alt=""
+              width="16"
+              height="16"
+              class="size-4 rounded-full bg-muted"
+              loading="lazy"
+              decoding="async"
             >
-              <UIcon name="i-lucide-x" class="size-3" />
-            </button>
-          </span>
-
-          <span
-            v-for="slug in tags"
-            :key="slug"
-            class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 pl-3 pr-1 font-mono text-xs text-primary"
-          >
-            {{ tagBySlug.get(slug)?.label ?? slug }}
-            <button
-              type="button"
-              class="grid size-10 place-items-center opacity-70 transition-opacity hover:opacity-100"
-              :aria-label="`Remove ${slug} filter`"
-              @click="removeTag(slug)"
-            >
-              <UIcon name="i-lucide-x" class="size-3" />
-            </button>
-          </span>
-
-          <div v-if="tags.length > 1" class="inline-flex min-h-11 items-center overflow-hidden rounded-lg border border-default">
-            <button
-              type="button"
-              class="min-h-11 px-3 py-2 font-mono text-xs transition-colors"
-              :class="tagMode === 'and' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
-              @click="tagMode = 'and'"
-            >
-              AND
-            </button>
-            <button
-              type="button"
-              class="min-h-11 px-3 py-2 font-mono text-xs transition-colors"
-              :class="tagMode === 'or' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
-              @click="tagMode = 'or'"
-            >
-              OR
-            </button>
-          </div>
-
-          <UButton
-            icon="i-lucide-x"
-            size="xs"
-            color="neutral"
-            variant="ghost"
-            label="Clear all"
-            class="ml-auto min-h-11"
-            @click="clearAll"
-          />
+            <span class="truncate">{{ publisher.owner }}</span>
+            <UIcon
+              v-if="publisher.official"
+              name="i-lucide-badge-check"
+              class="size-3 shrink-0 text-muted"
+              aria-hidden="true"
+            />
+            <span class="tabular-nums text-muted">{{ publisher.totalSkills }}</span>
+          </button>
         </div>
       </div>
-    </CompactPageHeader>
 
-    <section
-      v-if="!isFiltering"
-      class="editorial-band border-b border-default bg-muted"
-      aria-labelledby="skills-outcomes-heading"
-    >
-      <div
-        class="editorial-atmosphere"
-        data-palette="stone"
-        data-geometry="wash"
-        data-intensity="subtle"
-        aria-hidden="true"
-      />
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <div class="grid gap-8 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] lg:gap-12">
-          <div>
-            <p class="section-label">
-              Browse by task
-            </p>
-            <h2 id="skills-outcomes-heading" class="skills-section-title mt-4 max-w-[13ch]">
-              What should your agent get better at?
-            </h2>
-            <p id="skills-outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              Task groups mix tools and maintainers. The job is what connects them.
-            </p>
-          </div>
-          <OutcomeClusterGrid aria-describedby="skills-outcomes-description" />
-        </div>
-      </div>
-    </section>
+      <div class="mb-3 mt-6 flex flex-wrap items-center justify-between gap-3">
+        <h2 id="results-heading" class="text-base font-semibold tracking-tight">
+          <template v-if="isFiltering">
+            Matching skills
+          </template>
+          <template v-else>
+            Every skill in the registry
+          </template>
+          <span v-if="registryView._tag === 'ready'" class="data-label ml-2">
+            {{ registryView.data.total.toLocaleString() }} {{ registryView.data.total === 1 ? 'skill' : 'skills' }}
+          </span>
+        </h2>
 
-    <USeparator v-else />
-
-    <!-- ===== FILTERED MODE: registry results ===== -->
-    <section
-      v-if="isFiltering"
-      class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
-      aria-labelledby="results-heading"
-    >
-      <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p class="section-label">
-            Search results
-          </p>
-          <h2
-            id="results-heading"
-            class="skills-section-title mt-3"
+        <div class="inline-flex min-h-11 items-center overflow-hidden rounded-lg border border-default">
+          <button
+            type="button"
+            class="min-h-11 px-3 font-mono text-xs transition-colors"
+            :class="sort === 'stars' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+            :aria-pressed="sort === 'stars'"
+            @click="sort = 'stars'"
           >
-            Skills that match
-          </h2>
+            Stars
+          </button>
+          <button
+            type="button"
+            class="min-h-11 px-3 font-mono text-xs transition-colors"
+            :class="sort === 'likes' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+            :aria-pressed="sort === 'likes'"
+            @click="sort = 'likes'"
+          >
+            Likes
+          </button>
         </div>
-        <span v-if="registryView._tag === 'ready'" class="data-label pb-1">
-          {{ registryView.data.total }} {{ registryView.data.total === 1 ? 'skill' : 'skills' }}
-        </span>
       </div>
 
       <div aria-live="polite" aria-atomic="true" class="sr-only">
@@ -474,31 +489,27 @@ function clearOwner() {
 
       <div
         v-if="isLoading"
-        :class="view === 'grid' ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3' : 'flex flex-col gap-2'"
+        class="flex flex-col gap-px rounded-lg border border-default p-2"
         aria-busy="true"
-        aria-label="Loading matching skills"
+        aria-label="Loading skills"
       >
-        <div
-          v-for="i in 12"
-          :key="i"
-          data-loading-skill
-          class="rounded-lg border border-default p-4"
-        >
-          <USkeleton class="h-4 w-3/4" />
-          <USkeleton class="mt-2 h-3 w-1/2" />
-          <USkeleton v-if="view === 'grid'" class="mt-4 h-3 w-full" />
+        <div v-for="i in 20" :key="i" data-loading-skill class="flex items-center gap-3 px-1 py-2">
+          <USkeleton class="size-4 shrink-0 rounded-full" />
+          <USkeleton class="h-3 w-40" />
+          <USkeleton class="h-3 w-32" />
+          <USkeleton class="hidden h-3 flex-1 md:block" />
         </div>
       </div>
 
       <div v-else-if="registryView._tag === 'error'" role="alert" class="editorial-state">
         <p class="font-medium">
-          Couldn't load matching skills.
+          Couldn't load skills.
         </p>
         <p class="mt-1 text-base text-muted">
-          Check your connection and try this search again.
+          Check your connection and try again.
         </p>
         <UButton
-          label="Retry search"
+          label="Retry"
           color="neutral"
           variant="outline"
           class="mt-4 min-h-11"
@@ -526,28 +537,16 @@ function clearOwner() {
         />
       </div>
 
-      <ul
-        v-else-if="registryView._tag === 'ready' && view === 'grid'"
-        class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
-      >
-        <li v-for="skill in registryView.data.items" :key="skill.slug">
-          <SkillCard :skill show-tags show-owner-path />
-        </li>
-      </ul>
-
-      <ul
+      <SkillTable
         v-else-if="registryView._tag === 'ready'"
-        class="flex flex-col gap-0 list-none p-0 divide-y divide-default border border-default rounded-lg overflow-hidden"
-      >
-        <li v-for="skill in registryView.data.items" :key="skill.slug">
-          <SkillCard :skill variant="list" show-tags show-owner-path />
-        </li>
-      </ul>
+        :skills="registryView.data.items"
+        :aria-label="isFiltering ? 'Matching skills' : 'All skills'"
+      />
 
       <nav
         v-if="totalPages > 1"
         aria-label="Pagination"
-        class="mt-8 flex items-center justify-center gap-2"
+        class="mt-6 flex items-center justify-center gap-2"
       >
         <UButton
           icon="i-lucide-chevron-left"
@@ -572,207 +571,5 @@ function clearOwner() {
         />
       </nav>
     </section>
-
-    <!-- ===== DEFAULT MODE: Featured ===== -->
-    <template v-else>
-      <section
-        class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
-        aria-labelledby="developers-heading"
-      >
-        <div class="mb-8">
-          <div>
-            <p class="section-label">
-              From maintainers
-            </p>
-            <h2 id="developers-heading" class="skills-section-title mt-3 max-w-[17ch]">
-              Browse by maintainer.
-            </h2>
-            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Know whose work you trust? Start there, then open the skill's source before you install it.
-            </p>
-          </div>
-        </div>
-
-        <div
-          v-if="featuredStatus === 'pending' && !featuredData"
-          class="space-y-8"
-          aria-busy="true"
-          aria-label="Loading developers"
-        >
-          <div v-for="i in 3" :key="i" class="space-y-3">
-            <div class="flex items-center gap-3">
-              <USkeleton class="size-12 rounded-full" />
-              <div class="space-y-2">
-                <USkeleton class="h-4 w-40" />
-                <USkeleton class="h-3 w-64" />
-              </div>
-            </div>
-            <div class="flex gap-3 overflow-hidden">
-              <USkeleton v-for="j in 3" :key="j" class="h-40 w-72 shrink-0 rounded-lg" />
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="featuredError" class="editorial-state" role="alert">
-          <p class="font-medium">
-            Couldn't load maintainer-led skills.
-          </p>
-          <p class="mt-1 text-base text-muted">
-            Check your connection and try this section again.
-          </p>
-          <UButton
-            label="Retry maintainers"
-            color="neutral"
-            variant="outline"
-            class="mt-4 min-h-11"
-            @click="() => refreshFeatured()"
-          />
-        </div>
-
-        <div v-else-if="featuredData?.devSections.length" class="space-y-0">
-          <DeveloperSkillSection
-            v-for="section in featuredData.devSections.slice(0, 4)"
-            :key="`${section.owner}/${section.repo}`"
-            :section
-          />
-        </div>
-
-        <div v-else class="editorial-state" role="status">
-          <p class="font-medium">
-            No maintainer picks are available.
-          </p>
-          <p class="mt-1 text-base text-muted">
-            Search by maintainer or package instead.
-          </p>
-        </div>
-      </section>
-
-      <section
-        v-if="!featuredError"
-        class="editorial-band border-t border-default"
-        aria-labelledby="official-heading"
-      >
-        <div
-          class="editorial-atmosphere"
-          data-palette="ember"
-          data-geometry="bloom"
-          data-intensity="subtle"
-          aria-hidden="true"
-        />
-        <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-          <div class="mb-8">
-            <div>
-              <p class="section-label">
-                Official publishers
-              </p>
-              <h2 id="official-heading" class="skills-section-title mt-3 max-w-[16ch]">
-                Skills from the teams behind the tools.
-              </h2>
-              <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-                These skills come from the organization that maintains each framework or platform.
-              </p>
-            </div>
-          </div>
-
-          <div
-            v-if="featuredStatus === 'pending' && !featuredData"
-            class="space-y-8"
-            aria-busy="true"
-            aria-label="Loading official providers"
-          >
-            <div v-for="i in 3" :key="i" class="space-y-3">
-              <div class="flex items-center gap-3">
-                <USkeleton class="size-8 rounded-full" />
-                <USkeleton class="h-4 w-32" />
-              </div>
-              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <USkeleton v-for="j in 3" :key="j" class="h-32 rounded-lg" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-else-if="featuredData?.sections.length"
-            class="space-y-10"
-          >
-            <div
-              v-for="section in featuredData.sections.slice(0, 3)"
-              :key="`${section.owner}/${section.repo}`"
-            >
-              <div class="mb-4">
-                <NuxtLink
-                  :to="ownerHubPath(section.owner)"
-                  :aria-label="`${section.owner} profile`"
-                  class="group inline-flex min-h-11 items-center gap-3"
-                >
-                  <img
-                    :src="`https://github.com/${section.owner}.png?size=80`"
-                    :alt="`${section.owner} avatar`"
-                    width="40"
-                    height="40"
-                    class="size-10 rounded-full border-2 border-[var(--ui-bg)] bg-muted outline outline-1 outline-[var(--ui-border)]"
-                    loading="lazy"
-                    decoding="async"
-                  >
-                  <div class="min-w-0">
-                    <h3 class="font-mono text-base font-medium transition-colors group-hover:text-muted">
-                      {{ section.owner }}
-                    </h3>
-                    <span class="data-label block">
-                      {{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }} in the registry
-                    </span>
-                  </div>
-                </NuxtLink>
-              </div>
-
-              <ul
-                v-if="view === 'grid'"
-                class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0"
-              >
-                <li v-for="skill in section.skills.slice(0, 3)" :key="skill.slug">
-                  <SkillCard :skill show-tags />
-                </li>
-              </ul>
-
-              <ul
-                v-else
-                class="editorial-ledger list-none p-0"
-              >
-                <li v-for="skill in section.skills.slice(0, 3)" :key="skill.slug">
-                  <SkillCard :skill variant="list" show-tags />
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div v-else class="editorial-state" role="status">
-            <p class="font-medium">
-              No official publishers are listed yet.
-            </p>
-            <p class="mt-1 text-base text-muted">
-              Search for a publisher by name instead.
-            </p>
-          </div>
-        </div>
-      </section>
-    </template>
   </div>
 </template>
-
-<style scoped>
-.skills-search-shell {
-  max-width: 52rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: color-mix(in oklab, var(--ui-bg) 82%, transparent);
-  padding: 1rem;
-}
-
-.skills-section-title {
-  font-size: clamp(2.25rem, 1.85rem + 1.8vw, 3.5rem);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.02;
-  text-wrap: balance;
-}
-</style>

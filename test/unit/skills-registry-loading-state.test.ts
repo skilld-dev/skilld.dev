@@ -1,8 +1,6 @@
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { reactive, ref } from 'vue'
 
-const registryExecute = vi.hoisted(() => vi.fn())
-
 const route = reactive({
   path: '/skills',
   query: { q: 'nuxt' } as Record<string, string>,
@@ -38,9 +36,8 @@ mockNuxtImport('useFetch', () => {
     }
     return {
       data: ref(undefined),
-      status: ref('idle'),
+      status: ref('pending'),
       error: ref(null),
-      execute: registryExecute,
       refresh: vi.fn(),
     }
   }
@@ -53,10 +50,8 @@ async function mountSkillsPage() {
     {
       global: {
         stubs: {
-          DeveloperSkillSection: true,
           EditorialMasthead: { template: '<header><slot /><slot name="aside" /></header>' },
-          OutcomeClusterGrid: true,
-          SkillCard: true,
+          SkillTable: true,
         },
       },
     },
@@ -66,24 +61,20 @@ async function mountSkillsPage() {
 describe('skills registry loading state', () => {
   beforeEach(() => {
     route.query = { q: 'nuxt' }
-    registryExecute.mockClear()
   })
 
-  it('reserves the result region before a filtered request starts', async () => {
+  it('reserves the table region while a filtered request is in flight', async () => {
     const wrapper = await mountSkillsPage()
 
-    expect(wrapper.get('[aria-label="Loading matching skills"]').attributes('aria-busy')).toBe('true')
-    expect(wrapper.findAll('[data-loading-skill]')).toHaveLength(12)
-    expect(registryExecute).toHaveBeenCalledOnce()
+    expect(wrapper.get('[aria-label="Loading skills"]').attributes('aria-busy')).toBe('true')
+    expect(wrapper.findAll('[data-loading-skill]')).toHaveLength(20)
   })
 
-  it('does not show registry loading state before filtering starts', async () => {
+  it('reserves the same region for the unfiltered browse table', async () => {
     route.query = {}
 
     const wrapper = await mountSkillsPage()
 
-    expect(wrapper.find('[aria-label="Loading matching skills"]').exists()).toBe(false)
-    expect(wrapper.find('[data-slot="leadingIcon"].animate-spin').exists()).toBe(false)
-    expect(registryExecute).not.toHaveBeenCalled()
+    expect(wrapper.find('[aria-label="Loading skills"]').exists()).toBe(true)
   })
 })

@@ -95,6 +95,32 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('skillTable has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/SkillTable.vue').then(m => m.default),
+      {
+        attachTo: container,
+        props: {
+          skills: [{
+            owner: 'antfu',
+            repo: 'skills',
+            name: 'vite',
+            slug: 'antfu/vite',
+            description: 'Vite configuration conventions.',
+            stars: 1200,
+            modifiedAt: 1_760_000_000,
+            official: true,
+          }],
+          ariaLabel: 'All skills',
+        },
+      },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('compactPageHeader has no violations with context and controls', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -156,7 +182,6 @@ describe('accessibility: components', () => {
 describe('accessibility: component coverage', () => {
   // Components that are skipped with documented reasons
   const SKIPPED_COMPONENTS = [
-    'DeveloperSkillSection', // Static section component, tested at page level
     'EditorialMasthead', // Presentational masthead section, tested at page level
     'OutcomeClusterGrid', // Content section (fetches /api/clusters), tested at page level
     'KeyboardShortcutsModal.client', // Client-only modal requires full app context
@@ -200,6 +225,7 @@ describe('accessibility: component coverage', () => {
           'SkillSearchPanel',
           'SkillSearchTrigger',
           'SkillSourceList',
+          'SkillTable',
         ].includes(name),
         `Component "${name}" needs an accessibility test or should be added to SKIPPED_COMPONENTS with a reason`,
       ).toBe(true)
