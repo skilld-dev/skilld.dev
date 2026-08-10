@@ -188,7 +188,6 @@ function clearOwner() {
 <template>
   <div class="overflow-clip">
     <CompactPageHeader
-      label="Skill registry"
       title="Skills"
       description="Search by task, maintainer, package, or tag. Every result opens to the original SKILL.md."
       heading-id="skills-heading"
@@ -250,7 +249,8 @@ function clearOwner() {
               <div class="p-3 border-b border-default">
                 <UInput
                   v-model="tagSearch"
-                  placeholder="Filter tags..."
+                  placeholder="Filter tags…"
+                  aria-label="Filter tags"
                   icon="i-lucide-search"
                   size="sm"
                   class="font-mono w-full"
@@ -294,9 +294,10 @@ function clearOwner() {
                   view === 'grid' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
                 ]"
                 aria-label="Grid view"
+                :aria-pressed="view === 'grid'"
                 @click="view = 'grid'"
               >
-                <UIcon name="i-lucide-layout-grid" class="size-4" />
+                <UIcon name="i-lucide-layout-grid" class="size-4" aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -304,9 +305,10 @@ function clearOwner() {
                   view === 'list' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default',
                 ]"
                 aria-label="List view"
+                :aria-pressed="view === 'list'"
                 @click="view = 'list'"
               >
-                <UIcon name="i-lucide-list" class="size-4" />
+                <UIcon name="i-lucide-list" class="size-4" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -455,7 +457,7 @@ function clearOwner() {
 
       <div aria-live="polite" aria-atomic="true" class="sr-only">
         <template v-if="isLoading">
-          Loading...
+          Loading skills…
         </template>
         <template v-else-if="registryView._tag === 'ready' && registryView.data.items.length === 0">
           No skills found.
@@ -572,7 +574,7 @@ function clearOwner() {
         class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
         aria-labelledby="developers-heading"
       >
-        <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div class="mb-8">
           <div>
             <p class="section-label">
               From maintainers
@@ -584,14 +586,6 @@ function clearOwner() {
               Know whose work you trust? Start there, then open the skill's source before you install it.
             </p>
           </div>
-          <UButton
-            to="/skills/official"
-            label="Browse official publishers"
-            color="neutral"
-            variant="ghost"
-            trailing-icon="i-lucide-arrow-right"
-            class="min-h-11 shrink-0 self-start sm:self-end"
-          />
         </div>
 
         <div
@@ -661,7 +655,7 @@ function clearOwner() {
           aria-hidden="true"
         />
         <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-          <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div class="mb-8">
             <div>
               <p class="section-label">
                 Official publishers
@@ -673,14 +667,6 @@ function clearOwner() {
                 These skills come from the organization that maintains each framework or platform.
               </p>
             </div>
-            <UButton
-              to="/skills/official"
-              label="View every publisher"
-              color="neutral"
-              variant="outline"
-              trailing-icon="i-lucide-arrow-right"
-              class="min-h-11 shrink-0 self-start sm:self-end"
-            />
           </div>
 
           <div
@@ -708,11 +694,11 @@ function clearOwner() {
               v-for="section in featuredData.sections.slice(0, 3)"
               :key="`${section.owner}/${section.repo}`"
             >
-              <div class="mb-4 flex items-center gap-3">
+              <div class="mb-4">
                 <NuxtLink
                   :to="ownerHubPath(section.owner)"
                   :aria-label="`${section.owner} profile`"
-                  class="inline-flex size-11 shrink-0 items-center justify-center"
+                  class="group inline-flex min-h-11 items-center gap-3"
                 >
                   <img
                     :src="`https://github.com/${section.owner}.png?size=80`"
@@ -723,29 +709,15 @@ function clearOwner() {
                     loading="lazy"
                     decoding="async"
                   >
-                </NuxtLink>
-                <div class="min-w-0">
-                  <h3 class="font-mono text-base font-medium">
-                    <NuxtLink
-                      :to="ownerHubPath(section.owner)"
-                      class="inline-flex min-h-11 items-center transition-colors hover:text-muted"
-                    >
+                  <div class="min-w-0">
+                    <h3 class="font-mono text-base font-medium transition-colors group-hover:text-muted">
                       {{ section.owner }}
-                    </NuxtLink>
-                  </h3>
-                  <span class="data-label">
-                    {{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }} in the registry
-                  </span>
-                </div>
-                <UButton
-                  :to="ownerHubPath(section.owner)"
-                  label="View source"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  trailing-icon="i-lucide-arrow-up-right"
-                  class="ml-auto min-h-11 shrink-0"
-                />
+                    </h3>
+                    <span class="data-label block">
+                      {{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }} in the registry
+                    </span>
+                  </div>
+                </NuxtLink>
               </div>
 
               <ul

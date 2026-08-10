@@ -191,7 +191,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         aria-hidden="true"
       />
 
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-16 sm:px-6 md:py-24">
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="max-w-3xl">
           <h1 id="hero-heading" class="home-display max-w-[13ch] font-semibold tracking-[-0.045em] text-balance">
             Curated agent skills by humans.

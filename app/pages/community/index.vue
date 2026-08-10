@@ -44,26 +44,20 @@ defineOgImage('Page.takumi', {
 </script>
 
 <template>
-  <div class="overflow-clip">
+  <div>
     <CompactPageHeader
-      label="Community directory"
       title="Community"
-      description="Meet people publishing workflow-ready collections and skills from real GitHub repositories. Featured collections come first; every person appears once."
+      description="People publishing workflow-ready collections and skills from real GitHub repositories. Each person appears once."
       heading-id="community-directory-heading"
     >
       <template #aside>
-        <div class="flex flex-wrap items-center gap-3 md:flex-col md:items-end">
-          <UButton
-            to="/collections/new"
-            label="Publish a collection"
-            icon="i-lucide-plus"
-            size="lg"
-            class="min-h-11"
-          />
-          <span v-if="data?.total" class="font-mono text-sm text-muted">
-            {{ data.total }} {{ data.total === 1 ? 'creator' : 'creators' }}
-          </span>
-        </div>
+        <UButton
+          to="/collections/new"
+          label="Publish a collection"
+          icon="i-lucide-plus"
+          size="lg"
+          class="min-h-11"
+        />
       </template>
 
       <template v-if="data?.items.length" #default>
@@ -169,48 +163,5 @@ defineOgImage('Page.takumi', {
         </li>
       </ul>
     </section>
-
-    <section class="editorial-band border-t border-default" aria-labelledby="community-cta-heading">
-      <div
-        class="editorial-atmosphere"
-        data-palette="ember"
-        data-geometry="bloom"
-        data-intensity="subtle"
-        aria-hidden="true"
-      />
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div>
-            <p class="font-mono text-sm uppercase tracking-widest text-muted">
-              Share your workflow
-            </p>
-            <h2 id="community-cta-heading" class="community-section-title mt-3 max-w-[14ch]">
-              Add your work to the community.
-            </h2>
-            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Publish a focused collection and explain why each skill belongs. Signing in also lets skilld find SKILL.md files in your public repositories.
-            </p>
-          </div>
-          <UButton
-            to="/collections/new"
-            label="Publish a collection"
-            icon="i-lucide-plus"
-            trailing-icon="i-lucide-arrow-right"
-            size="lg"
-            class="min-h-11 shrink-0 self-start lg:self-end"
-          />
-        </div>
-      </div>
-    </section>
   </div>
 </template>
-
-<style scoped>
-.community-section-title {
-  font-size: clamp(2.25rem, 1.85rem + 1.8vw, 3.5rem);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.02;
-  text-wrap: balance;
-}
-</style>

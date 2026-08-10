@@ -43,30 +43,18 @@ function formatStars(stars: number): string {
           <span class="block truncate text-lg font-semibold tracking-tight group-hover:text-muted">
             {{ displayName }}
           </span>
-          <span class="mt-1 block truncate font-mono text-sm text-muted">
+          <span
+            v-if="displayName !== `@${creator.login}`"
+            class="mt-1 block truncate font-mono text-sm text-muted"
+          >
             @{{ creator.login }}
           </span>
         </span>
       </NuxtLink>
 
-      <UBadge
-        v-if="creator.featured"
-        label="Featured curator"
-        color="primary"
-        variant="subtle"
-        size="md"
-        class="community-creator__badge mt-4"
-      />
       <p class="mt-4 font-mono text-sm text-muted">
         {{ contributionSummary }}
       </p>
-      <NuxtLink
-        :to="`/@${creator.login}`"
-        class="mt-4 inline-flex min-h-11 items-center gap-2 font-mono text-sm font-medium underline decoration-transparent underline-offset-4 transition-colors hover:decoration-current"
-      >
-        View profile
-        <UIcon name="i-lucide-arrow-right" class="size-4" aria-hidden="true" />
-      </NuxtLink>
     </div>
 
     <div class="community-creator__contributions">
@@ -116,7 +104,10 @@ function formatStars(stars: number): string {
             +{{ creator.topCollection.skillCount - creator.topCollection.skills.length }} more
           </span>
         </div>
-        <span class="mt-auto pt-5 font-mono text-sm text-muted">
+        <span
+          class="mt-auto pt-5 font-mono text-sm text-muted"
+          :class="{ 'community-contribution__count--previewed': creator.topCollection.skills.length }"
+        >
           {{ creator.topCollection.skillCount }} {{ creator.topCollection.skillCount === 1 ? 'skill' : 'skills' }}
         </span>
       </NuxtLink>
@@ -176,16 +167,8 @@ function formatStars(stars: number): string {
   gap: 0.875rem;
 }
 
-.community-creator__badge {
-  font-size: 0.875rem;
-}
-
 .community-creator__profile :deep(.community-creator__avatar) {
   font-size: 0.875rem;
-}
-
-.community-creator__badge :deep([data-slot="label"]) {
-  color: var(--ui-text);
 }
 
 .community-creator__contributions {
@@ -235,6 +218,10 @@ function formatStars(stars: number): string {
     margin-top: 1.25rem;
     padding-block: 1rem;
     border-block: 1px solid var(--ui-border);
+  }
+
+  .community-contribution__count--previewed {
+    display: none;
   }
 }
 

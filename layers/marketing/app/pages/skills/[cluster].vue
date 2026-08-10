@@ -123,7 +123,7 @@ defineOgImage('Page.takumi', {
           />
           <UButton
             to="/skills"
-            label="Browse every outcome"
+            label="Browse outcomes"
             color="neutral"
             variant="ghost"
             class="min-h-11"
@@ -132,47 +132,35 @@ defineOgImage('Page.takumi', {
       </div>
     </section>
 
-    <EditorialMasthead
+    <CompactPageHeader
       v-else-if="clusterData"
-      label="Outcome"
       :title="clusterData.cluster.label"
       :description="clusterData.cluster.userVoice"
-      palette="rose"
       heading-id="cluster-heading"
     >
-      <template #eyebrow>
-        <NuxtLink
-          to="/skills"
-          class="section-label inline-flex min-h-11 items-center gap-2 transition-colors hover:text-default"
-        >
-          <UIcon name="i-lucide-arrow-left" class="size-3.5" aria-hidden="true" />
-          Skills / outcome
-        </NuxtLink>
-      </template>
-
       <template #aside>
-        <dl class="editorial-ledger">
-          <div class="flex items-center justify-between gap-4 py-3">
+        <dl class="flex flex-wrap gap-x-6 gap-y-3 md:justify-end">
+          <div>
             <dt class="data-label">
               Skills
             </dt>
-            <dd class="font-mono text-sm tabular-nums">
+            <dd class="mt-1 font-mono text-sm tabular-nums">
               {{ total }}
             </dd>
           </div>
-          <div class="flex items-center justify-between gap-4 py-3">
+          <div>
             <dt class="data-label">
               Source repos
             </dt>
-            <dd class="font-mono text-sm tabular-nums">
+            <dd class="mt-1 font-mono text-sm tabular-nums">
               {{ sourceCount }}
             </dd>
           </div>
-          <div class="flex items-center justify-between gap-4 py-3">
+          <div>
             <dt class="data-label">
               Maintainers
             </dt>
-            <dd class="flex -space-x-2">
+            <dd class="mt-1 flex -space-x-2">
               <img
                 v-for="owner in maintainerOwners"
                 :key="owner"
@@ -192,21 +180,14 @@ defineOgImage('Page.takumi', {
       <div class="flex flex-wrap gap-3">
         <UButton
           to="/skills"
-          label="Browse every outcome"
+          label="Browse outcomes"
           color="neutral"
           variant="outline"
-          trailing-icon="i-lucide-arrow-right"
-          class="min-h-11"
-        />
-        <UButton
-          to="/community"
-          label="Meet skill creators"
-          color="neutral"
-          variant="ghost"
+          icon="i-lucide-arrow-left"
           class="min-h-11"
         />
       </div>
-    </EditorialMasthead>
+    </CompactPageHeader>
 
     <section
       v-if="clusterData && leadingSkills.length"

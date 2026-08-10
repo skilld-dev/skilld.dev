@@ -10,9 +10,10 @@ const leaderboardSource = readFileSync(
 const mainCss = readFileSync(resolve(root, 'app/assets/css/main.css'), 'utf8')
 
 describe('skills leaderboard accessibility contract', () => {
-  it('describes purpose review without claiming repository verification', () => {
+  it('keeps purpose review in the method instead of repeating it per row', () => {
     expect(leaderboardSource).toContain(`reviewed {{ data.total === 1 ? 'repo' : 'repos' }}`)
-    expect(leaderboardSource).toContain('Purpose reviewed')
+    expect(leaderboardSource).toContain('A reviewer must confirm')
+    expect(leaderboardSource).not.toContain('Purpose reviewed')
     expect(leaderboardSource).not.toContain('verified {{')
     expect(leaderboardSource).not.toContain('Skills-only repo')
   })
@@ -35,14 +36,14 @@ describe('skills leaderboard accessibility contract', () => {
     )
   })
 
-  it('embeds the existing skill card for each repository top skill', () => {
+  it('embeds the top skill without duplicating repository metrics', () => {
     expect(leaderboardSource).toContain('<SkillCard')
     expect(leaderboardSource).toContain('item.topSkill.description')
-    expect(leaderboardSource).toContain('item.topSkill.modifiedAt')
-    expect(leaderboardSource).toContain('stars: item.stars')
+    expect(leaderboardSource).not.toContain('item.topSkill.modifiedAt')
+    expect(leaderboardSource).not.toContain('stars: item.stars')
     expect(leaderboardSource).toContain('variant="condensed"')
-    expect(leaderboardSource).toContain('signal="stars"')
-    expect(leaderboardSource).toContain('timestamp-label="Updated"')
+    expect(leaderboardSource).toContain('signal="none"')
+    expect(leaderboardSource).not.toContain('timestamp-label="Updated"')
     expect(leaderboardSource).not.toContain('show-owner-path')
     expect(leaderboardSource).not.toContain('Most popular skill')
     expect(leaderboardSource).not.toContain('leaderboard-row__featured')
@@ -65,6 +66,14 @@ describe('skills leaderboard accessibility contract', () => {
 
   it('does not name generic containers', () => {
     expect(leaderboardSource).not.toContain('<div aria-labelledby="leaderboard-heading">')
+  })
+
+  it('does not repeat the page ranking or admission headings', () => {
+    expect(leaderboardSource).not.toContain('Admission rule')
+    expect(leaderboardSource).not.toContain('Current ranking')
+    expect(leaderboardSource).not.toContain('Most starred')
+    expect(leaderboardSource).toContain('id="ranking-heading" class="sr-only"')
+    expect(leaderboardSource).toContain('Repository ranking')
   })
 
   it('keeps the cross-browser focus rule valid', () => {

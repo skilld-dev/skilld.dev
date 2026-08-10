@@ -43,6 +43,7 @@
     "db:migrations:prod": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
+    "@harlan-zw/nuxt-cf-jobs": "catalog:",
     "@iconify-json/lucide": "catalog:",
     "@iconify-json/simple-icons": "catalog:",
     "@iconify-json/vscode-icons": "catalog:",
@@ -70,7 +71,6 @@
     "nuxt": "catalog:",
     "nuxt-ai-ready": "catalog:",
     "nuxt-auth-utils": "catalog:",
-    "nuxt-cf-jobs": "catalog:",
     "nuxt-og-image": "catalog:",
     "skilld-protocol": "catalog:",
     "tailwindcss": "catalog:",
@@ -79,6 +79,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:",
+    "@harlan-zw/nuxt-dx": "catalog:",
     "@cloudflare/workers-types": "catalog:",
     "@nuxt/a11y": "catalog:",
     "@nuxt/eslint": "catalog:",

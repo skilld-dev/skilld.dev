@@ -1,9 +1,12 @@
+// @vitest-environment node
+
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
 const root = process.cwd()
+const designSource = readFileSync(resolve(root, 'DESIGN.md'), 'utf8')
 const homepageSource = readFileSync(resolve(root, 'app/pages/index.vue'), 'utf8')
 const seedSql = readFileSync(resolve(root, 'scripts/seed-homepage-collections.sql'), 'utf8')
 const heroSource = homepageSource.slice(
@@ -54,6 +57,14 @@ function seedHomepageCollections(): Database.Database {
 }
 
 describe('homepage activation', () => {
+  it('keeps the focused hero compact and documented', () => {
+    expect(heroSource).toContain('py-12')
+    expect(heroSource).toContain('md:py-16')
+    expect(heroSource).not.toContain('md:py-24')
+    expect(designSource).toContain('**Focused hero**')
+    expect(designSource).not.toContain('**Hero skill proof**')
+  })
+
   it('keeps the hero to one heading, one paragraph, and two calls to action', () => {
     expect(heroSource.match(/<h1\b/g)).toHaveLength(1)
     expect(heroSource.match(/<p\b/g)).toHaveLength(1)

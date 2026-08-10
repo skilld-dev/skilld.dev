@@ -108,9 +108,9 @@ export async function runD1SchemaVerifyCli(
   }
 
   const packageJsonPath = deps.packageJsonPath
-    ?? resolve(projectRoot, 'node_modules/nuxt-cf-jobs/package.json')
+    ?? resolve(projectRoot, 'node_modules/@harlan-zw/nuxt-cf-jobs/package.json')
   const distributedSchemaPath = deps.distributedSchemaPath
-    ?? resolve(projectRoot, 'node_modules/nuxt-cf-jobs/dist/runtime/server/d1.js')
+    ?? resolve(projectRoot, 'node_modules/@harlan-zw/nuxt-cf-jobs/dist/runtime/server/d1.js')
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: unknown }
   const packageContract = verifyCfJobsPackageContract({
     installedVersion: typeof packageJson.version === 'string' ? packageJson.version : 'invalid',

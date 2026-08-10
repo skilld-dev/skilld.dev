@@ -129,7 +129,7 @@ export type CfJobsPackageVerificationResult
     | { _tag: 'fail', issues: PackageContractIssue[] }
 
 export const CF_JOBS_SCHEMA_CONTRACT = {
-  version: '0.16.0',
+  version: '0.0.1',
   indexes: [
     {
       name: 'idx_jobs_dispatchable',

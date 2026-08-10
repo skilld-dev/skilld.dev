@@ -28,11 +28,11 @@ function skillPath(skill: DeveloperSkill) {
 
 <template>
   <article class="border-t border-default py-6 first:border-t-0 first:pt-0 last:pb-0">
-    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start">
+    <div class="mb-4">
       <NuxtLink
         :to="ownerHubPath(section.owner)"
         :aria-label="`${section.displayName || section.owner} profile`"
-        class="shrink-0"
+        class="group inline-flex min-h-11 max-w-full items-center gap-3"
       >
         <img
           :src="`https://github.com/${section.owner}.png?size=96`"
@@ -43,38 +43,22 @@ function skillPath(skill: DeveloperSkill) {
           loading="lazy"
           decoding="async"
         >
-      </NuxtLink>
-
-      <div class="min-w-0 flex-1">
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h3 class="text-base font-medium">
-            <NuxtLink
-              :to="ownerHubPath(section.owner)"
-              class="inline-flex min-h-11 items-center hover:text-muted transition-colors"
-            >
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 class="text-base font-medium transition-colors group-hover:text-muted">
               {{ section.displayName || section.owner }}
-            </NuxtLink>
-          </h3>
-          <span class="font-mono text-xs text-muted">@{{ section.owner }}</span>
-          <span class="data-label">{{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }}</span>
+            </h3>
+            <span class="font-mono text-xs text-muted">@{{ section.owner }}</span>
+            <span class="data-label">{{ section.totalSkills }} {{ section.totalSkills === 1 ? 'skill' : 'skills' }}</span>
+          </div>
         </div>
-        <p
-          v-if="section.description"
-          class="mt-1 max-w-2xl text-sm text-muted leading-relaxed"
-        >
-          {{ section.description }}
-        </p>
-      </div>
-
-      <UButton
-        :to="ownerHubPath(section.owner)"
-        label="View profile"
-        color="neutral"
-        variant="ghost"
-        size="xs"
-        trailing-icon="i-lucide-arrow-right"
-        class="min-h-11 self-start"
-      />
+      </NuxtLink>
+      <p
+        v-if="section.description"
+        class="mt-2 max-w-2xl text-sm text-muted leading-relaxed"
+      >
+        {{ section.description }}
+      </p>
     </div>
 
     <div class="developer-skill-carousel-frame -mx-4 sm:-mx-6">

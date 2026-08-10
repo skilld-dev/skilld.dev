@@ -52,47 +52,25 @@ function formatDate(timestamp: number | null): string | null {
 <template>
   <div>
     <CompactPageHeader
-      label="Repository ranking"
       title="Leaderboard"
-      description="Repositories from individual creators publishing reusable agent skills, ranked by GitHub stars. Every repository is reviewed before it can appear."
+      description="Repositories from individual creators publishing reusable agent skills, ranked by GitHub stars."
       heading-id="leaderboard-heading"
-    >
-      <template #aside>
-        <div class="border-s border-default ps-4 sm:ps-6">
-          <p class="section-label">
-            Admission rule
-          </p>
-          <p class="mt-3 text-base font-medium text-default">
-            Individual creators. Generic skills.
-          </p>
-          <p class="mt-2 max-w-sm text-base leading-relaxed text-muted">
-            Organization-owned repositories, vendor catalogs, project rules, prompts, bookmarks, and narrow app packs do not qualify.
-          </p>
-        </div>
-      </template>
-    </CompactPageHeader>
+    />
 
     <div>
       <section
         class="leaderboard-shell mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12"
         aria-labelledby="ranking-heading"
       >
-        <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p class="section-label">
-              Current ranking
-            </p>
-            <h2 id="ranking-heading" class="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Most starred
-            </h2>
-          </div>
-          <p v-if="data" class="data-label">
-            {{ data.total }} reviewed {{ data.total === 1 ? 'repo' : 'repos' }}
-            <template v-if="formattedSyncDate">
-              · stars synced {{ formattedSyncDate }}
-            </template>
-          </p>
-        </div>
+        <h2 id="ranking-heading" class="sr-only">
+          Repository ranking
+        </h2>
+        <p v-if="data" class="mb-5 text-end data-label">
+          {{ data.total }} reviewed {{ data.total === 1 ? 'repo' : 'repos' }}
+          <template v-if="formattedSyncDate">
+            · stars synced {{ formattedSyncDate }}
+          </template>
+        </p>
 
         <div
           v-if="isLoading"
@@ -197,19 +175,13 @@ function formatDate(timestamp: number | null): string | null {
                   >
                     <span class="[overflow-wrap:anywhere]">{{ item.owner }}/{{ item.repo }}</span>
                   </NuxtLink>
-                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span class="inline-flex items-center gap-1 font-mono text-xs text-muted">
-                      <UIcon name="i-lucide-badge-check" class="size-3.5" aria-hidden="true" />
-                      Individual creator · Purpose reviewed
-                    </span>
-                    <time
-                      v-if="item.pushedAt"
-                      :datetime="new Date(item.pushedAt * 1000).toISOString()"
-                      class="data-label"
-                    >
-                      Updated {{ formatDate(item.pushedAt) }}
-                    </time>
-                  </div>
+                  <time
+                    v-if="item.pushedAt"
+                    :datetime="new Date(item.pushedAt * 1000).toISOString()"
+                    class="block data-label"
+                  >
+                    Updated {{ formatDate(item.pushedAt) }}
+                  </time>
                   <p
                     v-if="item.description"
                     class="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted line-clamp-2"
@@ -224,14 +196,10 @@ function formatDate(timestamp: number | null): string | null {
                         name: item.topSkill.name,
                         slug: item.topSkill.slug,
                         description: item.topSkill.description,
-                        stars: item.stars,
-                        modifiedAt: item.topSkill.modifiedAt,
                       }"
                       variant="condensed"
-                      signal="stars"
+                      signal="none"
                       :show-copy="false"
-                      timestamp-label="Updated"
-                      timestamp-format="relative"
                     />
                   </div>
                 </div>

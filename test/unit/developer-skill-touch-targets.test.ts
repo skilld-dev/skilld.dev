@@ -5,13 +5,13 @@ const source = readFileSync('app/components/DeveloperSkillSection.vue', 'utf8')
 const skillsIndex = readFileSync('layers/marketing/app/pages/skills/index.vue', 'utf8')
 
 describe('developer skill touch targets', () => {
-  it('gives the maintainer name and profile action 44px targets', () => {
-    expect(source).toContain('class="inline-flex min-h-11 items-center')
-    expect(source).toContain('class="min-h-11 self-start"')
+  it('gives the consolidated maintainer identity a 44px target', () => {
+    expect(source).toContain('class="group inline-flex min-h-11 max-w-full items-center')
+    expect(source).not.toContain('View profile')
   })
 
-  it('gives official publisher avatar and name links 44px targets', () => {
-    expect(skillsIndex).toContain('class="inline-flex size-11 shrink-0 items-center justify-center"')
-    expect(skillsIndex).toContain('class="inline-flex min-h-11 items-center transition-colors hover:text-muted"')
+  it('gives the consolidated official publisher identity a 44px target', () => {
+    expect(skillsIndex).toContain('class="group inline-flex min-h-11 items-center gap-3"')
+    expect(skillsIndex).not.toContain('View source')
   })
 })

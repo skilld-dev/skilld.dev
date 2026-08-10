@@ -1,11 +1,13 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { TagPayload } from '../../jobs/generate-tags'
 import type { RegistrySkill } from '../../utils/skills-registry'
+import type { TagSkillRow } from '../../utils/tag-profile'
 import { getDB } from '#server/utils/db'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { notBrokenSql } from '../../utils/broken'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { buildIdentifierFtsQuery } from '../../utils/skill-search'
+import { parseTagSkillRow } from '../../utils/tag-profile'
 
 import { getTagRedirect, isQualityDerivedTag } from '../../utils/tag-quality'
 
@@ -67,40 +69,6 @@ export interface TagProfile {
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 
-interface SkillRow {
-  name: string
-  owner: string
-  repo: string
-  display_name: string
-  slug: string
-  stars: number | null
-  description: string | null
-  rendered_raw_sha256: string | null
-  pushed_at: number | null
-  modified_at: number | null
-  first_seen_at: number | null
-}
-
-function rowToSkill(r: SkillRow): RegistrySkill {
-  return {
-    name: r.name,
-    owner: r.owner,
-    repo: r.repo,
-    displayName: r.display_name,
-    slug: r.slug,
-    stars: r.stars ?? 0,
-    description: r.description ?? null,
-    renderedRawSha256: r.rendered_raw_sha256 ?? null,
-    pushedAt: r.pushed_at ?? null,
-    modifiedAt: r.modified_at ?? null,
-    firstSeenAt: r.first_seen_at ?? null,
-    seoIndexScore: 0,
-    seoIndexable: false,
-    trustTier: 'untrusted',
-    trustScore: 0,
-  }
-}
-
 export default defineCachedEventHandler(async (event) => {
   const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
   const dataView = getQuery(event).view === 'data'
@@ -154,9 +122,20 @@ export default defineCachedEventHandler(async (event) => {
        LIMIT 200`,
     )
     .bind(ftsQuery, slug, slug)
-    .all<SkillRow>()
+    .all<TagSkillRow>()
 
-  const skills: RegistrySkill[] = (skillsRes.results ?? []).map(rowToSkill)
+  const parsedSkills = (skillsRes.results ?? []).map(parseTagSkillRow)
+  const invalidSkillCount = parsedSkills.filter(result => result._tag === 'invalid').length
+  if (invalidSkillCount) {
+    console.warn(JSON.stringify({
+      event: 'tag_profile_invalid_skills_excluded',
+      slug,
+      count: invalidSkillCount,
+    }))
+  }
+  const skills: RegistrySkill[] = parsedSkills.flatMap(result =>
+    result._tag === 'valid' ? [result.skill] : [],
+  )
   if (!skills.length)
     throw createError({ statusCode: 404, message: `No skills tagged ${slug}` })
 

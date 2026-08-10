@@ -243,9 +243,9 @@ describe('d1 schema verifier', () => {
   })
 })
 
-describe('nuxt-cf-jobs schema contract', () => {
-  const packageJsonPath = resolve(process.cwd(), 'node_modules/nuxt-cf-jobs/package.json')
-  const schemaSourcePath = resolve(process.cwd(), 'node_modules/nuxt-cf-jobs/dist/runtime/server/d1.js')
+describe('@harlan-zw/nuxt-cf-jobs schema contract', () => {
+  const packageJsonPath = resolve(process.cwd(), 'node_modules/@harlan-zw/nuxt-cf-jobs/package.json')
+  const schemaSourcePath = resolve(process.cwd(), 'node_modules/@harlan-zw/nuxt-cf-jobs/dist/runtime/server/d1.js')
 
   it('pins the installed package and distributed schema to the expected indexes', () => {
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version: string }
@@ -261,11 +261,11 @@ describe('nuxt-cf-jobs schema contract', () => {
     const distributedSchemaSource = readFileSync(schemaSourcePath, 'utf8')
 
     expect(verifyCfJobsPackageContract({
-      installedVersion: '0.17.0',
+      installedVersion: '0.0.2',
       distributedSchemaSource,
     })).toMatchObject({
       _tag: 'fail',
-      issues: [{ _tag: 'package_version_mismatch', expected: '0.16.0', actual: '0.17.0' }],
+      issues: [{ _tag: 'package_version_mismatch', expected: '0.0.1', actual: '0.0.2' }],
     })
   })
 })

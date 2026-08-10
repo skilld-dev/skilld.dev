@@ -255,12 +255,12 @@ These are editorial sets, not necessarily database collections yet. If a set has
 
 ### Homepage Layout Rules
 
-- **Hero**: teach the term "agent skill" in plain language, provide direct registry search, and keep one browse-all escape hatch. The hero alone may widen to `max-w-7xl`; pair the copy with a masked developer and organization timeline made from real registry skills and GitHub avatars. Trust language must be supported by visible provenance.
+- **Hero**: use one plain-language H1, one explanatory paragraph, one solid primary CTA, and one outline secondary CTA. Keep it left-aligned at `max-w-5xl`; detailed discovery starts in the outcome section.
 - **First content section**: `What are you trying to do?`. Use the six stable outcome routes so visitors can start from their problem before learning registry taxonomy.
 - **Editorial focus**: follow outcomes with a rotatable `Featured focus`. Frontend design is the current focus, not a permanent product boundary. Show one dominant set and no more than two compact supporting sets.
 - **Single-skill sets**: allowed and encouraged when the author/skill is strong enough, e.g. `pbakaus/impeccable`. Do not hide them in a generic list because they only contain one skill.
 - **Pairing signal**: when multiple authors appear in a set, show a small mono line such as `Works with Addy Osmani + Julien Thibeaut`. The point is compatibility and taste transfer, not volume.
-- **Section order**: Hero -> Outcomes -> Featured focus -> Install with confidence -> Keep your agent current -> Explore the registry -> Publish.
+- **Section order**: Hero -> Outcomes -> Featured focus -> Keep your agent current -> Publish.
 - **Freshness hierarchy**: Recently updated outranks New to skilld. Newness is not a quality claim. Fold Watch your stack into this section.
 - **Registry terminology**: Skills, Collections, and Official publishers are the three browse escape hatches. Do not recreate separate Devs, Orgs, and Curators sections.
 - **Card density**: use the existing bordered card pattern, but each editorial card should read like a Wirecutter pick: compact rationale first, metadata second. Avoid nested cards; skill names can be inline badges or a divided list.
@@ -281,10 +281,11 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Unknown install counts stay hidden**: an install value of zero can represent missing ingestion data, so cards omit the metric visually and semantically until a positive count is known.
 - **Task-first homepage**: orientation and outcome discovery precede editorial inventory. Confirmed in the 2026-07 homepage rethink.
 - **Frontend is a rotatable editorial focus**: it may dominate the current feature band but must not redefine skilld as a frontend-only registry.
-- **One composition per homepage band**: maintainer timeline, numbered outcome index, lead-and-supporting editorial pick, evidence chain, activity ledger, browse map, and contribution ledger. Repeating equal card grids weakens the page narrative.
+- **One composition per homepage band**: focused hero opening, numbered outcome index, lead-and-supporting editorial pick, activity ledger, and contribution ledger. Repeating equal card grids weakens the page narrative.
 - **Evidence before freshness**: show provenance, editorial rationale, and a real install command before recent activity.
 - **Section atmosphere**: low-chroma warm-stone and rose gradients may distinguish homepage bands. They stay masked to edges, use mode-specific opacity, and never sit behind data as a full-strength fill.
 - **Collections remain primary curation**: directory links may be quiet, but Collections retain stronger hierarchy than publisher taxonomy.
-- **Hero skill proof**: the hero uses a real-skill timeline grouped by distinct developers and organizations, with visible GitHub avatars and source paths. A top-and-bottom mask blends it into the atmosphere; hover and keyboard focus pause the drift; reduced motion freezes it. No duplicated entries or fake skill data.
+- **Focused hero**: the hero intentionally contains only an H1, one explanatory paragraph, and two directional CTAs. Provenance appears in the copy and deeper registry sections; inline install, search, and skill timelines stay out of the hero.
 - **Homepage patterns are journey primitives**: atmosphere, outcome indexes, evidence ledgers, provenance lines, and lead/supporting picks now form the reusable editorial layer. Reuse their rules on discovery routes while preserving a distinct composition for each page.
 - **Compact registry openings**: `/community`, `/skills`, and `/skills/leaderboard` use `CompactPageHeader`: one page name, concise orientation copy, a structural divider, and useful controls or context without atmosphere. Outcome pages retain plain-language mastheads. Skill detail remains dense and unchanged.
+- **Compact discovery openings**: Outcome and framework directories now join the compact registry template. Their openings carry only orientation, key totals, and one primary route back into the skills registry. Framework contributor data lives alongside each skill instead of in a duplicate leaderboard.

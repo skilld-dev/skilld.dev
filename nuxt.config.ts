@@ -22,7 +22,8 @@ export default defineNuxtConfig({
   },
 
   modules: [
-    'nuxt-cf-jobs',
+    '@harlan-zw/nuxt-cf-jobs',
+    '@harlan-zw/nuxt-dx',
     './modules/mdxg/src/module',
     '@nuxt/eslint',
     '@nuxt/ui',
