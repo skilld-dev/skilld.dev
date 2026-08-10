@@ -94,6 +94,31 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('compactPageHeader has no violations with context and controls', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/CompactPageHeader.vue').then(m => m.default),
+      {
+        attachTo: container,
+        props: {
+          label: 'Community directory',
+          title: 'Community',
+          description: 'Explore creators and their published work.',
+          headingId: 'community-heading',
+        },
+        slots: {
+          aside: '<p>Five creators</p>',
+          default: '<button type="button">All creators</button>',
+        },
+      },
+    )
+
+    expect(container.querySelector('h1')?.id).toBe('community-heading')
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('skillSearchPanel has no violations in its resting state', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -171,6 +196,7 @@ describe('accessibility: component coverage', () => {
         SKIPPED_COMPONENTS.includes(name) || [
           'AddToCollection.client',
           'AppLogo',
+          'CompactPageHeader',
           'SkillSearchPanel',
           'SkillSearchTrigger',
           'SkillSourceList',

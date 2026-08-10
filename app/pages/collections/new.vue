@@ -190,7 +190,7 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
 
       <div class="flex justify-end gap-2">
         <UButton
-          to="/collections"
+          to="/community"
           color="neutral"
           variant="ghost"
           size="sm"

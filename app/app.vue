@@ -130,8 +130,8 @@ watch(() => route.fullPath, () => {
             class="hidden lg:inline-flex"
           />
           <UButton
-            to="/collections"
-            label="Collections"
+            to="/community"
+            label="Community"
             color="neutral"
             variant="ghost"
             size="sm"
@@ -224,8 +224,8 @@ watch(() => route.fullPath, () => {
                 class="justify-start"
               />
               <UButton
-                to="/collections"
-                label="Collections"
+                to="/community"
+                label="Community"
                 color="neutral"
                 variant="ghost"
                 block

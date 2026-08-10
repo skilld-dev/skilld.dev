@@ -285,6 +285,7 @@ export default defineNuxtConfig({
   // D1 per request), always fresh. D1 reads are cheap at current traffic; re-add
   // targeted caching here if/when traffic warrants it.
   routeRules: {
+    '/collections': { redirect: { to: '/community', statusCode: 301 } } as any,
     '/_nuxt/v2/**': {
       headers: {
         'cache-control': 'public, max-age=31536000, immutable',

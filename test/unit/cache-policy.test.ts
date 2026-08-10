@@ -9,6 +9,7 @@ describe('workers cache policy', () => {
   it.each([
     ['/api/collections', 60],
     ['/api/collections/featured', 60],
+    ['/api/community', 60],
     ['/api/feed/recent-updates', 60],
     ['/api/feed/recent-publishes', 60],
     ['/api/skills-raw/cloudflare/workers/agents', 300],

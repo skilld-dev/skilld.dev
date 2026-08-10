@@ -11,7 +11,8 @@ describe('production smoke contract', () => {
     expect(PRODUCTION_SMOKE_EXPECTATIONS).toEqual(expect.arrayContaining([
       { path: '/', status: 200 },
       { path: '/skills', status: 200 },
-      { path: '/collections', status: 200 },
+      { path: '/community', status: 200 },
+      { path: '/collections', status: 301, location: '/community' },
       { path: '/guides', status: 410 },
       { path: '/guides/npm/example', status: 410 },
       { path: '/skills/leaderboard', status: 200 },

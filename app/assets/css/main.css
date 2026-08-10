@@ -295,15 +295,6 @@
   line-height: 0.98;
 }
 
-.home-display--split {
-  font-size: clamp(3rem, 1.8rem + 4.25vw, 5.5rem);
-  line-height: 0.96;
-}
-
-.home-hero-proof-head {
-  border-bottom: 1px solid var(--ui-border);
-}
-
 .home-section-title {
   font-size: clamp(2.25rem, 1.65rem + 2.6vw, 4.25rem);
   font-weight: 600;

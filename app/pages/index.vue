@@ -2,15 +2,7 @@
 import type { FeaturedCollectionsResponse } from '~~/server/api/collections/featured.get'
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
-import type { SkillSourceItem } from '../types/skill-source'
-import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
-import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
-import {
-  HOMEPAGE_PERSON_MINIMUM,
-  HOMEPAGE_SKILL_LIMIT,
-  selectHomepagePersonSkills,
-} from '../utils/homepage-person-skills'
 
 const title = 'Curated agent skills by humans · skilld'
 const description = 'Agent skills written by real maintainers in their own GitHub repos. See who wrote it and read the SKILL.md before you install.'
@@ -41,13 +33,6 @@ function withHomeDataTiming<T>(name: string, request: Promise<T>): Promise<T> {
   return request.finally(() => {
     homeDataTimings.push(`${name};dur=${(performance.now() - startedAt).toFixed(1)}`)
   })
-}
-
-const searchQuery = ref('')
-
-function searchSkills() {
-  const q = searchQuery.value.trim()
-  return navigateTo(q ? { path: '/skills', query: { q } } : '/skills')
 }
 
 const [
@@ -100,28 +85,6 @@ const recentPublishes = computed(() => publishesData.value?.items ?? [])
 type FeaturedCollectionSkill = FeaturedCollectionsResponse['items'][number]['skills'][number]
 type FeaturedCollection = FeaturedCollectionsResponse['items'][number]
 
-interface FeaturedPeopleResponse {
-  devSections: FeaturedPersonSection[]
-}
-
-const {
-  data: peopleSkillsData,
-  execute: loadPeopleSkills,
-} = await useFetch<FeaturedPeopleResponse>('/api/skills/featured', {
-  key: 'home-person-skills-v1',
-  query: {
-    orgs: 0,
-    perOrg: 1,
-    devs: 20,
-    perDev: 2,
-  },
-  server: false,
-  lazy: true,
-  immediate: false,
-})
-
-onMounted(() => loadPeopleSkills())
-
 function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
   return skill.name
     ? repoSkillPath(skill.owner, skill.repo, skill.name)
@@ -140,23 +103,6 @@ function collectionSkillOwnerLabel(collection: FeaturedCollection): string {
   return collectionSkillOwners(collection).map(owner => `@${owner}`).join(' + ')
 }
 
-const fallbackPersonNamesByOwner = new Map<string, string>(
-  homepagePersonSkillFallbacks.map(skill => [skill.owner, skill.maintainerName]),
-)
-
-const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
-  const liveSkills = selectHomepagePersonSkills(
-    peopleSkillsData.value?.devSections ?? [],
-    fallbackPersonNamesByOwner,
-  )
-  const livePeople = new Set(liveSkills.map(skill => skill.owner))
-
-  return liveSkills.length === HOMEPAGE_SKILL_LIMIT
-    && livePeople.size >= HOMEPAGE_PERSON_MINIMUM
-    ? liveSkills
-    : homepagePersonSkillFallbacks
-})
-
 const installCommand = computed(() => {
   const collection = leadCollection.value
   return collection
@@ -164,31 +110,12 @@ const installCommand = computed(() => {
     : ''
 })
 
-const fallbackHeroInstallCommand = gitInstallCmd('antfu', 'skills')
-
 const installTarget = computed<InstallTarget | null>(() => {
   const collection = leadCollection.value
   return collection
     ? { kind: 'collection', handle: collection.authorLogin, slug: collection.slug }
     : null
 })
-const heroInstallCommand = computed(() => installCommand.value || fallbackHeroInstallCommand)
-const heroInstallTarget = computed<InstallTarget>(() => installTarget.value ?? {
-  kind: 'skill',
-  owner: 'antfu',
-  name: 'skills',
-})
-const { copy: copyHeroInstall } = useInstallCopy(
-  heroInstallCommand,
-  'homepage-hero',
-  heroInstallTarget,
-)
-const heroCopyState = refAutoReset<InstallCopyResult | { _tag: 'idle' }>({ _tag: 'idle' }, 2500)
-
-async function copyHeroInstallCommand() {
-  heroCopyState.value = await copyHeroInstall()
-}
-
 const { copy: copyFeaturedInstall } = useInstallCopy(
   installCommand,
   'homepage-featured-collection',
@@ -264,108 +191,30 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         aria-hidden="true"
       />
 
-      <div class="editorial-band__content mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 md:pb-24 md:pt-24">
-        <div class="home-hero-grid grid items-center gap-12 lg:grid-cols-[minmax(0,1.18fr)_minmax(24rem,0.82fr)] lg:gap-12 xl:gap-16">
-          <div class="home-hero-copy min-w-0">
-            <p class="section-label mb-5">
-              Reusable instructions for coding agents
-            </p>
-            <!-- The eyebrow names the category for anyone who has not met a
-                 SKILL.md yet; the heading and subhead carry the provenance
-                 claim that separates this from a generated skill dump. -->
-            <h1 id="hero-heading" class="home-display home-display--split max-w-[13ch] font-semibold tracking-[-0.045em] text-balance">
-              Curated agent skills by humans.
-            </h1>
-            <p class="mt-6 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
-              Every skill here is a SKILL.md someone wrote in their own repo. Search the work you need done, see who wrote it, then install it.
-            </p>
-
-            <div class="mt-7 max-w-2xl">
-              <p class="data-label mb-2">
-                Install a curated collection
-              </p>
-              <div class="flex min-w-0 items-stretch overflow-hidden rounded-lg border border-default bg-muted/60">
-                <code
-                  id="hero-install-command"
-                  tabindex="0"
-                  class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap px-4 py-3 font-mono text-sm leading-6"
-                >{{ heroInstallCommand }}</code>
-                <UButton
-                  :icon="heroCopyState._tag === 'copied' ? 'i-lucide-check' : 'i-lucide-copy'"
-                  :label="heroCopyState._tag === 'copied' ? 'Copied' : 'Copy'"
-                  color="neutral"
-                  variant="ghost"
-                  class="min-h-11 shrink-0 rounded-none border-l border-default px-4"
-                  @click="copyHeroInstallCommand"
-                />
-              </div>
-              <p
-                class="sr-only"
-                aria-live="polite"
-              >
-                <template v-if="heroCopyState._tag === 'copied'">
-                  Install command copied.
-                </template>
-                <template v-else-if="heroCopyState._tag === 'error'">
-                  {{ heroCopyState.message }}
-                </template>
-              </p>
-            </div>
-
-            <form
-              class="mt-7 flex max-w-2xl flex-col gap-3 sm:flex-row"
-              role="search"
-              action="/skills"
-              method="get"
-              @submit.prevent="searchSkills"
-            >
-              <label for="home-skill-search" class="sr-only">Search skills</label>
-              <UInput
-                id="home-skill-search"
-                v-model="searchQuery"
-                name="q"
-                type="search"
-                autocomplete="off"
-                placeholder="Try “debug a flaky test” or a maintainer…"
-                icon="i-lucide-search"
-                size="xl"
-                class="min-w-0 flex-1 [&_input]:min-h-11"
-              />
-              <UButton
-                type="submit"
-                label="Search skills"
-                trailing-icon="i-lucide-arrow-right"
-                size="xl"
-                class="min-h-11 justify-center"
-              />
-            </form>
-
-            <div class="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
-              <UButton
-                to="/skills"
-                label="Browse all skills"
-                color="neutral"
-                variant="ghost"
-                trailing-icon="i-lucide-arrow-right"
-                class="min-h-11"
-              />
-              <p class="font-mono text-xs text-muted">
-                Every result links to its source SKILL.md.
-              </p>
-            </div>
-          </div>
-
-          <div class="min-w-0">
-            <div class="home-hero-proof-head px-1 pb-3">
-              <p class="data-label">
-                Skills from people who do the work
-              </p>
-            </div>
-            <SkillSourceList
-              :items="heroSkillCards"
-              variant="stream"
-              auto-scroll
-              aria-label="Person-authored skills"
+      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-16 sm:px-6 md:py-24">
+        <div class="max-w-3xl">
+          <h1 id="hero-heading" class="home-display max-w-[13ch] font-semibold tracking-[-0.045em] text-balance">
+            Curated agent skills by humans.
+          </h1>
+          <p class="mt-6 max-w-2xl text-lg leading-relaxed text-muted text-pretty sm:text-xl">
+            Every skill is a SKILL.md written in its author's own repo, so you can see who made it and read the source before installing.
+          </p>
+          <div class="mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            <UButton
+              to="/skills"
+              label="Search skills"
+              trailing-icon="i-lucide-arrow-right"
+              size="xl"
+              class="min-h-11 justify-center"
+            />
+            <UButton
+              to="/community"
+              label="Explore community"
+              color="neutral"
+              variant="outline"
+              trailing-icon="i-lucide-arrow-right"
+              size="xl"
+              class="min-h-11 justify-center"
             />
           </div>
         </div>
@@ -412,18 +261,18 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-featured-heading">
           <div class="min-w-0">
             <p class="section-label">
-              From the curator
+              Community curated
             </p>
             <h2 id="featured-focus-heading" class="home-featured-title mt-4 text-balance">
-              Three collections I'd install first.
+              Collections for better agent work.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              They cover the work around the code: finding a skill, planning a change, and checking the result.
+              Shared by people in the skilld community, covering discovery, planning, and review.
             </p>
           </div>
           <UButton
-            to="/collections"
-            label="Explore all collections"
+            to="/community"
+            label="Explore the community"
             color="neutral"
             variant="ghost"
             trailing-icon="i-lucide-arrow-right"
@@ -456,13 +305,13 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           role="alert"
         >
           <p class="font-medium">
-            Could not load featured skill sets.
+            Could not load community collections.
           </p>
           <p class="mt-1 text-base text-muted">
             Check your connection and try again. The rest of the registry is still available.
           </p>
           <UButton
-            label="Try featured sets again"
+            label="Try community collections again"
             color="neutral"
             variant="outline"
             size="sm"
@@ -653,14 +502,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
         <div v-else class="mt-10 rounded-lg border border-default bg-default p-6">
           <p class="font-medium">
-            No featured collections right now.
+            No community collections are featured right now.
           </p>
           <p class="mt-1 text-base text-muted">
-            The full collection index is still available.
+            The community directory is still available.
           </p>
           <UButton
-            to="/collections"
-            label="Browse collections"
+            to="/community"
+            label="Browse the community"
             color="neutral"
             variant="outline"
             class="mt-4 min-h-11"

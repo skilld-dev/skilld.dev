@@ -6,6 +6,14 @@ import { describe, expect, it } from 'vitest'
 const root = process.cwd()
 const homepageSource = readFileSync(resolve(root, 'app/pages/index.vue'), 'utf8')
 const seedSql = readFileSync(resolve(root, 'scripts/seed-homepage-collections.sql'), 'utf8')
+const heroSource = homepageSource.slice(
+  homepageSource.indexOf('home-band--hero'),
+  homepageSource.indexOf('id="outcomes"'),
+)
+const featuredCollectionsSource = homepageSource.slice(
+  homepageSource.indexOf('id="featured-focus"'),
+  homepageSource.indexOf('id="freshness"'),
+)
 
 function seedHomepageCollections(): Database.Database {
   const sqlite = new Database(':memory:')
@@ -46,23 +54,15 @@ function seedHomepageCollections(): Database.Database {
 }
 
 describe('homepage activation', () => {
-  it('keeps source-linked skill previews visible before featured data loads', () => {
-    expect(homepageSource).toContain('<SkillSourceList')
-    expect(homepageSource).toContain('home-person-skills-v1')
-    expect(homepageSource).toContain(':items="heroSkillCards"')
-    expect(homepageSource).toContain('auto-scroll')
-    expect(homepageSource).not.toContain('{{ heroSkillCards.length }} sources')
-  })
-
-  it('waits for hydration before replacing focusable fallback skills', () => {
-    expect(homepageSource).toContain('immediate: false')
-    expect(homepageSource).toContain('onMounted(() => loadPeopleSkills())')
-  })
-
-  it('requests a broad candidate pool and requires ten distinct people', () => {
-    expect(homepageSource).toContain('devs: 20')
-    expect(homepageSource).toContain('perDev: 2')
-    expect(homepageSource).toContain('HOMEPAGE_PERSON_MINIMUM')
+  it('keeps the hero to one heading, one paragraph, and two calls to action', () => {
+    expect(heroSource.match(/<h1\b/g)).toHaveLength(1)
+    expect(heroSource.match(/<p\b/g)).toHaveLength(1)
+    expect(heroSource.match(/<UButton\b/g)).toHaveLength(2)
+    expect(heroSource).toContain('label="Search skills"')
+    expect(heroSource).toContain('label="Explore community"')
+    expect(heroSource).not.toContain('<UInput')
+    expect(heroSource).not.toContain('<SkillSourceList')
+    expect(heroSource).not.toContain('<code')
   })
 
   it('tracks the featured collection install from the primary decision point', () => {
@@ -71,14 +71,11 @@ describe('homepage activation', () => {
     expect(homepageSource).not.toContain('navigator.clipboard')
   })
 
-  it('puts a copyable install command before search in the hero', () => {
-    const commandIndex = homepageSource.indexOf('id="hero-install-command"')
-    const searchIndex = homepageSource.indexOf('id="home-skill-search"')
-
-    expect(commandIndex).toBeGreaterThan(-1)
-    expect(commandIndex).toBeLessThan(searchIndex)
-    expect(homepageSource).toContain('copyHeroInstallCommand')
-    expect(homepageSource).toContain('gitInstallCmd(\'antfu\', \'skills\')')
+  it('frames featured collections as community curation', () => {
+    expect(featuredCollectionsSource).toContain('Community curated')
+    expect(featuredCollectionsSource).toContain('Collections for better agent work.')
+    expect(featuredCollectionsSource).not.toContain('From the curator')
+    expect(featuredCollectionsSource).not.toMatch(/\bI(?:'d| would)\b/)
   })
 
   it('shows the curator once and attributes collection skills to their source owners', () => {

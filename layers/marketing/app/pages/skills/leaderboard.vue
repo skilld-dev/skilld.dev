@@ -51,12 +51,10 @@ function formatDate(timestamp: number | null): string | null {
 
 <template>
   <div>
-    <EditorialMasthead
-      label="Leaderboard"
-      title="Skill repos, ranked."
+    <CompactPageHeader
+      label="Repository ranking"
+      title="Leaderboard"
       description="Repositories from individual creators publishing reusable agent skills, ranked by GitHub stars. Every repository is reviewed before it can appear."
-      palette="stone"
-      geometry="wash"
       heading-id="leaderboard-heading"
     >
       <template #aside>
@@ -72,11 +70,11 @@ function formatDate(timestamp: number | null): string | null {
           </p>
         </div>
       </template>
-    </EditorialMasthead>
+    </CompactPageHeader>
 
     <div>
       <section
-        class="leaderboard-shell mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
+        class="leaderboard-shell mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12"
         aria-labelledby="ranking-heading"
       >
         <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

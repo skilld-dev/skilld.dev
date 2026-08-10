@@ -18,6 +18,7 @@ interface EdgeCacheRule extends EdgeCachePolicy {
 const EDGE_CACHE_RULES: EdgeCacheRule[] = [
   { path: /^\/api\/collections\/featured$/, maxAge: 60 },
   { path: /^\/api\/collections$/, maxAge: 60 },
+  { path: /^\/api\/community$/, maxAge: 60 },
   { path: /^\/api\/feed\/recent-updates$/, maxAge: 60 },
   { path: /^\/api\/feed\/recent-publishes$/, maxAge: 60 },
   { path: /^\/api\/skills-raw\/.+$/, maxAge: 300, preserveBrowserCache: true },

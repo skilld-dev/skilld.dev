@@ -199,8 +199,8 @@ defineOgImage('Page.takumi', {
           class="min-h-11"
         />
         <UButton
-          to="/collections"
-          label="Find curated stacks"
+          to="/community"
+          label="Meet skill creators"
           color="neutral"
           variant="ghost"
           class="min-h-11"

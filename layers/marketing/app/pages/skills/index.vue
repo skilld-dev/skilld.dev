@@ -187,34 +187,16 @@ function clearOwner() {
 
 <template>
   <div class="overflow-clip">
-    <EditorialMasthead
+    <CompactPageHeader
       label="Skill registry"
-      title="Search the skill registry."
+      title="Skills"
       description="Search by task, maintainer, package, or tag. Every result opens to the original SKILL.md."
-      palette="rose"
       heading-id="skills-heading"
     >
-      <template #aside>
-        <ol class="editorial-ledger list-none p-0">
-          <li class="flex gap-3 py-3">
-            <span class="data-label">01</span>
-            <span class="text-sm leading-relaxed">Describe the job.</span>
-          </li>
-          <li class="flex gap-3 py-3">
-            <span class="data-label">02</span>
-            <span class="text-sm leading-relaxed">Open the SKILL.md.</span>
-          </li>
-          <li class="flex gap-3 py-3">
-            <span class="data-label">03</span>
-            <span class="text-sm leading-relaxed">Follow the repo if you depend on it.</span>
-          </li>
-        </ol>
-      </template>
-
       <!-- Search + filter row -->
       <div class="skills-search-shell">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div class="relative flex-1">
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+          <div class="relative col-span-2 min-w-0 sm:col-span-1">
             <label for="skill-search" class="sr-only">Search skills</label>
             <UInput
               id="skill-search"
@@ -304,7 +286,7 @@ function clearOwner() {
             </template>
           </UPopover>
 
-          <div class="flex items-center gap-2 sm:ml-auto">
+          <div class="flex items-center gap-2 justify-self-end">
             <div class="flex items-center border border-default rounded-lg overflow-hidden">
               <button
                 type="button"
@@ -333,18 +315,18 @@ function clearOwner() {
         <!-- Popular tags chipbar (shown when no tag selected, as discovery) -->
         <div
           v-if="!tags.length && popularTags.length"
-          class="mt-4 flex flex-wrap items-center gap-2"
+          class="mt-4 flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
         >
-          <span class="data-label uppercase tracking-widest">Popular</span>
+          <span class="data-label shrink-0 uppercase tracking-widest">Popular</span>
           <button
             v-for="t in popularTags"
             :key="t.slug"
             type="button"
-            class="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-default px-3 py-2 font-mono text-xs text-muted transition-colors hover:border-[var(--ui-text-muted)] hover:text-default"
+            class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-default px-3 py-2 font-mono text-xs text-muted transition-colors hover:border-[var(--ui-text-muted)] hover:text-default"
             @click="toggleTag(t.slug)"
           >
             {{ t.label }}
-            <span class="text-[10px] opacity-70">{{ t.count }}</span>
+            <span class="text-xs tabular-nums">{{ t.count }}</span>
           </button>
         </div>
 
@@ -414,7 +396,7 @@ function clearOwner() {
           />
         </div>
       </div>
-    </EditorialMasthead>
+    </CompactPageHeader>
 
     <section
       v-if="!isFiltering"

@@ -23,7 +23,7 @@ Use these terms exactly. Drift breeds shallow modules.
 
 - **registry** — `/gh/*` and `api/orgs|repos|skills|*`. Owns GitHub proxying.
 - **identity** (Phase 2) — GitHub OAuth, sessions, `users` table, subscriptions, digests.
-- **app** — `/`, `/@<login>/*`, `/collections/*`, `api/collections|feed|*`. Owns native data.
+- **app** — `/`, `/community`, `/@<login>/*`, `/collections/new`, `api/community|collections|feed|*`. Owns native data.
 - **marketing** — `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`. Built on `@nuxt/content`. Owns SEO content.
 - **admin** — existing.
 
