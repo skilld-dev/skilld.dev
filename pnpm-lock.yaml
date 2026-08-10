@@ -145,8 +145,8 @@ catalogs:
       specifier: 4.5.0
       version: 4.5.0
     nuxt-ai-ready:
-      specifier: ^1.7.8
-      version: 1.7.8
+      specifier: ^1.7.9
+      version: 1.7.9
     nuxt-auth-utils:
       specifier: ^0.5.30
       version: 0.5.30
@@ -271,7 +271,7 @@ importers:
         version: 4.5.0(1a858ad78c1f408d627278eedb8bbec0)
       nuxt-ai-ready:
         specifier: 'catalog:'
-        version: 1.7.8(@cloudflare/workers-types@5.20260809.1)(@nuxt/schema@4.5.2)(@nuxtjs/sitemap@8.3.3(@nuxt/schema@4.5.2)(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))(zod@4.4.3))(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))(zod@4.4.3)
+        version: 1.7.9(@cloudflare/workers-types@5.20260809.1)(@nuxt/schema@4.5.2)(@nuxtjs/sitemap@8.3.3(@nuxt/schema@4.5.2)(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))(zod@4.4.3))(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))(zod@4.4.3)
       nuxt-auth-utils:
         specifier: 'catalog:'
         version: 0.5.30(magic-string@1.1.0)(magicast@0.5.4)(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))
@@ -7542,8 +7542,8 @@ packages:
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
 
-  nuxt-ai-ready@1.7.8:
-    resolution: {integrity: sha512-c2TlDCLbXrUAgGFmqYM+/FK1vj9r7B2w2KXNM6j08aH/YOYTD4CImqJ7EGpaigSNPWovNuq7uMVyTrUz6/Y8JA==}
+  nuxt-ai-ready@1.7.9:
+    resolution: {integrity: sha512-vTkJrjMGWVJi9HQkWqWSf6oBLqIGmmEJ28OiVKzBwiIgIS2RUwjuVc87ae3ybD/cR1gl4o0DLUlLQLLv5ldpjw==}
     hasBin: true
     peerDependencies:
       '@libsql/client': ^0.14.0
@@ -17667,7 +17667,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  nuxt-ai-ready@1.7.8(@cloudflare/workers-types@5.20260809.1)(@nuxt/schema@4.5.2)(@nuxtjs/sitemap@8.3.3(@nuxt/schema@4.5.2)(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))(zod@4.4.3))(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))(zod@4.4.3):
+  nuxt-ai-ready@1.7.9(@cloudflare/workers-types@5.20260809.1)(@nuxt/schema@4.5.2)(@nuxtjs/sitemap@8.3.3(@nuxt/schema@4.5.2)(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))(zod@4.4.3))(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))(vue@3.5.40(typescript@6.0.3))(zod@4.4.3):
     dependencies:
       '@mdream/js': 1.5.12
       '@nuxt/kit': 4.5.2(magic-string@1.1.0)(magicast@0.5.4)(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))
