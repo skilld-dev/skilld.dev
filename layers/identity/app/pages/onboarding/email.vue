@@ -1,38 +1,50 @@
 <script setup lang="ts">
+import type { IdentityEmailPatchBody, IdentityMutationResponse } from '../../../shared/contracts/account'
+import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
+
 definePageMeta({ middleware: ['auth'] })
 
-const { data: me } = await useFetch('/api/me')
+const { data: me } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
 const { fetchSession } = useAuth()
 
 const email = ref(me.value?.digest_email || me.value?.email || '')
 const optIn = ref(true)
 
 const actionFailed = useActionFailure()
+const rpc = useNuxtRpc()
+
+const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutationResponse>({
+  mutation: body => rpc.execute(identityAccountQueries.saveEmail(), body),
+  invalidates: ['identity:me'],
+  onError: actionFailed('save your digest email'),
+})
+
+const finishOnboardingMutation = useNuxtMutation<void, IdentityMutationResponse>({
+  mutation: () => rpc.execute(identityAccountQueries.finishOnboarding()),
+  invalidates: ['identity:me'],
+  onError: actionFailed('finish setting up your account'),
+})
 
 // Opting in needs somewhere to send the digest, so the address is required
 // exactly when the box is ticked.
 const missingAddress = computed(() => optIn.value && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(email.value.trim()))
 
-const submitting = ref(false)
+const submitting = computed(() => saveEmailMutation.pending.value || finishOnboardingMutation.pending.value)
 async function finish() {
   if (missingAddress.value)
     return
-  submitting.value = true
-  const saved = await $fetch('/api/me/email', {
-    method: 'PATCH',
-    body: { digest_email: email.value, email_opt_in: optIn.value },
-  }).catch(actionFailed('save your digest email'))
-  if (!saved) {
-    submitting.value = false
+  const saved = await saveEmailMutation.mutateSafe({
+    digest_email: email.value,
+    email_opt_in: optIn.value,
+  })
+  if (saved._tag === 'err')
     return
-  }
-  const onboarded = await $fetch('/api/me/onboarded', { method: 'POST' }).catch(actionFailed('finish setting up your account'))
-  if (!onboarded) {
-    submitting.value = false
+
+  const onboarded = await finishOnboardingMutation.mutateSafe()
+  if (onboarded._tag === 'err')
     return
-  }
+
   await fetchSession()
-  submitting.value = false
   await navigateTo('/me?welcome=1')
 }
 

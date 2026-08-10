@@ -147,6 +147,7 @@ interface SkillDetailRow {
   seo_index_synced_at: number | null
   curator_count: number | null
   curator_reason_count: number | null
+  like_count: number | null
   approved_social_count: number | null
   author_social_count: number | null
   trust_tier: string | null
@@ -187,6 +188,7 @@ export default defineApiHandler({
                          s.source_resolved,
                          s.seo_index_score, s.seo_indexable, s.seo_index_reasons, s.seo_index_synced_at,
                          s.curator_count, s.curator_reason_count, s.approved_social_count, s.author_social_count,
+                         s.like_count,
                          s.trust_tier, s.trust_source, s.trust_score, s.trust_reasons, s.trust_synced_at,
                          s.rendered_skill_path, s.rendered_status, s.rendered_raw, s.rendered_frontmatter, s.rendered_html, s.rendered_at
                   FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
@@ -360,6 +362,9 @@ export default defineApiHandler({
       },
       tags,
       keywords,
+      // Deliberately top-level, not under `seo`: likes are displayed and back
+      // ?sort=likes, but never feed indexability or trust (ADR-0003).
+      likeCount: row?.like_count ?? 0,
       faqs: faqRow?.payload.faqs ?? [],
       summary: summaryRow?.payload?.text
         ? { text: summaryRow.payload.text }

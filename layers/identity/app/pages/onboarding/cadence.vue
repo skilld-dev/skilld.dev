@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import type { IdentityCadenceBody, IdentityMutationResponse } from '../../../shared/contracts/account'
+import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
+
 definePageMeta({ middleware: ['auth'] })
 
-const { data: me } = await useFetch('/api/me')
-const { data: subs } = await useFetch('/api/me/subscriptions')
+const { data: me } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
+const { data: subs } = await useNuxtRpcQuery(identityAccountQueries.subscriptions(), identityAccountQueryOptions)
 
 if (!subs.value?.items?.length) {
   await navigateTo('/onboarding/email', { replace: true })
@@ -39,15 +42,24 @@ const tzItems = computed(() => {
 })
 
 const actionFailed = useActionFailure()
+const rpc = useNuxtRpc()
 
-const submitting = ref(false)
+const saveCadenceMutation = useNuxtMutation<IdentityCadenceBody, IdentityMutationResponse>({
+  mutation: body => rpc.execute(identityAccountQueries.saveCadence(), body),
+  invalidates: ['identity:me'],
+  onError: actionFailed('save your digest schedule'),
+})
+const submitting = saveCadenceMutation.pending
+
 async function save() {
-  submitting.value = true
-  await $fetch('/api/me/cadence', {
-    method: 'PATCH',
-    body: { frequency: frequency.value, dow: dow.value, hour: hour.value, timezone: timezone.value },
-  }).catch(actionFailed('save your digest schedule'))
-  submitting.value = false
+  const result = await saveCadenceMutation.mutateSafe({
+    frequency: frequency.value,
+    dow: dow.value,
+    hour: hour.value,
+    timezone: timezone.value,
+  })
+  if (result._tag === 'err')
+    return
   await navigateTo('/onboarding/email')
 }
 

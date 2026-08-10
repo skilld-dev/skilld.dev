@@ -160,6 +160,7 @@ const { data, status, error, refresh } = useFetch(
   sourceFacts: SourceFacts
   tags: SkillTag[]
   keywords: string[]
+  likeCount: number
   faqs: FaqItem[]
   summary: SkillSummary | null
   dependencies: string[]
@@ -990,6 +991,12 @@ useHead(computed(() => ({
               @click="copy(installCmd)"
             />
           </div>
+          <LikeButton
+            :owner="data.owner"
+            :repo="data.repo"
+            :name="data.name"
+            :count="data.likeCount"
+          />
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
             <UButton
               :href="githubUrl"
@@ -1011,7 +1018,6 @@ useHead(computed(() => ({
               color="neutral"
               variant="ghost"
             />
-            <AddToCollection :owner="data.owner" :repo="data.repo" :name="data.name" />
           </div>
         </div>
       </div>
@@ -1327,8 +1333,15 @@ useHead(computed(() => ({
                   @click="copy(installCmd)"
                 />
               </div>
-              <div style="min-height:1.75rem">
-                <WatchSkillButton :owner="data.owner" :repo="data.repo" />
+              <!-- LikeButton is client-only, so the height is reserved to stop
+                   the rail shifting when it hydrates. -->
+              <div style="min-height:2.75rem">
+                <LikeButton
+                  :owner="data.owner"
+                  :repo="data.repo"
+                  :name="data.name"
+                  :count="data.likeCount"
+                />
               </div>
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
                 <UButton
@@ -1351,7 +1364,6 @@ useHead(computed(() => ({
                   color="neutral"
                   variant="ghost"
                 />
-                <AddToCollection :owner="data.owner" :repo="data.repo" :name="data.name" />
               </div>
             </div>
           </section>

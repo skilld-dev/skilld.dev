@@ -2,35 +2,35 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
-import { EmailPatchInput } from '../../layers/identity/server/schemas/email'
+import { identityEmailPatchBodySchema } from '../../layers/identity/shared/contracts/account'
 
 const migrationPath = resolve(process.cwd(), 'migrations/0082_digest_opt_in_requires_address.sql')
 
 describe('digest opt-in requires a deliverable address', () => {
   it('rejects opting in without an address', () => {
-    const result = EmailPatchInput.safeParse({ email_opt_in: true })
+    const result = identityEmailPatchBodySchema.safeParse({ email_opt_in: true })
     expect(result.success).toBe(false)
   })
 
   it('rejects opting in with a blank address', () => {
-    const result = EmailPatchInput.safeParse({ digest_email: '   ', email_opt_in: true })
+    const result = identityEmailPatchBodySchema.safeParse({ digest_email: '   ', email_opt_in: true })
     expect(result.success).toBe(false)
   })
 
   it('rejects opting in with a malformed address', () => {
-    const result = EmailPatchInput.safeParse({ digest_email: 'not-an-email', email_opt_in: true })
+    const result = identityEmailPatchBodySchema.safeParse({ digest_email: 'not-an-email', email_opt_in: true })
     expect(result.success).toBe(false)
   })
 
   it('accepts opting in with an address and normalises it', () => {
-    expect(EmailPatchInput.parse({ digest_email: '  Harlan@Example.COM ', email_opt_in: true })).toEqual({
+    expect(identityEmailPatchBodySchema.parse({ digest_email: '  Harlan@Example.COM ', email_opt_in: true })).toEqual({
       digest_email: 'harlan@example.com',
       email_opt_in: true,
     })
   })
 
   it('accepts opting out without an address', () => {
-    expect(EmailPatchInput.parse({ email_opt_in: false })).toEqual({ email_opt_in: false })
+    expect(identityEmailPatchBodySchema.parse({ email_opt_in: false })).toEqual({ email_opt_in: false })
   })
 
   it('repairs opted-in users that have no deliverable address', () => {

@@ -6,6 +6,7 @@ interface RepoSkill {
   description?: string | null
   dependencies?: string[]
   modifiedAt?: number | null
+  likeCount?: number
 }
 
 const { skill } = defineProps<{
@@ -47,7 +48,7 @@ const hiddenDependenciesLabel = computed(() => hiddenDependencies.value.map(name
     <NuxtLink
       :to="repoSkillPath(skill.owner, skill.repo, skill.name)"
       :aria-label="`/${skill.name}`"
-      class="block flex-1 after:absolute after:inset-0"
+      class="block flex-1 pr-20 after:absolute after:inset-0"
     >
       <h3 class="truncate font-mono text-base font-medium">
         /{{ skill.name }}
@@ -59,6 +60,15 @@ const hiddenDependenciesLabel = computed(() => hiddenDependencies.value.map(name
         {{ skill.description }}
       </p>
     </NuxtLink>
+    <div class="absolute right-3 top-3 z-10">
+      <LikeButton
+        :owner="skill.owner"
+        :repo="skill.repo"
+        :name="skill.name"
+        :count="skill.likeCount ?? 0"
+        variant="card"
+      />
+    </div>
     <div
       v-if="modifiedAt || skill.dependencies?.length"
       class="pointer-events-none relative z-10 mt-4 flex flex-col items-start gap-3 border-t border-default pt-3"

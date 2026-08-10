@@ -27,6 +27,7 @@ export interface RegistrySkill {
   displayName: string
   slug: string
   stars: number
+  likeCount: number
   description: string | null
   renderedRawSha256: string | null
   seoIndexScore: number
@@ -53,6 +54,7 @@ interface SkillRow {
   display_name: string
   slug: string
   stars: number | null
+  like_count: number | null
   description: string | null
   rendered_raw_sha256: string | null
   seo_index_score: number | null
@@ -73,6 +75,7 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     displayName: row.display_name,
     slug: row.slug,
     stars: row.stars ?? 0,
+    likeCount: row.like_count ?? 0,
     description: row.description ?? null,
     renderedRawSha256: row.rendered_raw_sha256 ?? null,
     seoIndexScore: row.seo_index_score ?? 0,
@@ -110,7 +113,7 @@ export interface SkillsQuery {
   category?: string
   tags?: string[]
   tagMode?: 'and' | 'or'
-  sort?: 'stars' | 'name' | 'owner'
+  sort?: 'stars' | 'name' | 'owner' | 'likes'
   page?: number
   limit?: number
   officialOwners?: Set<string>
@@ -278,6 +281,10 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     orderBy = 's.name ASC'
   else if (sort === 'owner')
     orderBy = 's.owner ASC, s.name ASC'
+  // Opt-in only: stars stays the default order (ADR-0003). Stars break the tie
+  // so a wall of zero-like skills still lands in a defensible sequence.
+  else if (sort === 'likes')
+    orderBy = 's.like_count DESC, r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC'
   else orderBy = 'r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC'
 
   const offset = (page - 1) * limit

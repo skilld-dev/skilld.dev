@@ -68,6 +68,12 @@ CREATE INDEX idx_skills_name_lookup ON skills (name, owner, repo);
 
 CREATE INDEX idx_skills_owner ON skills (owner);
 
+CREATE INDEX idx_skill_likes_skill ON skill_likes(owner, repo, name);
+
+CREATE INDEX idx_skill_likes_user ON skill_likes(user_id, created_at DESC);
+
+CREATE INDEX idx_skills_like_count ON skills(like_count DESC);
+
 CREATE INDEX idx_skills_owner_repo ON skills (owner, repo);
 
 CREATE INDEX idx_skills_slug ON skills (slug);
@@ -383,6 +389,15 @@ CREATE TABLE skill_social_posts (
   UNIQUE (skill_slug, platform, post_url)
 );
 
+CREATE TABLE skill_likes (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, owner, repo, name)
+);
+
 CREATE TABLE skill_subscriptions (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   owner TEXT NOT NULL,
@@ -414,6 +429,7 @@ CREATE TABLE "skills" (
   source_resolved INTEGER NOT NULL DEFAULT 0,
   curator_count INTEGER NOT NULL DEFAULT 0,
   curator_reason_count INTEGER NOT NULL DEFAULT 0,
+  like_count INTEGER NOT NULL DEFAULT 0,
   approved_social_count INTEGER NOT NULL DEFAULT 0,
   author_social_count INTEGER NOT NULL DEFAULT 0,
   seo_index_score INTEGER NOT NULL DEFAULT 0,

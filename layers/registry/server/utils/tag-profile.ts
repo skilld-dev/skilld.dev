@@ -7,6 +7,7 @@ export interface TagSkillRow {
   display_name: string
   slug: string
   stars: number | null
+  like_count: number | null
   description: string | null
   rendered_raw_sha256: string | null
   pushed_at: number | null
@@ -35,6 +36,7 @@ export function parseTagSkillRow(row: TagSkillRow): ParsedTagSkillRow {
       displayName: row.display_name,
       slug: row.slug,
       stars: row.stars ?? 0,
+      likeCount: row.like_count ?? 0,
       description: row.description ?? null,
       renderedRawSha256: row.rendered_raw_sha256 ?? null,
       pushedAt: row.pushed_at ?? null,

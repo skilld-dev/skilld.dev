@@ -16,7 +16,7 @@ watchEffect(async () => {
 
 useSeoMeta({
   title: 'Sign in',
-  description: 'Sign in with GitHub to watch repos, save collections, and receive change digests.',
+  description: 'Sign in with GitHub to like skills, build collections, and receive change digests.',
   robots: 'noindex',
 })
 </script>
@@ -29,7 +29,7 @@ useSeoMeta({
         Sign in to skilld
       </h1>
       <p class="mt-2 text-sm text-muted leading-relaxed">
-        Sign in with GitHub to watch repos and save collections. Want email too? Turn on a SKILL.md change digest. We ask for your public profile and email address.
+        Sign in with GitHub to like skills and build collections. Liking a skill watches its repository, so a SKILL.md change digest can reach you. We ask for your public profile and email address.
       </p>
       <div class="mt-5">
         <UButton

@@ -300,7 +300,16 @@ describe('d1 migration bootstrap', () => {
         SELECT sql FROM sqlite_master
         WHERE type = 'index' AND name = 'idx_ai_ready_pages_indexnow_scan'
       `).pluck().get()).toContain('indexnow_synced_at')
-      expect(migrations.at(-1)).toBe('0094_cf_jobs_016.sql')
+      // Likes are the single per-skill primitive (ADR-0003). The composite PK is
+      // what makes a double-POST idempotent, and skills.like_count is what the
+      // skill_dirty drain recomputes into.
+      expect(sqlite.prepare(`
+        SELECT sql FROM sqlite_master
+        WHERE type = 'table' AND name = 'skill_likes'
+      `).pluck().get()).toContain('PRIMARY KEY (user_id, owner, repo, name)')
+      expect(sqlite.prepare(`SELECT COUNT(*) FROM pragma_table_info('skills') WHERE name = 'like_count'`)
+        .pluck().get()).toBe(1)
+      expect(migrations.at(-1)).toBe('0095_skill_likes.sql')
     }
     finally {
       sqlite.close()

@@ -718,6 +718,41 @@ export default defineApiHandler({
           detail: 'Stored curator counts differ from live collection rows.',
         }),
         buildCheck(db, {
+          id: 'like-count-drift',
+          label: 'Like count drift',
+          severity: 'warning',
+          description: 'Denormalized like counts are displayed publicly and back ?sort=likes (ADR-0003), so drift is visible to visitors.',
+          countSql: `SELECT COUNT(*) AS count
+          FROM skills s
+          WHERE s.like_count != (
+            SELECT COUNT(*)
+            FROM skill_likes l
+            WHERE l.owner = s.owner
+              AND l.repo = s.repo
+              AND l.name = s.name
+          )`,
+          issuesSql: `SELECT s.slug, s.owner, s.repo, s.name, s.display_name,
+            'stored ' || s.like_count || ', live ' ||
+            (
+              SELECT COUNT(*)
+              FROM skill_likes l
+              WHERE l.owner = s.owner
+                AND l.repo = s.repo
+                AND l.name = s.name
+            ) AS value
+          FROM skills s
+          WHERE s.like_count != (
+            SELECT COUNT(*)
+            FROM skill_likes l
+            WHERE l.owner = s.owner
+              AND l.repo = s.repo
+              AND l.name = s.name
+          )
+          ORDER BY s.owner ASC, s.repo ASC, s.name ASC
+          LIMIT ?`,
+          detail: 'Stored like counts differ from live skill_likes rows.',
+        }),
+        buildCheck(db, {
           id: 'social-count-drift',
           label: 'Social count drift',
           severity: 'warning',

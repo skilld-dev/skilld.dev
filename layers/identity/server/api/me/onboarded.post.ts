@@ -1,9 +1,11 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { identityMutationResponseSchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
 import { requireUserRow } from '../../utils/users'
 
 export default defineApiHandler({
   policy: [authenticated],
+  response: identityMutationResponseSchema,
   handler: async ({ event, platform }) => {
     const u = await requireUserRow(event)
     const now = Math.floor(Date.now() / 1000)

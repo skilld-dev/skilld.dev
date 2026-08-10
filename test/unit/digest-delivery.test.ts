@@ -584,7 +584,16 @@ const TEST_SCHEMA = `
     user_id INTEGER NOT NULL,
     owner TEXT NOT NULL,
     repo TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
     muted_until INTEGER
+  );
+  CREATE TABLE skill_likes (
+    user_id INTEGER NOT NULL,
+    owner TEXT NOT NULL,
+    repo TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, owner, repo, name)
   );
   CREATE TABLE skill_revisions (
     owner TEXT NOT NULL,

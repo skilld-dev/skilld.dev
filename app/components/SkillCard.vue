@@ -6,6 +6,7 @@ interface SkillLike {
   slug: string
   description?: string | null
   stars?: number
+  likeCount?: number
   tags?: string[]
   official?: boolean
   occurredAt?: number | null
@@ -19,6 +20,7 @@ const {
   signal = 'auto',
   showDescription = true,
   showCopy = true,
+  showLike = true,
   showOwnerAvatar = true,
   showOwnerPath = false,
   showTags = false,
@@ -30,6 +32,7 @@ const {
   signal?: 'stars' | 'auto' | 'none'
   showDescription?: boolean
   showCopy?: boolean
+  showLike?: boolean
   showOwnerAvatar?: boolean
   showOwnerPath?: boolean
   showTags?: boolean
@@ -84,11 +87,12 @@ const resolvedSignal = computed<'stars' | null>(() => {
 })
 
 const linkClasses = computed(() => {
+  // pr-24 reserves room for the heart and the copy button side by side.
   if (variant === 'list')
-    return 'flex items-center gap-4 px-4 py-3 pr-12 transition-colors duration-200 hover:bg-elevated'
+    return 'flex items-center gap-4 px-4 py-3 pr-24 transition-colors duration-200 hover:bg-elevated'
   if (variant === 'condensed')
     return 'flex h-full min-h-11 flex-col rounded-lg border border-default px-3 py-2.5 transition-colors duration-200 hover:border-[var(--ui-text-muted)]'
-  return 'flex h-full min-h-[8.5rem] flex-col rounded-lg border border-default p-4 pr-12 transition-colors duration-200 hover:border-[var(--ui-text-muted)]'
+  return 'flex h-full min-h-[8.5rem] flex-col rounded-lg border border-default p-4 pr-24 transition-colors duration-200 hover:border-[var(--ui-text-muted)]'
 })
 
 const buttonPositionClass = computed(() => {
@@ -96,6 +100,13 @@ const buttonPositionClass = computed(() => {
     return 'top-1/2 right-3 -translate-y-1/2'
   return variant === 'condensed' ? 'top-2 right-2' : 'top-3 right-3'
 })
+
+/**
+ * The condensed variant is a single line with no reserved right padding, so a
+ * second control there would sit on top of the title. Hearts ride the grid and
+ * list cards, which already reserve room.
+ */
+const showLikeButton = computed(() => showLike && variant !== 'condensed')
 
 const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
 </script>
@@ -289,16 +300,29 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
       </template>
     </NuxtLink>
 
-    <UButton
-      v-if="showCopy"
-      :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-      size="xs"
-      color="neutral"
-      variant="ghost"
-      class="absolute z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+    <div
+      v-if="showCopy || showLikeButton"
+      class="absolute z-10 flex items-center gap-0.5"
       :class="buttonPositionClass"
-      :aria-label="copied ? 'Copied' : `Copy install command for /${skill.name}`"
-      @click.stop.prevent="copy(installCmd)"
-    />
+    >
+      <LikeButton
+        v-if="showLikeButton"
+        :owner="skill.owner"
+        :repo="skill.repo"
+        :name="skill.name"
+        :count="skill.likeCount ?? 0"
+        variant="card"
+      />
+      <UButton
+        v-if="showCopy"
+        :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        class="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+        :aria-label="copied ? 'Copied' : `Copy install command for /${skill.name}`"
+        @click.stop.prevent="copy(installCmd)"
+      />
+    </div>
   </div>
 </template>

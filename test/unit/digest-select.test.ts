@@ -33,7 +33,16 @@ describe('digest selection', () => {
         user_id INTEGER,
         owner TEXT,
         repo TEXT,
+        source TEXT NOT NULL DEFAULT 'manual',
         muted_until INTEGER
+      );
+      CREATE TABLE skill_likes (
+        user_id INTEGER NOT NULL,
+        owner TEXT NOT NULL,
+        repo TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, owner, repo, name)
       );
       CREATE TABLE skill_revisions (
         owner TEXT,
@@ -47,7 +56,7 @@ describe('digest selection', () => {
 
       INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'Nuxt framework');
       INSERT INTO repos VALUES ('nuxt', 'nuxt', 'source');
-      INSERT INTO skill_subscriptions VALUES (1, 'nuxt', 'nuxt', NULL);
+      INSERT INTO skill_subscriptions VALUES (1, 'nuxt', 'nuxt', 'manual', NULL);
       INSERT INTO activity VALUES (1, 'nuxt', 'nuxt', 'nuxt', 500, 1500, 'blob-old');
       INSERT INTO activity VALUES (2, 'nuxt', 'nuxt', 'nuxt', 1500, 1600, 'blob-new');
       INSERT INTO skill_revisions VALUES ('nuxt', 'nuxt', 'nuxt', 'commit-old', 500, 'old change');
@@ -111,6 +120,74 @@ describe('digest selection', () => {
         { name: 'zeta', changeCount: 2, commitMessages: ['zeta second', 'zeta first'] },
       ],
     })
+  })
+
+  it('narrows a like-sourced subscription to the skills actually liked', async () => {
+    sqlite.exec(`
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion');
+      INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
+      INSERT INTO skill_subscriptions VALUES (2, 'nuxt', 'ui', 'like', NULL);
+      INSERT INTO skill_likes VALUES (2, 'nuxt', 'ui', 'design-tokens', 1);
+      INSERT INTO activity VALUES (10, 'nuxt', 'ui', 'design-tokens', 1500, 1600, 'a');
+      INSERT INTO activity VALUES (11, 'nuxt', 'ui', 'motion', 1500, 1600, 'b');
+    `)
+
+    const selection = await selectDigestForUser(db, digestUser({ id: 2 }), 2000, {
+      windowStart: 0,
+      cursorStart: 0,
+      cursorEnd: 11,
+    })
+
+    expect(selection?.entries).toHaveLength(1)
+    expect(selection?.entries[0]).toMatchObject({
+      owner: 'nuxt',
+      repo: 'ui',
+      skillNames: ['design-tokens'],
+      changeCount: 1,
+    })
+  })
+
+  it('keeps whole-repo scope for a manually watched repo', async () => {
+    sqlite.exec(`
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion');
+      INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
+      INSERT INTO skill_subscriptions VALUES (3, 'nuxt', 'ui', 'manual', NULL);
+      INSERT INTO skill_likes VALUES (3, 'nuxt', 'ui', 'design-tokens', 1);
+      INSERT INTO activity VALUES (10, 'nuxt', 'ui', 'design-tokens', 1500, 1600, 'a');
+      INSERT INTO activity VALUES (11, 'nuxt', 'ui', 'motion', 1500, 1600, 'b');
+    `)
+
+    const selection = await selectDigestForUser(db, digestUser({ id: 3 }), 2000, {
+      windowStart: 0,
+      cursorStart: 0,
+      cursorEnd: 11,
+    })
+
+    expect(selection?.entries[0]).toMatchObject({
+      skillNames: ['design-tokens', 'motion'],
+      changeCount: 2,
+    })
+  })
+
+  it('drops a like-sourced repo entirely when nothing liked in it changed', async () => {
+    sqlite.exec(`
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion');
+      INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
+      INSERT INTO skill_subscriptions VALUES (4, 'nuxt', 'ui', 'like', NULL);
+      INSERT INTO skill_likes VALUES (4, 'nuxt', 'ui', 'design-tokens', 1);
+      INSERT INTO activity VALUES (11, 'nuxt', 'ui', 'motion', 1500, 1600, 'b');
+    `)
+
+    const selection = await selectDigestForUser(db, digestUser({ id: 4 }), 2000, {
+      windowStart: 0,
+      cursorStart: 0,
+      cursorEnd: 11,
+    })
+
+    expect(selection?.entries).toEqual([])
   })
 
   it('keeps a due user without a recipient eligible for visible preflight failure', () => {

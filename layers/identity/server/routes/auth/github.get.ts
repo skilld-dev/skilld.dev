@@ -68,7 +68,7 @@ export default defineOAuthGitHubEventHandler({
     if (cookieReturnTo)
       deleteCookie(event, 'cli_return_to', { path: '/' })
 
-    if (action.startsWith('watch-'))
+    if (action.startsWith('watch-') || action.startsWith('like-'))
       await handleWatchAction(event, row.id, action, returnTo)
 
     if (returnTo)

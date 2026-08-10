@@ -24,6 +24,7 @@ export default defineNuxtConfig({
   modules: [
     '@harlan-zw/nuxt-cf-jobs',
     '@harlan-zw/nuxt-dx',
+    '@harlan-zw/nuxt-use-query',
     './modules/mdxg/src/module',
     '@nuxt/eslint',
     '@nuxt/ui',
@@ -99,7 +100,6 @@ export default defineNuxtConfig({
   // nuxtseo.com/apps/site (same cloudflare-module preset). cloudflare-module has
   // no WebSocket support (that needs cloudflare-durable), so updates poll.
   skewProtection: {
-    enabled: process.env.NODE_ENV === 'production',
     // Keep runtime endpoints at the root. The nested `/v2/` asset namespace is
     // a cache generation, not an application mount point.
     basePath: '/__skew',
@@ -313,6 +313,7 @@ export default defineNuxtConfig({
   },
 
   experimental: {
+    checkOutdatedBuildInterval: 5 * 60 * 1000,
     viteEnvironmentApi: false,
   },
 

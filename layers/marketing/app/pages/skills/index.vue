@@ -24,9 +24,12 @@ const tags = ref<string[]>(
     .filter(Boolean),
 )
 const tagMode = ref<'and' | 'or'>(((route.query.mode as 'and' | 'or') === 'or' ? 'or' : 'and'))
+// Stars stays the default order; likes only ever order this surface when the
+// visitor asks for them in the URL (ADR-0003).
+const sort = ref<'stars' | 'likes'>((route.query.sort as string) === 'likes' ? 'likes' : 'stars')
 const debouncedSearch = refDebounced(search, 300)
 
-watch([debouncedSearch, page, view, owner, tags, tagMode], async () => {
+watch([debouncedSearch, page, view, owner, tags, tagMode, sort], async () => {
   const query: Record<string, string> = {}
   if (debouncedSearch.value)
     query.q = debouncedSearch.value
@@ -40,10 +43,12 @@ watch([debouncedSearch, page, view, owner, tags, tagMode], async () => {
     query.tags = tags.value.join(',')
   if (tagMode.value !== 'and')
     query.mode = tagMode.value
+  if (sort.value !== 'stars')
+    query.sort = sort.value
   await navigateTo({ query }, { replace: true })
 }, { deep: true })
 
-watch([debouncedSearch, tags, owner, tagMode], () => {
+watch([debouncedSearch, tags, owner, tagMode, sort], () => {
   page.value = 1
 }, { deep: true })
 
@@ -85,7 +90,7 @@ const {
 const registryQuery = computed(() => ({
   page: page.value,
   limit: PAGE_SIZE,
-  sort: 'stars',
+  sort: sort.value,
   ...(debouncedSearch.value ? { q: debouncedSearch.value } : {}),
   ...(owner.value ? { owner: owner.value } : {}),
   ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),

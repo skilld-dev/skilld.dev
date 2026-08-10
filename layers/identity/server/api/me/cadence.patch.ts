@@ -1,11 +1,12 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { identityCadenceBodySchema, identityMutationResponseSchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
-import { CadenceInput } from '../../schemas/cadence'
 import { requireUserRow } from '../../utils/users'
 
 export default defineApiHandler({
-  schema: CadenceInput,
+  schema: identityCadenceBodySchema,
   policy: [authenticated],
+  response: identityMutationResponseSchema,
   handler: async ({ event, body, platform }) => {
     const u = await requireUserRow(event)
     const freq = body.frequency ?? u.digest_frequency

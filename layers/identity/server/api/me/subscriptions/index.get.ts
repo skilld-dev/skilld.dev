@@ -1,4 +1,5 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { identitySubscriptionsSchema } from '../../../../shared/contracts/account'
 import { authenticated } from '../../../policies/authenticated'
 import { requireUserRow } from '../../../utils/users'
 
@@ -12,6 +13,7 @@ interface Row {
 
 export default defineApiHandler({
   policy: [authenticated],
+  response: identitySubscriptionsSchema,
   handler: async ({ event, platform }) => {
     const u = await requireUserRow(event)
     const res = await platform.db.prepare(

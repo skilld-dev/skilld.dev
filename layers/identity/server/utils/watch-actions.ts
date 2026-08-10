@@ -1,8 +1,9 @@
 import type { H3Event } from 'h3'
+import { likeSkill } from './likes'
 
-// Post-OAuth side effects driven by ?action= query string. Anonymous "Watch X"
-// clicks bounce through OAuth with an action token; the callback acts on the
-// user's behalf once the session exists.
+// Post-OAuth side effects driven by ?action= query string. Anonymous "Like X"
+// and "Watch X" clicks bounce through OAuth with an action token; the callback
+// acts on the user's behalf once the session exists.
 
 function db(event: H3Event): D1Database {
   return event.context.platform.db
@@ -13,6 +14,7 @@ interface ParsedReturnTo {
   collectionSlug?: string
   skillOwner?: string
   skillRepo?: string
+  skillName?: string
 }
 
 function parseReturnTo(returnTo: string): ParsedReturnTo {
@@ -24,10 +26,13 @@ function parseReturnTo(returnTo: string): ParsedReturnTo {
     out.collectionLogin = collection[1]
     out.collectionSlug = collection[2]
   }
-  const skill = returnTo.match(/^\/gh\/([^/]+)\/([^/?#]+)/)
+  // The third segment is optional so watch-skill, which only needs the repo,
+  // keeps working from a repo page that has no skill name in the path.
+  const skill = returnTo.match(/^\/gh\/([^/]+)\/([^/?#]+)(?:\/([^/?#]+))?/)
   if (skill) {
     out.skillOwner = skill[1]
     out.skillRepo = skill[2]
+    out.skillName = skill[3]
   }
   return out
 }
@@ -41,6 +46,13 @@ export async function handleWatchAction(
   const ctx = parseReturnTo(returnTo)
   const now = Math.floor(Date.now() / 1000)
   const d = db(event)
+
+  // likeSkill derives the repo subscription itself, so there is no separate
+  // watch insert here.
+  if (action === 'like-skill' && ctx.skillOwner && ctx.skillRepo && ctx.skillName) {
+    await likeSkill(d, userId, { owner: ctx.skillOwner, repo: ctx.skillRepo, name: ctx.skillName })
+    return
+  }
 
   if (action === 'watch-skill' && ctx.skillOwner && ctx.skillRepo) {
     await d.prepare(

@@ -87,6 +87,7 @@ export default defineScheduledTask({
       //   curator_reason_count   = same, filtered to rows with reason text length >= 20
       //   approved_social_count  = skill_social_posts rows with status='approved' matched by skill_slug
       //   author_social_count    = same, filtered to role='author'
+      //   like_count             = skill_likes rows matched by full skill identity (ADR-0003)
         await db
           .prepare(
             `UPDATE skills
@@ -122,6 +123,13 @@ export default defineScheduledTask({
                WHERE sp.skill_slug = skills.slug
                  AND sp.status = 'approved'
                  AND sp.role = 'author'
+             ),
+             like_count = (
+               SELECT COUNT(*)
+               FROM skill_likes l
+               WHERE l.owner = skills.owner
+                 AND l.repo = skills.repo
+                 AND l.name = skills.name
              )
            WHERE owner = ?1 AND repo = ?2 AND name = ?3`,
           )

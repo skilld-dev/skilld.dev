@@ -5,12 +5,13 @@ import { retryIdempotentD1Write } from '#server/utils/db'
  * Reason buckets supported by the skill_dirty queue.
  * - 'curator' covers collection_skills_v2 writes (affects curator_count, curator_reason_count)
  * - 'social'  covers skill_social_posts writes (affects approved_social_count, author_social_count)
+ * - 'like'    covers skill_likes writes (affects like_count)
  *
- * A 5-minute scheduled task (drain-skill-dirty) recomputes all four columns
+ * A 5-minute scheduled task (drain-skill-dirty) recomputes all five columns
  * regardless of reason; the reason is recorded for observability and to keep
  * the dedupe key narrow per source-of-truth table.
  */
-export type SkillDirtyReason = 'curator' | 'social' | (string & {})
+export type SkillDirtyReason = 'curator' | 'social' | 'like' | (string & {})
 
 export interface SkillDirtyKey {
   owner: string
@@ -26,8 +27,8 @@ export interface SkillDirtyKey {
  * keeps a single row per (skill, reason).
  *
  * Must be called for every UI/admin/background write that changes the rows
- * driving curator_count, curator_reason_count, approved_social_count, or
- * author_social_count. For DELETEs, call this with the previously-attached
+ * driving curator_count, curator_reason_count, approved_social_count,
+ * author_social_count, or like_count. For DELETEs, call this with the previously-attached
  * (owner, repo, name) so the recompute can lower the counter.
  */
 export async function enqueueSkillDirty(

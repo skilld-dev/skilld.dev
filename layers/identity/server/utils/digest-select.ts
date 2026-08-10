@@ -89,8 +89,21 @@ export async function selectDigestForUser(
   const cursorStart = opts.cursorStart ?? await activityCursorAt(db, windowStart)
   const cursorEnd = opts.cursorEnd ?? await activityCursorAt(db, windowEnd)
 
+  // Subscriptions are repo-grained but likes are skill-grained, so a user who
+  // liked one skill in a twenty-skill repo would otherwise be sent all twenty.
+  // A like-sourced subscription is narrowed to the skills actually liked; every
+  // other source ('manual', 'star-import', 'collection:*') keeps whole-repo
+  // scope, because those were deliberate repo-level choices.
+  //
+  // The same predicate has to appear in the detail query below: the two counts
+  // are cross-checked, and a mismatch aborts the send.
+  const LIKE_SCOPE_SQL = `EXISTS (
+    SELECT 1 FROM skill_likes l
+    WHERE l.user_id = ?1 AND l.owner = a.owner AND l.repo = a.repo AND l.name = a.name
+  )`
+
   const rows = await db.prepare(
-    `SELECT s.owner, s.repo, COUNT(*) AS change_count
+    `SELECT s.owner, s.repo, sub.source AS source, COUNT(*) AS change_count
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
@@ -98,12 +111,14 @@ export async function selectDigestForUser(
      WHERE a.id > ?2 AND a.id <= ?3
        AND (sub.muted_until IS NULL OR sub.muted_until <= ?4)
        AND r.repo_kind != 'aggregator'
-     GROUP BY s.owner, s.repo
+       AND (sub.source != 'like' OR ${LIKE_SCOPE_SQL})
+     GROUP BY s.owner, s.repo, sub.source
      ORDER BY change_count DESC, s.owner ASC, s.repo ASC
      LIMIT 30`,
   ).bind(user.id, cursorStart, cursorEnd, windowEnd).all<{
     owner: string
     repo: string
+    source: string
     change_count: number
   }>()
 
@@ -112,8 +127,20 @@ export async function selectDigestForUser(
     return { user, windowStart, windowEnd, cursorStart, cursorEnd, entries: [] }
   }
 
-  const detailStatements = groups.map(group => db.prepare(
-    `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at
+  const detailStatements = groups.map(group => group.source === 'like'
+    ? db.prepare(
+        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at
+     FROM activity a
+     JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
+     WHERE a.owner = ?2
+       AND a.repo = ?3
+       AND a.id > ?4
+       AND a.id <= ?5
+       AND ${LIKE_SCOPE_SQL}
+     ORDER BY a.id DESC`,
+      ).bind(user.id, group.owner, group.repo, cursorStart, cursorEnd)
+    : db.prepare(
+        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      WHERE a.owner = ?1
@@ -121,7 +148,7 @@ export async function selectDigestForUser(
        AND a.id > ?3
        AND a.id <= ?4
      ORDER BY a.id DESC`,
-  ).bind(group.owner, group.repo, cursorStart, cursorEnd))
+      ).bind(group.owner, group.repo, cursorStart, cursorEnd))
   const details = await db.batch<{
     id: number
     skill_name: string

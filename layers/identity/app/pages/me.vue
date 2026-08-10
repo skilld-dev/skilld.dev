@@ -1,21 +1,60 @@
 <script setup lang="ts">
+import type {
+  IdentityCadenceBody,
+  IdentityEmailPatchBody,
+  IdentityMutationResponse,
+  IdentitySubscriptionRef,
+} from '../../shared/contracts/account'
 import type { StarsSyncResponse } from '../utils/sync-starred-repos'
+import { invalidateNuxtRpc } from '@harlan-zw/nuxt-use-query/rpc'
+import { identityAccountQueries, identityAccountQueryOptions } from '../queries/account'
 import { syncStarredRepos } from '../utils/sync-starred-repos'
 
 definePageMeta({ middleware: ['auth'] })
 
-interface Subscription {
+interface LikedSkill {
   owner: string
   repo: string
-  source: string
-  muted_until: number | null
-  created_at: number
+  name: string
+  slug: string
+  description: string | null
+  likedAt: number
 }
 
-const { data: me, refresh: refreshMe } = await useFetch('/api/me')
-const { data: subs, refresh: refreshSubs } = await useFetch<{ items: Subscription[] }>('/api/me/subscriptions')
+const { data: me } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
+const { data: subs, refresh: refreshSubs } = await useNuxtRpcQuery(identityAccountQueries.subscriptions(), identityAccountQueryOptions)
+const { data: likes, refresh: refreshLikes } = await useFetch<{ items: LikedSkill[] }>('/api/me/likes')
 
 const actionFailed = useActionFailure()
+const rpc = useNuxtRpc()
+
+const removeSubscriptionMutation = useNuxtMutation<IdentitySubscriptionRef, IdentityMutationResponse>({
+  mutation: ({ owner, repo }) => rpc.execute(identityAccountQueries.removeSubscription(owner, repo)),
+  invalidates: ['identity:subscriptions'],
+  onError: actionFailed('stop watching that repo'),
+})
+
+const saveCadenceMutation = useNuxtMutation<IdentityCadenceBody, IdentityMutationResponse>({
+  mutation: body => rpc.execute(identityAccountQueries.saveCadence(), body),
+  invalidates: ['identity:me'],
+  onError: actionFailed('save your digest schedule'),
+})
+
+const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutationResponse>({
+  mutation: body => rpc.execute(identityAccountQueries.saveEmail(), body),
+  invalidates: ['identity:me'],
+  onError: actionFailed('save your digest email'),
+})
+
+async function unlike(skill: LikedSkill) {
+  const path = `/api/me/likes/${skill.owner}/${skill.repo}/${skill.name}`
+  const removed = await $fetch(path, { method: 'DELETE' }).catch(actionFailed('remove your like'))
+  if (!removed)
+    return
+  // Unliking the last skill in a repo also drops its derived subscription, so
+  // the watching list below is refreshed too or it shows a repo that is gone.
+  await Promise.all([refreshLikes(), refreshSubs()])
+}
 
 const syncing = ref(false)
 async function sync() {
@@ -23,32 +62,30 @@ async function sync() {
   await syncStarredRepos((_request, options) => $fetch<StarsSyncResponse>('/api/me/stars/sync', options))
     .catch(actionFailed('sync your starred repos'))
   syncing.value = false
-  await refreshMe()
+  await invalidateNuxtRpc(identityAccountQueries.me())
 }
 
 async function unwatch(owner: string, repo: string) {
-  await $fetch(`/api/me/subscriptions/${owner}/${repo}`, { method: 'DELETE' }).catch(actionFailed('stop watching that repo'))
-  await refreshSubs()
+  await removeSubscriptionMutation.mutateSafe({ owner, repo })
 }
 
 const showCadence = ref(false)
-const cadence = reactive({
+const cadence = reactive<Required<IdentityCadenceBody>>({
   frequency: me.value?.digest_frequency ?? 'weekly',
   dow: me.value?.digest_dow ?? 1,
   hour: me.value?.digest_hour ?? 9,
   timezone: me.value?.timezone ?? 'UTC',
 })
 async function saveCadence() {
-  const saved = await $fetch('/api/me/cadence', { method: 'PATCH', body: cadence }).catch(actionFailed('save your digest schedule'))
-  await refreshMe()
+  const saved = await saveCadenceMutation.mutateSafe({ ...cadence })
   // A closed panel reads as a saved panel, so a rejected write keeps the form
   // open on the values the user still needs to correct.
-  if (saved)
+  if (saved._tag === 'ok')
     showCadence.value = false
 }
 
 const showEmail = ref(false)
-const emailForm = reactive({
+const emailForm = reactive<Required<IdentityEmailPatchBody>>({
   digest_email: me.value?.digest_email ?? me.value?.email ?? '',
   email_opt_in: !!me.value?.email_opt_in,
 })
@@ -58,9 +95,8 @@ const emailMissingAddress = computed(() =>
 async function saveEmail() {
   if (emailMissingAddress.value)
     return
-  const saved = await $fetch('/api/me/email', { method: 'PATCH', body: emailForm }).catch(actionFailed('save your digest email'))
-  await refreshMe()
-  if (saved)
+  const saved = await saveEmailMutation.mutateSafe({ ...emailForm })
+  if (saved._tag === 'ok')
     showEmail.value = false
 }
 
@@ -194,6 +230,42 @@ function fmtDate(ts: number | null | undefined): string {
 
     <USeparator class="my-8" />
 
+    <h2 class="section-label">
+      {{ likes?.items.length ?? 0 }} liked skills
+    </h2>
+    <ul v-if="likes?.items.length" class="mt-4 space-y-2 list-none p-0">
+      <li
+        v-for="skill in likes.items"
+        :key="skill.slug"
+        class="flex items-center justify-between gap-3 rounded-lg border border-default p-3"
+      >
+        <div class="min-w-0">
+          <NuxtLink :to="`/gh/${skill.owner}/${skill.repo}/${skill.name}`" class="font-mono text-sm hover:text-muted">
+            /{{ skill.name }}
+          </NuxtLink>
+          <p class="truncate text-xs text-muted">
+            {{ skill.owner }}/{{ skill.repo }}
+          </p>
+        </div>
+        <UButton
+          size="xs"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-heart-off"
+          :aria-label="`Unlike ${skill.name}`"
+          @click="unlike(skill)"
+        />
+      </li>
+    </ul>
+    <p v-else class="mt-4 text-sm text-muted">
+      You haven't liked anything yet. Liking a skill watches its repository for you.
+      <NuxtLink to="/skills" class="underline">
+        Browse skills
+      </NuxtLink>.
+    </p>
+
+    <USeparator class="my-8" />
+
     <div class="flex items-end justify-between">
       <div>
         <h2 class="section-label">
@@ -225,7 +297,7 @@ function fmtDate(ts: number | null | undefined): string {
             {{ s.owner }}/{{ s.repo }}
           </NuxtLink>
           <p class="text-xs text-muted">
-            {{ s.source }}
+            {{ s.source === 'like' ? 'from a liked skill' : s.source }}
           </p>
         </div>
         <UButton

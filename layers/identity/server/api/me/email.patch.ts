@@ -1,11 +1,12 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { identityEmailPatchBodySchema, identityMutationResponseSchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
-import { EmailPatchInput } from '../../schemas/email'
 import { requireUserRow } from '../../utils/users'
 
 export default defineApiHandler({
-  schema: EmailPatchInput,
+  schema: identityEmailPatchBodySchema,
   policy: [authenticated],
+  response: identityMutationResponseSchema,
   handler: async ({ event, body, platform }) => {
     const u = await requireUserRow(event)
     const email = body.digest_email || u.digest_email

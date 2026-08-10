@@ -52,16 +52,17 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
-  it('addToCollection has no violations when signed out', async () => {
+  it('likeButton has no violations when signed out', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/AddToCollection.client.vue').then(m => m.default),
+      await import('../layers/identity/app/components/LikeButton.client.vue').then(m => m.default),
       {
         attachTo: container,
         props: {
           owner: 'nuxt',
           repo: 'ui',
           name: 'nuxt-ui',
+          count: 12,
         },
       },
     )
@@ -194,7 +195,6 @@ describe('accessibility: component coverage', () => {
     for (const name of untestedComponents) {
       expect(
         SKIPPED_COMPONENTS.includes(name) || [
-          'AddToCollection.client',
           'AppLogo',
           'CompactPageHeader',
           'SkillSearchPanel',
