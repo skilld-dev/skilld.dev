@@ -1,10 +1,13 @@
 import type { SkillSourceItem } from '../types/skill-source'
 import { formatGithubStars } from './github-stars'
 
-export const HOMEPAGE_SKILL_LIMIT = 20
+/** Ceiling on the hero rail; the stream scrolls, so more rows is more proof. */
+export const HOMEPAGE_SKILL_LIMIT = 30
+/** Below this the live data is too thin to beat the hand-picked fallbacks. */
+export const HOMEPAGE_RAIL_MINIMUM = 20
 export const HOMEPAGE_PERSON_MINIMUM = 10
 
-const HOMEPAGE_SKILLS_PER_PERSON = 2
+export const HOMEPAGE_SKILLS_PER_PERSON = 3
 
 export interface FeaturedPersonSkill {
   owner: string

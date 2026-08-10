@@ -122,29 +122,26 @@ function sourcePath(item: SkillSourceItem): string {
             <img
               :src="`https://github.com/${item.owner}.png?size=96`"
               alt=""
-              width="40"
-              height="40"
-              class="size-10 rounded-full border-2 border-[var(--ui-bg)] bg-default"
+              width="32"
+              height="32"
+              class="size-8 rounded-full border-2 border-[var(--ui-bg)] bg-default"
               :loading="index < 5 ? 'eager' : 'lazy'"
               decoding="async"
             >
           </span>
           <span class="skill-source-stream__card">
-            <span class="flex min-w-0 items-start justify-between gap-3">
+            <span class="flex min-w-0 items-center justify-between gap-3">
               <span class="min-w-0">
-                <span class="block truncate font-mono text-xs text-muted">
-                  {{ item.maintainerName || item.owner }} · @{{ item.owner }}
-                </span>
-                <span class="mt-1 block truncate text-base font-semibold tracking-tight text-default">
+                <span class="block truncate text-sm font-semibold tracking-tight text-default">
                   {{ item.displayName }}
                 </span>
-                <span class="mt-1 block truncate font-mono text-xs text-muted">
-                  {{ sourcePath(item) }}<template v-if="item.context"> · {{ item.context }}</template>
+                <span class="mt-0.5 block truncate font-mono text-xs text-muted">
+                  {{ item.maintainerName || item.owner }} · {{ sourcePath(item) }}<template v-if="item.context"> · {{ item.context }}</template>
                 </span>
               </span>
               <UIcon
                 name="i-lucide-arrow-up-right"
-                class="skill-source-stream__arrow mt-0.5 size-4 shrink-0 text-muted"
+                class="skill-source-stream__arrow size-4 shrink-0 text-muted"
                 aria-hidden="true"
               />
             </span>
@@ -196,7 +193,7 @@ function sourcePath(item: SkillSourceItem): string {
 <style scoped>
 .skill-source-stream {
   position: relative;
-  block-size: 27rem;
+  block-size: 30rem;
   min-inline-size: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -218,33 +215,34 @@ function sourcePath(item: SkillSourceItem): string {
   display: flex;
   min-inline-size: 0;
   flex-direction: column;
-  gap: 0.625rem;
-  padding-block: 2rem;
+  gap: 0.5rem;
+  padding-block: 1.75rem;
 }
 
 .skill-source-stream__list::before {
   position: absolute;
-  inset-block: 2rem;
-  inset-inline-start: 1.25rem;
+  inset-block: 1.75rem;
+  inset-inline-start: 1.125rem;
   inline-size: 1px;
   background: var(--ui-border);
   content: "";
 }
 
+/* Rows stay compact so the rail reads as a deep list, not five samples. */
 .skill-source-stream__item {
   position: relative;
   display: grid;
-  min-block-size: 4.75rem;
+  min-block-size: 2.875rem;
   min-inline-size: 0;
-  grid-template-columns: 2.5rem minmax(0, 1fr);
+  grid-template-columns: 2.25rem minmax(0, 1fr);
   align-items: center;
-  gap: 0.875rem;
+  gap: 0.75rem;
 }
 
 .skill-source-stream__item::before {
   position: absolute;
-  inset-inline-start: 2.5rem;
-  inline-size: 0.875rem;
+  inset-inline-start: 2.25rem;
+  inline-size: 0.75rem;
   block-size: 1px;
   background: var(--ui-border);
   content: "";
@@ -265,7 +263,7 @@ function sourcePath(item: SkillSourceItem): string {
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
   background: color-mix(in oklch, var(--ui-bg) 94%, transparent);
-  padding: 0.75rem 0.875rem;
+  padding: 0.5rem 0.75rem;
   transition: border-color 200ms ease-out;
 }
 
@@ -310,22 +308,22 @@ function sourcePath(item: SkillSourceItem): string {
 
 @media (min-width: 64rem) {
   .skill-source-stream {
-    block-size: 30.5rem;
+    block-size: 34rem;
   }
 
   .skill-source-stream__list {
-    gap: 0.75rem;
-    padding-block: 2.5rem;
+    gap: 0.5rem;
+    padding-block: 2rem;
   }
 
   .skill-source-stream__list::before {
-    inset-block: 2.5rem;
+    inset-block: 2rem;
   }
 }
 
 @media (min-width: 48rem) and (max-width: 63.999rem) {
   .skill-source-stream {
-    block-size: 29rem;
+    block-size: 31rem;
   }
 }
 

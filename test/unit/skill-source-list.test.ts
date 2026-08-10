@@ -3,9 +3,15 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 import { homepagePersonSkillFallbacks } from '../../app/data/homepage-person-skills'
-import { selectHomepagePersonSkills } from '../../app/utils/homepage-person-skills'
+import {
+  HOMEPAGE_RAIL_MINIMUM,
+  HOMEPAGE_SKILL_LIMIT,
+  HOMEPAGE_SKILLS_PER_PERSON,
+  selectHomepagePersonSkills,
+} from '../../app/utils/homepage-person-skills'
 
 const componentSource = readFileSync('app/components/SkillSourceList.vue', 'utf8')
+const homepageSource = readFileSync('app/pages/index.vue', 'utf8')
 const skillDetailSource = readFileSync('layers/registry/app/components/SkillDetail.vue', 'utf8')
 
 describe('skill source list', () => {
@@ -18,12 +24,12 @@ describe('skill source list', () => {
     expect(homepagePersonSkillFallbacks.every(skill => skill.displayName === skill.name)).toBe(true)
   })
 
-  it('caps each person at two skills while filling the stream', () => {
+  it('caps each person while filling the stream to its limit', () => {
     const sections = Array.from({ length: 12 }, (_, personIndex) => ({
       owner: `person-${personIndex}`,
       repo: 'skills',
       displayName: `Person ${personIndex}`,
-      skills: Array.from({ length: 3 }, (_, skillIndex) => ({
+      skills: Array.from({ length: 5 }, (_, skillIndex) => ({
         owner: `person-${personIndex}`,
         repo: 'skills',
         name: `skill-${skillIndex}`,
@@ -35,9 +41,16 @@ describe('skill source list', () => {
     const selected = selectHomepagePersonSkills(sections, new Map())
     const countsByOwner = Map.groupBy(selected, skill => skill.owner)
 
-    expect(selected).toHaveLength(20)
+    expect(selected).toHaveLength(HOMEPAGE_SKILL_LIMIT)
     expect(countsByOwner.size).toBe(12)
-    expect([...countsByOwner.values()].every(skills => skills.length <= 2)).toBe(true)
+    expect([...countsByOwner.values()]
+      .every(skills => skills.length <= HOMEPAGE_SKILLS_PER_PERSON)).toBe(true)
+  })
+
+  it('keeps the hero rail deep enough to scroll past the fold', () => {
+    expect(HOMEPAGE_SKILL_LIMIT).toBeGreaterThanOrEqual(HOMEPAGE_RAIL_MINIMUM)
+    expect(homepageSource).toContain('perDev: 3')
+    expect(homepageSource).not.toContain('Skills from people who do the work')
   })
 
   it('uses native scrolling with guarded idle auto-scroll', () => {

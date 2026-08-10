@@ -9,7 +9,7 @@ import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
   HOMEPAGE_PERSON_MINIMUM,
-  HOMEPAGE_SKILL_LIMIT,
+  HOMEPAGE_RAIL_MINIMUM,
   selectHomepagePersonSkills,
 } from '../utils/homepage-person-skills'
 
@@ -127,7 +127,7 @@ interface FeaturedPeopleResponse {
 // hydration and falls back to a hand-picked set when the live data is thin.
 const { data: peopleSkillsData, execute: loadPeopleSkills } = await useFetch<FeaturedPeopleResponse>('/api/skills/featured', {
   key: 'home-person-skills-v1',
-  query: { orgs: 0, perOrg: 1, devs: 20, perDev: 2 },
+  query: { orgs: 0, perOrg: 1, devs: 24, perDev: 3 },
   server: false,
   lazy: true,
   immediate: false,
@@ -146,7 +146,7 @@ const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
   )
   const livePeople = new Set(liveSkills.map(skill => skill.owner))
 
-  return liveSkills.length === HOMEPAGE_SKILL_LIMIT
+  return liveSkills.length >= HOMEPAGE_RAIL_MINIMUM
     && livePeople.size >= HOMEPAGE_PERSON_MINIMUM
     ? liveSkills
     : homepagePersonSkillFallbacks
@@ -290,9 +290,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           </div>
 
           <div class="home-hero-proof min-w-0">
-            <p class="data-label px-1 pb-3">
-              Skills from people who do the work
-            </p>
             <SkillSourceList
               :items="heroSkillCards"
               variant="stream"
