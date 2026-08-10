@@ -6,7 +6,7 @@ minimumReleaseAgeExclude:
   - miniflare@4.20260710.0
   - wrangler@4.111.0
   - '@nuxtjs/mcp-toolkit@0.18.1'
-  - nuxt-ai-ready@1.7.8
+  - nuxt-ai-ready@1.7.9
   - nuxt-site-config-kit@4.1.4 || 4.2.1
   - nuxt-site-config@4.1.4 || 4.2.1
   - nuxt-schema-org@6.2.9
@@ -21,10 +21,10 @@ trustPolicy: no-downgrade
 
 catalog:
   '@antfu/eslint-config': ^9.3.0
+  '@cloudflare/workers-types': ^5.20260809.1
   '@harlan-zw/nuxt-cf-jobs': 0.0.1
   '@harlan-zw/nuxt-dx': 0.0.1
   '@harlan-zw/nuxt-use-query': 0.0.1
-  '@cloudflare/workers-types': ^5.20260809.1
   '@iconify-json/lucide': ^1.2.122
   '@iconify-json/simple-icons': ^1.2.93
   '@iconify-json/vscode-icons': ^1.2.70
@@ -66,7 +66,7 @@ catalog:
   marked: ^18.0.9
   motion-v: ^2.3.0
   nuxt: 4.5.0
-  nuxt-ai-ready: ^1.7.8
+  nuxt-ai-ready: ^1.7.9
   nuxt-auth-utils: ^0.5.30
   nuxt-og-image: ^6.7.6
   nuxt-skew-protection: ^1.4.3

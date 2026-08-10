@@ -80,8 +80,8 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:",
-    "@harlan-zw/nuxt-dx": "catalog:",
     "@cloudflare/workers-types": "catalog:",
+    "@harlan-zw/nuxt-dx": "catalog:",
     "@nuxt/a11y": "catalog:",
     "@nuxt/eslint": "catalog:",
     "@nuxt/kit": "catalog:",
