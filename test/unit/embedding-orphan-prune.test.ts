@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  embeddingParityRunDecision,
   MAX_PRUNE_PER_RUN,
   MAX_PRUNE_SHARE,
   planEmbeddingPrune,
@@ -68,6 +69,41 @@ describe('planEmbeddingPrune guard rail', () => {
       return
     expect(plan.candidates).toHaveLength(MAX_PRUNE_PER_RUN)
     expect(plan.deferred).toBe(25)
+  })
+})
+
+describe('embedding parity run verdict', () => {
+  it('accepts a complete orphan-only repair', () => {
+    expect(embeddingParityRunDecision(
+      { _tag: 'triggered', missing: 0, stale: 0, orphan: 214 },
+      { plan: 'prune', deleted: 214, deferred: 0 },
+    )).toEqual({ _tag: 'repaired_orphans', repaired: 214 })
+  })
+
+  it('keeps missing, stale, deferred, and refused work red', () => {
+    expect(embeddingParityRunDecision(
+      { _tag: 'triggered', missing: 1, stale: 0, orphan: 0 },
+      { plan: 'nothing_to_prune', deleted: 0, deferred: 0 },
+    )._tag).toBe('failed')
+    expect(embeddingParityRunDecision(
+      { _tag: 'triggered', missing: 0, stale: 0, orphan: 214 },
+      { plan: 'prune', deleted: 100, deferred: 114 },
+    )._tag).toBe('failed')
+    expect(embeddingParityRunDecision(
+      { _tag: 'clear' },
+      {
+        plan: 'refused',
+        deleted: 0,
+        deferred: 5,
+        refusal: {
+          _tag: 'refused',
+          reason: 'candidate_share_exceeded',
+          candidates: 5,
+          eligible: 0,
+          share: Number.POSITIVE_INFINITY,
+        },
+      },
+    )._tag).toBe('failed')
   })
 })
 

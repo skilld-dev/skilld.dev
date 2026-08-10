@@ -36,4 +36,9 @@ describe('skill-related read path', () => {
     expect(source).toContain('await writeCache(useStorage(\'cache\'), cacheKey, response')
     expect(source).not.toMatch(/return\s+useStorage\('cache'\)\.setItem/)
   })
+
+  it('does not run a full-text registry search for each cold skill', () => {
+    expect(source).not.toContain('querySkills(event')
+    expect(source).not.toContain('findFallbackSemanticSiblings')
+  })
 })

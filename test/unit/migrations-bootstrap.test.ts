@@ -67,11 +67,24 @@ describe('d1 migration bootstrap', () => {
       ).all() as Array<{ name: string }>
       expect(cfJobTables.map(table => table.name)).toEqual(['failed_jobs', 'job_batches', 'jobs'])
 
+      const cfJobActiveIndex = sqlite.prepare(
+        `SELECT name FROM sqlite_schema
+         WHERE type = 'index' AND name = 'idx_jobs_active'`,
+      ).get()
+      expect(cfJobActiveIndex).toBeTruthy()
       const cfJobClaimIndex = sqlite.prepare(
         `SELECT name FROM sqlite_schema
          WHERE type = 'index' AND name = 'idx_jobs_claimable'`,
       ).get()
-      expect(cfJobClaimIndex).toBeTruthy()
+      expect(cfJobClaimIndex).toBeUndefined()
+      const cfJobColumns = sqlite.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>
+      expect(cfJobColumns.map(column => column.name)).toEqual(expect.arrayContaining([
+        'backoff',
+        'published_at',
+        'last_dispatched_at',
+        'dispatch_attempts',
+        'last_dispatch_error',
+      ]))
 
       const healthCheckTable = sqlite.prepare(
         `SELECT name FROM sqlite_schema
@@ -185,7 +198,7 @@ describe('d1 migration bootstrap', () => {
       ).get()).toBeTruthy()
       expect(sqlite.prepare(
         `SELECT name FROM sqlite_schema
-         WHERE type = 'index' AND name = 'idx_failed_jobs_batch'`,
+         WHERE type = 'index' AND name = 'idx_failed_jobs_batch_failed_at'`,
       ).get()).toBeTruthy()
       const scheduledRuns = sqlite.prepare(
         `SELECT sql FROM sqlite_schema
@@ -287,7 +300,7 @@ describe('d1 migration bootstrap', () => {
         SELECT sql FROM sqlite_master
         WHERE type = 'index' AND name = 'idx_ai_ready_pages_indexnow_scan'
       `).pluck().get()).toContain('indexnow_synced_at')
-      expect(migrations.at(-1)).toBe('0093_ai_ready_indexnow_covering_index.sql')
+      expect(migrations.at(-1)).toBe('0094_cf_jobs_016.sql')
     }
     finally {
       sqlite.close()

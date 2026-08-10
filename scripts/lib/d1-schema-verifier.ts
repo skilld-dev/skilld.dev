@@ -129,13 +129,13 @@ export type CfJobsPackageVerificationResult
     | { _tag: 'fail', issues: PackageContractIssue[] }
 
 export const CF_JOBS_SCHEMA_CONTRACT = {
-  version: '0.14.5',
+  version: '0.16.0',
   indexes: [
     {
       name: 'idx_jobs_dispatchable',
       tableName: 'jobs',
-      sql: 'CREATE INDEX idx_jobs_dispatchable ON jobs(available_at) WHERE reserved_at IS NULL AND completed_at IS NULL AND failed_at IS NULL',
-      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_jobs_dispatchable ON jobs (available_at) WHERE reserved_at IS NULL AND completed_at IS NULL AND failed_at IS NULL',
+      sql: 'CREATE INDEX idx_jobs_dispatchable ON jobs(available_at) WHERE published_at IS NULL AND reserved_at IS NULL AND completed_at IS NULL AND failed_at IS NULL',
+      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_jobs_dispatchable ON jobs (available_at) WHERE published_at IS NULL AND reserved_at IS NULL AND completed_at IS NULL AND failed_at IS NULL',
     },
     {
       name: 'idx_jobs_stale_reserved',
@@ -144,10 +144,22 @@ export const CF_JOBS_SCHEMA_CONTRACT = {
       distributedSql: 'CREATE INDEX IF NOT EXISTS idx_jobs_stale_reserved ON jobs (reserved_at) WHERE reserved_at IS NOT NULL AND completed_at IS NULL AND failed_at IS NULL',
     },
     {
-      name: 'idx_failed_jobs_batch',
+      name: 'idx_jobs_active',
+      tableName: 'jobs',
+      sql: 'CREATE INDEX idx_jobs_active ON jobs(created_at) WHERE completed_at IS NULL AND failed_at IS NULL',
+      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_jobs_active ON jobs (created_at) WHERE completed_at IS NULL AND failed_at IS NULL',
+    },
+    {
+      name: 'idx_failed_jobs_site_failed_at',
       tableName: 'failed_jobs',
-      sql: 'CREATE INDEX idx_failed_jobs_batch ON failed_jobs(batch_id)',
-      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_failed_jobs_batch ON failed_jobs (batch_id)',
+      sql: 'CREATE INDEX idx_failed_jobs_site_failed_at ON failed_jobs(site_id, failed_at)',
+      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_failed_jobs_site_failed_at ON failed_jobs (site_id, failed_at)',
+    },
+    {
+      name: 'idx_failed_jobs_batch_failed_at',
+      tableName: 'failed_jobs',
+      sql: 'CREATE INDEX idx_failed_jobs_batch_failed_at ON failed_jobs(batch_id, failed_at)',
+      distributedSql: 'CREATE INDEX IF NOT EXISTS idx_failed_jobs_batch_failed_at ON failed_jobs (batch_id, failed_at)',
     },
   ] satisfies RequiredSchemaIndex[],
 } as const

@@ -40,10 +40,14 @@ interface ExistingSkill {
   first_seen_at: number | null
   last_synced_at: number | null
   references_count: number
-  assets: string
   rendered_skill_path: string | null
   rendered_status: string | null
   owner_verified: number
+}
+
+interface ExistingSkillAssets {
+  name: string
+  assets: string
 }
 
 interface ExistingRepo {
@@ -93,6 +97,13 @@ const FIRST_SYNC_COMMIT_CAP = 30
  * requests without lowering the peak below one alias batch.
  */
 export const SKILL_SLICE_SIZE = 50
+
+/**
+ * D1 limits one row to 2,000,000 bytes while Worker RPC values cap at 32 MiB.
+ * Fifteen worst-case rows remain below that serialization boundary, including
+ * enough headroom for result metadata.
+ */
+export const EXISTING_SKILL_ASSET_CHUNK = 15
 
 function slices<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
@@ -178,11 +189,15 @@ function collectAssetsByDir(
   return byDir
 }
 
-async function loadExistingSkills(db: D1Database, owner: string, repo: string): Promise<Map<string, ExistingSkill>> {
+export async function loadExistingSkillSummaries(
+  db: D1Database,
+  owner: string,
+  repo: string,
+): Promise<Map<string, ExistingSkill>> {
   const res = await db
     .prepare(
       `SELECT name, current_sha, modified_at, first_seen_at, last_synced_at,
-              references_count, assets, rendered_skill_path, rendered_status,
+              references_count, rendered_skill_path, rendered_status,
               owner_verified
        FROM skills WHERE owner = ? AND repo = ?`,
     )
@@ -192,6 +207,26 @@ async function loadExistingSkills(db: D1Database, owner: string, repo: string): 
   for (const row of res.results ?? [])
     map.set(row.name, row)
   return map
+}
+
+export async function loadExistingSkillAssets(
+  db: D1Database,
+  owner: string,
+  repo: string,
+  names: string[],
+): Promise<ExistingSkillAssets[]> {
+  const uniqueNames = [...new Set(names)]
+  const rows: ExistingSkillAssets[] = []
+  for (const chunk of slices(uniqueNames, EXISTING_SKILL_ASSET_CHUNK)) {
+    const placeholders = chunk.map(() => '?').join(', ')
+    const result = await db.prepare(
+      `SELECT name, assets
+       FROM skills
+       WHERE owner = ? AND repo = ? AND name IN (${placeholders})`,
+    ).bind(owner, repo, ...chunk).all<ExistingSkillAssets>()
+    rows.push(...(result.results ?? []))
+  }
+  return rows
 }
 
 export async function refreshRepoAssets(
@@ -264,7 +299,7 @@ export async function refreshRepoAssets(
     }
   }
 
-  const existing = [...(await loadExistingSkills(db, owner, repo)).values()]
+  const existing = [...(await loadExistingSkillSummaries(db, owner, repo)).values()]
   const skillPaths = new Set(
     treeRes.data.tree
       .filter(entry => entry.type === 'blob' && entry.path.endsWith(SKILL_FILE_SUFFIX))
@@ -275,6 +310,10 @@ export async function refreshRepoAssets(
   const now = nowSec()
 
   for (const slice of slices(existing, SKILL_SLICE_SIZE)) {
+    const existingAssets = new Map(
+      (await loadExistingSkillAssets(db, owner, repo, slice.map(skill => skill.name)))
+        .map(skill => [skill.name, skill.assets]),
+    )
     const withPath = slice.flatMap((skill) => {
       const path = skill.rendered_skill_path
       if (!path || !skillPaths.has(path)) {
@@ -288,7 +327,7 @@ export async function refreshRepoAssets(
     for (const { skill, dirPath } of withPath) {
       const assets = assetsByDir.get(dirPath) ?? []
       const assetsJson = JSON.stringify(assets)
-      if (skill.references_count === assets.length && skill.assets === assetsJson)
+      if (skill.references_count === assets.length && existingAssets.get(skill.name) === assetsJson)
         continue
       skillsChanged += 1
       writes.push(db.prepare(
@@ -637,7 +676,7 @@ export async function syncRepo(
 
   // The common unchanged-repo paths above need only the single repos row.
   // Delay the potentially many-row skills read until content actually changed.
-  const existing = await loadExistingSkills(db, owner, repo)
+  const existing = await loadExistingSkillSummaries(db, owner, repo)
 
   const skillFiles: SkillSnapshot[] = []
   let hasRootSkill = false
@@ -758,6 +797,18 @@ export async function syncRepo(
   const isFinalChunk = chunkEnd >= skillFiles.length
 
   for (const slice of slices(chunkFiles, SKILL_SLICE_SIZE)) {
+    const existingNames = new Set<string>()
+    for (const file of slice) {
+      const byPath = existingByPath.get(file.path)
+      if (byPath)
+        existingNames.add(byPath.name)
+      if (existing.has(file.dirName))
+        existingNames.add(file.dirName)
+    }
+    const existingAssets = new Map(
+      (await loadExistingSkillAssets(db, owner, repo, [...existingNames]))
+        .map(skill => [skill.name, skill.assets]),
+    )
     const assetsByDir = collectAssetsByDir(tree.tree, new Set(slice.map(f => f.dirPath)))
     const writes: D1PreparedStatement[] = []
     const revisionWriteIndexes: number[] = []
@@ -778,7 +829,7 @@ export async function syncRepo(
       const assets = assetsByDir.get(file.dirPath) ?? []
       const refsCount = assets.length
       const assetsJson = JSON.stringify(assets)
-      const referencesChanged = prev.references_count !== refsCount || prev.assets !== assetsJson
+      const referencesChanged = prev.references_count !== refsCount || existingAssets.get(prev.name) !== assetsJson
       const ownerVerificationChanged = opts.ownerVerified === true && prev.owner_verified !== 1
 
       seenNames.add(prev.name)

@@ -7,6 +7,7 @@ import { getTaskEnv } from '#shared/server/task-env'
 import {
   auditEmbeddingParityViaBindings,
   embeddingParityAuditAlarm,
+  embeddingParityRunDecision,
   pruneOrphanEmbeddings,
 } from '../utils/embedding-parity'
 
@@ -91,30 +92,31 @@ export default defineScheduledTask({
           : prune.deleted > 0
             ? `; pruned ${prune.deleted}`
             : ''
+      const decision = embeddingParityRunDecision(alarm, prune)
 
       await reportJobRun(db, 'embedding-parity-audit', {
         cron: CRON,
-        status: alarm._tag === 'triggered' || prune.refusal ? 'error' : 'ok',
+        status: decision._tag === 'failed' ? 'error' : 'ok',
         durationMs: Date.now() - startedAt,
-        error: alarm._tag === 'triggered'
+        error: decision._tag === 'failed' && alarm._tag === 'triggered'
           ? `Parity drift: ${alarm.missing} missing, ${alarm.stale} stale, ${alarm.orphan} orphan${pruneNote}`
-          : prune.refusal
+          : decision._tag === 'failed' && prune.refusal
             ? `Orphan prune refused: ${prune.refusal.candidates} candidates against ${prune.refusal.eligible} eligible`
             : null,
       })
 
-      if (alarm._tag === 'triggered') {
+      if (decision._tag === 'failed' && alarm._tag === 'triggered') {
         throw new Error(
           `Embedding parity drift: ${alarm.missing} missing, ${alarm.stale} stale, ${alarm.orphan} orphan${pruneNote}`,
         )
       }
-      if (prune.refusal) {
+      if (decision._tag === 'failed' && prune.refusal) {
         throw new Error(
           `Orphan prune refused: ${prune.refusal.candidates} candidates against ${prune.refusal.eligible} eligible`,
         )
       }
 
-      return { result: { alarm, ...summary, prune } }
+      return { result: { alarm, ...summary, prune, decision } }
     })
   },
 })

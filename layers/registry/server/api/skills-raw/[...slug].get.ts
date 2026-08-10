@@ -26,7 +26,7 @@ export default defineApiHandler({
     const source = await resolveRepoSourceIdentity(platform.db, skill)
     const cacheKey = `skills:raw:v2:${source.owner}/${source.repo}/${skill.name}`
     const cached = await useStorage('cache').getItem<RawCache>(cacheKey)
-    if (cached?.status === 'ok' && cached.body) {
+    if (cached?.status === 'ok' && cached.body !== null) {
       setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
       setHeader(event, 'cache-control', 'public, max-age=300')
       setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${cached.branch}/${cached.path}`)
@@ -67,7 +67,7 @@ export default defineApiHandler({
       return null
     })
 
-    if (!body) {
+    if (body === null) {
       await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: skillPath } satisfies RawCache, { ttl: RAW_MISSING_TTL })
       throw createError({ statusCode: 502, message: 'Could not fetch SKILL.md' })
     }

@@ -20,4 +20,14 @@ describe('live GitHub endpoint source identity', () => {
     expect(source).toMatch(/source\.owner/)
     expect(source).toMatch(/source\.repo/)
   })
+
+  it('serves a present but empty SKILL.md as valid source', () => {
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'layers/registry/server/api/skills-raw/[...slug].get.ts',
+    ), 'utf8')
+
+    expect(source).toContain('cached.body !== null')
+    expect(source).toContain('if (body === null)')
+  })
 })

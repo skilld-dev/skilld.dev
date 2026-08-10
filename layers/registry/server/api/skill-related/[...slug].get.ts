@@ -1,14 +1,13 @@
 import type { H3Event } from 'h3'
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
 import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
-import type { RegistrySkill } from '../../utils/skills-registry'
 import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
 import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
 import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
-import { RELATED_CACHE_TTL, relatedCacheKey, relatedSkillSearchQuery, selectRelatedSkillFallbacks } from '../../utils/skill-related'
-import { findRelatedSkills, findSkill, findSkillsByLookups, querySkills } from '../../utils/skills-registry'
+import { RELATED_CACHE_TTL, relatedCacheKey } from '../../utils/skill-related'
+import { findRelatedSkills, findSkill, findSkillsByLookups } from '../../utils/skills-registry'
 
 const COMMITS_CACHE_TTL = 60 * 60 * 12
 
@@ -72,15 +71,12 @@ export default defineApiHandler({
       getEmbeddingNeighbors(platform.env.SKILL_EMBEDDINGS, { owner: skill.owner, repo: skill.repo, name: skill.name }),
     ])
 
-    const [coOccurrenceSkills, embeddedSemanticSiblings] = await resolveNeighborSkills(
+    const [coOccurrenceSkills, semanticSiblings] = await resolveNeighborSkills(
       event,
       coOccurrenceNeighbors,
       embeddingNeighbors,
       skill.name,
     )
-    const semanticSiblings = embeddedSemanticSiblings.length
-      ? embeddedSemanticSiblings
-      : await findFallbackSemanticSiblings(event, skill)
 
     const response: SkillRelatedResponse = {
       commits,
@@ -94,26 +90,6 @@ export default defineApiHandler({
     return response
   },
 })
-
-async function findFallbackSemanticSiblings(
-  event: H3Event,
-  skill: RegistrySkill,
-): Promise<NeighborSkill[]> {
-  const result = await querySkills(event, {
-    search: relatedSkillSearchQuery(skill),
-    limit: 12,
-  })
-
-  return selectRelatedSkillFallbacks(skill, result.items).map(row => ({
-    name: row.name,
-    owner: row.owner,
-    repo: row.repo,
-    slug: row.slug,
-    displayName: row.displayName,
-    description: row.description,
-    score: 0,
-  }))
-}
 
 async function resolveNeighborSkills(
   event: H3Event,

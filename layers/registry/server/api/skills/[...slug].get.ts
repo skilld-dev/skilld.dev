@@ -1,7 +1,6 @@
 import type { H3Event } from 'h3'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
-import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
@@ -26,9 +25,6 @@ interface CuratorEndorsement {
   collectionSlug: string
   reason?: string
 }
-
-const ENDORSEMENTS_CACHE_KEY = 'skills:endorsement-map'
-const ENDORSEMENTS_CACHE_TTL = 60 * 5
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24
 
@@ -183,7 +179,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
     const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows] = await Promise.all([
-      getEndorsementsForSkill(platform.db, skill.name),
+      Promise.resolve([] satisfies CuratorEndorsement[]),
       platform.db
         .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
                          r.source_owner, r.source_repo,
@@ -614,21 +610,4 @@ function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {
   // Local dev / non-Workers: don't block the response, but make sure the
   // promise isn't an unhandled rejection.
   void promise
-}
-
-async function getEndorsementsForSkill(db: D1Database, skillName: string): Promise<CuratorEndorsement[]> {
-  let endorsementMap = await useStorage('cache').getItem<Record<string, CuratorEndorsement[]>>(ENDORSEMENTS_CACHE_KEY)
-
-  if (!endorsementMap) {
-    endorsementMap = await buildEndorsementMap(db)
-    await writeCache(useStorage('cache'), ENDORSEMENTS_CACHE_KEY, endorsementMap, { ttl: ENDORSEMENTS_CACHE_TTL })
-  }
-
-  return endorsementMap[skillName] ?? []
-}
-
-async function buildEndorsementMap(_db: D1Database): Promise<Record<string, CuratorEndorsement[]>> {
-  // Phase 1: endorsements were sourced from atproto curator collections, which
-  // are gone. Returns empty until Phase 2 rebuilds against collections_v2.
-  return {}
 }

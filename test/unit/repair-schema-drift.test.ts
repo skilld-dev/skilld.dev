@@ -6,6 +6,7 @@ import { normalizeSchemaSql } from '../../scripts/lib/d1-schema-verifier'
 
 const migrationsDir = resolve(process.cwd(), 'migrations')
 const repairMigration = resolve(migrationsDir, '0073_repair_schema_drift.sql')
+const cfJobsUpgradeMigration = resolve(migrationsDir, '0094_cf_jobs_016.sql')
 
 describe('schema drift repair migration', () => {
   it('recreates missing objects while preserving existing rows', () => {
@@ -38,6 +39,7 @@ describe('schema drift repair migration', () => {
       const repairSql = readFileSync(repairMigration, 'utf8')
       sqlite.exec(repairSql)
       sqlite.exec(repairSql)
+      sqlite.exec(readFileSync(cfJobsUpgradeMigration, 'utf8'))
 
       const requiredObjects = [
         'install_events',
@@ -47,7 +49,9 @@ describe('schema drift repair migration', () => {
         'idx_repo_trust_overrides_tier',
         'idx_jobs_dispatchable',
         'idx_jobs_stale_reserved',
-        'idx_failed_jobs_batch',
+        'idx_jobs_active',
+        'idx_failed_jobs_site_failed_at',
+        'idx_failed_jobs_batch_failed_at',
       ]
       const objects = sqlite.prepare(
         `SELECT name FROM sqlite_master WHERE name IN (${requiredObjects.map(() => '?').join(', ')})`,

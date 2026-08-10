@@ -10,6 +10,7 @@ import {
   parseWorkflowName,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
+import { runReadOnlyProcess } from './daily-checkin-process.mjs'
 import { parseSentryIssuesResponse } from './sentry-observability.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -26,15 +27,12 @@ const sinceMs = since.getTime()
 const wrangler = join(root, 'node_modules/.bin/wrangler')
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  return runReadOnlyProcess(spawnSync, command, args, {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
     env: { ...process.env, NO_COLOR: '1' },
   })
-  if (result.status !== 0)
-    throw new Error((result.stderr || result.stdout || `${command} exited ${result.status}`).trim().slice(0, 800))
-  return result.stdout.trim()
 }
 
 function probe(load) {

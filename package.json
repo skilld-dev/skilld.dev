@@ -2,7 +2,7 @@
   "name": "skilld-dev",
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@11.17.0",
+  "packageManager": "pnpm@11.20.0",
   "description": "Agent skills written by real maintainers in their own GitHub repos, with links to source",
   "author": {
     "name": "Harlan Wilton",

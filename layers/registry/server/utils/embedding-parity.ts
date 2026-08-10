@@ -432,6 +432,43 @@ export interface EmbeddingPruneOutcome {
   refusal?: Extract<EmbeddingPrunePlan, { _tag: 'refused' }>
 }
 
+export type EmbeddingParityRunDecision
+  = | { _tag: 'clear' }
+    | { _tag: 'repaired_orphans', repaired: number }
+    | {
+      _tag: 'failed'
+      reason: 'parity_drift' | 'orphan_repair_incomplete' | 'prune_refused'
+    }
+
+/**
+ * A complete orphan-only prune is routine repair, not a failed health check.
+ * Missing or stale vectors still mean eligible skills lack current search data.
+ * Deferred or refused deletion remains red because known drift survives the run.
+ */
+export function embeddingParityRunDecision(
+  alarm: Exclude<EmbeddingParityAuditAlarm, { _tag: 'unsettled' }>,
+  prune: EmbeddingPruneOutcome,
+): EmbeddingParityRunDecision {
+  if (prune.refusal)
+    return { _tag: 'failed', reason: 'prune_refused' }
+  if (alarm._tag === 'clear') {
+    return prune.deleted > 0
+      ? { _tag: 'repaired_orphans', repaired: prune.deleted }
+      : { _tag: 'clear' }
+  }
+  if (alarm.missing > 0 || alarm.stale > 0)
+    return { _tag: 'failed', reason: 'parity_drift' }
+  if (
+    alarm.orphan > 0
+    && prune.plan === 'prune'
+    && prune.deleted === alarm.orphan
+    && prune.deferred === 0
+  ) {
+    return { _tag: 'repaired_orphans', repaired: prune.deleted }
+  }
+  return { _tag: 'failed', reason: 'orphan_repair_incomplete' }
+}
+
 export async function selectPruneCandidates(db: D1Database): Promise<PruneCandidate[]> {
   const rows = await db.prepare(PRUNE_CANDIDATE_SQL).bind().all<PruneCandidate>()
   return rows.results ?? []

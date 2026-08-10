@@ -12,7 +12,7 @@ updatedAt: 2026-08-04
 
 **TL;DR.** `skilld author package` creates a starting draft from your package documentation. You review the draft, rewrite it where needed, and publish it from your own repository. Skilld provides the authoring aid. You edit and own the published skill.
 
-The command is for package maintainers who want a useful first pass without starting from an empty file. It does not publish a skill, claim authorship, or place the file in a skilld-owned registry. GitHub remains the source of record.
+The command is for package maintainers who want a useful first pass without starting from an empty file. It does not publish a skill, claim authorship, or place the file in a skilld-owned registry. [GitHub](https://github.com) remains the source of record.
 
 ## Start the draft
 
@@ -88,7 +88,7 @@ Each selected package receives its own `skills/<name>/` directory. Packages with
 | `-f` | Clear cached references and fetch them again. |
 | `--debug` | Save raw model output under `logs/` for inspection. |
 
-Writing outside `skills/` with `-o` skips the package manifest change. Add the chosen path to `files` yourself if it belongs in the npm tarball.
+Writing outside `skills/` with `-o` skips the package manifest change. Add the chosen path to `files` yourself if it belongs in the [npm](https://npmjs.com) tarball.
 
 ## Publish from your repository
 
