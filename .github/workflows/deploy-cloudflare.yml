@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-deploy
-  cancel-in-progress: false
+  group: deploy-cloudflare-production
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -34,7 +34,7 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - run: pnpm i
+      - run: pnpm install --frozen-lockfile
 
       # Persists + accumulates prior deploys' client chunks across builds so old
       # browser sessions still resolve their old _nuxt chunks during a rollout
