@@ -1,13 +1,18 @@
 <script setup lang="ts">
+import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
+
 const route = useRoute()
 const owner = computed(() => String(route.params.owner ?? ''))
 const repo = computed(() => String(route.params.repo ?? ''))
 const name = computed(() => String(route.params.name ?? ''))
 const file = computed(() => {
   const raw = route.params.file
-  if (Array.isArray(raw))
-    return raw.join('/')
-  return String(raw ?? '')
+  return normalizeSkillAssetFilePath({
+    owner: owner.value,
+    repo: repo.value,
+    name: name.value,
+    filePath: Array.isArray(raw) ? raw.join('/') : String(raw ?? ''),
+  })
 })
 
 const slug = computed(() => `${owner.value}/${repo.value}/${name.value}/${file.value}`)

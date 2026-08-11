@@ -1,5 +1,6 @@
 import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
+import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findSkill } from '../../utils/skills-registry'
@@ -56,7 +57,12 @@ export default defineApiHandler({
       throw createError({ statusCode: 400, message: 'Expected /skill-asset/:owner/:repo/:name/:file+' })
 
     const [owner, repo, name, ...fileParts] = segments
-    const filePath = fileParts.join('/')
+    const filePath = normalizeSkillAssetFilePath({
+      owner: owner ?? '',
+      repo: repo ?? '',
+      name: name ?? '',
+      filePath: fileParts.join('/'),
+    })
     if (!owner || !repo || !name || !filePath)
       throw createError({ statusCode: 400, message: 'Missing path components' })
     if (filePath.includes('..'))

@@ -6,9 +6,11 @@ const RETRYABLE_D1_ERROR_MESSAGES = [
   'storage caused object to be reset',
   'reset because its code was updated',
   'cannot resolve d1 db due to transient issue on remote node',
+  'd1 db is overloaded',
+  'currently processing a long-running export',
 ]
 
-interface RetryD1Options {
+export interface RetryD1Options {
   maxAttempts?: number
   baseDelayMs?: number
   maxDelayMs?: number
@@ -39,6 +41,25 @@ export async function retryIdempotentD1Write<T>(
   operation: () => Promise<T>,
   options: RetryD1Options = {},
 ): Promise<T> {
+  return await retryTransientD1(operation, options)
+}
+
+/**
+ * Retry a read after D1's own transparent attempts have been exhausted.
+ * Replaying a SELECT is safe; prepared statements are recreated by
+ * `createD1ReadRetryDatabase` so a reset connection is never reused.
+ */
+export async function retryD1Read<T>(
+  operation: () => Promise<T>,
+  options: RetryD1Options = {},
+): Promise<T> {
+  return await retryTransientD1(operation, options)
+}
+
+async function retryTransientD1<T>(
+  operation: () => Promise<T>,
+  options: RetryD1Options,
+): Promise<T> {
   const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 5))
   const baseDelayMs = Math.max(0, options.baseDelayMs ?? 50)
   const maxDelayMs = Math.max(baseDelayMs, options.maxDelayMs ?? 1000)
@@ -64,4 +85,77 @@ export async function retryIdempotentD1Write<T>(
 function isRetryableD1Error(error: unknown): boolean {
   const message = String(error).toLowerCase()
   return RETRYABLE_D1_ERROR_MESSAGES.some(candidate => message.includes(candidate))
+}
+
+const rawD1Statements = new WeakMap<object, D1PreparedStatement>()
+const readRetryDatabases = new WeakSet<object>()
+
+/**
+ * D1 facade that adds bounded retries to read methods only. Writes and mixed
+ * batches preserve D1's at-most-once application semantics and are delegated
+ * without replay.
+ */
+export function createD1ReadRetryDatabase(
+  db: D1Database,
+  options: RetryD1Options = {},
+): D1Database {
+  if (readRetryDatabases.has(db as object))
+    return db
+
+  const prepare = (query: string): D1PreparedStatement => createReadRetryStatement(db, query, [], options)
+
+  const retrying = new Proxy(db, {
+    get(target, property) {
+      if (property === 'prepare')
+        return prepare
+      if (property === 'batch') {
+        return (statements: D1PreparedStatement[]) => target.batch(
+          statements.map(statement => rawD1Statements.get(statement as object) ?? statement),
+        )
+      }
+      const value = Reflect.get(target, property, target) as unknown
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+  readRetryDatabases.add(retrying)
+  return retrying
+}
+
+function createReadRetryStatement(
+  db: D1Database,
+  query: string,
+  params: unknown[],
+  options: RetryD1Options,
+  prepared?: D1PreparedStatement,
+): D1PreparedStatement {
+  const rawStatement = () => {
+    const statement = db.prepare(query)
+    return params.length ? statement.bind(...params) : statement
+  }
+  const initial = prepared ?? rawStatement()
+  let readAttempt = 0
+  const statement = new Proxy(initial, {
+    get(target, property) {
+      if (property === 'bind') {
+        return (...values: unknown[]) => createReadRetryStatement(
+          db,
+          query,
+          values,
+          options,
+          target.bind(...values),
+        )
+      }
+      if (property === 'all' || property === 'first' || property === 'raw') {
+        return (...args: unknown[]) => retryD1Read(() => {
+          const current = readAttempt++ === 0 ? initial : rawStatement()
+          const read = Reflect.get(current, property, current) as (...readArgs: unknown[]) => Promise<unknown>
+          return read.apply(current, args)
+        }, options)
+      }
+      const value = Reflect.get(target, property, target) as unknown
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+  rawD1Statements.set(statement, initial)
+  return statement
 }

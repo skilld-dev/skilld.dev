@@ -35,7 +35,7 @@
         "queue": "skilld-repo-sync",
         "max_batch_size": 1,
         "max_batch_timeout": 1,
-        "max_retries": 100,
+        "max_retries": 3,
         "retry_delay": 60,
         "dead_letter_queue": "skilld-repo-sync-dlq",
         "max_concurrency": 1
@@ -44,7 +44,7 @@
         "queue": "skilld-repo-review-sync",
         "max_batch_size": 1,
         "max_batch_timeout": 1,
-        "max_retries": 100,
+        "max_retries": 3,
         "retry_delay": 60,
         "dead_letter_queue": "skilld-repo-sync-dlq",
         "max_concurrency": 5

@@ -1,5 +1,24 @@
 export const SENTRY_DSN = 'https://b275b367f8096d04db8c2ebcfadc3aba@o4510507748163584.ingest.us.sentry.io/4511781692506112'
 
+export function sentryReportingEnabled(env: {
+  nodeEnv: string | undefined
+  ci: string | undefined
+}): boolean {
+  if (env.nodeEnv !== 'production' || !env.ci)
+    return false
+  const ci = env.ci.trim().toLowerCase()
+  return ci !== '' && ci !== 'false' && ci !== '0'
+}
+
+export function isLocalReportingHost(hostname: string): boolean {
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '[::1]'
+    || hostname === '::1'
+    || hostname === '0.0.0.0'
+    || hostname.endsWith('.localhost')
+}
+
 /**
  * The commit a build came from, stamped into every Sentry event as its release.
  *

@@ -15,6 +15,9 @@ catalogs:
     '@harlan-zw/nuxt-cf-jobs':
       specifier: 0.0.1
       version: 0.0.1
+    '@harlan-zw/nuxt-cloudflare':
+      specifier: 0.0.1
+      version: 0.0.1
     '@harlan-zw/nuxt-dx':
       specifier: 0.0.1
       version: 0.0.1
@@ -297,6 +300,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 5.20260809.1
+      '@harlan-zw/nuxt-cloudflare':
+        specifier: 'catalog:'
+        version: 0.0.1(db0@0.3.4(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260809.1)(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)))(ioredis@5.11.1(supports-color@10.2.2))(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(wrangler@4.120.0(@cloudflare/workers-types@5.20260809.1))
       '@harlan-zw/nuxt-dx':
         specifier: 'catalog:'
         version: 0.0.1(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))
@@ -1441,6 +1447,14 @@ packages:
     hasBin: true
     peerDependencies:
       nuxt: '>=4.5.0 <5.0.0'
+
+  '@harlan-zw/nuxt-cloudflare@0.0.1':
+    resolution: {integrity: sha512-jiIvQ6hwXTjf3sG+m3/bu/5QD/ylbcllVBze5VPGszn4U9gT0nbsuTdIhrOs0AN0x1ReZ9tWlQh6g8Y/ewlO7g==}
+    engines: {node: '>=22.12.0'}
+    hasBin: true
+    peerDependencies:
+      nuxt: '>=4.5.0 <5.0.0'
+      wrangler: '>=4.120.0 <5.0.0'
 
   '@harlan-zw/nuxt-dx@0.0.1':
     resolution: {integrity: sha512-PFKwnM3B35kf9VgHY3Lot1cL9tPZ1xoNxoHawJwBZYRERJ9FNGFaCyUl5Ni6Lg94jHLYM/I5POHL0kNJ1DHgIw==}
@@ -10694,6 +10708,41 @@ snapshots:
       - unplugin
       - valibot
       - zod
+
+  '@harlan-zw/nuxt-cloudflare@0.0.1(db0@0.3.4(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260809.1)(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)))(ioredis@5.11.1(supports-color@10.2.2))(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))(wrangler@4.120.0(@cloudflare/workers-types@5.20260809.1))':
+    dependencies:
+      '@nuxt/kit': 4.5.2(magic-string@1.1.0)(magicast@0.5.4)(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))
+      citty: 0.2.2
+      consola: 3.4.2
+      nuxt: 4.5.0(1a858ad78c1f408d627278eedb8bbec0)
+      pathe: 2.0.3
+      unstorage: 1.17.5(db0@0.3.4(better-sqlite3@13.0.3)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260809.1)(@opentelemetry/api@1.9.1)(better-sqlite3@13.0.3)))(ioredis@5.11.1(supports-color@10.2.2))
+      wrangler: 4.120.0(@cloudflare/workers-types@5.20260809.1)
+    transitivePeerDependencies:
+      - '@azure/app-configuration'
+      - '@azure/cosmos'
+      - '@azure/data-tables'
+      - '@azure/identity'
+      - '@azure/keyvault-secrets'
+      - '@azure/storage-blob'
+      - '@capacitor/preferences'
+      - '@deno/kv'
+      - '@netlify/blobs'
+      - '@planetscale/database'
+      - '@upstash/redis'
+      - '@vercel/blob'
+      - '@vercel/functions'
+      - '@vercel/kv'
+      - aws4fetch
+      - db0
+      - idb-keyval
+      - ioredis
+      - magic-string
+      - magicast
+      - oxc-parser
+      - rolldown
+      - unplugin
+      - uploadthing
 
   '@harlan-zw/nuxt-dx@0.0.1(magic-string@1.1.0)(magicast@0.5.4)(nuxt@4.5.0(1a858ad78c1f408d627278eedb8bbec0))(oxc-parser@0.142.0)(rolldown@1.2.3)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0)))':
     dependencies:

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
-import { SENTRY_DSN, sentryRelease } from './shared/sentry'
+import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
@@ -23,6 +23,7 @@ export default defineNuxtConfig({
 
   modules: [
     '@harlan-zw/nuxt-cf-jobs',
+    '@harlan-zw/nuxt-cloudflare',
     '@harlan-zw/nuxt-dx',
     '@harlan-zw/nuxt-use-query',
     './modules/mdxg/src/module',
@@ -41,6 +42,10 @@ export default defineNuxtConfig({
     '@sentry/nuxt/module',
     'nuxt-skew-protection',
   ],
+
+  nuxtCloudflare: {
+    kvCache: { binding: 'KV_CACHE' },
+  },
 
   cfJobs: {
     // Discover each layer's server/tasks directory. Cron expressions live with
@@ -62,7 +67,7 @@ export default defineNuxtConfig({
         maxBatchSize: 1,
         maxBatchTimeout: 1,
         maxConcurrency: 1,
-        maxRetries: 100,
+        maxRetries: 3,
         retryDelay: 60,
         deadLetterQueue: 'skilld-repo-sync-dlq',
         deadLetterQueueBinding: 'REPO_SYNC_DLQ',
@@ -73,7 +78,7 @@ export default defineNuxtConfig({
         maxBatchSize: 1,
         maxBatchTimeout: 1,
         maxConcurrency: 5,
-        maxRetries: 100,
+        maxRetries: 3,
         retryDelay: 60,
         deadLetterQueue: 'skilld-repo-sync-dlq',
         deadLetterQueueBinding: 'REPO_SYNC_DLQ',
@@ -217,7 +222,10 @@ export default defineNuxtConfig({
     },
     sentry: {
       dsn: SENTRY_DSN,
-      enabled: process.env.NODE_ENV === 'production',
+      // Production bundles are also built for local Wrangler verification.
+      // Only CI creates a deployable build, so local previews must not report
+      // into the paid production project.
+      enabled: sentryReportingEnabled({ nodeEnv: process.env.NODE_ENV, ci: process.env.CI }),
       environment: 'production',
       release: sentryRelease() ?? '',
       tracesSampleRate: 0.05,
@@ -249,10 +257,6 @@ export default defineNuxtConfig({
       data: {
         driver: 'cloudflare-kv-binding',
         binding: 'KV_DATA',
-      },
-      cache: {
-        driver: 'cloudflare-kv-binding',
-        binding: 'KV_CACHE',
       },
     },
     experimental: {

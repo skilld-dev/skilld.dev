@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nuxt'
-import { createSentryDataCollection, SENTRY_DSN } from './shared/sentry'
+import { createSentryDataCollection, isLocalReportingHost, SENTRY_DSN } from './shared/sentry'
 
-if (!import.meta.dev) {
+if (!import.meta.dev && window.location.protocol === 'https:' && !isLocalReportingHost(window.location.hostname)) {
   // No `release` here on purpose. The Sentry bundler plugin injects the release
   // it was configured with into the client bundle, and the SDK reads that when
   // the option is absent. Passing it explicitly would mean reading process.env
