@@ -9,7 +9,7 @@ const { owner, repo, name, count = 0, variant = 'detail' } = defineProps<{
 
 const route = useRoute()
 const { isAuthenticated, user, loginUrl } = useAuth()
-const { isLiked, isPending, ensureLoaded, toggle } = useLikes()
+const { isLiked, isPending, likeCount, observeLikeCount, ensureLoaded, toggle } = useLikes()
 
 const skillRef = computed(() => ({ owner, repo, name }))
 const liked = computed(() => isLiked(skillRef.value))
@@ -23,12 +23,9 @@ const busy = computed(() => isPending(skillRef.value))
 const baseline = ref(count)
 watch(() => count, (next) => {
   baseline.value = next
-})
-const likedAtLoad = ref(false)
-const displayCount = computed(() => {
-  const delta = (liked.value ? 1 : 0) - (likedAtLoad.value ? 1 : 0)
-  return Math.max(0, baseline.value + delta)
-})
+  observeLikeCount(skillRef.value, next)
+}, { immediate: true })
+const displayCount = computed(() => likeCount(skillRef.value) ?? baseline.value)
 
 // Anonymous clicks bounce through OAuth carrying the intent, and the callback
 // replays it via watch-actions.ts, so the user lands back on a liked skill.
@@ -44,9 +41,7 @@ onMounted(() => {
   nudgeDismissed.value = sessionStorage.getItem(NUDGE_KEY) === '1'
   // Detached on purpose: the heart renders immediately in its unliked state and
   // fills in when the session-wide like set arrives.
-  void ensureLoaded().then(() => {
-    likedAtLoad.value = liked.value
-  })
+  void ensureLoaded()
 })
 
 function dismissNudge() {

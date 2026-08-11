@@ -271,6 +271,7 @@ export default defineApiHandler({
     const keywords = rawAiTags.filter(t => !knownTagSlugs.has(t))
 
     const description = frontmatterString(rendered.frontmatter, 'description') ?? skill.description ?? null
+    const license = frontmatterString(rendered.frontmatter, 'license')
     let assets: { path: string, size: number, type: string }[] = []
     if (row?.assets) {
       try {
@@ -316,6 +317,7 @@ export default defineApiHandler({
       assets,
       curators,
       description,
+      license,
       stars: row?.stars ?? 0,
       forks: row?.forks ?? 0,
       pushedAt: pushedAtIso,

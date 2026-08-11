@@ -32,7 +32,7 @@ export async function likeSkill(
   db: D1Database,
   userId: number,
   ref: SkillLikeRef,
-): Promise<void> {
+): Promise<number> {
   const now = Math.floor(Date.now() / 1000)
 
   const recent = await db
@@ -61,13 +61,15 @@ export async function likeSkill(
     ).bind(userId, ref.owner, ref.repo, now),
     enqueueSkillDirtyStatement(db, { ...ref, reason: 'like' }),
   ])
+
+  return readLiveLikeCount(db, ref)
 }
 
 export async function unlikeSkill(
   db: D1Database,
   userId: number,
   ref: SkillLikeRef,
-): Promise<void> {
+): Promise<number> {
   await db.batch([
     db.prepare(
       `DELETE FROM skill_likes
@@ -85,4 +87,12 @@ export async function unlikeSkill(
     ).bind(userId, ref.owner, ref.repo),
     enqueueSkillDirtyStatement(db, { ...ref, reason: 'like' }),
   ])
+
+  return readLiveLikeCount(db, ref)
+}
+
+function readLiveLikeCount(db: D1Database, ref: SkillLikeRef): Promise<number> {
+  return db.prepare(`SELECT COUNT(*) AS count
+     FROM skill_likes
+     WHERE owner = ?1 AND repo = ?2 AND name = ?3`).bind(ref.owner, ref.repo, ref.name).first<{ count: number }>().then(row => row?.count ?? 0)
 }

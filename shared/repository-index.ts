@@ -3,6 +3,9 @@ import type { GitHubRepository } from './github-repository'
 export interface IndexedRepositorySkill {
   name: string
   slug: string
+  path: string | null
+  description: string | null
+  likeCount: number
 }
 
 export type RepositoryIndexProgress

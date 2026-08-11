@@ -12,6 +12,12 @@ export interface SkillFileTreeNode {
   asset?: SkillAsset
 }
 
+const AUTO_EXPAND_MAX_CHILDREN = 5
+
+export function shouldAutoExpandFolder(node: SkillFileTreeNode): boolean {
+  return node.kind === 'dir' && (node.children?.length ?? 0) <= AUTO_EXPAND_MAX_CHILDREN
+}
+
 const FILENAME_ICONS: Record<string, string> = {
   'skill.md': 'i-vscode-icons-file-type-markdown',
   'readme.md': 'i-vscode-icons-file-type-markdown',

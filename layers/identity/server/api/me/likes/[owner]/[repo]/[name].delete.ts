@@ -12,7 +12,7 @@ export default defineApiHandler({
     const name = getRouterParam(event, 'name')
     if (!owner || !repo || !name)
       throw createError({ statusCode: 400, message: 'Missing owner/repo/name' })
-    await unlikeSkill(platform.db, u.id, { owner, repo, name })
-    return { ok: true as const }
+    const likeCount = await unlikeSkill(platform.db, u.id, { owner, repo, name })
+    return { ok: true as const, likeCount }
   },
 })

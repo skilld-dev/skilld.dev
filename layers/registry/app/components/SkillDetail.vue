@@ -142,6 +142,7 @@ const { data, status, error, refresh } = useFetch(
   displayName: string
   githubUrl: string
   description: string | null
+  license: string | null
   stars: number
   forks: number
   pushedAt: string | null
@@ -296,7 +297,7 @@ const { copy, copied } = useInstallCopy(
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
 
-const HIDDEN_FRONTMATTER_KEYS = new Set(['name', 'description'])
+const HIDDEN_FRONTMATTER_KEYS = new Set(['name', 'description', 'license'])
 
 const allowedTools = computed(() => {
   return data.value?.sourceFacts.frontmatter.allowedTools ?? []
@@ -338,7 +339,7 @@ const frontmatterEntries = computed(() => {
   if (!fm)
     return []
   return Object.entries(fm)
-    .filter(([k, v]) => !HIDDEN_FRONTMATTER_KEYS.has(k) && k !== 'allowed-tools' && v !== null && v !== undefined && v !== '')
+    .filter(([k, v]) => !HIDDEN_FRONTMATTER_KEYS.has(k.toLowerCase()) && k !== 'allowed-tools' && v !== null && v !== undefined && v !== '')
     .map(([k, v]) => ({ key: k, value: formatFrontmatterValue(v), complex: isComplexValue(v) }))
 })
 
@@ -1404,58 +1405,19 @@ useHead(computed(() => ({
             </div>
           </section>
 
-          <section aria-labelledby="metadata-heading">
+          <section
+            v-if="data.license"
+            aria-labelledby="license-heading"
+          >
             <h2
-              id="metadata-heading"
+              id="license-heading"
               class="section-label mb-3"
             >
-              Metadata
+              License
             </h2>
-            <dl class="divide-y divide-default rounded-lg border border-default text-sm">
-              <div class="flex items-center justify-between gap-3 px-3 py-2.5">
-                <dt class="data-label">
-                  Description
-                </dt>
-                <dd class="font-mono text-xs text-muted">
-                  {{ data.sourceFacts.description.length }} chars{{ data.sourceFacts.description.source ? ` · ${data.sourceFacts.description.source}` : '' }}
-                </dd>
-              </div>
-              <div class="flex items-center justify-between gap-3 px-3 py-2.5">
-                <dt class="data-label">
-                  Frontmatter
-                </dt>
-                <dd class="font-mono text-xs text-muted">
-                  {{ data.sourceFacts.frontmatter.present ? `${data.sourceFacts.frontmatter.keys.length} keys` : 'missing' }}
-                </dd>
-              </div>
-              <div
-                v-if="allowedTools.length"
-                class="flex items-center justify-between gap-3 px-3 py-2.5"
-              >
-                <dt class="data-label">
-                  Allowed tools
-                </dt>
-                <dd class="font-mono text-xs text-muted">
-                  {{ allowedTools.length }}
-                </dd>
-              </div>
-              <div
-                v-if="!data.sourceFacts.source.resolved || (data.sourceFacts.source.syncStatus && data.sourceFacts.source.syncStatus !== 'ok')"
-                class="flex items-center justify-between gap-3 px-3 py-2.5"
-              >
-                <dt class="data-label">
-                  Source
-                </dt>
-                <dd class="inline-flex items-center gap-1.5 font-mono text-xs text-amber-500">
-                  <UIcon
-                    name="i-lucide-alert-triangle"
-                    class="size-3.5"
-                    aria-hidden="true"
-                  />
-                  {{ data.sourceFacts.source.syncStatus || data.sourceFacts.source.resolutionStatus }}
-                </dd>
-              </div>
-            </dl>
+            <p class="rounded-lg border border-default px-3 py-2.5 font-mono text-sm text-muted">
+              {{ data.license }}
+            </p>
           </section>
 
           <section

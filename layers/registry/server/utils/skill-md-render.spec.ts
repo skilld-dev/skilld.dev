@@ -2,6 +2,21 @@ import { describe, expect, it } from 'vitest'
 import { parseSkillMd } from './skill-md-render'
 
 describe('parseSkillMd', () => {
+  it('parses block descriptions and adjacent top-level fields', async () => {
+    const parsed = await parseSkillMd(`---
+description: >-
+  Writes and refines a repository README in a concise style.
+  Uses only sections supported by the repository.
+license: MIT
+---
+# README skill`)
+
+    expect(parsed.frontmatter).toMatchObject({
+      description: 'Writes and refines a repository README in a concise style. Uses only sections supported by the repository.',
+      license: 'MIT',
+    })
+  })
+
   it('adds column scope to rendered markdown table headers', async () => {
     const { html } = await parseSkillMd([
       '| Tool | Purpose |',

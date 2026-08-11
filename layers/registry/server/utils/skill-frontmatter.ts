@@ -1,7 +1,75 @@
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n([\s\S]*))?$/
 const KEY_LINE_RE = /^([A-Z_][\w-]*):(.*)$/i
 const QUOTE_TRIM_RE = /^['"]|['"]$/g
 const NEWLINE_SPLIT_RE = /\r?\n/
+const BLOCK_SCALAR_RE = /^([>|])(?:[+-]?[1-9]?|[1-9][+-]?)(?:\s+#.*)?$/
+
+export interface ParsedFrontmatterDocument {
+  frontmatter: Record<string, unknown>
+  body: string
+}
+
+function parseFrontmatterValue(value: string): unknown {
+  const trimmed = value.trim()
+  if (!trimmed)
+    return ''
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      return JSON.parse(trimmed)
+    }
+    catch {
+      // Keep malformed collections as strings. This parser is intentionally lenient.
+    }
+  }
+  return trimmed.replace(QUOTE_TRIM_RE, '')
+}
+
+function parseBlockScalar(style: string, lines: string[]): string {
+  const indents = lines
+    .filter(line => line.trim())
+    .map(line => line.match(/^\s*/)?.[0].length ?? 0)
+  const indent = indents.length ? Math.min(...indents) : 0
+  const content = lines.map(line => line.trim() ? line.slice(indent) : '')
+  if (style === '|')
+    return content.join('\n').replace(/\n+$/, '')
+
+  return content.reduce((text, line) => {
+    if (!line)
+      return `${text}\n`
+    if (!text || text.endsWith('\n'))
+      return `${text}${line}`
+    return `${text} ${line}`
+  }, '').replace(/\n+$/, '')
+}
+
+export function parseFrontmatterDocument(raw: string): ParsedFrontmatterDocument {
+  const match = raw.match(FRONTMATTER_RE)
+  if (!match)
+    return { frontmatter: {}, body: raw }
+
+  const frontmatter: Record<string, unknown> = {}
+  const lines = match[1]!.split(NEWLINE_SPLIT_RE)
+  for (let index = 0; index < lines.length; index++) {
+    const keyMatch = lines[index]!.match(KEY_LINE_RE)
+    if (!keyMatch)
+      continue
+
+    const key = keyMatch[1]!
+    const rawValue = keyMatch[2]!.trim()
+    const blockMatch = rawValue.match(BLOCK_SCALAR_RE)
+    if (!blockMatch) {
+      frontmatter[key] = parseFrontmatterValue(rawValue)
+      continue
+    }
+
+    const blockLines: string[] = []
+    while (index + 1 < lines.length && (!lines[index + 1]!.trim() || /^\s/.test(lines[index + 1]!)))
+      blockLines.push(lines[++index]!)
+    frontmatter[key] = parseBlockScalar(blockMatch[1]!, blockLines)
+  }
+
+  return { frontmatter, body: match[2] ?? '' }
+}
 
 export interface SkillFrontmatter {
   name?: string
@@ -15,21 +83,10 @@ export interface SkillFrontmatter {
  * Never throws; missing or malformed frontmatter returns an empty object.
  */
 export function parseFrontmatter(raw: string): SkillFrontmatter {
-  const m = raw.match(FRONTMATTER_RE)
-  if (!m)
-    return {}
   const fm: SkillFrontmatter = {}
-  let lastKey: string | null = null
-  for (const line of m[1]!.split(NEWLINE_SPLIT_RE)) {
-    const km = line.match(KEY_LINE_RE)
-    if (km) {
-      lastKey = km[1]!
-      const value = km[2]!.trim().replace(QUOTE_TRIM_RE, '')
-      fm[lastKey] = value === '>' || value === '|' ? '' : value
-    }
-    else if (lastKey && line.startsWith('  ')) {
-      fm[lastKey] = `${fm[lastKey] || ''} ${line.trim()}`.trim()
-    }
+  for (const [key, value] of Object.entries(parseFrontmatterDocument(raw).frontmatter)) {
+    if (typeof value === 'string')
+      fm[key] = value
   }
   return fm
 }

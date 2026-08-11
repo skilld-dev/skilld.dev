@@ -1,14 +1,55 @@
 <script setup lang="ts">
 import type { IndexedRepositorySkill, RepositoryIndexProgress } from '#shared/repository-index'
+import type { RepoSourceProfile } from '../../layers/registry/server/api/repos/[owner]/[repo].get'
+
+type RepositoryPreviewState
+  = | { _tag: 'idle' }
+    | { _tag: 'loading' }
+    | { _tag: 'ready', data: RepoSourceProfile }
+    | { _tag: 'unavailable' }
 
 const { repositoryModalOpen, repositoryTask, submitRepository } = useSkillSearch()
-const { isLiked, isPending } = useLikes()
+const { isLiked, isPending, likeCount } = useLikes()
 const toast = useToast()
 
 const repositoryLabel = computed(() => {
   const task = repositoryTask.value
   return task._tag === 'idle' ? '' : `${task.repository.owner}/${task.repository.repo}`
 })
+
+const repositoryOwner = computed(() => {
+  const task = repositoryTask.value
+  return task._tag === 'idle' ? '' : task.repository.owner
+})
+
+const repositoryName = computed(() => {
+  const task = repositoryTask.value
+  return task._tag === 'idle' ? '' : task.repository.repo
+})
+
+const repositoryPreview = shallowRef<RepositoryPreviewState>({ _tag: 'idle' })
+let previewAttempt = 0
+
+watch(repositoryLabel, (label) => {
+  const attempt = ++previewAttempt
+  const task = repositoryTask.value
+  if (!label || task._tag === 'idle') {
+    repositoryPreview.value = { _tag: 'idle' }
+    return
+  }
+
+  repositoryPreview.value = { _tag: 'loading' }
+  void $fetch<RepoSourceProfile>(`/api/repos/${encodeURIComponent(task.repository.owner)}/${encodeURIComponent(task.repository.repo)}`)
+    .then((data) => {
+      if (attempt === previewAttempt)
+        repositoryPreview.value = { _tag: 'ready', data }
+    })
+    .catch((error) => {
+      console.warn(`[repository-preview] ${error instanceof Error ? error.message : String(error)}`)
+      if (attempt === previewAttempt)
+        repositoryPreview.value = { _tag: 'unavailable' }
+    })
+}, { immediate: true })
 
 const progressStep = computed(() => {
   const task = repositoryTask.value
@@ -33,7 +74,7 @@ const liveMessage = computed(() => {
   if (task._tag === 'indexing')
     return progressLabel(task.progress)
   if (task._tag === 'indexed')
-    return `Indexed ${task.skills.length} ${task.skills.length === 1 ? 'skill' : 'skills'}. ${likeStatusLabel(task.likes._tag)}.`
+    return `${task.skills.length} ${task.skills.length === 1 ? 'skill is' : 'skills are'} ready in search. ${likeStatusLabel(task.likes._tag)}.`
   if (task._tag === 'failed')
     return `Indexing failed. ${task.reason}`
   return ''
@@ -51,10 +92,10 @@ function likeStatusLabel(status: 'pending' | 'anonymous' | 'liked' | 'partial'):
   if (status === 'pending')
     return 'Saving your likes'
   if (status === 'liked')
-    return 'Liked automatically'
+    return 'Added to your likes'
   if (status === 'partial')
     return 'Some likes could not be saved'
-  return 'Sign in to use automatic likes'
+  return 'Skills are ready to like'
 }
 
 function stepState(index: number): 'complete' | 'current' | 'upcoming' {
@@ -73,24 +114,32 @@ function stepIcon(index: number): string {
 }
 
 function skillRef(skill: IndexedRepositorySkill) {
-  const task = repositoryTask.value
-  if (task._tag === 'idle')
-    return { owner: '', repo: '', name: skill.name }
-  return { owner: task.repository.owner, repo: task.repository.repo, name: skill.name }
+  return { owner: repositoryOwner.value, repo: repositoryName.value, name: skill.name }
+}
+
+function displayedLikeCount(skill: IndexedRepositorySkill): number {
+  return likeCount(skillRef(skill)) ?? skill.likeCount
 }
 
 function skillLikeLabel(skill: IndexedRepositorySkill): string {
-  const ref = skillRef(skill)
-  if (isPending(ref))
-    return 'Saving like'
-  return isLiked(ref) ? 'Liked' : 'Not liked'
+  const count = displayedLikeCount(skill)
+  if (isPending(skillRef(skill)))
+    return `Saving like. ${count} ${count === 1 ? 'like' : 'likes'}`
+  if (isLiked(skillRef(skill)))
+    return `Liked by you. ${count} ${count === 1 ? 'like' : 'likes'}`
+  return `${count} ${count === 1 ? 'like' : 'likes'}`
 }
 
 function skillPath(skill: IndexedRepositorySkill): string {
-  const task = repositoryTask.value
-  if (task._tag === 'idle')
-    return '/skills'
-  return repoSkillPath(task.repository.owner, task.repository.repo, skill.name)
+  return repoSkillPath(repositoryOwner.value, repositoryName.value, skill.name)
+}
+
+function sourceFileUrl(path: string): string {
+  const preview = repositoryPreview.value
+  if (preview._tag !== 'ready')
+    return '#'
+  const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+  return `${preview.data.githubUrl}/blob/${encodeURIComponent(preview.data.defaultBranch)}/${encodedPath}`
 }
 
 function close(): void {
@@ -108,7 +157,7 @@ watch(repositoryTask, (task, previous) => {
     return
   if (task._tag === 'indexed') {
     toast.add({
-      title: 'Repository indexed',
+      title: 'Repository ready',
       description: `${task.skills.length} ${task.skills.length === 1 ? 'skill is' : 'skills are'} ready in search.`,
       color: 'success',
       icon: 'i-lucide-circle-check',
@@ -132,28 +181,50 @@ watch(repositoryTask, (task, previous) => {
     v-model:open="repositoryModalOpen"
     aria-label="Repository indexing"
     scrollable
-    :ui="{ content: 'w-[calc(100vw-1.5rem)] max-w-lg rounded-lg border border-default bg-default shadow-none' }"
+    :ui="{ content: 'w-[calc(100vw-1.5rem)] max-w-xl rounded-lg border border-default bg-default shadow-none' }"
   >
     <template #content>
       <div v-if="repositoryTask._tag !== 'idle'" class="relative flex max-h-[calc(100dvh-1.5rem)] flex-col">
-        <header class="shrink-0 border-b border-default px-5 py-5 pe-14 sm:px-6">
-          <p class="section-label">
-            Repository indexing
-          </p>
-          <h2 id="repository-indexing-heading" class="mt-2 text-lg font-medium text-highlighted">
-            <template v-if="repositoryTask._tag === 'indexing'">
-              {{ progressLabel(repositoryTask.progress) }}
-            </template>
-            <template v-else-if="repositoryTask._tag === 'indexed'">
-              Repository indexed
-            </template>
-            <template v-else>
-              Indexing failed
-            </template>
-          </h2>
-          <p class="mt-1 truncate font-mono text-sm text-muted">
-            {{ repositoryLabel }}
-          </p>
+        <header class="flex shrink-0 items-start gap-3 border-b border-default px-5 py-5 pe-14 sm:px-6">
+          <NuxtLink
+            :to="ownerHubPath(repositoryOwner)"
+            class="shrink-0 rounded-full"
+            :aria-label="`${repositoryOwner} profile`"
+            @click="close"
+          >
+            <img
+              :src="`https://github.com/${repositoryOwner}.png?size=96`"
+              :alt="`${repositoryOwner} avatar`"
+              width="48"
+              height="48"
+              class="size-12 rounded-full border border-default bg-muted"
+            >
+          </NuxtLink>
+          <div class="min-w-0 flex-1">
+            <p class="section-label">
+              {{ repositoryTask._tag === 'indexed' ? 'Repository ready' : repositoryTask._tag === 'failed' ? 'Repository failed' : 'Adding repository' }}
+            </p>
+            <h2 id="repository-indexing-heading" class="mt-1 truncate font-mono text-lg font-medium text-highlighted">
+              <NuxtLink
+                v-if="repositoryTask._tag === 'indexed'"
+                :to="repoHubPath(repositoryOwner, repositoryName)"
+                class="hover:text-primary"
+                @click="close"
+              >
+                {{ repositoryName }}
+              </NuxtLink>
+              <template v-else>
+                {{ repositoryName }}
+              </template>
+            </h2>
+            <NuxtLink
+              :to="ownerHubPath(repositoryOwner)"
+              class="mt-0.5 inline-flex min-h-6 items-center font-mono text-xs text-muted hover:text-primary"
+              @click="close"
+            >
+              @{{ repositoryOwner }}
+            </NuxtLink>
+          </div>
           <UButton
             icon="i-lucide-x"
             color="neutral"
@@ -166,109 +237,146 @@ watch(repositoryTask, (task, previous) => {
         </header>
 
         <div class="min-h-0 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
-          <div v-if="repositoryTask._tag === 'indexing'">
-            <UProgress
-              :model-value="progressValue"
-              :max="100"
-              size="sm"
-              aria-hidden="true"
-            />
-            <progress
-              :value="progressValue ?? undefined"
-              max="100"
-              class="sr-only"
-              aria-labelledby="repository-indexing-heading"
-            />
+          <div v-if="repositoryPreview._tag === 'loading'" class="flex min-h-16 items-center gap-3 border-b border-default pb-5 text-sm text-muted">
+            <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            Loading repository details
+          </div>
+          <div v-else-if="repositoryPreview._tag === 'ready'" class="border-b border-default pb-5">
+            <p v-if="repositoryPreview.data.description" class="text-sm leading-relaxed text-muted">
+              {{ repositoryPreview.data.description }}
+            </p>
+            <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-xs text-muted">
+              <span class="inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-file-code-2" class="size-3.5" aria-hidden="true" />
+                <template v-if="repositoryPreview.data.skillFileScanStatus === 'unavailable'">
+                  Indexing will check for SKILL.md files
+                </template>
+                <template v-else>
+                  {{ repositoryPreview.data.skillFileCount }}{{ repositoryPreview.data.skillFileScanStatus === 'truncated' ? '+' : '' }} SKILL.md {{ repositoryPreview.data.skillFileCount === 1 ? 'file' : 'files' }}
+                </template>
+              </span>
+              <a
+                :href="repositoryPreview.data.githubUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex min-h-6 items-center gap-1.5 hover:text-primary"
+              >
+                GitHub
+                <UIcon name="i-lucide-external-link" class="size-3.5" aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+          <p v-else-if="repositoryPreview._tag === 'unavailable'" class="border-b border-default pb-5 text-sm text-muted">
+            Repository details are unavailable. Indexing continues.
+          </p>
 
-            <ol class="mt-6 space-y-4" aria-label="Indexing stages">
+          <div v-if="repositoryTask._tag === 'indexing'" class="pt-5">
+            <div class="flex items-center justify-between gap-4">
+              <h3 id="repository-progress-heading" class="text-sm font-medium text-highlighted">
+                {{ progressLabel(repositoryTask.progress) }}
+              </h3>
+              <span v-if="repositoryTask.progress._tag === 'indexing'" class="font-mono text-xs text-muted">
+                {{ repositoryTask.progress.indexed }}/{{ repositoryTask.progress.total }}
+              </span>
+            </div>
+            <UProgress :model-value="progressValue" :max="100" size="sm" class="mt-3" aria-hidden="true" />
+            <progress :value="progressValue ?? undefined" max="100" class="sr-only" aria-labelledby="repository-progress-heading" />
+
+            <ol class="mt-5 grid grid-cols-3 gap-2" aria-label="Indexing stages">
               <li
-                v-for="(label, index) in ['Queue work', 'Check GitHub', 'Index skills']"
+                v-for="(label, index) in ['Queue', 'Check GitHub', 'Index skills']"
                 :key="label"
-                class="flex min-h-8 items-center gap-3"
+                class="flex min-w-0 items-center gap-2"
                 :class="stepState(index) === 'upcoming' ? 'text-dimmed' : 'text-highlighted'"
               >
-                <span
-                  class="flex size-7 shrink-0 items-center justify-center rounded-full border"
-                  :class="stepState(index) === 'current' ? 'border-primary text-primary' : 'border-default'"
-                >
-                  <UIcon
-                    :name="stepIcon(index)"
-                    class="size-4"
-                    :class="stepState(index) === 'current' ? 'animate-spin motion-reduce:animate-none' : ''"
-                    aria-hidden="true"
-                  />
+                <span class="flex size-6 shrink-0 items-center justify-center rounded-full border" :class="stepState(index) === 'current' ? 'border-primary text-primary' : 'border-default'">
+                  <UIcon :name="stepIcon(index)" class="size-3.5" :class="stepState(index) === 'current' ? 'animate-spin motion-reduce:animate-none' : ''" aria-hidden="true" />
                 </span>
-                <span class="text-sm font-medium">{{ label }}</span>
-                <span v-if="index === 2 && repositoryTask.progress._tag === 'indexing'" class="ms-auto font-mono text-xs text-muted">
-                  {{ repositoryTask.progress.indexed }}/{{ repositoryTask.progress.total }}
-                </span>
+                <span class="truncate text-xs font-medium">{{ label }}</span>
                 <span class="sr-only">{{ stepState(index) }}</span>
               </li>
             </ol>
 
-            <p class="mt-6 text-sm text-muted">
+            <section v-if="repositoryPreview._tag === 'ready' && repositoryPreview.data.skillFiles.length" class="mt-6" aria-labelledby="repository-files-heading">
+              <div class="flex items-center justify-between gap-4">
+                <h3 id="repository-files-heading" class="section-label">
+                  Skills found on GitHub
+                </h3>
+                <span class="font-mono text-xs tabular-nums text-muted">{{ repositoryPreview.data.skillFiles.length }}</span>
+              </div>
+              <ul class="mt-2 divide-y divide-default border-y border-default">
+                <li v-for="path in repositoryPreview.data.skillFiles" :key="path">
+                  <a
+                    :href="sourceFileUrl(path)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="group flex min-h-11 items-center gap-3 py-2"
+                  >
+                    <UIcon name="i-lucide-file-code-2" class="size-4 shrink-0 text-muted" aria-hidden="true" />
+                    <code class="min-w-0 flex-1 truncate font-mono text-xs text-muted group-hover:text-primary">{{ path }}</code>
+                    <UIcon name="i-lucide-external-link" class="size-3.5 shrink-0 text-dimmed" aria-hidden="true" />
+                  </a>
+                </li>
+              </ul>
+            </section>
+
+            <p class="mt-5 text-xs text-muted">
               You can close this dialog. Indexing continues in the background.
             </p>
           </div>
 
-          <div v-else-if="repositoryTask._tag === 'indexed'">
-            <div
-              class="flex items-start gap-3 rounded-md border px-4 py-3"
-              :class="repositoryTask.likes._tag === 'partial' ? 'border-warning/40 bg-warning/5' : 'border-default bg-muted/40'"
-            >
-              <UIcon
-                :name="repositoryTask.likes._tag === 'partial' ? 'i-lucide-circle-alert' : repositoryTask.likes._tag === 'anonymous' ? 'i-lucide-heart' : 'i-lucide-heart'"
-                class="mt-0.5 size-5 shrink-0"
-                :class="repositoryTask.likes._tag === 'liked' || repositoryTask.likes._tag === 'pending' ? 'fill-primary text-primary' : repositoryTask.likes._tag === 'partial' ? 'text-warning' : 'text-muted'"
-                aria-hidden="true"
-              />
-              <div>
-                <p class="text-sm font-medium text-highlighted">
-                  {{ likeStatusLabel(repositoryTask.likes._tag) }}
-                </p>
-                <p class="mt-0.5 text-xs text-muted">
-                  <template v-if="repositoryTask.likes._tag === 'pending'">
-                    Every indexed skill will appear in your likes.
-                  </template>
-                  <template v-else-if="repositoryTask.likes._tag === 'liked'">
-                    Every indexed skill now appears in your likes.
-                  </template>
-                  <template v-else-if="repositoryTask.likes._tag === 'partial'">
-                    {{ repositoryTask.likes.failed.length }} {{ repositoryTask.likes.failed.length === 1 ? 'like needs' : 'likes need' }} another attempt.
-                  </template>
-                  <template v-else>
-                    The skills are ready in search.
-                  </template>
-                </p>
-              </div>
+          <div v-else-if="repositoryTask._tag === 'indexed'" class="pt-5">
+            <div class="flex items-center gap-2 text-sm text-highlighted">
+              <UIcon name="i-lucide-circle-check" class="size-4 text-success" aria-hidden="true" />
+              <p>
+                {{ repositoryTask.skills.length }} {{ repositoryTask.skills.length === 1 ? 'skill is' : 'skills are' }} ready in search.
+              </p>
             </div>
 
-            <ul class="mt-5 divide-y divide-default border-y border-default" aria-label="Indexed skills">
-              <li v-for="skill in repositoryTask.skills" :key="skill.name">
-                <NuxtLink
-                  :to="skillPath(skill)"
-                  class="group flex min-h-14 items-center gap-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  @click="close"
-                >
-                  <span class="min-w-0 flex-1 truncate font-mono font-medium text-highlighted group-hover:text-primary">
-                    {{ skill.name }}
-                  </span>
-                  <span class="flex shrink-0 items-center gap-2 text-xs" :class="isLiked(skillRef(skill)) ? 'text-primary' : 'text-muted'">
-                    <span>{{ skillLikeLabel(skill) }}</span>
-                    <UIcon
-                      name="i-lucide-heart"
-                      class="size-5"
-                      :class="isLiked(skillRef(skill)) ? 'fill-primary' : ''"
-                      aria-hidden="true"
-                    />
-                  </span>
-                  <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" aria-hidden="true" />
-                </NuxtLink>
-              </li>
-            </ul>
+            <section class="mt-5" aria-labelledby="indexed-skills-heading">
+              <div class="flex items-center justify-between gap-4">
+                <h3 id="indexed-skills-heading" class="section-label">
+                  Skills
+                </h3>
+                <span class="font-mono text-xs tabular-nums text-muted">{{ repositoryTask.skills.length }}</span>
+              </div>
+              <ul class="mt-2 divide-y divide-default border-y border-default">
+                <li v-for="skill in repositoryTask.skills" :key="skill.name">
+                  <NuxtLink
+                    :to="skillPath(skill)"
+                    class="group flex min-h-14 items-center gap-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    @click="close"
+                  >
+                    <UIcon name="i-lucide-file-code-2" class="size-4 shrink-0 text-muted" aria-hidden="true" />
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate font-mono font-medium text-highlighted group-hover:text-primary">{{ skill.name }}</span>
+                      <code v-if="skill.path" class="mt-0.5 block truncate font-mono text-xs text-muted">{{ skill.path }}</code>
+                    </span>
+                    <span class="flex shrink-0 items-center gap-1.5 font-mono text-xs tabular-nums" :class="isLiked(skillRef(skill)) ? 'text-primary' : 'text-muted'" :aria-label="skillLikeLabel(skill)">
+                      <UIcon
+                        :name="isPending(skillRef(skill)) ? 'i-lucide-loader-circle' : 'i-lucide-heart'"
+                        class="size-4"
+                        :class="[
+                          isLiked(skillRef(skill)) ? 'fill-current' : '',
+                          isPending(skillRef(skill)) ? 'animate-spin motion-reduce:animate-none' : '',
+                        ]"
+                        aria-hidden="true"
+                      />
+                      <span aria-hidden="true">{{ displayedLikeCount(skill) }}</span>
+                    </span>
+                    <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0 text-dimmed" aria-hidden="true" />
+                  </NuxtLink>
+                </li>
+              </ul>
+            </section>
+
+            <p v-if="repositoryTask.likes._tag === 'partial'" class="mt-4 flex items-center gap-2 text-xs text-warning">
+              <UIcon name="i-lucide-circle-alert" class="size-4 shrink-0" aria-hidden="true" />
+              {{ repositoryTask.likes.failed.length }} {{ repositoryTask.likes.failed.length === 1 ? 'like needs' : 'likes need' }} another attempt.
+            </p>
           </div>
 
-          <div v-else class="py-2">
+          <div v-else class="pt-5">
             <div class="flex items-start gap-3">
               <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-error/10 text-error">
                 <UIcon name="i-lucide-circle-alert" class="size-5" aria-hidden="true" />
@@ -286,33 +394,21 @@ watch(repositoryTask, (task, previous) => {
         </div>
 
         <footer class="flex shrink-0 flex-col-reverse gap-2 border-t border-default px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="lg"
-            class="min-h-11 justify-center"
-            @click="close"
-          >
+          <UButton color="neutral" variant="ghost" size="lg" class="min-h-11 justify-center" @click="close">
             Close
           </UButton>
-          <UButton
-            v-if="repositoryTask._tag === 'failed'"
-            icon="i-lucide-refresh-cw"
-            size="lg"
-            class="min-h-11 justify-center"
-            @click="retry"
-          >
+          <UButton v-if="repositoryTask._tag === 'failed'" icon="i-lucide-refresh-cw" size="lg" class="min-h-11 justify-center" @click="retry">
             Retry indexing
           </UButton>
           <UButton
             v-else-if="repositoryTask._tag === 'indexed'"
-            :to="repoHubPath(repositoryTask.repository.owner, repositoryTask.repository.repo)"
+            :to="repoHubPath(repositoryOwner, repositoryName)"
             trailing-icon="i-lucide-arrow-right"
             size="lg"
             class="min-h-11 justify-center"
             @click="close"
           >
-            Open repository
+            View repository
           </UButton>
         </footer>
 

@@ -4,6 +4,7 @@ import type { SkilldLang } from '#shared/shiki-language'
 import { Marked } from 'marked'
 import { resolveShikiLang, SHIKI_THEMES } from '#shared/shiki-language'
 import { createSkillReferenceTokenizer } from './skill-dependencies'
+import { parseFrontmatterDocument } from './skill-frontmatter'
 
 function extractFenceLangs(body: string): Set<SkilldLang> {
   const langs = new Set<SkilldLang>()
@@ -205,38 +206,8 @@ export interface ParsedSkillMd {
   dependencies: string[]
 }
 
-function parseFrontmatterValue(value: string): unknown {
-  const trimmed = value.trim()
-  if (!trimmed)
-    return ''
-  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-    try {
-      return JSON.parse(trimmed)
-    }
-    catch {
-      // Fall through to string handling
-    }
-  }
-  return trimmed.replace(/^['"]|['"]$/g, '')
-}
-
 export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promise<ParsedSkillMd> {
-  const frontmatter: Record<string, unknown> = {}
-  let body = raw
-
-  const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
-  if (fmMatch) {
-    for (const line of fmMatch[1]!.split(/\r?\n/)) {
-      const colonIdx = line.indexOf(':')
-      if (colonIdx <= 0)
-        continue
-      const key = line.slice(0, colonIdx)
-      if (!/^[A-Z_][\w-]*$/i.test(key))
-        continue
-      frontmatter[key] = parseFrontmatterValue(line.slice(colonIdx + 1))
-    }
-    body = fmMatch[2]!
-  }
+  const { frontmatter, body } = parseFrontmatterDocument(raw)
 
   const needed = extractFenceLangs(body)
   // Grammars that fail to load are dropped inside loadShikiHighlighter, and

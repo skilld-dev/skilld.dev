@@ -22,7 +22,12 @@ export async function findIndexedRepositorySkills(
   repository: Pick<GitHubRepository, 'owner' | 'repo'>,
 ): Promise<IndexedRepositorySkill[]> {
   const result = await db.prepare(
-    `SELECT name, slug
+    `SELECT
+       name,
+       slug,
+       rendered_skill_path AS path,
+       description,
+       COALESCE(like_count, 0) AS likeCount
      FROM skills
      WHERE owner = ? AND repo = ? AND source_resolved = 1
      ORDER BY name`,

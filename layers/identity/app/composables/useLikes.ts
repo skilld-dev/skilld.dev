@@ -8,8 +8,17 @@ export function likeKey(ref: SkillLikeRef): string {
   return `${ref.owner}/${ref.repo}/${ref.name}`
 }
 
+interface LikeListItem extends SkillLikeRef {
+  likeCount: number
+}
+
 interface LikeListResponse {
-  items: SkillLikeRef[]
+  items: LikeListItem[]
+}
+
+interface LikeMutationResponse {
+  ok: true
+  likeCount: number
 }
 
 /**
@@ -38,6 +47,7 @@ export function useLikes() {
   const fail = useActionFailure()
 
   const liked = useState<Record<string, true>>('skill-likes', () => ({}))
+  const likeCounts = useState<Record<string, number>>('skill-like-counts', () => ({}))
   const loaded = useState<boolean>('skill-likes-loaded', () => false)
   const pending = useState<Record<string, true>>('skill-likes-pending', () => ({}))
 
@@ -47,6 +57,17 @@ export function useLikes() {
 
   function isPending(ref: SkillLikeRef): boolean {
     return !!pending.value[likeKey(ref)]
+  }
+
+  function likeCount(ref: SkillLikeRef): number | undefined {
+    return likeCounts.value[likeKey(ref)]
+  }
+
+  /** Cached page counts are a baseline only. A live mutation always wins. */
+  function observeLikeCount(ref: SkillLikeRef, count: number): void {
+    const key = likeKey(ref)
+    if (likeCounts.value[key] === undefined)
+      likeCounts.value = { ...likeCounts.value, [key]: count }
   }
 
   /**
@@ -63,9 +84,13 @@ export function useLikes() {
     inflight = $fetch<LikeListResponse>('/api/me/likes')
       .then((res) => {
         const next: Record<string, true> = {}
+        const nextCounts = { ...likeCounts.value }
         for (const item of res.items)
           next[likeKey(item)] = true
+        for (const item of res.items)
+          nextCounts[likeKey(item)] = item.likeCount
         liked.value = next
+        likeCounts.value = nextCounts
         loaded.value = true
       })
       .catch((error) => {
@@ -80,24 +105,35 @@ export function useLikes() {
 
   /** Returns the state the heart settled on, so the caller can trust it after a rollback. */
   async function toggle(ref: SkillLikeRef): Promise<boolean> {
+    await ensureLoaded()
     const key = likeKey(ref)
     const wasLiked = !!liked.value[key]
+    const previousCount = likeCounts.value[key]
 
     liked.value = applyLiked(liked.value, key, !wasLiked)
+    if (previousCount !== undefined) {
+      likeCounts.value = {
+        ...likeCounts.value,
+        [key]: Math.max(0, previousCount + (wasLiked ? -1 : 1)),
+      }
+    }
     pending.value = { ...pending.value, [key]: true }
 
     const path = `/api/me/likes/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${encodeURIComponent(ref.name)}`
     const res = wasLiked
-      ? await $fetch<{ ok: true }>(path, { method: 'DELETE' }).catch(fail('remove your like'))
-      : await $fetch<{ ok: true }>('/api/me/likes', { method: 'POST', body: ref }).catch(fail('save your like'))
+      ? await $fetch<LikeMutationResponse>(path, { method: 'DELETE' }).catch(fail('remove your like'))
+      : await $fetch<LikeMutationResponse>('/api/me/likes', { method: 'POST', body: ref }).catch(fail('save your like'))
 
     const { [key]: _dropped, ...restPending } = pending.value
     pending.value = restPending
 
     if (!res) {
       liked.value = applyLiked(liked.value, key, wasLiked)
+      if (previousCount !== undefined)
+        likeCounts.value = { ...likeCounts.value, [key]: previousCount }
       return wasLiked
     }
+    likeCounts.value = { ...likeCounts.value, [key]: res.likeCount }
     return !wasLiked
   }
 
@@ -116,14 +152,23 @@ export function useLikes() {
       return existing
 
     liked.value = applyLiked(liked.value, key, true)
+    const previousCount = likeCounts.value[key]
+    if (previousCount !== undefined)
+      likeCounts.value = { ...likeCounts.value, [key]: previousCount + 1 }
     pending.value = { ...pending.value, [key]: true }
 
-    const request = $fetch<{ ok: true }>('/api/me/likes', { method: 'POST', body: ref })
-      .then(() => true)
+    const request = $fetch<LikeMutationResponse>('/api/me/likes', { method: 'POST', body: ref })
+      .then((response) => {
+        likeCounts.value = { ...likeCounts.value, [key]: response.likeCount }
+        return true
+      })
       .catch(fail('save your like'))
       .then((result) => {
-        if (!result)
+        if (!result) {
           liked.value = applyLiked(liked.value, key, false)
+          if (previousCount !== undefined)
+            likeCounts.value = { ...likeCounts.value, [key]: previousCount }
+        }
         const { [key]: _dropped, ...restPending } = pending.value
         pending.value = restPending
         return result === true
@@ -136,7 +181,7 @@ export function useLikes() {
     return request
   }
 
-  return { liked, isLiked, isPending, ensureLoaded, ensureLiked, toggle }
+  return { liked, isLiked, isPending, likeCount, observeLikeCount, ensureLoaded, ensureLiked, toggle }
 }
 
 function applyLiked(map: Record<string, true>, key: string, next: boolean): Record<string, true> {

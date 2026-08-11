@@ -32,7 +32,11 @@ export default defineApiHandler({
          COALESCE(s.slug, l.owner || '/' || l.repo || '/' || l.name) AS slug,
          s.description  AS description,
          r.stars        AS stars,
-         COALESCE(s.like_count, 0) AS likeCount
+         (SELECT COUNT(*)
+          FROM skill_likes all_likes
+          WHERE all_likes.owner = l.owner
+            AND all_likes.repo = l.repo
+            AND all_likes.name = l.name) AS likeCount
        FROM skill_likes l
        LEFT JOIN skills s ON s.owner = l.owner AND s.repo = l.repo AND s.name = l.name
        LEFT JOIN repos r ON r.owner = l.owner AND r.repo = l.repo

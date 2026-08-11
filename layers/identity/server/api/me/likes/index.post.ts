@@ -9,7 +9,7 @@ export default defineApiHandler({
   policy: [authenticated],
   handler: async ({ event, body, platform }) => {
     const u = await requireUserRow(event)
-    await likeSkill(platform.db, u.id, body)
-    return { ok: true as const }
+    const likeCount = await likeSkill(platform.db, u.id, body)
+    return { ok: true as const, likeCount }
   },
 })

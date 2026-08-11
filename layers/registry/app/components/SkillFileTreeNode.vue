@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SkillFileTreeNode as TreeNode } from '../utils/skill-file-tree'
-import { fileIcon, isInlineRenderable } from '../utils/skill-file-tree'
+import { fileIcon, isInlineRenderable, shouldAutoExpandFolder } from '../utils/skill-file-tree'
 
 const props = defineProps<{
   node: TreeNode
@@ -16,7 +16,7 @@ const emit = defineEmits<{
   select: [path: string]
 }>()
 
-const open = ref(true)
+const open = ref(shouldAutoExpandFolder(props.node))
 
 const isActive = computed(() => {
   if (props.node.kind !== 'file')
