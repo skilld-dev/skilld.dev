@@ -1,6 +1,7 @@
 import type { AxeResults, RunOptions } from 'axe-core'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import axe from 'axe-core'
+import { defineComponent, h, nextTick } from 'vue'
 
 // Rules to disable for isolated component testing (page-level rules)
 const AXE_OPTIONS: RunOptions = {
@@ -177,6 +178,47 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
   })
+
+  it('skillSearchRepositoryModal has no violations while indexing', async () => {
+    const container = createIsolatedContainer()
+    const Modal = await import('~/components/SkillSearchRepositoryModal.client.vue').then(m => m.default)
+    const modalStub = defineComponent({
+      inheritAttrs: false,
+      props: { open: Boolean },
+      setup(props, { attrs, slots }) {
+        return () => props.open
+          ? h('div', { ...attrs, 'role': 'dialog', 'aria-modal': 'true' }, slots.content?.())
+          : null
+      },
+    })
+    const harness = defineComponent({
+      setup() {
+        const { repositoryModalOpen, repositoryTask } = useSkillSearch()
+        repositoryTask.value = {
+          _tag: 'indexing',
+          repository: {
+            _tag: 'repository',
+            owner: 'jonathanxdr',
+            repo: 'nuxt-style-readme-skill',
+            url: 'https://github.com/jonathanxdr/nuxt-style-readme-skill',
+          },
+          progress: { _tag: 'checking' },
+        }
+        repositoryModalOpen.value = true
+        return () => h(Modal)
+      },
+    })
+    const wrapper = await mountSuspended(harness, {
+      attachTo: container,
+      global: { stubs: { UModal: modalStub } },
+    })
+    await nextTick()
+
+    expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Repository indexing')
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
 })
 
 describe('accessibility: component coverage', () => {
@@ -223,6 +265,7 @@ describe('accessibility: component coverage', () => {
           'AppLogo',
           'CompactPageHeader',
           'SkillSearchPanel',
+          'SkillSearchRepositoryModal.client',
           'SkillSearchTrigger',
           'SkillSourceList',
           'SkillTable',

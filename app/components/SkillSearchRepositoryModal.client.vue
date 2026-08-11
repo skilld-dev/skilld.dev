@@ -140,7 +140,7 @@ watch(repositoryTask, (task, previous) => {
           <p class="section-label">
             Repository indexing
           </p>
-          <h2 class="mt-2 text-lg font-medium text-highlighted">
+          <h2 id="repository-indexing-heading" class="mt-2 text-lg font-medium text-highlighted">
             <template v-if="repositoryTask._tag === 'indexing'">
               {{ progressLabel(repositoryTask.progress) }}
             </template>
@@ -171,7 +171,13 @@ watch(repositoryTask, (task, previous) => {
               :model-value="progressValue"
               :max="100"
               size="sm"
-              aria-label="Repository indexing progress"
+              aria-hidden="true"
+            />
+            <progress
+              :value="progressValue ?? undefined"
+              max="100"
+              class="sr-only"
+              aria-labelledby="repository-indexing-heading"
             />
 
             <ol class="mt-6 space-y-4" aria-label="Indexing stages">
