@@ -11,6 +11,7 @@ const {
   activeRow,
   recentSearches,
   retry,
+  submitRepository,
 } = useSkillSearch()
 
 /**
@@ -63,6 +64,12 @@ function timestampFor(skill: SearchSkill): Date | null {
   const seconds = skill.modifiedAt ?? skill.pushedAt
   return typeof seconds === 'number' ? new Date(seconds * 1000) : null
 }
+
+function retryRepositoryIndex(): void {
+  const current = state.value
+  if (current._tag === 'repository')
+    void submitRepository(current.repository)
+}
 </script>
 
 <template>
@@ -114,6 +121,56 @@ function timestampFor(skill: SearchSkill): Date | null {
           />
         </div>
 
+        <div
+          v-else-if="state._tag === 'repository' && state.status._tag === 'pending'"
+          class="px-3 py-6"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <p class="text-sm text-highlighted">
+            {{ `Indexing ${state.repository.owner}/${state.repository.repo}…` }}
+          </p>
+          <p class="mt-1 text-sm text-muted">
+            This can take a minute. You can leave search open while the repository is checked.
+          </p>
+        </div>
+
+        <div
+          v-else-if="state._tag === 'repository' && state.status._tag === 'error'"
+          class="px-3 py-6"
+          role="alert"
+        >
+          <p class="text-sm text-highlighted">
+            Couldn't index this repository.
+          </p>
+          <p class="mt-1 text-sm text-muted">
+            {{ state.status.reason }}
+          </p>
+          <UButton
+            label="Retry indexing"
+            color="neutral"
+            variant="outline"
+            size="xs"
+            class="mt-3 min-h-11 font-mono"
+            @click="retryRepositoryIndex"
+          />
+        </div>
+
+        <div
+          v-else-if="state._tag === 'repository' && state.status._tag === 'indexed'"
+          class="border-b border-default px-3 pb-2 pt-3"
+          role="status"
+          aria-live="polite"
+        >
+          <p class="section-label">
+            Indexed repository
+          </p>
+          <p class="mt-1 text-xs text-muted">
+            {{ state.status.skills.length }} {{ state.status.skills.length === 1 ? 'skill is' : 'skills are' }} ready to open.
+          </p>
+        </div>
+
         <!-- Nothing matched -->
         <div v-else-if="!rows.length && state._tag === 'ready'" class="px-3 py-6">
           <p class="text-sm text-highlighted">
@@ -160,7 +217,7 @@ function timestampFor(skill: SearchSkill): Date | null {
           v-if="rows.length"
           id="skill-search-listbox"
           role="listbox"
-          aria-label="Skill search results"
+          :aria-label="state._tag === 'repository' ? 'Repository indexing results' : 'Skill search results'"
           class="divide-y divide-default/60"
         >
           <li v-for="(row, index) in rows" :key="row._tag === 'skill' ? `${row.skill.owner}/${row.skill.repo}/${row.skill.name}` : 'all'">
@@ -215,6 +272,19 @@ function timestampFor(skill: SearchSkill): Date | null {
                   v-if="signalLabel(row.skill)"
                   class="data-label shrink-0 whitespace-nowrap"
                 >{{ signalLabel(row.skill) }}</span>
+              </template>
+
+              <template v-else-if="row._tag === 'repository'">
+                <UIcon name="i-lucide-github" class="size-4 shrink-0 text-muted" />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate font-mono text-sm text-highlighted">
+                    Index {{ row.repository.owner }}/{{ row.repository.repo }}
+                  </span>
+                  <span class="mt-0.5 block truncate text-xs text-muted">
+                    Add its skills to search if the repository has not been indexed.
+                  </span>
+                </span>
+                <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" />
               </template>
 
               <template v-else>

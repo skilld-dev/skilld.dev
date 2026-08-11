@@ -4,12 +4,18 @@
   "account_id": "5904138d55ca25d5670dca6adf99894e",
   "compatibility_date": "2026-07-15",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "upload_source_maps": true,
   "limits": {
     "cpu_ms": 300000
   },
   "cache": {
     "enabled": true,
     "cross_version_cache": false
+  },
+  "placement": {
+    "mode": "smart"
   },
   "d1_databases": [
     { "binding": "DB", "database_name": "skilld-db", "database_id": "a5e53f35-f5e5-4987-8c67-c0175addc7cc" }
@@ -60,7 +66,10 @@
     ]
   },
   "send_email": [
-    { "name": "EMAIL" }
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": ["noreply@mail.skilld.dev"]
+    }
   ],
   // Self binding for the daily health check's front-door probe. A plain
   // fetch('https://skilld.dev/') from inside this Worker leaves the runtime and
@@ -81,7 +90,6 @@
     { "tag": "v1", "new_classes": ["$DurableObject"] },
     { "tag": "v2", "deleted_classes": ["$DurableObject"] }
   ],
-  "keep_vars": true,
   "observability": {
     "enabled": true,
     "logs": {

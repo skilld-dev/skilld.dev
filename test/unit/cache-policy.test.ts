@@ -28,6 +28,7 @@ describe('workers cache policy', () => {
     ['POST', '/api/collections', 200],
     ['GET', '/api/collections', 404],
     ['GET', '/api/collections/someone/list', 200],
+    ['GET', '/api/repos/index/25dbd7d4-ec25-4198-8731-0c330eb1a5a8', 200],
     ['GET', '/api/me', 200],
     ['GET', '/@cloudflare', 200],
   ])('denies non-public response %s %s (%i)', (method, pathname, statusCode) => {

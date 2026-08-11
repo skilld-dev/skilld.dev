@@ -22,6 +22,7 @@ export default defineApiHandler({
       tags: body.tags.length ? body.tags : undefined,
       tagMode: body.tagMode,
       sort: body.sort,
+      uniqueOwners: body.uniqueOwners,
       page: body.page,
       limit: body.limit,
       officialOwners,

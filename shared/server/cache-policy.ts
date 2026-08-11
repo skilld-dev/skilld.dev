@@ -40,7 +40,7 @@ const EDGE_CACHE_RULES: EdgeCacheRule[] = [
   { path: /^\/api\/orgs\/[^/]+$/, maxAge: 300 },
   { path: /^\/api\/tags\/[^/]+$/, maxAge: 300 },
   {
-    path: /^\/api\/repos\/[^/]+\/[^/]+$/,
+    path: /^\/api\/repos\/(?!index\/)[^/]+\/[^/]+$/,
     maxAge: 900,
     staleWhileRevalidate: 3600,
     staleIfError: 3600,

@@ -629,6 +629,11 @@ export interface SyncRepoOptions {
    */
   ownerVerified?: boolean
   /**
+   * Admit new skills requested through the public repository URL flow without
+   * claiming that the GitHub owner is verified. Trust and SEO remain computed.
+   */
+  submitted?: boolean
+  /**
    * Bypass repo and per-skill content cursors. Used by rendered-content repair,
    * where an unchanged Git tree still needs a fresh render.
    */
@@ -1078,7 +1083,12 @@ export async function syncRepo(
       // skill without granting SEO indexability. Existing rows always continue
       // to update (and can graduate via the nightly recompute). Skipped before
       // any revisions/skills write.
-      const admit = !isNewToRegistry || isOfficial || ownerVerified || reviewEligible || indexability.indexable
+      const admit = !isNewToRegistry
+        || isOfficial
+        || ownerVerified
+        || opts.submitted === true
+        || reviewEligible
+        || indexability.indexable
       if (!admit)
         continue
 

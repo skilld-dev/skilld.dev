@@ -32,6 +32,10 @@ export const registryRepoJobInput = z.discriminatedUnion('operation', [
     claimDiscovery: z.boolean(),
   }),
   z.object({
+    operation: z.literal('submit'),
+    ...repoIdentity,
+  }),
+  z.object({
     operation: z.literal('render'),
     ...repoIdentity,
   }),
@@ -261,6 +265,15 @@ export async function handleRegistryRepoJob(
     ownerVerified = claim.ownerVerified
   }
 
+  const continuation = progress.row.tree_sha
+    ? {
+        continuation: {
+          treeSha: progress.row.tree_sha,
+          checkedAt: progress.row.checked_at,
+          nextOffset: progress.row.next_offset,
+        },
+      }
+    : {}
   const stats = await syncRepo(
     payload.owner,
     payload.repo,
@@ -270,29 +283,19 @@ export async function handleRegistryRepoJob(
       ? {
           forceContent: true,
           maxSkillFiles: SKILL_PATHS_PER_INVOCATION,
-          ...(progress.row.tree_sha
-            ? {
-                continuation: {
-                  treeSha: progress.row.tree_sha,
-                  checkedAt: progress.row.checked_at,
-                  nextOffset: progress.row.next_offset,
-                },
-              }
-            : {}),
+          ...continuation,
         }
-      : {
-          ownerVerified,
-          maxSkillFiles: SKILL_PATHS_PER_INVOCATION,
-          ...(progress.row.tree_sha
-            ? {
-                continuation: {
-                  treeSha: progress.row.tree_sha,
-                  checkedAt: progress.row.checked_at,
-                  nextOffset: progress.row.next_offset,
-                },
-              }
-            : {}),
-        },
+      : payload.operation === 'submit'
+        ? {
+            submitted: true,
+            maxSkillFiles: SKILL_PATHS_PER_INVOCATION,
+            ...continuation,
+          }
+        : {
+            ownerVerified,
+            maxSkillFiles: SKILL_PATHS_PER_INVOCATION,
+            ...continuation,
+          },
   )
   const retryAfter = await applyRateGuard(ctx.db, {
     owner: payload.owner,
@@ -366,8 +369,24 @@ export async function handleRegistryRepoJob(
     rowsFetched: stats.skillsSeen,
     rowsInserted: stats.skillsUpserted,
   })
-  if (stats.status === 'failed')
-    throw new Error(stats.reason ?? `sync failed: ${payload.owner}/${payload.repo}`)
+  if (stats.status === 'failed') {
+    if (payload.operation === 'submit' && isPermanentSubmissionFailure(stats.reason)) {
+      await clearRepoProgress(ctx.db, {
+        owner: payload.owner,
+        repo: payload.repo,
+        jobId: ctx.jobId,
+      })
+      await ctx.fail(stats.reason ?? 'repository_index_failed')
+      return
+    }
+    else {
+      throw new Error(stats.reason ?? `sync failed: ${payload.owner}/${payload.repo}`)
+    }
+  }
+  if (payload.operation === 'submit' && stats.status === 'rejected') {
+    await ctx.fail(stats.reason ?? 'repository_index_rejected')
+    return
+  }
   if (stats.status === 'unauthorized') {
     await ctx.fail(stats.reason ?? 'GitHub credential rejected')
   }
@@ -381,3 +400,10 @@ export default defineJob({
   backoff: [60, 300, 900, 3600],
   handle: handleRegistryRepoJob,
 })
+
+function isPermanentSubmissionFailure(reason: string | undefined): boolean {
+  return reason === 'repo fetch 404'
+    || reason === 'repo fetch 410'
+    || reason === 'tree_truncated'
+    || reason?.startsWith('skill_parse_rejected:') === true
+}

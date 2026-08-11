@@ -1,5 +1,9 @@
+import type { GitHubRepository } from '#shared/github-repository'
+import type { IndexedRepositorySkill } from '#shared/repository-index'
 import type { TypeaheadHit, TypeaheadTuple } from '../utils/skill-typeahead'
-import { createSharedComposable, refDebounced, useLocalStorage } from '@vueuse/core'
+import { createSharedComposable, promiseTimeout, refDebounced, useLocalStorage } from '@vueuse/core'
+import { parseGitHubRepositoryUrl } from '#shared/github-repository'
+import { indexGitHubRepository } from '../utils/repository-index'
 import { matchTypeahead } from '../utils/skill-typeahead'
 
 /** Debounce before hitting the network. Local hits render with no delay. */
@@ -36,6 +40,7 @@ export interface SearchSkill {
  */
 export type SearchRow
   = | { _tag: 'skill', skill: SearchSkill, provisional: boolean }
+    | { _tag: 'repository', repository: GitHubRepository }
     | { _tag: 'all', query: string }
 
 /**
@@ -46,11 +51,23 @@ export type SearchRow
  */
 export type SearchMode = 'hybrid' | 'lexical' | 'semantic'
 
+export type RepositorySearchStatus
+  = | { _tag: 'idle' }
+    | { _tag: 'pending' }
+    | { _tag: 'indexed', skills: IndexedRepositorySkill[] }
+    | { _tag: 'error', reason: string }
+
 export type SearchState
   = | { _tag: 'empty' }
     | { _tag: 'loading', rows: SearchRow[] }
     | { _tag: 'ready', rows: SearchRow[], total: number, mode?: SearchMode }
     | { _tag: 'error', error: unknown }
+    | {
+      _tag: 'repository'
+      repository: GitHubRepository
+      status: RepositorySearchStatus
+      rows: SearchRow[]
+    }
 
 interface SkillsResponse {
   items: SearchSkill[]
@@ -101,10 +118,21 @@ function useSkillSearchInternal() {
   }
 
   const trimmedQuery = computed(() => query.value.trim())
+  const repository = computed<GitHubRepository | null>(() => {
+    const parsed = parseGitHubRepositoryUrl(trimmedQuery.value)
+    return parsed._tag === 'repository' ? parsed : null
+  })
+  const repositoryStatus = shallowRef<RepositorySearchStatus>({ _tag: 'idle' })
+  let repositoryAttempt = 0
+
+  watch(() => repository.value?.url ?? null, () => {
+    repositoryAttempt += 1
+    repositoryStatus.value = { _tag: 'idle' }
+  })
 
   /** Instant, network-free matches for the query as currently typed. */
   const localRows = computed<SearchRow[]>(() =>
-    matchTypeahead(typeaheadIndex.value, trimmedQuery.value, RESULT_LIMIT)
+    matchTypeahead(typeaheadIndex.value, repository.value ? '' : trimmedQuery.value, RESULT_LIMIT)
       .map(hit => ({ _tag: 'skill', skill: hitToSkill(hit), provisional: true })),
   )
 
@@ -115,7 +143,7 @@ function useSkillSearchInternal() {
 
   async function runSearch(term: string): Promise<void> {
     inFlight?.abort()
-    if (!term) {
+    if (!term || parseGitHubRepositoryUrl(term)._tag === 'repository') {
       serverResults.value = null
       serverError.value = null
       pending.value = false
@@ -159,7 +187,7 @@ function useSkillSearchInternal() {
   // the debounce with stale results still on screen.
   watch(trimmedQuery, (term) => {
     activeIndex.value = 0
-    if (!term) {
+    if (!term || repository.value) {
       inFlight?.abort()
       inFlight = null
       serverResults.value = null
@@ -172,6 +200,31 @@ function useSkillSearchInternal() {
     const term = trimmedQuery.value
     if (!term)
       return { _tag: 'empty' }
+
+    const repositoryValue = repository.value
+    if (repositoryValue) {
+      const status = repositoryStatus.value
+      const repositoryRows: SearchRow[] = status._tag === 'idle'
+        ? [{ _tag: 'repository', repository: repositoryValue }]
+        : status._tag === 'indexed'
+          ? status.skills.map(skill => ({
+              _tag: 'skill' as const,
+              provisional: false,
+              skill: {
+                name: skill.name,
+                owner: repositoryValue.owner,
+                repo: repositoryValue.repo,
+                slug: skill.slug,
+              },
+            }))
+          : []
+      return {
+        _tag: 'repository',
+        repository: repositoryValue,
+        status,
+        rows: repositoryRows,
+      }
+    }
 
     if (serverError.value)
       return { _tag: 'error', error: serverError.value }
@@ -191,7 +244,11 @@ function useSkillSearchInternal() {
   })
 
   const rows = computed<SearchRow[]>(() =>
-    state.value._tag === 'ready' || state.value._tag === 'loading' ? state.value.rows : [],
+    state.value._tag === 'ready'
+    || state.value._tag === 'loading'
+    || state.value._tag === 'repository'
+      ? state.value.rows
+      : [],
   )
 
   watch(rows, (next) => {
@@ -224,6 +281,37 @@ function useSkillSearchInternal() {
     activeIndex.value = 0
   }
 
+  async function submitRepository(repositoryValue: GitHubRepository): Promise<void> {
+    const attempt = ++repositoryAttempt
+    repositoryStatus.value = { _tag: 'pending' }
+    const result = await indexGitHubRepository(repositoryValue, {
+      submit: repositoryInput => $fetch('/api/repos', {
+        method: 'POST',
+        body: { url: repositoryInput.url },
+      }),
+      status: jobId => $fetch(`/api/repos/index/${encodeURIComponent(jobId)}`),
+      wait: () => promiseTimeout(1500),
+    }).catch((error) => {
+      console.warn('[search] repository indexing unavailable', error)
+      return {
+        _tag: 'failed' as const,
+        repository: repositoryValue,
+        reason: 'Couldn\'t index this repository. Check your connection and try again.',
+      }
+    })
+    if (attempt !== repositoryAttempt)
+      return
+
+    repositoryStatus.value = result._tag === 'indexed'
+      ? { _tag: 'indexed', skills: result.skills }
+      : {
+          _tag: 'error',
+          reason: result._tag === 'failed'
+            ? result.reason
+            : 'Repository indexing is taking longer than expected. Try again shortly.',
+        }
+  }
+
   return {
     query,
     trimmedQuery,
@@ -239,6 +327,7 @@ function useSkillSearchInternal() {
     rememberQuery,
     loadTypeaheadIndex,
     retry: () => runSearch(trimmedQuery.value),
+    submitRepository,
     skillKey,
   }
 }

@@ -9,6 +9,7 @@ export const SkillsListQuery = z.object({
   // 'stars' stays the default: likes may order this surface only when the user
   // asks for it (ADR-0003).
   sort: z.enum(['stars', 'name', 'owner', 'likes']).catch('stars'),
+  uniqueOwners: flag,
   official: flag,
   excludeOfficial: flag,
   supported: flag,

@@ -7,6 +7,7 @@ import { createDurableRuntime, prepareJob } from '#cf-jobs/app'
 type RegistryJobEnv = Cloudflare.Env & Record<string, unknown>
 export type RegistryRepoJobPayload = JobPayload<'registry/repo-maintenance'>
 export type RegistryReviewRepoJobPayload = JobPayload<'registry/review-repo-sync'>
+export type RegistryRepositorySubmissionJobPayload = JobPayload<'registry/repository-submission'>
 
 function attemptsFromStoredJob(job: unknown): number {
   if (typeof job !== 'object' || job === null || !('attempts' in job))
@@ -83,6 +84,31 @@ export async function createRegistryReviewJobBatch(
     name: input.name,
     jobs: records,
   })
+}
+
+export async function enqueueRegistryRepoJob(
+  env: RegistryJobEnv,
+  payload: RegistryRepositorySubmissionJobPayload,
+): Promise<{ jobId: string, status: 'queued' | 'duplicate' }> {
+  const record = await prepareJob({
+    name: 'registry/repository-submission',
+    payload,
+  })
+  const result = await createRegistryJobsRuntime(env).enqueue(record)
+  if (result.status !== 'duplicate')
+    return { jobId: record.id, status: 'queued' }
+
+  if (!record.uniqueKey)
+    throw new Error('duplicate registry job has no unique key')
+  const active = await env.DB.prepare(
+    `SELECT id
+     FROM jobs
+     WHERE unique_key = ? AND completed_at IS NULL AND failed_at IS NULL
+     LIMIT 1`,
+  ).bind(record.uniqueKey).first<{ id: string }>()
+  if (!active)
+    throw new Error('duplicate registry job could not be resolved')
+  return { jobId: active.id, status: 'duplicate' }
 }
 
 export async function consumeRegistryJobBatch(

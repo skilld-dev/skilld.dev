@@ -21,10 +21,12 @@ const {
   skills,
   ariaLabel = 'Skills',
   showHeader = true,
+  metric = 'stars',
 } = defineProps<{
   skills: readonly SkillRow[]
   ariaLabel?: string
   showHeader?: boolean
+  metric?: 'stars' | 'likes'
 }>()
 
 const now = useState('render:now', () => Number(new Date()))
@@ -59,7 +61,9 @@ function updatedLabel(skill: SkillRow): string {
       <span>Skill</span>
       <span>Source</span>
       <span class="skill-table__col-description">What it does</span>
-      <span class="skill-table__col-stars">Stars</span>
+      <span class="skill-table__col-metric skill-table__metric-heading">
+        {{ metric === 'likes' ? 'Likes' : 'Stars' }}
+      </span>
       <span class="skill-table__col-updated">Updated</span>
     </div>
 
@@ -94,12 +98,16 @@ function updatedLabel(skill: SkillRow): string {
             {{ ownerPath(skill) }}
           </span>
 
-          <span class="skill-table__col-description truncate text-sm text-muted">
+          <span class="skill-table__col-description text-xs leading-4 text-muted">
             {{ skill.description || '—' }}
           </span>
 
-          <span class="skill-table__col-stars data-label justify-end">
-            <template v-if="skill.stars">
+          <span class="skill-table__col-metric skill-table__metric data-label justify-end">
+            <template v-if="metric === 'likes'">
+              <UIcon name="i-lucide-heart" class="size-3" aria-hidden="true" />
+              {{ skill.likeCount ?? 0 }}
+            </template>
+            <template v-else-if="skill.stars">
               <UIcon name="i-lucide-star" class="size-3" aria-hidden="true" />
               {{ formatGithubStars(skill.stars) }}
             </template>
@@ -163,12 +171,12 @@ function updatedLabel(skill: SkillRow): string {
 }
 
 .skill-table__col-description,
-.skill-table__col-stars,
+.skill-table__col-metric,
 .skill-table__col-updated {
   display: none;
 }
 
-.skill-table__col-stars,
+.skill-table__col-metric,
 .skill-table__col-updated {
   align-items: center;
   gap: 0.25rem;
@@ -186,11 +194,18 @@ function updatedLabel(skill: SkillRow): string {
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(0, 1.6fr) 4rem;
   }
 
-  .skill-table__col-description {
+  .skill-table__head .skill-table__col-description {
     display: block;
   }
 
-  .skill-table__col-stars {
+  .skill-table__row .skill-table__col-description {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .skill-table__col-metric {
     display: flex;
   }
 }

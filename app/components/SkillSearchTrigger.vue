@@ -6,6 +6,7 @@ const route = useRoute()
 const {
   query,
   trimmedQuery,
+  state,
   open,
   rows,
   activeIndex,
@@ -15,6 +16,7 @@ const {
   reset,
   rememberQuery,
   loadTypeaheadIndex,
+  submitRepository,
 } = useSkillSearch()
 
 const container = useTemplateRef<HTMLElement>('container')
@@ -46,11 +48,16 @@ async function goToResults(): Promise<void> {
 }
 
 async function select(row: SearchRow): Promise<void> {
+  if (row._tag === 'repository') {
+    await submitRepository(row.repository)
+    return
+  }
   if (row._tag === 'all') {
     await goToResults()
     return
   }
-  rememberQuery(trimmedQuery.value)
+  if (state.value._tag !== 'repository')
+    rememberQuery(trimmedQuery.value)
   dismiss()
   reset()
   await navigateTo(repoSkillPath(row.skill.owner, row.skill.repo, row.skill.name))
@@ -59,7 +66,12 @@ async function select(row: SearchRow): Promise<void> {
 function onEnter(event: KeyboardEvent): void {
   event.preventDefault()
   const row = activeRow.value
-  void (row ? select(row) : goToResults())
+  if (row) {
+    void select(row)
+    return
+  }
+  if (state.value._tag !== 'repository')
+    void goToResults()
 }
 
 function onArrow(event: KeyboardEvent, delta: number): void {
@@ -102,11 +114,13 @@ const activeDescendant = computed(() =>
       ref="desktopInput"
       v-model="query"
       icon="i-lucide-search"
-      placeholder="Search skills…"
+      placeholder="Search skills or paste GitHub URL…"
+      name="skill-search"
+      enterkeyhint="search"
       size="sm"
       autocomplete="off"
       role="combobox"
-      aria-label="Search skills"
+      aria-label="Search skills or index a GitHub repository"
       :aria-expanded="open"
       :aria-controls="listboxId"
       :aria-activedescendant="activeDescendant"
@@ -143,10 +157,12 @@ const activeDescendant = computed(() =>
           ref="mobileInput"
           v-model="query"
           icon="i-lucide-search"
-          placeholder="Search skills…"
+          placeholder="Search skills or paste GitHub URL…"
+          name="skill-search-mobile"
+          enterkeyhint="search"
           size="lg"
           autocomplete="off"
-          aria-label="Search skills"
+          aria-label="Search skills or index a GitHub repository"
           class="mb-2 w-full md:hidden"
           :ui="{ base: 'font-mono' }"
           @keydown.down="onArrow($event, 1)"

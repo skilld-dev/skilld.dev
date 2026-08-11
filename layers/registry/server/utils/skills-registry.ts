@@ -114,6 +114,7 @@ export interface SkillsQuery {
   tags?: string[]
   tagMode?: 'and' | 'or'
   sort?: 'stars' | 'name' | 'owner' | 'likes'
+  uniqueOwners?: boolean
   page?: number
   limit?: number
   officialOwners?: Set<string>
@@ -151,9 +152,19 @@ function chunkRepos(repos: RepoRef[]): RepoRef[][] {
   return chunks
 }
 
+function firstSkillPerOwner<T extends { skill: { owner: string } }>(groups: T[]): T[] {
+  const owners = new Set<string>()
+  return groups.filter((group) => {
+    if (owners.has(group.skill.owner))
+      return false
+    owners.add(group.skill.owner)
+    return true
+  })
+}
+
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
-  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', page = 1, limit = 60, officialOwners, includeDependencies = false } = opts
+  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', uniqueOwners = false, page = 1, limit = 60, officialOwners, includeDependencies = false } = opts
 
   const conditions: string[] = [NOT_BROKEN_SQL]
   const params: (string | number)[] = []
@@ -248,10 +259,11 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     // Collapsing after ranking keeps each group at its best member's position.
     const collapsed = collapseSearchDuplicates(ranked)
 
-    const total = collapsed.length
+    const scoped = uniqueOwners ? firstSkillPerOwner(collapsed) : collapsed
+    const total = scoped.length
     const start = (page - 1) * limit
     const facetCounts = new Map<string, number>()
-    for (const group of collapsed)
+    for (const group of scoped)
       facetCounts.set(group.skill.owner, (facetCounts.get(group.skill.owner) ?? 0) + 1)
     const facets = [...facetCounts.entries()]
       .map(([owner, count]) => ({ owner, count }))
@@ -259,7 +271,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
       .slice(0, 20)
 
     return {
-      items: collapsed.slice(start, start + limit).map(group => ({
+      items: scoped.slice(start, start + limit).map(group => ({
         ...group.skill,
         sourceCount: group.sourceCount,
         alternateSources: group.alternateSources,
@@ -272,24 +284,50 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     }
   }
 
-  // Count query
-  const countStmt = db.prepare(`SELECT COUNT(*) as total ${FROM_SKILLS_JOIN_REPOS} ${where}`).bind(...params)
-
   // Sort
   let orderBy: string
-  if (sort === 'name')
-    orderBy = 's.name ASC'
-  else if (sort === 'owner')
-    orderBy = 's.owner ASC, s.name ASC'
+  let rankedOrderBy: string
+  if (sort === 'name') {
+    [orderBy, rankedOrderBy] = ['s.name ASC', 'name ASC']
+  }
+  else if (sort === 'owner') {
+    [orderBy, rankedOrderBy] = ['s.owner ASC, s.name ASC', 'owner ASC, name ASC']
+  }
   // Opt-in only: stars stays the default order (ADR-0003). Stars break the tie
   // so a wall of zero-like skills still lands in a defensible sequence.
-  else if (sort === 'likes')
-    orderBy = 's.like_count DESC, r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC'
-  else orderBy = 'r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC'
+  else if (sort === 'likes') {
+    [orderBy, rankedOrderBy] = [
+      's.like_count DESC, r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC',
+      'like_count DESC, stars DESC, owner ASC, repo ASC, name ASC',
+    ]
+  }
+  else {
+    [orderBy, rankedOrderBy] = [
+      'r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC',
+      'stars DESC, owner ASC, repo ASC, name ASC',
+    ]
+  }
+
+  // Count and page the selected result grain: every skill, or one skill per owner.
+  const countExpression = uniqueOwners ? 'COUNT(DISTINCT s.owner)' : 'COUNT(*)'
+  const countStmt = db
+    .prepare(`SELECT ${countExpression} as total ${FROM_SKILLS_JOIN_REPOS} ${where}`)
+    .bind(...params)
 
   const offset = (page - 1) * limit
   const dataStmt = db
-    .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
+    .prepare(uniqueOwners
+      ? `WITH ranked_skills AS (
+          SELECT ${SELECT_SKILL_ROW},
+            ROW_NUMBER() OVER (PARTITION BY s.owner ORDER BY ${orderBy}) AS owner_rank
+          ${FROM_SKILLS_JOIN_REPOS}
+          ${where}
+        )
+        SELECT * FROM ranked_skills
+        WHERE owner_rank = 1
+        ORDER BY ${rankedOrderBy}
+        LIMIT ? OFFSET ?`
+      : `SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
     .bind(...params, limit, offset)
 
   // Facets: top owners from filtered results

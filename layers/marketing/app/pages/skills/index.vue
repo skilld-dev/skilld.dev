@@ -45,7 +45,7 @@ watch([debouncedSearch, page, owner, tags, tagMode, sort], async () => {
   await navigateTo({ query }, { replace: true })
 }, { deep: true })
 
-watch([debouncedSearch, tags, owner, tagMode], () => {
+watch([debouncedSearch, tags, owner, tagMode, sort], () => {
   page.value = 1
 }, { deep: true })
 
@@ -57,6 +57,7 @@ const { isBot } = useBotDetection()
 const isFiltering = computed(() =>
   !!debouncedSearch.value || tags.value.length > 0 || !!owner.value,
 )
+const showTopSkillPerOwner = computed(() => !isFiltering.value)
 
 // Tag facets
 const { data: tagFacets } = useFetch('/api/skills/tags', {
@@ -112,6 +113,7 @@ const registryQuery = computed(() => ({
   page: page.value,
   limit: PAGE_SIZE,
   sort: sort.value,
+  ...(showTopSkillPerOwner.value ? { uniqueOwners: true } : {}),
   ...(debouncedSearch.value ? { q: debouncedSearch.value } : {}),
   ...(owner.value ? { owner: owner.value } : {}),
   ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
@@ -446,10 +448,16 @@ function selectOwner(next: string) {
             Matching skills
           </template>
           <template v-else>
-            Every skill in the registry
+            Top skill from each author
           </template>
           <span v-if="registryView._tag === 'ready'" class="data-label ml-2">
-            {{ registryView.data.total.toLocaleString() }} {{ registryView.data.total === 1 ? 'skill' : 'skills' }}
+            {{ registryView.data.total.toLocaleString() }}
+            <template v-if="showTopSkillPerOwner">
+              {{ registryView.data.total === 1 ? 'author' : 'authors' }}
+            </template>
+            <template v-else>
+              {{ registryView.data.total === 1 ? 'skill' : 'skills' }}
+            </template>
           </span>
         </h2>
 
@@ -540,7 +548,8 @@ function selectOwner(next: string) {
       <SkillTable
         v-else-if="registryView._tag === 'ready'"
         :skills="registryView.data.items"
-        :aria-label="isFiltering ? 'Matching skills' : 'All skills'"
+        :metric="sort"
+        :aria-label="isFiltering ? 'Matching skills' : 'Top skill from each author'"
       />
 
       <nav

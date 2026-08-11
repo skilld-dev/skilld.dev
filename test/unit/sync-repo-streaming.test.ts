@@ -137,6 +137,18 @@ describe('syncRepo bounded working set', () => {
     expect(sqlite.prepare(`SELECT repo_skill_count FROM repos`).pluck().get()).toBe(count)
   })
 
+  it('admits a submitted skill without claiming owner verification', async () => {
+    github.getTree.mockResolvedValue(bigTree(1))
+    github.getBlobsBatch.mockImplementation(serveRequestedBlobs())
+
+    const result = await syncRepo('acme', 'skills', {}, db, { submitted: true })
+
+    expect(result).toMatchObject({ status: 'indexed', skillsUpserted: 1 })
+    expect(sqlite.prepare(
+      `SELECT name, owner_verified FROM skills`,
+    ).get()).toEqual({ name: 's0', owner_verified: 0 })
+  })
+
   it('does not acknowledge the tree when a later slice fails', async () => {
     insertRepo(sqlite, 'old-tree')
     github.getTree.mockResolvedValue(bigTree(SKILL_SLICE_SIZE * 2))
