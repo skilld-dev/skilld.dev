@@ -21,6 +21,10 @@ export default defineNuxtConfig({
     },
   },
 
+  nuxtDx: {
+    report: true,
+  },
+
   modules: [
     '@harlan-zw/nuxt-cf-jobs',
     '@harlan-zw/nuxt-cloudflare',
