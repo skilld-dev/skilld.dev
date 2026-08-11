@@ -105,6 +105,99 @@ export const SKILL_SLICE_SIZE = 50
  */
 export const EXISTING_SKILL_ASSET_CHUNK = 15
 
+/**
+ * Character budget for one `db.batch()` call.
+ *
+ * The 2026-08-10 chunking bounded `loadExistingSkillAssets`, which reads a small
+ * column, and left the actual overflow untouched: the slice batch binds
+ * `rendered_raw` and `rendered_html` for every admitted skill at once, so its
+ * size tracks skill *content*, not skill count. `garrytan/gstack` holds 58
+ * skills averaging 192 KB of rendered HTML, and one 50-skill slice serialized to
+ * 48,516,427 bytes against a 32 MiB ceiling, failing on every hourly tick from
+ * 2026-08-10T04:17Z onward.
+ *
+ * Bounding by count cannot fix this, because one skill's content is unbounded.
+ * The budget is in characters, and the measured production ratio was 48,516,427
+ * serialized bytes for roughly 12.4M bound characters, near 3.9 bytes per
+ * character once escaping is counted. Eight million characters therefore lands
+ * around 31 MB, under the ceiling with room for statement text and metadata.
+ */
+export const D1_BATCH_CHAR_BUDGET = 8_000_000
+
+/** A prepared write and the bound payload size that decides which batch it joins. */
+export interface WeightedWrite {
+  statement: D1PreparedStatement
+  chars: number
+}
+
+/**
+ * Bind a statement and measure it in the same step.
+ *
+ * Returning the pair together is what keeps an unmeasured statement out of the
+ * queue: there is no way to push a write without its weight.
+ */
+export function weighWrite(db: D1Database, sql: string, params: unknown[]): WeightedWrite {
+  let chars = sql.length
+  for (const param of params) {
+    // Only strings can carry unbounded payload; numbers and nulls are noise.
+    chars += typeof param === 'string' ? param.length : 8
+  }
+  return { statement: db.prepare(sql).bind(...params), chars }
+}
+
+/**
+ * Split writes into contiguous groups that each stay inside the budget.
+ *
+ * Contiguous is enough because every write in the slice batch is idempotent (an
+ * upsert, an `INSERT OR IGNORE`, or a `NOT EXISTS` guard), which is the same
+ * property that already lets a run die mid-repo and be replayed. Splitting
+ * therefore costs atomicity that was never relied on.
+ *
+ * A single write heavier than the whole budget still gets its own group. It
+ * cannot be split further, and refusing it would strand the repository forever
+ * rather than failing one oversized skill.
+ */
+export function planWriteBatches(weights: number[], budget: number = D1_BATCH_CHAR_BUDGET): number[][] {
+  const groups: number[][] = []
+  let current: number[] = []
+  let running = 0
+  for (let index = 0; index < weights.length; index += 1) {
+    const weight = weights[index] ?? 0
+    if (current.length > 0 && running + weight > budget) {
+      groups.push(current)
+      current = []
+      running = 0
+    }
+    current.push(index)
+    running += weight
+  }
+  if (current.length > 0)
+    groups.push(current)
+  return groups
+}
+
+/**
+ * Run weighted writes as one or more batches, returning results in input order.
+ *
+ * Callers index the result array by the position they pushed at
+ * (`revisionWriteIndexes`, `activityWriteIndexes`), so the split has to be
+ * invisible to them or the change-count accounting silently reads the wrong row.
+ */
+export async function runBoundedBatch(
+  db: D1Database,
+  writes: WeightedWrite[],
+  budget: number = D1_BATCH_CHAR_BUDGET,
+): Promise<D1Result[]> {
+  const results: D1Result[] = Array.from({ length: writes.length })
+  for (const group of planWriteBatches(writes.map(write => write.chars), budget)) {
+    const batch = await db.batch(group.map(index => writes[index]!.statement))
+    group.forEach((index, position) => {
+      results[index] = batch[position]!
+    })
+  }
+  return results
+}
+
 function slices<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size)
@@ -810,7 +903,7 @@ export async function syncRepo(
         .map(skill => [skill.name, skill.assets]),
     )
     const assetsByDir = collectAssetsByDir(tree.tree, new Set(slice.map(f => f.dirPath)))
-    const writes: D1PreparedStatement[] = []
+    const writes: WeightedWrite[] = []
     const revisionWriteIndexes: number[] = []
     const activityWriteIndexes: number[] = []
 
@@ -833,7 +926,8 @@ export async function syncRepo(
       const ownerVerificationChanged = opts.ownerVerified === true && prev.owner_verified !== 1
 
       seenNames.add(prev.name)
-      writes.push(db.prepare(
+      writes.push(weighWrite(
+        db,
         `UPDATE skills
          SET references_count = ?,
              assets = ?,
@@ -842,34 +936,39 @@ export async function syncRepo(
              source_resolved = 1,
              owner_verified = MAX(owner_verified, ?)
          WHERE owner = ? AND repo = ? AND name = ?`,
-      ).bind(
-        refsCount,
-        assetsJson,
-        now,
-        opts.ownerVerified ? 1 : 0,
-        owner,
-        repo,
-        prev.name,
+        [
+          refsCount,
+          assetsJson,
+          now,
+          opts.ownerVerified ? 1 : 0,
+          owner,
+          repo,
+          prev.name,
+        ],
       ))
       stats.skillsUpserted += 1
 
       if (referencesChanged) {
-        writes.push(db.prepare(
+        writes.push(weighWrite(
+          db,
           `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
            VALUES (?, ?, ?, 'references_changed', ?, 0)
            ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
              queued_at = excluded.queued_at,
              attempts = 0`,
-        ).bind(owner, repo, prev.name, now))
+          [owner, repo, prev.name, now],
+        ))
       }
       if (ownerVerificationChanged) {
-        writes.push(db.prepare(
+        writes.push(weighWrite(
+          db,
           `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
            VALUES (?, ?, ?, 'owner_verified', ?, 0)
            ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
              queued_at = excluded.queued_at,
              attempts = 0`,
-        ).bind(owner, repo, prev.name, now))
+          [owner, repo, prev.name, now],
+        ))
       }
     }
 
@@ -1061,14 +1160,17 @@ export async function syncRepo(
           if (occurredAt == null)
             continue
           revisionWriteIndexes.push(writes.length)
-          writes.push(db.prepare(
+          writes.push(weighWrite(
+            db,
             `INSERT OR IGNORE INTO skill_revisions (owner, repo, name, sha, modified_at, author_login, message)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          ).bind(owner, repo, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message))
+            [owner, repo, parsed.name, c.sha, occurredAt, c.author?.login ?? null, c.commit.message],
+          ))
         }
       }
 
-      writes.push(db.prepare(
+      writes.push(weighWrite(
+        db,
         `INSERT INTO skills (
              name, owner, repo, display_name, installs, slug,
              description,
@@ -1113,53 +1215,57 @@ export async function syncRepo(
              rendered_html = excluded.rendered_html,
              rendered_at = excluded.rendered_at,
              owner_verified = MAX(skills.owner_verified, excluded.owner_verified)`,
-      ).bind(
-        parsed.name,
-        owner,
-        repo,
-        parsed.displayName,
-        `${owner}/${parsed.name}`,
-        description,
-        file.treeSha,
-        modifiedAt,
-        firstSeenAt,
-        refsCount,
-        JSON.stringify(assets),
-        now,
-        isOfficial ? 1 : 0,
-        indexability.score,
-        indexability.indexable ? 1 : 0,
-        JSON.stringify(indexability.reasons),
-        now,
-        trust.tier,
-        trust.source,
-        trust.score,
-        JSON.stringify(trust.reasons),
-        now,
-        file.path,
-        raw,
-        renderedRawSha256,
-        JSON.stringify(rendered.frontmatter),
-        rendered.html,
-        now,
-        ownerVerified ? 1 : 0,
+        [
+          parsed.name,
+          owner,
+          repo,
+          parsed.displayName,
+          `${owner}/${parsed.name}`,
+          description,
+          file.treeSha,
+          modifiedAt,
+          firstSeenAt,
+          refsCount,
+          JSON.stringify(assets),
+          now,
+          isOfficial ? 1 : 0,
+          indexability.score,
+          indexability.indexable ? 1 : 0,
+          JSON.stringify(indexability.reasons),
+          now,
+          trust.tier,
+          trust.source,
+          trust.score,
+          JSON.stringify(trust.reasons),
+          now,
+          file.path,
+          raw,
+          renderedRawSha256,
+          JSON.stringify(rendered.frontmatter),
+          rendered.html,
+          now,
+          ownerVerified ? 1 : 0,
+        ],
       ))
       stats.skillsUpserted += 1
 
       if (ownerVerified) {
-        writes.push(db.prepare(
+        writes.push(weighWrite(
+          db,
           `INSERT INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
            VALUES (?, ?, ?, 'owner_verified', ?, 0)
            ON CONFLICT(owner, repo, name, reason) DO UPDATE SET
              queued_at = excluded.queued_at,
              attempts = 0`,
-        ).bind(owner, repo, parsed.name, now))
+          [owner, repo, parsed.name, now],
+        ))
       }
 
       if (isNewToRegistry) {
         const occurredAt = modifiedAt ?? now
         activityWriteIndexes.push(writes.length)
-        writes.push(db.prepare(
+        writes.push(weighWrite(
+          db,
           `INSERT INTO activity (type, owner, repo, name, occurred_at, ingested_at, sha)
            SELECT 'skill_published', ?, ?, ?, ?, ?, ?
            WHERE NOT EXISTS (
@@ -1167,23 +1273,25 @@ export async function syncRepo(
              WHERE type = 'skill_published' AND owner = ? AND repo = ? AND name = ?
                AND sha IS ?
            )`,
-        ).bind(
-          owner,
-          repo,
-          parsed.name,
-          occurredAt,
-          now,
-          file.treeSha,
-          owner,
-          repo,
-          parsed.name,
-          file.treeSha,
+          [
+            owner,
+            repo,
+            parsed.name,
+            occurredAt,
+            now,
+            file.treeSha,
+            owner,
+            repo,
+            parsed.name,
+            file.treeSha,
+          ],
         ))
       }
       else if (contentChanged) {
         const occurredAt = modifiedAt ?? now
         activityWriteIndexes.push(writes.length)
-        writes.push(db.prepare(
+        writes.push(weighWrite(
+          db,
           `INSERT INTO activity (type, owner, repo, name, occurred_at, ingested_at, sha)
            SELECT 'skill_updated', ?, ?, ?, ?, ?, ?
            WHERE NOT EXISTS (
@@ -1191,17 +1299,18 @@ export async function syncRepo(
              WHERE type = 'skill_updated' AND owner = ? AND repo = ? AND name = ?
                AND sha IS ?
            )`,
-        ).bind(
-          owner,
-          repo,
-          parsed.name,
-          occurredAt,
-          now,
-          file.treeSha,
-          owner,
-          repo,
-          parsed.name,
-          file.treeSha,
+          [
+            owner,
+            repo,
+            parsed.name,
+            occurredAt,
+            now,
+            file.treeSha,
+            owner,
+            repo,
+            parsed.name,
+            file.treeSha,
+          ],
         ))
       }
     }
@@ -1209,9 +1318,11 @@ export async function syncRepo(
     // Each slice commits on its own so its blobs, rendered HTML, and prepared
     // statements can be released before the next slice is fetched. Every write
     // here is idempotent (upsert, INSERT OR IGNORE, or guarded by NOT EXISTS),
-    // so a run that dies mid-repo is replayed safely rather than lost.
+    // so a run that dies mid-repo is replayed safely rather than lost. That same
+    // property lets the slice split again by payload size, which is what keeps a
+    // content-heavy repository under the 32 MiB RPC ceiling.
     if (writes.length > 0) {
-      const results = await db.batch(writes)
+      const results = await runBoundedBatch(db, writes)
       for (const index of revisionWriteIndexes)
         stats.revisionsInserted += results[index]?.meta?.changes ?? 0
       for (const index of activityWriteIndexes)
