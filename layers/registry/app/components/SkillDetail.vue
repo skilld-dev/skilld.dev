@@ -793,9 +793,9 @@ useHead(computed(() => ({
         <div class="min-w-0">
           <div class="flex items-start gap-3">
             <NuxtLink
-              :to="repoHubPath(data.owner, data.repo)"
+              :to="ownerHubPath(data.owner)"
               class="shrink-0"
-              :aria-label="`${data.owner}/${data.repo} repository`"
+              :aria-label="`${data.owner} skill profile`"
             >
               <img
                 :src="`https://github.com/${data.owner}.png?size=96`"

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { OrgProfile } from '../../../../server/api/orgs/[owner].get'
+import { resolveOwnerProfileHandoff } from '../../../utils/owner-profile-handoff'
 
 const route = useRoute()
 const ownerParam = computed(() => (route.params.owner as string).toLowerCase())
+const { isAuthenticated, user, loginUrl } = useAuth()
 
 const { isBot } = useBotDetection()
 
@@ -20,6 +22,18 @@ const canonicalUrl = computed(() => `${siteOrigin}${ownerHubPath(ownerParam.valu
 
 const isUser = computed(() => data.value?.kind === 'user')
 const kindLabel = computed(() => isUser.value ? 'person' : 'org')
+const profileHandoff = computed(() => {
+  const profile = data.value
+  if (!profile)
+    return { _tag: 'hidden' } as const
+
+  const viewer = isAuthenticated.value && user.value
+    ? { _tag: 'signed-in' as const, login: user.value.login }
+    : { _tag: 'anonymous' as const }
+
+  return resolveOwnerProfileHandoff(profile.kind, profile.owner, viewer)
+})
+const profileLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
 
 const headline = computed(() => {
   if (!data.value)
@@ -364,6 +378,56 @@ useSchemaOrg(computed(() => {
               variant="ghost"
               size="sm"
               :aria-label="`${data.displayName} website (opens in new tab)`"
+            />
+          </div>
+
+          <div
+            v-if="profileHandoff._tag === 'sign-in'"
+            class="mt-5 max-w-2xl border-t border-default pt-4"
+          >
+            <p class="font-mono text-sm font-medium">
+              Is this your GitHub account?
+            </p>
+            <div class="mt-1 max-w-xl space-y-1 text-sm leading-relaxed text-muted">
+              <p>Sign in as @{{ data.owner }} with GitHub.</p>
+              <p>Your indexed skills will appear in Community.</p>
+              <p>skilld will also check your public repositories for other <code>SKILL.md</code> files.</p>
+            </div>
+            <UButton
+              :href="profileLoginHref"
+              icon="i-lucide-github"
+              label="Sign in with GitHub"
+              color="primary"
+              variant="solid"
+              size="md"
+              class="mt-3 min-h-11"
+            />
+          </div>
+
+          <div
+            v-else-if="profileHandoff._tag === 'owner'"
+            class="mt-5 max-w-2xl border-t border-default pt-4"
+          >
+            <p class="flex items-center gap-2 font-mono text-sm font-medium">
+              <UIcon
+                name="i-lucide-circle-check"
+                class="size-4 text-primary"
+                aria-hidden="true"
+              />
+              This is your skill profile
+            </p>
+            <div class="mt-1 max-w-xl space-y-1 text-sm leading-relaxed text-muted">
+              <p>Your indexed skills appear on your Community profile.</p>
+              <p>skilld also checks your public repositories for other <code>SKILL.md</code> files.</p>
+            </div>
+            <UButton
+              :to="`/@${data.owner}`"
+              icon="i-lucide-user-round"
+              label="View Community profile"
+              color="neutral"
+              variant="outline"
+              size="md"
+              class="mt-3 min-h-11"
             />
           </div>
         </div>

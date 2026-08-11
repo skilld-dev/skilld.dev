@@ -23,6 +23,7 @@ interface LikeListResponse {
  * this never leaks state between requests.
  */
 let inflight: Promise<void> | null = null
+const ensureLikeInflight = new Map<string, Promise<boolean>>()
 
 /**
  * Skill cards render inside SSR'd, cached marketing pages, so heart state
@@ -100,7 +101,42 @@ export function useLikes() {
     return !wasLiked
   }
 
-  return { liked, isLiked, isPending, ensureLoaded, toggle }
+  /** Idempotent unlike `toggle`: automatic flows can only move toward liked. */
+  async function ensureLiked(ref: SkillLikeRef): Promise<boolean> {
+    if (!isAuthenticated.value)
+      return false
+
+    await ensureLoaded()
+    const key = likeKey(ref)
+    if (liked.value[key])
+      return true
+
+    const existing = ensureLikeInflight.get(key)
+    if (existing)
+      return existing
+
+    liked.value = applyLiked(liked.value, key, true)
+    pending.value = { ...pending.value, [key]: true }
+
+    const request = $fetch<{ ok: true }>('/api/me/likes', { method: 'POST', body: ref })
+      .then(() => true)
+      .catch(fail('save your like'))
+      .then((result) => {
+        if (!result)
+          liked.value = applyLiked(liked.value, key, false)
+        const { [key]: _dropped, ...restPending } = pending.value
+        pending.value = restPending
+        return result === true
+      })
+      .finally(() => {
+        ensureLikeInflight.delete(key)
+      })
+
+    ensureLikeInflight.set(key, request)
+    return request
+  }
+
+  return { liked, isLiked, isPending, ensureLoaded, ensureLiked, toggle }
 }
 
 function applyLiked(map: Record<string, true>, key: string, next: boolean): Record<string, true> {

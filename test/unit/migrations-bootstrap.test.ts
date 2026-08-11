@@ -309,7 +309,9 @@ describe('d1 migration bootstrap', () => {
       `).pluck().get()).toContain('PRIMARY KEY (user_id, owner, repo, name)')
       expect(sqlite.prepare(`SELECT COUNT(*) FROM pragma_table_info('skills') WHERE name = 'like_count'`)
         .pluck().get()).toBe(1)
-      expect(migrations.at(-1)).toBe('0095_skill_likes.sql')
+      expect(sqlite.prepare(`SELECT COUNT(*) FROM pragma_table_info('repo_sync_progress') WHERE name = 'total_skills'`)
+        .pluck().get()).toBe(1)
+      expect(migrations.at(-1)).toBe('0096_repo_sync_progress_total.sql')
     }
     finally {
       sqlite.close()

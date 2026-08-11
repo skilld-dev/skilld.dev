@@ -58,6 +58,7 @@ interface RepoProgressRow {
   tree_sha: string | null
   checked_at: number
   next_offset: number
+  total_skills: number | null
 }
 
 type RepoProgressClaim
@@ -75,13 +76,14 @@ async function claimRepoProgress(
 ): Promise<RepoProgressClaim> {
   await db.prepare(
     `INSERT INTO repo_sync_progress (
-       owner, repo, job_id, tree_sha, checked_at, next_offset, updated_at
-     ) VALUES (?, ?, ?, NULL, ?, 0, ?)
+       owner, repo, job_id, tree_sha, checked_at, next_offset, total_skills, updated_at
+     ) VALUES (?, ?, ?, NULL, ?, 0, NULL, ?)
      ON CONFLICT(owner, repo) DO UPDATE SET
        job_id = excluded.job_id,
        tree_sha = NULL,
        checked_at = excluded.checked_at,
        next_offset = 0,
+       total_skills = NULL,
        updated_at = excluded.updated_at
      WHERE repo_sync_progress.updated_at <= ?`,
   ).bind(
@@ -93,7 +95,7 @@ async function claimRepoProgress(
     input.now - REPO_PROGRESS_STALE_SECONDS,
   ).run()
   const row = await db.prepare(
-    `SELECT job_id, tree_sha, checked_at, next_offset
+    `SELECT job_id, tree_sha, checked_at, next_offset, total_skills
      FROM repo_sync_progress
      WHERE owner = ? AND repo = ?`,
   ).bind(input.owner, input.repo).first<RepoProgressRow>()
@@ -111,17 +113,19 @@ async function saveRepoProgress(
     treeSha: string
     checkedAt: number
     nextOffset: number
+    totalSkills: number
     now: number
   },
 ): Promise<void> {
   const result = await db.prepare(
     `UPDATE repo_sync_progress
-     SET tree_sha = ?, checked_at = ?, next_offset = ?, updated_at = ?
+     SET tree_sha = ?, checked_at = ?, next_offset = ?, total_skills = ?, updated_at = ?
      WHERE owner = ? AND repo = ? AND job_id = ?`,
   ).bind(
     input.treeSha,
     input.checkedAt,
     input.nextOffset,
+    input.totalSkills,
     input.now,
     input.owner,
     input.repo,
@@ -137,7 +141,7 @@ async function resetRepoProgress(
 ): Promise<void> {
   await db.prepare(
     `UPDATE repo_sync_progress
-     SET tree_sha = NULL, checked_at = ?, next_offset = 0, updated_at = ?
+     SET tree_sha = NULL, checked_at = ?, next_offset = 0, total_skills = NULL, updated_at = ?
      WHERE owner = ? AND repo = ? AND job_id = ?`,
   ).bind(input.now, input.now, input.owner, input.repo, input.jobId).run()
 }
@@ -330,6 +334,7 @@ export async function handleRegistryRepoJob(
       treeSha: stats.continuation.treeSha,
       checkedAt: stats.continuation.checkedAt,
       nextOffset: stats.continuation.nextOffset,
+      totalSkills: stats.skillsSeen,
       now: Math.floor(Date.now() / 1000),
     })
     ctx.reportStats?.({

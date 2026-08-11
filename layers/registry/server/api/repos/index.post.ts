@@ -37,6 +37,7 @@ export default defineApiHandler({
       _tag: 'queued' as const,
       repository,
       jobId: queued.jobId,
+      progress: { _tag: 'queued' as const },
     }
   },
 })

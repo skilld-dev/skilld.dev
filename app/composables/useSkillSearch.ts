@@ -1,9 +1,11 @@
 import type { GitHubRepository } from '#shared/github-repository'
-import type { IndexedRepositorySkill } from '#shared/repository-index'
+import type { IndexedRepositorySkill, RepositoryIndexProgress } from '#shared/repository-index'
+import type { IndexedSkillsLikeResult } from '../utils/repository-index-likes'
 import type { TypeaheadHit, TypeaheadTuple } from '../utils/skill-typeahead'
 import { createSharedComposable, promiseTimeout, refDebounced, useLocalStorage } from '@vueuse/core'
 import { parseGitHubRepositoryUrl } from '#shared/github-repository'
 import { indexGitHubRepository } from '../utils/repository-index'
+import { likeIndexedSkills } from '../utils/repository-index-likes'
 import { matchTypeahead } from '../utils/skill-typeahead'
 
 /** Debounce before hitting the network. Local hits render with no delay. */
@@ -53,9 +55,24 @@ export type SearchMode = 'hybrid' | 'lexical' | 'semantic'
 
 export type RepositorySearchStatus
   = | { _tag: 'idle' }
-    | { _tag: 'pending' }
+    | { _tag: 'pending', progress: RepositoryIndexProgress }
     | { _tag: 'indexed', skills: IndexedRepositorySkill[] }
     | { _tag: 'error', reason: string }
+
+export type RepositoryLikeStatus
+  = | { _tag: 'pending' }
+    | IndexedSkillsLikeResult
+
+export type RepositoryIndexTask
+  = | { _tag: 'idle' }
+    | { _tag: 'indexing', repository: GitHubRepository, progress: RepositoryIndexProgress }
+    | {
+      _tag: 'indexed'
+      repository: GitHubRepository
+      skills: IndexedRepositorySkill[]
+      likes: RepositoryLikeStatus
+    }
+    | { _tag: 'failed', repository: GitHubRepository, reason: string }
 
 export type SearchState
   = | { _tag: 'empty' }
@@ -90,6 +107,8 @@ function skillKey(skill: Pick<SearchSkill, 'owner' | 'repo' | 'name'>): string {
 }
 
 function useSkillSearchInternal() {
+  const { isAuthenticated } = useAuth()
+  const { ensureLiked } = useLikes()
   const query = ref('')
   const open = ref(false)
   const activeIndex = ref(0)
@@ -122,13 +141,20 @@ function useSkillSearchInternal() {
     const parsed = parseGitHubRepositoryUrl(trimmedQuery.value)
     return parsed._tag === 'repository' ? parsed : null
   })
-  const repositoryStatus = shallowRef<RepositorySearchStatus>({ _tag: 'idle' })
+  const repositoryTask = shallowRef<RepositoryIndexTask>({ _tag: 'idle' })
+  const repositoryModalOpen = ref(false)
   let repositoryAttempt = 0
 
-  watch(() => repository.value?.url ?? null, () => {
-    repositoryAttempt += 1
-    repositoryStatus.value = { _tag: 'idle' }
-  })
+  function statusForRepository(repositoryValue: GitHubRepository): RepositorySearchStatus {
+    const task = repositoryTask.value
+    if (task._tag === 'idle' || task.repository.url !== repositoryValue.url)
+      return { _tag: 'idle' }
+    if (task._tag === 'indexing')
+      return { _tag: 'pending', progress: task.progress }
+    if (task._tag === 'indexed')
+      return { _tag: 'indexed', skills: task.skills }
+    return { _tag: 'error', reason: task.reason }
+  }
 
   /** Instant, network-free matches for the query as currently typed. */
   const localRows = computed<SearchRow[]>(() =>
@@ -203,7 +229,7 @@ function useSkillSearchInternal() {
 
     const repositoryValue = repository.value
     if (repositoryValue) {
-      const status = repositoryStatus.value
+      const status = statusForRepository(repositoryValue)
       const repositoryRows: SearchRow[] = status._tag === 'idle'
         ? [{ _tag: 'repository', repository: repositoryValue }]
         : status._tag === 'indexed'
@@ -283,7 +309,14 @@ function useSkillSearchInternal() {
 
   async function submitRepository(repositoryValue: GitHubRepository): Promise<void> {
     const attempt = ++repositoryAttempt
-    repositoryStatus.value = { _tag: 'pending' }
+    repositoryTask.value = {
+      _tag: 'indexing',
+      repository: repositoryValue,
+      progress: { _tag: 'queued' },
+    }
+    repositoryModalOpen.value = true
+    open.value = false
+    query.value = ''
     const result = await indexGitHubRepository(repositoryValue, {
       submit: repositoryInput => $fetch('/api/repos', {
         method: 'POST',
@@ -291,6 +324,15 @@ function useSkillSearchInternal() {
       }),
       status: jobId => $fetch(`/api/repos/index/${encodeURIComponent(jobId)}`),
       wait: () => promiseTimeout(1500),
+      onProgress: (progress) => {
+        if (attempt === repositoryAttempt) {
+          repositoryTask.value = {
+            _tag: 'indexing',
+            repository: repositoryValue,
+            progress,
+          }
+        }
+      },
     }).catch((error) => {
       console.warn('[search] repository indexing unavailable', error)
       return {
@@ -302,20 +344,43 @@ function useSkillSearchInternal() {
     if (attempt !== repositoryAttempt)
       return
 
-    repositoryStatus.value = result._tag === 'indexed'
-      ? { _tag: 'indexed', skills: result.skills }
-      : {
-          _tag: 'error',
-          reason: result._tag === 'failed'
-            ? result.reason
-            : 'Repository indexing is taking longer than expected. Try again shortly.',
-        }
+    if (result._tag !== 'indexed') {
+      repositoryTask.value = {
+        _tag: 'failed',
+        repository: repositoryValue,
+        reason: result._tag === 'failed'
+          ? result.reason
+          : 'Repository indexing is taking longer than expected. Try again shortly.',
+      }
+      return
+    }
+
+    repositoryTask.value = {
+      _tag: 'indexed',
+      repository: repositoryValue,
+      skills: result.skills,
+      likes: isAuthenticated.value ? { _tag: 'pending' } : { _tag: 'anonymous' },
+    }
+    const likes = await likeIndexedSkills(repositoryValue, result.skills, {
+      authenticated: isAuthenticated.value,
+      ensureLiked,
+    })
+    if (attempt !== repositoryAttempt)
+      return
+    repositoryTask.value = {
+      _tag: 'indexed',
+      repository: repositoryValue,
+      skills: result.skills,
+      likes,
+    }
   }
 
   return {
     query,
     trimmedQuery,
     open,
+    repositoryModalOpen,
+    repositoryTask,
     state,
     rows,
     activeIndex,

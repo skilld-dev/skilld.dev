@@ -172,6 +172,10 @@ const activeDescendant = computed(() =>
         <SkillSearchPanel @select="(row) => { void select(row) }" />
       </div>
     </Transition>
+
+    <ClientOnly>
+      <SkillSearchRepositoryModal />
+    </ClientOnly>
   </div>
 </template>
 

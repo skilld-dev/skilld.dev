@@ -5,6 +5,11 @@ export interface IndexedRepositorySkill {
   slug: string
 }
 
+export type RepositoryIndexProgress
+  = | { _tag: 'queued' }
+    | { _tag: 'checking' }
+    | { _tag: 'indexing', indexed: number, total: number }
+
 export type SubmitRepositoryIndexResponse
   = | {
     _tag: 'indexed'
@@ -15,12 +20,14 @@ export type SubmitRepositoryIndexResponse
     _tag: 'queued'
     repository: GitHubRepository
     jobId: string
+    progress: RepositoryIndexProgress
   }
 
 export type RepositoryIndexStatusResponse
   = | {
     _tag: 'queued'
     repository: GitHubRepository
+    progress: RepositoryIndexProgress
   }
   | {
     _tag: 'indexed'
