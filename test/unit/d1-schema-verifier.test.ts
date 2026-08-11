@@ -261,11 +261,11 @@ describe('@harlan-zw/nuxt-cf-jobs schema contract', () => {
     const distributedSchemaSource = readFileSync(schemaSourcePath, 'utf8')
 
     expect(verifyCfJobsPackageContract({
-      installedVersion: '0.0.2',
+      installedVersion: '0.0.3',
       distributedSchemaSource,
     })).toMatchObject({
       _tag: 'fail',
-      issues: [{ _tag: 'package_version_mismatch', expected: '0.0.1', actual: '0.0.2' }],
+      issues: [{ _tag: 'package_version_mismatch', expected: '0.0.2', actual: '0.0.3' }],
     })
   })
 })
