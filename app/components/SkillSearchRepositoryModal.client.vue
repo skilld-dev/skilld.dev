@@ -204,7 +204,7 @@ watch(repositoryTask, (task, previous) => {
             <p class="section-label">
               {{ repositoryTask._tag === 'indexed' ? 'Repository ready' : repositoryTask._tag === 'failed' ? 'Repository failed' : 'Adding repository' }}
             </p>
-            <h2 id="repository-indexing-heading" class="mt-1 truncate font-mono text-lg font-medium text-highlighted">
+            <h2 id="repository-indexing-heading" class="mt-1 break-words font-mono text-base font-medium text-highlighted sm:text-lg">
               <NuxtLink
                 v-if="repositoryTask._tag === 'indexed'"
                 :to="repoHubPath(repositoryOwner, repositoryName)"
@@ -284,7 +284,7 @@ watch(repositoryTask, (task, previous) => {
 
             <ol class="mt-5 grid grid-cols-3 gap-2" aria-label="Indexing stages">
               <li
-                v-for="(label, index) in ['Queue', 'Check GitHub', 'Index skills']"
+                v-for="(label, index) in ['Queued', 'GitHub', 'Skills']"
                 :key="label"
                 class="flex min-w-0 items-center gap-2"
                 :class="stepState(index) === 'upcoming' ? 'text-dimmed' : 'text-highlighted'"
