@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skills/leaderboard.get'
 
+// This page lists skill repositories, which is the shape of the largest term
+// cluster found in the 2026-08-12 research: `claude skills github` (2,400/mo),
+// `claude skills repo` (720), `claude skills repository` (720), `top claude
+// skills` (260). The old title matched none of them.
+//
+// "Top" rather than "best": brand guidelines ban superlatives without evidence,
+// and the evidence here is narrow and stateable, a human eligibility review plus
+// current GitHub stars. The description says exactly that, so the claim is
+// checkable rather than asserted.
 useSeoMeta({
-  title: 'Agent skill repository leaderboard',
-  description: 'Reusable skill repositories from individual GitHub creators, reviewed for eligibility and ranked by current GitHub stars.',
+  title: 'Top Claude Skill Repositories on GitHub',
+  description: 'Skill repositories from individual GitHub creators, reviewed for eligibility and ranked by current GitHub stars. Works with Claude Code, Cursor, and Codex; every repository links to the source you install from.',
 })
 
 defineOgImage('Page.takumi', {
