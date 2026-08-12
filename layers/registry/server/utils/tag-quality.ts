@@ -66,12 +66,30 @@ export const MARKETING_REDIRECTS: Record<string, string> = {
   'react': '/frameworks/react',
   'nextjs': '/frameworks/nextjs',
   'nuxt': '/frameworks/nuxt',
-  'debug': '/skills/debug',
-  'docs': '/skills/docs',
-  'plan': '/skills/plan',
-  'review': '/skills/review',
-  'ship': '/skills/ship',
-  'master-agent': '/skills/master-agent',
+  'debug': '/skills/debugging',
+  'docs': '/skills/writing',
+  'plan': '/skills/planning',
+  'review': '/skills/code-review',
+  'ship': '/skills/devops',
+  'master-agent': '/skills/context-engineering',
+  'design': '/skills/design',
+  'testing': '/skills/testing',
+  'security': '/skills/security',
+  'performance': '/skills/performance',
+  // Controlled-vocab tags whose category page answers the identical question.
+  // Two URLs listing the same skills for the same query split the signal and
+  // read as scaled content, which is the 2026-06 failure mode. The category
+  // page wins because it carries curation and a keyword-shaped title.
+  //
+  // Deliberately NOT redirected, because the tag is genuinely broader than the
+  // category and folding it in would lose coverage:
+  //   frontend (build tooling, state, routing) vs /skills/design
+  //   backend + database + data vs /skills/backend-data (curated to 5 vendors)
+  'debugging': '/skills/debugging',
+  'devops': '/skills/devops',
+  'documentation': '/skills/writing',
+  'refactoring': '/skills/code-review',
+  'seo': '/skills/seo',
 }
 
 export function getTagRedirect(slug: string): string | null {

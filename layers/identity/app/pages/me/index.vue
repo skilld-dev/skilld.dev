@@ -4,10 +4,10 @@ import type {
   IdentityEmailPatchBody,
   IdentityMutationResponse,
   IdentitySubscriptionRef,
-} from '../../shared/contracts/account'
-import type { StarsSyncResponse } from '../utils/sync-starred-repos'
-import { identityAccountQueries, identityAccountQueryOptions } from '../queries/account'
-import { syncStarredRepos } from '../utils/sync-starred-repos'
+} from '../../../shared/contracts/account'
+import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
+import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
+import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
 definePageMeta({ middleware: ['auth'] })
 

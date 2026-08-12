@@ -1,4 +1,4 @@
-import { CLUSTERS } from '../data/clusters'
+import { CLUSTERS, RENAMED_CLUSTER_SLUGS } from '../data/clusters'
 
 export type SkillsRouteDecision
   = | { _tag: 'pass' }
@@ -13,6 +13,9 @@ const marketingPaths = new Set([
   '/skills/official',
   '/skills/stats',
   ...CLUSTERS.map(cluster => `/skills/${cluster.slug}`),
+  // Renamed on 2026-08-12. They are no longer clusters, so without this they
+  // would 404 here before nuxt.config's routeRules could 301 them.
+  ...Object.keys(RENAMED_CLUSTER_SLUGS).map(slug => `/skills/${slug}`),
 ])
 
 const marketingPrefixes = ['/skills/tag/']

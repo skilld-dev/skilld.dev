@@ -18,6 +18,11 @@ interface ClusterDetailResponse {
     label: string
     icon: string
     userVoice: string
+    /** Keyword-shaped <title>; the H1 keeps `label`. */
+    seoTitle: string
+    seoDescription: string
+    /** Preamble inherited from the collection merged into this category. */
+    curatorNote: string | null
   }
   items: ClusterSkill[]
   total: number
@@ -64,26 +69,50 @@ function showMore() {
   visibleCount.value += 15
 }
 
+// The <title> is keyword-shaped ("Claude Skills for UI and Design") while the
+// H1 below keeps the editorial label. VISION principle 6 grants that carve-out
+// for search surfaces only; it never reaches product UI. The skill count is
+// appended rather than baked into seoDescription so the copy stays honest when
+// a category is thin.
+// No ` · skilld` suffix here: a global titleTemplate already appends it, and
+// adding one produced "... · skilld · skilld".
 const title = computed(() =>
-  clusterData.value ? clusterData.value.cluster.label : 'Outcome skills',
+  clusterData.value
+    ? clusterData.value.cluster.seoTitle
+    : 'Agent skills by category',
 )
 const description = computed(
   () => clusterData.value
-    ? `${clusterData.value.cluster.userVoice} ${total.value} curated skills.`
-    : 'Browse skills grouped by the outcome they help your agent achieve.',
+    ? `${clusterData.value.cluster.seoDescription} ${total.value} curated skills.`
+    : 'Browse curated agent skills grouped by the work you are doing.',
 )
+
+// The 2026-06 suppression came from publishing pages before they had anything
+// on them. A category admitted ahead of its curation is exactly that shape, so
+// it stays out of the index until a curator has filled it. Under the threshold
+// the page still renders and still serves internal nav; it just does not ask
+// Google to rank an empty list.
+const MIN_INDEXABLE_SKILLS = 3
 
 useSeoMeta({
   title,
   description,
   ogTitle: title,
   ogDescription: description,
+  robots: () => (total.value >= MIN_INDEXABLE_SKILLS ? 'index,follow' : 'noindex,follow'),
+})
+
+useHead({
+  link: [{
+    rel: 'canonical',
+    href: computed(() => `https://skilld.dev/skills/${clusterSlug.value}`),
+  }],
 })
 
 defineOgImage('Page.takumi', {
-  title: clusterData.value?.cluster.label ?? 'Outcome skills',
-  description: clusterData.value?.cluster.userVoice ?? 'Browse skills by outcome.',
-}, { alt: `${clusterData.value?.cluster.label ?? 'Outcome skills'} on skilld` })
+  title: () => clusterData.value?.cluster.label ?? 'Agent skills',
+  description: () => clusterData.value?.cluster.userVoice ?? 'Browse skills by category.',
+}, { alt: () => `${clusterData.value?.cluster.label ?? 'Agent skills'} on skilld` })
 </script>
 
 <template>
@@ -180,7 +209,7 @@ defineOgImage('Page.takumi', {
       <div class="flex flex-wrap gap-3">
         <UButton
           to="/skills"
-          label="Browse outcomes"
+          label="Browse categories"
           color="neutral"
           variant="outline"
           icon="i-lucide-arrow-left"
@@ -205,13 +234,16 @@ defineOgImage('Page.takumi', {
         <div class="grid gap-8 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:gap-12">
           <div>
             <p class="section-label">
-              First up
+              {{ clusterData.cluster.curatorNote ? 'Curated by Harlan' : 'First up' }}
             </p>
             <h2 id="starting-sequence-heading" class="cluster-section-title mt-4 max-w-[13ch]">
               Three skills to inspect.
             </h2>
             <p class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              Descriptions are brief. Open the repository for the full instructions.
+              {{
+                clusterData.cluster.curatorNote
+                  ?? 'Descriptions are brief. Open the repository for the full instructions.'
+              }}
             </p>
           </div>
 
@@ -295,7 +327,7 @@ defineOgImage('Page.takumi', {
         </p>
         <UButton
           to="/skills"
-          label="Browse outcomes"
+          label="Browse categories"
           color="neutral"
           variant="outline"
           class="mt-4 min-h-11"

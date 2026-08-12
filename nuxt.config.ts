@@ -299,6 +299,34 @@ export default defineNuxtConfig({
   // targeted caching here if/when traffic warrants it.
   routeRules: {
     '/collections': { redirect: { to: '/community', statusCode: 301 } } as any,
+    // 2026-08-12 category rework: the verb-shaped cluster slugs were renamed to
+    // the domain nouns people actually search. Search Console showed 4 clicks
+    // across 3 months, so nothing ranked here, but the old URLs shipped in the
+    // homepage grid and the tag redirect map, so they keep resolving.
+    '/skills/plan': { redirect: { to: '/skills/planning', statusCode: 301 } } as any,
+    '/skills/master-agent': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
+    '/skills/docs': { redirect: { to: '/skills/writing', statusCode: 301 } } as any,
+    '/skills/review': { redirect: { to: '/skills/code-review', statusCode: 301 } } as any,
+    '/skills/debug': { redirect: { to: '/skills/debugging', statusCode: 301 } } as any,
+    '/skills/ship': { redirect: { to: '/skills/devops', statusCode: 301 } } as any,
+    // Harlan's curated collections merged into the category pages, so each
+    // retired collection URL points at the page that absorbed it rather than
+    // 404ing. `vue-nuxt` and `react` went to the framework pages that already
+    // own those queries; `apple-apps` and `knowledge-workspace` were culled.
+    '/@harlan-zw/design-engineering-essentials': { redirect: { to: '/skills/design', statusCode: 301 } } as any,
+    '/@harlan-zw/frontend-design': { redirect: { to: '/skills/design', statusCode: 301 } } as any,
+    '/@harlan-zw/essentials': { redirect: { to: '/skills/coding', statusCode: 301 } } as any,
+    '/@harlan-zw/codebase-architecture': { redirect: { to: '/skills/planning', statusCode: 301 } } as any,
+    '/@harlan-zw/agent-workflow': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
+    '/@harlan-zw/agent-building': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
+    '/@harlan-zw/code-review': { redirect: { to: '/skills/code-review', statusCode: 301 } } as any,
+    '/@harlan-zw/web-quality': { redirect: { to: '/skills/performance', statusCode: 301 } } as any,
+    '/@harlan-zw/backend-data': { redirect: { to: '/skills/backend-data', statusCode: 301 } } as any,
+    '/@harlan-zw/browser-automation': { redirect: { to: '/skills/browser-automation', statusCode: 301 } } as any,
+    '/@harlan-zw/vue-nuxt': { redirect: { to: '/frameworks/vue', statusCode: 301 } } as any,
+    '/@harlan-zw/react': { redirect: { to: '/frameworks/react', statusCode: 301 } } as any,
+    '/@harlan-zw/apple-apps': { redirect: { to: '/skills', statusCode: 301 } } as any,
+    '/@harlan-zw/knowledge-workspace': { redirect: { to: '/skills', statusCode: 301 } } as any,
     '/_nuxt/v2/**': {
       headers: {
         'cache-control': 'public, max-age=31536000, immutable',
