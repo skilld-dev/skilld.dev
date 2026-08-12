@@ -12,12 +12,12 @@
  *   npx tsx scripts/recompute-skill-indexability.ts --emit-sql --limit 20000
  */
 
-import type { SkillTrustSource, SkillTrustTier } from '../server/utils/skill-trust'
+import type { SkillTrustSource, SkillTrustTier } from '../layers/registry/server/utils/skill-trust'
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { isCategoryPinned } from '../layers/registry/server/data/clusters'
-import { isOfficialSkillRepo, scoreSkillIndexability } from '../server/utils/skill-indexability'
-import { resolveSkillTrust } from '../server/utils/skill-trust'
+import { isOfficialSkillRepo, scoreSkillIndexability } from '../layers/registry/server/utils/skill-indexability'
+import { resolveSkillTrust } from '../layers/registry/server/utils/skill-trust'
 
 const ACCOUNT_ID = '5904138d55ca25d5670dca6adf99894e'
 const EMIT_SQL = process.argv.includes('--emit-sql')
@@ -185,6 +185,7 @@ function main() {
         WHERE c.deleted_at IS NULL
           AND cs.name = s.name
           AND cs.owner = s.owner
+          AND cs.repo = s.repo
       ) AS curator_count,
       (
         SELECT COUNT(*)
@@ -193,6 +194,7 @@ function main() {
         WHERE c.deleted_at IS NULL
           AND cs.name = s.name
           AND cs.owner = s.owner
+          AND cs.repo = s.repo
           AND length(trim(COALESCE(cs.reason, ''))) >= 20
       ) AS curator_reason_count,
       (
@@ -271,7 +273,6 @@ function main() {
       || row.trust_source !== trust.source
       || (row.trust_score ?? 0) !== trust.score
       || !sameJsonArray(row.trust_reasons, trust.reasons)
-      || (row.stored_repo_skill_count ?? 0) !== row.repo_skill_count
 
     if (!changed)
       continue
@@ -292,9 +293,14 @@ function main() {
       + `trust_source = ${sqlString(trust.source)}, `
       + `trust_score = ${trust.score}, `
       + `trust_reasons = ${sqlJson(trust.reasons)}, `
-      + `trust_synced_at = ${now}, `
-      + `repo_skill_count = ${row.repo_skill_count} `
-      + `WHERE owner = ${sqlString(row.owner)} AND name = ${sqlString(row.name)};`,
+      + `trust_synced_at = ${now} `
+      // `repo_skill_count` lives on `repos`, not `skills`; setting it here made
+      // every emitted statement fail with "no such column".
+      //
+      // `repo` belongs in the key. A skill is (owner, repo, name), so matching
+      // on owner+name alone overwrote every same-named skill the owner has in
+      // any other repo with this row's scores.
+      + `WHERE owner = ${sqlString(row.owner)} AND repo = ${sqlString(row.repo)} AND name = ${sqlString(row.name)};`,
     )
   }
 

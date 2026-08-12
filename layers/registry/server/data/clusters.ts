@@ -351,6 +351,9 @@ export const CLUSTERS: Cluster[] = [
       'addyosmani/seo',
       'onmax/nuxt-seo',
       'agricidaniel/seo-technical',
+      'agricidaniel/seo-schema',
+      'agricidaniel/seo-programmatic',
+      'agricidaniel/seo-sitemap',
       'coreyhaines31/seo-audit',
       'coreyhaines31/programmatic-seo',
       'coreyhaines31/ai-seo',
@@ -373,16 +376,18 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'test',
     categories: [],
-    // Five distinct owners. The first search returned 13 skills from one repo,
-    // which would have made this page a mirror of `coreyhaines31/marketingskills`
-    // rather than a curated category; widening the query surfaced the rest.
+    // Picked from what the registry actually holds, not from what skills.sh
+    // lists. The obvious candidates there (refoundai, kostja94, samber,
+    // claude-office-skills) were never ingested, so pinning them rendered
+    // nothing. A 200 on /gh/<owner>/<repo>/<name> does not prove membership.
     pinnedExamples: [
+      'github/gtm-positioning-strategy',
+      'github/ad-campaign-analyzer',
+      'tldraw/dotcom-release-marketing',
       'coreyhaines31/product-marketing',
-      'refoundai/content-marketing',
-      'kostja94/copywriting',
-      'samber/copywriting-hooks',
-      'claude-office-skills/email-marketing',
       'coreyhaines31/marketing-plan',
+      'coreyhaines31/content-strategy',
+      'coreyhaines31/copywriting',
     ],
   },
   {
@@ -400,16 +405,19 @@ export const CLUSTERS: Cluster[] = [
     // Academic leads, because that is where the demand is (`claude scientific
     // skills` 390/mo) even though the loudest supply is web-research tooling.
     // Six owners, no repo taking the shortlist.
-    // Every key verified 200 against production skilld.dev, not against the
-    // local D1, which lags by roughly a month and reports live skills missing.
+    // Verified against the production `skills` table. The whole first pass here
+    // (k-dense-ai, anthropics/research-synthesis, langchain-ai/web-research,
+    // firecrawl/firecrawl-research-index) is absent from the registry: those
+    // owners are either not ingested at all or carry different skill names.
     pinnedExamples: [
-      'anthropics/research-synthesis',
-      'k-dense-ai/literature-review',
-      'k-dense-ai/scientific-writing',
-      'k-dense-ai/citation-management',
+      'imbad0202/academic-paper',
+      'imbad0202/academic-paper-reviewer',
+      'imbad0202/academic-pipeline',
+      'mattpocock/research',
+      'github/autoresearch',
+      'openai/notion-research-documentation',
+      'muratcankoylan/comprehensive-research-agent',
       'tavily-ai/tavily-research',
-      'langchain-ai/web-research',
-      'firecrawl/firecrawl-research-index',
     ],
   },
   {
@@ -445,6 +453,10 @@ export const CLUSTERED_CATEGORIES: Set<string> = new Set(
 )
 
 /**
+ * `apple-apps` and `knowledge-workspace` stay live rather than being culled:
+ * their skills had no category or framework page to land on, and retiring a
+ * collection removes the `curator_reason` trust signal from everything in it.
+ *
  * Collections retired into a category on 2026-08-12, as
  * `collection slug -> category slug`. Two collections had no category home and
  * were culled outright rather than merged (`apple-apps`, `knowledge-workspace`:

@@ -325,8 +325,6 @@ export default defineNuxtConfig({
     '/@harlan-zw/browser-automation': { redirect: { to: '/skills/browser-automation', statusCode: 301 } } as any,
     '/@harlan-zw/vue-nuxt': { redirect: { to: '/frameworks/vue', statusCode: 301 } } as any,
     '/@harlan-zw/react': { redirect: { to: '/frameworks/react', statusCode: 301 } } as any,
-    '/@harlan-zw/apple-apps': { redirect: { to: '/skills', statusCode: 301 } } as any,
-    '/@harlan-zw/knowledge-workspace': { redirect: { to: '/skills', statusCode: 301 } } as any,
     '/_nuxt/v2/**': {
       headers: {
         'cache-control': 'public, max-age=31536000, immutable',
