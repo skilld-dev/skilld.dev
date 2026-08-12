@@ -27,7 +27,9 @@ const { copy, copied } = useInstallCopy(
 )
 
 useSeoMeta({
-  title: () => collection.value ? `${collection.value.name} · @${login.value} · skilld` : 'Collection · skilld',
+  // The global titleTemplate appends ` · skilld`; repeating it here produced
+  // "Apple Apps · @harlan-zw · skilld · skilld".
+  title: () => collection.value ? `${collection.value.name} · @${login.value}` : 'Collection',
   description: () => collection.value?.preamble ?? `Skill collection by @${login.value}`,
 })
 

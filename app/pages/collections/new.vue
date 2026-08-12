@@ -3,7 +3,7 @@ const route = useRoute()
 const { isAuthenticated, user, loginUrl } = useAuth()
 
 useSeoMeta({
-  title: 'New Collection · skilld',
+  title: 'New Collection',
   description: 'Bundle the skills you reach for into a named collection.',
   robots: 'noindex',
 })

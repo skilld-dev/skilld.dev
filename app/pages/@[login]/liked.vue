@@ -40,7 +40,8 @@ const items = computed(() => data.value?.items ?? [])
 const repositoryCount = computed(() => new Set(items.value.map(s => `${s.owner}/${s.repo}`)).size)
 
 useSeoMeta({
-  title: () => `Liked by @${login.value} · skilld`,
+  // The global titleTemplate appends ` · skilld`; see @[login]/[slug].vue.
+  title: () => `Liked by @${login.value}`,
   description: () => `Skills @${login.value} likes on skilld.`,
   robots: 'noindex, follow',
 })

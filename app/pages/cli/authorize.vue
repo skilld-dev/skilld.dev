@@ -90,7 +90,7 @@ async function authorizeDevice() {
 }
 
 useSeoMeta({
-  title: 'Authorize CLI · skilld',
+  title: 'Authorize CLI',
   robots: 'noindex',
 })
 </script>

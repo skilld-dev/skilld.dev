@@ -99,7 +99,7 @@ async function watchSelected() {
   await navigateTo('/onboarding/cadence')
 }
 
-useSeoMeta({ title: 'Discover skills · skilld', robots: 'noindex' })
+useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
 </script>
 
 <template>

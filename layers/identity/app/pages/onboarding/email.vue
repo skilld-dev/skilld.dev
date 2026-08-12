@@ -48,7 +48,7 @@ async function finish() {
   await navigateTo('/me?welcome=1')
 }
 
-useSeoMeta({ title: 'Email opt-in · skilld', robots: 'noindex' })
+useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
 </script>
 
 <template>

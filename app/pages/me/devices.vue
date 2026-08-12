@@ -66,7 +66,7 @@ function fmt(ts: number | null): string {
   return new Date(ts * 1000).toLocaleString()
 }
 
-useSeoMeta({ title: 'CLI devices · skilld', robots: 'noindex' })
+useSeoMeta({ title: 'CLI devices', robots: 'noindex' })
 </script>
 
 <template>

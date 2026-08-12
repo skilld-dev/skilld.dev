@@ -63,7 +63,7 @@ async function save() {
   await navigateTo('/onboarding/email')
 }
 
-useSeoMeta({ title: 'Choose your cadence · skilld', robots: 'noindex' })
+useSeoMeta({ title: 'Choose your cadence', robots: 'noindex' })
 </script>
 
 <template>

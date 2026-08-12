@@ -16,7 +16,7 @@ async function createToken() {
   })
 }
 
-useSeoMeta({ title: 'New CLI token · skilld', robots: 'noindex' })
+useSeoMeta({ title: 'New CLI token', robots: 'noindex' })
 </script>
 
 <template>

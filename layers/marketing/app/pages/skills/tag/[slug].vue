@@ -24,7 +24,9 @@ const relatedTags = computed(() => data.value!.relatedTags)
 const totalSkills = computed(() => data.value!.totalSkills)
 const totalStars = computed(() => data.value!.totalStars)
 
-const title = computed(() => `${tag.value.label} skills · skilld`)
+// No ` · skilld` suffix: site.titleSeparator drives a global titleTemplate that
+// already appends it, so writing it here rendered "... · skilld · skilld".
+const title = computed(() => `${tag.value.label} skills`)
 const description = computed(
   () => `Browse ${totalSkills.value} agent skills tagged ${tag.value.label}. ${tag.value.description}.`,
 )
