@@ -43,6 +43,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=8192
       - uses: harlan-zw/harlan-nuxt/.github/actions/nuxt-dx-budget@main
         with:
+          artifact-name: nuxt-dx-size-budget-v3
           report-path: .nuxt/dx/size-budget.json
           threshold-kb: 10
       - run: pnpm typecheck
