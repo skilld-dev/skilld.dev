@@ -1,3 +1,5 @@
+import { CLUSTER_BY_SLUG } from '../../layers/registry/server/data/clusters'
+
 export interface SmokeExpectation {
   path: string
   status: number
@@ -94,9 +96,20 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   { path: '/skills/tag/plan', status: 301, location: '/skills/planning' },
   { path: '/skills/plan', status: 301, location: '/skills/planning' },
   // The category surface is the reason the rework exists, so it is checked for
-  // rendered content, not just a 200. The keyword title is the thing that has
-  // to survive: it only appears when the server resolved the category data.
-  { path: '/skills/seo', status: 200, bodyContains: ['<h1', 'Claude Skills for SEO'] },
+  // rendered content, not just a 200.
+  //
+  // `<h1` alone is not enough here: the page's error branch renders an h1 too,
+  // so an API failure would pass. The keyword title only appears when the
+  // server actually resolved the category, which is the thing under test.
+  //
+  // Read from CLUSTER_BY_SLUG rather than pasted in. A literal would mean
+  // editing this category's copy silently fails the smoke check and rolls back
+  // the deploy, which is a trap for whoever edits the copy months from now.
+  {
+    path: '/skills/seo',
+    status: 200,
+    bodyContains: ['<h1', CLUSTER_BY_SLUG.get('seo')!.seoTitle],
+  },
   { path: '/skills/tag/cloudflare', status: 200, bodyContains: ['<h1'] },
 ]
 
