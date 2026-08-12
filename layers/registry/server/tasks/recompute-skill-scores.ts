@@ -1,9 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 import { recomputeAllSkillScores } from '../utils/recompute-scores'
 
 const CRON = '0 3 * * *'
@@ -23,7 +23,7 @@ export default defineScheduledTask({
   cron: '0 3 * * *',
   description: 'Full-table recompute of SEO indexability + trust scoring on skills',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[recompute-skill-scores] D1 binding not available in task context')

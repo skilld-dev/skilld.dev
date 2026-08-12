@@ -5,12 +5,12 @@ import type {
   EmbeddingEffectResult,
   EmbeddingVectorizeBinding,
 } from '../utils/embedding-effect'
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { extractJson } from '#shared/server/anthropic'
 import { pAll } from '#shared/server/p-all'
-import { getTaskEnv } from '#shared/server/task-env'
 import {
   ABSTRACTNESS_MODEL,
   abstractnessResponseText,
@@ -78,7 +78,7 @@ export default defineScheduledTask({
   cron: '15 * * * *',
   description: 'Submit Anthropic batch for stale summary/tags/faq + run Workers AI for embedding/abstractness',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     const ai = env?.AI as AiBinding | undefined
     const vectorize = env?.SKILL_EMBEDDINGS as VectorizeBinding | undefined

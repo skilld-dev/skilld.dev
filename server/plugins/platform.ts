@@ -1,6 +1,6 @@
 import type { Platform } from '#shared/server/platform'
-import { getTaskEnv } from '#shared/server/task-env'
-import { createD1ReadRetryDatabase } from '../utils/db'
+import { resolveCloudflareBindings, setCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
+import { withD1ResetRecovery } from '@harlan-zw/nuxt-cloudflare/d1'
 
 // SWR background refreshes and some internal $fetch contexts arrive with
 // event.context.cloudflare unset, which would skip platform attachment and
@@ -10,11 +10,11 @@ import { createD1ReadRetryDatabase } from '../utils/db'
 
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('request', (event) => {
-    const env = getTaskEnv(event.context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(event.context)
     if (!env)
       return
 
-    const db = createD1ReadRetryDatabase(env.DB)
+    const db = withD1ResetRecovery(env.DB) as unknown as D1Database
     const retryingEnv = new Proxy(env, {
       get(target, property) {
         return property === 'DB' ? db : Reflect.get(target, property, target)
@@ -22,8 +22,7 @@ export default defineNitroPlugin((nitroApp) => {
     })
     // db0's Cloudflare connector, used by Nuxt Content, reads the binding from
     // this Nitro-managed global instead of the request context.
-    const envHost = globalThis as typeof globalThis & { __env__?: Cloudflare.Env }
-    envHost.__env__ = retryingEnv
+    setCloudflareBindings(retryingEnv)
 
     const platform: Platform = {
       db,

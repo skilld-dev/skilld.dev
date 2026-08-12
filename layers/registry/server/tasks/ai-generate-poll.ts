@@ -1,9 +1,9 @@
 import type { GeneratedKind } from '../utils/skill-generated'
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { extractJson } from '#shared/server/anthropic'
-import { getTaskEnv } from '#shared/server/task-env'
 /// <reference types="@cloudflare/workers-types" />
 import { putGenerated } from '../utils/skill-generated'
 
@@ -96,7 +96,7 @@ export default defineScheduledTask({
   cron: '45 * * * *',
   description: 'Poll Anthropic batches and UPSERT skill_generated when results land',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     const apiKey = (env?.ANTHROPIC_API_KEY as string | undefined) || process.env.ANTHROPIC_API_KEY
 

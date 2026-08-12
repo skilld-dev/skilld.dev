@@ -1,9 +1,9 @@
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { createRegistryJobBatch } from '~~/server/utils/registry-jobs-runtime'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { STALE_SYNC_SECONDS, SUBSCRIBED_REPO_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 import {
   DISCOVERY_SYNC_CANDIDATES_SQL,
   GENERAL_SYNC_CANDIDATES_SQL,
@@ -24,7 +24,7 @@ export default defineScheduledTask({
   cron: '0 * * * *',
   description: 'Queue due GitHub repositories for isolated durable synchronization',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[sync-github-skills] D1 binding not available in task context')

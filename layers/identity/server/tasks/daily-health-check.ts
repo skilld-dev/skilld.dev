@@ -1,9 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 import { buildDailyHealthCheck, frontDoorFetcher, sendDailyHealthCheck } from '../utils/daily-health-check'
 import { sendEmailWithEnv } from '../utils/email'
 
@@ -25,7 +25,7 @@ export default defineScheduledTask({
     if (import.meta.dev)
       return { result: { _tag: 'SkippedInDev' as const } }
 
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[daily-health-check] Cloudflare bindings missing')

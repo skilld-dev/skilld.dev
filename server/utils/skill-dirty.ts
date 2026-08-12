@@ -1,5 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
-import { retryIdempotentD1Write } from '#server/utils/db'
+import { retryIdempotentD1Write } from '@harlan-zw/nuxt-cloudflare/d1'
 
 /**
  * Reason buckets supported by the skill_dirty queue.
@@ -36,13 +36,16 @@ export async function enqueueSkillDirty(
   key: SkillDirtyKey,
 ): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
-  await retryIdempotentD1Write(() => db
-    .prepare(
-      `INSERT OR REPLACE INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
-       VALUES (?1, ?2, ?3, ?4, ?5, 0)`,
-    )
-    .bind(key.owner, key.repo, key.name, key.reason, now)
-    .run())
+  await retryIdempotentD1Write({
+    safety: { _tag: 'replay-safe' },
+    run: () => db
+      .prepare(
+        `INSERT OR REPLACE INTO skill_dirty (owner, repo, name, reason, queued_at, attempts)
+         VALUES (?1, ?2, ?3, ?4, ?5, 0)`,
+      )
+      .bind(key.owner, key.repo, key.name, key.reason, now)
+      .run(),
+  })
 }
 
 /**

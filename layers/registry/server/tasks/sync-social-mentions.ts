@@ -1,9 +1,9 @@
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 /// <reference types="@cloudflare/workers-types" />
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { pAll } from '#shared/server/p-all'
-import { getTaskEnv } from '#shared/server/task-env'
 
 const CRON = '30 * * * *'
 
@@ -164,7 +164,7 @@ export default defineScheduledTask({
   cron: '30 * * * *',
   description: 'Ingest HN mentions of skilld.dev + tracked repos into skill_social_posts',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[sync-social-mentions] D1 binding not available')
