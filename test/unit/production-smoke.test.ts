@@ -9,9 +9,9 @@ import {
 describe('production smoke contract', () => {
   it('covers the public routes implicated by the closed incidents', () => {
     expect(PRODUCTION_SMOKE_EXPECTATIONS).toEqual(expect.arrayContaining([
-      { path: '/', status: 200 },
-      { path: '/skills', status: 200 },
-      { path: '/community', status: 200 },
+      { path: '/', status: 200, bodyContains: ['<h1'] },
+      { path: '/skills', status: 200, bodyContains: ['<h1'] },
+      { path: '/community', status: 200, bodyContains: ['<h1'] },
       { path: '/collections', status: 301, location: '/community' },
       { path: '/guides', status: 410 },
       { path: '/guides/npm/example', status: 410 },
@@ -20,8 +20,20 @@ describe('production smoke contract', () => {
       { path: '/collections/_CollectionAvatar', status: 404 },
       { path: '/skills/tag/plan', status: 301, location: '/skills/planning' },
       { path: '/skills/plan', status: 301, location: '/skills/planning' },
-      { path: '/skills/tag/cloudflare', status: 200 },
+      { path: '/skills/tag/cloudflare', status: 200, bodyContains: ['<h1'] },
     ]))
+  })
+
+  it('checks rendered content on every page expected to return 200', () => {
+    // A status-only check cannot tell a rendered page from an empty shell,
+    // which is how a blank category surface shipped three times.
+    const unchecked = PRODUCTION_SMOKE_EXPECTATIONS
+      .filter(item => item.status === 200 && !item.bodyContains?.length)
+      .map(item => item.path)
+
+    // The leaderboard is exempt: its own asset-coherence pass already reads the
+    // body and asserts the Nuxt asset manifest is non-empty.
+    expect(unchecked).toEqual(['/skills/leaderboard'])
   })
 
   it('reports status and redirect mismatches as values', () => {
@@ -46,6 +58,45 @@ describe('production smoke contract', () => {
     })
   })
 
+  it('fails a 200 that rendered no content', () => {
+    // The regression this exists for: on 2026-08-12 every /skills/<category>
+    // returned 200 with the data in the Nuxt payload but no <h1> and a fallback
+    // <title>, because the page fetched without awaiting. Three deploys passed
+    // a status-only smoke check with the whole category surface blank.
+    const emptyShell = '<html><body><div id="__nuxt"></div>'
+      + '<script>window.__NUXT__={"data":{"seoTitle":"Claude Skills for SEO"}}</script>'
+      + '</body></html>'
+
+    expect(evaluateSmokeObservation(
+      { path: '/skills/seo', status: 200, bodyContains: ['<h1', 'Claude Skills for SEO'] },
+      { status: 200, location: null, body: emptyShell },
+    )).toEqual({
+      _tag: 'failed',
+      reason: 'content_missing',
+      expected: '<h1',
+      actual: 'absent from body',
+    })
+
+    expect(evaluateSmokeObservation(
+      { path: '/skills/seo', status: 200, bodyContains: ['<h1', 'Claude Skills for SEO'] },
+      { status: 200, location: null, body: '<h1>SEO</h1><title>Claude Skills for SEO · skilld</title>' },
+    )).toEqual({ _tag: 'passed' })
+  })
+
+  it('treats an unread body as missing rather than passing by default', () => {
+    // A body-less observation must not silently satisfy a content expectation,
+    // or the check would pass everywhere it is not wired up.
+    expect(evaluateSmokeObservation(
+      { path: '/skills/seo', status: 200, bodyContains: ['<h1'] },
+      { status: 200, location: null },
+    )).toEqual({
+      _tag: 'failed',
+      reason: 'content_missing',
+      expected: '<h1',
+      actual: 'body not read',
+    })
+  })
+
   it('retries rollout mismatches and returns a complete successful report', async () => {
     const attempts = new Map<string, number>()
     const fetch: SmokeFetch = vi.fn(async (input) => {
@@ -57,10 +108,14 @@ describe('production smoke contract', () => {
       const expectation = PRODUCTION_SMOKE_EXPECTATIONS.find(item => item.path === url.pathname)!
       if (url.pathname === '/skills' && count === 1)
         return new Response('', { status: 503 })
+      // Every mocked page serves the fragments its expectation asks for, so
+      // this test stays about retry behaviour rather than content.
+      const body = [
+        ...(expectation.bodyContains ?? []),
+        ...(url.pathname === '/skills/leaderboard' ? ['<script src="/_nuxt/v2/app.js"></script>'] : []),
+      ].join('')
       return new Response(
-        url.pathname === '/skills/leaderboard'
-          ? '<script src="/_nuxt/v2/app.js"></script>'
-          : '',
+        body,
         {
           status: expectation.status,
           headers: {

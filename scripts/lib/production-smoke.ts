@@ -2,18 +2,32 @@ export interface SmokeExpectation {
   path: string
   status: number
   location?: string
+  /**
+   * Substrings the response body must contain.
+   *
+   * A 200 only proves the Worker answered, not that it rendered anything. On
+   * 2026-08-12 every `/skills/<category>` page served a 200 with the data
+   * embedded in the Nuxt payload but no `<h1>` and a fallback `<title>`,
+   * because the page fetched without awaiting and Vue rendered before the
+   * request settled. Three deploys passed this smoke check with the entire
+   * category surface blank to crawlers.
+   *
+   * Assert on markup the page cannot render without its data.
+   */
+  bodyContains?: string[]
 }
 
 export interface SmokeObservation {
   status: number
   location: string | null
+  body?: string
 }
 
 export type SmokeEvaluation
   = | { _tag: 'passed' }
     | {
       _tag: 'failed'
-      reason: 'status_mismatch' | 'location_mismatch' | 'network_error' | 'asset_manifest_empty'
+      reason: 'status_mismatch' | 'location_mismatch' | 'network_error' | 'asset_manifest_empty' | 'content_missing'
       expected: string
       actual: string
     }
@@ -65,9 +79,9 @@ export type ProductionSmokeResult
   }
 
 export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
-  { path: '/', status: 200 },
-  { path: '/skills', status: 200 },
-  { path: '/community', status: 200 },
+  { path: '/', status: 200, bodyContains: ['<h1'] },
+  { path: '/skills', status: 200, bodyContains: ['<h1'] },
+  { path: '/community', status: 200, bodyContains: ['<h1'] },
   { path: '/collections', status: 301, location: '/community' },
   { path: '/guides', status: 410 },
   { path: '/guides/npm/example', status: 410 },
@@ -79,8 +93,11 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   // and a redirect chain would be the bug this check exists to catch.
   { path: '/skills/tag/plan', status: 301, location: '/skills/planning' },
   { path: '/skills/plan', status: 301, location: '/skills/planning' },
-  { path: '/skills/seo', status: 200 },
-  { path: '/skills/tag/cloudflare', status: 200 },
+  // The category surface is the reason the rework exists, so it is checked for
+  // rendered content, not just a 200. The keyword title is the thing that has
+  // to survive: it only appears when the server resolved the category data.
+  { path: '/skills/seo', status: 200, bodyContains: ['<h1', 'Claude Skills for SEO'] },
+  { path: '/skills/tag/cloudflare', status: 200, bodyContains: ['<h1'] },
 ]
 
 export function evaluateSmokeObservation(
@@ -101,6 +118,16 @@ export function evaluateSmokeObservation(
       reason: 'location_mismatch',
       expected: expectation.location,
       actual: observation.location ?? 'missing',
+    }
+  }
+  for (const fragment of expectation.bodyContains ?? []) {
+    if (!(observation.body ?? '').includes(fragment)) {
+      return {
+        _tag: 'failed',
+        reason: 'content_missing',
+        expected: fragment,
+        actual: observation.body === undefined ? 'body not read' : 'absent from body',
+      }
     }
   }
   return { _tag: 'passed' }
