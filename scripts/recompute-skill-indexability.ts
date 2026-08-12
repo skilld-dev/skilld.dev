@@ -15,6 +15,7 @@
 import type { SkillTrustSource, SkillTrustTier } from '../server/utils/skill-trust'
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
+import { isCategoryPinned } from '../layers/registry/server/data/clusters'
 import { isOfficialSkillRepo, scoreSkillIndexability } from '../server/utils/skill-indexability'
 import { resolveSkillTrust } from '../server/utils/skill-trust'
 
@@ -242,6 +243,7 @@ function main() {
       trustTier: trust.tier,
       curatorCount: row.curator_count,
       curatorReasonCount: row.curator_reason_count,
+      categoryPinned: isCategoryPinned(row.owner, row.name),
       approvedSocialCount: row.approved_social_count,
       authorSocialCount: row.author_social_count,
       stars: row.stars,

@@ -464,6 +464,52 @@ export const MERGED_COLLECTIONS: Record<string, string> = Object.fromEntries(
  * skills route policy reads this to let them through to the redirect layer.
  * Keep the redirects in nuxt.config.ts in step with this map.
  */
+/**
+ * Every pinned `owner/name` key across all categories.
+ *
+ * One definition, because three things read it: the cluster queries, the
+ * indexability recompute (a pin is a primary trust signal), and the skills
+ * sitemap. If these drifted apart, a skill could be curated onto a page and
+ * still be excluded from the index.
+ */
+/**
+ * Curated picks on the `/frameworks/*` pages.
+ *
+ * These are not categories, so they have no row in CLUSTERS, but they are
+ * curated surfaces in exactly the same sense: a human chose each skill to lead
+ * the page. The `vue-nuxt` and `react` collections retired into them on
+ * 2026-08-12, and `curator_reason_count` stops counting a collection the moment
+ * it is soft-deleted, so without this the retirement would have deindexed all
+ * fourteen while the pages that feature them stayed live.
+ */
+export const FRAMEWORK_PINNED_SKILLS: string[] = [
+  // /frameworks/vue and /frameworks/nuxt
+  'vuejs-ai/vue-best-practices',
+  'vuejs-ai/vue-testing-best-practices',
+  'onmax/nuxt',
+  'antfu/vue',
+  'antfu/pinia',
+  'nuxt/nuxt-ui',
+  'vueuse/vueuse-functions',
+  'harlan-zw/nuxt-frontend-design',
+  'harlan-zw/nuxt-frontend-review',
+  // /frameworks/react and /frameworks/nextjs
+  'vercel-labs/react-best-practices',
+  'vercel-labs/composition-patterns',
+  'vercel-labs/nextjs',
+  'deckardger/tanstack-query',
+  'vercel/next-cache-components-optimizer',
+]
+
+export const PINNED_SKILL_KEYS: Set<string> = new Set([
+  ...CLUSTERS.flatMap(cluster => cluster.pinnedExamples),
+  ...FRAMEWORK_PINNED_SKILLS,
+])
+
+export function isCategoryPinned(owner: string, name: string): boolean {
+  return PINNED_SKILL_KEYS.has(`${owner}/${name}`)
+}
+
 export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
   'plan': 'planning',
   'master-agent': 'context-engineering',

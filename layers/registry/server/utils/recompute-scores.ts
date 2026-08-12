@@ -18,6 +18,7 @@
 
 import type { SkillIndexabilityResult } from './skill-indexability'
 import type { SkillTrustResult, SkillTrustSource, SkillTrustTier } from './skill-trust'
+import { isCategoryPinned } from '../data/clusters'
 import { isOfficialSkillRepo, scoreSkillIndexability } from './skill-indexability'
 import { resolveSkillTrust } from './skill-trust'
 
@@ -164,6 +165,7 @@ function computeFromRow(row: ScoreRow, now: number): {
     trustTier: trust.tier,
     curatorCount: row.curator_count,
     curatorReasonCount: row.curator_reason_count,
+    categoryPinned: isCategoryPinned(row.owner, row.name),
     approvedSocialCount: row.approved_social_count,
     authorSocialCount: row.author_social_count,
     stars: row.stars,

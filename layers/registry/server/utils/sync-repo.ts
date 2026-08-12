@@ -2,6 +2,7 @@
 
 import type { GithubBindings, RepoMeta } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
+import { isCategoryPinned } from '../data/clusters'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { repoStarObservationStatements } from './repo-history'
 import { resolveRepoSourceIdentityFromRow } from './repo-source-identity'
@@ -1067,6 +1068,10 @@ export async function syncRepo(
         trustTier: trust.tier,
         curatorCount: 0,
         curatorReasonCount: 0,
+        // Sync has no collection joins, so without this a pinned skill would be
+        // written back as noindex on every repo sync and silently undo the
+        // curation call until the next full recompute.
+        categoryPinned: isCategoryPinned(owner, parsed.name),
         approvedSocialCount: 0,
         authorSocialCount: 0,
         stars,

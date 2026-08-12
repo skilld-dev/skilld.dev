@@ -14,6 +14,17 @@ export interface SkillIndexabilityInput {
   trustTier: SkillTrustTier
   curatorCount: number
   curatorReasonCount: number
+  /**
+   * Pinned into a `/skills/<category>` page in clusters.ts.
+   *
+   * A pin is the same act as a collection reason: a human decided this skill
+   * leads a curated surface. It has to score the same, because the 2026-08-12
+   * rework moved Harlan's collections into category pins, and `curatorReasonCount`
+   * only counts rows in collections with `deleted_at IS NULL`. Retiring those
+   * collections without this would have stripped the primary trust signal from
+   * every skill in them and dropped them out of the index.
+   */
+  categoryPinned: boolean
   approvedSocialCount: number
   authorSocialCount: number
   stars: number
@@ -48,6 +59,10 @@ export function scoreSkillIndexability(input: SkillIndexabilityInput, now = Math
   if (input.curatorReasonCount > 0) {
     score += 3
     reasons.push('curator_reason')
+  }
+  else if (input.categoryPinned) {
+    score += 3
+    reasons.push('category_pinned')
   }
   else if (input.trustTier === 'trusted-curator') {
     score += 3
@@ -116,6 +131,7 @@ export function scoreSkillIndexability(input: SkillIndexabilityInput, now = Math
   }
 
   const hasPrimaryTrustSignal = input.curatorReasonCount > 0
+    || input.categoryPinned
     || input.isOfficial
     || input.ownerVerified
     || input.trustTier === 'trusted-author'
