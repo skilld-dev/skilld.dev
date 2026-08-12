@@ -33,7 +33,13 @@ interface ClusterDetailResponse {
 const route = useRoute()
 const clusterSlug = computed(() => route.params.cluster as string)
 
-const { data, error, status, refresh } = useLazyFetch<ClusterDetailResponse>(
+// Blocking, not lazy. `useLazyFetch` does not hold SSR, so the server rendered
+// this page with `data === null`: every category served the fallback title
+// ("Outcome skills", now "Agent skills by category") and, once the thin-category
+// guard landed, `noindex` as well. Only the client filled in the real title
+// after hydration, which is precisely what a crawler never runs. This page
+// exists to rank, so it has to be right in the server response.
+const { data, error, status, refresh } = useFetch<ClusterDetailResponse>(
   () => `/api/clusters/${clusterSlug.value}`,
 )
 
