@@ -9,7 +9,7 @@
  * not layer domain data.
  */
 
-const PREFIX = 'npx -y skilld add'
+const PREFIX = 'npx skilld add'
 
 export function repoInstallCommand(owner: string, repo: string, skill?: string): string {
   const base = `${PREFIX} gh:${owner}/${repo}`

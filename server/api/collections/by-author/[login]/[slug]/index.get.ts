@@ -13,7 +13,8 @@ export default defineApiHandler({
       throw createError({ statusCode: 400, message: 'Missing login or slug' })
 
     const collection = await platform.db.prepare(
-      `SELECT c.id, u.login AS author_login, c.slug, c.name, c.preamble, c.featured, c.created_at, c.updated_at
+      `SELECT c.id, u.login AS author_login, u.name AS author_name, u.avatar AS author_avatar,
+              c.slug, c.name, c.preamble, c.featured, c.created_at, c.updated_at
        FROM collections_v2 c
        JOIN users u ON u.id = c.author_user_id
        WHERE u.login = ? AND c.slug = ? AND c.deleted_at IS NULL

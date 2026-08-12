@@ -1,4 +1,4 @@
-const PREFIX = 'npx -y skilld add'
+const PREFIX = 'npx skilld add'
 
 export function gitInstallCmd(owner: string, repo: string, skill?: string): string {
   const base = `${PREFIX} gh:${owner}/${repo}`

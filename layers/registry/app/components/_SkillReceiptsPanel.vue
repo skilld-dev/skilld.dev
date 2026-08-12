@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import type { SkillAudit } from '../utils/skill-audit-overview'
-import { resolveSkillAuditOverview } from '../utils/skill-audit-overview'
+import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
+import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
+
+// This panel is feature-local because SkillDetail is its only consumer.
 
 interface SkillProvenance {
   owner: string
@@ -95,7 +97,6 @@ const MATURITY_META: Record<MaturitySummary['cadence'], { icon: string, label: s
 
 const hasStatus = computed(() => Boolean(maturity || verifiedSummary))
 const hasProvenance = computed(() => Boolean(shortSha.value || modifiedDate.value))
-const hasActions = computed(() => Boolean(provenance.skillFileUrl || provenance.historyUrl))
 </script>
 
 <template>
@@ -133,18 +134,18 @@ const hasActions = computed(() => Boolean(provenance.skillFileUrl || provenance.
             class="size-4 shrink-0"
             aria-hidden="true"
           />
-          <div class="min-w-0 flex-1">
-            <div class="flex items-baseline justify-between gap-2">
+          <span class="block min-w-0 flex-1">
+            <span class="flex items-baseline justify-between gap-2">
               <span class="font-mono text-sm text-default">Security checks</span>
               <span
                 v-if="auditOverview.latestAuditedAt"
                 class="font-mono text-[10px] uppercase tracking-wide text-muted shrink-0"
               >{{ relativeDay(auditOverview.latestAuditedAt) }}</span>
-            </div>
-            <p class="mt-0.5 text-xs text-muted leading-snug">
+            </span>
+            <span class="mt-0.5 block text-xs text-muted leading-snug">
               {{ auditOverview.label }} · {{ auditOverview.detail }}
-            </p>
-          </div>
+            </span>
+          </span>
           <UIcon
             name="i-lucide-chevron-right"
             class="size-4 shrink-0 text-muted transition-transform group-open:rotate-90"
@@ -252,50 +253,6 @@ const hasActions = computed(() => Boolean(provenance.skillFileUrl || provenance.
             :title="modifiedDate.toLocaleString()"
           >· updated {{ modifiedAgo }}</span>
         </div>
-      </div>
-
-      <div
-        v-if="hasActions"
-        class="flex divide-x divide-default border-t border-default font-mono text-xs"
-      >
-        <a
-          v-if="provenance.skillFileUrl"
-          :href="provenance.skillFileUrl"
-          target="_blank"
-          rel="noopener"
-          class="flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-muted hover:text-default hover:bg-elevated/40 transition-colors"
-        >
-          <UIcon
-            name="i-lucide-file-text"
-            class="size-3.5"
-            aria-hidden="true"
-          />
-          SKILL.md
-          <UIcon
-            name="i-lucide-arrow-up-right"
-            class="size-3"
-            aria-hidden="true"
-          />
-        </a>
-        <a
-          v-if="provenance.historyUrl"
-          :href="provenance.historyUrl"
-          target="_blank"
-          rel="noopener"
-          class="flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-muted hover:text-default hover:bg-elevated/40 transition-colors"
-        >
-          <UIcon
-            name="i-lucide-history"
-            class="size-3.5"
-            aria-hidden="true"
-          />
-          History
-          <UIcon
-            name="i-lucide-arrow-up-right"
-            class="size-3"
-            aria-hidden="true"
-          />
-        </a>
       </div>
     </div>
   </section>

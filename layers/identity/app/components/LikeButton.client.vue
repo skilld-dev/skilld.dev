@@ -4,7 +4,7 @@ const { owner, repo, name, count = 0, variant = 'detail' } = defineProps<{
   repo: string
   name: string
   count?: number
-  variant?: 'detail' | 'card'
+  variant?: 'detail' | 'card' | 'inline'
 }>()
 
 const route = useRoute()

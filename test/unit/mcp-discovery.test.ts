@@ -88,7 +88,7 @@ describe('search_skills', () => {
       name: 'nuxt-seo',
       official: true,
       url: 'https://skilld.dev/gh/nuxt/nuxt/nuxt-seo',
-      installCommand: 'npx -y skilld add gh:nuxt/nuxt -s nuxt-seo',
+      installCommand: 'npx skilld add gh:nuxt/nuxt -s nuxt-seo',
     })
     expect(data.results[0].description.length).toBe(500)
   })
@@ -150,7 +150,7 @@ describe('get_skill', () => {
     const data = result.structuredContent as any
 
     expect(fetchApi).toHaveBeenCalledWith('/api/skills/nuxt/nuxt/nuxt-seo', { signal: undefined })
-    expect(data.installCommand).toBe('npx -y skilld add gh:nuxt/nuxt -s nuxt-seo')
+    expect(data.installCommand).toBe('npx skilld add gh:nuxt/nuxt -s nuxt-seo')
     expect(data.provenance).toMatchObject({
       author: 'nuxt',
       sourceRepoUrl: 'https://github.com/nuxt/nuxt',
@@ -206,7 +206,7 @@ describe('get_collection', () => {
       offset: 10,
       limit: 10,
       hasMore: true,
-      installCommand: 'npx -y skilld add @harlan-zw/nuxt-stack',
+      installCommand: 'npx skilld add @harlan-zw/nuxt-stack',
     })
     expect(data.preamble.length).toBe(2000)
     expect(data.skills).toHaveLength(10)
@@ -227,12 +227,12 @@ describe('get_collection', () => {
 
 describe('install_command', () => {
   it.each([
-    ['gh:nuxt/nuxt', 'npx -y skilld add gh:nuxt/nuxt'],
-    ['nuxt/nuxt', 'npx -y skilld add gh:nuxt/nuxt'],
-    ['anthropics/skills/skill-creator', 'npx -y skilld add gh:anthropics/skills -s skill-creator'],
-    ['@harlan-zw', 'npx -y skilld add @harlan-zw'],
-    ['@harlan-zw/nuxt-stack', 'npx -y skilld add @harlan-zw/nuxt-stack'],
-    ['npm:@scope/pkg', 'npx -y skilld add npm:@scope/pkg'],
+    ['gh:nuxt/nuxt', 'npx skilld add gh:nuxt/nuxt'],
+    ['nuxt/nuxt', 'npx skilld add gh:nuxt/nuxt'],
+    ['anthropics/skills/skill-creator', 'npx skilld add gh:anthropics/skills -s skill-creator'],
+    ['@harlan-zw', 'npx skilld add @harlan-zw'],
+    ['@harlan-zw/nuxt-stack', 'npx skilld add @harlan-zw/nuxt-stack'],
+    ['npm:@scope/pkg', 'npx skilld add npm:@scope/pkg'],
   ])('%s -> %s', async (ref, command) => {
     const result = await runTool('install_command', { ref })
     expect((result.structuredContent as any).command).toBe(command)
@@ -247,8 +247,8 @@ describe('install_command', () => {
 
 describe('parseInstallRef', () => {
   it('round-trips every ref kind through installCommandFor', () => {
-    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx -y skilld add gh:a/b')
-    expect(installCommandFor(parseInstallRef('npm:@scope/pkg')!)).toBe('npx -y skilld add npm:@scope/pkg')
+    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add gh:a/b')
+    expect(installCommandFor(parseInstallRef('npm:@scope/pkg')!)).toBe('npx skilld add npm:@scope/pkg')
     expect(parseInstallRef('a/b/c/d')).toBeNull()
     expect(parseInstallRef('@')).toBeNull()
     expect(parseInstallRef('')).toBeNull()

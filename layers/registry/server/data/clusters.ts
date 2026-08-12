@@ -8,8 +8,9 @@
  * the end. Each track aggregates one or more `category` values produced by the
  * abstractness classifier (`skill_generated.kind='abstractness'`).
  *
- * `pinnedExamples` are hand-picked `owner/name` keys that always show on the
- * card, regardless of install rank. Up to 5; first 3 render in the grid.
+ * `pinnedExamples` are hand-picked `owner/name` keys that lead cards and detail
+ * pages, regardless of rank or generated category. The first 3 use distinct
+ * owners so one repository cannot take over the shortlist.
  */
 
 export interface Cluster {
@@ -30,10 +31,10 @@ export const CLUSTERS: Cluster[] = [
     categories: ['planning', 'project-management'],
     pinnedExamples: [
       'obra/brainstorming',
-      'obra/writing-plans',
-      'obra/executing-plans',
       'n8n-io/spec-driven-development',
       'vercel/adr-skill',
+      'obra/writing-plans',
+      'obra/executing-plans',
     ],
   },
   {
@@ -43,11 +44,11 @@ export const CLUSTERS: Cluster[] = [
     userVoice: 'You run agents in parallel and verify what they hand back.',
     categories: ['agent-meta'],
     pinnedExamples: [
-      'obra/using-superpowers',
       'obra/subagent-driven-development',
-      'obra/verification-before-completion',
+      'muratcankoylan/multi-agent-patterns',
+      'bitwarden/performing-multi-agent-code-review',
       'obra/dispatching-parallel-agents',
-      'obra/writing-skills',
+      'obra/verification-before-completion',
     ],
   },
   {
@@ -59,9 +60,9 @@ export const CLUSTERS: Cluster[] = [
     pinnedExamples: [
       'anthropics/doc-coauthoring',
       'github/documentation-writer',
+      'posthog/writing-simplified-technical-english',
       'github/create-readme',
       'anthropics/internal-comms',
-      'github/prd',
     ],
   },
   {
@@ -72,10 +73,10 @@ export const CLUSTERS: Cluster[] = [
     categories: ['code-review', 'refactor', 'refactoring'],
     pinnedExamples: [
       'obra/requesting-code-review',
-      'obra/receiving-code-review',
       'github/refactor',
-      'github/review-and-refactor',
       'ertugrul-dmr/clean-general',
+      'obra/receiving-code-review',
+      'github/review-and-refactor',
     ],
   },
   {
@@ -98,10 +99,10 @@ export const CLUSTERS: Cluster[] = [
     categories: ['git-workflow', 'devops', 'deployment', 'ci-cd'],
     pinnedExamples: [
       'obra/using-git-worktrees',
-      'obra/finishing-a-development-branch',
       'github/git-commit',
-      'github/conventional-commit',
       'jimliu/release-skills',
+      'obra/finishing-a-development-branch',
+      'github/conventional-commit',
     ],
   },
   {
@@ -140,9 +141,9 @@ export const CLUSTERS: Cluster[] = [
     categories: ['security', 'auth'],
     pinnedExamples: [
       'wshobson/stride-analysis-patterns',
-      'wshobson/auth-implementation-patterns',
       'github/audit-integrity',
       'bitwarden/bitwarden-security-context',
+      'wshobson/auth-implementation-patterns',
     ],
   },
   {

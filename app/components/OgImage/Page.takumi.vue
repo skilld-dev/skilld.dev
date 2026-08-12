@@ -1,8 +1,15 @@
 <script setup lang="ts">
-const { title, description } = defineProps<{
-  title?: string
-  description?: string
+import { ogText } from '../../utils/og-props'
+
+// Declared as the wire types the OG image URL can deliver, not as the types the
+// template wants. A numeric-looking title arrives as a number.
+const props = defineProps<{
+  title?: string | number | null
+  description?: string | number | null
 }>()
+
+const safeTitle = computed(() => ogText(props.title))
+const safeDescription = computed(() => ogText(props.description))
 </script>
 
 <template>
@@ -26,16 +33,16 @@ const { title, description } = defineProps<{
           class="text-6xl tracking-tighter font-mono leading-none"
           :style="{ lineClamp: 2, textOverflow: 'ellipsis' }"
         >
-          {{ title }}
+          {{ safeTitle }}
         </div>
       </div>
 
       <div
-        v-if="description"
+        v-if="safeDescription"
         class="text-3xl"
         :style="{ color: 'oklch(0.62 0.01 60)', lineClamp: 2, textOverflow: 'ellipsis' }"
       >
-        {{ description }}
+        {{ safeDescription }}
       </div>
     </div>
   </OgLayout>

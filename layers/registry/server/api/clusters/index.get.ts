@@ -2,14 +2,14 @@
  * Cluster grid data for the homepage.
  *
  * Returns one row per cluster with skillCount and top example skills. Pinned
- * examples lead, followed by canonical GitHub star ranking. All sourced from
- * `skills` joined to `skill_generated(kind='abstractness')` filtered to
- * `payload.kind = 'abstract'`.
+ * examples lead, followed by canonical GitHub star ranking. A pinned example
+ * overrides the generated category because it records a human curation call.
  */
 
 import type { Cluster } from '../../data/clusters'
 import { getDB } from '#server/utils/db'
 import { CLUSTERS } from '../../data/clusters'
+import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
 
 interface SkillRow {
   owner: string
@@ -17,7 +17,7 @@ interface SkillRow {
   repo: string
   display_name: string
   stars: number
-  category: string
+  category: string | null
 }
 
 export interface ClusterCard {
@@ -43,37 +43,27 @@ export default defineCachedEventHandler(async (event) => {
     return { items: [] }
 
   const placeholders = allCategories.map(() => '?').join(',')
+  const allPinnedExamples = parseClusterSkillKeys(
+    Array.from(new Set(CLUSTERS.flatMap(c => c.pinnedExamples))),
+  ).map(skill => skill.key)
+  const pinnedPlaceholders = allPinnedExamples.map(() => '?').join(',')
   const sql = `
     SELECT s.owner, s.name, s.repo, s.display_name, r.stars,
            s.abstractness_category AS category
     FROM skills s
     JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-    WHERE s.is_abstract = 1
-      AND s.abstractness_category IN (${placeholders})
+    WHERE (s.is_abstract = 1 AND s.abstractness_category IN (${placeholders}))
+       OR (s.owner || '/' || s.name IN (${pinnedPlaceholders}))
   `
-  const res = await db.prepare(sql).bind(...allCategories).all<SkillRow>()
+  const res = await db.prepare(sql).bind(...allCategories, ...allPinnedExamples).all<SkillRow>()
   const rows = res.results ?? []
 
-  const byKey = new Map<string, SkillRow>()
-  for (const r of rows) byKey.set(`${r.owner}/${r.name}`, r)
-
   const items: ClusterCard[] = CLUSTERS.map((c: Cluster) => {
-    const inCluster = rows.filter(r => c.categories.includes(r.category))
-
-    const pinned: SkillRow[] = []
-    const seen = new Set<string>()
-    for (const key of c.pinnedExamples) {
-      const r = byKey.get(key)
-      if (r && c.categories.includes(r.category)) {
-        pinned.push(r)
-        seen.add(key)
-      }
-    }
-    const remaining = inCluster
-      .filter(r => !seen.has(`${r.owner}/${r.name}`))
+    const pinned = new Set(c.pinnedExamples)
+    const inCluster = rows
+      .filter(r => (r.category !== null && c.categories.includes(r.category)) || pinned.has(`${r.owner}/${r.name}`))
       .sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name))
-
-    const examples = [...pinned, ...remaining].slice(0, EXAMPLES_PER_CARD)
+    const examples = curateClusterSkills(inCluster, c.pinnedExamples).slice(0, EXAMPLES_PER_CARD)
 
     // Avatars answer "who writes this kind of skill", so they rank by the
     // author's reach rather than by whichever example happened to be pinned.
@@ -112,5 +102,5 @@ export default defineCachedEventHandler(async (event) => {
 }, {
   maxAge: 60,
   swr: false,
-  name: 'clusters-index-origin-v2',
+  name: 'clusters-index-origin-v3',
 })

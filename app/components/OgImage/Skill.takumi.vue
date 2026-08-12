@@ -1,25 +1,28 @@
 <script setup lang="ts">
-const {
-  name = '',
-  owner = '',
-  repo = 'skills',
-  curatorCount = 0,
-  reason = '',
-  reasonHandle = '',
-} = defineProps<{
-  name?: string
-  owner?: string
-  repo?: string
-  curatorCount?: number
-  reason?: string
-  reasonHandle?: string
+import { ogCount, ogInitials, ogText } from '../../utils/og-props'
+
+// Declared as the wire types the OG image URL can deliver, not as the types the
+// template wants. An owner such as `24601` arrives as a number.
+const props = defineProps<{
+  name?: string | number | null
+  displayName?: string | number | null
+  owner?: string | number | null
+  ownerAvatar?: string | number | null
+  repo?: string | number | null
+  curatorCount?: string | number | null
+  reason?: string | number | null
+  reasonHandle?: string | number | null
 }>()
 
-const installCmd = computed(() => {
-  if (!owner || !repo || !name)
-    return ''
-  return gitInstallCmd(owner, repo, name)
-})
+const safeName = computed(() => ogText(props.name))
+const safeDisplayName = computed(() => ogText(props.displayName) || safeName.value)
+const safeOwner = computed(() => ogText(props.owner))
+const safeOwnerAvatar = computed(() => ogText(props.ownerAvatar))
+const ownerInitials = computed(() => ogInitials(safeOwner.value))
+const safeRepo = computed(() => ogText(props.repo) || 'skills')
+const safeReason = computed(() => ogText(props.reason))
+const safeReasonHandle = computed(() => ogText(props.reasonHandle))
+const safeCuratorCount = computed(() => ogCount(props.curatorCount))
 </script>
 
 <template>
@@ -38,39 +41,42 @@ const installCmd = computed(() => {
     <div class="px-15 py-14 flex flex-col justify-center gap-10 h-full">
       <OgBrand :size="36" />
 
-      <div v-if="name" class="flex flex-col max-w-full gap-3">
+      <div v-if="safeDisplayName" class="flex flex-col max-w-full gap-4">
         <div
           class="tracking-tighter font-mono leading-none"
-          :class="name.length > 20 ? 'text-5xl' : 'text-6xl'"
+          :class="safeDisplayName.length > 20 ? 'text-5xl' : 'text-6xl'"
           :style="{ lineClamp: 1, textOverflow: 'ellipsis', wordBreak: 'break-all' }"
         >
-          {{ name }}
+          {{ safeDisplayName }}
         </div>
-        <div
-          v-if="owner"
-          class="text-4xl font-mono tracking-tight leading-none"
-          :style="{ color: 'oklch(0.62 0.01 60)' }"
-        >
-          {{ owner }}{{ repo !== 'skills' ? `/${repo}` : '' }}
+        <div v-if="safeOwner" class="flex items-center gap-3">
+          <span
+            class="flex items-center justify-center rounded-full overflow-hidden shrink-0"
+            :style="{ width: '48px', height: '48px', background: 'oklch(0.22 0.012 60)' }"
+          >
+            <img
+              v-if="safeOwnerAvatar"
+              :src="safeOwnerAvatar"
+              :alt="safeOwner"
+              width="48"
+              height="48"
+              class="w-full h-full object-cover"
+            >
+            <span v-else class="font-medium text-xl" :style="{ color: 'oklch(0.62 0.01 60)' }">
+              {{ ownerInitials }}
+            </span>
+          </span>
+          <span
+            class="text-4xl font-mono tracking-tight leading-none"
+            :style="{ color: 'oklch(0.62 0.01 60)' }"
+          >
+            {{ safeOwner }}{{ safeRepo !== 'skills' ? `/${safeRepo}` : '' }}
+          </span>
         </div>
       </div>
 
-      <!-- Install command with rose left border -->
       <div
-        v-if="installCmd"
-        class="flex items-center"
-        :style="{
-          borderLeft: '3px solid oklch(0.555 0.225 17.32)',
-          paddingLeft: '16px',
-        }"
-      >
-        <span class="font-mono text-3xl" :style="{ color: 'oklch(0.62 0.01 60)' }">
-          {{ installCmd }}
-        </span>
-      </div>
-
-      <div
-        v-if="reason"
+        v-if="safeReason"
         class="flex flex-col gap-2"
         :style="{
           borderLeft: '3px solid oklch(0.555 0.225 17.32)',
@@ -81,22 +87,20 @@ const installCmd = computed(() => {
           class="text-3xl leading-snug"
           :style="{ color: 'oklch(0.93 0.005 60)', lineClamp: 3, textOverflow: 'ellipsis' }"
         >
-          &ldquo;{{ reason }}&rdquo;
+          &ldquo;{{ safeReason }}&rdquo;
         </span>
-        <span
-          v-if="reasonHandle"
-          class="text-2xl font-mono"
-          :style="{ color: 'oklch(0.62 0.01 60)' }"
-        >
-          @{{ reasonHandle }}
+        <span v-if="safeReasonHandle" class="flex items-center gap-2">
+          <span class="text-2xl font-mono" :style="{ color: 'oklch(0.62 0.01 60)' }">
+            @{{ safeReasonHandle }}
+          </span>
         </span>
       </div>
       <div
-        v-else-if="curatorCount > 0"
+        v-else-if="safeCuratorCount > 0"
         class="text-3xl"
         :style="{ color: 'oklch(0.62 0.01 60)' }"
       >
-        {{ curatorCount }} curator{{ curatorCount !== 1 ? 's' : '' }} using this skill
+        {{ safeCuratorCount }} curator{{ safeCuratorCount !== 1 ? 's' : '' }} using this skill
       </div>
     </div>
   </OgLayout>

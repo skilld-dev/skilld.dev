@@ -36,6 +36,24 @@ useHead({
   link: [{ rel: 'canonical', href: canonicalUrl }],
 })
 
+const collectionOgProps = computed(() => collection.value
+  ? resolveCollectionOgProps(collection.value)
+  : null)
+
+defineOgImage('Collection.takumi', {
+  name: () => collectionOgProps.value?.name ?? '',
+  description: () => collectionOgProps.value?.description ?? '',
+  curatorHandle: () => collectionOgProps.value?.curatorHandle ?? login.value,
+  curatorName: () => collectionOgProps.value?.curatorName ?? login.value,
+  curatorAvatar: () => collectionOgProps.value?.curatorAvatar ?? '',
+  skillCount: () => collectionOgProps.value?.skillCount ?? 0,
+  skills: () => collectionOgProps.value?.skills ?? [],
+  reason: () => collectionOgProps.value?.reason ?? '',
+  reasonSkill: () => collectionOgProps.value?.reasonSkill ?? '',
+}, {
+  alt: () => `${collectionOgProps.value?.name ?? 'Collection'} by @${login.value} on skilld`,
+})
+
 function collectionSkillPath(skill: { owner: string, repo: string, name?: string | null }) {
   return skill.name
     ? repoSkillPath(skill.owner, skill.repo, skill.name)

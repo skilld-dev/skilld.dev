@@ -2,7 +2,9 @@
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
+import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
+import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 
 const props = defineProps<{
   owner: string
@@ -112,12 +114,10 @@ interface DuplicateSkill {
   trustTier: string | null
 }
 
-const { isBot } = useBotDetection()
-const { data, status, error, refresh } = useFetch(
+const { data, status, error, refresh } = await useFetch(
   () => `/api/skills/${slug.value}`,
   {
     watch: [slug],
-    lazy: !isBot.value,
     immediate: true,
     // `content` (the unrendered markdown body) rides along in the API
     // response but nothing here reads it — `contentHtml` is what renders.
@@ -204,9 +204,9 @@ const { data, status, error, refresh } = useFetch(
   } | null
 }>>
 
-const { data: relatedData, refresh: refreshRelated } = useFetch(
+const { data: relatedData, refresh: refreshRelated } = await useFetch(
   () => `/api/skill-related/${slug.value}`,
-  { watch: [slug], lazy: !isBot.value, immediate: true },
+  { watch: [slug], immediate: true },
 ) as ReturnType<typeof useFetch<{
   commits: SkillCommit[]
   relatedRepoSkills: RelatedSkill[]
@@ -224,16 +224,11 @@ interface LiveSkill {
   audits: SkillAudit[]
   fetchedAt: string
 }
-const liveId = computed(() =>
-  data.value ? `${data.value.owner}/${data.value.repo}/${data.value.name}` : null,
-)
-const { data: liveSkill } = useAsyncData<LiveSkill | null>(
-  () => `skill-live:${liveId.value ?? 'none'}`,
-  async () => liveId.value ? $fetch<LiveSkill>(`/api/skill-live/${liveId.value}`) : null,
+const { data: liveSkill } = await useAsyncData<LiveSkill | null>(
+  () => `skill-live:${slug.value}`,
+  () => $fetch<LiveSkill>(`/api/skill-live/${slug.value}`),
   {
-    watch: [liveId],
-    server: false,
-    lazy: true,
+    watch: [slug],
     default: () => null,
   },
 )
@@ -296,6 +291,7 @@ const { copy, copied } = useInstallCopy(
 )
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
+const skillFileUrl = computed(() => data.value?.provenance?.skillFileUrl ?? '')
 
 const HIDDEN_FRONTMATTER_KEYS = new Set(['name', 'description', 'license'])
 
@@ -391,6 +387,11 @@ const subDocHtml = ref<string | null>(null)
 const subDocRaw = ref<string | null>(null)
 const currentDocLabel = computed(() => activeDocPath.value || 'SKILL.md')
 const currentRaw = computed(() => subDocRaw.value ?? data.value?.raw ?? null)
+const rawSourceUrl = computed(() => resolveSkillRawUrl({
+  rootUrl: `/api/skills-raw/${slug.value}`,
+  skillFileUrl: skillFileUrl.value || null,
+  activeDocPath: activeDocPath.value,
+}))
 // Same `marked` pipeline as SSR (skill-md-render.ts) on both sides, so the
 // initial paint matches `data.contentHtml` byte-for-byte — no hydration swap.
 const currentContentHtml = computed(() => subDocHtml.value ?? data.value?.contentHtml ?? null)
@@ -584,7 +585,7 @@ const commitsWithAgo = computed(() => {
   })
 })
 
-const recentCommits = computed(() => commitsWithAgo.value.slice(0, 4))
+const recentCommits = computed(() => commitsWithAgo.value.slice(0, 5))
 
 function truncateReason(text: string, max: number): string {
   const collapsed = text.replace(/\s+/g, ' ').trim()
@@ -595,13 +596,15 @@ function truncateReason(text: string, max: number): string {
 
 defineOgImage('Skill.takumi', {
   name: () => data.value?.name ?? '',
+  displayName: () => data.value?.displayName ?? data.value?.name ?? '',
   owner: () => data.value?.owner ?? '',
+  ownerAvatar: () => data.value?.owner ? `https://github.com/${data.value.owner}.png?size=128` : '',
   repo: () => data.value?.repo ?? 'skills',
-  curatorCount: () => 0,
-  reason: () => '',
-  reasonHandle: () => '',
+  curatorCount: () => data.value?.curators.length ?? 0,
+  reason: () => data.value?.curators.find(curator => curator.reason)?.reason ?? '',
+  reasonHandle: () => data.value?.curators.find(curator => curator.reason)?.handle ?? '',
 }, {
-  alt: () => `${data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
+  alt: () => `${data.value?.displayName ?? data.value?.name ?? 'Skill'} by ${data.value?.owner ?? ''} on skilld`,
 })
 
 const siteOrigin = 'https://skilld.dev'
@@ -823,7 +826,7 @@ useHead(computed(() => ({
                   title="Published by the organization that maintains this project"
                 />
               </div>
-              <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-sm text-muted">
+              <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-sm text-muted">
                 <span>
                   <NuxtLink
                     :to="ownerHubPath(data.owner)"
@@ -845,6 +848,13 @@ useHead(computed(() => ({
                   />
                   {{ formatGithubStars(data.stars) }}
                 </span>
+                <LikeButton
+                  :owner="data.owner"
+                  :repo="data.repo"
+                  :name="data.name"
+                  :count="data.likeCount"
+                  variant="inline"
+                />
                 <span
                   v-if="data.forks"
                   class="inline-flex items-center gap-1"
@@ -857,7 +867,7 @@ useHead(computed(() => ({
                   />
                   {{ data.forks.toLocaleString() }}
                 </span>
-              </p>
+              </div>
             </div>
           </div>
           <p
@@ -930,14 +940,17 @@ useHead(computed(() => ({
 
         <div class="mt-6 space-y-3">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span
-              v-if="data.stars > 0"
-              class="data-label inline-flex items-center gap-1"
-              :title="`${data.stars.toLocaleString()} GitHub stars`"
+            <a
+              v-if="skillFileUrl"
+              :href="skillFileUrl"
+              target="_blank"
+              rel="noopener"
+              class="data-label inline-flex min-h-11 items-center gap-1 transition-colors hover:text-default"
+              title="View SKILL.md on GitHub"
             >
-              <UIcon name="i-lucide-star" class="size-3.5" aria-hidden="true" />
-              {{ formatGithubStars(data.stars) }} GitHub stars
-            </span>
+              <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
+              GitHub
+            </a>
             <span
               v-if="data.pushedAt"
               class="data-label inline-flex items-center gap-1"
@@ -954,7 +967,7 @@ useHead(computed(() => ({
             <a
               v-if="auditOverview"
               href="#receipts"
-              class="inline-flex items-center gap-1 font-mono text-xs transition-colors hover:brightness-110"
+              class="inline-flex min-h-11 items-center gap-1 font-mono text-xs transition-colors hover:brightness-110"
               :class="AUDIT_TONE_CLASS[auditOverview.tone]"
               :title="`Security checks: ${auditOverview.label} · ${auditOverview.detail}. View full trust signals.`"
             >
@@ -964,7 +977,6 @@ useHead(computed(() => ({
                 aria-hidden="true"
               />
               {{ auditOverview.label }}
-              <span class="text-muted">· {{ auditOverview.detail }}</span>
             </a>
           </div>
         </div>
@@ -990,34 +1002,6 @@ useHead(computed(() => ({
               size="sm"
               :aria-label="copied ? 'Copied' : 'Copy install command'"
               @click="copy(installCmd)"
-            />
-          </div>
-          <LikeButton
-            :owner="data.owner"
-            :repo="data.repo"
-            :name="data.name"
-            :count="data.likeCount"
-          />
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
-            <UButton
-              :href="githubUrl"
-              target="_blank"
-              rel="noopener"
-              label="GitHub"
-              icon="i-lucide-github"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-            />
-            <UButton
-              :href="`/api/skills-raw/${slug}`"
-              target="_blank"
-              rel="noopener"
-              label="Raw"
-              icon="i-lucide-file-text"
-              size="xs"
-              color="neutral"
-              variant="ghost"
             />
           </div>
         </div>
@@ -1069,18 +1053,33 @@ useHead(computed(() => ({
                   / {{ currentDocLabel }}
                 </span>
               </h2>
-              <UButton
+              <div
                 v-if="currentRaw"
-                :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                class="shrink-0"
-                :aria-label="markdownCopied ? `${currentDocLabel} copied` : `Copy ${currentDocLabel}`"
-                @click="copyMarkdown(currentRaw)"
+                class="flex shrink-0 items-center gap-1"
               >
-                {{ markdownCopied ? 'Copied' : 'Copy markdown' }}
-              </UButton>
+                <UButton
+                  :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  class="min-h-11"
+                  :aria-label="markdownCopied ? `${currentDocLabel} copied` : `Copy ${currentDocLabel}`"
+                  @click="copyMarkdown(currentRaw)"
+                >
+                  {{ markdownCopied ? 'Copied' : 'Copy markdown' }}
+                </UButton>
+                <UButton
+                  :href="rawSourceUrl"
+                  target="_blank"
+                  rel="noopener"
+                  label="Raw"
+                  icon="i-lucide-file-text"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  class="min-h-11"
+                />
+              </div>
             </div>
 
             <UTabs
@@ -1332,38 +1331,6 @@ useHead(computed(() => ({
                   size="xs"
                   :aria-label="copied ? 'Copied' : 'Copy install command'"
                   @click="copy(installCmd)"
-                />
-              </div>
-              <!-- LikeButton is client-only, so the height is reserved to stop
-                   the rail shifting when it hydrates. -->
-              <div style="min-height:2.75rem">
-                <LikeButton
-                  :owner="data.owner"
-                  :repo="data.repo"
-                  :name="data.name"
-                  :count="data.likeCount"
-                />
-              </div>
-              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-3 border-t border-default">
-                <UButton
-                  :href="githubUrl"
-                  target="_blank"
-                  rel="noopener"
-                  label="GitHub"
-                  icon="i-lucide-github"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                />
-                <UButton
-                  :href="`/api/skills-raw/${slug}`"
-                  target="_blank"
-                  rel="noopener"
-                  label="Raw"
-                  icon="i-lucide-file-text"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
                 />
               </div>
             </div>
@@ -1631,13 +1598,13 @@ useHead(computed(() => ({
 
           <section
             v-if="recentCommits.length"
-            aria-labelledby="changelog-heading"
+            aria-labelledby="history-heading"
           >
             <h2
-              id="changelog-heading"
+              id="history-heading"
               class="section-label mb-3"
             >
-              Recent changes
+              History
             </h2>
             <ol
               class="divide-y divide-default rounded-lg border border-default"
@@ -1691,7 +1658,7 @@ useHead(computed(() => ({
             </ol>
             <p class="mt-2 text-xs text-muted">
               <a
-                :href="`${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
+                :href="data.provenance?.historyUrl || `${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
                 target="_blank"
                 rel="noopener"
                 class="font-mono hover:text-default transition-colors"

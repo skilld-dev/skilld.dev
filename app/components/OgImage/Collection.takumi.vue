@@ -1,41 +1,36 @@
 <script setup lang="ts">
-const {
-  name,
-  description = '',
-  curatorHandle,
-  curatorName = '',
-  curatorAvatar = '',
-  skillCount = 0,
-  skills = [],
-  reason = '',
-  reasonSkill = '',
-} = defineProps<{
-  name: string
-  description?: string
-  curatorHandle: string
-  curatorName?: string
-  curatorAvatar?: string
-  skillCount?: number
-  skills?: string[]
-  reason?: string
-  reasonSkill?: string
+import { ogCount, ogInitials, ogText, ogTextList } from '../../utils/og-props'
+
+// Declared as the wire types the OG image URL can deliver, not as the types the
+// template wants. A login such as `24601` arrives as a number.
+const props = defineProps<{
+  name: string | number | null
+  description?: string | number | null
+  curatorHandle: string | number | null
+  curatorName?: string | number | null
+  curatorAvatar?: string | number | null
+  skillCount?: string | number | null
+  skills?: unknown
+  reason?: string | number | null
+  reasonSkill?: string | number | null
 }>()
 
+const safeName = computed(() => ogText(props.name))
+const safeDescription = computed(() => ogText(props.description))
+const safeCuratorHandle = computed(() => ogText(props.curatorHandle))
+const safeCuratorAvatar = computed(() => ogText(props.curatorAvatar))
+const safeReasonSkill = computed(() => ogText(props.reasonSkill))
+const safeSkillCount = computed(() => ogCount(props.skillCount))
+const safeSkills = computed(() => ogTextList(props.skills))
+const initials = computed(() => ogInitials(ogText(props.curatorName) || safeCuratorHandle.value))
+
 const truncatedReason = computed(() => {
+  const reason = ogText(props.reason)
   if (!reason)
     return ''
   const collapsed = reason.replace(/\s+/g, ' ').trim()
   return collapsed.length <= 140 ? collapsed : `${collapsed.slice(0, 139).replace(/\s+\S*$/, '')}…`
 })
-
-function getInitials(n: string) {
-  return n
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
 </script>
 
 <template>
@@ -59,15 +54,15 @@ function getInitials(n: string) {
           class="text-6xl tracking-tighter font-mono leading-none"
           :style="{ lineClamp: 1, textOverflow: 'ellipsis' }"
         >
-          {{ name }}
+          {{ safeName }}
         </div>
 
         <div
-          v-if="description"
+          v-if="safeDescription"
           class="text-3xl"
           :style="{ color: 'oklch(0.62 0.01 60)', lineClamp: 2, textOverflow: 'ellipsis' }"
         >
-          {{ description }}
+          {{ safeDescription }}
         </div>
       </div>
 
@@ -78,9 +73,9 @@ function getInitials(n: string) {
           :style="{ width: '40px', height: '40px', background: 'oklch(0.22 0.012 60)' }"
         >
           <img
-            v-if="curatorAvatar"
-            :src="curatorAvatar"
-            :alt="curatorHandle"
+            v-if="safeCuratorAvatar"
+            :src="safeCuratorAvatar"
+            :alt="safeCuratorHandle"
             width="40"
             height="40"
             class="w-full h-full object-cover"
@@ -90,14 +85,14 @@ function getInitials(n: string) {
             class="font-medium"
             :style="{ fontSize: '14px', color: 'oklch(0.62 0.01 60)' }"
           >
-            {{ getInitials(curatorName || curatorHandle) }}
+            {{ initials }}
           </span>
         </span>
         <span class="text-3xl font-mono" :style="{ color: 'oklch(0.62 0.01 60)' }">
-          @{{ curatorHandle }}
+          @{{ safeCuratorHandle }}
         </span>
         <span class="text-3xl" :style="{ color: 'oklch(0.62 0.01 60)' }">
-          · {{ skillCount }} skill{{ skillCount !== 1 ? 's' : '' }}
+          · {{ safeSkillCount }} skill{{ safeSkillCount !== 1 ? 's' : '' }}
         </span>
       </div>
 
@@ -117,38 +112,20 @@ function getInitials(n: string) {
           &ldquo;{{ truncatedReason }}&rdquo;
         </span>
         <span
-          v-if="reasonSkill"
+          v-if="safeReasonSkill"
           class="font-mono text-xl"
           :style="{ color: 'oklch(0.62 0.01 60)' }"
         >
-          on {{ reasonSkill }}
+          on {{ safeReasonSkill }}
         </span>
       </div>
 
-      <!-- Skill badges with rose accent on first badge -->
       <div
-        v-else-if="skills.length"
-        class="flex flex-wrap gap-2"
+        v-else-if="safeSkills.length"
+        class="font-mono text-2xl"
+        :style="{ color: 'oklch(0.62 0.01 60)', lineClamp: 1, textOverflow: 'ellipsis' }"
       >
-        <span
-          v-for="(skill, i) in skills.slice(0, 8)"
-          :key="skill"
-          class="font-mono text-xl px-3 py-1 rounded-md"
-          :style="{
-            background: i === 0 ? 'oklch(0.555 0.225 17.32 / 0.15)' : 'oklch(0.22 0.012 60)',
-            color: i === 0 ? 'oklch(0.75 0.15 17.32)' : 'oklch(0.62 0.01 60)',
-            border: i === 0 ? '1px solid oklch(0.555 0.225 17.32 / 0.3)' : '1px solid transparent',
-          }"
-        >
-          {{ skill }}
-        </span>
-        <span
-          v-if="skills.length > 8"
-          class="font-mono text-xl px-3 py-1"
-          :style="{ color: 'oklch(0.45 0.01 60)' }"
-        >
-          +{{ skills.length - 8 }}
-        </span>
+        {{ safeSkills.slice(0, 4).join(' · ') }}
       </div>
     </div>
   </OgLayout>

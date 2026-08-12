@@ -54,6 +54,14 @@ useSeoMeta({
   title: () => `@${login.value} · skilld`,
   description: () => `Skills and collections by @${login.value}`,
 })
+
+defineOgImage('Curator.takumi', {
+  handle: () => login.value,
+  avatar: () => `https://github.com/${login.value}.png?size=128`,
+  collectionCount: () => collections.value.length,
+  skillCount: () => skills.value.length,
+  skills: () => skills.value.slice(0, 4).map(skill => skill.display_name || skill.name),
+}, { alt: () => `@${login.value} skill profile on skilld` })
 </script>
 
 <template>

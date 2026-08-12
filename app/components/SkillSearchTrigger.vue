@@ -142,7 +142,7 @@ const activeDescendant = computed(() =>
       color="neutral"
       variant="ghost"
       size="sm"
-      class="md:hidden"
+      class="min-h-11 min-w-11 md:hidden"
       aria-label="Search skills"
       :aria-expanded="open"
       @click="() => { void openMobile() }"

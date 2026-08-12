@@ -135,6 +135,7 @@ defineOgImage('Curator.takumi', {
   avatar: () => data.value?.avatar ?? '',
   collectionCount: () => data.value?.repos.length ?? 0,
   skillCount: () => data.value?.totalSkills ?? 0,
+  skills: () => data.value?.skills.slice(0, 4).map(skill => skill.displayName || skill.name) ?? [],
 }, {
   alt: () => data.value?.displayName
     ? `${data.value.displayName} skill profile on skilld`

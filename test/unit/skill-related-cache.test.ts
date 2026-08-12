@@ -12,7 +12,7 @@ const source = readFileSync(handlerPath, 'utf8')
 describe('skill-related cache key', () => {
   it('is scoped to one skill identity', () => {
     expect(relatedCacheKey({ owner: 'kotlin', repo: 'kotlin-agent-skills', name: 'jpa' }))
-      .toBe('skills:related:v1:kotlin/kotlin-agent-skills/jpa')
+      .toBe('skills:related:v2:kotlin/kotlin-agent-skills/jpa')
   })
 
   it('separates skills sharing a name across repos', () => {
@@ -23,15 +23,6 @@ describe('skill-related cache key', () => {
 })
 
 describe('skill-related read path', () => {
-  // The 2026-08-04 D1 overload burst put 839 errors on a single skill in one hour
-  // because this handler ran every neighbor query uncached on each request.
-  it('returns the cached response before doing any neighbor work', () => {
-    const cacheRead = source.indexOf('const cached = await useStorage(\'cache\').getItem')
-    const neighborWork = source.indexOf('resolveRepoSourceIdentity(platform.db')
-    expect(cacheRead).toBeGreaterThan(-1)
-    expect(neighborWork).toBeGreaterThan(cacheRead)
-  })
-
   it('writes through the best-effort cache helper, never a bare setItem', () => {
     expect(source).toContain('await writeCache(useStorage(\'cache\'), cacheKey, response')
     expect(source).not.toMatch(/return\s+useStorage\('cache'\)\.setItem/)

@@ -15,7 +15,7 @@
  * semantic siblings now stay empty until Vectorize has evidence.
  */
 export const RELATED_CACHE_TTL = 60 * 60
-const RELATED_CACHE_VERSION = 'v1'
+const RELATED_CACHE_VERSION = 'v2'
 
 export function relatedCacheKey(
   skill: { owner: string, repo: string, name: string },

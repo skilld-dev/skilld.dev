@@ -1,5 +1,6 @@
 import { getDB } from '#server/utils/db'
 import { CLUSTER_BY_SLUG } from '../../data/clusters'
+import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
 
 interface SkillRow {
   owner: string
@@ -25,30 +26,44 @@ export default defineCachedEventHandler(async (event) => {
 
   const db = getDB(event)
   const placeholders = cluster.categories.map(() => '?').join(',')
+  const pinnedSkills = parseClusterSkillKeys(cluster.pinnedExamples)
+  const pinnedPlaceholders = pinnedSkills.map(() => '?').join(',')
+  const pinnedOrderParams = pinnedSkills.flatMap(skill => [skill.owner, skill.name])
+  const clusterSql = `(
+    (s.is_abstract = 1 AND s.abstractness_category IN (${placeholders}))
+    OR (s.owner || '/' || s.name IN (${pinnedPlaceholders}))
+  )`
+  const clusterParams = [...cluster.categories, ...cluster.pinnedExamples]
 
   const countSql = `
     SELECT COUNT(*) AS n
-    FROM skills
-    WHERE is_abstract = 1
-      AND abstractness_category IN (${placeholders})
+    FROM skills s
+    WHERE ${clusterSql}
   `
-  const countRow = await db.prepare(countSql).bind(...cluster.categories).first<{ n: number }>()
+  const countRow = await db.prepare(countSql).bind(...clusterParams).first<{ n: number }>()
   const total = countRow?.n ?? 0
 
   // stars moved to `repos` in migration 0034; JOIN explicitly.
+  const pinnedOrderSql = pinnedSkills
+    .map((_, index) => `WHEN s.owner = ? AND s.name = ? THEN ${index}`)
+    .join('\n')
   const listSql = `
     SELECT s.owner, s.name, s.repo, s.display_name, s.description,
            r.stars, s.modified_at
     FROM skills s
     JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-    WHERE s.is_abstract = 1
-      AND s.abstractness_category IN (${placeholders})
-    ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC
+    WHERE ${clusterSql}
+    ORDER BY CASE
+      ${pinnedOrderSql}
+      ELSE ${pinnedSkills.length}
+    END, r.stars DESC, s.modified_at DESC, s.name ASC
     LIMIT ? OFFSET ?
   `
-  const res = await db.prepare(listSql).bind(...cluster.categories, limit, offset).all<SkillRow>()
+  const res = await db.prepare(listSql)
+    .bind(...clusterParams, ...pinnedOrderParams, limit, offset)
+    .all<SkillRow>()
 
-  const items = (res.results ?? []).map(s => ({
+  const rankedItems = (res.results ?? []).map(s => ({
     owner: s.owner,
     name: s.name,
     repo: s.repo,
@@ -58,6 +73,9 @@ export default defineCachedEventHandler(async (event) => {
     modifiedAt: s.modified_at,
     slug: `${s.owner}/${s.repo}/${s.name}`,
   }))
+  const items = page === 1
+    ? curateClusterSkills(rankedItems, cluster.pinnedExamples)
+    : rankedItems
 
   return {
     cluster: {
@@ -74,5 +92,5 @@ export default defineCachedEventHandler(async (event) => {
 }, {
   maxAge: 60,
   swr: false,
-  name: 'clusters-detail-origin-v1',
+  name: 'clusters-detail-origin-v2',
 })

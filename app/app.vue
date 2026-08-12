@@ -104,7 +104,7 @@ watch(() => route.fullPath, () => {
         <template #left>
           <NuxtLink
             to="/"
-            class="flex items-center gap-2"
+            class="flex min-h-11 items-center gap-2"
             aria-label="skilld, home"
           >
             <AppLogo />
@@ -141,6 +141,7 @@ watch(() => route.fullPath, () => {
             color="neutral"
             variant="ghost"
             size="sm"
+            class="min-h-11 min-w-11"
           />
 
           <ClientOnly>
@@ -152,12 +153,14 @@ watch(() => route.fullPath, () => {
                 color="neutral"
                 variant="ghost"
                 size="sm"
+                class="hidden lg:inline-flex"
               />
               <UButton
                 label="Sign out"
                 color="neutral"
                 variant="ghost"
                 size="sm"
+                class="hidden lg:inline-flex"
                 @click="logout"
               />
             </template>
@@ -169,6 +172,7 @@ watch(() => route.fullPath, () => {
               color="neutral"
               variant="ghost"
               size="sm"
+              class="hidden lg:inline-flex"
             />
             <template #fallback>
               <UButton
@@ -178,6 +182,7 @@ watch(() => route.fullPath, () => {
                 color="neutral"
                 variant="ghost"
                 size="sm"
+                class="hidden lg:inline-flex"
               />
             </template>
           </ClientOnly>
@@ -188,7 +193,7 @@ watch(() => route.fullPath, () => {
             :icon="mobileNavigationOpen ? 'i-lucide-x' : 'i-lucide-menu'"
             color="neutral"
             variant="ghost"
-            class="lg:hidden -me-1.5"
+            class="-me-1.5 min-h-11 min-w-11 lg:hidden"
             :aria-label="mobileNavigationOpen ? 'Close menu' : 'Open menu'"
             aria-controls="mobile-navigation"
             :aria-expanded="mobileNavigationOpen"
@@ -213,7 +218,7 @@ watch(() => route.fullPath, () => {
                 color="neutral"
                 variant="ghost"
                 block
-                class="justify-start"
+                class="min-h-11 justify-start"
               />
               <UButton
                 to="/skills/leaderboard"
@@ -221,7 +226,7 @@ watch(() => route.fullPath, () => {
                 color="neutral"
                 variant="ghost"
                 block
-                class="justify-start"
+                class="min-h-11 justify-start"
               />
               <UButton
                 to="/community"
@@ -229,8 +234,41 @@ watch(() => route.fullPath, () => {
                 color="neutral"
                 variant="ghost"
                 block
-                class="justify-start"
+                class="min-h-11 justify-start"
               />
+              <USeparator class="my-1" />
+              <ClientOnly>
+                <template v-if="isAuthenticated && user">
+                  <UButton
+                    to="/me"
+                    :label="`@${user.login}`"
+                    icon="i-lucide-user"
+                    color="neutral"
+                    variant="ghost"
+                    block
+                    class="min-h-11 justify-start"
+                  />
+                  <UButton
+                    label="Sign out"
+                    icon="i-lucide-log-out"
+                    color="neutral"
+                    variant="ghost"
+                    block
+                    class="min-h-11 justify-start"
+                    @click="logout"
+                  />
+                </template>
+                <UButton
+                  v-else
+                  to="/login"
+                  label="Sign in"
+                  icon="i-lucide-github"
+                  color="neutral"
+                  variant="ghost"
+                  block
+                  class="min-h-11 justify-start"
+                />
+              </ClientOnly>
             </nav>
           </div>
         </template>

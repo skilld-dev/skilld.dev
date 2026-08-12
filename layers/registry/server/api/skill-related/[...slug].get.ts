@@ -4,8 +4,8 @@ import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
 import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
-import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
 import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
+import { findSkillCommitSource as resolveRepoSourceIdentityForCommits } from '../../utils/skill-commit-source'
 import { RELATED_CACHE_TTL, relatedCacheKey } from '../../utils/skill-related'
 import { findRelatedSkills, findSkill, findSkillsByLookups } from '../../utils/skills-registry'
 
@@ -58,14 +58,12 @@ export default defineApiHandler({
     if (cached)
       return cached
 
-    // skillPath is needed for commits; cheap KV lookup since the critical handler primed it
-    const skillPath = await useStorage('cache').getItem<string | null>(
-      `skills:skill-path:v5:${skill.owner}/${skill.repo}/${skill.name}`,
-    )
-    const source = await resolveRepoSourceIdentity(platform.db, skill)
+    const source = await resolveRepoSourceIdentityForCommits(platform.db, skill)
 
     const [commits, related, coOccurrenceNeighbors, embeddingNeighbors] = await Promise.all([
-      skillPath ? getSkillCommits(source.owner, source.repo, skillPath) : Promise.resolve([]),
+      source
+        ? getSkillCommits(source.owner, source.repo, source.path)
+        : Promise.resolve([]),
       findRelatedSkills(event, { owner: skill.owner, repo: skill.repo, excludeName: skill.name, limit: 6 }),
       getCoOccurrenceNeighbors(platform.db, skill.name),
       getEmbeddingNeighbors(platform.env.SKILL_EMBEDDINGS, { owner: skill.owner, repo: skill.repo, name: skill.name }),

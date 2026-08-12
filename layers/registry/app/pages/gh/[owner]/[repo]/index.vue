@@ -193,7 +193,7 @@ async function setGroupedSkills(value: boolean) {
   await navigateTo({ query }, { replace: true })
 }
 
-const skilldInitCmd = computed(() => 'npx -y skilld')
+const skilldInitCmd = computed(() => 'npx skilld')
 
 const repoHubGithubUrl = computed(() => {
   const hub = repoHub.value
