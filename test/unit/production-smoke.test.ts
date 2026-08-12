@@ -18,7 +18,8 @@ describe('production smoke contract', () => {
       { path: '/skills/leaderboard', status: 200 },
       { path: '/skills/not-a-real-outcome', status: 404 },
       { path: '/collections/_CollectionAvatar', status: 404 },
-      { path: '/skills/tag/plan', status: 301, location: '/skills/plan' },
+      { path: '/skills/tag/plan', status: 301, location: '/skills/planning' },
+      { path: '/skills/plan', status: 301, location: '/skills/planning' },
       { path: '/skills/tag/cloudflare', status: 200 },
     ]))
   })

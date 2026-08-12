@@ -74,7 +74,12 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   { path: '/skills/leaderboard', status: 200 },
   { path: '/skills/not-a-real-outcome', status: 404 },
   { path: '/collections/_CollectionAvatar', status: 404 },
-  { path: '/skills/tag/plan', status: 301, location: '/skills/plan' },
+  // The `plan` cluster became `planning` in the 2026-08-12 category rework, so
+  // the tag redirect points at the new slug. The old slug is itself a 301 now,
+  // and a redirect chain would be the bug this check exists to catch.
+  { path: '/skills/tag/plan', status: 301, location: '/skills/planning' },
+  { path: '/skills/plan', status: 301, location: '/skills/planning' },
+  { path: '/skills/seo', status: 200 },
   { path: '/skills/tag/cloudflare', status: 200 },
 ]
 
