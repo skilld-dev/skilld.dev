@@ -14,7 +14,7 @@ describe('cluster page async contract', () => {
     // The loading state is still reachable: on client-side navigation the
     // request is still pending on mount, so `status` drives it exactly as
     // before. Only the initial server render changed.
-    expect(source).toContain('useFetch<ClusterDetailResponse>')
+    expect(source).toContain('await useFetch<ClusterDetailResponse>')
     expect(source).not.toContain('useLazyFetch<ClusterDetailResponse>')
   })
 
