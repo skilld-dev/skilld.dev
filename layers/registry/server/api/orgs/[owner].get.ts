@@ -67,8 +67,8 @@ async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerR
       'User-Agent': 'skilld.dev',
       'Accept': 'application/vnd.github+json',
     },
-  }).catch((error) => {
-    console.warn(`[orgs] ${error instanceof Error ? error.message : String(error)}`)
+  }).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'org-profile-fetch', outcome: 'failed' }))
     return null
   })
 
@@ -191,8 +191,8 @@ export default defineCachedEventHandler(async (event) => {
       r.description = cached
       return
     }
-    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${source.owner}/${source.repo}`).catch((error) => {
-      console.warn(`[orgs] ${error instanceof Error ? error.message : String(error)}`)
+    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${source.owner}/${source.repo}`).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'org-repo-description-fetch', outcome: 'failed' }))
       return null
     })
     const desc = data?.repo?.description?.trim() || null

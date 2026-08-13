@@ -51,7 +51,7 @@ export async function generateTags(ctx: TagContext, skill: TagSkill): Promise<Ta
 
   const parsed = extractJson<{ tags?: string[] }>(res.text)
   if (!parsed?.tags || !Array.isArray(parsed.tags)) {
-    console.warn(`[tags] no JSON in response for ${skill.owner}/${skill.name}:`, res.text.slice(0, 300))
+    emitOperationalEvent(createWideEvent({ operation: 'tag-generation-parse', outcome: 'invalid-response' }))
     return null
   }
 

@@ -149,8 +149,8 @@ async function getSkillCommits(owner: string, repo: string, path: string): Promi
   const data = await $fetch<GhCommitResponse[]>(`https://api.github.com/repos/${owner}/${repo}/commits`, {
     query: { path, per_page: 5 },
     headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'skilld.dev' },
-  }).catch((err) => {
-    console.warn(`[skills] Failed to fetch commits for ${owner}/${repo}:${path}:`, err?.statusCode || err)
+  }).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'skill-related-commits-fetch', outcome: 'failed' }))
     return null
   })
 

@@ -46,7 +46,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[sync-x-mentions] D1 binding not available')
+      emitOperationalEvent(createWideEvent({ operation: 'sync-x-mentions', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
 
@@ -64,7 +64,7 @@ export default defineScheduledTask({
         // Not an error: the feature is simply not configured in this
         // environment. Reported so a missing secret in production is visible
         // rather than looking like a quiet run that found nothing.
-        console.warn('[sync-x-mentions] X_BEARER_KEY not set, skipping')
+        emitOperationalEvent(createWideEvent({ operation: 'sync-x-mentions', outcome: 'credential-missing' }))
         await reportJobRun(db, 'sync-x-mentions', {
           cron: CRON,
           status: 'partial',
@@ -78,9 +78,9 @@ export default defineScheduledTask({
       const ingest = await ingestXMentions({ db, client, now })
 
       if (ingest.error)
-        console.warn(`[sync-x-mentions] ingest degraded: ${describeXError(ingest.error)}`)
+        emitOperationalEvent(createWideEvent({ operation: 'sync-x-mentions-ingest', outcome: 'degraded' }))
       if (ingest.truncated)
-        console.warn('[sync-x-mentions] page ceiling reached; older posts in this window were not read')
+        emitOperationalEvent(createWideEvent({ operation: 'sync-x-mentions-ingest', outcome: 'truncated', truncated: true }))
 
       // The sizer is what keeps an aggregator dump out of the registry. It is
       // passed explicitly rather than defaulted inside submitDiscoveredRepos so
@@ -116,7 +116,14 @@ export default defineScheduledTask({
         elapsedMs: Date.now() - startedAt,
       }
 
-      console.warn('[sync-x-mentions] done', summary)
+      emitOperationalEvent(createWideEvent({
+        'operation': 'sync-x-mentions',
+        'outcome': ingest.error ? 'partial' : 'completed',
+        'scanned.count': summary.fetched,
+        'processed.count': summary.upserted,
+        'success.count': summary.announced,
+        'truncated': ingest.truncated,
+      }))
       await reportJobRun(db, 'sync-x-mentions', {
         cron: CRON,
         // A degraded ingest still did useful work, so it is 'partial' rather
@@ -170,7 +177,7 @@ async function announceTrending(
   if (result._tag !== 'sent') {
     // Deliberately not marked as announced: a failed post must be retried on
     // the next cycle, not silently dropped.
-    console.warn('[sync-x-mentions] discord notify not sent', result)
+    emitOperationalEvent(createWideEvent({ operation: 'sync-x-mentions-notify', outcome: 'failed' }))
     return { announced: 0 }
   }
 

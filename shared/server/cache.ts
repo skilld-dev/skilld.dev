@@ -24,7 +24,7 @@ export async function writeCache<T>(
   try {
     await storage.setItem(key, value as never, options)
   }
-  catch (error) {
-    console.warn(`[cache] write failed for ${key}`, error)
+  catch {
+    emitOperationalEvent(createWideEvent({ 'operation': 'cache-write', 'outcome': 'failed', 'cache.writeFailed': true }))
   }
 }

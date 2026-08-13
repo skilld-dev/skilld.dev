@@ -36,11 +36,11 @@ export default defineScheduledTask({
     const db = env?.DB as D1Database | undefined
     const vectorize = env?.SKILL_EMBEDDINGS as VectorizeIndex | undefined
     if (!env || !db) {
-      console.warn('[embedding-parity-audit] D1 binding not available in task context')
+      emitOperationalEvent(createWideEvent({ operation: 'embedding-parity-audit', outcome: 'database-binding-missing' }))
       return { result: { error: 'no-db' } }
     }
     if (!vectorize) {
-      console.warn('[embedding-parity-audit] Vectorize binding not available in task context')
+      emitOperationalEvent(createWideEvent({ operation: 'embedding-parity-audit', outcome: 'vector-binding-missing' }))
       return { result: { error: 'no-vectorize' } }
     }
 
@@ -80,9 +80,12 @@ export default defineScheduledTask({
       // confirms the deletion landed.
       const prune = await pruneOrphanEmbeddings({ db, vectorize })
       if (prune.refusal) {
-        console.warn(
-          `[embedding-parity-audit] prune refused: ${prune.refusal.candidates} candidates against ${prune.refusal.eligible} eligible`,
-        )
+        emitOperationalEvent(createWideEvent({
+          'operation': 'embedding-parity-prune',
+          'outcome': 'refused',
+          'item.count': prune.refusal.candidates,
+          'eligible.count': prune.refusal.eligible,
+        }))
       }
 
       const pruneNote = prune.refusal

@@ -32,9 +32,9 @@ export default defineOAuthGitHubEventHandler({
         }).then((result) => {
           const warning = ownedRepoScanWarning(result)
           if (warning)
-            console.warn(`[oauth] owned-repo scan incomplete for @${row.login}`, warning)
-        }).catch((err) => {
-          console.warn(`[oauth] owned-repo scan failed for @${row.login}`, err)
+            emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'incomplete' }))
+        }).catch(() => {
+          emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'failed' }))
         })
         const cfCtx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
         if (cfCtx?.waitUntil)
@@ -79,8 +79,8 @@ export default defineOAuthGitHubEventHandler({
 
     return sendRedirect(event, '/me')
   },
-  onError(event, error) {
-    console.error('GitHub OAuth error:', error)
+  onError(event) {
+    emitOperationalEvent(createWideEvent({ operation: 'github-oauth', outcome: 'failed' }), 'error')
     return sendRedirect(event, '/login?error=oauth')
   },
 })

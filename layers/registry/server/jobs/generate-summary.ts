@@ -66,7 +66,7 @@ export async function generateSummary(ctx: SummaryContext, skill: SummarySkill):
 
   const parsed = extractJson<{ tagline?: string, blurb?: string, useCases?: string[] }>(res.text)
   if (!parsed) {
-    console.warn(`[summary] no JSON in response for ${skill.owner}/${skill.name}:`, res.text.slice(0, 300))
+    emitOperationalEvent(createWideEvent({ operation: 'summary-parse', outcome: 'invalid-response' }))
     return null
   }
 

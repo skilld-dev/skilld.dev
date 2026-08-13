@@ -35,16 +35,16 @@ export default defineApiHandler({
 
     const repoMeta = await $fetch<{ defaultBranch?: string }>(
       `https://ungh.cc/repos/${source.owner}/${source.repo}`,
-    ).catch((error) => {
-      console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
+    ).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-raw-repo-fetch', outcome: 'failed' }))
       return null
     })
     const branch = repoMeta?.defaultBranch || 'main'
 
     const treeRes = await $fetch<{ files?: { path: string }[] }>(
       `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
-    ).catch((error) => {
-      console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
+    ).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-raw-tree-fetch', outcome: 'failed' }))
       return null
     })
 
@@ -62,8 +62,8 @@ export default defineApiHandler({
     }
 
     const rawUrl = `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${branch}/${skillPath}`
-    const body = await $fetch<string>(rawUrl, { responseType: 'text' }).catch((error) => {
-      console.warn(`[skills-raw] ${error instanceof Error ? error.message : String(error)}`)
+    const body = await $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-raw-content-fetch', outcome: 'failed' }))
       return null
     })
 

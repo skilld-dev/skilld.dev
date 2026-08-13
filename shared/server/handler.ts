@@ -78,8 +78,8 @@ export function defineApiHandler<
       body = parsed.data as z.infer<S>
     }
 
-    const session = await getUserSession(event).catch((error) => {
-      console.warn(`[api-handler] ${error instanceof Error ? error.message : String(error)}`)
+    const session = await getUserSession(event).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'api-session', outcome: 'failed' }))
       return null
     }) as UserSession | null
     const bearerUser = session?.user ? null : await resolveBearerUser(event)
@@ -111,8 +111,7 @@ export function defineApiHandler<
             data: { issues: parsed.error.issues },
           })
         }
-        const path = event.path ?? '<unknown>'
-        console.warn(`[api:${path}] response failed protocol validation:`, parsed.error.flatten())
+        emitOperationalEvent(createWideEvent({ operation: 'api-response-validation', outcome: 'failed' }))
       }
     }
     return presented

@@ -304,9 +304,7 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
 
       if (verdict._tag === 'unknown') {
         summary.deferredUnmeasured += 1
-        console.warn(
-          `[discovery-ledger] size unknown for ${row.owner}/${row.repo}: ${verdict.reason}`,
-        )
+        emitOperationalEvent(createWideEvent({ operation: 'discovery-ledger-size', outcome: 'unknown' }))
         continue
       }
 
@@ -342,14 +340,11 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
         .bind(row.id, deps.now, verdict.skillCount)
         .run()
     }
-    catch (error) {
+    catch {
       // Left pending on purpose: the next run retries. Logged rather than
       // swallowed so a persistently failing repo is visible in task output.
       summary.failed += 1
-      console.warn(
-        `[discovery-ledger] submit failed for ${row.owner}/${row.repo}:`,
-        error instanceof Error ? error.message : error,
-      )
+      emitOperationalEvent(createWideEvent({ operation: 'discovery-ledger-submit', outcome: 'failed' }))
     }
   }
 

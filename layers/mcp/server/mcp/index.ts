@@ -10,7 +10,7 @@ export default defineMcpHandler({
   tools: (event) => {
     const deps = {
       fetchApi: (path: string, options?: Parameters<typeof event.$fetch>[1]) => event.$fetch(path, options),
-      reportError: (operation: string, error: unknown) => console.error(`[mcp:${operation}]`, error),
+      reportError: () => emitOperationalEvent(createWideEvent({ operation: 'mcp-tool', outcome: 'failed' }), 'error'),
     }
     return mcpTools.map(tool => defineMcpTool({
       name: tool.name,
