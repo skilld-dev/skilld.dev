@@ -13,6 +13,7 @@ const marketingPaths = new Set([
   '/skills/leaderboard',
   '/skills/official',
   '/skills/stats',
+  '/skills/trending',
   ...CLUSTERS.map(cluster => `/skills/${cluster.slug}`),
   // Renamed on 2026-08-12. They are no longer clusters, so without this they
   // would 404 here before nuxt.config's routeRules could 301 them.

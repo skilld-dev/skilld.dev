@@ -311,7 +311,26 @@ describe('d1 migration bootstrap', () => {
         .pluck().get()).toBe(1)
       expect(sqlite.prepare(`SELECT COUNT(*) FROM pragma_table_info('repo_sync_progress') WHERE name = 'total_skills'`)
         .pluck().get()).toBe(1)
-      expect(migrations.at(-1)).toBe('0096_repo_sync_progress_total.sql')
+      // Trending discovery. `x_posts` is repo-grained via `x_post_repos`
+      // because a post links a repository, not an individual skill, and the
+      // partial index is what lets the refresh task claim due work without
+      // scanning the frozen majority it will never read again.
+      expect(sqlite.prepare(`
+        SELECT sql FROM sqlite_master
+        WHERE type = 'index' AND name = 'idx_x_posts_refresh'
+      `).pluck().get()).toContain('refresh_tier != \'frozen\'')
+      // One ledger for every discovery source, so review is a single list.
+      expect(sqlite.prepare(`
+        SELECT sql FROM sqlite_master
+        WHERE type = 'table' AND name = 'discovery_ledger'
+      `).pluck().get()).toContain('UNIQUE (source, owner, repo)')
+      // Star surges reference repos, so the FK only holds if repos still
+      // carries its composite key by the time this migration lands.
+      expect(sqlite.prepare(`
+        SELECT sql FROM sqlite_master
+        WHERE type = 'table' AND name = 'repo_star_surges'
+      `).pluck().get()).toContain('REFERENCES repos(owner, repo)')
+      expect(migrations.at(-1)).toBe('0101_discovery_ledger_size_guard.sql')
     }
     finally {
       sqlite.close()

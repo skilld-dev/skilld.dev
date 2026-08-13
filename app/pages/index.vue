@@ -3,6 +3,7 @@ import type { FeaturedCollectionsResponse } from '~~/server/api/collections/feat
 import type { CommunityDirectoryResponse } from '~~/server/api/community.get'
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
+import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
@@ -67,6 +68,10 @@ const [
     data: communityData,
     status: communityStatus,
   },
+  {
+    data: trendingData,
+    status: trendingStatus,
+  },
 ] = await Promise.all([
   withHomeDataTiming('home-featured', useFetch<FeaturedCollectionsResponse>('/api/collections/featured', {
     key: 'home-featured-collections-v6',
@@ -79,6 +84,13 @@ const [
   })),
   withHomeDataTiming('home-community', useFetch<CommunityDirectoryResponse>('/api/community', {
     key: 'home-community-v1',
+  })),
+  // Server-rendered rather than lazy: the section is one of the few places on
+  // the homepage whose content changes hourly, and the endpoint is cached at
+  // the edge for 5 minutes, so it costs a cache read rather than a query.
+  withHomeDataTiming('home-trending', useFetch<TrendingFeedResponse>('/api/feed/trending', {
+    key: 'home-trending-v1',
+    query: { limit: 6 },
   })),
 ])
 
@@ -97,6 +109,20 @@ const leadCollection = computed(() => featuredCollections.value[0] ?? null)
 const supportingCollections = computed(() => featuredCollections.value.slice(1, 3))
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
+
+const trendingRepos = computed(() => trendingData.value?.items ?? [])
+
+/**
+ * The section is hidden entirely below this many entries. A trending strip
+ * showing one repo reads as a broken feature, and an empty-state box on the
+ * homepage costs more attention than it returns.
+ */
+const MIN_TRENDING_TO_SHOW = 3
+const showTrending = computed(() => trendingRepos.value.length >= MIN_TRENDING_TO_SHOW)
+
+function trendingShareLabel(authorCount: number): string {
+  return authorCount === 1 ? '1 person shared it' : `${authorCount} people shared it`
+}
 
 const communityCurators = computed(() => (communityData.value?.items ?? []).slice(0, 6))
 const communityTotal = computed(() => communityData.value?.total ?? 0)
@@ -692,6 +718,70 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             class="mt-4 min-h-11"
           />
         </div>
+      </div>
+    </section>
+
+    <section
+      v-if="showTrending || trendingStatus === 'pending'"
+      id="trending"
+      class="border-b border-default"
+      aria-labelledby="trending-heading"
+    >
+      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+        <header class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="section-label">
+              What people are sharing
+            </p>
+            <h2 id="trending-heading" class="mt-4 text-2xl font-semibold tracking-tight text-balance">
+              Trending this week
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              Skill repositories developers are posting about on X, ranked by how many separate
+              people shared them rather than by how loud any one post was.
+            </p>
+          </div>
+          <UButton
+            to="/skills/trending"
+            label="See all"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            trailing-icon="i-lucide-arrow-right"
+            class="min-h-11"
+          />
+        </header>
+
+        <div v-if="trendingStatus === 'pending'" class="mt-8 grid gap-4 sm:grid-cols-2" aria-busy="true">
+          <div v-for="i in 4" :key="i" class="rounded-lg border border-default p-4">
+            <USkeleton class="h-4 w-2/3" />
+            <USkeleton class="mt-3 h-3 w-full" />
+            <USkeleton class="mt-2 h-3 w-4/5" />
+          </div>
+        </div>
+
+        <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
+          <li v-for="repo in trendingRepos" :key="`${repo.owner}/${repo.repo}`">
+            <NuxtLink
+              :to="`/gh/${repo.owner}/${repo.repo}`"
+              class="group flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
+            >
+              <span class="flex flex-wrap items-baseline gap-x-2">
+                <span class="font-medium text-default">{{ repo.owner }}/{{ repo.repo }}</span>
+                <span class="font-mono text-xs text-muted tabular-nums">
+                  {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
+                </span>
+              </span>
+              <span v-if="repo.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
+                {{ repo.evidence.text }}
+              </span>
+              <span class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                <span>{{ trendingShareLabel(repo.authorCount) }}</span>
+                <span v-if="repo.evidence" class="font-mono">@{{ repo.evidence.authorHandle }}</span>
+              </span>
+            </NuxtLink>
+          </li>
+        </ol>
       </div>
     </section>
 

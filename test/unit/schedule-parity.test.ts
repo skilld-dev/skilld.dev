@@ -41,7 +41,7 @@ describe('scheduled task coverage and parity', () => {
 
   it('observes every scheduled task with no exemptions', () => {
     const tasks = discoverScheduledTasks(process.cwd())
-    expect(tasks).toHaveLength(13)
+    expect(tasks).toHaveLength(16)
     expect(SCHEDULE_POLICY.filter(entry => entry._tag === 'exempt')).toEqual([])
     expect(SCHEDULE_POLICY.map(entry => entry.taskName).sort())
       .toEqual(tasks.map(task => task.name).sort())

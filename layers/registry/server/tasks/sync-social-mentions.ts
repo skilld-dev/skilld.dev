@@ -1,9 +1,12 @@
+import type { DiscoveredRepoEvidence } from '#shared/server/discovery-ledger'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 /// <reference types="@cloudflare/workers-types" />
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
+import { upsertLedgerEntry } from '#shared/server/discovery-ledger'
 import { pAll } from '#shared/server/p-all'
 import { getTaskEnv } from '#shared/server/task-env'
+import { extractRepoReferences } from '#shared/x-references'
 
 const CRON = '30 * * * *'
 
@@ -159,6 +162,68 @@ async function enqueueDirty(db: D1Database, skills: SkillRow[]): Promise<number>
   return enqueued
 }
 
+/**
+ * Terms that surface skill repositories on HN. Narrower than the X query
+ * because HN's search has no URL operator: every hit is fetched in full, so a
+ * loose term like "skills" would return mostly noise about hiring.
+ */
+const HN_DISCOVERY_TERMS = ['SKILL.md', 'claude skills', 'agent skills']
+
+/**
+ * Discovery arm: find GitHub repos HN is discussing and record them in the
+ * same ledger the X poll writes to.
+ *
+ * The rest of this task only looks at repos already in the registry, so on its
+ * own it can never surface something new. Pointing both sources at one ledger
+ * is what makes "what did the internet surface that we have not reviewed" a
+ * single query rather than one per platform.
+ */
+async function recordHnDiscoveries(
+  db: D1Database,
+  now: number,
+): Promise<{ candidates: number, inserted: number }> {
+  const found = new Map<string, DiscoveredRepoEvidence>()
+
+  const results = await pAll(HN_DISCOVERY_TERMS, HN_CONCURRENCY, async term => ({
+    term,
+    hits: await hnSearch(term),
+  }))
+
+  for (const result of results) {
+    if (result.status !== 'fulfilled')
+      continue
+    for (const hit of result.value.hits) {
+      const refs = extractRepoReferences({
+        urls: hit.url ? [hit.url] : [],
+        text: `${hit.title ?? ''} ${hit.story_text ?? ''}`,
+      })
+      const points = hit.points ?? 0
+      for (const ref of refs) {
+        const key = `${ref.owner}/${ref.repo}`
+        const held = found.get(key)
+        if (held && held.evidenceScore >= points)
+          continue
+        found.set(key, {
+          owner: ref.owner,
+          repo: ref.repo,
+          evidenceUrl: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+          evidenceText: truncate(hit.title ?? hit.story_text ?? '', 500),
+          evidenceScore: points,
+        })
+      }
+    }
+  }
+
+  let inserted = 0
+  for (const repo of found.values()) {
+    const outcome = await upsertLedgerEntry({ db, source: 'hn', repo, now })
+    if (outcome === 'inserted')
+      inserted += 1
+  }
+
+  return { candidates: found.size, inserted }
+}
+
 export default defineScheduledTask({
   name: 'sync-social-mentions',
   cron: '30 * * * *',
@@ -257,6 +322,8 @@ export default defineScheduledTask({
         }
       }
 
+      const discovered = await recordHnDiscoveries(db, nowSec())
+
       const { inserted, dirtySkills } = await insertPosts(db, pending)
 
       const dirtyRows = topSkills.filter(s => dirtySkills.has(s.slug))
@@ -266,6 +333,8 @@ export default defineScheduledTask({
         topSkills: topSkills.length,
         repoTargets: repoTargets.length,
         hnSiteHits: siteHits.length,
+        hnDiscoveryCandidates: discovered.candidates,
+        hnDiscoveryInserted: discovered.inserted,
         hnRepoQueries: repoTargets.length,
         pending: pending.length,
         inserted,

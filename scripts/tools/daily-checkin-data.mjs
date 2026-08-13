@@ -24,6 +24,9 @@ const since = new Date(state?.lastRunAt || defaultSince)
 const sinceIso = since.toISOString()
 const sinceSec = Math.floor(since.getTime() / 1000)
 const sinceMs = since.getTime()
+// X deduplicates read charges per UTC day, so its budget counter is keyed on
+// the UTC date rather than on the check-in window.
+const utcDay = now.toISOString().slice(0, 10)
 const wrangler = join(root, 'node_modules/.bin/wrangler')
 
 function run(command, args, options = {}) {
@@ -200,8 +203,45 @@ const d1 = probe(() => {
     has('failed_jobs') ? `(SELECT COUNT(*) FROM failed_jobs WHERE failed_at >= ${sinceSec}) AS failed_jobs` : 'NULL AS failed_jobs',
     has('jobs') ? `(SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ${Math.floor(now.getTime() / 1000) - 900} AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs` : 'NULL AS stale_reserved_jobs',
   ]
+  /**
+   * Turn raw X read counts into the number that matters: dollars, and whether
+   * the month is on track. Reads are $0.005 each with no included allowance.
+   *
+   * `budgetTarget` mirrors DAILY_DISCOVERY_READ_BUDGET in shared/server/
+   * x-ingest.ts. It is duplicated because this script is plain node with no
+   * access to the app's module graph; if the budget moves, move it here too.
+   */
+  function withXSpend(costRow) {
+    const USD_PER_READ = 0.005
+    const budgetTarget = 22
+    const row = costRow ?? {}
+    const discoveryToday = Number(row.x_discovery_reads_today ?? 0)
+    const hot = Number(row.x_hot_posts ?? 0)
+    // Refresh only pays for a hot post again when its window crosses midnight.
+    // Treating every hot post as one more charge is the pessimistic bound.
+    const projectedDaily = discoveryToday + hot
+    return {
+      ...row,
+      x_budget_target: budgetTarget,
+      x_budget_used_pct: budgetTarget > 0 ? Math.round((discoveryToday / budgetTarget) * 100) : null,
+      x_projected_daily_reads: projectedDaily,
+      x_projected_monthly_usd: Math.round(projectedDaily * 30 * USD_PER_READ * 100) / 100,
+      x_over_budget: discoveryToday > budgetTarget,
+    }
+  }
+
   const costParts = [
     has('ai_batch_costs') ? `(SELECT COALESCE(SUM(est_cost_usd), 0) FROM ai_batch_costs WHERE submitted_at >= ${sinceSec}) AS ai_cost_usd` : 'NULL AS ai_cost_usd',
+    // X is pay-per-use with no included allowance: every post read is a real
+    // $0.005 invoice line, so it belongs in the health report rather than only
+    // in task logs. `budget_spent` counts today only when `budget_day` matches;
+    // a stale day reads as 0, matching how the ingest resets it.
+    has('x_ingest_cursor') ? `(SELECT COALESCE(SUM(CASE WHEN budget_day = '${utcDay}' THEN budget_spent ELSE 0 END), 0) FROM x_ingest_cursor) AS x_discovery_reads_today` : 'NULL AS x_discovery_reads_today',
+    has('x_ingest_cursor') ? `(SELECT COALESCE(SUM(posts_read_total), 0) FROM x_ingest_cursor) AS x_discovery_reads_total` : 'NULL AS x_discovery_reads_total',
+    // Hot posts are refresh's remaining exposure: each can cost at most one
+    // more read, when its window crosses midnight UTC.
+    has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE refresh_tier = 'hot') AS x_hot_posts` : 'NULL AS x_hot_posts',
+    has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE first_seen_at >= ${sinceSec}) AS x_posts_24h` : 'NULL AS x_posts_24h',
   ]
 
   const syncJobs = has('sync_jobs')
@@ -240,7 +280,7 @@ const d1 = probe(() => {
     inventory: d1Query(`SELECT ${inventoryParts.join(', ')}`)[0],
     activity: d1Query(`SELECT ${activityParts.join(', ')}`)[0],
     pipeline: d1Query(`SELECT ${pipelineParts.join(', ')}`)[0],
-    cost: d1Query(`SELECT ${costParts.join(', ')}`)[0],
+    cost: withXSpend(d1Query(`SELECT ${costParts.join(', ')}`)[0]),
     syncJobs,
     failedJobFingerprints,
     healthEmail,

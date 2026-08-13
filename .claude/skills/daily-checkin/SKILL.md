@@ -21,9 +21,14 @@ Produce one read-only morning report that answers: what changed, what broke, wha
    - Sentry issues must include their archived permalink and culprit in the proposed action. Do not require a second unarchived API read for basic triage.
    - `d1.inventory.broken_repos` is known cumulative inventory. Review `d1.pipeline.newly_broken_repos_total`, but gate health on `d1.pipeline.newly_broken_repos_impacted`. A source removal is impacting when it still backs a skill or appears in a star, subscription, collection, or install event.
    - AI cost is only the recorded batch estimate. Unmeasured services are unknown, not $0.
+   - X API is pay-per-use at $0.005 per post read, with no included allowance and a $5/month target. Gate on `d1.cost`:
+     - `x_over_budget` true is AMBER. The daily discovery budget failed to hold and the month will overrun.
+     - `x_projected_monthly_usd` above 5 is AMBER, above 10 is RED, even when `x_over_budget` is false. Report the figure every run, not only when it breaches.
+     - `x_budget_used_pct` at 100 on consecutive days means discovery is truncating. That is the designed steady state, not a fault. Say so rather than reporting it as a failure.
+     - `x_discovery_reads_today` is the billed number. `x_posts_24h` counts only posts that survived repo extraction, so a large gap between them means the search query is paying for posts it discards. Flag a gap above 50% as a query-tuning action.
 4. Write `docs/ops/checkins/YYYY-MM-DD.md`:
    - First line: GREEN, AMBER, or RED plus one sentence.
-   - Pulse: users, skills, repo changes, installs, digests, and known AI cost.
+   - Pulse: users, skills, repo changes, installs, digests, known AI cost, and X spend as `$X.XX/mo projected (N/22 reads today)`.
    - Overnight: deploy and CI changes.
    - Broken: only new or regressed fingerprints, each with evidence and a one-line hypothesis.
    - Drift: migration, schema, deploy SHA, stale task, and observability gaps.

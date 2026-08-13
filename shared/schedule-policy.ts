@@ -55,14 +55,17 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'ai-ready:cron', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'backfill-skill-assets', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'daily-health-check', cron: '0 22 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
+  { _tag: 'observed', taskName: 'detect-star-surges', cron: '30 4 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'drain-skill-dirty', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'embedding-parity-audit', cron: '0 21 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'recompute-skill-scores', cron: '0 3 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 60 * 60 },
+  { _tag: 'observed', taskName: 'refresh-x-engagement', cron: '10 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'reconcile-rendered', cron: '20 */6 * * *', maxSilenceSeconds: 15 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'send-digests', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'sync-github-skills', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'sync-reviewed-skill-repos', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'sync-social-mentions', cron: '30 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
+  { _tag: 'observed', taskName: 'sync-x-mentions', cron: '*/15 * * * *', maxSilenceSeconds: 60 * 60, maxRuntimeSeconds: 10 * 60 },
 ] as const satisfies readonly SchedulePolicy[]
 
 export function observedSchedulePolicy(taskName: string): ObservedSchedulePolicy {

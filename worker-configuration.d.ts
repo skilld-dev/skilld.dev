@@ -25,6 +25,8 @@ interface __BaseEnv_Env {
 	GITHUB_TOKEN: string;
 	ANTHROPIC_API_KEY: string;
 	VOYAGE_API_KEY: string;
+	X_BEARER_KEY: string;
+	DISCORD_WEBHOOK_URL: string;
 	SELF: Fetcher /* skilld-dev */;
 }
 declare namespace Cloudflare {
@@ -35,7 +37,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "NUXT_SESSION_PASSWORD" | "NUXT_ADMIN_SECRET" | "NUXT_TOKEN_KEY" | "NUXT_HEALTH_CHECK_NOTIFY_TO" | "NUXT_PUBLIC_SITE_URL" | "NUXT_OAUTH_GITHUB_CLIENT_ID" | "NUXT_OAUTH_GITHUB_CLIENT_SECRET" | "NUXT_OG_IMAGE_SECRET" | "NUXT_AI_READY_RUNTIME_SYNC_SECRET" | "GITHUB_TOKEN" | "ANTHROPIC_API_KEY" | "VOYAGE_API_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "NUXT_SESSION_PASSWORD" | "NUXT_ADMIN_SECRET" | "NUXT_TOKEN_KEY" | "NUXT_HEALTH_CHECK_NOTIFY_TO" | "NUXT_PUBLIC_SITE_URL" | "NUXT_OAUTH_GITHUB_CLIENT_ID" | "NUXT_OAUTH_GITHUB_CLIENT_SECRET" | "NUXT_OG_IMAGE_SECRET" | "NUXT_AI_READY_RUNTIME_SYNC_SECRET" | "GITHUB_TOKEN" | "ANTHROPIC_API_KEY" | "VOYAGE_API_KEY" | "X_BEARER_KEY" | "DISCORD_WEBHOOK_URL">> {}
 }
 
 // Begin runtime types
