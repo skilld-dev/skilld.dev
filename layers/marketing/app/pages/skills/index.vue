@@ -2,9 +2,19 @@
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
+// "Find skills for your AI agent" matched no query anyone types. The demand is
+// on `claude skills directory` (260/mo), `agent skills directory` (90), and the
+// library/registry variants, so the title says what this page is in those words.
+//
+// "Marketplace" is the larger term (3,600/mo) and is deliberately not used:
+// nothing here is sold, and claiming a marketplace would misdescribe the
+// product. "Best" is likewise avoided as a banned superlative.
+//
+// Naming Claude in the title is the principle 6 SEO carve-out, which requires
+// cross-agent compatibility in the same breath; the description does that.
 useSeoMeta({
-  title: 'Find skills for your AI agent',
-  description: 'Search agent skills by task, maintainer, package, or tag. Every result links to its source.',
+  title: 'Claude Skills Directory',
+  description: 'Browse curated agent skills for Claude Code, Cursor, and Codex. Search by task, maintainer, package, or tag. Every skill names its author and links the SKILL.md in their GitHub repo, so you can read it before you install.',
 })
 
 defineOgImage('Page.takumi', {

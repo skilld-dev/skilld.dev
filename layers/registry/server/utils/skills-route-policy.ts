@@ -8,6 +8,7 @@ export type SkillsRouteDecision
 const marketingPaths = new Set([
   '/skills',
   '/skills/',
+  '/skills/best',
   '/skills/guide',
   '/skills/leaderboard',
   '/skills/official',

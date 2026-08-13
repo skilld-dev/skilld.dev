@@ -39,7 +39,16 @@ const clusterSlug = computed(() => route.params.cluster as string)
 // guard landed, `noindex` as well. Only the client filled in the real title
 // after hydration, which is precisely what a crawler never runs. This page
 // exists to rank, so it has to be right in the server response.
-const { data, error, status, refresh } = useFetch<ClusterDetailResponse>(
+// `await`, and that word is the whole fix. Without it `setup` stays synchronous,
+// so Vue renders before the request settles and the result only reaches the
+// payload: the server response had the data embedded but no <h1> and the
+// fallback <title>, plus `noindex` once the thin-category guard landed. Only
+// hydration repaired it, which is exactly what a crawler does not do.
+//
+// Suspense holds the render while this resolves, so the server response now
+// carries the real title and skills. The loading branch below is still reached
+// on client-side navigation.
+const { data, error, status, refresh } = await useFetch<ClusterDetailResponse>(
   () => `/api/clusters/${clusterSlug.value}`,
 )
 
