@@ -23,6 +23,7 @@ export interface DigestEntry {
     description: string | null
     changeCount: number
     commitMessages: string[]
+    changedAt: number
   }>
   changeCount: number
 }
@@ -197,6 +198,7 @@ export async function selectDigestForUser(
       description: skill.description,
       changeCount: skill.changeCount,
       commitMessages: skill.commitMessages,
+      changedAt: skill.sourceEnd,
     }))
     selected.forEach((skill, skillIndex) => selectedSkills.push({
       entryIndex,
