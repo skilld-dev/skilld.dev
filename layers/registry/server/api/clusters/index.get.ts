@@ -9,6 +9,7 @@
 import type { Cluster } from '../../data/clusters'
 import { getDB } from '#server/utils/db'
 import { CLUSTERS } from '../../data/clusters'
+import { findClusterIndexRows } from '../../utils/cluster-index-rows'
 import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
 
 interface SkillRow {
@@ -42,21 +43,24 @@ export default defineCachedEventHandler(async (event) => {
   if (!allCategories.length)
     return { items: [] }
 
-  const placeholders = allCategories.map(() => '?').join(',')
   const allPinnedExamples = parseClusterSkillKeys(
     Array.from(new Set(CLUSTERS.flatMap(c => c.pinnedExamples))),
   ).map(skill => skill.key)
-  const pinnedPlaceholders = allPinnedExamples.map(() => '?').join(',')
-  const sql = `
-    SELECT s.owner, s.name, s.repo, s.display_name, r.stars,
-           s.abstractness_category AS category
-    FROM skills s
-    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-    WHERE (s.is_abstract = 1 AND s.abstractness_category IN (${placeholders}))
-       OR (s.owner || '/' || s.name IN (${pinnedPlaceholders}))
-  `
-  const res = await db.prepare(sql).bind(...allCategories, ...allPinnedExamples).all<SkillRow>()
-  const rows = res.results ?? []
+  const rows = await findClusterIndexRows(async (selector, values) => {
+    const placeholders = values.map(() => '?').join(',')
+    const predicate = selector === 'category'
+      ? `s.is_abstract = 1 AND s.abstractness_category IN (${placeholders})`
+      : `s.owner || '/' || s.name IN (${placeholders})`
+    const result = await db.prepare(`
+      SELECT s.owner, s.name, s.repo, s.display_name, r.stars,
+             s.abstractness_category AS category
+      FROM skills s
+      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+      WHERE ${predicate}
+    `).bind(...values).all<SkillRow>()
+
+    return result.results ?? []
+  }, allCategories, allPinnedExamples)
 
   const items: ClusterCard[] = CLUSTERS.map((c: Cluster) => {
     const pinned = new Set(c.pinnedExamples)

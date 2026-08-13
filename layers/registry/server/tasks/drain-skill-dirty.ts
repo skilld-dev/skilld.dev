@@ -1,9 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 import {
   recomputeIndexabilityForSkill,
   recomputeTrustForSkill,
@@ -42,7 +42,7 @@ export default defineScheduledTask({
   cron: '*/5 * * * *',
   description: 'Recompute drifted curator/social counters on skills from the skill_dirty queue',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[drain-skill-dirty] D1 binding not available in task context')

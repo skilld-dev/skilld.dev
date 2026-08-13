@@ -1,10 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { runCron } from '#ai-ready/server/utils/runCron'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 
 const CRON = '*/5 * * * *'
 
@@ -22,7 +22,7 @@ export default defineScheduledTask({
   cron: '*/5 * * * *',
   description: 'Run AI Ready indexing and IndexNow synchronization',
   async run({ context, payload }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[ai-ready:cron] Cloudflare bindings missing')

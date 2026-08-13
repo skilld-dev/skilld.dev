@@ -1,5 +1,5 @@
 minimumReleaseAgeExclude:
-  - '@harlan-zw/nuxt-cf-jobs@0.0.2'
+  - '@harlan-zw/nuxt-cf-jobs'
   - '@harlan-zw/nuxt-cloudflare'
   - '@harlan-zw/nuxt-dx@0.0.7'
   - '@harlan-zw/nuxt-use-query@0.0.1'
@@ -24,8 +24,8 @@ trustPolicy: no-downgrade
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/workers-types': ^5.20260812.1
-  '@harlan-zw/nuxt-cf-jobs': 0.0.2
-  '@harlan-zw/nuxt-cloudflare': 0.0.7
+  '@harlan-zw/nuxt-cf-jobs': 0.0.4
+  '@harlan-zw/nuxt-cloudflare': 0.0.12
   '@harlan-zw/nuxt-dx': 0.0.7
   '@harlan-zw/nuxt-use-query': 0.0.1
   '@iconify-json/lucide': ^1.2.123

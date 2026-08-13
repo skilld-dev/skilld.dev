@@ -1,5 +1,13 @@
 name: Test
 
+# The pull request gate. The three jobs carried three copies of the same four
+# setup steps; they now come from harlan-zw/harlan-nuxt so every site shares one
+# pinned copy.
+#
+# The build and its Nuxt DX size budget moved out of the typecheck job into their
+# own job below. Pinning them to typecheck meant a type error and a bundle
+# regression could not be seen in the same run.
+
 on:
   push:
     branches: [main]
@@ -14,30 +22,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: lts/*
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
+  harlan-desktop:
+    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@main
+    with:
+      # Ephemeral containers on the workstation. Safe here because the
+      # repository is private; a self-hosted runner on a public repository would
+      # let a fork pull request run code on that host.
+      runs-on: '["self-hosted", "linux", "x64", "harlan-desktop-ci"]'
+      # vitest resolves aliases through `.nuxt/tsconfig.json`, and every suite
+      # fails to transform without it. `prepare-command` rather than dropping
+      # `--ignore-scripts`, so lint still skips the prepare it has no use for.
+      prepare-command: pnpm nuxt prepare
+      timeout-minutes: 30
 
-  typecheck:
-    runs-on: ubuntu-24.04-arm
+  # Kept in this repository because the size budget needs `actions: read` and the
+  # artifact from this workflow's own last green run on the base branch, neither
+  # of which the shared gate models.
+  build:
+    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: lts/*
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          persist-credentials: false
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
       - run: pnpm build
         env:
           NODE_OPTIONS: --max-old-space-size=8192
@@ -46,19 +54,3 @@ jobs:
           artifact-name: nuxt-dx-size-budget-v3
           report-path: .nuxt/dx/size-budget.json
           threshold-kb: 10
-      - run: pnpm typecheck
-        env:
-          NODE_OPTIONS: --max-old-space-size=8192
-
-  test:
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: lts/*
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm test:run

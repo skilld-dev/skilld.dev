@@ -1,8 +1,8 @@
 import type { AiBinding } from '../utils/digest-summary'
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 import {
   runDigestDeliveryForUser,
 } from '../utils/digest-delivery'
@@ -22,7 +22,7 @@ export default defineScheduledTask({
   cron: '0 * * * *',
   description: 'Send weekly/daily digest emails to opted-in users when their cadence slot matches',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[send-digests] D1 binding missing')

@@ -1,8 +1,8 @@
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { createRegistryJobBatch } from '~~/server/utils/registry-jobs-runtime'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 
 const CRON = '*/5 * * * *'
 const MAINTENANCE = 'nested-assets-v1'
@@ -23,7 +23,7 @@ export default defineScheduledTask({
   cron: '*/5 * * * *',
   description: 'One-off corrected nested skill asset backfill through durable repo jobs',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db)
       return { result: { error: 'no-db' } }

@@ -1,9 +1,9 @@
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { createRegistryJobBatch } from '~~/server/utils/registry-jobs-runtime'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { RECONCILE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 
 const BATCH = 50
 const CRON = '20 */6 * * *'
@@ -13,7 +13,7 @@ export default defineScheduledTask({
   cron: '20 */6 * * *',
   description: 'Re-sync skills with missing rendered content identity or stale render failures',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[reconcile-rendered] D1 binding not available in task context')

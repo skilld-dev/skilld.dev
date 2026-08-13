@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getTaskEnv: vi.fn(),
+  resolveCloudflareBindings: vi.fn(),
   reportJobRun: vi.fn(),
 }))
 
-vi.mock('#shared/server/task-env', () => ({
-  getTaskEnv: mocks.getTaskEnv,
+vi.mock('@harlan-zw/nuxt-cloudflare/bindings', () => ({
+  resolveCloudflareBindings: mocks.resolveCloudflareBindings,
 }))
 
 vi.mock('~~/server/utils/sync-job-reporter', () => ({
@@ -45,7 +45,7 @@ describe('drain-skill-dirty task', () => {
     const all = vi.fn().mockResolvedValue({ results: [] })
     const bind = vi.fn(() => ({ all }))
     const db = { prepare: vi.fn(() => ({ bind })) }
-    mocks.getTaskEnv.mockReturnValue({ DB: db })
+    mocks.resolveCloudflareBindings.mockReturnValue({ DB: db })
 
     const result = await task.run({ context: {} } as never)
 
