@@ -44,6 +44,7 @@ describe('d1 read retries', () => {
   it.each([
     'D1_ERROR: D1 DB is overloaded. Requests queued for too long.',
     'D1_ERROR: Currently processing a long-running export.',
+    'D1_ERROR: {"D1_RESET_DO":true}',
   ])('retries the transient platform failure: %s', async (message) => {
     const operation = vi.fn()
       .mockRejectedValueOnce(new Error(message))
