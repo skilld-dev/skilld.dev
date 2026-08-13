@@ -1,8 +1,8 @@
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { createRegistryReviewJobBatch } from '~~/server/utils/registry-jobs-runtime'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 
 const BATCH_SIZE = 50
 const CRON = '*/5 * * * *'
@@ -12,7 +12,7 @@ export default defineScheduledTask({
   cron: '*/5 * * * *',
   description: 'Dispatch editorially approved skill repositories through the priority sync queue',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[sync-reviewed-skill-repos] D1 binding not available in task context')

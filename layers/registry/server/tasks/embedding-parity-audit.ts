@@ -1,9 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 import {
   auditEmbeddingParityViaBindings,
   embeddingParityAuditAlarm,
@@ -32,7 +32,7 @@ export default defineScheduledTask({
   cron: '0 21 * * *',
   description: 'Audit D1 and Vectorize embedding parity over the Worker bindings',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     const vectorize = env?.SKILL_EMBEDDINGS as VectorizeIndex | undefined
     if (!env || !db) {
