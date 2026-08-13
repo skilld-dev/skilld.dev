@@ -142,6 +142,14 @@ export interface XPage {
  */
 export type XError
   = | { _tag: 'not-configured' }
+  /**
+   * A local dev server tried to spend real money. `.dev.vars` symlinks to
+   * `.env`, so a working bearer token is present locally and nothing else
+   * would stop a task run, a hot reload loop, or a stray `/_nitro/tasks`
+   * request from billing the account. One such session spent 302 reads before
+   * this guard existed. Set X_ALLOW_LOCAL_API=1 to opt in deliberately.
+   */
+    | { _tag: 'local-blocked' }
     | { _tag: 'rate-limited', resetAt: number | null }
     | { _tag: 'cap-exceeded' }
     | { _tag: 'unauthorized' }
@@ -157,6 +165,8 @@ export function describeXError(error: XError): string {
   switch (error._tag) {
     case 'not-configured':
       return 'X_BEARER_KEY is not set'
+    case 'local-blocked':
+      return 'blocked: real X API calls are disabled outside production (set X_ALLOW_LOCAL_API=1 to override)'
     case 'rate-limited':
       return `rate limited${error.resetAt ? ` until ${new Date(error.resetAt * 1000).toISOString()}` : ''}`
     case 'cap-exceeded':
@@ -195,6 +205,37 @@ export interface CreateXClientOptions {
   bearerToken: string | undefined
   /** Injected so tests drive the client without a network or a token. */
   fetchImpl?: typeof fetch
+  /**
+   * Whether real network calls are permitted. Defaults to "only outside a dev
+   * server", so local work cannot bill the account by accident. Tests pass
+   * their own `fetchImpl` and set this explicitly.
+   */
+  allowNetwork?: boolean
+}
+
+/**
+ * True only on a local dev server.
+ *
+ * `import.meta.dev` must appear verbatim: the bundler replaces that exact
+ * expression at build time. An earlier version wrote
+ * `(import.meta as { dev?: boolean }).dev`, which reads identically in
+ * TypeScript but is no longer the literal the replacement matches, so it
+ * evaluated undefined and the guard silently allowed every local call. A dev
+ * server then read 8 posts against the live budget while appearing guarded.
+ *
+ * NODE_ENV is checked as well so the guard does not depend on a single
+ * build-time substitution working.
+ */
+function isDevServer(): boolean {
+  return import.meta.dev === true || process.env.NODE_ENV === 'development'
+}
+
+function localCallsAllowed(): boolean {
+  if (!isDevServer())
+    return true
+  // Opt in per shell when a real local call is genuinely wanted:
+  //   X_ALLOW_LOCAL_API=1 pnpm dev
+  return process.env.X_ALLOW_LOCAL_API === '1'
 }
 
 const POST_FIELDS = 'created_at,public_metrics,entities,lang,author_id,note_tweet'
@@ -272,10 +313,15 @@ function classifyFailure(status: number, headers: Headers, body: string): XError
 export function createXClient(options: CreateXClientOptions): XClient {
   const { bearerToken } = options
   const doFetch = options.fetchImpl ?? fetch
+  // Resolved once at construction: every caller funnels through `request` and
+  // `usage`, so this is the only place a paid call can start.
+  const networkAllowed = options.allowNetwork ?? localCallsAllowed()
 
   async function request(path: string, params: Record<string, string>): Promise<XResult<XPage>> {
     if (!bearerToken)
       return err({ _tag: 'not-configured' })
+    if (!networkAllowed)
+      return err({ _tag: 'local-blocked' })
 
     const url = new URL(`${X_API_BASE}${path}`)
     for (const [k, v] of Object.entries(params))
@@ -338,6 +384,8 @@ export function createXClient(options: CreateXClientOptions): XClient {
     async usage() {
       if (!bearerToken)
         return err({ _tag: 'not-configured' })
+      if (!networkAllowed)
+        return err({ _tag: 'local-blocked' })
       const res = await doFetch(`${X_API_BASE}/usage/tweets`, {
         headers: { 'Authorization': `Bearer ${bearerToken}`, 'User-Agent': 'skilld.dev' },
       })

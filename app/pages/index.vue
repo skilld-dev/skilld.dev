@@ -90,7 +90,9 @@ const [
   // the edge for 5 minutes, so it costs a cache read rather than a query.
   withHomeDataTiming('home-trending', useFetch<TrendingFeedResponse>('/api/feed/trending', {
     key: 'home-trending-v1',
-    query: { limit: 6 },
+    // The hero rail flattens repos to individual skills, so it needs more
+    // repos than the six-card section below it.
+    query: { limit: 12 },
   })),
 ])
 
@@ -111,6 +113,8 @@ const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
 
 const trendingRepos = computed(() => trendingData.value?.items ?? [])
+/** The section below the fold stays a six-card grid whatever the rail uses. */
+const trendingSectionRepos = computed(() => trendingRepos.value.slice(0, 6))
 
 /**
  * The section is hidden entirely below this many entries. A trending strip
@@ -177,6 +181,34 @@ const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
     ? liveSkills
     : homepagePersonSkillFallbacks
 })
+
+/**
+ * Hero rail contents: the individual skills inside this week's trending repos.
+ *
+ * Flattened from repos to skills because the rail shows one skill per card,
+ * while the section further down shows repos with their quoted evidence. The
+ * two are different granularities of the same signal rather than a duplicate.
+ *
+ * Falls back to the curated person-authored rail when trending is too thin.
+ * The hero is the first thing anyone sees, so an empty or one-card rail there
+ * is worse than showing the evergreen set.
+ */
+const heroTrendingCards = computed<readonly SkillSourceItem[]>(() => {
+  const cards = trendingRepos.value.flatMap(repo =>
+    repo.skills.map(skill => ({
+      owner: repo.owner,
+      repo: repo.repo,
+      name: skill.name,
+      displayName: skill.displayName,
+      maintainerName: repo.evidence?.authorName ?? null,
+      description: skill.description,
+      context: trendingShareLabel(repo.authorCount),
+    })),
+  )
+  return cards.length >= HOMEPAGE_RAIL_MINIMUM ? cards : heroSkillCards.value
+})
+
+const heroShowsTrending = computed(() => heroTrendingCards.value !== heroSkillCards.value)
 
 function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
   return skill.name
@@ -316,11 +348,15 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           </div>
 
           <div class="home-hero-proof min-w-0">
+            <p v-if="heroShowsTrending" class="section-label mb-4 flex items-center gap-2">
+              <span aria-hidden="true">🔥</span>
+              <span>Trending this week</span>
+            </p>
             <SkillSourceList
-              :items="heroSkillCards"
+              :items="heroTrendingCards"
               variant="stream"
               auto-scroll
-              aria-label="Person-authored skills"
+              :aria-label="heroShowsTrending ? 'Trending skills this week' : 'Person-authored skills'"
             />
           </div>
         </div>
@@ -333,20 +369,18 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       aria-labelledby="outcomes-heading"
     >
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <div class="grid gap-8 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] lg:gap-12">
-          <div class="home-outcomes-intro">
-            <p class="section-label">
-              Pick your track
-            </p>
-            <h2 id="outcomes-heading" class="home-outcomes-title mt-4 max-w-[12ch] font-semibold text-balance">
-              What do you work on?
-            </h2>
-            <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-              Choose the work you actually do. Each track shows who writes skills for it.
-            </p>
-          </div>
-          <OutcomeClusterGrid aria-describedby="outcomes-description" />
+        <div class="home-outcomes-intro">
+          <p class="section-label">
+            Pick your track
+          </p>
+          <h2 id="outcomes-heading" class="home-outcomes-title mt-4 max-w-[16ch] font-semibold text-balance">
+            What do you work on?
+          </h2>
+          <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
+            Choose the work you actually do. Each track shows who writes skills for it.
+          </p>
         </div>
+        <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" />
       </div>
     </section>
 
@@ -761,14 +795,23 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         </div>
 
         <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
-          <li v-for="repo in trendingRepos" :key="`${repo.owner}/${repo.repo}`">
+          <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`">
             <NuxtLink
               :to="`/gh/${repo.owner}/${repo.repo}`"
               class="group flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
             >
-              <span class="flex flex-wrap items-baseline gap-x-2">
-                <span class="font-medium text-default">{{ repo.owner }}/{{ repo.repo }}</span>
-                <span class="font-mono text-xs text-muted tabular-nums">
+              <span class="flex items-center gap-2">
+                <img
+                  :src="`https://github.com/${repo.owner}.png?size=64`"
+                  alt=""
+                  width="24"
+                  height="24"
+                  class="size-6 shrink-0 rounded-full border border-default bg-muted"
+                  loading="lazy"
+                  decoding="async"
+                >
+                <span class="min-w-0 flex-1 truncate font-medium text-default">{{ repo.owner }}/{{ repo.repo }}</span>
+                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
                   {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
                 </span>
               </span>

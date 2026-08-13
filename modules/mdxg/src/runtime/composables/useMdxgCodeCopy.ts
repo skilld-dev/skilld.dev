@@ -3,7 +3,7 @@ import { nextTick, onBeforeUnmount, watch } from 'vue'
 
 // Enhances `<pre>` blocks inside a region with a copy-to-clipboard button.
 // Idempotent: re-runs cleanly when the trigger ref changes (typically the
-// active page slug). Pairs with @nuxtjs/mdc's Shiki-highlighted output.
+// active page slug). Pairs with Comark's Shiki-highlighted output.
 export function useMdxgCodeCopy(root: Ref<HTMLElement | null>, trigger: Ref<unknown>) {
   const cleanups: (() => void)[] = []
 

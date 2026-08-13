@@ -113,9 +113,26 @@ watch(() => route.fullPath, () => {
 
         <template #right>
           <SkillSearchTrigger />
+          <!--
+            The flame is a deliberate exception to the "no emoji" rule in
+            design-guidelines.md, asked for so Trending outweighs its siblings.
+            It is decorative and hidden from screen readers; the label carries
+            the meaning. `gap-1.5` because the button's own layout does not
+            space sibling spans, which rendered "🔥Trending" run together.
+          -->
+          <UButton
+            to="/skills/trending"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            class="hidden gap-1.5 whitespace-nowrap lg:inline-flex"
+          >
+            <span aria-hidden="true">🔥</span>
+            <span>Trending Skills</span>
+          </UButton>
           <UButton
             to="/skills"
-            label="Skills"
+            label="Find Skills"
             color="neutral"
             variant="ghost"
             size="sm"
@@ -213,8 +230,18 @@ watch(() => route.fullPath, () => {
               aria-label="Mobile navigation"
             >
               <UButton
+                to="/skills/trending"
+                color="neutral"
+                variant="ghost"
+                block
+                class="min-h-11 justify-start gap-1.5 whitespace-nowrap"
+              >
+                <span aria-hidden="true">🔥</span>
+                <span>Trending Skills</span>
+              </UButton>
+              <UButton
                 to="/skills"
-                label="Skills"
+                label="Find Skills"
                 color="neutral"
                 variant="ghost"
                 block

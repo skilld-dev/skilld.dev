@@ -1,0 +1,95 @@
+/**
+ * Who belongs to a category page.
+ *
+ * The first rule was `is_abstract = 1`, and the classifier answers "abstract"
+ * for 399 of 6,911 skills. Whole tracks came out at two or three skills:
+ * `release-management` and `scraping` have no abstract skill at all, `ci-cd`
+ * has two out of a thousand. A track that lists three skills reads as a broken
+ * page, not as curation.
+ *
+ * So membership is abstract-first with a backfill. Every abstract skill in the
+ * category is a member, because that classification is the curation signal.
+ * Under it sit the top `CLUSTER_BACKFILL_PER_CATEGORY` package-specific skills
+ * of the same category by stars, which is what stops a track from rendering
+ * empty. The backfill is capped rather than unbounded: `deployment` holds 1,363
+ * skills, and listing all of them is the scaled-content failure mode from
+ * 2026-06 rather than a category page.
+ *
+ * `seo_indexable` gates the backfill for the same reason. An abstract skill
+ * earns its place by classification; a package-specific one has to already
+ * clear the indexability bar.
+ */
+
+/** Backfill depth per classifier category, not per track. */
+export const CLUSTER_BACKFILL_PER_CATEGORY = 24
+
+export interface ClusterMemberSql {
+  sql: string
+  params: string[]
+}
+
+function placeholders(count: number): string {
+  return Array.from({ length: count }).fill('?').join(',')
+}
+
+/**
+ * Rows for one or more classifier categories, plus any pinned skill, already
+ * filtered to members. Ordering is left to the caller.
+ *
+ * `columns` is interpolated, so it must stay a literal in caller code. The
+ * category and pinned values are bound.
+ */
+export function clusterMembersSql(
+  columns: string,
+  categories: string[],
+  pinnedKeys: string[],
+): ClusterMemberSql {
+  const arms: string[] = []
+  const whereParams: string[] = []
+
+  if (categories.length) {
+    arms.push(`(s.abstractness_category IN (${placeholders(categories.length)}) AND (s.is_abstract = 1 OR s.seo_indexable = 1))`)
+    whereParams.push(...categories)
+  }
+  if (pinnedKeys.length) {
+    arms.push(`(s.owner || '/' || s.name IN (${placeholders(pinnedKeys.length)}))`)
+    whereParams.push(...pinnedKeys)
+  }
+  if (!arms.length)
+    throw new Error('clusterMembersSql needs at least one category or pinned key')
+
+  // Only a query with both arms has to tell them apart. A pinned-only query
+  // matches nothing else, so it skips the CASE rather than binding every key
+  // twice: D1 caps one statement at 100 bound parameters.
+  const needsPinnedCase = Boolean(pinnedKeys.length && categories.length)
+  const pinnedArm = needsPinnedCase
+    ? `CASE WHEN s.owner || '/' || s.name IN (${placeholders(pinnedKeys.length)}) THEN 1 ELSE 0 END`
+    : (pinnedKeys.length ? '1' : '0')
+  // D1 binds by position in the statement text, and the pinned CASE sits in the
+  // SELECT list, ahead of the WHERE arms.
+  const params: string[] = [...(needsPinnedCase ? pinnedKeys : []), ...whereParams]
+
+  // The window ranks every row of a category, abstract included, so the
+  // backfill is "the category's most-starred work" rather than "the most
+  // starred of whatever the classifier rejected".
+  const sql = `
+    SELECT ${columns}
+    FROM (
+      SELECT s.owner, s.name, s.repo, s.display_name, s.description,
+             s.modified_at, r.stars,
+             s.abstractness_category AS category,
+             COALESCE(s.is_abstract, 0) AS is_abstract,
+             ${pinnedArm} AS is_pinned,
+             ROW_NUMBER() OVER (
+               PARTITION BY s.abstractness_category
+               ORDER BY r.stars DESC, s.name ASC
+             ) AS category_rank
+      FROM skills s
+      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+      WHERE ${arms.join(' OR ')}
+    )
+    WHERE is_abstract = 1 OR is_pinned = 1 OR category_rank <= ${CLUSTER_BACKFILL_PER_CATEGORY}
+  `
+
+  return { sql, params }
+}

@@ -1,122 +1,118 @@
-import type { MDCNode, MDCRoot, MdxgOutlineEntry, MdxgPage, Toc, TocLink } from '../types'
+import type { ElementNode, MarkdownDocument, Node } from 'comark'
+import type { MdxgOutlineEntry, MdxgPage } from '../types'
 import { headingDepth, isHeading, toText } from './ast'
 
-// Pre-order flatten of mdc's hierarchical toc. mdc applies rehype-slug, so the
-// ids match exactly what the rendered AST headings carry — no local slugging.
-function flattenToc(toc: Toc | undefined): TocLink[] {
-  if (!toc?.links)
+function outline(nodes: Node[]): MdxgOutlineEntry[] {
+  const headings = nodes
+    .filter(isHeading)
+    .filter(node => headingDepth(node) >= 3)
+  if (!headings.length)
     return []
-  const out: TocLink[] = []
-  const visit = (links: TocLink[]) => {
-    for (const link of links) {
-      out.push(link)
-      if (link.children?.length)
-        visit(link.children)
-    }
-  }
-  visit(toc.links)
-  return out
-}
-
-// Outline = toc entries between `startId` (exclusive, the page heading) and the
-// next entry of depth <= pageHeadingDepth (exclusive).
-function outlineFromToc(
-  flat: TocLink[],
-  startIndex: number,
-  pageHeadingDepth: 1 | 2,
-): MdxgOutlineEntry[] {
-  const entries: TocLink[] = []
-  for (let i = startIndex + 1; i < flat.length; i++) {
-    const link = flat[i]!
-    if (link.depth <= pageHeadingDepth)
-      break
-    if (link.depth >= 3)
-      entries.push(link)
-  }
-  if (!entries.length)
-    return []
-  const min = Math.min(...entries.map(e => e.depth))
-  return entries.map(e => ({
-    id: e.id,
-    text: e.text,
-    depth: e.depth as 3 | 4 | 5 | 6,
-    indent: e.depth - min,
+  const minDepth = Math.min(...headings.map(headingDepth))
+  return headings.map(node => ({
+    id: typeof node[1].id === 'string' ? node[1].id : '',
+    text: toText(node).trim(),
+    depth: headingDepth(node) as 3 | 4 | 5 | 6,
+    indent: headingDepth(node) - minDepth,
   }))
 }
 
-// Slice raw markdown source between a page's first child and the next page's
-// first child, using AST position offsets when available. Returns undefined if
-// positions aren't present (parser-dependent) so callers can fall back cleanly.
-function sourceSlice(
+function headingOffsets(source: string, pageHeadingDepth: 1 | 2): number[] {
+  const offsets: number[] = []
+  let offset = 0
+  let fence: '`' | '~' | undefined
+  let fenceLength = 0
+
+  for (const line of source.split(/(?<=\n)/)) {
+    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/)
+    if (fenceMatch) {
+      const marker = fenceMatch[1]!
+      const kind = marker[0] as '`' | '~'
+      if (!fence) {
+        fence = kind
+        fenceLength = marker.length
+      }
+      else if (kind === fence && marker.length >= fenceLength) {
+        fence = undefined
+      }
+    }
+    else if (!fence) {
+      const heading = line.match(/^ {0,3}(#{1,6})[ \t]+/)
+      if (heading && heading[1]!.length <= pageHeadingDepth)
+        offsets.push(offset)
+    }
+    offset += line.length
+  }
+
+  return offsets
+}
+
+function sourceSlices(
   source: string | undefined,
-  children: MDCNode[],
-  startIdx: number,
-  endIdx: number,
-): string | undefined {
+  pageHeadingDepth: 1 | 2,
+  breakCount: number,
+  hasIntroduction: boolean,
+): string[] {
   if (!source)
-    return undefined
-  const startNode = children[startIdx]
-  const startPos = startNode?.position?.start
-  if (startPos == null)
-    return undefined
-  const endNode = children[endIdx]
-  const endPos = endNode?.position?.start ?? source.length
-  return source.slice(startPos, endPos).replace(/\s+$/, '')
+    return []
+  const offsets = headingOffsets(source, pageHeadingDepth)
+  if (offsets.length !== breakCount)
+    return []
+  const starts = hasIntroduction ? [0, ...offsets] : offsets
+  return starts.map((start, index) => source.slice(start, starts[index + 1] ?? source.length).replace(/\s+$/, ''))
+}
+
+function pageDocument(document: MarkdownDocument, nodes: Node[]): MarkdownDocument {
+  return { ...document, nodes }
+}
+
+function flatText(nodes: Node[]): string {
+  return nodes.map(toText).join('').replace(/\s+/g, ' ').trim()
 }
 
 export function splitVirtualPages(
-  body: MDCRoot,
-  toc: Toc | undefined,
+  document: MarkdownDocument,
   pageHeadingDepth: 1 | 2 = 2,
   source?: string,
 ): MdxgPage[] {
-  const children = body.children
-  const flat = flattenToc(toc)
-  const breakIndices: number[] = []
-  for (let i = 0; i < children.length; i++) {
-    const c = children[i]!
-    if (isHeading(c) && headingDepth(c) <= pageHeadingDepth)
-      breakIndices.push(i)
-  }
-
+  const { nodes } = document
+  const breakIndices = nodes.flatMap((node, index) =>
+    isHeading(node) && headingDepth(node) <= pageHeadingDepth ? [index] : [],
+  )
+  const hasIntroduction = (breakIndices[0] ?? nodes.length) > 0
+  const slices = sourceSlices(source, pageHeadingDepth, breakIndices.length, hasIntroduction)
   const pages: MdxgPage[] = []
 
-  // Implicit Introduction page from content before the first break.
-  const firstBreak = breakIndices[0] ?? children.length
-  if (firstBreak > 0) {
-    const sub = children.slice(0, firstBreak)
-    if (sub.some(n => n.type !== 'text' || n.value.trim())) {
-      const pageBody: MDCRoot = { type: 'root', children: sub }
+  if (hasIntroduction) {
+    const pageNodes = nodes.slice(0, breakIndices[0] ?? nodes.length)
+    if (flatText(pageNodes)) {
       pages.push({
         index: 0,
         slug: 'introduction',
         title: 'Introduction',
         level: 0,
-        body: pageBody,
-        searchText: flatText(pageBody),
-        outline: [],
-        source: sourceSlice(source, children, 0, firstBreak),
+        document: pageDocument(document, pageNodes),
+        searchText: flatText(pageNodes),
+        outline: outline(pageNodes),
+        source: slices[0],
       })
     }
   }
 
-  for (let i = 0; i < breakIndices.length; i++) {
-    const start = breakIndices[i]!
-    const end = breakIndices[i + 1] ?? children.length
-    const head = children[start] as MDCNode & { type: 'element' }
-    const id = typeof head.props?.id === 'string' ? head.props.id : `page-${pages.length}`
-    const title = toText(head).trim() || 'Untitled'
-    const pageBody: MDCRoot = { type: 'root', children: children.slice(start, end) }
-    const tocIndex = flat.findIndex(l => l.id === id)
+  for (let index = 0; index < breakIndices.length; index++) {
+    const start = breakIndices[index]!
+    const end = breakIndices[index + 1] ?? nodes.length
+    const heading = nodes[start] as ElementNode
+    const pageNodes = nodes.slice(start, end)
     pages.push({
       index: pages.length,
-      slug: id,
-      title,
-      level: headingDepth(head as Parameters<typeof headingDepth>[0]) as 1 | 2,
-      body: pageBody,
-      searchText: flatText(pageBody),
-      outline: tocIndex >= 0 ? outlineFromToc(flat, tocIndex, pageHeadingDepth) : [],
-      source: sourceSlice(source, children, start, end),
+      slug: typeof heading[1].id === 'string' ? heading[1].id : `page-${pages.length}`,
+      title: toText(heading).trim() || 'Untitled',
+      level: headingDepth(heading) as 1 | 2,
+      document: pageDocument(document, pageNodes),
+      searchText: flatText(pageNodes),
+      outline: outline(pageNodes),
+      source: slices[index + (hasIntroduction ? 1 : 0)],
     })
   }
 
@@ -126,16 +122,12 @@ export function splitVirtualPages(
       slug: 'introduction',
       title: 'Introduction',
       level: 0,
-      body,
-      searchText: flatText(body),
-      outline: [],
+      document,
+      searchText: flatText(nodes),
+      outline: outline(nodes),
       source,
     })
   }
 
   return pages
-}
-
-function flatText(root: MDCRoot): string {
-  return toText(root).replace(/\s+/g, ' ').trim()
 }

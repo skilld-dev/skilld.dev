@@ -26,8 +26,15 @@ import { X_SEARCH_PAGE_SIZE } from './x-client'
  * `-is:retweet` is a cost control as much as a quality one: a retweet carries
  * the same links as its original, would be read as a separate post against the
  * cap, and adds nothing the original does not already say.
+ *
+ * `lang:en` matches the language of the surfaces that quote these posts. It is
+ * also the cheapest single saving available: 74 of 299 posts measured on
+ * 2026-08-13 were non-English, so a quarter of the daily read budget was going
+ * on posts the trending page would never quote. The cost is real but small,
+ * since the repos those posts named were almost always named in English posts
+ * too.
  */
-export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR (url:"github.com" ("SKILL.md" OR "skills.md" OR "agent skill" OR "agent skills" OR "claude skill" OR "claude skills" OR "claude code skill" OR "agentskills"))) -is:retweet'
+export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR (url:"github.com" ("SKILL.md" OR "skills.md" OR "agent skill" OR "agent skills" OR "claude skill" OR "claude skills" OR "claude code skill" OR "agentskills"))) -is:retweet lang:en'
 
 /** Cursor key, so a second query can be added later without a schema change. */
 export const X_DISCOVERY_CURSOR_KEY = 'discovery-v1'

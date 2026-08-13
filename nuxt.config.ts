@@ -306,8 +306,15 @@ export default defineNuxtConfig({
     '/skills/master-agent': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
     '/skills/docs': { redirect: { to: '/skills/writing', statusCode: 301 } } as any,
     '/skills/review': { redirect: { to: '/skills/code-review', statusCode: 301 } } as any,
-    '/skills/debug': { redirect: { to: '/skills/debugging', statusCode: 301 } } as any,
+    '/skills/debug': { redirect: { to: '/skills/testing', statusCode: 301 } } as any,
     '/skills/ship': { redirect: { to: '/skills/devops', statusCode: 301 } } as any,
+    // 2026-08-13 cull: 16 categories to 12. `debugging` and `browser-automation`
+    // were absorbed by the track that already answers the same question;
+    // `marketing` and `research` had no successor, so they land on the index.
+    '/skills/debugging': { redirect: { to: '/skills/testing', statusCode: 301 } } as any,
+    '/skills/browser-automation': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
+    '/skills/marketing': { redirect: { to: '/skills', statusCode: 301 } } as any,
+    '/skills/research': { redirect: { to: '/skills', statusCode: 301 } } as any,
     // Harlan's curated collections merged into the category pages, so each
     // retired collection URL points at the page that absorbed it rather than
     // 404ing. `vue-nuxt` and `react` went to the framework pages that already
@@ -321,7 +328,7 @@ export default defineNuxtConfig({
     '/@harlan-zw/code-review': { redirect: { to: '/skills/code-review', statusCode: 301 } } as any,
     '/@harlan-zw/web-quality': { redirect: { to: '/skills/performance', statusCode: 301 } } as any,
     '/@harlan-zw/backend-data': { redirect: { to: '/skills/backend-data', statusCode: 301 } } as any,
-    '/@harlan-zw/browser-automation': { redirect: { to: '/skills/browser-automation', statusCode: 301 } } as any,
+    '/@harlan-zw/browser-automation': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
     '/@harlan-zw/vue-nuxt': { redirect: { to: '/frameworks/vue', statusCode: 301 } } as any,
     '/@harlan-zw/react': { redirect: { to: '/frameworks/react', statusCode: 301 } } as any,
     '/_nuxt/v2/**': {
@@ -361,7 +368,7 @@ export default defineNuxtConfig({
     },
   },
 
-  // Shiki highlighting for server-rendered MDC and raw skill markdown.
+  // Shiki highlighting for Nuxt Content and raw skill markdown.
   // The JavaScript regex engine works in Cloudflare workerd without
   // Oniguruma WASM. Explicit languages cover common SKILL.md examples.
   // Dual themes emit the CSS variables consumed by app/assets/css/main.css.

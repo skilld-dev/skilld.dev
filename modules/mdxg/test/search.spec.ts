@@ -5,7 +5,7 @@ import { searchMdxg } from '../src/runtime/utils/mdxg'
 
 function page(overrides: Partial<MdxgPage> & { searchText: string, slug: string, title: string, index: number }): MdxgPage {
   return {
-    body: { type: 'root', children: [] },
+    document: { nodes: [], frontmatter: {}, meta: {} },
     level: 1,
     outline: [],
     ...overrides,
@@ -14,10 +14,7 @@ function page(overrides: Partial<MdxgPage> & { searchText: string, slug: string,
 
 function doc(pages: MdxgPage[]): MdxgDocument {
   return {
-    data: {} as MdxgDocument['data'],
-    toc: undefined,
-    excerpt: undefined,
-    body: { type: 'root', children: [] },
+    document: { nodes: [], frontmatter: {}, meta: {} },
     pages,
     nav: pages.map(p => ({ index: p.index, slug: p.slug, title: p.title, level: p.level })),
   }

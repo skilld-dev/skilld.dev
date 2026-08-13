@@ -180,8 +180,7 @@ const sourceVisible = computed(() => mode.value !== 'preview')
 const previewVisible = computed(() => mode.value !== 'source')
 
 const docTitle = computed(() => {
-  const data = doc.value.data as Record<string, unknown>
-  const title = data?.title
+  const title = doc.value.document.frontmatter.title
   return typeof title === 'string' ? title : ''
 })
 

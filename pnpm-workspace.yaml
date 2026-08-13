@@ -1,4 +1,7 @@
 minimumReleaseAgeExclude:
+  - '@comark/nuxt'
+  - '@comark/vue'
+  - comark
   - '@harlan-zw/nuxt-cf-jobs'
   - '@harlan-zw/nuxt-cloudflare'
   - '@harlan-zw/nuxt-dx@0.0.7'
@@ -22,6 +25,7 @@ shellEmulator: true
 trustPolicy: no-downgrade
 
 catalog:
+  '@comark/nuxt': 0.6.2
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/workers-types': ^5.20260812.1
   '@harlan-zw/nuxt-cf-jobs': 0.0.5
@@ -41,8 +45,8 @@ catalog:
   '@nuxt/ui': ^4.10.0
   '@nuxtjs/html-validator': ^2.1.0
   '@nuxtjs/mcp-toolkit': ^0.18.1
-  '@nuxtjs/mdc': ^0.23.1
   '@nuxtjs/seo': ^5.3.12
+  comark: 0.6.2
   '@playwright/test': ^1.62.1
   '@resvg/resvg-js': ^2.6.2
   '@sentry/nuxt': ^10.70.0
@@ -50,8 +54,8 @@ catalog:
   '@shikijs/engine-javascript': ^4.4.3
   '@shikijs/langs': ^4.4.3
   '@shikijs/themes': ^4.4.3
-  '@takumi-rs/core': ^2.7.1
-  '@takumi-rs/wasm': ^2.7.1
+  '@takumi-rs/core': ^2.7.2
+  '@takumi-rs/wasm': ^2.7.2
   '@types/node': ^26.2.0
   '@vue/test-utils': ^2.4.11
   '@vueuse/core': ^14.4.0

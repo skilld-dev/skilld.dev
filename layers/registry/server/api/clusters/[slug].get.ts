@@ -1,6 +1,7 @@
 import type { Cluster } from '../../data/clusters'
 import { getDB } from '#server/utils/db'
 import { CLUSTER_BY_SLUG } from '../../data/clusters'
+import { clusterMembersSql } from '../../utils/cluster-membership'
 import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
 
 function clusterMeta(cluster: Cluster) {
@@ -55,50 +56,34 @@ export default defineCachedEventHandler(async (event) => {
     }
   }
 
-  // Each arm is dropped rather than emitted empty, for the same reason.
-  const clauses: string[] = []
-  const clusterParams: string[] = []
-  if (cluster.categories.length) {
-    clauses.push(
-      `(s.is_abstract = 1 AND s.abstractness_category IN (${cluster.categories.map(() => '?').join(',')}))`,
-    )
-    clusterParams.push(...cluster.categories)
-  }
-  if (pinnedSkills.length) {
-    clauses.push(`(s.owner || '/' || s.name IN (${pinnedSkills.map(() => '?').join(',')}))`)
-    clusterParams.push(...pinnedSkills.map(skill => skill.key))
-  }
-  const clusterSql = `(${clauses.join(' OR ')})`
-  const pinnedOrderParams = pinnedSkills.flatMap(skill => [skill.owner, skill.name])
+  // Membership is abstract-first with a capped backfill; see cluster-membership.
+  const members = clusterMembersSql(
+    'owner, name, repo, display_name, description, stars, modified_at, is_abstract',
+    cluster.categories,
+    pinnedSkills.map(skill => skill.key),
+  )
 
-  const countSql = `
-    SELECT COUNT(*) AS n
-    FROM skills s
-    WHERE ${clusterSql}
-  `
-  const countRow = await db.prepare(countSql).bind(...clusterParams).first<{ n: number }>()
+  const countRow = await db.prepare(`SELECT COUNT(*) AS n FROM (${members.sql})`)
+    .bind(...members.params)
+    .first<{ n: number }>()
   const total = countRow?.n ?? 0
 
-  // stars moved to `repos` in migration 0034; JOIN explicitly.
   // `CASE` with no `WHEN` is a syntax error, so a category that ranks purely on
   // stars drops the pinned-order arm rather than emitting an empty CASE.
   const pinnedOrderSql = pinnedSkills.length
     ? `CASE
-      ${pinnedSkills.map((_, index) => `WHEN s.owner = ? AND s.name = ? THEN ${index}`).join('\n')}
+      ${pinnedSkills.map((_, index) => `WHEN owner = ? AND name = ? THEN ${index}`).join('\n')}
       ELSE ${pinnedSkills.length}
     END,`
     : ''
+  const pinnedOrderParams = pinnedSkills.flatMap(skill => [skill.owner, skill.name])
   const listSql = `
-    SELECT s.owner, s.name, s.repo, s.display_name, s.description,
-           r.stars, s.modified_at
-    FROM skills s
-    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-    WHERE ${clusterSql}
-    ORDER BY ${pinnedOrderSql} r.stars DESC, s.modified_at DESC, s.name ASC
+    SELECT * FROM (${members.sql})
+    ORDER BY ${pinnedOrderSql} is_abstract DESC, stars DESC, modified_at DESC, name ASC
     LIMIT ? OFFSET ?
   `
   const res = await db.prepare(listSql)
-    .bind(...clusterParams, ...pinnedOrderParams, limit, offset)
+    .bind(...members.params, ...pinnedOrderParams, limit, offset)
     .all<SkillRow>()
 
   const rankedItems = (res.results ?? []).map(s => ({
@@ -125,5 +110,5 @@ export default defineCachedEventHandler(async (event) => {
 }, {
   maxAge: 60,
   swr: false,
-  name: 'clusters-detail-origin-v2',
+  name: 'clusters-detail-origin-v3',
 })

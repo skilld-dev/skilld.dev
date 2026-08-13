@@ -10,6 +10,7 @@ import type { Cluster } from '../../data/clusters'
 import { getDB } from '#server/utils/db'
 import { CLUSTERS } from '../../data/clusters'
 import { findClusterIndexRows } from '../../utils/cluster-index-rows'
+import { clusterMembersSql } from '../../utils/cluster-membership'
 import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
 
 interface SkillRow {
@@ -19,7 +20,10 @@ interface SkillRow {
   display_name: string
   stars: number
   category: string | null
+  is_abstract: number
 }
+
+const COLUMNS = 'owner, name, repo, display_name, stars, category, is_abstract'
 
 export interface ClusterCard {
   slug: string
@@ -34,7 +38,7 @@ export interface ClusterCard {
 }
 
 const EXAMPLES_PER_CARD = 5
-const AUTHORS_PER_CARD = 5
+const AUTHORS_PER_CARD = 8
 
 export default defineCachedEventHandler(async (event) => {
   const db = getDB(event)
@@ -47,17 +51,10 @@ export default defineCachedEventHandler(async (event) => {
     Array.from(new Set(CLUSTERS.flatMap(c => c.pinnedExamples))),
   ).map(skill => skill.key)
   const rows = await findClusterIndexRows(async (selector, values) => {
-    const placeholders = values.map(() => '?').join(',')
-    const predicate = selector === 'category'
-      ? `s.is_abstract = 1 AND s.abstractness_category IN (${placeholders})`
-      : `s.owner || '/' || s.name IN (${placeholders})`
-    const result = await db.prepare(`
-      SELECT s.owner, s.name, s.repo, s.display_name, r.stars,
-             s.abstractness_category AS category
-      FROM skills s
-      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-      WHERE ${predicate}
-    `).bind(...values).all<SkillRow>()
+    const { sql, params } = selector === 'category'
+      ? clusterMembersSql(COLUMNS, values, [])
+      : clusterMembersSql(COLUMNS, [], values)
+    const result = await db.prepare(sql).bind(...params).all<SkillRow>()
 
     return result.results ?? []
   }, allCategories, allPinnedExamples)
@@ -66,13 +63,17 @@ export default defineCachedEventHandler(async (event) => {
     const pinned = new Set(c.pinnedExamples)
     const inCluster = rows
       .filter(r => (r.category !== null && c.categories.includes(r.category)) || pinned.has(`${r.owner}/${r.name}`))
-      .sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name))
+      // Abstract skills lead the card: they are the classified curation signal,
+      // and the backfill exists so the track has depth under them.
+      .sort((a, b) => b.is_abstract - a.is_abstract || b.stars - a.stars || a.name.localeCompare(b.name))
     const examples = curateClusterSkills(inCluster, c.pinnedExamples).slice(0, EXAMPLES_PER_CARD)
 
     // Avatars answer "who writes this kind of skill", so they rank by the
     // author's reach rather than by whichever example happened to be pinned.
+    // Abstract-first here too, or the backfill hands every track the same
+    // handful of vendor avatars.
     const authors: string[] = []
-    const byStars = [...inCluster].sort((a, b) => b.stars - a.stars || a.owner.localeCompare(b.owner))
+    const byStars = [...inCluster].sort((a, b) => b.is_abstract - a.is_abstract || b.stars - a.stars || a.owner.localeCompare(b.owner))
     for (const row of byStars) {
       if (!authors.includes(row.owner))
         authors.push(row.owner)
@@ -106,5 +107,5 @@ export default defineCachedEventHandler(async (event) => {
 }, {
   maxAge: 60,
   swr: false,
-  name: 'clusters-index-origin-v3',
+  name: 'clusters-index-origin-v4',
 })

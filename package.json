@@ -43,6 +43,7 @@
     "db:migrations:prod": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
+    "@comark/nuxt": "catalog:",
     "@harlan-zw/nuxt-cf-jobs": "catalog:",
     "@harlan-zw/nuxt-use-query": "catalog:",
     "@iconify-json/lucide": "catalog:",
@@ -65,6 +66,7 @@
     "@vueuse/nuxt": "catalog:",
     "agents": "catalog:",
     "algoliasearch": "catalog:",
+    "comark": "catalog:",
     "h3": "catalog:",
     "import-in-the-middle": "catalog:",
     "marked": "catalog:",
@@ -89,7 +91,6 @@
     "@nuxt/test-utils": "catalog:",
     "@nuxtjs/html-validator": "catalog:",
     "@nuxtjs/mcp-toolkit": "catalog:",
-    "@nuxtjs/mdc": "catalog:",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@vue/test-utils": "catalog:",

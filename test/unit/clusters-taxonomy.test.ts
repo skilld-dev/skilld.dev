@@ -71,15 +71,14 @@ describe('cluster taxonomy', () => {
   })
 
   it('keeps the non-developer demand test separable', () => {
-    // The three `test` rows were admitted against VISION's north-star user on
-    // 2026-08-12. Reversing the experiment must stay a three-row delete, so
-    // nothing developer-facing may depend on them.
+    // The `test` rows were admitted against VISION's north-star user on
+    // 2026-08-12. `marketing` and `research` were culled on 2026-08-13.
+    // Reversing the rest must stay a two-row delete, so nothing
+    // developer-facing may depend on them.
     const testAudience = CLUSTERS.filter(cluster => cluster.audience === 'test')
 
     expect(testAudience.map(cluster => cluster.slug)).toEqual([
       'seo',
-      'marketing',
-      'research',
       'writing',
     ])
     for (const cluster of testAudience)

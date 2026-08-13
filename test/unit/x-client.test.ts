@@ -14,6 +14,7 @@ function clientReturning(body: unknown, init: ResponseInit = {}) {
   const calls: string[] = []
   const client = createXClient({
     bearerToken: 'test-token',
+    allowNetwork: true,
     fetchImpl: async (input) => {
       calls.push(String(input))
       return jsonResponse(body, init)
@@ -182,6 +183,45 @@ describe('createXClient failures', () => {
     const { client } = clientReturning({ data: 'not an array' })
     const result = await client.searchRecent({ query: 'q', sinceId: null })
     expect(result._tag === 'err' && result.error._tag).toBe('malformed-response')
+  })
+})
+
+describe('createXClient local guard', () => {
+  it('refuses to spend real budget when network calls are disallowed', async () => {
+    // `.dev.vars` symlinks to `.env`, so a dev server holds a working token and
+    // nothing else stops a task run from billing the account. One session spent
+    // 302 reads before this guard existed.
+    let called = false
+    const client = createXClient({
+      bearerToken: 'real-token',
+      allowNetwork: false,
+      fetchImpl: async () => {
+        called = true
+        return jsonResponse({})
+      },
+    })
+
+    expect(await client.searchRecent({ query: 'q', sinceId: null }))
+      .toEqual({ _tag: 'err', error: { _tag: 'local-blocked' } })
+    expect(await client.lookupPosts(['1']))
+      .toEqual({ _tag: 'err', error: { _tag: 'local-blocked' } })
+    expect(await client.usage())
+      .toEqual({ _tag: 'err', error: { _tag: 'local-blocked' } })
+    expect(called).toBe(false)
+  })
+
+  it('reports a missing token ahead of the local guard', async () => {
+    // Ordering matters for the operator message: an unconfigured environment
+    // is a different problem from a deliberately blocked one.
+    const client = createXClient({ bearerToken: undefined, allowNetwork: false })
+    expect(await client.searchRecent({ query: 'q', sinceId: null }))
+      .toEqual({ _tag: 'err', error: { _tag: 'not-configured' } })
+  })
+
+  it('allows calls when network access is granted', async () => {
+    const { client } = clientReturning({ data: [], meta: { result_count: 0 } })
+    const result = await client.searchRecent({ query: 'q', sinceId: null })
+    expect(result._tag).toBe('ok')
   })
 })
 

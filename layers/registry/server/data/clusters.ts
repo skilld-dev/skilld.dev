@@ -41,6 +41,14 @@
  * Stable slugs: these become URLs. Renaming one requires a redirect in
  * nuxt.config.ts. The 2026-08-12 renames were taken because Search Console
  * showed 4 clicks across 3 months, so no ranking existed to protect.
+ *
+ * 2026-08-13: 16 rows down to 12, so the homepage grid reads as three rows of
+ * four rather than a wall. `browser-automation` retired into
+ * `context-engineering` and `debugging` into `testing`, because in both cases
+ * one track already answered the question. `marketing` and `research` were
+ * deleted outright under principle 2: three skills each, both outside the
+ * north-star user, and neither earned its page. See RENAMED_CLUSTER_SLUGS and
+ * CULLED_CLUSTER_SLUGS for where the four old URLs land.
  */
 
 export interface Cluster {
@@ -118,15 +126,15 @@ export const CLUSTERS: Cluster[] = [
     slug: 'context-engineering',
     label: 'Agent workflows',
     icon: 'i-lucide-zap',
-    userVoice: 'You run agents in parallel and verify what they hand back.',
+    userVoice: 'You run agents in parallel, drive a browser, and verify what they hand back.',
     seoTitle: 'Agent Skills for Context Engineering',
     seoDescription:
-      'Context engineering skills for agent workflows: delegate to subagents, run passes in parallel, verify before completion, and hand off a clean branch. Works with Claude Code, Cursor, and Codex.',
+      'Context engineering skills for agent workflows: delegate to subagents, run passes in parallel, drive a real browser, and verify before completion. Works with Claude Code, Cursor, and Codex.',
     curatorNote:
-      'Run multi-pass changes with focused delegation, parallel work, verification, and a clean branch handoff, then build the skill you were missing.',
+      'Run multi-pass changes with focused delegation, parallel work, browser control, and verification, then build the skill you were missing.',
     mergedFrom: 'agent-workflow',
     audience: 'dev',
-    categories: ['automation'],
+    categories: ['automation', 'scraping'],
     pinnedExamples: [
       'obra/subagent-driven-development',
       'obra/dispatching-parallel-agents',
@@ -138,6 +146,13 @@ export const CLUSTERS: Cluster[] = [
       'openai/skill-installer',
       'callstackincubator/validate-skills',
       'anthropics/mcp-builder',
+      // Browser control retired into this category on 2026-08-13: driving a
+      // browser is what an agent does inside a workflow, not a track someone
+      // picks. `/skills/browser-automation` 301s here.
+      'microsoft/playwright-cli',
+      'vercel-labs/agent-browser',
+      'browser-use/browser-use',
+      'firecrawl/firecrawl-cli',
     ],
   },
   {
@@ -164,39 +179,26 @@ export const CLUSTERS: Cluster[] = [
   },
   {
     slug: 'testing',
-    label: 'Testing and QA',
+    label: 'Testing and debugging',
     icon: 'i-lucide-flask-conical',
-    userVoice: 'You want tests that prove the change, not tests that pass.',
-    seoTitle: 'Claude Skills for Testing',
+    userVoice: 'You want tests that prove the change, and a cause when it breaks.',
+    seoTitle: 'Claude Skills for Testing and Debugging',
     seoDescription:
-      'Testing skills for Claude Code and other agents: test-driven development, coverage assessment, browser and webapp testing, and verifying external behaviour rather than implementation detail.',
+      'Testing and debugging skills for Claude Code and other agents: test-driven development, coverage assessment, webapp testing, systematic debugging, and the post-mortem after an incident.',
     curatorNote: null,
+    // Debugging retired into this category on 2026-08-13: it held two skills,
+    // and a failing test is where debugging starts. `/skills/debugging` 301s
+    // here.
     mergedFrom: null,
     audience: 'dev',
-    categories: ['testing'],
+    categories: ['testing', 'incident-response', 'observability'],
     pinnedExamples: [
       'mattpocock/tdd',
       'obra/test-driven-development',
+      'obra/systematic-debugging',
       'bitwarden/assessing-test-coverage',
-      'github/playwright-explore-website',
       'wdm0006/verifying-external-behavior',
       'anthropics/webapp-testing',
-    ],
-  },
-  {
-    slug: 'debugging',
-    label: 'Debugging and incidents',
-    icon: 'i-lucide-bug',
-    userVoice: 'You chase failures down to a cause and write up what happened.',
-    seoTitle: 'Claude Skills for Debugging',
-    seoDescription:
-      'Debugging skills for AI agents: work a failure down to its cause, investigate autonomously, and write the post-mortem. Curated from maintainers who debug production systems.',
-    curatorNote: null,
-    mergedFrom: null,
-    audience: 'dev',
-    categories: ['incident-response', 'observability'],
-    pinnedExamples: [
-      'obra/systematic-debugging',
       'deanpeters/autonomous-investigation',
       'boshu2/post-mortem',
     ],
@@ -263,27 +265,6 @@ export const CLUSTERS: Cluster[] = [
       'get-convex/convex-quickstart',
       'firebase/firebase-basics',
       'resend/resend',
-    ],
-  },
-  {
-    slug: 'browser-automation',
-    label: 'Browser automation',
-    icon: 'i-lucide-mouse-pointer-click',
-    userVoice: 'You need the agent to drive a real browser and bring back structure.',
-    seoTitle: 'Claude Skills for Browser Automation',
-    seoDescription:
-      'Browser automation skills for AI agents: drive Playwright, click through real flows, scrape pages, and pull structured content back into the loop.',
-    curatorNote:
-      'When an agent needs to drive a browser: scrape pages, click through flows, and pull structured content into the loop.',
-    mergedFrom: 'browser-automation',
-    audience: 'dev',
-    categories: ['scraping'],
-    pinnedExamples: [
-      'microsoft/playwright-cli',
-      'vercel-labs/agent-browser',
-      'browser-use/browser-use',
-      'firecrawl/firecrawl-cli',
-      'firecrawl/firecrawl-scrape',
     ],
   },
   {
@@ -363,62 +344,6 @@ export const CLUSTERS: Cluster[] = [
     // match and even has its own search demand, but both of its skills return
     // 410 from the registry: they were already retired at admission. Restoring
     // them here would silently overrule that call.
-  },
-  {
-    slug: 'marketing',
-    label: 'Marketing',
-    icon: 'i-lucide-megaphone',
-    userVoice: 'You run the campaigns, the copy, and the numbers behind them.',
-    seoTitle: 'Claude Skills for Marketing',
-    seoDescription:
-      'Marketing skills for Claude and other agents: positioning, copy, campaign planning, and lifecycle email. Every skill names its author and links the source file you install.',
-    curatorNote: null,
-    mergedFrom: null,
-    audience: 'test',
-    categories: [],
-    // Picked from what the registry actually holds, not from what skills.sh
-    // lists. The obvious candidates there (refoundai, kostja94, samber,
-    // claude-office-skills) were never ingested, so pinning them rendered
-    // nothing. A 200 on /gh/<owner>/<repo>/<name> does not prove membership.
-    pinnedExamples: [
-      'github/gtm-positioning-strategy',
-      'github/ad-campaign-analyzer',
-      'tldraw/dotcom-release-marketing',
-      'coreyhaines31/product-marketing',
-      'coreyhaines31/marketing-plan',
-      'coreyhaines31/content-strategy',
-      'coreyhaines31/copywriting',
-    ],
-  },
-  {
-    slug: 'research',
-    label: 'Research',
-    icon: 'i-lucide-microscope',
-    userVoice: 'You read the literature and keep the evidence straight.',
-    seoTitle: 'Claude Skills for Research',
-    seoDescription:
-      'Research skills for Claude: literature review, scientific writing, and deep web research. Curated skills from named authors and first-party tooling, readable before you run them.',
-    curatorNote: null,
-    mergedFrom: null,
-    audience: 'test',
-    categories: [],
-    // Academic leads, because that is where the demand is (`claude scientific
-    // skills` 390/mo) even though the loudest supply is web-research tooling.
-    // Six owners, no repo taking the shortlist.
-    // Verified against the production `skills` table. The whole first pass here
-    // (k-dense-ai, anthropics/research-synthesis, langchain-ai/web-research,
-    // firecrawl/firecrawl-research-index) is absent from the registry: those
-    // owners are either not ingested at all or carry different skill names.
-    pinnedExamples: [
-      'imbad0202/academic-paper',
-      'imbad0202/academic-paper-reviewer',
-      'imbad0202/academic-pipeline',
-      'mattpocock/research',
-      'github/autoresearch',
-      'openai/notion-research-documentation',
-      'muratcankoylan/comprehensive-research-agent',
-      'tavily-ai/tavily-research',
-    ],
   },
   {
     slug: 'writing',
@@ -527,6 +452,22 @@ export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
   'master-agent': 'context-engineering',
   'docs': 'writing',
   'review': 'code-review',
-  'debug': 'debugging',
+  // `debug` -> `debugging` was the 2026-08-12 rename. `debugging` merged into
+  // `testing` on 2026-08-13, so the old slug points at the live target rather
+  // than 301ing into a second 301.
+  'debug': 'testing',
+  'debugging': 'testing',
+  'browser-automation': 'context-engineering',
   'ship': 'devops',
 }
+
+/**
+ * Categories deleted on 2026-08-13 with no successor, as slugs.
+ *
+ * `marketing` and `research` were the weakest rows of the 2026-08-12 demand
+ * test: three skills each, two and three authors, and both outside VISION's
+ * north-star user. They have no category that answers the same question, so
+ * they 301 to `/skills` rather than to a category that would mislead.
+ * The route policy reads this so the old paths reach the redirect layer.
+ */
+export const CULLED_CLUSTER_SLUGS: string[] = ['marketing', 'research']

@@ -66,7 +66,7 @@ export const MARKETING_REDIRECTS: Record<string, string> = {
   'react': '/frameworks/react',
   'nextjs': '/frameworks/nextjs',
   'nuxt': '/frameworks/nuxt',
-  'debug': '/skills/debugging',
+  'debug': '/skills/testing',
   'docs': '/skills/writing',
   'plan': '/skills/planning',
   'review': '/skills/code-review',
@@ -85,7 +85,7 @@ export const MARKETING_REDIRECTS: Record<string, string> = {
   // category and folding it in would lose coverage:
   //   frontend (build tooling, state, routing) vs /skills/design
   //   backend + database + data vs /skills/backend-data (curated to 5 vendors)
-  'debugging': '/skills/debugging',
+  'debugging': '/skills/testing',
   'devops': '/skills/devops',
   'documentation': '/skills/writing',
   'refactoring': '/skills/code-review',

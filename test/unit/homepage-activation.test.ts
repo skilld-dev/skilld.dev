@@ -86,7 +86,6 @@ describe('homepage activation', () => {
     expect(outcomesSource).toContain('What do you work on?')
     expect(outcomesSource).not.toContain('What should your agent do?')
     expect(clusterGrid).toContain('outcome-index__avatars')
-    expect(clusterGrid).toContain('authorSummary(cluster)')
   })
 
   it('promotes the curator directory on the homepage', () => {

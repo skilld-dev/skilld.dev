@@ -130,6 +130,21 @@ function shareLabel(authorCount: number): string {
           <article class="trending-row">
             <span class="trending-rank">{{ String(index + 1).padStart(2, '0') }}</span>
 
+            <!--
+              The owner avatar, matching /skills/best. Provenance is the whole
+              pitch, so the person behind a repo should be visible at a glance
+              rather than inferred from the slug.
+            -->
+            <img
+              :src="`https://github.com/${item.owner}.png?size=80`"
+              alt=""
+              width="40"
+              height="40"
+              class="size-10 shrink-0 rounded-full border border-default bg-muted"
+              loading="lazy"
+              decoding="async"
+            >
+
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-baseline gap-x-2">
                 <NuxtLink

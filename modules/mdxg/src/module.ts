@@ -1,7 +1,6 @@
 import {
   addComponentsDir,
   addImportsDir,
-  addPlugin,
   addServerImportsDir,
   createResolver,
   defineNuxtModule,
@@ -17,17 +16,9 @@ export interface ModuleOptions {
   theme?: 'default' | false
 }
 
-// MDXG extension plugins (math, diagrams) are configured at the @nuxtjs/mdc
-// layer, not here — mdxg consumes whatever AST mdc emits. To enable:
+// MDXG extension plugins are passed through `parseMdxg` parser options.
 //
-//   // nuxt.config.ts
-//   mdc: {
-//     remarkPlugins: { 'remark-math': { options: {} } },
-//     rehypePlugins: { 'rehype-katex': { options: {} } },
-//   }
-//
-// GFM (including footnotes + task lists) is already enabled by mdc's default
-// pipeline; no extra config needed.
+//   parseMdxg(source, { parserOptions: { plugins: [math()] } })
 
 export default defineNuxtModule<ModuleOptions>({
   meta: {
@@ -45,11 +36,8 @@ export default defineNuxtModule<ModuleOptions>({
     if (options.theme !== false)
       nuxt.options.css.push(resolve('./runtime/styles.css'))
 
-    // Parsing + rendering is delegated to @nuxtjs/mdc. If the consumer already
-    // installed @nuxt/content (which pulls mdc transitively + registers
-    // MDCRenderer), don't re-install.
-    if (!hasNuxtModule('@nuxt/content') && !hasNuxtModule('@nuxtjs/mdc'))
-      await installModule('@nuxtjs/mdc')
+    if (!hasNuxtModule('@comark/nuxt'))
+      await installModule('@comark/nuxt')
 
     addComponentsDir({
       path: resolve('./runtime/components'),
@@ -61,16 +49,5 @@ export default defineNuxtModule<ModuleOptions>({
     addImportsDir(resolve('./runtime/composables'))
     addImportsDir(resolve('./runtime/utils'))
     addServerImportsDir(resolve('./runtime/utils'))
-
-    // Wire @nuxtjs/mdc's bundled Shiki highlighter into parseMdxg defaults.
-    // Universal (server + client): with `mdc.highlight.shikiEngine: 'javascript'`
-    // the highlighter uses Shiki's JS regex engine — no Oniguruma WASM — so it
-    // also runs under Cloudflare workerd at SSR time. This is required for
-    // highlighted output to appear in the SSR HTML: pages that parse via
-    // `useAsyncData` cache the server result and never re-run on the client, so
-    // a client-only highlighter would never apply. Consumers using the default
-    // Oniguruma engine should keep this client-only or pass an explicit
-    // highlighter via `parseMdxg(source, { mdcOptions: { highlight: { highlighter } } })`.
-    addPlugin({ src: resolve('./runtime/plugin.ts') })
   },
 })

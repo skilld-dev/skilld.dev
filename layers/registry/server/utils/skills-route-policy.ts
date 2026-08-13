@@ -1,4 +1,4 @@
-import { CLUSTERS, RENAMED_CLUSTER_SLUGS } from '../data/clusters'
+import { CLUSTERS, CULLED_CLUSTER_SLUGS, RENAMED_CLUSTER_SLUGS } from '../data/clusters'
 
 export type SkillsRouteDecision
   = | { _tag: 'pass' }
@@ -18,6 +18,8 @@ const marketingPaths = new Set([
   // Renamed on 2026-08-12. They are no longer clusters, so without this they
   // would 404 here before nuxt.config's routeRules could 301 them.
   ...Object.keys(RENAMED_CLUSTER_SLUGS).map(slug => `/skills/${slug}`),
+  // Culled on 2026-08-13. Same reason: they must reach the redirect layer.
+  ...CULLED_CLUSTER_SLUGS.map(slug => `/skills/${slug}`),
 ])
 
 const marketingPrefixes = ['/skills/tag/']
