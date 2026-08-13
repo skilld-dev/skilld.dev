@@ -18,6 +18,15 @@ export type InstallCopyResult
   = | { _tag: 'copied' }
     | { _tag: 'error', message: string }
 
+/**
+ * Which agent and mode the copy came from. Omitted by the plain copy button,
+ * set by the agent setup picker.
+ */
+export interface InstallCopyContext {
+  agent: string
+  mode: 'project' | 'global' | 'once'
+}
+
 export function useInstallCopy(
   source: MaybeRefOrGetter<string>,
   surface: string,
@@ -29,7 +38,7 @@ export function useInstallCopy(
     legacy: true,
   })
 
-  async function copy(value?: string): Promise<InstallCopyResult> {
+  async function copy(value?: string, context?: InstallCopyContext): Promise<InstallCopyResult> {
     const t = toValue(target)
     if (!t)
       return { _tag: 'error', message: 'Install target unavailable.' }
@@ -55,6 +64,7 @@ export function useInstallCopy(
         ...(t.kind === 'skill'
           ? { owner: t.owner, name: t.name }
           : { handle: t.handle, slug: t.slug }),
+        ...(context ?? {}),
       },
     }).catch((error) => {
       console.warn('[install-copy] Failed to record install event:', error)

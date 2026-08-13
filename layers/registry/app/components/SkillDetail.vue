@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { InstallTarget } from '~~/app/composables/useInstallCopy'
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
@@ -289,6 +290,17 @@ const { copy, copied } = useInstallCopy(
   'skill-page-hero',
   () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
 )
+
+const installTarget = computed<InstallTarget>(() => ({
+  kind: 'skill',
+  owner: data.value?.owner ?? '',
+  name: data.value?.name ?? '',
+}))
+
+// Pristine SKILL.md over HTTP, so an agent can read the skill without installing.
+const docUrl = computed(() => data.value
+  ? skillDocUrl(data.value.owner, data.value.repo, data.value.name)
+  : '')
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
 const skillFileUrl = computed(() => data.value?.provenance?.skillFileUrl ?? '')
@@ -1004,6 +1016,12 @@ useHead(computed(() => ({
               @click="copy(installCmd)"
             />
           </div>
+          <AgentSetup
+            :command="installCmd"
+            :doc-url="docUrl"
+            :target="installTarget"
+            surface="skill-page-hero"
+          />
         </div>
       </div>
 
@@ -1333,6 +1351,12 @@ useHead(computed(() => ({
                   @click="copy(installCmd)"
                 />
               </div>
+              <AgentSetup
+                :command="installCmd"
+                :doc-url="docUrl"
+                :target="installTarget"
+                surface="skill-rail"
+              />
             </div>
           </section>
 

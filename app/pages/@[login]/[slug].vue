@@ -20,11 +20,12 @@ const repositoryCount = computed(() => new Set(
 const updatedAt = computed(() => collection.value?.updatedAt
   ? new Date(collection.value.updatedAt * 1000)
   : null)
-const { copy, copied } = useInstallCopy(
-  installCmd,
-  'collection-page',
-  () => ({ kind: 'collection', handle: login.value, slug: slug.value }),
-)
+const installTarget = computed(() => ({
+  kind: 'collection' as const,
+  handle: login.value,
+  slug: slug.value,
+}))
+const { copy, copied } = useInstallCopy(installCmd, 'collection-page', installTarget)
 
 useSeoMeta({
   // The global titleTemplate appends ` · skilld`; repeating it here produced
@@ -188,6 +189,15 @@ function collectionSkillMeta(skill: { owner: string, repo: string, name?: string
             @click="copy()"
           />
           <span aria-live="polite" class="sr-only">{{ copied ? 'Install command copied to clipboard' : '' }}</span>
+
+          <!-- No doc-url: a collection has no single markdown document an agent
+               can read, so one-off use is not offered here. -->
+          <AgentSetup
+            class="mt-3"
+            :command="installCmd"
+            :target="installTarget"
+            surface="collection-page"
+          />
 
           <div class="mt-3 flex flex-col items-stretch gap-2 border-t border-default pt-3 sm:flex-row md:flex-col">
             <WatchCollectionButton :login="login" :slug="slug" />

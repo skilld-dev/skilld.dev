@@ -65,6 +65,10 @@ The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gi
 | **author** / **curator** | A developer who maintains one or more collections on skilld. Identity is their GitHub login. | Either word is fine; "curator" reads warmer in editorial copy, "author" in product UI |
 | **registry** | skilld.dev, the central hub for curated agent skills | Also hosts the MCP server |
 | **install** | Adding a skill or collection to your agent's configuration | Not "download". `skilld add` is the canonical CLI verb |
+| **agent** | The coding tool that reads skills: Claude Code, Codex, Cursor, Gemini CLI, and the rest of the CLI's targets | Not "client", "tool", "editor", or "IDE". Say "your agent" in UI; name a specific agent only inside the setup picker |
+| **project install** | Installing into the current repository, the default | UI label: "Project". Not "local" |
+| **global install** | Installing into the agent's home directory, so every project sees the skill | UI label: "Global". Not "system-wide" |
+| **use once** | Pasting a prompt that points the agent at the published SKILL.md, so it reads and follows the skill without writing files | UI label: "Use once". Not "try", "preview", or "ephemeral". Only offered where a public markdown URL exists |
 | **watch** | Subscribing to a repo or collection so you receive digest emails when it changes | The Loop 2 verb. Not "follow", not "star", not "subscribe" |
 | **digest** | Periodic email summarizing changes to your watched repos | Weekly default; daily and off are options |
 

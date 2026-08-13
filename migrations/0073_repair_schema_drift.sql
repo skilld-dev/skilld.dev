@@ -1,7 +1,11 @@
 -- Restore migration-led objects that are absent from the production schema.
 -- This migration is intentionally idempotent so an intact database is unchanged.
 
--- Shape copied from 0011_install_events.sql.
+-- Shape copied from 0011_install_events.sql, plus the columns added by
+-- 0099_install_events_agent_mode.sql. This branch only fires when the table is
+-- absent, so it must create the current shape, not the 0011 shape.
+-- Do not add idx_install_events_agent_mode here: on an intact database this
+-- migration runs before 0099 has added the columns the index needs.
 CREATE TABLE IF NOT EXISTS install_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   occurred_at INTEGER NOT NULL,
@@ -10,7 +14,9 @@ CREATE TABLE IF NOT EXISTS install_events (
   owner TEXT,
   name TEXT,
   handle TEXT,
-  slug TEXT
+  slug TEXT,
+  agent TEXT,
+  mode TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_install_events_recent ON install_events (occurred_at DESC);

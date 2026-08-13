@@ -53,6 +53,50 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('agentSetup has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/AgentSetup.vue').then(m => m.default),
+      {
+        attachTo: container,
+        props: {
+          command: 'npx skilld add gh:obra/superpowers -s brainstorming',
+          docUrl: 'https://skilld.dev/api/skills-raw/obra/superpowers/brainstorming',
+          target: { kind: 'skill', owner: 'obra', name: 'brainstorming' },
+          surface: 'skill-page-hero',
+        },
+      },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('agentSetupPanel has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/AgentSetupPanel.vue').then(m => m.default),
+      {
+        attachTo: container,
+        props: {
+          agent: {
+            id: 'claude-code',
+            label: 'Claude Code',
+            icon: 'i-simple-icons-claudecode',
+            projectDir: '.claude/skills',
+            globalDir: '~/.claude/skills',
+            verify: 'Start a new Claude Code session. Skills load automatically.',
+          },
+          command: 'npx skilld add gh:obra/superpowers -s brainstorming',
+          docUrl: 'https://skilld.dev/api/skills-raw/obra/superpowers/brainstorming',
+        },
+      },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('likeButton has no violations when signed out', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -262,6 +306,8 @@ describe('accessibility: component coverage', () => {
     for (const name of untestedComponents) {
       expect(
         SKIPPED_COMPONENTS.includes(name) || [
+          'AgentSetup',
+          'AgentSetupPanel',
           'AppLogo',
           'CompactPageHeader',
           'SkillSearchPanel',
