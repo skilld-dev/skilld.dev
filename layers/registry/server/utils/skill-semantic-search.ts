@@ -89,8 +89,8 @@ export async function semanticSkillSearch(event: H3Event, query: string, topK = 
   // the sha256 id-map rebuild (a full scan of `skills`) on the search path.
   const res = await vectorize
     .query(vec, { topK: clampSemanticTopK(topK), returnValues: false, returnMetadata: 'all' })
-    .catch((error) => {
-      console.warn(`[semantic-search] ${error instanceof Error ? error.message : String(error)}`)
+    .catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-semantic-search', outcome: 'failed' }))
       return null
     })
   if (!res?.matches?.length)
@@ -127,15 +127,15 @@ async function embedQuery(ai: AiBinding, query: string): Promise<number[] | null
   const storage = useStorage('cache')
   const cacheKey = `search:qvec:${await sha256Hex(query)}`
   // A cache read failure is not a search failure: fall through to inference.
-  const cached = await storage.getItem<number[]>(cacheKey).catch((error) => {
-    console.warn(`[semantic-search] query vector cache read failed`, error)
+  const cached = await storage.getItem<number[]>(cacheKey).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'semantic-query-vector-cache-read', outcome: 'failed' }))
     return null
   })
   if (cached?.length === VECTORIZE_DIM)
     return cached
 
-  const embed = await ai.run(EMBEDDING_MODEL, { text: [`${QUERY_INSTRUCTION}${query}`] }).catch((error) => {
-    console.warn(`[semantic-search] ${error instanceof Error ? error.message : String(error)}`)
+  const embed = await ai.run(EMBEDDING_MODEL, { text: [`${QUERY_INSTRUCTION}${query}`] }).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'semantic-query-embedding', outcome: 'failed' }))
     return null
   })
   const vec = (embed as { data?: number[][] } | null)?.data?.[0]

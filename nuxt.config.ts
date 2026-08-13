@@ -33,6 +33,7 @@ export default defineNuxtConfig({
     '@harlan-zw/nuxt-cloudflare',
     '@harlan-zw/nuxt-dx',
     '@harlan-zw/nuxt-use-query',
+    '@harlan-zw/nuxt-wide-events',
     './modules/mdxg/src/module',
     '@nuxt/eslint',
     '@nuxt/ui',
@@ -52,6 +53,29 @@ export default defineNuxtConfig({
 
   nuxtCloudflare: {
     kvCache: { binding: 'KV_CACHE' },
+  },
+
+  wideEvents: {
+    request: true,
+    service: 'skilld',
+    fields: [
+      'attempt',
+      'batch.count',
+      'cache.writeFailed',
+      'eligible.count',
+      'error.count',
+      'failed.count',
+      'item.count',
+      'operation',
+      'outcome',
+      'processed.count',
+      'rateLimit.limit',
+      'rateLimit.remaining',
+      'scanned.count',
+      'success.count',
+      'truncated',
+      'upstream.status',
+    ],
   },
 
   cfJobs: {

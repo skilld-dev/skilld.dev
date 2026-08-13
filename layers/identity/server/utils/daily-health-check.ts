@@ -256,8 +256,8 @@ export async function loadGithubTokenExpiry(
       'Accept': 'application/vnd.github+json',
     },
     signal: AbortSignal.timeout(10_000),
-  }).catch((error) => {
-    console.warn(`[health-check] token expiry probe failed: ${error instanceof Error ? error.message : String(error)}`)
+  }).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'health-token-expiry-probe', outcome: 'failed' }))
     return null
   })
   if (!res)
@@ -445,7 +445,7 @@ const realSleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolv
 export function frontDoorFetcher(env: { SELF?: Fetcher }): typeof fetch {
   const self = env.SELF
   if (!self) {
-    console.warn('[daily-health-check] SELF service binding missing; front door cannot be probed')
+    emitOperationalEvent(createWideEvent({ operation: 'health-front-door-probe', outcome: 'binding-missing' }))
     return () => Promise.reject(new Error('SELF service binding not configured'))
   }
   return ((input, init) => self.fetch(input as RequestInfo, init as RequestInit)) as typeof fetch
@@ -478,8 +478,8 @@ export async function loadFrontDoor(
       status = await fetcher(url, {
         redirect: 'follow',
         signal: AbortSignal.timeout(15_000),
-      }).then(response => response.status).catch((error) => {
-        console.warn(`[health-check] ${url} attempt ${attempt}: ${error instanceof Error ? error.message : String(error)}`)
+      }).then(response => response.status).catch(() => {
+        emitOperationalEvent(createWideEvent({ operation: 'health-http-probe', outcome: 'failed', attempt }))
         return null
       })
       if (status === 200)

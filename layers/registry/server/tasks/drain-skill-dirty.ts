@@ -45,7 +45,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[drain-skill-dirty] D1 binding not available in task context')
+      emitOperationalEvent(createWideEvent({ operation: 'drain-skill-dirty', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
 
@@ -145,9 +145,9 @@ export default defineScheduledTask({
             updated++
             successful.push({ owner, repo, name })
           })
-          .catch(async (err) => {
+          .catch(async () => {
             failed++
-            console.warn(`[drain-skill-dirty] recompute failed for ${owner}/${repo}/${name}:`, err)
+            emitOperationalEvent(createWideEvent({ operation: 'drain-skill-dirty-recompute', outcome: 'failed' }))
             await db
               .prepare(
                 `UPDATE skill_dirty SET attempts = attempts + 1
@@ -155,8 +155,8 @@ export default defineScheduledTask({
               )
               .bind(owner, repo, name)
               .run()
-              .catch((updateErr) => {
-                console.warn(`[drain-skill-dirty] failed to bump attempts for ${owner}/${repo}/${name}:`, updateErr)
+              .catch(() => {
+                emitOperationalEvent(createWideEvent({ operation: 'drain-skill-dirty-attempt-update', outcome: 'failed' }))
               })
           })
       }
@@ -169,8 +169,8 @@ export default defineScheduledTask({
             `DELETE FROM skill_dirty WHERE owner = ?1 AND repo = ?2 AND name = ?3`,
           ).bind(owner, repo, name),
         )
-        await db.batch(deletes).catch((err) => {
-          console.warn('[drain-skill-dirty] cleanup delete failed:', err)
+        await db.batch(deletes).catch(() => {
+          emitOperationalEvent(createWideEvent({ operation: 'drain-skill-dirty-cleanup', outcome: 'failed' }))
         })
       }
 

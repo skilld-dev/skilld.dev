@@ -125,8 +125,8 @@ export default defineApiHandler({
     // Resolve the skill directory by re-finding the SKILL.md path.
     const treeRes = await $fetch<{ files?: { path: string }[] }>(
       `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
-    ).catch((error) => {
-      console.warn(`[skill-asset] ${error instanceof Error ? error.message : String(error)}`)
+    ).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-asset-tree-fetch', outcome: 'failed' }))
       return null
     })
     const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -152,8 +152,8 @@ export default defineApiHandler({
     const skillDir = skillMdPath.replace(/\/SKILL\.md$/, '')
     const fullPath = `${skillDir}/${filePath}`
     const rawUrl = `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${branch}/${fullPath}`
-    const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch((error) => {
-      console.warn(`[skill-asset] ${error instanceof Error ? error.message : String(error)}`)
+    const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-asset-fetch', outcome: 'failed' }))
       return null
     })
 

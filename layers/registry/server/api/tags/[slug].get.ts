@@ -127,10 +127,10 @@ export default defineCachedEventHandler(async (event) => {
   const parsedSkills = (skillsRes.results ?? []).map(parseTagSkillRow)
   const invalidSkillCount = parsedSkills.filter(result => result._tag === 'invalid').length
   if (invalidSkillCount) {
-    console.warn(JSON.stringify({
-      event: 'tag_profile_invalid_skills_excluded',
-      slug,
-      count: invalidSkillCount,
+    emitOperationalEvent(createWideEvent({
+      'operation': 'tag-profile-parse',
+      'outcome': 'invalid-items-excluded',
+      'item.count': invalidSkillCount,
     }))
   }
   const skills: RegistrySkill[] = parsedSkills.flatMap(result =>

@@ -85,11 +85,11 @@ export default defineScheduledTask({
     const apiKey = (env?.ANTHROPIC_API_KEY as string | undefined) || process.env.ANTHROPIC_API_KEY
 
     if (!env || !db) {
-      console.warn('[ai-generate-submit] D1 binding missing')
+      emitOperationalEvent(createWideEvent({ operation: 'ai-generate-submit', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
     if (!apiKey && !HAIKU_GENERATION_PAUSED) {
-      console.warn('[ai-generate-submit] ANTHROPIC_API_KEY missing — batch submit skipped')
+      emitOperationalEvent(createWideEvent({ operation: 'ai-generate-submit', outcome: 'credential-missing' }))
     }
 
     return await runObservedScheduledTask({
@@ -345,6 +345,13 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
     }
   }
 
-  console.warn('[ai-generate-submit] done', summary)
+  emitOperationalEvent(createWideEvent({
+    'operation': 'ai-generate-submit',
+    'outcome': summary.errors.length > 0 ? 'partial' : 'completed',
+    'scanned.count': summary.scanned,
+    'batch.count': summary.batchSize,
+    'success.count': summary.embeddingsWritten + summary.abstractnessWritten,
+    'error.count': summary.errors.length,
+  }))
   return { result: summary }
 }

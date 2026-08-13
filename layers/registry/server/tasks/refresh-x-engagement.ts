@@ -39,7 +39,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[refresh-x-engagement] D1 binding not available')
+      emitOperationalEvent(createWideEvent({ operation: 'refresh-x-engagement', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
 
@@ -54,7 +54,7 @@ export default defineScheduledTask({
 
       const bearerToken = (env as unknown as { X_BEARER_KEY?: string }).X_BEARER_KEY
       if (!bearerToken) {
-        console.warn('[refresh-x-engagement] X_BEARER_KEY not set, skipping')
+        emitOperationalEvent(createWideEvent({ operation: 'refresh-x-engagement', outcome: 'credential-missing' }))
         await reportJobRun(db, 'refresh-x-engagement', {
           cron: CRON,
           status: 'partial',
@@ -73,7 +73,7 @@ export default defineScheduledTask({
       })
 
       if (result.error)
-        console.warn(`[refresh-x-engagement] degraded: ${describeXError(result.error)}`)
+        emitOperationalEvent(createWideEvent({ operation: 'refresh-x-engagement', outcome: 'degraded' }))
 
       const tiers = await countTiers(db)
       const summary = {
@@ -97,9 +97,16 @@ export default defineScheduledTask({
       // Reaching the ceiling every run means the backlog is growing faster
       // than it drains, which silently caps how fresh trending can be.
       if (result.claimed >= DEFAULT_MAX_POSTS_PER_RUN)
-        console.warn('[refresh-x-engagement] hit the per-run read ceiling; backlog is growing')
+        emitOperationalEvent(createWideEvent({ operation: 'refresh-x-engagement', outcome: 'truncated', truncated: true }))
 
-      console.warn('[refresh-x-engagement] done', summary)
+      emitOperationalEvent(createWideEvent({
+        'operation': 'refresh-x-engagement',
+        'outcome': result.error ? 'partial' : 'completed',
+        'scanned.count': result.claimed,
+        'processed.count': result.updated,
+        'failed.count': result.failed,
+        'truncated': result.claimed >= DEFAULT_MAX_POSTS_PER_RUN,
+      }))
       await reportJobRun(db, 'refresh-x-engagement', {
         cron: CRON,
         status: result.error ? 'partial' : 'ok',

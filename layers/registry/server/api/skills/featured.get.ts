@@ -17,8 +17,8 @@ interface OwnerProfileRow {
 async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerProfileRow | null> {
   const res = await fetch(`https://api.github.com/users/${owner}`, {
     headers: { 'User-Agent': 'skilld.dev', 'Accept': 'application/vnd.github+json' },
-  }).catch((error) => {
-    console.warn(`[skills-featured] ${error instanceof Error ? error.message : String(error)}`)
+  }).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'featured-owner-fetch', outcome: 'failed' }))
     return null
   })
 
@@ -52,8 +52,8 @@ async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerP
     data.location?.trim() || null,
     data.followers ?? 0,
     data.public_repos ?? 0,
-  ).run().catch((error) => {
-    console.warn(`[featured-skills] Failed to cache owner profile for ${owner}:`, error)
+  ).run().catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'featured-owner-cache', outcome: 'failed' }))
   })
 
   return {
@@ -73,8 +73,8 @@ async function loadOwnerProfiles(owners: string[], db: D1Database): Promise<Map<
       .prepare('SELECT name, bio, last_synced_at, sync_status FROM owners WHERE owner = ?')
       .bind(owner)
       .first<OwnerProfileRow>()
-      .catch((error) => {
-        console.warn(`[skills-featured] ${error instanceof Error ? error.message : String(error)}`)
+      .catch(() => {
+        emitOperationalEvent(createWideEvent({ operation: 'featured-owner-cache-read', outcome: 'failed' }))
         return null
       })
 

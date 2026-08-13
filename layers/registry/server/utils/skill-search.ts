@@ -270,8 +270,8 @@ async function lexicalSkillSearch(event: H3Event, search: string): Promise<strin
     .prepare(LEXICAL_SEARCH_SQL)
     .bind(match, LEXICAL_TOP_K)
     .all<SkillKeyParts>()
-    .catch((error) => {
-      console.warn(`[skill-search] lexical: ${error instanceof Error ? error.message : String(error)}`)
+    .catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-lexical-search', outcome: 'failed' }))
       return null
     })
   return (res?.results ?? []).map(skillKey)

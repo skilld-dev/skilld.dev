@@ -39,11 +39,10 @@ export default defineCachedEventHandler(async (event) => {
   if (repoRes.status === 404)
     throw createError({ statusCode: 404, message: 'Repository not found' })
   if (!repoRes.data) {
-    console.warn(JSON.stringify({
-      event: 'repo_source_profile_unavailable',
-      owner,
-      repo,
-      upstreamStatus: repoRes.status || null,
+    emitOperationalEvent(createWideEvent({
+      'operation': 'repo-source-profile',
+      'outcome': 'unavailable',
+      'upstream.status': repoRes.status || null,
     }))
     return {
       ...buildUnavailableRepoSourceProfile(owner, repo),

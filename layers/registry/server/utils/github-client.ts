@@ -131,8 +131,8 @@ async function ghRequest<T>(
   const cacheKey = etagKey(url)
   let cached: CachedEntry<T> | null = null
   if (bindings.KV_CACHE) {
-    cached = await bindings.KV_CACHE.get<CachedEntry<T>>(cacheKey, 'json').catch((error) => {
-      console.warn(`[github-client] ${error instanceof Error ? error.message : String(error)}`)
+    cached = await bindings.KV_CACHE.get<CachedEntry<T>>(cacheKey, 'json').catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'github-etag-cache-read', outcome: 'failed' }))
       return null
     })
     if (cached?.etag)
@@ -155,7 +155,7 @@ async function ghRequest<T>(
   if (newEtag && bindings.KV_CACHE) {
     await bindings.KV_CACHE
       .put(cacheKey, JSON.stringify({ etag: newEtag, body }), { expirationTtl: ETAG_TTL })
-      .catch(err => console.warn('[github-client] etag cache write failed', err))
+      .catch(() => emitOperationalEvent(createWideEvent({ operation: 'github-etag-cache-write', outcome: 'failed' })))
   }
 
   return { status: res.status, data: body, rateLimit, notModified: false }
@@ -324,8 +324,8 @@ async function gqlPost<T>(
   // A gateway can answer 200 with a truncated or non-JSON body. Parsing that
   // eagerly threw `Unexpected end of JSON input` out of the client and reached
   // the sync summary as an opaque reason with no status attached.
-  const body = await res.json().catch((error) => {
-    console.warn(`[github-client] GraphQL 200 with unparseable body: ${error instanceof Error ? error.message : String(error)}`)
+  const body = await res.json().catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'github-graphql-parse', outcome: 'invalid-response' }))
     return null
   }) as { data?: T, errors?: Array<{ type?: string, message?: string }> } | null
   if (!body)
@@ -480,6 +480,11 @@ export function logRateLimit(label: string, info: RateLimitInfo | null): void {
   if (!info)
     return
   if (info.remaining < 100) {
-    console.warn(`[github-client] ${label} rate-limit low: ${info.remaining}/${info.limit}`)
+    emitOperationalEvent(createWideEvent({
+      'operation': 'github-rate-limit',
+      'outcome': 'low',
+      'rateLimit.remaining': info.remaining,
+      'rateLimit.limit': info.limit,
+    }))
   }
 }

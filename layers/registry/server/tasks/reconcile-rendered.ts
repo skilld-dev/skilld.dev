@@ -16,7 +16,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[reconcile-rendered] D1 binding not available in task context')
+      emitOperationalEvent(createWideEvent({ operation: 'reconcile-rendered', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
 

@@ -144,8 +144,8 @@ export async function getEmbeddingNeighbors(
   const matches = await queryByVectorId(vectorize, id, {
     topK: NEIGHBOR_TOP_K + 1,
     returnMetadata: 'indexed',
-  }).catch((err: Error) => {
-    console.warn(`[embedding-neighbors] vector query failed for ${naturalKey}:`, err.message)
+  }).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'embedding-neighbor-query', outcome: 'failed' }))
     return null
   })
 
