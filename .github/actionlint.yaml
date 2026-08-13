@@ -2,5 +2,5 @@
 # unknown. Harlan's desktop GitHub runner, in harlan-zw/harlan-nuxt infra/github-runner.
 self-hosted-runner:
   labels:
-    - harlans-desktop-ci
-    - harlans-desktop-deploy
+    - harlan-desktop-ci
+    - harlan-desktop-deploy

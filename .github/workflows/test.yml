@@ -22,26 +22,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
-    uses: harlan-zw/harlan-nuxt/.github/workflows/nuxt-site-ci.yml@main
+  harlan-desktop:
+    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@main
     with:
       # Ephemeral containers on the workstation. Safe here because the
       # repository is private; a self-hosted runner on a public repository would
       # let a fork pull request run code on that host.
-      runs-on: '["self-hosted", "linux", "x64", "harlans-desktop-ci"]'
+      runs-on: '["self-hosted", "linux", "x64", "harlan-desktop-ci"]'
       timeout-minutes: 30
 
   # Kept in this repository because the size budget needs `actions: read` and the
   # artifact from this workflow's own last green run on the base branch, neither
   # of which the shared gate models.
   build:
-    runs-on: [self-hosted, linux, x64, harlans-desktop-ci]
+    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/setup@main
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
       - run: pnpm build
         env:
           NODE_OPTIONS: --max-old-space-size=8192
