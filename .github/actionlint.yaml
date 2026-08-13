@@ -1,0 +1,6 @@
+# Declares the workstation pool's labels so actionlint stops reporting them as
+# unknown. See harlan-zw/harlan-nuxt infra/github-runner.
+self-hosted-runner:
+  labels:
+    - harlan-ci
+    - harlan-deploy

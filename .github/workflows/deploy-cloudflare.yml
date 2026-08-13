@@ -11,15 +11,23 @@ permissions:
 
 concurrency:
   group: deploy-cloudflare-production
-  cancel-in-progress: true
+  # A deploy in flight must finish. This workflow applies D1 migrations and then
+  # deploys with a smoke test and rollback, and cancelling between those leaves
+  # migrated data against the previous Worker.
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    # `head_sha == github.sha` was dropped. For a `workflow_run` event
+    # `github.sha` is the default branch tip at dispatch time, not the commit the
+    # run covered, so the comparison silently skipped the deploy whenever main
+    # advanced while Test was still running, and passed only by coincidence
+    # otherwise. `head_sha` alone is the commit that was tested, and it is what
+    # the checkout below already uses.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_sha == github.sha)
+      github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     steps:
@@ -27,14 +35,9 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: harlan-zw/harlan-nuxt/.github/actions/setup@main
         with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+          install-args: ''
 
       # Persists + accumulates prior deploys' client chunks across builds so old
       # browser sessions still resolve their old _nuxt chunks during a rollout
