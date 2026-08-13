@@ -29,6 +29,10 @@ jobs:
       # repository is private; a self-hosted runner on a public repository would
       # let a fork pull request run code on that host.
       runs-on: '["self-hosted", "linux", "x64", "harlan-desktop-ci"]'
+      # vitest resolves aliases through `.nuxt/tsconfig.json`, and every suite
+      # fails to transform without it. `prepare-command` rather than dropping
+      # `--ignore-scripts`, so lint still skips the prepare it has no use for.
+      prepare-command: pnpm nuxt prepare
       timeout-minutes: 30
 
   # Kept in this repository because the size budget needs `actions: read` and the
