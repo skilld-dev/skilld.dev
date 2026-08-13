@@ -349,7 +349,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
           <div class="home-hero-proof min-w-0">
             <p v-if="heroShowsTrending" class="section-label mb-4 flex items-center gap-2">
-              <span aria-hidden="true">🔥</span>
+              <span class="trending-fire" aria-hidden="true">🔥</span>
               <span>Trending this week</span>
             </p>
             <SkillSourceList

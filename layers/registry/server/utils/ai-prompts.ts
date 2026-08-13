@@ -63,10 +63,13 @@ export const ABSTRACTNESS_CATEGORIES = [
   'code-review',
   'data-modeling',
   'deployment',
-  'design',
   'documentation',
   'framework',
   'incident-response',
+  // Split out of `design` on 2026-08-13. One label covered both "how the screen
+  // looks" and "how the system is structured", so /skills/design promised
+  // interface work and listed CQRS and cloud design patterns underneath it.
+  'interface-design',
   'migrations',
   'observability',
   'performance',
@@ -77,6 +80,7 @@ export const ABSTRACTNESS_CATEGORIES = [
   'rendering',
   'scraping',
   'security',
+  'software-design',
   'testing',
 ] as const
 
@@ -115,6 +119,9 @@ Rules:
 - For package-specific output, set "package" to the canonical lowercase package, product, service, or repository slug. For abstract output, set "package" to null.
 - "category" must be exactly one of: ${ABSTRACTNESS_CATEGORIES.map(category => `"${category}"`).join(', ')}.
 - Content writing and Markdown conversion use the "documentation" category. This category rule does not make a repository-specific workflow abstract.
+- "interface-design" is work a user sees: visual design, layout, typography, colour, motion, animation, component look and feel, design systems, design tokens, accessibility of the interface, and UI copy.
+- "software-design" is work a user never sees: architecture, domain modelling, API and interface contracts, module boundaries, data flow, naming, and design patterns such as CQRS, event sourcing, or hexagonal architecture.
+- If a skill covers both, choose the one it spends most of its instructions on. If that is still unclear, choose "software-design".
 - When uncertain, choose "package-specific".
 
 Output only the JSON object. No markdown, no prose.`

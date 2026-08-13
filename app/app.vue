@@ -127,7 +127,7 @@ watch(() => route.fullPath, () => {
             size="sm"
             class="hidden gap-1.5 whitespace-nowrap lg:inline-flex"
           >
-            <span aria-hidden="true">🔥</span>
+            <span class="trending-fire" aria-hidden="true">🔥</span>
             <span>Trending Skills</span>
           </UButton>
           <UButton
@@ -236,7 +236,7 @@ watch(() => route.fullPath, () => {
                 block
                 class="min-h-11 justify-start gap-1.5 whitespace-nowrap"
               >
-                <span aria-hidden="true">🔥</span>
+                <span class="trending-fire" aria-hidden="true">🔥</span>
                 <span>Trending Skills</span>
               </UButton>
               <UButton

@@ -23,6 +23,16 @@
 /** Backfill depth per classifier category, not per track. */
 export const CLUSTER_BACKFILL_PER_CATEGORY = 24
 
+/**
+ * How many skills one repository may contribute to one classifier category.
+ *
+ * Without it the ranking is pure stars, and a repo that ships 60 skills owns
+ * the page: `/skills/design` opened with six `mattpocock/skills` rows and
+ * `/skills/coding` with four from `github/awesome-copilot`. Pinned skills are
+ * exempt.
+ */
+export const CLUSTER_MAX_PER_REPO = 3
+
 export interface ClusterMemberSql {
   sql: string
   params: string[]
@@ -69,9 +79,13 @@ export function clusterMembersSql(
   // SELECT list, ahead of the WHERE arms.
   const params: string[] = [...(needsPinnedCase ? pinnedKeys : []), ...whereParams]
 
-  // The window ranks every row of a category, abstract included, so the
-  // backfill is "the category's most-starred work" rather than "the most
-  // starred of whatever the classifier rejected".
+  // Two windows, two different jobs. `category_rank` ranks every row of a
+  // category, abstract included, so the backfill is "the category's most-starred
+  // work" rather than "the most starred of whatever the classifier rejected".
+  // `repo_rank` then caps how much of a track any one repository can be: a repo
+  // that ships 60 skills would otherwise take the whole first page, and a track
+  // reading as one vendor's index is the thing these pages exist to avoid. Pins
+  // are exempt, because a human already chose them.
   const sql = `
     SELECT ${columns}
     FROM (
@@ -83,12 +97,18 @@ export function clusterMembersSql(
              ROW_NUMBER() OVER (
                PARTITION BY s.abstractness_category
                ORDER BY r.stars DESC, s.name ASC
-             ) AS category_rank
+             ) AS category_rank,
+             ROW_NUMBER() OVER (
+               PARTITION BY s.abstractness_category, s.owner, s.repo
+               ORDER BY COALESCE(s.is_abstract, 0) DESC, r.stars DESC, s.name ASC
+             ) AS repo_rank
       FROM skills s
       JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
       WHERE ${arms.join(' OR ')}
     )
-    WHERE is_abstract = 1 OR is_pinned = 1 OR category_rank <= ${CLUSTER_BACKFILL_PER_CATEGORY}
+    WHERE is_pinned = 1
+       OR (repo_rank <= ${CLUSTER_MAX_PER_REPO}
+           AND (is_abstract = 1 OR category_rank <= ${CLUSTER_BACKFILL_PER_CATEGORY}))
   `
 
   return { sql, params }

@@ -4,7 +4,7 @@ import { ABSTRACTNESS_CATEGORIES } from './ai-prompts'
 
 export type RuntimeGeneratedKind = 'embedding' | 'abstractness'
 export const ABSTRACTNESS_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast'
-export const ABSTRACTNESS_PROMPT_VERSION = '2026-07-27-v3'
+export const ABSTRACTNESS_PROMPT_VERSION = '2026-08-13-v4'
 
 /**
  * Steady-state embeddings per hourly run. Deliberately low to leave headroom for

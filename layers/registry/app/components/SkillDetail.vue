@@ -3,6 +3,7 @@ import type { InstallTarget } from '~~/app/composables/useInstallCopy'
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
+import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
@@ -345,10 +346,11 @@ function isComplexValue(v: unknown): boolean {
 const frontmatterEntries = computed(() => {
   const fm = data.value?.frontmatter
   if (!fm)
-    return []
-  return Object.entries(fm)
+    return { visible: [], other: [] }
+  const entries = Object.entries(fm)
     .filter(([k, v]) => !HIDDEN_FRONTMATTER_KEYS.has(k.toLowerCase()) && k !== 'allowed-tools' && v !== null && v !== undefined && v !== '')
     .map(([k, v]) => ({ key: k, value: formatFrontmatterValue(v), complex: isComplexValue(v) }))
+  return partitionMetadataEntries(entries)
 })
 
 const pushedAtDate = computed(() => new Date(data.value?.pushedAt || 0))
@@ -1486,7 +1488,7 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="capabilitySummary || skillModel || frontmatterEntries.length"
+            v-if="capabilitySummary || skillModel || frontmatterEntries.visible.length || frontmatterEntries.other.length"
             aria-labelledby="capability-heading"
           >
             <h2
@@ -1550,6 +1552,31 @@ useHead(computed(() => ({
                 />
               </div>
 
+              <dl
+                v-if="frontmatterEntries.visible.length"
+                class="divide-y divide-default"
+              >
+                <div
+                  v-for="entry in frontmatterEntries.visible"
+                  :key="entry.key"
+                  class="flex flex-col gap-1 py-2 first:pt-0 last:pb-0"
+                >
+                  <dt class="data-label">
+                    {{ entry.key }}
+                  </dt>
+                  <dd class="min-w-0 font-mono text-xs text-muted">
+                    <pre
+                      v-if="entry.complex"
+                      class="whitespace-pre-wrap break-all"
+                    >{{ entry.value }}</pre>
+                    <span
+                      v-else
+                      class="break-all"
+                    >{{ entry.value }}</span>
+                  </dd>
+                </div>
+              </dl>
+
               <details
                 v-if="allowedTools.length"
                 class="group"
@@ -1576,7 +1603,7 @@ useHead(computed(() => ({
               </details>
 
               <details
-                v-if="frontmatterEntries.length"
+                v-if="frontmatterEntries.other.length"
                 class="group"
               >
                 <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
@@ -1589,7 +1616,7 @@ useHead(computed(() => ({
                 </summary>
                 <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-xs">
                   <div
-                    v-for="entry in frontmatterEntries"
+                    v-for="entry in frontmatterEntries.other"
                     :key="entry.key"
                     class="flex flex-col gap-1 px-3 py-2"
                   >

@@ -85,7 +85,10 @@ export const CLUSTERS: Cluster[] = [
       'The flagship set for design engineers: interface feel, motion, accessibility, and component quality, plus the testing that proves the work, each skill from the person who owns that craft.',
     mergedFrom: 'design-engineering-essentials',
     audience: 'dev',
-    categories: ['design'],
+    // `interface-design` only, since the 2026-08-13 classifier split. The
+    // architecture half of the old `design` label moved to `planning`, where
+    // "turn rough ideas into plans and specs" already lives.
+    categories: ['interface-design'],
     pinnedExamples: [
       'emilkowalski/emil-design-eng',
       'jakubkrehel/make-interfaces-feel-better',
@@ -299,7 +302,7 @@ export const CLUSTERS: Cluster[] = [
       'Plan structural changes with clear domain language, architecture review, tests, debugging, and an executable plan.',
     mergedFrom: 'codebase-architecture',
     audience: 'dev',
-    categories: ['planning', 'project-management'],
+    categories: ['planning', 'project-management', 'software-design'],
     pinnedExamples: [
       'obra/brainstorming',
       'n8n-io/spec-driven-development',
