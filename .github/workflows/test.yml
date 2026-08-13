@@ -28,14 +28,14 @@ jobs:
       # Ephemeral containers on the workstation. Safe here because the
       # repository is private; a self-hosted runner on a public repository would
       # let a fork pull request run code on that host.
-      runs-on: '["self-hosted", "linux", "x64", "harlan-ci"]'
+      runs-on: '["self-hosted", "linux", "x64", "harlans-desktop-ci"]'
       timeout-minutes: 30
 
   # Kept in this repository because the size budget needs `actions: read` and the
   # artifact from this workflow's own last green run on the base branch, neither
   # of which the shared gate models.
   build:
-    runs-on: [self-hosted, linux, x64, harlan-ci]
+    runs-on: [self-hosted, linux, x64, harlans-desktop-ci]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
