@@ -1,12 +1,11 @@
-import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import type { DiscoveredRepoEvidence } from '#shared/server/discovery-ledger'
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 /// <reference types="@cloudflare/workers-types" />
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { upsertLedgerEntry } from '#shared/server/discovery-ledger'
 import { pAll } from '#shared/server/p-all'
-import { getTaskEnv } from '#shared/server/task-env'
 import { extractRepoReferences } from '#shared/x-references'
 
 const CRON = '30 * * * *'
