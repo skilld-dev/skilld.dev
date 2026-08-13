@@ -1,5 +1,10 @@
 import type { GitHubRepository } from '#shared/github-repository'
-import type { IndexedRepositorySkill, RepositoryIndexProgress } from '#shared/repository-index'
+import type {
+  IndexedRepositorySkill,
+  RepositoryIndexProgress,
+  RepositoryIndexStatusResponse,
+  SubmitRepositoryIndexResponse,
+} from '#shared/repository-index'
 import type { IndexedSkillsLikeResult } from '../utils/repository-index-likes'
 import type { TypeaheadHit, TypeaheadTuple } from '../utils/skill-typeahead'
 import { createSharedComposable, promiseTimeout, refDebounced, useLocalStorage } from '@vueuse/core'
@@ -318,11 +323,15 @@ function useSkillSearchInternal() {
     open.value = false
     query.value = ''
     const result = await indexGitHubRepository(repositoryValue, {
-      submit: repositoryInput => $fetch('/api/repos', {
+      // Both calls name their response type. Letting nitro infer it from the
+      // route blows the instantiation depth limit (TS2321) now that the route
+      // table is large, and these responses are already modelled in
+      // #shared/repository-index.
+      submit: repositoryInput => $fetch<SubmitRepositoryIndexResponse>('/api/repos', {
         method: 'POST',
         body: { url: repositoryInput.url },
       }),
-      status: jobId => $fetch(`/api/repos/index/${encodeURIComponent(jobId)}`),
+      status: jobId => $fetch<RepositoryIndexStatusResponse>(`/api/repos/index/${encodeURIComponent(jobId)}`),
       wait: () => promiseTimeout(1500),
       onProgress: (progress) => {
         if (attempt === repositoryAttempt) {
