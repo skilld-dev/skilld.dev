@@ -259,13 +259,21 @@ describe('@harlan-zw/nuxt-cf-jobs schema contract', () => {
 
   it('fails a package version bump until the pinned contract is updated', () => {
     const distributedSchemaSource = readFileSync(schemaSourcePath, 'utf8')
+    // Derived from the contract, not hardcoded. The previous version pinned
+    // both sides literally, so bumping the contract broke the very test that
+    // guards bumps, and a real upgrade produced three failures instead of one.
+    const unpinned = `${CF_JOBS_SCHEMA_CONTRACT.version}-not-pinned`
 
     expect(verifyCfJobsPackageContract({
-      installedVersion: '0.0.5',
+      installedVersion: unpinned,
       distributedSchemaSource,
     })).toMatchObject({
       _tag: 'fail',
-      issues: [{ _tag: 'package_version_mismatch', expected: '0.0.4', actual: '0.0.5' }],
+      issues: [{
+        _tag: 'package_version_mismatch',
+        expected: CF_JOBS_SCHEMA_CONTRACT.version,
+        actual: unpinned,
+      }],
     })
   })
 })
