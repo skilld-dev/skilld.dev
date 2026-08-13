@@ -850,8 +850,8 @@ export default defineApiHandler({
     const jobRows = await db
       .prepare(`SELECT name, cron, enabled, stale_after_seconds, last_run_at, last_status, last_error, last_duration_ms, run_count FROM sync_jobs`)
       .all<SyncJobRow>()
-      .catch((error) => {
-        console.warn(`[admin-integrity] ${error instanceof Error ? error.message : String(error)}`)
+      .catch(() => {
+        emitOperationalEvent(createWideEvent({ operation: 'admin-integrity-sync-jobs', outcome: 'failed' }))
         return null
       })
 
@@ -924,8 +924,8 @@ export default defineApiHandler({
       )
       .bind(thirtyDaysAgo)
       .first<AiSpendRow>()
-      .catch((error) => {
-        console.warn(`[admin-integrity] ${error instanceof Error ? error.message : String(error)}`)
+      .catch(() => {
+        emitOperationalEvent(createWideEvent({ operation: 'admin-integrity-ai-spend', outcome: 'failed' }))
         return null
       })
 
@@ -939,8 +939,8 @@ export default defineApiHandler({
          LIMIT 5`,
       )
       .all<RecentRegenRow>()
-      .catch((error) => {
-        console.warn(`[admin-integrity] ${error instanceof Error ? error.message : String(error)}`)
+      .catch(() => {
+        emitOperationalEvent(createWideEvent({ operation: 'admin-integrity-regeneration', outcome: 'failed' }))
         return null
       })
 

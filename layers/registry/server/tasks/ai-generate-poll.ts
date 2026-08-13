@@ -101,7 +101,7 @@ export default defineScheduledTask({
     const apiKey = (env?.ANTHROPIC_API_KEY as string | undefined) || process.env.ANTHROPIC_API_KEY
 
     if (!env || !db) {
-      console.warn('[ai-generate-poll] D1 binding missing')
+      emitOperationalEvent(createWideEvent({ operation: 'ai-generate-poll', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
     return await runObservedScheduledTask({
@@ -113,7 +113,7 @@ export default defineScheduledTask({
       const startedAt = Date.now()
       if (!apiKey) {
         const error = 'ANTHROPIC_API_KEY missing'
-        console.warn(`[ai-generate-poll] ${error}`)
+        emitOperationalEvent(createWideEvent({ operation: 'ai-generate-poll', outcome: 'credential-missing' }))
         await reportJobRun(db, 'ai-generate-poll', {
           cron: CRON,
           status: 'error',
@@ -178,7 +178,11 @@ async function pollBatches(db: D1Database, apiKey: string) {
       },
     })
     if (!statusRes.ok) {
-      console.warn(`[ai-generate-poll] status ${batch.anthropic_batch_id}: ${statusRes.status}`)
+      emitOperationalEvent(createWideEvent({
+        'operation': 'ai-batch-status-fetch',
+        'outcome': 'failed',
+        'upstream.status': statusRes.status,
+      }))
       continue
     }
     const status = await statusRes.json() as BatchStatusResponse
@@ -197,7 +201,11 @@ async function pollBatches(db: D1Database, apiKey: string) {
       },
     })
     if (!resultsRes.ok) {
-      console.warn(`[ai-generate-poll] results ${batch.anthropic_batch_id}: ${resultsRes.status}`)
+      emitOperationalEvent(createWideEvent({
+        'operation': 'ai-batch-results-fetch',
+        'outcome': 'failed',
+        'upstream.status': resultsRes.status,
+      }))
       await db
         .prepare(`UPDATE ai_batches SET status = 'failed', completed_at = ? WHERE id = ?`)
         .bind(Math.floor(Date.now() / 1000), batch.id)
@@ -210,7 +218,7 @@ async function pollBatches(db: D1Database, apiKey: string) {
       ? JSON.parse(batch.index_map) as IndexEntry[]
       : null
     if (!indexMap) {
-      console.warn(`[ai-generate-poll] index_map missing on row ${batch.id}; cannot resolve custom_ids`)
+      emitOperationalEvent(createWideEvent({ operation: 'ai-batch-index-map', outcome: 'missing' }))
       await db
         .prepare(`UPDATE ai_batches SET status = 'failed', completed_at = ? WHERE id = ?`)
         .bind(Math.floor(Date.now() / 1000), batch.id)
@@ -306,6 +314,14 @@ async function pollBatches(db: D1Database, apiKey: string) {
       summary.completed += 1
   }
 
-  console.warn('[ai-generate-poll] done', summary)
+  emitOperationalEvent(createWideEvent({
+    'operation': 'ai-generate-poll',
+    'outcome': summary.failed > 0 ? 'partial' : 'completed',
+    'batch.count': summary.polled,
+    'success.count': summary.completed,
+    'failed.count': summary.failed,
+    'processed.count': summary.rowsWritten,
+    'error.count': summary.parseFailures,
+  }))
   return summary
 }

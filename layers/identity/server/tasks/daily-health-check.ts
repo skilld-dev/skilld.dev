@@ -28,7 +28,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[daily-health-check] Cloudflare bindings missing')
+      emitOperationalEvent(createWideEvent({ operation: 'daily-health-check', outcome: 'binding-missing' }))
       return { result: { _tag: 'MissingBindings' as const } }
     }
 

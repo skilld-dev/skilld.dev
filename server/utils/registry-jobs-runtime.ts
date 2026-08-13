@@ -47,7 +47,7 @@ export function createRegistryJobsRuntime(env: RegistryJobEnv) {
       }
     },
     onLog(event) {
-      console.warn(JSON.stringify({ message: 'registry durable job', ...event }))
+      emitOperationalEvent(createWideEvent({ operation: 'registry-durable-job', outcome: event.stage }))
     },
   })
 }

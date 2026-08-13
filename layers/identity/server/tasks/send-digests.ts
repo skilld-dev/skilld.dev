@@ -25,7 +25,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[send-digests] D1 binding missing')
+      emitOperationalEvent(createWideEvent({ operation: 'send-digests', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
 

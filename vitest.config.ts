@@ -19,6 +19,7 @@ export default defineVitestConfig({
     globals: true,
     environment: 'nuxt',
     maxWorkers: MAX_WORKERS,
+    setupFiles: ['./test/setup-wide-events.ts'],
     // `.claude/worktrees/**` holds checkouts belonging to background agents.
     // Without this they are collected as a second copy of the whole suite,
     // which fails on their own resolution roots and buries real results.

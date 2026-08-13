@@ -26,7 +26,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[recompute-skill-scores] D1 binding not available in task context')
+      emitOperationalEvent(createWideEvent({ operation: 'recompute-skill-scores', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
 
@@ -48,10 +48,7 @@ export default defineScheduledTask({
       const elapsedMs = Date.now() - startedAt
 
       const status = error ? 'error' : 'ok'
-      console.warn(
-        `[recompute-skill-scores] done in ${elapsedMs}ms status=${status}`,
-        result ?? { error },
-      )
+      emitOperationalEvent(createWideEvent({ operation: 'recompute-skill-scores', outcome: status }))
 
       await reportJobRun(db, 'recompute-skill-scores', {
         cron: CRON,

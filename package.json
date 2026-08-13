@@ -45,6 +45,7 @@
   "dependencies": {
     "@harlan-zw/nuxt-cf-jobs": "catalog:",
     "@harlan-zw/nuxt-use-query": "catalog:",
+    "@harlan-zw/nuxt-wide-events": "catalog:",
     "@iconify-json/lucide": "catalog:",
     "@iconify-json/simple-icons": "catalog:",
     "@iconify-json/vscode-icons": "catalog:",

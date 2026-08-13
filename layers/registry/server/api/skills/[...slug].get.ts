@@ -469,8 +469,8 @@ async function renderLive(
   ]
   for (const path of candidates) {
     const url = `https://raw.githubusercontent.com/${sourceOwner}/${sourceRepo}/${branch}/${path}`
-    const raw = await $fetch<string>(url, { responseType: 'text' }).catch((error) => {
-      console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
+    const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-detail-candidate-fetch', outcome: 'failed' }))
       return null
     })
     if (raw) {
@@ -501,8 +501,8 @@ async function renderLive(
   // Authenticated GitHub trees API (matches sync-repo.ts). Recursive listing
   // surfaces nested or dotfile-mirrored layouts the candidates above miss.
   const bindings = resolveGithubBindings(event.context.platform?.env)
-  const treeRes = await getTree(sourceOwner, sourceRepo, branch, bindings).catch((error) => {
-    console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
+  const treeRes = await getTree(sourceOwner, sourceRepo, branch, bindings).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'skill-detail-tree-fetch', outcome: 'failed' }))
     return null
   })
   const match = treeRes?.data?.tree.find(
@@ -510,8 +510,8 @@ async function renderLive(
   )
   if (match) {
     const url = `https://raw.githubusercontent.com/${sourceOwner}/${sourceRepo}/${branch}/${match.path}`
-    const raw = await $fetch<string>(url, { responseType: 'text' }).catch((error) => {
-      console.warn(`[skill-detail] ${error instanceof Error ? error.message : String(error)}`)
+    const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-detail-matched-fetch', outcome: 'failed' }))
       return null
     })
     if (raw) {
@@ -560,8 +560,8 @@ function schedulePersist(event: H3Event, db: D1Database, owner: string, repo: st
         name,
       )
       .run())
-    .catch((err) => {
-      console.warn(`[skills] persist rendered failed for ${owner}/${repo}/${name}:`, err)
+    .catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-rendered-persist', outcome: 'failed' }))
     })
   runAfterResponse(event, promise)
 }
@@ -602,8 +602,8 @@ function scheduleRefresh(
         name,
       )
       .run()
-  })().catch((err) => {
-    console.warn(`[skills] stale refresh failed for ${registry.owner}/${registry.repo}/${name}:`, err)
+  })().catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'skill-stale-refresh', outcome: 'failed' }))
   })
   runAfterResponse(event, promise)
 }

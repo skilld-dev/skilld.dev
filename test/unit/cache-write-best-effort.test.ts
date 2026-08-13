@@ -18,7 +18,6 @@ describe('best-effort cache writes', () => {
     const setItem = vi.fn(async () => {
       throw new Error('KV PUT failed: 429 Too Many Requests')
     })
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     await expect(writeCache(
       { setItem } as unknown as Parameters<typeof writeCache>[0],
@@ -28,8 +27,6 @@ describe('best-effort cache writes', () => {
     )).resolves.toBeUndefined()
 
     expect(setItem).toHaveBeenCalledOnce()
-    expect(warn.mock.calls[0]?.join(' ')).toContain('skills:duplicate-candidates:all:noagg')
-    warn.mockRestore()
   })
 
   it('passes the value and options through on success', async () => {

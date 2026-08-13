@@ -85,7 +85,11 @@ async function hnSearch(query: string): Promise<HnHit[]> {
   const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=50&numericFilters=${filter}`
   const res = await fetch(url, { headers: { 'User-Agent': 'skilld.dev' } })
   if (!res.ok) {
-    console.warn(`[sync-social-mentions] HN search failed for "${query}": ${res.status}`)
+    emitOperationalEvent(createWideEvent({
+      'operation': 'sync-social-hn-search',
+      'outcome': 'failed',
+      'upstream.status': res.status,
+    }))
     return []
   }
   const body = await res.json() as HnResponse
@@ -232,7 +236,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[sync-social-mentions] D1 binding not available')
+      emitOperationalEvent(createWideEvent({ operation: 'sync-social-mentions', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
 
@@ -341,7 +345,13 @@ export default defineScheduledTask({
         dirtyEnqueued: enqueued,
         elapsedMs: Date.now() - startedAt,
       }
-      console.warn('[sync-social-mentions] done', summary)
+      emitOperationalEvent(createWideEvent({
+        'operation': 'sync-social-mentions',
+        'outcome': 'completed',
+        'scanned.count': summary.discovered,
+        'processed.count': summary.upserted,
+        'success.count': summary.dirtyEnqueued,
+      }))
       await reportJobRun(db, 'sync-social-mentions', {
         cron: CRON,
         status: 'ok',

@@ -75,8 +75,8 @@ export default defineApiHandler({
 
     const tree = await $fetch<{ files?: { path: string, size?: number }[] }>(
       `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
-    ).catch((error) => {
-      console.warn(`[skill-files] ${error instanceof Error ? error.message : String(error)}`)
+    ).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'skill-files-tree-fetch', outcome: 'failed' }))
       return null
     })
 

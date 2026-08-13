@@ -16,8 +16,8 @@ async function fetchAuditsFromApi(id: string): Promise<AuditEntry[]> {
       'Accept': 'application/json',
     },
     retry: 1,
-  }).catch((error) => {
-    console.warn(`[skill-live] ${error instanceof Error ? error.message : String(error)}`)
+  }).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'skill-live-fetch', outcome: 'failed' }))
     return null
   })
   return Array.isArray(data?.audits) ? data!.audits! : []

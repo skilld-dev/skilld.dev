@@ -28,7 +28,7 @@ export default defineScheduledTask({
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
-      console.warn('[detect-star-surges] D1 binding not available')
+      emitOperationalEvent(createWideEvent({ operation: 'detect-star-surges', outcome: 'binding-missing' }))
       return { result: { error: 'no-db' } }
     }
 
@@ -43,7 +43,7 @@ export default defineScheduledTask({
 
       const scan = await scanStarSurges({ db, now })
       if (scan.truncated)
-        console.warn('[detect-star-surges] scan ceiling reached; some repos were not examined')
+        emitOperationalEvent(createWideEvent({ operation: 'detect-star-surges-scan', outcome: 'truncated', truncated: true }))
 
       const announced = await announceSurges(db, env, now)
 
@@ -57,7 +57,14 @@ export default defineScheduledTask({
         elapsedMs: Date.now() - startedAt,
       }
 
-      console.warn('[detect-star-surges] done', summary)
+      emitOperationalEvent(createWideEvent({
+        'operation': 'detect-star-surges',
+        'outcome': 'completed',
+        'scanned.count': summary.reposScanned,
+        'item.count': summary.surges,
+        'success.count': summary.announced,
+        'truncated': summary.truncated,
+      }))
       await reportJobRun(db, 'detect-star-surges', {
         cron: CRON,
         status: 'ok',
@@ -120,7 +127,7 @@ async function announceSurges(
 
   if (result._tag !== 'sent') {
     // Left unannounced so the next run retries.
-    console.warn('[detect-star-surges] discord notify not sent', result)
+    emitOperationalEvent(createWideEvent({ operation: 'detect-star-surges-notify', outcome: 'failed' }))
     return 0
   }
 
@@ -137,7 +144,11 @@ async function announceSurges(
   // Surfaced for the operator: loadSurgingRepos is what the page reads, and a
   // mismatch between announced and visible is worth noticing early.
   const visible = await loadSurgingRepos({ db, now, indexedOnly: true })
-  console.warn(`[detect-star-surges] ${visible.length} surging repos are publicly visible`)
+  emitOperationalEvent(createWideEvent({
+    'operation': 'detect-star-surges-visible',
+    'outcome': 'counted',
+    'item.count': visible.length,
+  }))
 
   return pending.length
 }
