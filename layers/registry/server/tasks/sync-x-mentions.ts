@@ -1,5 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
@@ -11,7 +12,6 @@ import {
   submitDiscoveredRepos,
 } from '#shared/server/discovery-ledger'
 import { createGithubRepoSizer } from '#shared/server/discovery-size-guard'
-import { getTaskEnv } from '#shared/server/task-env'
 import { createXClient, describeXError } from '#shared/server/x-client'
 import { ingestXMentions } from '#shared/server/x-ingest'
 import { resolveGithubBindings } from '../utils/github-client'
@@ -43,7 +43,7 @@ export default defineScheduledTask({
   cron: '*/15 * * * *',
   description: 'Poll X for posts naming skill repos, index them, and log them for review',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[sync-x-mentions] D1 binding not available')

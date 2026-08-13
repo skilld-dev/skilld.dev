@@ -1,9 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { getTaskEnv } from '#shared/server/task-env'
 import { createXClient, describeXError } from '#shared/server/x-client'
 import { DEFAULT_MAX_POSTS_PER_RUN, refreshXEngagement } from '#shared/server/x-refresh'
 import { DEFAULT_REFRESH_POLICY, estimateDailyRefreshReads } from '#shared/x-refresh-policy'
@@ -36,7 +36,7 @@ export default defineScheduledTask({
   cron: '10 * * * *',
   description: 'Re-read X engagement for tracked posts so trending can measure velocity',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[refresh-x-engagement] D1 binding not available')

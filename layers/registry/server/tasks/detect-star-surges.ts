@@ -1,11 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { createDiscordNotifier } from '#shared/server/discord-notify'
 import { loadSurgingRepos, scanStarSurges } from '#shared/server/star-surge-scan'
-import { getTaskEnv } from '#shared/server/task-env'
 
 const CRON = '30 4 * * *'
 
@@ -25,7 +25,7 @@ export default defineScheduledTask({
   cron: '30 4 * * *',
   description: 'Find tracked repos whose star growth jumped, and announce the strongest',
   async run({ context }) {
-    const env = getTaskEnv(context)
+    const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
     if (!env || !db) {
       console.warn('[detect-star-surges] D1 binding not available')
