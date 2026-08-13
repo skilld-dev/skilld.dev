@@ -1,0 +1,217 @@
+// @vitest-environment node
+import type { MeasureRepoSize } from '../../shared/server/discovery-size-guard'
+import type { SqliteD1 } from './helpers/d1-sqlite'
+import { afterEach, describe, expect, it } from 'vitest'
+import { submitDiscoveredRepos } from '../../shared/server/discovery-ledger'
+import { AUTO_INDEX_SKILL_LIMIT } from '../../shared/server/discovery-size-guard'
+import { createSqliteD1 } from './helpers/d1-sqlite'
+
+const MIGRATIONS = [
+  'migrations/0097_x_mentions_and_discovery_ledger.sql',
+  'migrations/0101_discovery_ledger_size_guard.sql',
+]
+const NOW = 1_760_000_000
+
+let harness: SqliteD1 | null = null
+
+function db() {
+  harness ??= createSqliteD1(MIGRATIONS)
+  return harness
+}
+
+afterEach(() => {
+  harness?.close()
+  harness = null
+})
+
+function seedPending(owner: string, repo: string, evidenceScore = 100) {
+  db().raw.prepare(
+    `INSERT INTO discovery_ledger (source, owner, repo, evidence_url, evidence_text,
+       evidence_score, first_seen_at, last_seen_at, mention_count, status)
+     VALUES ('x', ?, ?, 'https://x.com/a/status/1', 'evidence', ?, ?, ?, 1, 'pending')`,
+  ).run(owner, repo, evidenceScore, NOW, NOW)
+}
+
+/** Sizer returning a fixed count per repo, or 'unknown' for anything unlisted. */
+function sizer(counts: Record<string, number>): MeasureRepoSize {
+  return async ({ owner, repo }) => {
+    const n = counts[`${owner}/${repo}`]
+    return n === undefined
+      ? { _tag: 'unknown', reason: 'not-in-fixture' }
+      : { _tag: 'sized', skillCount: n }
+  }
+}
+
+function recordingEnqueue() {
+  const calls: string[] = []
+  const enqueue = async (_env: never, p: { owner: string, repo: string }) => {
+    calls.push(`${p.owner}/${p.repo}`)
+    return { jobId: 'j', status: 'queued' as const }
+  }
+  return { calls, enqueue: enqueue as never }
+}
+
+const env = {} as never
+
+describe('auto-index size guard', () => {
+  it('submits a normally sized repo', async () => {
+    seedPending('kepano', 'obsidian-skills')
+    const { calls, enqueue } = recordingEnqueue()
+
+    const summary = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue,
+      measureRepoSize: sizer({ 'kepano/obsidian-skills': 5 }),
+    })
+
+    expect(summary.queued).toBe(1)
+    expect(calls).toEqual(['kepano/obsidian-skills'])
+    const row = db().raw.prepare(`SELECT status, skill_count, held_reason FROM discovery_ledger`).get()
+    expect(row).toEqual({ status: 'submitted', skill_count: 5, held_reason: null })
+  })
+
+  it('parks an aggregator dump instead of indexing it', async () => {
+    // sickn33/agentic-awesome-skills really holds 6,341 SKILL.md files, against
+    // a largest-curated-repo of 18. Indexing it would bury the registry.
+    seedPending('sickn33', 'agentic-awesome-skills')
+    const { calls, enqueue } = recordingEnqueue()
+
+    const summary = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue,
+      measureRepoSize: sizer({ 'sickn33/agentic-awesome-skills': 6341 }),
+    })
+
+    expect(summary.heldOversized).toBe(1)
+    expect(summary.queued).toBe(0)
+    expect(calls).toEqual([])
+    const row = db().raw.prepare(`SELECT status, skill_count, held_reason FROM discovery_ledger`).get()
+    expect(row).toEqual({ status: 'pending', skill_count: 6341, held_reason: 'oversized' })
+  })
+
+  it('admits a repo sitting exactly on the limit', async () => {
+    seedPending('edge', 'case')
+    const { enqueue } = recordingEnqueue()
+
+    const summary = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue,
+      measureRepoSize: sizer({ 'edge/case': AUTO_INDEX_SKILL_LIMIT }),
+    })
+
+    expect(summary.queued).toBe(1)
+  })
+
+  it('parks the first repo over the limit', async () => {
+    seedPending('edge', 'over')
+    const { enqueue } = recordingEnqueue()
+
+    const summary = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue,
+      measureRepoSize: sizer({ 'edge/over': AUTO_INDEX_SKILL_LIMIT + 1 }),
+    })
+
+    expect(summary.heldOversized).toBe(1)
+  })
+
+  it('does not re-measure a repo already parked', async () => {
+    seedPending('sickn33', 'agentic-awesome-skills')
+    const first = recordingEnqueue()
+    await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue: first.enqueue,
+      measureRepoSize: sizer({ 'sickn33/agentic-awesome-skills': 6341 }),
+    })
+
+    let measured = 0
+    const counting: MeasureRepoSize = async () => {
+      measured += 1
+      return { _tag: 'sized', skillCount: 6341 }
+    }
+    const second = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW + 900,
+      enqueue: first.enqueue,
+      measureRepoSize: counting,
+    })
+
+    expect(measured).toBe(0)
+    expect(second.considered).toBe(0)
+  })
+
+  it('fails closed when size cannot be measured', async () => {
+    // The likely cause is an expired GitHub token. Treating unknown as small
+    // would wave every aggregator straight through on the day auth breaks.
+    seedPending('unknown', 'repo')
+    const { calls, enqueue } = recordingEnqueue()
+
+    const summary = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue,
+      measureRepoSize: sizer({}),
+    })
+
+    expect(summary.deferredUnmeasured).toBe(1)
+    expect(summary.queued).toBe(0)
+    expect(calls).toEqual([])
+  })
+
+  it('retries an unmeasurable repo on the next run rather than parking it', async () => {
+    seedPending('flaky', 'repo')
+    const { enqueue } = recordingEnqueue()
+    await submitDiscoveredRepos({ db: db().db, env, now: NOW, enqueue, measureRepoSize: sizer({}) })
+
+    const recovered = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW + 900,
+      enqueue,
+      measureRepoSize: sizer({ 'flaky/repo': 3 }),
+    })
+    expect(recovered.queued).toBe(1)
+  })
+
+  it('submits nothing at all when no sizer is configured', async () => {
+    seedPending('any', 'repo')
+    const { calls, enqueue } = recordingEnqueue()
+
+    const summary = await submitDiscoveredRepos({ db: db().db, env, now: NOW, enqueue })
+
+    expect(summary.queued).toBe(0)
+    expect(summary.deferredUnmeasured).toBe(1)
+    expect(calls).toEqual([])
+  })
+
+  it('keeps parked repos out of the submit queue while admitting the rest', async () => {
+    seedPending('big', 'dump', 900)
+    seedPending('small', 'one', 800)
+    seedPending('small', 'two', 700)
+    const { calls, enqueue } = recordingEnqueue()
+
+    const summary = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue,
+      measureRepoSize: sizer({ 'big/dump': 6341, 'small/one': 4, 'small/two': 11 }),
+    })
+
+    expect(summary.heldOversized).toBe(1)
+    expect(summary.queued).toBe(2)
+    expect(calls.sort()).toEqual(['small/one', 'small/two'])
+  })
+})

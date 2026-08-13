@@ -1,0 +1,85 @@
+import { readFileSync } from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
+
+/**
+ * A D1Database facade over `node:sqlite`, so tests exercise the real SQL
+ * instead of a hand-written mock that agrees with whatever the code does.
+ *
+ * Only the surface the code under test uses is implemented: prepare/bind with
+ * `?N` placeholders, first, all, run, and batch. Anything else throws loudly
+ * rather than returning a plausible empty value.
+ */
+/** D1's hard limit on bound parameters per statement. */
+export const D1_MAX_BOUND_PARAMS = 100
+
+export interface SqliteD1 {
+  db: D1Database
+  raw: DatabaseSync
+  close: () => void
+}
+
+export function createSqliteD1(migrationPaths: string[]): SqliteD1 {
+  const raw = new DatabaseSync(':memory:')
+  for (const path of migrationPaths)
+    raw.exec(readFileSync(path, 'utf8'))
+
+  /**
+   * D1 rejects a statement with more than 100 bound parameters. SQLite itself
+   * allows 32,766, so without this check the harness happily runs queries that
+   * fail in production. A `(owner, repo) IN (VALUES ...)` list of 96 repos
+   * passed every test here and then threw
+   * "variable number must be between ?1 and ?100" on the first real request.
+   */
+  function statement(sql: string, values: unknown[]) {
+    if (values.length > D1_MAX_BOUND_PARAMS) {
+      throw new Error(
+        `variable number must be between ?1 and ?${D1_MAX_BOUND_PARAMS}: `
+        + `statement bound ${values.length} parameters`,
+      )
+    }
+    const bound = values.map(v => (v === undefined ? null : v)) as never[]
+    return {
+      async first<T>(): Promise<T | null> {
+        return (raw.prepare(sql).get(...bound) as T | undefined) ?? null
+      },
+      async all<T>(): Promise<{ results: T[] }> {
+        return { results: raw.prepare(sql).all(...bound) as T[] }
+      },
+      async run() {
+        const result = raw.prepare(sql).run(...bound)
+        return { meta: { changes: Number(result.changes), last_row_id: Number(result.lastInsertRowid) } }
+      },
+      // Carried so batch() can replay the statement it was handed.
+      _sql: sql,
+      _values: bound,
+    }
+  }
+
+  const db = {
+    prepare(sql: string) {
+      return {
+        bind: (...values: unknown[]) => statement(sql, values),
+        ...statement(sql, []),
+      }
+    },
+    async batch(statements: Array<{ _sql: string, _values: never[] }>) {
+      // D1 runs a batch in an implicit transaction; matching that here means a
+      // test sees the same all-or-nothing behaviour as production.
+      raw.exec('BEGIN')
+      try {
+        const out = statements.map((s) => {
+          const result = raw.prepare(s._sql).run(...s._values)
+          return { meta: { changes: Number(result.changes), last_row_id: Number(result.lastInsertRowid) } }
+        })
+        raw.exec('COMMIT')
+        return out
+      }
+      catch (error) {
+        raw.exec('ROLLBACK')
+        throw error
+      }
+    },
+  } as unknown as D1Database
+
+  return { db, raw, close: () => raw.close() }
+}
