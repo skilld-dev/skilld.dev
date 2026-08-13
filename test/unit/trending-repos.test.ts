@@ -253,6 +253,28 @@ describe('loadTrendingRepos', () => {
     expect(result[0]?.skills).toHaveLength(1)
   })
 
+  it('fills a small page even when most ranked repos are unindexed', async () => {
+    // Production shape: 7 indexed repos scattered through a much longer ranked
+    // list. The old `limit * 4` over-fetch returned 2 for limit=6 and 7 for
+    // limit=24 from identical data, so the homepage section fell under its own
+    // display threshold and never rendered.
+    for (let i = 0; i < 60; i++) {
+      const owner = `owner${String(i).padStart(3, '0')}`
+      seed({ id: `p${i}`, owner, repo: 'repo', favourites: 1000 - i, previousFavourites: 0 })
+      // Only every tenth repo is indexed, so the top 24 hold barely any.
+      if (i % 10 === 9)
+        seedSkill(owner, 'repo', 'thing')
+    }
+
+    const small = await loadTrendingRepos({ db: db().db, now: NOW, limit: 6, indexedOnly: true })
+    const large = await loadTrendingRepos({ db: db().db, now: NOW, limit: 24, indexedOnly: true })
+
+    expect(small).toHaveLength(6)
+    // A smaller page must be a prefix of the larger one, never a different set.
+    expect(small.map(r => r.owner)).toEqual(large.slice(0, 6).map(r => r.owner))
+    expect(small.every(r => r.skills.length > 0)).toBe(true)
+  })
+
   it('honours the requested limit', async () => {
     for (let i = 0; i < 8; i++)
       seed({ id: `p${i}`, owner: 'o', repo: `r${i}`, favourites: 100 + i, previousFavourites: 0 })

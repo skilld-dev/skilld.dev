@@ -171,9 +171,18 @@ export async function loadTrendingRepos(options: LoadTrendingOptions): Promise<T
     options.weights ?? DEFAULT_TRENDING_WEIGHTS,
   )
 
-  // Over-fetch before the indexed filter so filtering cannot return a short
-  // page while ranked candidates remain.
-  const candidates = ranked.slice(0, options.indexedOnly ? limit * 4 : limit)
+  // Filter first, then take the page. An earlier version over-fetched
+  // `limit * 4` candidates and filtered afterwards, which silently returned a
+  // short page whenever the indexed rate was lower than the multiplier assumed.
+  // In production that meant the homepage asked for 6 and rendered 2, dropping
+  // below its own display threshold so the section never appeared at all, while
+  // the same data served 7 at limit 24. A guessed multiplier cannot be correct
+  // for an indexed rate that moves; an exact membership check can.
+  const eligible = options.indexedOnly
+    ? await filterToIndexed(db, ranked)
+    : ranked
+
+  const candidates = eligible.slice(0, limit)
   if (candidates.length === 0)
     return []
 
@@ -218,11 +227,42 @@ export async function loadTrendingRepos(options: LoadTrendingOptions): Promise<T
     }
   })
 
-  const visible = options.indexedOnly
-    ? enriched.filter(entry => entry.skills.length > 0)
-    : enriched
+  return enriched
+}
 
-  return visible.slice(0, limit)
+/**
+ * Keep only repos the registry has resolved at least one skill for, in rank
+ * order.
+ *
+ * A cheap existence check across every ranked candidate, chunked to stay inside
+ * D1's 100-parameter ceiling. Two queries at present volume. The expensive
+ * enrichment then runs against the handful of repos that actually make the
+ * page, rather than against a speculative over-fetch.
+ */
+async function filterToIndexed(
+  db: D1Database,
+  ranked: RepoTrendScore[],
+): Promise<RepoTrendScore[]> {
+  if (ranked.length === 0)
+    return []
+
+  const indexed = new Set<string>()
+  const pages = await Promise.all(chunkRepos(ranked).map(chunk => db
+    .prepare(
+      `SELECT DISTINCT owner, repo
+       FROM skills
+       WHERE (owner, repo) IN (VALUES ${repoPlaceholders(chunk.length)})
+         AND source_resolved = 1`,
+    )
+    .bind(...repoParams(chunk))
+    .all<{ owner: string, repo: string }>()))
+
+  for (const page of pages) {
+    for (const row of page.results ?? [])
+      indexed.add(`${row.owner}/${row.repo}`)
+  }
+
+  return ranked.filter(entry => indexed.has(`${entry.owner}/${entry.repo}`))
 }
 
 /**
