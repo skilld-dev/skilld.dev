@@ -8,6 +8,7 @@ const RETRYABLE_D1_ERROR_MESSAGES = [
   'cannot resolve d1 db due to transient issue on remote node',
   'd1 db is overloaded',
   'currently processing a long-running export',
+  'd1_reset_do',
 ]
 
 export interface RetryD1Options {
