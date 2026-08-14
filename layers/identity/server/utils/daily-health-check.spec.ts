@@ -293,6 +293,13 @@ describe('buildDailyHealthCheck', () => {
         reviewed_by TEXT,
         reviewed_at INTEGER
       );
+      -- Social discovery. The health check reads all four, and without them
+      -- its whole X section fails with "no such table" and reports AMBER,
+      -- which reads as a real production warning rather than a gap here.
+      CREATE TABLE x_ingest_cursor (query_key TEXT, budget_spent INTEGER, budget_day TEXT, posts_read_total INTEGER);
+      CREATE TABLE x_posts (first_seen_at INTEGER, posted_at INTEGER, platform TEXT);
+      CREATE TABLE x_post_skills (verified_at INTEGER);
+      CREATE TABLE discovery_ledger (first_seen_at INTEGER, status TEXT, held_reason TEXT, submitted_at INTEGER, source TEXT);
       CREATE TABLE sync_jobs (name TEXT, cron TEXT, enabled INTEGER, stale_after_seconds INTEGER, last_run_at INTEGER, last_status TEXT, last_error TEXT);
       CREATE TABLE scheduled_runs (
         run_id TEXT PRIMARY KEY,
@@ -317,6 +324,10 @@ describe('buildDailyHealthCheck', () => {
       INSERT INTO activity VALUES ('owner', 'repo', 'skill', ${nowSec - 60});
       INSERT INTO install_events VALUES ('owner/skill', ${now.getTime() - 60_000});
       INSERT INTO digest_runs VALUES ('sent', ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60});
+      -- The discovery cursor is a single fixed row in production, and the
+      -- health query reads it by key. Without it the query returns no row at
+      -- all, which the check reports as a warning.
+      INSERT INTO x_ingest_cursor VALUES ('discovery-v1', 0, '1970-01-01', 0);
       INSERT INTO sync_jobs VALUES ('sync-github-skills', '0 * * * *', 1, NULL, ${nowSec - 60}, 'ok', NULL);
       INSERT INTO ai_batch_costs VALUES (${nowSec - 60}, 0.15);
       INSERT INTO discovery_candidates VALUES (
