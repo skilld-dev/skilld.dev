@@ -73,7 +73,7 @@ export default defineScheduledTask({
         emitOperationalEvent(createWideEvent({
           'operation': 'sync-bsky-mentions-ingest',
           'outcome': 'degraded',
-          'failure.count': ingest.failedQueries.length,
+          'failed.count': ingest.failedQueries.length,
         }))
       }
       if (ingest.truncatedQueries.length > 0) {
