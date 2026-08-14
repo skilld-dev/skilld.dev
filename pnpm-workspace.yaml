@@ -6,7 +6,7 @@ minimumReleaseAgeExclude:
   - '@harlan-zw/nuxt-cloudflare'
   - '@harlan-zw/nuxt-dx@0.0.7'
   - '@harlan-zw/nuxt-use-query@0.0.1'
-  - '@harlan-zw/nuxt-wide-events@0.0.1'
+  - '@harlan-zw/nuxt-wide-events'
   - '@cloudflare/workers-types@5.20260715.1'
   - miniflare@4.20260710.0
   - wrangler@4.111.0
@@ -33,7 +33,7 @@ catalog:
   '@harlan-zw/nuxt-cloudflare': 0.0.14
   '@harlan-zw/nuxt-dx': 0.0.7
   '@harlan-zw/nuxt-use-query': 0.0.1
-  '@harlan-zw/nuxt-wide-events': 0.0.1
+  '@harlan-zw/nuxt-wide-events': 0.0.2
   '@iconify-json/lucide': ^1.2.123
   '@iconify-json/simple-icons': ^1.2.93
   '@iconify-json/vscode-icons': ^1.2.71
