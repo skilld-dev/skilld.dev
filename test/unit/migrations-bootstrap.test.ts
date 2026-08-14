@@ -330,7 +330,7 @@ describe('d1 migration bootstrap', () => {
         SELECT sql FROM sqlite_master
         WHERE type = 'table' AND name = 'repo_star_surges'
       `).pluck().get()).toContain('REFERENCES repos(owner, repo)')
-      expect(migrations.at(-1)).toBe('0104_rescan_posts_closed_vocab.sql')
+      expect(migrations.at(-1)).toBe('0105_install_match_kind.sql')
     }
     finally {
       sqlite.close()

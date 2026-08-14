@@ -99,9 +99,9 @@ export async function scanPostsForSkills(deps: SkillScanDeps): Promise<SkillScan
 
   for (const post of posts) {
     const linked = (await db
-      .prepare(`SELECT owner, repo FROM x_post_repos WHERE post_id = ?1`)
+      .prepare(`SELECT owner, repo, match_kind FROM x_post_repos WHERE post_id = ?1`)
       .bind(post.post_id)
-      .all<{ owner: string, repo: string }>()).results ?? []
+      .all<{ owner: string, repo: string, match_kind: 'link' | 'skilld' | 'install' }>()).results ?? []
 
     const text = post.text_extract ?? ''
 
@@ -116,6 +116,35 @@ export async function scanPostsForSkills(deps: SkillScanDeps): Promise<SkillScan
       const known = await loadRepoSkills(db, target.owner, target.repo)
       if (known.length === 0)
         continue
+
+      // AN INSTALL COMMAND FOR A ONE-SKILL REPO NAMES THAT SKILL.
+      //
+      // `npx skills add owner/repo` with no `--skill` is how the best posts
+      // refer to a skill: the highest-engagement post in the corpus, at 970
+      // likes, reads exactly that way. When the repository holds exactly one
+      // skill the command cannot mean anything else, which is the same
+      // accuracy gate `trending-skills.ts` applies to a star surge.
+      //
+      // Restricted to `install` deliberately. A plain link cannot support the
+      // inference: linking a repository is discussing it, not running it.
+      if (target.match_kind === 'install' && known.length === 1) {
+        const only = known[0]!
+        closedVocabHits += 1
+        summary.verified += 1
+        await recordSkill(db, {
+          postId: post.post_id,
+          owner: target.owner,
+          repo: target.repo,
+          slug: only.slug,
+          canonicalName: only.canonicalName || only.slug,
+          path: only.path,
+          detection: 'install',
+          matchedOn: 'registry',
+          now,
+        })
+        continue
+      }
+
       for (const match of matchKnownSkills({ text, skills: known })) {
         const skill = known.find(k => k.slug.toLowerCase() === match.name)
         if (!skill)

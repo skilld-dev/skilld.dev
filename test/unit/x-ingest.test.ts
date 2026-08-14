@@ -9,6 +9,11 @@ import { createSqliteD1 } from './helpers/d1-sqlite'
 const MIGRATIONS = [
   'migrations/0097_x_mentions_and_discovery_ledger.sql',
   'migrations/0100_x_discovery_daily_budget.sql',
+  'migrations/0101_discovery_ledger_size_guard.sql',
+  'migrations/0103_bluesky_discovery.sql',
+  // Widens `match_kind` to accept 'install', which an install-command
+  // reference writes.
+  'migrations/0105_install_match_kind.sql',
 ]
 const NOW = 1_760_000_000
 

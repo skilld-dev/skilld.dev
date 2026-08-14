@@ -215,18 +215,45 @@ describe('syncRepo content acknowledgement', () => {
     expect(sqlite.prepare(`SELECT last_tree_sha FROM repos`).pluck().get()).toBe('old-tree')
   })
 
-  it('rejects the unsupported root-only contract explicitly', async () => {
+  it('indexes a root SKILL.md as one skill named after the repository', async () => {
+    // This shape used to be rejected as `root_skill_unsupported`. It is the
+    // single-skill repository, which is the only layout that lets a star surge
+    // or a bare install command name a skill unambiguously, and five of the six
+    // highest-evidence repositories the ledger had written off were this.
     github.getTree.mockResolvedValue(tree([{ path: 'SKILL.md', sha: 'root-sha' }]))
-    github.getBlobsBatch.mockResolvedValue({ status: 200, data: new Map(), rateLimit: null, notModified: false })
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['SKILL.md', rawSkill('Sounds Human')]]),
+      unreadable: new Set(),
+      rateLimit: null,
+      notModified: false,
+    })
 
     const result = await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
 
-    expect(result).toMatchObject({
-      status: 'rejected',
-      reason: 'root_skill_unsupported',
-      skillsUpserted: 0,
+    expect(result).toMatchObject({ status: 'indexed', skillsSeen: 1 })
+    expect(sqlite.prepare(`SELECT name FROM skills`).pluck().get()).toBe('skills')
+  })
+
+  it('gives a root skill no assets rather than the whole repository', async () => {
+    // `dirPath` is empty for a root skill. Were assets resolved by prefix
+    // against that, every file in the repository would become an asset of it.
+    github.getTree.mockResolvedValue(tree([
+      { path: 'SKILL.md', sha: 'root-sha' },
+      { path: 'src/index.ts', sha: 'code-sha' },
+      { path: 'docs/guide.md', sha: 'doc-sha' },
+    ]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['SKILL.md', rawSkill('Sounds Human')]]),
+      unreadable: new Set(),
+      rateLimit: null,
+      notModified: false,
     })
-    expect(sqlite.prepare(`SELECT count(*) FROM skills`).pluck().get()).toBe(0)
+
+    await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+
+    expect(sqlite.prepare(`SELECT assets FROM skills`).pluck().get()).toBe('[]')
   })
 
   it('never reports a zero-upsert trust rejection as indexed or ok', async () => {

@@ -778,12 +778,33 @@ export async function syncRepo(
   const existing = await loadExistingSkillSummaries(db, owner, repo)
 
   const skillFiles: SkillSnapshot[] = []
-  let hasRootSkill = false
   for (const entry of tree.tree) {
     if (entry.type !== 'blob')
       continue
+    // A repository whose SKILL.md sits at the root IS a skill, named after the
+    // repository.
+    //
+    // This used to set a flag and drop the file, reporting
+    // `root_skill_unsupported`, which quietly rejected the single most valuable
+    // shape in the ecosystem: one repo, one skill, unambiguous attribution.
+    // Measured on 2026-08-15, five of the six highest-evidence repositories the
+    // discovery ledger had marked `empty` were exactly this, including one at
+    // 4,896 evidence with 232 stars.
+    //
+    // Naming follows the convention `skill-mention-verify.ts` already uses for
+    // the same case: the repository name is the skill name.
+    //
+    // `dirPath` is deliberately empty. `collectAssetsByDir` only ever looks up
+    // paths that contain a slash, so a root skill collects no assets rather
+    // than claiming every file in the repository as its own, which is the
+    // failure this would otherwise invite on a large repo.
     if (entry.path === 'SKILL.md') {
-      hasRootSkill = true
+      skillFiles.push({
+        path: entry.path,
+        dirName: repo,
+        dirPath: '',
+        treeSha: entry.sha,
+      })
       continue
     }
     if (!entry.path.endsWith(SKILL_FILE_SUFFIX))
@@ -873,7 +894,7 @@ export async function syncRepo(
     statements.push(...repoStarObservationStatements(db, owner, repo, stars, now))
     await db.batch(statements)
     stats.status = 'rejected'
-    stats.reason = hasRootSkill ? 'root_skill_unsupported' : 'no_supported_skill_paths'
+    stats.reason = 'no_supported_skill_paths'
     return stats
   }
 

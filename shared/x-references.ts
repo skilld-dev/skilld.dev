@@ -9,8 +9,19 @@
 export interface RepoReference {
   owner: string
   repo: string
-  /** 'link' = the post pointed at GitHub. 'skilld' = it pointed at our page. */
-  matchKind: 'link' | 'skilld'
+  /**
+   * How the post pointed at the repository, strongest last.
+   *
+   * 'link'    the post linked github.com/<owner>/<repo>
+   * 'skilld'  the post linked a skilld.dev page for it
+   * 'install' the post carried an install command for it
+   *
+   * `install` is the strongest because it is an instruction, not a citation.
+   * Someone writing `npx skills add owner/repo` is telling people to run it,
+   * which is what lets a single-skill repository be attributed from the
+   * command alone.
+   */
+  matchKind: 'link' | 'skilld' | 'install'
 }
 
 /**
@@ -186,10 +197,11 @@ export function extractRepoReferences(input: { urls: string[], text: string }): 
     if (!ref)
       return
     const key = `${ref.owner}/${ref.repo}`
-    // A skilld link is the stronger signal: it means the poster found the repo
-    // through us. Never let a later plain GitHub link downgrade it.
+    // Ranked, never downgraded. A skilld link means the poster found the repo
+    // through us; an install command means they told people to run it.
+    const rank = { link: 0, skilld: 1, install: 2 } as const
     const existing = found.get(key)
-    if (!existing || (existing.matchKind === 'link' && ref.matchKind === 'skilld'))
+    if (!existing || rank[ref.matchKind] > rank[existing.matchKind])
       found.set(key, ref)
   }
 
@@ -200,8 +212,11 @@ export function extractRepoReferences(input: { urls: string[], text: string }): 
     add(parseOne(`https://github.com/${match[1]}/${match[2]}`))
 
   for (const pattern of INSTALL_PATTERNS) {
-    for (const match of input.text.matchAll(pattern))
-      add(parseOne(`https://github.com/${match[1]}/${match[2]}`))
+    for (const match of input.text.matchAll(pattern)) {
+      const parsed = parseOne(`https://github.com/${match[1]}/${match[2]}`)
+      if (parsed)
+        add({ ...parsed, matchKind: 'install' })
+    }
   }
 
   return [...found.values()]

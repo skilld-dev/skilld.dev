@@ -11,6 +11,7 @@ const MIGRATIONS = [
   'migrations/0100_x_discovery_daily_budget.sql',
   'migrations/0101_discovery_ledger_size_guard.sql',
   'migrations/0103_bluesky_discovery.sql',
+  'migrations/0105_install_match_kind.sql',
 ]
 const NOW = 1_760_000_000
 
@@ -141,6 +142,22 @@ describe('ingestBskyMentions', () => {
     expect(summary.postsStored).toBe(1)
     expect(db().raw.prepare(`SELECT owner, repo FROM discovery_ledger`).get())
       .toEqual({ owner: 'pixeline', repo: 'atproto-oauth' })
+  })
+
+  it('links a repo named only by an install command, marked as an install', async () => {
+    // Bluesky shares `extractRepoReferences`, so the install-command parsing
+    // added for X applies here too. `install` is what lets a one-skill repo be
+    // attributed from the command alone in `skill-mention-scan`.
+    const { client } = stubClient([post({
+      text: 'this one is great: npx skills add jakubantalik/transitions.dev',
+      urls: [],
+      cardText: null,
+    })])
+
+    await ingestBskyMentions({ db: db().db, client, now: NOW })
+
+    expect(db().raw.prepare(`SELECT owner, repo, match_kind FROM x_post_repos`).get())
+      .toEqual({ owner: 'jakubantalik', repo: 'transitions.dev', match_kind: 'install' })
   })
 
   it('skips a matched post that names no repo', async () => {

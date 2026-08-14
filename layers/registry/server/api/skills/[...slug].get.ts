@@ -505,8 +505,11 @@ async function renderLive(
     emitOperationalEvent(createWideEvent({ operation: 'skill-detail-tree-fetch', outcome: 'failed' }))
     return null
   })
+  // A root `SKILL.md` is a skill named after its repository, so it has no
+  // `/<name>/` segment to match on and would fall through to no content.
   const match = treeRes?.data?.tree.find(
-    e => e.type === 'blob' && e.path.endsWith(`/${name}/SKILL.md`),
+    e => e.type === 'blob'
+      && (e.path.endsWith(`/${name}/SKILL.md`) || (e.path === 'SKILL.md' && name === sourceRepo)),
   )
   if (match) {
     const url = `https://raw.githubusercontent.com/${sourceOwner}/${sourceRepo}/${branch}/${match.path}`
