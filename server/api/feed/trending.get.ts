@@ -14,6 +14,7 @@ import { loadFallbackSkills } from '#shared/server/trending-fallback'
 import {
   DEFAULT_MAX_REPOS_PER_POST,
   DEFAULT_MIN_LIKES,
+  loadTopStarredRepositories,
   loadTrendingRepos,
 } from '#shared/server/trending-repos'
 import { DEFAULT_WINDOW_HOURS, loadTrendingSkills } from '#shared/server/trending-skills'
@@ -57,10 +58,18 @@ export interface FallbackFeedItem {
 }
 
 /**
- * An individual skill somebody named, verified against a SKILL.md in a repo the
- * post linked. Separate from `items` because it is a different, much stronger
- * claim: not "people are posting about this repo" but "someone named this
- * skill by name". It is also far rarer, so blending the two would bury it.
+ * An individual skill this page can name accurately, by either route.
+ *
+ * Two routes qualify and they are different assertions. `social` means a person
+ * named the skill in a post, matched against the vocabulary its own repository
+ * ships. `github` means the repository's stars surged AND it holds exactly one
+ * skill, so the surge cannot belong to anything else.
+ *
+ * `attribution` therefore has to travel with every entry rather than being
+ * stated once over a list. An earlier version grouped these under a heading
+ * reading "Named by developers", which was false for every star-attributed row
+ * on the page: production served four such rows with `authorCount: 0` and no
+ * evidence, under copy claiming people had named them.
  */
 export interface TrendingSkillFeedItem {
   owner: string
@@ -80,8 +89,18 @@ export interface TrendingSkillFeedItem {
   authorCount: number
   mentionCount: number
   favouriteCount: number
+  /** Current stars on the skill's repository. Authority context, never ranked. */
+  stars: number | null
   /** Stars gained on the surge day, present only on the GitHub route. */
   starGain: number | null
+  /**
+   * UTC midnight of the surge day, present only on the GitHub route.
+   *
+   * Carried so a star-attributed row can date itself. Without it those rows
+   * are the only entries on a page titled "this week" that state no time at
+   * all, which reads as missing data rather than as a different kind of claim.
+   */
+  starGainDay: number | null
   evidence: { url: string, authorHandle: string, text: string, postedAt: number, platform: 'x' | 'bsky' } | null
 }
 
@@ -105,7 +124,9 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
     authorCount: entry.social?.authorCount ?? 0,
     mentionCount: entry.social?.mentionCount ?? 0,
     favouriteCount: entry.social?.engagement ?? 0,
+    stars: entry.stars,
     starGain: entry.github?.latestGain ?? null,
+    starGainDay: entry.github?.observedDay ?? null,
     evidence: entry.evidence
       ? {
           url: entry.evidence.url,
@@ -164,6 +185,7 @@ export default defineCachedEventHandler(
       24 * 30,
     )
 
+    const deprioritizeRepositories = await loadTopStarredRepositories(db, 20)
     const [entries, namedSkills] = await Promise.all([
       loadTrendingRepos({
         db,
@@ -172,8 +194,9 @@ export default defineCachedEventHandler(
         indexedOnly: true,
         minLikes: DEFAULT_MIN_LIKES,
         maxReposPerPost: DEFAULT_MAX_REPOS_PER_POST,
+        deprioritizeRepositories,
       }),
-      loadTrendingSkills({ db, now, windowHours, limit: 12 }),
+      loadTrendingSkills({ db, now, windowHours, limit: 12, deprioritizeRepositories }),
     ])
 
     // Top up from GitHub stars when X has been quiet. Below this many entries
@@ -188,6 +211,7 @@ export default defineCachedEventHandler(
           now,
           limit: MIN_BEFORE_FALLBACK - items.length,
           exclude: new Set(items.map(i => `${i.owner}/${i.repo}`)),
+          deprioritizeRepositories,
         })
 
     return { items, namedSkills: namedSkills.map(toSkillItem), fallback, computedAt: now }

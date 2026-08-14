@@ -103,6 +103,8 @@ export interface DiscoveredRepo {
 
 export interface BskyIngestSummary {
   postsRead: number
+  /** Posts the client could not parse. Non-zero means the API shape drifted. */
+  postsUnparsable: number
   postsStored: number
   postsSkippedNoRepo: number
   /** Distinct posts after cross-query deduplication. */
@@ -246,6 +248,7 @@ export async function ingestBskyMentions(deps: BskyIngestDeps): Promise<BskyInge
 
   const summary: BskyIngestSummary = {
     postsRead: 0,
+    postsUnparsable: 0,
     postsStored: 0,
     postsSkippedNoRepo: 0,
     postsUnique: 0,
@@ -285,6 +288,7 @@ export async function ingestBskyMentions(deps: BskyIngestDeps): Promise<BskyInge
 
       summary.requestsMade += 1
       summary.postsRead += result.value.postsRead
+      summary.postsUnparsable += result.value.unparsable
       for (const post of result.value.posts)
         collected.set(post.uri, post)
 

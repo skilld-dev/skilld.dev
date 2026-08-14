@@ -89,6 +89,20 @@ describe('loadTrendingSkills ranking', () => {
     const result = await loadTrendingSkills({ db: db().db, now: NOW })
     expect(result.map(s => s.slug)).toEqual(['popular', 'quiet'])
   })
+
+  it('surfaces skills beyond the familiar GitHub leaders first', async () => {
+    mention({ owner: 'known', repo: 'leader', slug: 'familiar', handle: 'p1', likes: 900 })
+    mention({ owner: 'new', repo: 'discovery', slug: 'overlooked', handle: 'p2', likes: 1 })
+
+    const result = await loadTrendingSkills({
+      db: db().db,
+      now: NOW,
+      limit: 1,
+      deprioritizeRepositories: new Set(['known/leader']),
+    })
+
+    expect(result.map(s => s.slug)).toEqual(['overlooked'])
+  })
 })
 
 describe('loadTrendingSkills engagement floor', () => {

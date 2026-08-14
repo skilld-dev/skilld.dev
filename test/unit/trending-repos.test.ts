@@ -123,6 +123,20 @@ describe('loadTrendingRepos', () => {
     expect(result.map(r => r.repo)).toEqual(['climbing', 'flat'])
   })
 
+  it('surfaces repositories beyond the familiar GitHub leaders first', async () => {
+    seed({ id: 'leader', owner: 'known', repo: 'leader', favourites: 1000, previousFavourites: 0 })
+    seed({ id: 'discovery', owner: 'new', repo: 'discovery', favourites: 10, previousFavourites: 0 })
+
+    const result = await loadTrendingRepos({
+      db: db().db,
+      now: NOW,
+      limit: 1,
+      deprioritizeRepositories: new Set(['known/leader']),
+    })
+
+    expect(result.map(r => `${r.owner}/${r.repo}`)).toEqual(['new/discovery'])
+  })
+
   it('pairs each post with the snapshot before its latest, so velocity is real', async () => {
     seed({ id: '1', owner: 'o', repo: 'r', favourites: 300, previousFavourites: 100 })
     const [entry] = await loadTrendingRepos({ db: db().db, now: NOW })

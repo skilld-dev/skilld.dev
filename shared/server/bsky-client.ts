@@ -37,48 +37,60 @@ const BSKY_PDS_BASE = 'https://bsky.social'
 /** Max results `app.bsky.feed.searchPosts` accepts in one page. */
 export const BSKY_SEARCH_PAGE_SIZE = 100
 
+/**
+ * `.nullish()` everywhere, not `.optional()`.
+ *
+ * AT Protocol records serialize an absent field as an explicit `null` as often
+ * as they omit it, and `optional()` accepts only the omission. Production hit
+ * this on the first run: one post in a page of 100 carried
+ * `record.embed.external: null`, which failed the parse.
+ */
 const externalEmbedSchema = z.object({
-  uri: z.string().optional(),
-  title: z.string().optional(),
-  description: z.string().optional(),
+  uri: z.string().nullish(),
+  title: z.string().nullish(),
+  description: z.string().nullish(),
 })
 
 const rawPostSchema = z.object({
   uri: z.string(),
-  cid: z.string().optional(),
+  cid: z.string().nullish(),
   author: z.object({
     did: z.string(),
     handle: z.string(),
-    displayName: z.string().optional(),
+    displayName: z.string().nullish(),
   }),
   record: z.object({
-    text: z.string().optional(),
-    createdAt: z.string().optional(),
-    langs: z.array(z.string()).optional(),
+    text: z.string().nullish(),
+    createdAt: z.string().nullish(),
+    langs: z.array(z.string()).nullish(),
     // Link facets are the reliable source of URLs: Bluesky stores the target
     // separately from the display text, so a post rendering "github.com/a/b…"
     // truncated still carries the full URI here.
     facets: z.array(z.object({
       features: z.array(z.object({
-        $type: z.string().optional(),
-        uri: z.string().optional(),
-      })).optional(),
-    })).optional(),
-    embed: z.object({ external: externalEmbedSchema.optional() }).optional(),
+        $type: z.string().nullish(),
+        uri: z.string().nullish(),
+      })).nullish(),
+    })).nullish(),
+    embed: z.object({ external: externalEmbedSchema.nullish() }).nullish(),
   }),
   // The hydrated view of the embed, which carries the resolved card. Present
   // on the post rather than the record when the AppView expanded it.
-  embed: z.object({ external: externalEmbedSchema.optional() }).optional(),
-  likeCount: z.number().int().nonnegative().catch(0).optional(),
-  repostCount: z.number().int().nonnegative().catch(0).optional(),
-  replyCount: z.number().int().nonnegative().catch(0).optional(),
-  quoteCount: z.number().int().nonnegative().catch(0).optional(),
-  indexedAt: z.string().optional(),
+  embed: z.object({ external: externalEmbedSchema.nullish() }).nullish(),
+  likeCount: z.number().int().nonnegative().catch(0).nullish(),
+  repostCount: z.number().int().nonnegative().catch(0).nullish(),
+  replyCount: z.number().int().nonnegative().catch(0).nullish(),
+  quoteCount: z.number().int().nonnegative().catch(0).nullish(),
+  indexedAt: z.string().nullish(),
 })
 
+/**
+ * The envelope only. Posts stay `unknown` here and are parsed one at a time in
+ * `searchPosts`, so a single unrecognised post cannot reject the whole page.
+ */
 const searchResponseSchema = z.object({
-  posts: z.array(rawPostSchema).optional(),
-  cursor: z.string().optional(),
+  posts: z.array(z.unknown()).nullish(),
+  cursor: z.string().nullish(),
 })
 
 const sessionSchema = z.object({
@@ -134,6 +146,8 @@ export interface BskyPage {
   cursor: string | null
   /** Posts returned on the wire, before parsing dropped any. */
   postsRead: number
+  /** Posts the schema could not read. A rising value means the API drifted. */
+  unparsable: number
 }
 
 /**
@@ -415,15 +429,40 @@ export function createBskyClient(options: CreateBskyClientOptions): BskyClient {
       if (result._tag === 'err')
         return result
 
-      const parsed = searchResponseSchema.safeParse(result.value)
-      if (!parsed.success)
-        return err({ _tag: 'malformed-response', message: parsed.error.message })
+      // The envelope is parsed strictly; each post is parsed on its own.
+      //
+      // ONE BAD POST MUST NOT COST THE PAGE. Validating the whole array in a
+      // single pass makes every post a veto over all the others, and that is
+      // what happened on the first production run: one post in a hundred
+      // carried `record.embed.external: null`, and both the `"agent skill"`
+      // and `"agent skills"` queries returned nothing at all as a result.
+      // Widening the schema fixed that shape; parsing per post is what stops
+      // the next unknown shape from doing the same thing.
+      const envelope = searchResponseSchema.safeParse(result.value)
+      if (!envelope.success)
+        return err({ _tag: 'malformed-response', message: envelope.error.message })
 
-      const raw = parsed.data.posts ?? []
+      const raw = envelope.data.posts ?? []
+      const posts: BskyPost[] = []
+      let unparsable = 0
+      for (const entry of raw) {
+        const parsed = rawPostSchema.safeParse(entry)
+        if (!parsed.success) {
+          unparsable += 1
+          continue
+        }
+        const post = toBskyPost(parsed.data)
+        if (post)
+          posts.push(post)
+      }
+
       return ok({
-        posts: raw.map(toBskyPost).filter((p): p is BskyPost => p !== null),
-        cursor: parsed.data.cursor ?? null,
+        posts,
+        cursor: envelope.data.cursor ?? null,
+        // Counts what arrived, not what survived, so a rising `unparsable`
+        // shows up as a widening gap rather than as silence.
         postsRead: raw.length,
+        unparsable,
       })
     },
   }

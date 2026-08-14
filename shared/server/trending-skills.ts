@@ -25,6 +25,8 @@ import { rankSkillTrends } from '#shared/trending-skill-score'
 
 export interface TrendingSkill extends SkillTrendScore {
   evidence: TrendingSkillEvidence | null
+  /** Current stars on the skill's repository. Display only, never ranked. */
+  stars: number | null
 }
 
 export interface TrendingSkillEvidence {
@@ -47,6 +49,8 @@ export interface LoadTrendingSkillsOptions {
   limit?: number
   /** Likes a post needs before its mention counts at all. */
   minLikes?: number
+  /** Keep these familiar repositories eligible, but place discoveries first. */
+  deprioritizeRepositories?: ReadonlySet<string>
 }
 
 export const DEFAULT_WINDOW_HOURS = 24 * 7
@@ -293,10 +297,55 @@ export async function loadTrendingSkills(
       merged.set(key, { input, evidence: null })
   }
 
+  const deprioritized = options.deprioritizeRepositories ?? new Set<string>()
   const ranked = rankSkillTrends([...merged.values()].map(m => m.input))
+    .sort((left, right) => Number(deprioritized.has(`${left.owner}/${left.repo}`)) - Number(deprioritized.has(`${right.owner}/${right.repo}`)))
 
-  return ranked.slice(0, limit).map(scored => ({
+  const page = ranked.slice(0, limit)
+  const stars = await loadRepoStars(options.db, page)
+
+  return page.map(scored => ({
     ...scored,
     evidence: merged.get(skillKey(scored))?.evidence ?? null,
+    stars: stars.get(`${scored.owner}/${scored.repo}`) ?? null,
   }))
+}
+
+/**
+ * Current star count for each listed skill's repository.
+ *
+ * Carried because a name and a mention alone give a reader nothing to weigh
+ * authority against, and stars are the one popularity signal VISION sanctions.
+ * Loaded for the ranked page only, never for the whole candidate set, so the
+ * cost is bounded by `limit` rather than by how much the world posted.
+ *
+ * Never feeds the ranking. It is displayed context, and letting it rank would
+ * make this board a second star leaderboard, which `/skills/leaderboard`
+ * already is.
+ */
+async function loadRepoStars(
+  db: D1Database,
+  entries: readonly { owner: string, repo: string }[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (entries.length === 0)
+    return out
+
+  // D1 rejects more than 100 bound parameters and each repo costs two, so the
+  // lookup is chunked rather than assuming the page fits.
+  const perQuery = 50
+  for (let i = 0; i < entries.length; i += perQuery) {
+    const chunk = entries.slice(i, i + perQuery)
+    const placeholders = chunk.map((_, j) => `(?${j * 2 + 1}, ?${j * 2 + 2})`).join(', ')
+    const rows = (await db
+      .prepare(
+        `SELECT owner, repo, stars FROM repos
+         WHERE (owner, repo) IN (VALUES ${placeholders})`,
+      )
+      .bind(...chunk.flatMap(e => [e.owner, e.repo]))
+      .all<{ owner: string, repo: string, stars: number }>()).results ?? []
+    for (const row of rows)
+      out.set(`${row.owner}/${row.repo}`, row.stars)
+  }
+  return out
 }

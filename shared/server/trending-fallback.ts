@@ -38,6 +38,8 @@ export interface LoadFallbackOptions {
   exclude?: ReadonlySet<string>
   /** Ignore repos below this, so the filler is genuinely notable. */
   minStars?: number
+  /** Keep these familiar repositories eligible, but place discoveries first. */
+  deprioritizeRepositories?: ReadonlySet<string>
 }
 
 export const DEFAULT_FALLBACK_MIN_STARS = 100
@@ -66,7 +68,8 @@ export async function loadFallbackSkills(
   const minStars = options.minStars ?? DEFAULT_FALLBACK_MIN_STARS
   const exclude = options.exclude ?? new Set<string>()
   // Over-fetch so exclusions cannot return a short page.
-  const fetchLimit = options.limit + exclude.size
+  const deprioritized = options.deprioritizeRepositories ?? new Set<string>()
+  const fetchLimit = options.limit + exclude.size + deprioritized.size
 
   const rows = (await options.db
     .prepare(
@@ -93,8 +96,10 @@ export async function loadFallbackSkills(
     .bind(options.now - 7 * 24 * 3600, minStars, fetchLimit)
     .all<FallbackRow>()).results ?? []
 
+  const preferredRows = [...rows]
+    .sort((left, right) => Number(deprioritized.has(`${left.owner}/${left.repo}`)) - Number(deprioritized.has(`${right.owner}/${right.repo}`)))
   const out: FallbackSkill[] = []
-  for (const row of rows) {
+  for (const row of preferredRows) {
     if (exclude.has(`${row.owner}/${row.repo}`))
       continue
     out.push({

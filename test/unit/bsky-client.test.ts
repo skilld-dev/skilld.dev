@@ -101,6 +101,42 @@ describe('createBskyClient searchPosts', () => {
     ])
   })
 
+  it('accepts an explicit null where a field could have been omitted', async () => {
+    // The exact shape that broke the first production run: one post in a page
+    // carried `record.embed.external: null`, and `optional()` rejects null.
+    const { impl } = stubFetch([() => jsonResponse({
+      posts: [rawPost({
+        record: { text: 'x', createdAt: POSTED_AT, embed: { external: null }, langs: null },
+        embed: null,
+        cid: null,
+      })],
+    })])
+    const client = createBskyClient({ fetchImpl: impl, sleepImpl: noSleep })
+
+    const result = await client.searchPosts({ query: 'q', since: POSTED_AT })
+
+    expect(result._tag === 'ok' && result.value.posts).toHaveLength(1)
+    expect(result._tag === 'ok' && result.value.unparsable).toBe(0)
+  })
+
+  it('keeps the readable posts when one post in the page is unreadable', async () => {
+    // The failure mode that turned one bad post into two dead queries: the
+    // whole array was validated in a single pass, so any post could veto all
+    // the others.
+    const { impl } = stubFetch([() => jsonResponse({
+      posts: [rawPost(), { uri: 'at://broken', author: 'not-an-object' }, rawPost({ uri: 'at://b' })],
+    })])
+    const client = createBskyClient({ fetchImpl: impl, sleepImpl: noSleep })
+
+    const result = await client.searchPosts({ query: 'q', since: POSTED_AT })
+
+    expect(result._tag).toBe('ok')
+    expect(result._tag === 'ok' && result.value.posts).toHaveLength(2)
+    expect(result._tag === 'ok' && result.value.unparsable).toBe(1)
+    // Still counts what arrived, so the gap is measurable.
+    expect(result._tag === 'ok' && result.value.postsRead).toBe(3)
+  })
+
   it('drops a post with no createdAt rather than dating it from indexedAt', async () => {
     const { impl } = stubFetch([() => jsonResponse({
       posts: [rawPost({ record: { text: 'x' } }), rawPost()],

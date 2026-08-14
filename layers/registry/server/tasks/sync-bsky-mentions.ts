@@ -76,6 +76,15 @@ export default defineScheduledTask({
           'failed.count': ingest.failedQueries.length,
         }))
       }
+      // Schema drift is loud. A non-zero count means the API returned a post
+      // shape this client cannot read, which is silent data loss otherwise.
+      if (ingest.postsUnparsable > 0) {
+        emitOperationalEvent(createWideEvent({
+          'operation': 'sync-bsky-mentions-ingest',
+          'outcome': 'degraded',
+          'failed.count': ingest.postsUnparsable,
+        }))
+      }
       if (ingest.truncatedQueries.length > 0) {
         emitOperationalEvent(createWideEvent({
           operation: 'sync-bsky-mentions-ingest',
@@ -86,6 +95,7 @@ export default defineScheduledTask({
 
       const summary = {
         postsRead: ingest.postsRead,
+        postsUnparsable: ingest.postsUnparsable,
         postsUnique: ingest.postsUnique,
         postsStored: ingest.postsStored,
         postsSkippedNoRepo: ingest.postsSkippedNoRepo,

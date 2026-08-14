@@ -71,6 +71,20 @@ describe('loadFallbackSkills', () => {
     expect(result[0]?.starsGained).toBe(800)
   })
 
+  it('uses repositories beyond the familiar GitHub leaders before them', async () => {
+    seedRepo('known', 'leader', 90_000, ['a'])
+    seedRepo('new', 'discovery', 120, ['b'])
+
+    const result = await loadFallbackSkills({
+      db: db().db,
+      now: NOW,
+      limit: 1,
+      deprioritizeRepositories: new Set(['known/leader']),
+    })
+
+    expect(result.map(r => `${r.owner}/${r.repo}`)).toEqual(['new/discovery'])
+  })
+
   it('ignores a surge older than the window', async () => {
     seedRepo('a', 'stale', 1000, ['x'])
     seedSurge('a', 'stale', 900, 30)

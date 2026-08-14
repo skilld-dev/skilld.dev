@@ -130,6 +130,8 @@ export interface LoadTrendingOptions {
    * measured at 30.6% SKILL.md precision against 83.9% for focused posts.
    */
   maxReposPerPost?: number
+  /** Keep these familiar repositories eligible, but place discoveries first. */
+  deprioritizeRepositories?: ReadonlySet<string>
 }
 
 export const DEFAULT_MIN_LIKES = 25
@@ -207,7 +209,10 @@ export async function loadTrendingRepos(options: LoadTrendingOptions): Promise<T
     ? await filterToIndexed(db, ranked)
     : ranked
 
-  const candidates = eligible.slice(0, limit)
+  const deprioritized = options.deprioritizeRepositories ?? new Set<string>()
+  const candidates = [...eligible]
+    .sort((left, right) => Number(deprioritized.has(`${left.owner}/${left.repo}`)) - Number(deprioritized.has(`${right.owner}/${right.repo}`)))
+    .slice(0, limit)
   if (candidates.length === 0)
     return []
 
@@ -253,6 +258,26 @@ export async function loadTrendingRepos(options: LoadTrendingOptions): Promise<T
   })
 
   return enriched
+}
+
+/** Repositories already visible at the top of GitHub-star browse surfaces. */
+export async function loadTopStarredRepositories(
+  db: D1Database,
+  limit: number,
+): Promise<ReadonlySet<string>> {
+  const rows = (await db.prepare(
+    `SELECT r.owner, r.repo
+     FROM repos r
+     WHERE r.stars IS NOT NULL
+       AND EXISTS (
+         SELECT 1 FROM skills s
+         WHERE s.owner = r.owner AND s.repo = r.repo AND s.source_resolved = 1
+       )
+     ORDER BY r.stars DESC, r.owner COLLATE NOCASE, r.repo COLLATE NOCASE
+     LIMIT ?1`,
+  ).bind(limit).all<{ owner: string, repo: string }>()).results ?? []
+
+  return new Set(rows.map(row => `${row.owner}/${row.repo}`))
 }
 
 /**
