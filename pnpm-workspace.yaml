@@ -6,7 +6,7 @@ minimumReleaseAgeExclude:
   - '@harlan-zw/nuxt-cloudflare'
   - '@harlan-zw/nuxt-dx@0.0.7'
   - '@harlan-zw/nuxt-use-query@0.0.1'
-  - '@harlan-zw/nuxt-wide-events@0.0.1'
+  - '@harlan-zw/nuxt-wide-events'
   - '@cloudflare/workers-types@5.20260715.1'
   - miniflare@4.20260710.0
   - wrangler@4.111.0
@@ -21,7 +21,7 @@ minimumReleaseAgeExclude:
   - nuxt-skew-protection@1.4.3
   - '@nuxtjs/seo@5.3.12'
   - skilld-protocol@2.2.0
-  - '@harlan-zw/comark-content@0.0.1 || 0.0.2 || 0.0.3 || 0.0.7 || 0.0.8 || 0.0.10 || 0.0.11 || 0.0.12 || 0.0.15'
+  - '@harlan-zw/comark-content@0.0.17'
 shellEmulator: true
 autoInstallPeers: false
 
@@ -31,14 +31,18 @@ catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/workers-types': ^5.20260813.1
   '@comark/nuxt': 0.6.2
+  '@harlan-zw/comark-content': 0.0.17
   '@harlan-zw/nuxt-cf-jobs': 0.0.5
   '@harlan-zw/nuxt-cloudflare': 0.0.14
   '@harlan-zw/nuxt-dx': 0.0.8
   '@harlan-zw/nuxt-use-query': 0.0.2
-  '@harlan-zw/nuxt-wide-events': 0.0.1
+  '@harlan-zw/nuxt-wide-events': 0.0.2
   '@iconify-json/lucide': ^1.2.123
   '@iconify-json/simple-icons': ^1.2.93
   '@iconify-json/vscode-icons': ^1.2.72
+  '@modelcontextprotocol/client': 2.0.0
+  '@modelcontextprotocol/sdk': 1.30.0
+  '@modelcontextprotocol/server': 2.0.0
   '@nuxt/a11y': 1.0.0-alpha.1
   '@nuxt/eslint': ^1.17.0
   '@nuxt/fonts': ^0.14.0
@@ -80,6 +84,7 @@ catalog:
   nuxt-auth-utils: ^0.5.30
   nuxt-og-image: ^6.7.8
   nuxt-skew-protection: ^1.5.0
+  shiki: ^4.4.3
   shiki: ^4.4.3
   skilld-protocol: ^2.3.0
   tailwindcss: ^4.3.3
