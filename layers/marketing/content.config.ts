@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
-import { defineCollection, defineContentConfig, z } from '@nuxt/content'
+import { defineCollection, defineContentConfig } from '@harlan-zw/comark-content'
+import { z } from 'zod'
 
 const marketingContentRoot = fileURLToPath(new URL('./content', import.meta.url))
 
@@ -18,19 +19,6 @@ export default defineContentConfig({
         description: z.string(),
         publishedAt: z.string().optional(),
         updatedAt: z.string().optional(),
-      }),
-    }),
-    frameworks: defineCollection({
-      type: 'page',
-      source: {
-        cwd: marketingContentRoot,
-        include: 'frameworks/*.md',
-        prefix: '/frameworks',
-      },
-      schema: z.object({
-        description: z.string(),
-        framework: z.string(),
-        npmPackage: z.string().optional(),
       }),
     }),
   },
