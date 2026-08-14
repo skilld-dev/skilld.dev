@@ -1,46 +1,8 @@
-import type { HighlighterCore } from '@shikijs/core'
 import type { Renderer, Tokens } from 'marked'
-import type { SkilldLang } from '#shared/shiki-language'
 import { Marked } from 'marked'
-import { resolveShikiLang, SHIKI_THEMES } from '#shared/shiki-language'
+import { escapeHtml, highlightToHtml } from '#shared/highlight'
 import { createSkillReferenceTokenizer } from './skill-dependencies'
 import { parseFrontmatterDocument } from './skill-frontmatter'
-
-function extractFenceLangs(body: string): Set<SkilldLang> {
-  const langs = new Set<SkilldLang>()
-  const re = /(?:^|\n)\s{0,3}(?:```|~~~)([^\n`~]*)/g
-  for (const match of body.matchAll(re)) {
-    const resolved = resolveShikiLang(match[1])
-    if (resolved)
-      langs.add(resolved)
-  }
-  return langs
-}
-
-function highlightSync(highlighter: HighlighterCore | null, code: string, lang: SkilldLang | null): string {
-  if (!highlighter || !lang)
-    return `<pre tabindex="0"><code>${escapeHtml(code)}</code></pre>`
-  // Shiki throws if the lang wasn't actually loaded (some bundled langs fail
-  // to register silently). Fall back to plain pre rather than 500ing the
-  // whole page render.
-  try {
-    return highlighter.codeToHtml(code, {
-      lang,
-      themes: SHIKI_THEMES,
-      defaultColor: false,
-    })
-  }
-  catch {
-    return `<pre tabindex="0"><code>${escapeHtml(code)}</code></pre>`
-  }
-}
-
-const HTML_ESCAPE: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }
-const HTML_ESCAPE_RE = /[&<>"']/g
-
-function escapeHtml(s: string): string {
-  return s.replace(HTML_ESCAPE_RE, c => HTML_ESCAPE[c]!)
-}
 
 function sanitizeUrl(url: string): string {
   const trimmed = url.trim()
@@ -120,7 +82,6 @@ const SKILL_TAG_RE = /^<(\/?)([A-Z][A-Z0-9-]*)\s*>$/
 
 function createSkillMd(
   ctx: SkillRenderContext | undefined,
-  highlighter: HighlighterCore | null,
 ): { marked: Marked, dependencies: Set<string> } {
   const dependencies = new Set<string>()
   const tokenizeSkillReferences = createSkillReferenceTokenizer(ctx?.skillNames ?? [], ctx?.name ?? '')
@@ -191,8 +152,9 @@ function createSkillMd(
         return `<${tag}${scope}${align}>${content}</${tag}>\n`
       },
       code({ text, lang }: Tokens.Code) {
-        const resolved = resolveShikiLang(lang)
-        return highlightSync(highlighter, text, resolved)
+        // A fence in a language we bundle no grammar for costs one plain block,
+        // not the page render.
+        return highlightToHtml(text, lang) ?? `<pre tabindex="0"><code>${escapeHtml(text)}</code></pre>`
       },
     },
   })
@@ -209,15 +171,7 @@ export interface ParsedSkillMd {
 export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promise<ParsedSkillMd> {
   const { frontmatter, body } = parseFrontmatterDocument(raw)
 
-  const needed = extractFenceLangs(body)
-  // Grammars that fail to load are dropped inside loadShikiHighlighter, and
-  // highlightSync falls back to a plain pre per block, so a bad fence costs one
-  // unhighlighted block rather than the page render.
-  const highlighter = needed.size
-    ? await import('#shared/shiki').then(({ loadShikiHighlighter }) => loadShikiHighlighter(needed))
-    : null
-
-  const renderer = createSkillMd(ctx, highlighter)
+  const renderer = createSkillMd(ctx)
   let html = renderer.marked.parse(body) as string
   html = html.replace(/<pre\b([^>]*)>/g, (match, attrs: string) => {
     if (/\btabindex=/.test(attrs))

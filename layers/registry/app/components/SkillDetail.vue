@@ -389,7 +389,7 @@ const rawHtml = ref<string | null>(null)
 const rawPlain = ref<string | null>(null)
 const rawError = ref<string | null>(null)
 
-import { shikiLangFromPath } from '../utils/skill-file-tree'
+import { highlightLangFromPath } from '../utils/skill-file-tree'
 
 // Path of the doc currently active in the viewer, relative to the skill folder.
 // Empty string === SKILL.md. Used to highlight the file tree.
@@ -512,9 +512,9 @@ async function renderRaw(raw: string) {
   rawError.value = null
   rawPlain.value = null
   try {
-    const lang = activeDocPath.value ? shikiLangFromPath(activeDocPath.value) : 'markdown'
-    const { highlightToHtml } = await import('#shared/shiki')
-    const html = await highlightToHtml(raw, lang)
+    const lang = activeDocPath.value ? highlightLangFromPath(activeDocPath.value) : 'markdown'
+    const { highlightToHtml } = await import('#shared/highlight')
+    const html = highlightToHtml(raw, lang)
     if (html)
       rawHtml.value = html
     else
@@ -1847,15 +1847,6 @@ useHead(computed(() => ({
 }
 .skill-markdown :deep(.shiki span),
 .skill-prose :deep(.shiki span) {
-  color: var(--shiki-light);
-  font-style: var(--shiki-light-font-style);
-  font-weight: var(--shiki-light-font-weight);
   background: transparent !important;
-}
-.dark .skill-markdown :deep(.shiki span),
-.dark .skill-prose :deep(.shiki span) {
-  color: var(--shiki-dark);
-  font-style: var(--shiki-dark-font-style);
-  font-weight: var(--shiki-dark-font-weight);
 }
 </style>

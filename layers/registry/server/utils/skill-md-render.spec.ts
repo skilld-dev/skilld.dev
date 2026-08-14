@@ -36,11 +36,10 @@ license: MIT
       '```',
     ].join('\n'))
 
-    expect(html).toContain('class="shiki')
-    // `defaultColor: false` emits per-span vars for both themes rather than
-    // baking one theme's colours into the markup.
-    expect(html).toContain('--shiki-light')
-    expect(html).toContain('--shiki-dark')
+    expect(html).toContain('class="rangi shiki shj-lang-bash"')
+    // The light colour is inlined and the dark one rides along as a variable,
+    // so one block serves both themes.
+    expect(html).toMatch(/style="color:#[0-9a-f]{3,8};--shiki-dark:#[0-9a-f]{3,8}"/i)
   })
 
   it('resolves fence aliases onto their canonical grammar', async () => {
@@ -49,7 +48,7 @@ license: MIT
       parseSkillMd('```ts\nconst a: number = 1\n```'),
     ])
 
-    expect(alias.html).toContain('class="shiki')
+    expect(alias.html).toContain('class="rangi shiki shj-lang-ts"')
     expect(alias.html).toBe(ts.html)
   })
 

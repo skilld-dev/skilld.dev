@@ -74,7 +74,7 @@ export function fileIcon(name: string): string {
   return EXT_ICONS[ext] ?? 'i-vscode-icons-default-file'
 }
 
-const SHIKI_LANG_BY_EXT: Record<string, string> = {
+const LANG_BY_EXT: Record<string, string> = {
   ts: 'ts',
   tsx: 'tsx',
   js: 'js',
@@ -115,12 +115,12 @@ const FILENAME_LANG: Record<string, string> = {
   '.env': 'bash',
 }
 
-export function shikiLangFromPath(path: string): string {
+export function highlightLangFromPath(path: string): string {
   const name = (path.split('/').pop() ?? '').toLowerCase()
   if (FILENAME_LANG[name])
     return FILENAME_LANG[name]!
   const ext = name.includes('.') ? name.split('.').pop()! : ''
-  return SHIKI_LANG_BY_EXT[ext] ?? 'text'
+  return LANG_BY_EXT[ext] ?? 'text'
 }
 
 export function isInlineRenderable(type: 'markdown' | 'code' | 'image' | 'data' | 'other'): boolean {

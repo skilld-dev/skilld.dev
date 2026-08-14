@@ -51,10 +51,10 @@ async function renderSource(raw: string) {
   sourceError.value = null
   try {
     const ext = file.value.toLowerCase().split('.').pop() ?? ''
-    const { highlightToHtml } = await import('#shared/shiki')
+    const { highlightToHtml } = await import('#shared/highlight')
     // null means the extension isn't one we ship a grammar for; render the
     // source unhighlighted rather than failing.
-    sourceHtml.value = await highlightToHtml(raw, ext)
+    sourceHtml.value = highlightToHtml(raw, ext)
   }
   catch (err) {
     sourceError.value = err instanceof Error ? err.message : 'Failed to render source'

@@ -380,9 +380,6 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [dependencyPluginCompat()],
-    optimizeDeps: {
-      exclude: ['shiki'],
-    },
   },
 
   compatibilityDate: '2026-07-15',

@@ -1301,7 +1301,14 @@
   border-radius: var(--ui-radius);
 }
 
-/* Raw markdown view (shiki, dual-theme via CSS variables) */
+/* Highlighted code (rangi). The light colour is inlined on each token and the
+   dark one rides along as `--shiki-dark`, so dark mode has to win over an
+   inline style. */
+.dark .shiki span {
+  color: var(--shiki-dark) !important;
+}
+
+/* Raw markdown view */
 .skill-markdown .shiki {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
@@ -1320,15 +1327,5 @@
   font-size: inherit;
 }
 .skill-markdown .shiki span {
-  color: var(--shiki-light);
-  font-style: var(--shiki-light-font-style);
-  font-weight: var(--shiki-light-font-weight);
-  text-decoration: var(--shiki-light-text-decoration);
   background: transparent !important;
-}
-.dark .skill-markdown .shiki span {
-  color: var(--shiki-dark);
-  font-style: var(--shiki-dark-font-style);
-  font-weight: var(--shiki-dark-font-weight);
-  text-decoration: var(--shiki-dark-text-decoration);
 }

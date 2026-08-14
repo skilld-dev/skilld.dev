@@ -1,13 +1,16 @@
 import type { MarkdownDocument, ParserOptions } from 'comark'
 import type { MdxgDocument, MdxgParseOptions, MdxgSearchHit } from '../types'
 import { createMarkdownParser } from 'comark'
-import shiki from 'comark/plugins/shiki'
+import rangi from 'comark/plugins/rangi'
+import { github } from 'rangi/themes'
 import { splitVirtualPages } from './virtual-pages'
 
 function parserOptions(options: MdxgParseOptions): ParserOptions {
   return {
     ...options.parserOptions,
-    plugins: [...(options.parserOptions?.plugins ?? []), shiki()],
+    // `classPrefix: 'rangi'` and the GitHub pair keep Learn code blocks on the
+    // same markup and palette as the skill renderer in `#shared/highlight`.
+    plugins: [...(options.parserOptions?.plugins ?? []), rangi({ classPrefix: 'rangi', theme: github })],
   }
 }
 

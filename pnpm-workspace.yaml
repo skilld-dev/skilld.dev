@@ -56,10 +56,6 @@ catalog:
   '@playwright/test': ^1.62.1
   '@resvg/resvg-js': ^2.6.2
   '@sentry/nuxt': ^10.70.0
-  '@shikijs/core': ^4.4.3
-  '@shikijs/engine-javascript': ^4.4.3
-  '@shikijs/langs': ^4.4.3
-  '@shikijs/themes': ^4.4.3
   '@takumi-rs/core': ^2.7.3
   '@takumi-rs/wasm': ^2.7.3
   '@types/node': ^26.2.0
@@ -84,8 +80,7 @@ catalog:
   nuxt-auth-utils: ^0.5.30
   nuxt-og-image: ^6.7.8
   nuxt-skew-protection: ^1.5.0
-  shiki: ^4.4.3
-  shiki: ^4.4.3
+  rangi: ^2.2.0
   skilld-protocol: ^2.3.0
   tailwindcss: ^4.3.3
   tsx: ^4.23.12
