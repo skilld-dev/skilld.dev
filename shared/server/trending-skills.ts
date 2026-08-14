@@ -156,10 +156,23 @@ async function loadSocialEvidence(
     .bind(cutoff)
     .all<MentionRow>()).results ?? []
 
+  // How many distinct skills each post named, which is what dilutes a listicle
+  // down to its real weight. Counted across the whole window before any
+  // grouping, because a post's breadth is a property of the post.
+  const skillsPerPost = new Map<string, Set<string>>()
+  for (const row of rows) {
+    const set = skillsPerPost.get(row.post_id) ?? new Set<string>()
+    set.add(skillKey(row))
+    skillsPerPost.set(row.post_id, set)
+  }
+  const breadthOf = (postId: string) => skillsPerPost.get(postId)?.size ?? 1
+
   const grouped = new Map<string, {
     input: SkillTrendInput
     evidence: TrendingSkillEvidence
-    authors: Set<string>
+    /** Narrowest post seen for this skill, which is the fairest thing to quote. */
+    evidenceBreadth: number
+    authors: Map<string, number>
     countedPosts: Set<string>
   }>()
 
@@ -178,7 +191,7 @@ async function loadSocialEvidence(
           repo: row.repo,
           slug: row.slug,
           canonicalName: row.canonical_name,
-          social: { authorCount: 0, mentionCount: 0, engagement: 0, latestMentionAt: 0 },
+          social: { authorCount: 0, authorWeight: 0, mentionCount: 0, engagement: 0, latestMentionAt: 0 },
           github: null,
         },
         evidence: {
@@ -190,10 +203,28 @@ async function loadSocialEvidence(
           favouriteCount: row.favourite_count,
           platform: row.platform,
         },
-        authors: new Set(),
+        evidenceBreadth: breadthOf(row.post_id),
+        authors: new Map(),
         countedPosts: new Set(),
       }
       grouped.set(key, entry)
+    }
+
+    // Quote the narrowest post available. Rows arrive engagement-first, so
+    // without this a wide listicle can win the quote for many skills at once
+    // and the page prints the same paragraph under each of them.
+    const breadth = breadthOf(row.post_id)
+    if (breadth < entry.evidenceBreadth) {
+      entry.evidenceBreadth = breadth
+      entry.evidence = {
+        postId: row.post_id,
+        url: postUrl(row),
+        authorHandle: row.author_handle,
+        text: row.text_extract,
+        postedAt: row.posted_at,
+        favouriteCount: row.favourite_count,
+        platform: row.platform,
+      }
     }
 
     if (entry.countedPosts.has(row.post_id))
@@ -207,12 +238,18 @@ async function loadSocialEvidence(
     // Deduplicated per network: the same handle on X and Bluesky is two
     // people as far as this can tell, and treating them as one would punish
     // an author for cross-posting more than it would catch a manipulator.
-    entry.authors.add(`${row.platform}:${row.author_handle.toLowerCase()}`)
+    //
+    // An author keeps their strongest contribution, so posting a listicle and
+    // then a dedicated post counts as the dedicated one rather than summing.
+    const authorKey = `${row.platform}:${row.author_handle.toLowerCase()}`
+    const contribution = 1 / breadth
+    entry.authors.set(authorKey, Math.max(entry.authors.get(authorKey) ?? 0, contribution))
   }
 
   const out = new Map<string, { input: SkillTrendInput, evidence: TrendingSkillEvidence }>()
   for (const [key, entry] of grouped) {
     entry.input.social!.authorCount = entry.authors.size
+    entry.input.social!.authorWeight = [...entry.authors.values()].reduce((a, b) => a + b, 0)
     out.set(key, { input: entry.input, evidence: entry.evidence })
   }
   return out

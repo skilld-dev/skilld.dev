@@ -14,9 +14,10 @@ function skill(partial: Partial<SkillTrendInput> & { slug: string }): SkillTrend
   }
 }
 
-function social(authorCount: number, engagement = 0) {
+function social(authorCount: number, engagement = 0, authorWeight = authorCount) {
   return {
     authorCount,
+    authorWeight,
     mentionCount: authorCount,
     engagement,
     latestMentionAt: 1_760_000_000,
@@ -102,6 +103,15 @@ describe('scoreSkillTrend breadth over depth', () => {
     const two = scoreSkillTrend(skill({ slug: 'b', social: social(2, 0) }))
 
     expect(two.score).toBeGreaterThan(one.score)
+  })
+
+  it('dilutes an author whose post named many skills', () => {
+    // A "my top 30" listicle grants a thirtieth of an author, not a whole one,
+    // so a skill someone posted about specifically outranks it.
+    const listicle = scoreSkillTrend(skill({ slug: 'listed', social: social(2, 267, 1 + 1 / 30) }))
+    const specific = scoreSkillTrend(skill({ slug: 'specific', social: social(1, 6685, 1) }))
+
+    expect(specific.score).toBeGreaterThan(listicle.score)
   })
 
   it('still uses engagement to separate equal breadth', () => {

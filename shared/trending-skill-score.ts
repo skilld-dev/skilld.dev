@@ -33,10 +33,28 @@ export interface SocialEvidence {
   /**
    * Separate accounts that named the skill above the engagement bar.
    *
-   * The primary signal, because breadth is what cannot be faked cheaply: one
-   * account can post six times, six accounts posting once is a trend.
+   * Display only. Ranking uses {@link authorWeight}, because a raw count
+   * treats "someone recommended this" and "this appeared in a list of thirty"
+   * as the same endorsement.
    */
   authorCount: number
+  /**
+   * Authors, diluted by how many skills each of their posts named.
+   *
+   * A post naming one skill contributes a whole author; a post naming thirty
+   * contributes a thirtieth of one. `x-ingest.ts` already applies this rule to
+   * repository evidence and documents why: one popular "here are 20 repos"
+   * thread handed every entry an identical score and buried the repos posts
+   * were actually about.
+   *
+   * The skill-level loader never inherited it, and production showed the same
+   * failure. A single "my top 30 Claude repos" post put `design-taste-frontend`
+   * and `planning-with-files` at ranks 1 and 2 on two authors each, above
+   * `install-anti-slop`, which a person had posted about specifically to 911
+   * likes. Both of the top two even quoted that same listicle as their
+   * evidence, so the page showed the identical paragraph twice.
+   */
+  authorWeight: number
   mentionCount: number
   /** Weighted engagement summed across qualifying posts, on its own scale. */
   engagement: number
@@ -100,7 +118,7 @@ function engagementBonus(engagement: number): number {
 }
 
 function socialStrength(social: SocialEvidence): number {
-  return social.authorCount + engagementBonus(social.engagement)
+  return social.authorWeight + engagementBonus(social.engagement)
 }
 
 /**

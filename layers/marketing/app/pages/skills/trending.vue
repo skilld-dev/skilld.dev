@@ -4,7 +4,9 @@ import type { TrendingFeedResponse, TrendingSkillFeedItem } from '~~/server/api/
 // `await`, for the reason documented in [cluster].vue: without it the server
 // renders before the request settles and ships an empty shell to the crawler.
 const { data } = await useFetch<TrendingFeedResponse>('/api/feed/trending', {
-  query: { limit: 24 },
+  // Thirty rows: enough to read as a leaderboard rather than a shortlist,
+  // and the fallback tail fills it out when the evidenced rows run short.
+  query: { limit: 30 },
 })
 
 const items = computed(() => data.value?.items ?? [])
@@ -153,6 +155,10 @@ const weekRange = computed(() => {
  * headings and lists "large font sizes in UI chrome" under Avoid. Contrast is,
  * so the top three ranks step up from muted to default and nothing moves.
  */
+function likesLabel(count: number): string {
+  return `${count.toLocaleString()} ${count === 1 ? 'like' : 'likes'}`
+}
+
 function rankClass(index: number): string {
   return index < 3 ? 'text-default' : 'text-muted'
 }
@@ -275,12 +281,6 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
       <h2 id="trending-list-heading" class="sr-only">
         Trending agent skills
       </h2>
-
-      <!--
-        Matches the empty state on /skills/leaderboard rather than the bare
-        paragraph this page used, so a quiet week looks like a considered state
-        instead of a page that failed to load.
-      -->
       <div v-if="isEmpty" class="editorial-state flex flex-col justify-center p-6" role="status">
         <p class="text-sm text-default">
           Nothing is trending yet.
@@ -293,13 +293,6 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
           <UButton to="/skills" label="Browse the directory" color="neutral" variant="outline" class="min-h-11" />
         </div>
       </div>
-
-      <!--
-        One board. Every row states minimally why it is here: the person who
-        named it, the star growth that surged, or nothing but a star count when
-        that is all we know. Splitting these into separate lists made the same
-        skill appear twice with different numbers against each.
-      -->
       <div v-if="board.length">
         <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
           <p class="section-label">
@@ -311,7 +304,7 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
         </div>
         <ol class="editorial-ledger mt-6 list-none p-0">
           <li v-for="(row, index) in board" :key="row.key">
-            <NuxtLink :to="repoSkillPath(row.owner, row.repo, row.slug)" class="ledger-row group">
+            <div class="ledger-row">
               <span class="ledger-rank" :class="rankClass(index)">{{ String(index + 1).padStart(2, '0') }}</span>
               <img
                 :src="`https://github.com/${row.owner}.png?size=80`"
@@ -323,64 +316,50 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
                 decoding="async"
                 @error="onAvatarError(row.owner)"
               >
-              <span class="min-w-0 flex-1">
+              <div class="min-w-0 flex-1">
                 <span class="flex flex-wrap items-baseline gap-x-2">
-                  <span class="font-medium text-default">{{ row.name }}</span>
+                  <NuxtLink
+                    :to="repoSkillPath(row.owner, row.repo, row.slug)"
+                    class="font-medium text-default transition-opacity hover:opacity-70"
+                  >
+                    {{ row.name }}
+                  </NuxtLink>
                   <span class="font-mono text-xs text-muted">{{ row.owner }}/{{ row.repo }}</span>
-                  <!--
-                    Stars sit with the repository name rather than in the
-                    metadata row, because they qualify the source, not the
-                    claim. Authority context only: ranking never reads them.
-                  -->
                   <span v-if="row.stars" class="font-mono text-xs text-muted tabular-nums">
-                    {{ row.stars.toLocaleString() }}★
+                    {{ `${row.stars.toLocaleString()} ★` }}
                   </span>
                 </span>
-                <!--
-                  The skill's own description, not the post that named it. The
-                  post proves the mention; it does not explain the thing. One
-                  real entry quoted "🔥 4 OPEN-SOURCE AI TOOLS YOU CAN'T MISS
-                  THIS MONTH…", which says nothing about the skill.
-
-                  No `block` alongside `line-clamp-2`: the clamp sets
-                  `display: -webkit-box`, which `block` would override.
-                -->
                 <span v-if="row.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
                   {{ row.description }}
                 </span>
-                <!--
-                  What was posted, under the description rather than instead of
-                  it. The description says what the skill is; this says what a
-                  person claimed about it, and the engagement says whether that
-                  claim landed. `.stop` keeps the row's own link from swallowing
-                  the click through to the post.
-                -->
                 <a
                   v-if="row.evidenceUrl"
                   :href="row.evidenceUrl"
                   rel="nofollow noopener"
                   target="_blank"
                   class="mt-2 block border-l border-default pl-3 hover:border-inverted"
-                  @click.stop
                 >
                   <span class="line-clamp-2 text-sm leading-relaxed text-default">{{ row.quote }}</span>
                   <span class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted">
-                    <UIcon
-                      :name="row.platform === 'bsky' ? 'i-simple-icons-bluesky' : 'i-simple-icons-x'"
+                    <svg
                       class="size-3 shrink-0"
-                    />
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path v-if="row.platform === 'bsky'" d="M12 10.8C10.913 8.686 7.954 4.747 5.202 2.805 2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8" />
+                      <path v-else d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932zM17.61 20.644h2.039L6.486 3.24H4.298z" />
+                    </svg>
                     <span>@{{ row.handle }}</span>
                     <span v-if="row.when">{{ row.when }}</span>
-                    <span v-if="row.engagement" class="tabular-nums">
-                      {{ row.engagement.toLocaleString() }} {{ row.engagement === 1 ? 'like' : 'likes' }}
-                    </span>
+                    <span v-if="row.engagement" class="tabular-nums">{{ likesLabel(row.engagement) }}</span>
                   </span>
                 </a>
                 <span v-else-if="row.basis" class="mt-2 block font-mono text-xs text-muted">
                   {{ row.basis }}
                 </span>
-              </span>
-            </NuxtLink>
+              </div>
+            </div>
           </li>
         </ol>
       </div>
