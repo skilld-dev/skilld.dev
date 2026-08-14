@@ -62,8 +62,4 @@ useHead({
 .learn-article :deep(a:hover) {
   color: var(--ui-text-muted);
 }
-
-.learn-article :deep(pre code span) {
-  color: var(--ui-text) !important;
-}
 </style>

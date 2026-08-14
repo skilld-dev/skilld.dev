@@ -3,7 +3,11 @@
 // /accessibility.
 // See docs/adr/0001-url-pillars-and-layers.md
 export default defineNuxtConfig({
-  modules: ['@nuxt/content'],
+  modules: ['@harlan-zw/comark-content'],
+
+  content: {
+    highlight: true,
+  },
 
   routeRules: {
     '/nuxt': { redirect: { to: '/frameworks/nuxt', statusCode: 301 } } as any,

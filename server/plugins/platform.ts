@@ -15,7 +15,7 @@ export default defineNitroPlugin((nitroApp) => {
       return
 
     const d1 = createPlatformD1(env)
-    // db0's Cloudflare connector, used by Nuxt Content, reads the binding from
+    // db0's Cloudflare connector reads the binding from
     // this Nitro-managed global instead of the request context.
     setCloudflareBindings(d1.bindings)
 

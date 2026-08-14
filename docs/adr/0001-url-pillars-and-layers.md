@@ -31,7 +31,7 @@ Three Nuxt layers, three URL pillars, one rule per pillar.
 ### `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`: marketing layer
 - `/skills` index, `/skills/guide`, `/skills/official`, `/skills/stats`
 - `/frameworks/[name]` (e.g. `/nuxt` → `/frameworks/nuxt`)
-- Built on `@nuxt/content` (MDC, content collections, schema).
+- Comark renders the Markdown through a compact `learn` collection.
 - `/skills` namespace is reserved for marketing; entity routes live under `/gh`.
 
 ### Cross-layer data
