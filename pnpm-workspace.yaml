@@ -26,9 +26,9 @@ shellEmulator: true
 trustPolicy: no-downgrade
 
 catalog:
-  '@comark/nuxt': 0.6.2
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/workers-types': ^5.20260812.1
+  '@comark/nuxt': 0.6.2
   '@harlan-zw/nuxt-cf-jobs': 0.0.5
   '@harlan-zw/nuxt-cloudflare': 0.0.14
   '@harlan-zw/nuxt-dx': 0.0.7
@@ -48,7 +48,6 @@ catalog:
   '@nuxtjs/html-validator': ^2.1.0
   '@nuxtjs/mcp-toolkit': ^0.18.1
   '@nuxtjs/seo': ^5.3.12
-  comark: 0.6.2
   '@playwright/test': ^1.62.1
   '@resvg/resvg-js': ^2.6.2
   '@sentry/nuxt': ^10.70.0
@@ -66,6 +65,7 @@ catalog:
   algoliasearch: ^5.56.0
   axe-core: ^4.13.0
   better-sqlite3: ^13.0.3
+  comark: 0.6.2
   eslint: ^10.8.1
   eslint-plugin-harlanzw: ^0.17.1
   h3: 1.15.11
