@@ -27,6 +27,8 @@ export interface TrendingSkill extends SkillTrendScore {
   evidence: TrendingSkillEvidence | null
   /** Current stars on the skill's repository. Display only, never ranked. */
   stars: number | null
+  /** The skill's own description, from its SKILL.md frontmatter. */
+  description: string | null
 }
 
 export interface TrendingSkillEvidence {
@@ -302,13 +304,52 @@ export async function loadTrendingSkills(
     .sort((left, right) => Number(deprioritized.has(`${left.owner}/${left.repo}`)) - Number(deprioritized.has(`${right.owner}/${right.repo}`)))
 
   const page = ranked.slice(0, limit)
-  const stars = await loadRepoStars(options.db, page)
+  const [stars, descriptions] = await Promise.all([
+    loadRepoStars(options.db, page),
+    loadSkillDescriptions(options.db, page),
+  ])
 
   return page.map(scored => ({
     ...scored,
     evidence: merged.get(skillKey(scored))?.evidence ?? null,
     stars: stars.get(`${scored.owner}/${scored.repo}`) ?? null,
+    description: descriptions.get(skillKey(scored)) ?? null,
   }))
+}
+
+/**
+ * The skill's own description, from its SKILL.md frontmatter.
+ *
+ * Carried because the post that named a skill is evidence, not explanation. A
+ * real one from the window reads "🔥 4 OPEN-SOURCE AI TOOLS YOU CAN'T MISS THIS
+ * MONTH…", which proves someone mentioned the skill and tells a reader nothing
+ * about what it does. The author's own description does the second job.
+ */
+async function loadSkillDescriptions(
+  db: D1Database,
+  entries: readonly { owner: string, repo: string, slug: string }[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  if (entries.length === 0)
+    return out
+
+  // Three bound parameters per skill against D1's ceiling of 100.
+  const perQuery = 30
+  for (let i = 0; i < entries.length; i += perQuery) {
+    const chunk = entries.slice(i, i + perQuery)
+    const placeholders = chunk.map((_, j) => `(?${j * 3 + 1}, ?${j * 3 + 2}, ?${j * 3 + 3})`).join(', ')
+    const rows = (await db
+      .prepare(
+        `SELECT owner, repo, name, description FROM skills
+         WHERE (owner, repo, name) IN (VALUES ${placeholders})
+           AND description IS NOT NULL AND description != ''`,
+      )
+      .bind(...chunk.flatMap(e => [e.owner, e.repo, e.slug]))
+      .all<{ owner: string, repo: string, name: string, description: string }>()).results ?? []
+    for (const row of rows)
+      out.set(`${row.owner}/${row.repo}/${row.name}`, row.description)
+  }
+  return out
 }
 
 /**

@@ -91,6 +91,13 @@ export interface TrendingSkillFeedItem {
   favouriteCount: number
   /** Current stars on the skill's repository. Authority context, never ranked. */
   stars: number | null
+  /**
+   * What the skill does, in its author's words.
+   *
+   * The post that named it proves the mention; this explains the thing. A row
+   * showing only the post reads as a quote with no subject.
+   */
+  description: string | null
   /** Stars gained on the surge day, present only on the GitHub route. */
   starGain: number | null
   /**
@@ -101,7 +108,21 @@ export interface TrendingSkillFeedItem {
    * all, which reads as missing data rather than as a different kind of claim.
    */
   starGainDay: number | null
-  evidence: { url: string, authorHandle: string, text: string, postedAt: number, platform: 'x' | 'bsky' } | null
+  evidence: {
+    url: string
+    authorHandle: string
+    text: string
+    postedAt: number
+    platform: 'x' | 'bsky'
+    /**
+     * Engagement on this specific post, not the skill's aggregate.
+     *
+     * A reader weighing a quote wants to know whether it landed. The
+     * skill-level `favouriteCount` sums every qualifying post and cannot
+     * answer that for the one being shown.
+     */
+    favouriteCount: number
+  } | null
 }
 
 export interface TrendingFeedResponse {
@@ -125,6 +146,7 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
     mentionCount: entry.social?.mentionCount ?? 0,
     favouriteCount: entry.social?.engagement ?? 0,
     stars: entry.stars,
+    description: entry.description,
     starGain: entry.github?.latestGain ?? null,
     starGainDay: entry.github?.observedDay ?? null,
     evidence: entry.evidence
@@ -134,6 +156,7 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
           text: entry.evidence.text,
           postedAt: entry.evidence.postedAt,
           platform: entry.evidence.platform,
+          favouriteCount: entry.evidence.favouriteCount,
         }
       : null,
   }

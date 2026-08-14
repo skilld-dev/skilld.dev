@@ -45,6 +45,78 @@ const fallback = computed(() => {
   )
 })
 
+interface BoardRow {
+  key: string
+  owner: string
+  repo: string
+  slug: string
+  name: string
+  description: string | null
+  stars: number | null
+  /** Why it is on the board. Null when only its star count speaks for it. */
+  basis: string | null
+  when: string | null
+  evidenceUrl: string | null
+  /** What the person actually said. The claim in their words, not ours. */
+  quote: string | null
+  /** Which network carried it, so the row can show that network's mark. */
+  platform: 'x' | 'bsky' | null
+  /** Who said it. */
+  handle: string | null
+  /** Likes on that specific post. Zero means it landed quietly, not that it is unknown. */
+  engagement: number | null
+  /** True when a person or a surge put it here, false when it is filling space. */
+  evidenced: boolean
+}
+
+/**
+ * One board, in one rank sequence.
+ *
+ * Evidenced rows always sit above star-only rows, never interleaved by score.
+ * Ranking a 200,000-star repository against "two people named it" would let
+ * raw popularity win the page every week, which is what `/skills/leaderboard`
+ * is already for. Filling the tail with popular skills is honest; letting them
+ * outrank the evidence is not.
+ */
+const board = computed<BoardRow[]>(() => [
+  ...namedSkills.value.map(s => ({
+    key: `${s.owner}/${s.repo}/${s.slug}`,
+    owner: s.owner,
+    repo: s.repo,
+    slug: s.slug,
+    name: s.canonicalName,
+    description: s.description,
+    stars: s.stars,
+    basis: skillBasis(s),
+    when: skillWhen(s),
+    evidenceUrl: s.evidence?.url ?? null,
+    quote: s.evidence?.text ?? null,
+    platform: s.evidence?.platform ?? null,
+    handle: s.evidence?.authorHandle ?? null,
+    engagement: s.evidence?.favouriteCount ?? null,
+    evidenced: true,
+  })),
+  ...fallback.value.map(s => ({
+    key: `${s.owner}/${s.repo}/${s.slug}`,
+    owner: s.owner,
+    repo: s.repo,
+    slug: s.slug,
+    name: s.canonicalName,
+    description: s.description,
+    stars: s.stars,
+    // Star growth where we measured it, which is the only "this week" claim a
+    // fallback entry can make. Absent, the row says nothing about the week.
+    basis: s.starsGained ? `+${s.starsGained.toLocaleString()} stars this week` : null,
+    when: null,
+    evidenceUrl: null,
+    quote: null,
+    platform: null,
+    handle: null,
+    engagement: null,
+    evidenced: false,
+  })),
+])
+
 /** Verified entries only. The star fallback is filler and must not count. */
 const indexableCount = computed(() => items.value.length + namedSkills.value.length)
 const total = computed(() => items.value.length)
@@ -130,24 +202,22 @@ defineOgImage('Page.takumi', {
   description: 'What developers are actually posting about this week.',
 }, { alt: 'Trending agent skills on skilld' })
 
+/**
+ * Ages measured from the server's clock, never the browser's.
+ *
+ * `Date.now()` here produced a real hydration mismatch: the server rendered
+ * "4d ago" against its own clock and the client recomputed against a different
+ * one, so Vue found the text changed under it. `computedAt` travels with the
+ * payload and is identical on both sides.
+ */
 function relativeDay(unixSeconds: number): string {
-  const hours = Math.floor((Date.now() / 1000 - unixSeconds) / 3600)
+  const reference = data.value?.computedAt ?? unixSeconds
+  const hours = Math.floor((reference - unixSeconds) / 3600)
   if (hours < 1)
     return 'just now'
   if (hours < 24)
     return `${hours}h ago`
   return `${Math.floor(hours / 24)}d ago`
-}
-
-/**
- * Trend strength in words, not a score. The raw number is a weighted composite
- * that means nothing to a reader, and printing it would invite people to
- * compare figures that are only meaningful relative to each other.
- */
-function shareLabel(authorCount: number): string {
-  if (authorCount === 1)
-    return '1 person shared it'
-  return `${authorCount} people shared it`
 }
 
 /**
@@ -196,21 +266,7 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
       title="Trending this week"
       description="Agent skills developers named this week, ranked by how many separate people named them."
       heading-id="trending-heading"
-    >
-      <!--
-        No stat block and one route out. The counts it held are readable from
-        the list itself, and a board is meant to be read rather than summarised
-        above itself.
-      -->
-      <UButton
-        to="/skills"
-        label="Browse the directory"
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-arrow-left"
-        class="min-h-11"
-      />
-    </CompactPageHeader>
+    />
 
     <section
       class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
@@ -239,16 +295,13 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
       </div>
 
       <!--
-        Skills lead the page. They are the unit a reader installs, and the two
-        routes that can name one accurately are the whole point of the ranking.
-        Repositories follow as the coarser signal.
+        One board. Every row states minimally why it is here: the person who
+        named it, the star growth that surged, or nothing but a star count when
+        that is all we know. Splitting these into separate lists made the same
+        skill appear twice with different numbers against each.
       -->
-      <div v-if="skillTotal">
-        <!--
-          No explainer paragraph. Every row already states its own basis, so
-          prose describing the ranking only repeats what the list shows.
-        -->
-        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div v-if="board.length">
+        <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
           <p class="section-label">
             Top skills
           </p>
@@ -256,202 +309,81 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
             {{ weekRange }}
           </p>
         </div>
-        <ol class="editorial-ledger mt-4 list-none p-0">
-          <li v-for="(skill, index) in namedSkills" :key="`${skill.owner}/${skill.repo}/${skill.slug}`">
-            <NuxtLink
-              :to="`/skills/${skill.owner}/${skill.repo}/${skill.slug}`"
-              class="ledger-row group"
-            >
+        <ol class="editorial-ledger mt-6 list-none p-0">
+          <li v-for="(row, index) in board" :key="row.key">
+            <NuxtLink :to="repoSkillPath(row.owner, row.repo, row.slug)" class="ledger-row group">
               <span class="ledger-rank" :class="rankClass(index)">{{ String(index + 1).padStart(2, '0') }}</span>
               <img
-                :src="`https://github.com/${skill.owner}.png?size=80`"
+                :src="`https://github.com/${row.owner}.png?size=80`"
                 alt=""
                 width="40"
                 height="40"
                 class="size-10 shrink-0 rounded-full border border-default bg-muted"
                 loading="lazy"
                 decoding="async"
-                @error="onAvatarError(skill.owner)"
+                @error="onAvatarError(row.owner)"
               >
               <span class="min-w-0 flex-1">
                 <span class="flex flex-wrap items-baseline gap-x-2">
-                  <span class="font-medium text-default">{{ skill.canonicalName }}</span>
-                  <span class="font-mono text-xs text-muted">{{ skill.owner }}/{{ skill.repo }}</span>
+                  <span class="font-medium text-default">{{ row.name }}</span>
+                  <span class="font-mono text-xs text-muted">{{ row.owner }}/{{ row.repo }}</span>
                   <!--
-                    Stars sit with the repository name, not in the metadata
-                    row, because they qualify the source rather than the claim.
-                    Authority context only: the ranking never reads them.
+                    Stars sit with the repository name rather than in the
+                    metadata row, because they qualify the source, not the
+                    claim. Authority context only: ranking never reads them.
                   -->
-                  <span v-if="skill.stars" class="font-mono text-xs text-muted tabular-nums">
-                    {{ skill.stars.toLocaleString() }}★
+                  <span v-if="row.stars" class="font-mono text-xs text-muted tabular-nums">
+                    {{ row.stars.toLocaleString() }}★
                   </span>
                 </span>
                 <!--
-                  No `block` alongside `line-clamp-2`. The clamp works by
-                  setting `display: -webkit-box`, so `block` overrides it and
-                  the clamp silently stops applying: two rows rendered ten
-                  lines each and pushed everything below them off the screen.
+                  The skill's own description, not the post that named it. The
+                  post proves the mention; it does not explain the thing. One
+                  real entry quoted "🔥 4 OPEN-SOURCE AI TOOLS YOU CAN'T MISS
+                  THIS MONTH…", which says nothing about the skill.
+
+                  No `block` alongside `line-clamp-2`: the clamp sets
+                  `display: -webkit-box`, which `block` would override.
                 -->
-                <span v-if="skill.evidence" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
-                  {{ skill.evidence.text }}
+                <span v-if="row.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
+                  {{ row.description }}
                 </span>
-                <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted">
-                  <span>{{ skillBasis(skill) }}</span>
-                  <span v-if="skillWhen(skill)">{{ skillWhen(skill) }}</span>
+                <!--
+                  What was posted, under the description rather than instead of
+                  it. The description says what the skill is; this says what a
+                  person claimed about it, and the engagement says whether that
+                  claim landed. `.stop` keeps the row's own link from swallowing
+                  the click through to the post.
+                -->
+                <a
+                  v-if="row.evidenceUrl"
+                  :href="row.evidenceUrl"
+                  rel="nofollow noopener"
+                  target="_blank"
+                  class="mt-2 block border-l border-default pl-3 hover:border-inverted"
+                  @click.stop
+                >
+                  <span class="line-clamp-2 text-sm leading-relaxed text-default">{{ row.quote }}</span>
+                  <span class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted">
+                    <UIcon
+                      :name="row.platform === 'bsky' ? 'i-simple-icons-bluesky' : 'i-simple-icons-x'"
+                      class="size-3 shrink-0"
+                    />
+                    <span>@{{ row.handle }}</span>
+                    <span v-if="row.when">{{ row.when }}</span>
+                    <span v-if="row.engagement" class="tabular-nums">
+                      {{ row.engagement.toLocaleString() }} {{ row.engagement === 1 ? 'like' : 'likes' }}
+                    </span>
+                  </span>
+                </a>
+                <span v-else-if="row.basis" class="mt-2 block font-mono text-xs text-muted">
+                  {{ row.basis }}
                 </span>
               </span>
             </NuxtLink>
           </li>
         </ol>
       </div>
-
-      <div v-if="total" :class="skillTotal ? 'mt-12 border-t border-default pt-8' : ''">
-        <p class="section-label">
-          Repositories being shared
-        </p>
-        <!--
-          Deliberately a `ul` with no rank column. One board means one rank
-          sequence: this list previously restarted at 01, putting two entries
-          numbered 01 on the same page and implying two competing rankings.
-        -->
-        <ul class="editorial-ledger mt-5 list-none p-0">
-          <li v-for="item in items" :key="`${item.owner}/${item.repo}`">
-            <article class="trending-row">
-              <!--
-              The owner avatar, matching /skills/best. Provenance is the whole
-              pitch, so the person behind a repo should be visible at a glance
-              rather than inferred from the slug.
-            -->
-              <img
-                :src="`https://github.com/${item.owner}.png?size=80`"
-                alt=""
-                width="40"
-                height="40"
-                class="size-10 shrink-0 rounded-full border border-default bg-muted"
-                loading="lazy"
-                decoding="async"
-              >
-
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-baseline gap-x-2">
-                  <NuxtLink
-                    :to="`/gh/${item.owner}/${item.repo}`"
-                    class="font-medium text-default hover:opacity-70"
-                  >
-                    {{ item.owner }}/{{ item.repo }}
-                  </NuxtLink>
-                  <span class="font-mono text-xs text-muted tabular-nums">
-                    {{ item.skillCount }} {{ item.skillCount === 1 ? 'skill' : 'skills' }}
-                  </span>
-                  <span v-if="item.stars" class="font-mono text-xs text-muted tabular-nums">
-                    {{ item.stars.toLocaleString() }} stars
-                  </span>
-                </div>
-
-                <p v-if="item.description" class="mt-1 text-sm leading-relaxed text-muted">
-                  {{ item.description }}
-                </p>
-
-                <!--
-                The quoted post is the page's reason to exist: it is the
-                evidence for the ranking, and it is server-rendered text rather
-                than an embed widget, so a crawler reads the same proof a
-                person does.
-              -->
-                <blockquote v-if="item.evidence?.text" class="trending-evidence">
-                  <!--
-                  Clamped rather than cut server-side: the full quote stays in
-                  the DOM for a crawler while no single entry can run down the
-                  page. A live review had one thread render as ten lines and
-                  bury everything below it.
-                -->
-                  <p class="line-clamp-3 text-sm leading-relaxed text-default">
-                    {{ item.evidence.text }}
-                  </p>
-                  <footer class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                    <a
-                      :href="item.evidence.url"
-                      rel="nofollow noopener"
-                      target="_blank"
-                      class="font-mono hover:opacity-70"
-                    >@{{ item.evidence.authorHandle }}</a>
-                    <span>{{ relativeDay(item.evidence.postedAt) }}</span>
-                    <span>{{ shareLabel(item.authorCount) }}</span>
-                  </footer>
-                </blockquote>
-
-                <ul v-if="item.skills.length" class="mt-3 flex flex-wrap gap-2 p-0">
-                  <li v-for="skill in item.skills" :key="skill.slug">
-                    <NuxtLink
-                      :to="`/skills/${skill.slug}`"
-                      class="inline-flex rounded-lg border border-default px-2 py-1 font-mono text-xs text-muted transition-colors hover:border-inverted"
-                    >
-                      {{ skill.displayName }}
-                    </NuxtLink>
-                  </li>
-                </ul>
-              </div>
-            </article>
-          </li>
-        </ul>
-      </div>
-
-      <!--
-        Star-ranked filler, deduplicated against everything above. Labelled as a
-        different claim: these are popular, not currently being talked about,
-        and presenting the two identically would be dishonest.
-      -->
-      <aside
-        v-if="fallback.length"
-        :class="(total || skillTotal) ? 'mt-12 border-t border-default pt-8' : ''"
-        aria-labelledby="fallback-heading"
-      >
-        <h2 id="fallback-heading" class="section-label">
-          Popular on GitHub
-        </h2>
-        <p class="mt-1 text-sm text-muted">
-          Not being talked about, just well starred.
-        </p>
-        <ul class="mt-5 grid list-none gap-3 p-0 sm:grid-cols-2">
-          <li v-for="skill in fallback" :key="`${skill.owner}/${skill.repo}/${skill.slug}`">
-            <NuxtLink
-              :to="`/skills/${skill.owner}/${skill.repo}/${skill.slug}`"
-              class="flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
-            >
-              <span class="flex items-baseline justify-between gap-2">
-                <span class="min-w-0 truncate font-medium text-default">{{ skill.canonicalName }}</span>
-                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
-                  {{ skill.stars.toLocaleString() }}★
-                </span>
-              </span>
-              <!--
-                The face belongs here too. Every skill on this page carries its
-                owner's avatar, so a card without one reads as a different, less
-                accountable kind of entry.
-              -->
-              <span class="mt-2 flex items-center gap-2">
-                <img
-                  :src="`https://github.com/${skill.owner}.png?size=48`"
-                  alt=""
-                  width="20"
-                  height="20"
-                  class="size-5 shrink-0 rounded-full border border-default bg-muted"
-                  loading="lazy"
-                  decoding="async"
-                  @error="onAvatarError(skill.owner)"
-                >
-                <span class="min-w-0 truncate font-mono text-xs text-muted">{{ skill.owner }}/{{ skill.repo }}</span>
-              </span>
-              <span v-if="skill.description" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
-                {{ skill.description }}
-              </span>
-              <span v-if="skill.repoSkillCount > 1" class="mt-2 font-mono text-xs text-muted">
-                1 of {{ skill.repoSkillCount }} in this repo
-              </span>
-            </NuxtLink>
-          </li>
-        </ul>
-      </aside>
     </section>
   </div>
 </template>
@@ -465,15 +397,11 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
  * a `border-top` between children. Every row rendered two rules, and the last
  * row rendered a doubled bottom edge.
  */
-.ledger-row,
-.trending-row {
+.ledger-row {
   display: flex;
   align-items: flex-start;
   gap: 1rem;
   padding: 1.25rem 0;
-}
-
-.ledger-row {
   transition: opacity 200ms ease;
 }
 
@@ -484,18 +412,11 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
   }
 }
 
-.ledger-rank,
-.trending-rank {
+.ledger-rank {
   font-family: var(--font-mono, monospace);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   color: var(--ui-text-muted);
   padding-top: 0.75rem;
-}
-
-.trending-evidence {
-  margin-top: 0.75rem;
-  padding-left: 0.75rem;
-  border-left: 1px solid var(--ui-border);
 }
 </style>
