@@ -20,7 +20,7 @@ export default defineNitroPlugin((nitroApp) => {
         return property === 'DB' ? db : Reflect.get(target, property, target)
       },
     })
-    // db0's Cloudflare connector, used by Nuxt Content, reads the binding from
+    // db0's Cloudflare connector reads the binding from
     // this Nitro-managed global instead of the request context.
     setCloudflareBindings(retryingEnv)
 

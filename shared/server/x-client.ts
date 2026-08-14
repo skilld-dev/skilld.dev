@@ -64,6 +64,17 @@ const rawPostSchema = z.object({
     text: z.string().optional(),
     entities: z.object({ urls: z.array(urlEntitySchema).optional() }).optional(),
   }).optional(),
+  conversation_id: z.string().optional(),
+  // Long-form Articles. Everything worth reading lives here rather than in
+  // `text`, including fenced code blocks that often carry an install command.
+  article: z.object({
+    title: z.string().optional(),
+    plain_text: z.string().optional(),
+    entities: z.object({
+      urls: z.array(z.object({ text: z.string().optional() })).optional(),
+      code: z.array(z.object({ code: z.string().optional() })).optional(),
+    }).optional(),
+  }).optional(),
 })
 
 const rawUserSchema = z.object({
@@ -105,6 +116,17 @@ export interface XPost {
   metrics: XPostMetrics
   /** Every expanded URL found on the post, de-duplicated. */
   urls: string[]
+  /** Thread root. Equal to `id` when the post is itself the root. */
+  conversationId: string | null
+  /** Article title, when the post is an X Article. Often names the skill. */
+  articleTitle: string | null
+  /** Article body as plain text, where the real write-up lives. */
+  articleText: string | null
+  /**
+   * Fenced code blocks from an Article. These carry install commands verbatim,
+   * which is the highest-precision skill reference the platform offers.
+   */
+  articleCode: string[]
 }
 
 export interface XPostMetrics {
@@ -238,7 +260,18 @@ function localCallsAllowed(): boolean {
   return process.env.X_ALLOW_LOCAL_API === '1'
 }
 
-const POST_FIELDS = 'created_at,public_metrics,entities,lang,author_id,note_tweet'
+/**
+ * `article` and `conversation_id` are the two that are not obvious.
+ *
+ * An X Article keeps its real content out of `text`, which holds only the
+ * t.co link. dexhorthy's /show-me post is the canonical case: 6,614 bookmarks,
+ * the skill name in `article.title`, and the install command sitting in
+ * `article.entities.code`. Without this field that post reads as an empty link.
+ *
+ * `conversation_id` is what lets a later step walk a thread to find the repo
+ * link an author put in a reply rather than the root post.
+ */
+const POST_FIELDS = 'created_at,public_metrics,entities,lang,author_id,note_tweet,article,conversation_id'
 const USER_FIELDS = 'username,name,profile_image_url,public_metrics'
 
 function collectUrls(post: z.infer<typeof rawPostSchema>): string[] {
@@ -281,6 +314,12 @@ function toXPost(
     authorHandle: user?.username ?? raw.author_id,
     authorName: user?.name ?? null,
     authorFollowers: user?.public_metrics?.followers_count ?? 0,
+    conversationId: raw.conversation_id ?? null,
+    articleTitle: raw.article?.title ?? null,
+    articleText: raw.article?.plain_text ?? null,
+    articleCode: (raw.article?.entities?.code ?? [])
+      .map(c => c.code)
+      .filter((c): c is string => typeof c === 'string'),
     metrics: m
       ? {
           favouriteCount: m.like_count,

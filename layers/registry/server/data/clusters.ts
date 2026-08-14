@@ -49,6 +49,12 @@
  * deleted outright under principle 2: three skills each, both outside the
  * north-star user, and neither earned its page. See RENAMED_CLUSTER_SLUGS and
  * CULLED_CLUSTER_SLUGS for where the four old URLs land.
+ *
+ * 2026-08-14: the classifier's `design` category split into `interface-design`
+ * and `software-design`, because one label covered both "how the screen looks"
+ * and "how the system is structured". `/skills/design` promised interface work
+ * and listed CQRS and cloud design patterns under it. The 738 rows were
+ * reclassified in production with scripts/reclassify-abstractness-category.ts.
  */
 
 export interface Cluster {

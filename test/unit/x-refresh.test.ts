@@ -10,6 +10,12 @@ import { createSqliteD1 } from './helpers/d1-sqlite'
 const MIGRATIONS = [
   'migrations/0097_x_mentions_and_discovery_ledger.sql',
   'migrations/0100_x_discovery_daily_budget.sql',
+  // 0103 rebuilds discovery_ledger and copies the columns 0101 added, so it
+  // cannot be applied without it.
+  'migrations/0101_discovery_ledger_size_guard.sql',
+  // Adds `platform`, which the claim query filters on so this task can never
+  // send a Bluesky AT-URI to the X lookup endpoint.
+  'migrations/0103_bluesky_discovery.sql',
 ]
 const NOW = 1_760_000_000
 const HOUR = 3600

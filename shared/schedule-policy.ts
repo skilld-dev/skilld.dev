@@ -62,6 +62,9 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'refresh-x-engagement', cron: '10 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'reconcile-rendered', cron: '20 */6 * * *', maxSilenceSeconds: 15 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'send-digests', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
+  // Two-hourly, so six hours of silence is a real outage rather than a quiet
+  // stretch. Runtime is generous because throttle backoff can stretch a run.
+  { _tag: 'observed', taskName: 'sync-bsky-mentions', cron: '17 */2 * * *', maxSilenceSeconds: 6 * 60 * 60, maxRuntimeSeconds: 10 * 60 },
   { _tag: 'observed', taskName: 'sync-github-skills', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'sync-reviewed-skill-repos', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'sync-social-mentions', cron: '30 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },

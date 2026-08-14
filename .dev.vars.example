@@ -12,4 +12,10 @@ GITHUB_TOKEN=
 ANTHROPIC_API_KEY=
 VOYAGE_API_KEY=
 X_BEARER_KEY=
+# Bluesky discovery. Optional: search works unauthenticated, but the public
+# AppView throttles after roughly fifteen requests, so production wants these.
+# BSKY_APP_PASSWORD is an app password (bsky.app/settings/app-passwords), never
+# the account password.
+BSKY_IDENTIFIER=
+BSKY_APP_PASSWORD=
 DISCORD_WEBHOOK_URL=

@@ -159,10 +159,46 @@ const http = await probeAsync(async () => {
   return Object.fromEntries(entries)
 })
 
+/**
+ * Pull DAILY_DISCOVERY_READ_BUDGET out of the source of truth. Returns null
+ * rather than a guess when the constant cannot be found, so a rename surfaces
+ * as a missing number instead of a confidently wrong one.
+ */
+function readDailyBudget() {
+  try {
+    const src = readFileSync(join(root, 'shared/server/x-ingest.ts'), 'utf8')
+    const match = src.match(/DAILY_DISCOVERY_READ_BUDGET\s*=\s*(\d+)/)
+    return match ? Number(match[1]) : null
+  }
+  catch {
+    return null
+  }
+}
+
 const d1 = probe(() => {
   const tableRows = d1Query(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)
   const tables = new Set(tableRows.map(row => row.name))
   const has = table => tables.has(table)
+
+  /**
+   * Column-level guard. `has(table)` is not enough: a migration that adds a
+   * column ships in the code before it is applied to production, and a query
+   * naming the new column fails the whole d1 probe. That silently blanked the
+   * entire checkin the first time `skills_scanned_at` was referenced, which is
+   * the worst possible failure for the tool that reports failures.
+   */
+  const columnCache = new Map()
+  const hasColumn = (table, column) => {
+    if (!tables.has(table))
+      return false
+    if (!columnCache.has(table)) {
+      columnCache.set(
+        table,
+        new Set(d1Query(`SELECT name FROM pragma_table_info('${table}')`).map(row => row.name)),
+      )
+    }
+    return columnCache.get(table).has(column)
+  }
 
   const inventoryParts = [
     has('skills') ? `(SELECT COUNT(*) FROM skills) AS skills` : 'NULL AS skills',
@@ -207,13 +243,14 @@ const d1 = probe(() => {
    * Turn raw X read counts into the number that matters: dollars, and whether
    * the month is on track. Reads are $0.005 each with no included allowance.
    *
-   * `budgetTarget` mirrors DAILY_DISCOVERY_READ_BUDGET in shared/server/
-   * x-ingest.ts. It is duplicated because this script is plain node with no
-   * access to the app's module graph; if the budget moves, move it here too.
+   * The budget is read out of shared/server/x-ingest.ts rather than copied.
+   * This script is plain node and cannot import the app's module graph, and a
+   * hand-copied constant had already gone stale once, reporting 22 while the
+   * real budget was 400 and so claiming the ingest was massively over budget.
    */
   function withXSpend(costRow) {
     const USD_PER_READ = 0.005
-    const budgetTarget = 22
+    const budgetTarget = readDailyBudget()
     const row = costRow ?? {}
     const discoveryToday = Number(row.x_discovery_reads_today ?? 0)
     const hot = Number(row.x_hot_posts ?? 0)
@@ -227,6 +264,14 @@ const d1 = probe(() => {
       x_projected_daily_reads: projectedDaily,
       x_projected_monthly_usd: Math.round(projectedDaily * 30 * USD_PER_READ * 100) / 100,
       x_over_budget: discoveryToday > budgetTarget,
+      // The value question: reads bought per skill actually verified. Rising
+      // means the query is getting less precise or the stream is noisier.
+      x_reads_per_verified_skill: Number(row.x_verified_skills ?? 0) > 0
+        ? Math.round(Number(row.x_discovery_reads_total ?? 0) / Number(row.x_verified_skills))
+        : null,
+      // Budget spent without finishing the window means the stream is
+      // outrunning the ingest and the backlog grows daily.
+      x_falling_behind: discoveryToday >= budgetTarget,
     }
   }
 
@@ -242,6 +287,15 @@ const d1 = probe(() => {
     // more read, when its window crosses midnight UTC.
     has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE refresh_tier = 'hot') AS x_hot_posts` : 'NULL AS x_hot_posts',
     has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE first_seen_at >= ${sinceSec}) AS x_posts_24h` : 'NULL AS x_posts_24h',
+    // How stale the freshest ingested post is. Climbs when discovery lags.
+    has('x_posts') ? `(SELECT CAST((${Math.floor(now.getTime() / 1000)} - MAX(posted_at)) / 3600 AS INTEGER) FROM x_posts) AS x_newest_post_age_hours` : 'NULL AS x_newest_post_age_hours',
+    has('x_post_skills') ? `(SELECT COUNT(*) FROM x_post_skills) AS x_verified_skills` : 'NULL AS x_verified_skills',
+    has('x_post_skills') ? `(SELECT COUNT(*) FROM x_post_skills WHERE verified_at >= ${sinceSec}) AS x_verified_skills_24h` : 'NULL AS x_verified_skills_24h',
+    hasColumn('x_posts', 'skills_scanned_at') ? `(SELECT COUNT(*) FROM x_posts WHERE skills_scanned_at IS NULL) AS x_posts_unscanned` : 'NULL AS x_posts_unscanned',
+    hasColumn('discovery_ledger', 'held_reason') ? `(SELECT COUNT(*) FROM discovery_ledger WHERE status = 'pending' AND held_reason IS NULL) AS x_ledger_pending` : 'NULL AS x_ledger_pending',
+    hasColumn('discovery_ledger', 'held_reason') ? `(SELECT COUNT(*) FROM discovery_ledger WHERE held_reason IS NOT NULL) AS x_ledger_held` : 'NULL AS x_ledger_held',
+    has('discovery_ledger') ? `(SELECT COUNT(*) FROM discovery_ledger WHERE status = 'submitted' AND submitted_at IS NOT NULL AND submitted_at < ${Math.floor(now.getTime() / 1000) - 21600}) AS x_ledger_stalled` : 'NULL AS x_ledger_stalled',
+    has('discovery_ledger') ? `(SELECT COUNT(*) FROM discovery_ledger WHERE status = 'indexed') AS x_ledger_indexed` : 'NULL AS x_ledger_indexed',
   ]
 
   const syncJobs = has('sync_jobs')

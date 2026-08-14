@@ -297,13 +297,6 @@ export default defineNuxtConfig({
     },
   },
 
-  content: {
-    database: {
-      type: 'd1',
-      bindingName: 'DB',
-    },
-  },
-
   ogImage: {
     security: {
       // Production gets its stable key from NUXT_OG_IMAGE_SECRET. A fixed,
@@ -389,18 +382,6 @@ export default defineNuxtConfig({
     plugins: [dependencyPluginCompat()],
     optimizeDeps: {
       exclude: ['shiki'],
-    },
-  },
-
-  // Shiki highlighting for Nuxt Content and raw skill markdown.
-  // The JavaScript regex engine works in Cloudflare workerd without
-  // Oniguruma WASM. Explicit languages cover common SKILL.md examples.
-  // Dual themes emit the CSS variables consumed by app/assets/css/main.css.
-  mdc: {
-    highlight: {
-      shikiEngine: 'javascript',
-      theme: { light: 'github-light', dark: 'github-dark' },
-      langs: ['diff', 'ts', 'tsx', 'js', 'jsx', 'json', 'bash', 'vue', 'css', 'html', 'yaml', 'md', 'mdc'],
     },
   },
 

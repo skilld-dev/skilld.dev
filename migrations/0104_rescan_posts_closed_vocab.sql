@@ -1,0 +1,23 @@
+-- Re-scan every stored post under closed-vocabulary skill detection.
+--
+-- `skills_scanned_at` means "we have decided what skills this post names".
+-- That decision was made by open-vocabulary extraction, which measured at 17
+-- candidates and zero verified skills across 396 Bluesky posts. Closed
+-- vocabulary, matching a post against the skill names its linked repository
+-- actually ships, found 37 mentions of 32 skills in the same corpus.
+--
+-- Every post already marked scanned therefore holds a stale verdict, and
+-- leaving them marked would mean the improvement only ever applied to posts
+-- arriving from now on. The archive is where most of the evidence is.
+--
+-- SAFE TO RE-RUN AS OFTEN AS DETECTION CHANGES. Re-scanning costs no X reads,
+-- and costs no GitHub calls either for any repo already indexed, because pass
+-- one answers from our own registry. `x_post_skills` is written with
+-- ON CONFLICT DO UPDATE, so a second verdict corrects the first rather than
+-- duplicating it.
+--
+-- Existing rows are deliberately NOT deleted. A skill correctly identified
+-- under the old rules is still correctly identified under the new ones, and
+-- clearing the table first would empty the trending page for however long the
+-- re-scan takes to work through the backlog at 100 posts per run.
+UPDATE x_posts SET skills_scanned_at = NULL;

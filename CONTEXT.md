@@ -24,7 +24,7 @@ Use these terms exactly. Drift breeds shallow modules.
 - **registry** — `/gh/*` and `api/orgs|repos|skills|*`. Owns GitHub proxying.
 - **identity** (Phase 2) — GitHub OAuth, sessions, `users` table, subscriptions, digests.
 - **app** — `/`, `/community`, `/@<login>/*`, `/collections/new`, `api/community|collections|feed|*`. Owns native data.
-- **marketing** — `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`. Built on `@nuxt/content`. Owns SEO content.
+- **marketing** — `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`. Comark renders its Markdown. Owns SEO content.
 - **admin** — existing.
 
 Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilities. Each layer is deletion-testable.

@@ -119,9 +119,9 @@ Rules:
 - For package-specific output, set "package" to the canonical lowercase package, product, service, or repository slug. For abstract output, set "package" to null.
 - "category" must be exactly one of: ${ABSTRACTNESS_CATEGORIES.map(category => `"${category}"`).join(', ')}.
 - Content writing and Markdown conversion use the "documentation" category. This category rule does not make a repository-specific workflow abstract.
-- "interface-design" is work a user sees: visual design, layout, typography, colour, motion, animation, component look and feel, design systems, design tokens, accessibility of the interface, and UI copy.
-- "software-design" is work a user never sees: architecture, domain modelling, API and interface contracts, module boundaries, data flow, naming, and design patterns such as CQRS, event sourcing, or hexagonal architecture.
-- If a skill covers both, choose the one it spends most of its instructions on. If that is still unclear, choose "software-design".
+- "interface-design" is work whose output a person sees or feels: visual design, layout, typography, colour, spacing, motion, animation, transitions, component look and feel, design systems, design tokens, interface accessibility, and UI copy. Component libraries and UI kits are interface-design.
+- "software-design" is work whose output only another developer sees: architecture, domain modelling, API contracts, module boundaries, data flow, naming, and patterns such as CQRS, event sourcing, or hexagonal architecture.
+- If a skill covers both, ask what changes when it runs. If a screen changes, choose "interface-design". Choose "software-design" only when nothing a user sees changes.
 - When uncertain, choose "package-specific".
 
 Output only the JSON object. No markdown, no prose.`

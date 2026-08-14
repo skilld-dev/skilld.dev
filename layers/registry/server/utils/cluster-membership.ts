@@ -2,7 +2,7 @@
  * Who belongs to a category page.
  *
  * The first rule was `is_abstract = 1`, and the classifier answers "abstract"
- * for 399 of 6,911 skills. Whole tracks came out at two or three skills:
+ * for roughly 4% of skills. Whole tracks came out at two or three skills:
  * `release-management` and `scraping` have no abstract skill at all, `ci-cd`
  * has two out of a thousand. A track that lists three skills reads as a broken
  * page, not as curation.
@@ -21,7 +21,7 @@
  */
 
 /** Backfill depth per classifier category, not per track. */
-export const CLUSTER_BACKFILL_PER_CATEGORY = 24
+export const CLUSTER_BACKFILL_PER_CATEGORY = 40
 
 /**
  * How many skills one repository may contribute to one classifier category.

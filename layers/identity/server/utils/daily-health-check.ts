@@ -5,6 +5,7 @@ import type { LatestScheduledRun, ScheduleHealth } from '#shared/schedule-policy
 import type { SendEmailInput, SendEmailResult } from './email'
 import { parseTokenExpiry, tokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
+import { DAILY_DISCOVERY_READ_BUDGET } from '#shared/server/x-ingest'
 
 const MELBOURNE_TIME_ZONE = 'Australia/Melbourne'
 const DAY_SECONDS = 24 * 60 * 60
@@ -83,6 +84,39 @@ export interface DailyHealthCheckSummary {
   cost: {
     estimatedAiUsd24h: number
     estimatedAiUsdMonth: number
+  }
+  /**
+   * Whether the X spend is buying anything. Every post the search returns
+   * costs money whether or not it turns into a skill, so the useful question
+   * is not "did it run" but "what did the reads produce, and are we keeping
+   * up with the stream".
+   */
+  xDiscovery: {
+    /** Charged reads today against the daily ceiling. */
+    budgetSpentToday: number
+    budgetLimit: number
+    /** Reads charged this UTC month, and what they cost. */
+    readsMonth: number
+    estimatedUsdMonth: number
+    /**
+     * False when the last run stopped before reaching the end of its window,
+     * which means the ingest is falling behind the stream and the backlog
+     * grows every day.
+     */
+    keepingUp: boolean
+    /** Hours between now and the newest post ingested. Rises when behind. */
+    cursorLagHours: number | null
+    postsStored24h: number
+    reposDiscovered24h: number
+    /** Verified skill mentions, the actual product of the spend. */
+    verifiedSkillsTotal: number
+    verifiedSkills24h: number
+    /** Reads per verified skill this month. The value-for-money number. */
+    readsPerVerifiedSkill: number | null
+    ledgerPending: number
+    ledgerHeld: number
+    /** Submitted long ago with no finished job; indexing is wedged. */
+    ledgerStalled: number
   }
   credentials: {
     githubToken: TokenExpiryStatus
@@ -373,6 +407,33 @@ export function evaluateDailyHealthStatus(
   const staleSyncJobs = summary.pipeline.syncJobs.filter(job => job.stale)
   if (staleSyncJobs.length)
     red.push(`Scheduled tasks are stale: ${staleSyncJobs.map(job => job.name).join(', ')}.`)
+
+  // X discovery. These are spend alerts: the API bills per post returned, so
+  // the failure modes are "paying for nothing" and "not paying enough to keep
+  // up", and neither shows up as a failed task.
+  const x = summary.xDiscovery
+  if (!x.keepingUp) {
+    amber.push(
+      `X discovery spent its full ${x.budgetLimit}-read budget and did not finish the window, `
+      + 'so the backlog grew today. Raise DAILY_DISCOVERY_READ_BUDGET or the feed falls further behind.',
+    )
+  }
+  if (x.cursorLagHours !== null && x.cursorLagHours > 24) {
+    amber.push(
+      `The newest X post ingested is ${Math.round(x.cursorLagHours)} hours old, `
+      + 'so trending is showing stale conversation.',
+    )
+  }
+  if (x.ledgerStalled > 0) {
+    amber.push(
+      `${plural(x.ledgerStalled, 'discovered repository', 'discovered repositories')} `
+      + `${x.ledgerStalled === 1 ? 'has' : 'have'} been submitted for over 6 hours without indexing finishing.`,
+    )
+  }
+  // Reads are only worth buying if they turn into skills. A month of spend
+  // with nothing verified means the query, not the budget, is the problem.
+  if (x.readsMonth >= 500 && x.verifiedSkillsTotal === 0)
+    amber.push(`X discovery has spent ${x.readsMonth} reads this month and verified no skills.`)
 
   const partialSyncJobs = summary.pipeline.syncJobs.filter(job => job.status === 'partial')
   if (partialSyncJobs.length)
@@ -707,6 +768,85 @@ async function loadCost(db: D1Database, sinceSec: number, monthStartSec: number)
   }
 }
 
+const X_READ_USD = 0.005
+
+/**
+ * Discovery health. Every figure here answers a spend question, because the
+ * X API bills per post returned and the cap is finite.
+ */
+async function loadXDiscovery(
+  db: D1Database,
+  sinceSec: number,
+  monthStartSec: number,
+  nowSec: number,
+): Promise<DailyHealthCheckSummary['xDiscovery']> {
+  const cursor = await first<{
+    budget_spent: number | null
+    budget_day: string | null
+    posts_read_total: number | null
+  }>(db, `
+    SELECT budget_spent, budget_day, posts_read_total
+    FROM x_ingest_cursor WHERE query_key = 'discovery-v1'
+  `)
+
+  const today = new Date(nowSec * 1000).toISOString().slice(0, 10)
+  const spentToday = cursor.budget_day === today ? numberValue(cursor.budget_spent) : 0
+
+  const counts = await first<{
+    posts_24h: number
+    newest_posted_at: number | null
+    month_posts: number
+  }>(db, `
+    SELECT
+      COALESCE(SUM(first_seen_at >= ?1), 0) AS posts_24h,
+      MAX(posted_at) AS newest_posted_at,
+      COALESCE(SUM(first_seen_at >= ?2), 0) AS month_posts
+    FROM x_posts
+  `, [sinceSec, monthStartSec])
+
+  const ledger = await first<{
+    discovered_24h: number
+    pending: number
+    held: number
+    stalled: number
+  }>(db, `
+    SELECT
+      COALESCE(SUM(first_seen_at >= ?1), 0) AS discovered_24h,
+      COALESCE(SUM(status = 'pending' AND held_reason IS NULL), 0) AS pending,
+      COALESCE(SUM(held_reason IS NOT NULL), 0) AS held,
+      COALESCE(SUM(status = 'submitted' AND submitted_at IS NOT NULL AND submitted_at < ?2), 0) AS stalled
+    FROM discovery_ledger
+  `, [sinceSec, nowSec - 6 * 3600])
+
+  const skills = await first<{ total: number, recent: number }>(db, `
+    SELECT COUNT(*) AS total, COALESCE(SUM(verified_at >= ?1), 0) AS recent
+    FROM x_post_skills
+  `, [sinceSec])
+
+  const newest = numberValue(counts.newest_posted_at)
+  const monthReads = numberValue(counts.month_posts)
+  const verifiedTotal = numberValue(skills.total)
+
+  return {
+    budgetSpentToday: spentToday,
+    budgetLimit: DAILY_DISCOVERY_READ_BUDGET,
+    readsMonth: monthReads,
+    estimatedUsdMonth: monthReads * X_READ_USD,
+    // Budget exhausted is only a problem when the window was not finished:
+    // that combination is what means the stream is outrunning the ingest.
+    keepingUp: spentToday < DAILY_DISCOVERY_READ_BUDGET,
+    cursorLagHours: newest > 0 ? (nowSec - newest) / 3600 : null,
+    postsStored24h: numberValue(counts.posts_24h),
+    reposDiscovered24h: numberValue(ledger.discovered_24h),
+    verifiedSkillsTotal: verifiedTotal,
+    verifiedSkills24h: numberValue(skills.recent),
+    readsPerVerifiedSkill: verifiedTotal > 0 ? monthReads / verifiedTotal : null,
+    ledgerPending: numberValue(ledger.pending),
+    ledgerHeld: numberValue(ledger.held),
+    ledgerStalled: numberValue(ledger.stalled),
+  }
+}
+
 export async function buildDailyHealthCheck(
   db: D1Database,
   options: BuildDailyHealthCheckOptions = {},
@@ -762,6 +902,22 @@ export async function buildDailyHealthCheck(
     estimatedAiUsd24h: 0,
     estimatedAiUsdMonth: 0,
   }, () => loadCost(db, sinceSec, monthStartSec))
+  const xDiscovery = await capture(warnings, 'X discovery', {
+    budgetSpentToday: 0,
+    budgetLimit: DAILY_DISCOVERY_READ_BUDGET,
+    readsMonth: 0,
+    estimatedUsdMonth: 0,
+    keepingUp: true,
+    cursorLagHours: null,
+    postsStored24h: 0,
+    reposDiscovered24h: 0,
+    verifiedSkillsTotal: 0,
+    verifiedSkills24h: 0,
+    readsPerVerifiedSkill: null,
+    ledgerPending: 0,
+    ledgerHeld: 0,
+    ledgerStalled: 0,
+  }, () => loadXDiscovery(db, sinceSec, monthStartSec, Math.floor(now.getTime() / 1000)))
 
   const credentials = {
     githubToken: await capture<TokenExpiryStatus>(
@@ -786,6 +942,7 @@ export async function buildDailyHealthCheck(
     activity,
     pipeline,
     cost,
+    xDiscovery,
     credentials,
   }
   const evaluated = evaluateDailyHealthStatus(withoutStatus)
@@ -846,6 +1003,11 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     '',
     'Known AI batch cost:',
     `- ${formatUsd(summary.cost.estimatedAiUsd24h)} in 24 hours, ${formatUsd(summary.cost.estimatedAiUsdMonth)} this UTC month`,
+    '',
+    'X discovery:',
+    `- budget ${summary.xDiscovery.budgetSpentToday}/${summary.xDiscovery.budgetLimit} today, ${summary.xDiscovery.keepingUp ? 'keeping up' : 'FALLING BEHIND'}`,
+    `- ${summary.xDiscovery.readsMonth} reads this month (${formatUsd(summary.xDiscovery.estimatedUsdMonth)}), ${summary.xDiscovery.verifiedSkillsTotal} skills verified`,
+    `- ledger pending/held/stalled: ${summary.xDiscovery.ledgerPending}/${summary.xDiscovery.ledgerHeld}/${summary.xDiscovery.ledgerStalled}`,
     '',
     'Report warnings:',
     plainList(summary.warnings),
@@ -917,6 +1079,16 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
       ${card('Known AI cost', [
         metric('last 24 hours', formatUsd(summary.cost.estimatedAiUsd24h)),
         metric('UTC month', formatUsd(summary.cost.estimatedAiUsdMonth)),
+      ].join(''))}
+      ${card('X discovery', [
+        metric('budget used today', `${summary.xDiscovery.budgetSpentToday} / ${summary.xDiscovery.budgetLimit}`),
+        metric('keeping up with stream', summary.xDiscovery.keepingUp ? 'yes' : 'NO, falling behind'),
+        metric('newest post age', summary.xDiscovery.cursorLagHours === null ? 'no posts' : `${Math.round(summary.xDiscovery.cursorLagHours)}h`),
+        metric('reads this month', `${summary.xDiscovery.readsMonth} (${formatUsd(summary.xDiscovery.estimatedUsdMonth)})`),
+        metric('posts / repos in 24h', `${summary.xDiscovery.postsStored24h} / ${summary.xDiscovery.reposDiscovered24h}`),
+        metric('skills verified 24h / total', `${summary.xDiscovery.verifiedSkills24h} / ${summary.xDiscovery.verifiedSkillsTotal}`),
+        metric('reads per verified skill', summary.xDiscovery.readsPerVerifiedSkill === null ? 'none yet' : Math.round(summary.xDiscovery.readsPerVerifiedSkill)),
+        metric('ledger pending / held / stalled', `${summary.xDiscovery.ledgerPending} / ${summary.xDiscovery.ledgerHeld} / ${summary.xDiscovery.ledgerStalled}`),
       ].join(''))}
     </tr>
     <tr><td colspan="2" style="padding:8px"><table role="presentation" style="width:100%;background:#fff;border:1px solid #e4e7ec;border-radius:10px"><tr><td style="padding:14px 18px">

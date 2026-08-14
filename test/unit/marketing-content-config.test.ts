@@ -2,15 +2,9 @@
 
 import contentConfig from '../../layers/marketing/content.config'
 
-vi.mock('@nuxt/content', () => ({
+vi.mock('@harlan-zw/comark-content', () => ({
   defineCollection: <T>(collection: T) => collection,
   defineContentConfig: <T>(config: T) => config,
-  z: {
-    object: <T>(shape: T) => shape,
-    string: () => ({
-      optional: () => undefined,
-    }),
-  },
 }))
 
 describe('marketing content collections', () => {

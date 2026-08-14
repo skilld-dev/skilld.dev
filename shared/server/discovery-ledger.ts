@@ -26,7 +26,7 @@ import { enqueueRegistryRepoJob } from '~~/server/utils/registry-jobs-runtime'
 import { AUTO_INDEX_SKILL_LIMIT } from './discovery-size-guard'
 
 export type LedgerStatus = 'pending' | 'submitted' | 'indexed' | 'empty' | 'rejected'
-export type LedgerSource = 'x' | 'hn'
+export type LedgerSource = 'x' | 'hn' | 'bsky'
 
 export interface LedgerEntry {
   id: number
@@ -247,6 +247,8 @@ export interface SubmitSummary {
   failed: number
   /** Parked because the repo holds more skills than the guard allows. */
   heldOversized: number
+  /** Parked because the repo no longer exists on GitHub. */
+  heldGone: number
   /** Deferred because size could not be measured; retried next run. */
   deferredUnmeasured: number
   /** True when `limit` stopped the run with pending rows still waiting. */
@@ -273,11 +275,28 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
   // Fetch one extra to detect that more work remains without a second query.
   // Parked rows are excluded: they are waiting on a person, and re-measuring
   // them every quarter hour would spend GitHub calls to reach the same answer.
+  //
+  // RANKED WITHIN SOURCE, THEN INTERLEAVED. `evidence_score` is comparable
+  // inside one source and meaningless across sources: X scores run into the
+  // thousands, Bluesky's ceiling is about 50, and Hacker News counts points.
+  // A plain global `ORDER BY evidence_score DESC` therefore does not rank
+  // strength, it ranks which platform inflates numbers most, and every
+  // Bluesky row would sit below every X row forever, starved by the per-run
+  // limit and never submitted.
+  //
+  // Ranking inside each source and taking rank 1 of each, then rank 2, and so
+  // on gives every source a fair share of each run while still submitting each
+  // source's strongest evidence first.
   const rows = (await deps.db
     .prepare(
-      `SELECT * FROM discovery_ledger
-       WHERE status = 'pending' AND held_reason IS NULL
-       ORDER BY evidence_score DESC, last_seen_at DESC
+      `SELECT * FROM (
+         SELECT *, ROW_NUMBER() OVER (
+           PARTITION BY source ORDER BY evidence_score DESC, last_seen_at DESC
+         ) AS source_rank
+         FROM discovery_ledger
+         WHERE status = 'pending' AND held_reason IS NULL
+       )
+       ORDER BY source_rank ASC, evidence_score DESC, last_seen_at DESC
        LIMIT ?1`,
     )
     .bind(limit + 1)
@@ -289,6 +308,7 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
     duplicate: 0,
     failed: 0,
     heldOversized: 0,
+    heldGone: 0,
     deferredUnmeasured: 0,
     truncated: rows.length > limit,
   }
@@ -301,6 +321,17 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
       const verdict = measure
         ? await measure({ owner: row.owner, repo: row.repo })
         : { _tag: 'unknown' as const, reason: 'no-sizer-configured' }
+
+      if (verdict._tag === 'gone') {
+        // Park it rather than retry forever. A deleted repo is a permanent
+        // answer, and leaving it pending would burn a GitHub call every run.
+        summary.heldGone += 1
+        await deps.db
+          .prepare(`UPDATE discovery_ledger SET held_reason = 'repo-gone' WHERE id = ?1`)
+          .bind(row.id)
+          .run()
+        continue
+      }
 
       if (verdict._tag === 'unknown') {
         summary.deferredUnmeasured += 1
@@ -354,22 +385,37 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
 export interface ReconcileSummary {
   indexed: number
   empty: number
+  /** Submitted long ago with no finished job. Visible, never auto-emptied. */
+  stalled: number
 }
 
 /**
  * Close out submitted rows against what the registry actually holds.
  *
- * A submitted repo that now has a resolved skill becomes `indexed`. One that
- * has been submitted longer than `emptyAfterSeconds` with nothing to show
- * becomes `empty`, which keeps the review list free of repos that were only
- * ever a link in someone's thread.
+ * `empty` REQUIRES POSITIVE EVIDENCE. An earlier version marked any row
+ * submitted more than six hours ago as empty, on the assumption that a repo
+ * with no skills by then had none to find. That is not what the elapsed time
+ * means: it also covers a queue that has not drained, and `empty` is terminal,
+ * so the row was never retried.
+ *
+ * The damage was real. `cathrynlavery/diagram-design` (13,254 stars, one
+ * SKILL.md), `aashaexo/soundshuman`, `vikingmute/review-forge` and
+ * `simoneavogadro/android-reverse-engineering-skill` were all marked empty
+ * while their indexing jobs sat unstarted, and all four are exactly the
+ * high-engagement repos the trending page exists to surface.
+ *
+ * A row is now only emptied when its submission job actually finished and the
+ * registry still holds nothing. Rows whose job has not completed stay
+ * `submitted` and are reported as `stalled`, because absence of information is
+ * not evidence of absence.
  */
 export async function reconcileLedger(input: {
   db: D1Database
   now: number
-  emptyAfterSeconds?: number
+  /** Age past which an unfinished submission is reported as stalled. */
+  stalledAfterSeconds?: number
 }): Promise<ReconcileSummary> {
-  const emptyAfter = input.emptyAfterSeconds ?? 6 * 3600
+  const stalledAfter = input.stalledAfterSeconds ?? 6 * 3600
 
   const indexed = await input.db
     .prepare(
@@ -384,24 +430,48 @@ export async function reconcileLedger(input: {
     )
     .run()
 
+  // `unique_key` is hashed, so the join goes through the payload, which
+  // carries owner and repo verbatim.
   const empty = await input.db
     .prepare(
       `UPDATE discovery_ledger SET status = 'empty'
        WHERE status = 'submitted'
+         AND EXISTS (
+           SELECT 1 FROM jobs j
+           WHERE j.job_type = 'registry/repository-submission'
+             AND j.completed_at IS NOT NULL
+             AND LOWER(json_extract(j.payload, '$.owner')) = discovery_ledger.owner
+             AND LOWER(json_extract(j.payload, '$.repo')) = discovery_ledger.repo
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM skills s
+           WHERE s.owner = discovery_ledger.owner
+             AND s.repo = discovery_ledger.repo
+             AND s.source_resolved = 1
+         )`,
+    )
+    .run()
+
+  const stalled = await input.db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM discovery_ledger
+       WHERE status = 'submitted'
          AND submitted_at IS NOT NULL
          AND submitted_at < ?1`,
     )
-    .bind(input.now - emptyAfter)
-    .run()
+    .bind(input.now - stalledAfter)
+    .first<{ n: number }>()
 
   const changes = (result: { meta: unknown }) =>
     (result.meta as { changes?: number } | undefined)?.changes ?? 0
 
-  return { indexed: changes(indexed), empty: changes(empty) }
+  return { indexed: changes(indexed), empty: changes(empty), stalled: stalled?.n ?? 0 }
 }
 
 export interface AnnouncementCandidate {
   id: number
+  /** Which network surfaced it. Decides how the score should be read. */
+  source: LedgerSource
   owner: string
   repo: string
   evidenceUrl: string
@@ -419,22 +489,51 @@ export interface AnnouncementCandidate {
  */
 export async function pickAnnouncements(input: {
   db: D1Database
-  minEvidenceScore: number
+  /**
+   * Threshold per source. A single number cannot work: X's floor of 300 would
+   * silence Bluesky permanently, since the highest-scoring Bluesky post
+   * measured in a 30-day window reached 20, while Bluesky's floor of 50 would
+   * turn the channel into a firehose of X noise. A source with no entry here
+   * never announces, so adding a source is a deliberate act rather than an
+   * accident of defaulting.
+   */
+  minEvidenceScoreBySource: Partial<Record<LedgerSource, number>>
   limit?: number
 }): Promise<AnnouncementCandidate[]> {
+  const entries = Object.entries(input.minEvidenceScoreBySource)
+    .filter((e): e is [LedgerSource, number] => typeof e[1] === 'number')
+  if (entries.length === 0)
+    return []
+
+  const params: unknown[] = []
+  const clauses = entries.map(([source, min]) => {
+    params.push(source, min)
+    return `(source = ?${params.length - 1} AND evidence_score >= ?${params.length})`
+  })
+  params.push(input.limit ?? 10)
+
+  // Interleaved by source for the same reason the submit path is: ordering the
+  // survivors by raw score across sources would let X fill the whole limit and
+  // starve a Bluesky repo that cleared its own, much harder, bar.
   const rows = (await input.db
     .prepare(
-      `SELECT id, owner, repo, evidence_url, evidence_text, evidence_score
-       FROM discovery_ledger
-       WHERE status = 'indexed'
-         AND announced_at IS NULL
-         AND evidence_score >= ?1
-       ORDER BY evidence_score DESC
-       LIMIT ?2`,
+      `SELECT id, source, owner, repo, evidence_url, evidence_text, evidence_score
+       FROM (
+         SELECT *, ROW_NUMBER() OVER (
+           PARTITION BY source ORDER BY evidence_score DESC
+         ) AS source_rank
+         FROM discovery_ledger
+         WHERE status = 'indexed'
+           AND announced_at IS NULL
+           AND (${clauses.join(' OR ')})
+       )
+       ORDER BY source_rank ASC, evidence_score DESC
+       LIMIT ?${params.length}`,
     )
-    .bind(input.minEvidenceScore, input.limit ?? 10)
+    .bind(...params)
     .all<{
     id: number
+    source: LedgerSource
     owner: string
     repo: string
     evidence_url: string
@@ -444,6 +543,7 @@ export async function pickAnnouncements(input: {
 
   return rows.map(r => ({
     id: r.id,
+    source: r.source,
     owner: r.owner,
     repo: r.repo,
     evidenceUrl: r.evidence_url,

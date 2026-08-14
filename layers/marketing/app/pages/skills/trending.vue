@@ -8,7 +8,10 @@ const { data } = await useFetch<TrendingFeedResponse>('/api/feed/trending', {
 })
 
 const items = computed(() => data.value?.items ?? [])
-const surging = computed(() => data.value?.surging ?? [])
+const fallback = computed(() => data.value?.fallback ?? [])
+const namedSkills = computed(() => data.value?.namedSkills ?? [])
+/** Verified entries only. The star fallback is filler and must not count. */
+const indexableCount = computed(() => items.value.length + namedSkills.value.length)
 const total = computed(() => items.value.length)
 const authorTotal = computed(() =>
   items.value.reduce((sum, item) => sum + item.authorCount, 0),
@@ -28,7 +31,12 @@ useSeoMeta({
   // live feed, and a live feed can legitimately run dry; an eight-item page is
   // the thin, scaled-content shape that suppressed the catalog in June. Below
   // the bar it stays crawlable but out of the index.
-  robots: () => (total.value >= 8 ? 'index,follow' : 'noindex,follow'),
+  //
+  // Named skills count towards the bar because each is verified content with
+  // its own quoted evidence. The star fallback deliberately does not: it is
+  // generic popularity available on any listing page, and letting filler earn
+  // indexability is exactly how the catalog got suppressed.
+  robots: () => (indexableCount.value >= 8 ? 'index,follow' : 'noindex,follow'),
 })
 
 useHead({
@@ -58,6 +66,24 @@ function shareLabel(authorCount: number): string {
   if (authorCount === 1)
     return '1 person shared it'
   return `${authorCount} people shared it`
+}
+
+/**
+ * Why this skill is here, in the terms that actually made the claim.
+ *
+ * A skill reaches this list two ways, and they are different assertions. A
+ * person naming it in a post is one; its repository gaining stars while
+ * holding exactly one skill is another. Printing "0 mentions" against a
+ * star-only skill, which the old label did, states something false.
+ */
+function skillSignal(skill: { attribution: string, authorCount: number, starGain: number | null }): string {
+  const mentions = skill.authorCount === 1 ? '1 mention' : `${skill.authorCount} mentions`
+  const stars = skill.starGain === null ? '' : `+${skill.starGain} stars`
+  if (skill.attribution === 'github')
+    return stars
+  if (skill.attribution === 'both')
+    return `${mentions} · ${stars}`
+  return mentions
 }
 </script>
 
@@ -116,7 +142,7 @@ function shareLabel(authorCount: number): string {
         Trending repositories
       </h2>
 
-      <p v-if="total === 0" class="text-sm text-muted">
+      <p v-if="total === 0 && !fallback.length && !namedSkills.length" class="text-sm text-muted">
         Nothing is trending yet. Skilld watches X for posts naming skill repositories and lists
         what more than one person shares. Browse the
         <NuxtLink to="/skills" class="underline underline-offset-4">
@@ -125,7 +151,7 @@ function shareLabel(authorCount: number): string {
         in the meantime.
       </p>
 
-      <ol v-else class="editorial-ledger list-none p-0">
+      <ol v-else-if="total" class="editorial-ledger list-none p-0">
         <li v-for="(item, index) in items" :key="`${item.owner}/${item.repo}`">
           <article class="trending-row">
             <span class="trending-rank">{{ String(index + 1).padStart(2, '0') }}</span>
@@ -207,32 +233,83 @@ function shareLabel(authorCount: number): string {
           </article>
         </li>
       </ol>
-
       <!--
-        Star growth is a separate signal from X chatter, so it gets its own
-        block rather than being blended into the ranking above. A repo can
-        climb hard on GitHub with nobody posting about it, and merging the two
-        would hide which one actually fired.
+        Skills someone named outright, each confirmed against a SKILL.md in a
+        repo the post linked. A much stronger claim than "this repo is being
+        discussed", and much rarer, so it gets its own block rather than being
+        merged into the ranking above where it would be buried.
       -->
-      <aside v-if="surging.length" class="mt-12 border-t border-default pt-8" aria-labelledby="surging-heading">
-        <h2 id="surging-heading" class="section-label">
-          Also climbing on GitHub
+      <aside
+        v-if="namedSkills.length"
+        :class="total ? 'mt-12 border-t border-default pt-8' : ''"
+        aria-labelledby="named-heading"
+      >
+        <h2 id="named-heading" class="section-label">
+          Named by developers
         </h2>
         <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-          Tracked repositories whose star growth jumped well above their own usual pace in the
-          last few days, whether or not anyone posted about them.
+          Skills people referred to by name, each checked against the SKILL.md in its author's
+          repository. The name shown is the one the author gave it.
         </p>
         <ul class="mt-5 grid list-none gap-3 p-0 sm:grid-cols-2">
-          <li v-for="repo in surging" :key="`${repo.owner}/${repo.repo}`">
+          <li v-for="skill in namedSkills" :key="`${skill.owner}/${skill.repo}/${skill.slug}`">
             <NuxtLink
-              :to="`/gh/${repo.owner}/${repo.repo}`"
-              class="flex items-baseline justify-between gap-3 rounded-lg border border-default px-3 py-2 transition-colors hover:border-inverted"
+              :to="`/skills/${skill.owner}/${skill.repo}/${skill.slug}`"
+              class="flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
             >
-              <span class="min-w-0 truncate font-mono text-xs text-default">
-                {{ repo.owner }}/{{ repo.repo }}
+              <span class="flex items-baseline justify-between gap-2">
+                <span class="min-w-0 truncate font-medium text-default">{{ skill.canonicalName }}</span>
+                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
+                  {{ skillSignal(skill) }}
+                </span>
               </span>
-              <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
-                +{{ repo.starsGained.toLocaleString() }} stars
+              <span class="mt-1 font-mono text-xs text-muted">{{ skill.owner }}/{{ skill.repo }}</span>
+              <span v-if="skill.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
+                {{ skill.evidence.text }}
+              </span>
+              <span v-if="skill.evidence" class="mt-2 font-mono text-xs text-muted">
+                @{{ skill.evidence.authorHandle }}
+              </span>
+            </NuxtLink>
+          </li>
+        </ul>
+      </aside>
+
+      <!--
+        Star-ranked filler, shown only when X has been quiet. Labelled as a
+        different claim: these repos are popular, not currently being posted
+        about, and presenting the two identically would be dishonest.
+      -->
+      <aside
+        v-if="fallback.length"
+        :class="(total || namedSkills.length) ? 'mt-12 border-t border-default pt-8' : ''"
+        aria-labelledby="fallback-heading"
+      >
+        <h2 id="fallback-heading" class="section-label">
+          Popular on GitHub
+        </h2>
+        <p class="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
+          Quiet week on X. These are well-starred skills from the registry, one per repository,
+          shown so the page still points somewhere useful.
+        </p>
+        <ul class="mt-5 grid list-none gap-3 p-0 sm:grid-cols-2">
+          <li v-for="skill in fallback" :key="`${skill.owner}/${skill.repo}/${skill.slug}`">
+            <NuxtLink
+              :to="`/skills/${skill.owner}/${skill.repo}/${skill.slug}`"
+              class="flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
+            >
+              <span class="flex items-baseline justify-between gap-2">
+                <span class="min-w-0 truncate font-medium text-default">{{ skill.canonicalName }}</span>
+                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
+                  {{ skill.stars.toLocaleString() }} stars
+                </span>
+              </span>
+              <span class="mt-1 font-mono text-xs text-muted">{{ skill.owner }}/{{ skill.repo }}</span>
+              <span v-if="skill.description" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
+                {{ skill.description }}
+              </span>
+              <span v-if="skill.repoSkillCount > 1" class="mt-2 font-mono text-xs text-muted">
+                1 of {{ skill.repoSkillCount }} in this repo
               </span>
             </NuxtLink>
           </li>

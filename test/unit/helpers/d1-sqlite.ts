@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 
 /**
@@ -16,6 +16,22 @@ export interface SqliteD1 {
   db: D1Database
   raw: DatabaseSync
   close: () => void
+}
+
+/**
+ * Every migration, in order.
+ *
+ * For tests spanning tables that different migrations created. Listing a
+ * subset by hand works until a query joins one table too many, and then the
+ * failure is `no such table` in a test that was meant to be about ranking.
+ * `migrations-bootstrap.test.ts` already proves the whole chain applies to an
+ * empty database, so replaying it is cheap and cannot drift.
+ */
+export function allMigrations(): string[] {
+  return readdirSync('migrations')
+    .filter(name => name.endsWith('.sql'))
+    .sort()
+    .map(name => `migrations/${name}`)
 }
 
 export function createSqliteD1(migrationPaths: string[]): SqliteD1 {

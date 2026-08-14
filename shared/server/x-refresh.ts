@@ -91,7 +91,12 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
       `SELECT post_id, posted_at, favourite_count, repost_count, reply_count,
               quote_count, bookmark_count, metrics_updated_at
        FROM x_posts
-       WHERE refresh_tier != 'frozen' AND next_refresh_at <= ?1
+       -- Platform predicate is load-bearing, not defensive. This task posts
+       -- claimed ids to the X lookup endpoint, where every returned object is
+       -- charged against the monthly cap. A Bluesky AT-URI sent there is a
+       -- guaranteed miss that still costs a request, and because a miss never
+       -- updates the row it would be re-claimed on every single run.
+       WHERE platform = 'x' AND refresh_tier != 'frozen' AND next_refresh_at <= ?1
        ORDER BY refresh_tier ASC, next_refresh_at ASC
        LIMIT ?2`,
     )

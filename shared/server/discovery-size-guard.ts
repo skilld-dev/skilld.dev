@@ -33,6 +33,12 @@ const SKILL_FILE_SUFFIX = '/SKILL.md'
 export type RepoSizeVerdict
   = | { _tag: 'sized', skillCount: number }
   /**
+   * The repository no longer exists. Terminal, and distinct from `unknown`:
+   * retrying a 404 every quarter hour forever is pure waste. Real case,
+   * `0xwilliamortiz/claude-red`, which drew 162 likes and was then deleted.
+   */
+    | { _tag: 'gone' }
+  /**
    * Size could not be established. Callers must fail closed and park the repo:
    * admitting an unmeasured repo defeats the guard, and the common cause is an
    * expired GitHub token, which would otherwise wave everything through.
@@ -53,6 +59,9 @@ export type MeasureRepoSize = (repo: { owner: string, repo: string }) => Promise
 export function createGithubRepoSizer(bindings: GithubBindings): MeasureRepoSize {
   return async ({ owner, repo }) => {
     const summary = await getRepoSummary(owner, repo, bindings)
+    // 404 means deleted, renamed or made private. Nothing to wait for.
+    if (summary.status === 404)
+      return { _tag: 'gone' }
     if (summary.status !== 200 || !summary.data)
       return { _tag: 'unknown', reason: `repo-summary-${summary.status}` }
 

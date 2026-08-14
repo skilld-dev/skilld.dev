@@ -2,8 +2,8 @@
 import type { XClient, XPage, XPost, XResult } from '../../shared/server/x-client'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ZERO_METRICS } from '../../shared/server/x-client'
-import { DAILY_DISCOVERY_READ_BUDGET, ingestXMentions } from '../../shared/server/x-ingest'
+import { X_SEARCH_PAGE_SIZE, ZERO_METRICS } from '../../shared/server/x-client'
+import { DAILY_DISCOVERY_READ_BUDGET, ingestXMentions, utcDayKey } from '../../shared/server/x-ingest'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const MIGRATIONS = [
@@ -284,9 +284,25 @@ describe('ingestXMentions daily read budget', () => {
   }
 
   it('never asks for more posts than the budget has left', async () => {
+    // Bounded by whichever is smaller: X caps a page at 100, and the budget
+    // now sits above that, so the page size governs the first request.
     const { client, maxResults } = stubClient([pageOf(1, 100)])
     await ingestXMentions({ db: db().db, client, now: NOW })
-    expect(maxResults[0]).toBe(DAILY_DISCOVERY_READ_BUDGET)
+    expect(maxResults[0]).toBe(Math.min(X_SEARCH_PAGE_SIZE, DAILY_DISCOVERY_READ_BUDGET))
+  })
+
+  it('shrinks the last request to whatever budget remains', async () => {
+    // The real guard: once most of the budget is gone, the next page must ask
+    // only for the remainder, never a full 100 that would overspend.
+    const spentAlready = DAILY_DISCOVERY_READ_BUDGET - 40
+    db().raw.prepare(
+      `INSERT INTO x_ingest_cursor (query_key, since_id, last_run_at, last_result_count, posts_read_total, budget_day, budget_spent)
+       VALUES ('discovery-v1', NULL, ?, 0, 0, ?, ?)`,
+    ).run(NOW, utcDayKey(NOW), spentAlready)
+
+    const { client, maxResults } = stubClient([pageOf(1, 100)])
+    await ingestXMentions({ db: db().db, client, now: NOW })
+    expect(maxResults[0]).toBe(40)
   })
 
   it('stops paging once the budget is spent, and says so', async () => {
@@ -358,5 +374,47 @@ describe('ingestXMentions failure handling', () => {
 
     const cursor = db().raw.prepare('SELECT since_id FROM x_ingest_cursor').get()
     expect(cursor).toEqual({ since_id: '5000' })
+  })
+})
+
+describe('ingestXMentions cursor safety', () => {
+  it('holds the cursor when the budget stops a run mid-window', async () => {
+    // Advancing to the newest id here jumped past every post the run could not
+    // afford, losing them permanently. Because the daily budget is spent by the
+    // first run after UTC midnight, that discarded most of the stream daily.
+    const pages = Array.from({ length: 6 }, (_, i) => ({
+      _tag: 'ok' as const,
+      value: page([post({ id: String(9000 - i), authorId: `a${i}` })], `token-${i}`),
+    }))
+    const { client } = stubClient(pages)
+    const summary = await ingestXMentions({ db: db().db, client, now: NOW })
+
+    expect(summary.windowExhausted).toBe(false)
+    expect(summary.cursorAdvancedTo).toBeNull()
+    const cursor = db().raw.prepare('SELECT since_id FROM x_ingest_cursor').get()
+    expect(cursor).toEqual({ since_id: null })
+  })
+
+  it('advances the cursor once the window is fully consumed', async () => {
+    const { client } = stubClient([{ _tag: 'ok', value: page([post({ id: '5000' })]) }])
+    const summary = await ingestXMentions({ db: db().db, client, now: NOW })
+
+    expect(summary.windowExhausted).toBe(true)
+    expect(summary.cursorAdvancedTo).toBe('5000')
+  })
+
+  it('keeps an established cursor rather than clearing it on a partial run', async () => {
+    const first = stubClient([{ _tag: 'ok', value: page([post({ id: '5000' })]) }])
+    await ingestXMentions({ db: db().db, client: first.client, now: NOW })
+
+    const partial = stubClient(Array.from({ length: 6 }, (_, i) => ({
+      _tag: 'ok' as const,
+      value: page([post({ id: String(6000 - i), authorId: `b${i}` })], `t-${i}`),
+    })))
+    await ingestXMentions({ db: db().db, client: partial.client, now: NOW + 900 })
+
+    // COALESCE keeps the old cursor; the next run resumes from the same point.
+    expect(db().raw.prepare('SELECT since_id FROM x_ingest_cursor').get())
+      .toEqual({ since_id: '5000' })
   })
 })

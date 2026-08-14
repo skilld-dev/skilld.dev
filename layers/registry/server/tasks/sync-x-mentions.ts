@@ -3,6 +3,7 @@
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { ANNOUNCE_MIN_EVIDENCE_BY_SOURCE } from '#shared/platform-weights'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { createDiscordNotifier } from '#shared/server/discord-notify'
 import {
@@ -12,6 +13,7 @@ import {
   submitDiscoveredRepos,
 } from '#shared/server/discovery-ledger'
 import { createGithubRepoSizer } from '#shared/server/discovery-size-guard'
+import { scanPostsForSkills } from '#shared/server/skill-mention-scan'
 import { createXClient, describeXError } from '#shared/server/x-client'
 import { ingestXMentions } from '#shared/server/x-ingest'
 import { resolveGithubBindings } from '../utils/github-client'
@@ -91,6 +93,15 @@ export default defineScheduledTask({
         now,
         measureRepoSize: createGithubRepoSizer(resolveGithubBindings(env)),
       })
+      // Name the individual skills these posts mention. Free: it reads posts
+      // already stored and asks only GitHub, so it belongs in the same run
+      // rather than paying for its own schedule.
+      const skillScan = await scanPostsForSkills({
+        db,
+        bindings: resolveGithubBindings(env),
+        now,
+      })
+
       const reconciled = await reconcileLedger({ db, now })
 
       const announcement = await announceTrending(db, env, now)
@@ -109,8 +120,13 @@ export default defineScheduledTask({
         submitHeldOversized: submitted.heldOversized,
         submitDeferredUnmeasured: submitted.deferredUnmeasured,
         submitBacklog: submitted.truncated,
+        skillsVerified: skillScan.verified,
+        skillsRejected: skillScan.rejected,
+        skillPostsScanned: skillScan.postsScanned,
+        skillScanDeferred: skillScan.deferred,
         reconciledIndexed: reconciled.indexed,
         reconciledEmpty: reconciled.empty,
+        reconcileStalled: reconciled.stalled,
         announced: announcement.announced,
         ingestError: ingest.error ? describeXError(ingest.error) : null,
         elapsedMs: Date.now() - startedAt,
@@ -119,8 +135,8 @@ export default defineScheduledTask({
       emitOperationalEvent(createWideEvent({
         'operation': 'sync-x-mentions',
         'outcome': ingest.error ? 'partial' : 'completed',
-        'scanned.count': summary.fetched,
-        'processed.count': summary.upserted,
+        'scanned.count': summary.postsRead,
+        'processed.count': summary.postsStored,
         'success.count': summary.announced,
         'truncated': ingest.truncated,
       }))
@@ -137,13 +153,6 @@ export default defineScheduledTask({
   },
 })
 
-/**
- * Evidence score a repo must reach before it earns a Discord message. Weighted
- * engagement, so roughly "a post with a few hundred favourites, or a smaller
- * one carrying real bookmark intent".
- */
-const ANNOUNCE_MIN_EVIDENCE = 300
-
 async function announceTrending(
   db: D1Database,
   env: Cloudflare.Env & Record<string, unknown>,
@@ -153,7 +162,13 @@ async function announceTrending(
   if (!webhookUrl)
     return { announced: 0 }
 
-  const candidates = await pickAnnouncements({ db, minEvidenceScore: ANNOUNCE_MIN_EVIDENCE })
+  // Announcement is source-agnostic and runs here for every source, not just
+  // X, because this is the only task on a quarter-hourly tick. Each source
+  // clears its own threshold; see the note on why one number cannot serve all.
+  const candidates = await pickAnnouncements({
+    db,
+    minEvidenceScoreBySource: ANNOUNCE_MIN_EVIDENCE_BY_SOURCE,
+  })
   if (candidates.length === 0)
     return { announced: 0 }
 
@@ -165,10 +180,8 @@ async function announceTrending(
     repo: c.repo,
     evidenceUrl: c.evidenceUrl,
     evidenceText: c.evidenceText,
-    // Evidence score is a weighted composite, not a raw count. Sending the
-    // composite as if it were favourites would misreport it in the channel.
-    favouriteCount: 0,
-    bookmarkCount: 0,
+    source: c.source,
+    evidenceScore: c.evidenceScore,
     authorHandle: authorFromUrl(c.evidenceUrl),
     skillCount: skillCounts.get(`${c.owner}/${c.repo}`) ?? 0,
     skilldUrl: `https://skilld.dev/gh/${c.owner}/${c.repo}`,
@@ -185,8 +198,22 @@ async function announceTrending(
   return { announced: candidates.length }
 }
 
+/**
+ * Author handle from an evidence permalink.
+ *
+ * Bluesky evidence links carry a DID rather than a handle, deliberately: a
+ * handle can be changed or lost, which would rot every link already written to
+ * the ledger. A DID is unreadable in a Discord field though, so it is shortened
+ * rather than shown whole.
+ */
 function authorFromUrl(url: string): string {
-  return url.match(/x\.com\/([^/]+)\/status\//)?.[1] ?? 'unknown'
+  const x = url.match(/x\.com\/([^/]+)\/status\//)?.[1]
+  if (x)
+    return x
+  const did = url.match(/bsky\.app\/profile\/([^/]+)\/post\//)?.[1]
+  if (did)
+    return did.startsWith('did:') ? `${did.slice(0, 16)}…` : did
+  return 'unknown'
 }
 
 /**

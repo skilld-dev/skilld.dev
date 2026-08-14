@@ -2,7 +2,7 @@
 import type { MeasureRepoSize } from '../../shared/server/discovery-size-guard'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { submitDiscoveredRepos } from '../../shared/server/discovery-ledger'
+import { reconcileLedger, submitDiscoveredRepos } from '../../shared/server/discovery-ledger'
 import { AUTO_INDEX_SKILL_LIMIT } from '../../shared/server/discovery-size-guard'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
@@ -213,5 +213,59 @@ describe('auto-index size guard', () => {
     expect(summary.heldOversized).toBe(1)
     expect(summary.queued).toBe(2)
     expect(calls.sort()).toEqual(['small/one', 'small/two'])
+  })
+})
+
+describe('reconcileLedger empty rule', () => {
+  it('never empties a row whose submission job has not finished', async () => {
+    // The bug this replaces marked any row submitted >6h ago as empty, which
+    // silently discarded cathrynlavery/diagram-design (13,254 stars, one
+    // SKILL.md) while its job sat unstarted. Empty is terminal, so it never
+    // came back.
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS jobs (job_type TEXT, payload TEXT, completed_at INTEGER, failed_at INTEGER)`)
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS skills (owner TEXT, repo TEXT, source_resolved INTEGER)`)
+    seedPending('cathrynlavery', 'diagram-design')
+    db().raw.prepare(`UPDATE discovery_ledger SET status='submitted', submitted_at=?`).run(NOW - 30 * 3600)
+    db().raw.prepare(`INSERT INTO jobs VALUES ('registry/repository-submission', ?, NULL, NULL)`).run(JSON.stringify({ owner: 'cathrynlavery', repo: 'diagram-design' }))
+
+    const result = await reconcileLedger({ db: db().db, now: NOW })
+
+    expect(result.empty).toBe(0)
+    expect(result.stalled).toBe(1)
+    expect(db().raw.prepare(`SELECT status FROM discovery_ledger`).get()).toEqual({ status: 'submitted' })
+  })
+
+  it('empties a row once its job finished and found nothing', async () => {
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS jobs (job_type TEXT, payload TEXT, completed_at INTEGER, failed_at INTEGER)`)
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS skills (owner TEXT, repo TEXT, source_resolved INTEGER)`)
+    seedPending('someone', 'empty-repo')
+    db().raw.prepare(`UPDATE discovery_ledger SET status='submitted', submitted_at=?`).run(NOW - 30 * 3600)
+    db().raw.prepare(`INSERT INTO jobs VALUES ('registry/repository-submission', ?, ?, NULL)`).run(JSON.stringify({ owner: 'someone', repo: 'empty-repo' }), NOW - 3600)
+
+    const result = await reconcileLedger({ db: db().db, now: NOW })
+    expect(result.empty).toBe(1)
+  })
+})
+
+describe('deleted repositories', () => {
+  it('parks a repo that no longer exists instead of retrying forever', async () => {
+    // 0xwilliamortiz/claude-red drew 162 likes and was then deleted. Treating
+    // 404 as "unknown" retried it every quarter hour for nothing.
+    seedPending('0xwilliamortiz', 'claude-red')
+    const { calls, enqueue } = recordingEnqueue()
+
+    const summary = await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue,
+      measureRepoSize: async () => ({ _tag: 'gone' }),
+    })
+
+    expect(summary.heldGone).toBe(1)
+    expect(summary.deferredUnmeasured).toBe(0)
+    expect(calls).toEqual([])
+    expect(db().raw.prepare(`SELECT held_reason FROM discovery_ledger`).get())
+      .toEqual({ held_reason: 'repo-gone' })
   })
 })

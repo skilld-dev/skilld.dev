@@ -117,7 +117,23 @@ export interface LoadTrendingOptions {
    * the admin review list leaves it false to see everything discovery found.
    */
   indexedOnly?: boolean
+  /**
+   * Likes a post needs before its mention counts. Measured on real data, the
+   * posts worth surfacing carry hundreds: `cathrynlavery/diagram-design` came
+   * from a 535-like post, `aashaexo/soundshuman` from 436. Below about 25 the
+   * page fills with posts nobody engaged with.
+   */
+  minLikes?: number
+  /**
+   * Repos a single post may name before it counts as a listicle. A "30 GitHub
+   * repos you should know" thread is not 30 endorsements, and its entries were
+   * measured at 30.6% SKILL.md precision against 83.9% for focused posts.
+   */
+  maxReposPerPost?: number
 }
+
+export const DEFAULT_MIN_LIKES = 25
+export const DEFAULT_MAX_REPOS_PER_POST = 3
 
 export async function loadTrendingRepos(options: LoadTrendingOptions): Promise<TrendingRepo[]> {
   const { db, now } = options
@@ -131,7 +147,16 @@ export async function loadTrendingRepos(options: LoadTrendingOptions): Promise<T
   const grouped = new Map<string, RepoTrendInput>()
   const postsById = new Map<string, PostRow>()
 
+  const minLikes = options.minLikes ?? 0
+  const maxReposPerPost = options.maxReposPerPost ?? Infinity
+
   for (const row of rows) {
+    // Quiet posts and listicles are excluded before ranking, so they cannot
+    // contribute breadth or engagement to a repo.
+    if (row.favourite_count < minLikes)
+      continue
+    if (row.repo_count > maxReposPerPost)
+      continue
     postsById.set(row.post_id, row)
     const key = `${row.owner}/${row.repo}`
     let entry = grouped.get(key)

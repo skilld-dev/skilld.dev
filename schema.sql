@@ -116,12 +116,6 @@ CREATE TABLE _ai_ready_info (
       ready INTEGER DEFAULT 0
     );
 
-CREATE TABLE _content_frameworks (id TEXT PRIMARY KEY, "title" VARCHAR, "body" TEXT, "description" VARCHAR, "extension" VARCHAR, "framework" VARCHAR, "meta" TEXT, "navigation" TEXT DEFAULT true, "npmPackage" VARCHAR NULL, "path" VARCHAR, "seo" TEXT DEFAULT '{}', "stem" VARCHAR, "__hash__" TEXT UNIQUE);
-
-CREATE TABLE _content_info (id TEXT PRIMARY KEY, "ready" BOOLEAN, "structureVersion" VARCHAR, "version" VARCHAR, "__hash__" TEXT UNIQUE);
-
-CREATE TABLE _content_learn (id TEXT PRIMARY KEY, "title" VARCHAR, "body" TEXT, "description" VARCHAR, "extension" VARCHAR, "meta" TEXT, "navigation" TEXT DEFAULT true, "path" VARCHAR, "publishedAt" VARCHAR NULL, "seo" TEXT DEFAULT '{}', "stem" VARCHAR, "updatedAt" VARCHAR NULL, "__hash__" TEXT UNIQUE);
-
 CREATE TABLE activity (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   type TEXT NOT NULL,

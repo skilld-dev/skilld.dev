@@ -27,14 +27,17 @@ import { X_SEARCH_PAGE_SIZE } from './x-client'
  * the same links as its original, would be read as a separate post against the
  * cap, and adds nothing the original does not already say.
  *
- * `lang:en` matches the language of the surfaces that quote these posts. It is
- * also the cheapest single saving available: 74 of 299 posts measured on
- * 2026-08-13 were non-English, so a quarter of the daily read budget was going
- * on posts the trending page would never quote. The cost is real but small,
- * since the repos those posts named were almost always named in English posts
- * too.
+ * The language clause matches the surfaces that quote these posts, and saves
+ * about a quarter of the budget: 74 of 299 posts measured on 2026-08-13 were
+ * non-English.
+ *
+ * `zxx` is included deliberately. It means "no linguistic content", which X
+ * assigns to a post whose text is nothing but a link, and that is exactly the
+ * shape of an X Article. dexhorthy's /show-me article carried 6,614 bookmarks
+ * with `lang: zxx`, so filtering on `lang:en` alone would discard the single
+ * highest-engagement skill post we have seen.
  */
-export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR (url:"github.com" ("SKILL.md" OR "skills.md" OR "agent skill" OR "agent skills" OR "claude skill" OR "claude skills" OR "claude code skill" OR "agentskills"))) -is:retweet lang:en'
+export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR (url:"github.com" ("SKILL.md" OR "skills.md" OR "agent skill" OR "agent skills" OR "claude skill" OR "claude skills" OR "claude code skill" OR "agentskills"))) -is:retweet (lang:en OR lang:zxx)'
 
 /** Cursor key, so a second query can be added later without a schema change. */
 export const X_DISCOVERY_CURSOR_KEY = 'discovery-v1'
@@ -50,16 +53,21 @@ const MAX_PAGES_PER_RUN = 5
 /**
  * Charged post reads discovery may spend per UTC day.
  *
- * This is the whole cost control for the feature. Every post the search
- * returns costs $0.005 whether or not we keep it, so spend is set by what the
- * query matches, not by how often we poll. 22 reads/day is ~$3.30/month, and
- * the refresh task adds roughly half that again when a hot window crosses
- * midnight, landing the feature just under $5/month.
+ * A CEILING, NOT A SPEND. Only posts the query actually matches are charged,
+ * so raising this does not raise the bill on a quiet day; it only stops a
+ * runaway. Actual spend tracks the stream, measured at roughly 250 matching
+ * posts/day, about $37/month, with the refresh task adding a similar amount as
+ * hot posts cross midnight. Call it $75/month all in, or 0.75% of the
+ * 2,000,000/month cap.
  *
- * Raising this is the single dial for "see more of X". It is linear: each
- * extra read/day is $0.15/month.
+ * IT MUST EXCEED THE STREAM RATE. The cursor now holds position when a run is
+ * cut short, so a small budget no longer discards posts, but it does make the
+ * ingest fall behind by the shortfall every day, and that lag never recovers.
+ * At the previous 22/day against a ~250/day stream the backlog grew by more
+ * than 200 posts daily and the feed was permanently a week stale. 400 leaves
+ * roughly 60% headroom over the observed rate for spikes.
  */
-export const DAILY_DISCOVERY_READ_BUDGET = 22
+export const DAILY_DISCOVERY_READ_BUDGET = 400
 
 /** X rejects a search with max_results below this, so a smaller remainder ends the run. */
 const MIN_SEARCH_PAGE_SIZE = 10
@@ -99,6 +107,8 @@ export interface XIngestSummary {
   pagesFetched: number
   /** True when MAX_PAGES_PER_RUN stopped the run before the window emptied. */
   truncated: boolean
+  /** True when pagination reached the end of the window, so the cursor moved. */
+  windowExhausted: boolean
   /** True when the daily read budget stopped the run. Expect this most days. */
   budgetExhausted: boolean
   /** Charged reads spent today after this run, against DAILY_DISCOVERY_READ_BUDGET. */
@@ -290,6 +300,7 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
     ledgerUpdated: 0,
     pagesFetched: 0,
     truncated: false,
+    windowExhausted: false,
     budgetExhausted: false,
     budgetSpentToday: 0,
     cursorAdvancedTo: null,
@@ -306,6 +317,9 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
   const collected: XPost[] = []
   let nextToken: string | null = null
   let newestId: string | null = null
+  // Only true once pagination reached the end of the window, meaning every
+  // post newer than the cursor has been seen.
+  let windowExhausted = false
 
   for (let page = 0; page < MAX_PAGES_PER_RUN; page++) {
     // Checked before the request, not after: a page is charged the moment it
@@ -338,8 +352,10 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
     newestId ??= result.value.newestId
     nextToken = result.value.nextToken
 
-    if (!nextToken)
+    if (!nextToken) {
+      windowExhausted = true
       break
+    }
     if (page === MAX_PAGES_PER_RUN - 1)
       summary.truncated = true
   }
@@ -396,16 +412,29 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
     }
   }
 
+  summary.windowExhausted = windowExhausted
   summary.budgetSpentToday = spent
+  // The cursor only moves when the whole window was consumed.
+  //
+  // It used to advance to the first page's newest id regardless, so a run cut
+  // short by the daily budget jumped the cursor past everything it had not
+  // read and those posts were gone for good. Because the budget is spent by
+  // the first run after UTC midnight, that discarded almost a full day of the
+  // stream, every day, and biased what survived towards the youngest posts.
+  //
+  // Holding the cursor makes the next run re-paginate from the same point.
+  // Same-day re-reads are deduplicated by X, so resuming is free until
+  // midnight; only a window still unfinished at the rollover costs anything.
+  const advanceTo = windowExhausted ? newestId : null
   await writeCursor(db, X_DISCOVERY_CURSOR_KEY, {
-    sinceId: newestId,
+    sinceId: advanceTo,
     now,
     resultCount: collected.length,
     postsRead: summary.postsRead,
     budgetDay: today,
     budgetSpent: spent,
   })
-  summary.cursorAdvancedTo = newestId
+  summary.cursorAdvancedTo = advanceTo
 
   summary.elapsedMs = Date.now() - startedAt
   return summary

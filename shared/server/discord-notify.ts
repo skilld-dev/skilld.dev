@@ -26,8 +26,16 @@ export interface TrendingAnnouncement {
   /** Evidence post URL, so the channel can judge the claim for itself. */
   evidenceUrl: string
   evidenceText: string
-  favouriteCount: number
-  bookmarkCount: number
+  /** Which network surfaced it. Decides how `evidenceScore` should be read. */
+  source: 'x' | 'bsky' | 'hn'
+  /**
+   * Weighted engagement on its own platform's scale.
+   *
+   * Reported instead of raw favourite and bookmark counts, which the ledger
+   * does not carry: it stores the composite, and the call site was passing
+   * zeros for both, so every message read "0 favourites, 0 bookmarks".
+   */
+  evidenceScore: number
   authorHandle: string
   /** Indexed skills, when the repo has already resolved some. */
   skillCount: number
@@ -39,6 +47,8 @@ export interface CreateDiscordNotifierOptions {
   webhookUrl: string | undefined
   fetchImpl?: typeof fetch
 }
+
+const SOURCE_LABELS = { x: 'X', bsky: 'Bluesky', hn: 'Hacker News' } as const
 
 /** Discord rejects a payload over 2000 characters in `content`. */
 const MAX_CONTENT = 1900
@@ -63,11 +73,17 @@ export function createDiscordNotifier(options: CreateDiscordNotifierOptions): Di
       const shown = items.slice(0, MAX_EMBEDS)
       const overflow = items.length - shown.length
 
+      // Named per source rather than hardcoded to X. A batch can now mix
+      // networks, and labelling a Bluesky find as "Trending on X" would send
+      // a reader to the wrong place to check the claim.
+      const networks = [...new Set(shown.map(item => SOURCE_LABELS[item.source]))]
+      const where = networks.length === 1 ? ` on ${networks[0]}` : ''
+
       const body = {
         content: truncate(
           overflow > 0
-            ? `Trending on X: ${shown.length} repos, plus ${overflow} more`
-            : `Trending on X: ${shown.length} ${shown.length === 1 ? 'repo' : 'repos'}`,
+            ? `Trending${where}: ${shown.length} repos, plus ${overflow} more`
+            : `Trending${where}: ${shown.length} ${shown.length === 1 ? 'repo' : 'repos'}`,
           MAX_CONTENT,
         ),
         embeds: shown.map(item => ({
@@ -77,8 +93,10 @@ export function createDiscordNotifier(options: CreateDiscordNotifierOptions): Di
           fields: [
             { name: 'Posted by', value: `@${item.authorHandle}`, inline: true },
             {
-              name: 'Engagement',
-              value: `${item.favouriteCount} favourites, ${item.bookmarkCount} bookmarks`,
+              name: 'Evidence',
+              // The scale is named because the number is meaningless without
+              // it: 50 is a strong Bluesky post and a negligible X one.
+              value: `${Math.round(item.evidenceScore)} on ${SOURCE_LABELS[item.source]}`,
               inline: true,
             },
             {
