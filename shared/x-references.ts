@@ -155,6 +155,30 @@ function parseOne(rawUrl: string): RepoReference | null {
  */
 const BARE_GITHUB_PATTERN = /(?:^|[\s(<[])(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)/gi
 
+/**
+ * Install commands, which name the repository without linking to it.
+ *
+ * THE HIGHEST-PRECISION REFERENCE THERE IS, AND IT WAS BEING IGNORED. Someone
+ * writing `npx skills add owner/repo` is not discussing a repository, they are
+ * telling people to install it. Measured against the seeded corpus, this is
+ * how the best posts refer to a repo, and none of them were being linked:
+ *
+ *   970 likes  npx skills add Jakubantalik/transitions.dev
+ *   200 likes  npx skills add vercel/next.js --skill next-dev-loop
+ *   100 likes  npx skills add shadcn/ui
+ *    45 likes  npx skills add lukeberrypi/skills --skill remove-dumb-comments
+ *
+ * Every one of those matched the discovery query, was paid for, stored, and
+ * then attached to no repository at all, because reference extraction only
+ * ever looked for a github.com URL. The `--skill` suffix is optional here on
+ * purpose: the repo is worth capturing whether or not a skill is named with
+ * it, and `skill-mentions.ts` reads the skill half separately.
+ */
+const INSTALL_PATTERNS = [
+  /npx\s+skills\s+add\s+([\w.-]+)\/([\w.-]+)/gi,
+  /npx\s+skilld\s+add\s+(?:gh:)?([\w.-]+)\/([\w.-]+)/gi,
+]
+
 export function extractRepoReferences(input: { urls: string[], text: string }): RepoReference[] {
   const found = new Map<string, RepoReference>()
 
@@ -174,6 +198,11 @@ export function extractRepoReferences(input: { urls: string[], text: string }): 
 
   for (const match of input.text.matchAll(BARE_GITHUB_PATTERN))
     add(parseOne(`https://github.com/${match[1]}/${match[2]}`))
+
+  for (const pattern of INSTALL_PATTERNS) {
+    for (const match of input.text.matchAll(pattern))
+      add(parseOne(`https://github.com/${match[1]}/${match[2]}`))
+  }
 
   return [...found.values()]
 }

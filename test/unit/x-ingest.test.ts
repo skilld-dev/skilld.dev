@@ -203,6 +203,20 @@ describe('ingestXMentions persistence', () => {
     expect(summary.reposSeen).toBe(0)
   })
 
+  it('links a repository named only by an install command', async () => {
+    // The 970-like post in the seeded corpus reads exactly like this and was
+    // attached to no repository at all.
+    const install = post({
+      text: 'A few examples of using the Transitions skill in a real UI. npx skills add Jakubantalik/transitions.dev',
+      urls: [],
+    })
+    const { client } = stubClient([{ _tag: 'ok', value: page([install]) }])
+    await ingestXMentions({ db: db().db, client, now: NOW })
+
+    expect(db().raw.prepare('SELECT owner, repo FROM x_post_repos').get())
+      .toEqual({ owner: 'jakubantalik', repo: 'transitions.dev' })
+  })
+
   it('does not put an infinite evidence score on a post with no repository', async () => {
     const chatter = post({ text: 'no links here', urls: [] })
     const { client } = stubClient([{ _tag: 'ok', value: page([chatter]) }])
