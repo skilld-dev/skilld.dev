@@ -187,14 +187,28 @@ describe('ingestXMentions persistence', () => {
     expect(listedEntry.evidence_score).toBeLessThan(rows[0]!.evidence_score)
   })
 
-  it('skips a matching post that points at no repository', async () => {
+  it('stores a matching post that points at no repository', async () => {
+    // We paid X for this read. Discarding it, which is what this used to do,
+    // means buying it again to reconsider it later, and it destroys exactly
+    // the viral prose posts the broadened query exists to catch.
     const chatter = post({ text: 'skills are overrated', urls: ['https://example.com/blog'] })
     const { client } = stubClient([{ _tag: 'ok', value: page([chatter]) }])
     const summary = await ingestXMentions({ db: db().db, client, now: NOW })
 
     expect(summary.postsSkippedNoRepo).toBe(1)
-    expect(summary.postsStored).toBe(0)
-    expect(db().raw.prepare('SELECT COUNT(*) AS n FROM x_posts').get()).toEqual({ n: 0 })
+    expect(summary.postsStored).toBe(1)
+    expect(db().raw.prepare('SELECT COUNT(*) AS n FROM x_posts').get()).toEqual({ n: 1 })
+    // No repo rows, so nothing reaches the review ledger from it.
+    expect(db().raw.prepare('SELECT COUNT(*) AS n FROM x_post_repos').get()).toEqual({ n: 0 })
+    expect(summary.reposSeen).toBe(0)
+  })
+
+  it('does not put an infinite evidence score on a post with no repository', async () => {
+    const chatter = post({ text: 'no links here', urls: [] })
+    const { client } = stubClient([{ _tag: 'ok', value: page([chatter]) }])
+    await ingestXMentions({ db: db().db, client, now: NOW })
+
+    expect(db().raw.prepare('SELECT COUNT(*) AS n FROM discovery_ledger').get()).toEqual({ n: 0 })
   })
 
   it('re-ingesting a post updates engagement without resetting when it was found', async () => {

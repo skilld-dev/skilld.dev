@@ -19,9 +19,32 @@ import { X_SEARCH_PAGE_SIZE } from './x-client'
 /**
  * The one query the discovery poll runs.
  *
- * Two arms. The first catches anyone linking us directly, whatever they say.
- * The second catches GitHub links in posts that use the ecosystem's own
- * vocabulary, which is how a repo we have never heard of shows up.
+ * FOUR ARMS, ORDERED BY PRECISION, AND THE ORDERING IS THE WHOLE DESIGN.
+ *
+ *   1. `url:"skilld.dev"`  anyone linking us, whatever they say.
+ *   2. `"SKILL.md"` and the install commands, with NO url requirement. These
+ *      tokens are specific enough to stand alone: a probe of 10 results
+ *      returned 10 genuine skill posts.
+ *   3. GitHub links plus ecosystem vocabulary. The original query.
+ *   4. Loose vocabulary gated behind `min_likes:75`.
+ *
+ * WHY ARM 2 EXISTS AT ALL. Every earlier arm required a URL, and that quietly
+ * decided what kind of person this feed could see. Measured against production:
+ * 69 X posts captured ever, the most-liked at 31, and zero above 100. A probe
+ * of high-engagement skill posts found 0 to 1 in 10 carried a github.com link,
+ * because a post that goes viral is commentary, a screenshot, or a thread with
+ * the link in a reply. The query was selecting for link-dumpers and excluding
+ * everyone else, which is exactly why the board read as weak.
+ *
+ * WHY ARM 4 IS GATED SO HIGH. The same probe run without a floor returned
+ * crypto spam ("JUST LIT THE FUSE! $200 for link") and AI-hustle threads
+ * ("I'm making over $10K a month selling AI services") at 149 to 4,657 likes.
+ * "claude skill" and "agent skills" are contaminated phrases. The floor buys
+ * back precision, and `min_likes` scoped inside a nested OR group is valid API
+ * syntax, verified against the live endpoint.
+ *
+ * `--skill` was tried as an install marker and rejected: X tokenizes it
+ * loosely and it matched "skill issue" and "skill behind the screen".
  *
  * `-is:retweet` is a cost control as much as a quality one: a retweet carries
  * the same links as its original, would be read as a separate post against the
@@ -37,7 +60,7 @@ import { X_SEARCH_PAGE_SIZE } from './x-client'
  * with `lang: zxx`, so filtering on `lang:en` alone would discard the single
  * highest-engagement skill post we have seen.
  */
-export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR (url:"github.com" ("SKILL.md" OR "skills.md" OR "agent skill" OR "agent skills" OR "claude skill" OR "claude skills" OR "claude code skill" OR "agentskills"))) -is:retweet (lang:en OR lang:zxx)'
+export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR "SKILL.md" OR "npx skills add" OR "npx skilld add" OR (url:"github.com" ("skills.md" OR "agent skill" OR "agent skills" OR "claude skill" OR "claude skills" OR "claude code skill" OR "agentskills")) OR (("claude skill" OR "claude skills" OR "agent skills" OR "claude code skill") min_likes:75)) -is:retweet (lang:en OR lang:zxx)'
 
 /** Cursor key, so a second query can be added later without a schema change. */
 export const X_DISCOVERY_CURSOR_KEY = 'discovery-v1'
@@ -55,10 +78,15 @@ const MAX_PAGES_PER_RUN = 5
  *
  * A CEILING, NOT A SPEND. Only posts the query actually matches are charged,
  * so raising this does not raise the bill on a quiet day; it only stops a
- * runaway. Actual spend tracks the stream, measured at roughly 250 matching
- * posts/day, about $37/month, with the refresh task adding a similar amount as
- * hot posts cross midnight. Call it $75/month all in, or 0.75% of the
- * 2,000,000/month cap.
+ * runaway.
+ *
+ * RAISED FROM 400 BECAUSE 400 WAS THE BINDING CONSTRAINT, NOT THE COST.
+ * Measured against the live project on 2026-08-14: `project_cap` is 3,000,000
+ * posts/month and `project_usage` was 798. The old ceiling allowed 12,000 a
+ * month, which is 0.4% of a cap that was already bought, while the corpus it
+ * produced held 69 posts and topped out at 31 likes. 2,000/day is 60,000 a
+ * month, still only 2% of the cap, and leaves room for the broadened query to
+ * find the posts the old one could not see.
  *
  * IT MUST EXCEED THE STREAM RATE. The cursor now holds position when a run is
  * cut short, so a small budget no longer discards posts, but it does make the
@@ -67,7 +95,7 @@ const MAX_PAGES_PER_RUN = 5
  * than 200 posts daily and the feed was permanently a week stale. 400 leaves
  * roughly 60% headroom over the observed rate for spikes.
  */
-export const DAILY_DISCOVERY_READ_BUDGET = 400
+export const DAILY_DISCOVERY_READ_BUDGET = 2000
 
 /** X rejects a search with max_results below this, so a smaller remainder ends the run. */
 const MIN_SEARCH_PAGE_SIZE = 10
@@ -365,12 +393,20 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
 
   for (const post of collected) {
     const refs = extractRepoReferences({ urls: post.urls, text: post.text })
-    if (refs.length === 0) {
-      // Matched the query but pointed at no repo we can act on: a discussion
-      // post, or a link to a GitHub page that is not a repository.
+
+    // EVERY POST WE PAID FOR IS STORED, repo link or not.
+    //
+    // This used to `continue` here, discarding the post entirely. We were
+    // buying a read and throwing the result away, so the same post cost cap
+    // again on any later pass and no improvement to detection could ever be
+    // applied retroactively. It also silently destroyed exactly the posts the
+    // broadened query now exists to catch: a viral post naming a skill in
+    // prose carries no repo reference at this stage.
+    //
+    // A post with no reference simply gets no `x_post_repos` rows. It stays in
+    // `x_posts` for `skill-mention-scan` to revisit as detection improves.
+    if (refs.length === 0)
       summary.postsSkippedNoRepo += 1
-      continue
-    }
 
     summary.postsStored += 1
     statements.push(...postWriteStatements(db, post, refs, now))
@@ -382,7 +418,9 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
     // which put them at the top of the review queue ahead of repos a post was
     // actually about. A post naming one repo is a recommendation; a post naming
     // twenty is a list, and each entry carries a twentieth of the weight.
-    const score = weighted(post) / refs.length
+    // Guarded: `refs` may now be empty, and dividing by zero would put
+    // Infinity into `evidence_score` if the loop below ever ran on it.
+    const score = refs.length === 0 ? 0 : weighted(post) / refs.length
     for (const ref of refs) {
       const key = `${ref.owner}/${ref.repo}`
       const held = repos.get(key)
