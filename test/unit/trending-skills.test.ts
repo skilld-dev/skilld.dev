@@ -60,15 +60,27 @@ function mention(input: {
 }
 
 describe('loadTrendingSkills ranking', () => {
-  it('ranks by how many separate people named the skill', async () => {
-    mention({ owner: 'a', repo: 'r', slug: 'broad', handle: 'p1' })
-    mention({ owner: 'a', repo: 'r', slug: 'broad', handle: 'p2' })
-    mention({ owner: 'a', repo: 'r', slug: 'broad', handle: 'p3' })
-    mention({ owner: 'b', repo: 'r', slug: 'loud', handle: 'q1', likes: 5000 })
+  it('ranks by how many separate people named the skill, at comparable reach', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 'broad', handle: 'p1', likes: 50 })
+    mention({ owner: 'a', repo: 'r', slug: 'broad', handle: 'p2', likes: 50 })
+    mention({ owner: 'a', repo: 'r', slug: 'broad', handle: 'p3', likes: 50 })
+    mention({ owner: 'b', repo: 'r', slug: 'narrow', handle: 'q1', likes: 50 })
 
     const result = await loadTrendingSkills({ db: db().db, now: NOW })
-    expect(result.map(s => s.slug)).toEqual(['broad', 'loud'])
+    expect(result.map(s => s.slug)).toEqual(['broad', 'narrow'])
     expect(result[0]?.social?.authorCount).toBe(3)
+  })
+
+  it('ranks a genuinely viral mention above a few quiet ones', async () => {
+    // Reach no longer saturates below one author. Production served the
+    // inverse on 2026-08-15: a skill four people named to zero engagement led
+    // the board, and one carrying 6,685 engagement sat sixth.
+    mention({ owner: 'a', repo: 'r', slug: 'quiet', handle: 'p1', likes: 2 })
+    mention({ owner: 'a', repo: 'r', slug: 'quiet', handle: 'p2', likes: 2 })
+    mention({ owner: 'b', repo: 'r', slug: 'viral', handle: 'q1', likes: 5000 })
+
+    const result = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(result.map(s => s.slug)).toEqual(['viral', 'quiet'])
   })
 
   it('does not let one person lift a skill by posting repeatedly', async () => {

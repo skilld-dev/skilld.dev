@@ -90,19 +90,39 @@ describe('scoreSkillTrend weighting', () => {
   })
 })
 
-describe('scoreSkillTrend breadth over depth', () => {
-  it('ranks two separate people above one person with a viral post', () => {
-    const broad = scoreSkillTrend(skill({ slug: 'broad', social: social(2, 2) }))
-    const loud = scoreSkillTrend(skill({ slug: 'loud', social: social(1, 5000) }))
+describe('scoreSkillTrend breadth and reach', () => {
+  /**
+   * Production numbers, 2026-08-15. `install-anti-slop` carried 6,685 weighted
+   * engagement from one author and sat sixth, below `diagram-design`, which
+   * four accounts named to a combined engagement of zero.
+   *
+   * A board about what is trending cannot lead with the thing nobody engaged
+   * with, so engagement is no longer capped below one author.
+   */
+  it('ranks a genuinely viral post above a few quiet mentions', () => {
+    const loud = scoreSkillTrend(skill({ slug: 'loud', social: social(1, 6685) }))
+    const quiet = scoreSkillTrend(skill({ slug: 'quiet', social: social(2, 73) }))
 
-    expect(broad.score).toBeGreaterThan(loud.score)
+    expect(loud.score).toBeGreaterThan(quiet.score)
   })
 
-  it('never lets engagement be worth a whole extra author', () => {
-    const one = scoreSkillTrend(skill({ slug: 'a', social: social(1, 10_000_000) }))
-    const two = scoreSkillTrend(skill({ slug: 'b', social: social(2, 0) }))
+  it('still ranks breadth first when reach is comparable', () => {
+    const broad = scoreSkillTrend(skill({ slug: 'broad', social: social(2, 500) }))
+    const single = scoreSkillTrend(skill({ slug: 'single', social: social(1, 500) }))
 
-    expect(two.score).toBeGreaterThan(one.score)
+    // Engagement decides between skills, never instead of them. Two people at
+    // the same reach is the stronger claim and has to stay that way.
+    expect(broad.score).toBeGreaterThan(single.score)
+  })
+
+  it('keeps engagement on a log scale so reach cannot run away', () => {
+    // 25x the raw engagement is worth well under 25x the score, otherwise one
+    // enormous post would flatten every other signal on the page.
+    const huge = scoreSkillTrend(skill({ slug: 'huge', social: social(1, 250_000) }))
+    const big = scoreSkillTrend(skill({ slug: 'big', social: social(1, 10_000) }))
+
+    expect(huge.score).toBeGreaterThan(big.score)
+    expect(huge.score).toBeLessThan(big.score * 2)
   })
 
   it('dilutes an author whose post named many skills', () => {

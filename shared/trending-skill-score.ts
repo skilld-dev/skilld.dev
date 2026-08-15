@@ -98,23 +98,31 @@ export const SOCIAL_WEIGHT = 3
 export const GITHUB_WEIGHT = 1
 
 /**
- * Engagement breaks ties between skills. It never decides one.
+ * Reach, log-scaled, added to author breadth rather than capped beneath it.
  *
- * BREADTH BEATS DEPTH, and this function is where that survives contact with
- * a viral post. Five people naming a skill once each is a trend; one person
- * naming it to a huge audience is a person having a good day. An earlier
- * version added `log10(engagement)` directly, which let a single post with
- * 5,000 engagement (3.7) outrank two separate authors (2.0) and inverted the
- * whole principle.
+ * THE SATURATION WAS THE WRONG LEVER. A previous version divided this by
+ * `1 + scaled` so the bonus could never reach 1, on the principle that no
+ * amount of engagement should outweigh one more human being. That principle
+ * reads well and produced a board nobody would call trending. Measured in
+ * production on 2026-08-15: `install-anti-slop`, 6,685 weighted engagement
+ * from a single author, ranked sixth. First place went to `diagram-design`,
+ * named by four accounts to a combined engagement of zero.
  *
- * So the bonus saturates strictly below 1: any amount of engagement is worth
- * less than one additional human being. Raw engagement is also the number most
- * distorted by platform, with X clearing thousands where Bluesky clears single
- * digits, which is a second reason not to let it drive.
+ * Saturation cannot tell a banger from a normal post, which is the specific
+ * failure. Compressed through `s/(1+s)`, 6,685 scores 0.79 and 267 scores
+ * 0.71: a twenty-five-fold difference in reach collapses to nothing, so no
+ * choice of ceiling separates them. Only removing the compression does.
+ *
+ * The listicle problem that motivated the cap is handled where it belongs, by
+ * `authorWeight` in `trending-skills.ts`: a post naming thirty skills grants a
+ * thirtieth of an author. That dilution is what stopped "my top 30 Claude
+ * repos" from minting four top-ranked skills, not this function.
+ *
+ * `log10` keeps reach from running away. Ten times the engagement is worth one
+ * more point, so a mega-viral post leads the board without flattening it.
  */
 function engagementBonus(engagement: number): number {
-  const scaled = Math.log10(1 + Math.max(0, engagement))
-  return scaled / (1 + scaled)
+  return Math.log10(1 + Math.max(0, engagement))
 }
 
 function socialStrength(social: SocialEvidence): number {
