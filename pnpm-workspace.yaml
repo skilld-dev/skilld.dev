@@ -29,7 +29,7 @@ trustPolicy: no-downgrade
 
 catalog:
   '@antfu/eslint-config': ^9.3.0
-  '@cloudflare/workers-types': ^5.20260813.1
+  '@cloudflare/workers-types': ^5.20260814.1
   '@comark/nuxt': 0.6.2
   '@harlan-zw/comark-content': 0.0.17
   '@harlan-zw/nuxt-cf-jobs': 0.0.5
@@ -47,7 +47,7 @@ catalog:
   '@nuxt/eslint': ^1.17.0
   '@nuxt/fonts': ^0.14.0
   '@nuxt/kit': 4.5.2
-  '@nuxt/scripts': ^1.3.3
+  '@nuxt/scripts': ^1.3.4
   '@nuxt/test-utils': ^4.1.0
   '@nuxt/ui': ^4.10.0
   '@nuxtjs/html-validator': ^2.1.0
@@ -88,7 +88,7 @@ catalog:
   vitest: ^4.1.10
   vue: 3.5.41
   vue-tsc: ^3.3.9
-  wrangler: ^4.122.0
+  wrangler: ^4.123.0
   zod: ^4.4.3
 ignoredBuiltDependencies:
   - '@parcel/watcher'
