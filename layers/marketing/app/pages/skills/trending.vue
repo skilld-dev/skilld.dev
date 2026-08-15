@@ -1,15 +1,33 @@
 <script setup lang="ts">
 import type { TrendingFeedResponse, TrendingSkillFeedItem } from '~~/server/api/feed/trending.get'
+import { relativeDay, trendingBasis } from '#shared/trending-basis'
+
+/**
+ * Rows the board shows at most.
+ *
+ * Thirty is enough to read as a leaderboard rather than a shortlist, and the
+ * fallback tail fills it out when the evidenced rows run short. Applied twice
+ * on purpose: as the request, so the server does not rank more than is wanted,
+ * and as a slice, so the fallback tail cannot push the board past it.
+ */
+const BOARD_LIMIT = 30
 
 // `await`, for the reason documented in [cluster].vue: without it the server
 // renders before the request settles and ships an empty shell to the crawler.
 const { data } = await useFetch<TrendingFeedResponse>('/api/feed/trending', {
-  // Thirty rows: enough to read as a leaderboard rather than a shortlist,
-  // and the fallback tail fills it out when the evidenced rows run short.
-  query: { limit: 30 },
+  query: { limit: BOARD_LIMIT },
 })
 
-const items = computed(() => data.value?.items ?? [])
+/**
+ * The one clock every date on this page is measured against.
+ *
+ * Never the browser's. `Date.now()` produced a real hydration mismatch here:
+ * the server rendered "4d ago" against its own clock and the client recomputed
+ * against a different one, so Vue found the text changed under it. `computedAt`
+ * travels with the payload and is identical on both sides. Zero means the fetch
+ * failed, and a failed fetch has no board to date.
+ */
+const clock = computed(() => data.value?.computedAt ?? 0)
 
 /**
  * Owners whose avatar failed to load.
@@ -90,7 +108,7 @@ const board = computed<BoardRow[]>(() => [
     description: s.description,
     stars: s.stars,
     basis: skillBasis(s),
-    when: skillWhen(s),
+    when: s.evidence ? relativeDay(s.evidence.postedAt, clock.value) : null,
     evidenceUrl: s.evidence?.url ?? null,
     quote: s.evidence?.text ?? null,
     platform: s.evidence?.platform ?? null,
@@ -107,8 +125,12 @@ const board = computed<BoardRow[]>(() => [
     description: s.description,
     stars: s.stars,
     // Star growth where we measured it, which is the only "this week" claim a
-    // fallback entry can make. Absent, the row says nothing about the week.
-    basis: s.starsGained ? `+${s.starsGained.toLocaleString()} stars this week` : null,
+    // fallback entry can make. Absent, the row falls back to the weaker claim
+    // that put it here at all, rather than rendering an empty meta line that
+    // makes a filler row look like an evidenced one that lost its evidence.
+    basis: s.starsGained
+      ? `+${s.starsGained.toLocaleString()} stars this week`
+      : 'Popular on GitHub',
     when: null,
     evidenceUrl: null,
     quote: null,
@@ -117,15 +139,18 @@ const board = computed<BoardRow[]>(() => [
     engagement: null,
     evidenced: false,
   })),
-])
+].slice(0, BOARD_LIMIT))
 
-/** Verified entries only. The star fallback is filler and must not count. */
-const indexableCount = computed(() => items.value.length + namedSkills.value.length)
-const total = computed(() => items.value.length)
-const skillTotal = computed(() => namedSkills.value.length)
-const isEmpty = computed(() =>
-  !total.value && !skillTotal.value && !fallback.value.length,
-)
+/**
+ * Evidenced rows, which is also the count that decides indexability.
+ *
+ * Counted from what the board renders, never from `items`. The repositories
+ * band left the page in this rework, so adding `items.length` here let a
+ * collection the reader never sees decide whether the page was worth indexing.
+ */
+const skillTotal = computed(() => board.value.filter(row => row.evidenced).length)
+const fillerTotal = computed(() => board.value.length - skillTotal.value)
+const isEmpty = computed(() => board.value.length === 0)
 
 /**
  * The week the board covers, stated rather than implied.
@@ -135,10 +160,7 @@ const isEmpty = computed(() =>
  * have updated. The window matches `DEFAULT_WINDOW_HOURS` on the server.
  */
 const weekRange = computed(() => {
-  // Dated from `computedAt` alone, never the client clock: a `Date.now()`
-  // fallback renders a different string on server and client and trips
-  // hydration. When the fetch failed there is no board to date anyway.
-  const end = new Date((data.value?.computedAt ?? 0) * 1000)
+  const end = new Date(clock.value * 1000)
   const start = new Date(end.getTime() - 7 * 86_400_000)
   const day = (d: Date) => d.getUTCDate()
   const month = (d: Date) => d.toLocaleString('en', { month: 'short', timeZone: 'UTC' })
@@ -146,6 +168,10 @@ const weekRange = computed(() => {
     ? `${day(start)}–${day(end)} ${month(end)}`
     : `${day(start)} ${month(start)} – ${day(end)} ${month(end)}`
 })
+
+function likesLabel(count: number): string {
+  return `${count.toLocaleString()} ${count === 1 ? 'like' : 'likes'}`
+}
 
 /**
  * Quiet emphasis for the head of the board.
@@ -155,13 +181,23 @@ const weekRange = computed(() => {
  * headings and lists "large font sizes in UI chrome" under Avoid. Contrast is,
  * so the top three ranks step up from muted to default and nothing moves.
  */
-function likesLabel(count: number): string {
-  return `${count.toLocaleString()} ${count === 1 ? 'like' : 'likes'}`
-}
-
 function rankClass(index: number): string {
   return index < 3 ? 'text-default' : 'text-muted'
 }
+
+/**
+ * The page header, which has to hold at thirty rows as well as at eight.
+ *
+ * The board runs evidenced rows first and popular skills after, and the second
+ * group is most of the page on a quiet week. A header claiming every row was
+ * named is the same overclaim the "Named by developers" heading made, one level
+ * up, so the filler is acknowledged whenever any is on the board.
+ */
+const headerDescription = computed(() =>
+  fillerTotal.value
+    ? 'Agent skills developers named this week, ranked by how many separate people named each one. Popular skills fill the rest of the board.'
+    : 'Agent skills developers named this week, ranked by how many separate people named each one.',
+)
 
 const title = 'Trending Claude Skills This Week'
 /**
@@ -172,13 +208,9 @@ const title = 'Trending Claude Skills This Week'
  * repositories developers are posting about on X right now".
  */
 const description = computed(() => {
-  if (skillTotal.value && total.value) {
-    return `${skillTotal.value} agent skills and ${total.value} repositories developers are talking about this week, each shown with the evidence behind it: the post that named it, or the star surge on a repo holding one skill.`
+  if (skillTotal.value) {
+    return `${skillTotal.value} agent skills developers are talking about this week, each shown with the evidence behind it: the post that named it, or the star surge on a repo holding one skill.`
   }
-  if (skillTotal.value)
-    return `${skillTotal.value} agent skills developers are talking about this week, each shown with the evidence behind it.`
-  if (total.value)
-    return `${total.value} skill repositories developers are posting about right now, ranked by how many separate people shared them.`
   return 'Agent skills developers are talking about, ranked by how many separate people share them rather than by how loud any one post was.'
 })
 
@@ -196,7 +228,7 @@ useSeoMeta({
   // its own quoted evidence. The star fallback deliberately does not: it is
   // generic popularity available on any listing page, and letting filler earn
   // indexability is exactly how the catalog got suppressed.
-  robots: () => (indexableCount.value >= 8 ? 'index,follow' : 'noindex,follow'),
+  robots: () => (skillTotal.value >= 8 ? 'index,follow' : 'noindex,follow'),
 })
 
 useHead({
@@ -208,61 +240,13 @@ defineOgImage('Page.takumi', {
   description: 'What developers are actually posting about this week.',
 }, { alt: 'Trending agent skills on skilld' })
 
-/**
- * Ages measured from the server's clock, never the browser's.
- *
- * `Date.now()` here produced a real hydration mismatch: the server rendered
- * "4d ago" against its own clock and the client recomputed against a different
- * one, so Vue found the text changed under it. `computedAt` travels with the
- * payload and is identical on both sides.
- */
-function relativeDay(unixSeconds: number): string {
-  const reference = data.value?.computedAt ?? unixSeconds
-  const hours = Math.floor((reference - unixSeconds) / 3600)
-  if (hours < 1)
-    return 'just now'
-  if (hours < 24)
-    return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
-
-/**
- * Why this skill is on the page, in the terms that actually made the claim.
- *
- * THIS BELONGS ON THE ROW, NOT OVER THE LIST. A skill qualifies two ways and
- * they are different assertions: a person naming it in a post, or its
- * repository gaining stars while holding exactly one skill. A heading can only
- * state one of them, so the previous "Named by developers" heading was false
- * for every star-attributed entry, and production served four of those with
- * `authorCount: 0` under copy claiming people had named them.
- */
-function skillBasis(skill: TrendingSkillFeedItem): string {
-  // One person is named, not counted. "1 person named it" beside "@handle" is
-  // the same fact twice, and the handle is the more useful half.
-  const people = skill.authorCount === 1 && skill.evidence
-    ? `@${skill.evidence.authorHandle}`
-    : `${skill.authorCount} people`
-  const stars = skill.starGain === null ? '' : `+${skill.starGain.toLocaleString()} stars`
-  if (skill.attribution === 'github')
-    return stars
-  if (skill.attribution === 'both')
-    return `${people} · ${stars}`
-  return people
-}
-
-/**
- * When the claim was made.
- *
- * A social row dates from the post that named the skill. A star row dates from
- * the surge day. Returning null rather than a fallback keeps a row silent about
- * time it does not know, instead of implying it happened now.
- */
-function skillWhen(skill: TrendingSkillFeedItem): string | null {
-  if (skill.evidence)
-    return relativeDay(skill.evidence.postedAt)
-  if (skill.starGainDay !== null)
-    return relativeDay(skill.starGainDay)
-  return null
+function skillBasis(skill: TrendingSkillFeedItem): string | null {
+  return trendingBasis({
+    authorCount: skill.authorCount,
+    starGain: skill.starGain,
+    starGainDay: skill.starGainDay,
+    hasEvidence: skill.evidence !== null,
+  }, clock.value)
 }
 </script>
 
@@ -270,7 +254,7 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
   <div>
     <CompactPageHeader
       title="Trending this week"
-      description="Agent skills developers named this week, ranked by how many separate people named them."
+      :description="headerDescription"
       heading-id="trending-heading"
     />
 
@@ -281,7 +265,7 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
       <h2 id="trending-list-heading" class="sr-only">
         Trending agent skills
       </h2>
-      <div v-if="isEmpty" class="editorial-state flex flex-col justify-center p-6" role="status">
+      <div v-if="isEmpty" class="editorial-state flex flex-col justify-center" role="status">
         <p class="text-sm text-default">
           Nothing is trending yet.
         </p>
@@ -293,13 +277,13 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
           <UButton to="/skills" label="Browse the directory" color="neutral" variant="outline" class="min-h-11" />
         </div>
       </div>
-      <div v-if="board.length">
+      <div v-else>
         <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
           <p class="section-label">
             Top skills
           </p>
-          <p class="font-mono text-xs text-muted tabular-nums">
-            {{ weekRange }}
+          <p class="data-label">
+            {{ board.length }} skills · {{ weekRange }}
           </p>
         </div>
         <ol class="editorial-ledger mt-6 list-none p-0">
@@ -332,6 +316,19 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
                 <span v-if="row.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
                   {{ row.description }}
                 </span>
+                <!--
+                  Rendered alongside the quote, never instead of it. A `both`
+                  row has to state its stars as well as its post, and a row
+                  named by several people has to say so; the quote can only ever
+                  show one of them.
+
+                  Above the quote, so everything the row itself asserts sits
+                  flush in one block and the one indented element is the thing
+                  somebody else said.
+                -->
+                <span v-if="row.basis" class="data-label mt-2 block">
+                  {{ row.basis }}
+                </span>
                 <a
                   v-if="row.evidenceUrl"
                   :href="row.evidenceUrl"
@@ -355,9 +352,6 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
                     <span v-if="row.engagement" class="tabular-nums">{{ likesLabel(row.engagement) }}</span>
                   </span>
                 </a>
-                <span v-else-if="row.basis" class="mt-2 block font-mono text-xs text-muted">
-                  {{ row.basis }}
-                </span>
               </div>
             </div>
           </li>
@@ -381,15 +375,18 @@ function skillWhen(skill: TrendingSkillFeedItem): string | null {
   align-items: flex-start;
   gap: 1rem;
   padding: 1.25rem 0;
-  transition: opacity 200ms ease;
 }
 
-/* Matches the whole-row link hover on /skills/best. */
-@media (hover: hover) {
-  .ledger-row:hover {
-    opacity: 0.7;
-  }
-}
+/*
+ * No row-level hover here, unlike `/skills/best`.
+ *
+ * There the whole row is one link, so dimming the row states where a click
+ * goes. Here the row holds two destinations, the skill and the post that named
+ * it, and neither covers the row. A row-wide dim promised a click target that
+ * does not exist, and it multiplied with the name link's own 0.7 whenever the
+ * pointer was over the name, dropping it to 0.49 and reading as disabled.
+ * Each target now dims only itself.
+ */
 
 .ledger-rank {
   font-family: var(--font-mono, monospace);
