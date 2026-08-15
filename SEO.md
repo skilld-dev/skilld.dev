@@ -42,7 +42,7 @@ All live and verified in production on 2026-08-12.
 | Surface | Title | Targets | Vol/mo |
 | --- | --- | --- | --- |
 | `/skills` | Claude Skills Directory | `claude skills directory`, library/registry variants | ~260 + tail |
-| `/skills/leaderboard` | Top Claude Skill Repositories on GitHub | `claude skills github`, `claude skills repo`, `claude skills repository`, `top claude skills` | ~4,100 |
+| `/skills/trending?range=all` | Top Claude Skill Repositories on GitHub | `claude skills github`, `claude skills repo`, `claude skills repository`, `top claude skills` | ~4,100 |
 | `/skills/best` | Best Claude Skills, Reviewed and Ranked | `best claude skills`, `best claude code skills` | ~1,780 |
 | `/skills/design` | Claude Skills for UI and Design | design/UI cluster | ~660 |
 | `/skills/coding` | Claude Skills for Coding | coding cluster | ~310 |
@@ -95,7 +95,7 @@ Check at that point, then again at eight:
 
 1. `gsc_query` type `keywords`, period `28d`: does any `claude * skills` term
    appear at all? Any impression is signal from a baseline of zero.
-2. `inspect_url` on `/skills/best`, `/skills/leaderboard`, `/skills/seo`: are
+2. `inspect_url` on `/skills/best`, `/skills/trending?range=all`, `/skills/seo`: are
    they indexed, and did the sitemap get read?
 3. Indexed count trend. The 2026-06 scar was scaled content; if indexed pages
    climb while impressions stay flat, the additions read as thin and should be

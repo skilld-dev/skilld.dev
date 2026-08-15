@@ -80,6 +80,15 @@ export type ProductionSmokeResult
     }>
   }
 
+/**
+ * The page whose Nuxt asset manifest the deploy is judged on.
+ *
+ * Any rendered HTML page would do; what matters is that one real document has
+ * every asset it references available at the edge. It was `/skills/leaderboard`
+ * until that page merged into the trending board on 2026-08-15.
+ */
+export const ASSET_COHERENCE_PATH = '/skills/trending'
+
 export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   { path: '/', status: 200, bodyContains: ['<h1'] },
   { path: '/skills', status: 200, bodyContains: ['<h1'] },
@@ -87,7 +96,7 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   { path: '/collections', status: 301, location: '/community' },
   { path: '/guides', status: 410 },
   { path: '/guides/npm/example', status: 410 },
-  { path: '/skills/leaderboard', status: 200 },
+  { path: ASSET_COHERENCE_PATH, status: 200 },
   { path: '/skills/not-a-real-outcome', status: 404 },
   { path: '/collections/_CollectionAvatar', status: 404 },
   // The `plan` cluster became `planning` in the 2026-08-12 category rework, so
@@ -95,6 +104,9 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   // and a redirect chain would be the bug this check exists to catch.
   { path: '/skills/tag/plan', status: 301, location: '/skills/planning' },
   { path: '/skills/plan', status: 301, location: '/skills/planning' },
+  // The leaderboard is now the `all` range of the trending board. This checks
+  // the 301 that carries its ~4,100/mo repository cluster across.
+  { path: '/skills/leaderboard', status: 301, location: '/skills/trending?range=all' },
   // The category surface is the reason the rework exists, so it is checked for
   // rendered content, not just a 200.
   //
@@ -234,7 +246,7 @@ async function checkWithRetries(
   }
 }
 
-async function checkLeaderboardAssetCoherence(
+async function checkAssetCoherence(
   dependencies: ProductionSmokeDependencies,
   input: {
     fetch: SmokeFetch
@@ -263,22 +275,22 @@ async function checkLeaderboardAssetCoherence(
 
   for (let attempt = 1; attempt <= input.attempts; attempt++) {
     let nextDelayMs = input.retryDelayMs
-    const page = await observe(input.fetch, dependencies.baseUrl, '/skills/leaderboard')
+    const page = await observe(input.fetch, dependencies.baseUrl, ASSET_COHERENCE_PATH)
     if ('_tag' in page) {
       latestFailures = [{
-        path: '/skills/leaderboard',
+        path: ASSET_COHERENCE_PATH,
         attempts: attempt,
         result: page,
       }]
     }
     else {
       const pageEvaluation = evaluateSmokeObservation(
-        { path: '/skills/leaderboard', status: 200 },
+        { path: ASSET_COHERENCE_PATH, status: 200 },
         page,
       )
       if (pageEvaluation._tag === 'failed') {
         latestFailures = [{
-          path: '/skills/leaderboard',
+          path: ASSET_COHERENCE_PATH,
           attempts: attempt,
           result: pageEvaluation,
         }]
@@ -289,7 +301,7 @@ async function checkLeaderboardAssetCoherence(
           : []
         if (assets.length === 0) {
           latestFailures = [{
-            path: '/skills/leaderboard',
+            path: ASSET_COHERENCE_PATH,
             attempts: attempt,
             result: {
               _tag: 'failed',
@@ -412,8 +424,8 @@ export async function runProductionSmoke(
     }
   }
 
-  if (expectations.some(expectation => expectation.path === '/skills/leaderboard')) {
-    const coherence = await checkLeaderboardAssetCoherence(dependencies, {
+  if (expectations.some(expectation => expectation.path === ASSET_COHERENCE_PATH)) {
+    const coherence = await checkAssetCoherence(dependencies, {
       fetch,
       attempts: assetCoherenceAttempts,
       retryDelayMs,

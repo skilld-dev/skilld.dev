@@ -2,13 +2,11 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const communitySource = readFileSync('app/pages/community/index.vue', 'utf8')
-const leaderboardSource = readFileSync('layers/marketing/app/pages/skills/leaderboard.vue', 'utf8')
 const skillsSource = readFileSync('layers/marketing/app/pages/skills/index.vue', 'utf8')
 
 describe('compact registry page header', () => {
   it.each([
     ['Community', communitySource],
-    ['Leaderboard', leaderboardSource],
     ['Skills', skillsSource],
   ])('replaces the %s masthead with the shared compact template', (title, source) => {
     expect(source).not.toContain('<EditorialMasthead')

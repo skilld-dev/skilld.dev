@@ -55,7 +55,7 @@ The beachhead push (VISION north-star user). Curation is the claim; this horizon
 /@<gh-login>               curator profile
 /@<gh-login>/<slug>        collection detail, one-command install
 /gh/[owner]/[repo]/[name]  skill detail: preview, provenance, watch CTA
-/skills, /skills/leaderboard, /skills/stats, /community   browse + showcase surfaces
+/skills, /skills/trending, /skills/stats, /community   browse + showcase surfaces
 ```
 
 Install commands: `npx skilld add gh:owner/repo`, `skilld add @login`, `skilld add @login/collection`.

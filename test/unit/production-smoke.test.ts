@@ -1,6 +1,7 @@
 import type { SmokeFetch } from '../../scripts/lib/production-smoke'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  ASSET_COHERENCE_PATH,
   evaluateSmokeObservation,
   PRODUCTION_SMOKE_EXPECTATIONS,
   runProductionSmoke,
@@ -15,11 +16,12 @@ describe('production smoke contract', () => {
       { path: '/collections', status: 301, location: '/community' },
       { path: '/guides', status: 410 },
       { path: '/guides/npm/example', status: 410 },
-      { path: '/skills/leaderboard', status: 200 },
+      { path: ASSET_COHERENCE_PATH, status: 200 },
       { path: '/skills/not-a-real-outcome', status: 404 },
       { path: '/collections/_CollectionAvatar', status: 404 },
       { path: '/skills/tag/plan', status: 301, location: '/skills/planning' },
       { path: '/skills/plan', status: 301, location: '/skills/planning' },
+      { path: '/skills/leaderboard', status: 301, location: '/skills/trending?range=all' },
       { path: '/skills/tag/cloudflare', status: 200, bodyContains: ['<h1'] },
     ]))
   })
@@ -31,9 +33,9 @@ describe('production smoke contract', () => {
       .filter(item => item.status === 200 && !item.bodyContains?.length)
       .map(item => item.path)
 
-    // The leaderboard is exempt: its own asset-coherence pass already reads the
-    // body and asserts the Nuxt asset manifest is non-empty.
-    expect(unchecked).toEqual(['/skills/leaderboard'])
+    // The asset-coherence page is exempt: its own pass already reads the body
+    // and asserts the Nuxt asset manifest is non-empty.
+    expect(unchecked).toEqual([ASSET_COHERENCE_PATH])
   })
 
   it('reports status and redirect mismatches as values', () => {
@@ -112,7 +114,7 @@ describe('production smoke contract', () => {
       // this test stays about retry behaviour rather than content.
       const body = [
         ...(expectation.bodyContains ?? []),
-        ...(url.pathname === '/skills/leaderboard' ? ['<script src="/_nuxt/v2/app.js"></script>'] : []),
+        ...(url.pathname === ASSET_COHERENCE_PATH ? ['<script src="/_nuxt/v2/app.js"></script>'] : []),
       ].join('')
       return new Response(
         body,
@@ -120,7 +122,7 @@ describe('production smoke contract', () => {
           status: expectation.status,
           headers: {
             ...(expectation.location ? { location: expectation.location } : {}),
-            ...(url.pathname === '/skills/leaderboard' ? { 'content-type': 'text/html' } : {}),
+            ...(url.pathname === ASSET_COHERENCE_PATH ? { 'content-type': 'text/html' } : {}),
           },
         },
       )
@@ -161,10 +163,10 @@ describe('production smoke contract', () => {
     })
   })
 
-  it('fails when the leaderboard references an unavailable Nuxt asset', async () => {
+  it('fails when the checked page references an unavailable Nuxt asset', async () => {
     const fetch: SmokeFetch = vi.fn(async (input) => {
       const url = new URL(String(input))
-      if (url.pathname === '/skills/leaderboard') {
+      if (url.pathname === ASSET_COHERENCE_PATH) {
         return new Response(
           '<html><head><link rel="modulepreload" href="/_nuxt/v2/missing.js"></head></html>',
           {
@@ -181,7 +183,7 @@ describe('production smoke contract', () => {
       attempts: 1,
       assetCoherenceAttempts: 1,
       fetch,
-      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+      expectations: [{ path: ASSET_COHERENCE_PATH, status: 200 }],
     })
 
     expect(result).toEqual({
@@ -204,7 +206,7 @@ describe('production smoke contract', () => {
     let delayedCleanUrlPoisoned = false
     const fetch: SmokeFetch = vi.fn(async (input) => {
       const url = new URL(String(input))
-      if (url.pathname === '/skills/leaderboard') {
+      if (url.pathname === ASSET_COHERENCE_PATH) {
         return new Response(
           '<script src="/_nuxt/v2/ready.js"></script><link rel="modulepreload" href="/_nuxt/v2/delayed.js">',
           {
@@ -233,7 +235,7 @@ describe('production smoke contract', () => {
       retryDelayMs: 0,
       fetch,
       wait: vi.fn(async () => {}),
-      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+      expectations: [{ path: ASSET_COHERENCE_PATH, status: 200 }],
     })
 
     expect(result._tag).toBe('passed')
@@ -249,7 +251,7 @@ describe('production smoke contract', () => {
     let round = 0
     const fetch: SmokeFetch = vi.fn(async (input) => {
       const url = new URL(String(input))
-      if (url.pathname === '/skills/leaderboard') {
+      if (url.pathname === ASSET_COHERENCE_PATH) {
         round++
         return new Response(
           '<script src="/_nuxt/v2/propagating.js"></script>',
@@ -267,7 +269,7 @@ describe('production smoke contract', () => {
       retryDelayMs: 0,
       fetch,
       wait: vi.fn(async () => {}),
-      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+      expectations: [{ path: ASSET_COHERENCE_PATH, status: 200 }],
     })
 
     expect(result._tag).toBe('passed')
@@ -284,7 +286,7 @@ describe('production smoke contract', () => {
     const cleanRequests: number[] = []
     const fetch: SmokeFetch = vi.fn(async (input) => {
       const url = new URL(String(input))
-      if (url.pathname === '/skills/leaderboard') {
+      if (url.pathname === ASSET_COHERENCE_PATH) {
         return new Response(
           '<script src="/_nuxt/v2/pinned.js"></script>',
           { status: 200, headers: { 'content-type': 'text/html' } },
@@ -307,7 +309,7 @@ describe('production smoke contract', () => {
       wait: vi.fn(async (milliseconds: number) => {
         elapsedMs += milliseconds
       }),
-      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+      expectations: [{ path: ASSET_COHERENCE_PATH, status: 200 }],
     })
 
     expect(result._tag).toBe('passed')
@@ -319,7 +321,7 @@ describe('production smoke contract', () => {
     let pageRequests = 0
     const fetch: SmokeFetch = vi.fn(async (input) => {
       const url = new URL(String(input))
-      if (url.pathname === '/skills/leaderboard') {
+      if (url.pathname === ASSET_COHERENCE_PATH) {
         pageRequests++
         return new Response(
           `<script src="/_nuxt/v2/${pageRequests === 1 ? 'stale' : 'ready'}.js"></script>`,
@@ -340,7 +342,7 @@ describe('production smoke contract', () => {
       retryDelayMs: 0,
       fetch,
       wait: vi.fn(async () => {}),
-      expectations: [{ path: '/skills/leaderboard', status: 200 }],
+      expectations: [{ path: ASSET_COHERENCE_PATH, status: 200 }],
     })
 
     expect(result._tag).toBe('passed')

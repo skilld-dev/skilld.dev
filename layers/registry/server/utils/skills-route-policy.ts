@@ -10,6 +10,9 @@ const marketingPaths = new Set([
   '/skills/',
   '/skills/best',
   '/skills/guide',
+  // Merged into /skills/trending?range=all on 2026-08-15. The page is gone, so
+  // this entry exists only to let the request reach nuxt.config's routeRules
+  // and be 301'd there instead of 404ing here.
   '/skills/leaderboard',
   '/skills/official',
   '/skills/stats',

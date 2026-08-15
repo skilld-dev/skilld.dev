@@ -1,5 +1,5 @@
 // Marketing layer: SEO content. Owns /skills (marketing index), /skills/guide,
-// /skills/leaderboard, /skills/official, /skills/stats, /frameworks/*,
+// /skills/trending, /skills/official, /skills/stats, /frameworks/*,
 // /accessibility.
 // See docs/adr/0001-url-pillars-and-layers.md
 export default defineNuxtConfig({

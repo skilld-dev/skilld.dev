@@ -398,7 +398,7 @@ async function loadSkillDescriptions(
  * cost is bounded by `limit` rather than by how much the world posted.
  *
  * Never feeds the ranking. It is displayed context, and letting it rank would
- * make this board a second star leaderboard, which `/skills/leaderboard`
+ * make this board a second star leaderboard, which the board's `all` range
  * already is.
  */
 async function loadRepoStars(

@@ -337,6 +337,19 @@ export default defineNuxtConfig({
     '/skills/browser-automation': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
     '/skills/marketing': { redirect: { to: '/skills', statusCode: 301 } } as any,
     '/skills/research': { redirect: { to: '/skills', statusCode: 301 } } as any,
+    // 2026-08-15: the leaderboard became the `all` range of the trending board,
+    // so one page now answers "what is moving" and "what is biggest". The
+    // range inherits the leaderboard's title and description verbatim, which is
+    // what keeps the ~4,100/mo repository cluster attached to a live URL.
+    //
+    // Paginated URLs land here too. Route rules match on pathname, and Nitro
+    // carries the original query across, so `/skills/leaderboard?page=2`
+    // becomes `/skills/trending?range=all&page=2`. Verified against a running
+    // server rather than assumed. That URL serves 200 and self-canonicalises
+    // to `?range=all`, so the stray `page` is dropped by the canonical instead
+    // of by the redirect. Pagination went with the page: page 2 has no
+    // successor, and only page 1 ever ranked.
+    '/skills/leaderboard': { redirect: { to: '/skills/trending?range=all', statusCode: 301 } } as any,
     // Harlan's curated collections merged into the category pages, so each
     // retired collection URL points at the page that absorbed it rather than
     // 404ing. `vue-nuxt` and `react` went to the framework pages that already
