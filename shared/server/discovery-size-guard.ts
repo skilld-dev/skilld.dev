@@ -15,7 +15,7 @@
  */
 
 import type { GithubBindings } from '#layers/registry/server/utils/github-client'
-import { getRepoSummary, getTree } from '#layers/registry/server/utils/github-client'
+import { getRepoSummary, getTree, hasBody } from '#layers/registry/server/utils/github-client'
 
 /**
  * Skills a discovered repo may hold and still be indexed without review.
@@ -62,7 +62,7 @@ export function createGithubRepoSizer(bindings: GithubBindings): MeasureRepoSize
     // 404 means deleted, renamed or made private. Nothing to wait for.
     if (summary.status === 404)
       return { _tag: 'gone' }
-    if (summary.status !== 200 || !summary.data)
+    if (!hasBody(summary))
       return { _tag: 'unknown', reason: `repo-summary-${summary.status}` }
 
     const ref = summary.data.headTreeSha
@@ -70,7 +70,7 @@ export function createGithubRepoSizer(bindings: GithubBindings): MeasureRepoSize
       return { _tag: 'unknown', reason: 'no-head-tree' }
 
     const tree = await getTree(owner, repo, ref, bindings)
-    if (tree.status !== 200 || !tree.data)
+    if (!hasBody(tree))
       return { _tag: 'unknown', reason: `tree-${tree.status}` }
 
     if (tree.data.truncated)

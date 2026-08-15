@@ -8,6 +8,9 @@ const github = vi.hoisted(() => ({
   getTree: vi.fn(),
   getBlobsBatch: vi.fn(),
   GRAPHQL_BATCH_SIZE: 50,
+  // The real predicate, not a stub. It decides whether a response counts as
+  // readable, so faking it here would test the fake instead of the rule.
+  hasBody: (outcome: { data: unknown }) => outcome.data !== null && outcome.data !== undefined,
 }))
 vi.mock('#layers/registry/server/utils/github-client', () => github)
 

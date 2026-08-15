@@ -93,6 +93,25 @@ export interface FetchOutcome<T> {
   notModified: boolean
 }
 
+/**
+ * A read succeeded when it produced a body, whatever the status line says.
+ *
+ * ASK THIS, NOT `status === 200`. A conditional request that hits the ETag
+ * cache answers `304` and carries the cached body, so a status check rejects
+ * a perfectly good response. Six call sites did exactly that, and the failure
+ * was invisible until the cache warmed: a repo measured fine the first time,
+ * got cached, and reported `tree-304` on every attempt after that.
+ *
+ * Measured in production on 2026-08-15, this stalled the discovery submit
+ * queue completely. All 25 attempted rows returned `tree-304`, five of them
+ * root-skill repos that had been waiting sixteen hours behind it.
+ */
+export function hasBody<T>(
+  outcome: FetchOutcome<T>,
+): outcome is FetchOutcome<T> & { data: T } {
+  return outcome.data !== null && outcome.data !== undefined
+}
+
 interface CachedEntry<T> {
   etag: string
   body: T

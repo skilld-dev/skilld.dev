@@ -30,7 +30,7 @@
  */
 
 import type { GithubBindings } from '#layers/registry/server/utils/github-client'
-import { getBlobsBatch, getRepoSummary, getTree, GRAPHQL_BATCH_SIZE } from '#layers/registry/server/utils/github-client'
+import { getBlobsBatch, getRepoSummary, getTree, GRAPHQL_BATCH_SIZE, hasBody } from '#layers/registry/server/utils/github-client'
 import { parseSkillFile, slugifySkillName } from '#layers/registry/server/utils/skill-frontmatter'
 
 /** Matches `sync-repo.ts`, so this module and the indexer agree on what a skill is. */
@@ -116,11 +116,11 @@ export async function verifySkillMention(
     return { _tag: 'verified', skill: fromRegistry }
 
   const summary = await getRepoSummary(owner, repo, deps.bindings)
-  if (summary.status !== 200 || !summary.data?.headTreeSha)
+  if (!hasBody(summary) || !summary.data.headTreeSha)
     return { _tag: 'unavailable', reason: `repo-summary-${summary.status}` }
 
   const tree = await getTree(owner, repo, summary.data.headTreeSha, deps.bindings)
-  if (tree.status !== 200 || !tree.data)
+  if (!hasBody(tree))
     return { _tag: 'unavailable', reason: `tree-${tree.status}` }
   if (tree.data.truncated)
     return { _tag: 'unavailable', reason: 'tree-truncated' }
@@ -141,7 +141,7 @@ export async function verifySkillMention(
   const byDirectory = skillPaths.find(path => slugifySkillName(dirNameFor(path, repo)) === candidate)
   if (byDirectory) {
     const blobs = await getBlobsBatch(owner, repo, branch, [byDirectory], deps.bindings)
-    const raw = blobs.status === 200 ? blobs.data?.get(byDirectory) : undefined
+    const raw = hasBody(blobs) ? blobs.data.get(byDirectory) : undefined
     const parsed = raw === undefined ? null : parseSkillFile(raw, dirNameFor(byDirectory, repo))
     const dirName = dirNameFor(byDirectory, repo)
     return {
@@ -165,7 +165,7 @@ export async function verifySkillMention(
   for (let i = 0; i < skillPaths.length; i += GRAPHQL_BATCH_SIZE) {
     const batch = skillPaths.slice(i, i + GRAPHQL_BATCH_SIZE)
     const blobs = await getBlobsBatch(owner, repo, branch, batch, deps.bindings)
-    if (blobs.status !== 200 || !blobs.data)
+    if (!hasBody(blobs))
       return { _tag: 'unavailable', reason: `blobs-${blobs.status}` }
 
     for (const [path, raw] of blobs.data) {
