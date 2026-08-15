@@ -27,6 +27,9 @@ autoInstallPeers: false
 
 trustPolicy: no-downgrade
 
+patchedDependencies:
+  hookable@5.5.3: patches/hookable@5.5.3.patch
+  hookable@6.1.1: patches/hookable@6.1.1.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/workers-types': ^5.20260813.1
@@ -109,6 +112,3 @@ allowBuilds:
   unrs-resolver: true
   vue-demi: true
   workerd: true
-patchedDependencies:
-  hookable@5.5.3: patches/hookable@5.5.3.patch
-  hookable@6.1.1: patches/hookable@6.1.1.patch
