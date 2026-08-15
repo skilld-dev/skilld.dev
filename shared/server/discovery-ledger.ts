@@ -28,6 +28,23 @@ import { AUTO_INDEX_SKILL_LIMIT } from './discovery-size-guard'
 export type LedgerStatus = 'pending' | 'submitted' | 'indexed' | 'empty' | 'rejected'
 export type LedgerSource = 'x' | 'hn' | 'bsky'
 
+/**
+ * What the submit loop did with a row the last time it reached it.
+ *
+ * Distinct from `status` on purpose. `status` is where the repo is in the
+ * pipeline; this is why it is still there. The three outcomes that leave a row
+ * `pending` (`unmeasured`, `error`, and a `queued` write that failed) are
+ * indistinguishable from "never reached" without it, and that ambiguity cost
+ * sixteen hours of a stalled queue reading as normal throughput.
+ */
+export type AttemptOutcome
+  = | 'queued'
+    | 'duplicate'
+    | 'oversized'
+    | 'repo-gone'
+    | 'unmeasured'
+    | 'error'
+
 export interface LedgerEntry {
   id: number
   source: LedgerSource
@@ -251,6 +268,11 @@ export interface SubmitSummary {
   heldGone: number
   /** Deferred because size could not be measured; retried next run. */
   deferredUnmeasured: number
+  /**
+   * First exception message this run, so the task summary names the cause
+   * rather than only counting failures.
+   */
+  lastError: string | null
   /** True when `limit` stopped the run with pending rows still waiting. */
   truncated: boolean
 }
@@ -310,10 +332,28 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
     heldOversized: 0,
     heldGone: 0,
     deferredUnmeasured: 0,
+    lastError: null,
     truncated: rows.length > limit,
   }
 
   for (const row of rows.slice(0, limit)) {
+    // Every branch below writes through this, including the two that leave the
+    // row exactly as they found it. `assignments` carries whatever else that
+    // branch changes, so recording an attempt never costs a second D1 write.
+    const record = (
+      outcome: AttemptOutcome,
+      detail: string | null,
+      assignments: string = '',
+      extra: unknown[] = [],
+    ) => deps.db
+      .prepare(
+        `UPDATE discovery_ledger
+         SET last_attempt_at = ?2, last_attempt_outcome = ?3, last_attempt_detail = ?4${assignments}
+         WHERE id = ?1`,
+      )
+      .bind(row.id, deps.now, outcome, detail, ...extra)
+      .run()
+
     try {
       // Fail closed. No sizer, or a sizer that could not answer, means the
       // repo waits. An expired GitHub token is the likely cause, and treating
@@ -326,29 +366,36 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
         // Park it rather than retry forever. A deleted repo is a permanent
         // answer, and leaving it pending would burn a GitHub call every run.
         summary.heldGone += 1
-        await deps.db
-          .prepare(`UPDATE discovery_ledger SET held_reason = 'repo-gone' WHERE id = ?1`)
-          .bind(row.id)
-          .run()
+        await record('repo-gone', null, `, held_reason = 'repo-gone'`)
         continue
       }
 
       if (verdict._tag === 'unknown') {
+        // WAS THE SILENT ONE. The row stays pending, which is right, and used
+        // to stay identical, which meant a repo could be re-measured every
+        // fifteen minutes forever with nothing anywhere saying so. The sizer's
+        // reason is the whole diagnosis: `tree-403` is a rate limit,
+        // `repo-summary-401` an expired token, `tree-truncated` a repo too big
+        // to count.
         summary.deferredUnmeasured += 1
-        emitOperationalEvent(createWideEvent({ operation: 'discovery-ledger-size', outcome: 'unknown' }))
+        await record('unmeasured', verdict.reason)
+        emitOperationalEvent(createWideEvent({
+          operation: 'discovery-ledger-size',
+          outcome: 'unknown',
+          reason: verdict.reason,
+          repo: `${row.owner}/${row.repo}`,
+        }))
         continue
       }
 
       if (verdict.skillCount > skillLimit) {
         summary.heldOversized += 1
-        await deps.db
-          .prepare(
-            `UPDATE discovery_ledger
-             SET skill_count = ?2, held_reason = 'oversized'
-             WHERE id = ?1`,
-          )
-          .bind(row.id, verdict.skillCount)
-          .run()
+        await record(
+          'oversized',
+          `${verdict.skillCount} skills`,
+          `, skill_count = ?5, held_reason = 'oversized'`,
+          [verdict.skillCount],
+        )
         continue
       }
 
@@ -362,20 +409,36 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
       else
         summary.queued += 1
 
-      await deps.db
-        .prepare(
-          `UPDATE discovery_ledger
-           SET status = 'submitted', submitted_at = ?2, skill_count = ?3
-           WHERE id = ?1`,
-        )
-        .bind(row.id, deps.now, verdict.skillCount)
-        .run()
+      await record(
+        result.status,
+        null,
+        `, status = 'submitted', submitted_at = ?2, skill_count = ?5`,
+        [verdict.skillCount],
+      )
     }
-    catch {
-      // Left pending on purpose: the next run retries. Logged rather than
-      // swallowed so a persistently failing repo is visible in task output.
+    catch (error) {
+      // WAS THE OTHER SILENT ONE, and it swallowed the error without binding
+      // it. Left pending on purpose: the next run retries. The message is now
+      // kept on the row, because a throw that repeats every run is a bug and
+      // the exception text is the only thing that names it.
       summary.failed += 1
-      emitOperationalEvent(createWideEvent({ operation: 'discovery-ledger-submit', outcome: 'failed' }))
+      const detail = error instanceof Error ? error.message : String(error)
+      summary.lastError ??= detail
+      emitOperationalEvent(createWideEvent({
+        operation: 'discovery-ledger-submit',
+        outcome: 'failed',
+        reason: detail,
+        repo: `${row.owner}/${row.repo}`,
+      }))
+      // A failure to record leaves the row silent, which is the exact hole
+      // this closes, so it is reported rather than nested-caught into nothing.
+      await record('error', detail).catch(() => {
+        emitOperationalEvent(createWideEvent({
+          operation: 'discovery-ledger-record',
+          outcome: 'failed',
+          repo: `${row.owner}/${row.repo}`,
+        }))
+      })
     }
   }
 

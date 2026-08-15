@@ -71,6 +71,11 @@ export default defineNuxtConfig({
       'processed.count',
       'rateLimit.limit',
       'rateLimit.remaining',
+      // An outcome says a branch fired; these say which one and on what. A
+      // discovery row parked with `outcome: 'unknown'` and nothing else was
+      // indistinguishable from every other parked row in the archive.
+      'reason',
+      'repo',
       'scanned.count',
       'success.count',
       'truncated',

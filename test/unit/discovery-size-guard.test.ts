@@ -9,6 +9,7 @@ import { createSqliteD1 } from './helpers/d1-sqlite'
 const MIGRATIONS = [
   'migrations/0097_x_mentions_and_discovery_ledger.sql',
   'migrations/0101_discovery_ledger_size_guard.sql',
+  'migrations/0106_discovery_ledger_attempts.sql',
 ]
 const NOW = 1_760_000_000
 
