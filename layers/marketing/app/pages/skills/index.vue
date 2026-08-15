@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
+import { trendingSkillKeySet } from '#shared/trending-keys'
 import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
 // "Find skills for your AI agent" matched no query anyone types. The demand is
@@ -82,6 +83,28 @@ const tagBySlug = computed(() => {
     map.set(t.slug, t)
   return map
 })
+
+/**
+ * Which of these skills the trending board is carrying right now.
+ *
+ * Lazy and non-blocking on purpose. A flame is an accent on a browse page, so
+ * it must never hold up the registry render or fail it. If the feed is slow or
+ * errors, rows draw without flames and nothing else changes.
+ *
+ * The endpoint caches for 300s, so this costs a shared read rather than a
+ * per-visitor query on the site's highest-traffic surface.
+ */
+const { data: trendingFeed } = useFetch('/api/feed/trending', {
+  key: 'skills-trending-flames',
+  query: { limit: 30 },
+  lazy: true,
+  server: false,
+  default: () => null,
+})
+
+const trendingKeys = computed(
+  () => trendingSkillKeySet(trendingFeed.value?.namedSkills ?? []),
+)
 
 // Publishers and maintainers strip (only when nothing is filtered)
 const {
@@ -559,6 +582,7 @@ function selectOwner(next: string) {
         v-else-if="registryView._tag === 'ready'"
         :skills="registryView.data.items"
         :metric="sort"
+        :trending-keys="trendingKeys"
         :aria-label="isFiltering ? 'Matching skills' : 'Top skill from each author'"
       />
 

@@ -183,14 +183,45 @@ export interface LeaderboardRowInput {
     slug: string
     description: string | null
   }
+  /** Unix seconds of the repository's last push, or null when GitHub had none. */
+  pushedAt: number | null
 }
 
 /**
- * Reviewed repositories, in board shape.
+ * A day, in the format the rest of the board already uses.
  *
- * The repository is the ranked object here, not a skill, so the repository is
- * what the row links to and names. Stating the skill name in the title
- * position would attach a star ranking to a skill that did not earn it.
+ * Fixed locale and UTC on purpose. A date rendered from the server's zone and
+ * then again from the visitor's is the shape that produces hydration
+ * mismatches, and this string is rendered on both sides.
+ */
+export function formatBoardDay(timestamp: number | null): string | null {
+  if (!timestamp)
+    return null
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(timestamp * 1000)
+}
+
+/**
+ * Reviewed repositories, in board shape, named by the skill they lead with.
+ *
+ * SKILL FIRST, EVERY RANGE. A skill is what somebody installs; a repository is
+ * where it lives. The week and month ranges already put the skill name in the
+ * title with `owner/repo` beneath it, and this range reads as a different
+ * product if it puts the repository there instead.
+ *
+ * Stars still order the range, and stars belong to the repository rather than
+ * to any one skill inside it. That is why `owner/repo` stays on the row as the
+ * subtitle and the basis line states the repository's skill count: the star
+ * number sits beside the thing that earned it, exactly as it does on the feed
+ * ranges, which have shown repository stars against a skill name all along.
+ *
+ * The featured skill is the repository's most recently updated one, which is
+ * the ranking `/api/skills/leaderboard` already applies and documents. It is a
+ * property of the repository, not a claim that this skill is its best.
  *
  * `evidenced` is true for every row: each passed a human eligibility review,
  * which is a stronger claim than the star-fallback rows the feed ranges pad
@@ -199,21 +230,26 @@ export interface LeaderboardRowInput {
 export function leaderboardBoardRows(
   items: readonly LeaderboardRowInput[],
 ): TrendingBoardRow[] {
-  return items.map(item => ({
-    key: `${item.owner}/${item.repo}`,
-    owner: item.owner,
-    title: `${item.owner}/${item.repo}`,
-    to: `/gh/${item.owner}/${item.repo}`,
-    subtitle: null,
-    description: item.description ?? item.topSkill.description,
-    stars: item.stars,
-    basis: `${item.skillCount.toLocaleString()} ${item.skillCount === 1 ? 'skill' : 'skills'} · reviewed for eligibility`,
-    when: null,
-    evidenceUrl: null,
-    quote: null,
-    platform: null,
-    handle: null,
-    engagement: null,
-    evidenced: true,
-  }))
+  return items.map((item) => {
+    const day = formatBoardDay(item.pushedAt)
+    return {
+      key: `${item.owner}/${item.repo}/${item.topSkill.slug}`,
+      owner: item.owner,
+      title: item.topSkill.name,
+      to: `/gh/${item.owner}/${item.repo}/${item.topSkill.slug}`,
+      subtitle: `${item.owner}/${item.repo}`,
+      // The skill's own words first. The repository blurb describes the
+      // container, and on a row named for the skill that reads as a mismatch.
+      description: item.topSkill.description ?? item.description,
+      stars: item.stars,
+      basis: `${item.skillCount.toLocaleString()} ${item.skillCount === 1 ? 'skill' : 'skills'} · reviewed for eligibility`,
+      when: day ? `Updated ${day}` : null,
+      evidenceUrl: null,
+      quote: null,
+      platform: null,
+      handle: null,
+      engagement: null,
+      evidenced: true,
+    }
+  })
 }

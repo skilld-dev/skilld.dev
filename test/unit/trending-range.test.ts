@@ -16,9 +16,71 @@ function leaderboardRow(overrides: Partial<LeaderboardRowInput> = {}): Leaderboa
     stars: 12_400,
     skillCount: 9,
     topSkill: { name: 'pdf-processing', slug: 'pdf-processing', description: 'Fill and read PDFs.' },
+    pushedAt: 1_785_000_000,
     ...overrides,
   }
 }
+
+/**
+ * The deleted leaderboard page named a featured skill per repository and dated
+ * the repository, and the first pass at the all-time range dropped both. A repo
+ * row that states neither is a name and a star count, which is thinner than the
+ * page it replaced.
+ */
+describe('all-time rows are skill first, like every other range', () => {
+  it('names the skill and links to it', () => {
+    const [row] = leaderboardBoardRows([leaderboardRow()])
+
+    // A skill is what somebody installs. The week and month ranges already put
+    // the skill in the title, and this range has to read as the same product.
+    expect(row?.title).toBe('pdf-processing')
+    expect(row?.to).toBe('/gh/anthropics/skills/pdf-processing')
+  })
+
+  it('keeps the repository beside it, since the stars are the repository\'s', () => {
+    const [row] = leaderboardBoardRows([leaderboardRow()])
+
+    expect(row?.subtitle).toBe('anthropics/skills')
+    expect(row?.stars).toBe(12_400)
+    expect(row?.basis).toBe('9 skills · reviewed for eligibility')
+  })
+
+  it('describes the skill rather than its container', () => {
+    const [row] = leaderboardBoardRows([leaderboardRow()])
+
+    expect(row?.description).toBe('Fill and read PDFs.')
+  })
+
+  it('falls back to the repository blurb when the skill has none', () => {
+    const [row] = leaderboardBoardRows([leaderboardRow({
+      topSkill: { name: 'pdf-processing', slug: 'pdf-processing', description: null },
+    })])
+
+    expect(row?.description).toBe('Reference skills for Claude Code.')
+  })
+
+  it('dates the row from the repository\'s last push', () => {
+    const [row] = leaderboardBoardRows([leaderboardRow()])
+
+    expect(row?.when).toBe('Updated 25 July 2026')
+  })
+
+  it('states no date when GitHub reported no push', () => {
+    const [row] = leaderboardBoardRows([leaderboardRow({ pushedAt: null })])
+
+    // Absent, never guessed. A repo with no push date is not a repo pushed today.
+    expect(row?.when).toBeNull()
+  })
+
+  it('keys on the skill so two repos cannot collide', () => {
+    const rows = leaderboardBoardRows([
+      leaderboardRow(),
+      leaderboardRow({ repo: 'other', topSkill: { name: 'pdf-processing', slug: 'pdf-processing', description: null } }),
+    ])
+
+    expect(new Set(rows.map(r => r.key)).size).toBe(2)
+  })
+})
 
 describe('trending range resolution', () => {
   it('serves the month board when no range is asked for', () => {
@@ -67,16 +129,16 @@ describe('trending range resolution', () => {
 })
 
 describe('leaderboard rows on the trending board', () => {
-  it('ranks the repository, so the repository is what the row names and links', () => {
+  it('ranks by repository stars while naming the skill', () => {
     const [row] = leaderboardBoardRows([leaderboardRow()])
 
     expect(row).toMatchObject({
-      key: 'anthropics/skills',
+      key: 'anthropics/skills/pdf-processing',
       owner: 'anthropics',
-      title: 'anthropics/skills',
-      to: '/gh/anthropics/skills',
-      subtitle: null,
-      description: 'Reference skills for Claude Code.',
+      title: 'pdf-processing',
+      to: '/gh/anthropics/skills/pdf-processing',
+      subtitle: 'anthropics/skills',
+      description: 'Fill and read PDFs.',
       stars: 12_400,
     })
   })
@@ -92,22 +154,18 @@ describe('leaderboard rows on the trending board', () => {
     const rows = leaderboardBoardRows([leaderboardRow(), leaderboardRow({ repo: 'other' })])
 
     expect(rows.every(row => row.evidenced)).toBe(true)
-    expect(rows.map(row => row.key)).toEqual(['anthropics/skills', 'anthropics/other'])
+    expect(rows.map(row => row.key)).toEqual(['anthropics/skills/pdf-processing', 'anthropics/other/pdf-processing'])
   })
 
   it('carries no social evidence, since a star ranking has none to show', () => {
+    // `when` is excluded: it dates the repository's last push, which is the
+    // row's own fact rather than something a person said about it.
     expect(leaderboardBoardRows([leaderboardRow()])[0]).toMatchObject({
-      when: null,
       evidenceUrl: null,
       quote: null,
       platform: null,
       handle: null,
       engagement: null,
     })
-  })
-
-  it('falls back to the top skill description when the repository has none', () => {
-    expect(leaderboardBoardRows([leaderboardRow({ description: null })])[0]!.description)
-      .toBe('Fill and read PDFs.')
   })
 })

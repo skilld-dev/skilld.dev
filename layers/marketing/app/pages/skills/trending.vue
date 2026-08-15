@@ -436,8 +436,15 @@ function rankClass(index: number): string {
                 flush in one block and the one indented element is the thing
                 somebody else said.
               -->
-              <span v-if="row.basis" class="data-label mt-2 block">
-                {{ row.basis }}
+              <!--
+                `when` rides here only when no quote follows. An evidenced row
+                dates the post inside the quote, next to the handle that wrote
+                it, because the date belongs to what that person said. An
+                all-time row has no post, so its date is the repository's last
+                push and belongs to the row itself.
+              -->
+              <span v-if="row.basis || (!row.evidenceUrl && row.when)" class="data-label mt-2 block">
+                {{ row.basis }}<template v-if="row.basis && !row.evidenceUrl && row.when"> · </template><template v-if="!row.evidenceUrl && row.when">{{ row.when }}</template>
               </span>
               <a
                 v-if="row.evidenceUrl"

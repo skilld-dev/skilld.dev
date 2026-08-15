@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { trendingSkillKey } from '#shared/trending-keys'
+
 /**
  * Dense browse table for skill lists. One row per skill, sized to fit as many
  * skills on screen as the registry can give us. Descriptions stay on a single
@@ -22,12 +24,24 @@ const {
   ariaLabel = 'Skills',
   showHeader = true,
   metric = 'stars',
+  trendingKeys,
 } = defineProps<{
   skills: readonly SkillRow[]
   ariaLabel?: string
   showHeader?: boolean
   metric?: 'stars' | 'likes'
+  /**
+   * Skills currently on the trending board, keyed by `trendingSkillKey`.
+   *
+   * Optional so every other caller of this table is unaffected. Omitted means
+   * no flames, not an empty board.
+   */
+  trendingKeys?: ReadonlySet<string>
 }>()
+
+function isTrending(skill: SkillRow): boolean {
+  return trendingKeys?.has(trendingSkillKey(skill.owner, skill.repo, skill.name)) ?? false
+}
 
 const now = useState('render:now', () => Number(new Date()))
 
@@ -85,6 +99,15 @@ function updatedLabel(skill: SkillRow): string {
               decoding="async"
             >
             <span class="truncate font-mono text-sm">/{{ skill.name }}</span>
+            <!--
+              The flame is decorative, so the meaning goes in text a screen
+              reader can reach. Without it the row says nothing about why this
+              skill differs from the one above it.
+            -->
+            <span v-if="isTrending(skill)" class="shrink-0">
+              <span class="trending-fire" aria-hidden="true">🔥</span>
+              <span class="sr-only">Trending</span>
+            </span>
             <UIcon
               v-if="skill.official"
               name="i-lucide-badge-check"
