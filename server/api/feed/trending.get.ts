@@ -219,7 +219,11 @@ export default defineCachedEventHandler(
         maxReposPerPost: DEFAULT_MAX_REPOS_PER_POST,
         deprioritizeRepositories,
       }),
-      loadTrendingSkills({ db, now, windowHours, limit: 12, deprioritizeRepositories }),
+      // Same `limit` the repository half gets. A hardcoded 12 here made the
+      // caller's `?limit=` silently a lie for the collection the page actually
+      // renders, and capped the board at a shortlist no matter what was asked
+      // for. The clamp to 50 above still bounds the per-skill lookups.
+      loadTrendingSkills({ db, now, windowHours, limit, deprioritizeRepositories }),
     ])
 
     // Top up from GitHub stars when X has been quiet. Below this many entries
@@ -233,7 +237,14 @@ export default defineCachedEventHandler(
           db,
           now,
           limit: MIN_BEFORE_FALLBACK - items.length,
-          exclude: new Set(items.map(i => `${i.owner}/${i.repo}`)),
+          // Named skills are excluded by repository, not by skill. The filler
+          // query picks one skill per repo with `MIN(name)`, so a repo already
+          // named for one skill would otherwise return again under a different
+          // skill: same owner, same avatar, same star count, two rows.
+          exclude: new Set([
+            ...items.map(i => `${i.owner}/${i.repo}`),
+            ...namedSkills.map(s => `${s.owner}/${s.repo}`),
+          ]),
           deprioritizeRepositories,
         })
 
