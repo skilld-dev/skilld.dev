@@ -19,6 +19,15 @@ export default defineVitestConfig({
     globals: true,
     environment: 'nuxt',
     maxWorkers: MAX_WORKERS,
+    /**
+     * Booting the Nuxt environment happens in a per-file hook, and the 10s
+     * default is the boot time on an idle machine with no headroom. Capping the
+     * workers above fixed the spawn failures but not this: a loaded runner
+     * still timed out the boot on three arbitrary files with zero assertion
+     * failures, and a different three locally on the same commit. The two-core
+     * ARM CI runner has the least headroom of anywhere this runs.
+     */
+    hookTimeout: 30_000,
     setupFiles: ['./test/setup-wide-events.ts'],
     // `.claude/worktrees/**` holds checkouts belonging to background agents.
     // Without this they are collected as a second copy of the whole suite,
