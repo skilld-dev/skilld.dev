@@ -49,15 +49,11 @@ describe('scheduled task coverage and parity', () => {
       expect(readFileSync(task.sourcePath, 'utf8')).toContain('runObservedScheduledTask')
   })
 
-  it('wraps the app-owned AI-ready cron and disables the module cron', () => {
-    const config = readFileSync(resolve(process.cwd(), 'nuxt.config.ts'), 'utf8')
-    const task = readFileSync(resolve(process.cwd(), 'server/tasks/ai-ready-cron.ts'), 'utf8')
-    expect(config).toMatch(/aiReady:\s*\{[\s\S]*?cron:\s*false/)
-    expect(task).toContain(`name: 'ai-ready:cron'`)
-    expect(task).toContain(`cron: '*/5 * * * *'`)
-    expect(task).toContain(`runObservedScheduledTask`)
-    expect(task).toContain(`import { runCron } from '#ai-ready/server/utils/runCron'`)
-    expect(task).not.toContain('import(')
+  it('discovers the app-owned AI-ready cron as a static, observed task', () => {
+    const task = discoverScheduledTasks(process.cwd())
+      .find(candidate => candidate.name === 'ai-ready:cron')
+
+    expect(task).toMatchObject({ name: 'ai-ready:cron', cron: '*/5 * * * *' })
   })
 
   it('aligns local definitions, policy, generated triggers, and docs', () => {

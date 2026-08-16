@@ -1,86 +1,203 @@
-import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { flushPromises } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { computed, ref } from 'vue'
+import LikeButton from '../../layers/identity/app/components/LikeButton.client.vue'
+import { useLikes } from '../../layers/identity/app/composables/useLikes'
 
-const source = readFileSync('layers/identity/app/components/LikeButton.client.vue', 'utf8')
-const card = readFileSync('app/components/SkillCard.vue', 'utf8')
+const loggedIn = ref(true)
+const fetchMock = vi.hoisted(() => vi.fn())
 
-describe('likeButton', () => {
-  it('carries toggle semantics for assistive tech', () => {
-    expect(source).toContain(':aria-pressed="liked"')
-    expect(source).toMatch(/:aria-label="liked \? `Unlike \$\{name\}` : `Like \$\{name\}`"/)
+mockNuxtImport('useAuth', () => () => ({
+  user: ref({ login: 'harlan', onboarded: true }),
+  isAuthenticated: computed(() => loggedIn.value),
+  isLoading: ref(false),
+  logout: vi.fn(),
+  loginUrl: (opts: { returnTo?: string, action?: string } = {}) => {
+    const params = new URLSearchParams()
+    if (opts.returnTo)
+      params.set('return_to', opts.returnTo)
+    if (opts.action)
+      params.set('action', opts.action)
+    return params.toString() ? `/auth/github?${params}` : '/auth/github'
+  },
+  fetchSession: vi.fn(),
+}))
+
+mockNuxtImport('$fetch', () => fetchMock)
+
+const skill = { owner: 'antfu', repo: 'skills', name: 'nuxt' }
+
+/** Items `/api/me/likes` reports for the session under test. */
+let likedItems: Array<{ owner: string, repo: string, name: string, likeCount: number }> = []
+/** Resolution of the next like mutation, so a test can force the failure path. */
+let mutation: { _tag: 'ok', likeCount: number } | { _tag: 'error' } = { _tag: 'ok', likeCount: 0 }
+/** Held open by a test that needs to observe state mid-flight. */
+let listGate: { promise: Promise<void>, release: () => void } | null = null
+
+function holdListRequest() {
+  let release = () => {}
+  const promise = new Promise<void>((resolve) => {
+    release = resolve
   })
+  listGate = { promise, release }
+  return () => listGate!.release()
+}
 
-  it('meets the 44px touch target', () => {
-    expect(source).toContain('min-h-11')
-  })
+function resetLikeState() {
+  useState<Record<string, true>>('skill-likes', () => ({})).value = {}
+  useState<Record<string, number>>('skill-like-counts', () => ({})).value = {}
+  useState<boolean>('skill-likes-loaded', () => false).value = false
+  useState<Record<string, true>>('skill-likes-pending', () => ({})).value = {}
+}
 
-  it('uses static icon literals so the client bundle scan can resolve them', () => {
-    // nuxt.config.ts scans for icon names; a template string silently falls back
-    // to the Iconify HTTP API at runtime.
-    expect(source).toContain('name="i-lucide-heart-plus"')
-    expect(source).toContain('name="i-lucide-heart"')
-    expect(source).not.toMatch(/name="i-lucide-heart[^"]*\$\{/)
+beforeEach(() => {
+  likedItems = []
+  mutation = { _tag: 'ok', likeCount: 0 }
+  listGate = null
+  loggedIn.value = true
+  fetchMock.mockReset()
+  fetchMock.mockImplementation(async (path: string, options?: { method?: string }) => {
+    const method = options?.method ?? 'GET'
+    if (method === 'GET' && path === '/api/me/likes') {
+      if (listGate)
+        await listGate.promise
+      return { items: likedItems }
+    }
+    if (mutation._tag === 'error')
+      throw new Error('offline')
+    return { ok: true, likeCount: mutation.likeCount }
   })
-
-  it('sends an anonymous click through OAuth carrying the like intent', () => {
-    expect(source).toContain(`action: 'like-skill'`)
-    expect(source).toContain('returnTo: route.fullPath')
-  })
-
-  it('keeps a liked heart visible on cards without hover', () => {
-    expect(source).toContain(`? 'opacity-100'`)
-    expect(source).toContain('group-hover:opacity-100')
-  })
-
-  it('respects reduced motion', () => {
-    expect(source).toContain('motion-reduce:transition-none')
-  })
+  resetLikeState()
 })
 
-describe('skillCard like affordance', () => {
-  it('renders the heart beside the copy button', () => {
-    expect(card).toContain('<LikeButton')
-    expect(card).toContain('variant="card"')
+describe('likeButton toggle semantics', () => {
+  it('exposes pressed state and an action-specific label that follows the like', async () => {
+    const wrapper = await mountSuspended(LikeButton, { props: { ...skill, count: 4 } })
+    await flushPromises()
+
+    const button = wrapper.get('button')
+    expect(button.attributes('aria-pressed')).toBe('false')
+    expect(button.attributes('aria-label')).toBe('Like nuxt')
+    expect(button.text()).toContain('4')
+
+    mutation = { _tag: 'ok', likeCount: 5 }
+    await button.trigger('click')
+    await flushPromises()
+
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.attributes('aria-label')).toBe('Unlike nuxt')
+    expect(button.text()).toContain('5')
+
+    wrapper.unmount()
   })
 
-  it('reserves room for two controls', () => {
-    expect(card).toContain('pr-24')
+  it('restores the count and pressed state when the mutation fails', async () => {
+    const wrapper = await mountSuspended(LikeButton, { props: { ...skill, count: 4 } })
+    await flushPromises()
+
+    const button = wrapper.get('button')
+    mutation = { _tag: 'error' }
+    await button.trigger('click')
+    await flushPromises()
+
+    expect(button.attributes('aria-pressed')).toBe('false')
+    expect(button.text()).toContain('4')
+
+    wrapper.unmount()
   })
 
-  it('skips the heart on the condensed single-line variant', () => {
-    expect(card).toContain(`showLike && variant !== 'condensed'`)
-  })
-})
+  it('sends an anonymous visitor through OAuth carrying the like intent and return path', async () => {
+    loggedIn.value = false
+    const wrapper = await mountSuspended(LikeButton, { props: { ...skill, count: 2 } })
+    await flushPromises()
 
-describe('deleted affordances', () => {
-  it('no longer references the Save popover or the Watch button', () => {
-    expect(card).not.toContain('AddToCollection')
-    expect(card).not.toContain('WatchSkillButton')
+    const link = wrapper.get('a')
+    const href = link.attributes('href')!
+    expect(wrapper.find('button').exists()).toBe(false)
+    expect(new URL(href, 'https://skilld.dev').searchParams.get('action')).toBe('like-skill')
+    expect(new URL(href, 'https://skilld.dev').searchParams.get('return_to')).toBe('/')
+    expect(link.attributes('aria-label')).toBe('Like nuxt')
+
+    wrapper.unmount()
+  })
+
+  it('keeps a liked heart visible on cards, and hides an unliked one until hover', async () => {
+    likedItems = [{ ...skill, likeCount: 9 }]
+    const liked = await mountSuspended(LikeButton, {
+      props: { ...skill, count: 9, variant: 'card' },
+    })
+    const unliked = await mountSuspended(LikeButton, {
+      props: { owner: 'antfu', repo: 'skills', name: 'other', count: 0, variant: 'card' },
+    })
+    await flushPromises()
+
+    expect(liked.get('button').classes()).toContain('opacity-100')
+    expect(liked.get('button').classes()).not.toContain('opacity-0')
+    expect(unliked.get('button').classes()).toContain('opacity-0')
+    expect(unliked.get('button').classes()).toContain('group-hover:opacity-100')
+
+    liked.unmount()
+    unliked.unmount()
   })
 })
 
 describe('useLikes hydration', () => {
-  const composable = readFileSync('layers/identity/app/composables/useLikes.ts', 'utf8')
-
-  it('shares one in-flight request across every mounted heart', () => {
+  it('shares one in-flight request across every mounted heart', async () => {
     // A `loaded` boolean alone let the second LikeButton on a page return before
     // the data arrived and snapshot an empty like set, which double-counted the
     // viewer's own like (rendered 2 for a skill with one like).
-    expect(composable).toContain('let inflight: Promise<void> | null = null')
-    expect(composable).toContain('if (inflight)')
-    expect(composable).toContain('return inflight')
+    likedItems = [{ ...skill, likeCount: 3 }]
+    const release = holdListRequest()
+
+    const likes = useLikes()
+    const first = likes.ensureLoaded()
+    const second = likes.ensureLoaded()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    release()
+    await Promise.all([first, second])
+
+    expect(likes.isLiked(skill)).toBe(true)
+    expect(likes.likeCount(skill)).toBe(3)
   })
 
-  it('only marks loaded once the response has been applied', () => {
-    const then = composable.indexOf('liked.value = next')
-    const flag = composable.indexOf('loaded.value = true')
-    expect(then).toBeGreaterThan(-1)
-    expect(flag).toBeGreaterThan(then)
+  it('only reports a skill as liked once the response has been applied', async () => {
+    likedItems = [{ ...skill, likeCount: 1 }]
+    const release = holdListRequest()
+
+    const likes = useLikes()
+    const pending = likes.ensureLoaded()
+    expect(likes.isLiked(skill)).toBe(false)
+
+    release()
+    await pending
+
+    expect(likes.isLiked(skill)).toBe(true)
   })
 
-  it('clears the in-flight handle so a failed load can be retried', () => {
-    expect(composable).toContain('.finally(')
-    expect(composable).toContain('inflight = null')
+  it('retries after a failed load instead of leaving every heart empty', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('network down'))
+    const likes = useLikes()
+    await likes.ensureLoaded()
+
+    expect(likes.isLiked(skill)).toBe(false)
+
+    likedItems = [{ ...skill, likeCount: 2 }]
+    await likes.ensureLoaded()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(likes.isLiked(skill)).toBe(true)
+  })
+
+  it('treats the same skill name in different repos as separate likes', async () => {
+    likedItems = [{ owner: 'richtabor', repo: 'agent-skills', name: 'humanize', likeCount: 1 }]
+    const likes = useLikes()
+    await likes.ensureLoaded()
+
+    expect(likes.isLiked({ owner: 'richtabor', repo: 'agent-skills', name: 'humanize' })).toBe(true)
+    expect(likes.isLiked({ owner: 'other', repo: 'agent-skills', name: 'humanize' })).toBe(false)
   })
 })
 

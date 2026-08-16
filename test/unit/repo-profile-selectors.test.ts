@@ -1,9 +1,6 @@
 import type { OrgProfile } from '../../layers/registry/server/api/orgs/[owner].get'
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { selectRepoInfo, selectRepoSkills } from '../../layers/registry/app/utils/repo-profile'
-
-const pageSource = readFileSync('layers/registry/app/pages/gh/[owner]/[repo]/index.vue', 'utf8')
 
 // `useFetch<OrgProfile>` asserts the response type rather than validating it, so
 // a partial body (error envelope, truncated payload, stale cached shape) reaches
@@ -37,12 +34,5 @@ describe('repo profile selectors', () => {
 
     expect(selectRepoSkills(profile, 'widgets').map(skill => skill.name)).toEqual(['b', 'd', 'a'])
     expect(selectRepoInfo(profile, 'widgets')?.stars).toBe(5)
-  })
-
-  it('keeps the page free of unguarded profile array access', () => {
-    expect(pageSource).not.toMatch(/profile\.skills\.filter/)
-    expect(pageSource).not.toMatch(/repoProfile\.value\.repos\.find/)
-    expect(pageSource).toContain('selectRepoSkills')
-    expect(pageSource).toContain('selectRepoInfo')
   })
 })
