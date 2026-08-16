@@ -167,6 +167,25 @@ function parseOne(rawUrl: string): RepoReference | null {
 const BARE_GITHUB_PATTERN = /(?:^|[\s(<[])(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+)/gi
 
 /**
+ * A repository name the post text cut off, rather than one the author finished.
+ *
+ * X truncates a long post and marks the cut, so a trailing URL arrives as
+ * `github.com/microsoft/sk...`. The name that survives is a real prefix of a
+ * real repository, which is exactly why it is dangerous: it parses, it looks
+ * plausible, and `normalizeSegment` helpfully strips the dots that were the
+ * only evidence of the cut.
+ *
+ * Measured in production on 2026-08-15, nine ledger rows were this shape, each
+ * one 23 characters of `github.com/owner/repo`, which is X's display-URL
+ * width. Each cost a GitHub lookup, parked as `repo-gone` permanently, and
+ * split a real repository's mention count between two names.
+ *
+ * One trailing dot is a sentence ending and stays allowed. Two or more, or an
+ * ellipsis character, mean the text stopped mid-name.
+ */
+const TRUNCATION_MARK = /(?:\.{2,}|…)$/
+
+/**
  * Install commands, which name the repository without linking to it.
  *
  * THE HIGHEST-PRECISION REFERENCE THERE IS, AND IT WAS BEING IGNORED. Someone
@@ -208,11 +227,32 @@ export function extractRepoReferences(input: { urls: string[], text: string }): 
   for (const url of input.urls)
     add(parseOne(url))
 
-  for (const match of input.text.matchAll(BARE_GITHUB_PATTERN))
+  // Both text scanners drop a match the post cut short. The URL entities above
+  // are exempt: X expands those to the full target, so they are never
+  // truncated, and they are the higher-precision reference anyway.
+  const wasCutShort = (match: RegExpExecArray | RegExpMatchArray): boolean => {
+    const repo = match[2] ?? ''
+    if (TRUNCATION_MARK.test(repo))
+      return true
+    // An ellipsis character cannot appear inside the captured name, because the
+    // pattern only accepts word characters, dots and hyphens, so the mark sits
+    // just past the end of the match.
+    const index = match.index
+    if (index === undefined)
+      return false
+    return input.text.slice(index + match[0].length).startsWith('…')
+  }
+
+  for (const match of input.text.matchAll(BARE_GITHUB_PATTERN)) {
+    if (wasCutShort(match))
+      continue
     add(parseOne(`https://github.com/${match[1]}/${match[2]}`))
+  }
 
   for (const pattern of INSTALL_PATTERNS) {
     for (const match of input.text.matchAll(pattern)) {
+      if (wasCutShort(match))
+        continue
       const parsed = parseOne(`https://github.com/${match[1]}/${match[2]}`)
       if (parsed)
         add({ ...parsed, matchKind: 'install' })

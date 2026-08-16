@@ -109,3 +109,55 @@ describe('extractRepoReferences', () => {
     expect(refs({ urls: ['https://github.com/../etc'] })).toEqual([])
   })
 })
+
+/**
+ * X truncates a long post's text and marks the cut with an ellipsis, so a
+ * repository URL at the end arrives as `github.com/microsoft/sk...`. The bare
+ * pattern matched through the dots, `normalizeSegment` stripped them as
+ * trailing punctuation, and discovery recorded a repository called
+ * `microsoft/sk` that never existed.
+ *
+ * Measured in production on 2026-08-15: nine such rows, every one exactly 23
+ * characters of `github.com/owner/repo` plus the ellipsis, which is X's
+ * display-URL width. They cost a GitHub lookup each, park as `repo-gone`
+ * forever, and split a real repository's mention count in two, because
+ * `ayghri/i-have-adhd` and `ayghri/i-hav` count as different repositories.
+ */
+describe('repository references cut off by X truncation', () => {
+  it('ignores a repo name the post text cut mid-word', () => {
+    const refs = extractRepoReferences({
+      urls: [],
+      text: 'rerun. Do it once, get the spec. What would you record first? github.com/microsoft/sk...',
+    })
+
+    expect(refs).toEqual([])
+  })
+
+  it('ignores it with a real ellipsis character too', () => {
+    const refs = extractRepoReferences({
+      urls: [],
+      text: 'a skill for this: github.com/ayghri/i-hav…',
+    })
+
+    expect(refs).toEqual([])
+  })
+
+  it('still accepts a repo followed by an ordinary full stop', () => {
+    // One trailing dot ends a sentence. Two or more mean the text was cut.
+    const refs = extractRepoReferences({
+      urls: [],
+      text: 'check out github.com/obra/superpowers.',
+    })
+
+    expect(refs).toEqual([{ owner: 'obra', repo: 'superpowers', matchKind: 'link' }])
+  })
+
+  it('still accepts a repo whose name genuinely contains dots', () => {
+    const refs = extractRepoReferences({
+      urls: [],
+      text: 'github.com/jakubantalik/transitions.dev is worth a look',
+    })
+
+    expect(refs).toEqual([{ owner: 'jakubantalik', repo: 'transitions.dev', matchKind: 'link' }])
+  })
+})

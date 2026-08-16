@@ -57,9 +57,22 @@ export interface LoadTrendingSkillsOptions {
 
 export const DEFAULT_WINDOW_HOURS = 24 * 7
 /**
- * Deliberately low. The verified corpus tops out at 7 likes, so a bar of 25
- * would return an empty page; this admits anything with a pulse and leaves the
- * tuning visible rather than buried.
+ * Deliberately low, and the reason has changed, so the number is worth
+ * re-reading rather than inheriting.
+ *
+ * It used to say the verified corpus topped out at 7 likes. That was measured
+ * while `skill-mention-verify` was silently dead from the ETag 304 bug fixed
+ * in 034d553, so it described a starved sample rather than the ecosystem.
+ *
+ * Measured again on 2026-08-16 across 30 days: 121 verified mentions, ranging
+ * from 0 to 911 likes, of which 70 carry zero. So this bar is not the
+ * formality the old note implied. It drops 58% of verified mentions, and each
+ * one it drops is a person who named a skill and got no reaction.
+ *
+ * Kept at 1 on purpose. Zero-like mentions are the cheapest thing to
+ * manufacture, and `authorWeight` dilutes a listicle but cannot tell one quiet
+ * human from one quiet script. Lowering this admits breadth and the astroturf
+ * vector together, which is a product decision rather than a tuning one.
  *
  * It is applied per platform-appropriate metric, not to a raw number that
  * means different things on different networks: a Bluesky post with 3 likes is
