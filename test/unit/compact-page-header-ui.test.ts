@@ -1,27 +1,64 @@
-import { readFileSync } from 'node:fs'
+import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
+import { h } from 'vue'
+import CompactPageHeader from '../../app/components/CompactPageHeader.vue'
 
-const communitySource = readFileSync('app/pages/community/index.vue', 'utf8')
-const skillsSource = readFileSync('layers/marketing/app/pages/skills/index.vue', 'utf8')
+const baseProps = {
+  title: 'Community',
+  description: 'Curators you can follow.',
+  headingId: 'community-heading',
+}
 
-describe('compact registry page header', () => {
-  it.each([
-    ['Community', communitySource],
-    ['Skills', skillsSource],
-  ])('replaces the %s masthead with the shared compact template', (title, source) => {
-    expect(source).not.toContain('<EditorialMasthead')
-    expect(source).toContain('<CompactPageHeader')
-    expect(source).toContain(`title="${title}"`)
+describe('compactPageHeader', () => {
+  it('renders the title as the page h1 under the id the page labels with', async () => {
+    const wrapper = await mountSuspended(CompactPageHeader, { props: baseProps })
+
+    const heading = wrapper.get('h1')
+    expect(heading.text()).toBe('Community')
+    expect(heading.attributes('id')).toBe('community-heading')
+    expect(wrapper.get('header').text()).toContain('Curators you can follow.')
+
+    wrapper.unmount()
   })
 
-  it('owns the semantic page heading and optional content slots', () => {
-    const componentSource = readFileSync('app/components/CompactPageHeader.vue', 'utf8')
+  it('omits the eyebrow label entirely when no label is given', async () => {
+    const wrapper = await mountSuspended(CompactPageHeader, { props: baseProps })
 
-    expect(componentSource).toContain('<header class="compact-page-header">')
-    expect(componentSource).toContain('<h1')
-    expect(componentSource).toContain('<slot name="aside"')
-    expect(componentSource).toContain('<slot />')
-    expect(componentSource).toContain('label?: string')
-    expect(componentSource).toContain('<p v-if="label" class="section-label">')
+    expect(wrapper.find('.section-label').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('renders the label above the heading when one is given', async () => {
+    const wrapper = await mountSuspended(CompactPageHeader, {
+      props: { ...baseProps, label: 'Registry' },
+    })
+
+    const label = wrapper.get('.section-label')
+    expect(label.text()).toBe('Registry')
+    expect(label.element.compareDocumentPosition(wrapper.get('h1').element))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    wrapper.unmount()
+  })
+
+  it('renders aside and default slot content, and drops the containers when unused', async () => {
+    const bare = await mountSuspended(CompactPageHeader, { props: baseProps })
+    expect(bare.find('aside').exists()).toBe(false)
+    expect(bare.find('.compact-page-header__controls').exists()).toBe(false)
+    bare.unmount()
+
+    const filled = await mountSuspended(CompactPageHeader, {
+      props: baseProps,
+      slots: {
+        aside: () => h('p', 'aside content'),
+        default: () => h('button', 'Publish a collection'),
+      },
+    })
+
+    expect(filled.get('aside').text()).toBe('aside content')
+    expect(filled.get('.compact-page-header__controls').text()).toBe('Publish a collection')
+
+    filled.unmount()
   })
 })

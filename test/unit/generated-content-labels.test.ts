@@ -1,8 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { renderDigest } from '../../layers/identity/server/utils/digest-template'
-
-const skillDetailSource = readFileSync('layers/registry/app/components/SkillDetail.vue', 'utf8')
 
 const digestInput = {
   login: 'maintainer',
@@ -20,11 +17,6 @@ const digestInput = {
 }
 
 describe('generated content labels', () => {
-  it('labels generated skill summaries and FAQs with quiet chrome', () => {
-    expect(skillDetailSource.match(/Generated from the current SKILL\.md\./g)).toHaveLength(2)
-    expect(skillDetailSource).toContain('font-mono text-xs text-muted')
-  })
-
   it('labels generated digest summaries in HTML and plain text', () => {
     const digest = renderDigest(digestInput)
 

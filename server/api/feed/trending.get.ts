@@ -226,17 +226,24 @@ export default defineCachedEventHandler(
       loadTrendingSkills({ db, now, windowHours, limit, deprioritizeRepositories }),
     ])
 
-    // Top up from GitHub stars when X has been quiet. Below this many entries
-    // the page reads as broken, and at fewer than eight it excludes itself
-    // from the index, so filler is better than an empty shelf.
+    // Top up from GitHub stars when the socials have been quiet. Below this
+    // many entries the page reads as broken, and at fewer than eight it
+    // excludes itself from the index, so filler is better than an empty shelf.
+    //
+    // COUNTED ON THE COLLECTION THE PAGE RENDERS. This keyed off `items`, the
+    // repositories band, until 2026-08-16. That band no longer exists on the
+    // page, so filler was being decided by a number no reader could see: with
+    // 17 repositories and 3 skills the board would have gone out thin and
+    // `noindex` while this branch reported itself satisfied.
     const MIN_BEFORE_FALLBACK = 8
     const items = entries.map(toItem)
-    const fallback = items.length >= MIN_BEFORE_FALLBACK
+    const skillItems = namedSkills.map(toSkillItem)
+    const fallback = skillItems.length >= MIN_BEFORE_FALLBACK
       ? []
       : await loadFallbackSkills({
           db,
           now,
-          limit: MIN_BEFORE_FALLBACK - items.length,
+          limit: MIN_BEFORE_FALLBACK - skillItems.length,
           // Named skills are excluded by repository, not by skill. The filler
           // query picks one skill per repo with `MIN(name)`, so a repo already
           // named for one skill would otherwise return again under a different
@@ -248,7 +255,7 @@ export default defineCachedEventHandler(
           deprioritizeRepositories,
         })
 
-    return { items, namedSkills: namedSkills.map(toSkillItem), fallback, computedAt: now }
+    return { items, namedSkills: skillItems, fallback, computedAt: now }
   },
   // Engagement is re-read hourly at most, so a shorter cache would spend D1
   // reads to serve a ranking that cannot have changed.

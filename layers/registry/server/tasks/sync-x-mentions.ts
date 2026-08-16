@@ -119,6 +119,7 @@ export default defineScheduledTask({
         submitFailed: submitted.failed,
         submitLastError: submitted.lastError,
         submitHeldOversized: submitted.heldOversized,
+        submitAdmittedOversized: submitted.admittedOversized,
         submitDeferredUnmeasured: submitted.deferredUnmeasured,
         submitBacklog: submitted.truncated,
         skillsVerified: skillScan.verified,

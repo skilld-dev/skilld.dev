@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { defineApiHandler } from '#shared/server/handler'
+import { isSourceResolved } from '#shared/skill-source-resolution'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { SkillDetailResponseSchema } from '../../schemas/skill-responses'
@@ -292,9 +293,13 @@ export default defineApiHandler({
     // stored `source_resolved` is the sync's verdict on whether the file is
     // still there. Reading only the former reported `resolved: true` for skills
     // whose SKILL.md upstream had been 404 for months.
-    const sourceGone = row?.source_resolved === 0
-    const sourceResolved = !sourceGone
-      && Boolean(rendered.status === 'ok' && rendered.skillPath && rendered.raw)
+    const sourceResolved = isSourceResolved({
+      sourceResolved: row?.source_resolved,
+      renderStatus: rendered.status,
+      skillPath: rendered.skillPath,
+      raw: rendered.raw,
+    })
+    const sourceGone = !sourceResolved && row?.source_resolved === 0
     const sourceCommitSha = latestCommit?.sha ?? row?.current_sha ?? null
     const pushedAtIso = epochToIso(row?.pushed_at)
     const createdAtIso = epochToIso(row?.repo_created_at)

@@ -1,44 +1,121 @@
-import { readFileSync } from 'node:fs'
+import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
+import RepoSkillCard from '../../layers/registry/app/pages/gh/[owner]/[repo]/_RepoSkillCard.vue'
 
-const cardSource = readFileSync('layers/registry/app/pages/gh/[owner]/[repo]/_RepoSkillCard.vue', 'utf8')
-const pageSource = readFileSync('layers/registry/app/pages/gh/[owner]/[repo]/index.vue', 'utf8')
+const baseSkill = {
+  owner: 'antfu',
+  repo: 'skills',
+  name: 'nuxt',
+  description: 'Build full-stack Vue applications with Nuxt.',
+  modifiedAt: 1_700_000_000,
+}
 
-describe('spacious repository dependency cards', () => {
-  it('gives cards more room in a maximum two-column inventory after the tablet breakpoint', () => {
-    expect(pageSource.match(/lg:grid-cols-2/g)).toHaveLength(2)
-    expect(pageSource).not.toContain('md:grid-cols-2')
-    expect(pageSource).not.toContain('lg:grid-cols-3')
-    expect(pageSource).toContain('v-else-if="sortedRepoSkills.length && !groupedSkills"')
-    expect(pageSource).toContain('class="grid gap-3"')
-    expect(cardSource).toContain('min-h-36')
-    expect(cardSource).toContain('p-4')
-    expect(cardSource).toContain('line-clamp-3')
+// LikeButton owns its own auth and fetch wiring, and is not what this card decides.
+// UTooltip needs a TooltipProvider ancestor that only the app shell installs; the
+// stub keeps its text observable without mounting the shell.
+const mountOptions = {
+  global: {
+    stubs: {
+      LikeButton: { template: '<span data-testid="like-button" />' },
+      UTooltip: { props: ['text'], template: '<div :data-tooltip="text"><slot /></div>' },
+    },
+  },
+}
+
+function mountCard(skill: Record<string, unknown>) {
+  return mountSuspended(RepoSkillCard, { ...mountOptions, props: { skill: { ...baseSkill, ...skill } } })
+}
+
+function dependencyLinks(wrapper: Awaited<ReturnType<typeof mountCard>>) {
+  return wrapper.findAll('a')
+    .filter(link => link.attributes('aria-label') === undefined)
+    .map(link => ({ text: link.text(), href: link.attributes('href') }))
+}
+
+describe('repository skill dependency links', () => {
+  it('links each dependency to its canonical skill page', async () => {
+    const wrapper = await mountCard({ dependencies: ['tailwind', 'typescript'] })
+
+    expect(wrapper.text()).toContain('Requires')
+    expect(dependencyLinks(wrapper)).toEqual([
+      { text: '/tailwind', href: '/gh/antfu/skills/tailwind' },
+      { text: '/typescript', href: '/gh/antfu/skills/typescript' },
+    ])
+
+    wrapper.unmount()
   })
 
-  it('renders compact canonical dependency links outside the primary card link', () => {
-    expect(cardSource).toContain(`v-for="dependency in visibleDependencies"`)
-    expect(cardSource).toContain(`:to="repoSkillPath(skill.owner, skill.repo, dependency)"`)
-    expect(cardSource).toContain('Requires')
-    expect(cardSource).toContain('min-h-8')
-    expect(cardSource).toContain('pointer-events-auto')
-    expect(cardSource).toContain('relative z-10')
+  it('keeps dependency links outside the card-wide primary link so they stay clickable', async () => {
+    const wrapper = await mountCard({ dependencies: ['tailwind'] })
+
+    const primary = wrapper.get('a[aria-label="/nuxt"]')
+    const dependency = wrapper.get('a[href="/gh/antfu/skills/tailwind"]')
+
+    expect(primary.element.contains(dependency.element)).toBe(false)
+    expect(dependency.classes()).toContain('pointer-events-auto')
+
+    wrapper.unmount()
   })
 
-  it('caps dependency links at three and summarizes the rest', () => {
-    expect(cardSource).toContain('skill.dependencies?.slice(0, 3)')
-    expect(cardSource).toContain('skill.dependencies?.slice(3)')
-    expect(cardSource).toContain('+{{ hiddenDependencies.length }}')
-    expect(cardSource).toContain('more dependencies:')
+  it('caps visible dependencies at three and summarises the rest behind one control', async () => {
+    const wrapper = await mountCard({
+      dependencies: ['a', 'b', 'c', 'd', 'e'],
+    })
+
+    expect(dependencyLinks(wrapper).map(link => link.text)).toEqual(['/a', '/b', '/c'])
+    const overflow = wrapper.get('[aria-label$="more dependencies: /d, /e"]')
+    expect(overflow.text()).toBe('+2')
+    expect(overflow.attributes('aria-label')).toBe('2 more dependencies: /d, /e')
+    expect(wrapper.get('[data-tooltip]').attributes('data-tooltip')).toBe('/d, /e')
+
+    wrapper.unmount()
   })
 
-  it('shows relative per-skill update time without repo-level metadata', () => {
-    expect(cardSource).toContain('modifiedAt?: number | null')
-    expect(cardSource).toContain('useTimeAgo')
-    expect(cardSource).toContain('Updated {{ modifiedAtAgo }}')
-    expect(cardSource).not.toContain('Added {{')
-    expect(cardSource).toContain(`name="i-lucide-clock"`)
-    expect(cardSource).not.toContain('skill.stars')
-    expect(cardSource).not.toContain('trustTier')
+  it('shows no overflow control when every dependency fits', async () => {
+    const wrapper = await mountCard({ dependencies: ['a', 'b', 'c'] })
+
+    expect(wrapper.find('[aria-label$="more dependencies"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('+')
+
+    wrapper.unmount()
+  })
+
+  it('omits the whole metadata footer when there is nothing to report', async () => {
+    const wrapper = await mountCard({ dependencies: [], modifiedAt: null })
+
+    expect(wrapper.text()).not.toContain('Requires')
+    expect(wrapper.find('time').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+})
+
+describe('repository skill card metadata', () => {
+  it('reports a per-skill update time as a relative machine-readable value', async () => {
+    const wrapper = await mountCard({})
+
+    const time = wrapper.get('time')
+    expect(time.attributes('datetime')).toBe(new Date(1_700_000_000 * 1000).toISOString())
+    expect(time.text()).toMatch(/^Updated .+ago$/)
+    expect(wrapper.text()).not.toContain('Added')
+
+    wrapper.unmount()
+  })
+
+  it('ignores an unusable timestamp instead of rendering an invalid date', async () => {
+    const wrapper = await mountCard({ modifiedAt: 0 })
+
+    expect(wrapper.find('time').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('carries no repo-level trust or star metadata', async () => {
+    const wrapper = await mountCard({ dependencies: ['tailwind'] })
+
+    expect(wrapper.text()).not.toMatch(/stars?/i)
+    expect(wrapper.html()).not.toContain('trustTier')
+
+    wrapper.unmount()
   })
 })

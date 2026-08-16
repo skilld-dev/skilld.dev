@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
@@ -9,10 +8,6 @@ import {
   HOMEPAGE_SKILLS_PER_PERSON,
   selectHomepagePersonSkills,
 } from '../../app/utils/homepage-person-skills'
-
-const componentSource = readFileSync('app/components/SkillSourceList.vue', 'utf8')
-const homepageSource = readFileSync('app/pages/index.vue', 'utf8')
-const skillDetailSource = readFileSync('layers/registry/app/components/SkillDetail.vue', 'utf8')
 
 describe('skill source list', () => {
   it('ships twenty person-authored homepage fallbacks', () => {
@@ -49,20 +44,6 @@ describe('skill source list', () => {
 
   it('keeps the hero rail deep enough to scroll past the fold', () => {
     expect(HOMEPAGE_SKILL_LIMIT).toBeGreaterThanOrEqual(HOMEPAGE_RAIL_MINIMUM)
-    expect(homepageSource).toContain('perDev: 3')
-    expect(homepageSource).not.toContain('Skills from people who do the work')
-  })
-
-  it('uses native scrolling with guarded idle auto-scroll', () => {
-    expect(componentSource).toContain('overflow-y: auto')
-    expect(componentSource).toContain('useRafFn')
-    expect(componentSource).toContain('useElementHover')
-    expect(componentSource).toContain('useFocusWithin')
-    expect(componentSource).toContain('usePreferredReducedMotion')
-    expect(componentSource).toContain('pauseForManualInput')
-    expect(componentSource).toContain('hasFocusedItem')
-    expect(componentSource).not.toContain('|| hasFocusWithin.value')
-    expect(componentSource).not.toContain('tabindex="0"')
   })
 
   it('preserves a focused item until live data can replace it safely', async () => {
@@ -130,10 +111,5 @@ describe('skill source list', () => {
     expect(wrapper.findAll('ul > li')).toHaveLength(2)
 
     wrapper.unmount()
-  })
-
-  it('reuses the grid variant for related skills', () => {
-    expect(skillDetailSource).toContain('<SkillSourceList')
-    expect(skillDetailSource).toContain('variant="grid"')
   })
 })

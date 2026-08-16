@@ -110,9 +110,25 @@ export interface ListLedgerOptions {
   db: D1Database
   status?: LedgerStatus | 'all'
   source?: LedgerSource | 'all'
+  /**
+   * `held` returns only parked rows, `submittable` only rows the submit loop
+   * may still reach. Defaults to both, which is the archive view.
+   */
+  parked?: 'held' | 'submittable' | 'all'
   limit?: number
 }
 
+/**
+ * Read the ledger, strongest evidence first within each source.
+ *
+ * INTERLEAVED BY SOURCE, for the same reason `submitDiscoveredRepos` and
+ * `pickAnnouncements` are. `evidence_score` is comparable inside one source
+ * and meaningless across sources: X scores run into the thousands, Bluesky's
+ * ceiling is about 50, and Hacker News counts points. A plain global
+ * `ORDER BY evidence_score DESC` ranks which platform inflates numbers most,
+ * so every Bluesky row would sit below every X row and a reviewer working
+ * top-down would never reach one.
+ */
 export async function listLedger(options: ListLedgerOptions): Promise<LedgerEntry[]> {
   const conditions: string[] = []
   const params: unknown[] = []
@@ -124,13 +140,22 @@ export async function listLedger(options: ListLedgerOptions): Promise<LedgerEntr
     params.push(options.source)
     conditions.push(`source = ?${params.length}`)
   }
+  if (options.parked === 'held')
+    conditions.push(`held_reason IS NOT NULL`)
+  else if (options.parked === 'submittable')
+    conditions.push(`held_reason IS NULL`)
   params.push(options.limit ?? 100)
 
   const rows = (await options.db
     .prepare(
-      `SELECT * FROM discovery_ledger
-       ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
-       ORDER BY evidence_score DESC, last_seen_at DESC
+      `SELECT * FROM (
+         SELECT *, ROW_NUMBER() OVER (
+           PARTITION BY source ORDER BY evidence_score DESC, last_seen_at DESC
+         ) AS source_rank
+         FROM discovery_ledger
+         ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
+       )
+       ORDER BY source_rank ASC, evidence_score DESC, last_seen_at DESC
        LIMIT ?${params.length}`,
     )
     .bind(...params)
@@ -264,6 +289,15 @@ export interface SubmitSummary {
   failed: number
   /** Parked because the repo holds more skills than the guard allows. */
   heldOversized: number
+  /**
+   * Submitted over the skill limit because a person released the hold.
+   *
+   * Counted separately from `queued` so the run log names the deliberate act.
+   * A 202-skill repo entering the registry is the largest single thing this
+   * pipeline does, and it should never be indistinguishable from an ordinary
+   * three-skill submission in the archive.
+   */
+  admittedOversized: number
   /** Parked because the repo no longer exists on GitHub. */
   heldGone: number
   /** Deferred because size could not be measured; retried next run. */
@@ -330,6 +364,7 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
     duplicate: 0,
     failed: 0,
     heldOversized: 0,
+    admittedOversized: 0,
     heldGone: 0,
     deferredUnmeasured: 0,
     lastError: null,
@@ -388,7 +423,22 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
         continue
       }
 
-      if (verdict.skillCount > skillLimit) {
+      // ADMITTED ROWS SKIP THE SIZE CHECK, AND ONLY ADMITTED ROWS DO.
+      //
+      // A released hold is a repo a person looked at and said yes to. Without
+      // this branch the release is futile: the row comes back through here on
+      // the next tick, measures the same 202 skills, and is parked again with
+      // the same `oversized` reason, so the admin surface would clear a hold
+      // that reappears fifteen minutes later with nothing saying why.
+      //
+      // `reviewed_at` is the admission. Nothing sets it except a human acting
+      // through the review surface (`releaseLedgerHold`, `reviewLedgerEntry`),
+      // so the guard still holds its actual promise: no oversized repo reaches
+      // the registry without a named person having admitted it. A repo that
+      // was never reviewed still has `reviewed_at IS NULL` and still parks.
+      const admittedByHuman = row.reviewed_at !== null
+
+      if (verdict.skillCount > skillLimit && !admittedByHuman) {
         summary.heldOversized += 1
         await record(
           'oversized',
@@ -398,6 +448,9 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
         )
         continue
       }
+
+      if (verdict.skillCount > skillLimit)
+        summary.admittedOversized += 1
 
       const result = await enqueue(deps.env, {
         operation: 'submit',
@@ -577,10 +630,12 @@ export async function reconcileLedger(input: {
     .bind(input.now - stalledAfter)
     .first<{ n: number }>()
 
-  const changes = (result: { meta: unknown }) =>
-    (result.meta as { changes?: number } | undefined)?.changes ?? 0
-
-  return { indexed: changes(indexed), empty: changes(empty), retried: changes(retried), stalled: stalled?.n ?? 0 }
+  return {
+    indexed: changedRows(indexed),
+    empty: changedRows(empty),
+    retried: changedRows(retried),
+    stalled: stalled?.n ?? 0,
+  }
 }
 
 export interface AnnouncementCandidate {
@@ -688,6 +743,23 @@ export async function markAnnounced(input: {
     .run()
 }
 
+function changedRows(result: { meta: unknown }): number {
+  return (result.meta as { changes?: number } | undefined)?.changes ?? 0
+}
+
+/**
+ * The row the caller named was not there to change.
+ *
+ * Both writers below match on more than the id, so "no row updated" is a real
+ * answer the caller has to handle: the hold was already cleared by someone
+ * else, or the row left `pending` while the reviewer had the page open. A void
+ * return would report that as success and the reviewer would watch the entry
+ * reappear on the next refresh with no explanation.
+ */
+export type LedgerWriteResult
+  = | { _tag: 'ok' }
+    | { _tag: 'no-matching-row' }
+
 /**
  * Release a parked repo so the next submit run picks it up.
  *
@@ -702,15 +774,17 @@ export async function releaseLedgerHold(input: {
   reviewedBy: string
   note?: string | null
   now: number
-}): Promise<void> {
-  await input.db
+}): Promise<LedgerWriteResult> {
+  const result = await input.db
     .prepare(
       `UPDATE discovery_ledger
        SET held_reason = NULL, reviewed_at = ?2, reviewed_by = ?3, review_note = ?4
-       WHERE id = ?1 AND status = 'pending'`,
+       WHERE id = ?1 AND status = 'pending' AND held_reason IS NOT NULL`,
     )
     .bind(input.id, input.now, input.reviewedBy, input.note ?? null)
     .run()
+
+  return changedRows(result) > 0 ? { _tag: 'ok' } : { _tag: 'no-matching-row' }
 }
 
 /** Record a human decision. `rejected` is terminal for discovery. */
@@ -721,8 +795,8 @@ export async function reviewLedgerEntry(input: {
   reviewedBy: string
   note?: string | null
   now: number
-}): Promise<void> {
-  await input.db
+}): Promise<LedgerWriteResult> {
+  const result = await input.db
     .prepare(
       `UPDATE discovery_ledger
        SET status = ?2, reviewed_at = ?3, reviewed_by = ?4, review_note = ?5
@@ -730,4 +804,6 @@ export async function reviewLedgerEntry(input: {
     )
     .bind(input.id, input.status, input.now, input.reviewedBy, input.note ?? null)
     .run()
+
+  return changedRows(result) > 0 ? { _tag: 'ok' } : { _tag: 'no-matching-row' }
 }
