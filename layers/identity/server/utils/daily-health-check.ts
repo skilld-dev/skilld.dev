@@ -388,7 +388,10 @@ export function cronPeriodSeconds(cron: string): number | null {
   const fields = cron.trim().split(/\s+/)
   if (fields.length !== 5)
     return null
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = fields
+  // The length check above proves all five exist; the defaults are only there
+  // to satisfy `noUncheckedIndexedAccess`, and an empty field would fall
+  // through to the same null this returns for any shape it does not model.
+  const [minute = '', hour = '', dayOfMonth = '', month = '', dayOfWeek = ''] = fields
   if (dayOfMonth !== '*' || month !== '*' || dayOfWeek !== '*')
     return null
 
