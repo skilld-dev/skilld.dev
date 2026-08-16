@@ -127,6 +127,7 @@ export default defineScheduledTask({
         skillScanDeferred: skillScan.deferred,
         reconciledIndexed: reconciled.indexed,
         reconciledEmpty: reconciled.empty,
+        reconciledRetried: reconciled.retried,
         reconcileStalled: reconciled.stalled,
         announced: announcement.announced,
         ingestError: ingest.error ? describeXError(ingest.error) : null,

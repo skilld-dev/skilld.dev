@@ -450,6 +450,11 @@ export interface ReconcileSummary {
   empty: number
   /** Submitted long ago with no finished job. Visible, never auto-emptied. */
   stalled: number
+  /**
+   * Returned to `pending` because the verdict that stranded them came from
+   * indexer code that has since been deleted.
+   */
+  retried: number
 }
 
 /**
@@ -493,18 +498,65 @@ export async function reconcileLedger(input: {
     )
     .run()
 
-  // `unique_key` is hashed, so the join goes through the payload, which
-  // carries owner and repo verbatim.
+  // A DEAD-LETTERED JOB IS A FINISHED JOB. It leaves no row in `jobs` at all,
+  // so the completed-job test below could never see it, and 42 rows sat
+  // `submitted` forever while the health check reported them as stalled.
+  //
+  // Measured in production on 2026-08-16: every one of the 42 was already in
+  // `repos` with `repo_skill_count = 0`, and the dead-letters split two ways,
+  // 62 `no_supported_skill_paths` against 12 `root_skill_unsupported`. Only
+  // the first is an answer about the repository. The second is an answer about
+  // our own indexer, handled below.
+  //
+  // `unique_key` is hashed, so both joins go through the payload, which carries
+  // owner and repo verbatim.
   const empty = await input.db
     .prepare(
       `UPDATE discovery_ledger SET status = 'empty'
        WHERE status = 'submitted'
+         AND (
+           EXISTS (
+             SELECT 1 FROM jobs j
+             WHERE j.job_type = 'registry/repository-submission'
+               AND j.completed_at IS NOT NULL
+               AND LOWER(json_extract(j.payload, '$.owner')) = discovery_ledger.owner
+               AND LOWER(json_extract(j.payload, '$.repo')) = discovery_ledger.repo
+           )
+           OR EXISTS (
+             SELECT 1 FROM failed_jobs f
+             WHERE f.job_type = 'registry/repository-submission'
+               AND f.exception LIKE '%no_supported_skill_paths%'
+               AND LOWER(json_extract(f.payload, '$.owner')) = discovery_ledger.owner
+               AND LOWER(json_extract(f.payload, '$.repo')) = discovery_ledger.repo
+           )
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM skills s
+           WHERE s.owner = discovery_ledger.owner
+             AND s.repo = discovery_ledger.repo
+             AND s.source_resolved = 1
+         )`,
+    )
+    .run()
+
+  // `root_skill_unsupported` was the indexer refusing a repository whose
+  // SKILL.md sits at the root. bcc8213 deleted that refusal, so the verdict
+  // describes code that no longer exists and the rows it stranded are ordinary
+  // repositories the registry should hold.
+  //
+  // They go back to `pending`, not to `indexed`. The size guard still has to
+  // measure them, and `submitted_at` is cleared so a retried row cannot report
+  // itself stalled on the strength of its first attempt.
+  const retried = await input.db
+    .prepare(
+      `UPDATE discovery_ledger SET status = 'pending', submitted_at = NULL
+       WHERE status = 'submitted'
          AND EXISTS (
-           SELECT 1 FROM jobs j
-           WHERE j.job_type = 'registry/repository-submission'
-             AND j.completed_at IS NOT NULL
-             AND LOWER(json_extract(j.payload, '$.owner')) = discovery_ledger.owner
-             AND LOWER(json_extract(j.payload, '$.repo')) = discovery_ledger.repo
+           SELECT 1 FROM failed_jobs f
+           WHERE f.job_type = 'registry/repository-submission'
+             AND f.exception LIKE '%root_skill_unsupported%'
+             AND LOWER(json_extract(f.payload, '$.owner')) = discovery_ledger.owner
+             AND LOWER(json_extract(f.payload, '$.repo')) = discovery_ledger.repo
          )
          AND NOT EXISTS (
            SELECT 1 FROM skills s
@@ -528,7 +580,7 @@ export async function reconcileLedger(input: {
   const changes = (result: { meta: unknown }) =>
     (result.meta as { changes?: number } | undefined)?.changes ?? 0
 
-  return { indexed: changes(indexed), empty: changes(empty), stalled: stalled?.n ?? 0 }
+  return { indexed: changes(indexed), empty: changes(empty), retried: changes(retried), stalled: stalled?.n ?? 0 }
 }
 
 export interface AnnouncementCandidate {

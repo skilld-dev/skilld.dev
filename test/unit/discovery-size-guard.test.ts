@@ -224,6 +224,7 @@ describe('reconcileLedger empty rule', () => {
     // SKILL.md) while its job sat unstarted. Empty is terminal, so it never
     // came back.
     db().raw.exec(`CREATE TABLE IF NOT EXISTS jobs (job_type TEXT, payload TEXT, completed_at INTEGER, failed_at INTEGER)`)
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS failed_jobs (job_type TEXT, payload TEXT, exception TEXT, failed_at INTEGER)`)
     db().raw.exec(`CREATE TABLE IF NOT EXISTS skills (owner TEXT, repo TEXT, source_resolved INTEGER)`)
     seedPending('cathrynlavery', 'diagram-design')
     db().raw.prepare(`UPDATE discovery_ledger SET status='submitted', submitted_at=?`).run(NOW - 30 * 3600)
@@ -238,6 +239,7 @@ describe('reconcileLedger empty rule', () => {
 
   it('empties a row once its job finished and found nothing', async () => {
     db().raw.exec(`CREATE TABLE IF NOT EXISTS jobs (job_type TEXT, payload TEXT, completed_at INTEGER, failed_at INTEGER)`)
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS failed_jobs (job_type TEXT, payload TEXT, exception TEXT, failed_at INTEGER)`)
     db().raw.exec(`CREATE TABLE IF NOT EXISTS skills (owner TEXT, repo TEXT, source_resolved INTEGER)`)
     seedPending('someone', 'empty-repo')
     db().raw.prepare(`UPDATE discovery_ledger SET status='submitted', submitted_at=?`).run(NOW - 30 * 3600)
@@ -245,6 +247,55 @@ describe('reconcileLedger empty rule', () => {
 
     const result = await reconcileLedger({ db: db().db, now: NOW })
     expect(result.empty).toBe(1)
+  })
+
+  /**
+   * A dead-lettered job leaves no row in `jobs` at all, so the finished-job
+   * test above could never see it and 42 rows sat `submitted` forever.
+   * Measured in production on 2026-08-16: every one of them was already in
+   * `repos` with `repo_skill_count = 0`, and 62 dead-letters carried
+   * `no_supported_skill_paths`. The queue exhausted its retries; the answer is
+   * simply that the repository has no skills.
+   */
+  it('empties a row whose submission exhausted its retries finding no skills', async () => {
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS jobs (job_type TEXT, payload TEXT, completed_at INTEGER, failed_at INTEGER)`)
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS failed_jobs (job_type TEXT, payload TEXT, exception TEXT, failed_at INTEGER)`)
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS skills (owner TEXT, repo TEXT, source_resolved INTEGER)`)
+    seedPending('nvm-sh', 'nvm')
+    db().raw.prepare(`UPDATE discovery_ledger SET status='submitted', submitted_at=?`).run(NOW - 30 * 3600)
+    db().raw.prepare(`INSERT INTO failed_jobs VALUES ('registry/repository-submission', ?, 'no_supported_skill_paths', ?)`)
+      .run(JSON.stringify({ owner: 'nvm-sh', repo: 'nvm' }), NOW - 3600)
+
+    const result = await reconcileLedger({ db: db().db, now: NOW })
+
+    expect(result.empty).toBe(1)
+    expect(result.stalled).toBe(0)
+  })
+
+  /**
+   * `root_skill_unsupported` was the indexer refusing a repository whose
+   * SKILL.md sits at the root. That refusal was deleted in bcc8213, so the
+   * verdict describes code that no longer exists. Twelve production rows carry
+   * it, and every one is a repository the registry should hold.
+   */
+  it('retries a row rejected by a verdict the indexer no longer makes', async () => {
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS jobs (job_type TEXT, payload TEXT, completed_at INTEGER, failed_at INTEGER)`)
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS failed_jobs (job_type TEXT, payload TEXT, exception TEXT, failed_at INTEGER)`)
+    db().raw.exec(`CREATE TABLE IF NOT EXISTS skills (owner TEXT, repo TEXT, source_resolved INTEGER)`)
+    seedPending('skcache', 'edn')
+    db().raw.prepare(`UPDATE discovery_ledger SET status='submitted', submitted_at=?`).run(NOW - 30 * 3600)
+    db().raw.prepare(`INSERT INTO failed_jobs VALUES ('registry/repository-submission', ?, 'root_skill_unsupported', ?)`)
+      .run(JSON.stringify({ owner: 'skcache', repo: 'edn' }), NOW - 3600)
+
+    const result = await reconcileLedger({ db: db().db, now: NOW })
+
+    // Back to pending so the normal submit path picks it up, not straight to
+    // indexed: the guard still has to measure it.
+    expect(result.retried).toBe(1)
+    expect(result.empty).toBe(0)
+    const row = db().raw.prepare(`SELECT status, submitted_at FROM discovery_ledger`).get() as { status: string, submitted_at: number | null }
+    expect(row.status).toBe('pending')
+    expect(row.submitted_at).toBeNull()
   })
 })
 
