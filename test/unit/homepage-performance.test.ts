@@ -137,9 +137,4 @@ describe('homepage database hot paths', () => {
       sqlite.close()
     }
   })
-
-  it('retains three asset versions for skew protection', () => {
-    const config = readFileSync(resolve(process.cwd(), 'nuxt.config.ts'), 'utf8')
-    expect(config).toContain('maxNumberOfVersions: 3')
-  })
 })

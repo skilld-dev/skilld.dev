@@ -1,26 +1,16 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { SKILL_COUNTER_RECOMPUTE_SQL } from '../../layers/registry/server/utils/skill-counter-recompute'
 
 /**
  * drain-skill-dirty is a scheduled task wrapped in observability helpers, so
- * booting it here would test the wrapper rather than the arithmetic. The
- * counter recompute is one SQL statement; this lifts that exact statement out
- * of the source and runs it, so a formula edit that breaks like_count fails
+ * booting it here would test the wrapper rather than the arithmetic. The task
+ * runs exactly this statement, so a formula edit that breaks like_count fails
  * here instead of silently shipping a wrong public number (ADR-0003).
+ *
+ * D1 numbers its parameters; better-sqlite3 binds them positionally.
  */
-const DRAIN_SOURCE = readFileSync(
-  resolve(process.cwd(), 'layers/registry/server/tasks/drain-skill-dirty.ts'),
-  'utf8',
-)
-
-function recomputeSql(): string {
-  const match = DRAIN_SOURCE.match(/`(UPDATE skills[\s\S]*?WHERE owner = \?1 AND repo = \?2 AND name = \?3)`/)
-  if (!match?.[1])
-    throw new Error('could not locate the counter recompute statement in drain-skill-dirty.ts')
-  return match[1].replace(/\?1/g, '?').replace(/\?2/g, '?').replace(/\?3/g, '?')
-}
+const recomputeSql = SKILL_COUNTER_RECOMPUTE_SQL.replace(/\?[123]/g, '?')
 
 describe('skill_dirty counter recompute', () => {
   let sqlite: Database.Database
@@ -63,7 +53,7 @@ describe('skill_dirty counter recompute', () => {
   afterEach(() => sqlite.close())
 
   function drain(owner: string, repo: string, name: string) {
-    sqlite.prepare(recomputeSql()).run(owner, repo, name)
+    sqlite.prepare(recomputeSql).run(owner, repo, name)
   }
 
   function likeCount(name: string) {
