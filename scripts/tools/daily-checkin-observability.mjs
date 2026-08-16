@@ -2,8 +2,17 @@ function record(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null
 }
 
+// A `skipped` conclusion is a guard declining to run, not a verdict. The deploy
+// workflow is triggered by `workflow_run` from every branch and skips itself off
+// `main`, so treating `skipped` as a non-success read a working guard as a
+// broken gate on 2026-08-16. Skipped runs carry no signal, so they are read
+// through rather than counted either way.
+function carriesVerdict(run) {
+  return run.status === 'completed' && run.conclusion !== 'skipped'
+}
+
 function completedState(runs) {
-  const completed = runs.filter(run => run.status === 'completed')
+  const completed = runs.filter(carriesVerdict)
   const latest = completed[0] ?? null
   if (!latest)
     return { _tag: 'missing' }
@@ -34,7 +43,7 @@ export function summarizeWorkflowRuns(rows, requiredWorkflowNames) {
   return requiredWorkflowNames.map((name) => {
     const runs = rows.filter(row => row.workflowName === name)
     const latestRun = runs[0] ?? null
-    const latestCompletedRun = runs.find(run => run.status === 'completed') ?? null
+    const latestCompletedRun = runs.find(carriesVerdict) ?? null
     const previousState = completedState(runs)
 
     if (!latestRun) {

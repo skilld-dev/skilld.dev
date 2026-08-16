@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SCHEDULE_POLICY } from '#shared/schedule-policy'
 import {
   buildDailyHealthCheck,
+  cronPeriodSeconds,
   evaluateDailyHealthStatus,
   frontDoorFetcher,
   loadFrontDoor,
@@ -329,6 +330,17 @@ describe('buildDailyHealthCheck', () => {
       -- all, which the check reports as a warning.
       INSERT INTO x_ingest_cursor VALUES ('discovery-v1', 0, '1970-01-01', 0);
       INSERT INTO sync_jobs VALUES ('sync-github-skills', '0 * * * *', 1, NULL, ${nowSec - 60}, 'ok', NULL);
+      -- Rejections are decisions. A repository submitted with no supported
+      -- SKILL.md is recorded through ctx.fail() so the submission UI can
+      -- explain itself, and counting those as faults paged the operator on a
+      -- day when the pipeline did exactly what it should.
+      INSERT INTO failed_jobs VALUES ('repo-review-sync', 'registry/repository-submission', 'no_supported_skill_paths', ${nowSec - 60});
+      INSERT INTO failed_jobs VALUES ('repo-review-sync', 'registry/repository-submission', 'root_skill_unsupported', ${nowSec - 60});
+      INSERT INTO failed_jobs VALUES ('repo-review-sync', 'registry/repository-submission', 'skill_parse_rejected:skills/one/SKILL.md', ${nowSec - 60});
+      INSERT INTO failed_jobs VALUES ('repo-sync', 'registry/repo-maintenance', 'repo_too_large_to_index', ${nowSec - 60});
+      -- A daily task 18 hours into its own 24-hour period is on time. It was
+      -- read as stale for a year because its cron matched no hand-kept prefix.
+      INSERT INTO sync_jobs VALUES ('detect-star-surges', '30 4 * * *', 1, NULL, ${nowSec - 18 * 60 * 60}, 'ok', NULL);
       INSERT INTO ai_batch_costs VALUES (${nowSec - 60}, 0.15);
       INSERT INTO discovery_candidates VALUES (
         'exhausted', 'rejected', 'no_supported_skill_paths', NULL, NULL
@@ -366,6 +378,8 @@ describe('buildDailyHealthCheck', () => {
       newlyBrokenReposTotal24h: 1,
       newlyBrokenReposImpacted24h: 0,
     })
+    expect(built.pipeline.failedJobs24h).toBe(0)
+    expect(built.pipeline.rejectedJobs24h).toBe(4)
     expect(built.pipeline.discoveryCandidatesExhausted).toBe(0)
     expect(built.pipeline.leaderboardApprovalsStuck).toBe(0)
     expect(built.cost.estimatedAiUsd24h).toBe(0.15)
@@ -392,6 +406,27 @@ describe('buildDailyHealthCheck', () => {
     expect(uncertain.pipeline.leaderboardApprovalsStuck).toBe(1)
     expect(uncertain.status).toBe('RED')
     sqlite.close()
+  })
+})
+
+describe('cronPeriodSeconds', () => {
+  it('reads the period of every cron shape the scheduled tasks use', () => {
+    expect(cronPeriodSeconds('*/5 * * * *')).toBe(5 * 60)
+    expect(cronPeriodSeconds('*/15 * * * *')).toBe(15 * 60)
+    expect(cronPeriodSeconds('0 * * * *')).toBe(60 * 60)
+    expect(cronPeriodSeconds('45 * * * *')).toBe(60 * 60)
+    expect(cronPeriodSeconds('17 */2 * * *')).toBe(2 * 60 * 60)
+    expect(cronPeriodSeconds('20 */6 * * *')).toBe(6 * 60 * 60)
+    expect(cronPeriodSeconds('30 4 * * *')).toBe(24 * 60 * 60)
+    expect(cronPeriodSeconds('0 22 * * *')).toBe(24 * 60 * 60)
+  })
+
+  it('returns null for shapes it does not model, so the caller falls back', () => {
+    expect(cronPeriodSeconds('0 0 * * 1')).toBeNull()
+    expect(cronPeriodSeconds('0 0 1 * *')).toBeNull()
+    expect(cronPeriodSeconds('*/5 */2 * * *')).toBeNull()
+    expect(cronPeriodSeconds('0 0 * *')).toBeNull()
+    expect(cronPeriodSeconds('')).toBeNull()
   })
 })
 

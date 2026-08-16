@@ -10,7 +10,7 @@ import {
 function run(
   workflowName: string,
   status: 'completed' | 'in_progress',
-  conclusion: '' | 'failure' | 'success',
+  conclusion: '' | 'failure' | 'success' | 'skipped',
   databaseId: number,
 ) {
   return {
@@ -70,6 +70,29 @@ describe('daily check-in observability', () => {
         { name: 'Deploy to Cloudflare', state: { _tag: 'success' } },
         { name: 'Security', state: { _tag: 'missing' } },
       ])
+  })
+
+  it('reads through a skipped run to the verdict the workflow last reached', () => {
+    const rows = [
+      run('Deploy to Cloudflare', 'completed', 'skipped', 3),
+      run('Deploy to Cloudflare', 'completed', 'success', 2),
+    ]
+
+    expect(summarizeWorkflowRuns(rows, ['Deploy to Cloudflare'])).toMatchObject([
+      {
+        name: 'Deploy to Cloudflare',
+        latestCompletedRun: run('Deploy to Cloudflare', 'completed', 'success', 2),
+        state: { _tag: 'success' },
+      },
+    ])
+  })
+
+  it('reports a workflow that only ever skipped as missing, not as broken', () => {
+    expect(summarizeWorkflowRuns([
+      run('Deploy to Cloudflare', 'completed', 'skipped', 1),
+    ], ['Deploy to Cloudflare'])).toMatchObject([
+      { name: 'Deploy to Cloudflare', state: { _tag: 'missing' } },
+    ])
   })
 
   it('extracts actionable health reasons from persisted report summaries', () => {

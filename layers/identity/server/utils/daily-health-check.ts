@@ -3,9 +3,27 @@
 import type { TokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import type { LatestScheduledRun, ScheduleHealth } from '#shared/schedule-policy'
 import type { SendEmailInput, SendEmailResult } from './email'
+import { TERMINAL_DISCOVERY_REJECTION_REASONS } from '#layers/registry/server/utils/discovery-candidates'
 import { parseTokenExpiry, tokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
 import { DAILY_DISCOVERY_READ_BUDGET } from '#shared/server/x-ingest'
+
+/**
+ * A failed job whose exception is a decision rather than a fault.
+ *
+ * `handleRegistryRepoJob` records a rejected submission through `ctx.fail()`
+ * because the submission UI reads its reason back out of `failed_jobs`. That
+ * makes `failed_jobs` a mixed table, so any count over it has to say which of
+ * the two it means. `skill_parse_rejected:` carries the offending path, so it
+ * is matched by prefix rather than by value.
+ *
+ * `?8` is the reason list, bound as JSON so the values stay parameters.
+ */
+const DECISION_EXCEPTION_SQL = `(
+  exception IN (SELECT value FROM json_each(?8))
+  OR exception LIKE 'skill_parse_rejected:%'
+)`
+const DECISION_EXCEPTION_JSON = JSON.stringify([...TERMINAL_DISCOVERY_REJECTION_REASONS])
 
 const MELBOURNE_TIME_ZONE = 'Australia/Melbourne'
 const DAY_SECONDS = 24 * 60 * 60
@@ -68,6 +86,8 @@ export interface DailyHealthCheckSummary {
     aiBatchesStuck: number
     aiBatchesFailed24h: number
     failedJobs24h: number
+    /** Terminal decisions, e.g. a submission with no supported SKILL.md. */
+    rejectedJobs24h: number
     staleReservedJobs: number
     openFailedBatches: number
     discoveryCandidatesExhausted: number
@@ -154,6 +174,7 @@ interface PipelineRow {
   ai_batches_stuck: number
   ai_batches_failed_24h: number
   failed_jobs_24h: number
+  rejected_jobs_24h: number
   stale_reserved_jobs: number
   open_failed_batches: number
   discovery_candidates_exhausted: number
@@ -357,16 +378,64 @@ async function capture<T>(warnings: string[], label: string, fallback: T, load: 
   })
 }
 
+/**
+ * How often a 5-field cron expression fires, in seconds.
+ *
+ * Returns null when the expression uses a shape this does not model, so the
+ * caller falls back rather than inventing a period.
+ */
+export function cronPeriodSeconds(cron: string): number | null {
+  const fields = cron.trim().split(/\s+/)
+  if (fields.length !== 5)
+    return null
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = fields
+  if (dayOfMonth !== '*' || month !== '*' || dayOfWeek !== '*')
+    return null
+
+  const step = (field: string): number | null => {
+    const match = field.match(/^\*\/(\d+)$/)
+    if (!match)
+      return null
+    const value = Number(match[1])
+    return Number.isSafeInteger(value) && value > 0 ? value : null
+  }
+  const isFixed = (field: string): boolean => /^\d+$/.test(field)
+
+  if (hour === '*') {
+    if (minute === '*')
+      return 60
+    const minuteStep = step(minute)
+    if (minuteStep !== null)
+      return minuteStep * 60
+    return isFixed(minute) ? 60 * 60 : null
+  }
+  if (!isFixed(minute))
+    return null
+  const hourStep = step(hour)
+  if (hourStep !== null)
+    return hourStep * 60 * 60
+  return isFixed(hour) ? 24 * 60 * 60 : null
+}
+
+/**
+ * A task is stale one full period late, plus half a period of slack, never less
+ * than 20 minutes.
+ *
+ * This used to be a hand-kept list of cron prefixes with a 3-hour default, which
+ * silently mislabelled every shape nobody had added. `detect-star-surges` runs
+ * on `30 4 * * *` and matched no branch, so a daily task was called stale after
+ * 3 hours and the nightly report was RED on it every single day. Deriving the
+ * window from the period cannot drift as tasks are added. The two shapes the
+ * list did cover, five-minute and daily, land on the same 20 minutes and 36
+ * hours as before.
+ */
 function staleAfterSeconds(job: SyncJobRow): number {
   if (job.stale_after_seconds)
     return job.stale_after_seconds
-  if (job.cron.startsWith('*/5'))
-    return 20 * 60
-  if (job.cron.includes('*/6'))
-    return 15 * 60 * 60
-  if (job.cron === '0 22 * * *' || job.cron === '0 3 * * *')
-    return 36 * 60 * 60
-  return 3 * 60 * 60
+  const period = cronPeriodSeconds(job.cron)
+  if (period === null)
+    return 3 * 60 * 60
+  return Math.max(20 * 60, period + Math.max(15 * 60, period / 2))
 }
 
 export function evaluateDailyHealthStatus(
@@ -644,7 +713,19 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
         (SELECT COUNT(*) FROM ai_batches WHERE status = 'submitted') AS ai_batches_submitted,
         (SELECT COUNT(*) FROM ai_batches WHERE status = 'submitted' AND submitted_at < ?3) AS ai_batches_stuck,
         (SELECT COUNT(*) FROM ai_batches WHERE status IN ('failed', 'expired') AND COALESCE(completed_at, submitted_at) >= ?1) AS ai_batches_failed_24h,
-        (SELECT COUNT(*) FROM failed_jobs WHERE failed_at >= ?1) AS failed_jobs_24h,
+        -- Same principle as the discovery-candidate alarm below: a rejection is
+        -- a decision, not a fault. A submitted repository with no supported
+        -- SKILL.md is recorded through ctx.fail() so the submission UI can
+        -- explain itself, which lands it in failed_jobs. Counting those as
+        -- faults made a healthy day of correctly rejecting unsuitable
+        -- submissions page the operator: 73 of the 623 failures in the
+        -- 2026-08-16 window were decisions.
+        (SELECT COUNT(*) FROM failed_jobs
+          WHERE failed_at >= ?1
+            AND NOT ${DECISION_EXCEPTION_SQL}) AS failed_jobs_24h,
+        (SELECT COUNT(*) FROM failed_jobs
+          WHERE failed_at >= ?1
+            AND ${DECISION_EXCEPTION_SQL}) AS rejected_jobs_24h,
         (SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ?4 AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs,
         (SELECT COUNT(*) FROM job_batches WHERE failed_jobs > 0 AND finished_at IS NULL) AS open_failed_batches,
         -- A rejection is a decision whatever its reason (parse failures carry
@@ -686,6 +767,7 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
       nowSec - CLAIM_STALE_SECONDS,
       nowSec - CLAIM_STALE_SECONDS,
       nowSec - RESERVED_STUCK_SECONDS,
+      DECISION_EXCEPTION_JSON,
     ]),
     all<SyncJobRow>(db, `
       SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error
@@ -740,6 +822,7 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
     aiBatchesStuck: numberValue(row.ai_batches_stuck),
     aiBatchesFailed24h: numberValue(row.ai_batches_failed_24h),
     failedJobs24h: numberValue(row.failed_jobs_24h),
+    rejectedJobs24h: numberValue(row.rejected_jobs_24h),
     staleReservedJobs: numberValue(row.stale_reserved_jobs),
     openFailedBatches: numberValue(row.open_failed_batches),
     discoveryCandidatesExhausted: numberValue(row.discovery_candidates_exhausted),
@@ -890,6 +973,7 @@ export async function buildDailyHealthCheck(
     aiBatchesStuck: 0,
     aiBatchesFailed24h: 0,
     failedJobs24h: 0,
+    rejectedJobs24h: 0,
     staleReservedJobs: 0,
     openFailedBatches: 0,
     discoveryCandidatesExhausted: 0,
@@ -991,7 +1075,7 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     `- newly broken repos: ${summary.pipeline.newlyBrokenReposTotal24h} total, ${summary.pipeline.newlyBrokenReposImpacted24h} user-impacting; ${summary.pipeline.skillSyncFailures24h} new skill sync failures`,
     `- ${summary.pipeline.staleDirtySkills} dirty skills waiting over 1 hour`,
     `- AI batches: ${summary.pipeline.aiBatchesSubmitted} submitted, ${summary.pipeline.aiBatchesStuck} stuck, ${summary.pipeline.aiBatchesFailed24h} failed in 24 hours`,
-    `- jobs: ${summary.pipeline.failedJobs24h} failed in 24 hours, ${summary.pipeline.staleReservedJobs} stale reserved, ${summary.pipeline.openFailedBatches} open failed batches`,
+    `- jobs: ${summary.pipeline.failedJobs24h} failed in 24 hours, ${summary.pipeline.rejectedJobs24h} rejected, ${summary.pipeline.staleReservedJobs} stale reserved, ${summary.pipeline.openFailedBatches} open failed batches`,
     `- discovery: ${summary.pipeline.discoveryCandidatesExhausted} exhausted, ${summary.pipeline.discoveryCandidatesOverdue} overdue retries, ${summary.pipeline.discoveryClaimsStale} stale claims`,
     `- leaderboard: ${summary.pipeline.leaderboardApprovalsStuck} reviewed approvals invisible over 15 minutes`,
     '',
@@ -1069,7 +1153,7 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
         metric('new broken total / impacting', `${summary.pipeline.newlyBrokenReposTotal24h} / ${summary.pipeline.newlyBrokenReposImpacted24h}`),
         metric('dirty skills over 1h', summary.pipeline.staleDirtySkills),
         metric('AI submitted / stuck / failed', `${summary.pipeline.aiBatchesSubmitted} / ${summary.pipeline.aiBatchesStuck} / ${summary.pipeline.aiBatchesFailed24h}`),
-        metric('jobs failed / stale reserved', `${summary.pipeline.failedJobs24h} / ${summary.pipeline.staleReservedJobs}`),
+        metric('jobs failed / rejected / stale reserved', `${summary.pipeline.failedJobs24h} / ${summary.pipeline.rejectedJobs24h} / ${summary.pipeline.staleReservedJobs}`),
         metric('open failed batches', summary.pipeline.openFailedBatches),
         metric('discovery exhausted / overdue / stale', `${summary.pipeline.discoveryCandidatesExhausted} / ${summary.pipeline.discoveryCandidatesOverdue} / ${summary.pipeline.discoveryClaimsStale}`),
         metric('leaderboard approvals stuck', summary.pipeline.leaderboardApprovalsStuck),
