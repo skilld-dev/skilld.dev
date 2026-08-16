@@ -263,8 +263,7 @@ describe('reconcileLedger empty rule', () => {
     db().raw.exec(`CREATE TABLE IF NOT EXISTS skills (owner TEXT, repo TEXT, source_resolved INTEGER)`)
     seedPending('nvm-sh', 'nvm')
     db().raw.prepare(`UPDATE discovery_ledger SET status='submitted', submitted_at=?`).run(NOW - 30 * 3600)
-    db().raw.prepare(`INSERT INTO failed_jobs VALUES ('registry/repository-submission', ?, 'no_supported_skill_paths', ?)`)
-      .run(JSON.stringify({ owner: 'nvm-sh', repo: 'nvm' }), NOW - 3600)
+    db().raw.prepare(`INSERT INTO failed_jobs VALUES ('registry/repository-submission', ?, 'no_supported_skill_paths', ?)`).run(JSON.stringify({ owner: 'nvm-sh', repo: 'nvm' }), NOW - 3600)
 
     const result = await reconcileLedger({ db: db().db, now: NOW })
 
@@ -284,8 +283,7 @@ describe('reconcileLedger empty rule', () => {
     db().raw.exec(`CREATE TABLE IF NOT EXISTS skills (owner TEXT, repo TEXT, source_resolved INTEGER)`)
     seedPending('skcache', 'edn')
     db().raw.prepare(`UPDATE discovery_ledger SET status='submitted', submitted_at=?`).run(NOW - 30 * 3600)
-    db().raw.prepare(`INSERT INTO failed_jobs VALUES ('registry/repository-submission', ?, 'root_skill_unsupported', ?)`)
-      .run(JSON.stringify({ owner: 'skcache', repo: 'edn' }), NOW - 3600)
+    db().raw.prepare(`INSERT INTO failed_jobs VALUES ('registry/repository-submission', ?, 'root_skill_unsupported', ?)`).run(JSON.stringify({ owner: 'skcache', repo: 'edn' }), NOW - 3600)
 
     const result = await reconcileLedger({ db: db().db, now: NOW })
 
