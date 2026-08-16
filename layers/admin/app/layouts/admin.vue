@@ -17,6 +17,11 @@ const links: NavigationMenuItem[] = [
     icon: 'i-lucide-list-checks',
     to: '/admin/leaderboard-repositories',
   },
+  {
+    label: 'Discovery holds',
+    icon: 'i-lucide-pause-octagon',
+    to: '/admin/discovery-holds',
+  },
 ]
 </script>
 
