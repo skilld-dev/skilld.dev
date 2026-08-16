@@ -130,7 +130,7 @@ export function repositoryIndexFailureMessage(reason: string | null | undefined)
     return 'No supported SKILL.md files were found.'
   if (reason?.includes('skill_parse_rejected:'))
     return 'A SKILL.md file could not be indexed.'
-  if (reason?.includes('tree_truncated'))
+  if (reason?.includes('tree_truncated') || reason?.includes('repo_too_large_to_index'))
     return 'This repository is too large to index safely.'
   return 'Repository indexing failed. Try again.'
 }

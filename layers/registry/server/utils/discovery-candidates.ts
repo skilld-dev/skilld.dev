@@ -292,6 +292,9 @@ export const TERMINAL_DISCOVERY_REJECTION_REASONS = [
   'repo fetch 404',
   'repo fetch 410',
   'tree_truncated',
+  // A repository whose skill count exceeds what the continuation chain can walk
+  // before the queue stops redelivering. Retrying reaches the same wall.
+  'repo_too_large_to_index',
 ] as const
 
 const TERMINAL_REJECTION_REASONS = new Set<string>(TERMINAL_DISCOVERY_REJECTION_REASONS)

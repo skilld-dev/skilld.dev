@@ -51,7 +51,34 @@ type RegistryJobContext = JobContext<RegistryJobEnv, D1Database, Console>
 
 const DISCOVERY_CLAIM_STALE_SECONDS = 30 * 60
 const REPO_PROGRESS_STALE_SECONDS = 30 * 60
-const SKILL_PATHS_PER_INVOCATION = SKILL_SLICE_SIZE
+
+/**
+ * Skill files one invocation works through before it hands back to the queue.
+ *
+ * This is not the memory bound. `syncRepo` walks its chunk in `SKILL_SLICE_SIZE`
+ * slices and releases each slice's content before the next, so the working set
+ * is set by that constant and does not grow with this one. Only the repo-wide
+ * tree listing and existing-skill map are held across slices, and both are paid
+ * once per invocation whatever this is.
+ *
+ * It used to be pinned to `SKILL_SLICE_SIZE`, which made every 50 files cost a
+ * queue delivery. Five slices per invocation cuts the deliveries a large
+ * repository needs by five, at five GraphQL round trips per invocation instead
+ * of one.
+ */
+const SKILL_PATHS_PER_INVOCATION = 5 * SKILL_SLICE_SIZE
+
+/**
+ * Skill files this pipeline will index for one repository.
+ *
+ * The chain length is bounded by the queue's `max_retries`, because a
+ * continuation releases the message and Cloudflare counts that as a delivery.
+ * At `max_retries: 100` and 250 files per invocation the real ceiling is 25,250.
+ * This sits under it so a repository that cannot finish is rejected by name
+ * instead of dead-lettering silently on every hourly tick, which is what six
+ * repositories did from 2026-08-12 to 2026-08-16.
+ */
+const MAX_INDEXABLE_SKILL_FILES = 20_000
 
 interface RepoProgressRow {
   job_id: string
@@ -327,6 +354,24 @@ export async function handleRegistryRepoJob(
   if (stats.status === 'continuing') {
     if (!stats.continuation)
       throw new Error(`sync continuation missing: ${payload.owner}/${payload.repo}`)
+    if (stats.continuation.nextOffset >= MAX_INDEXABLE_SKILL_FILES) {
+      await clearRepoProgress(ctx.db, {
+        owner: payload.owner,
+        repo: payload.repo,
+        jobId: ctx.jobId,
+      })
+      if (discoveryClaimed) {
+        await finishDiscoveryCandidateAttempt(ctx.db, {
+          owner: payload.owner,
+          repo: payload.repo,
+          token: ctx.jobId,
+          now: Math.floor(Date.now() / 1000),
+          outcome: { _tag: 'rejected', reason: 'repo_too_large_to_index' },
+        })
+      }
+      await ctx.fail('repo_too_large_to_index')
+      return
+    }
     await saveRepoProgress(ctx.db, {
       owner: payload.owner,
       repo: payload.repo,
@@ -410,5 +455,6 @@ function isPermanentSubmissionFailure(reason: string | undefined): boolean {
   return reason === 'repo fetch 404'
     || reason === 'repo fetch 410'
     || reason === 'tree_truncated'
+    || reason === 'repo_too_large_to_index'
     || reason?.startsWith('skill_parse_rejected:') === true
 }

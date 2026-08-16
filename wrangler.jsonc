@@ -36,12 +36,24 @@
       { "binding": "REPO_REVIEW_SYNC_QUEUE", "queue": "skilld-repo-review-sync" },
       { "binding": "REPO_SYNC_DLQ", "queue": "skilld-repo-sync-dlq" }
     ],
+    // `max_retries` here is a *delivery* budget, not a failure budget. The repo
+    // sync handler releases the message back to the queue after every 50-file
+    // slice, so one large repository spends many deliveries while succeeding.
+    // At `max_retries: 3` a repo hard-stopped after 4 deliveries, i.e. 200
+    // SKILL.md files, then dead-lettered on every hourly tick forever. Measured
+    // 2026-08-16: six repositories sat at `repo_sync_progress.next_offset = 200`
+    // against 236 to 6,341 skills, producing 548 dead-letter rows in four days.
+    // The failure budget is the job definition's own `tries: 5`, checked against
+    // `jobs.attempts` before the message is ever allowed to reach the DLQ, so
+    // raising this does not weaken failure handling. It also stops the DLQ
+    // headline replacing the real exception in `failed_jobs`, which it did
+    // whenever a throwing job hit 4 deliveries before it hit 5 attempts.
     "consumers": [
       {
         "queue": "skilld-repo-sync",
         "max_batch_size": 1,
         "max_batch_timeout": 1,
-        "max_retries": 3,
+        "max_retries": 100,
         "retry_delay": 60,
         "dead_letter_queue": "skilld-repo-sync-dlq",
         "max_concurrency": 1
@@ -50,7 +62,7 @@
         "queue": "skilld-repo-review-sync",
         "max_batch_size": 1,
         "max_batch_timeout": 1,
-        "max_retries": 3,
+        "max_retries": 100,
         "retry_delay": 60,
         "dead_letter_queue": "skilld-repo-sync-dlq",
         "max_concurrency": 5

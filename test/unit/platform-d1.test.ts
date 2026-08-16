@@ -50,6 +50,21 @@ describe('createPlatformD1', () => {
     expect(run).toHaveBeenCalledTimes(1)
   })
 
+  it('replays a read on a renewed session after D1 resets the durable object', async () => {
+    const run = vi.fn()
+      .mockRejectedValueOnce(new Error('D1_ERROR: {"D1_RESET_DO":true}'))
+      .mockResolvedValue({ id: 1 })
+    const { db } = database(run)
+    const env = { DB: db } as Cloudflare.Env
+
+    const platformDb = createPlatformD1(env).database
+    const row = await platformDb.prepare('SELECT id FROM skills').first<{ id: number }>()
+
+    expect(row).toEqual({ id: 1 })
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(db.withSession).toHaveBeenCalledTimes(2)
+  })
+
   it('passes native statements to a D1 batch', async () => {
     const { db, session, statement } = database(async () => ({ id: 1 }))
     const env = { DB: db } as Cloudflare.Env

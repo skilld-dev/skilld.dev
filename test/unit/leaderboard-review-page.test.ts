@@ -16,10 +16,6 @@ const reviewJobSource = readFileSync(
   resolve(root, 'server/jobs/registry/review-repo-sync.ts'),
   'utf8',
 )
-const repoMaintenanceSource = readFileSync(
-  resolve(root, 'server/jobs/registry/repo-maintenance.ts'),
-  'utf8',
-)
 const reviewSyncTaskSource = readFileSync(
   resolve(root, 'layers/registry/server/tasks/sync-reviewed-skill-repos.ts'),
   'utf8',
@@ -67,9 +63,5 @@ describe('leaderboard repository review page contract', () => {
     expect(reviewSyncTaskSource).toContain('createRegistryReviewJobBatch')
     expect(reviewJobSource).toContain('claimDiscovery: z.boolean()')
     expect(schedulePolicy).toContain(`taskName: 'sync-reviewed-skill-repos'`)
-  })
-
-  it('checkpoints large repository syncs after one bounded skill slice', () => {
-    expect(repoMaintenanceSource).toContain('const SKILL_PATHS_PER_INVOCATION = SKILL_SLICE_SIZE')
   })
 })
