@@ -89,7 +89,7 @@ describe('submitDiscoveredRepos records every attempt', () => {
       db: db().db,
       env: {} as never,
       now: NOW,
-      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 3 }),
+      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 3, ownerKind: 'user' }),
       enqueue: async () => {
         throw new Error('UNIQUE constraint failed: jobs.unique_key')
       },
@@ -110,7 +110,7 @@ describe('submitDiscoveredRepos records every attempt', () => {
       db: db().db,
       env: {} as never,
       now: NOW,
-      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 3 }),
+      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 3, ownerKind: 'user' }),
       enqueue: async () => ({ jobId: 'j', status: 'queued' }),
     })
 
@@ -119,21 +119,44 @@ describe('submitDiscoveredRepos records every attempt', () => {
     expect(row.last_attempt_outcome).toBe('queued')
   })
 
-  it('records the attempt on a parked repo', async () => {
+  it('records the attempt on a parked repo, and which limit it missed', async () => {
+    // The count alone cannot be judged: 400 skills is over a person's limit
+    // and under nothing an organization has, so the detail names both.
     seed('huge')
 
     await submitDiscoveredRepos({
       db: db().db,
       env: {} as never,
       now: NOW,
-      skillLimit: 25,
-      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 400 }),
+      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 400, ownerKind: 'user' }),
       enqueue: async () => ({ jobId: 'j', status: 'queued' }),
     })
 
     const row = attemptOf('huge')
     expect(row.last_attempt_outcome).toBe('oversized')
-    expect(row.last_attempt_detail).toBe('400 skills')
+    expect(row.last_attempt_detail).toBe('400 skills, user limit 100')
+  })
+
+  it('admits under an organization the count it parks under a person', async () => {
+    // 200 skills is the whole point of the split: an aggregator dump from a
+    // personal account, a product surface from a company.
+    seed('vendor')
+    seed('person')
+
+    await submitDiscoveredRepos({
+      db: db().db,
+      env: {} as never,
+      now: NOW,
+      measureRepoSize: async ({ repo }) => ({
+        _tag: 'sized',
+        skillCount: 200,
+        ownerKind: repo === 'vendor' ? 'org' : 'user',
+      }),
+      enqueue: async () => ({ jobId: 'j', status: 'queued' }),
+    })
+
+    expect(attemptOf('vendor').last_attempt_outcome).toBe('queued')
+    expect(attemptOf('person').last_attempt_outcome).toBe('oversized')
   })
 
   /**
@@ -157,7 +180,7 @@ describe('submitDiscoveredRepos records every attempt', () => {
           return { _tag: 'unknown', reason: 'tree-403' }
         if (call === 2)
           return { _tag: 'gone' }
-        return { _tag: 'sized', skillCount: 2 }
+        return { _tag: 'sized', skillCount: 2, ownerKind: 'user' }
       },
       enqueue: async () => ({ jobId: 'j', status: 'queued' }),
     })

@@ -1,5 +1,5 @@
 import { listLedger } from '#shared/server/discovery-ledger'
-import { AUTO_INDEX_SKILL_LIMIT } from '#shared/server/discovery-size-guard'
+import { SKILL_LIMIT_BY_OWNER_KIND } from '#shared/server/discovery-size-guard'
 import { defineApiHandler } from '#shared/server/handler'
 
 /**
@@ -21,7 +21,9 @@ export default defineApiHandler({
     })
 
     return {
-      skillLimit: AUTO_INDEX_SKILL_LIMIT,
+      // Both limits, because the reviewer cannot judge a count without knowing
+      // which one the repository was measured against.
+      skillLimits: SKILL_LIMIT_BY_OWNER_KIND,
       holds: holds.map(entry => ({
         id: entry.id,
         source: entry.source,

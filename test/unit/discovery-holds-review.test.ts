@@ -218,7 +218,7 @@ describe('releaseLedgerHold', () => {
       now: NOW,
       skillLimit: 25,
       enqueue,
-      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 202 }),
+      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 202, ownerKind: 'user' }),
     })
 
     expect(calls).toEqual(['owner/agent-skills'])
@@ -240,7 +240,7 @@ describe('releaseLedgerHold', () => {
       now: NOW,
       skillLimit: 25,
       enqueue,
-      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 6341 }),
+      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 6341, ownerKind: 'user' }),
     })
 
     expect(calls).toEqual([])
@@ -323,7 +323,7 @@ describe('reviewLedgerEntry rejects a discovery', () => {
       env: {} as never,
       now: NOW,
       enqueue,
-      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 6341 }),
+      measureRepoSize: async () => ({ _tag: 'sized', skillCount: 6341, ownerKind: 'user' }),
     })
     expect(calls).toEqual([])
   })
