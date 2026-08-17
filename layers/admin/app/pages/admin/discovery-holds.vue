@@ -21,7 +21,7 @@ interface Hold {
 }
 
 interface HoldsResponse {
-  skillLimit: number
+  skillLimits: { user: number, org: number }
   holds: Hold[]
 }
 
@@ -48,13 +48,10 @@ const { data, status, error, refresh } = await useFetch<HoldsResponse>(
 )
 
 const holds = computed(() => data.value?.holds ?? [])
-const skillLimit = computed(() => data.value?.skillLimit ?? 25)
+const skillLimits = computed(() => data.value?.skillLimits ?? { user: 100, org: 250 })
 
 const oversizedCount = computed(() =>
   holds.value.filter(hold => hold.heldReason === 'oversized').length,
-)
-const goneCount = computed(() =>
-  holds.value.filter(hold => hold.heldReason === 'repo-gone').length,
 )
 
 watch(holds, (rows) => {
@@ -70,9 +67,7 @@ const sourceLabel: Record<Hold['source'], string> = {
 
 function heldLabel(hold: Hold): string {
   if (hold.heldReason === 'oversized')
-    return `Over the ${skillLimit.value} skill limit`
-  if (hold.heldReason === 'repo-gone')
-    return 'Gone from GitHub'
+    return 'Over the skill limit'
   return hold.heldReason ?? 'Held'
 }
 
@@ -128,7 +123,7 @@ async function decide(hold: Hold, decision: 'release' | 'reject') {
           Discovery holds
         </h1>
         <p class="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
-          Discovery parks a repository when it holds more than {{ skillLimit }} skills, or when GitHub no longer serves it.
+          Discovery parks a repository that holds more than {{ skillLimits.user }} skills under a personal account, or more than {{ skillLimits.org }} under an organization.
           Release a repository to let the next submit run measure and index it.
         </p>
       </div>
@@ -198,12 +193,6 @@ async function decide(hold: Hold, decision: 'release' | 'reject') {
           <UBadge
             :label="`${oversizedCount} oversized`"
             color="warning"
-            variant="subtle"
-            size="xs"
-          />
-          <UBadge
-            :label="`${goneCount} gone`"
-            color="neutral"
             variant="subtle"
             size="xs"
           />
@@ -283,13 +272,6 @@ async function decide(hold: Hold, decision: 'release' | 'reject') {
             Open the evidence
             <UIcon name="i-lucide-external-link" class="ms-1 size-3.5" aria-hidden="true" />
           </a>
-
-          <p
-            v-if="hold.heldReason === 'repo-gone'"
-            class="mt-2 text-xs text-muted"
-          >
-            GitHub returned 404 when discovery measured this. Release it only if the repository came back.
-          </p>
 
           <div class="mt-4 space-y-3">
             <UFormField

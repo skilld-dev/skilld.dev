@@ -193,7 +193,7 @@ interface RepoSummaryGqlResponse {
     name: string
     nameWithOwner: string
     url: string
-    owner: { login: string }
+    owner: { login: string, __typename: string }
     description: string | null
     stargazerCount: number
     forkCount: number
@@ -211,6 +211,22 @@ interface RepoSummaryGqlResponse {
 export interface RepoSummary {
   meta: RepoMeta
   headTreeSha: string | null
+  /**
+   * Whether a person or an organisation owns the repository.
+   *
+   * Read from the GraphQL `__typename` on the owner, which costs nothing: the
+   * query already selects `owner`. The `owners` table cannot answer this at
+   * discovery time, because a repository is usually measured before its owner
+   * has ever been synced, and 228 owner rows in production carry a null kind.
+   */
+  ownerKind: OwnerKind
+}
+
+/** A person, or an organisation. Anything else GitHub invents reads as a person. */
+export type OwnerKind = 'user' | 'org'
+
+function ownerKind(typename: string | undefined): OwnerKind {
+  return typename === 'Organization' ? 'org' : 'user'
 }
 
 /**
@@ -230,7 +246,7 @@ export async function getRepoSummary(
 ): Promise<FetchOutcome<RepoSummary>> {
   const query = `query($owner:String!,$repo:String!){
     repository(owner:$owner,name:$repo){
-      name nameWithOwner url owner{login}
+      name nameWithOwner url owner{login __typename}
       description stargazerCount forkCount pushedAt createdAt isArchived isFork
       defaultBranchRef{name target{... on Commit{oid tree{oid}}}}
     }
@@ -279,7 +295,11 @@ export async function getRepoSummary(
   }
   return {
     status: 200,
-    data: { meta, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null },
+    data: {
+      meta,
+      headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null,
+      ownerKind: ownerKind(r.owner.__typename),
+    },
     rateLimit,
     notModified: false,
   }

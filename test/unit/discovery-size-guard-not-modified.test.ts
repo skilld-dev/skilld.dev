@@ -1,7 +1,8 @@
 // @vitest-environment node
 import type { GithubBindings } from '#layers/registry/server/utils/github-client'
+import type { OwnerKind } from '../../shared/server/discovery-size-guard'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createGithubRepoSizer } from '../../shared/server/discovery-size-guard'
+import { createGithubRepoSizer, skillLimitFor } from '../../shared/server/discovery-size-guard'
 
 /**
  * A warm ETag cache used to stall discovery permanently.
@@ -30,7 +31,7 @@ const TREE = {
   ],
 }
 
-function summaryResponse() {
+function summaryResponse(typename: string = 'User') {
   return new Response(
     JSON.stringify({
       data: {
@@ -38,7 +39,7 @@ function summaryResponse() {
           name: 'repo',
           nameWithOwner: 'owner/repo',
           url: 'https://github.com/owner/repo',
-          owner: { login: 'owner' },
+          owner: { login: 'owner', __typename: typename },
           description: null,
           stargazerCount: 1,
           forkCount: 0,
@@ -94,11 +95,11 @@ describe('repo sizer against a warm ETag cache', () => {
 
     // Cold. Populates the cache.
     const first = await size({ owner: 'owner', repo: 'repo' })
-    expect(first).toEqual({ _tag: 'sized', skillCount: 2 })
+    expect(first).toEqual({ _tag: 'sized', skillCount: 2, ownerKind: 'user' })
 
     // Warm. This is the call that used to report `tree-304` forever.
     const second = await size({ owner: 'owner', repo: 'repo' })
-    expect(second).toEqual({ _tag: 'sized', skillCount: 2 })
+    expect(second).toEqual({ _tag: 'sized', skillCount: 2, ownerKind: 'user' })
   })
 
   it('still reports unknown when a failure carries no body', async () => {
@@ -129,5 +130,58 @@ describe('repo sizer against a warm ETag cache', () => {
 
     const size = createGithubRepoSizer(bindings)
     expect(await size({ owner: 'owner', repo: 'repo' })).toEqual({ _tag: 'gone' })
+  })
+
+  it('reads the owner type from the summary GitHub already answered', async () => {
+    // No second request: the owner type decides which limit applies, and the
+    // summary query already selects the owner.
+    const bindings: GithubBindings = { GITHUB_TOKEN: 't', KV_CACHE: kvCache() }
+    const fetchSpy = vi.fn(async (url: string | URL) => {
+      if (String(url).includes('graphql'))
+        return summaryResponse('Organization')
+      return new Response(JSON.stringify(TREE), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const size = createGithubRepoSizer(bindings)
+
+    expect(await size({ owner: 'owner', repo: 'repo' }))
+      .toEqual({ _tag: 'sized', skillCount: 2, ownerKind: 'org' })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('treats an owner type GitHub has not named as a person', async () => {
+    // Fails to the stricter limit, so a new account type cannot widen the gate
+    // by being unrecognised.
+    const bindings: GithubBindings = { GITHUB_TOKEN: 't', KV_CACHE: kvCache() }
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      if (String(url).includes('graphql'))
+        return summaryResponse('EnterpriseAccountSomething')
+      return new Response(JSON.stringify(TREE), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }))
+
+    const size = createGithubRepoSizer(bindings)
+
+    expect(await size({ owner: 'owner', repo: 'repo' }))
+      .toEqual({ _tag: 'sized', skillCount: 2, ownerKind: 'user' })
+  })
+})
+
+describe('skillLimitFor', () => {
+  it('gives an organization more headroom than a person', () => {
+    // A person publishing 150 skills is republishing someone else's work. A
+    // company publishing 150 is documenting its own product surface.
+    expect(skillLimitFor('user')).toBe(100)
+    expect(skillLimitFor('org')).toBe(250)
+  })
+
+  it('falls to the stricter limit for an owner kind it does not know', () => {
+    expect(skillLimitFor('something-new' as OwnerKind)).toBe(skillLimitFor('user'))
   })
 })

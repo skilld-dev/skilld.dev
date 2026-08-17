@@ -28,7 +28,7 @@
 import type { RegistryRepositorySubmissionJobPayload } from '~~/server/utils/registry-jobs-runtime'
 import type { MeasureRepoSize } from './discovery-size-guard'
 import { enqueueRegistryRepoJob } from '~~/server/utils/registry-jobs-runtime'
-import { AUTO_INDEX_SKILL_LIMIT } from './discovery-size-guard'
+import { skillLimitFor } from './discovery-size-guard'
 
 export type LedgerStatus = 'pending' | 'submitted' | 'indexed' | 'empty' | 'rejected' | 'gone'
 export type LedgerSource = 'x' | 'hn' | 'bsky'
@@ -290,7 +290,11 @@ export interface SubmitDeps {
    * registry unseen.
    */
   measureRepoSize?: MeasureRepoSize
-  /** Skills above which a repo is parked for review. */
+  /**
+   * Skills above which a repo is parked for review, overriding the per-owner
+   * limits. A single number applies to every owner, which is what makes a test
+   * able to state one threshold instead of two.
+   */
   skillLimit?: number
 }
 
@@ -337,7 +341,6 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
   const limit = deps.limit ?? DEFAULT_SUBMIT_LIMIT
   const enqueue = deps.enqueue ?? enqueueRegistryRepoJob
 
-  const skillLimit = deps.skillLimit ?? AUTO_INDEX_SKILL_LIMIT
   const measure = deps.measureRepoSize
 
   // Fetch one extra to detect that more work remains without a second query.
@@ -456,11 +459,17 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
       // was never reviewed still has `reviewed_at IS NULL` and still parks.
       const admittedByHuman = row.reviewed_at !== null
 
+      // A person and a company are held to different counts, because the same
+      // number means different things: a person publishing 150 skills is
+      // republishing someone else's work, a company publishing 150 is
+      // documenting its own product.
+      const skillLimit = deps.skillLimit ?? skillLimitFor(verdict.ownerKind)
+
       if (verdict.skillCount > skillLimit && !admittedByHuman) {
         summary.heldOversized += 1
         await record(
           'oversized',
-          `${verdict.skillCount} skills`,
+          `${verdict.skillCount} skills, ${verdict.ownerKind} limit ${skillLimit}`,
           `, skill_count = ?5, held_reason = 'oversized'`,
           [verdict.skillCount],
         )

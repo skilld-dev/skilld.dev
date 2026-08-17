@@ -1,10 +1,10 @@
 // @vitest-environment node
-import type { MeasureRepoSize } from '../../shared/server/discovery-size-guard'
+import type { MeasureRepoSize, OwnerKind } from '../../shared/server/discovery-size-guard'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 import { reconcileLedger, submitDiscoveredRepos } from '../../shared/server/discovery-ledger'
-import { AUTO_INDEX_SKILL_LIMIT } from '../../shared/server/discovery-size-guard'
+import { SKILL_LIMIT_BY_OWNER_KIND } from '../../shared/server/discovery-size-guard'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const MIGRATIONS = [
@@ -12,6 +12,7 @@ const MIGRATIONS = [
   'migrations/0101_discovery_ledger_size_guard.sql',
   'migrations/0106_discovery_ledger_attempts.sql',
   'migrations/0107_discovery_ledger_gone.sql',
+  'migrations/0108_release_oversized_holds.sql',
 ]
 const NOW = 1_760_000_000
 
@@ -35,13 +36,18 @@ function seedPending(owner: string, repo: string, evidenceScore = 100) {
   ).run(owner, repo, evidenceScore, NOW, NOW)
 }
 
-/** Sizer returning a fixed count per repo, or 'unknown' for anything unlisted. */
-function sizer(counts: Record<string, number>): MeasureRepoSize {
+/**
+ * Sizer returning a fixed count per repo, or 'unknown' for anything unlisted.
+ *
+ * Owners default to `user`, the stricter limit, so a test that does not care
+ * about ownership still exercises the tighter gate.
+ */
+function sizer(counts: Record<string, number>, ownerKind: OwnerKind = 'user'): MeasureRepoSize {
   return async ({ owner, repo }) => {
     const n = counts[`${owner}/${repo}`]
     return n === undefined
       ? { _tag: 'unknown', reason: 'not-in-fixture' }
-      : { _tag: 'sized', skillCount: n }
+      : { _tag: 'sized', skillCount: n, ownerKind }
   }
 }
 
@@ -105,7 +111,7 @@ describe('auto-index size guard', () => {
       env,
       now: NOW,
       enqueue,
-      measureRepoSize: sizer({ 'edge/case': AUTO_INDEX_SKILL_LIMIT }),
+      measureRepoSize: sizer({ 'edge/case': SKILL_LIMIT_BY_OWNER_KIND.user }),
     })
 
     expect(summary.queued).toBe(1)
@@ -120,7 +126,7 @@ describe('auto-index size guard', () => {
       env,
       now: NOW,
       enqueue,
-      measureRepoSize: sizer({ 'edge/over': AUTO_INDEX_SKILL_LIMIT + 1 }),
+      measureRepoSize: sizer({ 'edge/over': SKILL_LIMIT_BY_OWNER_KIND.user + 1 }),
     })
 
     expect(summary.heldOversized).toBe(1)
@@ -140,7 +146,7 @@ describe('auto-index size guard', () => {
     let measured = 0
     const counting: MeasureRepoSize = async () => {
       measured += 1
-      return { _tag: 'sized', skillCount: 6341 }
+      return { _tag: 'sized', skillCount: 6341, ownerKind: 'user' }
     }
     const second = await submitDiscoveredRepos({
       db: db().db,
@@ -341,6 +347,34 @@ describe('deleted repositories', () => {
     expect(calls).toEqual([])
   })
 
+  it('migration 0108 un-parks oversized holds so the new limits reach them', () => {
+    // A parked row is excluded from the submit loop, so raising the limit
+    // alone reaches none of the 43 held in production on 2026-08-17.
+    const before = createSqliteD1(MIGRATIONS.filter(m => !m.includes('0108')))
+    const seed = (repo: string, held: string | null, status = 'pending') => before.raw.prepare(
+      `INSERT INTO discovery_ledger (source, owner, repo, evidence_url, evidence_text,
+         evidence_score, first_seen_at, last_seen_at, mention_count, status, held_reason, reviewed_at)
+       VALUES ('x', 'o', ?, 'https://x.com/a/status/1', 'e', 1, ?, ?, 1, ?, ?, NULL)`,
+    ).run(repo, NOW, NOW, status, held)
+    seed('agentic-awesome-skills', 'oversized')
+    seed('claude-red', null, 'gone')
+    seed('obsidian-skills', null, 'indexed')
+
+    before.raw.exec(readFileSync('migrations/0108_release_oversized_holds.sql', 'utf8'))
+
+    const rows = before.raw.prepare(
+      `SELECT repo, status, held_reason, reviewed_at FROM discovery_ledger ORDER BY repo`,
+    ).all()
+    expect(rows).toEqual([
+      // Back in the queue to be re-measured, and not marked as reviewed: a
+      // policy change is not a person saying yes to this repository.
+      { repo: 'agentic-awesome-skills', status: 'pending', held_reason: null, reviewed_at: null },
+      { repo: 'claude-red', status: 'gone', held_reason: null, reviewed_at: null },
+      { repo: 'obsidian-skills', status: 'indexed', held_reason: null, reviewed_at: null },
+    ])
+    before.close()
+  })
+
   it('migration 0107 closes the rows the old shape stranded', () => {
     // 24 of the 67 rows parked in production on 2026-08-17 were `repo-gone`.
     // They predate the code change, so the migration has to clear them or the
@@ -381,7 +415,7 @@ describe('deleted repositories', () => {
       env,
       now: NOW,
       enqueue,
-      measureRepoSize: sizer({ 'sickn33/agentic-awesome-skills': AUTO_INDEX_SKILL_LIMIT + 1 }),
+      measureRepoSize: sizer({ 'sickn33/agentic-awesome-skills': SKILL_LIMIT_BY_OWNER_KIND.user + 1 }),
     })
 
     expect(db().raw.prepare(`SELECT status, held_reason FROM discovery_ledger`).get())

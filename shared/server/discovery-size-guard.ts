@@ -14,24 +14,53 @@
  * here is the number of rows that would actually be written, not an estimate.
  */
 
-import type { GithubBindings } from '#layers/registry/server/utils/github-client'
+import type { GithubBindings, OwnerKind } from '#layers/registry/server/utils/github-client'
 import { getRepoSummary, getTree, hasBody } from '#layers/registry/server/utils/github-client'
+
+export type { OwnerKind }
 
 /**
  * Skills a discovered repo may hold and still be indexed without review.
  *
- * Set from the data rather than taste: the largest legitimately curated repo
- * in the registry has 18 skills, and the 21-50 band holds only 4.7% of all
- * discovered skills. 25 clears every genuine case with headroom while parking
- * every aggregator. Raising it past ~50 starts admitting the dumps.
+ * TWO LIMITS, BECAUSE THE SAME COUNT MEANS DIFFERENT THINGS. A person
+ * publishing 150 skills is republishing someone else's work; that is the
+ * aggregator shape the guard exists to catch. A company publishing 150 skills
+ * is documenting its own product surface, which is the most valuable thing the
+ * registry can hold. One number cannot separate those, so the owner decides
+ * which number applies.
+ *
+ * Set by Harlan on 2026-08-17, replacing a single limit of 25 that was drawn
+ * from the curated tail alone: the largest curated repo in the registry has 18
+ * skills. That number parked every aggregator and 32 legitimate repositories
+ * with them.
  */
-export const AUTO_INDEX_SKILL_LIMIT = 25
+export const SKILL_LIMIT_BY_OWNER_KIND: Record<OwnerKind, number> = {
+  user: 100,
+  org: 250,
+}
+
+/**
+ * The limit that applies to a repository.
+ *
+ * Fails to the stricter number. An owner GitHub does not name as an
+ * organisation is treated as a person, so a new account type cannot widen the
+ * gate by being unrecognised.
+ */
+export function skillLimitFor(kind: OwnerKind): number {
+  return SKILL_LIMIT_BY_OWNER_KIND[kind] ?? SKILL_LIMIT_BY_OWNER_KIND.user
+}
 
 /** Matches `sync-repo.ts`: a skill is a blob at `<dir>/SKILL.md`. */
 const SKILL_FILE_SUFFIX = '/SKILL.md'
 
 export type RepoSizeVerdict
-  = | { _tag: 'sized', skillCount: number }
+  /**
+   * `ownerKind` travels with the count because the count alone cannot be
+   * judged. Reading it back from the `owners` table would answer for a
+   * different moment, and often not at all: a discovered repository is usually
+   * measured before its owner has ever been synced.
+   */
+  = | { _tag: 'sized', skillCount: number, ownerKind: OwnerKind }
   /**
    * The repository no longer exists. Terminal, and distinct from `unknown`:
    * retrying a 404 every quarter hour forever is pure waste. Real case,
@@ -86,6 +115,6 @@ export function createGithubRepoSizer(bindings: GithubBindings): MeasureRepoSize
         skillCount += 1
     }
 
-    return { _tag: 'sized', skillCount }
+    return { _tag: 'sized', skillCount, ownerKind: summary.data.ownerKind }
   }
 }
