@@ -2,9 +2,11 @@ import { writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
+import { fetchUpstreamText } from '../../utils/upstream-text'
 
 const RAW_CACHE_TTL = 60 * 5
 const RAW_MISSING_TTL = 60
+const RAW_RETRY_AFTER = 30
 
 interface RawCache {
   status: 'ok' | 'missing'
@@ -62,16 +64,23 @@ export default defineApiHandler({
     }
 
     const rawUrl = `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${branch}/${skillPath}`
-    const body = await $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-raw-content-fetch', outcome: 'failed' }))
-      return null
-    })
+    const raw = await fetchUpstreamText(rawUrl)
 
-    if (body === null) {
+    if (raw._tag === 'missing') {
+      emitOperationalEvent(createWideEvent({ 'operation': 'skill-raw-content-fetch', 'outcome': 'missing', 'upstream.status': raw.status }))
       await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: skillPath } satisfies RawCache, { ttl: RAW_MISSING_TTL })
-      throw createError({ statusCode: 502, message: 'Could not fetch SKILL.md' })
+      throw createError({ statusCode: 404, message: 'SKILL.md not found in repository' })
     }
 
+    if (raw._tag === 'unavailable') {
+      // A GitHub outage must not leave a "missing" marker behind, or the
+      // document reads as deleted for the rest of the cache window.
+      emitOperationalEvent(createWideEvent({ 'operation': 'skill-raw-content-fetch', 'outcome': 'failed', 'upstream.status': raw.status ?? 0, 'attempt': raw.attempts }))
+      setHeader(event, 'retry-after', RAW_RETRY_AFTER)
+      throw createError({ statusCode: 503, message: 'SKILL.md source is unavailable upstream' })
+    }
+
+    const body = raw.body
     await writeCache(useStorage('cache'), cacheKey, { status: 'ok', body, branch, path: skillPath } satisfies RawCache, { ttl: RAW_CACHE_TTL })
 
     setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
