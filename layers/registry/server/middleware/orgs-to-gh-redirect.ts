@@ -1,9 +1,9 @@
-// 301 /orgs and /orgs/* to /gh/* preserving the trailing path.
-// Existing rankings on /orgs/[owner] redirect to canonical /gh/[owner].
+import { resolveOrgsRedirect } from '../utils/orgs-route-policy'
+
 export default defineEventHandler((event) => {
   const url = getRequestURL(event)
-  if (url.pathname !== '/orgs' && !url.pathname.startsWith('/orgs/'))
+  const decision = resolveOrgsRedirect(url.pathname, url.search)
+  if (decision._tag === 'pass')
     return
-  const tail = url.pathname === '/orgs' ? '' : url.pathname.slice('/orgs'.length)
-  return sendRedirect(event, `/gh${tail}${url.search}`, 301)
+  return sendRedirect(event, decision.location, 301)
 })

@@ -2,6 +2,7 @@
 import type { OrgProfile } from '../../../../../server/api/orgs/[owner].get'
 import type { RepoSourceProfile } from '../../../../../server/api/repos/[owner]/[repo].get'
 import type { RepoHistoryResponse } from '../../../../../server/api/repos/[owner]/[repo]/history.get'
+import { resolveMissingRepoRedirect } from '../../../../utils/missing-repo-recovery'
 import { parseRepoSkillSort, REPO_SKILL_SORT_OPTIONS, sortRepoSkills } from '../../../../utils/repo-skill-layout'
 import RepoSkillCard from './_RepoSkillCard.vue'
 import RepoSparkline from './_RepoSparkline.vue'
@@ -14,7 +15,7 @@ const sourceHub = computed(() => repoHub.value)
 const { isBot } = useBotDetection()
 const fetchRepoProfileOnServer = isBot.value
 
-const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = useFetch<OrgProfile>(
+const repoProfileFetch = useFetch<OrgProfile>(
   () => `/api/orgs/${sourceHub.value.owner}`,
   {
     watch: [sourceHub],
@@ -23,6 +24,7 @@ const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = u
     server: fetchRepoProfileOnServer,
   },
 ) as ReturnType<typeof useFetch<OrgProfile>>
+const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = repoProfileFetch
 
 const repoSourceFetch = useFetch<RepoSourceProfile>(
   () => `/api/repos/${repoHub.value.owner}/${repoHub.value.repo}`,
@@ -43,7 +45,20 @@ if (fetchRepoProfileOnServer)
   await repoSourceFetch
 const { data: repoSource, status: repoSourceStatus, error: repoSourceError, refresh: refreshRepoSource } = repoSourceFetch
 if (fetchRepoProfileOnServer && repoSourceError.value?.statusCode === 404) {
-  throw createError({ statusCode: 404, statusMessage: 'Repository not found', fatal: true })
+  // Before the tombstone, check whether the repo segment is actually a skill
+  // name. `/gh/<owner>/<skill>` is what an inbound link looks like when the
+  // author drops the repository, and the owner profile above already carries
+  // every skill this owner publishes, so the recovery costs no extra request.
+  await repoProfileFetch
+  const recovery = resolveMissingRepoRedirect({
+    owner: owner.value,
+    repo: repo.value,
+    skills: repoProfile.value?.skills ?? [],
+  })
+  if (recovery._tag === 'redirect')
+    await navigateTo(recovery.location, { redirectCode: 301, replace: true })
+  else
+    throw createError({ statusCode: 404, statusMessage: 'Repository not found', fatal: true })
 }
 
 const repoSkills = computed(() => selectRepoSkills(repoProfile.value, repoHub.value.repo))

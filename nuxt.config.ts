@@ -320,6 +320,14 @@ export default defineNuxtConfig({
   // targeted caching here if/when traffic warrants it.
   routeRules: {
     '/collections': { redirect: { to: '/community', statusCode: 301 } } as any,
+    // `/gh` has no index page: owner hubs live at `/gh/<owner>`. It 404'd while
+    // `/orgs` 301'd straight into it, so every legacy orgs-index link dead-ended
+    // on a redirect chain. `/community` is the browsable owner surface.
+    '/gh': { redirect: { to: '/community', statusCode: 301 } } as any,
+    // Never a route here, but linked as one: atstore.fyi points at `/explore`
+    // with the anchor "Explore", and it is the only dofollow inbound link from
+    // a ranked domain. `/skills` is what that link was reaching for.
+    '/explore': { redirect: { to: '/skills', statusCode: 301 } } as any,
     // 2026-08-12 category rework: the verb-shaped cluster slugs were renamed to
     // the domain nouns people actually search. Search Console showed 4 clicks
     // across 3 months, so nothing ranked here, but the old URLs shipped in the
