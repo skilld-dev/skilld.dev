@@ -1,6 +1,7 @@
 // @vitest-environment node
 import type { MeasureRepoSize } from '../../shared/server/discovery-size-guard'
 import type { SqliteD1 } from './helpers/d1-sqlite'
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 import { reconcileLedger, submitDiscoveredRepos } from '../../shared/server/discovery-ledger'
 import { AUTO_INDEX_SKILL_LIMIT } from '../../shared/server/discovery-size-guard'
@@ -10,6 +11,7 @@ const MIGRATIONS = [
   'migrations/0097_x_mentions_and_discovery_ledger.sql',
   'migrations/0101_discovery_ledger_size_guard.sql',
   'migrations/0106_discovery_ledger_attempts.sql',
+  'migrations/0107_discovery_ledger_gone.sql',
 ]
 const NOW = 1_760_000_000
 
@@ -298,7 +300,7 @@ describe('reconcileLedger empty rule', () => {
 })
 
 describe('deleted repositories', () => {
-  it('parks a repo that no longer exists instead of retrying forever', async () => {
+  it('closes a repo that no longer exists instead of retrying forever', async () => {
     // 0xwilliamortiz/claude-red drew 162 likes and was then deleted. Treating
     // 404 as "unknown" retried it every quarter hour for nothing.
     seedPending('0xwilliamortiz', 'claude-red')
@@ -312,10 +314,77 @@ describe('deleted repositories', () => {
       measureRepoSize: async () => ({ _tag: 'gone' }),
     })
 
-    expect(summary.heldGone).toBe(1)
+    expect(summary.goneClosed).toBe(1)
     expect(summary.deferredUnmeasured).toBe(0)
     expect(calls).toEqual([])
-    expect(db().raw.prepare(`SELECT held_reason FROM discovery_ledger`).get())
-      .toEqual({ held_reason: 'repo-gone' })
+    // Terminal, and out of the review queue: a null `held_reason` is what keeps
+    // it off the admin surface, and `last_attempt_outcome` still says why.
+    expect(db().raw.prepare(
+      `SELECT status, held_reason, last_attempt_outcome FROM discovery_ledger`,
+    ).get()).toEqual({ status: 'gone', held_reason: null, last_attempt_outcome: 'repo-gone' })
+  })
+
+  it('never measures a closed repo again', async () => {
+    seedPending('0xwilliamortiz', 'claude-red')
+    const { calls, enqueue } = recordingEnqueue()
+    let measured = 0
+    const measureRepoSize: MeasureRepoSize = async () => {
+      measured += 1
+      return { _tag: 'gone' }
+    }
+
+    await submitDiscoveredRepos({ db: db().db, env, now: NOW, enqueue, measureRepoSize })
+    await submitDiscoveredRepos({ db: db().db, env, now: NOW + 900, enqueue, measureRepoSize })
+
+    // One GitHub call, not one per quarter hour forever.
+    expect(measured).toBe(1)
+    expect(calls).toEqual([])
+  })
+
+  it('migration 0107 closes the rows the old shape stranded', () => {
+    // 24 of the 67 rows parked in production on 2026-08-17 were `repo-gone`.
+    // They predate the code change, so the migration has to clear them or the
+    // review queue keeps them forever.
+    const before = createSqliteD1(MIGRATIONS.filter(m => !m.includes('0107')))
+    const seed = (repo: string, held: string | null, status = 'pending') => before.raw.prepare(
+      `INSERT INTO discovery_ledger (source, owner, repo, evidence_url, evidence_text,
+         evidence_score, first_seen_at, last_seen_at, mention_count, status, held_reason,
+         last_attempt_outcome)
+       VALUES ('x', 'o', ?, 'https://x.com/a/status/1', 'e', 1, ?, ?, 1, ?, ?, ?)`,
+    ).run(repo, NOW, NOW, status, held, held)
+    seed('claude-red', 'repo-gone')
+    seed('agentic-awesome-skills', 'oversized')
+    seed('obsidian-skills', null, 'indexed')
+
+    before.raw.exec(readFileSync('migrations/0107_discovery_ledger_gone.sql', 'utf8'))
+
+    const rows = before.raw.prepare(
+      `SELECT repo, status, held_reason, last_attempt_outcome FROM discovery_ledger ORDER BY repo`,
+    ).all()
+    expect(rows).toEqual([
+      // Closed, and still saying why.
+      { repo: 'agentic-awesome-skills', status: 'pending', held_reason: 'oversized', last_attempt_outcome: 'oversized' },
+      { repo: 'claude-red', status: 'gone', held_reason: null, last_attempt_outcome: 'repo-gone' },
+      { repo: 'obsidian-skills', status: 'indexed', held_reason: null, last_attempt_outcome: null },
+    ])
+    before.close()
+  })
+
+  it('leaves a released oversized hold in the review queue vocabulary', async () => {
+    // The counterpart: a hold a person can act on still parks, because
+    // `held_reason` now means only that.
+    seedPending('sickn33', 'agentic-awesome-skills')
+    const { enqueue } = recordingEnqueue()
+
+    await submitDiscoveredRepos({
+      db: db().db,
+      env,
+      now: NOW,
+      enqueue,
+      measureRepoSize: sizer({ 'sickn33/agentic-awesome-skills': AUTO_INDEX_SKILL_LIMIT + 1 }),
+    })
+
+    expect(db().raw.prepare(`SELECT status, held_reason FROM discovery_ledger`).get())
+      .toEqual({ status: 'pending', held_reason: 'oversized' })
   })
 })

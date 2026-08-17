@@ -26,6 +26,7 @@ const MIGRATIONS = [
   'migrations/0101_discovery_ledger_size_guard.sql',
   'migrations/0103_bluesky_discovery.sql',
   'migrations/0106_discovery_ledger_attempts.sql',
+  'migrations/0107_discovery_ledger_gone.sql',
 ]
 const NOW = 1_760_000_000
 const REVIEWER = 'harlan@harlanzw.com'
@@ -248,13 +249,16 @@ describe('releaseLedgerHold', () => {
     expect(rowOf('aggregator-dump').held_reason).toBe('oversized')
   })
 
-  it('parks a released repo again once GitHub stops serving it', async () => {
-    const id = seed({ repo: 'claude-red', heldReason: 'repo-gone' })
+  it('closes a released repo once GitHub stops serving it', async () => {
+    // A reviewer admits an oversized repo, and it is deleted before the next
+    // submit run reaches it. The admission does not survive the repo: an
+    // admitted row skips the size check, never the existence check.
+    const id = seed({ repo: 'claude-red', skillCount: 202, heldReason: 'oversized' })
     await releaseLedgerHold({
       db: db().db,
       id,
       reviewedBy: REVIEWER,
-      note: 'Checking whether it came back.',
+      note: 'Worth indexing.',
       now: NOW,
     })
 
@@ -268,7 +272,28 @@ describe('releaseLedgerHold', () => {
     })
 
     expect(calls).toEqual([])
-    expect(rowOf('claude-red').held_reason).toBe('repo-gone')
+    // Terminal, and not back in the queue the reviewer just cleared it from.
+    const row = rowOf('claude-red')
+    expect(row.status).toBe('gone')
+    expect(row.held_reason).toBeNull()
+  })
+
+  it('keeps a deleted repo out of the review queue entirely', async () => {
+    // 24 of the 67 rows parked in production on 2026-08-17 were repositories
+    // GitHub no longer served, and no reviewer action could clear one.
+    seed({ repo: 'claude-red' })
+
+    const { enqueue } = recordingEnqueue()
+    await submitDiscoveredRepos({
+      db: db().db,
+      env: {} as never,
+      now: NOW,
+      enqueue,
+      measureRepoSize: async () => ({ _tag: 'gone' }),
+    })
+
+    const held = await listLedger({ db: db().db, status: 'pending', parked: 'held' })
+    expect(held).toEqual([])
   })
 })
 

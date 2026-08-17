@@ -123,6 +123,29 @@ export interface BskyIngestSummary {
 }
 
 /**
+ * One line naming why a run degraded, for the wide event.
+ *
+ * A degraded run is the hardest kind to triage after the fact. It finishes, so
+ * `scheduled_runs` records `succeeded` with a null error; it reports `partial`
+ * to `sync_jobs`, which holds one row per task and is overwritten by the next
+ * run. On 2026-08-17 the nightly report went RED naming `sync-bsky-mentions`
+ * and, hours later, nothing anywhere said which query failed.
+ *
+ * Every failed query is named, not just the first: one query failing is a bad
+ * search term, all of them failing is the AppView being down, and a count
+ * cannot tell those apart. The result is capped so a total outage cannot write
+ * an unbounded string into the log.
+ */
+export function bskyFailureReason(
+  failedQueries: BskyIngestSummary['failedQueries'],
+  maxLength = 300,
+): string | null {
+  if (failedQueries.length === 0)
+    return null
+  return truncateText(failedQueries.map(f => `${f.query}: ${f.error}`).join('; '), maxLength)
+}
+
+/**
  * Weighted engagement for one post.
  *
  * Bluesky weights, never X's: there is no bookmark or impression count here,
