@@ -5,7 +5,7 @@ import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { createBskyClient } from '#shared/server/bsky-client'
-import { ingestBskyMentions } from '#shared/server/bsky-ingest'
+import { bskyFailureReason, ingestBskyMentions } from '#shared/server/bsky-ingest'
 
 const CRON = '17 */2 * * *'
 
@@ -74,6 +74,12 @@ export default defineScheduledTask({
           'operation': 'sync-bsky-mentions-ingest',
           'outcome': 'degraded',
           'failed.count': ingest.failedQueries.length,
+          // THE REASON HAS TO TRAVEL WITH THE EVENT. It used to live only in
+          // `sync_jobs.last_error`, which holds one row per task, so the next
+          // hourly run overwrote it. On 2026-08-17 the nightly report went RED
+          // naming this task and by morning nothing anywhere said which query
+          // failed or why. A count alone cannot be triaged.
+          'reason': bskyFailureReason(ingest.failedQueries),
         }))
       }
       // Schema drift is loud. A non-zero count means the API returned a post
@@ -120,14 +126,13 @@ export default defineScheduledTask({
         'processed.count': summary.postsStored,
         'success.count': summary.ledgerInserted,
         'truncated': ingest.truncatedQueries.length > 0,
+        'reason': bskyFailureReason(ingest.failedQueries),
       }))
       await reportJobRun(db, 'sync-bsky-mentions', {
         cron: CRON,
         status: allFailed ? 'error' : ingest.failedQueries.length > 0 ? 'partial' : 'ok',
         durationMs: summary.elapsedMs,
-        error: ingest.failedQueries.length > 0
-          ? ingest.failedQueries.map(f => `${f.query}: ${f.error}`).join('; ')
-          : null,
+        error: bskyFailureReason(ingest.failedQueries),
       })
       return { result: summary }
     })

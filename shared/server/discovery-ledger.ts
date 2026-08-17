@@ -11,13 +11,18 @@
  * The status machine, and who moves each edge:
  *
  *   pending   -> submitted   submitDiscoveredRepos, when the job is enqueued
+ *   pending   -> gone        submitDiscoveredRepos, when GitHub no longer has it
  *   submitted -> indexed     reconcileLedger, once the repo resolved a skill
  *   submitted -> empty       reconcileLedger, once the job finished with none
  *   any       -> rejected    a human, via the admin surface
  *
- * `rejected` is terminal. Discovery updates counters on a rejected row but
- * never resubmits it, so a repo turned down once does not come back every
+ * `rejected` and `gone` are terminal. Discovery updates counters on such a row
+ * but never resubmits it, so a repo turned down once does not come back every
  * time someone posts about it.
+ *
+ * The two terminal states name different deciders on purpose. `rejected` is a
+ * person saying no. `gone` is GitHub saying the repository is not there, which
+ * no review can overturn.
  */
 
 import type { RegistryRepositorySubmissionJobPayload } from '~~/server/utils/registry-jobs-runtime'
@@ -25,7 +30,7 @@ import type { MeasureRepoSize } from './discovery-size-guard'
 import { enqueueRegistryRepoJob } from '~~/server/utils/registry-jobs-runtime'
 import { AUTO_INDEX_SKILL_LIMIT } from './discovery-size-guard'
 
-export type LedgerStatus = 'pending' | 'submitted' | 'indexed' | 'empty' | 'rejected'
+export type LedgerStatus = 'pending' | 'submitted' | 'indexed' | 'empty' | 'rejected' | 'gone'
 export type LedgerSource = 'x' | 'hn' | 'bsky'
 
 /**
@@ -62,7 +67,13 @@ export interface LedgerEntry {
   reviewNote: string | null
   /** Skills the guard measured, null until a repo has been sized. */
   skillCount: number | null
-  /** Non-null means the row is parked awaiting a person. */
+  /**
+   * Non-null means the row is parked awaiting a person.
+   *
+   * Only reasons a person can act on belong here. A repository GitHub no
+   * longer serves is terminal `gone` instead, because a reviewer who releases
+   * it only enqueues a submission that 404s.
+   */
   heldReason: string | null
 }
 
@@ -170,13 +181,14 @@ export interface LedgerCounts {
   indexed: number
   empty: number
   rejected: number
+  gone: number
 }
 
 export async function countLedgerByStatus(db: D1Database): Promise<LedgerCounts> {
   const rows = (await db
     .prepare(`SELECT status, COUNT(*) AS n FROM discovery_ledger GROUP BY status`)
     .all<{ status: LedgerStatus, n: number }>()).results ?? []
-  const counts: LedgerCounts = { pending: 0, submitted: 0, indexed: 0, empty: 0, rejected: 0 }
+  const counts: LedgerCounts = { pending: 0, submitted: 0, indexed: 0, empty: 0, rejected: 0, gone: 0 }
   for (const row of rows)
     counts[row.status] = row.n
   return counts
@@ -298,8 +310,8 @@ export interface SubmitSummary {
    * three-skill submission in the archive.
    */
   admittedOversized: number
-  /** Parked because the repo no longer exists on GitHub. */
-  heldGone: number
+  /** Closed as `gone` because the repo no longer exists on GitHub. */
+  goneClosed: number
   /** Deferred because size could not be measured; retried next run. */
   deferredUnmeasured: number
   /**
@@ -365,7 +377,7 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
     failed: 0,
     heldOversized: 0,
     admittedOversized: 0,
-    heldGone: 0,
+    goneClosed: 0,
     deferredUnmeasured: 0,
     lastError: null,
     truncated: rows.length > limit,
@@ -398,10 +410,16 @@ export async function submitDiscoveredRepos(deps: SubmitDeps): Promise<SubmitSum
         : { _tag: 'unknown' as const, reason: 'no-sizer-configured' }
 
       if (verdict._tag === 'gone') {
-        // Park it rather than retry forever. A deleted repo is a permanent
+        // Close it rather than retry forever. A deleted repo is a permanent
         // answer, and leaving it pending would burn a GitHub call every run.
-        summary.heldGone += 1
-        await record('repo-gone', null, `, held_reason = 'repo-gone'`)
+        //
+        // CLOSED, NOT PARKED. This used to set `held_reason`, which put the row
+        // in the reviewer's queue, and 24 of the 67 rows parked there on
+        // 2026-08-17 were repositories nobody could do anything about. Neither
+        // available action fits: releasing enqueues a submission that 404s, and
+        // rejecting records a human verdict on GitHub's decision.
+        summary.goneClosed += 1
+        await record('repo-gone', null, `, status = 'gone'`)
         continue
       }
 

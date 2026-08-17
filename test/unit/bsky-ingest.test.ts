@@ -3,7 +3,7 @@ import type { BskyClient, BskyPage, BskyPost, BskyResult } from '../../shared/se
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ZERO_BSKY_METRICS } from '../../shared/server/bsky-client'
-import { bskyPostUrl, ingestBskyMentions, LOOKBACK_DAYS } from '../../shared/server/bsky-ingest'
+import { bskyFailureReason, bskyPostUrl, ingestBskyMentions, LOOKBACK_DAYS } from '../../shared/server/bsky-ingest'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const MIGRATIONS = [
@@ -235,5 +235,25 @@ describe('ingestBskyMentions', () => {
 describe('bskyPostUrl', () => {
   it('builds a permalink from the AT-URI, keyed by DID rather than handle', () => {
     expect(bskyPostUrl(post())).toBe('https://bsky.app/profile/did:plc:abc/post/xyz')
+  })
+})
+
+describe('bskyFailureReason', () => {
+  it('says nothing when every query answered', () => {
+    expect(bskyFailureReason([])).toBeNull()
+  })
+
+  it('names every failed query, so one bad term reads differently from an outage', () => {
+    expect(bskyFailureReason([
+      { query: 'skill.md', error: 'rate-limited' },
+      { query: 'claude skills', error: 'upstream-500' },
+    ])).toBe('skill.md: rate-limited; claude skills: upstream-500')
+  })
+
+  it('caps the line so a total outage cannot write an unbounded log field', () => {
+    const failed = Array.from({ length: 40 }, (_, i) => ({ query: `q${i}`, error: 'rate-limited' }))
+    const reason = bskyFailureReason(failed, 60)
+    expect(reason).toHaveLength(60)
+    expect(reason?.endsWith('…')).toBe(true)
   })
 })

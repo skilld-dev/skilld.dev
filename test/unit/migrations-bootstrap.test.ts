@@ -330,7 +330,22 @@ describe('d1 migration bootstrap', () => {
         SELECT sql FROM sqlite_master
         WHERE type = 'table' AND name = 'repo_star_surges'
       `).pluck().get()).toContain('REFERENCES repos(owner, repo)')
-      expect(migrations.at(-1)).toBe('0106_discovery_ledger_attempts.sql')
+      // Replaces an assertion that pinned the newest migration by name. It
+      // failed on every new migration and taught nothing about the chain.
+      //
+      // The ledger's terminal vocabulary survives the rebuilds. `gone` is what
+      // keeps a deleted repository out of the reviewer's queue, and it only
+      // works if the rebuilt CHECK admits it.
+      expect(() => sqlite.exec(`
+        INSERT INTO discovery_ledger (source, owner, repo, evidence_url, evidence_text,
+          first_seen_at, last_seen_at, status)
+        VALUES ('x', 'o', 'gone-repo', 'https://x.com/a/status/1', 'e', 1, 1, 'gone')
+      `)).not.toThrow()
+      expect(() => sqlite.exec(`
+        INSERT INTO discovery_ledger (source, owner, repo, evidence_url, evidence_text,
+          first_seen_at, last_seen_at, status)
+        VALUES ('x', 'o', 'bad-repo', 'https://x.com/a/status/1', 'e', 1, 1, 'invented')
+      `)).toThrow()
     }
     finally {
       sqlite.close()
