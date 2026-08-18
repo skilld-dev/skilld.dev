@@ -22,6 +22,7 @@ minimumReleaseAgeExclude:
   - '@nuxtjs/seo@5.3.12'
   - skilld-protocol@2.2.0
   - '@harlan-zw/comark-content@0.0.17'
+  - eslint-plugin-harlanzw@0.20.0
 shellEmulator: true
 autoInstallPeers: false
 
@@ -71,7 +72,7 @@ catalog:
   better-sqlite3: ^13.0.3
   comark: 0.6.2
   eslint: ^10.8.1
-  eslint-plugin-harlanzw: ^0.17.1
+  eslint-plugin-harlanzw: ^0.20.0
   h3: 1.15.11
   happy-dom: ^20.11.2
   import-in-the-middle: ^3.3.3
