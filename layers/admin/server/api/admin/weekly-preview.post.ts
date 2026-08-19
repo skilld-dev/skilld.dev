@@ -71,6 +71,7 @@ export default defineApiHandler({
       windowEnd,
       likedChanges: selection.likedChanges,
       likedOverflow: selection.likedOverflow,
+      trackedCount: selection.trackedCount,
       trending,
       siteUrl,
       unsubscribeUrl: `${siteUrl}/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken)}&list=weekly`,
@@ -80,6 +81,7 @@ export default defineApiHandler({
     const counts = {
       liked: selection.likedChanges.length,
       likedOverflow: selection.likedOverflow,
+      tracked: selection.trackedCount,
       trending: trending.length,
     }
 

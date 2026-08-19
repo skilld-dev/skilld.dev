@@ -12,6 +12,7 @@ function input(overrides: Partial<WeeklyRenderInput> = {}): WeeklyRenderInput {
     windowEnd: WINDOW_END,
     likedChanges: [],
     likedOverflow: 0,
+    trackedCount: 0,
     trending: [],
     siteUrl: 'https://skilld.dev',
     unsubscribeUrl: 'https://skilld.dev/api/unsubscribe?t=abc&list=weekly',
@@ -337,11 +338,11 @@ describe('weekly subject and preheader', () => {
     expect(preheader).not.toBe(html.match(/font-size:14px;line-height:1.6;color:[^"]*;">([^<]*)</)?.[1])
   })
 
-  it('tells the reader nothing of theirs changed when only trending has content', () => {
-    const { html } = renderWeekly(input({ trending: [trending()] }))
+  it('names only the trending half when the reader tracks nothing', () => {
+    const { html } = renderWeekly(input({ trending: [trending({ canonicalName: 'ponytail' })] }))
     const preheader = html.match(/<div style="display:none[^>]*>([^<]*)</)![1]!
 
-    expect(preheader).toContain('Nothing you like changed')
+    expect(preheader).toBe('People named ponytail.')
   })
 })
 
@@ -399,5 +400,66 @@ describe('weekly mention freshness', () => {
 
     expect(html).toContain('1 person named it')
     expect(html).not.toContain('latest')
+  })
+})
+
+describe('weekly quiet week reporting', () => {
+  it('reports the size of what it watched when nothing changed', () => {
+    const { html, text } = renderWeekly(input({ trackedCount: 30, trending: [trending()] }))
+
+    expect(html).toContain('30 skills tracked')
+    expect(html).toContain('no updates this week')
+    expect(text).toContain('30 skills tracked, no updates this week')
+  })
+
+  it('keeps the section heading so the silence has a home', () => {
+    const { html } = renderWeekly(input({ trackedCount: 30, trending: [trending()] }))
+
+    expect(html).toContain('Skills you like')
+  })
+
+  it('counts one tracked skill as a skill', () => {
+    const { html } = renderWeekly(input({ trackedCount: 1, trending: [trending()] }))
+
+    expect(html).toContain('1 skill tracked')
+  })
+
+  it('asks for a like only when nothing is tracked at all', () => {
+    const tracking = renderWeekly(input({ trackedCount: 30, trending: [trending()] }))
+    const empty = renderWeekly(input({ trackedCount: 0, trending: [trending()] }))
+
+    // Telling someone who likes 30 skills to go like a skill is the product
+    // failing to notice it already worked.
+    expect(tracking.html).not.toContain('Like a skill and it shows up here')
+    expect(empty.html).toContain('Like a skill and it shows up here')
+  })
+
+  it('drops the tracked line once something actually changed', () => {
+    const { html } = renderWeekly(input({
+      trackedCount: 30,
+      likedChanges: [likedChange()],
+      trending: [trending()],
+    }))
+
+    expect(html).not.toContain('no updates this week')
+  })
+
+  it('stops the greeting claiming nothing is liked when 30 things are', () => {
+    const { html } = renderWeekly(input({ trackedCount: 30, trending: [trending()] }))
+
+    expect(html).not.toContain('Nothing you like changed')
+  })
+
+  it('says outright that nothing is liked yet when nothing is', () => {
+    const { html } = renderWeekly(input({ trackedCount: 0, trending: [trending()] }))
+
+    expect(html).toContain('not liked any skills yet')
+  })
+
+  it('reports a quiet week with nothing trending either', () => {
+    const { html } = renderWeekly(input({ trackedCount: 30 }))
+
+    expect(html).toContain('30 skills tracked')
+    expect(html).toContain('Back next week')
   })
 })

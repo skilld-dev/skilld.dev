@@ -133,6 +133,7 @@ export async function runWeeklyForUser(
     windowEnd: input.windowEnd,
     likedChanges: selection.likedChanges,
     likedOverflow: selection.likedOverflow,
+    trackedCount: selection.trackedCount,
     trending: input.trending,
     siteUrl: input.siteUrl,
     unsubscribeUrl,

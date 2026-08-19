@@ -50,6 +50,14 @@ export interface WeeklyRecipient {
 export interface WeeklySelection {
   likedChanges: WeeklyLikedChange[]
   likedOverflow: number
+  /**
+   * Liked skills this email could have reported on.
+   *
+   * Counted with the same own-owner exclusion the change query uses. Counting
+   * every like would promise a report on skills this email will never mention,
+   * which is a worse lie than saying nothing.
+   */
+  trackedCount: number
 }
 
 /**
@@ -137,7 +145,10 @@ export async function selectWeeklyForUser(
 
   const rows = res.results ?? []
   const listed = rows.slice(0, MAX_LIKED_CHANGES)
-  const messages = await latestCommitMessages(db, listed, windowStart, windowEnd)
+  const [messages, tracked] = await Promise.all([
+    latestCommitMessages(db, listed, windowStart, windowEnd),
+    countTrackedSkills(db, user),
+  ])
 
   return {
     likedChanges: listed.map((row, index) => ({
@@ -151,7 +162,25 @@ export async function selectWeeklyForUser(
       commitMessages: messages[index] ?? [],
     })),
     likedOverflow: rows.length - listed.length,
+    trackedCount: tracked,
   }
+}
+
+/**
+ * Liked skills that still exist in the registry and are not this person's own.
+ *
+ * The join against `skills` matters: a like whose skill has since been removed
+ * would inflate a number the email presents as what it is watching.
+ */
+async function countTrackedSkills(db: D1Database, user: WeeklyRecipient): Promise<number> {
+  const row = await db.prepare(
+    `SELECT COUNT(*) AS tracked
+     FROM skill_likes l
+     JOIN skills s ON s.owner = l.owner AND s.repo = l.repo AND s.name = l.name
+     WHERE l.user_id = ?1
+       AND LOWER(l.owner) != LOWER(?2)`,
+  ).bind(user.id, user.login).first<{ tracked: number }>()
+  return row?.tracked ?? 0
 }
 
 /**
