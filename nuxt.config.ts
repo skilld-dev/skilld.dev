@@ -150,9 +150,24 @@ export default defineNuxtConfig({
     // showing a prompt (which would need a <SkewNotification/> on the anonymous
     // SEO surface). Old assets are served meanwhile, so nothing 404s regardless.
     reloadStrategy: 'idle',
-    // Pages render dynamically, so three versions cover active clients without
-    // carrying weeks of obsolete assets into every Worker upload.
-    maxNumberOfVersions: 3,
+    // Retention is left at the module defaults, 30 days and 10 versions,
+    // pruned by whichever binds first.
+    //
+    // This used to pin `maxNumberOfVersions: 3` to keep obsolete assets out of
+    // the Worker upload. That made the retention window depend on deploy rate
+    // rather than on time, and it degraded exactly when it mattered most:
+    // measured on 2026-08-19, two deploys landed four minutes apart, so a
+    // three-version window can be spent in minutes during a push session.
+    // A guarantee a cache needs to reason about has to be denominated in the
+    // same unit the cache is, which is seconds.
+    //
+    // `htmlCache` is deliberately not on yet. It would publish the retention
+    // guarantee to `@harlan-zw/nuxt-cloudflare` and drop the version cookie
+    // from any document a shared cache was asked to keep, but no HTML route
+    // here asks: `app.vue` calls `useAuth()`, so the rendered shell varies by
+    // sign-in state, and shared caches key on the URL without varying on
+    // Cookie. Making the shell user-independent comes first; only then do the
+    // `/gh/**` pages earn a rule.
   },
 
   scripts: {
@@ -320,6 +335,51 @@ export default defineNuxtConfig({
   // D1 per request), always fresh. D1 reads are cheap at current traffic; re-add
   // targeted caching here if/when traffic warrants it.
   routeRules: {
+    // Cache policy, expressed where Nuxt already puts freshness.
+    //
+    // This used to live in `server/plugins/cache-policy.ts` as an allowlist
+    // matched against regexes, because `@harlan-zw/nuxt-cloudflare` overwrote
+    // any header a route rule set. It no longer does: the module honours an
+    // app-set policy and only overrides on a proven hazard, so the rules can
+    // say what they mean.
+    //
+    // Two headers on purpose. `cloudflare-cdn-cache-control` sets the shared
+    // lifetime and Cloudflare strips it downstream; `cache-control` is what the
+    // browser sees. Where only the edge should cache, the browser gets the
+    // no-store default from the module and only the edge header appears here.
+    '/api/collections': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
+    '/api/collections/featured': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
+    '/api/community': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
+    '/api/feed/recent-updates': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
+    '/api/feed/recent-publishes': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
+    '/api/skills/tags': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    // Search and browse. The Workers Cache key includes the query string, so
+    // each distinct query caches separately. Nothing here varies by user.
+    '/api/skills': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=120, stale-while-revalidate=600, stale-if-error=3600' } } as any,
+    '/api/clusters': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=600' } } as any,
+    '/api/clusters/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    '/api/orgs/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    '/api/tags/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    // Raw markdown and the typeahead index deliberately keep browser caching
+    // too: both are large, identical for everyone, and only change when the
+    // registry does.
+    '/api/skills-raw/**': {
+      headers: {
+        'cache-control': 'public, max-age=300',
+        'cloudflare-cdn-cache-control': 'public, max-age=300',
+      },
+    } as any,
+    '/api/skills/typeahead': {
+      headers: {
+        'cache-control': 'public, max-age=3600',
+        'cloudflare-cdn-cache-control': 'public, max-age=3600, stale-while-revalidate=86400, stale-if-error=86400',
+      },
+    } as any,
+    '/api/skill-live/**': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=3600, stale-while-revalidate=86400, stale-if-error=86400' } } as any,
+    // The old rule was `/api/repos/(?!index/)owner/repo`. Most-specific-wins
+    // replaces the negative lookahead: the index routes take the second rule.
+    '/api/repos/**': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=900, stale-while-revalidate=3600, stale-if-error=3600' } } as any,
+    '/api/repos/index/**': { headers: { 'cache-control': 'private, no-store' } } as any,
     '/collections': { redirect: { to: '/community', statusCode: 301 } } as any,
     // `/gh` has no index page: owner hubs live at `/gh/<owner>`. It 404'd while
     // `/orgs` 301'd straight into it, so every legacy orgs-index link dead-ended
