@@ -10,6 +10,7 @@ export interface UserRow {
   avatar: string | null
   digest_email: string | null
   email_opt_in: number
+  weekly_opt_out: number
   digest_frequency: 'weekly' | 'daily' | 'off'
   digest_dow: number | null
   digest_hour: number
@@ -76,7 +77,7 @@ export async function upsertUserFromGithub(
 
   const row = await d.prepare(
     `SELECT id, github_id, login, name, email, avatar,
-            digest_email, email_opt_in, digest_frequency, digest_dow,
+            digest_email, email_opt_in, weekly_opt_out, digest_frequency, digest_dow,
             digest_hour, timezone, stars_synced_at, onboarded_at, last_login_at
      FROM users WHERE github_id = ?1`,
   ).bind(profile.id).first<UserRow>()
@@ -89,7 +90,7 @@ export async function upsertUserFromGithub(
 export async function getUserById(event: H3Event, id: number): Promise<UserRow | null> {
   const row = await db(event).prepare(
     `SELECT id, github_id, login, name, email, avatar,
-            digest_email, email_opt_in, digest_frequency, digest_dow,
+            digest_email, email_opt_in, weekly_opt_out, digest_frequency, digest_dow,
             digest_hour, timezone, stars_synced_at, onboarded_at, last_login_at
      FROM users WHERE id = ?1`,
   ).bind(id).first<UserRow>()

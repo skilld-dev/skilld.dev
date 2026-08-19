@@ -11,6 +11,14 @@ export const identityCadenceBodySchema = z.object({
 export const identityEmailPatchBodySchema = z.object({
   digest_email: z.string().trim().toLowerCase().max(254).optional(),
   email_opt_in: z.boolean().optional(),
+  /**
+   * The weekly email, stored inverted as `weekly_opt_out`.
+   *
+   * The API speaks opt-in because that is what the switch in the UI means. The
+   * column is the opposite so a new account defaults to receiving it without a
+   * backfill.
+   */
+  weekly_opt_in: z.boolean().optional(),
 }).refine(
   input => !input.email_opt_in || z.string().email().safeParse(input.digest_email).success,
   { path: ['digest_email'], message: 'A valid email address is required to receive digests' },
@@ -24,6 +32,7 @@ export const identityMeSchema = z.object({
   avatar: z.string().nullable(),
   digest_email: z.string().nullable(),
   email_opt_in: z.boolean(),
+  weekly_opt_in: z.boolean(),
   digest_frequency: z.enum(['weekly', 'daily', 'off']),
   digest_dow: z.number().int().min(0).max(6).nullable(),
   digest_hour: z.number().int().min(0).max(23),

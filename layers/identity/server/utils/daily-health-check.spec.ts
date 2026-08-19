@@ -286,6 +286,17 @@ describe('buildDailyHealthCheck', () => {
         finished_at INTEGER,
         sending_at INTEGER
       );
+      CREATE TABLE weekly_runs (
+        user_id INTEGER,
+        window_start INTEGER,
+        window_end INTEGER,
+        liked_count INTEGER,
+        trending_count INTEGER,
+        status TEXT,
+        claimed_at INTEGER,
+        sent_at INTEGER,
+        error TEXT
+      );
       CREATE TABLE skill_dirty (queued_at INTEGER);
       CREATE TABLE ai_batches (status TEXT, submitted_at INTEGER, completed_at INTEGER);
       CREATE TABLE failed_jobs (queue TEXT, job_type TEXT, exception TEXT, failed_at INTEGER);
@@ -379,9 +390,23 @@ describe('buildDailyHealthCheck', () => {
       )
     }
 
+    // Two windows, so the report has to pick the newer one rather than summing
+    // every weekly ever sent.
+    sqlite.exec(`INSERT INTO weekly_runs (user_id, window_start, window_end, liked_count, trending_count, status, claimed_at, sent_at, error)
+      VALUES (1, 0, 100, 2, 5, 'sent', 100, 100, NULL),
+             (1, 100, 200, 1, 5, 'sent', 200, 200, NULL),
+             (2, 100, 200, 0, 5, 'skipped', 200, NULL, NULL)`)
+
     const fetcher = vi.fn().mockResolvedValue({ status: 200 }) as unknown as typeof fetch
     const built = await buildDailyHealthCheck(db, { now, fetcher, workerVersion: 'version-1' })
 
+    expect(built.activity.weekly).toEqual({
+      windowEnd: 200,
+      sent: 1,
+      skipped: 1,
+      failed: 0,
+      uncertain: 0,
+    })
     expect(built.status).toBe('GREEN')
     expect(built.warnings).toEqual([])
     expect(built.inventory).toMatchObject({ skills: 1, repos: 2, users: 1, watchedRepos: 1 })
