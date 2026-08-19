@@ -1,11 +1,11 @@
-import type { StandaloneWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
+import type { BackgroundWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { describe, expect, it, vi } from 'vitest'
 import { emitOperationalEvent } from '../../server/utils/operational-event'
 
 describe('emitOperationalEvent', () => {
   it('sets the requested level before emitting once', () => {
     const calls: string[] = []
-    const event: StandaloneWideEvent = {
+    const event: BackgroundWideEvent = {
       context: {},
       setLevel: vi.fn((level: string) => calls.push(level)),
       emit: vi.fn(() => {
@@ -20,7 +20,7 @@ describe('emitOperationalEvent', () => {
   })
 
   it('preserves warning severity by default', () => {
-    const event: StandaloneWideEvent = {
+    const event: BackgroundWideEvent = {
       context: {},
       setLevel: vi.fn(),
       emit: vi.fn(() => null),

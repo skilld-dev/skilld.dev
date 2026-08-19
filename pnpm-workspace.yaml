@@ -40,7 +40,7 @@ catalog:
   '@harlan-zw/nuxt-cloudflare': ^0.2.0
   '@harlan-zw/nuxt-dx': 0.0.8
   '@harlan-zw/nuxt-use-query': 0.0.2
-  '@harlan-zw/nuxt-wide-events': 0.0.2
+  '@harlan-zw/nuxt-wide-events': ^0.1.0
   '@iconify-json/lucide': ^1.2.123
   '@iconify-json/simple-icons': ^1.2.93
   '@iconify-json/vscode-icons': ^1.2.72
