@@ -110,6 +110,15 @@ export interface WeeklyRenderInput {
   likedChanges: WeeklyLikedChange[]
   /** Liked skills that changed beyond the ones listed. */
   likedOverflow: number
+  /**
+   * Liked skills this email could have reported on, changed or not.
+   *
+   * Without it a quiet week and an empty account render identically, and they
+   * are opposite states: one means the product watched thirty things and found
+   * nothing, the other means it was never given anything to watch. The first
+   * deserves a report, the second deserves an ask.
+   */
+  trackedCount: number
   trending: WeeklyTrendingSkill[]
   siteUrl: string
   unsubscribeUrl: string
@@ -439,9 +448,12 @@ function preheader(input: WeeklyRenderInput): string {
       ? `Also trending: ${trendingNames}.`
       : `${input.likedChanges.reduce((total, change) => total + change.changeCount, 0)} changes across the skills you like.`
   }
-  if (input.trending.length)
-    return `Nothing you like changed. People named ${trendingNames}.`
-  return 'Nothing changed this week.'
+  if (input.trending.length) {
+    return input.trackedCount
+      ? `${trackedLine(input.trackedCount)}. People named ${trendingNames}.`
+      : `People named ${trendingNames}.`
+  }
+  return input.trackedCount ? `${trackedLine(input.trackedCount)}.` : 'Nothing changed this week.'
 }
 
 function greeting(input: WeeklyRenderInput): string {
@@ -451,16 +463,32 @@ function greeting(input: WeeklyRenderInput): string {
     return `${liked} ${plural(liked, 'skill you like', 'skills you like')} changed, and ${trending} more ${plural(trending, 'is', 'are')} getting talked about.`
   if (liked)
     return `${liked} ${plural(liked, 'skill you like', 'skills you like')} changed this week.`
-  if (trending)
-    return `Nothing you like changed, so here is what the ecosystem was talking about.`
-  return 'Nothing you like changed and the ecosystem was quiet. Back next week.'
+  if (trending) {
+    return input.trackedCount
+      ? 'Here is what people were naming this week.'
+      : 'You have not liked any skills yet, so here is what people were naming.'
+  }
+  return input.trackedCount
+    ? 'A quiet week. Back next week.'
+    : 'You have not liked any skills yet, and the week was quiet. Back next week.'
+}
+
+/**
+ * What the liked section says when it has nothing to report.
+ *
+ * The section used to vanish, which read as though the email had forgotten the
+ * half it promises. Naming the number turns an absence into a report: the
+ * product watched these and found nothing, rather than finding nothing to say.
+ */
+function trackedLine(count: number): string {
+  return `${count} ${plural(count, 'skill', 'skills')} tracked, no updates this week`
 }
 
 export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const now = input.windowEnd
   const window = formatWindow(input.windowStart, input.windowEnd)
   const subject = subjectFor(input)
-  const empty = !input.likedChanges.length && !input.trending.length
+  const empty = !input.likedChanges.length && !input.trackedCount && !input.trending.length
 
   // Only the HTML is tracked. The plain-text part is read by clients that
   // often cannot follow a redirect cleanly, and a bare skilld.dev link is
@@ -499,7 +527,13 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   // report the email should say how to fill it. The fully-empty state already
   // does; this is the far more common case where trending carried the week and
   // the reader is never told the other half is theirs to populate.
-  const likePrompt = !input.likedChanges.length && input.trending.length
+  const quietRow = !input.likedChanges.length && input.trackedCount
+    ? `<tr><td style="padding:14px 0;border-top:1px solid ${TOKEN.border};font-family:${MONO};font-size:11.5px;color:${TOKEN.muted};font-variant-numeric:tabular-nums;">${esc(trackedLine(input.trackedCount))}</td></tr>`
+    : ''
+
+  // Only when there is nothing to track. Telling someone who likes thirty
+  // skills to go like a skill is the product failing to notice it worked.
+  const likePrompt = !input.trackedCount && !input.likedChanges.length && input.trending.length
     ? `<tr><td style="padding:16px 0 0;border-top:1px solid ${TOKEN.border};font-family:${SANS};font-size:13px;line-height:1.5;color:${TOKEN.muted};">
          ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${TOKEN.accent};text-decoration:none;">Browse the registry</a>.
        </td></tr>`
@@ -519,8 +553,8 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
          Like a few skills and they will show up here the week they change.
          <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${TOKEN.accent};text-decoration:none;">Browse the registry</a>.
        </td></tr>`
-    : `${input.likedChanges.length
-      ? `${sectionLabel('Skills you like')}${likedRows}${overflowRow}`
+    : `${input.likedChanges.length || input.trackedCount
+      ? `${sectionLabel('Skills you like')}${likedRows}${overflowRow}${quietRow}`
       : ''}${input.trending.length
       ? `${sectionLabel(input.likedChanges.length ? 'Also trending' : 'Trending this week')}${trendingRows}${likePrompt}`
       : ''}`
@@ -600,6 +634,9 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
     greeting(input),
   ]
 
+  if (!input.likedChanges.length && input.trackedCount)
+    lines.push('', 'SKILLS YOU LIKE', '', trackedLine(input.trackedCount))
+
   if (input.likedChanges.length) {
     lines.push('', 'SKILLS YOU LIKE', '')
     for (const change of input.likedChanges) {
@@ -634,7 +671,7 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
       lines.push(`  ${skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName)}`)
       lines.push('')
     }
-    if (!input.likedChanges.length)
+    if (!input.trackedCount)
       lines.push(LIKE_PROMPT, '')
     lines.push(`Full board: ${input.siteUrl}/skills/trending`, '')
   }

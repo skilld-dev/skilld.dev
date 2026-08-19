@@ -15,7 +15,7 @@ import { renderWeekly } from '#layers/identity/server/utils/weekly-template'
 const WINDOW_END = 1_755_648_000 // 2026-08-20T00:00:00Z, fixed so previews are stable
 const WINDOW_START = WINDOW_END - 7 * 86_400
 
-function base(): Omit<WeeklyRenderInput, 'likedChanges' | 'likedOverflow' | 'trending'> {
+function base(): Omit<WeeklyRenderInput, 'likedChanges' | 'likedOverflow' | 'trackedCount' | 'trending'> {
   return {
     login: 'harlan-zw',
     windowStart: WINDOW_START,
@@ -92,6 +92,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
       },
     ],
     likedOverflow: 3,
+    trackedCount: 12,
     trending: [
       {
         owner: 'garrytan',
@@ -160,6 +161,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
     ...base(),
     likedChanges: [],
     likedOverflow: 0,
+    trackedCount: 30,
     trending: SCENARIOS.full!().trending,
   }),
 
@@ -167,6 +169,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
     ...base(),
     likedChanges: SCENARIOS.full!().likedChanges.slice(0, 2),
     likedOverflow: 0,
+    trackedCount: 4,
     trending: [],
   }),
 
@@ -183,6 +186,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
       commitMessages: [],
     }],
     likedOverflow: 0,
+    trackedCount: 1,
     trending: [{
       owner: 'onmax',
       repo: 'nuxt-skills',
@@ -196,7 +200,11 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
   }),
 
   // Nothing this week. The template still has to say something useful.
-  'empty': () => ({ ...base(), likedChanges: [], likedOverflow: 0, trending: [] }),
+  'empty': () => ({ ...base(), likedChanges: [], likedOverflow: 0, trackedCount: 0, trending: [] }),
+
+  // Likes exist and none of them moved. Distinct from `empty`, and the state
+  // nearly every real recipient is in.
+  'quiet': () => ({ ...base(), likedChanges: [], likedOverflow: 0, trackedCount: 30, trending: SCENARIOS.full!().trending }),
 
   // Every string at the length that breaks layouts.
   'overflow': () => ({
@@ -218,6 +226,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
       ],
     }],
     likedOverflow: 12,
+    trackedCount: 47,
     trending: [{
       owner: 'another-organisation',
       repo: 'skills',
@@ -265,6 +274,7 @@ async function liveScenario(): Promise<WeeklyRenderInput> {
     ...base(),
     likedChanges: SCENARIOS.full!().likedChanges.slice(0, 3),
     likedOverflow: 0,
+    trackedCount: 12,
     trending: feed.namedSkills.slice(0, MAX_TRENDING).map(skill => ({
       owner: skill.owner,
       repo: skill.repo,
