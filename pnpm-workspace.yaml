@@ -37,7 +37,7 @@ catalog:
   '@comark/nuxt': 0.6.2
   '@harlan-zw/comark-content': 0.0.17
   '@harlan-zw/nuxt-cf-jobs': 0.0.5
-  '@harlan-zw/nuxt-cloudflare': 0.0.14
+  '@harlan-zw/nuxt-cloudflare': ^0.2.0
   '@harlan-zw/nuxt-dx': 0.0.8
   '@harlan-zw/nuxt-use-query': 0.0.2
   '@harlan-zw/nuxt-wide-events': 0.0.2
