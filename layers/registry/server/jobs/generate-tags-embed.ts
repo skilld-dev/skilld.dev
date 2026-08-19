@@ -14,7 +14,7 @@
  */
 import type { EmbeddingContext, EmbeddingSkill } from './generate-embeddings'
 import type { TagPayload } from './generate-tags'
-import { writeCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
 import { putGenerated, sha1 } from '../utils/skill-generated'
 import { generateEmbedding } from './generate-embeddings'
 import { TAXONOMY } from './taxonomy'
@@ -43,7 +43,7 @@ export async function getTagCentroids(ctx: EmbeddingContext): Promise<TagCentroi
   const taxonomySha = await sha1(TAXONOMY.map(t => `${t.slug}:${t.label}:${t.description}`).join('\n'))
   const model = ctx.voyageKey ? 'voyage-3-lite' : 'hash-fallback-v1'
   const cacheKey = `skills:tag-centroids:${model}:${taxonomySha}`
-  const cached = await useStorage('cache').getItem<TagCentroid[]>(cacheKey)
+  const cached = await readCache<TagCentroid[]>(useStorage('cache'), cacheKey)
   if (cached)
     return cached
 

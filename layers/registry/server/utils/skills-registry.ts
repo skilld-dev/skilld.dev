@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate-canonical'
 import type { AlternateSource, HybridSearchResult, SearchMode } from './skill-search'
 import { getDB } from '#server/utils/db'
-import { writeCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
 import { JOIN_REPOS_SQL, notAggregatorSql, notBrokenSql } from './broken'
 import { buildSkillDependencyMap, skillDependencyKey } from './skill-dependencies'
 import {
@@ -617,7 +617,7 @@ async function listDuplicateCandidateRows(
   opts: { supportedOnly: boolean, includeAggregators?: boolean },
 ): Promise<SkillDuplicateRow[]> {
   const cacheKey = `skills:duplicate-candidates:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`
-  const cached = await useStorage('cache').getItem<SkillDuplicateRow[]>(cacheKey)
+  const cached = await readCache<SkillDuplicateRow[]>(useStorage('cache'), cacheKey)
   if (cached)
     return cached
 
@@ -678,7 +678,7 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
 
 export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   const cacheKey = 'skills:sitemap-all'
-  const cached = await useStorage('cache').getItem<SkillSitemapEntry[]>(cacheKey)
+  const cached = await readCache<SkillSitemapEntry[]>(useStorage('cache'), cacheKey)
   if (cached)
     return cached
 

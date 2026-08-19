@@ -235,6 +235,18 @@ describe('evaluateDailyHealthStatus', () => {
       status: 'AMBER',
       reasons: ['1 user-impacting repository became unavailable in 24 hours.'],
     })
+
+    // The operator report for 2026-08-19 read "2 user-impacting repositorys".
+    const many = summary({
+      pipeline: {
+        ...informational.pipeline,
+        newlyBrokenReposImpacted24h: 2,
+      },
+    })
+    expect(evaluateDailyHealthStatus(many)).toEqual({
+      status: 'AMBER',
+      reasons: ['2 user-impacting repositories became unavailable in 24 hours.'],
+    })
   })
 
   it('marks missing scheduled cadence red', () => {

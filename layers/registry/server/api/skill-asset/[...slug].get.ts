@@ -1,4 +1,4 @@
-import { writeCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
@@ -115,7 +115,7 @@ export default defineApiHandler({
 
     const branch = row.default_branch || 'main'
     const cacheKey = `skills:asset:v3:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
-    const cached = await useStorage('cache').getItem<AssetCache>(cacheKey)
+    const cached = await readCache<AssetCache>(useStorage('cache'), cacheKey)
     if (cached) {
       if (cached.status === 'missing')
         throw createError({ statusCode: 404, message: 'Asset content unavailable' })

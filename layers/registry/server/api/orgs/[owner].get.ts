@@ -1,7 +1,7 @@
 import type { TagPayload } from '../../jobs/generate-tags'
 import type { RegistrySkill } from '../../utils/skills-registry'
 import { getDB } from '#server/utils/db'
-import { writeCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
@@ -186,7 +186,7 @@ export default defineCachedEventHandler(async (event) => {
   await Promise.all(repos.map(async (r) => {
     const source = sourceIdentities.get(r.repo) ?? { owner, repo: r.repo }
     const cacheKey = `github:repo-desc:v2:${source.owner}/${source.repo}`
-    const cached = await useStorage('cache').getItem<string | null>(cacheKey)
+    const cached = await readCache<string | null>(useStorage('cache'), cacheKey)
     if (cached) {
       r.description = cached
       return

@@ -420,7 +420,7 @@ export async function handleRegistryRepoJob(
     rowsInserted: stats.skillsUpserted,
   })
   if (stats.status === 'failed') {
-    if (payload.operation === 'submit' && isPermanentSubmissionFailure(stats.reason)) {
+    if (isPermanentRepoFailure(stats.reason)) {
       await clearRepoProgress(ctx.db, {
         owner: payload.owner,
         repo: payload.repo,
@@ -451,7 +451,28 @@ export default defineJob({
   handle: handleRegistryRepoJob,
 })
 
-function isPermanentSubmissionFailure(reason: string | undefined): boolean {
+/**
+ * Failures that describe the repository, not the attempt.
+ *
+ * Every reason here is a verdict GitHub or the size guard already reached, so a
+ * retry pays five GitHub round trips across a 60/300/900/3600 backoff to learn
+ * the same thing. Failing once by name ends the job on the first answer.
+ *
+ * This used to be gated on `operation === 'submit'`, which left the far more
+ * common `sync` path throwing. That cost twice over. The retries were wasted,
+ * and a throw stringifies to `Error: repo fetch 404` plus a stack, so it never
+ * matched `TERMINAL_DISCOVERY_REJECTION_REASONS`, which compares the exception
+ * for equality against the bare reason. `ctx.fail` writes the reason verbatim,
+ * so a decision now reads as a decision. Measured on 2026-08-19: the two
+ * `repo fetch 404` rows for `chadking-agent/sia` and
+ * `chloevpin/x-for-you-feed-skill` were the entire content of the operator
+ * report's `2 jobs failed in 24 hours.` RED reason, and both repositories had
+ * simply been deleted.
+ *
+ * `syncRepo` already calls `markRepoMissing` for 404 and 410, so the registry
+ * was correct throughout. Only the job outcome was wrong.
+ */
+function isPermanentRepoFailure(reason: string | undefined): boolean {
   return reason === 'repo fetch 404'
     || reason === 'repo fetch 410'
     || reason === 'tree_truncated'

@@ -1,4 +1,4 @@
-import { writeCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
@@ -69,7 +69,7 @@ export default defineApiHandler({
     const source = resolveRepoSourceIdentityFromRow(skill, row)
     const branch = row.default_branch || 'main'
     const cacheKey = `skills:files:v2:${source.owner}/${source.repo}/${skill.name}:${branch}`
-    const cached = await useStorage('cache').getItem<SkillFilesPayload>(cacheKey)
+    const cached = await readCache<SkillFilesPayload>(useStorage('cache'), cacheKey)
     if (cached)
       return cached
 

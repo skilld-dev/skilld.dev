@@ -517,7 +517,7 @@ export function evaluateDailyHealthStatus(
       .join(', ')}.`)
   }
   if (summary.pipeline.newlyBrokenReposImpacted24h > 0)
-    amber.push(`${plural(summary.pipeline.newlyBrokenReposImpacted24h, 'user-impacting repository')} became unavailable in 24 hours.`)
+    amber.push(`${plural(summary.pipeline.newlyBrokenReposImpacted24h, 'user-impacting repository', 'user-impacting repositories')} became unavailable in 24 hours.`)
   if (summary.pipeline.skillSyncFailures24h > 0)
     amber.push(`${plural(summary.pipeline.skillSyncFailures24h, 'skill')} recorded a new sync failure in 24 hours.`)
   if (summary.pipeline.staleDirtySkills > 0)

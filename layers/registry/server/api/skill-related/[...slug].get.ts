@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
 import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
-import { writeCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
 import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
@@ -54,7 +54,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
     const cacheKey = relatedCacheKey(skill)
-    const cached = await useStorage('cache').getItem<SkillRelatedResponse>(cacheKey)
+    const cached = await readCache<SkillRelatedResponse>(useStorage('cache'), cacheKey)
     if (cached)
       return cached
 
@@ -142,7 +142,7 @@ interface GhCommitResponse {
 
 async function getSkillCommits(owner: string, repo: string, path: string): Promise<SkillCommit[]> {
   const cacheKey = `skills:commits:v2:${owner}/${repo}:${path}`
-  const cached = await useStorage('cache').getItem<SkillCommit[]>(cacheKey)
+  const cached = await readCache<SkillCommit[]>(useStorage('cache'), cacheKey)
   if (cached)
     return cached
 

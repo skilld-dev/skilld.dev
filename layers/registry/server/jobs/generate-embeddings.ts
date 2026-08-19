@@ -1,4 +1,4 @@
-import { writeCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
 /// <reference types="@cloudflare/workers-types" />
 /**
  * Embedding similarity prototype. Uses Voyage (voyage-3-lite is cheap; we only
@@ -137,7 +137,7 @@ export async function getEmbeddingNeighbors(
   const naturalKey = `${skill.owner}/${skill.repo}/${skill.name}`
   const id = await vectorIdFor(skill)
   const cacheKey = `skills:embedding-neighbors:v3:${naturalKey}`
-  const cached = await useStorage('cache').getItem<EmbeddingNeighbor[]>(cacheKey)
+  const cached = await readCache<EmbeddingNeighbor[]>(useStorage('cache'), cacheKey)
   if (cached)
     return cached
 

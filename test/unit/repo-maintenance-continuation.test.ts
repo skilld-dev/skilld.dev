@@ -1,6 +1,7 @@
 import type { SyncRepoStats } from '../../layers/registry/server/utils/sync-repo'
 import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TERMINAL_DISCOVERY_REJECTION_REASONS } from '../../layers/registry/server/utils/discovery-candidates'
 
 const syncRepo = vi.fn<(...args: unknown[]) => Promise<SyncRepoStats>>()
 
@@ -61,6 +62,15 @@ function continuingAt(nextOffset: number): SyncRepoStats {
     skillsSeen: nextOffset + 1,
     skillsUpserted: 0,
     continuation: { treeSha: 'tree-1', checkedAt: 1_700_000_000, nextOffset },
+  } as unknown as SyncRepoStats
+}
+
+function failedWith(reason: string): SyncRepoStats {
+  return {
+    status: 'failed',
+    reason,
+    skillsSeen: 0,
+    skillsUpserted: 0,
   } as unknown as SyncRepoStats
 }
 
@@ -148,5 +158,65 @@ describe('repo sync continuation', () => {
 
     const options = syncRepo.mock.calls[0]?.[4] as { maxSkillFiles: number }
     expect(options.maxSkillFiles).toBeGreaterThan(50)
+  })
+})
+
+describe('permanent repository failures on the sync path', () => {
+  let sqlite: Database.Database
+  let db: D1Database
+
+  beforeEach(() => {
+    syncRepo.mockReset()
+    sqlite = new Database(':memory:')
+    sqlite.exec(`
+      CREATE TABLE repo_sync_progress (
+        owner TEXT, repo TEXT, job_id TEXT, tree_sha TEXT, checked_at INTEGER,
+        next_offset INTEGER, total_skills INTEGER, updated_at INTEGER,
+        PRIMARY KEY (owner, repo)
+      );
+    `)
+    db = wrapSqlite(sqlite)
+  })
+
+  const syncPayload = {
+    operation: 'sync',
+    owner: 'chadking-agent',
+    repo: 'sia',
+    ownerVerified: false,
+    claimDiscovery: false,
+  } as const
+
+  it('ends a deleted repository on the first answer instead of retrying a 404', async () => {
+    syncRepo.mockResolvedValue(failedWith('repo fetch 404'))
+    const { ctx, control } = jobContext(db)
+
+    await handleRegistryRepoJob({ ...syncPayload }, ctx as never)
+
+    expect(control.action).toBe('failed')
+    expect(control.error).toBe('repo fetch 404')
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM repo_sync_progress').get())
+      .toMatchObject({ count: 0 })
+  })
+
+  it('records the bare reason the health check compares against', async () => {
+    syncRepo.mockResolvedValue(failedWith('repo fetch 410'))
+    const { ctx, control } = jobContext(db)
+
+    await handleRegistryRepoJob({ ...syncPayload }, ctx as never)
+
+    // The exclusion is an equality test against the reason. A thrown error
+    // stringifies to `Error: repo fetch 410` plus a stack and never matches,
+    // which is how two deleted repositories turned the operator report RED.
+    expect(TERMINAL_DISCOVERY_REJECTION_REASONS).toContain(control.error)
+  })
+
+  it('still throws a transient failure so the queue retries it', async () => {
+    syncRepo.mockResolvedValue(failedWith('tree_fetch_failed:503'))
+    const { ctx, control } = jobContext(db)
+
+    await expect(handleRegistryRepoJob({ ...syncPayload }, ctx as never))
+      .rejects
+      .toThrow('tree_fetch_failed:503')
+    expect(control.action).toBeNull()
   })
 })

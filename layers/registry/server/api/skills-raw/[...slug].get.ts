@@ -1,4 +1,4 @@
-import { writeCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
@@ -27,7 +27,7 @@ export default defineApiHandler({
 
     const source = await resolveRepoSourceIdentity(platform.db, skill)
     const cacheKey = `skills:raw:v2:${source.owner}/${source.repo}/${skill.name}`
-    const cached = await useStorage('cache').getItem<RawCache>(cacheKey)
+    const cached = await readCache<RawCache>(useStorage('cache'), cacheKey)
     if (cached?.status === 'ok' && cached.body !== null) {
       setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
       setHeader(event, 'cache-control', 'public, max-age=300')
