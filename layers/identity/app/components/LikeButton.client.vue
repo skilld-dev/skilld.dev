@@ -33,6 +33,15 @@ const anonHref = computed(() => loginUrl({ returnTo: route.fullPath, action: 'li
 
 const NUDGE_KEY = 'skilld:like-digest-nudge-dismissed'
 const nudgeDismissed = ref(true)
+/**
+ * Shown once, to a signed-in user who has not finished onboarding.
+ *
+ * It used to invite them to "set up digest", which asked for configuration the
+ * weekly does not need: the send already falls back to the GitHub address on
+ * the account. So it now confirms what the like just did instead of asking for
+ * anything, and only offers the email step when there is genuinely no address
+ * to send to.
+ */
 const showNudge = computed(() =>
   variant === 'detail' && liked.value && isAuthenticated.value && user.value?.onboarded === false && !nudgeDismissed.value,
 )
@@ -121,8 +130,7 @@ const revealClass = computed(() => {
       class="flex items-start gap-2 text-xs text-muted"
     >
       <span class="flex-1">
-        Add an email to hear when this changes.
-        <ULink to="/onboarding/email" class="underline underline-offset-2">Set up digest</ULink>
+        Liked. Its changes land in your next weekly.
       </span>
       <UButton
         icon="i-lucide-x"

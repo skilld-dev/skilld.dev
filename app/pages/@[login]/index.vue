@@ -195,10 +195,7 @@ defineOgImage('Curator.takumi', {
             fetchpriority="high"
           >
           <div class="min-w-0 pt-1">
-            <p class="section-label">
-              Community profile
-            </p>
-            <h1 class="mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+            <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
               {{ displayName }}
             </h1>
             <p
@@ -308,10 +305,7 @@ defineOgImage('Curator.takumi', {
         >
           <header class="flex flex-wrap items-end justify-between gap-3 border-b border-default pb-3">
             <div class="min-w-0">
-              <p class="section-label">
-                Repository
-              </p>
-              <h2 :id="`repository-${group.owner}-${group.repo}`" class="mt-1 truncate font-mono text-lg font-semibold tracking-tight">
+              <h2 :id="`repository-${group.owner}-${group.repo}`" class="truncate font-mono text-lg font-semibold tracking-tight">
                 <NuxtLink :to="`/gh/${group.owner}/${group.repo}`" class="hover:text-muted">
                   {{ group.owner }}/{{ group.repo }}
                 </NuxtLink>
@@ -452,12 +446,12 @@ defineOgImage('Curator.takumi', {
     <section class="mt-12" aria-labelledby="collections-heading">
       <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p class="section-label">
+          <h2 id="collections-heading" class="text-xl font-semibold tracking-tight">
             Curated setups
-          </p>
-          <h2 id="collections-heading" class="mt-2 text-xl font-semibold tracking-tight">
-            Collections
           </h2>
+          <p v-if="collections.length" class="data-label mt-2">
+            {{ collections.length }} {{ collections.length === 1 ? 'collection' : 'collections' }}
+          </p>
         </div>
         <p class="max-w-xl text-base leading-relaxed text-muted text-pretty">
           Skills grouped for one workflow and installable with one command.
@@ -538,7 +532,7 @@ defineOgImage('Curator.takumi', {
           No collections yet
         </h3>
         <p class="mt-2 max-w-xl text-base leading-relaxed text-muted">
-          {{ isOwner ? 'Bundle skills for one workflow into a collection people can install with one command.' : `When @${login} publishes a collection, it will appear here.` }}
+          {{ isOwner ? 'Bundle skills for one workflow into a collection devs can install with one command.' : `When @${login} publishes a collection, it will appear here.` }}
         </p>
         <UButton
           v-if="isOwner"

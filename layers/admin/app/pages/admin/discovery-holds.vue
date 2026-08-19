@@ -187,10 +187,7 @@ async function decide(hold: Hold, decision: 'release' | 'reject') {
     <section v-else aria-labelledby="discovery-holds-heading">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p class="section-label font-mono text-xs uppercase tracking-widest text-muted">
-            Parked
-          </p>
-          <h2 id="discovery-holds-heading" class="mt-2 text-xl font-semibold">
+          <h2 id="discovery-holds-heading" class="text-xl font-semibold">
             Waiting on a person
           </h2>
         </div>

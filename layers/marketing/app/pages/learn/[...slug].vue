@@ -36,14 +36,14 @@ useHead({
 <template>
   <article class="learn-article mx-auto max-w-3xl px-4 py-12 prose prose-stone sm:px-6 dark:prose-invert">
     <header v-if="data" class="not-prose mb-10">
-      <p class="section-label">
-        Authoring guide
-      </p>
-      <h1 class="mt-4 text-4xl font-semibold leading-tight tracking-tight text-balance md:text-5xl">
+      <h1 class="text-4xl font-semibold leading-tight tracking-tight text-balance md:text-5xl">
         {{ data.title }}
       </h1>
       <p class="mt-5 max-w-2xl text-base leading-relaxed text-muted text-pretty">
         {{ data.description }}
+      </p>
+      <p class="data-label mt-4">
+        Authoring guide
       </p>
     </header>
     <ContentRenderer

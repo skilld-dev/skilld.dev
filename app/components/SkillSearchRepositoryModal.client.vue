@@ -201,10 +201,7 @@ watch(repositoryTask, (task, previous) => {
             >
           </NuxtLink>
           <div class="min-w-0 flex-1">
-            <p class="section-label">
-              {{ repositoryTask._tag === 'indexed' ? 'Repository ready' : repositoryTask._tag === 'failed' ? 'Repository failed' : 'Adding repository' }}
-            </p>
-            <h2 id="repository-indexing-heading" class="mt-1 break-words font-mono text-base font-medium text-highlighted sm:text-lg">
+            <h2 id="repository-indexing-heading" class="break-words font-mono text-base font-medium text-highlighted sm:text-lg">
               <NuxtLink
                 v-if="repositoryTask._tag === 'indexed'"
                 :to="repoHubPath(repositoryOwner, repositoryName)"
@@ -224,6 +221,9 @@ watch(repositoryTask, (task, previous) => {
             >
               @{{ repositoryOwner }}
             </NuxtLink>
+            <p class="data-label mt-1" aria-live="polite">
+              {{ repositoryTask._tag === 'indexed' ? 'Repository ready' : repositoryTask._tag === 'failed' ? 'Repository failed' : 'Adding repository' }}
+            </p>
           </div>
           <UButton
             icon="i-lucide-x"

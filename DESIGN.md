@@ -106,7 +106,7 @@ components:
 
 - **Type system**: fixed rem scale. UI chrome stays at `text-xs` to `text-sm`; body at `text-sm` to `text-base`; large type reserved for page headings.
 - **OpenType features**: `tabular-nums` on every numeric display (install counts, collection sizes, version strings).
-- **Heading pattern**: section labels use the `.section-label` utility (mono, `text-xs`, uppercase, widest tracking, muted color).
+- **Heading pattern**: small section headings and list group labels use the `.section-label` utility (mono, `text-xs`, uppercase, widest tracking, muted color). It is a heading, never a label stacked above one.
 - **Mono rule**: if it's chrome (action, label, metadata, navigation), it's mono. If it's content, it's sans.
 
 ## Icons
@@ -171,6 +171,7 @@ components:
 - Cards nested in cards.
 - `rounded-xl` on components.
 - Large font sizes in UI chrome; reserve large type for page headings.
+- Eyebrow text. Never stack a muted uppercase label directly above a heading. If the label repeats the heading, delete it. If it carries real information, promote it into the heading or demote it to a data line below.
 - Generous "breathing room" padding; padding is structural.
 - Showing all data at once; layer through progressive disclosure (hover, expand, detail panel).
 - Spelling out "Personal Data Server" in UI; always "PDS" + tooltip.
@@ -182,7 +183,7 @@ components:
 
 | Class/Token | What it does | When to use |
 |-------------|--------------|-------------|
-| `.section-label` | `font-mono text-xs uppercase tracking-widest text-[var(--ui-text-muted)]` | Above each content section as a category label |
+| `.section-label` | `font-mono text-xs uppercase tracking-widest text-[var(--ui-text-muted)]` | The heading of a small section, or a group label inside a list, menu, or modal. Never an eyebrow above a larger heading |
 | `.data-label` | `font-mono text-xs text-[var(--ui-text-muted)] tabular-nums` | Inline metric labels in lists and cards |
 | `.surface-warm` | warm dark bg `oklch(0.16 0.01 60)` + warm border | Card or panel backgrounds in dark mode |
 | `.surface-warm-elevated` | slightly lighter warm bg `oklch(0.20 0.014 60)` + warm border | Elevated panels, dropdowns, popovers in dark mode |
@@ -199,12 +200,13 @@ components:
 
 Homepage patterns become system primitives only when they help a user make the next decision. Reuse their hierarchy and interaction rules, then compose each route around its specific job.
 
-- **Atmospheric masthead**: use `EditorialMasthead` on first-level discovery and curation routes. Lead with a plain-language outcome, not the taxonomy name. Titles use `clamp(2.75rem, ..., 5rem)`, stay under 16 characters per line where practical, and pair with one explanatory paragraph.
+- **Page opening**: use `CompactPageHeader` on first-level discovery and curation routes. It renders one `h1`, one explanatory paragraph, and optional controls. Lead with a plain-language outcome, not the taxonomy name. Titles stay under 16 characters per line where practical.
 - **Atmosphere**: use one `.editorial-atmosphere` layer per band. Choose rose for discovery, ember for curation, stone for evidence or directories. Keep data on the quiet centre of the mask. Atmosphere never replaces borders or surface contrast.
 - **Outcome index**: use `OutcomeClusterGrid` when visitors know their problem but not the registry vocabulary. Numbered routes explain the result in user voice, then state how many real skills are available.
 - **Evidence ledger**: use `.editorial-ledger` for long or changing inventory. Each row answers what it is, who or where it came from, why it matters, and where the click goes. Prefer rows over repeated cards once more than six items are visible.
 - **Lead and supporting picks**: curation pages may feature one dominant recommendation and up to two supporting picks. Show rationale before metadata. Do not duplicate featured items in the following directory.
 - **Directional actions**: the next useful action belongs at the end of the relevant row or band, with a 44px minimum target. Avoid detached CTA cards that repeat the section heading.
+- **Section openings**: a section opens with its heading, never with a label above its heading. Four sanctioned openings: (1) heading plus a `.data-label` line below carrying count, freshness, or authorship; (2) a 1px top rule with the next route at the end of the heading row; (3) a mono `01 / 05` sequence marker, only where band order is real information; (4) a 2px accent rail on the leading edge, at most one per page, for a single lead pick. Prefer (1) by default.
 - **Provenance line**: author or organization avatar, handle, source path, and freshness are evidence. Keep them visually quieter than the skill or collection name, but never hide all provenance behind hover.
 - **Async states**: loading, empty, and error states preserve the same spatial footprint as loaded content. Errors offer a scoped retry. Empty states explain the value and give one next action.
 - **Responsive ownership**: shared compositions are container-aware. Define `container-type: inline-size` on the owning shell before using `@container`; keep a readable single-column default. Large inventories may use `content-visibility: auto` only with `contain-intrinsic-size`.
@@ -266,6 +268,17 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Card density**: use the existing bordered card pattern, but each editorial card should read like a Wirecutter pick: compact rationale first, metadata second. Avoid nested cards; skill names can be inline badges or a divided list.
 - **Copy rule**: do not say "top", "best", or "popular" unless the reason is visible. Say "Chosen because..." or "Useful when..." and connect the author to the workflow.
 
+### Weekly Email Band
+
+- **Placement**: `#weekly`, between the freshness and publish bands. It absorbed the retired `home-freshness-watch` panel rather than sitting beside it, so the page argues once: here is what changed, here is how it reaches you.
+- **Composition**: `home-weekly-grid`, one column below `md`, `1fr 1fr` above. Copy left, email preview right. No `.editorial-atmosphere` layer: the preview is the band's visual interest and a second wash would compete with it.
+- **The preview is the real email**, server-rendered through `renderWeekly` and embedded as markup, never a screenshot. A screenshot goes stale on the first row-style edit, and this template changed on four consecutive days while it was being built.
+- **Preview follows the page theme.** `renderWeekly` takes `theme: 'light' | 'dark'`; the endpoint returns both cards and the component picks one from `useColorMode`. The Monday send stays light, because inline styles are the only thing every mail client honours.
+- **Crop, do not scale**: `max-block-size: 26rem` with a `mask-image` fade. A `transform: scale()` blurs the type, and the email is the one element here that has to look exactly like itself.
+- **The preview is `aria-hidden` and untabbable.** It carries roughly twenty real links; tabbing an inbox picture mid-homepage is a trap. The prose beside it is the accessible description.
+- **Rose budget**: one solid rose element, the primary CTA. Rose inside the preview is depicted content, like a photograph containing a red object, and does not count against the 10%.
+- **The trending flame** (🔥) marks the email's trending section, the same documented exception to the no-emoji rule that the nav Trending button already uses.
+
 ## Design Decisions
 
 > Append-only log of intentional choices the user has confirmed. Do not re-litigate; only add.
@@ -292,3 +305,6 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Compact registry openings**: `/community`, `/skills`, and `/skills/trending` use `CompactPageHeader` with nothing but a page name and orientation copy; controls belong with the results they filter. Outcome pages retain plain-language mastheads. Skill detail remains dense and unchanged.
 - **Compact discovery openings**: Outcome and framework directories now join the compact registry template. Their openings carry only orientation, key totals, and one primary route back into the skills registry. Framework contributor data lives alongside each skill instead of in a duplicate leaderboard.
 - **Compact registry descriptions**: At 768px and wider, `What it does` uses 12px text and wraps to two lines. Smaller screens hide the column.
+- **Eyebrows are banned**: a muted uppercase label above a heading carries no information the heading does not already carry. Removed from 25 sites on 2026-08-19. The four sanctioned replacements are a data line below the heading, a hairline plus directional action, sequence numbering where order is real, and one accent rail for a lead pick. If a band reads flat after removal, add band separation, not the eyebrow back.
+- **The weekly is shown, not described**: the homepage band embeds the real email rather than listing its features. Confirmed 2026-08-19, when the copy shrank from 34 words to 16 because the picture already carried the detail.
+- **Weekly CTAs point at the email, never at a sign-in**: `See this week's` opens the public preview. A button labelled "get" that opens an OAuth wall is a promise the page does not keep, and Loop 1 admits no gate (VISION principle 3).

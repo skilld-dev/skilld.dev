@@ -28,7 +28,7 @@ const resultSummary = computed(() => {
 })
 
 const title = 'Community'
-const description = 'Meet the people publishing agent skills and thoughtful collections on skilld.'
+const description = 'Meet the devs publishing agent skills and thoughtful collections on skilld.'
 
 useSeoMeta({
   title,
@@ -47,7 +47,7 @@ defineOgImage('Page.takumi', {
   <div>
     <CompactPageHeader
       title="Community"
-      description="People publishing workflow-ready collections and skills from real GitHub repositories. Each person appears once."
+      description="Devs publishing workflow-ready collections and skills from real GitHub repositories. Each dev appears once."
       heading-id="community-directory-heading"
     >
       <template #aside>

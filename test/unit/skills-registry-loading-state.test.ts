@@ -50,7 +50,6 @@ async function mountSkillsPage() {
     {
       global: {
         stubs: {
-          EditorialMasthead: { template: '<header><slot /><slot name="aside" /></header>' },
           SkillTable: true,
         },
       },

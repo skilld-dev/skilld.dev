@@ -62,7 +62,7 @@ describe('weekly template', () => {
       ],
     }))
 
-    expect(html).toContain('2 people named it')
+    expect(html).toContain('2 devs talked about it')
     expect(html).toContain('+865 stars 2d ago')
   })
 
@@ -71,8 +71,8 @@ describe('weekly template', () => {
       trending: [trending({ reason: { _tag: 'named', authorCount: 1, mentionCount: 1 } })],
     }))
 
-    expect(html).toContain('1 person named it')
-    expect(html).not.toContain('1 people')
+    expect(html).toContain('1 dev talked about it')
+    expect(html).not.toContain('1 devs')
   })
 
   it('agrees the greeting verb with a single trending skill', () => {
@@ -342,7 +342,7 @@ describe('weekly subject and preheader', () => {
     const { html } = renderWeekly(input({ trending: [trending({ canonicalName: 'ponytail' })] }))
     const preheader = html.match(/<div style="display:none[^>]*>([^<]*)</)![1]!
 
-    expect(preheader).toBe('People named ponytail.')
+    expect(preheader).toBe('Devs are talking about ponytail.')
   })
 })
 
@@ -372,7 +372,7 @@ describe('weekly mention freshness', () => {
       })],
     }))
 
-    expect(html).toContain('5 people named it · latest 2d ago')
+    expect(html).toContain('5 devs talked about it · latest 2d ago')
   })
 
   it('dates the mention half of a skill that also surged', () => {
@@ -389,7 +389,7 @@ describe('weekly mention freshness', () => {
       })],
     }))
 
-    expect(html).toContain('2 people named it · latest yesterday')
+    expect(html).toContain('2 devs talked about it · latest yesterday')
     expect(html).toContain('+412 stars 2d ago')
   })
 
@@ -398,7 +398,7 @@ describe('weekly mention freshness', () => {
       trending: [trending({ reason: { _tag: 'named', authorCount: 1, mentionCount: 1, latestAt: 0 } })],
     }))
 
-    expect(html).toContain('1 person named it')
+    expect(html).toContain('1 dev talked about it')
     expect(html).not.toContain('latest')
   })
 })
@@ -461,5 +461,57 @@ describe('weekly quiet week reporting', () => {
 
     expect(html).toContain('30 skills tracked')
     expect(html).toContain('Back next week')
+  })
+})
+
+describe('weekly with no recipient', () => {
+  it('drops the greeting line when nobody is addressed', () => {
+    const { html, text } = renderWeekly(input({ login: null, trending: [trending()] }))
+
+    expect(html).not.toContain('Hey ')
+    expect(text).not.toContain('Hey ')
+  })
+
+  it('never tells an unaddressed reader they have liked nothing', () => {
+    const { html } = renderWeekly(input({ login: null, trending: [trending()] }))
+
+    expect(html).not.toContain('not liked any skills')
+    expect(html).toContain('What changed in the skills you like, and what devs are talking about.')
+  })
+
+  it('still greets a real recipient', () => {
+    const { html } = renderWeekly(input({ login: 'harlan-zw', trending: [trending()] }))
+
+    expect(html).toContain('Hey harlan-zw,')
+  })
+})
+
+describe('weekly theme', () => {
+  it('sends light unless asked otherwise, since inline styles are all a mail client honours', () => {
+    const { html } = renderWeekly(input({ trending: [trending()] }))
+
+    expect(html).toContain('#ffffff')
+    expect(html).toContain('content="light"')
+  })
+
+  it('renders a dark card for a surface that asked for one', () => {
+    const { card } = renderWeekly(input({ theme: 'dark', trending: [trending()] }))
+
+    expect(card).toContain('#1c1917')
+    expect(card).not.toContain('#ffffff')
+  })
+
+  it('keeps the accent readable in dark by darkening the label, not the button', () => {
+    const { card } = renderWeekly(input({ theme: 'dark', trending: [trending()] }))
+
+    // White on rose-400 fails AA; the dark palette flips the label instead.
+    expect(card).toContain('#fb7185')
+    expect(card).toContain('color:#1c1917;text-decoration:none;')
+  })
+
+  it('marks the trending section with the flame the nav already uses', () => {
+    const { html } = renderWeekly(input({ trending: [trending()] }))
+
+    expect(html).toContain('\u{1F525}')
   })
 })

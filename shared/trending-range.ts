@@ -125,9 +125,9 @@ export function trendingRangeDescription(range: TrendingRange, evidencedCount: n
   }
   const period = range === 'week' ? 'this week' : 'this month'
   if (evidencedCount > 0) {
-    return `${evidencedCount} agent skills developers are talking about ${period}, each shown with the evidence behind it: the post that named it, or the star surge on a repo holding one skill.`
+    return `${evidencedCount} agent skills devs are talking about ${period}, each shown with the evidence behind it: the post about it, or the star surge on a repo holding one skill.`
   }
-  return 'Agent skills developers are talking about, ranked by how many separate people share them rather than by how loud any one post was.'
+  return 'Agent skills devs are talking about, ranked by how many separate devs share them rather than by how loud any one post was.'
 }
 
 /**
