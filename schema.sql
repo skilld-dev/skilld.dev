@@ -44,6 +44,8 @@ CREATE INDEX idx_digest_status ON digest_runs(status, window_end DESC);
 
 CREATE UNIQUE INDEX idx_digest_window ON digest_runs(user_id, window_end);
 
+CREATE UNIQUE INDEX weekly_runs_user_window ON weekly_runs (user_id, window_end);
+
 CREATE INDEX idx_owners_followers ON owners (followers DESC);
 
 CREATE INDEX idx_skill_revisions_lookup
@@ -268,6 +270,20 @@ CREATE TABLE digest_runs (
   status TEXT NOT NULL CHECK (status IN ('queued','sent','skipped','failed')),
   resend_id TEXT,
   ai_summary_used INTEGER NOT NULL DEFAULT 0,
+  sent_at INTEGER,
+  error TEXT
+);
+
+CREATE TABLE weekly_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  window_start INTEGER NOT NULL,
+  window_end INTEGER NOT NULL,
+  liked_count INTEGER NOT NULL DEFAULT 0,
+  trending_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL CHECK (status IN ('claimed','sent','skipped','failed','uncertain')),
+  provider_message_id TEXT,
+  claimed_at INTEGER NOT NULL,
   sent_at INTEGER,
   error TEXT
 );
@@ -515,6 +531,7 @@ CREATE TABLE users (
   github_token_scopes TEXT,
   stars_synced_at INTEGER,
   email_opt_in INTEGER NOT NULL DEFAULT 0,
+  weekly_opt_out INTEGER NOT NULL DEFAULT 0,
   digest_frequency TEXT NOT NULL DEFAULT 'weekly' CHECK (digest_frequency IN ('weekly','daily','off')),
   digest_dow INTEGER DEFAULT 1,
   digest_hour INTEGER NOT NULL DEFAULT 9,

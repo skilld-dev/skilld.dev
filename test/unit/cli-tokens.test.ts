@@ -56,6 +56,7 @@ describe('cli token sessions', () => {
         github_token_scopes TEXT,
         stars_synced_at INTEGER,
         email_opt_in INTEGER NOT NULL DEFAULT 0,
+        weekly_opt_out INTEGER NOT NULL DEFAULT 0,
         digest_frequency TEXT NOT NULL DEFAULT 'weekly',
         digest_dow INTEGER DEFAULT 1,
         digest_hour INTEGER NOT NULL DEFAULT 9,

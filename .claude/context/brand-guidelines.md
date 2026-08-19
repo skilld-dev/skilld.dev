@@ -71,6 +71,7 @@ The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gi
 | **use once** | Pasting a prompt that points the agent at the published SKILL.md, so it reads and follows the skill without writing files | UI label: "Use once". Not "try", "preview", or "ephemeral". Only offered where a public markdown URL exists |
 | **watch** | Subscribing to a repo or collection so you receive digest emails when it changes | The Loop 2 verb. Not "follow", not "star", not "subscribe" |
 | **digest** | Periodic email summarizing changes to your watched repos | Weekly default; daily and off are options |
+| **weekly** | The one email everyone gets: skills you liked that changed, plus what trended | Lowercase, "the weekly". Not "newsletter", "roundup", or "trending digest". Opt-out, on by default. Sits beside **digest**, which is the separate watched-repo email |
 
 ### Feature naming
 - Name features descriptively, not cleverly. "Stack selector" not "StackMatch"

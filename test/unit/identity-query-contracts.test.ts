@@ -52,6 +52,7 @@ describe('identity account query contracts', () => {
       avatar: null,
       digest_email: null,
       email_opt_in: false,
+      weekly_opt_in: true,
       digest_frequency: 'weekly',
       digest_dow: 1,
       digest_hour: 9,

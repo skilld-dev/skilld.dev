@@ -65,6 +65,20 @@ export interface DailyHealthCheckSummary {
     newUsers24h: number
     digestsSent24h: number
     digestsFailed24h: number
+    /**
+     * The most recent weekly run, not a 24 hour count.
+     *
+     * The weekly fires on Mondays, so a rolling-day metric would read zero on
+     * six days out of seven and say nothing about whether the last one landed.
+     * Null until the first run exists.
+     */
+    weekly: {
+      windowEnd: number
+      sent: number
+      skipped: number
+      failed: number
+      uncertain: number
+    } | null
   }
   pipeline: {
     syncJobs: Array<{
@@ -159,6 +173,14 @@ interface ActivityRow {
   new_users_24h: number
   digests_sent_24h: number
   digests_failed_24h: number
+}
+
+interface WeeklyRunRow {
+  window_end: number
+  sent: number
+  skipped: number
+  failed: number
+  uncertain: number
 }
 
 interface InstallActivityRow {
@@ -460,6 +482,9 @@ export function evaluateDailyHealthStatus(
       amber.push(`${check.url} returned HTTP ${check.status}.`)
   }
 
+  const weekly = summary.activity.weekly
+  if (weekly && weekly.failed + weekly.uncertain > 0)
+    red.push(`${plural(weekly.failed + weekly.uncertain, 'weekly email', 'weekly emails')} did not land in the last run.`)
   if (summary.activity.digestsFailed24h > 0)
     red.push(`${plural(summary.activity.digestsFailed24h, 'digest delivery', 'digest deliveries')} failed in 24 hours.`)
   if (summary.pipeline.failedJobs24h > 0)
@@ -669,6 +694,7 @@ async function loadActivity(
     FROM install_events
     WHERE occurred_at >= ?1
   `, [sinceMs]))
+  const weekly = await capture(warnings, 'weekly delivery', null, () => loadWeeklyRun(db))
   return {
     newSkills24h: numberValue(row.new_skills_24h),
     repoChanges24h: numberValue(row.repo_changes_24h),
@@ -676,6 +702,36 @@ async function loadActivity(
     newUsers24h: numberValue(row.new_users_24h),
     digestsSent24h: numberValue(row.digests_sent_24h),
     digestsFailed24h: numberValue(row.digests_failed_24h),
+    weekly,
+  }
+}
+
+/**
+ * How the newest weekly window went, counted per status.
+ *
+ * Grouped by `window_end` rather than by time so a run still reports as one
+ * batch when a retry lands hours after the first pass.
+ */
+async function loadWeeklyRun(db: D1Database): Promise<DailyHealthCheckSummary['activity']['weekly']> {
+  const row = await db.prepare(`
+    SELECT window_end,
+           SUM(status = 'sent') AS sent,
+           SUM(status = 'skipped') AS skipped,
+           SUM(status = 'failed') AS failed,
+           SUM(status IN ('uncertain', 'claimed')) AS uncertain
+    FROM weekly_runs
+    GROUP BY window_end
+    ORDER BY window_end DESC
+    LIMIT 1
+  `).first<WeeklyRunRow>()
+  if (!row)
+    return null
+  return {
+    windowEnd: numberValue(row.window_end),
+    sent: numberValue(row.sent),
+    skipped: numberValue(row.skipped),
+    failed: numberValue(row.failed),
+    uncertain: numberValue(row.uncertain),
   }
 }
 
@@ -961,6 +1017,7 @@ export async function buildDailyHealthCheck(
     newUsers24h: 0,
     digestsSent24h: 0,
     digestsFailed24h: 0,
+    weekly: null,
   }, () => loadActivity(db, sinceSec, sinceMs, warnings))
   const pipeline = await capture(warnings, 'pipeline', {
     syncJobs: [],
@@ -1044,6 +1101,20 @@ function plainList(items: string[]): string {
   return items.length ? items.map(item => `- ${item}`).join('\n') : '- none'
 }
 
+/**
+ * The last weekly run as one line, for both email halves.
+ *
+ * States the window date so a stale run cannot pass for a fresh one: "3 sent"
+ * with no date reads the same whether it happened yesterday or in March.
+ */
+function weeklyLine(summary: DailyHealthCheckSummary): string {
+  const weekly = summary.activity.weekly
+  if (!weekly)
+    return 'no run yet'
+  const date = new Date(weekly.windowEnd * 1000).toISOString().slice(0, 10)
+  return `${weekly.sent} sent, ${weekly.skipped} skipped, ${weekly.failed} failed, ${weekly.uncertain} unresolved (${date})`
+}
+
 export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): string {
   const failedJobs = summary.pipeline.failedJobDetails.map(item => `${item.queue}/${item.jobType}: ${item.count}, ${item.exception}`)
   const unhealthyTasks = summary.pipeline.syncJobs
@@ -1073,6 +1144,7 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     'Last 24 hours:',
     `- ${summary.activity.newSkills24h} new skills, ${summary.activity.repoChanges24h} changed repos, ${summary.activity.installEvents24h} install events`,
     `- ${summary.activity.newUsers24h} new users, ${summary.activity.digestsSent24h} digests sent, ${summary.activity.digestsFailed24h} failed`,
+    `- weekly email: ${weeklyLine(summary)}`,
     '',
     'Pipeline:',
     `- newly broken repos: ${summary.pipeline.newlyBrokenReposTotal24h} total, ${summary.pipeline.newlyBrokenReposImpacted24h} user-impacting; ${summary.pipeline.skillSyncFailures24h} new skill sync failures`,
@@ -1143,6 +1215,7 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
         metric('install events', summary.activity.installEvents24h),
         metric('new users', summary.activity.newUsers24h),
         metric('digests sent / failed', `${summary.activity.digestsSent24h} / ${summary.activity.digestsFailed24h}`),
+        metric('last weekly', weeklyLine(summary)),
       ].join(''))}
     </tr>
     <tr>
