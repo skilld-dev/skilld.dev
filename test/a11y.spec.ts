@@ -53,6 +53,21 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('installCommand has no violations and keeps the command copyable as one string', async () => {
+    const container = createIsolatedContainer()
+    const command = 'npx skilld add gh:obra/superpowers -s brainstorming'
+    const wrapper = await mountSuspended(
+      await import('~/components/InstallCommand.vue').then(m => m.default),
+      { attachTo: container, props: { command } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    // Colouring the tokens must not change what a screen reader or a text
+    // selection gets back out of the element.
+    expect(container.textContent).toBe(command)
+    wrapper.unmount()
+  })
+
   it('agentSetup has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -309,6 +324,7 @@ describe('accessibility: component coverage', () => {
           'AgentSetupPanel',
           'AppLogo',
           'CompactPageHeader',
+          'InstallCommand',
           'SkillSearchPanel',
           'SkillSearchRepositoryModal.client',
           'SkillSearchTrigger',

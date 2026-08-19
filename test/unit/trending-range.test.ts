@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   leaderboardBoardRows,
   resolveTrendingRange,
+  SKILLS_NOUN,
   TRENDING_RANGES,
   trendingRangeDescription,
   trendingRangeHeading,
@@ -206,15 +207,37 @@ describe('month-stamped heading', () => {
   const clock = 1_787_270_400
 
   it('stamps the month range, punctuated like the title', () => {
-    expect(trendingRangeHeading('month', clock)).toBe('Trending, August 2026')
+    expect(trendingRangeHeading('month', clock)).toBe(`Trending ${SKILLS_NOUN}, August 2026`)
   })
 
   it('leaves the ranges that name their own window alone', () => {
-    expect(trendingRangeHeading('week', clock)).toBe('Trending this week')
+    expect(trendingRangeHeading('week', clock)).toBe(`Trending ${SKILLS_NOUN} this week`)
     expect(trendingRangeHeading('all', clock)).toBe('Top skill repositories')
   })
 
   it('falls back to the undated heading when the board failed to load', () => {
-    expect(trendingRangeHeading('month', 0)).toBe('Trending this month')
+    expect(trendingRangeHeading('month', 0)).toBe(`Trending ${SKILLS_NOUN} this month`)
+  })
+})
+
+/**
+ * The `<title>` targets the head term and the page speaks the brand's category
+ * noun. Both are deliberate (SEO.md, brand-guidelines.md), and a well-meaning
+ * edit that aligns them would cost one of the two.
+ */
+describe('titles and headings use different nouns on purpose', () => {
+  const clock = 1_787_270_400
+
+  it('joins the noun with a non-breaking space, so balance cannot split it', () => {
+    expect(SKILLS_NOUN).toBe('agent\u00A0skills')
+  })
+
+  it('keeps the head term in the title', () => {
+    expect(trendingRangeTitle('month', clock)).toContain('Claude Skills')
+  })
+
+  it('keeps the brand noun in the heading', () => {
+    expect(trendingRangeHeading('month', clock)).toContain(SKILLS_NOUN)
+    expect(trendingRangeHeading('month', clock)).not.toContain('Claude')
   })
 })

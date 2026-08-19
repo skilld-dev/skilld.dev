@@ -465,7 +465,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           v-else-if="leadCollection"
           class="home-featured-layout mt-8"
         >
-          <article class="home-featured-lead">
+          <article class="home-featured-lead lead-emphasis">
             <div class="home-featured-lead__intro">
               <div class="min-w-0">
                 <h3 class="home-featured-lead__title text-balance">
@@ -562,10 +562,12 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 />
               </div>
               <div class="home-featured-command">
-                <code
+                <InstallCommand
                   id="featured-install-command"
+                  :command="installCommand"
+                  wrap
                   tabindex="0"
-                >{{ installCommand }}</code>
+                />
                 <UButton
                   :icon="copyState._tag === 'copied' ? 'i-lucide-check' : 'i-lucide-copy'"
                   :label="copyState._tag === 'copied' ? 'Copied' : 'Copy install command'"

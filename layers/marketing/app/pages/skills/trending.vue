@@ -254,10 +254,12 @@ const boardMeta = computed(() => {
 const headerDescription = computed(() => {
   if (range.value === 'all')
     return 'Repositories from individual creators publishing reusable agent skills, reviewed for eligibility and ranked by GitHub stars.'
-  const period = range.value === 'week' ? 'this week' : 'this month'
+  // Neither the noun nor the period, both of which the heading above now
+  // states. Repeating them cost the line its only job, which is the ranking
+  // rule, and "say it once" is the brand's own instruction.
   return fillerTotal.value
-    ? `Agent skills devs talked about ${period}, ranked by how many separate devs mentioned each one. Popular skills fill the rest of the board.`
-    : `Agent skills devs talked about ${period}, ranked by how many separate devs mentioned each one.`
+    ? 'Ranked by how many separate devs talked about each one. Popular skills fill the rest of the board.'
+    : 'Ranked by how many separate devs talked about each one.'
 })
 
 const heading = computed(() => trendingRangeHeading(range.value, clock.value))
@@ -343,14 +345,17 @@ function rankClass(index: number): string {
       class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
       aria-labelledby="trending-list-heading"
     >
-      <h2 id="trending-list-heading" class="sr-only">
-        Trending agent skills
-      </h2>
-
       <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <p class="section-label">
+        <!--
+          The visible label is the heading, per design-guidelines.md, rather
+          than a label stacked under a screen-reader-only one. The sr-only h2
+          here repeated the h1 word for word once the h1 took the category
+          noun, and on the all-time range it called a list of repositories
+          "Trending agent skills".
+        -->
+        <h2 id="trending-list-heading" class="section-label">
           {{ meta.sectionLabel }}
-        </p>
+        </h2>
         <p v-if="!isEmpty && !error" class="data-label">
           {{ boardMeta }}
         </p>

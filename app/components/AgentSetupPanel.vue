@@ -85,7 +85,13 @@ onBeforeUnmount(() => clearTimeout(resetTimer))
     </div>
 
     <div class="flex items-start gap-2">
-      <code class="flex-1 min-w-0 break-all rounded-lg border border-default bg-muted px-2 py-1.5 font-mono text-xs leading-relaxed">{{ value }}</code>
+      <InstallCommand
+        v-if="mode !== 'once'"
+        :command="value"
+        wrap
+        class="flex-1 min-w-0 rounded-lg border border-default bg-muted px-2 py-1.5 text-xs leading-relaxed"
+      />
+      <code v-else class="flex-1 min-w-0 break-all rounded-lg border border-default bg-muted px-2 py-1.5 font-mono text-xs leading-relaxed">{{ value }}</code>
       <UButton
         :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
         color="neutral"

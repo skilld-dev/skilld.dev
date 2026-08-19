@@ -26,6 +26,17 @@ export const DEFAULT_TRENDING_RANGE: TrendingRange = 'month'
 
 const SITE_ORIGIN = 'https://skilld.dev'
 
+/**
+ * The category noun, held on one line.
+ *
+ * The space is U+00A0. `.compact-page-header__title` caps at 15ch and sets
+ * `text-wrap: balance`, which balances line lengths without regard for where
+ * a phrase ends: it broke "Trending agent / skills, August 2026" across the
+ * noun itself. The non-breaking space moves the break to the comma. Measured
+ * against the rendered heading, not assumed.
+ */
+export const SKILLS_NOUN = 'agent\u00A0skills'
+
 export interface TrendingRangeMeta {
   readonly id: TrendingRange
   /** Switcher label. Short verb-free noun, per the UI chrome register. */
@@ -70,7 +81,7 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
     path: '/skills/trending?range=week',
     canonical: `${SITE_ORIGIN}/skills/trending?range=week`,
     title: 'Trending Claude Skills This Week',
-    heading: 'Trending this week',
+    heading: `Trending ${SKILLS_NOUN} this week`,
     sectionLabel: 'Top skills',
   },
   {
@@ -81,7 +92,7 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
     path: '/skills/trending',
     canonical: `${SITE_ORIGIN}/skills/trending`,
     title: 'Trending Claude Skills',
-    heading: 'Trending this month',
+    heading: `Trending ${SKILLS_NOUN} this month`,
     sectionLabel: 'Top skills',
   },
   {
@@ -136,11 +147,13 @@ export function trendingRangeHeading(range: TrendingRange, clockSeconds: number)
   if (range !== 'month')
     return meta.heading
   const stamp = monthStamp(clockSeconds)
-  // Comma, not "in". Both read the same, but `.compact-page-header__title`
-  // caps at 15ch, and "Trending in August 2026" is the one phrasing long
-  // enough to wrap the h1 onto a second line at 1280px. Measured, not guessed.
-  // It also matches the punctuation the `<title>` already uses.
-  return stamp ? `Trending, ${stamp}` : meta.heading
+  // "Agent skills", not "Claude skills". The `<title>` targets the head term
+  // (SEO.md), and the page a reader is looking at uses the category noun
+  // brand-guidelines.md sets. Both are deliberate; they are not the same job.
+  //
+  // Comma, not "in": it matches the `<title>`, and it gives the two-line
+  // heading a clause to break on. See `SKILLS_NOUN`.
+  return stamp ? `Trending ${SKILLS_NOUN}, ${stamp}` : meta.heading
 }
 
 /**

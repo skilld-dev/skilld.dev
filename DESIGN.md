@@ -125,6 +125,7 @@ components:
 - **Cards**: 1px border + warm surface. Hover transitions on border-color only. No glow, no shadow, no nested cards (use spacing + dividers for inner hierarchy).
 - **Avatars**: `rounded-full`, stack with `-space-x-2`, `border-2 border-[var(--ui-bg)]` for separation in groups.
 - **Skill source lists**: use `SkillSourceList` when a shortlist needs visible author, handle, repository, and source-linked skill name. `stream` is a vertically scrollable discovery preview; `grid` is for bounded related-skill groups. Idle auto-scroll pauses for hover, focus, touch, and reduced motion. Mixed 20-item discovery streams should represent at least 10 people and cap each person at 2 skills.
+- **Install commands**: never render one as raw text. Use `<InstallCommand :command="cmd" />` so `npx skilld add` stays quiet and the target carries the accent. Long commands wrap (`wrap`); they never get a horizontal scrollbar inside a card.
 - **Badges**: `subtle` variant, size `xs`, mono font, by default. Use for stack labels and agent compatibility.
 - **Inputs**: `outline` variant, mono font, `px-3 py-2`. No bottom-border-only or pill shapes.
 - **Tooltips**: use `UiTooltip` (built on `UPopover` hover mode) for any tooltip with title + description. `UTooltip` is reserved for single-line hints on icon buttons.
@@ -170,6 +171,7 @@ components:
 - Gradient text effects.
 - Cards nested in cards.
 - `rounded-xl` on components.
+- Accent rails. A 2px coloured border down the leading edge of a card reads as an alert state, not as editorial emphasis. Use `.lead-emphasis` instead.
 - Large font sizes in UI chrome; reserve large type for page headings.
 - Eyebrow text. Never stack a muted uppercase label directly above a heading. If the label repeats the heading, delete it. If it carries real information, promote it into the heading or demote it to a data line below.
 - Generous "breathing room" padding; padding is structural.
@@ -187,6 +189,8 @@ components:
 | `.data-label` | `font-mono text-xs text-[var(--ui-text-muted)] tabular-nums` | Inline metric labels in lists and cards |
 | `.surface-warm` | warm dark bg `oklch(0.16 0.01 60)` + warm border | Card or panel backgrounds in dark mode |
 | `.surface-warm-elevated` | slightly lighter warm bg `oklch(0.20 0.014 60)` + warm border | Elevated panels, dropdowns, popovers in dark mode |
+| `.lead-emphasis` | masked rose corner wash plus an igniting top hairline, clipped to the card radius | The one lead pick on a page. Never more than one per page |
+| `.install-command` | six syntax roles for `npx skilld add ...`; add `--wrap` to break instead of scroll | Every rendered install command, everywhere |
 | `.editorial-band` / `__content` | isolated section shell that keeps atmosphere behind readable content | Full-width journey bands and page mastheads |
 | `.editorial-atmosphere` | mode-aware rose, ember, or stone edge gradient with masked geometry | One low-strength atmosphere layer per major band |
 | `.editorial-ledger` | border-block list with divided rows and no outer card chrome | Results, evidence, updates, and directory lists |
@@ -206,7 +210,7 @@ Homepage patterns become system primitives only when they help a user make the n
 - **Evidence ledger**: use `.editorial-ledger` for long or changing inventory. Each row answers what it is, who or where it came from, why it matters, and where the click goes. Prefer rows over repeated cards once more than six items are visible.
 - **Lead and supporting picks**: curation pages may feature one dominant recommendation and up to two supporting picks. Show rationale before metadata. Do not duplicate featured items in the following directory.
 - **Directional actions**: the next useful action belongs at the end of the relevant row or band, with a 44px minimum target. Avoid detached CTA cards that repeat the section heading.
-- **Section openings**: a section opens with its heading, never with a label above its heading. Four sanctioned openings: (1) heading plus a `.data-label` line below carrying count, freshness, or authorship; (2) a 1px top rule with the next route at the end of the heading row; (3) a mono `01 / 05` sequence marker, only where band order is real information; (4) a 2px accent rail on the leading edge, at most one per page, for a single lead pick. Prefer (1) by default.
+- **Section openings**: a section opens with its heading, never with a label above its heading. Four sanctioned openings: (1) heading plus a `.data-label` line below carrying count, freshness, or authorship; (2) a 1px top rule with the next route at the end of the heading row; (3) a mono `01 / 05` sequence marker, only where band order is real information; (4) `.lead-emphasis` on a single lead pick, at most one per page. Prefer (1) by default.
 - **Provenance line**: author or organization avatar, handle, source path, and freshness are evidence. Keep them visually quieter than the skill or collection name, but never hide all provenance behind hover.
 - **Async states**: loading, empty, and error states preserve the same spatial footprint as loaded content. Errors offer a scoped retry. Empty states explain the value and give one next action.
 - **Responsive ownership**: shared compositions are container-aware. Define `container-type: inline-size` on the owning shell before using `@container`; keep a readable single-column default. Large inventories may use `content-visibility: auto` only with `contain-intrinsic-size`.
@@ -305,6 +309,8 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Compact registry openings**: `/community`, `/skills`, and `/skills/trending` use `CompactPageHeader` with nothing but a page name and orientation copy; controls belong with the results they filter. Outcome pages retain plain-language mastheads. Skill detail remains dense and unchanged.
 - **Compact discovery openings**: Outcome and framework directories now join the compact registry template. Their openings carry only orientation, key totals, and one primary route back into the skills registry. Framework contributor data lives alongside each skill instead of in a duplicate leaderboard.
 - **Compact registry descriptions**: At 768px and wider, `What it does` uses 12px text and wraps to two lines. Smaller screens hide the column.
-- **Eyebrows are banned**: a muted uppercase label above a heading carries no information the heading does not already carry. Removed from 25 sites on 2026-08-19. The four sanctioned replacements are a data line below the heading, a hairline plus directional action, sequence numbering where order is real, and one accent rail for a lead pick. If a band reads flat after removal, add band separation, not the eyebrow back.
+- **Eyebrows are banned**: a muted uppercase label above a heading carries no information the heading does not already carry. Removed from 25 sites on 2026-08-19. The four sanctioned replacements are a data line below the heading, a hairline plus directional action, sequence numbering where order is real, and `.lead-emphasis` on one lead pick. If a band reads flat after removal, add band separation, not the eyebrow back.
 - **The weekly is shown, not described**: the homepage band embeds the real email rather than listing its features. Confirmed 2026-08-19, when the copy shrank from 34 words to 16 because the picture already carried the detail.
+- **The accent rail is banned**: a 2px rose border down a card's leading edge borrowed the shape of an error or callout border, and at a tall card's height it was the loudest thing on the page. `.lead-emphasis` spends the same accent as light instead of as a bar: a corner wash at 9% and a top hairline that fades out within a fifth of the width. Banned 2026-08-20.
+- **Install commands are syntax-coloured, always**: `npx`, `skilld`, `add`, and the flags stay quiet; the target and the skill name carry the accent, because that is the only part that differs between two commands. The accent rose is darkened to `oklch(0.44 0.17 17.32)` in light and lightened to `oklch(0.8 0.12 17.32)` in dark, since the button rose is 3.2:1 on `bg-muted` at small mono sizes.
 - **Weekly CTAs point at the email, never at a sign-in**: `See this week's` opens the public preview. A button labelled "get" that opens an OAuth wall is a promise the page does not keep, and Loop 1 admits no gate (VISION principle 3).

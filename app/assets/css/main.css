@@ -21,6 +21,11 @@
   --ui-radius: 0.5rem;
   /* Darken primary-500 for WCAG AA contrast with white text on solid buttons */
   --ui-color-primary-500: oklch(0.555 0.225 17.32);
+  /* Install-command syntax roles. The accent rose is darkened past the button
+     token: it carries small mono text on bg-muted, where oklch(0.555) is 3.2:1. */
+  --syntax-dim: var(--ui-text-muted);
+  --syntax-bin: var(--ui-text);
+  --syntax-arg: oklch(0.44 0.17 17.32);
 }
 
 .dark {
@@ -35,6 +40,7 @@
   --ui-border-muted: oklch(0.22 0.008 60);
   --ui-color-primary-400: oklch(0.555 0.225 17.32);
   --ui-color-primary-500: oklch(0.555 0.225 17.32);
+  --syntax-arg: oklch(0.8 0.12 17.32);
 }
 
 /* High contrast mode */
@@ -51,6 +57,11 @@
     --ui-text-muted: oklch(0.78 0.01 60);
     --ui-border: oklch(0.4 0.015 60);
     --ui-border-muted: oklch(0.34 0.012 60);
+    --syntax-arg: oklch(0.88 0.1 17.32);
+  }
+
+  :root {
+    --syntax-arg: oklch(0.36 0.16 17.32);
   }
 }
 
@@ -111,6 +122,82 @@
 /* Data label — inline metric display */
 .data-label {
   @apply font-mono text-xs text-[var(--ui-text-muted)] tabular-nums;
+}
+
+/* Install command — six syntax roles, so the eye lands on the part that is
+   unique to this skill instead of on `npx skilld add` four times a page. */
+.install-command {
+  font-family: var(--font-mono);
+  white-space: pre;
+  font-variant-ligatures: none;
+}
+
+.install-command--wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.install-command__runner,
+.install-command__sub,
+.install-command__flag {
+  color: var(--syntax-dim);
+}
+
+.install-command__bin {
+  color: var(--syntax-bin);
+  font-weight: 500;
+}
+
+.install-command__target,
+.install-command__value {
+  color: var(--syntax-arg);
+  font-weight: 500;
+}
+
+/* Lead emphasis — the one place a page may spend the accent on a whole surface.
+   Light, not a bar: a masked corner wash plus a hairline that ignites at the
+   leading top corner and dies inside a third of the width. Replaced a 2px rose
+   rail that read as an alert border down the full height of the card. */
+.lead-emphasis {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.lead-emphasis::before,
+.lead-emphasis::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.lead-emphasis::before {
+  z-index: -1;
+  inset: 0;
+  background: radial-gradient(
+    58% 88% at 0% 0%,
+    color-mix(in oklab, var(--ui-color-primary-500) var(--lead-wash, 6%), transparent),
+    transparent 58%
+  );
+}
+
+/* Rose sits far above the warm dark bg in lightness, so the same mix reads
+   twice as loud on the light surface. */
+.dark .lead-emphasis {
+  --lead-wash: 11%;
+}
+
+.lead-emphasis::after {
+  z-index: 1;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--ui-color-primary-500) 85%, transparent) 0%,
+    color-mix(in oklab, var(--ui-color-primary-500) 34%, transparent) 20%,
+    transparent 42%
+  );
 }
 
 /* Keep the trending signal lively without competing with surrounding chrome. */
@@ -515,15 +602,8 @@
   background: var(--ui-bg);
 }
 
-/*
- * The lead pick is the one place on the page that spends the rose accent on a
- * rail. It replaced a "Start here" label above the title: the rail says the
- * same thing without adding a line of type the reader has to parse.
- */
 .home-featured-lead {
   padding: 1.25rem;
-  border-left-width: 2px;
-  border-left-color: var(--ui-primary);
 }
 
 .home-featured-lead__intro {
@@ -638,19 +718,18 @@
   margin-top: 1rem;
 }
 
+/* The command wraps rather than scrolls: a horizontal scrollbar inside the
+   lead card is chrome the reader has to operate to finish reading one line. */
 .home-featured-command code {
   display: block;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
   padding: 0.75rem 1rem;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
   background: var(--ui-bg-muted);
-  font-family: var(--font-mono);
   font-size: 0.875rem;
-  line-height: 1.25rem;
-  white-space: nowrap;
+  line-height: 1.5rem;
   user-select: text;
 }
 

@@ -173,7 +173,12 @@ function collectionSkillMeta(skill: { owner: string, repo: string, name?: string
             <figcaption class="sr-only">
               Collection install command
             </figcaption>
-            <pre tabindex="0" class="overflow-x-auto rounded-lg bg-muted px-3 py-3 font-mono text-xs leading-relaxed"><code>{{ installCmd }}</code></pre>
+            <InstallCommand
+              :command="installCmd"
+              wrap
+              tabindex="0"
+              class="block rounded-lg bg-muted px-3 py-3 text-xs leading-relaxed"
+            />
           </figure>
 
           <UButton

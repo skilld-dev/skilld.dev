@@ -490,7 +490,11 @@ useSchemaOrg(computed(() => {
 
               <!-- Install whole repo -->
               <div class="mt-3 flex items-center gap-2 rounded-md border border-default bg-muted/50 p-2">
-                <code class="flex-1 font-mono text-xs truncate">{{ gitInstallCmd(data.owner, repo.repo) }}</code>
+                <InstallCommand
+                  :command="gitInstallCmd(data.owner, repo.repo)"
+                  wrap
+                  class="min-w-0 flex-1 text-xs"
+                />
                 <UButton
                   :icon="repoCopiedKey === repo.repo ? 'i-lucide-check' : 'i-lucide-clipboard'"
                   color="neutral"
