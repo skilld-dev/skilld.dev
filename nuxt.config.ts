@@ -63,6 +63,18 @@ export default defineNuxtConfig({
       'batch.count',
       'cache.readFailed',
       'cache.writeFailed',
+      // `@harlan-zw/nuxt-cloudflare` emits these from its own beforeResponse
+      // plugin. nuxt-wide-events has no module-side field registration, so the
+      // consuming site has to declare them or the Nitro build fails.
+      'cf.colo',
+      'cf.country',
+      'cf.httpProtocol',
+      'd1.durationMs',
+      'd1.primaryQueries',
+      'd1.queries',
+      'd1.recoveries',
+      'd1.region',
+      'd1.unrecovered',
       'eligible.count',
       'error.count',
       'failed.count',
