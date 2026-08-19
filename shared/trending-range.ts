@@ -43,9 +43,19 @@ export interface TrendingRangeMeta {
   readonly path: string
   /** Self-referencing canonical, so no range points at another. */
   readonly canonical: string
-  /** `<title>`, which is also the keyword target for the range. */
+  /**
+   * The `<title>` stem, which is also the keyword target for the range.
+   *
+   * A stem, not the finished title: `trendingRangeTitle` stamps the month onto
+   * the ranges that cover a live window. Write it so a `, August 2026` reads
+   * on the end of it.
+   */
   readonly title: string
-  /** `<h1>`. Shorter than the title; the page already states its subject. */
+  /**
+   * The `<h1>`. Shorter than the title; the page already states its subject.
+   * What the month range shows when it cannot date itself; see
+   * `trendingRangeHeading`.
+   */
   readonly heading: string
   /** The label above the board. */
   readonly sectionLabel: string
@@ -70,7 +80,7 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
     windowDays: 30,
     path: '/skills/trending',
     canonical: `${SITE_ORIGIN}/skills/trending`,
-    title: 'Trending Claude Skills This Month',
+    title: 'Trending Claude Skills',
     heading: 'Trending this month',
     sectionLabel: 'Top skills',
   },
@@ -92,6 +102,71 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
 ]
 
 const RANGE_BY_ID = new Map(TRENDING_RANGES.map(range => [range.id, range]))
+
+/**
+ * The `<title>`, month-stamped for the ranges that cover a live window.
+ *
+ * The SERP for this topic is dated listicles ("... in 2026"), so an undated
+ * title competes against dated ones for the same click. The stamp is the month
+ * the board was computed in, which is what a reader is deciding about when they
+ * choose a result.
+ *
+ * `all` is exempt on purpose. It ranks by lifetime stars, so a month on it
+ * would be a false claim, and its stem carries the repository cluster it
+ * inherited from `/skills/leaderboard`.
+ *
+ * Read off `clockSeconds`, never `Date.now()`. That clock travels with the feed
+ * payload, so the server and the browser stamp the same month; a locally
+ * computed one is the hydration mismatch already documented on the page. Zero
+ * means the fetch failed, and a board that did not load dates nothing.
+ */
+/**
+ * The `<h1>`, stamped to match the `<title>`.
+ *
+ * Not cosmetic. Google rewrites a dated title when nothing on the page backs
+ * the date up, and an undated `<h1>` is the first thing it reaches for as the
+ * replacement. Stamping the heading is what lets the dated title survive.
+ *
+ * Only the month range takes the stamp. Its stem is a fragment written to be
+ * completed ("Trending in August 2026"); the week range already names its own
+ * window, and the all-time range has none.
+ */
+export function trendingRangeHeading(range: TrendingRange, clockSeconds: number): string {
+  const meta = trendingRangeMeta(range)
+  if (range !== 'month')
+    return meta.heading
+  const stamp = monthStamp(clockSeconds)
+  // Comma, not "in". Both read the same, but `.compact-page-header__title`
+  // caps at 15ch, and "Trending in August 2026" is the one phrasing long
+  // enough to wrap the h1 onto a second line at 1280px. Measured, not guessed.
+  // It also matches the punctuation the `<title>` already uses.
+  return stamp ? `Trending, ${stamp}` : meta.heading
+}
+
+/**
+ * The month a board was computed in, or null when it did not load.
+ *
+ * Off the payload clock, never `Date.now()`. That clock travels with the feed
+ * response, so the server and the browser stamp the same month; a locally
+ * computed one is the hydration mismatch already documented on the page.
+ */
+export function monthStamp(clockSeconds: number): string | null {
+  if (!clockSeconds)
+    return null
+  return new Intl.DateTimeFormat('en', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(clockSeconds * 1000)
+}
+
+export function trendingRangeTitle(range: TrendingRange, clockSeconds: number): string {
+  const meta = trendingRangeMeta(range)
+  const stamp = monthStamp(clockSeconds)
+  if (meta.windowDays === null || !stamp)
+    return meta.title
+  return `${meta.title}, ${stamp}`
+}
 
 /**
  * Parse `?range=` once, at the boundary, into a value the page can trust.

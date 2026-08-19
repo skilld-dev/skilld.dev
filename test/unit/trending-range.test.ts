@@ -5,7 +5,9 @@ import {
   resolveTrendingRange,
   TRENDING_RANGES,
   trendingRangeDescription,
+  trendingRangeHeading,
   trendingRangeMeta,
+  trendingRangeTitle,
 } from '#shared/trending-range'
 
 function leaderboardRow(overrides: Partial<LeaderboardRowInput> = {}): LeaderboardRowInput {
@@ -167,5 +169,52 @@ describe('leaderboard rows on the trending board', () => {
       handle: null,
       engagement: null,
     })
+  })
+})
+
+/**
+ * A dated title is the SERP convention for this topic, and it is only worth
+ * having while it is true. These pin both halves: the stamp appears on the
+ * ranges that cover a live window, and never on the one that does not.
+ */
+describe('month-stamped titles', () => {
+  // 2026-08-19T00:00:00Z
+  const clock = 1_787_270_400
+
+  it('stamps the month the board was computed in', () => {
+    expect(trendingRangeTitle('month', clock)).toBe('Trending Claude Skills, August 2026')
+    expect(trendingRangeTitle('week', clock)).toBe('Trending Claude Skills This Week, August 2026')
+  })
+
+  it('leaves the all-time range undated', () => {
+    // It ranks by lifetime stars. A month on it is a false claim, and its stem
+    // carries the repository cluster inherited from /skills/leaderboard.
+    expect(trendingRangeTitle('all', clock)).toBe('Top Claude Skill Repositories on GitHub')
+  })
+
+  it('drops the stamp when the board failed to load', () => {
+    expect(trendingRangeTitle('month', 0)).toBe('Trending Claude Skills')
+  })
+})
+
+/**
+ * The heading exists to back the dated title up. Google rewrites a dated title
+ * when the page itself never states the date, and the `<h1>` is the first
+ * candidate it reaches for.
+ */
+describe('month-stamped heading', () => {
+  const clock = 1_787_270_400
+
+  it('stamps the month range, punctuated like the title', () => {
+    expect(trendingRangeHeading('month', clock)).toBe('Trending, August 2026')
+  })
+
+  it('leaves the ranges that name their own window alone', () => {
+    expect(trendingRangeHeading('week', clock)).toBe('Trending this week')
+    expect(trendingRangeHeading('all', clock)).toBe('Top skill repositories')
+  })
+
+  it('falls back to the undated heading when the board failed to load', () => {
+    expect(trendingRangeHeading('month', 0)).toBe('Trending this month')
   })
 })

@@ -5,10 +5,13 @@ import type { TrendingBoardRow } from '#shared/trending-range'
 import { relativeDay, trendingBasis } from '#shared/trending-basis'
 import {
   leaderboardBoardRows,
+  monthStamp,
   resolveTrendingRange,
   TRENDING_RANGES,
   trendingRangeDescription,
+  trendingRangeHeading,
   trendingRangeMeta,
+  trendingRangeTitle,
 } from '#shared/trending-range'
 
 /**
@@ -213,10 +216,16 @@ const rangeWindow = computed(() => {
   const start = new Date(end.getTime() - days * 86_400_000)
   const day = (d: Date) => d.getUTCDate()
   const month = (d: Date) => d.toLocaleString('en', { month: 'short', timeZone: 'UTC' })
+  // Carries the year, unlike the first version. The `<title>` claims a month
+  // and a year, and a body that never states the year gives Google grounds to
+  // rewrite the title back to something undated.
+  const year = end.getUTCFullYear()
   return start.getUTCMonth() === end.getUTCMonth()
-    ? `${day(start)}–${day(end)} ${month(end)}`
-    : `${day(start)} ${month(start)} – ${day(end)} ${month(end)}`
+    ? `${day(start)}–${day(end)} ${month(end)} ${year}`
+    : `${day(start)} ${month(start)} – ${day(end)} ${month(end)} ${year}`
 })
+
+const stamp = computed(() => monthStamp(clock.value))
 
 const starsSyncedOn = computed(() => formatDay(leaderboard.value?.starsSyncedAt ?? null))
 
@@ -251,7 +260,8 @@ const headerDescription = computed(() => {
     : `Agent skills devs talked about ${period}, ranked by how many separate devs mentioned each one.`
 })
 
-const title = computed(() => meta.value.title)
+const heading = computed(() => trendingRangeHeading(range.value, clock.value))
+const title = computed(() => trendingRangeTitle(range.value, clock.value))
 const description = computed(() => trendingRangeDescription(range.value, evidencedTotal.value))
 
 useSeoMeta({
@@ -274,7 +284,11 @@ useHead({
 })
 
 defineOgImage('Page.takumi', {
-  title: () => (range.value === 'all' ? 'Top skill repositories' : 'Trending agent skills'),
+  // Stamped like the `<title>`, for the same reason: a shared card competes on
+  // whether it looks current.
+  title: () => (range.value === 'all'
+    ? 'Top skill repositories'
+    : [`Trending agent skills`, stamp.value].filter(Boolean).join(' · ')),
   description: () => (range.value === 'all'
     ? 'Individual creators publishing reusable agent skills, ranked by GitHub stars.'
     : 'What developers are actually posting about right now.'),
@@ -320,7 +334,7 @@ function rankClass(index: number): string {
 <template>
   <div>
     <CompactPageHeader
-      :title="meta.heading"
+      :title="heading"
       :description="headerDescription"
       heading-id="trending-heading"
     />
