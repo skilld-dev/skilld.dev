@@ -2,7 +2,7 @@
  * The write half of unstorage's `Storage`, structurally typed so this module
  * does not depend on unstorage's own types being resolvable.
  */
-interface CacheStorage {
+export interface CacheStorage {
   setItem: (key: string, value: never, options?: { ttl?: number }) => Promise<void>
 }
 
@@ -33,9 +33,12 @@ export async function writeCache<T>(
  * The read half of unstorage's `Storage`, structurally typed for the same
  * reason as {@link CacheStorage}.
  */
-interface CacheReadStorage {
+export interface CacheReadStorage {
   getItem: <T>(key: string) => Promise<T | null>
 }
+
+/** A cache a read-through helper both reads and writes. */
+export type ReadThroughCache = CacheReadStorage & CacheStorage
 
 /**
  * Read from the KV-backed cache without letting the read decide whether the

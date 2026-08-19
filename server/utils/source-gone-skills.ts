@@ -1,5 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { ReadThroughCache } from '#shared/server/cache'
+import { readCache, writeCache } from '#shared/server/cache'
+
 /**
  * Skills whose SKILL.md was deleted upstream still serve a page, because the
  * cached render survives the deletion. The page is worth keeping: it shows the
@@ -78,4 +81,45 @@ export function skillKeyFromPath(pathname: string): string | null {
 export async function selectGoneSkillKeys(db: D1Database): Promise<string[]> {
   const rows = await db.prepare(GONE_SKILLS_SQL).bind().all<GoneSkillRow>()
   return goneSkillKeys(rows.results ?? [])
+}
+
+/**
+ * The gone-skill key set for this request, or null when it cannot be resolved.
+ *
+ * This runs on every `/gh` request and its only job is to upgrade a 200 to a
+ * 410. Neither the KV read nor the D1 fallback is worth the page. Workers KV
+ * answered a `getItem` with `KV GET failed: 500 Internal Server Error` and the
+ * rejection travelled out of the bare read-through cache here and 500'd the
+ * page (Sentry SKILLD-S, `/gh/dylantarre/animation-principles/educator-teacher`,
+ * still live 2026-08-18). The D1 read behind it fails the same way, and D1
+ * answers `{"D1_RESET_DO":true}` on its own schedule (Sentry SKILLD-Y).
+ *
+ * Failing to resolve the set costs one stale 200 on a deleted skill until the
+ * next request. Propagating the failure costs every `/gh` visitor the page.
+ *
+ * This is deliberately not a silent catch: the wide event carries the reason,
+ * so an outage shows up as a spike in unresolved lookups rather than as
+ * nothing at all.
+ */
+export async function resolveGoneSkillKeys(
+  cache: ReadThroughCache,
+  db: D1Database,
+): Promise<string[] | null> {
+  const cached = await readCache<string[]>(cache, GONE_SKILLS_CACHE_KEY)
+  if (Array.isArray(cached))
+    return cached
+
+  try {
+    const keys = await selectGoneSkillKeys(db)
+    await writeCache(cache, GONE_SKILLS_CACHE_KEY, keys, { ttl: GONE_SKILLS_CACHE_TTL })
+    return keys
+  }
+  catch (error) {
+    emitOperationalEvent(createWideEvent({
+      operation: 'source-gone-keys',
+      outcome: 'failed',
+      reason: error instanceof Error ? error.message : String(error),
+    }))
+    return null
+  }
 }

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { goneSkillKeys, skillKeyFromPath } from '../../server/utils/source-gone-skills'
+import { describe, expect, it, vi } from 'vitest'
+import { goneSkillKeys, resolveGoneSkillKeys, skillKeyFromPath } from '../../server/utils/source-gone-skills'
 
 const microsoft = {
   owner: 'microsoft',
@@ -75,5 +75,67 @@ describe('goneSkillKeys', () => {
 
   it('is empty when nothing is gone', () => {
     expect(goneSkillKeys([])).toEqual([])
+  })
+})
+
+describe('resolveGoneSkillKeys', () => {
+  const goneRow = {
+    owner: 'microsoft',
+    repo: 'skills',
+    name: 'entra-app-registration',
+    slug: null,
+    name_collides_with_repo: 0,
+  }
+
+  function stubDb(all: () => Promise<{ results: typeof goneRow[] }>) {
+    return {
+      prepare: () => ({ bind: () => ({ all }) }),
+    } as unknown as Parameters<typeof resolveGoneSkillKeys>[1]
+  }
+
+  it('returns the cached key set without touching the database', async () => {
+    const all = vi.fn()
+    const keys = await resolveGoneSkillKeys(
+      { getItem: async () => ['acme/skills/deploy'], setItem: async () => {} },
+      stubDb(all as never),
+    )
+
+    expect(keys).toEqual(['acme/skills/deploy'])
+    expect(all).not.toHaveBeenCalled()
+  })
+
+  it('treats a KV read failure as a miss and answers from the database', async () => {
+    // Sentry SKILLD-S: `KV GET failed: 500 Internal Server Error` travelled out
+    // of this read-through cache and 500'd every `/gh` page.
+    const keys = await resolveGoneSkillKeys(
+      {
+        getItem: async () => { throw new Error('KV GET failed: 500 Internal Server Error') },
+        setItem: async () => {},
+      },
+      stubDb(async () => ({ results: [goneRow] })),
+    )
+
+    expect(keys).toEqual(['microsoft/skills/entra-app-registration'])
+  })
+
+  it('answers null when the database read fails, rather than failing the page', async () => {
+    const keys = await resolveGoneSkillKeys(
+      { getItem: async () => null, setItem: async () => {} },
+      stubDb(async () => { throw new Error('D1_ERROR: {"D1_RESET_DO":true}') }),
+    )
+
+    expect(keys).toBeNull()
+  })
+
+  it('still answers when the cache write fails after a database read', async () => {
+    const keys = await resolveGoneSkillKeys(
+      {
+        getItem: async () => null,
+        setItem: async () => { throw new Error('KV PUT failed: 429 Too Many Requests') },
+      },
+      stubDb(async () => ({ results: [goneRow] })),
+    )
+
+    expect(keys).toEqual(['microsoft/skills/entra-app-registration'])
   })
 })
