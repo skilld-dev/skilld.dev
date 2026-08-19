@@ -246,10 +246,7 @@ function fmtDate(ts: number | null | undefined): string {
         <section aria-label="Your skills">
           <div class="flex flex-col gap-5 border-b border-default pb-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p class="section-label">
-                Watching for changes
-              </p>
-              <h1 class="mt-2 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
                 Your skills
               </h1>
               <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">
@@ -341,10 +338,7 @@ function fmtDate(ts: number | null | undefined): string {
         <section>
           <div class="flex items-start justify-between gap-4">
             <div>
-              <p class="section-label">
-                Delivery
-              </p>
-              <h2 class="mt-2 text-lg font-semibold">
+              <h2 class="text-lg font-semibold">
                 Change digest
               </h2>
             </div>
@@ -491,10 +485,7 @@ function fmtDate(ts: number | null | undefined): string {
         </section>
 
         <section>
-          <p class="section-label">
-            Sources
-          </p>
-          <h2 class="mt-2 text-lg font-semibold">
+          <h2 class="text-lg font-semibold">
             Repository coverage
           </h2>
           <p class="mt-2 text-sm leading-relaxed text-muted">

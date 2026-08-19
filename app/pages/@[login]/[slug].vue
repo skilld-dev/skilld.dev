@@ -162,11 +162,8 @@ function collectionSkillMeta(skill: { owner: string, repo: string, name?: string
     <div class="mt-10 grid min-w-0 grid-cols-1 gap-10 md:grid-cols-[minmax(0,1fr)_18rem] md:items-start lg:gap-14">
       <aside class="min-w-0 md:sticky md:top-24 md:col-start-2 md:row-start-1" aria-labelledby="install-heading">
         <section class="rounded-lg border border-default bg-elevated p-4">
-          <p class="section-label">
+          <h2 id="install-heading" class="text-base font-semibold">
             Install collection
-          </p>
-          <h2 id="install-heading" class="mt-2 text-base font-semibold">
-            Add the complete setup
           </h2>
           <p class="mt-2 text-sm leading-relaxed text-muted">
             One command installs all {{ skillCount }} skills in this collection.
@@ -220,11 +217,8 @@ function collectionSkillMeta(skill: { owner: string, repo: string, name?: string
       <section class="min-w-0 md:col-start-1 md:row-start-1" aria-labelledby="skills-heading">
         <div class="mb-4 flex items-end justify-between gap-4">
           <div>
-            <p class="section-label">
+            <h2 id="skills-heading" class="text-xl font-semibold tracking-tight">
               Included skills
-            </p>
-            <h2 id="skills-heading" class="mt-2 text-xl font-semibold tracking-tight">
-              The stack, in order
             </h2>
           </div>
           <span class="data-label shrink-0">{{ skillCount }} total</span>

@@ -21,27 +21,6 @@ describe('compactPageHeader', () => {
     wrapper.unmount()
   })
 
-  it('omits the eyebrow label entirely when no label is given', async () => {
-    const wrapper = await mountSuspended(CompactPageHeader, { props: baseProps })
-
-    expect(wrapper.find('.section-label').exists()).toBe(false)
-
-    wrapper.unmount()
-  })
-
-  it('renders the label above the heading when one is given', async () => {
-    const wrapper = await mountSuspended(CompactPageHeader, {
-      props: { ...baseProps, label: 'Registry' },
-    })
-
-    const label = wrapper.get('.section-label')
-    expect(label.text()).toBe('Registry')
-    expect(label.element.compareDocumentPosition(wrapper.get('h1').element))
-      .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-
-    wrapper.unmount()
-  })
-
   it('renders aside and default slot content, and drops the containers when unused', async () => {
     const bare = await mountSuspended(CompactPageHeader, { props: baseProps })
     expect(bare.find('aside').exists()).toBe(false)

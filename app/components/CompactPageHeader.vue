@@ -1,6 +1,5 @@
 <script setup lang="ts">
-const { label, title, description, headingId } = defineProps<{
-  label?: string
+const { title, description, headingId } = defineProps<{
   title: string
   description: string
   headingId: string
@@ -15,13 +14,9 @@ const { label, title, description, headingId } = defineProps<{
         :class="{ 'compact-page-header__grid--with-aside': $slots.aside }"
       >
         <div class="min-w-0">
-          <p v-if="label" class="section-label">
-            {{ label }}
-          </p>
           <h1
             :id="headingId"
             class="compact-page-header__title"
-            :class="{ 'compact-page-header__title--with-label': label }"
           >
             {{ title }}
           </h1>
@@ -67,10 +62,6 @@ const { label, title, description, headingId } = defineProps<{
   letter-spacing: -0.04em;
   line-height: 1.02;
   text-wrap: balance;
-}
-
-.compact-page-header__title--with-label {
-  margin-top: 0.75rem;
 }
 
 .compact-page-header__description {

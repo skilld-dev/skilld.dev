@@ -73,7 +73,7 @@ Every surface has warm undertone. The accent is coral/rose. The voice is editori
 
 - **Size philosophy**: small by default in UI chrome. Monospace elements use text-xs to text-sm. Content body uses text-sm to text-base. Display headings are the only place text goes large
 - **OpenType features**: tabular-nums on any numeric displays (install counts, collection sizes)
-- **Heading pattern**: section labels use `.section-label` (mono, xs, uppercase, tracking-widest, muted)
+- **Heading pattern**: small section headings and list group labels use `.section-label` (mono, xs, uppercase, tracking-widest, muted). It is a heading, never a label stacked above one
 - **Monospace in UI**: buttons, inputs, links, navigation items, badges, and metadata all render in mono. This is the single biggest contributor to the quiet feel
 
 ## Icons
@@ -153,6 +153,7 @@ Use `UiTooltip` (not `UTooltip`) for any tooltip that needs more than a plain st
 - Nesting cards inside cards; use spacing and dividers
 - rounded-xl on components (too soft; use rounded-lg)
 - Large font sizes in UI chrome; reserve large type for page headings only
+- Eyebrow text: a muted uppercase label stacked directly above a heading. Delete it, promote it into the heading, or demote it to a data line below
 - Generous padding "for breathing room"; padding should be structural
 - Showing all available data at once; layer it through progressive disclosure
 - Spelling out "Personal Data Server" in UI copy; always use "PDS" with a tooltip
@@ -219,7 +220,7 @@ The noise field is bounded by strict rules so it doesn't erode the quiet feel:
 
 | Class/Token | What it does | When to use |
 |-------------|-------------|-------------|
-| `.section-label` | font-mono text-xs uppercase tracking-widest text-muted | Above each content section as a category label |
+| `.section-label` | font-mono text-xs uppercase tracking-widest text-muted | The heading of a small section, or a group label inside a list, menu, or modal. Never an eyebrow above a larger heading |
 | `.surface-warm` | warm dark bg (oklch 0.16) with subtle warm border | Card or panel backgrounds in dark mode |
 | `.surface-warm-elevated` | slightly lighter warm bg (oklch 0.20) with warm border | Elevated panels, dropdowns, popovers in dark mode |
 | `.data-label` | font-mono text-xs text-muted tabular-nums | Inline metric labels in lists and cards |

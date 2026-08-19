@@ -246,53 +246,6 @@
   -webkit-mask-image: radial-gradient(66% 66% at 82% 38%, black, transparent 78%);
 }
 
-.editorial-masthead {
-  overflow: hidden;
-  border-bottom: 1px solid var(--ui-border);
-  container-name: editorial-masthead;
-  container-type: inline-size;
-}
-
-.editorial-masthead__content {
-  width: min(100%, 64rem);
-  margin-inline: auto;
-  padding: 3.5rem 1rem 2.5rem;
-}
-
-.editorial-masthead__grid {
-  display: grid;
-  min-width: 0;
-  gap: 1.5rem;
-  margin-top: 1rem;
-}
-
-.editorial-masthead__title {
-  max-width: 16ch;
-  font-size: clamp(2.75rem, 2rem + 3.4vw, 5rem);
-  font-weight: 600;
-  letter-spacing: -0.045em;
-  line-height: 0.98;
-  text-wrap: balance;
-}
-
-.editorial-masthead__description {
-  max-width: 40rem;
-  margin-top: 1.25rem;
-  font-size: clamp(1rem, 0.95rem + 0.35vw, 1.25rem);
-  line-height: 1.65;
-  color: var(--ui-text-muted);
-  text-wrap: pretty;
-}
-
-.editorial-masthead__aside {
-  min-width: 0;
-  align-self: end;
-}
-
-.editorial-masthead__actions {
-  margin-top: 2rem;
-}
-
 .editorial-ledger {
   margin: 0;
   border-block: 1px solid var(--ui-border);
@@ -308,23 +261,6 @@
   border-radius: var(--ui-radius);
   background: var(--ui-bg-muted);
   padding: 1.5rem;
-}
-
-@container editorial-masthead (min-width: 40rem) {
-  .editorial-masthead__content {
-    padding-inline: 1.5rem;
-  }
-}
-
-@container editorial-masthead (min-width: 64rem) {
-  .editorial-masthead__content {
-    padding-block: 5rem 3.5rem;
-  }
-
-  .editorial-masthead__grid {
-    grid-template-columns: minmax(0, 1.3fr) minmax(17rem, 0.7fr);
-    gap: 4rem;
-  }
 }
 
 .home-display {
@@ -579,8 +515,15 @@
   background: var(--ui-bg);
 }
 
+/*
+ * The lead pick is the one place on the page that spends the rose accent on a
+ * rail. It replaced a "Start here" label above the title: the rail says the
+ * same thing without adding a line of type the reader has to parse.
+ */
 .home-featured-lead {
   padding: 1.25rem;
+  border-left-width: 2px;
+  border-left-color: var(--ui-primary);
 }
 
 .home-featured-lead__intro {
@@ -865,10 +808,15 @@
   min-width: 0;
 }
 
+/*
+ * The action lines up with the feed name, not with the data line under it.
+ * Bottom alignment was right when a label sat above the heading; with the
+ * label demoted below, it dragged the button a line too low.
+ */
 .home-freshness-feed-heading {
   display: flex;
   min-width: 0;
-  align-items: end;
+  align-items: start;
   justify-content: space-between;
   gap: 1rem;
 }

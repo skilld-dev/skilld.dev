@@ -248,12 +248,12 @@ defineOgImage('Page.takumi', {
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="grid gap-8 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:gap-12">
           <div>
-            <p class="section-label">
-              {{ clusterData.cluster.curatorNote ? 'Curated by Harlan' : 'First up' }}
-            </p>
-            <h2 id="starting-sequence-heading" class="cluster-section-title mt-4 max-w-[13ch]">
+            <h2 id="starting-sequence-heading" class="cluster-section-title max-w-[13ch]">
               Three skills to inspect.
             </h2>
+            <p v-if="clusterData.cluster.curatorNote" class="data-label mt-3">
+              Curated by Harlan
+            </p>
             <p class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
               {{
                 clusterData.cluster.curatorNote
@@ -304,10 +304,7 @@ defineOgImage('Page.takumi', {
     >
       <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p class="section-label">
-            All matching skills
-          </p>
-          <h2 id="cluster-directory-heading" class="cluster-section-title mt-3">
+          <h2 id="cluster-directory-heading" class="cluster-section-title">
             Browse the rest.
           </h2>
           <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted">
