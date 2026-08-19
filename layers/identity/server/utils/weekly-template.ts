@@ -11,6 +11,9 @@
  * inlined at every use rather than being set through classes.
  */
 
+import type { WeeklyPlacement } from './weekly-tracking'
+import { trackedUrl } from './weekly-tracking'
+
 const TOKEN = {
   page: '#f5f4f2',
   surface: '#ffffff',
@@ -21,6 +24,9 @@ const TOKEN = {
   muted: '#78716c',
   faint: '#a8a29e',
   accent: '#e11d48',
+  // The brand mark's own rose, lighter than the accent on purpose. Used only
+  // where the mark itself appears, so the two never sit side by side.
+  mark: '#fb7185',
   quote: '#fafaf9',
 } as const
 
@@ -39,9 +45,16 @@ const MONO = `'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospa
  * reason.
  */
 export type WeeklyReason
-  = { _tag: 'named', authorCount: number, mentionCount: number }
+  = { _tag: 'named', authorCount: number, mentionCount: number, latestAt: number }
     | { _tag: 'stars', gain: number, day: number }
-    | { _tag: 'named-and-stars', authorCount: number, mentionCount: number, gain: number, day: number }
+    | {
+      _tag: 'named-and-stars'
+      authorCount: number
+      mentionCount: number
+      latestAt: number
+      gain: number
+      day: number
+    }
     | { _tag: 'popular', stars: number }
 
 export interface WeeklyEvidence {
@@ -84,6 +97,11 @@ export interface WeeklyLikedChange {
 
 export interface WeeklyRenderInput {
   login: string
+  /**
+   * Recipient id, carried on tracked links so a click can be attributed.
+   * Null for the admin preview, which must not write click rows.
+   */
+  userId?: number | null
   /** Unix seconds. */
   windowStart: number
   /** Unix seconds. */
@@ -169,11 +187,11 @@ function short(value: number): string {
 export function reasonLine(reason: WeeklyReason, now: number): string {
   switch (reason._tag) {
     case 'named':
-      return `${reason.authorCount} ${plural(reason.authorCount, 'person', 'people')} named it`
+      return `${reason.authorCount} ${plural(reason.authorCount, 'person', 'people')} named it${mentionAge(reason.latestAt, now)}`
     case 'stars':
       return `+${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
     case 'named-and-stars':
-      return `${reason.authorCount} ${plural(reason.authorCount, 'person', 'people')} named it \u00B7 +${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
+      return `${reason.authorCount} ${plural(reason.authorCount, 'person', 'people')} named it${mentionAge(reason.latestAt, now)} \u00B7 +${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
     case 'popular':
       return `${compactCount(reason.stars)} stars, no posts this week`
   }
@@ -233,6 +251,22 @@ export function trimQuote(value: string): string {
 
 function collapse(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * How old the newest mention is, when we know.
+ *
+ * A star row dates itself ("+449 stars today") and a named row did not, so in
+ * an email headed with a week the reader could not tell whether five people
+ * named something on Monday or six days ago. Zero means the loader had no
+ * timestamp, and an invented one would be worse than none.
+ *
+ * Always says "latest". A bare age reads as the date they all posted, and it
+ * is the date of the newest one: "2 people named it yesterday" claims both did
+ * something only one of them did.
+ */
+function mentionAge(latestAt: number, now: number): string {
+  return latestAt ? ` \u00B7 latest ${relativeDay(latestAt, now)}` : ''
 }
 
 function avatarUrl(owner: string): string {
@@ -357,16 +391,57 @@ function button(href: string, label: string): string {
 </table>`
 }
 
+/**
+ * Names, then a count of what is left over.
+ *
+ * "vitest, tdd and 4 more" rather than "6 skills". The email is full of names
+ * a reader recognises and a count is the one form of them that carries none of
+ * that recognition into the inbox list.
+ */
+const SUBJECT_NAMES = 2
+
+function nameList(names: readonly string[], extra: number): string {
+  const shown = names.slice(0, SUBJECT_NAMES)
+  const rest = names.length - shown.length + extra
+  if (!shown.length)
+    return ''
+  if (rest > 0)
+    return `${shown.join(', ')} and ${rest} more`
+  return shown.length === 1 ? shown[0]! : `${shown[0]!} and ${shown[1]!}`
+}
+
+const LIKE_PROMPT = 'Like a skill and it shows up here the week it changes.'
+
 function subjectFor(input: WeeklyRenderInput): string {
-  const liked = input.likedChanges.length + input.likedOverflow
-  const trending = input.trending.length
-  if (liked && trending)
-    return `skilld weekly: ${liked} of your skills changed, ${trending} trending`
-  if (liked)
-    return `skilld weekly: ${liked} of your skills ${plural(liked, 'changed', 'changed')}`
-  if (trending)
-    return `skilld weekly: ${trending} skills worth a look`
+  // The liked half wins the subject when it has anything in it. Those are
+  // skills this person chose; the trending half is a stranger's.
+  if (input.likedChanges.length) {
+    const names = nameList(input.likedChanges.map(change => change.name), input.likedOverflow)
+    return `skilld weekly: ${names} changed`
+  }
+  if (input.trending.length)
+    return `skilld weekly: ${nameList(input.trending.map(skill => skill.canonicalName), 0)}`
   return 'skilld weekly: a quiet week'
+}
+
+/**
+ * The line an inbox shows next to the subject.
+ *
+ * Deliberately not the greeting. This was `greeting(input)`, so the same
+ * sentence appeared in the preview pane and then again as the first line of
+ * the email, spending a free slot on an echo. It names whichever half the
+ * subject did not.
+ */
+function preheader(input: WeeklyRenderInput): string {
+  const trendingNames = nameList(input.trending.map(skill => skill.canonicalName), 0)
+  if (input.likedChanges.length) {
+    return input.trending.length
+      ? `Also trending: ${trendingNames}.`
+      : `${input.likedChanges.reduce((total, change) => total + change.changeCount, 0)} changes across the skills you like.`
+  }
+  if (input.trending.length)
+    return `Nothing you like changed. People named ${trendingNames}.`
+  return 'Nothing changed this week.'
 }
 
 function greeting(input: WeeklyRenderInput): string {
@@ -387,12 +462,21 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const subject = subjectFor(input)
   const empty = !input.likedChanges.length && !input.trending.length
 
+  // Only the HTML is tracked. The plain-text part is read by clients that
+  // often cannot follow a redirect cleanly, and a bare skilld.dev link is
+  // worth more there than the measurement.
+  const track = (url: string, placement: WeeklyPlacement): string => trackedUrl(
+    { siteUrl: input.siteUrl, userId: input.userId ?? null, windowEnd: input.windowEnd },
+    url,
+    placement,
+  )
+
   const likedRows = input.likedChanges.map((change) => {
     const subjects = commitSubjects(change.commitMessages)
     return row({
       owner: change.owner,
       title: change.name,
-      href: skillUrl(input.siteUrl, change.owner, change.repo, change.name),
+      href: track(skillUrl(input.siteUrl, change.owner, change.repo, change.name), 'liked'),
       // The description explains the skill, and it only earns its line when
       // there are no commit subjects to explain what actually changed.
       description: subjects.length ? null : change.description,
@@ -407,14 +491,24 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
   const overflowRow = input.likedOverflow
     ? `<tr><td style="padding:12px 0 0;border-top:1px solid ${TOKEN.border};font-family:${MONO};font-size:11px;color:${TOKEN.muted};">
-         <a href="${esc(`${input.siteUrl}/me/likes`)}" style="color:${TOKEN.muted};text-decoration:none;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'skill', 'skills')} you like changed</a>
+         <a href="${esc(track(`${input.siteUrl}/me/likes`, 'overflow'))}" style="color:${TOKEN.muted};text-decoration:none;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'skill', 'skills')} you like changed</a>
+       </td></tr>`
+    : ''
+
+  // The section exists to report on liked skills, so when it has nothing to
+  // report the email should say how to fill it. The fully-empty state already
+  // does; this is the far more common case where trending carried the week and
+  // the reader is never told the other half is theirs to populate.
+  const likePrompt = !input.likedChanges.length && input.trending.length
+    ? `<tr><td style="padding:16px 0 0;border-top:1px solid ${TOKEN.border};font-family:${SANS};font-size:13px;line-height:1.5;color:${TOKEN.muted};">
+         ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${TOKEN.accent};text-decoration:none;">Browse the registry</a>.
        </td></tr>`
     : ''
 
   const trendingRows = input.trending.map(skill => row({
     owner: skill.owner,
     title: skill.canonicalName,
-    href: skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName),
+    href: track(skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName), 'trending'),
     description: skill.description,
     meta: trendingMeta(skill, now),
     extra: skill.evidence ? quote(skill.evidence) : '',
@@ -423,12 +517,12 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const body = empty
     ? `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${TOKEN.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${TOKEN.body};">
          Like a few skills and they will show up here the week they change.
-         <a href="${esc(`${input.siteUrl}/skills`)}" style="color:${TOKEN.accent};text-decoration:none;">Browse the registry</a>.
+         <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${TOKEN.accent};text-decoration:none;">Browse the registry</a>.
        </td></tr>`
     : `${input.likedChanges.length
       ? `${sectionLabel('Skills you like')}${likedRows}${overflowRow}`
       : ''}${input.trending.length
-      ? `${sectionLabel(input.likedChanges.length ? 'Also trending' : 'Trending this week')}${trendingRows}`
+      ? `${sectionLabel(input.likedChanges.length ? 'Also trending' : 'Trending this week')}${trendingRows}${likePrompt}`
       : ''}`
 
   const html = `<!doctype html>
@@ -444,7 +538,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 <title>${esc(subject)}</title>
 </head>
 <body style="margin:0;padding:0;background:${TOKEN.page};-webkit-font-smoothing:antialiased;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(greeting(input))}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader(input))}</div>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${TOKEN.page};padding:32px 12px;">
   <tr><td align="center">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;background:${TOKEN.surface};border:1px solid ${TOKEN.border};border-radius:8px;">
@@ -452,11 +546,20 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom:1px solid ${TOKEN.border};padding-bottom:14px;">
           <tr>
-            <td style="font-family:${MONO};font-size:13px;font-weight:600;color:${TOKEN.text};letter-spacing:-0.01em;">
-              <a href="${esc(input.siteUrl)}" style="color:${TOKEN.text};text-decoration:none;">skilld</a>
+            <!-- The mark is a hosted PNG, not the SVG the site uses: Gmail
+                 strips SVG entirely. Images are blocked by default in plenty of
+                 clients too, so the wordmark beside it carries the brand on its
+                 own and the alt text repeats it. -->
+            <td width="26" valign="middle" style="width:26px;padding-right:9px;">
+              <a href="${esc(track(input.siteUrl, 'footer'))}" style="text-decoration:none;">
+                <img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="skilld" style="display:block;width:22px;height:22px;border:0;border-radius:5px;" />
+              </a>
+            </td>
+            <td valign="middle" style="font-family:${MONO};font-size:13px;font-weight:600;color:${TOKEN.text};letter-spacing:-0.01em;">
+              <a href="${esc(track(input.siteUrl, 'footer'))}" style="color:${TOKEN.text};text-decoration:none;">skilld</a>
               <span style="color:${TOKEN.faint};font-weight:400;"> weekly</span>
             </td>
-            <td align="right" style="font-family:${MONO};font-size:11px;color:${TOKEN.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
+            <td align="right" valign="middle" style="font-family:${MONO};font-size:11px;color:${TOKEN.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
           </tr>
         </table>
 
@@ -468,12 +571,13 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
           ${body}
         </table>
 
-        ${empty ? '' : button(`${input.siteUrl}/skills/trending`, 'See the full board')}
+        ${empty ? '' : button(track(`${input.siteUrl}/skills/trending`, 'cta'), 'See the full board')}
 
       </td></tr>
+      <tr><td style="height:3px;background:${TOKEN.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
       <tr><td style="padding:16px 28px 20px;border-top:1px solid ${TOKEN.border};font-family:${MONO};font-size:11px;line-height:1.6;color:${TOKEN.faint};">
         You get this once a week because you have a skilld account.
-        <a href="${esc(input.settingsUrl)}" style="color:${TOKEN.muted};text-decoration:none;">Settings</a>
+        <a href="${esc(track(input.settingsUrl, 'footer'))}" style="color:${TOKEN.muted};text-decoration:none;">Settings</a>
         &middot;
         <a href="${esc(input.unsubscribeUrl)}" style="color:${TOKEN.muted};text-decoration:none;">Unsubscribe</a>
       </td></tr>
@@ -530,6 +634,8 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
       lines.push(`  ${skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName)}`)
       lines.push('')
     }
+    if (!input.likedChanges.length)
+      lines.push(LIKE_PROMPT, '')
     lines.push(`Full board: ${input.siteUrl}/skills/trending`, '')
   }
 

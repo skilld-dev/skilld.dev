@@ -46,6 +46,9 @@ CREATE UNIQUE INDEX idx_digest_window ON digest_runs(user_id, window_end);
 
 CREATE UNIQUE INDEX weekly_runs_user_window ON weekly_runs (user_id, window_end);
 
+CREATE INDEX weekly_click_events_window ON weekly_click_events (window_end, placement);
+CREATE INDEX weekly_click_events_path ON weekly_click_events (path, clicked_at);
+
 CREATE INDEX idx_owners_followers ON owners (followers DESC);
 
 CREATE INDEX idx_skill_revisions_lookup
@@ -272,6 +275,15 @@ CREATE TABLE digest_runs (
   ai_summary_used INTEGER NOT NULL DEFAULT 0,
   sent_at INTEGER,
   error TEXT
+);
+
+CREATE TABLE weekly_click_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  window_end INTEGER NOT NULL,
+  placement TEXT NOT NULL,
+  path TEXT NOT NULL,
+  clicked_at INTEGER NOT NULL
 );
 
 CREATE TABLE weekly_runs (
