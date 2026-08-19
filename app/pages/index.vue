@@ -109,6 +109,9 @@ const featuredCollections = computed(() =>
   })),
 )
 const leadCollection = computed(() => featuredCollections.value[0] ?? null)
+const featuredSkillTotal = computed(() =>
+  featuredCollections.value.reduce((total, collection) => total + collection.skillCount, 0),
+)
 const supportingCollections = computed(() => featuredCollections.value.slice(1, 3))
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
@@ -371,10 +374,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     >
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-outcomes-intro">
-          <p class="section-label">
-            Pick your track
-          </p>
-          <h2 id="outcomes-heading" class="home-outcomes-title mt-4 max-w-[16ch] font-semibold text-balance">
+          <h2 id="outcomes-heading" class="home-outcomes-title max-w-[16ch] font-semibold text-balance">
             What do you work on?
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
@@ -401,14 +401,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-featured-heading">
           <div class="min-w-0">
-            <p class="section-label">
-              Community curated
-            </p>
-            <h2 id="featured-focus-heading" class="home-featured-title mt-4 text-balance">
+            <h2 id="featured-focus-heading" class="home-featured-title text-balance">
               Collections for better agent work.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
               Shared by devs in the skilld community, covering discovery, planning, and review.
+            </p>
+            <p v-if="featuredCollections.length" class="data-label mt-3">
+              {{ featuredCollections.length }} {{ featuredCollections.length === 1 ? 'collection' : 'collections' }} · {{ featuredSkillTotal }} {{ featuredSkillTotal === 1 ? 'skill' : 'skills' }}
             </p>
           </div>
           <UButton
@@ -468,10 +468,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           <article class="home-featured-lead">
             <div class="home-featured-lead__intro">
               <div class="min-w-0">
-                <p class="data-label">
-                  Start here
-                </p>
-                <h3 class="home-featured-lead__title mt-3 text-balance">
+                <h3 class="home-featured-lead__title text-balance">
                   {{ leadCollection.name }}
                 </h3>
               </div>
@@ -621,9 +618,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                         decoding="async"
                       >
                     </span>
-                    <p class="data-label truncate">
-                      Skills by {{ collectionSkillOwnerLabel(collection) }}
-                    </p>
                   </div>
                   <UIcon name="i-lucide-arrow-up-right" class="home-featured-support-arrow size-4 shrink-0" aria-hidden="true" />
                 </div>
@@ -634,7 +628,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   {{ collection.preamble }}
                 </p>
                 <p class="home-featured-support-meta font-mono text-xs text-muted">
-                  {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'skill' : 'skills' }}
+                  {{ collection.skillCount }} {{ collection.skillCount === 1 ? 'skill' : 'skills' }} · by {{ collectionSkillOwnerLabel(collection) }}
                 </p>
               </NuxtLink>
             </article>
@@ -667,10 +661,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-featured-heading">
           <div class="min-w-0">
-            <p class="section-label">
-              The devs behind it
-            </p>
-            <h2 id="community-heading" class="home-featured-title mt-4 text-balance">
+            <h2 id="community-heading" class="home-featured-title text-balance">
               Curators you can follow.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
@@ -765,15 +756,15 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p class="section-label">
-              What devs are sharing
-            </p>
-            <h2 id="trending-heading" class="mt-4 text-2xl font-semibold tracking-tight text-balance">
+            <h2 id="trending-heading" class="text-2xl font-semibold tracking-tight text-balance">
               Trending this week
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               Skill repositories devs are posting about on X, ranked by how many separate
               devs shared them rather than by how loud any one post was.
+            </p>
+            <p v-if="trendingSectionRepos.length" class="data-label mt-3">
+              {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
             </p>
           </div>
           <UButton
@@ -844,11 +835,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
       <div class="editorial-band__content home-freshness-shell mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <header class="home-freshness-header">
-          <p class="section-label">
-            Keep your agent current
-          </p>
-          <h2 id="freshness-heading" class="home-freshness-title mt-4 max-w-[15ch] font-semibold text-balance">
-            See what changed.
+          <h2 id="freshness-heading" class="home-freshness-title max-w-[15ch] font-semibold text-balance">
+            Keep your agent current.
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
             Updated skills and newly published skills have separate feeds. We don't rank new ones higher.
@@ -859,12 +847,12 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           <section class="home-freshness-primary" aria-labelledby="recent-updates-heading">
             <div class="home-freshness-feed-heading">
               <div class="min-w-0">
-                <p class="data-label">
-                  Source files changed
-                </p>
-                <h3 id="recent-updates-heading" class="home-freshness-primary-title mt-2 font-semibold tracking-tight">
+                <h3 id="recent-updates-heading" class="home-freshness-primary-title font-semibold tracking-tight">
                   Recently updated
                 </h3>
+                <p class="data-label mt-2">
+                  Source files changed
+                </p>
               </div>
               <UButton
                 to="/skills"
@@ -944,13 +932,13 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           <section class="home-freshness-secondary" aria-labelledby="recent-publishes-heading">
             <div class="home-freshness-feed-heading">
               <div class="min-w-0">
-                <p class="data-label flex items-center gap-1.5">
+                <h3 id="recent-publishes-heading" class="home-freshness-secondary-title font-semibold tracking-tight">
+                  New to skilld
+                </h3>
+                <p class="data-label mt-2 flex items-center gap-1.5">
                   <UIcon name="i-lucide-badge-check" class="size-3.5 shrink-0" aria-hidden="true" />
                   From official publishers
                 </p>
-                <h3 id="recent-publishes-heading" class="home-freshness-secondary-title mt-2 font-semibold tracking-tight">
-                  New to skilld
-                </h3>
               </div>
               <UButton
                 to="/skills"
@@ -1043,10 +1031,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
         <div class="home-publish-panel">
           <div>
-            <p class="section-label">
-              Share what works
-            </p>
-            <h2 id="publish-heading" class="home-section-title home-publish-title mt-4 text-balance">
+            <h2 id="publish-heading" class="home-section-title home-publish-title text-balance">
               Got a setup you keep reusing?
             </h2>
             <p class="home-publish-summary mt-4">

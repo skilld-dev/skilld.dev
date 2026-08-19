@@ -268,7 +268,6 @@ describe('accessibility: components', () => {
 describe('accessibility: component coverage', () => {
   // Components that are skipped with documented reasons
   const SKIPPED_COMPONENTS = [
-    'EditorialMasthead', // Presentational masthead section, tested at page level
     'OutcomeClusterGrid', // Content section (fetches /api/clusters), tested at page level
     'KeyboardShortcutsModal.client', // Client-only modal requires full app context
     'NoiseField.client', // Decorative client-only canvas

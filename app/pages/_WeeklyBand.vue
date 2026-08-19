@@ -61,9 +61,6 @@ const card = computed(() =>
           <p class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
             Changes to the skills you like, plus what devs are talking about, to your inbox every Monday.
           </p>
-          <p class="data-label mt-3">
-            One email · every Monday
-          </p>
 
           <div class="mt-6 flex flex-wrap items-center gap-3">
             <UButton

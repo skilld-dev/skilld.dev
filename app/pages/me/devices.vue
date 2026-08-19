@@ -73,10 +73,7 @@ useSeoMeta({ title: 'CLI devices', robots: 'noindex' })
   <section class="mx-auto max-w-3xl px-4 pt-10 pb-16 sm:px-6 md:pt-14">
     <header class="flex flex-col gap-5 border-b border-default pb-7 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p class="section-label">
-          Account access
-        </p>
-        <h1 class="mt-2 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
           CLI devices
         </h1>
         <p class="mt-3 max-w-xl text-base leading-relaxed text-muted text-pretty">

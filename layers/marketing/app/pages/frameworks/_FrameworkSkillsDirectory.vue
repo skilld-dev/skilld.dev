@@ -187,10 +187,7 @@ function showMore() {
       <template v-else>
         <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p class="section-label">
-              Directory
-            </p>
-            <h2 class="mt-3 text-xl font-semibold">
+            <h2 class="text-xl font-semibold">
               {{ framework }} skills
             </h2>
           </div>
