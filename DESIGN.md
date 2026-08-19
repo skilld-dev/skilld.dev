@@ -266,6 +266,17 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Card density**: use the existing bordered card pattern, but each editorial card should read like a Wirecutter pick: compact rationale first, metadata second. Avoid nested cards; skill names can be inline badges or a divided list.
 - **Copy rule**: do not say "top", "best", or "popular" unless the reason is visible. Say "Chosen because..." or "Useful when..." and connect the author to the workflow.
 
+### Weekly Email Band
+
+- **Placement**: `#weekly`, between the freshness and publish bands. It absorbed the retired `home-freshness-watch` panel rather than sitting beside it, so the page argues once: here is what changed, here is how it reaches you.
+- **Composition**: `home-weekly-grid`, one column below `md`, `1fr 1fr` above. Copy left, email preview right. No `.editorial-atmosphere` layer: the preview is the band's visual interest and a second wash would compete with it.
+- **The preview is the real email**, server-rendered through `renderWeekly` and embedded as markup, never a screenshot. A screenshot goes stale on the first row-style edit, and this template changed on four consecutive days while it was being built.
+- **Preview follows the page theme.** `renderWeekly` takes `theme: 'light' | 'dark'`; the endpoint returns both cards and the component picks one from `useColorMode`. The Monday send stays light, because inline styles are the only thing every mail client honours.
+- **Crop, do not scale**: `max-block-size: 26rem` with a `mask-image` fade. A `transform: scale()` blurs the type, and the email is the one element here that has to look exactly like itself.
+- **The preview is `aria-hidden` and untabbable.** It carries roughly twenty real links; tabbing an inbox picture mid-homepage is a trap. The prose beside it is the accessible description.
+- **Rose budget**: one solid rose element, the primary CTA. Rose inside the preview is depicted content, like a photograph containing a red object, and does not count against the 10%.
+- **The trending flame** (🔥) marks the email's trending section, the same documented exception to the no-emoji rule that the nav Trending button already uses.
+
 ## Design Decisions
 
 > Append-only log of intentional choices the user has confirmed. Do not re-litigate; only add.
@@ -292,3 +303,5 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Compact registry openings**: `/community`, `/skills`, and `/skills/trending` use `CompactPageHeader` with nothing but a page name and orientation copy; controls belong with the results they filter. Outcome pages retain plain-language mastheads. Skill detail remains dense and unchanged.
 - **Compact discovery openings**: Outcome and framework directories now join the compact registry template. Their openings carry only orientation, key totals, and one primary route back into the skills registry. Framework contributor data lives alongside each skill instead of in a duplicate leaderboard.
 - **Compact registry descriptions**: At 768px and wider, `What it does` uses 12px text and wraps to two lines. Smaller screens hide the column.
+- **The weekly is shown, not described**: the homepage band embeds the real email rather than listing its features. Confirmed 2026-08-19, when the copy shrank from 34 words to 16 because the picture already carried the detail.
+- **Weekly CTAs point at the email, never at a sign-in**: `See this week's` opens the public preview. A button labelled "get" that opens an OAuth wall is a promise the page does not keep, and Loop 1 admits no gate (VISION principle 3).

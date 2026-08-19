@@ -28,6 +28,10 @@ const BOARD_LIMIT = 30
 /** Evidenced rows a board needs before it asks to be indexed. */
 const MIN_INDEXABLE_ROWS = 8
 
+const { isAuthenticated, user } = useAuth()
+/** Someone already getting the weekly is never shown an invitation to get it. */
+const receivingWeekly = computed(() => isAuthenticated.value && user.value?.onboarded === true)
+
 const route = useRoute()
 /**
  * Parsed once, at the boundary, into a value the rest of the page trusts.
@@ -243,8 +247,8 @@ const headerDescription = computed(() => {
     return 'Repositories from individual creators publishing reusable agent skills, reviewed for eligibility and ranked by GitHub stars.'
   const period = range.value === 'week' ? 'this week' : 'this month'
   return fillerTotal.value
-    ? `Agent skills developers named ${period}, ranked by how many separate people named each one. Popular skills fill the rest of the board.`
-    : `Agent skills developers named ${period}, ranked by how many separate people named each one.`
+    ? `Agent skills devs talked about ${period}, ranked by how many separate devs mentioned each one. Popular skills fill the rest of the board.`
+    : `Agent skills devs talked about ${period}, ranked by how many separate devs mentioned each one.`
 })
 
 const title = computed(() => meta.value.title)
@@ -357,6 +361,34 @@ function rankClass(index: number): string {
         </NuxtLink>
       </nav>
 
+      <!--
+        Below the range controls so it does not split them from their label, and
+        above the results so a reader meets it before scrolling thirty rows.
+
+        Points at the email rather than at a sign-in: nobody reading this board
+        has asked for an account, and a button labelled "get" that opens an
+        OAuth wall is a promise the page does not keep. The preview carries the
+        sign-in for anyone who wants it after reading one.
+      -->
+      <div
+        v-if="!receivingWeekly && !isEmpty && !error"
+        class="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-default pt-4"
+      >
+        <p class="text-sm text-muted">
+          Trending skills to your inbox every Monday.
+        </p>
+        <UButton
+          to="/weekly/preview"
+          external
+          label="See this week's"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          trailing-icon="i-lucide-arrow-right"
+          class="min-h-11"
+        />
+      </div>
+
       <div v-if="error" class="editorial-state mt-6" role="alert">
         <p class="font-medium">
           Couldn't load the board.
@@ -387,7 +419,7 @@ function rankClass(index: number): string {
             Nothing is trending yet.
           </p>
           <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
-            Skilld watches X and Bluesky for posts naming a skill, and GitHub for repositories
+            Skilld watches X and Bluesky for posts mentioning a skill, and GitHub for repositories
             holding a single skill whose stars surge. Neither has anything to report in this range.
           </p>
         </template>
@@ -487,10 +519,7 @@ function rankClass(index: number): string {
     >
       <div class="mx-auto grid max-w-5xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] md:py-16">
         <div>
-          <p class="section-label">
-            Method
-          </p>
-          <h2 id="method-heading" class="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h2 id="method-heading" class="text-2xl font-semibold tracking-tight sm:text-3xl">
             A deliberately narrow list.
           </h2>
         </div>

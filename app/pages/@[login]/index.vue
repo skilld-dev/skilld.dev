@@ -538,7 +538,7 @@ defineOgImage('Curator.takumi', {
           No collections yet
         </h3>
         <p class="mt-2 max-w-xl text-base leading-relaxed text-muted">
-          {{ isOwner ? 'Bundle skills for one workflow into a collection people can install with one command.' : `When @${login} publishes a collection, it will appear here.` }}
+          {{ isOwner ? 'Bundle skills for one workflow into a collection devs can install with one command.' : `When @${login} publishes a collection, it will appear here.` }}
         </p>
         <UButton
           v-if="isOwner"

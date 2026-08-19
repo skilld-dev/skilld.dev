@@ -13,6 +13,7 @@ import {
   HOMEPAGE_RAIL_MINIMUM,
   selectHomepagePersonSkills,
 } from '../utils/homepage-person-skills'
+import WeeklyBand from './_WeeklyBand.vue'
 
 const title = 'Curated agent skills by humans · skilld'
 const description = 'Agent skills written by real maintainers in their own GitHub repos. See who wrote it and read the SKILL.md before you install.'
@@ -125,7 +126,7 @@ const MIN_TRENDING_TO_SHOW = 3
 const showTrending = computed(() => trendingRepos.value.length >= MIN_TRENDING_TO_SHOW)
 
 function trendingShareLabel(authorCount: number): string {
-  return authorCount === 1 ? '1 person shared it' : `${authorCount} people shared it`
+  return authorCount === 1 ? '1 dev shared it' : `${authorCount} devs shared it`
 }
 
 const communityCurators = computed(() => (communityData.value?.items ?? []).slice(0, 6))
@@ -407,7 +408,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Collections for better agent work.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Shared by people in the skilld community, covering discovery, planning, and review.
+              Shared by devs in the skilld community, covering discovery, planning, and review.
             </p>
           </div>
           <UButton
@@ -667,14 +668,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-featured-heading">
           <div class="min-w-0">
             <p class="section-label">
-              The people behind it
+              The devs behind it
             </p>
             <h2 id="community-heading" class="home-featured-title mt-4 text-balance">
               Curators you can follow.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
               <template v-if="communityTotal">
-                {{ communityTotal }} {{ communityTotal === 1 ? 'person publishes' : 'people publish' }} collections on skilld. Open a profile to see what they keep installed.
+                {{ communityTotal }} {{ communityTotal === 1 ? 'dev publishes' : 'devs publish' }} collections on skilld. Open a profile to see what they keep installed.
               </template>
               <template v-else>
                 Open a profile to see the collections someone keeps installed.
@@ -765,14 +766,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p class="section-label">
-              What people are sharing
+              What devs are sharing
             </p>
             <h2 id="trending-heading" class="mt-4 text-2xl font-semibold tracking-tight text-balance">
               Trending this week
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Skill repositories developers are posting about on X, ranked by how many separate
-              people shared them rather than by how loud any one post was.
+              Skill repositories devs are posting about on X, ranked by how many separate
+              devs shared them rather than by how loud any one post was.
             </p>
           </div>
           <UButton
@@ -938,27 +939,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 <UButton to="/skills" label="Browse skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
               </div>
             </div>
-
-            <div class="home-freshness-watch">
-              <div class="min-w-0">
-                <p class="data-label">
-                  Weekly change digest
-                </p>
-                <h3 id="freshness-watch-heading" class="home-freshness-watch-title mt-2 font-semibold tracking-tight">
-                  Watch your stack for changes.
-                </h3>
-                <p class="mt-2 max-w-xl text-base leading-relaxed text-muted">
-                  Get a weekly heads-up when the repositories you use change their skills.
-                </p>
-              </div>
-              <UButton
-                to="/login?return_to=/onboarding/discover"
-                label="Watch your stack"
-                icon="i-lucide-github"
-                trailing-icon="i-lucide-arrow-right"
-                class="min-h-11 shrink-0 self-start"
-              />
-            </div>
           </section>
 
           <section class="home-freshness-secondary" aria-labelledby="recent-publishes-heading">
@@ -1045,6 +1025,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         </div>
       </div>
     </section>
+
+    <WeeklyBand />
 
     <section
       id="publish"

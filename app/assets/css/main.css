@@ -995,22 +995,6 @@
   min-block-size: 10rem;
 }
 
-.home-freshness-watch {
-  display: grid;
-  min-width: 0;
-  gap: 1rem;
-  margin-top: 1rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: color-mix(in oklab, var(--ui-bg-muted) 72%, transparent);
-  padding: 1.25rem;
-}
-
-.home-freshness-watch-title {
-  font-size: 1.125rem;
-  line-height: 1.4;
-}
-
 .home-freshness-skeleton-list {
   margin-top: 1rem;
 }
@@ -1028,13 +1012,6 @@
   padding-inline: 0.5rem;
 }
 
-@media (min-width: 40rem) {
-  .home-freshness-watch {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-  }
-}
-
 @media (min-width: 64rem) {
   .home-freshness-grid {
     grid-template-columns: minmax(0, 1.42fr) minmax(18rem, 0.78fr);
@@ -1045,15 +1022,6 @@
     border-inline-start: 1px solid var(--ui-border);
     padding-inline-start: 2rem;
   }
-
-  .home-freshness-watch {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
-
-  .home-freshness-watch > a {
-    justify-self: start;
-  }
 }
 
 @media (hover: hover) {
@@ -1063,12 +1031,6 @@
 
   .home-freshness-row:hover .home-freshness-arrow {
     color: var(--ui-text);
-  }
-}
-
-@media (forced-colors: active) {
-  .home-freshness-watch {
-    background: Canvas;
   }
 }
 
