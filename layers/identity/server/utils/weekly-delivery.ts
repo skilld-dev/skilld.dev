@@ -128,6 +128,7 @@ export async function runWeeklyForUser(
   const unsubscribeUrl = `${input.siteUrl}/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken)}&list=weekly`
   const rendered = deps.render({
     login: user.login,
+    userId: user.id,
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,
     likedChanges: selection.likedChanges,

@@ -25,9 +25,11 @@ export const MAX_LIKED_CHANGES = 5
  * Trending rows carried into the email.
  *
  * Fewer than the board shows on purpose: an email is read in one pass and a
- * thirty-row leaderboard in an inbox is a page, not a message.
+ * thirty-row leaderboard in an inbox is a page, not a message. Seven is the
+ * most that still scans in one pass, and it matters more now that the liked
+ * section no longer pads the email with the reader's own repositories.
  */
-export const MAX_TRENDING = 5
+export const MAX_TRENDING = 7
 
 /**
  * How many liked changes we count before giving up on an exact overflow number.
@@ -100,6 +102,13 @@ interface LikedChangeRow {
  * Scoped by like, not by subscription. A like is a statement about one skill,
  * and a repository holding twenty of them should not send twenty rows because
  * one was liked.
+ *
+ * Your own repositories are excluded. The 2026-08-19 send listed four skills
+ * and every one of them was the recipient's, which reads as the product telling
+ * you what you did last week. A digest is for changes you did not make, and
+ * GitHub already emails you about your own pushes. Matched on login rather than
+ * on any richer notion of ownership, because that is the only thing we know for
+ * certain is the same person.
  */
 export async function selectWeeklyForUser(
   db: D1Database,
@@ -120,10 +129,11 @@ export async function selectWeeklyForUser(
      WHERE a.occurred_at > ?2
        AND a.occurred_at <= ?3
        AND r.repo_kind != 'aggregator'
+       AND LOWER(a.owner) != LOWER(?5)
      GROUP BY a.owner, a.repo, a.name
      ORDER BY changed_at DESC, change_count DESC
      LIMIT ?4`,
-  ).bind(user.id, windowStart, windowEnd, LIKED_SCAN_LIMIT).all<LikedChangeRow>()
+  ).bind(user.id, windowStart, windowEnd, LIKED_SCAN_LIMIT, user.login).all<LikedChangeRow>()
 
   const rows = res.results ?? []
   const listed = rows.slice(0, MAX_LIKED_CHANGES)
@@ -242,17 +252,20 @@ export async function loadWeeklyTrending(
 
 function reasonFor(entry: {
   attribution: 'social' | 'github' | 'both'
-  social: { authorCount: number, mentionCount: number } | null
+  social: { authorCount: number, mentionCount: number, latestMentionAt: number } | null
   github: { latestGain: number, observedDay: number } | null
 }): WeeklyReason {
   const authorCount = entry.social?.authorCount ?? 0
   const mentionCount = entry.social?.mentionCount ?? 0
+  // Zero when the loader had no timestamp. The template reads that as "say
+  // nothing about freshness" rather than dating the row to the epoch.
+  const latestAt = entry.social?.latestMentionAt ?? 0
   const gain = entry.github?.latestGain ?? 0
   const day = entry.github?.observedDay ?? 0
 
   if (entry.attribution === 'both' && entry.social && entry.github)
-    return { _tag: 'named-and-stars', authorCount, mentionCount, gain, day }
+    return { _tag: 'named-and-stars', authorCount, mentionCount, latestAt, gain, day }
   if (entry.attribution === 'github' && entry.github)
     return { _tag: 'stars', gain, day }
-  return { _tag: 'named', authorCount, mentionCount }
+  return { _tag: 'named', authorCount, mentionCount, latestAt }
 }

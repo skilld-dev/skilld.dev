@@ -86,8 +86,20 @@ describe('weekly template', () => {
   it('links the skill page and shows the owner avatar for every row', () => {
     const { html } = renderWeekly(input({ likedChanges: [likedChange()] }))
 
-    expect(html).toContain('https://skilld.dev/gh/antfu/skills/vitest')
+    // The destination now travels as the `p` parameter of the click endpoint,
+    // so the row links to the tracker and the tracker names the skill page.
+    expect(html).toContain('/api/e/weekly?')
+    expect(html).toContain(encodeURIComponent('/gh/antfu/skills/vitest'))
     expect(html).toContain('https://github.com/antfu.png?size=80')
+  })
+
+  it('sends the reader to the skill page in the plain-text half', () => {
+    const { text } = renderWeekly(input({ likedChanges: [likedChange()] }))
+
+    // Text clients follow a redirect poorly and show the raw URL, so the
+    // untracked link is worth more there than the measurement.
+    expect(text).toContain('https://skilld.dev/gh/antfu/skills/vitest')
+    expect(text).not.toContain('/api/e/weekly')
   })
 
   it('lists up to three commit subjects on a changed skill', () => {
@@ -221,21 +233,11 @@ describe('weekly template', () => {
     expect(html).toContain('Testing conventions.')
   })
 
-  it('names both halves in the subject when both have content', () => {
-    const { subject } = renderWeekly(input({
-      likedChanges: [likedChange()],
-      likedOverflow: 2,
-      trending: [trending()],
-    }))
-
-    expect(subject).toBe('skilld weekly: 3 of your skills changed, 1 trending')
-  })
-
   it('offers a next action when the week produced nothing', () => {
     const { html, subject } = renderWeekly(input())
 
     expect(subject).toBe('skilld weekly: a quiet week')
-    expect(html).toContain('https://skilld.dev/skills')
+    expect(html).toContain(encodeURIComponent('/skills'))
     expect(html).not.toContain('See the full board')
   })
 
@@ -268,3 +270,134 @@ function likedChange(overrides: Record<string, unknown> = {}) {
     ...overrides,
   } as WeeklyRenderInput['likedChanges'][number]
 }
+
+describe('weekly subject and preheader', () => {
+  it('names the changed skills instead of counting them', () => {
+    const { subject } = renderWeekly(input({
+      likedChanges: [
+        likedChange({ name: 'vitest' }),
+        likedChange({ name: 'tdd' }),
+        likedChange({ name: 'core-web-vitals' }),
+      ],
+      trending: [trending()],
+    }))
+
+    expect(subject).toBe('skilld weekly: vitest, tdd and 1 more changed')
+  })
+
+  it('names one changed skill without a tail', () => {
+    const { subject } = renderWeekly(input({ likedChanges: [likedChange({ name: 'vitest' })] }))
+
+    expect(subject).toBe('skilld weekly: vitest changed')
+  })
+
+  it('joins exactly two changed skills with and', () => {
+    const { subject } = renderWeekly(input({
+      likedChanges: [likedChange({ name: 'vitest' }), likedChange({ name: 'tdd' })],
+    }))
+
+    expect(subject).toBe('skilld weekly: vitest and tdd changed')
+  })
+
+  it('counts the overflow into the subject tail', () => {
+    const { subject } = renderWeekly(input({
+      likedChanges: [likedChange({ name: 'vitest' }), likedChange({ name: 'tdd' })],
+      likedOverflow: 4,
+    }))
+
+    expect(subject).toBe('skilld weekly: vitest, tdd and 4 more changed')
+  })
+
+  it('falls back to trending names when nothing liked changed', () => {
+    const { subject } = renderWeekly(input({
+      trending: [
+        trending({ canonicalName: 'ponytail' }),
+        trending({ canonicalName: 'unlazy' }),
+        trending({ canonicalName: 'last30days' }),
+      ],
+    }))
+
+    expect(subject).toBe('skilld weekly: ponytail, unlazy and 1 more')
+  })
+
+  it('says the week was quiet when there is nothing to name', () => {
+    expect(renderWeekly(input()).subject).toBe('skilld weekly: a quiet week')
+  })
+
+  it('gives the preheader the half the subject did not name', () => {
+    const { html } = renderWeekly(input({
+      likedChanges: [likedChange({ name: 'vitest' })],
+      trending: [trending({ canonicalName: 'ponytail' }), trending({ canonicalName: 'unlazy' })],
+    }))
+
+    const preheader = html.match(/<div style="display:none[^>]*>([^<]*)</)![1]!
+    expect(preheader).toContain('ponytail')
+    // The greeting is the first visible line; repeating it in the preview pane
+    // spends the slot on an echo.
+    expect(preheader).not.toBe(html.match(/font-size:14px;line-height:1.6;color:[^"]*;">([^<]*)</)?.[1])
+  })
+
+  it('tells the reader nothing of theirs changed when only trending has content', () => {
+    const { html } = renderWeekly(input({ trending: [trending()] }))
+    const preheader = html.match(/<div style="display:none[^>]*>([^<]*)</)![1]!
+
+    expect(preheader).toContain('Nothing you like changed')
+  })
+})
+
+describe('weekly like prompt', () => {
+  it('asks for a like when the liked half is empty but trending is not', () => {
+    const { html, text } = renderWeekly(input({ trending: [trending()] }))
+
+    expect(html).toContain('Like a skill and it shows up here the week it changes')
+    expect(text).toContain('Like a skill and it shows up here the week it changes')
+  })
+
+  it('leaves the prompt out once something liked has changed', () => {
+    const { html } = renderWeekly(input({
+      likedChanges: [likedChange()],
+      trending: [trending()],
+    }))
+
+    expect(html).not.toContain('Like a skill and it shows up here')
+  })
+})
+
+describe('weekly mention freshness', () => {
+  it('dates the newest mention on a named skill', () => {
+    const { html } = renderWeekly(input({
+      trending: [trending({
+        reason: { _tag: 'named', authorCount: 5, mentionCount: 9, latestAt: WINDOW_END - 2 * 86_400 },
+      })],
+    }))
+
+    expect(html).toContain('5 people named it · latest 2d ago')
+  })
+
+  it('dates the mention half of a skill that also surged', () => {
+    const { html } = renderWeekly(input({
+      trending: [trending({
+        reason: {
+          _tag: 'named-and-stars',
+          authorCount: 2,
+          mentionCount: 3,
+          latestAt: WINDOW_END - 86_400,
+          gain: 412,
+          day: WINDOW_END - 2 * 86_400,
+        },
+      })],
+    }))
+
+    expect(html).toContain('2 people named it · latest yesterday')
+    expect(html).toContain('+412 stars 2d ago')
+  })
+
+  it('says nothing about freshness when the mention carries no timestamp', () => {
+    const { html } = renderWeekly(input({
+      trending: [trending({ reason: { _tag: 'named', authorCount: 1, mentionCount: 1, latestAt: 0 } })],
+    }))
+
+    expect(html).toContain('1 person named it')
+    expect(html).not.toContain('latest')
+  })
+})
