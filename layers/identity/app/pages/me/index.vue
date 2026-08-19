@@ -475,7 +475,7 @@ function fmtDate(ts: number | null | undefined): string {
                   >
                   <span>
                     Send me the weekly
-                    <span class="mt-0.5 block text-xs text-muted">Skills you liked that changed, plus what people named this week.</span>
+                    <span class="mt-0.5 block text-xs text-muted">Skills you liked that changed, plus what devs are talking about.</span>
                   </span>
                 </label>
                 <UButton

@@ -118,6 +118,14 @@ Confident, warm, editorial. Think independent technical magazine, not startup la
 
 **Vague community language:** vibrant community, ecosystem, passionate developers, beloved by thousands. Be specific: "6 curators" not "a growing community."
 
+**"Naming" as a verb:** Banned in user-facing copy. `named`, `naming`, and `named by` are our internal words for the social-attribution route, and they read as jargon to a reader. Say "talked about" or "mentioned". "3 devs talked about it", never "3 people named it". The technical sense survives in code identifiers, ADRs, and code comments, where the precision is the point.
+
+**"People" for our audience:** Prefer "dev" and "devs". They are developers, and "people" is a vaguer word doing a smaller job. "3 devs talked about it", not "3 people named it". "Developers" in full is fine in longer prose where the shorter form reads clipped.
+
+**Exception, the humans-versus-generated claim:** when the contrast is authorship by a human against machine generation, "human" and "person" are the right words and "dev" weakens the point. "Curated agent skills by humans" and "person-authored skills" stay as they are. The rule is about naming our audience, not about the provenance claim.
+
+**First person in CTAs:** Do not put skilld in the sentence. "We send this every Monday" spends the words on us. State the content, then the destination: "Trending skills to your inbox every Monday". The reader and what they get are the only two things in the line.
+
 **Contrast pattern:** Never use the "it's not X, it's Y" rhetorical structure.
 
 **Punctuation:** No em dashes or hyphens used as dashes. Use commas, semicolons, colons, or separate sentences.

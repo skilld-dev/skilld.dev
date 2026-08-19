@@ -14,21 +14,64 @@
 import type { WeeklyPlacement } from './weekly-tracking'
 import { trackedUrl } from './weekly-tracking'
 
-const TOKEN = {
-  page: '#f5f4f2',
-  surface: '#ffffff',
-  border: '#e7e5e4',
-  borderStrong: '#d6d3d1',
-  text: '#1c1917',
-  body: '#44403c',
-  muted: '#78716c',
-  faint: '#a8a29e',
-  accent: '#e11d48',
-  // The brand mark's own rose, lighter than the accent on purpose. Used only
-  // where the mark itself appears, so the two never sit side by side.
-  mark: '#fb7185',
-  quote: '#fafaf9',
-} as const
+export type WeeklyTheme = 'light' | 'dark'
+
+/**
+ * Two palettes, both from DESIGN.md.
+ *
+ * Light is what the Monday send uses, because inline styles are the only thing
+ * every mail client honours and a client that forces its own dark mode will
+ * invert this one anyway. Dark exists so the preview embedded in the site can
+ * match the page around it instead of sitting on it as a white rectangle.
+ */
+interface Tokens {
+  page: string
+  surface: string
+  border: string
+  borderStrong: string
+  text: string
+  body: string
+  muted: string
+  faint: string
+  accent: string
+  onAccent: string
+  quote: string
+  /** The brand rule above the footer. Same rose in both themes; it reads on each. */
+  mark: string
+}
+
+const PALETTE: Record<WeeklyTheme, Tokens> = {
+  light: {
+    page: '#f5f4f2',
+    surface: '#ffffff',
+    border: '#e7e5e4',
+    borderStrong: '#d6d3d1',
+    text: '#1c1917',
+    body: '#44403c',
+    muted: '#78716c',
+    faint: '#a8a29e',
+    accent: '#e11d48',
+    onAccent: '#ffffff',
+    quote: '#fafaf9',
+    mark: '#fb7185',
+  },
+  dark: {
+    page: '#14110d',
+    surface: '#1c1917',
+    border: '#3a342c',
+    borderStrong: '#4d453b',
+    text: '#ede9e4',
+    body: '#cdc6bd',
+    muted: '#9c9389',
+    faint: '#7a726a',
+    // Rose 400 rather than the darkened 500: on a warm near-black the darker
+    // token loses too much contrast, and white on it fails AA the other way.
+    accent: '#fb7185',
+    onAccent: '#1c1917',
+    quote: '#211d18',
+    mark: '#fb7185',
+  },
+}
 
 const SANS = `'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`
 const MONO = `'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace`
@@ -96,7 +139,15 @@ export interface WeeklyLikedChange {
 }
 
 export interface WeeklyRenderInput {
-  login: string
+  /**
+   * Who it is addressed to, or null when nobody.
+   *
+   * The homepage demo and the public preview render the same email with no
+   * recipient. Passing a placeholder login instead produced "Hey you, you have
+   * not liked any skills yet" on a marketing surface: the empty state, correct
+   * for a real send and wrong as a first impression.
+   */
+  login: string | null
   /**
    * Recipient id, carried on tracked links so a click can be attributed.
    * Null for the admin preview, which must not write click rows.
@@ -123,12 +174,22 @@ export interface WeeklyRenderInput {
   siteUrl: string
   unsubscribeUrl: string
   settingsUrl: string
+  /** Defaults to light, which is what the Monday send uses. */
+  theme?: WeeklyTheme
 }
 
 export interface WeeklyRender {
   subject: string
   html: string
   text: string
+  /**
+   * The email card on its own, with no document wrapper.
+   *
+   * The homepage embeds this so the band cannot drift from what the email
+   * sends. A screenshot would have gone stale on the first row-style edit, and
+   * this template changed on four consecutive days while it was being built.
+   */
+  card: string
 }
 
 function esc(value: string): string {
@@ -196,11 +257,11 @@ function short(value: number): string {
 export function reasonLine(reason: WeeklyReason, now: number): string {
   switch (reason._tag) {
     case 'named':
-      return `${reason.authorCount} ${plural(reason.authorCount, 'person', 'people')} named it${mentionAge(reason.latestAt, now)}`
+      return `${reason.authorCount} ${plural(reason.authorCount, 'dev', 'devs')} talked about it${mentionAge(reason.latestAt, now)}`
     case 'stars':
       return `+${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
     case 'named-and-stars':
-      return `${reason.authorCount} ${plural(reason.authorCount, 'person', 'people')} named it${mentionAge(reason.latestAt, now)} \u00B7 +${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
+      return `${reason.authorCount} ${plural(reason.authorCount, 'dev', 'devs')} talked about it${mentionAge(reason.latestAt, now)} \u00B7 +${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
     case 'popular':
       return `${compactCount(reason.stars)} stars, no posts this week`
   }
@@ -271,8 +332,8 @@ function collapse(value: string): string {
  * timestamp, and an invented one would be worse than none.
  *
  * Always says "latest". A bare age reads as the date they all posted, and it
- * is the date of the newest one: "2 people named it yesterday" claims both did
- * something only one of them did.
+ * is the date of the newest one: "2 devs talked about it yesterday" claims both
+ * did something only one of them did.
  */
 function mentionAge(latestAt: number, now: number): string {
   return latestAt ? ` \u00B7 latest ${relativeDay(latestAt, now)}` : ''
@@ -286,8 +347,8 @@ function skillUrl(siteUrl: string, owner: string, repo: string, name: string): s
   return `${siteUrl}/gh/${owner}/${repo}/${encodeURIComponent(name)}`
 }
 
-function sectionLabel(text: string): string {
-  return `<tr><td style="padding:28px 0 10px;font-family:${MONO};font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${TOKEN.faint};">${esc(text)}</td></tr>`
+function sectionLabel(t: Tokens, text: string): string {
+  return `<tr><td style="padding:28px 0 10px;font-family:${MONO};font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${t.faint};">${esc(text)}</td></tr>`
 }
 
 /**
@@ -297,7 +358,7 @@ function sectionLabel(text: string): string {
  * beside the text instead of stacking it. `valign="top"` on both cells is what
  * stops a two-line description from centring the face against it.
  */
-function row(options: {
+function row(t: Tokens, options: {
   owner: string
   title: string
   href: string
@@ -309,18 +370,18 @@ function row(options: {
 }): string {
   const description = trimDescription(options.description)
   return `
-<tr><td style="padding:14px 0;border-top:1px solid ${TOKEN.border};">
+<tr><td style="padding:14px 0;border-top:1px solid ${t.border};">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
     <tr>
       <td valign="top" width="44" style="width:44px;padding-right:12px;">
         <img src="${esc(avatarUrl(options.owner))}" width="36" height="36" alt="${esc(options.owner)}"
-             style="width:36px;height:36px;border-radius:18px;display:block;border:1px solid ${TOKEN.border};background:${TOKEN.quote};" />
+             style="width:36px;height:36px;border-radius:18px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
       <td valign="top">
-        <a href="${esc(options.href)}" style="font-family:${MONO};font-size:14px;font-weight:600;color:${TOKEN.text};text-decoration:none;">${esc(options.title)}</a>
-        ${description ? `<div style="margin-top:4px;font-family:${SANS};font-size:13px;line-height:1.5;color:${TOKEN.body};">${esc(description)}</div>` : ''}
+        <a href="${esc(options.href)}" style="font-family:${MONO};font-size:14px;font-weight:600;color:${t.text};text-decoration:none;">${esc(options.title)}</a>
+        ${description ? `<div style="margin-top:4px;font-family:${SANS};font-size:13px;line-height:1.5;color:${t.body};">${esc(description)}</div>` : ''}
         ${options.body ?? ''}
-        <div style="margin-top:6px;font-family:${MONO};font-size:11px;color:${TOKEN.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}</div>
+        <div style="margin-top:6px;font-family:${MONO};font-size:11px;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}</div>
         ${options.extra ?? ''}
       </td>
     </tr>
@@ -357,15 +418,15 @@ export function commitSubjects(messages: readonly string[]): string[] {
   return subjects
 }
 
-function commitList(messages: readonly string[]): string {
+function commitList(t: Tokens, messages: readonly string[]): string {
   const subjects = commitSubjects(messages)
   if (!subjects.length)
     return ''
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:6px;">${
     subjects.map(subject => `
     <tr>
-      <td valign="top" width="12" style="width:12px;font-family:${MONO};font-size:11px;line-height:1.55;color:${TOKEN.faint};">&middot;</td>
-      <td valign="top" style="font-family:${MONO};font-size:11.5px;line-height:1.55;color:${TOKEN.body};">${esc(subject)}</td>
+      <td valign="top" width="12" style="width:12px;font-family:${MONO};font-size:11px;line-height:1.55;color:${t.faint};">&middot;</td>
+      <td valign="top" style="font-family:${MONO};font-size:11.5px;line-height:1.55;color:${t.body};">${esc(subject)}</td>
     </tr>`).join('')
   }</table>`
 }
@@ -377,25 +438,25 @@ function commitList(messages: readonly string[]): string {
  * handle and a link back to the post. Without the link a reader has a sentence
  * in quotation marks and no way to check it.
  */
-function quote(evidence: WeeklyEvidence): string {
+function quote(t: Tokens, evidence: WeeklyEvidence): string {
   const network = evidence.platform === 'x' ? 'on X' : 'on Bluesky'
   const text = trimQuote(evidence.text)
   return `
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:9px;">
-  <tr><td style="border-left:2px solid ${TOKEN.borderStrong};padding:2px 0 2px 10px;">
-    <div style="font-family:${SANS};font-size:13px;line-height:1.5;color:${TOKEN.body};">${esc(text)}</div>
-    <div style="margin-top:4px;font-family:${MONO};font-size:11px;color:${TOKEN.muted};">
-      <a href="${esc(evidence.url)}" style="color:${TOKEN.muted};text-decoration:none;">@${esc(evidence.authorHandle)} ${esc(network)}</a>
+  <tr><td style="border-left:2px solid ${t.borderStrong};padding:2px 0 2px 10px;">
+    <div style="font-family:${SANS};font-size:13px;line-height:1.5;color:${t.body};">${esc(text)}</div>
+    <div style="margin-top:4px;font-family:${MONO};font-size:11px;color:${t.muted};">
+      <a href="${esc(evidence.url)}" style="color:${t.muted};text-decoration:none;">@${esc(evidence.authorHandle)} ${esc(network)}</a>
     </div>
   </td></tr>
 </table>`
 }
 
-function button(href: string, label: string): string {
+function button(t: Tokens, href: string, label: string): string {
   return `
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 4px;">
-  <tr><td style="background:${TOKEN.accent};border-radius:8px;">
-    <a href="${esc(href)}" style="display:inline-block;padding:11px 18px;font-family:${MONO};font-size:13px;font-weight:600;color:#ffffff;text-decoration:none;">${esc(label)}</a>
+  <tr><td style="background:${t.accent};border-radius:8px;">
+    <a href="${esc(href)}" style="display:inline-block;padding:11px 18px;font-family:${MONO};font-size:13px;font-weight:600;color:${t.onAccent};text-decoration:none;">${esc(label)}</a>
   </td></tr>
 </table>`
 }
@@ -450,8 +511,8 @@ function preheader(input: WeeklyRenderInput): string {
   }
   if (input.trending.length) {
     return input.trackedCount
-      ? `${trackedLine(input.trackedCount)}. People named ${trendingNames}.`
-      : `People named ${trendingNames}.`
+      ? `${trackedLine(input.trackedCount)}. Devs are talking about ${trendingNames}.`
+      : `Devs are talking about ${trendingNames}.`
   }
   return input.trackedCount ? `${trackedLine(input.trackedCount)}.` : 'Nothing changed this week.'
 }
@@ -459,14 +520,17 @@ function preheader(input: WeeklyRenderInput): string {
 function greeting(input: WeeklyRenderInput): string {
   const liked = input.likedChanges.length + input.likedOverflow
   const trending = input.trending.length
+  // With no recipient there is nothing true to say about what they like.
+  if (input.login === null)
+    return 'What changed in the skills you like, and what devs are talking about.'
   if (liked && trending)
     return `${liked} ${plural(liked, 'skill you like', 'skills you like')} changed, and ${trending} more ${plural(trending, 'is', 'are')} getting talked about.`
   if (liked)
     return `${liked} ${plural(liked, 'skill you like', 'skills you like')} changed this week.`
   if (trending) {
     return input.trackedCount
-      ? 'Here is what people were naming this week.'
-      : 'You have not liked any skills yet, so here is what people were naming.'
+      ? 'Here is what devs are talking about this week.'
+      : 'You have not liked any skills yet, so here is what devs are talking about.'
   }
   return input.trackedCount
     ? 'A quiet week. Back next week.'
@@ -485,6 +549,7 @@ function trackedLine(count: number): string {
 }
 
 export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
+  const t = PALETTE[input.theme ?? 'light']
   const now = input.windowEnd
   const window = formatWindow(input.windowStart, input.windowEnd)
   const subject = subjectFor(input)
@@ -501,14 +566,14 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
   const likedRows = input.likedChanges.map((change) => {
     const subjects = commitSubjects(change.commitMessages)
-    return row({
+    return row(t, {
       owner: change.owner,
       title: change.name,
       href: track(skillUrl(input.siteUrl, change.owner, change.repo, change.name), 'liked'),
       // The description explains the skill, and it only earns its line when
       // there are no commit subjects to explain what actually changed.
       description: subjects.length ? null : change.description,
-      body: commitList(change.commitMessages),
+      body: commitList(t, change.commitMessages),
       meta: joinMeta([
         `${change.owner}/${change.repo}`,
         `${change.changeCount} ${plural(change.changeCount, 'change', 'changes')}`,
@@ -518,8 +583,8 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   }).join('')
 
   const overflowRow = input.likedOverflow
-    ? `<tr><td style="padding:12px 0 0;border-top:1px solid ${TOKEN.border};font-family:${MONO};font-size:11px;color:${TOKEN.muted};">
-         <a href="${esc(track(`${input.siteUrl}/me/likes`, 'overflow'))}" style="color:${TOKEN.muted};text-decoration:none;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'skill', 'skills')} you like changed</a>
+    ? `<tr><td style="padding:12px 0 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:11px;color:${t.muted};">
+         <a href="${esc(track(`${input.siteUrl}/me/likes`, 'overflow'))}" style="color:${t.muted};text-decoration:none;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'skill', 'skills')} you like changed</a>
        </td></tr>`
     : ''
 
@@ -528,57 +593,41 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   // does; this is the far more common case where trending carried the week and
   // the reader is never told the other half is theirs to populate.
   const quietRow = !input.likedChanges.length && input.trackedCount
-    ? `<tr><td style="padding:14px 0;border-top:1px solid ${TOKEN.border};font-family:${MONO};font-size:11.5px;color:${TOKEN.muted};font-variant-numeric:tabular-nums;">${esc(trackedLine(input.trackedCount))}</td></tr>`
+    ? `<tr><td style="padding:14px 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:11.5px;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(trackedLine(input.trackedCount))}</td></tr>`
     : ''
 
   // Only when there is nothing to track. Telling someone who likes thirty
   // skills to go like a skill is the product failing to notice it worked.
   const likePrompt = !input.trackedCount && !input.likedChanges.length && input.trending.length
-    ? `<tr><td style="padding:16px 0 0;border-top:1px solid ${TOKEN.border};font-family:${SANS};font-size:13px;line-height:1.5;color:${TOKEN.muted};">
-         ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${TOKEN.accent};text-decoration:none;">Browse the registry</a>.
+    ? `<tr><td style="padding:16px 0 0;border-top:1px solid ${t.border};font-family:${SANS};font-size:13px;line-height:1.5;color:${t.muted};">
+         ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${t.accent};text-decoration:none;">Browse the registry</a>.
        </td></tr>`
     : ''
 
-  const trendingRows = input.trending.map(skill => row({
+  const trendingRows = input.trending.map(skill => row(t, {
     owner: skill.owner,
     title: skill.canonicalName,
     href: track(skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName), 'trending'),
     description: skill.description,
     meta: trendingMeta(skill, now),
-    extra: skill.evidence ? quote(skill.evidence) : '',
+    extra: skill.evidence ? quote(t, skill.evidence) : '',
   })).join('')
 
   const body = empty
-    ? `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${TOKEN.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${TOKEN.body};">
+    ? `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
          Like a few skills and they will show up here the week they change.
-         <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${TOKEN.accent};text-decoration:none;">Browse the registry</a>.
+         <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${t.accent};text-decoration:none;">Browse the registry</a>.
        </td></tr>`
     : `${input.likedChanges.length || input.trackedCount
-      ? `${sectionLabel('Skills you like')}${likedRows}${overflowRow}${quietRow}`
+      ? `${sectionLabel(t, 'Skills you like')}${likedRows}${overflowRow}${quietRow}`
       : ''}${input.trending.length
-      ? `${sectionLabel(input.likedChanges.length ? 'Also trending' : 'Trending this week')}${trendingRows}${likePrompt}`
+      ? `${sectionLabel(t, `\u{1F525} ${input.likedChanges.length ? 'Also trending' : 'Trending this week'}`)}${trendingRows}${likePrompt}`
       : ''}`
 
-  const html = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<meta name="color-scheme" content="light" />
-<meta name="supported-color-schemes" content="light" />
-<!-- Apple Mail and iOS honour this; every other client falls through to the
-     stacks declared inline, which is why both are spelled out in full. -->
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;600&display=swap" rel="stylesheet" />
-<title>${esc(subject)}</title>
-</head>
-<body style="margin:0;padding:0;background:${TOKEN.page};-webkit-font-smoothing:antialiased;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader(input))}</div>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${TOKEN.page};padding:32px 12px;">
-  <tr><td align="center">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;background:${TOKEN.surface};border:1px solid ${TOKEN.border};border-radius:8px;">
+  const card = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;background:${t.surface};border:1px solid ${t.border};border-radius:8px;">
       <tr><td style="padding:22px 28px 26px;">
 
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom:1px solid ${TOKEN.border};padding-bottom:14px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom:1px solid ${t.border};padding-bottom:14px;">
           <tr>
             <!-- The mark is a hosted PNG, not the SVG the site uses: Gmail
                  strips SVG entirely. Images are blocked by default in plenty of
@@ -589,40 +638,58 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
                 <img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="skilld" style="display:block;width:22px;height:22px;border:0;border-radius:5px;" />
               </a>
             </td>
-            <td valign="middle" style="font-family:${MONO};font-size:13px;font-weight:600;color:${TOKEN.text};letter-spacing:-0.01em;">
-              <a href="${esc(track(input.siteUrl, 'footer'))}" style="color:${TOKEN.text};text-decoration:none;">skilld</a>
-              <span style="color:${TOKEN.faint};font-weight:400;"> weekly</span>
+            <td valign="middle" style="font-family:${MONO};font-size:13px;font-weight:600;color:${t.text};letter-spacing:-0.01em;">
+              <a href="${esc(track(input.siteUrl, 'footer'))}" style="color:${t.text};text-decoration:none;">skilld</a>
+              <span style="color:${t.faint};font-weight:400;"> weekly</span>
             </td>
-            <td align="right" valign="middle" style="font-family:${MONO};font-size:11px;color:${TOKEN.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
+            <td align="right" valign="middle" style="font-family:${MONO};font-size:11px;color:${t.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
           </tr>
         </table>
 
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr><td style="padding:22px 0 8px;">
-            <div style="font-family:${SANS};font-size:19px;font-weight:600;line-height:1.3;color:${TOKEN.text};">Hey ${esc(input.login)},</div>
-            <div style="margin-top:6px;font-family:${SANS};font-size:14px;line-height:1.6;color:${TOKEN.body};">${esc(greeting(input))}</div>
+            ${input.login === null ? '' : `<div style="font-family:${SANS};font-size:19px;font-weight:600;line-height:1.3;color:${t.text};">Hey ${esc(input.login)},</div>`}
+            <div style="margin-top:${input.login === null ? '0' : '6px'};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">${esc(greeting(input))}</div>
           </td></tr>
           ${body}
         </table>
 
-        ${empty ? '' : button(track(`${input.siteUrl}/skills/trending`, 'cta'), 'See the full board')}
+        ${empty ? '' : button(t, track(`${input.siteUrl}/skills/trending`, 'cta'), 'See the full board')}
 
       </td></tr>
-      <tr><td style="height:3px;background:${TOKEN.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
-      <tr><td style="padding:16px 28px 20px;border-top:1px solid ${TOKEN.border};font-family:${MONO};font-size:11px;line-height:1.6;color:${TOKEN.faint};">
+      <tr><td style="height:3px;background:${t.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
+      <tr><td style="padding:16px 28px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:11px;line-height:1.6;color:${t.faint};">
         You get this once a week because you have a skilld account.
-        <a href="${esc(track(input.settingsUrl, 'footer'))}" style="color:${TOKEN.muted};text-decoration:none;">Settings</a>
+        <a href="${esc(track(input.settingsUrl, 'footer'))}" style="color:${t.muted};text-decoration:none;">Settings</a>
         &middot;
-        <a href="${esc(input.unsubscribeUrl)}" style="color:${TOKEN.muted};text-decoration:none;">Unsubscribe</a>
+        <a href="${esc(input.unsubscribeUrl)}" style="color:${t.muted};text-decoration:none;">Unsubscribe</a>
       </td></tr>
-    </table>
+    </table>`
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="${input.theme ?? 'light'}" />
+<meta name="supported-color-schemes" content="${input.theme ?? 'light'}" />
+<!-- Apple Mail and iOS honour this; every other client falls through to the
+     stacks declared inline, which is why both are spelled out in full. -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;600&display=swap" rel="stylesheet" />
+<title>${esc(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background:${t.page};-webkit-font-smoothing:antialiased;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader(input))}</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${t.page};padding:32px 12px;">
+  <tr><td align="center">
+    ${card}
   </td></tr>
 </table>
 </body>
 </html>`
 
   const text = renderWeeklyText(input)
-  return { subject, html, text }
+  return { subject, html, text, card }
 }
 
 export function renderWeeklyText(input: WeeklyRenderInput): string {
@@ -630,7 +697,7 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
   const lines: string[] = [
     `skilld weekly  ${formatWindow(input.windowStart, input.windowEnd)}`,
     '',
-    `Hey ${input.login},`,
+    ...(input.login === null ? [] : [`Hey ${input.login},`]),
     greeting(input),
   ]
 

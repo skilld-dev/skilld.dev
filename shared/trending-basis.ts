@@ -52,12 +52,12 @@ export function relativeDay(unixSeconds: number, reference: number): string {
 export function trendingBasis(input: TrendingBasisInput, reference: number): string | null {
   const parts: string[] = []
 
-  // One person is named, not counted. "1 person named it" beside the quoted
+  // One dev is named, not counted. "1 dev talked about it" beside the quoted
   // "@handle" is the same fact twice, and the handle is the more useful half.
   if (input.authorCount > 1)
-    parts.push(`${input.authorCount} people named it`)
+    parts.push(`${input.authorCount} devs talked about it`)
   else if (input.authorCount === 1 && !input.hasEvidence)
-    parts.push('1 person named it')
+    parts.push('1 dev talked about it')
 
   if (input.starGain !== null)
     parts.push(`+${input.starGain.toLocaleString()} stars this week`)

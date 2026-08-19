@@ -18,7 +18,7 @@ function row(partial: Partial<TrendingBasisInput> = {}): TrendingBasisInput {
 describe('trendingBasis', () => {
   it('states the author count and nothing about stars for a social row', () => {
     expect(trendingBasis(row({ authorCount: 3, hasEvidence: true }), NOW))
-      .toBe('3 people named it')
+      .toBe('3 devs talked about it')
   })
 
   it('says nothing when a single author is already quoted above the line', () => {
@@ -28,7 +28,7 @@ describe('trendingBasis', () => {
 
   it('names the single author when there is no quote to carry the handle', () => {
     expect(trendingBasis(row({ authorCount: 1 }), NOW))
-      .toBe('1 person named it')
+      .toBe('1 dev talked about it')
   })
 
   it('states the star gain and dates it for a star-only row', () => {
@@ -41,7 +41,7 @@ describe('trendingBasis', () => {
       row({ authorCount: 4, starGain: 1200, starGainDay: NOW - 86_400, hasEvidence: true }),
       NOW,
     )
-    expect(basis).toBe('4 people named it · +1,200 stars this week')
+    expect(basis).toBe('4 devs talked about it · +1,200 stars this week')
   })
 
   it('leaves the date to the quote block when a post is shown', () => {
