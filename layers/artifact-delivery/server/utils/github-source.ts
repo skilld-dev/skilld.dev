@@ -93,9 +93,17 @@ export interface PublicGithubSourceClient {
 interface GithubClientOptions {
   fetch: typeof globalThis.fetch
   token?: string
+  visibility?: 'public' | 'private'
 }
 
 export function createPublicGithubSourceClient(options: GithubClientOptions): PublicGithubSourceClient {
+  return createGithubSourceClient({ ...options, visibility: 'public' })
+}
+
+export function createGithubSourceClient(options: GithubClientOptions): PublicGithubSourceClient {
+  const expectedVisibility = options.visibility ?? 'public'
+  const readRejection = (reason: 'not-found' | 'access-denied' | 'identity-mismatch') =>
+    sourceReadRejection(reason, expectedVisibility)
   const requestJson = async <T>(path: string, schema: z.ZodType<T>): Promise<
     { _tag: 'ok', value: T }
     | { _tag: 'not-found' }
@@ -153,7 +161,7 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
       gitRefResponseSchema,
     )
     if (gitRef._tag !== 'ok')
-      return sourceReadRejection(gitRef._tag)
+      return readRejection(gitRef._tag)
     if (gitRef.value.ref !== expectedRef)
       return reject('INVALID_SOURCE', 'GitHub returned another Git reference.', [gitRef.value.ref])
     if (type === 'branch') {
@@ -175,7 +183,7 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
         annotatedTagResponseSchema,
       )
       if (tag._tag !== 'ok')
-        return sourceReadRejection(tag._tag)
+        return readRejection(tag._tag)
       if (tag.value.sha !== object.sha)
         return reject('INVALID_SOURCE', 'GitHub returned another Git tag identity.', [value])
       object = tag.value.object
@@ -190,7 +198,7 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
   ): Promise<TreeEntry[] | SourceRejection> => {
     const recursive = await getTree(owner, repository, rootTreeSha, true)
     if (recursive._tag !== 'ok')
-      return sourceReadRejection(recursive._tag)
+      return readRejection(recursive._tag)
     if (!recursive.value.truncated) {
       if (recursive.value.tree.length > MAX_TREE_ENTRIES)
         return sourceLimitRejection(`The Skill has more than ${MAX_TREE_ENTRIES} source entries.`)
@@ -206,7 +214,7 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
       const current = queue.shift()!
       const response = await getTree(owner, repository, current.sha, false)
       if (response._tag !== 'ok')
-        return sourceReadRejection(response._tag)
+        return readRejection(response._tag)
       if (response.value.truncated)
         return sourceLimitRejection('GitHub returned an incomplete Skill tree.')
       for (const entry of response.value.tree) {
@@ -234,7 +242,7 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
     for (const segment of skillPath.split('/')) {
       const response = await getTree(owner, repository, currentSha, false)
       if (response._tag !== 'ok')
-        return sourceReadRejection(response._tag)
+        return readRejection(response._tag)
       const entry = response.value.tree.find(candidate => candidate.path === segment)
       if (!entry)
         return reject('SOURCE_NOT_FOUND', 'The Skill path does not exist.', [skillPath])
@@ -279,10 +287,16 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
       )
       if (repository._tag === 'not-found')
         return reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
-      if (repository._tag === 'access-denied')
-        return reject('SOURCE_ACCESS_DENIED', 'GitHub denied access to the Repository.', [])
-      if (repository.value.private)
-        return reject('SOURCE_ACCESS_DENIED', 'This endpoint accepts public Repositories only.', [])
+      if (repository._tag === 'access-denied') {
+        return expectedVisibility === 'private'
+          ? reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
+          : reject('SOURCE_ACCESS_DENIED', 'GitHub denied access to the Repository.', [])
+      }
+      if (repository.value.private !== (expectedVisibility === 'private')) {
+        return expectedVisibility === 'private'
+          ? reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
+          : reject('SOURCE_ACCESS_DENIED', 'This endpoint accepts public Repositories only.', [])
+      }
 
       const requestedCommit = !request.ref || request.ref.type === 'branch' || request.ref.type === 'tag'
         ? await resolveGitRefCommit(
@@ -327,7 +341,7 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
           repositoryId: repository.value.id,
           owner: repository.value.owner.login,
           repository: repository.value.name,
-          visibility: 'public',
+          visibility: expectedVisibility,
           commitSha: commit.value.sha,
           treeSha: commit.value.commit.tree.sha,
           skillPath,
@@ -342,8 +356,13 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
       )
       if (repository._tag === 'not-found')
         return reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
-      if (repository._tag === 'access-denied' || repository.value.private)
-        return reject('SOURCE_ACCESS_DENIED', 'This Artifact source is no longer public.', [])
+      if (repository._tag === 'access-denied') {
+        return expectedVisibility === 'private'
+          ? reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
+          : reject('SOURCE_ACCESS_DENIED', 'This Artifact source is no longer public.', [])
+      }
+      if (repository.value.private !== (expectedVisibility === 'private'))
+        return reject('SOURCE_ACCESS_DENIED', 'The Repository visibility changed.', [])
       if (
         repository.value.id !== source.repositoryId
         || repository.value.owner.login !== source.owner
@@ -370,7 +389,7 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
             blobResponseSchema,
           )
           if (response._tag !== 'ok')
-            return sourceReadRejection(response._tag)
+            return readRejection(response._tag)
           const content = base64ToBytes(response.value.content.replaceAll('\n', ''))
           if (response.value.sha !== entry.sha || response.value.size !== content.byteLength || entry.size !== content.byteLength) {
             return reject('INVALID_SOURCE', 'A Git blob changed during Artifact creation.', [entry.path])
@@ -511,7 +530,12 @@ async function readBoundedJson(response: Response, maximumBytes: number): Promis
   return JSON.parse(new TextDecoder().decode(bytes)) as unknown
 }
 
-function sourceReadRejection(reason: 'not-found' | 'access-denied' | 'identity-mismatch'): SourceRejection {
+function sourceReadRejection(
+  reason: 'not-found' | 'access-denied' | 'identity-mismatch',
+  visibility: 'public' | 'private',
+): SourceRejection {
+  if (visibility === 'private' && (reason === 'not-found' || reason === 'access-denied'))
+    return reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
   if (reason === 'not-found')
     return reject('SOURCE_NOT_FOUND', 'The Git object was not found.', [])
   if (reason === 'access-denied')

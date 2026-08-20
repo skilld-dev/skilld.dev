@@ -35,7 +35,23 @@ import { createDeterministicUstar } from './ustar'
 export interface ArtifactBuildDependencies {
   db: D1Database
   github: PublicGithubSourceClient
+  privateGithub?: (row: ResolutionRow) => Promise<PublicGithubSourceClient | SourceRejection>
   bucket: R2Bucket
+  privateArtifacts?: {
+    put: (input: {
+      accountId: number
+      artifactId: string
+      resolutionId: string
+      bytes: Uint8Array
+      contentSha256: string
+    }) => Promise<{
+      _tag: 'stored' | 'existing'
+      key: string
+      ciphertextSha256: string
+      ciphertextBytes: number
+      encryptionKeyId: string
+    } | { _tag: 'mutation-rejected', key: string }>
+  }
   signer: ArtifactSigner
   trustedRoot: TrustedRoot
   now: () => number
@@ -70,10 +86,15 @@ export async function processArtifactBuild(
     }
 
     if (row.state === 'resolving') {
-      const result = await dependencies.github.resolve(sourceRequestFromRow(row))
+      const github = await githubForResolution(dependencies, row)
+      if (isSourceRejection(github))
+        return await failWithRejection(dependencies, row, github)
+      const result = await github.resolve(sourceRequestFromRow(row))
       if (result._tag === 'rejected')
         return await failWithRejection(dependencies, row, result)
       const source = result.source
+      if (source.visibility !== row.visibility)
+        return await failResolution(dependencies, row, 'SOURCE_NOT_FOUND', false)
       const advanced = await transitionResolution(dependencies.db, row, 'fetching', {
         repositoryId: source.repositoryId,
         resolvedOwner: source.owner,
@@ -89,7 +110,7 @@ export async function processArtifactBuild(
     }
 
     if (row.state === 'fetching') {
-      const loaded = await loadAndCheck(dependencies, resolvedSourceFromRow(row))
+      const loaded = await loadAndCheck(dependencies, row, resolvedSourceFromRow(row))
       const checkResults = loaded._tag === 'loaded'
         ? loaded.checked.checkResults
         : rejectionCheckResults(loaded.rejection)
@@ -145,12 +166,13 @@ export async function processArtifactBuild(
         const contentSha256 = await digestHex('SHA-256', archive)
         if (contentSha256 !== row.content_sha256 || archive.byteLength !== row.content_bytes)
           return await failResolution(dependencies, row, 'INVALID_SOURCE', false)
-        const r2Key = artifactR2Key(contentSha256)
-        const write = await putImmutableArtifact(dependencies.bucket, {
-          key: r2Key,
-          bytes: archive,
-          contentSha256,
-        })
+        const write = row.visibility === 'private'
+          ? await putEncryptedPrivateArtifact(dependencies, row, archive, contentSha256)
+          : await putImmutableArtifact(dependencies.bucket, {
+              key: artifactR2Key(contentSha256),
+              bytes: archive,
+              contentSha256,
+            })
         if (write._tag === 'mutation-rejected')
           throw new Error('Immutable Artifact storage rejected changed bytes')
         const statement = createAttestationStatement({
@@ -162,8 +184,12 @@ export async function processArtifactBuild(
           files: loaded.checked.files,
           checkResults: loaded.checked.checkResults,
         })
+        const privateStoragePatch = row.visibility === 'private'
+          ? privateArtifactStoragePatch(write)
+          : {}
         const staged = await transitionResolution(dependencies.db, row, 'signing', {
-          r2Key,
+          r2Key: write.key,
+          ...privateStoragePatch,
           attestationStatementJson: encodeAttestationStatement(statement),
         }, now)
         if (staged._tag === 'superseded')
@@ -207,9 +233,13 @@ export async function processArtifactBuild(
 
 async function loadAndCheck(
   dependencies: ArtifactBuildDependencies,
+  row: ResolutionRow,
   source: ResolvedSource,
 ): Promise<BuildLoad> {
-  const loaded = await dependencies.github.load(source)
+  const github = await githubForResolution(dependencies, row)
+  if (isSourceRejection(github))
+    return { _tag: 'rejected', rejection: github }
+  const loaded = await github.load(source)
   if (loaded._tag === 'rejected')
     return { _tag: 'rejected', rejection: loaded }
   const checked = await checkArtifactSource(source, loaded.value.files)
@@ -220,7 +250,7 @@ async function requirePassingSource(
   dependencies: ArtifactBuildDependencies,
   row: ResolutionRow,
 ): Promise<BuildLoad> {
-  const loaded = await loadAndCheck(dependencies, resolvedSourceFromRow(row))
+  const loaded = await loadAndCheck(dependencies, row, resolvedSourceFromRow(row))
   if (loaded._tag === 'loaded' && checksBlockArtifact(loaded.checked.checkResults)) {
     return {
       _tag: 'rejected',
@@ -254,13 +284,14 @@ function resolvedSourceFromRow(row: {
   commit_sha: string | null
   tree_sha: string | null
   skill_path: string | null
+  visibility: 'public' | 'private'
 }): ResolvedSource {
   return resolvedSourceSchema.parse({
     provider: 'github',
     repositoryId: row.repository_id,
     owner: row.resolved_owner,
     repository: row.resolved_repository,
-    visibility: 'public',
+    visibility: row.visibility,
     commitSha: row.commit_sha,
     treeSha: row.tree_sha,
     skillPath: row.skill_path,
@@ -301,4 +332,64 @@ export async function failResolution(
   return advanced._tag === 'superseded'
     ? { _tag: 'superseded', resolutionId: row.id }
     : { _tag: 'failed', resolutionId: row.id }
+}
+
+async function githubForResolution(
+  dependencies: ArtifactBuildDependencies,
+  row: ResolutionRow,
+): Promise<PublicGithubSourceClient | SourceRejection> {
+  if (row.visibility === 'public')
+    return dependencies.github
+  if (!dependencies.privateGithub) {
+    return {
+      _tag: 'rejected',
+      code: 'SOURCE_NOT_FOUND',
+      summary: 'The Repository was not found.',
+      findings: [],
+    }
+  }
+  return await dependencies.privateGithub(row)
+}
+
+async function putEncryptedPrivateArtifact(
+  dependencies: ArtifactBuildDependencies,
+  row: ResolutionRow,
+  archive: Uint8Array,
+  contentSha256: string,
+) {
+  if (!dependencies.privateArtifacts || !row.account_id || !row.artifact_id)
+    throw new Error('Private Artifact storage is unavailable')
+  return await dependencies.privateArtifacts.put({
+    accountId: row.account_id,
+    artifactId: row.artifact_id,
+    resolutionId: row.id,
+    bytes: archive,
+    contentSha256,
+  })
+}
+
+function isSourceRejection(
+  value: PublicGithubSourceClient | SourceRejection,
+): value is SourceRejection {
+  return '_tag' in value && value._tag === 'rejected'
+}
+
+function privateArtifactStoragePatch(write: { _tag: string, key: string }): {
+  ciphertextSha256: string
+  ciphertextBytes: number
+  encryptionKeyId: string
+} {
+  const value = write as Record<string, unknown>
+  if (
+    typeof value.ciphertextSha256 !== 'string'
+    || typeof value.ciphertextBytes !== 'number'
+    || typeof value.encryptionKeyId !== 'string'
+  ) {
+    throw new TypeError('Private Artifact storage returned incomplete metadata')
+  }
+  return {
+    ciphertextSha256: value.ciphertextSha256,
+    ciphertextBytes: value.ciphertextBytes,
+    encryptionKeyId: value.encryptionKeyId,
+  }
 }

@@ -13,7 +13,7 @@ import {
 } from '../schemas/contracts'
 import { canonicalJson, digestHex } from './encoding'
 
-export const ARTIFACT_POLICY_VERSION = '2026-08-20.public.1'
+export const ARTIFACT_POLICY_VERSION = '2026-08-20.1'
 
 export const ACTIVE_BUILD_STATES = [
   'requested',
@@ -61,6 +61,12 @@ const resolutionRowSchema = z.object({
   check_results_json: z.string().nullable(),
   attestation_statement_json: z.string().nullable(),
   attestation_json: z.string().nullable(),
+  visibility: z.enum(['public', 'private']),
+  account_id: z.number().int().positive().nullable(),
+  github_installation_id: z.number().int().positive().safe().nullable(),
+  ciphertext_sha256: z.string().nullable(),
+  ciphertext_bytes: z.number().int().positive().nullable(),
+  encryption_key_id: z.string().nullable(),
   error_code: z.string().nullable(),
   error_retryable: z.union([z.literal(0), z.literal(1)]).nullable(),
   created_at: z.number().int(),
@@ -83,6 +89,9 @@ export interface ResolutionPatch {
   checkResultsJson?: string
   attestationStatementJson?: string
   attestationJson?: string
+  ciphertextSha256?: string
+  ciphertextBytes?: number
+  encryptionKeyId?: string
   errorCode?: ProblemCode
   errorRetryable?: boolean
 }
@@ -101,13 +110,13 @@ const transitions: Record<BuildState, readonly BuildState[]> = {
   revoked: [],
 }
 
-export async function resolutionRequestIdentity(source: SourceRequest, idempotencyKey: string): Promise<{
+export async function resolutionRequestIdentity(source: SourceRequest, idempotencyKey: string, accountId?: number): Promise<{
   keyHash: string
   fingerprint: string
 }> {
   return {
-    keyHash: await digestHex('SHA-256', idempotencyKey),
-    fingerprint: await digestHex('SHA-256', canonicalJson(source)),
+    keyHash: await digestHex('SHA-256', `${accountId ?? 'public'}\0${idempotencyKey}`),
+    fingerprint: await digestHex('SHA-256', canonicalJson({ source, accountId: accountId ?? null })),
   }
 }
 
@@ -120,6 +129,11 @@ export async function createResolution(
   source: SourceRequest,
   identity: { keyHash: string, fingerprint: string },
   now: number,
+  access: {
+    visibility: 'private'
+    accountId: number
+    installationId: number
+  } | { visibility: 'public' } = { visibility: 'public' },
 ): Promise<CreateResolutionResult> {
   const existing = await findResolutionByRequestKey(db, identity.keyHash)
   if (existing) {
@@ -134,8 +148,12 @@ export async function createResolution(
     `INSERT OR IGNORE INTO artifact_resolutions (
        id, request_key_hash, request_fingerprint, state, state_version,
        requested_owner, requested_repository, selector_type, selector_value,
-       ref_type, ref_value, created_at, updated_at
-     ) VALUES (?1, ?2, ?3, 'requested', 0, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)`,
+       ref_type, ref_value, visibility, account_id, github_installation_id,
+       created_at, updated_at
+     ) VALUES (
+       ?1, ?2, ?3, 'requested', 0, ?4, ?5, ?6, ?7, ?8, ?9,
+       ?10, ?11, ?12, ?13, ?13
+     )`,
   ).bind(
     resolutionId,
     identity.keyHash,
@@ -146,6 +164,9 @@ export async function createResolution(
     selectorValue,
     source.ref?.type ?? null,
     source.ref?.value ?? null,
+    access.visibility,
+    access.visibility === 'private' ? access.accountId : null,
+    access.visibility === 'private' ? access.installationId : null,
     now,
   ).run()
 
@@ -192,6 +213,9 @@ const patchColumns: Record<keyof ResolutionPatch, string> = {
   checkResultsJson: 'check_results_json',
   attestationStatementJson: 'attestation_statement_json',
   attestationJson: 'attestation_json',
+  ciphertextSha256: 'ciphertext_sha256',
+  ciphertextBytes: 'ciphertext_bytes',
+  encryptionKeyId: 'encryption_key_id',
   errorCode: 'error_code',
   errorRetryable: 'error_retryable',
 }
@@ -273,7 +297,7 @@ export function presentResolution(row: ResolutionRow): ResolutionResponse {
     resolutionId: row.id,
     artifact: {
       artifactId: row.artifact_id,
-      visibility: 'public',
+      visibility: row.visibility,
       attestation: parseAttestation(row.attestation_json),
     },
   }
@@ -294,28 +318,24 @@ export async function publishArtifactRecord(
   if (row.state !== 'publishing' || !row.artifact_id || !row.content_sha256 || !row.content_bytes || !row.r2_key)
     throw new Error('Publishing Resolution is incomplete')
 
-  const existing = await db.prepare(
-    'SELECT content_sha256, content_bytes, r2_key FROM artifacts WHERE id = ?1 LIMIT 1',
-  ).bind(row.artifact_id).first<{ content_sha256: string, content_bytes: number, r2_key: string }>()
-  if (existing && (
-    existing.content_sha256 !== row.content_sha256
-    || existing.content_bytes !== row.content_bytes
-    || existing.r2_key !== row.r2_key
-  )) {
-    throw new Error('Existing Artifact metadata differs from immutable content')
+  if (row.visibility === 'public') {
+    const existing = await db.prepare(
+      'SELECT content_sha256, content_bytes, r2_key FROM artifacts WHERE id = ?1 LIMIT 1',
+    ).bind(row.artifact_id).first<{ content_sha256: string, content_bytes: number, r2_key: string }>()
+    if (existing && (
+      existing.content_sha256 !== row.content_sha256
+      || existing.content_bytes !== row.content_bytes
+      || existing.r2_key !== row.r2_key
+    )) {
+      throw new Error('Existing Artifact metadata differs from immutable content')
+    }
   }
 
+  const artifactStatements: D1PreparedStatement[] = row.visibility === 'private'
+    ? privateArtifactPublishStatements(db, row, attestation, now)
+    : publicArtifactPublishStatements(db, row, attestation, now)
   const statements: D1PreparedStatement[] = [
-    db.prepare(
-      `INSERT OR IGNORE INTO artifacts (
-         id, content_sha256, content_bytes, format, r2_key, delivery_status, created_at, updated_at
-       ) VALUES (?1, ?2, ?3, 'skilld-tar-v1', ?4, 'available', ?5, ?5)`,
-    ).bind(row.artifact_id, row.content_sha256, row.content_bytes, row.r2_key, now),
-    db.prepare(
-      `INSERT OR REPLACE INTO artifact_attestations (
-         resolution_id, artifact_id, attestation_json, created_at
-       ) VALUES (?1, ?2, ?3, ?4)`,
-    ).bind(row.id, row.artifact_id, JSON.stringify(attestation), now),
+    ...artifactStatements,
     ...checks.map(check => db.prepare(
       `INSERT OR REPLACE INTO artifact_check_results (
          resolution_id, name, version, outcome, required, summary, findings_json, checked_at
@@ -343,4 +363,78 @@ export async function publishArtifactRecord(
   if (!published)
     throw new Error('Published Resolution could not be loaded')
   return { _tag: 'published', row: published }
+}
+
+function publicArtifactPublishStatements(
+  db: D1Database,
+  row: ResolutionRow,
+  attestation: ArtifactAttestation,
+  now: number,
+): D1PreparedStatement[] {
+  return [
+    db.prepare(
+      `INSERT OR IGNORE INTO artifacts (
+         id, content_sha256, content_bytes, format, r2_key, delivery_status, created_at, updated_at
+       ) VALUES (?1, ?2, ?3, 'skilld-tar-v1', ?4, 'available', ?5, ?5)`,
+    ).bind(row.artifact_id!, row.content_sha256!, row.content_bytes!, row.r2_key!, now),
+    db.prepare(
+      `INSERT OR REPLACE INTO artifact_attestations (
+         resolution_id, artifact_id, attestation_json, created_at
+       ) VALUES (?1, ?2, ?3, ?4)`,
+    ).bind(row.id, row.artifact_id!, JSON.stringify(attestation), now),
+  ]
+}
+
+function privateArtifactPublishStatements(
+  db: D1Database,
+  row: ResolutionRow,
+  attestation: ArtifactAttestation,
+  now: number,
+): D1PreparedStatement[] {
+  if (
+    !row.account_id
+    || !row.repository_id
+    || !row.ciphertext_sha256
+    || !row.ciphertext_bytes
+    || !row.encryption_key_id
+  ) {
+    throw new Error('Publishing private Resolution is incomplete')
+  }
+  return [
+    db.prepare(
+      `INSERT INTO private_artifacts (
+         account_id, artifact_id, resolution_id, repository_id,
+         content_sha256, content_bytes, ciphertext_sha256, ciphertext_bytes,
+         r2_key, encryption_key_id, delivery_status, created_at, updated_at
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'available', ?11, ?11)
+       ON CONFLICT(account_id, artifact_id) DO UPDATE SET
+         resolution_id = excluded.resolution_id,
+         repository_id = excluded.repository_id,
+         content_sha256 = excluded.content_sha256,
+         content_bytes = excluded.content_bytes,
+         ciphertext_sha256 = excluded.ciphertext_sha256,
+         ciphertext_bytes = excluded.ciphertext_bytes,
+         r2_key = excluded.r2_key,
+         encryption_key_id = excluded.encryption_key_id,
+         delivery_status = 'available',
+         updated_at = excluded.updated_at`,
+    ).bind(
+      row.account_id,
+      row.artifact_id!,
+      row.id,
+      row.repository_id,
+      row.content_sha256!,
+      row.content_bytes!,
+      row.ciphertext_sha256,
+      row.ciphertext_bytes,
+      row.r2_key!,
+      row.encryption_key_id,
+      now,
+    ),
+    db.prepare(
+      `INSERT OR REPLACE INTO private_artifact_attestations (
+         resolution_id, account_id, artifact_id, attestation_json, created_at
+       ) VALUES (?1, ?2, ?3, ?4, ?5)`,
+    ).bind(row.id, row.account_id, row.artifact_id!, JSON.stringify(attestation), now),
+  ]
 }

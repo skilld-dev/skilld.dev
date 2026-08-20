@@ -18,6 +18,10 @@
     {
       "binding": "PUBLIC_ARTIFACTS",
       "bucket_name": "skilld-public-artifacts"
+    },
+    {
+      "binding": "PRIVATE_ARTIFACTS",
+      "bucket_name": "skilld-private-artifacts"
     }
   ],
   "vars": {

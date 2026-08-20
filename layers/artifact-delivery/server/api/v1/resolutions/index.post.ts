@@ -7,6 +7,7 @@ import {
   problemCodeSchema,
 } from '../../../schemas/contracts'
 import { withArtifactProblems } from '../../../utils/artifact-problem'
+import { findPrivateRepositoryAccess } from '../../../utils/private-access'
 import { enqueueArtifactBuild } from '../../../utils/queue'
 import {
   createResolution,
@@ -16,7 +17,7 @@ import {
 export default withArtifactProblems(defineApiHandler({
   schema: createResolutionRequestSchema,
   response: createResolutionResponseSchema,
-  async handler({ body, event, platform }) {
+  async handler({ body, event, platform, user }) {
     const idempotencyKey = getHeader(event, 'idempotency-key')
     if (!idempotencyKey || idempotencyKey.length < 16 || idempotencyKey.length > 200) {
       throw createError({
@@ -25,12 +26,28 @@ export default withArtifactProblems(defineApiHandler({
         data: { code: 'INVALID_SOURCE' },
       })
     }
-    const identity = await resolutionRequestIdentity(body.source, idempotencyKey)
+    const privateAccess = user?.id
+      ? await findPrivateRepositoryAccess(
+          platform.db,
+          user.id,
+          body.source.owner,
+          body.source.repository,
+        )
+      : { _tag: 'not-found' as const }
+    const accountId = privateAccess._tag === 'allowed' ? user!.id : undefined
+    const identity = await resolutionRequestIdentity(body.source, idempotencyKey, accountId)
     const result = await createResolution(
       platform.db,
       body.source,
       identity,
       Math.floor(Date.now() / 1000),
+      privateAccess._tag === 'allowed'
+        ? {
+            visibility: 'private',
+            accountId: privateAccess.accountId,
+            installationId: privateAccess.installationId,
+          }
+        : { visibility: 'public' },
     )
     if (result._tag === 'idempotency-conflict') {
       throw createError({

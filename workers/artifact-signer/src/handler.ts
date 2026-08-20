@@ -20,6 +20,7 @@ type ArtifactSignerBindingName
     | 'ARTIFACT_SIGNING_MAX_AGE_SECONDS'
     | 'ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8'
     | 'DB'
+    | 'PRIVATE_ARTIFACTS'
     | 'PUBLIC_ARTIFACTS'
 
 export type ArtifactSignerBindings = Pick<ArtifactSignerEnv, ArtifactSignerBindingName>
@@ -59,6 +60,11 @@ const signingRowSchema = z.object({
   attestation_statement_json: z.string().min(2).max(MAX_ATTESTATION_STATEMENT_BYTES),
   created_at: z.number().int().nonnegative(),
   updated_at: z.number().int().nonnegative(),
+  visibility: z.enum(['public', 'private']),
+  account_id: z.number().int().positive().nullable(),
+  ciphertext_sha256: z.string().regex(SHA256_PATTERN).nullable(),
+  ciphertext_bytes: z.number().int().positive().nullable(),
+  encryption_key_id: z.string().min(1).max(100).nullable(),
 }).strict()
 
 type SigningRow = z.infer<typeof signingRowSchema>
@@ -165,7 +171,9 @@ async function routeArtifactSignerRequest(
   const validated = validateSigningRow(initialRow, parsedConfig.data.maximumAgeSeconds, timestamp)
   if (validated._tag === 'failure')
     return failureResponse(validated)
-  const objectMatches = await verifyArtifactObject(env.PUBLIC_ARTIFACTS, initialRow)
+  const objectMatches = initialRow.visibility === 'private'
+    ? await verifyPrivateArtifactObject(env.PRIVATE_ARTIFACTS, initialRow)
+    : await verifyArtifactObject(env.PUBLIC_ARTIFACTS, initialRow)
   if (!objectMatches)
     return failureResponse(failures.artifactBytesMismatch())
 
@@ -198,7 +206,8 @@ async function routeArtifactSignerRequest(
 function validateSigningRow(row: SigningRow, maximumAgeSeconds: number, now: number): ValidationResult {
   if (
     row.artifact_id !== `sha256:${row.content_sha256}`
-    || row.r2_key !== artifactR2Key(row.content_sha256)
+    || (row.visibility === 'public' && row.r2_key !== artifactR2Key(row.content_sha256))
+    || (row.visibility === 'private' && !row.r2_key.endsWith(`/${row.id}.bin`))
   ) {
     return failures.artifactIdMismatch()
   }
@@ -241,7 +250,7 @@ function statementMatchesRow(
       repositoryId: row.repository_id,
       owner: row.resolved_owner,
       repository: row.resolved_repository,
-      visibility: 'public',
+      visibility: row.visibility,
       commitSha: row.commit_sha,
       treeSha: row.tree_sha,
       skillPath: row.skill_path,
@@ -265,12 +274,38 @@ async function verifyArtifactObject(bucket: R2Bucket, row: SigningRow): Promise<
     && await digestHex('SHA-256', bytes) === row.content_sha256
 }
 
+async function verifyPrivateArtifactObject(bucket: R2Bucket, row: SigningRow): Promise<boolean> {
+  if (!row.account_id || !row.ciphertext_sha256 || !row.ciphertext_bytes || !row.encryption_key_id)
+    return false
+  const object = await bucket.get(row.r2_key)
+  if (!object || !('arrayBuffer' in object))
+    return false
+  const accountIdHash = await digestHex('SHA-256', String(row.account_id))
+  if (
+    object.size !== row.ciphertext_bytes
+    || checksumHex(object.checksums.sha256) !== row.ciphertext_sha256
+    || object.customMetadata?.accountIdHash !== accountIdHash
+    || object.customMetadata?.artifactId !== row.artifact_id
+    || object.customMetadata?.ciphertextSha256 !== row.ciphertext_sha256
+    || object.customMetadata?.contentSha256 !== row.content_sha256
+    || object.customMetadata?.encryptionKeyId !== row.encryption_key_id
+    || object.customMetadata?.format !== 'skilld-private-artifact-v1'
+    || object.customMetadata?.resolutionId !== row.id
+  ) {
+    return false
+  }
+  const bytes = new Uint8Array(await object.arrayBuffer())
+  return bytes.byteLength === row.ciphertext_bytes
+    && await digestHex('SHA-256', bytes) === row.ciphertext_sha256
+}
+
 async function loadSigningRow(db: D1Database, resolutionId: string): Promise<SigningRow | null> {
   const value = await db.prepare(
     `SELECT id, state, state_version,
        repository_id, resolved_owner, resolved_repository, commit_sha, tree_sha, skill_path,
        artifact_id, content_sha256, content_bytes, r2_key,
-       check_results_json, attestation_statement_json, created_at, updated_at
+       check_results_json, attestation_statement_json, created_at, updated_at,
+       visibility, account_id, ciphertext_sha256, ciphertext_bytes, encryption_key_id
      FROM artifact_resolutions
      WHERE id = ?1
      LIMIT 1`,

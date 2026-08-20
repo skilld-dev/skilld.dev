@@ -31,6 +31,12 @@ import { createDeterministicUstar } from '../../layers/artifact-delivery/server/
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_787_227_200
+const ARTIFACT_MIGRATIONS = [
+  'migrations/0017_users.sql',
+  'migrations/0110_artifact_delivery.sql',
+  'migrations/0111_github_app_delivery.sql',
+  'migrations/0112_private_artifact_keys.sql',
+]
 const sourceRequest: SourceRequest = {
   provider: 'github',
   owner: 'skilld-dev',
@@ -183,7 +189,7 @@ describe('public Artifact delivery', () => {
   })
 
   it('returns a conflict when one idempotency key identifies another request', async () => {
-    const sqlite = createSqliteD1(['migrations/0110_artifact_delivery.sql'])
+    const sqlite = createSqliteD1(ARTIFACT_MIGRATIONS)
     const identity = await resolutionRequestIdentity(sourceRequest, 'test-idempotency-key-conflict')
     const first = await createResolution(sqlite.db, sourceRequest, identity, NOW)
     const changed = {
@@ -199,7 +205,7 @@ describe('public Artifact delivery', () => {
   })
 
   it('allows only one state transition from a stale D1 version', async () => {
-    const sqlite = createSqliteD1(['migrations/0110_artifact_delivery.sql'])
+    const sqlite = createSqliteD1(ARTIFACT_MIGRATIONS)
     const identity = await resolutionRequestIdentity(sourceRequest, 'test-idempotency-key-cas-0001')
     const created = await createResolution(sqlite.db, sourceRequest, identity, NOW)
     if (created._tag === 'idempotency-conflict')
@@ -445,21 +451,79 @@ describe('public Artifact delivery', () => {
   })
 })
 
-async function createBuildHarness(files: ArtifactSourceFile[]) {
-  const sqlite = createSqliteD1(['migrations/0110_artifact_delivery.sql'])
-  const identity = await resolutionRequestIdentity(sourceRequest, 'test-idempotency-key-0001')
-  const created = await createResolution(sqlite.db, sourceRequest, identity, NOW)
+describe('private Artifact build', () => {
+  it('uses private source and storage without writing public R2', async () => {
+    const harness = await createBuildHarness(validFiles, true)
+
+    const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
+    const artifact = harness.raw.prepare(
+      `SELECT account_id, artifact_id, delivery_status
+       FROM private_artifacts
+       WHERE resolution_id = ?`,
+    ).get(harness.resolutionId)
+
+    expect(result._tag).toBe('ready')
+    expect(harness.put).not.toHaveBeenCalled()
+    expect(harness.privatePut).toHaveBeenCalledOnce()
+    expect(artifact).toMatchObject({ account_id: 1, delivery_status: 'available' })
+    harness.close()
+  })
+})
+
+async function createBuildHarness(files: ArtifactSourceFile[], privateMode = false) {
+  const sqlite = createSqliteD1(ARTIFACT_MIGRATIONS)
+  if (privateMode) {
+    sqlite.raw.prepare(
+      `INSERT INTO users (
+         id, github_id, login, digest_frequency, digest_hour, timezone,
+         created_at, last_login_at
+       ) VALUES (1, 101, 'skilld-dev', 'weekly', 9, 'UTC', ?, ?)`,
+    ).run(NOW, NOW)
+    sqlite.raw.prepare(
+      `INSERT INTO github_app_installations (
+         installation_id, account_id, github_account_id, state, connected_at, verified_at
+       ) VALUES (9001, 1, 101, 'active', ?, ?)`,
+    ).run(NOW, NOW)
+    sqlite.raw.prepare(
+      `INSERT INTO github_app_repositories (
+         installation_id, repository_id, owner, repository,
+         visibility, state, selected_at
+       ) VALUES (9001, 123456789, 'skilld-dev', 'skills', 'private', 'selected', ?)`,
+    ).run(NOW)
+  }
+  const identity = await resolutionRequestIdentity(
+    sourceRequest,
+    'test-idempotency-key-0001',
+    privateMode ? 1 : undefined,
+  )
+  const created = await createResolution(
+    sqlite.db,
+    sourceRequest,
+    identity,
+    NOW,
+    privateMode
+      ? { visibility: 'private', accountId: 1, installationId: 9001 }
+      : { visibility: 'public' },
+  )
   if (created._tag === 'idempotency-conflict')
     throw new Error('Test Resolution conflicted')
+  const buildSource = privateMode ? { ...resolvedSource, visibility: 'private' as const } : resolvedSource
   const github: PublicGithubSourceClient = {
-    resolve: vi.fn(async () => ({ _tag: 'resolved', source: resolvedSource })),
-    load: vi.fn(async () => ({ _tag: 'loaded', value: { source: resolvedSource, files } })),
+    resolve: vi.fn(async () => ({ _tag: 'resolved', source: buildSource })),
+    load: vi.fn(async () => ({ _tag: 'loaded', value: { source: buildSource, files } })),
   }
   const put = vi.fn(async () => ({}) as R2Object)
   const bucket = {
     put,
     head: vi.fn(async () => null),
   } as R2Bucket
+  const privatePut = vi.fn(async () => ({
+    _tag: 'stored' as const,
+    key: `v1/private/account/${created.row.id}.bin`,
+    ciphertextSha256: 'f'.repeat(64),
+    ciphertextBytes: 1024,
+    encryptionKeyId: 'account-fixture',
+  }))
   const keyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
   const publicKey = bytesToBase64Url(
     new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey)),
@@ -515,7 +579,9 @@ async function createBuildHarness(files: ArtifactSourceFile[]) {
   const dependencies: ArtifactBuildDependencies = {
     db: sqlite.db,
     github,
+    privateGithub: privateMode ? vi.fn(async () => github) : undefined,
     bucket,
+    privateArtifacts: privateMode ? { put: privatePut } : undefined,
     signer: { sign },
     trustedRoot,
     now: () => NOW,
@@ -525,6 +591,7 @@ async function createBuildHarness(files: ArtifactSourceFile[]) {
     resolutionId: created.row.id,
     raw: sqlite.raw,
     put,
+    privatePut,
     sign,
     publicKey: keyPair.publicKey,
     close: sqlite.close,

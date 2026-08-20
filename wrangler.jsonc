@@ -21,7 +21,8 @@
     { "binding": "DB", "database_name": "skilld-db", "database_id": "a5e53f35-f5e5-4987-8c67-c0175addc7cc" }
   ],
   "r2_buckets": [
-    { "binding": "PUBLIC_ARTIFACTS", "bucket_name": "skilld-public-artifacts" }
+    { "binding": "PUBLIC_ARTIFACTS", "bucket_name": "skilld-public-artifacts" },
+    { "binding": "PRIVATE_ARTIFACTS", "bucket_name": "skilld-private-artifacts" }
   ],
   "kv_namespaces": [
     { "binding": "KV_CACHE", "id": "187e636458cb49faa2ae14743adc7736" },
@@ -106,7 +107,8 @@
     { "binding": "ARTIFACT_SIGNER", "service": "skilld-artifact-signer" }
   ],
   "vars": {
-    "ARTIFACT_PUBLIC_BASE_URL": "https://artifacts.skilld.dev"
+    "ARTIFACT_PUBLIC_BASE_URL": "https://artifacts.skilld.dev",
+    "ARTIFACT_PRIVATE_BASE_URL": "https://skilld.dev"
   },
   "ai": {
     "binding": "AI",

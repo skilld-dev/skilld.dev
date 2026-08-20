@@ -38,7 +38,7 @@ export const resolvedSourceSchema = z.object({
   repositoryId: z.number().int().positive().safe(),
   owner: z.string().min(1),
   repository: z.string().min(1),
-  visibility: z.literal('public'),
+  visibility: z.enum(['public', 'private']),
   commitSha: z.string().regex(COMMIT_SHA_PATTERN),
   treeSha: z.string().regex(COMMIT_SHA_PATTERN),
   skillPath: z.string().min(1).max(1024),
@@ -87,7 +87,7 @@ export const artifactAttestationSchema = artifactAttestationStatementSchema.exte
 
 export const artifactDescriptorSchema = z.object({
   artifactId: artifactIdSchema,
-  visibility: z.literal('public'),
+  visibility: z.enum(['public', 'private']),
   attestation: artifactAttestationSchema,
 }).strict()
 
@@ -168,6 +168,20 @@ export const publicArtifactGrantSchema = z.object({
   expiresAt: z.string().datetime(),
   attestation: artifactAttestationSchema,
 }).strict()
+
+export const privateArtifactGrantSchema = z.object({
+  kind: z.literal('private'),
+  artifactId: artifactIdSchema,
+  contentUrl: z.string().url(),
+  downloadToken: z.string().min(32).max(512).regex(/^[\w-]+$/),
+  expiresAt: z.string().datetime(),
+  attestation: artifactAttestationSchema,
+}).strict()
+
+export const artifactGrantSchema = z.discriminatedUnion('kind', [
+  publicArtifactGrantSchema,
+  privateArtifactGrantSchema,
+])
 
 export const trustedKeyStatementSchema = z.object({
   version: z.literal(1),

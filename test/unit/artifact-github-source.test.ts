@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { createPublicGithubSourceClient } from '../../layers/artifact-delivery/server/utils/github-source'
+import {
+  createGithubSourceClient,
+  createPublicGithubSourceClient,
+} from '../../layers/artifact-delivery/server/utils/github-source'
 
 const commitSha = '0123456789abcdef0123456789abcdef01234567'
 const rootTreeSha = '89abcdef0123456789abcdef0123456789abcdef'
@@ -398,6 +401,61 @@ describe('public GitHub Artifact source', () => {
       _tag: 'rejected',
       code: 'INVALID_SOURCE',
       findings: ['SKILL.md'],
+    })
+  })
+})
+
+describe('private GitHub Artifact source', () => {
+  it('uses only the installation token and pins the exact commit', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer installation-token')
+      const url = String(input)
+      if (url.endsWith('/repos/skilld-dev/skills'))
+        return json({ ...publicRepository(), private: true })
+      if (url.endsWith(`/commits/${commitSha}`))
+        return json({ sha: commitSha, commit: { tree: { sha: rootTreeSha } } })
+      return json({}, 404)
+    })
+    const client = createGithubSourceClient({
+      fetch: fetchMock as typeof fetch,
+      token: 'installation-token',
+      visibility: 'private',
+    })
+
+    const result = await client.resolve({
+      provider: 'github',
+      owner: 'skilld-dev',
+      repository: 'skills',
+      selector: { type: 'path', path: '.' },
+      ref: { type: 'commit', value: commitSha },
+    })
+
+    expect(result).toMatchObject({
+      _tag: 'resolved',
+      source: { visibility: 'private', commitSha, treeSha: rootTreeSha },
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([403, 404])('returns the same not-found result for GitHub %s', async (status) => {
+    const client = createGithubSourceClient({
+      fetch: vi.fn(async () => json({}, status)) as typeof fetch,
+      token: 'installation-token',
+      visibility: 'private',
+    })
+
+    const result = await client.resolve({
+      provider: 'github',
+      owner: 'skilld-dev',
+      repository: 'skills',
+      selector: { type: 'path', path: '.' },
+    })
+
+    expect(result).toEqual({
+      _tag: 'rejected',
+      code: 'SOURCE_NOT_FOUND',
+      summary: 'The Repository was not found.',
+      findings: [],
     })
   })
 })

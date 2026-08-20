@@ -16,6 +16,12 @@ import artifactSignerWorker from '../../workers/artifact-signer/src/index'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_787_227_200
+const ARTIFACT_MIGRATIONS = [
+  'migrations/0017_users.sql',
+  'migrations/0110_artifact_delivery.sql',
+  'migrations/0111_github_app_delivery.sql',
+  'migrations/0112_private_artifact_keys.sql',
+]
 const RESOLUTION_ID = '018f3e3e-10d8-7f41-8d5c-10d2a8f92311'
 const source: ResolvedSource = {
   provider: 'github',
@@ -54,6 +60,16 @@ describe('artifact signing Worker', () => {
     const replay = await readSuccess(await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW))
 
     expect(replay).toEqual(first)
+    fixture.close()
+  })
+
+  it('signs private statements only after exact ciphertext verification', async () => {
+    const fixture = await createSignerFixture({ privateArtifact: true })
+
+    const response = await handleArtifactSignerRequest(attestRequest(fixture.artifactId), fixture.bindings, () => NOW)
+
+    expect(response.status).toBe(200)
+    expect(fixture.getObject).toHaveBeenCalledOnce()
     fixture.close()
   })
 
@@ -218,13 +234,27 @@ interface SignerFixtureOptions {
     metadataDigest?: string
     body?: Uint8Array
   }
+  privateArtifact?: boolean
 }
 
 async function createSignerFixture(options: SignerFixtureOptions = {}) {
-  const sqlite = createSqliteD1(['migrations/0110_artifact_delivery.sql'])
+  const sqlite = createSqliteD1(ARTIFACT_MIGRATIONS)
+  if (options.privateArtifact) {
+    sqlite.raw.prepare(
+      `INSERT INTO users (
+         id, github_id, login, digest_frequency, digest_hour, timezone,
+         created_at, last_login_at
+       ) VALUES (1, 101, 'fixture', 'weekly', 9, 'UTC', ?, ?)`,
+    ).run(NOW, NOW)
+  }
   const artifactBytes = new TextEncoder().encode('immutable Artifact bytes')
   const contentSha256 = await digestHex('SHA-256', artifactBytes)
   const artifactId = `sha256:${contentSha256}`
+  const privateCiphertext = new TextEncoder().encode('encrypted private Artifact bytes')
+  const ciphertextSha256 = await digestHex('SHA-256', privateCiphertext)
+  const r2Key = options.privateArtifact
+    ? `v1/private/account/${RESOLUTION_ID}.bin`
+    : artifactR2Key(contentSha256)
   const checks = [
     { name: 'path-policy', version: '1', outcome: options.checkOutcome ?? 'pass', required: true },
     { name: 'agent-skills-spec', version: '2026-08-20', outcome: 'pass', required: true },
@@ -234,7 +264,7 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
   const statement = encodeAttestationStatement(createAttestationStatement({
     artifactId,
     createdAt: new Date((NOW - 60) * 1000).toISOString(),
-    source,
+    source: options.privateArtifact ? { ...source, visibility: 'private' } : source,
     contentSha256,
     contentBytes: artifactBytes.byteLength,
     files: [{ path: 'SKILL.md', mode: 420, size: 1, sha256: 'a'.repeat(64) }],
@@ -246,8 +276,12 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
        requested_owner, requested_repository, selector_type, selector_value,
        repository_id, resolved_owner, resolved_repository, commit_sha, tree_sha,
        skill_path, artifact_id, content_sha256, content_bytes, r2_key,
-       check_results_json, attestation_statement_json, created_at, updated_at
-     ) VALUES (?, ?, 'signing', 7, ?, ?, 'path', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       check_results_json, attestation_statement_json, created_at, updated_at,
+       visibility, account_id, ciphertext_sha256, ciphertext_bytes, encryption_key_id
+     ) VALUES (
+       ?, ?, 'signing', 7, ?, ?, 'path', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+       ?, ?, ?, ?, ?
+     )`,
   ).run(
     RESOLUTION_ID,
     'fixture',
@@ -263,11 +297,16 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
     artifactId,
     contentSha256,
     artifactBytes.byteLength,
-    artifactR2Key(contentSha256),
+    r2Key,
     JSON.stringify(checks),
     statement,
     NOW - 60,
     options.updatedAt ?? NOW,
+    options.privateArtifact ? 'private' : 'public',
+    options.privateArtifact ? 1 : null,
+    options.privateArtifact ? ciphertextSha256 : null,
+    options.privateArtifact ? privateCiphertext.byteLength : null,
+    options.privateArtifact ? 'account-fixture' : null,
   )
 
   const keyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
@@ -275,8 +314,10 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
     new Uint8Array(await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)),
   )
   const objectChange = options.objectChange ?? {}
-  const body = objectChange.body ?? artifactBytes
-  const storedDigest = objectChange.storedDigest ?? contentSha256
+  const expectedObject = options.privateArtifact ? privateCiphertext : artifactBytes
+  const body = objectChange.body ?? expectedObject
+  const expectedStoredDigest = options.privateArtifact ? ciphertextSha256 : contentSha256
+  const storedDigest = objectChange.storedDigest ?? expectedStoredDigest
   const metadataDigest = objectChange.metadataDigest ?? contentSha256
   const getObject = vi.fn(async () => {
     if (options.changeStateAfterObjectRead) {
@@ -284,11 +325,20 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
         .run(RESOLUTION_ID)
     }
     return {
-      size: artifactBytes.byteLength + (objectChange.sizeOffset ?? 0),
+      size: expectedObject.byteLength + (objectChange.sizeOffset ?? 0),
       checksums: { sha256: hexBytes(storedDigest).buffer },
       customMetadata: {
-        contentSha256: metadataDigest,
-        format: 'skilld-tar-v1',
+        ...(options.privateArtifact
+          ? {
+              accountIdHash: await digestHex('SHA-256', '1'),
+              artifactId,
+              ciphertextSha256,
+              contentSha256: metadataDigest,
+              encryptionKeyId: 'account-fixture',
+              format: 'skilld-private-artifact-v1',
+              resolutionId: RESOLUTION_ID,
+            }
+          : { contentSha256: metadataDigest, format: 'skilld-tar-v1' }),
       },
       arrayBuffer: async () => Uint8Array.from(body).buffer,
     } as R2ObjectBody
@@ -296,6 +346,7 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
   const bindings = {
     DB: sqlite.db,
     PUBLIC_ARTIFACTS: { get: getObject } as R2Bucket,
+    PRIVATE_ARTIFACTS: { get: getObject } as R2Bucket,
     ARTIFACT_SIGNING_KEY_ID: 'skilld-production-2026-08',
     ARTIFACT_SIGNING_KEY_NOT_BEFORE: new Date((options.notBefore ?? NOW - 60) * 1000).toISOString(),
     ARTIFACT_SIGNING_KEY_NOT_AFTER: new Date((options.notAfter ?? NOW + 3600) * 1000).toISOString(),

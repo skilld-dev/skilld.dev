@@ -3,7 +3,10 @@ import type { ArtifactBuildDependencies } from './build'
 import { z } from 'zod'
 import { createArtifactSigner } from './attestation'
 import { failResolution, processArtifactBuild } from './build'
-import { createPublicGithubSourceClient } from './github-source'
+import { createGithubAppClientFromEnv, loadAccountGithubUserToken } from './github-app'
+import { createGithubSourceClient, createPublicGithubSourceClient } from './github-source'
+import { createD1PrivateArtifactKeyProvider } from './private-crypto'
+import { putPrivateArtifact } from './private-storage'
 import { getResolution } from './state'
 import { parseTrustedRoot } from './trusted-root'
 
@@ -60,12 +63,65 @@ export async function consumeArtifactBuildBatch(
 }
 
 function defaultBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
+  const githubApp = createGithubAppClientFromEnv(env)
+  const privateKeys = createD1PrivateArtifactKeyProvider(env.DB, env.ARTIFACT_KEY_WRAP_KEY)
   return {
     db: env.DB,
     github: createPublicGithubSourceClient({ fetch, token: env.GITHUB_TOKEN }),
+    privateGithub: async (row) => {
+      if (!row.account_id || !row.github_installation_id || !row.repository_id)
+        return privateSourceNotFound()
+      const access = await env.DB.prepare(
+        `SELECT u.id AS account_id
+         FROM github_app_installations i
+         JOIN github_app_repositories r ON r.installation_id = i.installation_id
+         JOIN users u ON u.id = i.account_id
+         WHERE i.installation_id = ?1
+           AND i.account_id = ?2
+           AND i.state = 'active'
+           AND i.revoked_at IS NULL
+           AND r.repository_id = ?3
+           AND r.state = 'selected'
+           AND r.revoked_at IS NULL
+         LIMIT 1`,
+      ).bind(row.github_installation_id, row.account_id, row.repository_id).first<{
+        account_id: number
+      }>()
+      if (!access)
+        return privateSourceNotFound()
+      const userToken = await loadAccountGithubUserToken(env.DB, access.account_id, env.NUXT_TOKEN_KEY)
+      if (!userToken)
+        return privateSourceNotFound()
+      if (!await githubApp.userCanAccessRepository(
+        userToken,
+        row.github_installation_id,
+        row.repository_id,
+      )) {
+        return privateSourceNotFound()
+      }
+      const installationToken = await githubApp.createRepositoryToken(
+        row.github_installation_id,
+        row.repository_id,
+      )
+      return installationToken._tag === 'created'
+        ? createGithubSourceClient({ fetch, token: installationToken.token, visibility: 'private' })
+        : privateSourceNotFound()
+    },
     bucket: env.PUBLIC_ARTIFACTS,
+    privateArtifacts: {
+      put: input => putPrivateArtifact(env.PRIVATE_ARTIFACTS, privateKeys, input),
+    },
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
     now: () => Math.floor(Date.now() / 1000),
+  }
+}
+
+function privateSourceNotFound() {
+  return {
+    _tag: 'rejected' as const,
+    code: 'SOURCE_NOT_FOUND' as const,
+    summary: 'The Repository was not found.',
+    findings: [],
   }
 }
