@@ -7,7 +7,7 @@ import {
   recordScheduledTrigger,
   scheduledTriggerForTaskContext,
 } from '../../server/utils/scheduled-trigger'
-import { evaluateScheduleHealth, SCHEDULE_POLICY } from '../../shared/schedule-policy'
+import { evaluateScheduleHealth, observedSchedulePolicy, SCHEDULE_POLICY } from '../../shared/schedule-policy'
 
 function database(): { sqlite: Database.Database, db: D1Database } {
   const sqlite = new Database(':memory:')
@@ -116,6 +116,22 @@ describe('scheduled run lifecycle', () => {
     const policy = SCHEDULE_POLICY.find(entry => entry._tag === 'observed')!
     const result = evaluateScheduleHealth(policy, { latest: null, latestTerminal: null }, 10_000)
     expect(result).toMatchObject({ _tag: 'missing_run', alertable: true })
+  })
+
+  // send-weekly fires `0 9 * * 1`. It shipped on a Wednesday, so the nightly
+  // health check reported missing_run for five nights before the task was due.
+  it('holds a newly added task healthy until its first fire is due', () => {
+    const policy = observedSchedulePolicy('send-weekly')
+    expect(policy.activeFromSeconds).toBeDefined()
+    const activeFrom = policy.activeFromSeconds!
+
+    expect(evaluateScheduleHealth(policy, { latest: null, latestTerminal: null }, activeFrom + 60))
+      .toMatchObject({ _tag: 'healthy', alertable: false })
+    expect(evaluateScheduleHealth(
+      policy,
+      { latest: null, latestTerminal: null },
+      activeFrom + policy.maxSilenceSeconds + 1,
+    )).toMatchObject({ _tag: 'missing_run', alertable: true })
   })
 
   it('surfaces latest failure, expiry, and overdue started attempts', () => {
