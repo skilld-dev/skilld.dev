@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { bytesToBase64Url } from '../../layers/artifact-delivery/server/utils/encoding'
 import {
   createGithubAppClient,
-  loadAccountGithubUserToken,
+  exchangeGithubAppUserCode,
+  loadAccountGithubAppUserToken,
+  storeAccountGithubAppUserAuthorization,
   verifyGithubWebhookSignature,
 } from '../../layers/artifact-delivery/server/utils/github-app'
 import { decryptToken, encryptToken } from '../../layers/identity/server/utils/crypto'
@@ -112,16 +114,17 @@ describe('private GitHub App access', () => {
     const oldAccessToken = await encryptToken('old-access-token', tokenKey)
     const oldRefreshToken = await encryptToken('old-refresh-token', tokenKey)
     fixture.raw.prepare(
-      `INSERT INTO users (
-         id, github_id, login, github_token_encrypted,
-         github_token_expires_at, github_refresh_token_encrypted,
-         github_refresh_token_expires_at, github_token_client_id,
-         created_at, last_login_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, github_id, login, created_at, last_login_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(1, 101, 'octocat', NOW, NOW)
+    fixture.raw.prepare(
+      `INSERT INTO github_app_user_authorizations (
+         account_id, access_token_encrypted, access_token_expires_at,
+         refresh_token_encrypted, refresh_token_expires_at,
+         client_id, authorized_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       1,
-      101,
-      'octocat',
       oldAccessToken,
       NOW - 1,
       oldRefreshToken,
@@ -144,7 +147,7 @@ describe('private GitHub App access', () => {
       })
     })
 
-    const token = await loadAccountGithubUserToken(fixture.db, 1, {
+    const token = await loadAccountGithubAppUserToken(fixture.db, 1, {
       tokenKey,
       clientId: 'Iv1.fixture',
       clientSecret: 'fixture-secret',
@@ -155,15 +158,95 @@ describe('private GitHub App access', () => {
     expect(token).toBe('new-access-token')
     expect(fetchMock).toHaveBeenCalledOnce()
     const stored = fixture.raw.prepare(
-      `SELECT github_token_encrypted, github_token_expires_at,
-              github_refresh_token_encrypted, github_refresh_token_expires_at
-       FROM users WHERE id = 1`,
+      `SELECT access_token_encrypted, access_token_expires_at,
+              refresh_token_encrypted, refresh_token_expires_at
+       FROM github_app_user_authorizations WHERE account_id = 1`,
     ).get() as Record<string, string | number>
-    expect(await decryptToken(String(stored.github_token_encrypted), tokenKey)).toBe('new-access-token')
-    expect(stored.github_token_expires_at).toBe(NOW + 28_800)
-    expect(await decryptToken(String(stored.github_refresh_token_encrypted), tokenKey)).toBe('new-refresh-token')
-    expect(stored.github_refresh_token_expires_at).toBe(NOW + 15_552_000)
+    expect(await decryptToken(String(stored.access_token_encrypted), tokenKey)).toBe('new-access-token')
+    expect(stored.access_token_expires_at).toBe(NOW + 28_800)
+    expect(await decryptToken(String(stored.refresh_token_encrypted), tokenKey)).toBe('new-refresh-token')
+    expect(stored.refresh_token_expires_at).toBe(NOW + 15_552_000)
     fixture.close()
+  })
+
+  it('keeps normal login credentials separate from opt-in GitHub App access', async () => {
+    const fixture = createSqliteD1([
+      'migrations/0017_users.sql',
+      'migrations/0110_artifact_delivery.sql',
+      'migrations/0111_github_app_delivery.sql',
+      'migrations/0112_private_artifact_keys.sql',
+    ])
+    const tokenKey = btoa(String.fromCharCode(...new Uint8Array(32).fill(5)))
+    const loginToken = await encryptToken('normal-login-token', tokenKey)
+    fixture.raw.prepare(
+      `INSERT INTO users (
+         id, github_id, login, github_token_encrypted,
+         github_token_scopes, created_at, last_login_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(1, 101, 'octocat', loginToken, 'read:user user:email', NOW, NOW)
+
+    await storeAccountGithubAppUserAuthorization(fixture.db, 1, {
+      accessToken: 'private-access-token',
+      accessTokenExpiresAt: NOW + 28_800,
+      refreshToken: 'private-refresh-token',
+      refreshTokenExpiresAt: NOW + 15_552_000,
+    }, {
+      tokenKey,
+      clientId: 'Iv1.private',
+      clientSecret: 'private-secret',
+      fetch,
+      now: () => NOW,
+    })
+
+    const storedLogin = fixture.raw.prepare(
+      'SELECT github_token_encrypted FROM users WHERE id = 1',
+    ).get() as { github_token_encrypted: string }
+    expect(await decryptToken(storedLogin.github_token_encrypted, tokenKey)).toBe('normal-login-token')
+    expect(await loadAccountGithubAppUserToken(fixture.db, 1, {
+      tokenKey,
+      clientId: 'Iv1.private',
+      clientSecret: 'private-secret',
+      fetch,
+      now: () => NOW,
+    })).toBe('private-access-token')
+    fixture.close()
+  })
+
+  it('exchanges the opt-in App code and binds it to one GitHub user', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === 'https://github.com/login/oauth/access_token') {
+        const body = new URLSearchParams(String(init?.body))
+        expect(body.get('client_id')).toBe('Iv1.private')
+        expect(body.get('client_secret')).toBe('private-secret')
+        expect(body.get('code')).toBe('authorization-code')
+        return Response.json({
+          access_token: 'private-access-token',
+          expires_in: 28_800,
+          refresh_token: 'private-refresh-token',
+          refresh_token_expires_in: 15_552_000,
+        })
+      }
+      expect(String(input)).toBe('https://api.github.com/user')
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer private-access-token')
+      return Response.json({ id: 101, login: 'octocat' })
+    })
+
+    const result = await exchangeGithubAppUserCode('authorization-code', {
+      tokenKey: 'unused',
+      clientId: 'Iv1.private',
+      clientSecret: 'private-secret',
+      fetch: fetchMock as typeof fetch,
+      now: () => NOW,
+    })
+
+    expect(result).toEqual({
+      _tag: 'authorized',
+      githubUserId: 101,
+      accessToken: 'private-access-token',
+      accessTokenExpiresAt: NOW + 28_800,
+      refreshToken: 'private-refresh-token',
+      refreshTokenExpiresAt: NOW + 15_552_000,
+    })
   })
 
   it('accepts the exact webhook bytes and rejects changed bytes', async () => {

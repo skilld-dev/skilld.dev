@@ -5,6 +5,17 @@ ALTER TABLE users ADD COLUMN github_refresh_token_encrypted TEXT;
 ALTER TABLE users ADD COLUMN github_refresh_token_expires_at INTEGER;
 ALTER TABLE users ADD COLUMN github_token_client_id TEXT;
 
+CREATE TABLE github_app_user_authorizations (
+  account_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  access_token_encrypted TEXT NOT NULL,
+  access_token_expires_at INTEGER NOT NULL,
+  refresh_token_encrypted TEXT NOT NULL,
+  refresh_token_expires_at INTEGER NOT NULL,
+  client_id TEXT NOT NULL,
+  authorized_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 ALTER TABLE artifact_resolutions
 ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'
   CHECK (visibility IN ('public', 'private'));

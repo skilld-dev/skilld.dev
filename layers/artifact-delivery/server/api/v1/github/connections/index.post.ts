@@ -6,8 +6,8 @@ import {
 } from '../../../../schemas/github-connections'
 import {
   createGithubAppClientFromEnv,
-  githubUserTokenDependenciesFromEnv,
-  loadAccountGithubUserToken,
+  githubAppUserTokenDependenciesFromEnv,
+  loadAccountGithubAppUserToken,
 } from '../../../../utils/github-app'
 import { connectGithubInstallation } from '../../../../utils/private-access'
 
@@ -17,10 +17,10 @@ export default defineApiHandler({
   requireAuth: true,
   async handler({ body, event, platform, user }) {
     const accountId = user!.id
-    const userToken = await loadAccountGithubUserToken(
+    const userToken = await loadAccountGithubAppUserToken(
       platform.db,
       accountId,
-      githubUserTokenDependenciesFromEnv(platform.env),
+      githubAppUserTokenDependenciesFromEnv(platform.env),
     )
     if (!userToken)
       throw createError({ statusCode: 404, message: 'GitHub App installation not found' })

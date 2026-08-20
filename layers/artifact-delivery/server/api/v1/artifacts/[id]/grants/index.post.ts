@@ -4,8 +4,8 @@ import { artifactGrantSchema, artifactIdSchema } from '../../../../../schemas/co
 import { withArtifactProblems } from '../../../../../utils/artifact-problem'
 import {
   createGithubAppClientFromEnv,
-  githubUserTokenDependenciesFromEnv,
-  loadAccountGithubUserToken,
+  githubAppUserTokenDependenciesFromEnv,
+  loadAccountGithubAppUserToken,
 } from '../../../../../utils/github-app'
 import { createPublicArtifactGrant } from '../../../../../utils/grant'
 import { createPrivateArtifactGrant } from '../../../../../utils/private-grant'
@@ -47,10 +47,10 @@ export default withArtifactProblems(defineApiHandler({
 
     if (!user?.id)
       throw createError({ statusCode: 404, message: 'Artifact not found' })
-    const userToken = await loadAccountGithubUserToken(
+    const userToken = await loadAccountGithubAppUserToken(
       platform.db,
       user.id,
-      githubUserTokenDependenciesFromEnv(platform.env),
+      githubAppUserTokenDependenciesFromEnv(platform.env),
     )
     if (!userToken)
       throw createError({ statusCode: 404, message: 'Artifact not found' })

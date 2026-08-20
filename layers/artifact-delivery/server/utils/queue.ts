@@ -5,8 +5,8 @@ import { createArtifactSigner } from './attestation'
 import { failResolution, processArtifactBuild } from './build'
 import {
   createGithubAppClientFromEnv,
-  githubUserTokenDependenciesFromEnv,
-  loadAccountGithubUserToken,
+  githubAppUserTokenDependenciesFromEnv,
+  loadAccountGithubAppUserToken,
 } from './github-app'
 import { createGithubSourceClient, createPublicGithubSourceClient } from './github-source'
 import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from './private-crypto'
@@ -93,10 +93,10 @@ function defaultBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencie
       }>()
       if (!access)
         return privateSourceNotFound()
-      const userToken = await loadAccountGithubUserToken(
+      const userToken = await loadAccountGithubAppUserToken(
         env.DB,
         access.account_id,
-        githubUserTokenDependenciesFromEnv(env),
+        githubAppUserTokenDependenciesFromEnv(env),
       )
       if (!userToken)
         return privateSourceNotFound()

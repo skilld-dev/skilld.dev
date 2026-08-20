@@ -5,8 +5,8 @@ import { resolutionIdSchema, resolutionSchema } from '../../../schemas/contracts
 import { withArtifactProblems } from '../../../utils/artifact-problem'
 import {
   createGithubAppClientFromEnv,
-  githubUserTokenDependenciesFromEnv,
-  loadAccountGithubUserToken,
+  githubAppUserTokenDependenciesFromEnv,
+  loadAccountGithubAppUserToken,
 } from '../../../utils/github-app'
 import { canReadPrivateResolution } from '../../../utils/private-access'
 import { getResolution } from '../../../utils/state'
@@ -23,10 +23,10 @@ export default withArtifactProblems(defineApiHandler({
     if (row.visibility === 'private') {
       if (!user?.id)
         throw createError({ statusCode: 404, message: 'Resolution not found' })
-      const userToken = await loadAccountGithubUserToken(
+      const userToken = await loadAccountGithubAppUserToken(
         platform.db,
         user.id,
-        githubUserTokenDependenciesFromEnv(platform.env),
+        githubAppUserTokenDependenciesFromEnv(platform.env),
       )
       const githubApp = createGithubAppClientFromEnv(platform.env)
       if (

@@ -48,33 +48,45 @@ The signer uses the same D1 database and both R2 buckets.
 
 ## 3. Register the GitHub App
 
-Create one GitHub App for login and private Repository access.
+Keep the existing GitHub OAuth App for normal sign in.
+Do not change its callback or credentials.
+
+Create a separate GitHub App for private Repository access.
+Only users who need private access install this App.
 
 Set these values:
 
-- Callback URL: `https://skilld.dev/auth/github`
+- Callback URL: `https://skilld.dev/api/v1/github/connections/callback`
+- Request user authorization during installation: enabled
+- Device flow: disabled
 - Webhook URL: `https://skilld.dev/api/v1/webhooks/github`
 - Webhook SSL verification: enabled
 - Repository permission, Contents: read only
 - Repository permission, Metadata: read only
 - Events: `installation` and `installation_repositories`
-- Repository selection: selected Repositories only
 - Expiring user access tokens: enabled
 
-Use the same GitHub App client ID and secret for [GitHub](https://github.com) login.
-Set them as `NUXT_OAUTH_GITHUB_CLIENT_ID` and `NUXT_OAUTH_GITHUB_CLIENT_SECRET`.
+Leave the setup URL empty.
+Enabling authorization during installation disables the setup URL.
+During installation, choose `Only select repositories`.
+The connection rejects access to all Repositories.
 
-Set the client ID again as `GITHUB_APP_CLIENT_ID`.
+Keep the OAuth App credentials as `NUXT_OAUTH_GITHUB_CLIENT_ID` and `NUXT_OAUTH_GITHUB_CLIENT_SECRET`.
+Set the new GitHub App credentials as `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET`.
 Set the numeric App ID as `GITHUB_APP_ID`.
-Stop if `NUXT_OAUTH_GITHUB_CLIENT_ID` and `GITHUB_APP_CLIENT_ID` differ.
+The OAuth App and GitHub App client IDs must differ.
 
 Convert the GitHub App private key to unencrypted PKCS8.
 Store its canonical base64url bytes as `GITHUB_APP_PRIVATE_KEY_PKCS8`.
 
 Store the webhook secret as `GITHUB_APP_WEBHOOK_SECRET`.
 
-Existing users must sign in again after the login App changes.
-Their old token cannot prove GitHub App installation access.
+Existing users do not need to sign in again.
+Private users start the opt-in flow at `/api/v1/github/connections/authorize`.
+The flow requires the same GitHub Account used for normal sign in.
+
+The first release requires the installer to approve the App directly.
+Organization approval requests do not complete the connection automatically.
 
 ## 4. Complete the key ceremony
 
@@ -119,6 +131,7 @@ Set the remaining values with `wrangler secret put`:
 
 - `GITHUB_APP_ID`
 - `GITHUB_APP_CLIENT_ID`
+- `GITHUB_APP_CLIENT_SECRET`
 - `GITHUB_APP_PRIVATE_KEY_PKCS8`
 - `GITHUB_APP_WEBHOOK_SECRET`
 - `NUXT_OAUTH_GITHUB_CLIENT_ID`
@@ -195,10 +208,12 @@ Then check Artifact delivery:
 6. Fetch a missing private Artifact without a bearer token. Require `404` and `no-store`.
 7. Fetch private content without `x-skilld-grant`. Require `404` and `no-store`.
 8. Send a webhook with an invalid signature. Require `401` and `no-store`.
-9. Install the GitHub App on one test Repository.
-10. Create and download one private Artifact. Confirm the grant works once.
-11. Replay that grant. Require `404`.
-12. Remove the test Repository. Require old and new grants to fail.
+9. Sign in, then open `/api/v1/github/connections/authorize?return_to=/me`.
+10. Install the GitHub App on one test Repository.
+11. Confirm the browser returns to `/me`.
+12. Create and download one private Artifact. Confirm the grant works once.
+13. Replay that grant. Require `404`.
+14. Remove the test Repository. Require old and new grants to fail.
 
 Check `CF-Cache-Status` on the public Artifact domain.
 The second public download should be cache eligible.
