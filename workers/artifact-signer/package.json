@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "wrangler deploy --dry-run --config wrangler.jsonc --outdir dist",
+    "deploy:production": "wrangler deploy --config wrangler.jsonc",
     "lint": "eslint src test",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",

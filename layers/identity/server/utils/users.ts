@@ -28,6 +28,15 @@ export interface GitHubProfile {
   avatar_url?: string | null
 }
 
+export interface GithubUserCredentials {
+  accessToken: string
+  accessTokenExpiresIn: number | null
+  refreshToken: string | null
+  refreshTokenExpiresIn: number | null
+  clientId: string
+  scopes: string[]
+}
+
 function db(event: H3Event): D1Database {
   return event.context.platform.db
 }
@@ -35,12 +44,20 @@ function db(event: H3Event): D1Database {
 export async function upsertUserFromGithub(
   event: H3Event,
   profile: GitHubProfile,
-  accessToken: string,
-  scopes: string[],
+  credentials: GithubUserCredentials,
 ): Promise<UserRow> {
   const config = useRuntimeConfig(event)
-  const encrypted = await encryptToken(accessToken, config.tokenKey as string)
+  const encrypted = await encryptToken(credentials.accessToken, config.tokenKey as string)
+  const encryptedRefreshToken = credentials.refreshToken
+    ? await encryptToken(credentials.refreshToken, config.tokenKey as string)
+    : null
   const now = Math.floor(Date.now() / 1000)
+  const accessTokenExpiresAt = credentials.accessTokenExpiresIn === null
+    ? null
+    : now + credentials.accessTokenExpiresIn
+  const refreshTokenExpiresAt = credentials.refreshTokenExpiresIn === null
+    ? null
+    : now + credentials.refreshTokenExpiresIn
   const d = db(event)
 
   // Merge ghost rows seeded by 0022 backfill (github_id < 0, login matches).
@@ -53,9 +70,11 @@ export async function upsertUserFromGithub(
   await d.prepare(
     `INSERT INTO users (
        github_id, login, name, email, avatar,
-       github_token_encrypted, github_token_scopes,
+       github_token_encrypted, github_token_scopes, github_token_expires_at,
+       github_refresh_token_encrypted, github_refresh_token_expires_at,
+       github_token_client_id,
        created_at, last_login_at
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)
      ON CONFLICT(github_id) DO UPDATE SET
        login = excluded.login,
        name = excluded.name,
@@ -63,6 +82,10 @@ export async function upsertUserFromGithub(
        avatar = excluded.avatar,
        github_token_encrypted = excluded.github_token_encrypted,
        github_token_scopes = excluded.github_token_scopes,
+       github_token_expires_at = excluded.github_token_expires_at,
+       github_refresh_token_encrypted = excluded.github_refresh_token_encrypted,
+       github_refresh_token_expires_at = excluded.github_refresh_token_expires_at,
+       github_token_client_id = excluded.github_token_client_id,
        last_login_at = excluded.last_login_at`,
   ).bind(
     profile.id,
@@ -71,7 +94,11 @@ export async function upsertUserFromGithub(
     profile.email ?? null,
     profile.avatar_url ?? null,
     encrypted,
-    scopes.join(' '),
+    credentials.scopes.join(' '),
+    accessTokenExpiresAt,
+    encryptedRefreshToken,
+    refreshTokenExpiresAt,
+    credentials.clientId,
     now,
   ).run()
 

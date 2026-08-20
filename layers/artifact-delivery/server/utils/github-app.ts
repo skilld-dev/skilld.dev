@@ -1,11 +1,12 @@
 import { z } from 'zod'
-import { decryptToken } from '#layers/identity/server/utils/crypto'
+import { decryptToken, encryptToken } from '#layers/identity/server/utils/crypto'
 import { base64ToBytes, bytesToBase64Url } from './encoding'
 
 const GITHUB_API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2026-03-10'
 const GITHUB_REQUEST_TIMEOUT_MS = 15_000
 const MAX_GITHUB_APP_RESPONSE_BYTES = 2 * 1024 * 1024
+const MAX_GITHUB_TOKEN_RESPONSE_BYTES = 64 * 1024
 const MAX_INSTALLATIONS = 500
 const MAX_REPOSITORIES = 500
 
@@ -40,6 +41,13 @@ const repositoriesSchema = z.object({
 const installationTokenSchema = z.object({
   token: z.string().min(1).max(2048),
   expires_at: z.string().datetime(),
+}).passthrough()
+
+const refreshedUserTokenSchema = z.object({
+  access_token: z.string().min(1).max(2048),
+  expires_in: z.number().int().positive(),
+  refresh_token: z.string().min(1).max(2048),
+  refresh_token_expires_in: z.number().int().positive(),
 }).passthrough()
 
 export interface GithubAppConfig {
@@ -82,11 +90,28 @@ export interface GithubAppClient {
   ) => Promise<boolean>
 }
 
+export interface GithubUserTokenDependencies {
+  tokenKey: string
+  clientId: string
+  clientSecret: string
+  fetch: typeof globalThis.fetch
+  now: () => number
+}
+
+interface GithubUserTokenRow {
+  github_token_encrypted: string | null
+  github_token_expires_at: number | null
+  github_refresh_token_encrypted: string | null
+  github_refresh_token_expires_at: number | null
+  github_token_client_id: string | null
+}
+
 export function createGithubAppClientFromEnv(
   env: Cloudflare.Env,
   fetcher: typeof globalThis.fetch = fetch,
   now: () => number = () => Math.floor(Date.now() / 1000),
 ): GithubAppClient {
+  assertSharedGithubApp(env)
   const appId = Number(env.GITHUB_APP_ID)
   if (!Number.isSafeInteger(appId) || appId <= 0)
     throw new Error('GitHub App ID is invalid')
@@ -99,20 +124,142 @@ export function createGithubAppClientFromEnv(
   })
 }
 
+export function githubUserTokenDependenciesFromEnv(
+  env: Cloudflare.Env,
+  fetcher: typeof globalThis.fetch = fetch,
+  now: () => number = () => Math.floor(Date.now() / 1000),
+): GithubUserTokenDependencies {
+  assertSharedGithubApp(env)
+  return {
+    tokenKey: env.NUXT_TOKEN_KEY,
+    clientId: env.GITHUB_APP_CLIENT_ID,
+    clientSecret: env.NUXT_OAUTH_GITHUB_CLIENT_SECRET,
+    fetch: fetcher,
+    now,
+  }
+}
+
 export async function loadAccountGithubUserToken(
   db: D1Database,
   accountId: number,
-  tokenKey: string,
+  dependencies: GithubUserTokenDependencies,
 ): Promise<string | null> {
-  const row = await db.prepare(
-    `SELECT github_token_encrypted
+  const row = await loadGithubUserTokenRow(db, accountId)
+  if (
+    !row?.github_token_encrypted
+    || row.github_token_client_id !== dependencies.clientId
+  ) {
+    return null
+  }
+  const now = dependencies.now()
+  if (row.github_token_expires_at === null || row.github_token_expires_at > now + 60)
+    return await decryptToken(row.github_token_encrypted, dependencies.tokenKey)
+  if (
+    !row.github_refresh_token_encrypted
+    || row.github_refresh_token_expires_at === null
+    || row.github_refresh_token_expires_at <= now + 60
+  ) {
+    return null
+  }
+  const refreshToken = await decryptToken(
+    row.github_refresh_token_encrypted,
+    dependencies.tokenKey,
+  )
+  const body = new URLSearchParams({
+    client_id: dependencies.clientId,
+    client_secret: dependencies.clientSecret,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  })
+  const response = await dependencies.fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'skilld.dev',
+    },
+    body: body.toString(),
+    redirect: 'error',
+    signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
+  })
+  if (response.status === 400 || response.status === 401)
+    return await loadRotatedGithubUserToken(db, accountId, row, dependencies)
+  if (!response.ok)
+    throw new Error(`GitHub App token refresh returned ${response.status}`)
+  const refreshed = refreshedUserTokenSchema.safeParse(
+    await readBoundedJson(response, MAX_GITHUB_TOKEN_RESPONSE_BYTES),
+  )
+  if (!refreshed.success)
+    throw new Error('GitHub App token refresh returned an invalid response')
+  const accessTokenEncrypted = await encryptToken(
+    refreshed.data.access_token,
+    dependencies.tokenKey,
+  )
+  const refreshTokenEncrypted = await encryptToken(
+    refreshed.data.refresh_token,
+    dependencies.tokenKey,
+  )
+  const accessTokenExpiresAt = now + refreshed.data.expires_in
+  const refreshTokenExpiresAt = now + refreshed.data.refresh_token_expires_in
+  const update = await db.prepare(
+    `UPDATE users
+     SET github_token_encrypted = ?1,
+         github_token_expires_at = ?2,
+         github_refresh_token_encrypted = ?3,
+         github_refresh_token_expires_at = ?4
+     WHERE id = ?5
+       AND github_refresh_token_encrypted = ?6
+       AND github_token_client_id = ?7`,
+  ).bind(
+    accessTokenEncrypted,
+    accessTokenExpiresAt,
+    refreshTokenEncrypted,
+    refreshTokenExpiresAt,
+    accountId,
+    row.github_refresh_token_encrypted,
+    dependencies.clientId,
+  ).run()
+  if (Number(update.meta.changes) === 1)
+    return refreshed.data.access_token
+  return await loadRotatedGithubUserToken(db, accountId, row, dependencies)
+}
+
+async function loadGithubUserTokenRow(
+  db: D1Database,
+  accountId: number,
+): Promise<GithubUserTokenRow | null> {
+  return await db.prepare(
+    `SELECT github_token_encrypted, github_token_expires_at,
+            github_refresh_token_encrypted, github_refresh_token_expires_at,
+            github_token_client_id
      FROM users
      WHERE id = ?1
      LIMIT 1`,
-  ).bind(accountId).first<{ github_token_encrypted: string | null }>()
-  if (!row?.github_token_encrypted)
+  ).bind(accountId).first<GithubUserTokenRow>()
+}
+
+async function loadRotatedGithubUserToken(
+  db: D1Database,
+  accountId: number,
+  previous: GithubUserTokenRow,
+  dependencies: GithubUserTokenDependencies,
+): Promise<string | null> {
+  const current = await loadGithubUserTokenRow(db, accountId)
+  if (
+    !current?.github_token_encrypted
+    || current.github_token_client_id !== dependencies.clientId
+    || current.github_token_expires_at === null
+    || current.github_token_expires_at <= dependencies.now() + 60
+    || current.github_refresh_token_encrypted === previous.github_refresh_token_encrypted
+  ) {
     return null
-  return await decryptToken(row.github_token_encrypted, tokenKey)
+  }
+  return await decryptToken(current.github_token_encrypted, dependencies.tokenKey)
+}
+
+function assertSharedGithubApp(env: Cloudflare.Env): void {
+  if (env.NUXT_OAUTH_GITHUB_CLIENT_ID !== env.GITHUB_APP_CLIENT_ID)
+    throw new Error('GitHub login must use the Artifact delivery GitHub App')
 }
 
 export function createGithubAppClient(config: GithubAppConfig): GithubAppClient {

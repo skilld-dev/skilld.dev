@@ -75,9 +75,10 @@ export async function canReadPrivateResolution(
   db: D1Database,
   accountId: number,
   resolutionId: string,
+  recheckAccess: (access: { installationId: number, repositoryId: number }) => Promise<boolean>,
 ): Promise<boolean> {
   const row = await db.prepare(
-    `SELECT 1 AS allowed
+    `SELECT i.installation_id, r.repository_id
      FROM artifact_resolutions ar
      JOIN github_app_installations i
        ON i.installation_id = ar.github_installation_id
@@ -93,8 +94,16 @@ export async function canReadPrivateResolution(
        AND r.state = 'selected'
        AND r.revoked_at IS NULL
      LIMIT 1`,
-  ).bind(resolutionId, accountId).first<{ allowed: number }>()
-  return row?.allowed === 1
+  ).bind(resolutionId, accountId).first<{
+    installation_id: number
+    repository_id: number
+  }>()
+  return row
+    ? await recheckAccess({
+        installationId: row.installation_id,
+        repositoryId: row.repository_id,
+      })
+    : false
 }
 
 export interface ConnectedGithubInstallation {
@@ -113,14 +122,6 @@ export async function connectGithubInstallation(
   | { _tag: 'not-found' }
 > {
   const repositories = z.array(repositoryIdentitySchema).max(500).parse(connection.repositories)
-  const existing = await db.prepare(
-    `SELECT account_id
-     FROM github_app_installations
-     WHERE installation_id = ?1
-     LIMIT 1`,
-  ).bind(connection.installationId).first<{ account_id: number }>()
-  if (existing && existing.account_id !== accountId)
-    return { _tag: 'not-found' }
   const statements: D1PreparedStatement[] = [
     db.prepare(
       `INSERT INTO github_app_installations (
@@ -128,23 +129,32 @@ export async function connectGithubInstallation(
          connected_at, verified_at, revoked_at
        ) VALUES (?1, ?2, ?3, 'active', ?4, ?4, NULL)
        ON CONFLICT(installation_id) DO UPDATE SET
-         account_id = excluded.account_id,
          github_account_id = excluded.github_account_id,
          state = 'active',
          verified_at = excluded.verified_at,
-         revoked_at = NULL`,
+         revoked_at = NULL
+       WHERE github_app_installations.account_id = excluded.account_id`,
     ).bind(connection.installationId, accountId, connection.githubAccountId, now),
     db.prepare(
       `UPDATE github_app_repositories
        SET state = 'revoked', revoked_at = ?1
        WHERE installation_id = ?2
+         AND EXISTS (
+           SELECT 1 FROM github_app_installations
+           WHERE installation_id = ?2 AND account_id = ?3
+         )
          AND state = 'selected'`,
-    ).bind(now, connection.installationId),
+    ).bind(now, connection.installationId, accountId),
     ...repositories.map(repository => db.prepare(
       `INSERT INTO github_app_repositories (
          installation_id, repository_id, owner, repository,
          visibility, state, selected_at, revoked_at
-       ) VALUES (?1, ?2, ?3, ?4, 'private', 'selected', ?5, NULL)
+       )
+       SELECT ?1, ?2, ?3, ?4, 'private', 'selected', ?5, NULL
+       WHERE EXISTS (
+         SELECT 1 FROM github_app_installations
+         WHERE installation_id = ?1 AND account_id = ?6
+       )
        ON CONFLICT(installation_id, repository_id) DO UPDATE SET
          owner = excluded.owner,
          repository = excluded.repository,
@@ -158,9 +168,16 @@ export async function connectGithubInstallation(
       repository.owner.login,
       repository.name,
       now,
+      accountId,
     )),
   ]
   await db.batch(statements)
+  const owner = await db.prepare(
+    `SELECT account_id FROM github_app_installations
+     WHERE installation_id = ?1 LIMIT 1`,
+  ).bind(connection.installationId).first<{ account_id: number }>()
+  if (owner?.account_id !== accountId)
+    return { _tag: 'not-found' }
   return {
     _tag: 'connected',
     installationId: connection.installationId,
@@ -299,14 +316,16 @@ async function revokeRepositories(
 ): Promise<void> {
   if (repositoryIds.length === 0)
     return
-  for (const repositoryId of repositoryIds) {
+  for (let offset = 0; offset < repositoryIds.length; offset += 90) {
+    const chunk = repositoryIds.slice(offset, offset + 90)
+    const placeholders = chunk.map((_, index) => `?${index + 3}`).join(', ')
     await db.batch([
       db.prepare(
         `UPDATE github_app_repositories
          SET state = 'revoked', revoked_at = ?1
-         WHERE installation_id = ?2 AND repository_id = ?3`,
-      ).bind(now, installationId, repositoryId),
-      ...revocationStatements(db, installationId, repositoryId, now),
+         WHERE installation_id = ?2 AND repository_id IN (${placeholders})`,
+      ).bind(now, installationId, ...chunk),
+      ...revocationStatements(db, installationId, chunk, now),
     ])
   }
 }
@@ -314,11 +333,13 @@ async function revokeRepositories(
 function revocationStatements(
   db: D1Database,
   installationId: number,
-  repositoryId: number | null,
+  repositoryIds: number[] | null,
   now: number,
 ): D1PreparedStatement[] {
-  const repositoryClause = repositoryId === null ? '' : ' AND repository_id = ?3'
-  const values = repositoryId === null ? [now, installationId] : [now, installationId, repositoryId]
+  const repositoryClause = repositoryIds === null
+    ? ''
+    : ` AND repository_id IN (${repositoryIds.map((_, index) => `?${index + 3}`).join(', ')})`
+  const values = repositoryIds === null ? [now, installationId] : [now, installationId, ...repositoryIds]
   return [
     db.prepare(
       `UPDATE artifact_resolutions

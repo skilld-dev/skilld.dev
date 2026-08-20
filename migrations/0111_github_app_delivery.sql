@@ -1,5 +1,10 @@
 -- Private Repository access is bound to one skilld Account and one selected
 -- GitHub App installation. Revocation is represented in state, never deleted.
+ALTER TABLE users ADD COLUMN github_token_expires_at INTEGER;
+ALTER TABLE users ADD COLUMN github_refresh_token_encrypted TEXT;
+ALTER TABLE users ADD COLUMN github_refresh_token_expires_at INTEGER;
+ALTER TABLE users ADD COLUMN github_token_client_id TEXT;
+
 ALTER TABLE artifact_resolutions
 ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'
   CHECK (visibility IN ('public', 'private'));
@@ -91,6 +96,8 @@ ON private_artifact_attestations(account_id, artifact_id, created_at DESC);
 
 CREATE TABLE artifact_download_grants (
   token_hash TEXT PRIMARY KEY CHECK (length(token_hash) = 64),
+  request_key_hash TEXT,
+  request_fingerprint TEXT,
   account_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   artifact_id TEXT NOT NULL,
   resolution_id TEXT NOT NULL REFERENCES artifact_resolutions(id) ON DELETE CASCADE,
@@ -102,3 +109,7 @@ CREATE TABLE artifact_download_grants (
 
 CREATE INDEX idx_artifact_download_grants_access
 ON artifact_download_grants(account_id, artifact_id, expires_at, consumed_at, revoked_at);
+
+CREATE UNIQUE INDEX idx_artifact_download_grants_request_key
+ON artifact_download_grants(request_key_hash)
+WHERE request_key_hash IS NOT NULL;

@@ -3,7 +3,7 @@ import { resolveBearerSession } from '#layers/identity/server/utils/bearer'
 import { defineApiHandler } from '#shared/server/handler'
 import { artifactIdSchema } from '../../../../schemas/contracts'
 import { withArtifactProblems } from '../../../../utils/artifact-problem'
-import { createD1PrivateArtifactKeyProvider } from '../../../../utils/private-crypto'
+import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from '../../../../utils/private-crypto'
 import { redeemPrivateArtifactGrant } from '../../../../utils/private-grant'
 
 export default withArtifactProblems(defineApiHandler({
@@ -27,7 +27,7 @@ export default withArtifactProblems(defineApiHandler({
       bucket: platform.env.PRIVATE_ARTIFACTS,
       keys: createD1PrivateArtifactKeyProvider(
         platform.db,
-        platform.env.ARTIFACT_KEY_WRAP_KEY,
+        privateArtifactWrappingKeysFromEnv(platform.env),
       ),
       now: Math.floor(Date.now() / 1000),
     }, bearerUser.id, artifactId.data, grant)

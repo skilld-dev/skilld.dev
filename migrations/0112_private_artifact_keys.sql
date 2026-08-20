@@ -3,6 +3,7 @@ CREATE TABLE private_artifact_keys (
   account_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   key_id TEXT NOT NULL UNIQUE,
   wrapped_key TEXT NOT NULL,
+  wrap_key_id TEXT NOT NULL,
   wrap_algorithm TEXT NOT NULL CHECK (wrap_algorithm = 'A256KW'),
   state TEXT NOT NULL CHECK (state IN ('active', 'retired', 'revoked')),
   created_at INTEGER NOT NULL,

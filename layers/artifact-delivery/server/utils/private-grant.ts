@@ -4,7 +4,7 @@ import type { TrustedRoot } from './trusted-root'
 import { artifactAttestationSchema, checkResultSchema } from '../schemas/contracts'
 import { verifyArtifactAttestation } from './attestation'
 import { checksBlockArtifact } from './checks'
-import { bytesToBase64Url, digestHex } from './encoding'
+import { base64ToBytes, bytesToBase64Url, digestHex } from './encoding'
 import { decryptPrivateArtifact } from './private-crypto'
 
 const PRIVATE_GRANT_SECONDS = 60
@@ -44,12 +44,14 @@ export interface PrivateGrantDependencies {
   trustedRoot?: TrustedRoot
   verifyAttestation?: (attestation: ArtifactAttestation, now: number) => Promise<boolean>
   recheckAccess: (access: { installationId: number, repositoryId: number }) => Promise<boolean>
+  idempotencySecret: string
 }
 
 export async function createPrivateArtifactGrant(
   dependencies: PrivateGrantDependencies,
   accountId: number,
   artifactId: string,
+  idempotencyKey: string,
 ): Promise<PrivateGrantResult> {
   const row = await dependencies.db.prepare(
     `SELECT
@@ -112,15 +114,57 @@ export async function createPrivateArtifactGrant(
   if (!verified)
     return { _tag: 'denied', code: 'ATTESTATION_EXPIRED' }
 
-  const token = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)))
+  const token = await privateGrantToken(
+    dependencies.idempotencySecret,
+    accountId,
+    artifactId,
+    idempotencyKey,
+  )
   const tokenHash = await digestHex('SHA-256', token)
-  const expiresAt = dependencies.now + PRIVATE_GRANT_SECONDS
+  const requestKeyHash = await digestHex('SHA-256', `${accountId}\0${idempotencyKey}`)
+  const requestFingerprint = await digestHex('SHA-256', artifactId)
+  const requestedExpiresAt = dependencies.now + PRIVATE_GRANT_SECONDS
   await dependencies.db.prepare(
-    `INSERT INTO artifact_download_grants (
-       token_hash, account_id, artifact_id, resolution_id,
-       expires_at, created_at
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-  ).bind(tokenHash, accountId, artifactId, row.resolution_id, expiresAt, dependencies.now).run()
+    'DELETE FROM artifact_download_grants WHERE expires_at <= ?1',
+  ).bind(dependencies.now - 86_400).run()
+  await dependencies.db.prepare(
+    `INSERT OR IGNORE INTO artifact_download_grants (
+       token_hash, request_key_hash, request_fingerprint,
+       account_id, artifact_id, resolution_id, expires_at, created_at
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+  ).bind(
+    tokenHash,
+    requestKeyHash,
+    requestFingerprint,
+    accountId,
+    artifactId,
+    row.resolution_id,
+    requestedExpiresAt,
+    dependencies.now,
+  ).run()
+  const storedGrant = await dependencies.db.prepare(
+    `SELECT token_hash, request_fingerprint, account_id, artifact_id, resolution_id, expires_at
+     FROM artifact_download_grants
+     WHERE request_key_hash = ?1
+     LIMIT 1`,
+  ).bind(requestKeyHash).first<{
+    token_hash: string
+    request_fingerprint: string
+    account_id: number
+    artifact_id: string
+    resolution_id: string
+    expires_at: number
+  }>()
+  if (
+    !storedGrant
+    || storedGrant.token_hash !== tokenHash
+    || storedGrant.request_fingerprint !== requestFingerprint
+    || storedGrant.account_id !== accountId
+    || storedGrant.artifact_id !== artifactId
+    || storedGrant.resolution_id !== row.resolution_id
+  ) {
+    return { _tag: 'denied', code: 'INVALID_SOURCE' }
+  }
 
   const base = new URL(dependencies.contentBaseUrl)
   if (base.protocol !== 'https:')
@@ -136,10 +180,34 @@ export async function createPrivateArtifactGrant(
       artifactId,
       contentUrl,
       downloadToken: token,
-      expiresAt: new Date(expiresAt * 1000).toISOString(),
+      expiresAt: new Date(storedGrant.expires_at * 1000).toISOString(),
       attestation,
     },
   }
+}
+
+async function privateGrantToken(
+  encodedSecret: string,
+  accountId: number,
+  artifactId: string,
+  idempotencyKey: string,
+): Promise<string> {
+  if (idempotencyKey.length < 16 || idempotencyKey.length > 200)
+    throw new Error('Private Artifact idempotency key must contain 16 to 200 characters')
+  const secret = base64ToBytes(encodedSecret)
+  if (secret.byteLength !== 32 || bytesToBase64Url(secret) !== encodedSecret)
+    throw new Error('Private Artifact idempotency secret must be 32 canonical base64url bytes')
+  const key = await crypto.subtle.importKey(
+    'raw',
+    Uint8Array.from(secret).buffer,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const payload = new TextEncoder().encode(
+    `skilld-private-grant-v1\0${accountId}\0${artifactId}\0${idempotencyKey}`,
+  )
+  return bytesToBase64Url(new Uint8Array(await crypto.subtle.sign('HMAC', key, payload)))
 }
 
 export interface PrivateContentDependencies {

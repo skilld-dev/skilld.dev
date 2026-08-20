@@ -3,9 +3,13 @@ import type { ArtifactBuildDependencies } from './build'
 import { z } from 'zod'
 import { createArtifactSigner } from './attestation'
 import { failResolution, processArtifactBuild } from './build'
-import { createGithubAppClientFromEnv, loadAccountGithubUserToken } from './github-app'
+import {
+  createGithubAppClientFromEnv,
+  githubUserTokenDependenciesFromEnv,
+  loadAccountGithubUserToken,
+} from './github-app'
 import { createGithubSourceClient, createPublicGithubSourceClient } from './github-source'
-import { createD1PrivateArtifactKeyProvider } from './private-crypto'
+import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from './private-crypto'
 import { putPrivateArtifact } from './private-storage'
 import { getResolution } from './state'
 import { parseTrustedRoot } from './trusted-root'
@@ -64,7 +68,7 @@ export async function consumeArtifactBuildBatch(
 
 function defaultBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
   const githubApp = createGithubAppClientFromEnv(env)
-  const privateKeys = createD1PrivateArtifactKeyProvider(env.DB, env.ARTIFACT_KEY_WRAP_KEY)
+  const privateKeys = createD1PrivateArtifactKeyProvider(env.DB, privateArtifactWrappingKeysFromEnv(env))
   return {
     db: env.DB,
     github: createPublicGithubSourceClient({ fetch, token: env.GITHUB_TOKEN }),
@@ -89,7 +93,11 @@ function defaultBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencie
       }>()
       if (!access)
         return privateSourceNotFound()
-      const userToken = await loadAccountGithubUserToken(env.DB, access.account_id, env.NUXT_TOKEN_KEY)
+      const userToken = await loadAccountGithubUserToken(
+        env.DB,
+        access.account_id,
+        githubUserTokenDependenciesFromEnv(env),
+      )
       if (!userToken)
         return privateSourceNotFound()
       if (!await githubApp.userCanAccessRepository(

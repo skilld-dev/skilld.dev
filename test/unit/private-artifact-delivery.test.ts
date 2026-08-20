@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { bytesToBase64Url, digestHex } from '../../layers/artifact-delivery/server/utils/encoding'
 import {
+  canReadPrivateResolution,
   connectGithubInstallation,
   findPrivateRepositoryAccess,
   processGithubAppWebhook,
@@ -63,6 +64,29 @@ describe('private Artifact delivery', () => {
     fixture.close()
   })
 
+  it('does not transfer one installation between concurrent Accounts', async () => {
+    const fixture = await createFixture()
+    fixture.raw.exec('DELETE FROM github_app_repositories; DELETE FROM github_app_installations;')
+    const connection = {
+      installationId: INSTALLATION_ID,
+      githubAccountId: 501,
+      repositories: [{
+        id: REPOSITORY_ID,
+        name: 'private-skills',
+        private: true as const,
+        owner: { id: 501, login: 'acme' },
+      }],
+    }
+
+    const results = await Promise.all([
+      connectGithubInstallation(fixture.db, ACCOUNT_ONE, connection, NOW),
+      connectGithubInstallation(fixture.db, ACCOUNT_TWO, connection, NOW),
+    ])
+
+    expect(results.map(result => result._tag).sort()).toEqual(['connected', 'not-found'])
+    fixture.close()
+  })
+
   it('encrypts with an Account key and rejects changed ciphertext', async () => {
     const fixture = await createFixture()
     const encrypted = await encryptPrivateArtifact(fixture.keys, {
@@ -96,11 +120,46 @@ describe('private Artifact delivery', () => {
     fixture.close()
   })
 
+  it('rewraps Account keys without making old private Artifacts unreadable', async () => {
+    const fixture = await createFixture()
+    const oldMasterKey = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)))
+    const newMasterKey = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)))
+    const oldKeys = createD1PrivateArtifactKeyProvider(fixture.db, {
+      active: { id: 'wrap-1', key: oldMasterKey },
+    }, () => NOW)
+    const encrypted = await encryptPrivateArtifact(oldKeys, {
+      accountId: ACCOUNT_ONE,
+      artifactId: fixture.artifactId,
+      resolutionId: RESOLUTION_ID,
+      bytes: ARTIFACT_BYTES,
+    })
+    const rotatedKeys = createD1PrivateArtifactKeyProvider(fixture.db, {
+      active: { id: 'wrap-2', key: newMasterKey },
+      previous: { id: 'wrap-1', key: oldMasterKey },
+    }, () => NOW + 1)
+
+    const decrypted = await decryptPrivateArtifact(rotatedKeys, {
+      accountId: ACCOUNT_ONE,
+      artifactId: fixture.artifactId,
+      resolutionId: RESOLUTION_ID,
+      ciphertext: encrypted.ciphertext,
+      contentSha256: fixture.contentSha256,
+      contentBytes: ARTIFACT_BYTES.byteLength,
+      keyId: encrypted.keyId,
+    })
+
+    expect(decrypted).toEqual({ _tag: 'decrypted', bytes: ARTIFACT_BYTES })
+    expect(fixture.raw.prepare(
+      'SELECT wrap_key_id FROM private_artifact_keys WHERE account_id = ?',
+    ).get(ACCOUNT_ONE)).toEqual({ wrap_key_id: 'wrap-2' })
+    fixture.close()
+  })
+
   it('denies cross-Account grants with the same result as a missing Artifact', async () => {
     const fixture = await createReadyFixture()
 
-    const wrongAccount = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_TWO, fixture.artifactId)
-    const missing = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_TWO, `sha256:${'f'.repeat(64)}`)
+    const wrongAccount = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_TWO, fixture.artifactId, grantKey('wrong'))
+    const missing = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_TWO, `sha256:${'f'.repeat(64)}`, grantKey('missing'))
 
     expect(wrongAccount).toEqual({ _tag: 'not-found' })
     expect(missing).toEqual(wrongAccount)
@@ -109,7 +168,7 @@ describe('private Artifact delivery', () => {
 
   it('accepts one download within 60 seconds, then denies replay', async () => {
     const fixture = await createReadyFixture()
-    const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId)
+    const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId, grantKey('download'))
     if (grant._tag !== 'granted')
       throw new Error('Fixture did not create a grant')
 
@@ -122,9 +181,23 @@ describe('private Artifact delivery', () => {
     fixture.close()
   })
 
+  it('returns one private grant for an idempotent retry', async () => {
+    const fixture = await createReadyFixture()
+    const key = grantKey('retry')
+
+    const first = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId, key)
+    const second = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId, key)
+
+    expect(second).toEqual(first)
+    expect(fixture.raw.prepare(
+      'SELECT COUNT(*) AS count FROM artifact_download_grants',
+    ).get()).toEqual({ count: 1 })
+    fixture.close()
+  })
+
   it('denies expired grants before it reads R2', async () => {
     const fixture = await createReadyFixture()
-    const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId)
+    const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId, grantKey('expiry'))
     if (grant._tag !== 'granted')
       throw new Error('Fixture did not create a grant')
     fixture.contentDependencies.now = NOW + 61
@@ -141,7 +214,7 @@ describe('private Artifact delivery', () => {
 
   it('blocks grants and downloads after a Repository removal webhook', async () => {
     const fixture = await createReadyFixture()
-    const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId)
+    const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId, grantKey('revocation'))
     if (grant._tag !== 'granted')
       throw new Error('Fixture did not create a grant')
 
@@ -156,7 +229,7 @@ describe('private Artifact delivery', () => {
       now: NOW + 1,
     })
 
-    expect(await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId))
+    expect(await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId, grantKey('after-revocation')))
       .toEqual({ _tag: 'not-found' })
     expect(await redeemPrivateArtifactGrant(
       fixture.contentDependencies,
@@ -164,6 +237,53 @@ describe('private Artifact delivery', () => {
       fixture.artifactId,
       grant.grant.downloadToken,
     )).toEqual({ _tag: 'not-found' })
+    fixture.close()
+  })
+
+  it('revokes 500 removed Repositories within one D1 invocation budget', async () => {
+    const fixture = await createFixture({ maximumQueries: 1000 })
+    const repositories = Array.from({ length: 500 }, (_, index) => ({
+      id: REPOSITORY_ID + index,
+      name: `private-skills-${index}`,
+      private: true as const,
+      owner: { id: 501, login: 'acme' },
+    }))
+    await connectGithubInstallation(fixture.db, ACCOUNT_ONE, {
+      installationId: INSTALLATION_ID,
+      githubAccountId: 501,
+      repositories,
+    }, NOW)
+
+    const result = await processGithubAppWebhook(fixture.db, {
+      deliveryId: 'delivery-remove-500',
+      event: 'installation_repositories',
+      payload: {
+        action: 'removed',
+        installation: { id: INSTALLATION_ID },
+        repositories_removed: repositories.map(repository => ({ id: repository.id })),
+      },
+      now: NOW + 1,
+    })
+
+    expect(result).toEqual({ _tag: 'processed' })
+    expect(await findPrivateRepositoryAccess(
+      fixture.db,
+      ACCOUNT_ONE,
+      'acme',
+      'private-skills-499',
+    )).toEqual({ _tag: 'not-found' })
+    fixture.close()
+  })
+
+  it('rechecks live GitHub access before exposing private Resolution metadata', async () => {
+    const fixture = await createReadyFixture()
+
+    expect(await canReadPrivateResolution(
+      fixture.db,
+      ACCOUNT_ONE,
+      RESOLUTION_ID,
+      async () => false,
+    )).toBe(false)
     fixture.close()
   })
 
@@ -222,7 +342,7 @@ describe('private Artifact delivery', () => {
 
   it('rejects ciphertext metadata or bytes that change in R2', async () => {
     const fixture = await createReadyFixture({ mutateCiphertext: true })
-    const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId)
+    const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId, grantKey('ciphertext'))
     if (grant._tag !== 'granted')
       throw new Error('Fixture did not create a grant')
 
@@ -236,13 +356,13 @@ describe('private Artifact delivery', () => {
   })
 })
 
-async function createFixture() {
+async function createFixture(options: { maximumQueries?: number } = {}) {
   const sqlite = createSqliteD1([
     'migrations/0017_users.sql',
     'migrations/0110_artifact_delivery.sql',
     'migrations/0111_github_app_delivery.sql',
     'migrations/0112_private_artifact_keys.sql',
-  ])
+  ], options)
   insertUser(sqlite.raw, ACCOUNT_ONE, 101, 'one')
   insertUser(sqlite.raw, ACCOUNT_TWO, 102, 'two')
   sqlite.raw.prepare(
@@ -256,7 +376,9 @@ async function createFixture() {
      VALUES (?, ?, 'acme', 'private-skills', 'private', 'selected', ?)`,
   ).run(INSTALLATION_ID, REPOSITORY_ID, NOW)
   const masterKey = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)))
-  const keys = createD1PrivateArtifactKeyProvider(sqlite.db, masterKey, () => NOW)
+  const keys = createD1PrivateArtifactKeyProvider(sqlite.db, {
+    active: { id: 'wrap-fixture', key: masterKey },
+  }, () => NOW)
   const contentSha256 = await digestHex('SHA-256', ARTIFACT_BYTES)
   return {
     db: sqlite.db,
@@ -393,6 +515,7 @@ async function createReadyFixture(options: { mutateCiphertext?: boolean } = {}) 
       contentBaseUrl: 'https://skilld.dev',
       verifyAttestation: async () => true,
       recheckAccess: async () => true,
+      idempotencySecret: bytesToBase64Url(new Uint8Array(32).fill(7)),
     },
     contentDependencies: {
       db: fixture.db,
@@ -402,6 +525,10 @@ async function createReadyFixture(options: { mutateCiphertext?: boolean } = {}) 
     },
     bucketReads: () => reads,
   }
+}
+
+function grantKey(label: string): string {
+  return `private-grant-${label}-idempotency-key`
 }
 
 function insertUser(db: import('better-sqlite3').Database, id: number, githubId: number, login: string) {

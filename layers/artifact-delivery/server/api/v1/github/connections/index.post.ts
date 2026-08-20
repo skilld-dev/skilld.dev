@@ -6,6 +6,7 @@ import {
 } from '../../../../schemas/github-connections'
 import {
   createGithubAppClientFromEnv,
+  githubUserTokenDependenciesFromEnv,
   loadAccountGithubUserToken,
 } from '../../../../utils/github-app'
 import { connectGithubInstallation } from '../../../../utils/private-access'
@@ -19,7 +20,7 @@ export default defineApiHandler({
     const userToken = await loadAccountGithubUserToken(
       platform.db,
       accountId,
-      platform.env.NUXT_TOKEN_KEY,
+      githubUserTokenDependenciesFromEnv(platform.env),
     )
     if (!userToken)
       throw createError({ statusCode: 404, message: 'GitHub App installation not found' })

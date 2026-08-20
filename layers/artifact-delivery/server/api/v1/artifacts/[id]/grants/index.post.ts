@@ -4,6 +4,7 @@ import { artifactGrantSchema, artifactIdSchema } from '../../../../../schemas/co
 import { withArtifactProblems } from '../../../../../utils/artifact-problem'
 import {
   createGithubAppClientFromEnv,
+  githubUserTokenDependenciesFromEnv,
   loadAccountGithubUserToken,
 } from '../../../../../utils/github-app'
 import { createPublicArtifactGrant } from '../../../../../utils/grant'
@@ -49,7 +50,7 @@ export default withArtifactProblems(defineApiHandler({
     const userToken = await loadAccountGithubUserToken(
       platform.db,
       user.id,
-      platform.env.NUXT_TOKEN_KEY,
+      githubUserTokenDependenciesFromEnv(platform.env),
     )
     if (!userToken)
       throw createError({ statusCode: 404, message: 'Artifact not found' })
@@ -64,7 +65,8 @@ export default withArtifactProblems(defineApiHandler({
         access.installationId,
         access.repositoryId,
       ),
-    }, user.id, artifactId.data)
+      idempotencySecret: platform.env.ARTIFACT_GRANT_IDEMPOTENCY_KEY,
+    }, user.id, artifactId.data, idempotencyKey)
     if (privateResult._tag === 'not-found')
       throw createError({ statusCode: 404, message: 'Artifact not found' })
     if (privateResult._tag === 'denied') {

@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { bytesToBase64Url } from '../../layers/artifact-delivery/server/utils/encoding'
 import {
   createGithubAppClient,
+  loadAccountGithubUserToken,
   verifyGithubWebhookSignature,
 } from '../../layers/artifact-delivery/server/utils/github-app'
+import { decryptToken, encryptToken } from '../../layers/identity/server/utils/crypto'
+import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_787_227_200
 
@@ -96,6 +99,71 @@ describe('private GitHub App access', () => {
       token: 'ghs_installation_token_with_variable_length',
     })
     expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('refreshes an expired GitHub App user token and stores the rotated credentials', async () => {
+    const fixture = createSqliteD1([
+      'migrations/0017_users.sql',
+      'migrations/0110_artifact_delivery.sql',
+      'migrations/0111_github_app_delivery.sql',
+      'migrations/0112_private_artifact_keys.sql',
+    ])
+    const tokenKey = btoa(String.fromCharCode(...new Uint8Array(32).fill(4)))
+    const oldAccessToken = await encryptToken('old-access-token', tokenKey)
+    const oldRefreshToken = await encryptToken('old-refresh-token', tokenKey)
+    fixture.raw.prepare(
+      `INSERT INTO users (
+         id, github_id, login, github_token_encrypted,
+         github_token_expires_at, github_refresh_token_encrypted,
+         github_refresh_token_expires_at, github_token_client_id,
+         created_at, last_login_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      1,
+      101,
+      'octocat',
+      oldAccessToken,
+      NOW - 1,
+      oldRefreshToken,
+      NOW + 3600,
+      'Iv1.fixture',
+      NOW,
+      NOW,
+    )
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = new URLSearchParams(String(init?.body))
+      expect(body.get('client_id')).toBe('Iv1.fixture')
+      expect(body.get('client_secret')).toBe('fixture-secret')
+      expect(body.get('grant_type')).toBe('refresh_token')
+      expect(body.get('refresh_token')).toBe('old-refresh-token')
+      return Response.json({
+        access_token: 'new-access-token',
+        expires_in: 28_800,
+        refresh_token: 'new-refresh-token',
+        refresh_token_expires_in: 15_552_000,
+      })
+    })
+
+    const token = await loadAccountGithubUserToken(fixture.db, 1, {
+      tokenKey,
+      clientId: 'Iv1.fixture',
+      clientSecret: 'fixture-secret',
+      fetch: fetchMock as typeof fetch,
+      now: () => NOW,
+    })
+
+    expect(token).toBe('new-access-token')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const stored = fixture.raw.prepare(
+      `SELECT github_token_encrypted, github_token_expires_at,
+              github_refresh_token_encrypted, github_refresh_token_expires_at
+       FROM users WHERE id = 1`,
+    ).get() as Record<string, string | number>
+    expect(await decryptToken(String(stored.github_token_encrypted), tokenKey)).toBe('new-access-token')
+    expect(stored.github_token_expires_at).toBe(NOW + 28_800)
+    expect(await decryptToken(String(stored.github_refresh_token_encrypted), tokenKey)).toBe('new-refresh-token')
+    expect(stored.github_refresh_token_expires_at).toBe(NOW + 15_552_000)
+    fixture.close()
   })
 
   it('accepts the exact webhook bytes and rejects changed bytes', async () => {

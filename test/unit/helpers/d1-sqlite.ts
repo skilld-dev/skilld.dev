@@ -34,8 +34,12 @@ export function allMigrations(): string[] {
     .map(name => `migrations/${name}`)
 }
 
-export function createSqliteD1(migrationPaths: string[]): SqliteD1 {
+export function createSqliteD1(
+  migrationPaths: string[],
+  options: { maximumQueries?: number } = {},
+): SqliteD1 {
   const raw = new DatabaseSync(':memory:')
+  let queryCount = 0
   for (const path of migrationPaths)
     raw.exec(readFileSync(path, 'utf8'))
 
@@ -56,12 +60,15 @@ export function createSqliteD1(migrationPaths: string[]): SqliteD1 {
     const bound = values.map(v => (v === undefined ? null : v)) as never[]
     return {
       async first<T>(): Promise<T | null> {
+        countQueries(1)
         return (raw.prepare(sql).get(...bound) as T | undefined) ?? null
       },
       async all<T>(): Promise<{ results: T[] }> {
+        countQueries(1)
         return { results: raw.prepare(sql).all(...bound) as T[] }
       },
       async run() {
+        countQueries(1)
         const result = raw.prepare(sql).run(...bound)
         return { meta: { changes: Number(result.changes), last_row_id: Number(result.lastInsertRowid) } }
       },
@@ -79,6 +86,7 @@ export function createSqliteD1(migrationPaths: string[]): SqliteD1 {
       }
     },
     async batch(statements: Array<{ _sql: string, _values: never[] }>) {
+      countQueries(statements.length)
       // D1 runs a batch in an implicit transaction; matching that here means a
       // test sees the same all-or-nothing behaviour as production.
       raw.exec('BEGIN')
@@ -96,6 +104,12 @@ export function createSqliteD1(migrationPaths: string[]): SqliteD1 {
       }
     },
   } as unknown as D1Database
+
+  function countQueries(count: number): void {
+    queryCount += count
+    if (options.maximumQueries !== undefined && queryCount > options.maximumQueries)
+      throw new Error(`D1 query budget exceeded: ${queryCount} > ${options.maximumQueries}`)
+  }
 
   return { db, raw, close: () => raw.close() }
 }
