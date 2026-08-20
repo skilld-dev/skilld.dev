@@ -878,6 +878,7 @@ export async function syncRepo(
       statements.push(db.prepare(
         `UPDATE skills
          SET source_resolved = 0,
+             sync_status = 'path_missing',
              seo_indexable = 0,
              seo_index_score = MIN(seo_index_score, 0),
              seo_index_reasons = '["source_missing"]',
@@ -1385,6 +1386,7 @@ export async function syncRepo(
       finalWrites.push(db.prepare(
         `UPDATE skills
            SET source_resolved = 0,
+               sync_status = 'path_missing',
                seo_indexable = 0,
                seo_index_score = MIN(seo_index_score, 0),
                seo_index_reasons = '["source_missing"]',

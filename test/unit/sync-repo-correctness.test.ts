@@ -422,6 +422,27 @@ describe('syncRepo content acknowledgement', () => {
     expect(sqlite.prepare(`SELECT reason FROM skill_dirty`).pluck().all()).toEqual(['references_changed'])
   })
 
+  // The sweep quarantined a removed skill but left `sync_status = 'ok'`, and
+  // `recompute-scores` derives `source_resolved` from that column, so every
+  // dirty-queue tick resurrected it. 342 removed skills were serving 200.
+  it('records why a swept skill is unresolved so the recompute cannot undo it', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    insertSkill(sqlite, 'two', 'two-old')
+    setRendered(sqlite, 'one', 'skills/one/SKILL.md')
+    setRendered(sqlite, 'two', 'skills/two/SKILL.md')
+    github.getTree.mockResolvedValue(tree([{ path: 'skills/one/SKILL.md', sha: 'one-old' }]))
+
+    await syncRepo('acme', 'skills', {}, db)
+
+    expect(sqlite.prepare(
+      `SELECT name, source_resolved, sync_status FROM skills ORDER BY name`,
+    ).all()).toEqual([
+      { name: 'one', source_resolved: 1, sync_status: 'ok' },
+      { name: 'two', source_resolved: 0, sync_status: 'path_missing' },
+    ])
+  })
+
   it('refreshes the repository description when its skill tree is unchanged', async () => {
     insertRepo(sqlite, 'new-tree')
     insertSkill(sqlite, 'one', 'one-old')
