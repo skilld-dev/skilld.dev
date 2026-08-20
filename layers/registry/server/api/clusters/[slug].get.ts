@@ -1,7 +1,7 @@
 import type { Cluster } from '../../data/clusters'
 import { getDB } from '#server/utils/db'
 import { CLUSTER_BY_SLUG } from '../../data/clusters'
-import { clusterMembersSql } from '../../utils/cluster-membership'
+import { clusterPageSql } from '../../utils/cluster-membership'
 import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
 
 function clusterMeta(cluster: Cluster) {
@@ -57,33 +57,20 @@ export default defineCachedEventHandler(async (event) => {
   }
 
   // Membership is abstract-first with a capped backfill; see cluster-membership.
-  const members = clusterMembersSql(
+  const statements = clusterPageSql(
     'owner, name, repo, display_name, description, stars, modified_at, is_abstract',
     cluster.categories,
-    pinnedSkills.map(skill => skill.key),
+    pinnedSkills,
+    { limit, offset },
   )
 
-  const countRow = await db.prepare(`SELECT COUNT(*) AS n FROM (${members.sql})`)
-    .bind(...members.params)
+  const countRow = await db.prepare(statements.countSql)
+    .bind(...statements.countParams)
     .first<{ n: number }>()
   const total = countRow?.n ?? 0
 
-  // `CASE` with no `WHEN` is a syntax error, so a category that ranks purely on
-  // stars drops the pinned-order arm rather than emitting an empty CASE.
-  const pinnedOrderSql = pinnedSkills.length
-    ? `CASE
-      ${pinnedSkills.map((_, index) => `WHEN owner = ? AND name = ? THEN ${index}`).join('\n')}
-      ELSE ${pinnedSkills.length}
-    END,`
-    : ''
-  const pinnedOrderParams = pinnedSkills.flatMap(skill => [skill.owner, skill.name])
-  const listSql = `
-    SELECT * FROM (${members.sql})
-    ORDER BY ${pinnedOrderSql} is_abstract DESC, stars DESC, modified_at DESC, name ASC
-    LIMIT ? OFFSET ?
-  `
-  const res = await db.prepare(listSql)
-    .bind(...members.params, ...pinnedOrderParams, limit, offset)
+  const res = await db.prepare(statements.listSql)
+    .bind(...statements.listParams)
     .all<SkillRow>()
 
   const rankedItems = (res.results ?? []).map(s => ({

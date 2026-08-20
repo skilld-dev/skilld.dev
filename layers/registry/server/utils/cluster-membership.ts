@@ -20,6 +20,11 @@
  * clear the indexability bar.
  */
 
+import type { ParsedClusterSkillKey } from './cluster-skill-curation'
+
+/** D1 rejects a statement that binds more than this many parameters. */
+export const D1_BOUND_PARAMETER_LIMIT = 100
+
 /** Backfill depth per classifier category, not per track. */
 export const CLUSTER_BACKFILL_PER_CATEGORY = 40
 
@@ -112,4 +117,58 @@ export function clusterMembersSql(
   `
 
   return { sql, params }
+}
+
+export interface ClusterPageWindow {
+  limit: number
+  offset: number
+}
+
+export interface ClusterPageSql {
+  countSql: string
+  countParams: (string | number)[]
+  listSql: string
+  listParams: (string | number)[]
+}
+
+/**
+ * The two statements one `/skills/<slug>` page sends.
+ *
+ * They live here rather than in the route because the membership fragment is
+ * not what D1 counts. A pinned key is bound once in the SELECT `CASE`, once in
+ * the WHERE arm, and twice more in the ORDER BY `CASE`, so a guard on the
+ * fragment reads a quarter of the real parameter count.
+ */
+export function clusterPageSql(
+  columns: string,
+  categories: string[],
+  pinnedSkills: ParsedClusterSkillKey[],
+  pageWindow: ClusterPageWindow,
+): ClusterPageSql {
+  const members = clusterMembersSql(columns, categories, pinnedSkills.map(skill => skill.key))
+
+  // `CASE` with no `WHEN` is a syntax error, so a category that ranks purely on
+  // stars drops the pinned-order arm rather than emitting an empty CASE.
+  const pinnedOrderSql = pinnedSkills.length
+    ? `CASE
+      ${pinnedSkills.map((_, index) => `WHEN owner = ? AND name = ? THEN ${index}`).join('\n')}
+      ELSE ${pinnedSkills.length}
+    END,`
+    : ''
+
+  return {
+    countSql: `SELECT COUNT(*) AS n FROM (${members.sql})`,
+    countParams: [...members.params],
+    listSql: `
+    SELECT * FROM (${members.sql})
+    ORDER BY ${pinnedOrderSql} is_abstract DESC, stars DESC, modified_at DESC, name ASC
+    LIMIT ? OFFSET ?
+  `,
+    listParams: [
+      ...members.params,
+      ...pinnedSkills.flatMap(skill => [skill.owner, skill.name]),
+      pageWindow.limit,
+      pageWindow.offset,
+    ],
+  }
 }
