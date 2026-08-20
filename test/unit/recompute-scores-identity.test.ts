@@ -86,7 +86,9 @@ describe('score recomputation identity and source health', () => {
         ('acme', 'broken', 'broken-skill', 'acme/broken/broken-skill', 2000, 'Broken', 'sha-broken', 'ok',
          1, 0, 0, 20, 1, 'trusted', 'computed'),
         ('acme', 'missing', 'missing-skill', 'acme/missing/missing-skill', 2000, 'Missing', 'sha-missing', 'repo_missing',
-         1, 0, 0, 20, 1, 'trusted', 'computed');
+         1, 0, 0, 20, 1, 'trusted', 'computed'),
+        ('acme', 'one', 'deleted-skill', 'acme/one/deleted-skill', 2000, 'Deleted', 'sha-deleted', 'path_missing',
+         0, 0, 0, 0, 0, 'quarantined', 'computed');
       INSERT INTO collections_v2 (id, deleted_at) VALUES (1, NULL);
       INSERT INTO collection_skills_v2 (collection_id, owner, repo, name, reason)
       VALUES (1, 'acme', 'one', 'shared', 'A reason long enough to count for scoring.');
@@ -129,6 +131,22 @@ describe('score recomputation identity and source health', () => {
     expect(readSkill('two', 'shared')).toMatchObject({
       curator_count: 0,
       curator_reason_count: 0,
+    })
+  })
+
+  // The repo sweep quarantines a skill whose SKILL.md was deleted while the
+  // repository itself is fine. Deriving `source_resolved` from repo facts alone
+  // resurrected it within five minutes, so 342 removed skills served 200.
+  it('leaves a skill unresolved when only its file is gone', async () => {
+    await recomputeIndexabilityForSkill(db, {
+      owner: 'acme',
+      repo: 'one',
+      name: 'deleted-skill',
+    })
+
+    expect(readSkill('one', 'deleted-skill')).toMatchObject({
+      source_resolved: 0,
+      seo_indexable: 0,
     })
   })
 

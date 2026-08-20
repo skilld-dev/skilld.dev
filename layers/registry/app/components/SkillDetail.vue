@@ -1259,17 +1259,27 @@ useHead(computed(() => ({
                 <p class="mt-1 text-muted">
                   {{ sourceUnavailableDetail }}
                 </p>
-                <UButton
-                  :href="data.githubUrl"
-                  target="_blank"
-                  rel="noopener"
-                  label="Browse repository"
-                  icon="i-simple-icons-github"
-                  size="xs"
-                  color="neutral"
-                  variant="outline"
-                  class="mt-3"
-                />
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <UButton
+                    v-if="data.sourceGone"
+                    :to="repoHubPath(data.owner, data.repo)"
+                    :label="`Skills still live in ${data.owner}/${data.repo}`"
+                    icon="i-lucide-arrow-right"
+                    trailing
+                    size="xs"
+                    color="neutral"
+                  />
+                  <UButton
+                    :href="data.githubUrl"
+                    target="_blank"
+                    rel="noopener"
+                    label="Browse repository"
+                    icon="i-simple-icons-github"
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                  />
+                </div>
               </div>
             </div>
           </section>
