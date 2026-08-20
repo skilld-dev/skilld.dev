@@ -4,6 +4,11 @@ export interface ObservedSchedulePolicy {
   cron: string
   maxSilenceSeconds: number
   maxRuntimeSeconds: number
+  /**
+   * Epoch second the task entered the policy. A task added between two fires has
+   * no run history yet, which is not the same fault as a task whose trigger died.
+   */
+  activeFromSeconds?: number
 }
 
 export interface ExemptSchedulePolicy {
@@ -62,7 +67,7 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'refresh-x-engagement', cron: '10 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'reconcile-rendered', cron: '20 */6 * * *', maxSilenceSeconds: 15 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'send-digests', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
-  { _tag: 'observed', taskName: 'send-weekly', cron: '0 9 * * 1', maxSilenceSeconds: 8 * 24 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
+  { _tag: 'observed', taskName: 'send-weekly', cron: '0 9 * * 1', maxSilenceSeconds: 8 * 24 * 60 * 60, maxRuntimeSeconds: 50 * 60, activeFromSeconds: 1787097600 },
   // Two-hourly, so six hours of silence is a real outage rather than a quiet
   // stretch. Runtime is generous because throttle backoff can stretch a run.
   { _tag: 'observed', taskName: 'sync-bsky-mentions', cron: '17 */2 * * *', maxSilenceSeconds: 6 * 60 * 60, maxRuntimeSeconds: 10 * 60 },
@@ -95,8 +100,14 @@ export function evaluateScheduleHealth(
   if (policy._tag === 'exempt')
     return { _tag: 'exempt', alertable: false, reason: policy.reason }
   const { latest, latestTerminal } = history
-  if (!latest)
+  if (!latest) {
+    const dueBy = policy.activeFromSeconds === undefined
+      ? null
+      : policy.activeFromSeconds + policy.maxSilenceSeconds
+    if (dueBy !== null && nowSeconds <= dueBy)
+      return { _tag: 'healthy', alertable: false }
     return { _tag: 'missing_run', alertable: true }
+  }
   if (latest.status === 'started') {
     if (latest.expiresAt <= nowSeconds) {
       return {
