@@ -1,4 +1,4 @@
-# ADR 0005: v3 skilld CLI, Harness, and Artifact delivery
+# ADR 0005: v3 skilld CLI, `@skilld/harness`, and Artifact delivery
 
 Date: 2026-08-20
 
