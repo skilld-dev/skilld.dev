@@ -63,10 +63,10 @@ export const artifactFileSchema = z.object({
 export const attestationSignatureSchema = z.object({
   algorithm: z.literal('Ed25519'),
   keyId: z.string().min(1).max(100),
-  value: z.string().min(86).max(88),
+  value: z.string().min(86).max(88).regex(/^[\w-]+$/),
 }).strict()
 
-export const artifactAttestationSchema = z.object({
+export const artifactAttestationStatementSchema = z.object({
   version: z.literal(1),
   artifactId: artifactIdSchema,
   createdAt: z.string().datetime(),
@@ -78,10 +78,12 @@ export const artifactAttestationSchema = z.object({
   policyVersion: z.string().min(1).max(100),
   files: z.array(artifactFileSchema).min(1).max(2000),
   checkResults: z.array(checkResultSchema).min(1).max(100),
-  signature: attestationSignatureSchema,
 }).strict()
 
-export const artifactAttestationStatementSchema = artifactAttestationSchema.omit({ signature: true })
+export const artifactAttestationSchema = artifactAttestationStatementSchema.extend({
+  statement: z.string().min(2).max(8_388_608).regex(/^[\w-]+$/),
+  signature: attestationSignatureSchema,
+}).strict()
 
 export const artifactDescriptorSchema = z.object({
   artifactId: artifactIdSchema,
@@ -170,17 +172,17 @@ export const publicArtifactGrantSchema = z.object({
 export const trustedKeySchema = z.object({
   keyId: z.string().min(1).max(100),
   algorithm: z.literal('Ed25519'),
-  publicKey: z.string().min(43).max(44),
+  publicKey: z.string().min(43).max(44).regex(/^[\w-]+$/),
   notBefore: z.string().datetime(),
   notAfter: z.string().datetime(),
   status: z.enum(['active', 'overlapping', 'retired', 'revoked']),
-  rootSignature: z.string().min(86).max(88).optional(),
+  rootSignature: z.string().min(86).max(88).regex(/^[\w-]+$/).optional(),
 }).strict()
 
 export const trustedRootConfigSchema = z.object({
   version: z.literal(1),
   rootKeyId: z.string().min(1).max(100),
-  rootPublicKey: z.string().min(43).max(44),
+  rootPublicKey: z.string().min(43).max(44).regex(/^[\w-]+$/),
   keys: z.array(trustedKeySchema).min(1),
 }).strict()
 
@@ -192,6 +194,7 @@ export type SourceRequest = z.infer<typeof sourceRequestSchema>
 export type ResolvedSource = z.infer<typeof resolvedSourceSchema>
 export type CheckResult = z.infer<typeof checkResultSchema>
 export type ArtifactFile = z.infer<typeof artifactFileSchema>
+export type ArtifactAttestationStatement = z.infer<typeof artifactAttestationStatementSchema>
 export type ArtifactAttestation = z.infer<typeof artifactAttestationSchema>
 export type ResolutionResponse = z.infer<typeof resolutionSchema>
 export type ProblemCode = z.infer<typeof problemCodeSchema>

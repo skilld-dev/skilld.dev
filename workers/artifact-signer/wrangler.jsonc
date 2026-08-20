@@ -1,0 +1,48 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "skilld-artifact-signer",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "account_id": "5904138d55ca25d5670dca6adf99894e",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "skilld-db",
+      "database_id": "a5e53f35-f5e5-4987-8c67-c0175addc7cc"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PUBLIC_ARTIFACTS",
+      "bucket_name": "skilld-public-artifacts"
+    }
+  ],
+  "vars": {
+    "ARTIFACT_SIGNING_KEY_ID": "skilld-production-2026-08",
+    "ARTIFACT_SIGNING_KEY_NOT_BEFORE": "2026-08-20T00:00:00.000Z",
+    "ARTIFACT_SIGNING_KEY_NOT_AFTER": "2026-11-20T00:00:00.000Z",
+    "ARTIFACT_SIGNING_MAX_AGE_SECONDS": "300"
+  },
+  "limits": {
+    "cpu_ms": 30000
+  },
+  "placement": {
+    "mode": "smart"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01
+    }
+  },
+  "routes": []
+}

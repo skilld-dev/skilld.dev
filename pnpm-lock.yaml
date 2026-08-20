@@ -389,6 +389,28 @@ importers:
         specifier: 'catalog:'
         version: 4.124.0(@cloudflare/workers-types@5.20260820.1)
 
+  workers/artifact-signer:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 'catalog:'
+        version: 5.20260820.1
+      eslint:
+        specifier: 'catalog:'
+        version: 10.8.1(jiti@2.7.0)(supports-color@10.2.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(esbuild@0.28.2)(happy-dom@20.11.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0)
+      wrangler:
+        specifier: 'catalog:'
+        version: 4.124.0(@cloudflare/workers-types@5.20260820.1)
+
 packages:
 
   '@adonisjs/hash@9.1.1':

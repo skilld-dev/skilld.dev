@@ -10,8 +10,8 @@ import { createArtifactProblem } from '../../layers/artifact-delivery/server/uti
 import { putImmutableArtifact } from '../../layers/artifact-delivery/server/utils/artifact-storage'
 import {
   createArtifactSigner,
-  encodeAttestationStatement,
-  verifyAttestationSignature,
+  createAttestationSignaturePayload,
+  verifyArtifactAttestation,
 } from '../../layers/artifact-delivery/server/utils/attestation'
 import { processArtifactBuild } from '../../layers/artifact-delivery/server/utils/build'
 import { checksBlockArtifact } from '../../layers/artifact-delivery/server/utils/checks'
@@ -126,9 +126,9 @@ describe('public Artifact delivery', () => {
       attestation_json: string
     }
     const attestation = artifactAttestationSchema.parse(JSON.parse(stored.attestation_json))
-    const { signature: _signature, ...statement } = attestation
     const signature = base64ToBytes(attestation.signature.value)
     const exactBytes = new TextEncoder().encode(stored.attestation_statement_json)
+    const signedPayload = await createAttestationSignaturePayload(exactBytes)
     const wrongKeyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
     const wrongPublicKey = bytesToBase64Url(
       new Uint8Array(await crypto.subtle.exportKey('raw', wrongKeyPair.publicKey)),
@@ -138,21 +138,29 @@ describe('public Artifact delivery', () => {
       keys: harness.dependencies.trustedRoot.keys.map(key => ({ ...key, publicKey: wrongPublicKey })),
     }
 
-    expect(await crypto.subtle.verify('Ed25519', harness.publicKey, signature, exactBytes)).toBe(true)
-    expect(stored.attestation_statement_json).toBe(encodeAttestationStatement(statement))
-    expect(await verifyAttestationSignature(
-      statement,
-      attestation.signature,
-      harness.dependencies.trustedRoot,
-      NOW,
-    )).toBe(true)
-    expect(await verifyAttestationSignature(
-      { ...statement, contentBytes: statement.contentBytes + 1 },
-      attestation.signature,
+    expect(await crypto.subtle.verify('Ed25519', harness.publicKey, signature, signedPayload)).toBe(true)
+    expect(new TextDecoder().decode(base64ToBytes(attestation.statement))).toBe(stored.attestation_statement_json)
+    expect(await verifyArtifactAttestation(attestation, harness.dependencies.trustedRoot, NOW)).toBe(true)
+    expect(await verifyArtifactAttestation(
+      { ...attestation, contentBytes: attestation.contentBytes + 1 },
       harness.dependencies.trustedRoot,
       NOW,
     )).toBe(false)
-    expect(await verifyAttestationSignature(statement, attestation.signature, wrongRoot, NOW)).toBe(false)
+    expect(await verifyArtifactAttestation(attestation, wrongRoot, NOW)).toBe(false)
+
+    const changedRawBytes = new TextEncoder().encode(`${stored.attestation_statement_json}\n`)
+    expect(await verifyArtifactAttestation({
+      ...attestation,
+      statement: bytesToBase64Url(changedRawBytes),
+    }, harness.dependencies.trustedRoot, NOW)).toBe(false)
+    expect(await verifyArtifactAttestation({
+      ...attestation,
+      statement: '_w',
+    }, harness.dependencies.trustedRoot, NOW)).toBe(false)
+    expect(await verifyArtifactAttestation({
+      ...attestation,
+      signature: { ...attestation.signature, value: 'A'.repeat(88) },
+    }, harness.dependencies.trustedRoot, NOW)).toBe(false)
     harness.close()
   })
 
@@ -484,7 +492,7 @@ async function createBuildHarness(files: ArtifactSourceFile[]) {
     const signature = await crypto.subtle.sign(
       'Ed25519',
       keyPair.privateKey,
-      new TextEncoder().encode(staged.attestation_statement_json),
+      await createAttestationSignaturePayload(new TextEncoder().encode(staged.attestation_statement_json)),
     )
     return {
       algorithm: 'Ed25519' as const,

@@ -152,9 +152,14 @@ export function checksBlockArtifact(checks: CheckResult[]): boolean {
   return checks.some(check => check.required && (check.outcome === 'fail' || check.outcome === 'error'))
 }
 
+export function checksPermitSigning(checks: CheckResult[]): boolean {
+  return !checksBlockArtifact(checks)
+    && checks.every(check => !check.required || check.outcome === 'pass')
+}
+
 function decodeText(bytes: Uint8Array): string | null {
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes)
   }
   catch {
     // Invalid UTF-8 is an expected check result.

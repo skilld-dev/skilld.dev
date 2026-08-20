@@ -4,7 +4,7 @@ import type {
   ResolvedSource,
   SourceRequest,
 } from '../schemas/contracts'
-import type { ArtifactAttestationStatement, ArtifactSigner } from './attestation'
+import type { ArtifactSigner } from './attestation'
 import type { CheckedArtifactSource } from './checks'
 import type { ArtifactSourceFile, PublicGithubSourceClient, SourceRejection } from './github-source'
 import type { ResolutionRow } from './state'
@@ -20,7 +20,7 @@ import {
   completeAttestation,
   createAttestationStatement,
   encodeAttestationStatement,
-  verifyAttestationSignature,
+  verifyArtifactAttestation,
 } from './attestation'
 import { checkArtifactSource, checksBlockArtifact } from './checks'
 import { digestHex } from './encoding'
@@ -172,14 +172,14 @@ export async function processArtifactBuild(
         continue
       }
 
-      const statement = artifactAttestationStatementSchema.parse(JSON.parse(row.attestation_statement_json)) as ArtifactAttestationStatement
+      artifactAttestationStatementSchema.parse(JSON.parse(row.attestation_statement_json))
       const signature = await dependencies.signer.sign({
         resolutionId: row.id,
         artifactId: row.artifact_id,
       })
-      if (!await verifyAttestationSignature(statement, signature, dependencies.trustedRoot, now))
+      const attestation = artifactAttestationSchema.parse(completeAttestation(row.attestation_statement_json, signature))
+      if (!await verifyArtifactAttestation(attestation, dependencies.trustedRoot, now))
         throw new Error('Artifact signer returned an invalid signature')
-      const attestation = artifactAttestationSchema.parse(completeAttestation(statement, signature))
       const advanced = await transitionResolution(dependencies.db, row, 'publishing', {
         attestationJson: JSON.stringify(attestation),
       }, now)

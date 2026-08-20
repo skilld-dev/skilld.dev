@@ -1,5 +1,6 @@
 import type {
   ArtifactAttestation,
+  ArtifactAttestationStatement,
   ArtifactFile,
   attestationSignatureSchema,
   CheckResult,
@@ -7,22 +8,9 @@ import type {
 } from '../schemas/contracts'
 import type { TrustedRoot } from './trusted-root'
 import { z } from 'zod'
-import { base64ToBytes, canonicalJson } from './encoding'
+import { artifactAttestationStatementSchema } from '../schemas/contracts'
+import { base64ToBytes, bytesToBase64Url, canonicalJson } from './encoding'
 import { ARTIFACT_POLICY_VERSION } from './state'
-
-export interface ArtifactAttestationStatement {
-  version: 1
-  artifactId: string
-  createdAt: string
-  source: ResolvedSource
-  sourceStatus: 'verified'
-  format: 'skilld-tar-v1'
-  contentSha256: string
-  contentBytes: number
-  policyVersion: string
-  files: ArtifactFile[]
-  checkResults: CheckResult[]
-}
 
 export interface ArtifactSigner {
   sign: (input: { resolutionId: string, artifactId: string }) => Promise<z.infer<typeof attestationSignatureSchema>>
@@ -31,9 +19,10 @@ export interface ArtifactSigner {
 const signerResponseSchema = z.object({
   algorithm: z.literal('Ed25519'),
   keyId: z.string().min(1).max(100),
-  value: z.string().min(86).max(88),
+  value: z.string().min(86).max(88).regex(/^[\w-]+$/),
 }).strict()
 const MAX_SIGNER_RESPONSE_BYTES = 8192
+const ATTESTATION_SIGNATURE_DOMAIN = new TextEncoder().encode('skilld-attestation-v1\0')
 
 export function createAttestationStatement(input: {
   artifactId: string
@@ -64,14 +53,28 @@ export function encodeAttestationStatement(statement: ArtifactAttestationStateme
 }
 
 export function completeAttestation(
-  statement: ArtifactAttestationStatement,
+  rawStatement: string,
   signature: z.infer<typeof attestationSignatureSchema>,
 ): ArtifactAttestation {
-  return { ...statement, signature }
+  const statementBytes = new TextEncoder().encode(rawStatement)
+  const statement = artifactAttestationStatementSchema.parse(JSON.parse(rawStatement))
+  return {
+    ...statement,
+    statement: bytesToBase64Url(statementBytes),
+    signature,
+  }
+}
+
+export async function createAttestationSignaturePayload(statementBytes: Uint8Array): Promise<Uint8Array> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(statementBytes).buffer))
+  const payload = new Uint8Array(ATTESTATION_SIGNATURE_DOMAIN.byteLength + digest.byteLength)
+  payload.set(ATTESTATION_SIGNATURE_DOMAIN)
+  payload.set(digest, ATTESTATION_SIGNATURE_DOMAIN.byteLength)
+  return payload
 }
 
 export async function verifyAttestationSignature(
-  statement: ArtifactAttestationStatement,
+  statementBytes: Uint8Array,
   signature: z.infer<typeof attestationSignatureSchema>,
   trustedRoot: TrustedRoot,
   now: number,
@@ -81,19 +84,49 @@ export async function verifyAttestationSignature(
     return false
   if (now < Date.parse(trustedKey.notBefore) / 1000 || now >= Date.parse(trustedKey.notAfter) / 1000)
     return false
-  const publicKey = await crypto.subtle.importKey(
+  const publicKeyBytes = decodeCanonicalBase64Url(trustedKey.publicKey)
+  const signatureBytes = decodeCanonicalBase64Url(signature.value)
+  if (!publicKeyBytes || !signatureBytes)
+    return false
+  const imported = await crypto.subtle.importKey(
     'raw',
-    Uint8Array.from(base64ToBytes(trustedKey.publicKey)).buffer,
+    Uint8Array.from(publicKeyBytes).buffer,
     'Ed25519',
     false,
     ['verify'],
-  )
-  return await crypto.subtle.verify(
+  ).then(key => ({ _tag: 'imported' as const, key })).catch(() => ({ _tag: 'invalid' as const }))
+  if (imported._tag === 'invalid')
+    return false
+  const verified = await crypto.subtle.verify(
     'Ed25519',
-    publicKey,
-    Uint8Array.from(base64ToBytes(signature.value)).buffer,
-    new TextEncoder().encode(encodeAttestationStatement(statement)),
-  )
+    imported.key,
+    Uint8Array.from(signatureBytes).buffer,
+    Uint8Array.from(await createAttestationSignaturePayload(statementBytes)).buffer,
+  ).then(valid => ({ _tag: 'verified' as const, valid })).catch(() => ({ _tag: 'invalid' as const }))
+  return verified._tag === 'verified' && verified.valid
+}
+
+export async function verifyArtifactAttestation(
+  attestation: ArtifactAttestation,
+  trustedRoot: TrustedRoot,
+  now: number,
+): Promise<boolean> {
+  const statementBytes = decodeCanonicalBase64Url(attestation.statement)
+  if (!statementBytes)
+    return false
+
+  const rawStatement = decodeUtf8(statementBytes)
+  if (rawStatement === null)
+    return false
+  const statementValue = parseJson(rawStatement)
+  const parsed = artifactAttestationStatementSchema.safeParse(statementValue)
+  if (!parsed.success)
+    return false
+
+  const { statement: _statement, signature, ...outerStatement } = attestation
+  if (canonicalJson(parsed.data) !== canonicalJson(outerStatement))
+    return false
+  return await verifyAttestationSignature(statementBytes, signature, trustedRoot, now)
 }
 
 /**
@@ -145,4 +178,32 @@ async function readBoundedJson(response: Response, maximumBytes: number): Promis
     offset += chunk.byteLength
   }
   return JSON.parse(new TextDecoder().decode(bytes)) as unknown
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown
+  }
+  catch {
+    return undefined
+  }
+}
+
+function decodeUtf8(bytes: Uint8Array): string | null {
+  try {
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes)
+  }
+  catch {
+    return null
+  }
+}
+
+function decodeCanonicalBase64Url(value: string): Uint8Array | null {
+  try {
+    const bytes = base64ToBytes(value)
+    return bytesToBase64Url(bytes) === value ? bytes : null
+  }
+  catch {
+    return null
+  }
 }

@@ -2,7 +2,7 @@ import type { ArtifactAttestation, ProblemCode } from '../schemas/contracts'
 import type { TrustedRoot } from './trusted-root'
 import { artifactAttestationSchema, checkResultSchema } from '../schemas/contracts'
 import { artifactR2Key } from './artifact-storage'
-import { verifyAttestationSignature } from './attestation'
+import { verifyArtifactAttestation } from './attestation'
 import { checksBlockArtifact } from './checks'
 
 const PUBLIC_GRANT_SECONDS = 5 * 60
@@ -91,7 +91,6 @@ export async function createPublicArtifactGrant(
     return { _tag: 'denied', code: 'CHECK_BLOCKED' }
 
   const attestation = artifactAttestationSchema.parse(JSON.parse(row.attestation_json))
-  const { signature, ...statement } = attestation
   if (
     attestation.artifactId !== artifactId
     || attestation.contentSha256 !== row.content_sha256
@@ -101,7 +100,7 @@ export async function createPublicArtifactGrant(
   ) {
     return { _tag: 'denied', code: 'ARTIFACT_REVOKED' }
   }
-  if (!await verifyAttestationSignature(statement, signature, dependencies.trustedRoot, dependencies.now))
+  if (!await verifyArtifactAttestation(attestation, dependencies.trustedRoot, dependencies.now))
     return { _tag: 'denied', code: 'ATTESTATION_EXPIRED' }
   const signingKey = dependencies.trustedRoot.keys.find(key => key.keyId === attestation.signature.keyId)
   if (!signingKey || signingKey.status === 'retired' || signingKey.status === 'revoked')

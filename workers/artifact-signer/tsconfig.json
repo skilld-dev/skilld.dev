@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "types": ["./worker-configuration.d.ts"],
+    "allowJs": false,
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../layers/artifact-delivery/server/schemas/contracts.ts",
+    "../../layers/artifact-delivery/server/utils/artifact-storage.ts",
+    "../../layers/artifact-delivery/server/utils/attestation.ts",
+    "../../layers/artifact-delivery/server/utils/checks.ts",
+    "../../layers/artifact-delivery/server/utils/encoding.ts",
+    "../../layers/artifact-delivery/server/utils/state.ts",
+    "../../layers/artifact-delivery/server/utils/trusted-root.ts"
+  ]
+}
