@@ -8,7 +8,7 @@ const { isAuthenticated, user, loginUrl } = useAuth()
 
 const { isBot } = useBotDetection()
 
-const { data, status, error, refresh } = useFetch<OrgProfile>(
+const orgProfile = useFetch<OrgProfile>(
   () => `/api/orgs/${ownerParam.value}`,
   {
     key: `org-${ownerParam.value}`,
@@ -16,6 +16,16 @@ const { data, status, error, refresh } = useFetch<OrgProfile>(
     lazy: !isBot.value,
   },
 )
+const { data, status, error, refresh } = orgProfile
+
+// An owner we do not hold renders an empty page, and answering that with 200 is
+// a soft 404 on the largest crawlable surface. Readers keep the lazy fetch, so
+// only the crawler pays for resolving it before the status is decided.
+if (import.meta.server && isBot.value) {
+  await orgProfile
+  if (error.value?.statusCode === 404)
+    throw createError({ statusCode: 404, statusMessage: 'Owner not found', fatal: true })
+}
 
 const siteOrigin = 'https://skilld.dev'
 const canonicalUrl = computed(() => `${siteOrigin}${ownerHubPath(ownerParam.value)}`)
