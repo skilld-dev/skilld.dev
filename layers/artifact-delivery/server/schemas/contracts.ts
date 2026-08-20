@@ -9,7 +9,7 @@ const githubRepositorySchema = z.string().min(1).max(100).regex(/^[\w.-]+$/).ref
 
 export const sourceSelectorSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('path'), path: z.string().min(1).max(1024) }).strict(),
-  z.object({ type: z.literal('named-skill'), name: z.string().min(1).max(128) }).strict(),
+  z.object({ type: z.literal('named-skill'), name: z.string().max(64).regex(/^[a-z0-9](?:[a-z0-9]|-(?!-)){0,62}[a-z0-9]$|^[a-z0-9]$/) }).strict(),
 ])
 
 export const sourceRefSchema = z.discriminatedUnion('type', [
