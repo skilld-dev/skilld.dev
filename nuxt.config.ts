@@ -8,7 +8,7 @@ const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
 
 export default defineNuxtConfig({
-  extends: ['./layers/admin', './layers/identity', './layers/registry', './layers/marketing', './layers/mcp'],
+  extends: ['./layers/admin', './layers/artifact-delivery', './layers/identity', './layers/registry', './layers/marketing', './layers/mcp'],
 
   hooks: {
     'nitro:config': (nitroConfig) => {
