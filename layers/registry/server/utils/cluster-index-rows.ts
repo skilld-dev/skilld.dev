@@ -1,3 +1,5 @@
+import { D1_BOUND_PARAMETER_LIMIT } from './cluster-membership'
+
 interface ClusterIndexRowIdentity {
   owner: string
   repo: string
@@ -10,9 +12,6 @@ export type ClusterIndexQuery<Row extends ClusterIndexRowIdentity> = (
   selector: ClusterIndexSelector,
   values: string[],
 ) => Promise<Row[]>
-
-// D1 accepts at most 100 bound parameters in one query.
-const D1_BOUND_PARAMETER_LIMIT = 100
 
 function chunks<T>(values: T[], size: number): T[][] {
   return Array.from(
