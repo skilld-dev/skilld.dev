@@ -12,8 +12,8 @@ permissions:
 concurrency:
   group: deploy-cloudflare-production
   # A deploy in flight must finish. This workflow applies D1 migrations and then
-  # deploys with a smoke test and rollback, and cancelling between those leaves
-  # migrated data against the previous Worker.
+  # deploys the signer and public Worker, then runs smoke and rollback. Cancelling
+  # between those steps leaves migrated data against the previous Worker.
   cancel-in-progress: false
 
 jobs:
@@ -66,6 +66,12 @@ jobs:
 
       - name: Apply D1 migrations
         run: pnpm db:migrations:prod
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy Artifact signer
+        run: pnpm --filter @skilld/artifact-signer-worker deploy:production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

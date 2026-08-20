@@ -1,0 +1,85 @@
+import { getHeader, getRouterParam, setHeader } from 'h3'
+import { defineApiHandler } from '#shared/server/handler'
+import { artifactGrantSchema, artifactIdSchema } from '../../../../../schemas/contracts'
+import { withArtifactProblems } from '../../../../../utils/artifact-problem'
+import {
+  createGithubAppClientFromEnv,
+  githubAppUserTokenDependenciesFromEnv,
+  loadAccountGithubAppUserToken,
+} from '../../../../../utils/github-app'
+import { createPublicArtifactGrant } from '../../../../../utils/grant'
+import { privateArtifactAccessEnabled } from '../../../../../utils/private-feature'
+import { createPrivateArtifactGrant } from '../../../../../utils/private-grant'
+import { parseTrustedRoot } from '../../../../../utils/trusted-root'
+
+export default withArtifactProblems(defineApiHandler({
+  response: artifactGrantSchema,
+  async handler({ event, platform, user }) {
+    const artifactId = artifactIdSchema.safeParse(getRouterParam(event, 'id'))
+    if (!artifactId.success)
+      throw createError({ statusCode: 404, message: 'Artifact not found' })
+    const idempotencyKey = getHeader(event, 'idempotency-key')
+    if (!idempotencyKey || idempotencyKey.length < 16 || idempotencyKey.length > 200) {
+      throw createError({
+        statusCode: 400,
+        message: 'Idempotency-Key must contain 16 to 200 characters',
+        data: { code: 'INVALID_SOURCE' },
+      })
+    }
+    const now = Math.floor(Date.now() / 1000)
+    const trustedRoot = parseTrustedRoot(platform.env.ARTIFACT_TRUSTED_ROOT_JSON, now)
+    const publicResult = await createPublicArtifactGrant({
+      db: platform.db,
+      trustedRoot,
+      publicBaseUrl: platform.env.ARTIFACT_PUBLIC_BASE_URL,
+      now,
+    }, artifactId.data)
+    if (publicResult._tag === 'granted') {
+      setHeader(event, 'cache-control', 'private, no-store')
+      return publicResult.grant
+    }
+    if (publicResult._tag === 'denied') {
+      throw createError({
+        statusCode: 409,
+        message: 'Artifact delivery is not available',
+        data: { code: publicResult.code },
+      })
+    }
+
+    if (!privateArtifactAccessEnabled(platform.env))
+      throw createError({ statusCode: 404, message: 'Artifact not found' })
+    if (!user?.id)
+      throw createError({ statusCode: 404, message: 'Artifact not found' })
+    const userToken = await loadAccountGithubAppUserToken(
+      platform.db,
+      user.id,
+      githubAppUserTokenDependenciesFromEnv(platform.env),
+    )
+    if (!userToken)
+      throw createError({ statusCode: 404, message: 'Artifact not found' })
+    const githubApp = createGithubAppClientFromEnv(platform.env)
+    const privateResult = await createPrivateArtifactGrant({
+      db: platform.db,
+      trustedRoot,
+      contentBaseUrl: platform.env.ARTIFACT_PRIVATE_BASE_URL,
+      now,
+      recheckAccess: access => githubApp.userCanAccessRepository(
+        userToken,
+        access.installationId,
+        access.repositoryId,
+      ),
+      idempotencySecret: platform.env.ARTIFACT_GRANT_IDEMPOTENCY_KEY,
+    }, user.id, artifactId.data, idempotencyKey)
+    if (privateResult._tag === 'not-found')
+      throw createError({ statusCode: 404, message: 'Artifact not found' })
+    if (privateResult._tag === 'denied') {
+      throw createError({
+        statusCode: 409,
+        message: 'Artifact delivery is not available',
+        data: { code: privateResult.code },
+      })
+    }
+    setHeader(event, 'cache-control', 'private, no-store')
+    return privateResult.grant
+  },
+}))

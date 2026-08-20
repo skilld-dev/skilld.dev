@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "skilld-dev",
   "account_id": "5904138d55ca25d5670dca6adf99894e",
-  "compatibility_date": "2026-07-15",
+  "compatibility_date": "2026-08-20",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
@@ -20,6 +20,10 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "skilld-db", "database_id": "a5e53f35-f5e5-4987-8c67-c0175addc7cc" }
   ],
+  "r2_buckets": [
+    { "binding": "PUBLIC_ARTIFACTS", "bucket_name": "skilld-public-artifacts" },
+    { "binding": "PRIVATE_ARTIFACTS", "bucket_name": "skilld-private-artifacts" }
+  ],
   "kv_namespaces": [
     { "binding": "KV_CACHE", "id": "187e636458cb49faa2ae14743adc7736" },
     { "binding": "KV_DATA", "id": "cf3d794a55f84192a30f520686e1d932" }
@@ -34,7 +38,8 @@
     "producers": [
       { "binding": "REPO_SYNC_QUEUE", "queue": "skilld-repo-sync" },
       { "binding": "REPO_REVIEW_SYNC_QUEUE", "queue": "skilld-repo-review-sync" },
-      { "binding": "REPO_SYNC_DLQ", "queue": "skilld-repo-sync-dlq" }
+      { "binding": "REPO_SYNC_DLQ", "queue": "skilld-repo-sync-dlq" },
+      { "binding": "ARTIFACT_BUILD_QUEUE", "queue": "skilld-artifact-build" }
     ],
     // `max_retries` here is a *delivery* budget, not a failure budget. The repo
     // sync handler releases the message back to the queue after every 50-file
@@ -74,6 +79,15 @@
         "max_retries": 3,
         "retry_delay": 60,
         "max_concurrency": 1
+      },
+      {
+        "queue": "skilld-artifact-build",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 4,
+        "retry_delay": 60,
+        "dead_letter_queue": "skilld-artifact-build-dlq",
+        "max_concurrency": 2
       }
     ]
   },
@@ -89,8 +103,17 @@
   // fine. SELF.fetch dispatches straight to this Worker's fetch handler, so the
   // probe measures whether the app still renders instead of the loopback path.
   "services": [
-    { "binding": "SELF", "service": "skilld-dev" }
+    { "binding": "SELF", "service": "skilld-dev" },
+    { "binding": "ARTIFACT_SIGNER", "service": "skilld-artifact-signer" }
   ],
+  "vars": {
+    "ARTIFACT_PUBLIC_BASE_URL": "https://artifacts.skilld.dev",
+    "ARTIFACT_PRIVATE_BASE_URL": "https://skilld.dev",
+    "ARTIFACT_PRIVATE_ACCESS_ENABLED": "false",
+    "ARTIFACT_KEY_WRAP_KEY_ACTIVE_SLOT": "primary",
+    "ARTIFACT_KEY_WRAP_KEY_PRIMARY_ID": "skilld-wrap-2026-08",
+    "ARTIFACT_KEY_WRAP_KEY_SECONDARY_ID": ""
+  },
   "ai": {
     "binding": "AI",
     "remote": true

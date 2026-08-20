@@ -1,0 +1,2 @@
+# Binding name only. Use a base64url PKCS8 Ed25519 private key in .dev.vars.
+ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8=

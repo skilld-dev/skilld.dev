@@ -25,3 +25,6 @@ Cloudflare Worker versions include code, configuration, bindings, and static
 assets. They do not include D1, KV, R2, queue, or Durable Object state. D1
 migrations remain forward only and must stay compatible with the previous
 Worker version.
+
+Artifact delivery has extra prerequisites and rollback limits. Follow the
+[Artifact delivery rollout](./artifact-delivery-rollout.md) before its first deploy.

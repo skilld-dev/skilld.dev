@@ -1,0 +1,24 @@
+{
+  "name": "@skilld/artifact-signer-worker",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "wrangler deploy --dry-run --config wrangler.jsonc --outdir dist",
+    "deploy:production": "wrangler deploy --config wrangler.jsonc",
+    "lint": "eslint src test",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "types": "wrangler types worker-configuration.d.ts --config wrangler.jsonc --env-file .dev.vars.example --env-interface ArtifactSignerEnv",
+    "types:check": "wrangler types worker-configuration.d.ts --config wrangler.jsonc --env-file .dev.vars.example --env-interface ArtifactSignerEnv --check"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}
