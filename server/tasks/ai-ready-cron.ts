@@ -20,7 +20,7 @@ function parseBatchSize(payload: unknown): number | undefined {
 export default defineScheduledTask({
   name: 'ai-ready:cron',
   cron: '*/5 * * * *',
-  description: 'Run AI Ready indexing and IndexNow synchronization',
+  description: 'Run AI Ready indexing',
   async run({ context, payload }) {
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
