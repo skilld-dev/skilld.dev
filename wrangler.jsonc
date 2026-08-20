@@ -109,6 +109,7 @@
   "vars": {
     "ARTIFACT_PUBLIC_BASE_URL": "https://artifacts.skilld.dev",
     "ARTIFACT_PRIVATE_BASE_URL": "https://skilld.dev",
+    "ARTIFACT_PRIVATE_ACCESS_ENABLED": "false",
     "ARTIFACT_KEY_WRAP_KEY_ACTIVE_SLOT": "primary",
     "ARTIFACT_KEY_WRAP_KEY_PRIMARY_ID": "skilld-wrap-2026-08",
     "ARTIFACT_KEY_WRAP_KEY_SECONDARY_ID": ""

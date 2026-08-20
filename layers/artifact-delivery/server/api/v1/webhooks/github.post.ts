@@ -6,6 +6,7 @@ import {
 } from 'h3'
 import { verifyGithubWebhookSignature } from '../../../utils/github-app'
 import { processGithubAppWebhook } from '../../../utils/private-access'
+import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
 
 const MAX_GITHUB_WEBHOOK_BYTES = 512 * 1024
 
@@ -14,6 +15,8 @@ export default defineEventHandler(async (event) => {
   if (!platform)
     throw createError({ statusCode: 503, message: 'Service unavailable' })
   setHeader(event, 'cache-control', 'no-store')
+  if (!privateArtifactAccessEnabled(platform.env))
+    throw createError({ statusCode: 404, message: 'GitHub App webhook not found' })
   const declared = Number(getHeader(event, 'content-length'))
   if (Number.isFinite(declared) && declared > MAX_GITHUB_WEBHOOK_BYTES) {
     setResponseStatus(event, 413)

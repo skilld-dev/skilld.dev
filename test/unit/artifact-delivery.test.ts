@@ -20,6 +20,7 @@ import { createPublicArtifactGrant } from '../../layers/artifact-delivery/server
 import {
   ARTIFACT_BUILD_QUEUE_NAME,
   consumeArtifactBuildBatch,
+  createArtifactBuildDependencies,
 } from '../../layers/artifact-delivery/server/utils/queue'
 import {
   createResolution,
@@ -62,6 +63,38 @@ const validFiles: ArtifactSourceFile[] = [{
 }]
 
 describe('public Artifact delivery', () => {
+  it('does not read private secrets when private access is disabled', () => {
+    const forbidden = new Set([
+      'GITHUB_APP_ID',
+      'GITHUB_APP_CLIENT_ID',
+      'GITHUB_APP_CLIENT_SECRET',
+      'GITHUB_APP_PRIVATE_KEY_PKCS8',
+      'GITHUB_APP_WEBHOOK_SECRET',
+      'ARTIFACT_KEY_WRAP_KEY_PRIMARY',
+      'ARTIFACT_GRANT_IDEMPOTENCY_KEY',
+      'NUXT_TOKEN_KEY',
+    ])
+    const env = new Proxy({
+      ARTIFACT_PRIVATE_ACCESS_ENABLED: 'false',
+      DB: {},
+      GITHUB_TOKEN: 'public-token',
+      PUBLIC_ARTIFACTS: {},
+      ARTIFACT_SIGNER: {},
+      ARTIFACT_TRUSTED_ROOT_JSON: trustedRootConfig(),
+    }, {
+      get(target, name, receiver) {
+        if (forbidden.has(String(name)))
+          throw new Error(`Read private secret ${String(name)}`)
+        return Reflect.get(target, name, receiver)
+      },
+    }) as unknown as Cloudflare.Env
+
+    const dependencies = createArtifactBuildDependencies(env)
+
+    expect(dependencies.privateGithub).toBeUndefined()
+    expect(dependencies.privateArtifacts).toBeUndefined()
+  })
+
   it('blocks failed checks before storage or signing', async () => {
     const harness = await createBuildHarness([{
       ...validFiles[0]!,
@@ -656,4 +689,32 @@ function artifactQueueBatch(resolutionId: string, attempts: number) {
       messages: [{ body: { version: 1, resolutionId }, attempts, ack, retry }],
     } as Parameters<typeof consumeArtifactBuildBatch>[1],
   }
+}
+
+function trustedRootConfig(): string {
+  const statement = {
+    version: 1,
+    rootKeyId: 'skilld-root-2026',
+    keyId: 'skilld-production-2026-08',
+    algorithm: 'Ed25519',
+    publicKey: 'B'.repeat(43),
+    notBefore: '2026-08-20T00:00:00.000Z',
+    notAfter: '2026-11-20T00:00:00.000Z',
+    status: 'active',
+  } as const
+  return JSON.stringify({
+    version: 1,
+    rootKeyId: statement.rootKeyId,
+    rootPublicKey: 'A'.repeat(43),
+    keys: [{
+      keyId: statement.keyId,
+      algorithm: statement.algorithm,
+      publicKey: statement.publicKey,
+      notBefore: statement.notBefore,
+      notAfter: statement.notAfter,
+      status: statement.status,
+      statement: bytesToBase64Url(new TextEncoder().encode(JSON.stringify(statement))),
+      rootSignature: 'C'.repeat(86),
+    }],
+  })
 }

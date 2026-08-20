@@ -10,6 +10,7 @@ import {
 } from './github-app'
 import { createGithubSourceClient, createPublicGithubSourceClient } from './github-source'
 import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from './private-crypto'
+import { privateArtifactAccessEnabled } from './private-feature'
 import { putPrivateArtifact } from './private-storage'
 import { getResolution } from './state'
 import { parseTrustedRoot } from './trusted-root'
@@ -28,7 +29,7 @@ export async function enqueueArtifactBuild(env: Cloudflare.Env, resolutionId: st
 export async function consumeArtifactBuildBatch(
   env: Cloudflare.Env,
   batch: QueueBatch,
-  createDependencies: (env: Cloudflare.Env) => ArtifactBuildDependencies = defaultBuildDependencies,
+  createDependencies: (env: Cloudflare.Env) => ArtifactBuildDependencies = createArtifactBuildDependencies,
 ): Promise<void> {
   if (batch.queue !== ARTIFACT_BUILD_QUEUE_NAME)
     return
@@ -66,12 +67,28 @@ export async function consumeArtifactBuildBatch(
   }
 }
 
-function defaultBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
-  const githubApp = createGithubAppClientFromEnv(env)
-  const privateKeys = createD1PrivateArtifactKeyProvider(env.DB, privateArtifactWrappingKeysFromEnv(env))
+export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
+  const privateDependencies = privateArtifactAccessEnabled(env)
+    ? createPrivateBuildDependencies(env)
+    : {}
   return {
     db: env.DB,
     github: createPublicGithubSourceClient({ fetch, token: env.GITHUB_TOKEN }),
+    bucket: env.PUBLIC_ARTIFACTS,
+    signer: createArtifactSigner(env.ARTIFACT_SIGNER),
+    trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
+    now: () => Math.floor(Date.now() / 1000),
+    ...privateDependencies,
+  }
+}
+
+function createPrivateBuildDependencies(env: Cloudflare.Env): Pick<
+  ArtifactBuildDependencies,
+  'privateGithub' | 'privateArtifacts'
+> {
+  const githubApp = createGithubAppClientFromEnv(env)
+  const privateKeys = createD1PrivateArtifactKeyProvider(env.DB, privateArtifactWrappingKeysFromEnv(env))
+  return {
     privateGithub: async (row) => {
       if (!row.account_id || !row.github_installation_id || !row.repository_id)
         return privateSourceNotFound()
@@ -115,13 +132,9 @@ function defaultBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencie
         ? createGithubSourceClient({ fetch, token: installationToken.token, visibility: 'private' })
         : privateSourceNotFound()
     },
-    bucket: env.PUBLIC_ARTIFACTS,
     privateArtifacts: {
       put: input => putPrivateArtifact(env.PRIVATE_ARTIFACTS, privateKeys, input),
     },
-    signer: createArtifactSigner(env.ARTIFACT_SIGNER),
-    trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
-    now: () => Math.floor(Date.now() / 1000),
   }
 }
 

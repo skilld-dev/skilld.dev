@@ -8,6 +8,7 @@ import {
   loadAccountGithubAppUserToken,
 } from '../../../../../utils/github-app'
 import { createPublicArtifactGrant } from '../../../../../utils/grant'
+import { privateArtifactAccessEnabled } from '../../../../../utils/private-feature'
 import { createPrivateArtifactGrant } from '../../../../../utils/private-grant'
 import { parseTrustedRoot } from '../../../../../utils/trusted-root'
 
@@ -45,6 +46,8 @@ export default withArtifactProblems(defineApiHandler({
       })
     }
 
+    if (!privateArtifactAccessEnabled(platform.env))
+      throw createError({ statusCode: 404, message: 'Artifact not found' })
     if (!user?.id)
       throw createError({ statusCode: 404, message: 'Artifact not found' })
     const userToken = await loadAccountGithubAppUserToken(

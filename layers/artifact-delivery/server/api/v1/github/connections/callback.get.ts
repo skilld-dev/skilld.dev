@@ -14,6 +14,7 @@ import {
   githubConnectionStateMatches,
 } from '../../../../utils/github-connection-flow'
 import { connectGithubInstallation } from '../../../../utils/private-access'
+import { privateArtifactAccessEnabled } from '../../../../utils/private-feature'
 
 const COOKIE_PATH = '/api/v1/github/connections'
 
@@ -21,6 +22,9 @@ export default defineApiHandler({
   schema: githubConnectionCallbackSchema,
   requireAuth: true,
   async handler({ body, event, platform, user }) {
+    setHeader(event, 'cache-control', 'private, no-store')
+    if (!privateArtifactAccessEnabled(platform.env))
+      throw createError({ statusCode: 404, message: 'GitHub App connection not found' })
     const expectedState = getCookie(event, GITHUB_CONNECTION_STATE_COOKIE)
     if (!githubConnectionStateMatches(expectedState, body.state))
       throw createError({ statusCode: 400, message: 'GitHub App connection expired' })
@@ -60,7 +64,6 @@ export default defineApiHandler({
     }, Math.floor(Date.now() / 1000))
     if (connection._tag === 'not-found')
       throw createError({ statusCode: 404, message: 'GitHub App installation not found' })
-    setHeader(event, 'cache-control', 'private, no-store')
     return sendRedirect(event, returnTo)
   },
 })

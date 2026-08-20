@@ -8,6 +8,7 @@ import {
 } from '../../../schemas/contracts'
 import { withArtifactProblems } from '../../../utils/artifact-problem'
 import { findPrivateRepositoryAccess } from '../../../utils/private-access'
+import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
 import { enqueueArtifactBuild } from '../../../utils/queue'
 import {
   createResolution,
@@ -26,7 +27,7 @@ export default withArtifactProblems(defineApiHandler({
         data: { code: 'INVALID_SOURCE' },
       })
     }
-    const privateAccess = user?.id
+    const privateAccess = user?.id && privateArtifactAccessEnabled(platform.env)
       ? await findPrivateRepositoryAccess(
           platform.db,
           user.id,

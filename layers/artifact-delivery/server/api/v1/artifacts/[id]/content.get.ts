@@ -1,13 +1,17 @@
-import { getHeader, getRouterParam } from 'h3'
+import { getHeader, getRouterParam, setHeader } from 'h3'
 import { resolveBearerSession } from '#layers/identity/server/utils/bearer'
 import { defineApiHandler } from '#shared/server/handler'
 import { artifactIdSchema } from '../../../../schemas/contracts'
 import { withArtifactProblems } from '../../../../utils/artifact-problem'
 import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from '../../../../utils/private-crypto'
+import { privateArtifactAccessEnabled } from '../../../../utils/private-feature'
 import { redeemPrivateArtifactGrant } from '../../../../utils/private-grant'
 
 export default withArtifactProblems(defineApiHandler({
   async handler({ event, platform }) {
+    setHeader(event, 'cache-control', 'no-store')
+    if (!privateArtifactAccessEnabled(platform.env))
+      throw createError({ statusCode: 404, message: 'Artifact not found' })
     const artifactId = artifactIdSchema.safeParse(getRouterParam(event, 'id'))
     const authorization = getHeader(event, 'authorization')
     const grant = getHeader(event, 'x-skilld-grant')

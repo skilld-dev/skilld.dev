@@ -7,12 +7,32 @@ import {
   storeAccountGithubAppUserAuthorization,
   verifyGithubWebhookSignature,
 } from '../../layers/artifact-delivery/server/utils/github-app'
+import { privateArtifactAccessEnabled } from '../../layers/artifact-delivery/server/utils/private-feature'
 import { decryptToken, encryptToken } from '../../layers/identity/server/utils/crypto'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_787_227_200
 
 describe('private GitHub App access', () => {
+  it('enables private access only for the exact operator value', () => {
+    expect(privateArtifactAccessEnabled({})).toBe(false)
+    expect(privateArtifactAccessEnabled({ ARTIFACT_PRIVATE_ACCESS_ENABLED: '' })).toBe(false)
+    expect(privateArtifactAccessEnabled({ ARTIFACT_PRIVATE_ACCESS_ENABLED: 'false' })).toBe(false)
+    expect(privateArtifactAccessEnabled({ ARTIFACT_PRIVATE_ACCESS_ENABLED: 'TRUE' })).toBe(false)
+    expect(privateArtifactAccessEnabled({ ARTIFACT_PRIVATE_ACCESS_ENABLED: 'true' })).toBe(false)
+    expect(privateArtifactAccessEnabled({
+      ARTIFACT_PRIVATE_ACCESS_ENABLED: 'true',
+      GITHUB_APP_ID: '42',
+      GITHUB_APP_CLIENT_ID: 'Iv1.fixture',
+      GITHUB_APP_CLIENT_SECRET: 'client-secret',
+      GITHUB_APP_PRIVATE_KEY_PKCS8: 'private-key',
+      GITHUB_APP_WEBHOOK_SECRET: 'webhook-secret',
+      ARTIFACT_KEY_WRAP_KEY_PRIMARY: 'wrapping-key',
+      ARTIFACT_GRANT_IDEMPOTENCY_KEY: 'grant-secret',
+      NUXT_TOKEN_KEY: 'token-key',
+    })).toBe(true)
+  })
+
   it('maps only selected private Repositories visible to the user token', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(new Headers(init?.headers).get('authorization')).toBe('Bearer user-token')

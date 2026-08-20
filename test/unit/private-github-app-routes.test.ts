@@ -79,6 +79,21 @@ describe('opt-in GitHub App connection routes', () => {
     vi.unstubAllGlobals()
   })
 
+  it('hides the GitHub App while private Artifact access is disabled', async () => {
+    event.context.platform!.env = await githubEnv(false)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('getQuery', () => ({ return_to: '/me' }))
+    const authorize = (await import(
+      '../../layers/artifact-delivery/server/api/v1/github/connections/authorize.get',
+    )).default
+
+    await expect(authorize(event)).rejects.toMatchObject({ statusCode: 404 })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(responseHeaders.get('location')).toBeUndefined()
+  })
+
   it('keeps normal OAuth login while the private connection completes', async () => {
     const fetchMock = githubFetch(101)
     vi.stubGlobal('fetch', fetchMock)
@@ -179,7 +194,7 @@ function serializeCookies(): string {
   return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ')
 }
 
-async function githubEnv() {
+async function githubEnv(privateAccessEnabled = true) {
   const keyPair = await crypto.subtle.generateKey({
     name: 'RSASSA-PKCS1-v1_5',
     modulusLength: 2048,
@@ -187,12 +202,16 @@ async function githubEnv() {
     hash: 'SHA-256',
   }, true, ['sign', 'verify'])
   return {
+    ARTIFACT_PRIVATE_ACCESS_ENABLED: privateAccessEnabled ? 'true' : '',
     GITHUB_APP_ID: '42',
     GITHUB_APP_CLIENT_ID: 'Iv1.private',
     GITHUB_APP_CLIENT_SECRET: 'private-secret',
     GITHUB_APP_PRIVATE_KEY_PKCS8: bytesToBase64Url(
       new Uint8Array(await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)),
     ),
+    GITHUB_APP_WEBHOOK_SECRET: 'webhook-secret',
+    ARTIFACT_KEY_WRAP_KEY_PRIMARY: 'wrapping-key',
+    ARTIFACT_GRANT_IDEMPOTENCY_KEY: 'grant-secret',
     NUXT_TOKEN_KEY: TOKEN_KEY,
   } as Cloudflare.Env
 }

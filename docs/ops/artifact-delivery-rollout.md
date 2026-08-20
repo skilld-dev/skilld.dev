@@ -1,11 +1,37 @@
 # Artifact delivery rollout
 
-Use this guide before merging the first Artifact delivery change.
+Use this guide before the first v3.0 deploy.
 
-The deploy workflow applies D1 migrations, then deploys the signer and public Worker.
-The signer always deploys first.
+v3.0 supports public Repositories only.
+Private Repository access stays disabled until v3.1.
 
-## 1. Prepare access and recovery
+The existing GitHub OAuth App still handles sign in.
+Do not change its callback or credentials.
+
+## 1. Confirm the release scope
+
+Keep this value in `wrangler.jsonc`:
+
+```json
+{
+  "vars": {
+    "ARTIFACT_PRIVATE_ACCESS_ENABLED": "false"
+  }
+}
+```
+
+The disabled state has these effects:
+
+- GitHub App connection routes return `404`.
+- The GitHub App webhook returns `404`.
+- Private Artifact content and grants return `404`.
+- Public builds do not read GitHub App or private Artifact secrets.
+
+Do not create a GitHub App for v3.0.
+Do not set any `GITHUB_APP_*` secret for v3.0.
+Do not set Artifact wrapping or private grant secrets for v3.0.
+
+## 2. Prepare access and recovery
 
 Use a [Cloudflare](https://cloudflare.com) token.
 It must manage Workers, D1, R2, Queues, secrets, and routes.
@@ -16,11 +42,11 @@ Export D1 before the first migration:
 pnpm exec wrangler d1 export DB --remote --output <secure-path>/skilld-db-before-artifacts.sql
 ```
 
-Store the export outside the repository.
+Store the export outside the Repository.
 
 Worker rollback does not restore D1, R2, Queue, or secret state.
 
-## 2. Create Cloudflare resources
+## 3. Create Cloudflare resources
 
 Create each missing resource once:
 
@@ -31,9 +57,12 @@ pnpm exec wrangler queues create skilld-artifact-build
 pnpm exec wrangler queues create skilld-artifact-build-dlq
 ```
 
-Keep both R2 buckets private through their `r2.dev` URLs.
+The private bucket is a dormant v3.1 binding.
+The Worker deploy still requires the bucket to exist.
 
-Attach `artifacts.skilld.dev` as the custom domain for `skilld-public-artifacts`.
+Keep both R2 development URLs disabled.
+
+Attach `artifacts.skilld.dev` to `skilld-public-artifacts`.
 Do not attach a custom domain to `skilld-private-artifacts`.
 
 Confirm these bindings match `wrangler.jsonc`:
@@ -46,60 +75,18 @@ Confirm these bindings match `wrangler.jsonc`:
 
 The signer uses the same D1 database and both R2 buckets.
 
-## 3. Register the GitHub App
-
-Keep the existing GitHub OAuth App for normal sign in.
-Do not change its callback or credentials.
-
-Create a separate GitHub App for private Repository access.
-Only users who need private access install this App.
-
-Set these values:
-
-- Callback URL: `https://skilld.dev/api/v1/github/connections/callback`
-- Request user authorization during installation: enabled
-- Device flow: disabled
-- Webhook URL: `https://skilld.dev/api/v1/webhooks/github`
-- Webhook SSL verification: enabled
-- Repository permission, Contents: read only
-- Repository permission, Metadata: read only
-- Events: `installation` and `installation_repositories`
-- Expiring user access tokens: enabled
-
-Leave the setup URL empty.
-Enabling authorization during installation disables the setup URL.
-During installation, choose `Only select repositories`.
-The connection rejects access to all Repositories.
-
-Keep the OAuth App credentials as `NUXT_OAUTH_GITHUB_CLIENT_ID` and `NUXT_OAUTH_GITHUB_CLIENT_SECRET`.
-Set the new GitHub App credentials as `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET`.
-Set the numeric App ID as `GITHUB_APP_ID`.
-The OAuth App and GitHub App client IDs must differ.
-
-Convert the GitHub App private key to unencrypted PKCS8.
-Store its canonical base64url bytes as `GITHUB_APP_PRIVATE_KEY_PKCS8`.
-
-Store the webhook secret as `GITHUB_APP_WEBHOOK_SECRET`.
-
-Existing users do not need to sign in again.
-Private users start the opt-in flow at `/api/v1/github/connections/authorize`.
-The flow requires the same GitHub Account used for normal sign in.
-
-The first release requires the installer to approve the App directly.
-Organization approval requests do not complete the connection automatically.
-
-## 4. Complete the key ceremony
+## 4. Complete the public signing ceremony
 
 Keep the Ed25519 root private key offline.
 Never add it to Cloudflare or GitHub Actions.
 
-Create one root signed statement for the production signing key.
-The statement bytes must use canonical JSON and canonical base64url.
+Create one root-signed statement for the production signing key.
+Use canonical JSON and canonical base64url.
 
 Set `ARTIFACT_TRUSTED_ROOT_JSON` on the public Worker.
-It contains the root public key and root signed production keys.
+It contains the root public key and approved production keys.
 
-Compile the same root key ID and public key into the skilld CLI release.
+Compile the same root key ID and public key into the skilld CLI.
 Stop if either value differs.
 
 Set these signer values in `workers/artifact-signer/wrangler.jsonc`:
@@ -115,40 +102,35 @@ Store only the production signing private key in the signer Worker:
 pnpm --filter @skilld/artifact-signer-worker exec wrangler secret put ARTIFACT_SIGNING_PRIVATE_KEY_PKCS8
 ```
 
-## 5. Set public Worker secrets
+## 5. Set v3.0 Worker secrets
 
-Generate two random 32 byte keys.
-Encode both with canonical base64url.
+Set `ARTIFACT_TRUSTED_ROOT_JSON` on the public Worker.
 
-Store one as `ARTIFACT_KEY_WRAP_KEY_PRIMARY`.
-Store the other as `ARTIFACT_GRANT_IDEMPOTENCY_KEY`.
+Preserve these existing values:
 
-Leave `ARTIFACT_KEY_WRAP_KEY_SECONDARY` unset for the first deploy.
-Keep `ARTIFACT_KEY_WRAP_KEY_ACTIVE_SLOT` set to `primary`.
-Keep `ARTIFACT_KEY_WRAP_KEY_SECONDARY_ID` empty.
+- `NUXT_OAUTH_GITHUB_CLIENT_ID`
+- `NUXT_OAUTH_GITHUB_CLIENT_SECRET`
+- `NUXT_TOKEN_KEY`
+- `GITHUB_TOKEN`
 
-Set the remaining values with `wrangler secret put`:
+The existing `GITHUB_TOKEN` reads public [GitHub](https://github.com) sources.
+
+Changing `NUXT_TOKEN_KEY` breaks stored GitHub credentials.
+
+Do not set these v3.1 secrets yet:
 
 - `GITHUB_APP_ID`
 - `GITHUB_APP_CLIENT_ID`
 - `GITHUB_APP_CLIENT_SECRET`
 - `GITHUB_APP_PRIVATE_KEY_PKCS8`
 - `GITHUB_APP_WEBHOOK_SECRET`
-- `NUXT_OAUTH_GITHUB_CLIENT_ID`
-- `NUXT_OAUTH_GITHUB_CLIENT_SECRET`
 - `ARTIFACT_KEY_WRAP_KEY_PRIMARY`
+- `ARTIFACT_KEY_WRAP_KEY_SECONDARY`
 - `ARTIFACT_GRANT_IDEMPOTENCY_KEY`
-- `ARTIFACT_TRUSTED_ROOT_JSON`
-
-Preserve the existing `NUXT_TOKEN_KEY`.
-Changing it breaks stored GitHub credentials.
-
-Keep every Artifact wrapping key in recoverable secret storage.
-Losing it makes every stored private Artifact unreadable.
 
 ## 6. Apply migrations in order
 
-List the pending migrations:
+List pending migrations:
 
 ```bash
 pnpm exec wrangler d1 migrations list DB --remote
@@ -169,8 +151,11 @@ pnpm db:migrations:prod
 List pending migrations again.
 Stop unless the list is empty.
 
-These migrations are additive and forward only.
-Do not delete their tables during rollback.
+All three migrations are additive.
+Public Artifact rows use columns added by `0111`.
+The private tables remain dormant until v3.1.
+
+Do not delete these tables during rollback.
 
 ## 7. Deploy in order
 
@@ -187,38 +172,32 @@ pnpm build
 pnpm production:deploy
 ```
 
-The production workflow runs the same signer first order.
-Create every resource and secret before merging.
+The production workflow uses the same order.
 
-## 8. Run production smoke checks
+Create the signer Worker before the public Worker deploy.
+Complete the public signing ceremony before merging.
 
-Run the existing route smoke:
+## 8. Run v3.0 production checks
+
+Run the existing smoke check:
 
 ```bash
 pnpm production:smoke
 ```
 
-Then check Artifact delivery:
+Then check public Artifact delivery:
 
-1. Fetch `/api/v1/trusted-root`. Require `200` and a five minute public cache policy.
+1. Fetch `/api/v1/trusted-root`. Require `200` and a five-minute public cache policy.
 2. Create one public Resolution. Poll it until `ready`.
 3. Create its grant. Require a signed attestation and HTTPS content URL.
 4. Download the public Artifact twice. Require identical SHA256 bytes.
 5. Require `Cache-Control: public, max-age=31536000, immutable` on those bytes.
-6. Fetch a missing private Artifact without a bearer token. Require `404` and `no-store`.
-7. Fetch private content without `x-skilld-grant`. Require `404` and `no-store`.
-8. Send a webhook with an invalid signature. Require `401` and `no-store`.
-9. Sign in, then open `/api/v1/github/connections/authorize?return_to=/me`.
-10. Install the GitHub App on one test Repository.
-11. Confirm the browser returns to `/me`.
-12. Create and download one private Artifact. Confirm the grant works once.
-13. Replay that grant. Require `404`.
-14. Remove the test Repository. Require old and new grants to fail.
+6. Sign in. Fetch `/api/v1/github/connections/authorize`. Require `404`.
+7. Fetch private content with valid-looking credentials. Require `404`.
+8. Send a GitHub App webhook. Require `404`.
 
 Check `CF-Cache-Status` on the public Artifact domain.
 The second public download should be cache eligible.
-
-Private responses must never report a shared cache hit.
 
 ## 9. Roll back safely
 
@@ -227,47 +206,90 @@ Private responses must never report a shared cache hit.
 It cannot reverse D1 migrations or restore R2, Queue, or secret state.
 The signer also remains on its new version.
 
-If public smoke fails, let the deploy command restore the previous public Worker.
+If public checks fail, let the deploy command restore the previous public Worker.
 Keep the signer deployed when it supports both public Worker versions.
 
-If the signer fails before public deployment, stop the rollout.
-Use `wrangler rollback` in the signer package only after identifying its previous version.
+If the signer fails first, stop the rollout.
+Identify its previous version before using `wrangler rollback` in the signer package.
 
 Never restore the D1 export over a live database without a separate recovery plan.
 New writes after the export would be lost.
 
-Public Artifact URLs are immutable and may remain in shared caches.
-Revocation stops new grants but cannot remove bytes already downloaded or cached.
+Public Artifact URLs are immutable.
+Downloaded or cached bytes can remain available.
 
-## 10. Rotate keys
+## 10. Enable private Repository access in v3.1
+
+Complete this section during the v3.1 rollout.
+
+Create a separate GitHub App.
+Keep the existing OAuth App for normal sign in.
+
+Use these GitHub App settings:
+
+- Callback URL: `https://skilld.dev/api/v1/github/connections/callback`
+- Request user authorization during installation: enabled
+- Expiring user access tokens: enabled
+- Device Flow: disabled
+- Webhook URL: `https://skilld.dev/api/v1/webhooks/github`
+- Webhook SSL verification: enabled
+- Repository permission, Contents: read only
+- Repository permission, Metadata: read only
+- Events: `installation` and `installation_repositories`
+- Installation scope: any account
+
+Leave the setup URL empty.
+During installation, users choose `Only select repositories`.
+
+Convert the GitHub App private key to unencrypted PKCS8.
+Store its canonical base64url bytes as `GITHUB_APP_PRIVATE_KEY_PKCS8`.
+
+Set these public Worker secrets:
+
+- `GITHUB_APP_ID`
+- `GITHUB_APP_CLIENT_ID`
+- `GITHUB_APP_CLIENT_SECRET`
+- `GITHUB_APP_PRIVATE_KEY_PKCS8`
+- `GITHUB_APP_WEBHOOK_SECRET`
+- `ARTIFACT_KEY_WRAP_KEY_PRIMARY`
+- `ARTIFACT_GRANT_IDEMPOTENCY_KEY`
+
+Generate each Artifact secret from an independent random 32-byte value.
+Keep `ARTIFACT_KEY_WRAP_KEY_SECONDARY` unset for the first private release.
+
+Deploy once with `ARTIFACT_PRIVATE_ACCESS_ENABLED` still set to `false`.
+Confirm the public checks still pass.
+
+Change `ARTIFACT_PRIVATE_ACCESS_ENABLED` to `true`.
+Deploy the public Worker again.
+
+Then check private delivery:
+
+1. Sign in with the existing OAuth App.
+2. Open `/api/v1/github/connections/authorize?return_to=/me`.
+3. Install the GitHub App on one test Repository.
+4. Create and download one private Artifact.
+5. Replay its one-time grant. Require `404`.
+6. Remove the test Repository. Require old and new grants to fail.
+
+If any private check fails, set the flag to `false` and redeploy.
+
+## 11. Rotate keys
 
 Rotate an Ed25519 signing key with an overlap window:
 
-1. Add the new root signed public key with `overlapping` status.
+1. Add the new root-signed public key with `overlapping` status.
 2. Deploy the updated trusted root to the public Worker.
 3. Deploy the signer with the new private key and key ID.
 4. Confirm new Artifacts use the new key.
 5. Mark the old key `retired` after its overlap window.
 
-Rotate the GitHub App private key before deleting the old key in GitHub.
-Update `GITHUB_APP_PRIVATE_KEY_PKCS8`, then deploy and test one private Resolution.
+Start private key rotation only in v3.1.
 
-Rotate an Artifact wrapping key through the inactive slot:
+Rotate the GitHub App private key before deleting the old GitHub key.
 
-1. Generate a new canonical base64url 32 byte key.
-2. Store it in the inactive wrapping key secret.
-3. Set the inactive slot ID to a new unique value.
-4. Change `ARTIFACT_KEY_WRAP_KEY_ACTIVE_SLOT` to the inactive slot.
-5. Deploy the public Worker once with both variable changes.
-6. Read or build private Artifacts to rewrap Account keys on demand.
-7. Count rows that still use the old ID.
-
-```sql
-SELECT COUNT(*) FROM private_artifact_keys WHERE wrap_key_id = '<old-id>';
-```
-
-Keep the old slot configured until the count reaches zero.
-Never overwrite a slot while any row uses its ID.
+Use both wrapping-key slots during Artifact key rotation.
+Never overwrite a slot while any Account key uses its ID.
 
 Rotate `ARTIFACT_GRANT_IDEMPOTENCY_KEY` only after every private grant expires.
 Keep the old value for at least 25 hours after the last grant request.

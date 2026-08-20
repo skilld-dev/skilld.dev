@@ -10,12 +10,16 @@ import {
   loadAccountGithubAppUserToken,
 } from '../../../../utils/github-app'
 import { connectGithubInstallation } from '../../../../utils/private-access'
+import { privateArtifactAccessEnabled } from '../../../../utils/private-feature'
 
 export default defineApiHandler({
   schema: createGithubConnectionSchema,
   response: githubConnectionSchema,
   requireAuth: true,
   async handler({ body, event, platform, user }) {
+    setHeader(event, 'cache-control', 'private, no-store')
+    if (!privateArtifactAccessEnabled(platform.env))
+      throw createError({ statusCode: 404, message: 'GitHub App connection not found' })
     const accountId = user!.id
     const userToken = await loadAccountGithubAppUserToken(
       platform.db,
@@ -35,7 +39,6 @@ export default defineApiHandler({
     }, Math.floor(Date.now() / 1000))
     if (connection._tag === 'not-found')
       throw createError({ statusCode: 404, message: 'GitHub App installation not found' })
-    setHeader(event, 'cache-control', 'private, no-store')
     return {
       installationId: connection.installationId,
       repositoryCount: connection.repositoryCount,
