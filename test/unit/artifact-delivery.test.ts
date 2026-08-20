@@ -452,6 +452,18 @@ describe('public Artifact delivery', () => {
 })
 
 describe('private Artifact build', () => {
+  it('carries the selected Repository identity into private source authorization', async () => {
+    const harness = await createBuildHarness(validFiles, true)
+
+    const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
+
+    expect(result._tag).toBe('ready')
+    expect(harness.privateGithub).toHaveBeenCalledWith(
+      expect.objectContaining({ repository_id: resolvedSource.repositoryId }),
+    )
+    harness.close()
+  })
+
   it('uses private source and storage without writing public R2', async () => {
     const harness = await createBuildHarness(validFiles, true)
 
@@ -468,9 +480,25 @@ describe('private Artifact build', () => {
     expect(artifact).toMatchObject({ account_id: 1, delivery_status: 'available' })
     harness.close()
   })
+
+  it('rejects a private source outside the selected Repository identity', async () => {
+    const harness = await createBuildHarness(validFiles, true, resolvedSource.repositoryId + 1)
+
+    const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
+    const resolution = await getResolution(harness.dependencies.db, harness.resolutionId)
+
+    expect(result._tag).toBe('failed')
+    expect(resolution?.error_code).toBe('SOURCE_NOT_FOUND')
+    expect(harness.privatePut).not.toHaveBeenCalled()
+    harness.close()
+  })
 })
 
-async function createBuildHarness(files: ArtifactSourceFile[], privateMode = false) {
+async function createBuildHarness(
+  files: ArtifactSourceFile[],
+  privateMode = false,
+  privateResolvedRepositoryId = resolvedSource.repositoryId,
+) {
   const sqlite = createSqliteD1(ARTIFACT_MIGRATIONS)
   if (privateMode) {
     sqlite.raw.prepare(
@@ -496,18 +524,26 @@ async function createBuildHarness(files: ArtifactSourceFile[], privateMode = fal
     'test-idempotency-key-0001',
     privateMode ? 1 : undefined,
   )
+  const access = privateMode
+    ? {
+        visibility: 'private' as const,
+        accountId: 1,
+        installationId: 9001,
+        repositoryId: resolvedSource.repositoryId,
+      }
+    : { visibility: 'public' as const }
   const created = await createResolution(
     sqlite.db,
     sourceRequest,
     identity,
     NOW,
-    privateMode
-      ? { visibility: 'private', accountId: 1, installationId: 9001 }
-      : { visibility: 'public' },
+    access,
   )
   if (created._tag === 'idempotency-conflict')
     throw new Error('Test Resolution conflicted')
-  const buildSource = privateMode ? { ...resolvedSource, visibility: 'private' as const } : resolvedSource
+  const buildSource = privateMode
+    ? { ...resolvedSource, repositoryId: privateResolvedRepositoryId, visibility: 'private' as const }
+    : resolvedSource
   const github: PublicGithubSourceClient = {
     resolve: vi.fn(async () => ({ _tag: 'resolved', source: buildSource })),
     load: vi.fn(async () => ({ _tag: 'loaded', value: { source: buildSource, files } })),
@@ -576,10 +612,20 @@ async function createBuildHarness(files: ArtifactSourceFile[], privateMode = fal
       value: bytesToBase64Url(new Uint8Array(signature)),
     }
   })
+  const privateGithub = vi.fn(async (row: Awaited<ReturnType<typeof getResolution>>) => {
+    if (row?.repository_id === resolvedSource.repositoryId)
+      return github
+    return {
+      _tag: 'rejected' as const,
+      code: 'SOURCE_NOT_FOUND' as const,
+      summary: 'The Repository was not found.',
+      findings: [],
+    }
+  })
   const dependencies: ArtifactBuildDependencies = {
     db: sqlite.db,
     github,
-    privateGithub: privateMode ? vi.fn(async () => github) : undefined,
+    privateGithub: privateMode ? privateGithub : undefined,
     bucket,
     privateArtifacts: privateMode ? { put: privatePut } : undefined,
     signer: { sign },
@@ -592,6 +638,7 @@ async function createBuildHarness(files: ArtifactSourceFile[], privateMode = fal
     raw: sqlite.raw,
     put,
     privatePut,
+    privateGithub,
     sign,
     publicKey: keyPair.publicKey,
     close: sqlite.close,

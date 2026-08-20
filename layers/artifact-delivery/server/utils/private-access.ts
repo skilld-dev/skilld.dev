@@ -121,7 +121,6 @@ export async function connectGithubInstallation(
   ).bind(connection.installationId).first<{ account_id: number }>()
   if (existing && existing.account_id !== accountId)
     return { _tag: 'not-found' }
-  const selectedIds = repositories.map(repository => repository.id)
   const statements: D1PreparedStatement[] = [
     db.prepare(
       `INSERT INTO github_app_installations (
@@ -139,9 +138,8 @@ export async function connectGithubInstallation(
       `UPDATE github_app_repositories
        SET state = 'revoked', revoked_at = ?1
        WHERE installation_id = ?2
-         AND state = 'selected'
-         ${selectedIds.length ? `AND repository_id NOT IN (${selectedIds.map((_, index) => `?${index + 3}`).join(', ')})` : ''}`,
-    ).bind(now, connection.installationId, ...selectedIds),
+         AND state = 'selected'`,
+    ).bind(now, connection.installationId),
     ...repositories.map(repository => db.prepare(
       `INSERT INTO github_app_repositories (
          installation_id, repository_id, owner, repository,
@@ -191,6 +189,13 @@ export async function processGithubAppWebhook(
     return { _tag: 'invalid' }
   if (repositoryChange && !repositoryChange.success)
     return { _tag: 'invalid' }
+  const installationRevocation = installation?.success
+    && (installation.data.action === 'deleted'
+      || installation.data.action === 'suspend'
+      || installation.data.action === 'suspended')
+  const repositoryRevocation = repositoryChange?.success
+    && repositoryChange.data.action === 'removed'
+  const revocationReplay = Boolean(installationRevocation || repositoryRevocation)
   const claimed = await db.prepare(
     `INSERT OR IGNORE INTO github_app_webhook_deliveries
        (delivery_id, event, action, received_at)
@@ -201,59 +206,68 @@ export async function processGithubAppWebhook(
     webhookAction(input.payload),
     input.now,
   ).run()
-  if (Number(claimed.meta.changes) !== 1)
+  if (Number(claimed.meta.changes) !== 1 && !revocationReplay)
     return { _tag: 'duplicate' }
 
-  if (input.event === 'installation') {
-    const data = installation!.data
-    if (data.action === 'deleted' || data.action === 'suspend' || data.action === 'suspended') {
-      await revokeInstallation(db, data.installation.id, input.now, data.action === 'deleted' ? 'revoked' : 'suspended')
+  const processClaimedDelivery = async (): Promise<GithubAppWebhookResult> => {
+    if (input.event === 'installation') {
+      const data = installation!.data
+      if (data.action === 'deleted' || data.action === 'suspend' || data.action === 'suspended') {
+        await revokeInstallation(db, data.installation.id, input.now, data.action === 'deleted' ? 'revoked' : 'suspended')
+        return { _tag: 'processed' }
+      }
+      if (data.action === 'unsuspend' || data.action === 'unsuspended') {
+        await db.prepare(
+          `UPDATE github_app_installations
+           SET state = 'active', verified_at = ?1, revoked_at = NULL
+           WHERE installation_id = ?2 AND state = 'suspended'`,
+        ).bind(input.now, data.installation.id).run()
+        return { _tag: 'processed' }
+      }
+      return { _tag: 'ignored' }
+    }
+
+    if (input.event === 'installation_repositories') {
+      const data = repositoryChange!.data
+      const installationId = data.installation.id
+      if (data.action === 'removed') {
+        const repositoryIds = (data.repositories_removed ?? []).map(repository => repository.id)
+        await revokeRepositories(db, installationId, repositoryIds, input.now)
+        return { _tag: 'processed' }
+      }
+      const installation = await db.prepare(
+        `SELECT account_id FROM github_app_installations
+         WHERE installation_id = ?1 AND state = 'active'`,
+      ).bind(installationId).first<{ account_id: number }>()
+      if (!installation)
+        return { _tag: 'ignored' }
+      const repositories = data.repositories_added ?? []
+      if (repositories.length > 0) {
+        await db.batch(repositories.map(repository => db.prepare(
+          `INSERT INTO github_app_repositories (
+             installation_id, repository_id, owner, repository,
+             visibility, state, selected_at, revoked_at
+           ) VALUES (?1, ?2, ?3, ?4, 'private', 'selected', ?5, NULL)
+           ON CONFLICT(installation_id, repository_id) DO UPDATE SET
+             owner = excluded.owner,
+             repository = excluded.repository,
+             state = 'selected',
+             selected_at = excluded.selected_at,
+             revoked_at = NULL`,
+        ).bind(installationId, repository.id, repository.owner.login, repository.name, input.now)))
+      }
       return { _tag: 'processed' }
     }
-    if (data.action === 'unsuspend' || data.action === 'unsuspended') {
-      await db.prepare(
-        `UPDATE github_app_installations
-         SET state = 'active', verified_at = ?1, revoked_at = NULL
-         WHERE installation_id = ?2 AND state = 'suspended'`,
-      ).bind(input.now, data.installation.id).run()
-      return { _tag: 'processed' }
-    }
+
     return { _tag: 'ignored' }
   }
 
-  if (input.event === 'installation_repositories') {
-    const data = repositoryChange!.data
-    const installationId = data.installation.id
-    if (data.action === 'removed') {
-      const repositoryIds = (data.repositories_removed ?? []).map(repository => repository.id)
-      await revokeRepositories(db, installationId, repositoryIds, input.now)
-      return { _tag: 'processed' }
-    }
-    const installation = await db.prepare(
-      `SELECT account_id FROM github_app_installations
-       WHERE installation_id = ?1 AND state = 'active'`,
-    ).bind(installationId).first<{ account_id: number }>()
-    if (!installation)
-      return { _tag: 'ignored' }
-    const repositories = data.repositories_added ?? []
-    if (repositories.length > 0) {
-      await db.batch(repositories.map(repository => db.prepare(
-        `INSERT INTO github_app_repositories (
-           installation_id, repository_id, owner, repository,
-           visibility, state, selected_at, revoked_at
-         ) VALUES (?1, ?2, ?3, ?4, 'private', 'selected', ?5, NULL)
-         ON CONFLICT(installation_id, repository_id) DO UPDATE SET
-           owner = excluded.owner,
-           repository = excluded.repository,
-           state = 'selected',
-           selected_at = excluded.selected_at,
-           revoked_at = NULL`,
-      ).bind(installationId, repository.id, repository.owner.login, repository.name, input.now)))
-    }
-    return { _tag: 'processed' }
-  }
-
-  return { _tag: 'ignored' }
+  return await processClaimedDelivery().catch(async (error) => {
+    await db.prepare(
+      'DELETE FROM github_app_webhook_deliveries WHERE delivery_id = ?1',
+    ).bind(input.deliveryId).run()
+    throw error
+  })
 }
 
 async function revokeInstallation(

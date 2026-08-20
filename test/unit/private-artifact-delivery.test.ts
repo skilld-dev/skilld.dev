@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { bytesToBase64Url, digestHex } from '../../layers/artifact-delivery/server/utils/encoding'
 import {
+  connectGithubInstallation,
   findPrivateRepositoryAccess,
   processGithubAppWebhook,
 } from '../../layers/artifact-delivery/server/utils/private-access'
@@ -24,6 +25,32 @@ const RESOLUTION_ID = '018f3e3e-10d8-7f41-8d5c-10d2a8f92311'
 const ARTIFACT_BYTES = new TextEncoder().encode('private Artifact bytes')
 
 describe('private Artifact delivery', () => {
+  it('connects every selected Repository within the documented limit', async () => {
+    const fixture = await createFixture()
+    const repositories = Array.from({ length: 500 }, (_, index) => ({
+      id: REPOSITORY_ID + index,
+      name: `private-skills-${index}`,
+      private: true as const,
+      owner: { id: 501, login: 'acme' },
+    }))
+
+    const result = await connectGithubInstallation(fixture.db, ACCOUNT_ONE, {
+      installationId: INSTALLATION_ID,
+      githubAccountId: 501,
+      repositories,
+    }, NOW + 1)
+
+    expect(result).toEqual({
+      _tag: 'connected',
+      installationId: INSTALLATION_ID,
+      repositoryCount: repositories.length,
+      state: 'active',
+    })
+    expect(await findPrivateRepositoryAccess(fixture.db, ACCOUNT_ONE, 'acme', 'private-skills-499'))
+      .toMatchObject({ _tag: 'allowed', repositoryId: REPOSITORY_ID + 499 })
+    fixture.close()
+  })
+
   it('requires the Account installation and selected Repository mapping', async () => {
     const fixture = await createFixture()
 
@@ -137,6 +164,59 @@ describe('private Artifact delivery', () => {
       fixture.artifactId,
       grant.grant.downloadToken,
     )).toEqual({ _tag: 'not-found' })
+    fixture.close()
+  })
+
+  it('retries revocation when the first webhook transaction fails', async () => {
+    const fixture = await createFixture()
+    let failNextBatch = true
+    let failCleanup = true
+    const flakyDb = {
+      prepare: (sql: string) => {
+        const prepared = fixture.db.prepare(sql)
+        if (!sql.startsWith('DELETE FROM github_app_webhook_deliveries'))
+          return prepared
+        return {
+          bind: (...values: unknown[]) => {
+            const bound = prepared.bind(...values)
+            return {
+              ...bound,
+              run: async () => {
+                if (failCleanup) {
+                  failCleanup = false
+                  throw new Error('D1 cleanup unavailable')
+                }
+                return await bound.run()
+              },
+            }
+          },
+        } as unknown as D1PreparedStatement
+      },
+      batch: async (statements: D1PreparedStatement[]) => {
+        if (failNextBatch) {
+          failNextBatch = false
+          throw new Error('D1 batch unavailable')
+        }
+        return await fixture.db.batch(statements)
+      },
+    } as unknown as D1Database
+    const webhook = {
+      deliveryId: 'delivery-retry',
+      event: 'installation_repositories',
+      payload: {
+        action: 'removed',
+        installation: { id: INSTALLATION_ID },
+        repositories_removed: [{ id: REPOSITORY_ID }],
+      },
+      now: NOW + 1,
+    }
+
+    await expect(processGithubAppWebhook(flakyDb, webhook)).rejects.toThrow('D1 cleanup unavailable')
+    const retry = await processGithubAppWebhook(flakyDb, webhook)
+
+    expect(retry).toEqual({ _tag: 'processed' })
+    expect(await findPrivateRepositoryAccess(fixture.db, ACCOUNT_ONE, 'acme', 'private-skills'))
+      .toEqual({ _tag: 'not-found' })
     fixture.close()
   })
 

@@ -133,6 +133,7 @@ export async function createResolution(
     visibility: 'private'
     accountId: number
     installationId: number
+    repositoryId: number
   } | { visibility: 'public' } = { visibility: 'public' },
 ): Promise<CreateResolutionResult> {
   const existing = await findResolutionByRequestKey(db, identity.keyHash)
@@ -148,11 +149,11 @@ export async function createResolution(
     `INSERT OR IGNORE INTO artifact_resolutions (
        id, request_key_hash, request_fingerprint, state, state_version,
        requested_owner, requested_repository, selector_type, selector_value,
-       ref_type, ref_value, visibility, account_id, github_installation_id,
+       ref_type, ref_value, repository_id, visibility, account_id, github_installation_id,
        created_at, updated_at
      ) VALUES (
        ?1, ?2, ?3, 'requested', 0, ?4, ?5, ?6, ?7, ?8, ?9,
-       ?10, ?11, ?12, ?13, ?13
+       ?10, ?11, ?12, ?13, ?14, ?14
      )`,
   ).bind(
     resolutionId,
@@ -164,6 +165,7 @@ export async function createResolution(
     selectorValue,
     source.ref?.type ?? null,
     source.ref?.value ?? null,
+    access.visibility === 'private' ? access.repositoryId : null,
     access.visibility,
     access.visibility === 'private' ? access.accountId : null,
     access.visibility === 'private' ? access.installationId : null,

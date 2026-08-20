@@ -46,6 +46,7 @@ export default withArtifactProblems(defineApiHandler({
             visibility: 'private',
             accountId: privateAccess.accountId,
             installationId: privateAccess.installationId,
+            repositoryId: privateAccess.repositoryId,
           }
         : { visibility: 'public' },
     )
