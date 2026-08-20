@@ -8,10 +8,16 @@ Use these terms exactly. Drift breeds shallow modules.
 - **Collection** — an author-curated bundle of skills with editorial rationale. Atomic unit of sharing. Lives at `/@<github-login>/<slug>`.
 - **Curator** — collection author (D1-backed via GitHub login). Synonym for "author" in copy when referring specifically to someone who builds collections.
 - **Owner** — a github org or user that hosts skill repos. Proxied entity. Lives at `/gh/[owner]`.
-- **Repo** — a github repo containing one or more skills. Lives at `/gh/[owner]/[repo]`.
+- **Repository** — a GitHub repository containing one or more Skills. Lives at `/gh/[owner]/[repo]`.
 - **Skill** — a `SKILL.md` resolved from a repo. Lives at `/gh/[owner]/[repo]/[name]`.
 - **Watch** — an authenticated user subscribing to a repo or collection so they receive digest emails when its skills change. (Phase 2.)
 - **Digest** — periodic email summarizing changes to a user's watched repos. (Phase 3.)
+- **skilld-maintained Skill:** a Skill maintained by the skilld project for generation, review, search, or install guidance. It is not a registry admission.
+- **Harness:** the JavaScript `@skilld/harness` package that runs skilld-maintained Skills with strict output checks.
+- **Artifact:** immutable Skill bytes resolved from one exact Git commit for delivery to the skilld CLI.
+- **Artifact attestation:** a signed claim that links an Artifact to its Repository, commit, contents, and check results.
+- **Check result:** one named check, version, finding, and outcome for an Artifact.
+- **Source status:** the skilld CLI provenance value: `verified`, `local`, or `unverified`.
 
 ## Identity rule
 
@@ -26,6 +32,7 @@ Use these terms exactly. Drift breeds shallow modules.
 - **app** — `/`, `/community`, `/@<login>/*`, `/collections/new`, `api/community|collections|feed|*`. Owns native data.
 - **marketing** — `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`. Comark renders its Markdown. Owns SEO content.
 - **admin** — existing.
+- **artifact delivery:** `/api/v1/resolutions|artifacts|trusted-root|github/connections`. Owns exact source resolution, checks, signing, grants, and transient delivery.
 
 Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilities. Each layer is deletion-testable.
 
