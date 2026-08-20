@@ -11,6 +11,7 @@ const MAX_SKILL_PATH_SEGMENTS = 64
 const MAX_ARTIFACT_FILES = 256
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
+const GITHUB_REQUEST_TIMEOUT_MS = 15_000
 
 const shaSchema = z.string().regex(/^[a-f0-9]{40}$/)
 const repositoryResponseSchema = z.object({
@@ -23,6 +24,18 @@ const repositoryResponseSchema = z.object({
 const commitResponseSchema = z.object({
   sha: shaSchema,
   commit: z.object({ tree: z.object({ sha: shaSchema }) }),
+})
+const gitObjectSchema = z.object({
+  type: z.enum(['blob', 'commit', 'tag', 'tree']),
+  sha: shaSchema,
+})
+const gitRefResponseSchema = z.object({
+  ref: z.string().min(1),
+  object: gitObjectSchema,
+})
+const annotatedTagResponseSchema = z.object({
+  sha: shaSchema,
+  object: gitObjectSchema,
 })
 const treeEntrySchema = z.object({
   path: z.string(),
@@ -95,7 +108,11 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
     })
     if (options.token)
       headers.set('Authorization', `Bearer ${options.token}`)
-    const response = await options.fetch(`${GITHUB_API}${path}`, { headers })
+    const response = await options.fetch(`${GITHUB_API}${path}`, {
+      headers,
+      redirect: 'error',
+      signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
+    })
     if (response.status === 404)
       return { _tag: 'not-found' }
     if (response.status === 401 || response.status === 403) {
@@ -114,10 +131,56 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
 
   const getTree = async (owner: string, repository: string, sha: string, recursive: boolean) => {
     const suffix = recursive ? '?recursive=1' : ''
-    return await requestJson(
+    const response = await requestJson(
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/trees/${sha}${suffix}`,
       treeResponseSchema,
     )
+    if (response._tag === 'ok' && response.value.sha !== sha)
+      return { _tag: 'identity-mismatch' as const }
+    return response
+  }
+
+  const resolveGitRefCommit = async (
+    owner: string,
+    repository: string,
+    type: 'branch' | 'tag',
+    value: string,
+  ): Promise<string | SourceRejection> => {
+    const namespace = type === 'branch' ? 'heads' : 'tags'
+    const expectedRef = `refs/${namespace}/${value}`
+    const gitRef = await requestJson(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/ref/${namespace}/${encodeURIComponent(value)}`,
+      gitRefResponseSchema,
+    )
+    if (gitRef._tag !== 'ok')
+      return sourceReadRejection(gitRef._tag)
+    if (gitRef.value.ref !== expectedRef)
+      return reject('INVALID_SOURCE', 'GitHub returned another Git reference.', [gitRef.value.ref])
+    if (type === 'branch') {
+      return gitRef.value.object.type === 'commit'
+        ? gitRef.value.object.sha
+        : reject('INVALID_SOURCE', 'The Git branch does not point to a commit.', [value])
+    }
+
+    let object = gitRef.value.object
+    const seen = new Set<string>()
+    for (let depth = 0; depth < 8; depth++) {
+      if (object.type === 'commit')
+        return object.sha
+      if (object.type !== 'tag' || seen.has(object.sha))
+        return reject('INVALID_SOURCE', 'The Git tag does not resolve to a commit.', [value])
+      seen.add(object.sha)
+      const tag = await requestJson(
+        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/tags/${object.sha}`,
+        annotatedTagResponseSchema,
+      )
+      if (tag._tag !== 'ok')
+        return sourceReadRejection(tag._tag)
+      if (tag.value.sha !== object.sha)
+        return reject('INVALID_SOURCE', 'GitHub returned another Git tag identity.', [value])
+      object = tag.value.object
+    }
+    return reject('INVALID_SOURCE', 'The Git tag chain exceeded the depth limit.', [value])
   }
 
   const listTreeBounded = async (
@@ -192,9 +255,9 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
     if (!Array.isArray(tree))
       return tree
     const matches = tree
-      .filter(entry => entry.type === 'blob' && entry.path.endsWith('/SKILL.md'))
-      .map(entry => entry.path.slice(0, -'/SKILL.md'.length))
-      .filter(path => path.split('/').at(-1) === name)
+      .filter(entry => entry.type === 'blob' && (entry.path === 'SKILL.md' || entry.path.endsWith('/SKILL.md')))
+      .map(entry => entry.path === 'SKILL.md' ? '.' : entry.path.slice(0, -'/SKILL.md'.length))
+      .filter(path => (path === '.' ? repository : path.split('/').at(-1)) === name)
     if (matches.length === 0)
       return reject('SOURCE_NOT_FOUND', 'No Skill matched the requested name.', [name])
     if (matches.length > 1)
@@ -221,18 +284,27 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
       if (repository.value.private)
         return reject('SOURCE_ACCESS_DENIED', 'This endpoint accepts public Repositories only.', [])
 
-      const requestedRef = request.ref?.value ?? repository.value.default_branch
+      const requestedCommit = !request.ref || request.ref.type === 'branch' || request.ref.type === 'tag'
+        ? await resolveGitRefCommit(
+            repository.value.owner.login,
+            repository.value.name,
+            request.ref?.type ?? 'branch',
+            request.ref?.value ?? repository.value.default_branch,
+          )
+        : request.ref.value
+      if (typeof requestedCommit !== 'string')
+        return requestedCommit
       const commit = await requestJson(
-        `/repos/${encodeURIComponent(repository.value.owner.login)}/${encodeURIComponent(repository.value.name)}/commits/${encodeURIComponent(requestedRef)}`,
+        `/repos/${encodeURIComponent(repository.value.owner.login)}/${encodeURIComponent(repository.value.name)}/commits/${requestedCommit}`,
         commitResponseSchema,
       )
       if (commit._tag === 'not-found')
-        return reject('SOURCE_NOT_FOUND', 'The requested Git reference was not found.', [requestedRef])
+        return reject('SOURCE_NOT_FOUND', 'The requested Git reference was not found.', [request.ref?.value ?? repository.value.default_branch])
       if (commit._tag === 'access-denied')
         return reject('SOURCE_ACCESS_DENIED', 'GitHub denied access to the requested Git reference.', [])
-      if (request.ref?.type === 'commit' && commit.value.sha !== request.ref.value) {
+      if (commit.value.sha !== requestedCommit) {
         return reject('INVALID_SOURCE', 'GitHub returned another commit identity.', [
-          request.ref.value,
+          requestedCommit,
           commit.value.sha,
         ])
       }
@@ -325,6 +397,8 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
 
 function normalizeRequestedSkillPath(input: string): string | null {
   const path = input.normalize('NFC')
+  if (path === '.')
+    return path
   if (path !== input || path.startsWith('/') || path.endsWith('/') || path.includes('\\') || path.includes('\0'))
     return null
   const segments = path.split('/')
@@ -437,10 +511,12 @@ async function readBoundedJson(response: Response, maximumBytes: number): Promis
   return JSON.parse(new TextDecoder().decode(bytes)) as unknown
 }
 
-function sourceReadRejection(reason: 'not-found' | 'access-denied'): SourceRejection {
-  return reason === 'not-found'
-    ? reject('SOURCE_NOT_FOUND', 'The Git object was not found.', [])
-    : reject('SOURCE_ACCESS_DENIED', 'GitHub denied access to the Git object.', [])
+function sourceReadRejection(reason: 'not-found' | 'access-denied' | 'identity-mismatch'): SourceRejection {
+  if (reason === 'not-found')
+    return reject('SOURCE_NOT_FOUND', 'The Git object was not found.', [])
+  if (reason === 'access-denied')
+    return reject('SOURCE_ACCESS_DENIED', 'GitHub denied access to the Git object.', [])
+  return reject('INVALID_SOURCE', 'GitHub returned another Git object identity.', [])
 }
 
 function sourceLimitRejection(summary: string, findings: string[] = []): SourceRejection {
@@ -448,7 +524,12 @@ function sourceLimitRejection(summary: string, findings: string[] = []): SourceR
 }
 
 function reject(code: ProblemCode, summary: string, findings: string[]): SourceRejection {
-  return { _tag: 'rejected', code, summary, findings }
+  return {
+    _tag: 'rejected',
+    code,
+    summary: summary.slice(0, 500),
+    findings: findings.slice(0, 100).map(finding => finding.slice(0, 500)),
+  }
 }
 
 function isSourceRejection(value: ArtifactSourceFile | SourceRejection): value is SourceRejection {

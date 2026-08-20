@@ -14,11 +14,18 @@ import {
   verifyAttestationSignature,
 } from '../../layers/artifact-delivery/server/utils/attestation'
 import { processArtifactBuild } from '../../layers/artifact-delivery/server/utils/build'
+import { checksBlockArtifact } from '../../layers/artifact-delivery/server/utils/checks'
 import { base64ToBytes, bytesToBase64Url } from '../../layers/artifact-delivery/server/utils/encoding'
 import { createPublicArtifactGrant } from '../../layers/artifact-delivery/server/utils/grant'
 import {
+  ARTIFACT_BUILD_QUEUE_NAME,
+  consumeArtifactBuildBatch,
+} from '../../layers/artifact-delivery/server/utils/queue'
+import {
   createResolution,
+  getResolution,
   resolutionRequestIdentity,
+  transitionResolution,
 } from '../../layers/artifact-delivery/server/utils/state'
 import { createDeterministicUstar } from '../../layers/artifact-delivery/server/utils/ustar'
 import { createSqliteD1 } from './helpers/d1-sqlite'
@@ -73,6 +80,36 @@ describe('public Artifact delivery', () => {
     expect(duplicate._tag).toBe('ready')
     expect(harness.put).toHaveBeenCalledTimes(1)
     expect(harness.sign).toHaveBeenCalledTimes(1)
+    harness.close()
+  })
+
+  it('retries a failed Queue delivery and resumes its stored state', async () => {
+    const harness = await createBuildHarness(validFiles)
+    const sign = harness.dependencies.signer.sign
+    harness.dependencies.signer = {
+      sign: vi.fn()
+        .mockRejectedValueOnce(new Error('Signer unavailable'))
+        .mockImplementation(sign),
+    }
+    const first = artifactQueueBatch(harness.resolutionId, 1)
+    const replay = artifactQueueBatch(harness.resolutionId, 2)
+
+    await consumeArtifactBuildBatch(
+      {} as Cloudflare.Env,
+      first.batch,
+      () => harness.dependencies,
+    )
+    await consumeArtifactBuildBatch(
+      {} as Cloudflare.Env,
+      replay.batch,
+      () => harness.dependencies,
+    )
+
+    expect(first.retry).toHaveBeenCalledOnce()
+    expect(first.ack).not.toHaveBeenCalled()
+    expect(replay.ack).toHaveBeenCalledOnce()
+    expect(replay.retry).not.toHaveBeenCalled()
+    expect((await getResolution(harness.dependencies.db, harness.resolutionId))?.state).toBe('ready')
     harness.close()
   })
 
@@ -153,10 +190,39 @@ describe('public Artifact delivery', () => {
     sqlite.close()
   })
 
+  it('allows only one state transition from a stale D1 version', async () => {
+    const sqlite = createSqliteD1(['migrations/0110_artifact_delivery.sql'])
+    const identity = await resolutionRequestIdentity(sourceRequest, 'test-idempotency-key-cas-0001')
+    const created = await createResolution(sqlite.db, sourceRequest, identity, NOW)
+    if (created._tag === 'idempotency-conflict')
+      throw new Error('Test Resolution conflicted')
+    const stale = await getResolution(sqlite.db, created.row.id)
+    if (!stale)
+      throw new Error('Test Resolution was not stored')
+
+    const first = await transitionResolution(sqlite.db, stale, 'resolving', {}, NOW)
+    const second = await transitionResolution(sqlite.db, stale, 'resolving', {}, NOW)
+
+    expect(first._tag).toBe('advanced')
+    expect(second).toEqual({ _tag: 'superseded' })
+    sqlite.close()
+  })
+
   it('rejects unknown fields at the request boundary', () => {
     const result = createResolutionRequestSchema.safeParse({
       source: sourceRequest,
       bypassChecks: true,
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unknown fields inside a source selector', () => {
+    const result = createResolutionRequestSchema.safeParse({
+      source: {
+        ...sourceRequest,
+        selector: { type: 'path', path: 'skills/demo', unchecked: true },
+      },
     })
 
     expect(result.success).toBe(false)
@@ -215,11 +281,85 @@ describe('public Artifact delivery', () => {
     harness.close()
   })
 
+  it('fails closed when a current required check is missing', async () => {
+    const harness = await createBuildHarness(validFiles)
+    await processArtifactBuild(harness.dependencies, harness.resolutionId)
+    const artifact = harness.raw.prepare(
+      'SELECT id FROM artifacts LIMIT 1',
+    ).get() as { id: string }
+    harness.raw.prepare(
+      `DELETE FROM artifact_check_results
+       WHERE resolution_id = ? AND name = 'path-policy'`,
+    ).run(harness.resolutionId)
+
+    const result = await createPublicArtifactGrant({
+      db: harness.dependencies.db,
+      trustedRoot: harness.dependencies.trustedRoot,
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: NOW,
+    }, artifact.id)
+
+    expect(result).toEqual({ _tag: 'denied', code: 'CHECK_BLOCKED' })
+    harness.close()
+  })
+
+  it('fails closed when the stored attestation bytes changed', async () => {
+    const harness = await createBuildHarness(validFiles)
+    await processArtifactBuild(harness.dependencies, harness.resolutionId)
+    const artifact = harness.raw.prepare(
+      'SELECT id FROM artifacts LIMIT 1',
+    ).get() as { id: string }
+    const row = harness.raw.prepare(
+      'SELECT attestation_json FROM artifact_attestations WHERE resolution_id = ?',
+    ).get(harness.resolutionId) as { attestation_json: string }
+    const attestation = JSON.parse(row.attestation_json) as Record<string, unknown>
+    attestation.policyVersion = 'changed-policy'
+    harness.raw.prepare(
+      'UPDATE artifact_attestations SET attestation_json = ? WHERE resolution_id = ?',
+    ).run(JSON.stringify(attestation), harness.resolutionId)
+
+    const result = await createPublicArtifactGrant({
+      db: harness.dependencies.db,
+      trustedRoot: harness.dependencies.trustedRoot,
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: NOW,
+    }, artifact.id)
+
+    expect(result).toEqual({ _tag: 'denied', code: 'ATTESTATION_EXPIRED' })
+    harness.close()
+  })
+
+  it('does not grant a content URL outside the configured public origin', async () => {
+    const harness = await createBuildHarness(validFiles)
+    await processArtifactBuild(harness.dependencies, harness.resolutionId)
+    const artifact = harness.raw.prepare(
+      'SELECT id FROM artifacts LIMIT 1',
+    ).get() as { id: string }
+    harness.raw.prepare(
+      'UPDATE artifacts SET r2_key = ? WHERE id = ?',
+    ).run('//untrusted.example/archive.tar', artifact.id)
+
+    const result = await createPublicArtifactGrant({
+      db: harness.dependencies.db,
+      trustedRoot: harness.dependencies.trustedRoot,
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: NOW,
+    }, artifact.id)
+
+    expect(result).toEqual({ _tag: 'denied', code: 'ARTIFACT_REVOKED' })
+    harness.close()
+  })
+
+  it('treats an empty check set as blocked', () => {
+    expect(checksBlockArtifact([])).toBe(true)
+  })
+
   it('rejects an attempted overwrite of an immutable R2 key', async () => {
     const bucket = {
       put: vi.fn(async () => null),
       head: vi.fn(async () => ({
         size: 4,
+        checksums: { sha256: Uint8Array.from({ length: 32 }, () => 0xBB).buffer },
         customMetadata: { contentSha256: 'b'.repeat(64), format: 'skilld-tar-v1' },
       })),
     } as R2Bucket
@@ -236,6 +376,50 @@ describe('public Artifact delivery', () => {
       new Uint8Array([1, 2, 3]),
       expect.objectContaining({ onlyIf: { etagDoesNotMatch: '*' } }),
     )
+  })
+
+  it('rejects existing R2 bytes when only their metadata matches', async () => {
+    const contentSha256 = 'a'.repeat(64)
+    const bucket = {
+      put: vi.fn(async () => null),
+      head: vi.fn(async () => ({
+        size: 3,
+        checksums: { sha256: Uint8Array.from({ length: 32 }, () => 0xBB).buffer },
+        customMetadata: { contentSha256, format: 'skilld-tar-v1' },
+      })),
+    } as R2Bucket
+
+    const result = await putImmutableArtifact(bucket, {
+      key: `v1/sha256/aa/${contentSha256}.tar`,
+      bytes: new Uint8Array([1, 2, 3]),
+      contentSha256,
+    })
+
+    expect(result).toEqual({
+      _tag: 'mutation-rejected',
+      key: `v1/sha256/aa/${contentSha256}.tar`,
+    })
+  })
+
+  it('accepts existing R2 bytes with the same stored SHA-256', async () => {
+    const contentSha256 = 'a'.repeat(64)
+    const key = `v1/sha256/aa/${contentSha256}.tar`
+    const bucket = {
+      put: vi.fn(async () => null),
+      head: vi.fn(async () => ({
+        size: 3,
+        checksums: { sha256: Uint8Array.from({ length: 32 }, () => 0xAA).buffer },
+        customMetadata: { contentSha256, format: 'skilld-tar-v1' },
+      })),
+    } as R2Bucket
+
+    const result = await putImmutableArtifact(bucket, {
+      key,
+      bytes: new Uint8Array([1, 2, 3]),
+      contentSha256,
+    })
+
+    expect(result).toEqual({ _tag: 'existing', key })
   })
 
   it('creates identical USTAR bytes for either source order', () => {
@@ -324,5 +508,18 @@ async function createBuildHarness(files: ArtifactSourceFile[]) {
     sign,
     publicKey: keyPair.publicKey,
     close: sqlite.close,
+  }
+}
+
+function artifactQueueBatch(resolutionId: string, attempts: number) {
+  const ack = vi.fn()
+  const retry = vi.fn()
+  return {
+    ack,
+    retry,
+    batch: {
+      queue: ARTIFACT_BUILD_QUEUE_NAME,
+      messages: [{ body: { version: 1, resolutionId }, attempts, ack, retry }],
+    } as Parameters<typeof consumeArtifactBuildBatch>[1],
   }
 }

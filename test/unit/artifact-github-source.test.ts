@@ -10,6 +10,139 @@ const skillText = '---\nname: demo\ndescription: Use this Skill for demo work.\n
 const skillBlobSha = gitBlobSha(skillText)
 
 describe('public GitHub Artifact source', () => {
+  it('resolves a root Skill through the explicit root path', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/repos/skilld-dev/skills'))
+        return json(publicRepository())
+      if (url.endsWith('/git/ref/heads/main')) {
+        return json({
+          ref: 'refs/heads/main',
+          object: { type: 'commit', sha: commitSha },
+        })
+      }
+      if (url.endsWith(`/commits/${commitSha}`))
+        return json({ sha: commitSha, commit: { tree: { sha: rootTreeSha } } })
+      return json({}, 404)
+    })
+    const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
+
+    const result = await client.resolve({
+      provider: 'github',
+      owner: 'skilld-dev',
+      repository: 'skills',
+      selector: { type: 'path', path: '.' },
+    })
+
+    expect(result).toMatchObject({
+      _tag: 'resolved',
+      source: { skillPath: '.', commitSha, treeSha: rootTreeSha },
+    })
+  })
+
+  it('finds a named Skill at the Repository root', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/repos/skilld-dev/skills'))
+        return json(publicRepository())
+      if (url.endsWith('/git/ref/heads/main')) {
+        return json({
+          ref: 'refs/heads/main',
+          object: { type: 'commit', sha: commitSha },
+        })
+      }
+      if (url.endsWith(`/commits/${commitSha}`))
+        return json({ sha: commitSha, commit: { tree: { sha: rootTreeSha } } })
+      if (url.endsWith(`/git/trees/${rootTreeSha}?recursive=1`)) {
+        return json({
+          sha: rootTreeSha,
+          tree: [blob('SKILL.md', skillBlobSha, skillText.length)],
+          truncated: false,
+        })
+      }
+      return json({}, 404)
+    })
+    const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
+
+    const result = await client.resolve({
+      provider: 'github',
+      owner: 'skilld-dev',
+      repository: 'skills',
+      selector: { type: 'named-skill', name: 'skills' },
+    })
+
+    expect(result).toMatchObject({ _tag: 'resolved', source: { skillPath: '.' } })
+  })
+
+  it('resolves a branch through its exact Git ref', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/repos/skilld-dev/skills'))
+        return json(publicRepository())
+      if (url.endsWith('/git/ref/heads/release')) {
+        return json({
+          ref: 'refs/heads/release',
+          object: { type: 'commit', sha: commitSha },
+        })
+      }
+      if (url.endsWith(`/commits/${commitSha}`))
+        return json({ sha: commitSha, commit: { tree: { sha: rootTreeSha } } })
+      return json({}, 404)
+    })
+    const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
+
+    const result = await client.resolve({
+      provider: 'github',
+      owner: 'skilld-dev',
+      repository: 'skills',
+      selector: { type: 'path', path: '.' },
+      ref: { type: 'branch', value: 'release' },
+    })
+
+    expect(result).toMatchObject({
+      _tag: 'resolved',
+      source: { commitSha, treeSha: rootTreeSha },
+    })
+  })
+
+  it('resolves an annotated tag to its exact commit', async () => {
+    const tagSha = '3333333333333333333333333333333333333333'
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/repos/skilld-dev/skills'))
+        return json(publicRepository())
+      if (url.endsWith('/git/ref/tags/v1.0.0')) {
+        return json({
+          ref: 'refs/tags/v1.0.0',
+          object: { type: 'tag', sha: tagSha },
+        })
+      }
+      if (url.endsWith(`/git/tags/${tagSha}`)) {
+        return json({
+          sha: tagSha,
+          object: { type: 'commit', sha: commitSha },
+        })
+      }
+      if (url.endsWith(`/commits/${commitSha}`))
+        return json({ sha: commitSha, commit: { tree: { sha: rootTreeSha } } })
+      return json({}, 404)
+    })
+    const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
+
+    const result = await client.resolve({
+      provider: 'github',
+      owner: 'skilld-dev',
+      repository: 'skills',
+      selector: { type: 'path', path: '.' },
+      ref: { type: 'tag', value: 'v1.0.0' },
+    })
+
+    expect(result).toMatchObject({
+      _tag: 'resolved',
+      source: { commitSha, treeSha: rootTreeSha },
+    })
+  })
+
   it('pins a reference once and loads the exact tree and blob identities', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
@@ -212,6 +345,43 @@ describe('public GitHub Artifact source', () => {
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
     expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/git/blobs/'))).toBe(false)
+  })
+
+  it('rejects a tree response with another Git identity', async () => {
+    const changedTreeSha = '9999999999999999999999999999999999999999'
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/repos/skilld-dev/skills'))
+        return json(publicRepository())
+      if (url.endsWith(`/git/trees/${rootTreeSha}`)) {
+        return json({
+          sha: changedTreeSha,
+          tree: [tree('skills', skillsTreeSha)],
+          truncated: false,
+        })
+      }
+      return json({}, 404)
+    })
+    const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
+
+    const result = await client.load(resolvedSource())
+
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
+  })
+
+  it('bounds rejected source findings before persistence', async () => {
+    const unsafePath = 'a'.repeat(1025)
+    const fetchMock = sourceTreeFetch([
+      blob('SKILL.md', skillBlobSha, skillText.length),
+      blob(unsafePath, '8'.repeat(40), 1),
+    ])
+    const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
+
+    const result = await client.load(resolvedSource())
+
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
+    if (result._tag === 'rejected')
+      expect(result.findings.every(finding => finding.length <= 500)).toBe(true)
   })
 
   it('rejects bytes that do not match the commit blob digest', async () => {

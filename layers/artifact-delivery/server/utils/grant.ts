@@ -1,11 +1,16 @@
 import type { ArtifactAttestation, ProblemCode } from '../schemas/contracts'
 import type { TrustedRoot } from './trusted-root'
-import { artifactAttestationSchema } from '../schemas/contracts'
+import { artifactAttestationSchema, checkResultSchema } from '../schemas/contracts'
+import { artifactR2Key } from './artifact-storage'
+import { verifyAttestationSignature } from './attestation'
+import { checksBlockArtifact } from './checks'
 
 const PUBLIC_GRANT_SECONDS = 5 * 60
 
 interface ArtifactGrantRow {
   id: string
+  content_sha256: string
+  content_bytes: number
   r2_key: string
   delivery_status: 'available' | 'blocked' | 'revoked'
   resolution_id: string
@@ -44,7 +49,7 @@ export async function createPublicArtifactGrant(
 ): Promise<PublicGrantResult> {
   const row = await dependencies.db.prepare(
     `SELECT
-       a.id, a.r2_key, a.delivery_status,
+       a.id, a.content_sha256, a.content_bytes, a.r2_key, a.delivery_status,
        aa.resolution_id, aa.attestation_json,
        r.state AS resolution_state
      FROM artifacts a
@@ -61,18 +66,43 @@ export async function createPublicArtifactGrant(
   if (row.delivery_status !== 'available' || row.resolution_state !== 'ready')
     return { _tag: 'denied', code: 'CHECK_BLOCKED' }
 
-  const blockedCheck = await dependencies.db.prepare(
-    `SELECT name
+  const checkRows = await dependencies.db.prepare(
+    `SELECT name, version, outcome, required, summary, findings_json
      FROM artifact_check_results
      WHERE resolution_id = ?1
-       AND required = 1
-       AND outcome IN ('fail', 'error')
-     LIMIT 1`,
-  ).bind(row.resolution_id).first<{ name: string }>()
-  if (blockedCheck)
+     ORDER BY name`,
+  ).bind(row.resolution_id).all<{
+    name: string
+    version: string
+    outcome: string
+    required: number
+    summary: string | null
+    findings_json: string
+  }>()
+  const checks = checkRows.results.map(check => checkResultSchema.parse({
+    name: check.name,
+    version: check.version,
+    outcome: check.outcome,
+    required: check.required === 1,
+    summary: check.summary ?? undefined,
+    findings: JSON.parse(check.findings_json) as unknown,
+  }))
+  if (checksBlockArtifact(checks))
     return { _tag: 'denied', code: 'CHECK_BLOCKED' }
 
   const attestation = artifactAttestationSchema.parse(JSON.parse(row.attestation_json))
+  const { signature, ...statement } = attestation
+  if (
+    attestation.artifactId !== artifactId
+    || attestation.contentSha256 !== row.content_sha256
+    || attestation.contentBytes !== row.content_bytes
+    || artifactId !== `sha256:${row.content_sha256}`
+    || row.r2_key !== artifactR2Key(row.content_sha256)
+  ) {
+    return { _tag: 'denied', code: 'ARTIFACT_REVOKED' }
+  }
+  if (!await verifyAttestationSignature(statement, signature, dependencies.trustedRoot, dependencies.now))
+    return { _tag: 'denied', code: 'ATTESTATION_EXPIRED' }
   const signingKey = dependencies.trustedRoot.keys.find(key => key.keyId === attestation.signature.keyId)
   if (!signingKey || signingKey.status === 'retired' || signingKey.status === 'revoked')
     return { _tag: 'denied', code: 'ATTESTATION_EXPIRED' }

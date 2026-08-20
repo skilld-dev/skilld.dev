@@ -8,8 +8,10 @@ minimumReleaseAgeExclude:
   - '@harlan-zw/nuxt-use-query@0.0.1'
   - '@harlan-zw/nuxt-wide-events'
   - '@cloudflare/workers-types@5.20260715.1'
+  - '@cloudflare/workers-types@5.20260820.1'
   - miniflare@4.20260710.0
   - wrangler@4.111.0
+  - wrangler@4.124.0
   - '@nuxtjs/mcp-toolkit@0.18.1'
   - nuxt-ai-ready@2.0.0
   - nuxt-site-config-kit@4.1.4 || 4.2.1
@@ -33,7 +35,7 @@ patchedDependencies:
   hookable@6.1.1: patches/hookable@6.1.1.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
-  '@cloudflare/workers-types': ^5.20260813.1
+  '@cloudflare/workers-types': ^5.20260820.1
   '@comark/nuxt': 0.6.2
   '@harlan-zw/comark-content': 0.0.17
   '@harlan-zw/nuxt-cf-jobs': 0.0.5
@@ -92,7 +94,7 @@ catalog:
   vitest: ^4.1.10
   vue: 3.5.41
   vue-tsc: ^3.3.9
-  wrangler: ^4.122.0
+  wrangler: ^4.124.0
   zod: ^4.4.3
 ignoredBuiltDependencies:
   - '@parcel/watcher'

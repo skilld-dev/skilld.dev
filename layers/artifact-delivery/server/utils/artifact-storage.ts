@@ -12,6 +12,7 @@ export async function putImmutableArtifact(
 ): Promise<ImmutableArtifactWrite> {
   const stored = await bucket.put(input.key, input.bytes, {
     onlyIf: { etagDoesNotMatch: '*' },
+    sha256: checksumBytes(input.contentSha256),
     httpMetadata: {
       contentType: 'application/x-tar',
       cacheControl: 'public, max-age=31536000, immutable',
@@ -29,10 +30,23 @@ export async function putImmutableArtifact(
   if (
     existing
     && existing.size === input.bytes.byteLength
+    && checksumHex(existing.checksums.sha256) === input.contentSha256
     && existing.customMetadata?.contentSha256 === input.contentSha256
     && existing.customMetadata?.format === 'skilld-tar-v1'
   ) {
     return { _tag: 'existing', key: input.key }
   }
   return { _tag: 'mutation-rejected', key: input.key }
+}
+
+function checksumHex(value: ArrayBuffer | undefined): string | null {
+  if (!value)
+    return null
+  return [...new Uint8Array(value)]
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+function checksumBytes(value: string): Uint8Array {
+  return Uint8Array.from(value.match(/.{2}/g) ?? [], byte => Number.parseInt(byte, 16))
 }

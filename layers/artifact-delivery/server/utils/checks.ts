@@ -7,6 +7,13 @@ const PATH_POLICY_VERSION = '1'
 const CREDENTIAL_MATERIAL_VERSION = '1'
 const EXECUTABLE_FILES_VERSION = '1'
 
+const CURRENT_ARTIFACT_CHECKS = new Map([
+  ['path-policy', { version: PATH_POLICY_VERSION, required: true }],
+  ['agent-skills-spec', { version: AGENT_SKILLS_CHECK_VERSION, required: true }],
+  ['credential-material', { version: CREDENTIAL_MATERIAL_VERSION, required: true }],
+  ['executable-files', { version: EXECUTABLE_FILES_VERSION, required: false }],
+])
+
 export interface CheckedArtifactSource {
   files: ArtifactFile[]
   checkResults: CheckResult[]
@@ -134,6 +141,14 @@ export async function checkArtifactSource(
 }
 
 export function checksBlockArtifact(checks: CheckResult[]): boolean {
+  const byName = new Map(checks.map(check => [check.name, check]))
+  if (byName.size !== checks.length)
+    return true
+  for (const [name, expected] of CURRENT_ARTIFACT_CHECKS) {
+    const check = byName.get(name)
+    if (!check || check.version !== expected.version || check.required !== expected.required)
+      return true
+  }
   return checks.some(check => check.required && (check.outcome === 'fail' || check.outcome === 'error'))
 }
 
