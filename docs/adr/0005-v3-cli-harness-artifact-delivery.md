@@ -50,7 +50,7 @@ Private Artifacts remain encrypted and short lived.
 
 Installed Skills remain local files and work when skilld.dev is unavailable.
 
-New installs and updates fail closed when current policy cannot be checked.
+New installs and upgrades fail closed when current policy cannot be checked.
 
 Explicit direct remote installs remain available with an `unverified` source status.
 

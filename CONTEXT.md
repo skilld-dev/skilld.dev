@@ -7,11 +7,11 @@ Use these terms exactly. Drift breeds shallow modules.
 - **Author** — a person with a GitHub login who publishes collections. Native to skilld.dev. Lives at `/@<github-login>`. Backed by D1, identity comes from GitHub OAuth.
 - **Collection** — an author-curated bundle of skills with editorial rationale. Atomic unit of sharing. Lives at `/@<github-login>/<slug>`.
 - **Curator** — collection author (D1-backed via GitHub login). Synonym for "author" in copy when referring specifically to someone who builds collections.
-- **Owner** — a github org or user that hosts skill repos. Proxied entity. Lives at `/gh/[owner]`.
+- **Owner** — a GitHub organization or user that hosts Skill repositories. Proxied entity. Lives at `/gh/[owner]`.
 - **Repository** — a GitHub repository containing one or more Skills. Lives at `/gh/[owner]/[repo]`.
-- **Skill** — a `SKILL.md` resolved from a repo. Lives at `/gh/[owner]/[repo]/[name]`.
-- **Watch** — an authenticated user subscribing to a repo or collection so they receive digest emails when its skills change. (Phase 2.)
-- **Digest** — periodic email summarizing changes to a user's watched repos. (Phase 3.)
+- **Skill** — a `SKILL.md` resolved from a repository. Lives at `/gh/[owner]/[repo]/[name]`.
+- **Watch** — an authenticated user subscribing to a repository or collection so they receive digest emails when its Skills change. (Phase 2.)
+- **Digest** — periodic email summarizing changes to a user's watched repositories. (Phase 3.)
 - **skilld-maintained Skill:** a Skill maintained by the skilld project for generation, review, search, or install guidance. It is not a registry admission.
 - **Harness:** the JavaScript `@skilld/harness` package that runs skilld-maintained Skills with strict output checks.
 - **Artifact:** immutable Skill bytes resolved from one exact Git commit for delivery to the skilld CLI.
@@ -21,7 +21,7 @@ Use these terms exactly. Drift breeds shallow modules.
 
 ## Identity rule
 
-- `/gh/[owner]` is *always* a github-proxied entity (the repo owner namespace).
+- `/gh/[owner]` is *always* a GitHub-proxied entity (the repository owner namespace).
 - `/@<github-login>` is *always* an authored entity in skilld's own data (the collection-author namespace).
 - A github org and a collection author can share a name — the `@` prefix disambiguates the author namespace.
 
@@ -53,7 +53,7 @@ Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilit
 | Concept | Canonical |
 |---|---|
 | Owner hub | `/gh/[owner]` |
-| Repo hub | `/gh/[owner]/[repo]` |
+| Repository | `/gh/[owner]/[repo]` |
 | Skill | `/gh/[owner]/[repo]/[name]` |
 | Author | `/@<github-login>` |
 | Collection | `/@<github-login>/<slug>` |
