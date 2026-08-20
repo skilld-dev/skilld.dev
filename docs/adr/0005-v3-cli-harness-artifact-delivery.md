@@ -36,7 +36,7 @@ Private GitHub support uses account-scoped transient Artifact delivery.
 
 GitHub remains the namespace and source of truth.
 
-The service provides no private registry, upload flow, team policy, seats, or SSO.
+The service provides no upload flow, team policy, seats, or SSO.
 
 ## Consequences
 
@@ -56,4 +56,4 @@ Explicit direct remote installs remain available with an `unverified` source sta
 
 This ADR supersedes VISION clauses that rejected skilld-maintained Skills, all Artifact hosting, and all private source delivery.
 
-It preserves the rejection of private registries and safety guarantees.
+It preserves GitHub as the source of truth and rejects safety guarantees.
