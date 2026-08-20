@@ -11,7 +11,7 @@ minimumReleaseAgeExclude:
   - miniflare@4.20260710.0
   - wrangler@4.111.0
   - '@nuxtjs/mcp-toolkit@0.18.1'
-  - nuxt-ai-ready@1.7.11
+  - nuxt-ai-ready@2.0.0
   - nuxt-site-config-kit@4.1.4 || 4.2.1
   - nuxt-site-config@4.1.4 || 4.2.1
   - nuxt-schema-org@6.2.9
@@ -80,7 +80,7 @@ catalog:
   marked: ^18.0.9
   motion-v: ^2.3.0
   nuxt: 4.5.2
-  nuxt-ai-ready: ^1.7.12
+  nuxt-ai-ready: ^2.0.0
   nuxt-auth-utils: ^0.5.30
   nuxt-og-image: ^6.7.8
   nuxt-skew-protection: ^1.5.0

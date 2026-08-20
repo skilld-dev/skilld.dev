@@ -200,7 +200,6 @@ export default defineNuxtConfig({
     },
     cron: false,
     runtimeSync: true,
-    indexNow: false,
     mcp: {
       tools: false,
       resources: false,
@@ -293,6 +292,11 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'cloudflare-module',
+    // Registered here, not scanned from `server/middleware`, because nuxt-ai-ready
+    // claims every `.md` path and scanned middleware runs after a module's.
+    handlers: [
+      { middleware: true, handler: '~~/server/handlers/skill-md-probe.ts' },
+    ],
     alias: {
       // Cloudflare's ASSETS binding is authoritative in production and local
       // Wrangler preview. Avoid parsing Nitro's per-file public asset table in
