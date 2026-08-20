@@ -464,17 +464,29 @@ async function createBuildHarness(files: ArtifactSourceFile[]) {
   const publicKey = bytesToBase64Url(
     new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey)),
   )
+  const trustedKey = {
+    version: 1 as const,
+    rootKeyId: 'skilld-root-2026',
+    keyId: 'skilld-production-2026-03',
+    algorithm: 'Ed25519' as const,
+    publicKey,
+    notBefore: new Date((NOW - 60) * 1000).toISOString(),
+    notAfter: new Date((NOW + 3600) * 1000).toISOString(),
+    status: 'active' as const,
+  }
   const trustedRoot = {
     version: 1 as const,
     rootKeyId: 'skilld-root-2026',
     rootPublicKey: publicKey,
     keys: [{
-      keyId: 'skilld-production-2026-03',
-      algorithm: 'Ed25519' as const,
-      publicKey,
-      notBefore: new Date((NOW - 60) * 1000).toISOString(),
-      notAfter: new Date((NOW + 3600) * 1000).toISOString(),
-      status: 'active' as const,
+      keyId: trustedKey.keyId,
+      algorithm: trustedKey.algorithm,
+      publicKey: trustedKey.publicKey,
+      notBefore: trustedKey.notBefore,
+      notAfter: trustedKey.notAfter,
+      status: trustedKey.status,
+      statement: bytesToBase64Url(new TextEncoder().encode(JSON.stringify(trustedKey))),
+      rootSignature: 'C'.repeat(86),
     }],
     fetchedAt: new Date(NOW * 1000).toISOString(),
   }

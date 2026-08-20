@@ -169,14 +169,20 @@ export const publicArtifactGrantSchema = z.object({
   attestation: artifactAttestationSchema,
 }).strict()
 
-export const trustedKeySchema = z.object({
+export const trustedKeyStatementSchema = z.object({
+  version: z.literal(1),
+  rootKeyId: z.string().min(1).max(100),
   keyId: z.string().min(1).max(100),
   algorithm: z.literal('Ed25519'),
   publicKey: z.string().min(43).max(44).regex(/^[\w-]+$/),
   notBefore: z.string().datetime(),
   notAfter: z.string().datetime(),
   status: z.enum(['active', 'overlapping', 'retired', 'revoked']),
-  rootSignature: z.string().min(86).max(88).regex(/^[\w-]+$/).optional(),
+}).strict()
+
+export const trustedKeySchema = trustedKeyStatementSchema.omit({ version: true, rootKeyId: true }).extend({
+  statement: z.string().min(2).max(4096).regex(/^[\w-]+$/),
+  rootSignature: z.string().min(86).max(88).regex(/^[\w-]+$/),
 }).strict()
 
 export const trustedRootConfigSchema = z.object({
