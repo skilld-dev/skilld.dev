@@ -3,8 +3,8 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 
 useRobotsRule(false)
 
-// Phase 1: admin UI is gated server-side via bearer token only. Session-based
-// admin gating returns in Phase 2 with GitHub OAuth.
+// Admin data endpoints gate per-request via requireAdmin: bearer token or a
+// signed-in session matching the admin identity.
 const links: NavigationMenuItem[] = [
   {
     label: 'Integrity',
