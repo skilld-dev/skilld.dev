@@ -2,8 +2,11 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  approximateDeployedSha,
+  buildWorkersQuery,
   parseHealthEmailRows,
   parseWorkflowName,
+  readMigrationState,
   summarizeWorkflowRuns,
 } from '../../scripts/tools/daily-checkin-observability.mjs'
 
@@ -27,6 +30,34 @@ function run(
 }
 
 describe('daily check-in observability', () => {
+  it('reads deployed state from production instead of the current feature branch', () => {
+    const runGit = (args: string[]) => {
+      if (args[0] === 'rev-list')
+        return args.at(-1) === 'origin/main' ? 'deployed-sha' : 'feature-sha'
+      if (args[0] === 'ls-tree' && args[2] === 'origin/main')
+        return 'migrations/0111_github_app_delivery.sql\nmigrations/0112_private_artifact_keys.sql'
+      if (args[0] === 'ls-tree' && args[2] === 'HEAD')
+        return 'migrations/0108_weekly_email.sql\nmigrations/0109_weekly_click_events.sql'
+      throw new Error(`unexpected git command: ${args.join(' ')}`)
+    }
+
+    expect(approximateDeployedSha(runGit, '2026-08-20T17:32:48Z')).toBe('deployed-sha')
+    expect(readMigrationState(runGit, [
+      '0108_weekly_email.sql',
+      '0109_weekly_click_events.sql',
+    ])).toEqual({
+      localHead: '0112_private_artifact_keys.sql',
+      uncommitted: [],
+    })
+  })
+
+  it('scopes Worker analytics at the API boundary', () => {
+    expect(buildWorkersQuery(
+      '2026-08-20T02:28:50.987Z',
+      '2026-08-21T02:53:53.726Z',
+    )).toContain('filter: {scriptName: "skilld-dev"')
+  })
+
   it('surfaces every required workflow and preserves a failure behind an in-progress run', () => {
     expect(summarizeWorkflowRuns([
       run('Deploy to Cloudflare', 'in_progress', '', 4),

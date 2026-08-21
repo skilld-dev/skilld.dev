@@ -6,8 +6,11 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  approximateDeployedSha,
+  buildWorkersQuery,
   parseHealthEmailRows,
   parseWorkflowName,
+  readMigrationState,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
 import { runReadOnlyProcess } from './daily-checkin-process.mjs'
@@ -73,12 +76,6 @@ function d1Query(sql) {
   return statement.results ?? []
 }
 
-function approximateSha(deployedAt) {
-  if (!deployedAt)
-    return null
-  return run('git', ['rev-list', '-1', `--before=${deployedAt}`, 'HEAD']) || null
-}
-
 const git = probe(() => {
   const dirty = run('git', ['status', '--short']).split('\n').filter(Boolean)
   const commits = run('git', ['log', `--since=${sinceIso}`, '--pretty=format:%H%x09%aI%x09%s'])
@@ -105,7 +102,7 @@ const deploy = probe(() => {
       createdOn: latest.created_on,
       versionId: latest.versions?.find(version => version.percentage === 100)?.version_id ?? latest.versions?.[0]?.version_id ?? null,
       message: latest.annotations?.['workers/message'] ?? null,
-      approxDeployedSha: approximateSha(latest.created_on),
+      approxDeployedSha: approximateDeployedSha(args => run('git', args), latest.created_on),
     },
   }
 })
@@ -316,18 +313,12 @@ const d1 = probe(() => {
   const prodMigrationHead = has('d1_migrations')
     ? d1Query(`SELECT MAX(name) name FROM d1_migrations`)[0]?.name ?? null
     : null
-  // Drift means production is behind the code that shipped, so the local head
-  // is read from HEAD rather than the working tree. Unmerged migrations are
-  // work in progress and are reported separately instead of as drift.
-  const isMigration = file => /^\d.*\.sql$/.test(file)
-  const committedMigrations = run('git', ['ls-tree', '--name-only', 'HEAD', 'migrations/'])
-    .split('\n')
-    .map(path => path.slice('migrations/'.length))
-    .filter(isMigration)
-    .sort()
-  const workingTreeMigrations = readdirSync(join(root, 'migrations')).filter(isMigration).sort()
-  const localMigrationHead = committedMigrations.at(-1) ?? null
-  const uncommittedMigrations = workingTreeMigrations.filter(file => !committedMigrations.includes(file))
+  // Production can be checked from a feature worktree. Compare D1 with the
+  // production branch, while keeping worktree-only migrations visible.
+  const migrationState = readMigrationState(
+    args => run('git', args),
+    readdirSync(join(root, 'migrations')),
+  )
 
   return {
     tables: [...tables],
@@ -340,7 +331,7 @@ const d1 = probe(() => {
     healthEmail,
     recentJobBatches,
     registryMaintenance,
-    migrations: { localHead: localMigrationHead, prodHead: prodMigrationHead, uncommitted: uncommittedMigrations },
+    migrations: { ...migrationState, prodHead: prodMigrationHead },
     missingExpectedTables: [
       'skills',
       'repos',
@@ -367,7 +358,7 @@ function cloudflareToken() {
 }
 
 const workers = await probeAsync(async () => {
-  const query = `query { viewer { accounts(filter: {accountTag: "5904138d55ca25d5670dca6adf99894e"}) { workersInvocationsAdaptive(limit: 100, filter: {datetime_geq: "${sinceIso}", datetime_leq: "${now.toISOString()}"}) { dimensions { scriptName status } sum { requests } } } } }`
+  const query = buildWorkersQuery(sinceIso, now.toISOString())
   const response = await fetch('https://api.cloudflare.com/client/v4/graphql', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${cloudflareToken()}`, 'Content-Type': 'application/json' },

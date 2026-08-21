@@ -1,0 +1,749 @@
+{
+  "generatedAt": "2026-08-21T03:05:38.386Z",
+  "since": "2026-08-20T02:28:50.987Z",
+  "git": {
+    "branch": "fix/daily-checkin-20260821",
+    "head": "2bf9878c6c8d6ed2661499e7eedd82be176f70a1",
+    "dirtyFiles": [
+      "M docs/ops/checkins/state.json",
+      " M scripts/tools/daily-checkin-data.mjs",
+      " M scripts/tools/daily-checkin-observability.mjs",
+      " M test/unit/daily-checkin-observability.test.ts"
+    ],
+    "commitsSinceLastRun": [
+      {
+        "sha": "2bf9878c6c8d6ed2661499e7eedd82be176f70a1",
+        "authoredAt": "2026-08-21T03:23:43+10:00",
+        "subject": "feat(v3): add attested Artifact delivery (#54)"
+      },
+      {
+        "sha": "aa64972d346f07837240b37d0fa7f736c2fe85e9",
+        "authoredAt": "2026-08-20T16:29:48+10:00",
+        "subject": "chore: adopt nuxt-ai-ready 2.0.0 (#53)"
+      },
+      {
+        "sha": "df03112da394079791384f47798c86c6e1bc615d",
+        "authoredAt": "2026-08-20T13:58:13+10:00",
+        "subject": "fix(registry): keep a removed skill removed (#52)"
+      },
+      {
+        "sha": "42c36fab2ac765433c99043e8f73b1fe8f506508",
+        "authoredAt": "2026-08-20T13:58:01+10:00",
+        "subject": "fix(registry): answer the URLs agents actually ask for (#51)"
+      },
+      {
+        "sha": "7e8827c786a3cb0ad12fac5ca82522a63dc46106",
+        "authoredAt": "2026-08-20T12:55:13+10:00",
+        "subject": "fix(ops): stop a not-yet-due task alarming as a dead one (#49)"
+      },
+      {
+        "sha": "0349755d94e17e271c0b6f722ff7f3b8b40ea930",
+        "authoredAt": "2026-08-20T12:55:06+10:00",
+        "subject": "fix(registry): guard the cluster page against the D1 parameter cap (#50)"
+      }
+    ]
+  },
+  "deploy": {
+    "latest": {
+      "id": "5fd5cb02-14b1-4a55-bff4-f3fb57e8a63a",
+      "createdOn": "2026-08-20T17:32:48.765484Z",
+      "versionId": "ab679d35-27ae-4431-ba54-e33193f39798",
+      "message": null,
+      "approxDeployedSha": "2bf9878c6c8d6ed2661499e7eedd82be176f70a1"
+    }
+  },
+  "ci": {
+    "workflows": [
+      {
+        "name": "Deploy to Cloudflare",
+        "latestRun": {
+          "conclusion": "skipped",
+          "createdAt": "2026-08-21T03:00:34Z",
+          "databaseId": 32441829866,
+          "displayTitle": "Deploy to Cloudflare",
+          "headSha": "2bf9878c6c8d6ed2661499e7eedd82be176f70a1",
+          "status": "completed",
+          "updatedAt": "2026-08-21T03:00:35Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32441829866",
+          "workflowName": "Deploy to Cloudflare"
+        },
+        "latestCompletedRun": {
+          "conclusion": "success",
+          "createdAt": "2026-08-20T17:29:44Z",
+          "databaseId": 32397916248,
+          "displayTitle": "Deploy to Cloudflare",
+          "headSha": "2bf9878c6c8d6ed2661499e7eedd82be176f70a1",
+          "status": "completed",
+          "updatedAt": "2026-08-20T17:33:12Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32397916248",
+          "workflowName": "Deploy to Cloudflare"
+        },
+        "state": {
+          "_tag": "success"
+        }
+      },
+      {
+        "name": "Test",
+        "latestRun": {
+          "conclusion": "success",
+          "createdAt": "2026-08-21T02:55:23Z",
+          "databaseId": 32441529036,
+          "displayTitle": "fix(d1): retry reads during exports",
+          "headSha": "da27fe14c7c1c10810b1d27083de9a4b7ee1fc1e",
+          "status": "completed",
+          "updatedAt": "2026-08-21T03:00:31Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32441529036",
+          "workflowName": "Test"
+        },
+        "latestCompletedRun": {
+          "conclusion": "success",
+          "createdAt": "2026-08-21T02:55:23Z",
+          "databaseId": 32441529036,
+          "displayTitle": "fix(d1): retry reads during exports",
+          "headSha": "da27fe14c7c1c10810b1d27083de9a4b7ee1fc1e",
+          "status": "completed",
+          "updatedAt": "2026-08-21T03:00:31Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32441529036",
+          "workflowName": "Test"
+        },
+        "state": {
+          "_tag": "success"
+        }
+      }
+    ],
+    "recent": [
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-21T03:00:34Z",
+        "databaseId": 32441829866,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "2bf9878c6c8d6ed2661499e7eedd82be176f70a1",
+        "status": "completed",
+        "updatedAt": "2026-08-21T03:00:35Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32441829866",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-21T02:55:23Z",
+        "databaseId": 32441529036,
+        "displayTitle": "fix(d1): retry reads during exports",
+        "headSha": "da27fe14c7c1c10810b1d27083de9a4b7ee1fc1e",
+        "status": "completed",
+        "updatedAt": "2026-08-21T03:00:31Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32441529036",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-20T17:29:44Z",
+        "databaseId": 32397916248,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "2bf9878c6c8d6ed2661499e7eedd82be176f70a1",
+        "status": "completed",
+        "updatedAt": "2026-08-20T17:33:12Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32397916248",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-20T17:23:46Z",
+        "databaseId": 32397365056,
+        "displayTitle": "feat(v3): add attested Artifact delivery (#54)",
+        "headSha": "2bf9878c6c8d6ed2661499e7eedd82be176f70a1",
+        "status": "completed",
+        "updatedAt": "2026-08-20T17:29:41Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32397365056",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-20T16:47:30Z",
+        "databaseId": 32393977116,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "aa64972d346f07837240b37d0fa7f736c2fe85e9",
+        "status": "completed",
+        "updatedAt": "2026-08-20T16:47:32Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32393977116",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-20T16:39:28Z",
+        "databaseId": 32393222275,
+        "displayTitle": "feat(v3): add attested Artifact delivery",
+        "headSha": "017e1bdd64c9b0ce54809107aa86e10d67edb5ce",
+        "status": "completed",
+        "updatedAt": "2026-08-20T16:47:28Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32393222275",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-20T15:54:06Z",
+        "databaseId": 32388882207,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "aa64972d346f07837240b37d0fa7f736c2fe85e9",
+        "status": "completed",
+        "updatedAt": "2026-08-20T15:54:14Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32388882207",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-20T15:48:43Z",
+        "databaseId": 32388352448,
+        "displayTitle": "feat(v3): add attested Artifact delivery",
+        "headSha": "d6e0313317563b045368027e234b68d422fd9638",
+        "status": "completed",
+        "updatedAt": "2026-08-20T15:54:04Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32388352448",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-20T14:52:16Z",
+        "databaseId": 32382729132,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "aa64972d346f07837240b37d0fa7f736c2fe85e9",
+        "status": "completed",
+        "updatedAt": "2026-08-20T14:52:17Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32382729132",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-20T14:47:19Z",
+        "databaseId": 32382235975,
+        "displayTitle": "feat(v3): add attested Artifact delivery",
+        "headSha": "8336cdb6558b903b61aaaa1917f9f7d25aec9043",
+        "status": "completed",
+        "updatedAt": "2026-08-20T14:52:14Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32382235975",
+        "workflowName": "Test"
+      }
+    ]
+  },
+  "http": {
+    "https://skilld.dev/": 200,
+    "https://skilld.dev/skills": 200
+  },
+  "d1": {
+    "tables": [
+      "_ai_ready_info",
+      "_cf_KV",
+      "_content_frameworks",
+      "_content_info",
+      "_content_learn",
+      "activity",
+      "ai_batch_costs",
+      "ai_batches",
+      "ai_ready_cron_runs",
+      "ai_ready_pages",
+      "ai_ready_pages_fts",
+      "ai_ready_pages_fts_config",
+      "ai_ready_pages_fts_data",
+      "ai_ready_pages_fts_docsize",
+      "ai_ready_pages_fts_idx",
+      "ai_ready_sitemaps",
+      "artifact_attestations",
+      "artifact_check_results",
+      "artifact_download_grants",
+      "artifact_resolutions",
+      "artifacts",
+      "cli_auth_codes",
+      "cli_device_sessions",
+      "cli_tokens",
+      "collection_skills_v2",
+      "collections_v2",
+      "d1_migrations",
+      "daily_health_checks",
+      "digest_runs",
+      "discovery_candidates",
+      "discovery_ledger",
+      "embedding_attempts",
+      "failed_jobs",
+      "github_app_installations",
+      "github_app_repositories",
+      "github_app_user_authorizations",
+      "github_app_webhook_deliveries",
+      "github_sync_control",
+      "install_events",
+      "job_batches",
+      "jobs",
+      "npm_guides",
+      "owners",
+      "private_artifact_attestations",
+      "private_artifact_keys",
+      "private_artifacts",
+      "registry_maintenance",
+      "repo_kind_overrides",
+      "repo_star_observations",
+      "repo_star_surges",
+      "repo_sync_progress",
+      "repo_trust_overrides",
+      "repos",
+      "scheduled_runs",
+      "skill_dirty",
+      "skill_generated",
+      "skill_likes",
+      "skill_repo_eligibility",
+      "skill_repo_review_sync_outbox",
+      "skill_revisions",
+      "skill_social_posts",
+      "skill_subscriptions",
+      "skills",
+      "skills_fts",
+      "skills_fts_config",
+      "skills_fts_data",
+      "skills_fts_docsize",
+      "skills_fts_idx",
+      "skills_sh_crawl_runs",
+      "skills_sh_discovery_observations",
+      "sqlite_sequence",
+      "sqlite_stat1",
+      "supported_repos",
+      "supported_skills",
+      "sync_jobs",
+      "tag_decisions",
+      "user_starred_repos",
+      "users",
+      "weekly_click_events",
+      "weekly_runs",
+      "x_ingest_cursor",
+      "x_post_metrics",
+      "x_post_repos",
+      "x_post_skills",
+      "x_posts"
+    ],
+    "inventory": {
+      "skills": 8232,
+      "repos": 7776,
+      "owners": 9673,
+      "users": 22,
+      "collections": 10,
+      "broken_repos": 2008
+    },
+    "activity": {
+      "new_skills": 19,
+      "changed_repos": 28,
+      "install_events": 1,
+      "new_users": 0,
+      "digests_sent": 0,
+      "digests_failed": 0
+    },
+    "pipeline": {
+      "newly_broken_repos_total": 2,
+      "newly_broken_repos_impacted": 0,
+      "skill_sync_failures": 0,
+      "stale_dirty_skills": 0,
+      "ai_submitted": 0,
+      "ai_stuck": 0,
+      "ai_failed": 0,
+      "embeddings_completed": 381,
+      "embeddings_failed": 0,
+      "embeddings_stuck": 0,
+      "failed_jobs": 2,
+      "stale_reserved_jobs": 0
+    },
+    "cost": {
+      "ai_cost_usd": 0,
+      "x_discovery_reads_today": 0,
+      "x_discovery_reads_total": 700,
+      "x_hot_posts": 67,
+      "x_posts_24h": 26,
+      "x_newest_post_age_hours": 2,
+      "x_verified_skills": 195,
+      "x_verified_skills_24h": 2,
+      "x_posts_unscanned": 1,
+      "x_ledger_pending": 1,
+      "x_ledger_held": 60,
+      "x_ledger_stalled": 0,
+      "x_ledger_indexed": 358,
+      "x_budget_target": 2000,
+      "x_budget_used_pct": 0,
+      "x_projected_daily_reads": 67,
+      "x_projected_monthly_usd": 10.05,
+      "x_over_budget": false,
+      "x_reads_per_verified_skill": 4,
+      "x_falling_behind": false
+    },
+    "syncJobs": [
+      {
+        "name": "ai-generate-poll",
+        "cron": "45 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787280356,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "ai-generate-submit",
+        "cron": "15 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787278507,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "ai-ready:cron",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787281258,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "backfill-skill-assets",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787281255,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "daily-health-check",
+        "cron": "0 22 * * *",
+        "stale_after_seconds": 129600,
+        "last_run_at": 1787263213,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "detect-star-surges",
+        "cron": "30 4 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787200224,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "drain-skill-dirty",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787281256,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "embedding-parity-audit",
+        "cron": "0 21 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787259702,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "recompute-skill-scores",
+        "cron": "0 3 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787281379,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "reconcile-rendered",
+        "cron": "20 */6 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787271607,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "refresh-x-engagement",
+        "cron": "10 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787278207,
+        "last_status": "partial",
+        "last_error": "bearer token rejected"
+      },
+      {
+        "name": "send-digests",
+        "cron": "0 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787281256,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-bsky-mentions",
+        "cron": "17 */2 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787278650,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-github-skills",
+        "cron": "0 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787281258,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-reviewed-skill-repos",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787281255,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-social-mentions",
+        "cron": "30 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787279410,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-x-mentions",
+        "cron": "*/15 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787281261,
+        "last_status": "partial",
+        "last_error": "bearer token rejected"
+      }
+    ],
+    "failedJobFingerprints": [
+      {
+        "queue": "repo-review-sync",
+        "job_type": "registry/repository-submission",
+        "exception": "no_supported_skill_paths",
+        "count": 2,
+        "first_failed_at": 1787199329,
+        "last_failed_at": 1787229023
+      }
+    ],
+    "healthEmail": [
+      {
+        "reportDate": "2026-08-21",
+        "healthStatus": "AMBER",
+        "deliveryStatus": "sent",
+        "recipient": "harlan@harlanzw.com",
+        "sentAt": 1787263206,
+        "error": null,
+        "reasons": [
+          "Scheduled tasks partially failed: refresh-x-engagement, sync-x-mentions.",
+          "1 user-impacting repository became unavailable in 24 hours."
+        ],
+        "warnings": [],
+        "window": {
+          "reportDate": "2026-08-21",
+          "timeZone": "Australia/Melbourne",
+          "from": "2026-08-19T22:00:06Z",
+          "to": "2026-08-20T22:00:06Z",
+          "workerVersion": "ab679d35 deployed 2026-08-20T17:32:45.059243Z"
+        }
+      },
+      {
+        "reportDate": "2026-08-20",
+        "healthStatus": "RED",
+        "deliveryStatus": "sent",
+        "recipient": "harlan@harlanzw.com",
+        "sentAt": 1787176841,
+        "error": null,
+        "reasons": [
+          "Scheduled run history is unhealthy: send-weekly (missing_run).",
+          "2 user-impacting repositories became unavailable in 24 hours.",
+          "1 skill recorded a new sync failure in 24 hours."
+        ],
+        "warnings": [],
+        "window": {
+          "reportDate": "2026-08-20",
+          "timeZone": "Australia/Melbourne",
+          "from": "2026-08-18T22:00:41Z",
+          "to": "2026-08-19T22:00:41Z",
+          "workerVersion": "22df5549 deployed 2026-08-19T15:04:47.43803Z"
+        }
+      }
+    ],
+    "recentJobBatches": [
+      {
+        "id": "50986fa5-ba62-4b52-86c6-7be50ee18b7b",
+        "name": "registry-sync:1787281256",
+        "total_jobs": 30,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787281257,
+        "updated_at": 1787281350,
+        "finished_at": 1787281350
+      },
+      {
+        "id": "c968bb57-db0b-4dd1-997b-de30019a7346",
+        "name": "registry-sync:1787277606",
+        "total_jobs": 15,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787277607,
+        "updated_at": 1787277654,
+        "finished_at": 1787277654
+      },
+      {
+        "id": "54f5da65-67f6-4dc5-a542-5fea6939eb44",
+        "name": "registry-sync:1787274006",
+        "total_jobs": 12,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787274007,
+        "updated_at": 1787274059,
+        "finished_at": 1787274059
+      },
+      {
+        "id": "c309a30d-9601-439e-9de6-43dbf5caf90d",
+        "name": "render-repair:1787271606",
+        "total_jobs": 47,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787271606,
+        "updated_at": 1787272019,
+        "finished_at": 1787272019
+      },
+      {
+        "id": "577c3e97-827c-4065-87e4-d59ce7d71368",
+        "name": "registry-sync:1787270406",
+        "total_jobs": 12,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787270406,
+        "updated_at": 1787270440,
+        "finished_at": 1787270440
+      },
+      {
+        "id": "1caa95da-3c00-4e5a-95d5-57b8f2e73caa",
+        "name": "registry-sync:1787266806",
+        "total_jobs": 20,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787266806,
+        "updated_at": 1787266863,
+        "finished_at": 1787266863
+      },
+      {
+        "id": "f57dea20-339d-4b94-8829-23c80a365fbe",
+        "name": "registry-sync:1787263206",
+        "total_jobs": 29,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787263206,
+        "updated_at": 1787264046,
+        "finished_at": 1787264046
+      },
+      {
+        "id": "3d3c4da2-33a0-4e99-8bc7-c65f3ea864f5",
+        "name": "registry-sync:1787259606",
+        "total_jobs": 22,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787259606,
+        "updated_at": 1787259787,
+        "finished_at": 1787259787
+      },
+      {
+        "id": "23f3cf8e-5185-41a8-9139-00cdf3033991",
+        "name": "registry-sync:1787256006",
+        "total_jobs": 25,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787256006,
+        "updated_at": 1787256088,
+        "finished_at": 1787256088
+      },
+      {
+        "id": "e28895a1-19a6-47c5-8230-b9e847646c9f",
+        "name": "registry-sync:1787252406",
+        "total_jobs": 18,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787252407,
+        "updated_at": 1787252461,
+        "finished_at": 1787252461
+      }
+    ],
+    "registryMaintenance": [
+      {
+        "name": "nested-assets-v1",
+        "status": "complete",
+        "batch_id": "d9530bca-ad97-498d-af66-e491be12e13c",
+        "updated_at": 1785036660,
+        "last_error": null
+      }
+    ],
+    "migrations": {
+      "localHead": "0112_private_artifact_keys.sql",
+      "uncommitted": [],
+      "prodHead": "0112_private_artifact_keys.sql"
+    },
+    "missingExpectedTables": []
+  },
+  "workers": {
+    "outcomes": {
+      "clientDisconnected": 10,
+      "exceededMemory": 3,
+      "success": 65371,
+      "internalError": 55
+    },
+    "nonOk": [
+      {
+        "status": "exceededMemory",
+        "requests": 3
+      },
+      {
+        "status": "internalError",
+        "requests": 55
+      }
+    ]
+  },
+  "sentry": {
+    "_tag": "available",
+    "newIssues": [
+      {
+        "id": "7683331513",
+        "shortId": "SKILLD-14",
+        "title": "Error: D1_ERROR: Currently processing a long-running export.",
+        "culprit": "GET /api/skills/agricidaniel/claude-seo/seo-flow",
+        "permalink": "https://harlan-zw.sentry.io/issues/7683331513/",
+        "count": 4,
+        "userCount": 1,
+        "firstSeen": "2026-08-20T17:14:01Z",
+        "lastSeen": "2026-08-20T17:14:02Z"
+      },
+      {
+        "id": "7683331537",
+        "shortId": "SKILLD-15",
+        "title": "Error: D1_ERROR: Currently processing a long-running export.",
+        "culprit": "GET /api/skills/featured?orgs=6&perOrg=1&devs=8&perDev=1",
+        "permalink": "https://harlan-zw.sentry.io/issues/7683331537/",
+        "count": 2,
+        "userCount": 1,
+        "firstSeen": "2026-08-20T17:14:02Z",
+        "lastSeen": "2026-08-20T17:14:02Z"
+      },
+      {
+        "id": "7683331572",
+        "shortId": "SKILLD-16",
+        "title": "Error: D1_ERROR: Currently processing a long-running export.",
+        "culprit": "GET /api/feed/trending?limit=30",
+        "permalink": "https://harlan-zw.sentry.io/issues/7683331572/",
+        "count": 1,
+        "userCount": 1,
+        "firstSeen": "2026-08-20T17:14:06Z",
+        "lastSeen": "2026-08-20T17:14:06Z"
+      },
+      {
+        "id": "7683331480",
+        "shortId": "SKILLD-13",
+        "title": "Error: D1_ERROR: Currently processing a long-running export.",
+        "culprit": "GET /api/skills/tags",
+        "permalink": "https://harlan-zw.sentry.io/issues/7683331480/",
+        "count": 1,
+        "userCount": 1,
+        "firstSeen": "2026-08-20T17:14:02Z",
+        "lastSeen": "2026-08-20T17:14:02Z"
+      }
+    ],
+    "recurringIssues": [],
+    "truncatedAtLimit": false
+  }
+}
