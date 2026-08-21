@@ -2,9 +2,12 @@ import type { H3Event } from 'h3'
 import { isReplayableD1Sql, withD1ResetRecovery } from '@harlan-zw/nuxt-cloudflare/d1'
 
 const D1_TERMINAL_METHODS = new Set<PropertyKey>(['first', 'run', 'all', 'raw'])
-const LONG_RUNNING_IMPORT = 'currently processing a long-running import'
+const LONG_RUNNING_OPERATIONS = [
+  'currently processing a long-running import',
+  'currently processing a long-running export',
+]
 
-interface D1ImportRecoveryOptions {
+interface D1MaintenanceRecoveryOptions {
   maxAttempts?: number
   random?: () => number
   sleep?: (milliseconds: number) => Promise<void>
@@ -19,12 +22,12 @@ type RetryOutcome<T> = { _tag: 'ok', value: T } | { _tag: 'error', error: unknow
 
 export function createPlatformD1(
   env: Cloudflare.Env,
-  options: D1ImportRecoveryOptions = {},
+  options: D1MaintenanceRecoveryOptions = {},
 ): PlatformD1 {
   const rawStatements = new WeakMap<object, D1PreparedStatement>()
-  const importTolerantBinding = createImportTolerantDatabase(env.DB, rawStatements, options)
-  const recoveringSession = withD1ResetRecovery(importTolerantBinding)
-  const database = new Proxy(importTolerantBinding, {
+  const maintenanceTolerantBinding = createMaintenanceTolerantDatabase(env.DB, rawStatements, options)
+  const recoveringSession = withD1ResetRecovery(maintenanceTolerantBinding)
+  const database = new Proxy(maintenanceTolerantBinding, {
     get(target, property, receiver) {
       if (property === 'prepare')
         return recoveringSession.prepare.bind(recoveringSession)
@@ -43,15 +46,15 @@ export function createPlatformD1(
   }
 }
 
-function createImportTolerantDatabase(
+function createMaintenanceTolerantDatabase(
   database: D1Database,
   rawStatements: WeakMap<object, D1PreparedStatement>,
-  options: D1ImportRecoveryOptions,
+  options: D1MaintenanceRecoveryOptions,
 ): D1Database {
   return new Proxy(database, {
     get(target, property, receiver) {
       if (property === 'withSession') {
-        return (constraint?: D1SessionBookmark | D1SessionConstraint) => createImportTolerantSession(
+        return (constraint?: D1SessionBookmark | D1SessionConstraint) => createMaintenanceTolerantSession(
           target.withSession(constraint),
           rawStatements,
           options,
@@ -63,15 +66,15 @@ function createImportTolerantDatabase(
   })
 }
 
-function createImportTolerantSession(
+function createMaintenanceTolerantSession(
   session: D1DatabaseSession,
   rawStatements: WeakMap<object, D1PreparedStatement>,
-  options: D1ImportRecoveryOptions,
+  options: D1MaintenanceRecoveryOptions,
 ): D1DatabaseSession {
   return new Proxy(session, {
     get(target, property, receiver) {
       if (property === 'prepare')
-        return (sql: string) => createImportTolerantStatement(target, rawStatements, sql, [], target.prepare(sql), options)
+        return (sql: string) => createMaintenanceTolerantStatement(target, rawStatements, sql, [], target.prepare(sql), options)
       if (property === 'batch') {
         return (statements: D1PreparedStatement[]) => target.batch(
           statements.map(statement => rawStatements.get(statement) ?? statement),
@@ -83,13 +86,13 @@ function createImportTolerantSession(
   })
 }
 
-function createImportTolerantStatement(
+function createMaintenanceTolerantStatement(
   session: D1DatabaseSession,
   rawStatements: WeakMap<object, D1PreparedStatement>,
   sql: string,
   parameters: unknown[],
   initial: D1PreparedStatement,
-  options: D1ImportRecoveryOptions,
+  options: D1MaintenanceRecoveryOptions,
 ): D1PreparedStatement {
   let readAttempt = 0
   const prepare = () => {
@@ -100,7 +103,7 @@ function createImportTolerantStatement(
   const statement = new Proxy(initial, {
     get(target, property, receiver) {
       if (property === 'bind') {
-        return (...values: unknown[]) => createImportTolerantStatement(
+        return (...values: unknown[]) => createMaintenanceTolerantStatement(
           session,
           rawStatements,
           sql,
@@ -110,7 +113,7 @@ function createImportTolerantStatement(
         )
       }
       if (D1_TERMINAL_METHODS.has(property) && isReplayableD1Sql(sql)) {
-        return (...args: unknown[]) => retryD1ImportRead(() => {
+        return (...args: unknown[]) => retryD1MaintenanceRead(() => {
           const statement = readAttempt++ === 0 ? target : prepare()
           const method: unknown = Reflect.get(statement, property, statement)
           if (typeof method !== 'function')
@@ -126,9 +129,9 @@ function createImportTolerantStatement(
   return statement
 }
 
-async function retryD1ImportRead<T>(
+async function retryD1MaintenanceRead<T>(
   operation: () => Promise<T>,
-  options: D1ImportRecoveryOptions,
+  options: D1MaintenanceRecoveryOptions,
 ): Promise<T> {
   const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 4))
   const random = options.random ?? Math.random
@@ -143,7 +146,7 @@ async function retryD1ImportRead<T>(
       )
     if (outcome._tag === 'ok')
       return outcome.value
-    if (!isLongRunningD1Import(outcome.error) || attempt + 1 >= maxAttempts)
+    if (!isLongRunningD1Maintenance(outcome.error) || attempt + 1 >= maxAttempts)
       throw outcome.error
 
     const delayCeiling = 60 * 2 ** attempt
@@ -152,20 +155,25 @@ async function retryD1ImportRead<T>(
   }
 }
 
-function isLongRunningD1Import(error: unknown): boolean {
+function isLongRunningD1Maintenance(error: unknown): boolean {
   const seen = new WeakSet<object>()
   let current = error
   while (current !== null && current !== undefined) {
     if (typeof current !== 'object')
-      return String(current).toLowerCase().includes(LONG_RUNNING_IMPORT)
+      return isLongRunningD1MaintenanceMessage(String(current))
     if (seen.has(current))
       return false
     seen.add(current)
-    if ('message' in current && typeof current.message === 'string' && current.message.toLowerCase().includes(LONG_RUNNING_IMPORT))
+    if ('message' in current && typeof current.message === 'string' && isLongRunningD1MaintenanceMessage(current.message))
       return true
     current = 'cause' in current ? current.cause : undefined
   }
   return false
+}
+
+function isLongRunningD1MaintenanceMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return LONG_RUNNING_OPERATIONS.some(operation => normalized.includes(operation))
 }
 
 /**
