@@ -102,6 +102,7 @@ describe('cli OAuth token endpoint', () => {
     expect(result.login).toBe('harlan')
     expect(result.accessToken.split('.')).toHaveLength(3)
     expect(result.refreshToken).toBeTruthy()
+    expect(Object.keys(result).sort()).toEqual(['accessToken', 'expiresAt', 'login', 'refreshToken', 'scopes'])
     expect(sqlite.prepare('SELECT used_at FROM cli_auth_codes WHERE code = ?').get('code-valid-123456')).toMatchObject({
       used_at: Math.floor(NOW.getTime() / 1000),
     })
