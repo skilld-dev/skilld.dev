@@ -2,7 +2,7 @@
 import type { TrendingFeedResponse, TrendingSkillFeedItem } from '~~/server/api/feed/trending.get'
 import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skills/leaderboard.get'
 import type { TrendingBoardRow } from '#shared/trending-range'
-import { relativeDay, trendingBasis } from '#shared/trending-basis'
+import { relativeDay, trendingBasis, trendingOtherPosters } from '#shared/trending-basis'
 import {
   leaderboardBoardRows,
   monthStamp,
@@ -156,6 +156,7 @@ const board = computed<TrendingBoardRow[]>(() => {
           platform: s.evidence?.platform ?? null,
           handle: s.evidence?.authorHandle ?? null,
           engagement: s.evidence?.favouriteCount ?? null,
+          otherPosters: trendingOtherPosters(s.authorCount, s.evidence !== null),
           evidenced: true,
         })),
         ...fallback.value.map(s => ({
@@ -180,6 +181,7 @@ const board = computed<TrendingBoardRow[]>(() => {
           platform: null,
           handle: null,
           engagement: null,
+          otherPosters: null,
           evidenced: false,
         })),
       ].slice(0, BOARD_LIMIT)
@@ -479,9 +481,8 @@ function rankClass(index: number): string {
               </span>
               <!--
                 Rendered alongside the quote, never instead of it. A `both`
-                row has to state its stars as well as its post, and a row
-                named by several people has to say so; the quote can only ever
-                show one of them.
+                row has to state its stars as well as its post. Other people
+                who named it are counted in the post footer below.
 
                 Above the quote, so everything the row itself asserts sits
                 flush in one block and the one indented element is the thing
@@ -518,6 +519,7 @@ function rankClass(index: number): string {
                   <span>@{{ row.handle }}</span>
                   <span v-if="row.when">{{ row.when }}</span>
                   <span v-if="row.engagement" class="tabular-nums">{{ likesLabel(row.engagement) }}</span>
+                  <span v-if="row.otherPosters">{{ row.otherPosters }}</span>
                 </span>
               </a>
             </div>

@@ -249,6 +249,8 @@ export interface TrendingBoardRow {
   handle: string | null
   /** Likes on that specific post. Zero means it landed quietly, not unknown. */
   engagement: number | null
+  /** Separate people who posted about it besides the displayed post author. */
+  otherPosters: string | null
   /** True when a person or a surge put it here, false when it is filling space. */
   evidenced: boolean
 }
@@ -337,6 +339,7 @@ export function leaderboardBoardRows(
       platform: null,
       handle: null,
       engagement: null,
+      otherPosters: null,
       evidenced: true,
     }
   })
