@@ -13,6 +13,7 @@ import {
   trendingRangeMeta,
   trendingRangeTitle,
 } from '#shared/trending-range'
+import TrendingWeeklyCta from '../../components/TrendingWeeklyCta.vue'
 
 /**
  * Rows the feed board shows at most.
@@ -202,6 +203,7 @@ const board = computed<TrendingBoardRow[]>(() => {
 const evidencedTotal = computed(() => board.value.filter(row => row.evidenced).length)
 const fillerTotal = computed(() => board.value.length - evidencedTotal.value)
 const isEmpty = computed(() => board.value.length === 0)
+const showWeeklyCta = computed(() => !receivingWeekly.value && !isEmpty.value && !error.value)
 
 /**
  * The window the board covers, stated rather than implied.
@@ -382,150 +384,133 @@ function rankClass(index: number): string {
         </NuxtLink>
       </nav>
 
-      <!--
-        Below the range controls so it does not split them from their label, and
-        above the results so a reader meets it before scrolling thirty rows.
-
-        Points at the email rather than at a sign-in: nobody reading this board
-        has asked for an account, and a button labelled "get" that opens an
-        OAuth wall is a promise the page does not keep. The preview carries the
-        sign-in for anyone who wants it after reading one.
-      -->
       <div
-        v-if="!receivingWeekly && !isEmpty && !error"
-        class="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-default pt-4"
+        class="trending-board-layout"
+        :class="{ 'trending-board-layout--with-cta': showWeeklyCta }"
       >
-        <p class="text-sm text-muted">
-          Trending skills to your inbox every Monday.
-        </p>
-        <UButton
-          to="/weekly/preview"
-          external
-          label="See this week's"
-          color="neutral"
-          variant="outline"
-          size="sm"
-          trailing-icon="i-lucide-arrow-right"
-          class="min-h-11"
-        />
-      </div>
-
-      <div v-if="error" class="editorial-state mt-6" role="alert">
-        <p class="font-medium">
-          Couldn't load the board.
-        </p>
-        <p class="mt-1 max-w-lg text-base leading-relaxed text-muted">
-          The ranking is unavailable right now. Check your connection and try again.
-        </p>
-        <UButton
-          label="Retry"
-          color="neutral"
-          variant="outline"
-          class="mt-4 min-h-11"
-          @click="() => refresh()"
-        />
-      </div>
-
-      <div v-else-if="isEmpty" class="editorial-state mt-6 flex flex-col justify-center" role="status">
-        <template v-if="range === 'all'">
-          <p class="text-sm text-default">
-            No repositories have qualified yet.
-          </p>
-          <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
-            A repository appears here after a reviewer confirms its purpose and its skill inventory.
-          </p>
-        </template>
-        <template v-else>
-          <p class="text-sm text-default">
-            Nothing is trending yet.
-          </p>
-          <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
-            Skilld watches X and Bluesky for posts mentioning a skill, and GitHub for repositories
-            holding a single skill whose stars surge. Neither has anything to report in this range.
-          </p>
-        </template>
-        <div class="mt-4">
-          <UButton to="/skills" label="Browse the directory" color="neutral" variant="outline" class="min-h-11" />
+        <div v-if="showWeeklyCta" class="trending-board-cta">
+          <TrendingWeeklyCta />
         </div>
-      </div>
 
-      <ol v-else class="editorial-ledger mt-6 list-none p-0">
-        <li v-for="(row, index) in board" :key="row.key">
-          <div class="ledger-row">
-            <span class="ledger-rank" :class="rankClass(index)">{{ String(index + 1).padStart(2, '0') }}</span>
-            <img
-              :src="`https://github.com/${row.owner}.png?size=80`"
-              alt=""
-              width="40"
-              height="40"
-              class="size-10 shrink-0 rounded-full border border-default bg-muted"
-              loading="lazy"
-              decoding="async"
-              @error="onAvatarError(row.owner)"
-            >
-            <div class="min-w-0 flex-1">
-              <span class="flex flex-wrap items-baseline gap-x-2">
-                <NuxtLink
-                  :to="row.to"
-                  class="font-medium text-default transition-opacity [overflow-wrap:anywhere] hover:opacity-70"
-                >
-                  {{ row.title }}
-                </NuxtLink>
-                <span v-if="row.subtitle" class="font-mono text-xs text-muted">{{ row.subtitle }}</span>
-                <span v-if="row.stars" class="font-mono text-xs text-muted tabular-nums">
-                  {{ `${row.stars.toLocaleString()} ★` }}
-                </span>
-              </span>
-              <span v-if="row.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
-                {{ row.description }}
-              </span>
-              <!--
-                Rendered alongside the quote, never instead of it. A `both`
-                row has to state its stars as well as its post. Other people
-                who named it are counted in the post footer below.
+        <div class="trending-board-main">
+          <div v-if="error" class="editorial-state" role="alert">
+            <p class="font-medium">
+              Couldn't load the board.
+            </p>
+            <p class="mt-1 max-w-lg text-base leading-relaxed text-muted">
+              The ranking is unavailable right now. Check your connection and try again.
+            </p>
+            <UButton
+              label="Retry"
+              color="neutral"
+              variant="outline"
+              class="mt-4 min-h-11"
+              @click="() => refresh()"
+            />
+          </div>
 
-                Above the quote, so everything the row itself asserts sits
-                flush in one block and the one indented element is the thing
-                somebody else said.
-              -->
-              <!--
-                `when` rides here only when no quote follows. An evidenced row
-                dates the post inside the quote, next to the handle that wrote
-                it, because the date belongs to what that person said. An
-                all-time row has no post, so its date is the repository's last
-                push and belongs to the row itself.
-              -->
-              <span v-if="row.basis || (!row.evidenceUrl && row.when)" class="data-label mt-2 block">
-                {{ row.basis }}<template v-if="row.basis && !row.evidenceUrl && row.when"> · </template><template v-if="!row.evidenceUrl && row.when">{{ row.when }}</template>
-              </span>
-              <a
-                v-if="row.evidenceUrl"
-                :href="row.evidenceUrl"
-                rel="nofollow noopener"
-                target="_blank"
-                class="mt-2 block border-l border-default pl-3 hover:border-inverted"
-              >
-                <span class="line-clamp-2 text-sm leading-relaxed text-default">{{ row.quote }}</span>
-                <span class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted">
-                  <svg
-                    class="size-3 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path v-if="row.platform === 'bsky'" d="M12 10.8C10.913 8.686 7.954 4.747 5.202 2.805 2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8" />
-                    <path v-else d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932zM17.61 20.644h2.039L6.486 3.24H4.298z" />
-                  </svg>
-                  <span>@{{ row.handle }}</span>
-                  <span v-if="row.when">{{ row.when }}</span>
-                  <span v-if="row.engagement" class="tabular-nums">{{ likesLabel(row.engagement) }}</span>
-                  <span v-if="row.otherPosters">{{ row.otherPosters }}</span>
-                </span>
-              </a>
+          <div v-else-if="isEmpty" class="editorial-state flex flex-col justify-center" role="status">
+            <template v-if="range === 'all'">
+              <p class="text-sm text-default">
+                No repositories have qualified yet.
+              </p>
+              <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
+                A repository appears here after a reviewer confirms its purpose and its skill inventory.
+              </p>
+            </template>
+            <template v-else>
+              <p class="text-sm text-default">
+                Nothing is trending yet.
+              </p>
+              <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
+                Skilld watches X and Bluesky for posts mentioning a skill, and GitHub for repositories
+                holding a single skill whose stars surge. Neither has anything to report in this range.
+              </p>
+            </template>
+            <div class="mt-4">
+              <UButton to="/skills" label="Browse the directory" color="neutral" variant="outline" class="min-h-11" />
             </div>
           </div>
-        </li>
-      </ol>
+
+          <ol v-else class="editorial-ledger list-none p-0">
+            <li v-for="(row, index) in board" :key="row.key">
+              <div class="ledger-row">
+                <span class="ledger-rank" :class="rankClass(index)">{{ String(index + 1).padStart(2, '0') }}</span>
+                <img
+                  :src="`https://github.com/${row.owner}.png?size=80`"
+                  alt=""
+                  width="40"
+                  height="40"
+                  class="size-10 shrink-0 rounded-full border border-default bg-muted"
+                  loading="lazy"
+                  decoding="async"
+                  @error="onAvatarError(row.owner)"
+                >
+                <div class="min-w-0 flex-1">
+                  <span class="flex flex-wrap items-baseline gap-x-2">
+                    <NuxtLink
+                      :to="row.to"
+                      class="font-medium text-default transition-opacity [overflow-wrap:anywhere] hover:opacity-70"
+                    >
+                      {{ row.title }}
+                    </NuxtLink>
+                    <span v-if="row.subtitle" class="font-mono text-xs text-muted">{{ row.subtitle }}</span>
+                    <span v-if="row.stars" class="font-mono text-xs text-muted tabular-nums">
+                      {{ `${row.stars.toLocaleString()} ★` }}
+                    </span>
+                  </span>
+                  <span v-if="row.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
+                    {{ row.description }}
+                  </span>
+                  <!--
+                    Rendered alongside the quote, never instead of it. A `both`
+                    row has to state its stars as well as its post. Other people
+                    who named it are counted in the post footer below.
+
+                    Above the quote, so everything the row itself asserts sits
+                    flush in one block and the one indented element is the thing
+                    somebody else said.
+                  -->
+                  <!--
+                    `when` rides here only when no quote follows. An evidenced row
+                    dates the post inside the quote, next to the handle that wrote
+                    it, because the date belongs to what that person said. An
+                    all-time row has no post, so its date is the repository's last
+                    push and belongs to the row itself.
+                  -->
+                  <span v-if="row.basis || (!row.evidenceUrl && row.when)" class="data-label mt-2 block">
+                    {{ row.basis }}<template v-if="row.basis && !row.evidenceUrl && row.when"> · </template><template v-if="!row.evidenceUrl && row.when">{{ row.when }}</template>
+                  </span>
+                  <a
+                    v-if="row.evidenceUrl"
+                    :href="row.evidenceUrl"
+                    rel="nofollow noopener"
+                    target="_blank"
+                    class="mt-2 block border-l border-default pl-3 hover:border-inverted"
+                  >
+                    <span class="line-clamp-2 text-sm leading-relaxed text-default">{{ row.quote }}</span>
+                    <span class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted">
+                      <svg
+                        class="size-3 shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path v-if="row.platform === 'bsky'" d="M12 10.8C10.913 8.686 7.954 4.747 5.202 2.805 2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8" />
+                        <path v-else d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932zM17.61 20.644h2.039L6.486 3.24H4.298z" />
+                      </svg>
+                      <span>@{{ row.handle }}</span>
+                      <span v-if="row.when">{{ row.when }}</span>
+                      <span v-if="row.engagement" class="tabular-nums">{{ likesLabel(row.engagement) }}</span>
+                      <span v-if="row.otherPosters">{{ row.otherPosters }}</span>
+                    </span>
+                  </a>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </div>
     </section>
 
     <!--
@@ -626,5 +611,39 @@ function rankClass(index: number): string {
 .range-link--current {
   color: var(--ui-text);
   border-color: var(--ui-text);
+}
+
+.trending-board-layout {
+  display: grid;
+  min-inline-size: 0;
+  gap: 2rem;
+  margin-top: 1.5rem;
+  align-items: start;
+}
+
+.trending-board-main {
+  min-inline-size: 0;
+}
+
+.trending-board-cta {
+  max-inline-size: 20rem;
+}
+
+@media (min-width: 64rem) {
+  .trending-board-layout--with-cta {
+    grid-template-areas: "board cta";
+    grid-template-columns: minmax(0, 3fr) minmax(14rem, 1fr);
+  }
+
+  .trending-board-main {
+    grid-area: board;
+  }
+
+  .trending-board-cta {
+    position: sticky;
+    top: 5.5rem;
+    grid-area: cta;
+    max-inline-size: none;
+  }
 }
 </style>
