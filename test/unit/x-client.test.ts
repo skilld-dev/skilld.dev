@@ -170,6 +170,19 @@ describe('createXClient failures', () => {
     expect(result).toEqual({ _tag: 'err', error: { _tag: 'cap-exceeded' } })
   })
 
+  it('recognises a reached spend cap without blaming the token', async () => {
+    const capped = createXClient({
+      bearerToken: 'active',
+      fetchImpl: async () => jsonResponse({
+        title: 'Forbidden',
+        detail: 'Your monthly spend cap has been reached.',
+        type: 'https://api.x.com/2/problems/spend-cap-reached',
+      }, { status: 403 }),
+    })
+    const result = await capped.searchRecent({ query: 'q', sinceId: null })
+    expect(result).toEqual({ _tag: 'err', error: { _tag: 'cap-exceeded' } })
+  })
+
   it('reports a rejected token', async () => {
     const client = createXClient({
       bearerToken: 'bad',

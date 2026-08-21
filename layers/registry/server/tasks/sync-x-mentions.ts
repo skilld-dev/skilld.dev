@@ -3,6 +3,7 @@
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { notifyXApiFailureWithEnv } from '~~/server/utils/x-api-alert'
 import { ANNOUNCE_MIN_EVIDENCE_BY_SOURCE } from '#shared/platform-weights'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { createDiscordNotifier } from '#shared/server/discord-notify'
@@ -67,6 +68,7 @@ export default defineScheduledTask({
         // environment. Reported so a missing secret in production is visible
         // rather than looking like a quiet run that found nothing.
         emitOperationalEvent(createWideEvent({ operation: 'sync-x-mentions', outcome: 'credential-missing' }))
+        await sendFailureAlert(db, env, { _tag: 'not-configured' }, now)
         await reportJobRun(db, 'sync-x-mentions', {
           cron: CRON,
           status: 'partial',
@@ -81,6 +83,8 @@ export default defineScheduledTask({
 
       if (ingest.error)
         emitOperationalEvent(createWideEvent({ operation: 'sync-x-mentions-ingest', outcome: 'degraded' }))
+      if (ingest.error)
+        await sendFailureAlert(db, env, ingest.error, now)
       if (ingest.truncated)
         emitOperationalEvent(createWideEvent({ operation: 'sync-x-mentions-ingest', outcome: 'truncated', truncated: true }))
 
@@ -199,6 +203,30 @@ async function announceTrending(
 
   await markAnnounced({ db, ids: candidates.map(c => c.id), now })
   return { announced: candidates.length }
+}
+
+async function sendFailureAlert(
+  db: D1Database,
+  env: Cloudflare.Env,
+  error: Parameters<typeof notifyXApiFailureWithEnv>[0]['error'],
+  now: number,
+): Promise<void> {
+  const config = useRuntimeConfig()
+  const result = await notifyXApiFailureWithEnv({
+    db,
+    env,
+    taskName: 'sync-x-mentions',
+    error,
+    now,
+    to: String(config.healthCheckNotifyTo).trim(),
+    from: config.email.from as EmailAddress,
+  })
+  if (result._tag === 'send-failed' || result._tag === 'uncertain') {
+    emitOperationalEvent(createWideEvent({
+      operation: 'sync-x-mentions-alert',
+      outcome: result._tag,
+    }))
+  }
 }
 
 /**

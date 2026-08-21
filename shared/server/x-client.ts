@@ -192,7 +192,7 @@ export function describeXError(error: XError): string {
     case 'rate-limited':
       return `rate limited${error.resetAt ? ` until ${new Date(error.resetAt * 1000).toISOString()}` : ''}`
     case 'cap-exceeded':
-      return 'monthly post cap exhausted'
+      return 'monthly X cap reached'
     case 'unauthorized':
       return 'bearer token rejected'
     case 'http-error':
@@ -335,14 +335,13 @@ function toXPost(
 }
 
 function classifyFailure(status: number, headers: Headers, body: string): XError {
+  if ((status === 403 || status === 429)
+    && /spend-cap-reached|spend cap has been reached|usage.?cap.?exceeded|monthly product cap/i.test(body)) {
+    return { _tag: 'cap-exceeded' }
+  }
   if (status === 401 || status === 403)
     return { _tag: 'unauthorized' }
   if (status === 429) {
-    // X signals monthly cap exhaustion with a 429 carrying a distinct body,
-    // not a distinct status. Treating it as an ordinary rate limit would make
-    // the task retry all month against a wall.
-    if (/usage.?cap|monthly/i.test(body))
-      return { _tag: 'cap-exceeded' }
     const reset = Number(headers.get('x-rate-limit-reset'))
     return { _tag: 'rate-limited', resetAt: Number.isFinite(reset) && reset > 0 ? reset : null }
   }
