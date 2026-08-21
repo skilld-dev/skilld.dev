@@ -1,7 +1,7 @@
 // @vitest-environment node
 import type { TrendingBasisInput } from '../../shared/trending-basis'
 import { describe, expect, it } from 'vitest'
-import { relativeDay, trendingBasis } from '../../shared/trending-basis'
+import { relativeDay, trendingBasis, trendingOtherPosters } from '../../shared/trending-basis'
 
 const NOW = 1_760_000_000
 
@@ -16,9 +16,9 @@ function row(partial: Partial<TrendingBasisInput> = {}): TrendingBasisInput {
 }
 
 describe('trendingBasis', () => {
-  it('states the author count and nothing about stars for a social row', () => {
+  it('leaves other authors to the displayed post footer', () => {
     expect(trendingBasis(row({ authorCount: 3, hasEvidence: true }), NOW))
-      .toBe('3 devs talked about it')
+      .toBeNull()
   })
 
   it('says nothing when a single author is already quoted above the line', () => {
@@ -36,12 +36,12 @@ describe('trendingBasis', () => {
       .toBe('+865 stars this week · 2d ago')
   })
 
-  it('states both claims when both routes qualified the skill', () => {
+  it('leaves the author claim to the post when both routes qualified the skill', () => {
     const basis = trendingBasis(
       row({ authorCount: 4, starGain: 1200, starGainDay: NOW - 86_400, hasEvidence: true }),
       NOW,
     )
-    expect(basis).toBe('4 devs talked about it · +1,200 stars this week')
+    expect(basis).toBe('+1,200 stars this week')
   })
 
   it('leaves the date to the quote block when a post is shown', () => {
@@ -56,6 +56,24 @@ describe('trendingBasis', () => {
   it('keeps a zero star gain visible rather than reading it as absent', () => {
     expect(trendingBasis(row({ starGain: 0, starGainDay: NOW }), NOW))
       .toBe('+0 stars this week · just now')
+  })
+})
+
+describe('trendingOtherPosters', () => {
+  it('counts people other than the displayed post author', () => {
+    expect(trendingOtherPosters(3, true)).toBe('2 other devs posted about it')
+  })
+
+  it('uses the singular label for one other person', () => {
+    expect(trendingOtherPosters(2, true)).toBe('1 other dev posted about it')
+  })
+
+  it('adds nothing when the displayed post is the only evidence', () => {
+    expect(trendingOtherPosters(1, true)).toBeNull()
+  })
+
+  it('adds nothing when no post is displayed', () => {
+    expect(trendingOtherPosters(3, false)).toBeNull()
   })
 })
 

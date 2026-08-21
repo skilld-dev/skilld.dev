@@ -52,9 +52,10 @@ export function relativeDay(unixSeconds: number, reference: number): string {
 export function trendingBasis(input: TrendingBasisInput, reference: number): string | null {
   const parts: string[] = []
 
-  // One dev is named, not counted. "1 dev talked about it" beside the quoted
-  // "@handle" is the same fact twice, and the handle is the more useful half.
-  if (input.authorCount > 1)
+  // A displayed post names one person and carries the remaining author count
+  // in its own footer. Keep this line for rows without a post, where it is the
+  // only place the social claim can appear.
+  if (input.authorCount > 1 && !input.hasEvidence)
     parts.push(`${input.authorCount} devs talked about it`)
   else if (input.authorCount === 1 && !input.hasEvidence)
     parts.push('1 dev talked about it')
@@ -70,4 +71,18 @@ export function trendingBasis(input: TrendingBasisInput, reference: number): str
     parts.push(relativeDay(input.starGainDay, reference))
 
   return parts.length > 0 ? parts.join(' · ') : null
+}
+
+/**
+ * People who posted about the skill besides the person quoted in the row.
+ *
+ * The feed's `authorCount` includes the displayed post author. Subtracting one
+ * makes the relationship explicit and stops a three-person trend looking like
+ * four people once the visible handle is counted by the reader.
+ */
+export function trendingOtherPosters(authorCount: number, hasEvidence: boolean): string | null {
+  if (!hasEvidence || authorCount <= 1)
+    return null
+  const otherCount = authorCount - 1
+  return `${otherCount} other ${otherCount === 1 ? 'dev' : 'devs'} posted about it`
 }
