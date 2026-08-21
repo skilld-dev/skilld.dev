@@ -25,6 +25,9 @@ describe('github update plans', () => {
       comparisons: [{ ...comparison, baseSha: 'main' }],
     }).success).toBe(false)
     expect(updatePlansRequestSchema.safeParse({
+      comparisons: [comparison, { ...comparison, repository: 'other-skills' }],
+    }).success).toBe(false)
+    expect(updatePlansRequestSchema.safeParse({
       comparisons: Array.from({ length: 51 }, (_, index) => ({
         ...comparison,
         id: `skill-${index}`,
@@ -168,6 +171,50 @@ describe('github update plans', () => {
     expect(fetchMock).toHaveBeenCalledTimes(6)
   })
 
+  it('rejects an incomplete paginated comparison', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const page = Number(new URL(String(input)).searchParams.get('page'))
+      return githubResponse({
+        status: 'ahead',
+        total_commits: 101,
+        commits: page === 1
+          ? Array.from({ length: 100 }, (_, index) => githubCommit(
+              (index + 1).toString(16).padStart(40, '0'),
+              `Commit ${index + 1}`,
+            ))
+          : [],
+      })
+    })
+    const harness = createHarness({ fetch: fetchMock })
+
+    const result = await createGithubUpdatePlans([comparison], harness.dependencies)
+
+    expect(result).toEqual([{
+      _tag: 'provider_failure',
+      ...comparison,
+      status: 502,
+    }])
+  })
+
+  it('rejects duplicate commits in a paginated comparison', async () => {
+    const duplicate = githubCommit('c'.repeat(40), 'Repeated commit')
+    const harness = createHarness({
+      fetch: vi.fn(async () => githubResponse({
+        status: 'ahead',
+        total_commits: 2,
+        commits: [duplicate, duplicate],
+      })),
+    })
+
+    const result = await createGithubUpdatePlans([comparison], harness.dependencies)
+
+    expect(result).toEqual([{
+      _tag: 'provider_failure',
+      ...comparison,
+      status: 502,
+    }])
+  })
+
   it('serves a fresh cache hit and revalidates stale data with ETag', async () => {
     let now = NOW
     const cache = memoryCache()
@@ -232,6 +279,71 @@ describe('github update plans', () => {
       resetAt: null,
     })
   })
+
+  it.each([401, 403])('keeps GitHub token failures distinct from missing access for %i', async (status) => {
+    const harness = createHarness({
+      fetch: vi.fn(async () => new Response(null, { status })),
+    })
+
+    const result = await createGithubUpdatePlans([comparison], harness.dependencies)
+
+    expect(result).toEqual([{
+      _tag: 'provider_failure',
+      ...comparison,
+      status,
+    }])
+  })
+
+  it('cancels a provider failure body', async () => {
+    const cancel = vi.fn()
+    const harness = createHarness({
+      fetch: vi.fn(async () => new Response(new ReadableStream({ cancel }), { status: 503 })),
+    })
+
+    const result = await createGithubUpdatePlans([comparison], harness.dependencies)
+
+    expect(result).toEqual([{
+      _tag: 'provider_failure',
+      ...comparison,
+      status: 503,
+    }])
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a cached ETag that cannot be sent as an HTTP header', async () => {
+    const cache: UpdatePlansCache = {
+      async get() {
+        return {
+          version: 1,
+          etag: 'bad\nheader',
+          checkedAt: NOW - 301_000,
+          value: {
+            relation: 'identical',
+            commits: [],
+            total: 0,
+            truncated: false,
+            compareUrl: `https://github.com/acme/private-skills/compare/${BASE_SHA}...${HEAD_SHA}`,
+          },
+        }
+      },
+      async put() {},
+    }
+    const harness = createHarness({ cache })
+
+    const result = await createGithubUpdatePlans([comparison], harness.dependencies)
+
+    expect(result).toEqual([{
+      _tag: 'ready',
+      ...comparison,
+      relation: 'identical',
+      commits: [],
+      total: 0,
+      truncated: false,
+      compareUrl: `https://github.com/acme/private-skills/compare/${BASE_SHA}...${HEAD_SHA}`,
+    }])
+    expect(harness.fetch).toHaveBeenCalledOnce()
+    expect(harness.dependencies.reportFailure).toHaveBeenCalledWith('cache-read')
+  })
 })
 
 function createHarness(overrides: Partial<GithubUpdatePlansDependencies> = {}) {
@@ -279,6 +391,7 @@ function githubCommit(sha: string, message: string) {
       message,
       author: {
         name: 'Ada Lovelace',
+        email: 'ada@example.com',
         date: '2026-08-20T23:00:00Z',
       },
     },

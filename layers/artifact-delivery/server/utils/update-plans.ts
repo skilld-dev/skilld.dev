@@ -27,18 +27,18 @@ const githubCommitSchema = z.object({
     author: z.object({
       name: z.string(),
       date: z.string().datetime(),
-    }).strict(),
-  }).passthrough(),
+    }),
+  }),
   author: z.object({
     login: z.string().min(1).max(100),
-  }).passthrough().nullable().optional(),
-}).passthrough()
+  }).nullable().optional(),
+})
 
 const githubComparisonSchema = z.object({
   status: z.enum(['ahead', 'behind', 'diverged', 'identical']),
   total_commits: z.number().int().nonnegative().safe(),
   commits: z.array(githubCommitSchema).max(COMMITS_PER_PAGE),
-}).passthrough()
+})
 
 const readyComparisonSchema = z.object({
   relation: z.enum(['ahead', 'behind', 'diverged', 'identical']),
@@ -58,7 +58,11 @@ const readyComparisonSchema = z.object({
 
 const cachedComparisonSchema = z.object({
   version: z.literal(1),
-  etag: z.string().min(1).max(1024).nullable(),
+  etag: z.string()
+    .min(1)
+    .max(1024)
+    .refine(isSafeHttpHeaderValue)
+    .nullable(),
   checkedAt: z.number().int().nonnegative().safe(),
   value: readyComparisonSchema,
 }).strict()
@@ -299,6 +303,12 @@ async function compareExactCommits(
   }
   if (commits.length > MAX_COMMITS)
     commits.splice(0, commits.length - MAX_COMMITS)
+  const expectedCommitCount = Math.min(total, MAX_COMMITS)
+  const uniqueCommitCount = new Set(commits.map(commit => commit.sha)).size
+  if (commits.length !== expectedCommitCount || uniqueCommitCount !== commits.length) {
+    dependencies.reportFailure('github-compare')
+    return { _tag: 'provider_failure', status: 502 }
+  }
 
   const value: ReadyComparison = {
     relation,
@@ -366,20 +376,28 @@ async function requestComparisonPage(
   }
 
   const response = responseOutcome.response
-  if (response.status === 304)
+  if (response.status === 304) {
+    await discardResponseBody(response, dependencies)
     return { _tag: 'not_modified' }
+  }
   if (isRateLimited(response)) {
+    await discardResponseBody(response, dependencies)
     return {
       _tag: 'rate_limited',
       retryAfterSeconds: retryAfterSeconds(response.headers, dependencies.now()),
       resetAt: rateLimitResetAt(response.headers),
     }
   }
-  if (response.status === 401 || response.status === 403 || response.status === 404)
+  if (response.status === 404) {
+    await discardResponseBody(response, dependencies)
     return { _tag: 'not_found' }
-  if (response.status === 409 || response.status === 422)
+  }
+  if (response.status === 409 || response.status === 422) {
+    await discardResponseBody(response, dependencies)
     return { _tag: 'invalid_comparison' }
+  }
   if (!response.ok) {
+    await discardResponseBody(response, dependencies)
     dependencies.reportFailure('github-compare')
     return { _tag: 'provider_failure', status: response.status }
   }
@@ -521,6 +539,24 @@ function isRateLimited(response: Response): boolean {
     ))
 }
 
+async function discardResponseBody(
+  response: Response,
+  dependencies: GithubUpdatePlansDependencies,
+): Promise<void> {
+  if (!response.body)
+    return
+  await response.body.cancel().catch(() => {
+    dependencies.reportFailure('github-compare')
+  })
+}
+
+function isSafeHttpHeaderValue(value: string): boolean {
+  return [...value].every((character) => {
+    const codePoint = character.codePointAt(0)!
+    return codePoint >= 0x20 && codePoint <= 0x7E
+  })
+}
+
 function retryAfterSeconds(headers: Headers, now: number): number | null {
   const raw = headers.get('retry-after')
   if (!raw)
@@ -578,8 +614,10 @@ function truncateUtf16(value: string, maximumLength: number): string {
 
 async function readBoundedJson(response: Response, maximumBytes: number): Promise<unknown> {
   const declared = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declared) && declared > maximumBytes)
+  if (Number.isFinite(declared) && declared > maximumBytes) {
+    await response.body?.cancel('response too large')
     throw new Error('GitHub compare response exceeded the byte limit')
+  }
   if (!response.body)
     throw new Error('GitHub compare returned an empty response')
   const reader = response.body.getReader()

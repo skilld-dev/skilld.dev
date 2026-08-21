@@ -27,7 +27,19 @@ export const updatePlanComparisonSchema = z.object({
 
 export const updatePlansRequestSchema = z.object({
   comparisons: z.array(updatePlanComparisonSchema).min(1).max(50),
-}).strict()
+}).strict().superRefine(({ comparisons }, context) => {
+  const ids = new Set<string>()
+  comparisons.forEach((comparison, index) => {
+    if (ids.has(comparison.id)) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Comparison IDs must be unique',
+        path: ['comparisons', index, 'id'],
+      })
+    }
+    ids.add(comparison.id)
+  })
+})
 
 const updatePlanCommitSchema = z.object({
   sha: z.string().regex(COMMIT_SHA_PATTERN),
