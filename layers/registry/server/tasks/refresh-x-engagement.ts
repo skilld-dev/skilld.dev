@@ -3,6 +3,7 @@
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { notifyXApiFailureWithEnv } from '~~/server/utils/x-api-alert'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { createXClient, describeXError } from '#shared/server/x-client'
 import { DEFAULT_MAX_POSTS_PER_RUN, refreshXEngagement } from '#shared/server/x-refresh'
@@ -55,6 +56,7 @@ export default defineScheduledTask({
       const bearerToken = (env as unknown as { X_BEARER_KEY?: string }).X_BEARER_KEY
       if (!bearerToken) {
         emitOperationalEvent(createWideEvent({ operation: 'refresh-x-engagement', outcome: 'credential-missing' }))
+        await sendFailureAlert(db, env, { _tag: 'not-configured' }, now)
         await reportJobRun(db, 'refresh-x-engagement', {
           cron: CRON,
           status: 'partial',
@@ -72,8 +74,10 @@ export default defineScheduledTask({
         maxPostsPerRun: DEFAULT_MAX_POSTS_PER_RUN,
       })
 
-      if (result.error)
+      if (result.error) {
         emitOperationalEvent(createWideEvent({ operation: 'refresh-x-engagement', outcome: 'degraded' }))
+        await sendFailureAlert(db, env, result.error, now)
+      }
 
       const tiers = await countTiers(db)
       const summary = {
@@ -126,4 +130,28 @@ async function countTiers(db: D1Database): Promise<{ hot: number, warm: number, 
   for (const row of rows)
     out[row.refresh_tier] = row.n
   return out
+}
+
+async function sendFailureAlert(
+  db: D1Database,
+  env: Cloudflare.Env,
+  error: Parameters<typeof notifyXApiFailureWithEnv>[0]['error'],
+  now: number,
+): Promise<void> {
+  const config = useRuntimeConfig()
+  const result = await notifyXApiFailureWithEnv({
+    db,
+    env,
+    taskName: 'refresh-x-engagement',
+    error,
+    now,
+    to: String(config.healthCheckNotifyTo).trim(),
+    from: config.email.from as EmailAddress,
+  })
+  if (result._tag === 'send-failed' || result._tag === 'uncertain') {
+    emitOperationalEvent(createWideEvent({
+      operation: 'refresh-x-engagement-alert',
+      outcome: result._tag,
+    }))
+  }
 }

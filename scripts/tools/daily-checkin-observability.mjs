@@ -2,6 +2,42 @@ function record(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null
 }
 
+const PRODUCTION_REF = 'origin/main'
+const isMigration = file => /^\d.*\.sql$/.test(file)
+
+function migrationFiles(tree) {
+  return tree
+    .split('\n')
+    .map(path => path.slice('migrations/'.length))
+    .filter(isMigration)
+    .sort()
+}
+
+export function approximateDeployedSha(runGit, deployedAt) {
+  if (!deployedAt)
+    return null
+  return runGit(['rev-list', '-1', `--before=${deployedAt}`, PRODUCTION_REF]) || null
+}
+
+export function readMigrationState(runGit, workingTreeMigrations) {
+  const productionMigrations = migrationFiles(
+    runGit(['ls-tree', '--name-only', PRODUCTION_REF, 'migrations/']),
+  )
+  const currentMigrations = migrationFiles(
+    runGit(['ls-tree', '--name-only', 'HEAD', 'migrations/']),
+  )
+  const workingMigrations = workingTreeMigrations.filter(isMigration).sort()
+
+  return {
+    localHead: productionMigrations.at(-1) ?? null,
+    uncommitted: workingMigrations.filter(file => !currentMigrations.includes(file)),
+  }
+}
+
+export function buildWorkersQuery(sinceIso, untilIso) {
+  return `query { viewer { accounts(filter: {accountTag: "5904138d55ca25d5670dca6adf99894e"}) { workersInvocationsAdaptive(limit: 100, filter: {scriptName: "skilld-dev", datetime_geq: ${JSON.stringify(sinceIso)}, datetime_leq: ${JSON.stringify(untilIso)}}) { dimensions { scriptName status } sum { requests } } } } }`
+}
+
 // A `skipped` conclusion is a guard declining to run, not a verdict. The deploy
 // workflow is triggered by `workflow_run` from every branch and skips itself off
 // `main`, so treating `skipped` as a non-success read a working guard as a
