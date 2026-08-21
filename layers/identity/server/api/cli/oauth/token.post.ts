@@ -1,6 +1,6 @@
 import { OauthTokenInputSchema, TokenResponseSchema } from 'skilld-protocol/wire'
 import { defineApiHandler } from '#shared/server/handler'
-import { issueSession, sha256Base64Url } from '../../../utils/cli-tokens'
+import { issueSession, presentTokenResponse, sha256Base64Url } from '../../../utils/cli-tokens'
 import { getUserById } from '../../../utils/users'
 
 interface AuthCodeRow {
@@ -48,6 +48,6 @@ export default defineApiHandler({
       cliVersion: row.cli_version ?? undefined,
     })
 
-    return { ...session, login: user.login }
+    return presentTokenResponse(session, user.login)
   },
 })

@@ -1,6 +1,6 @@
 import { OidcExchangeInputSchema, TokenResponseSchema } from 'skilld-protocol/wire'
 import { defineApiHandler } from '#shared/server/handler'
-import { issueSession } from '../../../utils/cli-tokens'
+import { issueSession, presentTokenResponse } from '../../../utils/cli-tokens'
 
 interface GitHubOidcClaims {
   aud: string | string[]
@@ -50,13 +50,7 @@ export default defineApiHandler({
       refresh: false,
     })
 
-    return {
-      ...session,
-      login: user.login,
-      repository: claims.repository,
-      ref: claims.ref,
-      workflow: claims.workflow,
-    }
+    return presentTokenResponse(session, user.login)
   },
 })
 

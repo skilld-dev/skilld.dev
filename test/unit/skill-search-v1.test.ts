@@ -36,4 +36,32 @@ describe('v1 Skill search contract', () => {
     expect(SkillSearchQuery.safeParse({ q: '', limit: '20' }).success).toBe(false)
     expect(SkillSearchQuery.safeParse({ q: 'vue', limit: '51' }).success).toBe(false)
   })
+
+  it('truncates descriptions to 500 bytes without splitting a character', () => {
+    const multiByte = '微'.repeat(200)
+    const result = presentSkillSearch({
+      items: [{
+        name: 'summarize-wechat',
+        owner: 'baoyu',
+        repo: 'skills',
+        description: multiByte,
+        stars: 0,
+      }],
+      total: 1,
+    })
+
+    const description = result.items[0]!.description!
+    expect(Buffer.byteLength(description)).toBeLessThanOrEqual(500)
+    expect(Buffer.isBuffer(Buffer.from(description))).toBe(true)
+    expect(description.endsWith('微')).toBe(true)
+  })
+
+  it('keeps ASCII descriptions under 500 bytes untouched', () => {
+    const ascii = 'a'.repeat(500)
+    const result = presentSkillSearch({
+      items: [{ name: 'plain', owner: 'o', repo: 'r', description: ascii, stars: 1 }],
+      total: 1,
+    })
+    expect(result.items[0]!.description).toBe(ascii)
+  })
 })

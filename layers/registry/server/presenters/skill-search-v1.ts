@@ -13,13 +13,32 @@ interface SearchResult {
   total: number
 }
 
+const MAX_DESCRIPTION_BYTES = 500
+
+/**
+ * Truncate on the byte budget the CLI enforces. Cutting a multi-byte
+ * character in half would emit invalid UTF-8, so walk back to the
+ * previous boundary.
+ */
+function truncateUtf8Bytes(value: string, maxBytes: number): string {
+  const bytes = Buffer.byteLength(value)
+  if (bytes <= maxBytes)
+    return value
+  let slice = value.slice(0, maxBytes)
+  while (Buffer.byteLength(slice) > maxBytes)
+    slice = slice.slice(0, -1)
+  return slice
+}
+
 export function presentSkillSearch(result: SearchResult) {
   return {
     items: result.items
       .filter(skill => isSkillName(skill.name))
       .map(skill => ({
         name: skill.name,
-        description: skill.description?.slice(0, 500) ?? null,
+        description: skill.description
+          ? truncateUtf8Bytes(skill.description, MAX_DESCRIPTION_BYTES)
+          : null,
         source: {
           provider: 'github' as const,
           owner: skill.owner,

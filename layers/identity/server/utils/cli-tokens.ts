@@ -20,6 +20,20 @@ export interface IssuedCliSession {
   userId: number
 }
 
+/**
+ * Wire shape for token responses. The CLI rejects unknown fields, so never
+ * spread `IssuedCliSession` into a response; map through this instead.
+ */
+export function presentTokenResponse(session: IssuedCliSession, login: string) {
+  return {
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    expiresAt: session.expiresAt,
+    scopes: session.scopes,
+    login,
+  }
+}
+
 interface CliTokenRow {
   id: number
   user_id: number
