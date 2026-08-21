@@ -80,6 +80,9 @@ describe('github update plans', () => {
     { relation: 'diverged', aheadBy: 1, behindBy: 2, total: 1 },
     { relation: 'identical', aheadBy: 0, behindBy: 0, total: 0 },
   ] as const)('returns precise $relation counts', async ({ relation, aheadBy, behindBy, total }) => {
+    const input = relation === 'identical'
+      ? { ...comparison, baseSha: HEAD_SHA }
+      : comparison
     const harness = createHarness({
       fetch: vi.fn(async () => githubResponse({
         status: relation,
@@ -93,7 +96,7 @@ describe('github update plans', () => {
       })),
     })
 
-    const [result] = await createGithubUpdatePlans([comparison], harness.dependencies)
+    const [result] = await createGithubUpdatePlans([input], harness.dependencies)
 
     expect(result).toMatchObject({
       _tag: 'ready',
@@ -102,6 +105,31 @@ describe('github update plans', () => {
       behindBy,
       total,
     })
+  })
+
+  it.each([
+    {
+      input: comparison,
+      provider: { status: 'identical' as const, ahead_by: 0, behind_by: 0, total_commits: 0 },
+    },
+    {
+      input: { ...comparison, baseSha: HEAD_SHA },
+      provider: { status: 'ahead' as const, ahead_by: 1, behind_by: 0, total_commits: 1 },
+    },
+  ])('rejects a provider relation that disagrees with the exact SHAs', async ({ input, provider }) => {
+    const harness = createHarness({
+      fetch: vi.fn(async () => githubResponse({
+        ...provider,
+        commits: Array.from({ length: provider.total_commits }, (_, index) => githubCommit(
+          (index + 1).toString(16).padStart(40, '0'),
+          `Commit ${index + 1}`,
+        )),
+      })),
+    })
+
+    const [result] = await createGithubUpdatePlans([input], harness.dependencies)
+
+    expect(result).toMatchObject({ _tag: 'provider_failure', status: 200 })
   })
 
   it('fails closed when the account or installation lost Repository access', async () => {
@@ -284,6 +312,43 @@ describe('github update plans', () => {
     expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get('if-none-match')).toBe('W/"compare-v1"')
   })
 
+  it('ignores a fresh cache relation that disagrees with the exact SHAs', async () => {
+    const exact = { ...comparison, baseSha: HEAD_SHA }
+    const cache: UpdatePlansCache = {
+      async get() {
+        return {
+          version: 2,
+          etag: null,
+          checkedAt: NOW,
+          value: {
+            relation: 'ahead',
+            aheadBy: 1,
+            behindBy: 0,
+            commits: [githubCommitResult('c'.repeat(40), 'Cached commit')],
+            total: 1,
+            truncated: false,
+            compareUrl: `https://github.com/acme/private-skills/compare/${HEAD_SHA}...${HEAD_SHA}`,
+          },
+        }
+      },
+      async put() {},
+    }
+    const harness = createHarness({
+      cache,
+      fetch: vi.fn(async () => githubResponse({
+        status: 'identical',
+        total_commits: 0,
+        commits: [],
+      })),
+    })
+
+    const [result] = await createGithubUpdatePlans([exact], harness.dependencies)
+
+    expect(result).toMatchObject({ _tag: 'ready', relation: 'identical' })
+    expect(harness.fetch).toHaveBeenCalledOnce()
+    expect(harness.dependencies.reportFailure).toHaveBeenCalledWith('cache-read')
+  })
+
   it('returns bounded rate limit details from GitHub', async () => {
     const harness = createHarness({
       fetch: vi.fn(async () => new Response('slow down', {
@@ -380,9 +445,9 @@ describe('github update plans', () => {
     expect(result).toEqual([{
       _tag: 'ready',
       ...comparison,
-      relation: 'identical',
+      relation: 'behind',
       aheadBy: 0,
-      behindBy: 0,
+      behindBy: 1,
       commits: [],
       total: 0,
       truncated: false,
@@ -471,11 +536,38 @@ describe('github update plans', () => {
       results: [{ ...result, aheadBy: Number.MAX_SAFE_INTEGER + 1 }],
     }).success).toBe(false)
   })
+
+  it.each([
+    {
+      relation: 'identical',
+      aheadBy: 0,
+      behindBy: 0,
+      total: 0,
+    },
+    {
+      baseSha: HEAD_SHA,
+      relation: 'ahead',
+      aheadBy: 1,
+      behindBy: 0,
+      total: 1,
+    },
+  ] as const)('rejects a response relation that disagrees with the exact SHAs', (relation) => {
+    const result = {
+      _tag: 'ready',
+      ...comparison,
+      ...relation,
+      commits: relation.total === 0 ? [] : [githubCommitResult('c'.repeat(40), 'Commit')],
+      truncated: false,
+      compareUrl: `https://github.com/acme/private-skills/compare/${relation.baseSha ?? BASE_SHA}...${HEAD_SHA}`,
+    }
+
+    expect(updatePlansResponseSchema.safeParse({ results: [result] }).success).toBe(false)
+  })
 })
 
 function createHarness(overrides: Partial<GithubUpdatePlansDependencies> = {}) {
   const fetchMock = overrides.fetch ?? vi.fn(async () => githubResponse({
-    status: 'identical',
+    status: 'behind',
     total_commits: 0,
     commits: [],
   }))
@@ -523,6 +615,15 @@ function githubCommit(sha: string, message: string) {
       },
     },
     author: { login: 'ada' },
+  }
+}
+
+function githubCommitResult(sha: string, subject: string) {
+  return {
+    sha,
+    subject,
+    timestamp: '2026-08-20T23:00:00Z',
+    author: { name: 'Ada Lovelace', login: 'ada' },
   }
 }
 

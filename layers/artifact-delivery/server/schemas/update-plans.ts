@@ -72,7 +72,13 @@ const updatePlanReadySchema = z.object({
       path: ['total'],
     })
   }
-  if (!relationMatchesDirectionalCounts(value.relation, value.aheadBy, value.behindBy)) {
+  if (!comparisonRelationMatches(
+    value.relation,
+    value.aheadBy,
+    value.behindBy,
+    value.baseSha,
+    value.headSha,
+  )) {
     context.addIssue({
       code: 'custom',
       message: 'Relation must match directional counts',
@@ -119,7 +125,7 @@ export const updatePlansResponseSchema = z.object({
 export type UpdatePlanComparison = z.infer<typeof updatePlanComparisonSchema>
 export type UpdatePlanResult = z.infer<typeof updatePlanResultSchema>
 
-function relationMatchesDirectionalCounts(
+export function relationMatchesDirectionalCounts(
   relation: 'ahead' | 'behind' | 'diverged' | 'identical',
   aheadBy: number,
   behindBy: number,
@@ -131,4 +137,15 @@ function relationMatchesDirectionalCounts(
   if (relation === 'behind')
     return aheadBy === 0 && behindBy > 0
   return aheadBy > 0 && behindBy > 0
+}
+
+export function comparisonRelationMatches(
+  relation: 'ahead' | 'behind' | 'diverged' | 'identical',
+  aheadBy: number,
+  behindBy: number,
+  baseSha: string,
+  headSha: string,
+): boolean {
+  return relationMatchesDirectionalCounts(relation, aheadBy, behindBy)
+    && (relation === 'identical') === (baseSha === headSha)
 }

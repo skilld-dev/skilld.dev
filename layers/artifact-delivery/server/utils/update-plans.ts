@@ -1,11 +1,12 @@
-import type {
-  UpdatePlanComparison,
-  UpdatePlanResult,
-} from '../schemas/update-plans'
+import type { UpdatePlanComparison, UpdatePlanResult } from '../schemas/update-plans'
 import type { GithubAppClient } from './github-app'
 import type { PrivateRepositoryAccessResult } from './private-access'
 import { z } from 'zod'
 import { COMMIT_SHA_PATTERN } from '../schemas/contracts'
+import {
+  comparisonRelationMatches,
+  relationMatchesDirectionalCounts,
+} from '../schemas/update-plans'
 
 const GITHUB_API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2026-03-10'
@@ -291,7 +292,7 @@ async function compareExactCommits(
   dependencies: GithubUpdatePlansDependencies,
 ): Promise<CompareOutcome> {
   const cacheKey = comparisonCacheKey(task)
-  const cached = await readCachedComparison(cacheKey, dependencies)
+  const cached = await readCachedComparison(cacheKey, task.input, dependencies)
   const now = dependencies.now()
   if (cached && now >= cached.checkedAt && now - cached.checkedAt < CACHE_FRESH_MS)
     return { _tag: 'ready', value: cached.value }
@@ -455,7 +456,16 @@ async function requestComparisonPage(
     return { _tag: 'provider_failure', status: response.status }
   }
   const parsed = githubComparisonSchema.safeParse(jsonOutcome.value)
-  if (!parsed.success) {
+  if (
+    !parsed.success
+    || !comparisonRelationMatches(
+      parsed.data.status,
+      parsed.data.ahead_by,
+      parsed.data.behind_by,
+      task.input.baseSha,
+      task.input.headSha,
+    )
+  ) {
     dependencies.reportFailure('github-compare')
     return { _tag: 'provider_failure', status: response.status }
   }
@@ -468,6 +478,7 @@ async function requestComparisonPage(
 
 async function readCachedComparison(
   key: string,
+  input: UpdatePlanComparison,
   dependencies: GithubUpdatePlansDependencies,
 ) {
   if (!dependencies.cache)
@@ -483,7 +494,16 @@ async function readCachedComparison(
   if (outcome.value === null)
     return null
   const parsed = cachedComparisonSchema.safeParse(outcome.value)
-  if (!parsed.success) {
+  if (
+    !parsed.success
+    || !comparisonRelationMatches(
+      parsed.data.value.relation,
+      parsed.data.value.aheadBy,
+      parsed.data.value.behindBy,
+      input.baseSha,
+      input.headSha,
+    )
+  ) {
     dependencies.reportFailure('cache-read')
     return null
   }
@@ -702,18 +722,4 @@ async function mapLimit<T, R>(
   })
   await Promise.all(workers)
   return results
-}
-
-function relationMatchesDirectionalCounts(
-  relation: 'ahead' | 'behind' | 'diverged' | 'identical',
-  aheadBy: number,
-  behindBy: number,
-): boolean {
-  if (relation === 'identical')
-    return aheadBy === 0 && behindBy === 0
-  if (relation === 'ahead')
-    return aheadBy > 0 && behindBy === 0
-  if (relation === 'behind')
-    return aheadBy === 0 && behindBy > 0
-  return aheadBy > 0 && behindBy > 0
 }
