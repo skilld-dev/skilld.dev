@@ -1,11 +1,12 @@
-import type {
-  UpdatePlanComparison,
-  UpdatePlanResult,
-} from '../schemas/update-plans'
+import type { UpdatePlanComparison, UpdatePlanResult } from '../schemas/update-plans'
 import type { GithubAppClient } from './github-app'
 import type { PrivateRepositoryAccessResult } from './private-access'
 import { z } from 'zod'
 import { COMMIT_SHA_PATTERN } from '../schemas/contracts'
+import {
+  comparisonRelationMatches,
+  relationMatchesDirectionalCounts,
+} from '../schemas/update-plans'
 
 const GITHUB_API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2026-03-10'
@@ -16,9 +17,10 @@ const COMMITS_PER_PAGE = 100
 const MAX_CONCURRENCY = 4
 const CACHE_FRESH_MS = 5 * 60 * 1000
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
-const CACHE_PREFIX = 'private-github-compare:v1:'
+const CACHE_PREFIX = 'private-github-compare:v2:'
 
 const shaSchema = z.string().regex(COMMIT_SHA_PATTERN)
+const githubCountSchema = z.number().int().nonnegative().safe()
 
 const githubCommitSchema = z.object({
   sha: shaSchema,
@@ -36,12 +38,31 @@ const githubCommitSchema = z.object({
 
 const githubComparisonSchema = z.object({
   status: z.enum(['ahead', 'behind', 'diverged', 'identical']),
-  total_commits: z.number().int().nonnegative().safe(),
+  ahead_by: githubCountSchema,
+  behind_by: githubCountSchema,
+  total_commits: githubCountSchema,
   commits: z.array(githubCommitSchema).max(COMMITS_PER_PAGE),
+}).superRefine((value, context) => {
+  if (value.total_commits !== value.ahead_by) {
+    context.addIssue({
+      code: 'custom',
+      message: 'total_commits must equal ahead_by',
+      path: ['total_commits'],
+    })
+  }
+  if (!relationMatchesDirectionalCounts(value.status, value.ahead_by, value.behind_by)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'status must match directional counts',
+      path: ['status'],
+    })
+  }
 })
 
 const readyComparisonSchema = z.object({
   relation: z.enum(['ahead', 'behind', 'diverged', 'identical']),
+  aheadBy: githubCountSchema,
+  behindBy: githubCountSchema,
   commits: z.array(z.object({
     sha: shaSchema,
     subject: z.string().min(1).max(500),
@@ -54,10 +75,25 @@ const readyComparisonSchema = z.object({
   total: z.number().int().nonnegative().safe(),
   truncated: z.boolean(),
   compareUrl: z.string().url().max(2048),
-}).strict()
+}).strict().superRefine((value, context) => {
+  if (value.total !== value.aheadBy) {
+    context.addIssue({
+      code: 'custom',
+      message: 'total must equal aheadBy',
+      path: ['total'],
+    })
+  }
+  if (!relationMatchesDirectionalCounts(value.relation, value.aheadBy, value.behindBy)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'relation must match directional counts',
+      path: ['relation'],
+    })
+  }
+})
 
 const cachedComparisonSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   etag: z.string()
     .min(1)
     .max(1024)
@@ -256,7 +292,7 @@ async function compareExactCommits(
   dependencies: GithubUpdatePlansDependencies,
 ): Promise<CompareOutcome> {
   const cacheKey = comparisonCacheKey(task)
-  const cached = await readCachedComparison(cacheKey, dependencies)
+  const cached = await readCachedComparison(cacheKey, task.input, dependencies)
   const now = dependencies.now()
   if (cached && now >= cached.checkedAt && now - cached.checkedAt < CACHE_FRESH_MS)
     return { _tag: 'ready', value: cached.value }
@@ -275,6 +311,8 @@ async function compareExactCommits(
     return firstPage
 
   const relation = firstPage.value.status
+  const aheadBy = firstPage.value.ahead_by
+  const behindBy = firstPage.value.behind_by
   const total = firstPage.value.total_commits
   const etag = firstPage.etag
   const firstIncludedIndex = Math.max(0, total - MAX_COMMITS)
@@ -292,7 +330,12 @@ async function compareExactCommits(
         ? { _tag: 'provider_failure', status: 304 }
         : pageOutcome
     }
-    if (pageOutcome.value.status !== relation || pageOutcome.value.total_commits !== total) {
+    if (
+      pageOutcome.value.status !== relation
+      || pageOutcome.value.ahead_by !== aheadBy
+      || pageOutcome.value.behind_by !== behindBy
+      || pageOutcome.value.total_commits !== total
+    ) {
       dependencies.reportFailure('github-compare')
       return { _tag: 'provider_failure', status: 502 }
     }
@@ -312,13 +355,15 @@ async function compareExactCommits(
 
   const value: ReadyComparison = {
     relation,
+    aheadBy,
+    behindBy,
     commits,
     total,
     truncated: commits.length < total,
     compareUrl: githubCompareUrl(task.owner, task.repository, task.input.baseSha, task.input.headSha),
   }
   await writeCachedComparison(cacheKey, {
-    version: 1,
+    version: 2,
     etag,
     checkedAt: now,
     value,
@@ -411,7 +456,16 @@ async function requestComparisonPage(
     return { _tag: 'provider_failure', status: response.status }
   }
   const parsed = githubComparisonSchema.safeParse(jsonOutcome.value)
-  if (!parsed.success) {
+  if (
+    !parsed.success
+    || !comparisonRelationMatches(
+      parsed.data.status,
+      parsed.data.ahead_by,
+      parsed.data.behind_by,
+      task.input.baseSha,
+      task.input.headSha,
+    )
+  ) {
     dependencies.reportFailure('github-compare')
     return { _tag: 'provider_failure', status: response.status }
   }
@@ -424,6 +478,7 @@ async function requestComparisonPage(
 
 async function readCachedComparison(
   key: string,
+  input: UpdatePlanComparison,
   dependencies: GithubUpdatePlansDependencies,
 ) {
   if (!dependencies.cache)
@@ -439,7 +494,16 @@ async function readCachedComparison(
   if (outcome.value === null)
     return null
   const parsed = cachedComparisonSchema.safeParse(outcome.value)
-  if (!parsed.success) {
+  if (
+    !parsed.success
+    || !comparisonRelationMatches(
+      parsed.data.value.relation,
+      parsed.data.value.aheadBy,
+      parsed.data.value.behindBy,
+      input.baseSha,
+      input.headSha,
+    )
+  ) {
     dependencies.reportFailure('cache-read')
     return null
   }

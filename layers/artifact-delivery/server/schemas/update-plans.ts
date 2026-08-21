@@ -52,16 +52,40 @@ const updatePlanCommitSchema = z.object({
 }).strict()
 
 const updatePlanIdentitySchema = updatePlanComparisonSchema.shape
+const updatePlanCountSchema = z.number().int().nonnegative().safe()
 
 const updatePlanReadySchema = z.object({
   _tag: z.literal('ready'),
   ...updatePlanIdentitySchema,
   relation: z.enum(['ahead', 'behind', 'diverged', 'identical']),
+  aheadBy: updatePlanCountSchema,
+  behindBy: updatePlanCountSchema,
   commits: z.array(updatePlanCommitSchema).max(500),
-  total: z.number().int().nonnegative().safe(),
+  total: updatePlanCountSchema,
   truncated: z.boolean(),
   compareUrl: z.string().url().max(2048),
-}).strict()
+}).strict().superRefine((value, context) => {
+  if (value.total !== value.aheadBy) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Total must equal aheadBy',
+      path: ['total'],
+    })
+  }
+  if (!comparisonRelationMatches(
+    value.relation,
+    value.aheadBy,
+    value.behindBy,
+    value.baseSha,
+    value.headSha,
+  )) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Relation must match directional counts',
+      path: ['relation'],
+    })
+  }
+})
 
 const updatePlanNotFoundSchema = z.object({
   _tag: z.literal('not_found'),
@@ -100,3 +124,28 @@ export const updatePlansResponseSchema = z.object({
 
 export type UpdatePlanComparison = z.infer<typeof updatePlanComparisonSchema>
 export type UpdatePlanResult = z.infer<typeof updatePlanResultSchema>
+
+export function relationMatchesDirectionalCounts(
+  relation: 'ahead' | 'behind' | 'diverged' | 'identical',
+  aheadBy: number,
+  behindBy: number,
+): boolean {
+  if (relation === 'identical')
+    return aheadBy === 0 && behindBy === 0
+  if (relation === 'ahead')
+    return aheadBy > 0 && behindBy === 0
+  if (relation === 'behind')
+    return aheadBy === 0 && behindBy > 0
+  return aheadBy > 0 && behindBy > 0
+}
+
+export function comparisonRelationMatches(
+  relation: 'ahead' | 'behind' | 'diverged' | 'identical',
+  aheadBy: number,
+  behindBy: number,
+  baseSha: string,
+  headSha: string,
+): boolean {
+  return relationMatchesDirectionalCounts(relation, aheadBy, behindBy)
+    && (relation === 'identical') === (baseSha === headSha)
+}
