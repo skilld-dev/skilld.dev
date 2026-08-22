@@ -399,7 +399,9 @@ export default defineNuxtConfig({
     // homepage grid and the tag redirect map, so they keep resolving.
     '/skills/plan': { redirect: { to: '/skills/planning', statusCode: 301 } } as any,
     '/skills/master-agent': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
-    '/skills/docs': { redirect: { to: '/skills/writing', statusCode: 301 } } as any,
+    // Points at the live target directly: `writing` retired into `anti-slop`
+    // on 2026-08-22, and a chain of two 301s reads as neglect.
+    '/skills/docs': { redirect: { to: '/skills/anti-slop', statusCode: 301 } } as any,
     '/skills/review': { redirect: { to: '/skills/code-review', statusCode: 301 } } as any,
     '/skills/debug': { redirect: { to: '/skills/testing', statusCode: 301 } } as any,
     '/skills/ship': { redirect: { to: '/skills/devops', statusCode: 301 } } as any,
@@ -410,6 +412,9 @@ export default defineNuxtConfig({
     '/skills/browser-automation': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
     '/skills/marketing': { redirect: { to: '/skills', statusCode: 301 } } as any,
     '/skills/research': { redirect: { to: '/skills', statusCode: 301 } } as any,
+    // 2026-08-22: `writing` retired into `anti-slop`, same audience with the
+    // anti-slop anchor replacing the generic one.
+    '/skills/writing': { redirect: { to: '/skills/anti-slop', statusCode: 301 } } as any,
     // 2026-08-15: the leaderboard became the `all` range of the trending board,
     // so one page now answers "what is moving" and "what is biggest". The
     // range inherits the leaderboard's title and description verbatim, which is
