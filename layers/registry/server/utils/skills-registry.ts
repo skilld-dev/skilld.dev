@@ -166,7 +166,13 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   const db = getDB(event)
   const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', uniqueOwners = false, page = 1, limit = 60, officialOwners, includeDependencies = false } = opts
 
-  const conditions: string[] = [NOT_BROKEN_SQL]
+  // Listings exclude skills whose source is unresolved or deleted upstream
+  // (`source_resolved = 0`): their detail pages serve 410 tombstones
+  // (server/middleware/skill-source-gone.ts), so linking them from a hub is a
+  // self-inflicted broken internal link. Same convention as community,
+  // homepage and collection queries. Tombstone pages load the skill directly,
+  // not through this query.
+  const conditions: string[] = [NOT_BROKEN_SQL, 's.source_resolved = 1']
   const params: (string | number)[] = []
 
   // Search: lexical (FTS5/BM25) and semantic (Vectorize) retrieval run in

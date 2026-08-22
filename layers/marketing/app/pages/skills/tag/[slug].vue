@@ -36,9 +36,8 @@ useSeoMeta({
   description,
   ogTitle: title,
   ogDescription: description,
-  // Derived tags are noindex until the curation audit keeps them (migration
-  // 0064); controlled-vocab tags are always indexable. Page still renders for
-  // internal nav either way.
+  // Tag pages are noindex by default sitewide (GOOGLE_RECOVERY.md, 2026-08-22).
+  // Indexable only for a vocab tag with an editorial keep=1 decision.
   robots: () => (data.value?.indexable ? 'index,follow' : 'noindex,follow'),
 })
 

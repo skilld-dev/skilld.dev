@@ -31,16 +31,20 @@ describe('skills registry unique owner browse', () => {
         modified_at INTEGER,
         first_seen_at INTEGER,
         rendered_raw TEXT,
+        source_resolved INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY (owner, repo, name)
       );
       INSERT INTO repos (owner, repo, stars) VALUES
         ('antfu', 'small-repo', 10),
         ('antfu', 'top-repo', 100),
-        ('vuejs', 'skills', 50);
-      INSERT INTO skills (owner, repo, name, display_name, slug, like_count) VALUES
-        ('antfu', 'small-repo', 'vite', 'Vite', 'antfu/small-repo/vite', 9),
-        ('antfu', 'top-repo', 'nuxt', 'Nuxt', 'antfu/top-repo/nuxt', 2),
-        ('vuejs', 'skills', 'vue', 'Vue', 'vuejs/skills/vue', 5);
+        ('vuejs', 'skills', 50),
+        ('gone', 'deleted-repo', 1);
+      INSERT INTO skills (owner, repo, name, display_name, slug, like_count, source_resolved) VALUES
+        ('antfu', 'small-repo', 'vite', 'Vite', 'antfu/small-repo/vite', 9, 1),
+        ('antfu', 'top-repo', 'nuxt', 'Nuxt', 'antfu/top-repo/nuxt', 2, 1),
+        ('vuejs', 'skills', 'vue', 'Vue', 'vuejs/skills/vue', 5, 1),
+        -- Source deleted upstream: serves a 410 tombstone, listings skip it.
+        ('gone', 'deleted-repo', 'ghost', 'Ghost', 'gone/deleted-repo/ghost', 99, 0);
     `)
 
     try {
@@ -49,6 +53,8 @@ describe('skills registry unique owner browse', () => {
         sort: 'likes',
       } as Parameters<typeof querySkills>[1])
 
+      // `gone/ghost` has the highest like count but its source is unresolved,
+      // so it must not win the antfu-free owner browse or appear at all.
       expect(result.total).toBe(2)
       expect(result.items.map(skill => [skill.owner, skill.name, skill.likeCount])).toEqual([
         ['antfu', 'vite', 9],

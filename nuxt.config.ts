@@ -19,6 +19,22 @@ export default defineNuxtConfig({
         '/_nuxt/v2/',
       )
     },
+    // 2026-08-22 agent lane (GOOGLE_RECOVERY.md): list the agent-only sitemap
+    // in llms.txt. The module's `notes` config exists but never renders, so
+    // this pushes a link into the first section instead.
+    'ai-ready:llms-txt': (payload: { sections?: { links?: { title: string, href: string, description?: string }[] }[], notes: string[] }) => {
+      const section = payload.sections?.[0]
+      if (!section)
+        return
+      section.links ??= []
+      if (!section.links.some(l => l.href.includes('/ai-sitemap.xml'))) {
+        section.links.push({
+          title: 'AI sitemap',
+          href: 'https://skilld.dev/ai-sitemap.xml',
+          description: 'Every AI-ready page, including pages that are noindex for Google.',
+        })
+      }
+    },
   },
 
   nuxtDx: {
@@ -200,6 +216,12 @@ export default defineNuxtConfig({
     },
     cron: false,
     runtimeSync: true,
+    // llms.txt is an index, not a dump: each entry links the page's .md.
+    // The 28.5 MB llms-full.txt inline dump is retired below (routeRules).
+    // GOOGLE_RECOVERY.md, agent lane rework.
+    llmsTxt: {
+      markdownLinks: true,
+    },
     mcp: {
       tools: false,
       resources: false,
@@ -385,6 +407,17 @@ export default defineNuxtConfig({
     '/api/repos/**': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=900, stale-while-revalidate=3600, stale-if-error=3600' } } as any,
     '/api/repos/index/**': { headers: { 'cache-control': 'private, no-store' } } as any,
     '/collections': { redirect: { to: '/community', statusCode: 301 } } as any,
+    // 2026-08-22: `_WeeklyBand.vue` and `_FrameworkSkillsDirectory.vue` were
+    // component files living inside pages/ dirs, so Nuxt made them routes:
+    // empty shells, indexable, listed in the sitemap. The components moved to
+    // components/ dirs; these catch any URL Google already crawled.
+    '/_WeeklyBand': { redirect: { to: '/', statusCode: 301 } } as any,
+    '/frameworks/_FrameworkSkillsDirectory': { redirect: { to: '/frameworks/vue', statusCode: 301 } } as any,
+    // 2026-08-22: llms-full.txt inlined every page's markdown into one 28.5 MB
+    // file; agents truncate or time out on it. llms.txt now links each page's
+    // .md (aiReady.llmsTxt.markdownLinks), so the dump redirects there. 302 so
+    // this reverses the moment per-section splitting is worth building.
+    '/llms-full.txt': { redirect: { to: '/llms.txt', statusCode: 302 } } as any,
     // `/gh` has no index page: owner hubs live at `/gh/<owner>`. It 404'd while
     // `/orgs` 301'd straight into it, so every legacy orgs-index link dead-ended
     // on a redirect chain. `/community` is the browsable owner surface.
@@ -520,6 +553,11 @@ export default defineNuxtConfig({
   },
 
   sitemap: {
+    // `/learn` index is a 55-word card list, noindex since 2026-08-22
+    // (GOOGLE_RECOVERY.md). Articles stay indexable and sitemap-listed; only
+    // the bare index leaves. Global so no child sitemap can re-adopt it
+    // (authors.xml was listing it via an app-source merge quirk).
+    exclude: ['/learn'],
     sitemaps: {
       pages: {
         includeAppSources: true,
@@ -542,6 +580,8 @@ export default defineNuxtConfig({
       // but those pages render noindex,follow. Advertising noindex URLs in the
       // sitemap was the bulk of GSC "Crawled – currently not indexed" (~8k) and
       // the sitewide quality demotion. /orgs/* still 301s to /gh/* for link equity.
+      // `tags` now emits only editorial keep=1 vocab tags; the 274 auto-list
+      // tag pages went noindex 2026-08-22 (GOOGLE_RECOVERY.md, topology audit).
       tags: {
         sources: ['/api/__sitemap__/tags'],
         includeAppSources: false,

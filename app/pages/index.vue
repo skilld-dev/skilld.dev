@@ -7,13 +7,13 @@ import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
+import WeeklyBand from '../components/WeeklyBand.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
   HOMEPAGE_PERSON_MINIMUM,
   HOMEPAGE_RAIL_MINIMUM,
   selectHomepagePersonSkills,
 } from '../utils/homepage-person-skills'
-import WeeklyBand from './_WeeklyBand.vue'
 
 const title = 'Curated agent skills by humans · skilld'
 const description = 'Agent skills written by real maintainers in their own GitHub repos. See who wrote it and read the SKILL.md before you install.'
