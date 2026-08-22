@@ -55,6 +55,14 @@
  * and "how the system is structured". `/skills/design` promised interface work
  * and listed CQRS and cloud design patterns under it. The 738 rows were
  * reclassified in production with scripts/reclassify-abstractness-category.ts.
+ *
+ * 2026-08-22: `writing` retired into `anti-slop`. The row kept the
+ * `documentation` category and its depth, and its anchor moved to the
+ * anti-slop wave: @juampitech's ranked list of ten skills pulled 100K views on
+ * X (2026-08-21), more demand evidence than `writing` ever had. Those ten lead
+ * as pinnedExamples in the ranked order, one per author. `/skills/writing`
+ * and `/skills/docs` 301 here. Anti-slop is dev-facing work: READMEs, docs,
+ * and posts written with an agent.
  */
 
 export interface Cluster {
@@ -318,9 +326,40 @@ export const CLUSTERS: Cluster[] = [
     ],
   },
 
+  {
+    slug: 'anti-slop',
+    label: 'Anti-slop writing',
+    icon: 'i-lucide-eraser',
+    userVoice: 'You want prose that reads like a person wrote it, with the AI tells gone.',
+    seoTitle: 'Claude Skills for Anti-Slop Writing',
+    seoDescription:
+      'Anti-slop skills for Claude Code, Cursor, and Codex: strip AI writing tells from prose while keeping your voice. Ten ranked skills, each from the person who wrote it.',
+    curatorNote:
+      'Ten skills that remove AI writing tells while keeping the author\'s voice, one per author, ordered after the anti-slop rank @juampitech shared on X in August 2026.',
+    mergedFrom: null,
+    audience: 'dev',
+    // Inherited from `writing` when it retired into this row: the
+    // documentation backfill gives the page depth under the ten ranked leads.
+    categories: ['documentation'],
+    pinnedExamples: [
+      'hardikpandya/stop-slop',
+      'petergyang/no-ai-slop',
+      'blader/humanizer',
+      'cursor/unslop',
+      'ehmo/slopbeth',
+      'Aboudjem/humanizer',
+      'stephenturner/deslop',
+      'elithrar/anti-slop',
+      // Registry name is the repo slug; the skill's frontmatter name
+      // (`humanize`) renders as its display name.
+      'aashaexo/soundshuman',
+      'jalaalrd/anti-ai-slop-writing',
+    ],
+  },
+
   // ---------------------------------------------------------------------------
   // Demand test, admitted 2026-08-12. Outside VISION's north-star user.
-  // Kept separable so the whole experiment reverses by deleting three rows.
+  // Kept separable so the whole experiment reverses by deleting the row.
   // ---------------------------------------------------------------------------
   {
     slug: 'seo',
@@ -353,26 +392,6 @@ export const CLUSTERS: Cluster[] = [
     // match and even has its own search demand, but both of its skills return
     // 410 from the registry: they were already retired at admission. Restoring
     // them here would silently overrule that call.
-  },
-  {
-    slug: 'writing',
-    label: 'Writing and docs',
-    icon: 'i-lucide-pencil-line',
-    userVoice: 'You write the READMEs, PRDs, and updates other people read.',
-    seoTitle: 'Claude Skills for Writing',
-    seoDescription:
-      'Writing skills for Claude and other agents: documentation, READMEs, release notes, and plain technical English. Each skill is a file in a maintainer\'s repo, not a hosted prompt.',
-    curatorNote: null,
-    mergedFrom: null,
-    audience: 'test',
-    categories: ['documentation'],
-    pinnedExamples: [
-      'anthropics/doc-coauthoring',
-      'github/documentation-writer',
-      'posthog/writing-simplified-technical-english',
-      'github/create-readme',
-      'anthropics/internal-comms',
-    ],
   },
 ]
 
@@ -459,7 +478,10 @@ export function isCategoryPinned(owner: string, name: string): boolean {
 export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
   'plan': 'planning',
   'master-agent': 'context-engineering',
-  'docs': 'writing',
+  // `docs` -> `writing` was the 2026-08-12 rename. `writing` retired into
+  // `anti-slop` on 2026-08-22, so the old slug points at the live target
+  // rather than 301ing into a second 301.
+  'docs': 'anti-slop',
   'review': 'code-review',
   // `debug` -> `debugging` was the 2026-08-12 rename. `debugging` merged into
   // `testing` on 2026-08-13, so the old slug points at the live target rather
@@ -468,6 +490,9 @@ export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
   'debugging': 'testing',
   'browser-automation': 'context-engineering',
   'ship': 'devops',
+  // `writing` retired into `anti-slop` on 2026-08-22; the anti-slop anchor
+  // replaced it with the same audience and the same category depth.
+  'writing': 'anti-slop',
 }
 
 /**

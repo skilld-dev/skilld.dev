@@ -72,14 +72,14 @@ describe('cluster taxonomy', () => {
 
   it('keeps the non-developer demand test separable', () => {
     // The `test` rows were admitted against VISION's north-star user on
-    // 2026-08-12. `marketing` and `research` were culled on 2026-08-13.
-    // Reversing the rest must stay a two-row delete, so nothing
-    // developer-facing may depend on them.
+    // 2026-08-12. `marketing` and `research` were culled on 2026-08-13, and
+    // `writing` retired into the dev-facing `anti-slop` on 2026-08-22.
+    // Reversing the rest must stay a one-row delete, so nothing
+    // developer-facing may depend on it.
     const testAudience = CLUSTERS.filter(cluster => cluster.audience === 'test')
 
     expect(testAudience.map(cluster => cluster.slug)).toEqual([
       'seo',
-      'writing',
     ])
     for (const cluster of testAudience)
       expect(cluster.mergedFrom, cluster.slug).toBeNull()

@@ -67,7 +67,8 @@ export const MARKETING_REDIRECTS: Record<string, string> = {
   'nextjs': '/frameworks/nextjs',
   'nuxt': '/frameworks/nuxt',
   'debug': '/skills/testing',
-  'docs': '/skills/writing',
+  // `writing` retired into `anti-slop` on 2026-08-22.
+  'docs': '/skills/anti-slop',
   'plan': '/skills/planning',
   'review': '/skills/code-review',
   'ship': '/skills/devops',
@@ -87,7 +88,8 @@ export const MARKETING_REDIRECTS: Record<string, string> = {
   //   backend + database + data vs /skills/backend-data (curated to 5 vendors)
   'debugging': '/skills/testing',
   'devops': '/skills/devops',
-  'documentation': '/skills/writing',
+  // The documentation tag folds into the category that owns its backfill.
+  'documentation': '/skills/anti-slop',
   'refactoring': '/skills/code-review',
   'seo': '/skills/seo',
 }
