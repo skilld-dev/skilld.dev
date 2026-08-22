@@ -634,10 +634,13 @@ const canonicalSkillPageUrl = computed(() => {
   return `${siteOrigin}${canonicalSkillPagePath.value}`
 })
 
-const SEO_COMPATIBILITY = ' A Claude Code skill for Cursor, Codex, and other agents.'
-
+// 2026-08-22: the shared "A Claude Code skill for Cursor, Codex, and other
+// agents." suffix is gone. Identical boilerplate across 1,300+ meta
+// descriptions was the last scaled-content signature in Google snippets
+// (GOOGLE_RECOVERY.md). Provenance stays: "From owner/repo." carries the
+// unique part.
 function withSeoContext(text: string, owner: string, repo: string, max = 200): string {
-  const suffix = `${SEO_COMPATIBILITY} From ${owner}/${repo}.`
+  const suffix = ` From ${owner}/${repo}.`
   const collapsed = text.replace(/\s+/g, ' ').trim()
   if (collapsed.length + suffix.length <= max)
     return `${collapsed}${suffix}`

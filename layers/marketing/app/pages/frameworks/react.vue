@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
-import FrameworkSkillsDirectory from './_FrameworkSkillsDirectory.vue'
+import FrameworkSkillsDirectory from '../../components/FrameworkSkillsDirectory.vue'
 
 const { isBot } = useBotDetection()
 const { data, status, error, refresh } = useFetch<TagProfile>(

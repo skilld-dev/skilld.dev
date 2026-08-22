@@ -182,9 +182,11 @@ export default defineCachedEventHandler(async (event) => {
 
   const totalStars = skills.reduce((sum, s) => sum + s.stars, 0)
 
-  // Controlled-vocab tags are trusted and always indexable; derived tags only
-  // when the audit kept them. Drives both robots and sitemap inclusion.
-  const indexable = isControlledVocab || await tagDecisionKeep(db, slug)
+  // 2026-08-22: tag pages are noindex sitewide (GOOGLE_RECOVERY.md, sitemap
+  // topology audit). Controlled vocab no longer bypasses; the only path back
+  // to indexable is an editorial keep=1 row for a vocab tag (see
+  // __sitemap__/tags.ts). Page still renders for internal nav.
+  const indexable = await tagDecisionKeep(db, slug) && isControlledVocab
 
   const profile: TagProfile = {
     tag: { slug: tag.slug, label: tag.label, description: tag.description },

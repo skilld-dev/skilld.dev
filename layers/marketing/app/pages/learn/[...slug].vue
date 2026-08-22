@@ -26,6 +26,10 @@ useSeoMeta({
   ogTitle: () => data.value?.title ?? '',
   ogDescription: () => data.value?.description ?? '',
   ogUrl: canonicalUrl,
+  // The /learn index is a 55-word card list (GOOGLE_RECOVERY.md thin-page
+  // audit). Articles stay indexable; the index earns index back when it
+  // carries real editorial content.
+  robots: () => slug.value ? 'index,follow' : 'noindex,follow',
 })
 
 useHead({
