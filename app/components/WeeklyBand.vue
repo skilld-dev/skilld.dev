@@ -8,8 +8,9 @@
  * section, because an anonymous visitor has no likes and inventing one would
  * put fabricated commits against real people's repositories.
  *
- * Colocated with `_` rather than promoted to `app/components/`: one caller, and
- * the prefix keeps it out of the global auto-import namespace.
+ * Colocated with `_` until 2026-08-22, when it moved here: a component file
+ * inside pages/ became an indexable route, so the `_`-prefixed originals
+ * now 301 here from the URLs Google already crawled.
  */
 
 import type { WeeklyDemoResponse } from '~~/server/api/weekly/demo.get'
