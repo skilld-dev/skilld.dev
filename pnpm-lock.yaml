@@ -196,6 +196,7 @@ catalogs:
 patchedDependencies:
   hookable@5.5.3: 3b44da13a743bfa2eab02aef7246065e4dfd56e9878c206f34b51322832cfb2c
   hookable@6.1.1: 7530364d493fa95257cb863d105ed55a1bb4b46d5c9a178a6d64cb73028ed344
+  nuxt-skew-protection@1.5.0: 39e0e83926386d032c36c0b483f176c863238fca97b397b0f4170f2680452403
 
 importers:
 
@@ -372,7 +373,7 @@ importers:
         version: 17.3.0
       nuxt-skew-protection:
         specifier: 'catalog:'
-        version: 1.5.0(e42bf72a464ef12d834b4f31f82591f0)
+        version: 1.5.0(patch_hash=39e0e83926386d032c36c0b483f176c863238fca97b397b0f4170f2680452403)(e42bf72a464ef12d834b4f31f82591f0)
       tsx:
         specifier: 'catalog:'
         version: 4.23.12
@@ -16535,7 +16536,7 @@ snapshots:
       - vite
       - zod
 
-  nuxt-skew-protection@1.5.0(e42bf72a464ef12d834b4f31f82591f0):
+  nuxt-skew-protection@1.5.0(patch_hash=39e0e83926386d032c36c0b483f176c863238fca97b397b0f4170f2680452403)(e42bf72a464ef12d834b4f31f82591f0):
     dependencies:
       '@nuxt/kit': 4.5.2(magic-string@1.1.1)(magicast@0.5.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.4)(rollup@4.62.4)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0)))
       '@nuxtjs/robots': 6.1.4(5d9cee6f2de2af82fe4225df868cbe0f)
