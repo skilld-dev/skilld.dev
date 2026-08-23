@@ -1,0 +1,716 @@
+{
+  "generatedAt": "2026-08-23T03:38:52.608Z",
+  "since": "2026-08-21T03:05:38.386Z",
+  "git": {
+    "branch": "main",
+    "head": "5a7a2c5137c0d60101f173ace15f83b0a4dae875",
+    "dirtyFiles": [
+      "?? .claude/worktrees/",
+      "?? GOOGLE_RECOVERY.md"
+    ],
+    "commitsSinceLastRun": [
+      {
+        "sha": "5a7a2c5137c0d60101f173ace15f83b0a4dae875",
+        "authoredAt": "2026-08-22T19:55:47+10:00",
+        "subject": "fix(seo): recovery batch, cut low-value index surface and split agent lane (#64)"
+      },
+      {
+        "sha": "5ac97ca72490357d7078071205cb8b0bc7ecccea",
+        "authoredAt": "2026-08-22T13:16:04+10:00",
+        "subject": "feat(skills): rank anti-slop skills on /skills/anti-slop (#63)"
+      },
+      {
+        "sha": "3618c0d81efc8f40ba12cbac5bcfd1e5d1c74859",
+        "authoredAt": "2026-08-21T23:33:34+10:00",
+        "subject": "fix(admin): accept session auth for admin endpoints (#62)"
+      },
+      {
+        "sha": "f67222af21c29f429c0441880d5b8f464255ee85",
+        "authoredAt": "2026-08-21T23:33:16+10:00",
+        "subject": "fix(api): keep CLI wire responses within contract (#61)"
+      },
+      {
+        "sha": "bf450616daa974ffb02b3126b965fde75d8d614e",
+        "authoredAt": "2026-08-21T17:44:02+10:00",
+        "subject": "fix(api): expose directional update counts (#60)"
+      },
+      {
+        "sha": "850411d8b6cc8124897d56d50118b5cb2a8b6e53",
+        "authoredAt": "2026-08-21T17:06:04+10:00",
+        "subject": "feat(discovery): add weekly CTA to trending board (#59)"
+      },
+      {
+        "sha": "deb35230e9bcae716b86348e6efbab5ff51cb515",
+        "authoredAt": "2026-08-21T16:52:01+10:00",
+        "subject": "feat(api): add private GitHub update plans (#58)"
+      },
+      {
+        "sha": "ada08b062532611b39eefc07899d86315e15bf11",
+        "authoredAt": "2026-08-21T15:24:14+10:00",
+        "subject": "fix(trending): clarify other post authors (#57)"
+      },
+      {
+        "sha": "1470d6454526a05ea3a0756c5fc32f13c0b0a42f",
+        "authoredAt": "2026-08-21T13:45:17+10:00",
+        "subject": "fix(ops): correct check-ins and alert on X failures (#56)"
+      },
+      {
+        "sha": "8ea58613ff9f5b5891f2d5639520fe5d8fb92feb",
+        "authoredAt": "2026-08-21T13:31:50+10:00",
+        "subject": "fix(d1): retry reads during exports (#55)"
+      }
+    ]
+  },
+  "deploy": {
+    "latest": {
+      "id": "c4eb7a4d-8486-48d3-b3c3-c9e828c78832",
+      "createdOn": "2026-08-22T03:26:45.673568Z",
+      "versionId": "86f97008-413c-4d09-92c4-ce8210449687",
+      "message": null,
+      "approxDeployedSha": "5ac97ca72490357d7078071205cb8b0bc7ecccea"
+    }
+  },
+  "ci": {
+    "workflows": [
+      {
+        "name": "Deploy to Cloudflare",
+        "latestRun": {
+          "conclusion": "skipped",
+          "createdAt": "2026-08-22T11:03:36Z",
+          "databaseId": 32569267444,
+          "displayTitle": "Deploy to Cloudflare",
+          "headSha": "5a7a2c5137c0d60101f173ace15f83b0a4dae875",
+          "status": "completed",
+          "updatedAt": "2026-08-22T11:03:37Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32569267444",
+          "workflowName": "Deploy to Cloudflare"
+        },
+        "latestCompletedRun": {
+          "conclusion": "success",
+          "createdAt": "2026-08-22T03:23:54Z",
+          "databaseId": 32548855653,
+          "displayTitle": "Deploy to Cloudflare",
+          "headSha": "5ac97ca72490357d7078071205cb8b0bc7ecccea",
+          "status": "completed",
+          "updatedAt": "2026-08-22T03:27:09Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32548855653",
+          "workflowName": "Deploy to Cloudflare"
+        },
+        "state": {
+          "_tag": "success"
+        }
+      },
+      {
+        "name": "Test",
+        "latestRun": {
+          "conclusion": "failure",
+          "createdAt": "2026-08-22T09:55:50Z",
+          "databaseId": 32566258038,
+          "displayTitle": "fix(seo): recovery batch, cut low-value index surface and split agent…",
+          "headSha": "5a7a2c5137c0d60101f173ace15f83b0a4dae875",
+          "status": "completed",
+          "updatedAt": "2026-08-22T11:03:34Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32566258038",
+          "workflowName": "Test"
+        },
+        "latestCompletedRun": {
+          "conclusion": "failure",
+          "createdAt": "2026-08-22T09:55:50Z",
+          "databaseId": 32566258038,
+          "displayTitle": "fix(seo): recovery batch, cut low-value index surface and split agent…",
+          "headSha": "5a7a2c5137c0d60101f173ace15f83b0a4dae875",
+          "status": "completed",
+          "updatedAt": "2026-08-22T11:03:34Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32566258038",
+          "workflowName": "Test"
+        },
+        "state": {
+          "_tag": "failure",
+          "consecutiveFailures": 3
+        }
+      }
+    ],
+    "recent": [
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-22T11:03:36Z",
+        "databaseId": 32569267444,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "5a7a2c5137c0d60101f173ace15f83b0a4dae875",
+        "status": "completed",
+        "updatedAt": "2026-08-22T11:03:37Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32569267444",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-22T10:31:45Z",
+        "databaseId": 32567840519,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "5a7a2c5137c0d60101f173ace15f83b0a4dae875",
+        "status": "completed",
+        "updatedAt": "2026-08-22T10:31:46Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32567840519",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "failure",
+        "createdAt": "2026-08-22T09:55:50Z",
+        "databaseId": 32566258038,
+        "displayTitle": "fix(seo): recovery batch, cut low-value index surface and split agent…",
+        "headSha": "5a7a2c5137c0d60101f173ace15f83b0a4dae875",
+        "status": "completed",
+        "updatedAt": "2026-08-22T11:03:34Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32566258038",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-22T09:54:15Z",
+        "databaseId": 32566187719,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "5ac97ca72490357d7078071205cb8b0bc7ecccea",
+        "status": "completed",
+        "updatedAt": "2026-08-22T09:54:16Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32566187719",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "failure",
+        "createdAt": "2026-08-22T09:53:57Z",
+        "databaseId": 32566174553,
+        "displayTitle": "fix(seo): recovery batch, cut low-value index surface and split agent lane",
+        "headSha": "b3d5fe183ba401f256e609c90369a7f1c8ac5a24",
+        "status": "completed",
+        "updatedAt": "2026-08-22T10:31:43Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32566174553",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "cancelled",
+        "createdAt": "2026-08-22T09:39:15Z",
+        "databaseId": 32565516636,
+        "displayTitle": "fix(seo): recovery batch, cut low-value index surface and split agent lane",
+        "headSha": "13a645b34d1481a8b7f69fdc7ac5b1257a9c73ed",
+        "status": "completed",
+        "updatedAt": "2026-08-22T09:54:13Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32565516636",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-22T03:23:54Z",
+        "databaseId": 32548855653,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "5ac97ca72490357d7078071205cb8b0bc7ecccea",
+        "status": "completed",
+        "updatedAt": "2026-08-22T03:27:09Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32548855653",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-22T03:16:07Z",
+        "databaseId": 32548507581,
+        "displayTitle": "feat(skills): rank anti-slop skills on /skills/anti-slop (#63)",
+        "headSha": "5ac97ca72490357d7078071205cb8b0bc7ecccea",
+        "status": "completed",
+        "updatedAt": "2026-08-22T03:23:52Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32548507581",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-22T03:11:33Z",
+        "databaseId": 32548298565,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "3618c0d81efc8f40ba12cbac5bcfd1e5d1c74859",
+        "status": "completed",
+        "updatedAt": "2026-08-22T03:11:35Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32548298565",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-22T03:06:51Z",
+        "databaseId": 32548084629,
+        "displayTitle": "feat(skills): rank anti-slop skills on /skills/anti-slop",
+        "headSha": "8b6ca4ec831951599b291308c7b3a6d0e49d56f4",
+        "status": "completed",
+        "updatedAt": "2026-08-22T03:11:32Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32548084629",
+        "workflowName": "Test"
+      }
+    ]
+  },
+  "http": {
+    "https://skilld.dev/": 200,
+    "https://skilld.dev/skills": 200
+  },
+  "d1": {
+    "tables": [
+      "_ai_ready_info",
+      "_cf_KV",
+      "_content_frameworks",
+      "_content_info",
+      "_content_learn",
+      "activity",
+      "ai_batch_costs",
+      "ai_batches",
+      "ai_ready_cron_runs",
+      "ai_ready_pages",
+      "ai_ready_pages_fts",
+      "ai_ready_pages_fts_config",
+      "ai_ready_pages_fts_data",
+      "ai_ready_pages_fts_docsize",
+      "ai_ready_pages_fts_idx",
+      "ai_ready_sitemaps",
+      "artifact_attestations",
+      "artifact_check_results",
+      "artifact_download_grants",
+      "artifact_resolutions",
+      "artifacts",
+      "cli_auth_codes",
+      "cli_device_sessions",
+      "cli_tokens",
+      "collection_skills_v2",
+      "collections_v2",
+      "d1_migrations",
+      "daily_health_checks",
+      "digest_runs",
+      "discovery_candidates",
+      "discovery_ledger",
+      "embedding_attempts",
+      "failed_jobs",
+      "github_app_installations",
+      "github_app_repositories",
+      "github_app_user_authorizations",
+      "github_app_webhook_deliveries",
+      "github_sync_control",
+      "install_events",
+      "job_batches",
+      "jobs",
+      "npm_guides",
+      "owners",
+      "private_artifact_attestations",
+      "private_artifact_keys",
+      "private_artifacts",
+      "registry_maintenance",
+      "repo_kind_overrides",
+      "repo_star_observations",
+      "repo_star_surges",
+      "repo_sync_progress",
+      "repo_trust_overrides",
+      "repos",
+      "scheduled_runs",
+      "skill_dirty",
+      "skill_generated",
+      "skill_likes",
+      "skill_repo_eligibility",
+      "skill_repo_review_sync_outbox",
+      "skill_revisions",
+      "skill_social_posts",
+      "skill_subscriptions",
+      "skills",
+      "skills_fts",
+      "skills_fts_config",
+      "skills_fts_data",
+      "skills_fts_docsize",
+      "skills_fts_idx",
+      "skills_sh_crawl_runs",
+      "skills_sh_discovery_observations",
+      "sqlite_sequence",
+      "sqlite_stat1",
+      "supported_repos",
+      "supported_skills",
+      "sync_jobs",
+      "tag_decisions",
+      "user_starred_repos",
+      "users",
+      "weekly_click_events",
+      "weekly_runs",
+      "x_api_alerts",
+      "x_ingest_cursor",
+      "x_post_metrics",
+      "x_post_repos",
+      "x_post_skills",
+      "x_posts"
+    ],
+    "inventory": {
+      "skills": 9416,
+      "repos": 7859,
+      "owners": 9689,
+      "users": 23,
+      "collections": 10,
+      "broken_repos": 2020
+    },
+    "activity": {
+      "new_skills": 1184,
+      "changed_repos": 71,
+      "install_events": 1,
+      "new_users": 1,
+      "digests_sent": 0,
+      "digests_failed": 0
+    },
+    "pipeline": {
+      "newly_broken_repos_total": 14,
+      "newly_broken_repos_impacted": 0,
+      "skill_sync_failures": 4,
+      "stale_dirty_skills": 0,
+      "ai_submitted": 0,
+      "ai_stuck": 0,
+      "ai_failed": 0,
+      "embeddings_completed": 145,
+      "embeddings_failed": 0,
+      "embeddings_stuck": 0,
+      "failed_jobs": 14,
+      "stale_reserved_jobs": 0
+    },
+    "cost": {
+      "ai_cost_usd": 0,
+      "x_discovery_reads_today": 9,
+      "x_discovery_reads_total": 1051,
+      "x_hot_posts": 43,
+      "x_posts_24h": 379,
+      "x_newest_post_age_hours": 0,
+      "x_verified_skills": 278,
+      "x_verified_skills_24h": 83,
+      "x_posts_unscanned": 1,
+      "x_ledger_pending": 1,
+      "x_ledger_held": 71,
+      "x_ledger_stalled": 0,
+      "x_ledger_indexed": 446,
+      "x_budget_target": 2000,
+      "x_budget_used_pct": 0,
+      "x_projected_daily_reads": 52,
+      "x_projected_monthly_usd": 7.8,
+      "x_over_budget": false,
+      "x_reads_per_verified_skill": 4,
+      "x_falling_behind": false
+    },
+    "syncJobs": [
+      {
+        "name": "ai-generate-poll",
+        "cron": "45 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787453133,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "ai-generate-submit",
+        "cron": "15 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787454938,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "ai-ready:cron",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787456134,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "backfill-skill-assets",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787456131,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "daily-health-check",
+        "cron": "0 22 * * *",
+        "stale_after_seconds": 129600,
+        "last_run_at": 1787436039,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "detect-star-surges",
+        "cron": "30 4 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787373027,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "drain-skill-dirty",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787456131,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "embedding-parity-audit",
+        "cron": "0 21 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787432519,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "recompute-skill-scores",
+        "cron": "0 3 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787454102,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "reconcile-rendered",
+        "cron": "20 */6 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787444435,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "refresh-x-engagement",
+        "cron": "10 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787454633,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "send-digests",
+        "cron": "0 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787454034,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-bsky-mentions",
+        "cron": "17 */2 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787451476,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-github-skills",
+        "cron": "0 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787454037,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-reviewed-skill-repos",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787456131,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-social-mentions",
+        "cron": "30 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787455837,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-x-mentions",
+        "cron": "*/15 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787455838,
+        "last_status": "ok",
+        "last_error": null
+      }
+    ],
+    "failedJobFingerprints": [
+      {
+        "queue": "repo-review-sync",
+        "job_type": "registry/repository-submission",
+        "exception": "no_supported_skill_paths",
+        "count": 14,
+        "first_failed_at": 1787283133,
+        "last_failed_at": 1787430641
+      }
+    ],
+    "healthEmail": [
+      {
+        "reportDate": "2026-08-23",
+        "healthStatus": "GREEN",
+        "deliveryStatus": "sent",
+        "recipient": "harlan@harlanzw.com",
+        "sentAt": 1787436033,
+        "error": null,
+        "reasons": [
+          "All monitored systems are healthy."
+        ],
+        "warnings": [],
+        "window": {
+          "reportDate": "2026-08-23",
+          "timeZone": "Australia/Melbourne",
+          "from": "2026-08-21T22:00:33Z",
+          "to": "2026-08-22T22:00:33Z",
+          "workerVersion": "86f97008 deployed 2026-08-22T03:26:42.557612Z"
+        }
+      },
+      {
+        "reportDate": "2026-08-22",
+        "healthStatus": "AMBER",
+        "deliveryStatus": "sent",
+        "recipient": "harlan@harlanzw.com",
+        "sentAt": 1787349618,
+        "error": null,
+        "reasons": [
+          "1 skill recorded a new sync failure in 24 hours."
+        ],
+        "warnings": [],
+        "window": {
+          "reportDate": "2026-08-22",
+          "timeZone": "Australia/Melbourne",
+          "from": "2026-08-20T22:00:18Z",
+          "to": "2026-08-21T22:00:18Z",
+          "workerVersion": "64857fcb deployed 2026-08-21T13:46:01.092353Z"
+        }
+      }
+    ],
+    "recentJobBatches": [
+      {
+        "id": "201ca13d-fedd-4602-aacb-f1e769c1bb3f",
+        "name": "registry-sync:1787454034",
+        "total_jobs": 22,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787454034,
+        "updated_at": 1787454122,
+        "finished_at": 1787454122
+      },
+      {
+        "id": "cc743cd5-5eba-4fdb-946a-779612773c56",
+        "name": "registry-sync:1787450433",
+        "total_jobs": 17,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787450434,
+        "updated_at": 1787450498,
+        "finished_at": 1787450498
+      },
+      {
+        "id": "eb43aa1a-2745-46b1-93bd-c8484048d606",
+        "name": "registry-sync:1787446833",
+        "total_jobs": 15,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787446834,
+        "updated_at": 1787446885,
+        "finished_at": 1787446885
+      },
+      {
+        "id": "16bf6106-9b58-42a0-81f6-3313e63f82ce",
+        "name": "render-repair:1787444433",
+        "total_jobs": 48,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787444434,
+        "updated_at": 1787444849,
+        "finished_at": 1787444849
+      },
+      {
+        "id": "2bcea160-278a-48f4-98d4-b00aa0b0150a",
+        "name": "registry-sync:1787443233",
+        "total_jobs": 49,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787443234,
+        "updated_at": 1787443379,
+        "finished_at": 1787443379
+      },
+      {
+        "id": "a5bbebf0-c8d4-4d58-bf1f-3aee95fa7291",
+        "name": "registry-sync:1787439633",
+        "total_jobs": 12,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787439634,
+        "updated_at": 1787439667,
+        "finished_at": 1787439667
+      },
+      {
+        "id": "2536def2-425f-43e5-8790-83d9a93014d9",
+        "name": "registry-sync:1787436033",
+        "total_jobs": 16,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787436034,
+        "updated_at": 1787436083,
+        "finished_at": 1787436083
+      },
+      {
+        "id": "b75d1ca0-6323-44ba-aadf-0a964e1b2188",
+        "name": "registry-sync:1787432433",
+        "total_jobs": 13,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787432433,
+        "updated_at": 1787432475,
+        "finished_at": 1787432475
+      },
+      {
+        "id": "57ab4b10-b94c-4389-898e-ff814d3a1f91",
+        "name": "registry-sync:1787428833",
+        "total_jobs": 47,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787428834,
+        "updated_at": 1787428990,
+        "finished_at": 1787428990
+      },
+      {
+        "id": "1d86dbf9-b5f8-4086-a5bd-73bf0247dd53",
+        "name": "registry-sync:1787425234",
+        "total_jobs": 39,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787425234,
+        "updated_at": 1787425344,
+        "finished_at": 1787425344
+      }
+    ],
+    "registryMaintenance": [
+      {
+        "name": "nested-assets-v1",
+        "status": "complete",
+        "batch_id": "d9530bca-ad97-498d-af66-e491be12e13c",
+        "updated_at": 1785036660,
+        "last_error": null
+      }
+    ],
+    "migrations": {
+      "localHead": "0113_x_api_alerts.sql",
+      "uncommitted": [],
+      "prodHead": "0113_x_api_alerts.sql"
+    },
+    "missingExpectedTables": []
+  },
+  "workers": {
+    "outcomes": {
+      "clientDisconnected": 91,
+      "exceededMemory": 11,
+      "success": 141880
+    },
+    "nonOk": [
+      {
+        "status": "exceededMemory",
+        "requests": 11
+      }
+    ]
+  },
+  "sentry": {
+    "_tag": "available",
+    "newIssues": [],
+    "recurringIssues": [],
+    "truncatedAtLimit": false
+  }
+}
