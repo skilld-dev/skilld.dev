@@ -1,7 +1,28 @@
 import type { AxeResults, RunOptions } from 'axe-core'
-import { mountSuspended } from '@nuxt/test-utils/runtime'
+import type { WeeklyDemoResponse } from '../../server/api/weekly/demo.get'
+import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import axe from 'axe-core'
-import { defineComponent, h, nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
+
+// Only WeeklyBand (and the page-level-tested OutcomeClusterGrid) call useFetch
+// among the components mounted here, so one file-wide mock covers it without
+// touching the other cases.
+const weeklyDemo = ref<WeeklyDemoResponse>({
+  card: {
+    light: '<table><tbody><tr><td>trending-skill</td></tr></tbody></table>',
+    dark: '<table><tbody><tr><td>trending-skill</td></tr></tbody></table>',
+  },
+  rowCount: 3,
+})
+
+mockNuxtImport('useFetch', () => {
+  return () => ({
+    data: weeklyDemo,
+    error: ref(undefined),
+    status: ref('success'),
+    refresh: async () => {},
+  })
+})
 
 // Rules to disable for isolated component testing (page-level rules)
 const AXE_OPTIONS: RunOptions = {
@@ -238,6 +259,25 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('weeklyBand has no violations and hides the inbox preview from assistive tech', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await import('~/components/WeeklyBand.vue').then(m => m.default),
+      { attachTo: container },
+    )
+
+    // The demo card is the real email with roughly twenty live links; the band
+    // must keep it out of the tab order and the accessibility tree.
+    const frame = container.querySelector('.home-weekly-frame')
+    expect(frame?.getAttribute('aria-hidden')).toBe('true')
+    expect(frame?.getAttribute('tabindex')).toBe('-1')
+    expect(container.querySelector('#weekly-heading')?.tagName).toBe('H2')
+
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('skillSearchRepositoryModal has no violations while indexing', async () => {
     const container = createIsolatedContainer()
     const Modal = await import('~/components/SkillSearchRepositoryModal.client.vue').then(m => m.default)
@@ -330,6 +370,7 @@ describe('accessibility: component coverage', () => {
           'SkillSearchTrigger',
           'SkillSourceList',
           'SkillTable',
+          'WeeklyBand',
         ].includes(name),
         `Component "${name}" needs an accessibility test or should be added to SKIPPED_COMPONENTS with a reason`,
       ).toBe(true)
