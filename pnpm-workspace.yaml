@@ -36,6 +36,7 @@ packages:
 patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.1.1.patch
+  nuxt-skew-protection@1.5.0: patches/nuxt-skew-protection@1.5.0.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/workers-types': ^5.20260820.1
