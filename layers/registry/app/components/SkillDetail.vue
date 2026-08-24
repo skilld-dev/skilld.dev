@@ -114,6 +114,7 @@ interface DuplicateSkill {
   slug: string
   supportTier: string | null
   trustTier: string | null
+  repoSkillCount: number
 }
 
 const { data, status, error, refresh } = await useFetch(
@@ -638,7 +639,7 @@ const duplicateGroup = computed(() => data.value?.duplicateGroup ?? null)
 const isWeakerDuplicate = computed(() => Boolean(duplicateGroup.value && !duplicateGroup.value.isCanonical))
 const canonicalSkillPagePath = computed(() => {
   const canonical = duplicateGroup.value?.canonical
-  return canonical ? repoSkillPath(canonical.owner, canonical.repo, canonical.name) : skillPagePath.value
+  return canonical ? repoSkillPath(canonical.owner, canonical.repo, canonical.name, canonical.repoSkillCount) : skillPagePath.value
 })
 const canonicalSkillPageUrl = computed(() => {
   return `${siteOrigin}${canonicalSkillPagePath.value}`

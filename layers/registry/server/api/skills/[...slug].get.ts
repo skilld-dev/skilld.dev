@@ -170,6 +170,10 @@ interface RepoSkillNameRow {
   name: string
 }
 
+interface RepoSkillCountRow {
+  skill_count: number
+}
+
 export default defineApiHandler({
   response: SkillDetailResponseSchema,
   handler: async ({ event, platform }) => {
@@ -181,7 +185,7 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows] = await Promise.all([
+    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows, resolvedRepoSkillCount] = await Promise.all([
       Promise.resolve([] satisfies CuratorEndorsement[]),
       platform.db
         .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
@@ -209,6 +213,14 @@ export default defineApiHandler({
         .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
         .bind(skill.owner, skill.repo)
         .all<RepoSkillNameRow>(),
+      // Same definition as loadRepoSkillCounts (source_resolved = 1), so the
+      // 301 decision matches the hub routing used by feeds and sitemaps.
+      // repoSkillNames stays unfiltered: it feeds dependency parsing, not
+      // routing.
+      platform.db
+        .prepare(`SELECT COUNT(*) AS skill_count FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1`)
+        .bind(skill.owner, skill.repo)
+        .first<RepoSkillCountRow>(),
     ])
 
     const source = resolveRepoSourceIdentityFromRow(skill, row)
@@ -310,7 +322,7 @@ export default defineApiHandler({
       owner: skill.owner,
       repo: skill.repo,
       name: skill.name,
-      repoSkillCount: repoSkillNames.length,
+      repoSkillCount: resolvedRepoSkillCount?.skill_count ?? 0,
       displayName: skill.displayName,
       githubUrl,
       skillPath: rendered.skillPath,
