@@ -235,7 +235,7 @@ describe('weekly template', () => {
     expect(text).toContain('Testing conventions.')
   })
 
-  it('shows the top seven trending Skills', () => {
+  it('shows the top three trending Skills', () => {
     const skills = Array.from({ length: 9 }, (_, index) => trending({
       owner: `owner-${index + 1}`,
       slug: `skill-${index + 1}`,
@@ -244,10 +244,10 @@ describe('weekly template', () => {
 
     const { html, text } = renderWeekly(input({ trending: skills }))
 
-    expect(html).toContain('skill-7')
-    expect(text).toContain('skill-7')
-    expect(html).not.toContain('skill-8')
-    expect(text).not.toContain('skill-8')
+    expect(html).toContain('skill-3')
+    expect(text).toContain('skill-3')
+    expect(html).not.toContain('skill-4')
+    expect(text).not.toContain('skill-4')
   })
 
   it('offers a next action when the week produced nothing', () => {

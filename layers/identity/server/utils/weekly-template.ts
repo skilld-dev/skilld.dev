@@ -203,7 +203,7 @@ export interface WeeklyRender {
 }
 
 /** The weekly stays scannable while showing enough breadth to be useful. */
-export const MAX_WEEKLY_TRENDING = 7
+export const MAX_WEEKLY_TRENDING = 3
 
 function esc(value: string): string {
   return value

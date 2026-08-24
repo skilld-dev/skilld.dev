@@ -67,11 +67,11 @@ describe('weekly email improvement contract', () => {
     expect(rendered.text).toContain('https://github.com/antfu/skills/blob/new-sha/skills/vitest/SKILL.md')
   })
 
-  it('keeps trending secondary and renders seven rows at most', () => {
+  it('keeps trending secondary and renders three rows at most', () => {
     const rendered = renderWeekly(input())
 
-    expect(rendered.html).toContain('skill-7')
-    expect(rendered.html).not.toContain('skill-8')
+    expect(rendered.html).toContain('skill-3')
+    expect(rendered.html).not.toContain('skill-4')
   })
 
   it('uses fluid, accessible email structure', () => {

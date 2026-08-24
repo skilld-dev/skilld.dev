@@ -27,9 +27,8 @@ export const MAX_LIKED_CHANGES = 5
  * Trending rows carried into the email.
  *
  * Fewer than the board shows on purpose: an email is read in one pass and a
- * thirty-row leaderboard in an inbox is a page, not a message. Seven is the
- * most that still scans in one pass, and it matters more now that the liked
- * section no longer pads the email with the reader's own repositories.
+ * thirty-row leaderboard in an inbox is a page, not a message. Three keeps
+ * discovery secondary to changes in Skills the reader already likes.
  */
 export const MAX_TRENDING = MAX_WEEKLY_TRENDING
 
