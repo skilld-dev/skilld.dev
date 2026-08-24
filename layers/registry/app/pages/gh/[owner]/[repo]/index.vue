@@ -161,6 +161,9 @@ const repoSourceScanNotice = computed<string | null>(() => {
 const sourceSkillFiles = computed(() => repoSource.value?.skillFiles ?? [])
 
 const flatSkillName = computed<string | null>(() => {
+  if (repoSkills.value.length === 1)
+    return repoSkills.value[0]?.name ?? null
+
   const source = repoSource.value
   if (!source || source.skillFileCount !== 1)
     return null
@@ -221,8 +224,7 @@ onMounted(() => {
 
 const siteOrigin = 'https://skilld.dev'
 const sourceHubCanonicalUrl = computed(() => {
-  const flatName = flatSkillName.value
-  return `${siteOrigin}${flatName ? repoSkillPath(repoHub.value.owner, repoHub.value.repo, flatName) : repoHubPath(repoHub.value.owner, repoHub.value.repo)}`
+  return `${siteOrigin}${repoHubPath(repoHub.value.owner, repoHub.value.repo)}`
 })
 
 const skillTitle = computed(() => `${repoHub.value.owner}/${repoHub.value.repo} skills`)

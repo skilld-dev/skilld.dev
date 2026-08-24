@@ -29,6 +29,8 @@ export interface TrendingSkill extends SkillTrendScore {
   stars: number | null
   /** The skill's own description, from its SKILL.md frontmatter. */
   description: string | null
+  /** Current Skills in the repository, used to choose its canonical route. */
+  repoSkillCount: number
 }
 
 export interface TrendingSkillEvidence {
@@ -163,6 +165,11 @@ async function loadSocialEvidence(
               p.quote_count, p.bookmark_count
        FROM x_post_skills s
        JOIN x_posts p ON p.post_id = s.post_id
+       JOIN skills current
+         ON current.owner = s.owner
+        AND current.repo = s.repo
+        AND current.name = s.slug
+        AND current.source_resolved = 1
        WHERE p.posted_at >= ?1
        ORDER BY p.favourite_count DESC`,
     )
@@ -354,9 +361,10 @@ export async function loadTrendingSkills(
     .sort((left, right) => Number(deprioritized.has(`${left.owner}/${left.repo}`)) - Number(deprioritized.has(`${right.owner}/${right.repo}`)))
 
   const page = ranked.slice(0, limit)
-  const [stars, descriptions] = await Promise.all([
+  const [stars, descriptions, repoSkillCounts] = await Promise.all([
     loadRepoStars(options.db, page),
     loadSkillDescriptions(options.db, page),
+    loadRepoSkillCounts(options.db, page),
   ])
 
   return page.map(scored => ({
@@ -364,7 +372,36 @@ export async function loadTrendingSkills(
     evidence: merged.get(skillKey(scored))?.evidence ?? null,
     stars: stars.get(`${scored.owner}/${scored.repo}`) ?? null,
     description: descriptions.get(skillKey(scored)) ?? null,
+    repoSkillCount: repoSkillCounts.get(`${scored.owner}/${scored.repo}`) ?? 0,
   }))
+}
+
+async function loadRepoSkillCounts(
+  db: D1Database,
+  entries: readonly { owner: string, repo: string }[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  const unique = [...new Map(entries.map(entry => [`${entry.owner}/${entry.repo}`, entry])).values()]
+  const perQuery = 50
+
+  for (let i = 0; i < unique.length; i += perQuery) {
+    const chunk = unique.slice(i, i + perQuery)
+    const placeholders = chunk.map((_, j) => `(?${j * 2 + 1}, ?${j * 2 + 2})`).join(', ')
+    const rows = (await db
+      .prepare(
+        `SELECT owner, repo, COUNT(*) AS skill_count
+         FROM skills
+         WHERE source_resolved = 1
+           AND (owner, repo) IN (VALUES ${placeholders})
+         GROUP BY owner, repo`,
+      )
+      .bind(...chunk.flatMap(entry => [entry.owner, entry.repo]))
+      .all<{ owner: string, repo: string, skill_count: number }>()).results ?? []
+    for (const row of rows)
+      out.set(`${row.owner}/${row.repo}`, row.skill_count)
+  }
+
+  return out
 }
 
 /**

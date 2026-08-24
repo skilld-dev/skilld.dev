@@ -31,6 +31,15 @@ function mention(input: {
   postedAt?: number
   canonical?: string
 }) {
+  db().raw.prepare(
+    `INSERT OR IGNORE INTO repos (owner, repo) VALUES (?, ?)`,
+  ).run(input.owner, input.repo)
+  db().raw.prepare(
+    `INSERT OR IGNORE INTO skills
+       (owner, repo, name, slug, display_name, source_resolved, rendered_skill_path)
+     VALUES (?, ?, ?, ?, ?, 1, ?)`,
+  ).run(input.owner, input.repo, input.slug, input.slug, input.canonical ?? input.slug, `${input.slug}/SKILL.md`)
+
   const id = `p${++seq}`
   const postedAt = input.postedAt ?? NOW - HOUR
   db().raw.prepare(
@@ -60,6 +69,15 @@ function mention(input: {
 }
 
 describe('loadTrendingSkills ranking', () => {
+  it('does not publish verified mentions before the Skill is indexed', async () => {
+    mention({ owner: 'pending', repo: 'repo', slug: 'not-indexed', handle: 'p1', likes: 50 })
+    db().raw.prepare(
+      `DELETE FROM skills WHERE owner = ? AND repo = ? AND name = ?`,
+    ).run('pending', 'repo', 'not-indexed')
+
+    expect(await loadTrendingSkills({ db: db().db, now: NOW })).toEqual([])
+  })
+
   it('ranks by how many separate people named the skill, at comparable reach', async () => {
     mention({ owner: 'a', repo: 'r', slug: 'broad', handle: 'p1', likes: 50 })
     mention({ owner: 'a', repo: 'r', slug: 'broad', handle: 'p2', likes: 50 })

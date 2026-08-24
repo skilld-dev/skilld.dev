@@ -323,10 +323,12 @@ export function leaderboardBoardRows(
   return items.map((item) => {
     const day = formatBoardDay(item.pushedAt)
     return {
-      key: `${item.owner}/${item.repo}/${item.topSkill.slug}`,
+      key: `${item.owner}/${item.repo}/${item.topSkill.name}`,
       owner: item.owner,
       title: item.topSkill.name,
-      to: `/gh/${item.owner}/${item.repo}/${item.topSkill.slug}`,
+      to: item.skillCount === 1
+        ? `/gh/${item.owner}/${item.repo}`
+        : `/gh/${item.owner}/${item.repo}/${item.topSkill.name}`,
       subtitle: `${item.owner}/${item.repo}`,
       // The skill's own words first. The repository blurb describes the
       // container, and on a row named for the skill that reads as a mismatch.

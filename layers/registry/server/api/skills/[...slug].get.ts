@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { defineApiHandler } from '#shared/server/handler'
+import { selectSkillFiles } from '#shared/skill-files'
 import { isSourceResolved } from '#shared/skill-source-resolution'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
@@ -169,6 +170,10 @@ interface RepoSkillNameRow {
   name: string
 }
 
+interface RepoSkillCountRow {
+  skill_count: number
+}
+
 export default defineApiHandler({
   response: SkillDetailResponseSchema,
   handler: async ({ event, platform }) => {
@@ -180,7 +185,7 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows] = await Promise.all([
+    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows, resolvedRepoSkillCount] = await Promise.all([
       Promise.resolve([] satisfies CuratorEndorsement[]),
       platform.db
         .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
@@ -208,6 +213,14 @@ export default defineApiHandler({
         .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
         .bind(skill.owner, skill.repo)
         .all<RepoSkillNameRow>(),
+      // Same definition as loadRepoSkillCounts (source_resolved = 1), so the
+      // 301 decision matches the hub routing used by feeds and sitemaps.
+      // repoSkillNames stays unfiltered: it feeds dependency parsing, not
+      // routing.
+      platform.db
+        .prepare(`SELECT COUNT(*) AS skill_count FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1`)
+        .bind(skill.owner, skill.repo)
+        .first<RepoSkillCountRow>(),
     ])
 
     const source = resolveRepoSourceIdentityFromRow(skill, row)
@@ -288,6 +301,7 @@ export default defineApiHandler({
     }
     const allowedTools = parseAllowedTools(rendered.frontmatter)
     const capability = classifyAllowedTools(allowedTools)
+    const selectedAssets = selectSkillFiles(assets)
     // `rendered.*` describes the cached copy, which survives the file being
     // deleted upstream, so it can only ever say "we can still render this". The
     // stored `source_resolved` is the sync's verdict on whether the file is
@@ -308,6 +322,7 @@ export default defineApiHandler({
       owner: skill.owner,
       repo: skill.repo,
       name: skill.name,
+      repoSkillCount: resolvedRepoSkillCount?.skill_count ?? 0,
       displayName: skill.displayName,
       githubUrl,
       skillPath: rendered.skillPath,
@@ -319,7 +334,8 @@ export default defineApiHandler({
       dependencies: rendered.dependencies,
       frontmatter: rendered.frontmatter,
       raw: rendered.raw,
-      assets,
+      assets: selectedAssets.files,
+      assetCount: selectedAssets.total,
       curators,
       description,
       license,

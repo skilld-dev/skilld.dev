@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { loadFrontDoor } from '../../layers/identity/server/utils/daily-health-check'
+import { loadFrontDoor, loadTrendingSkillPages } from '../../layers/identity/server/utils/daily-health-check'
 
 async function noSleep() {}
 
@@ -46,5 +46,43 @@ describe('front door probe retry', () => {
 
     // 2 URLs, one attempt each. Successful probes do not retry.
     expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('trending Skill probes', () => {
+  it('probes every unique Skill shown by the feed and all-time board', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input))
+      if (url.pathname === '/api/feed/trending') {
+        if (url.searchParams.get('window') === '168') {
+          return Response.json({
+            namedSkills: [{ owner: 'week', repo: 'solo', slug: 'solo', repoSkillCount: 1 }],
+            fallback: [],
+          })
+        }
+        return Response.json({
+          namedSkills: [{ owner: 'one', repo: 'solo', slug: 'solo', repoSkillCount: 1 }],
+          fallback: [{ owner: 'many', repo: 'skills', slug: 'picked', repoSkillCount: 3 }],
+        })
+      }
+      if (url.pathname === '/api/skills/leaderboard') {
+        return Response.json({
+          items: [
+            { owner: 'one', repo: 'solo', skillCount: 1, topSkill: { name: 'solo', slug: 'one/solo' } },
+            { owner: 'third', repo: 'single', skillCount: 2, topSkill: { name: 'different-name', slug: 'third/different-name' } },
+          ],
+        })
+      }
+      return new Response(null, { status: url.pathname.includes('/many/skills/picked') ? 404 : 200 })
+    }) as unknown as typeof fetch
+
+    const result = await loadTrendingSkillPages(fetcher)
+
+    expect(result.checks).toEqual([
+      { path: '/gh/one/solo', status: 200 },
+      { path: '/gh/many/skills/picked', status: 404 },
+      { path: '/gh/week/solo', status: 200 },
+      { path: '/gh/third/single/different-name', status: 200 },
+    ])
   })
 })

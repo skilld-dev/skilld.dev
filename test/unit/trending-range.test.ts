@@ -18,7 +18,7 @@ function leaderboardRow(overrides: Partial<LeaderboardRowInput> = {}): Leaderboa
     description: 'Reference skills for Claude Code.',
     stars: 12_400,
     skillCount: 9,
-    topSkill: { name: 'pdf-processing', slug: 'pdf-processing', description: 'Fill and read PDFs.' },
+    topSkill: { name: 'pdf-processing', slug: 'anthropics/pdf-processing', description: 'Fill and read PDFs.' },
     pushedAt: 1_785_000_000,
     ...overrides,
   }
@@ -38,6 +38,21 @@ describe('all-time rows are skill first, like every other range', () => {
     // the skill in the title, and this range has to read as the same product.
     expect(row?.title).toBe('pdf-processing')
     expect(row?.to).toBe('/gh/anthropics/skills/pdf-processing')
+  })
+
+  it('links a single-skill repository through its clean repository URL', () => {
+    const [row] = leaderboardBoardRows([leaderboardRow({
+      owner: 'ericzakariasson',
+      repo: 'scandinavian-design',
+      skillCount: 1,
+      topSkill: {
+        name: 'scandinavian-design',
+        slug: 'scandinavian-design',
+        description: 'Scandinavian design guidance.',
+      },
+    })])
+
+    expect(row?.to).toBe('/gh/ericzakariasson/scandinavian-design')
   })
 
   it('keeps the repository beside it, since the stars are the repository\'s', () => {

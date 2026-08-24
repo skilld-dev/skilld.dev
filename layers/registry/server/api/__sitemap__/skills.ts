@@ -11,7 +11,7 @@ export default defineSitemapEventHandler(async (event) => {
   return [
     ...listOutcomeSitemapEntries(),
     ...skills.map(s => ({
-      loc: repoSkillPath(s.owner, s.repo, s.name),
+      loc: repoSkillPath(s.owner, s.repo, s.name, s.repoSkillCount),
       changefreq: 'weekly' as const,
     })),
   ]

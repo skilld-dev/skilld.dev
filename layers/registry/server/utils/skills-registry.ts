@@ -575,10 +575,16 @@ export interface SkillSitemapEntry {
   name: string
   owner: string
   repo: string
+  /** Resolved-Skill total for the repo; 1 means the hub URL is canonical. */
+  repoSkillCount: number
 }
 
 interface SkillDuplicateRow extends DuplicateCandidate {
   is_supported: number
+  // Resolved-Skill total for the row's repository (same definition as
+  // loadRepoSkillCounts in shared/server/trending-skills.ts). Drives the
+  // single-Skill repo hub routing so links never point at a URL that 301s.
+  repo_skill_count: number
 }
 
 export interface SkillDuplicateSibling {
@@ -590,6 +596,7 @@ export interface SkillDuplicateSibling {
   slug: string
   supportTier: string | null
   trustTier: string | null
+  repoSkillCount: number
 }
 
 export interface SkillDuplicateGroup {
@@ -599,7 +606,7 @@ export interface SkillDuplicateGroup {
   siblings: SkillDuplicateSibling[]
 }
 
-function duplicateRowToSibling(row: DuplicateCandidate): SkillDuplicateSibling {
+function duplicateRowToSibling(row: SkillDuplicateRow): SkillDuplicateSibling {
   return {
     name: row.name,
     owner: row.owner,
@@ -609,6 +616,7 @@ function duplicateRowToSibling(row: DuplicateCandidate): SkillDuplicateSibling {
     slug: skillSlug(row),
     supportTier: row.support_tier,
     trustTier: row.trust_tier,
+    repoSkillCount: row.repo_skill_count ?? 0,
   }
 }
 
@@ -644,7 +652,12 @@ async function listDuplicateCandidateRows(
         r.pushed_at,
         supported_repos.support_tier,
         s.trust_tier,
-        ${supportedSelect} AS is_supported
+        ${supportedSelect} AS is_supported,
+        (
+          SELECT COUNT(*)
+          FROM skills rc
+          WHERE rc.owner = s.owner AND rc.repo = s.repo AND rc.source_resolved = 1
+        ) AS repo_skill_count
       ${FROM_SKILLS_JOIN_REPOS}
       LEFT JOIN supported_repos
         ON supported_repos.owner = s.owner
@@ -702,7 +715,12 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
         r.pushed_at,
         supported_repos.support_tier,
         s.trust_tier,
-        CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported
+        CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported,
+        (
+          SELECT COUNT(*)
+          FROM skills rc
+          WHERE rc.owner = s.owner AND rc.repo = s.repo AND rc.source_resolved = 1
+        ) AS repo_skill_count
       ${FROM_SKILLS_JOIN_REPOS}
       LEFT JOIN supported_repos
         ON supported_repos.owner = s.owner
@@ -718,7 +736,7 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
   const weakerSupportedSlugs = duplicateWeakerSlugSet(rows.filter(row => row.is_supported === 1))
   const entries = rows
     .filter(row => !weakerSupportedSlugs.has(skillSlug(row)))
-    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo }))
+    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
   await writeCache(useStorage('cache'), cacheKey, entries, { ttl: DUPLICATE_CANDIDATES_TTL })
   return entries
 }
@@ -728,7 +746,7 @@ export async function listSupportedSkillsForSitemap(event: H3Event): Promise<Ski
   const weakerSlugs = duplicateWeakerSlugSet(rows)
   return rows
     .filter(row => !weakerSlugs.has(skillSlug(row)))
-    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo }))
+    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
 }
 
 export async function findRelatedSkills(
