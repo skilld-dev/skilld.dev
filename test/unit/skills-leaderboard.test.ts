@@ -48,6 +48,7 @@ describe('skills leaderboard eligibility', () => {
         slug TEXT NOT NULL,
         description TEXT,
         installs INTEGER NOT NULL DEFAULT 0,
+        source_resolved INTEGER NOT NULL DEFAULT 1,
         modified_at INTEGER,
         PRIMARY KEY (owner, repo, name)
       );
@@ -150,6 +151,20 @@ describe('skills leaderboard eligibility', () => {
     }))
   })
 
+  it('counts and ranks only resolved Skills', () => {
+    insertRepo('creator', 'one-live-skill', 100)
+    insertSkill('creator', 'one-live-skill', 'live', 0, null, 100, 1)
+    insertSkill('creator', 'one-live-skill', 'removed', 0, null, 200, 0)
+    insertEligibility('creator', 'one-live-skill', 'eligible')
+
+    const [row] = sqlite.prepare(SKILLS_LEADERBOARD_SQL).all() as LeaderboardRow[]
+
+    expect(row).toEqual(expect.objectContaining({
+      skill_count: 1,
+      top_skill_name: 'live',
+    }))
+  })
+
   it('ranks by stars with a stable lexical tie-break', () => {
     insertRepo('zeta', 'skills', 20)
     insertSkill('zeta', 'skills', 'one')
@@ -217,11 +232,12 @@ describe('skills leaderboard eligibility', () => {
     installs = 0,
     description: string | null = null,
     modifiedAt: number | null = null,
+    sourceResolved = 1,
   ) {
     sqlite.prepare(`
       INSERT INTO skills (
-        owner, repo, name, display_name, slug, description, installs, modified_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        owner, repo, name, display_name, slug, description, installs, modified_at, source_resolved
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       owner,
       repo,
@@ -233,6 +249,7 @@ describe('skills leaderboard eligibility', () => {
       description,
       installs,
       modifiedAt,
+      sourceResolved,
     )
   }
 

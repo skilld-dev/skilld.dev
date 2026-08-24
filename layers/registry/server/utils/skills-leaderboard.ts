@@ -54,6 +54,7 @@ export const SKILLS_LEADERBOARD_SQL = `
     JOIN eligible_repositories AS repository
       ON repository.owner = s.owner
      AND repository.repo = s.repo
+    WHERE s.source_resolved = 1
   )
   SELECT
     repository.owner,
