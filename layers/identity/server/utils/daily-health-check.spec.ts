@@ -456,10 +456,10 @@ describe('cronPeriodSeconds', () => {
     expect(cronPeriodSeconds('20 */6 * * *')).toBe(6 * 60 * 60)
     expect(cronPeriodSeconds('30 4 * * *')).toBe(24 * 60 * 60)
     expect(cronPeriodSeconds('0 22 * * *')).toBe(24 * 60 * 60)
+    expect(cronPeriodSeconds('0 9 * * 1')).toBe(7 * 24 * 60 * 60)
   })
 
   it('returns null for shapes it does not model, so the caller falls back', () => {
-    expect(cronPeriodSeconds('0 0 * * 1')).toBeNull()
     expect(cronPeriodSeconds('0 0 1 * *')).toBeNull()
     expect(cronPeriodSeconds('*/5 */2 * * *')).toBeNull()
     expect(cronPeriodSeconds('0 0 * *')).toBeNull()
