@@ -43,10 +43,11 @@ export default defineApiHandler({
     const config = useRuntimeConfig(event)
 
     const user = await db.prepare(
-      `SELECT id, login, digest_email, email FROM users WHERE login = ?1`,
+      `SELECT id, login, name, digest_email, email FROM users WHERE login = ?1`,
     ).bind(body.login).first<{
       id: number
       login: string
+      name: string | null
       digest_email: string | null
       email: string | null
     }>()
@@ -63,7 +64,7 @@ export default defineApiHandler({
     const siteUrl = (config.publicSiteUrl as string) || 'https://skilld.dev'
     const unsubscribeToken = await signUnsubToken(user.id, config.tokenKey as string)
     const rendered = renderWeekly({
-      login: user.login,
+      recipientName: user.name,
       // Null, not the user's id. A preview is looked at by an operator, and a
       // click from it must not land in the recipient's click history.
       userId: null,
@@ -98,6 +99,6 @@ export default defineApiHandler({
       text: rendered.text,
     })
 
-    return { _tag: 'sent' as const, counts, to: body.to, delivery: result }
+    return { _tag: 'accepted' as const, counts, to: body.to, delivery: result }
   },
 })

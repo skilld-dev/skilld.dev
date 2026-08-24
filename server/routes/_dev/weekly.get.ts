@@ -17,7 +17,7 @@ const WINDOW_START = WINDOW_END - 7 * 86_400
 
 function base(): Omit<WeeklyRenderInput, 'likedChanges' | 'likedOverflow' | 'trackedCount' | 'trending'> {
   return {
-    login: 'harlan-zw',
+    recipientName: 'Harlan',
     windowStart: WINDOW_START,
     windowEnd: WINDOW_END,
     siteUrl: 'https://skilld.dev',
@@ -154,6 +154,26 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
         reason: { _tag: 'popular', stars: 46_712 },
         evidence: null,
       },
+      {
+        owner: 'vercel-labs',
+        repo: 'agent-skills',
+        slug: 'web-interface-guidelines',
+        canonicalName: 'web-interface-guidelines',
+        description: 'Review interface code against practical usability rules.',
+        stars: 19_200,
+        reason: { _tag: 'named', authorCount: 3, mentionCount: 4, latestAt: WINDOW_END - 3 * 86_400 },
+        evidence: null,
+      },
+      {
+        owner: 'cloudflare',
+        repo: 'skills',
+        slug: 'workers-best-practices',
+        canonicalName: 'workers-best-practices',
+        description: 'Build production Workers with safe bindings and observable failures.',
+        stars: 8_400,
+        reason: { _tag: 'popular', stars: 8_400 },
+        evidence: null,
+      },
     ],
   }),
 
@@ -209,7 +229,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
   // Every string at the length that breaks layouts.
   'overflow': () => ({
     ...base(),
-    login: 'a-really-quite-long-github-login',
+    recipientName: 'A Really Quite Long Display Name',
     likedChanges: [{
       owner: 'some-organisation-with-a-long-name',
       repo: 'agent-skills-for-everything-monorepo',

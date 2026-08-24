@@ -12,18 +12,18 @@ describe('the weekly does not report your own work back to you', () => {
   beforeEach(() => {
     sqlite = new Database(':memory:')
     sqlite.exec(`
-      CREATE TABLE activity (owner TEXT, repo TEXT, name TEXT, occurred_at INTEGER, sha TEXT, message TEXT);
-      CREATE TABLE skills (owner TEXT, repo TEXT, name TEXT, slug TEXT, description TEXT);
+      CREATE TABLE activity (id INTEGER PRIMARY KEY AUTOINCREMENT, owner TEXT, repo TEXT, name TEXT, occurred_at INTEGER, sha TEXT, message TEXT);
+      CREATE TABLE skills (owner TEXT, repo TEXT, name TEXT, slug TEXT, description TEXT, current_sha TEXT, rendered_skill_path TEXT);
       CREATE TABLE repos (owner TEXT, repo TEXT, repo_kind TEXT);
       CREATE TABLE skill_likes (user_id INTEGER, owner TEXT, repo TEXT, name TEXT);
-      CREATE TABLE skill_revisions (owner TEXT, repo TEXT, name TEXT, modified_at INTEGER, message TEXT);
+      CREATE TABLE skill_revisions (owner TEXT, repo TEXT, name TEXT, sha TEXT, modified_at INTEGER, message TEXT);
     `)
     const change = (owner: string, repo: string, name: string, at: number) => {
-      sqlite.prepare('INSERT INTO activity VALUES (?,?,?,?,?,?)').run(owner, repo, name, at, `sha-${name}`, `feat: ${name}`)
-      sqlite.prepare('INSERT INTO skills VALUES (?,?,?,?,?)').run(owner, repo, name, `${owner}/${repo}/${name}`, `${name} does a thing`)
+      sqlite.prepare('INSERT INTO activity (owner, repo, name, occurred_at, sha, message) VALUES (?,?,?,?,?,?)').run(owner, repo, name, at, `sha-${name}`, `feat: ${name}`)
+      sqlite.prepare('INSERT INTO skills VALUES (?,?,?,?,?,?,?)').run(owner, repo, name, `${owner}/${repo}/${name}`, `${name} does a thing`, `sha-${name}`, `${name}/SKILL.md`)
       sqlite.prepare('INSERT INTO repos VALUES (?,?,?)').run(owner, repo, 'skills')
       sqlite.prepare('INSERT INTO skill_likes VALUES (?,?,?,?)').run(HARLAN.id, owner, repo, name)
-      sqlite.prepare('INSERT INTO skill_revisions VALUES (?,?,?,?,?)').run(owner, repo, name, at, `feat: ${name}`)
+      sqlite.prepare('INSERT INTO skill_revisions VALUES (?,?,?,?,?,?)').run(owner, repo, name, `sha-${name}`, at, `feat: ${name}`)
     }
     change('harlan-zw', 'harlan-agent-kit', 'ts-design-patterns', 500)
     change('harlan-zw', 'harlan-agent-kit', 'nuxt-frontend-design', 501)
@@ -50,6 +50,21 @@ describe('the weekly does not report your own work back to you', () => {
     const selection = await selectWeeklyForUser(db, { ...HARLAN, login: 'someone-else' }, 0, 1000)
 
     expect(selection.likedChanges).toHaveLength(3)
+  })
+
+  it('omits a row when its exact source cannot be resolved', async () => {
+    sqlite.exec(`
+      INSERT INTO activity (owner, repo, name, occurred_at, sha, message)
+      VALUES ('unknown', 'skills', 'missing-source', 600, 'sha-missing', 'change');
+      INSERT INTO skills VALUES ('unknown', 'skills', 'missing-source', 'missing-source', 'Missing source', NULL, NULL);
+      INSERT INTO repos VALUES ('unknown', 'skills', 'skills');
+      INSERT INTO skill_likes VALUES (1, 'unknown', 'skills', 'missing-source');
+      INSERT INTO skill_revisions VALUES ('unknown', 'skills', 'missing-source', 'sha-missing', 600, 'change');
+    `)
+
+    const selection = await selectWeeklyForUser(db, HARLAN, 0, 1000)
+
+    expect(selection.likedChanges.map(change => change.name)).not.toContain('missing-source')
   })
 })
 

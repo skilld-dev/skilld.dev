@@ -17,6 +17,8 @@ import type {
 import { loadFallbackSkills } from '#shared/server/trending-fallback'
 import { loadTopStarredRepositories } from '#shared/server/trending-repos'
 import { DEFAULT_WINDOW_HOURS, loadTrendingSkills } from '#shared/server/trending-skills'
+import { githubSkillChangeUrl, githubSkillSourceUrl } from './email-skill-links'
+import { MAX_WEEKLY_TRENDING } from './weekly-template'
 
 /** Liked skills listed by name. Beyond this the email stops being scannable. */
 export const MAX_LIKED_CHANGES = 5
@@ -29,7 +31,7 @@ export const MAX_LIKED_CHANGES = 5
  * most that still scans in one pass, and it matters more now that the liked
  * section no longer pads the email with the reader's own repositories.
  */
-export const MAX_TRENDING = 7
+export const MAX_TRENDING = MAX_WEEKLY_TRENDING
 
 /**
  * How many liked changes we count before giving up on an exact overflow number.
@@ -42,6 +44,7 @@ const LIKED_SCAN_LIMIT = 50
 export interface WeeklyRecipient {
   id: number
   login: string
+  name?: string | null
   /** Verified digest address, preferred over the GitHub profile address. */
   digest_email: string | null
   email: string | null
@@ -78,17 +81,16 @@ export function resolveRecipientAddress(user: WeeklyRecipient): RecipientAddress
 /**
  * Everyone who should get the weekly.
  *
- * Opt-out rather than opt-in: the weekly is on for every account with a
- * deliverable address until that person turns it off. `weekly_opt_out` is the
- * only switch; `email_opt_in` governs the older watched-repo digest and the
- * two are deliberately independent, so turning one off does not silently
- * cancel the other.
+ * The weekly is the default lane for an account with a deliverable address.
+ * A person who enables the configurable digest leaves this lane, so one
+ * account cannot receive both emails for the same period.
  */
 export async function loadWeeklyRecipients(db: D1Database): Promise<WeeklyRecipient[]> {
   const res = await db.prepare(
-    `SELECT id, login, digest_email, email
+    `SELECT id, login, name, digest_email, email
      FROM users
      WHERE weekly_opt_out = 0
+       AND email_opt_in = 0
        AND COALESCE(NULLIF(TRIM(COALESCE(digest_email, '')), ''), NULLIF(TRIM(COALESCE(email, '')), '')) IS NOT NULL`,
   ).all<WeeklyRecipient>()
   return res.results ?? []
@@ -102,6 +104,29 @@ interface LikedChangeRow {
   description: string | null
   change_count: number
   changed_at: number
+  latest_sha: string
+  current_sha: string
+  rendered_skill_path: string
+}
+
+function sourceUrl(row: {
+  owner: string
+  repo: string
+  name: string
+  current_sha: string
+  rendered_skill_path: string
+}): string {
+  return githubSkillSourceUrl({
+    owner: row.owner,
+    repo: row.repo,
+    name: row.name,
+    currentSha: row.current_sha,
+    path: row.rendered_skill_path,
+  })
+}
+
+function changeUrl(row: { owner: string, repo: string }, sha: string): string {
+  return githubSkillChangeUrl({ ...row, sha })
 }
 
 /**
@@ -126,8 +151,13 @@ export async function selectWeeklyForUser(
 ): Promise<WeeklySelection> {
   const res = await db.prepare(
     `SELECT a.owner, a.repo, a.name, s.slug, s.description,
+            s.current_sha, s.rendered_skill_path,
             COUNT(*) AS change_count,
-            MAX(a.occurred_at) AS changed_at
+            MAX(a.occurred_at) AS changed_at,
+            (SELECT a2.sha FROM activity a2
+             WHERE a2.owner = a.owner AND a2.repo = a.repo AND a2.name = a.name
+               AND a2.occurred_at > ?2 AND a2.occurred_at <= ?3
+             ORDER BY a2.occurred_at DESC, a2.id DESC LIMIT 1) AS latest_sha
      FROM activity a
      JOIN skill_likes l
        ON l.user_id = ?1 AND l.owner = a.owner AND l.repo = a.repo AND l.name = a.name
@@ -138,6 +168,10 @@ export async function selectWeeklyForUser(
        AND a.occurred_at <= ?3
        AND r.repo_kind != 'aggregator'
        AND LOWER(a.owner) != LOWER(?5)
+       AND s.current_sha IS NOT NULL
+       AND TRIM(s.current_sha) != ''
+       AND s.rendered_skill_path IS NOT NULL
+       AND TRIM(s.rendered_skill_path) != ''
      GROUP BY a.owner, a.repo, a.name
      ORDER BY changed_at DESC, change_count DESC
      LIMIT ?4`,
@@ -145,8 +179,8 @@ export async function selectWeeklyForUser(
 
   const rows = res.results ?? []
   const listed = rows.slice(0, MAX_LIKED_CHANGES)
-  const [messages, tracked] = await Promise.all([
-    latestCommitMessages(db, listed, windowStart, windowEnd),
+  const [revisions, tracked] = await Promise.all([
+    latestRevisions(db, listed, windowStart, windowEnd),
     countTrackedSkills(db, user),
   ])
 
@@ -159,7 +193,9 @@ export async function selectWeeklyForUser(
       description: row.description,
       changeCount: row.change_count,
       changedAt: row.changed_at,
-      commitMessages: messages[index] ?? [],
+      commitMessages: revisions[index]?.messages ?? [],
+      sourceUrl: sourceUrl(row),
+      changeUrl: changeUrl(row, revisions[index]?.sha ?? row.latest_sha),
     })),
     likedOverflow: rows.length - listed.length,
     trackedCount: tracked,
@@ -178,7 +214,11 @@ async function countTrackedSkills(db: D1Database, user: WeeklyRecipient): Promis
      FROM skill_likes l
      JOIN skills s ON s.owner = l.owner AND s.repo = l.repo AND s.name = l.name
      WHERE l.user_id = ?1
-       AND LOWER(l.owner) != LOWER(?2)`,
+       AND LOWER(l.owner) != LOWER(?2)
+       AND s.current_sha IS NOT NULL
+       AND TRIM(s.current_sha) != ''
+       AND s.rendered_skill_path IS NOT NULL
+       AND TRIM(s.rendered_skill_path) != ''`,
   ).bind(user.id, user.login).first<{ tracked: number }>()
   return row?.tracked ?? 0
 }
@@ -193,16 +233,16 @@ async function countTrackedSkills(db: D1Database, user: WeeklyRecipient): Promis
  */
 const COMMIT_SCAN_LIMIT = 10
 
-async function latestCommitMessages(
+async function latestRevisions(
   db: D1Database,
   rows: LikedChangeRow[],
   windowStart: number,
   windowEnd: number,
-): Promise<string[][]> {
+): Promise<Array<{ sha: string | null, messages: string[] }>> {
   if (!rows.length)
     return []
   const statements = rows.map(row => db.prepare(
-    `SELECT message
+    `SELECT sha, message
      FROM skill_revisions
      WHERE owner = ?1 AND repo = ?2 AND name = ?3
        AND modified_at > ?4 AND modified_at <= ?5
@@ -210,8 +250,14 @@ async function latestCommitMessages(
      ORDER BY modified_at DESC
      LIMIT ?6`,
   ).bind(row.owner, row.repo, row.name, windowStart, windowEnd, COMMIT_SCAN_LIMIT))
-  const results = await db.batch<{ message: string }>(statements)
-  return results.map(result => (result.results ?? []).map(row => row.message))
+  const results = await db.batch<{ sha: string, message: string }>(statements)
+  return results.map((result) => {
+    const rows = result.results ?? []
+    return {
+      sha: rows[0]?.sha ?? null,
+      messages: rows.map(row => row.message),
+    }
+  })
 }
 
 /**
@@ -254,7 +300,7 @@ export async function loadWeeklyTrending(
   }))
 
   if (trending.length >= MAX_TRENDING)
-    return trending
+    return await hydrateSourceUrls(db, trending)
 
   const fallback = await loadFallbackSkills({
     db,
@@ -264,7 +310,7 @@ export async function loadWeeklyTrending(
     deprioritizeRepositories,
   })
 
-  return [
+  return await hydrateSourceUrls(db, [
     ...trending,
     ...fallback.map(skill => ({
       owner: skill.owner,
@@ -276,7 +322,31 @@ export async function loadWeeklyTrending(
       reason: { _tag: 'popular' as const, stars: skill.stars },
       evidence: null,
     })),
-  ]
+  ])
+}
+
+async function hydrateSourceUrls(
+  db: D1Database,
+  skills: WeeklyTrendingSkill[],
+): Promise<WeeklyTrendingSkill[]> {
+  if (!skills.length)
+    return []
+  const statements = skills.map(skill => db.prepare(
+    `SELECT current_sha, rendered_skill_path
+     FROM skills
+     WHERE owner = ?1 AND repo = ?2 AND name = ?3
+       AND current_sha IS NOT NULL
+       AND TRIM(current_sha) != ''
+       AND rendered_skill_path IS NOT NULL
+       AND TRIM(rendered_skill_path) != ''`,
+  ).bind(skill.owner, skill.repo, skill.slug))
+  const results = await db.batch<{ current_sha: string, rendered_skill_path: string }>(statements)
+  return skills.flatMap((skill, index) => {
+    const row = results[index]?.results?.[0]
+    return row
+      ? [{ ...skill, sourceUrl: sourceUrl({ ...skill, name: skill.slug, ...row }) }]
+      : []
+  })
 }
 
 function reasonFor(entry: {

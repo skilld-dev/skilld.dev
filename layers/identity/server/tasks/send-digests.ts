@@ -14,6 +14,7 @@ import {
 import { summariseChanges } from '../utils/digest-summary'
 import { renderDigest } from '../utils/digest-template'
 import { sendEmailWithEnv, signUnsubToken } from '../utils/email'
+import { loadWeeklyTrending } from '../utils/weekly-select'
 
 const CRON = '0 * * * *'
 
@@ -44,6 +45,7 @@ export default defineScheduledTask({
       const scheduledAt = Math.floor(startedAt / 1_000)
       const users = await loadDigestEligibleUsers(db)
       const fireUsers = users.filter(user => shouldFireForUser(user, scheduledAt))
+      const trending = fireUsers.length ? await loadWeeklyTrending(db, scheduledAt) : []
       const summary = {
         eligible: users.length,
         fired: fireUsers.length,
@@ -72,6 +74,7 @@ export default defineScheduledTask({
         }, user, {
           scheduledAt,
           siteUrl,
+          trending,
         })
 
         if (result._tag === 'sent') {

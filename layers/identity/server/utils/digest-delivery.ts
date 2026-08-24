@@ -18,6 +18,7 @@ import type {
   SendEmailInput,
   SendEmailResult,
 } from './email'
+import type { WeeklyTrendingSkill } from './weekly-template'
 
 const CLAIM_TTL_SECONDS = 5 * 60
 
@@ -570,7 +571,7 @@ async function markUncertain(
 export async function runDigestDeliveryForUser(
   deps: DigestDeliveryDependencies,
   user: DigestUser,
-  input: { scheduledAt: number, siteUrl: string },
+  input: { scheduledAt: number, siteUrl: string, trending?: WeeklyTrendingSkill[] },
 ): Promise<DigestDeliveryResult> {
   const claim = await claimDigestWindow(deps, user, input.scheduledAt)
   if (claim._tag !== 'acquired')
@@ -611,20 +612,29 @@ export async function runDigestDeliveryForUser(
   }
 
   const unsubscribeToken = await deps.signUnsubscribe(user.id)
-  const unsubscribeUrl = `${input.siteUrl}/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken)}`
+  const unsubscribeUrl = `${input.siteUrl}/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken)}&list=digest`
   const rendered = deps.render({
     login: user.login,
+    recipientName: user.name ?? null,
+    userId: user.id,
     windowStart: selection.windowStart,
     windowEnd: selection.windowEnd,
     unsubscribeUrl,
+    siteUrl: input.siteUrl,
+    settingsUrl: `${input.siteUrl}/me`,
+    trending: input.trending ?? [],
     entries: selection.entries.map(entry => ({
       owner: entry.owner,
       repo: entry.repo,
       skillNames: entry.skillNames,
       skills: entry.skills.map(skill => ({
         name: skill.name,
+        description: skill.description,
         changeCount: skill.changeCount,
         commitMessages: skill.commitMessages,
+        changedAt: skill.changedAt,
+        sourceUrl: skill.sourceUrl,
+        changeUrl: skill.changeUrl,
       })),
       changeCount: entry.changeCount,
       summary: summaries.get(`${entry.owner}/${entry.repo}`) ?? null,

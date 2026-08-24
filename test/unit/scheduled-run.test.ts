@@ -118,10 +118,10 @@ describe('scheduled run lifecycle', () => {
     expect(result).toMatchObject({ _tag: 'missing_run', alertable: true })
   })
 
-  // send-weekly fires `0 9 * * 1`. It shipped on a Wednesday, so the nightly
-  // health check reported missing_run for five nights before the task was due.
+  // A named weekday avoids Cloudflare's Sunday-first numeric convention.
   it('holds a newly added task healthy until its first fire is due', () => {
     const policy = observedSchedulePolicy('send-weekly')
+    expect(policy.cron).toBe('0 9 * * MON')
     expect(policy.activeFromSeconds).toBeDefined()
     const activeFrom = policy.activeFromSeconds!
 

@@ -22,7 +22,9 @@ describe('digest selection', () => {
         owner TEXT,
         repo TEXT,
         name TEXT,
-        description TEXT
+        description TEXT,
+        current_sha TEXT,
+        rendered_skill_path TEXT
       );
       CREATE TABLE repos (
         owner TEXT,
@@ -54,7 +56,7 @@ describe('digest selection', () => {
         PRIMARY KEY (owner, repo, name, sha)
       );
 
-      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'Nuxt framework');
+      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'Nuxt framework', 'blob-new', 'skills/nuxt/SKILL.md');
       INSERT INTO repos VALUES ('nuxt', 'nuxt', 'source');
       INSERT INTO skill_subscriptions VALUES (1, 'nuxt', 'nuxt', 'manual', NULL);
       INSERT INTO activity VALUES (1, 'nuxt', 'nuxt', 'nuxt', 500, 1500, 'blob-old');
@@ -99,7 +101,7 @@ describe('digest selection', () => {
 
   it('retains sorted skill names and per-skill counts for a multi-skill repo', async () => {
     sqlite.exec(`
-      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'zeta', 'Zeta helper');
+      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'zeta', 'Zeta helper', 'blob-z2', 'skills/zeta/SKILL.md');
       INSERT INTO activity VALUES (3, 'nuxt', 'nuxt', 'zeta', 100, 1700, 'blob-z1');
       INSERT INTO activity VALUES (4, 'nuxt', 'nuxt', 'zeta', 101, 1701, 'blob-z2');
       INSERT INTO skill_revisions VALUES ('nuxt', 'nuxt', 'zeta', 'commit-z1', 100, 'zeta first');
@@ -124,8 +126,8 @@ describe('digest selection', () => {
 
   it('narrows a like-sourced subscription to the skills actually liked', async () => {
     sqlite.exec(`
-      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens');
-      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
       INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
       INSERT INTO skill_subscriptions VALUES (2, 'nuxt', 'ui', 'like', NULL);
       INSERT INTO skill_likes VALUES (2, 'nuxt', 'ui', 'design-tokens', 1);
@@ -150,8 +152,8 @@ describe('digest selection', () => {
 
   it('keeps whole-repo scope for a manually watched repo', async () => {
     sqlite.exec(`
-      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens');
-      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
       INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
       INSERT INTO skill_subscriptions VALUES (3, 'nuxt', 'ui', 'manual', NULL);
       INSERT INTO skill_likes VALUES (3, 'nuxt', 'ui', 'design-tokens', 1);
@@ -173,8 +175,8 @@ describe('digest selection', () => {
 
   it('drops a like-sourced repo entirely when nothing liked in it changed', async () => {
     sqlite.exec(`
-      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens');
-      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
+      INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
       INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
       INSERT INTO skill_subscriptions VALUES (4, 'nuxt', 'ui', 'like', NULL);
       INSERT INTO skill_likes VALUES (4, 'nuxt', 'ui', 'design-tokens', 1);
@@ -188,6 +190,24 @@ describe('digest selection', () => {
     })
 
     expect(selection?.entries).toEqual([])
+  })
+
+  it('omits a Skill when its exact source cannot be resolved', async () => {
+    sqlite.exec(`
+      INSERT INTO skills VALUES ('nuxt', 'nuxt', 'missing-source', 'Missing source', NULL, NULL);
+      INSERT INTO activity VALUES (3, 'nuxt', 'nuxt', 'missing-source', 1600, 1700, 'missing');
+    `)
+
+    const selection = await selectDigestForUser(db, digestUser(), 2000, {
+      windowStart: 0,
+      cursorStart: 0,
+      cursorEnd: 3,
+    })
+
+    expect(selection?.entries[0]).toMatchObject({
+      skillNames: ['nuxt'],
+      changeCount: 2,
+    })
   })
 
   it('keeps a due user without a recipient eligible for visible preflight failure', () => {

@@ -18,7 +18,7 @@ Tasks: 18. Unique Cloudflare triggers: 14.
 | `reconcile-rendered` | `20 */6 * * *` | `layers/registry/server/tasks/reconcile-rendered.ts` |
 | `refresh-x-engagement` | `10 * * * *` | `layers/registry/server/tasks/refresh-x-engagement.ts` |
 | `send-digests` | `0 * * * *` | `layers/identity/server/tasks/send-digests.ts` |
-| `send-weekly` | `0 9 * * 1` | `layers/identity/server/tasks/send-weekly.ts` |
+| `send-weekly` | `0 9 * * MON` | `layers/identity/server/tasks/send-weekly.ts` |
 | `sync-bsky-mentions` | `17 */2 * * *` | `layers/registry/server/tasks/sync-bsky-mentions.ts` |
 | `sync-github-skills` | `0 * * * *` | `layers/registry/server/tasks/sync-github-skills.ts` |
 | `sync-reviewed-skill-repos` | `*/5 * * * *` | `layers/registry/server/tasks/sync-reviewed-skill-repos.ts` |

@@ -286,6 +286,14 @@ CREATE TABLE weekly_click_events (
   clicked_at INTEGER NOT NULL
 );
 
+CREATE TABLE email_preference_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  list TEXT NOT NULL CHECK (list IN ('weekly', 'digest')),
+  action TEXT NOT NULL CHECK (action IN ('unsubscribed', 'restored')),
+  occurred_at INTEGER NOT NULL
+);
+
 CREATE TABLE weekly_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -295,6 +303,7 @@ CREATE TABLE weekly_runs (
   trending_count INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL CHECK (status IN ('claimed','sent','skipped','failed','uncertain')),
   provider_message_id TEXT,
+  provider_status TEXT,
   claimed_at INTEGER NOT NULL,
   sent_at INTEGER,
   error TEXT

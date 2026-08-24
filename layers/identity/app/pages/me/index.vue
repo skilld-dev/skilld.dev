@@ -122,10 +122,9 @@ async function saveCadence() {
 }
 
 const showEmail = ref(false)
-const emailForm = reactive<Required<IdentityEmailPatchBody>>({
+const emailForm = reactive({
   digest_email: me.value?.digest_email ?? me.value?.email ?? '',
   email_opt_in: !!me.value?.email_opt_in,
-  weekly_opt_in: me.value?.weekly_opt_in ?? true,
 })
 const emailMissingAddress = computed(() =>
   emailForm.email_opt_in && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(emailForm.digest_email.trim()),
@@ -453,23 +452,15 @@ function fmtDate(ts: number | null | undefined): string {
                     :ui="{ base: 'min-h-11' }"
                   />
                 </UFormField>
-                <label class="flex min-h-11 items-center gap-3 text-sm">
-                  <input
-                    v-model="emailForm.email_opt_in"
-                    type="checkbox"
-                    class="size-4 accent-primary"
-                  >
-                  Send me the digest
-                </label>
                 <label class="flex min-h-11 items-start gap-3 text-sm">
                   <input
-                    v-model="emailForm.weekly_opt_in"
+                    v-model="emailForm.email_opt_in"
                     type="checkbox"
                     class="mt-0.5 size-4 accent-primary"
                   >
                   <span>
-                    Send me the weekly
-                    <span class="mt-0.5 block text-xs text-muted">Skills you liked that changed, plus what devs are talking about.</span>
+                    Send me the digest
+                    <span class="mt-0.5 block text-xs text-muted">Liked Skills and watched Repositories that changed.</span>
                   </span>
                 </label>
                 <UButton

@@ -14,7 +14,7 @@
  * rather than made expressible.
  */
 
-export type WeeklyPlacement = 'liked' | 'trending' | 'cta' | 'footer' | 'overflow'
+export type WeeklyPlacement = 'liked' | 'trending' | 'cta' | 'footer' | 'overflow' | 'share'
 
 export const WEEKLY_TRACK_PATH = '/api/e/weekly'
 
@@ -75,7 +75,7 @@ export type WeeklyClickTarget
   = | { _tag: 'ok', path: string, placement: WeeklyPlacement, windowEnd: number, userId: number | null }
     | { _tag: 'invalid', reason: 'missing-path' | 'not-site-relative' | 'bad-placement' }
 
-const PLACEMENTS = new Set<string>(['liked', 'trending', 'cta', 'footer', 'overflow'])
+const PLACEMENTS = new Set<string>(['liked', 'trending', 'cta', 'footer', 'overflow', 'share'])
 
 /**
  * Parses the query once, at the boundary, into something that cannot redirect
