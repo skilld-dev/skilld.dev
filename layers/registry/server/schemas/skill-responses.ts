@@ -14,7 +14,7 @@ export const SkillDetailResponseSchema = z.object({
   owner: z.string(),
   repo: z.string(),
   name: z.string(),
-  repoSkillCount: z.number().int().nonnegative(),
+  registryPath: z.string(),
   displayName: z.string(),
   stars: z.number(),
   branch: z.string(),

@@ -16,6 +16,8 @@
  * break edge caching, and make the page shuffle under the reader.
  */
 
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
+
 export interface FallbackSkill {
   owner: string
   repo: string
@@ -25,6 +27,8 @@ export interface FallbackSkill {
   stars: number
   /** Skills the repo holds, so the row can say "1 of 6". */
   repoSkillCount: number
+  /** Final public route. Consumers must not reconstruct it from other fields. */
+  registryPath: string
   /** Stars gained on the latest surge day, when there was one. */
   starsGained: number | null
 }
@@ -110,6 +114,12 @@ export async function loadFallbackSkills(
       description: row.description,
       stars: row.stars,
       repoSkillCount: row.repo_skill_count,
+      registryPath: canonicalRepoSkillPath({
+        owner: row.owner,
+        repo: row.repo,
+        name: row.slug,
+        repoSkillCount: row.repo_skill_count,
+      }),
       starsGained: row.stars_gained,
     })
     if (out.length >= options.limit)

@@ -21,6 +21,7 @@
  */
 
 import type { SkillTrendInput, SkillTrendScore } from '#shared/trending-skill-score'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { rankSkillTrends } from '#shared/trending-skill-score'
 
 export interface TrendingSkill extends SkillTrendScore {
@@ -31,6 +32,8 @@ export interface TrendingSkill extends SkillTrendScore {
   description: string | null
   /** Current Skills in the repository, used to choose its canonical route. */
   repoSkillCount: number
+  /** Final public route. Consumers must not reconstruct it from other fields. */
+  registryPath: string
 }
 
 export interface TrendingSkillEvidence {
@@ -367,13 +370,22 @@ export async function loadTrendingSkills(
     loadRepoSkillCounts(options.db, page),
   ])
 
-  return page.map(scored => ({
-    ...scored,
-    evidence: merged.get(skillKey(scored))?.evidence ?? null,
-    stars: stars.get(`${scored.owner}/${scored.repo}`) ?? null,
-    description: descriptions.get(skillKey(scored)) ?? null,
-    repoSkillCount: repoSkillCounts.get(`${scored.owner}/${scored.repo}`) ?? 0,
-  }))
+  return page.map((scored) => {
+    const repoSkillCount = repoSkillCounts.get(`${scored.owner}/${scored.repo}`) ?? 0
+    return {
+      ...scored,
+      evidence: merged.get(skillKey(scored))?.evidence ?? null,
+      stars: stars.get(`${scored.owner}/${scored.repo}`) ?? null,
+      description: descriptions.get(skillKey(scored)) ?? null,
+      repoSkillCount,
+      registryPath: canonicalRepoSkillPath({
+        owner: scored.owner,
+        repo: scored.repo,
+        name: scored.slug,
+        repoSkillCount,
+      }),
+    }
+  })
 }
 
 async function loadRepoSkillCounts(

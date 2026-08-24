@@ -56,20 +56,20 @@ describe('trending Skill probes', () => {
       if (url.pathname === '/api/feed/trending') {
         if (url.searchParams.get('window') === '168') {
           return Response.json({
-            namedSkills: [{ owner: 'week', repo: 'solo', slug: 'solo', repoSkillCount: 1 }],
+            namedSkills: [{ registryPath: '/gh/week/solo' }],
             fallback: [],
           })
         }
         return Response.json({
-          namedSkills: [{ owner: 'one', repo: 'solo', slug: 'solo', repoSkillCount: 1 }],
-          fallback: [{ owner: 'many', repo: 'skills', slug: 'picked', repoSkillCount: 3 }],
+          namedSkills: [{ registryPath: '/gh/one/solo' }],
+          fallback: [{ registryPath: '/gh/many/skills/picked' }],
         })
       }
       if (url.pathname === '/api/skills/leaderboard') {
         return Response.json({
           items: [
-            { owner: 'one', repo: 'solo', skillCount: 1, topSkill: { name: 'solo', slug: 'one/solo' } },
-            { owner: 'third', repo: 'single', skillCount: 2, topSkill: { name: 'different-name', slug: 'third/different-name' } },
+            { topSkill: { registryPath: '/gh/one/solo' } },
+            { topSkill: { registryPath: '/gh/third/single/different-name' } },
           ],
         })
       }

@@ -123,9 +123,9 @@ const namedSkills = computed(() =>
  * The same skill twice is not two findings.
  */
 const fallback = computed(() => {
-  const shown = new Set(namedSkills.value.map(s => `${s.owner}/${s.repo}/${s.slug}`))
+  const shown = new Set(namedSkills.value.map(s => s.registryPath))
   return (feed.value?.fallback ?? []).filter(s =>
-    !shown.has(`${s.owner}/${s.repo}/${s.slug}`) && !missingAvatars.value.has(s.owner),
+    !shown.has(s.registryPath) && !missingAvatars.value.has(s.owner),
   )
 })
 
@@ -143,10 +143,10 @@ const board = computed<TrendingBoardRow[]>(() => {
     ? leaderboardBoardRows(leaderboard.value.items)
     : [
         ...namedSkills.value.map(s => ({
-          key: `${s.owner}/${s.repo}/${s.slug}`,
+          key: s.registryPath,
           owner: s.owner,
           title: s.canonicalName,
-          to: repoSkillPath(s.owner, s.repo, s.slug, s.repoSkillCount),
+          to: s.registryPath,
           subtitle: `${s.owner}/${s.repo}`,
           description: s.description,
           stars: s.stars,
@@ -161,10 +161,10 @@ const board = computed<TrendingBoardRow[]>(() => {
           evidenced: true,
         })),
         ...fallback.value.map(s => ({
-          key: `${s.owner}/${s.repo}/${s.slug}`,
+          key: s.registryPath,
           owner: s.owner,
           title: s.canonicalName,
-          to: repoSkillPath(s.owner, s.repo, s.slug, s.repoSkillCount),
+          to: s.registryPath,
           subtitle: `${s.owner}/${s.repo}`,
           description: s.description,
           stars: s.stars,

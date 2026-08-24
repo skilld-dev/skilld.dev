@@ -114,7 +114,7 @@ interface DuplicateSkill {
   slug: string
   supportTier: string | null
   trustTier: string | null
-  repoSkillCount: number
+  registryPath: string
 }
 
 const { data, status, error, refresh } = await useFetch(
@@ -143,7 +143,7 @@ const { data, status, error, refresh } = await useFetch(
   repo: string
   owner: string
   name: string
-  repoSkillCount: number
+  registryPath: string
   displayName: string
   githubUrl: string
   description: string | null
@@ -210,7 +210,7 @@ const { data, status, error, refresh } = await useFetch(
 }>>
 
 const legacySkillPath = repoSkillPath(owner.value, repo.value, name.value)
-if (data.value?.repoSkillCount === 1 && useRoute().path === legacySkillPath)
+if (data.value?.registryPath === repoHubPath(owner.value, repo.value) && useRoute().path === legacySkillPath)
   await navigateTo(repoHubPath(owner.value, repo.value), { redirectCode: 301, replace: true })
 
 const { data: relatedData, refresh: refreshRelated } = await useFetch(
@@ -631,15 +631,13 @@ defineOgImage('Skill.takumi', {
 })
 
 const siteOrigin = 'https://skilld.dev'
-const skillPagePath = computed(() => data.value
-  ? repoSkillPath(data.value.owner, data.value.repo, data.value.name, data.value.repoSkillCount)
-  : '')
+const skillPagePath = computed(() => data.value?.registryPath ?? '')
 const skillPageUrl = computed(() => `${siteOrigin}${skillPagePath.value}`)
 const duplicateGroup = computed(() => data.value?.duplicateGroup ?? null)
 const isWeakerDuplicate = computed(() => Boolean(duplicateGroup.value && !duplicateGroup.value.isCanonical))
 const canonicalSkillPagePath = computed(() => {
   const canonical = duplicateGroup.value?.canonical
-  return canonical ? repoSkillPath(canonical.owner, canonical.repo, canonical.name, canonical.repoSkillCount) : skillPagePath.value
+  return canonical?.registryPath ?? skillPagePath.value
 })
 const canonicalSkillPageUrl = computed(() => {
   return `${siteOrigin}${canonicalSkillPagePath.value}`
@@ -1407,7 +1405,7 @@ useHead(computed(() => ({
               <NuxtLink
                 v-for="sibling in duplicateGroup.siblings"
                 :key="sibling.slug"
-                :to="repoSkillPath(sibling.owner, sibling.repo, sibling.name)"
+                :to="sibling.registryPath"
                 class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
                 :title="`${sibling.owner}/${sibling.repo} · ${sibling.stars.toLocaleString()} GitHub stars`"
               >

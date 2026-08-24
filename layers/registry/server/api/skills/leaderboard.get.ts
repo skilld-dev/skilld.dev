@@ -1,6 +1,7 @@
 import type { SkillsLeaderboardDbRow } from '../../utils/skills-leaderboard'
 import { z } from 'zod'
 import { defineApiHandler } from '#shared/server/handler'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import {
   SKILLS_LEADERBOARD_COUNT_SQL,
   SKILLS_LEADERBOARD_PAGE_SQL,
@@ -21,7 +22,8 @@ export interface SkillsLeaderboardItem {
   skillCount: number
   topSkill: {
     name: string
-    slug: string
+    /** Final public route. Clients must use this value directly. */
+    registryPath: string
     description: string | null
     modifiedAt: number | null
   }
@@ -77,7 +79,12 @@ export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
         skillCount: row.skill_count,
         topSkill: {
           name: row.top_skill_name,
-          slug: row.top_skill_slug,
+          registryPath: canonicalRepoSkillPath({
+            owner: row.owner,
+            repo: row.repo,
+            name: row.top_skill_name,
+            repoSkillCount: row.skill_count,
+          }),
           description: row.top_skill_description,
           modifiedAt: row.top_skill_modified_at,
         },

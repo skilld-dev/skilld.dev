@@ -10,6 +10,7 @@ import {
   findDuplicateGroupForSlug,
   skillSlug,
 } from './skill-duplicate-canonical'
+import { canonicalRepoSkillPath } from './skill-routes'
 import { collapseSearchDuplicates, hybridSkillSearch, rankSearchResults } from './skill-search'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
 
@@ -596,7 +597,7 @@ export interface SkillDuplicateSibling {
   slug: string
   supportTier: string | null
   trustTier: string | null
-  repoSkillCount: number
+  registryPath: string
 }
 
 export interface SkillDuplicateGroup {
@@ -616,7 +617,12 @@ function duplicateRowToSibling(row: SkillDuplicateRow): SkillDuplicateSibling {
     slug: skillSlug(row),
     supportTier: row.support_tier,
     trustTier: row.trust_tier,
-    repoSkillCount: row.repo_skill_count ?? 0,
+    registryPath: canonicalRepoSkillPath({
+      owner: row.owner,
+      repo: row.repo,
+      name: row.name,
+      repoSkillCount: row.repo_skill_count ?? 0,
+    }),
   }
 }
 
@@ -630,7 +636,7 @@ async function listDuplicateCandidateRows(
   event: H3Event,
   opts: { supportedOnly: boolean, includeAggregators?: boolean },
 ): Promise<SkillDuplicateRow[]> {
-  const cacheKey = `skills:duplicate-candidates:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`
+  const cacheKey = `skills:duplicate-candidates:v2:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`
   const cached = await readCache<SkillDuplicateRow[]>(useStorage('cache'), cacheKey)
   if (cached)
     return cached
@@ -696,7 +702,7 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
 }
 
 export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
-  const cacheKey = 'skills:sitemap-all'
+  const cacheKey = 'skills:sitemap-all:v2'
   const cached = await readCache<SkillSitemapEntry[]>(useStorage('cache'), cacheKey)
   if (cached)
     return cached

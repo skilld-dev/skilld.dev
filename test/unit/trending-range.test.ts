@@ -18,7 +18,11 @@ function leaderboardRow(overrides: Partial<LeaderboardRowInput> = {}): Leaderboa
     description: 'Reference skills for Claude Code.',
     stars: 12_400,
     skillCount: 9,
-    topSkill: { name: 'pdf-processing', slug: 'anthropics/pdf-processing', description: 'Fill and read PDFs.' },
+    topSkill: {
+      name: 'pdf-processing',
+      registryPath: '/gh/anthropics/skills/pdf-processing',
+      description: 'Fill and read PDFs.',
+    },
     pushedAt: 1_785_000_000,
     ...overrides,
   }
@@ -47,7 +51,7 @@ describe('all-time rows are skill first, like every other range', () => {
       skillCount: 1,
       topSkill: {
         name: 'scandinavian-design',
-        slug: 'scandinavian-design',
+        registryPath: '/gh/ericzakariasson/scandinavian-design',
         description: 'Scandinavian design guidance.',
       },
     })])
@@ -71,7 +75,7 @@ describe('all-time rows are skill first, like every other range', () => {
 
   it('falls back to the repository blurb when the skill has none', () => {
     const [row] = leaderboardBoardRows([leaderboardRow({
-      topSkill: { name: 'pdf-processing', slug: 'pdf-processing', description: null },
+      topSkill: { name: 'pdf-processing', registryPath: '/gh/anthropics/skills/pdf-processing', description: null },
     })])
 
     expect(row?.description).toBe('Reference skills for Claude Code.')
@@ -93,7 +97,10 @@ describe('all-time rows are skill first, like every other range', () => {
   it('keys on the skill so two repos cannot collide', () => {
     const rows = leaderboardBoardRows([
       leaderboardRow(),
-      leaderboardRow({ repo: 'other', topSkill: { name: 'pdf-processing', slug: 'pdf-processing', description: null } }),
+      leaderboardRow({
+        repo: 'other',
+        topSkill: { name: 'pdf-processing', registryPath: '/gh/anthropics/other/pdf-processing', description: null },
+      }),
     ])
 
     expect(new Set(rows.map(r => r.key)).size).toBe(2)

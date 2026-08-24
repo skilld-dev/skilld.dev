@@ -14,7 +14,7 @@
 export interface TrendingKeyed {
   owner: string
   repo: string
-  slug: string
+  name: string
 }
 
 /** One skill's identity, folded to a single case so either side can ask. */
@@ -23,5 +23,5 @@ export function trendingSkillKey(owner: string, repo: string, name: string): str
 }
 
 export function trendingSkillKeySet(items: readonly TrendingKeyed[]): Set<string> {
-  return new Set(items.map(item => trendingSkillKey(item.owner, item.repo, item.slug)))
+  return new Set(items.map(item => trendingSkillKey(item.owner, item.repo, item.name)))
 }

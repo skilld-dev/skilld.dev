@@ -272,12 +272,12 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
  * email is worth opening. This reads the same endpoint the public board reads,
  * so the preview shows the rows that would actually go out this week.
  */
-async function liveScenario(): Promise<WeeklyRenderInput> {
+export async function liveScenario(): Promise<WeeklyRenderInput> {
   const feed = await $fetch<{
     namedSkills: Array<{
       owner: string
       repo: string
-      slug: string
+      name: string
       canonicalName: string
       description: string | null
       stars: number | null
@@ -298,7 +298,7 @@ async function liveScenario(): Promise<WeeklyRenderInput> {
     trending: feed.namedSkills.slice(0, MAX_TRENDING).map(skill => ({
       owner: skill.owner,
       repo: skill.repo,
-      slug: skill.slug,
+      slug: skill.name,
       canonicalName: skill.canonicalName,
       description: skill.description,
       stars: skill.stars,

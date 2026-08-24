@@ -8,7 +8,7 @@ describe('trending skill keys', () => {
     // and the catalog keep the owner's real capitalisation. Both must resolve
     // to the same key or `/skills` shows no flames at all.
     const set = trendingSkillKeySet([
-      { owner: 'lukeberrypi', repo: 'skills', slug: 'remove-dumb-comments' },
+      { owner: 'lukeberrypi', repo: 'skills', name: 'remove-dumb-comments' },
     ])
 
     expect(set.has(trendingSkillKey('LukeberryPi', 'skills', 'remove-dumb-comments'))).toBe(true)
@@ -16,7 +16,7 @@ describe('trending skill keys', () => {
 
   it('keeps different skills in the same repository apart', () => {
     const set = trendingSkillKeySet([
-      { owner: 'obra', repo: 'superpowers', slug: 'brainstorming' },
+      { owner: 'obra', repo: 'superpowers', name: 'brainstorming' },
     ])
 
     expect(set.has(trendingSkillKey('obra', 'superpowers', 'brainstorming'))).toBe(true)
@@ -25,7 +25,7 @@ describe('trending skill keys', () => {
 
   it('keeps the same skill name in different repositories apart', () => {
     const set = trendingSkillKeySet([
-      { owner: 'a', repo: 'one', slug: 'review' },
+      { owner: 'a', repo: 'one', name: 'review' },
     ])
 
     expect(set.has(trendingSkillKey('a', 'two', 'review'))).toBe(false)
@@ -34,8 +34,8 @@ describe('trending skill keys', () => {
 
   it('collapses a repeated skill to one entry', () => {
     const set = trendingSkillKeySet([
-      { owner: 'a', repo: 'r', slug: 's' },
-      { owner: 'A', repo: 'R', slug: 'S' },
+      { owner: 'a', repo: 'r', name: 's' },
+      { owner: 'A', repo: 'R', name: 'S' },
     ])
 
     expect(set.size).toBe(1)
