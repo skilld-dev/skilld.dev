@@ -14,6 +14,7 @@ function healthy(
     warnings: [],
     window: { reportDate: '2026-08-14', timeZone: 'UTC', from: '', to: '', workerVersion: null },
     frontDoor: { checks: [{ url: 'https://skilld.dev/', status: 200 }] },
+    trendingSkills: { checks: [] },
     inventory: { skills: 100, repos: 10, owners: 5, users: 5, collections: 3, watchedRepos: 1, brokenRepos: 0 },
     activity: { newSkills24h: 1, repoChanges24h: 1, installEvents24h: 1, newUsers24h: 0, digestsSent24h: 0, digestsFailed24h: 0 },
     pipeline: {
