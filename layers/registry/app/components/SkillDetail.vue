@@ -136,11 +136,13 @@ const { data, status, error, refresh } = await useFetch(
   frontmatter: Record<string, unknown> | null
   raw: string | null
   assets: { path: string, size: number, type: 'markdown' | 'code' | 'image' | 'data' | 'other' }[]
+  assetCount: number
   curators: { did: string, handle: string, displayName?: string, avatar?: string, collectionName: string, collectionSlug: string, reason?: string }[]
   url: string
   repo: string
   owner: string
   name: string
+  repoSkillCount: number
   displayName: string
   githubUrl: string
   description: string | null
@@ -206,6 +208,10 @@ const { data, status, error, refresh } = await useFetch(
   } | null
 }>>
 
+const legacySkillPath = repoSkillPath(owner.value, repo.value, name.value)
+if (data.value?.repoSkillCount === 1 && useRoute().path === legacySkillPath)
+  await navigateTo(repoHubPath(owner.value, repo.value), { redirectCode: 301, replace: true })
+
 const { data: relatedData, refresh: refreshRelated } = await useFetch(
   () => `/api/skill-related/${slug.value}`,
   { watch: [slug], immediate: true },
@@ -258,6 +264,7 @@ const { data: skillFiles } = useFetch(
   skillPath: string | null
   branch: string
   files: { path: string, size: number, type: 'markdown' | 'code' | 'image' | 'data' | 'other' }[]
+  total: number
 } | null>>
 
 // Prefer the live ungh-walked file list when available (catches markdown
@@ -268,6 +275,7 @@ const treeAssets = computed(() => {
     return live
   return data.value?.assets ?? []
 })
+const treeAssetCount = computed(() => skillFiles.value?.total ?? data.value?.assetCount ?? treeAssets.value.length)
 
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
 const auditOverview = computed(() => resolveSkillAuditOverview(audits.value))
@@ -622,7 +630,9 @@ defineOgImage('Skill.takumi', {
 })
 
 const siteOrigin = 'https://skilld.dev'
-const skillPagePath = computed(() => data.value ? repoSkillPath(data.value.owner, data.value.repo, data.value.name) : '')
+const skillPagePath = computed(() => data.value
+  ? repoSkillPath(data.value.owner, data.value.repo, data.value.name, data.value.repoSkillCount)
+  : '')
 const skillPageUrl = computed(() => `${siteOrigin}${skillPagePath.value}`)
 const duplicateGroup = computed(() => data.value?.duplicateGroup ?? null)
 const isWeakerDuplicate = computed(() => Boolean(duplicateGroup.value && !duplicateGroup.value.isCanonical))
@@ -1061,6 +1071,9 @@ useHead(computed(() => ({
                     :active-path="activeDocPath"
                     @select="(p) => { void resolveAndOpen(p) }"
                   />
+                  <p v-if="treeAssetCount > treeAssets.length" class="px-2 pt-2 font-mono text-[10px] text-muted">
+                    Showing {{ treeAssets.length.toLocaleString() }} of {{ treeAssetCount.toLocaleString() }} files.
+                  </p>
                 </div>
               </div>
             </aside>
@@ -1501,6 +1514,9 @@ useHead(computed(() => ({
                 :active-path="activeDocPath"
                 @select="(p) => { void resolveAndOpen(p) }"
               />
+              <p v-if="treeAssetCount > treeAssets.length" class="px-2 pt-2 font-mono text-[10px] text-muted">
+                Showing {{ treeAssets.length.toLocaleString() }} of {{ treeAssetCount.toLocaleString() }} files.
+              </p>
             </div>
           </section>
 

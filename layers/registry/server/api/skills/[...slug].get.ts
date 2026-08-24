@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { defineApiHandler } from '#shared/server/handler'
+import { selectSkillFiles } from '#shared/skill-files'
 import { isSourceResolved } from '#shared/skill-source-resolution'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
@@ -288,6 +289,7 @@ export default defineApiHandler({
     }
     const allowedTools = parseAllowedTools(rendered.frontmatter)
     const capability = classifyAllowedTools(allowedTools)
+    const selectedAssets = selectSkillFiles(assets)
     // `rendered.*` describes the cached copy, which survives the file being
     // deleted upstream, so it can only ever say "we can still render this". The
     // stored `source_resolved` is the sync's verdict on whether the file is
@@ -308,6 +310,7 @@ export default defineApiHandler({
       owner: skill.owner,
       repo: skill.repo,
       name: skill.name,
+      repoSkillCount: repoSkillNames.length,
       displayName: skill.displayName,
       githubUrl,
       skillPath: rendered.skillPath,
@@ -319,7 +322,8 @@ export default defineApiHandler({
       dependencies: rendered.dependencies,
       frontmatter: rendered.frontmatter,
       raw: rendered.raw,
-      assets,
+      assets: selectedAssets.files,
+      assetCount: selectedAssets.total,
       curators,
       description,
       license,

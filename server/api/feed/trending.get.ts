@@ -98,6 +98,8 @@ export interface TrendingSkillFeedItem {
    * showing only the post reads as a quote with no subject.
    */
   description: string | null
+  /** Current Skills in the repository, used to choose its canonical route. */
+  repoSkillCount: number
   /** Stars gained on the surge day, present only on the GitHub route. */
   starGain: number | null
   /**
@@ -147,6 +149,7 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
     favouriteCount: entry.social?.engagement ?? 0,
     stars: entry.stars,
     description: entry.description,
+    repoSkillCount: entry.repoSkillCount,
     starGain: entry.github?.latestGain ?? null,
     starGainDay: entry.github?.observedDay ?? null,
     evidence: entry.evidence
@@ -259,5 +262,5 @@ export default defineCachedEventHandler(
   },
   // Engagement is re-read hourly at most, so a shorter cache would spend D1
   // reads to serve a ranking that cannot have changed.
-  { maxAge: 300, swr: false, name: 'feed-trending-origin-v1' },
+  { maxAge: 300, swr: false, name: 'feed-trending-origin-v2' },
 )

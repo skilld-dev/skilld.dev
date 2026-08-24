@@ -1,5 +1,6 @@
 import { readCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
+import { selectSkillFiles } from '#shared/skill-files'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
 
@@ -16,6 +17,7 @@ interface SkillFilesPayload {
   skillPath: string | null
   branch: string
   files: SkillFile[]
+  total: number
 }
 
 interface SkillFilesRow {
@@ -68,7 +70,7 @@ export default defineApiHandler({
 
     const source = resolveRepoSourceIdentityFromRow(skill, row)
     const branch = row.default_branch || 'main'
-    const cacheKey = `skills:files:v2:${source.owner}/${source.repo}/${skill.name}:${branch}`
+    const cacheKey = `skills:files:v3:${source.owner}/${source.repo}/${skill.name}:${branch}`
     const cached = await readCache<SkillFilesPayload>(useStorage('cache'), cacheKey)
     if (cached)
       return cached
@@ -81,7 +83,7 @@ export default defineApiHandler({
     })
 
     if (!tree?.files?.length) {
-      const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [] }
+      const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [], total: 0 }
       await writeCache(useStorage('cache'), cacheKey, empty, { ttl: FILES_MISSING_TTL })
       return empty
     }
@@ -102,7 +104,7 @@ export default defineApiHandler({
     }
 
     if (!skillDir) {
-      const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [] }
+      const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [], total: 0 }
       await writeCache(useStorage('cache'), cacheKey, empty, { ttl: FILES_MISSING_TTL })
       return empty
     }
@@ -116,7 +118,13 @@ export default defineApiHandler({
         type: classify(f.path),
       }))
 
-    const result: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files }
+    const selected = selectSkillFiles(files)
+    const result: SkillFilesPayload = {
+      skillPath: row.rendered_skill_path,
+      branch,
+      files: selected.files,
+      total: selected.total,
+    }
     await writeCache(useStorage('cache'), cacheKey, result, { ttl: FILES_CACHE_TTL })
     return result
   },

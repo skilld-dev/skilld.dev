@@ -31,6 +31,7 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
         { url: 'https://skilld.dev/skills', status: 200 },
       ],
     },
+    trendingSkills: { checks: [] },
     inventory: {
       skills: 3074,
       repos: 7363,
@@ -164,6 +165,19 @@ describe('evaluateDailyHealthStatus', () => {
     expect(evaluateDailyHealthStatus(input)).toEqual({
       status: 'RED',
       reasons: ['Homepage returned HTTP 503.'],
+    })
+  })
+
+  it('marks a broken trending Skill link red', () => {
+    const input = summary({
+      trendingSkills: {
+        checks: [{ path: '/gh/ericzakariasson/scandinavian-design', status: 404 }],
+      },
+    })
+
+    expect(evaluateDailyHealthStatus(input)).toEqual({
+      status: 'RED',
+      reasons: ['1 trending Skill link failed to load.'],
     })
   })
 
@@ -397,7 +411,14 @@ describe('buildDailyHealthCheck', () => {
              (1, 100, 200, 1, 5, 'sent', 200, 200, NULL),
              (2, 100, 200, 0, 5, 'skipped', 200, NULL, NULL)`)
 
-    const fetcher = vi.fn().mockResolvedValue({ status: 200 }) as unknown as typeof fetch
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const path = new URL(String(input)).pathname
+      if (path === '/api/feed/trending')
+        return Response.json({ namedSkills: [], fallback: [] })
+      if (path === '/api/skills/leaderboard')
+        return Response.json({ items: [] })
+      return new Response(null, { status: 200 })
+    }) as unknown as typeof fetch
     const built = await buildDailyHealthCheck(db, { now, fetcher, workerVersion: 'version-1' })
 
     expect(built.activity.weekly).toEqual({

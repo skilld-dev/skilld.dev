@@ -49,6 +49,9 @@ export interface DailyHealthCheckSummary {
   frontDoor: {
     checks: Array<{ url: string, status: number | null }>
   }
+  trendingSkills: {
+    checks: Array<{ path: string, status: number | null }>
+  }
   inventory: {
     skills: number
     repos: number
@@ -489,6 +492,10 @@ export function evaluateDailyHealthStatus(
       amber.push(`${check.url} returned HTTP ${check.status}.`)
   }
 
+  const brokenTrendingSkills = summary.trendingSkills.checks.filter(check => check.status !== 200)
+  if (brokenTrendingSkills.length > 0)
+    red.push(`${plural(brokenTrendingSkills.length, 'trending Skill link')} failed to load.`)
+
   const weekly = summary.activity.weekly
   if (weekly && weekly.failed + weekly.uncertain > 0)
     red.push(`${plural(weekly.failed + weekly.uncertain, 'weekly email', 'weekly emails')} did not land in the last run.`)
@@ -654,6 +661,115 @@ export async function loadFrontDoor(
     }
     return { url, status }
   }))
+  return { checks }
+}
+
+interface TrendingSkillProbeTarget {
+  owner: string
+  repo: string
+  slug: string
+  repoSkillCount: number
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Trending response entry is invalid')
+  return value as Record<string, unknown>
+}
+
+function stringValue(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value)
+    throw new Error(`Trending response ${field} is invalid`)
+  return value
+}
+
+function countValue(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1)
+    throw new Error(`Trending response ${field} is invalid`)
+  return value
+}
+
+function arrayValue(value: unknown, field: string): unknown[] {
+  if (!Array.isArray(value))
+    throw new Error(`Trending response ${field} is invalid`)
+  return value
+}
+
+function parseFeedTargets(value: unknown): TrendingSkillProbeTarget[] {
+  const root = objectValue(value)
+  return [...arrayValue(root.namedSkills, 'namedSkills'), ...arrayValue(root.fallback, 'fallback')]
+    .map((value) => {
+      const row = objectValue(value)
+      return {
+        owner: stringValue(row.owner, 'owner'),
+        repo: stringValue(row.repo, 'repo'),
+        slug: stringValue(row.slug, 'slug'),
+        repoSkillCount: countValue(row.repoSkillCount, 'repoSkillCount'),
+      }
+    })
+}
+
+function parseLeaderboardTargets(value: unknown): TrendingSkillProbeTarget[] {
+  const root = objectValue(value)
+  return arrayValue(root.items, 'items').map((value) => {
+    const row = objectValue(value)
+    const topSkill = objectValue(row.topSkill)
+    return {
+      owner: stringValue(row.owner, 'owner'),
+      repo: stringValue(row.repo, 'repo'),
+      slug: stringValue(topSkill.name, 'topSkill.name'),
+      repoSkillCount: countValue(row.skillCount, 'skillCount'),
+    }
+  })
+}
+
+async function responseJson(response: Response, source: string): Promise<unknown> {
+  if (!response.ok)
+    throw new Error(`${source} returned HTTP ${response.status}`)
+  return response.json() as Promise<unknown>
+}
+
+function trendingSkillPath(target: TrendingSkillProbeTarget): string {
+  const repoPath = `/gh/${target.owner}/${target.repo}`
+  return target.repoSkillCount === 1 ? repoPath : `${repoPath}/${target.slug}`
+}
+
+export async function loadTrendingSkillPages(
+  fetcher: typeof fetch,
+): Promise<DailyHealthCheckSummary['trendingSkills']> {
+  const [monthResponse, weekResponse, leaderboardResponse] = await Promise.all([
+    fetcher('https://skilld.dev/api/feed/trending?limit=30&window=720'),
+    fetcher('https://skilld.dev/api/feed/trending?limit=30&window=168'),
+    fetcher('https://skilld.dev/api/skills/leaderboard?page=1'),
+  ])
+  const [month, week, leaderboard] = await Promise.all([
+    responseJson(monthResponse, 'Monthly trending feed'),
+    responseJson(weekResponse, 'Weekly trending feed'),
+    responseJson(leaderboardResponse, 'Trending leaderboard'),
+  ])
+  const targets = [
+    ...parseFeedTargets(month),
+    ...parseFeedTargets(week),
+    ...parseLeaderboardTargets(leaderboard),
+  ]
+  const paths = [...new Set(targets.map(trendingSkillPath))]
+  const checks: DailyHealthCheckSummary['trendingSkills']['checks'] = []
+
+  for (let offset = 0; offset < paths.length; offset += 10) {
+    const batch = paths.slice(offset, offset + 10)
+    checks.push(...await Promise.all(batch.map(async path => ({
+      path,
+      status: await fetcher(`https://skilld.dev${path}`, {
+        redirect: 'follow',
+        headers: { 'user-agent': 'Googlebot skilld daily health check' },
+        signal: AbortSignal.timeout(15_000),
+      }).then(response => response.status).catch(() => {
+        // A transport failure is a probe result. The RED verdict reports it.
+        return null
+      }),
+    }))))
+  }
+
   return { checks }
 }
 
@@ -1007,7 +1123,9 @@ export async function buildDailyHealthCheck(
   const monthStartSec = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000)
   const warnings: string[] = []
 
-  const frontDoor = await capture(warnings, 'front door', { checks: [] }, () => loadFrontDoor(options.fetcher ?? fetch))
+  const probeFetcher = options.fetcher ?? fetch
+  const frontDoor = await capture(warnings, 'front door', { checks: [] }, () => loadFrontDoor(probeFetcher))
+  const trendingSkills = await capture(warnings, 'trending Skill pages', { checks: [] }, () => loadTrendingSkillPages(probeFetcher))
   const inventory = await capture(warnings, 'inventory', {
     skills: 0,
     repos: 0,
@@ -1089,6 +1207,7 @@ export async function buildDailyHealthCheck(
       workerVersion: options.workerVersion ?? null,
     },
     frontDoor,
+    trendingSkills,
     inventory,
     activity,
     pipeline,
@@ -1142,6 +1261,12 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     '',
     'Front door:',
     plainList(summary.frontDoor.checks.map(check => `${check.url}: ${check.status === null ? 'probe failed' : `HTTP ${check.status}`}`)),
+    '',
+    'Trending Skill links:',
+    `- ${summary.trendingSkills.checks.length} checked`,
+    plainList(summary.trendingSkills.checks
+      .filter(check => check.status !== 200)
+      .map(check => `${check.path}: ${check.status === null ? 'probe failed' : `HTTP ${check.status}`}`)),
     '',
     'Inventory:',
     `- ${summary.inventory.skills} skills, ${summary.inventory.repos} repos, ${summary.inventory.owners} owners`,
@@ -1224,6 +1349,13 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
         metric('digests sent / failed', `${summary.activity.digestsSent24h} / ${summary.activity.digestsFailed24h}`),
         metric('last weekly', weeklyLine(summary)),
       ].join(''))}
+    </tr>
+    <tr>
+      ${card('Trending Skill links', [
+        metric('checked', summary.trendingSkills.checks.length),
+        metric('failed', summary.trendingSkills.checks.filter(check => check.status !== 200).length),
+      ].join(''))}
+      <td></td>
     </tr>
     <tr>
       ${card('Inventory', [
