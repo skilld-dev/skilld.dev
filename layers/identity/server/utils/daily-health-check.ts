@@ -414,7 +414,7 @@ export function cronPeriodSeconds(cron: string): number | null {
   // to satisfy `noUncheckedIndexedAccess`, and an empty field would fall
   // through to the same null this returns for any shape it does not model.
   const [minute = '', hour = '', dayOfMonth = '', month = '', dayOfWeek = ''] = fields
-  if (dayOfMonth !== '*' || month !== '*' || dayOfWeek !== '*')
+  if (dayOfMonth !== '*' || month !== '*')
     return null
 
   const step = (field: string): number | null => {
@@ -425,6 +425,13 @@ export function cronPeriodSeconds(cron: string): number | null {
     return Number.isSafeInteger(value) && value > 0 ? value : null
   }
   const isFixed = (field: string): boolean => /^\d+$/.test(field)
+
+  if (dayOfWeek !== '*') {
+    const isWeekday = /^[0-7]$/.test(dayOfWeek)
+    return isFixed(minute) && isFixed(hour) && isWeekday
+      ? 7 * DAY_SECONDS
+      : null
+  }
 
   if (hour === '*') {
     if (minute === '*')

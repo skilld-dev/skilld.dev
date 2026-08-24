@@ -1,0 +1,693 @@
+{
+  "generatedAt": "2026-08-24T03:47:50.286Z",
+  "since": "2026-08-23T03:38:52.608Z",
+  "git": {
+    "branch": "fix/daily-checkin-20260824",
+    "head": "6088813682f907d445899a7f3e7981fb4dd6c41b",
+    "dirtyFiles": [
+      "M layers/identity/server/utils/daily-health-check.spec.ts",
+      " M layers/identity/server/utils/daily-health-check.ts"
+    ],
+    "commitsSinceLastRun": [
+      {
+        "sha": "6088813682f907d445899a7f3e7981fb4dd6c41b",
+        "authoredAt": "2026-08-23T15:00:58+10:00",
+        "subject": "fix(skew): stop the multi-tab channel posting after app:error closes it (#66)"
+      },
+      {
+        "sha": "6ed7112dbe0150819d7171dc27505c106eb356e7",
+        "authoredAt": "2026-08-23T14:06:13+10:00",
+        "subject": "docs(ops): resolve WeeklyBand Test gate watch"
+      },
+      {
+        "sha": "3cd728be549e314cf91f5cb006f52441786f12e3",
+        "authoredAt": "2026-08-23T13:56:45+10:00",
+        "subject": "test(a11y): cover WeeklyBand after its move into app/components (#65)"
+      },
+      {
+        "sha": "20434a54e465af84b0cf28b5d05194a4aa345b47",
+        "authoredAt": "2026-08-23T13:47:45+10:00",
+        "subject": "docs(ops): daily check-in 2026-08-23"
+      }
+    ]
+  },
+  "deploy": {
+    "latest": {
+      "id": "0cc5a9db-0a66-4a15-b266-a4a26774b4f3",
+      "createdOn": "2026-08-23T05:10:45.158014Z",
+      "versionId": "7594b759-dc5a-4f0a-b78c-9ab8d8b30ef7",
+      "message": null,
+      "approxDeployedSha": "6088813682f907d445899a7f3e7981fb4dd6c41b"
+    }
+  },
+  "ci": {
+    "workflows": [
+      {
+        "name": "Deploy to Cloudflare",
+        "latestRun": {
+          "conclusion": "success",
+          "createdAt": "2026-08-23T05:07:43Z",
+          "databaseId": 32619578554,
+          "displayTitle": "Deploy to Cloudflare",
+          "headSha": "6088813682f907d445899a7f3e7981fb4dd6c41b",
+          "status": "completed",
+          "updatedAt": "2026-08-23T05:11:13Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32619578554",
+          "workflowName": "Deploy to Cloudflare"
+        },
+        "latestCompletedRun": {
+          "conclusion": "success",
+          "createdAt": "2026-08-23T05:07:43Z",
+          "databaseId": 32619578554,
+          "displayTitle": "Deploy to Cloudflare",
+          "headSha": "6088813682f907d445899a7f3e7981fb4dd6c41b",
+          "status": "completed",
+          "updatedAt": "2026-08-23T05:11:13Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32619578554",
+          "workflowName": "Deploy to Cloudflare"
+        },
+        "state": {
+          "_tag": "success"
+        }
+      },
+      {
+        "name": "Test",
+        "latestRun": {
+          "conclusion": "success",
+          "createdAt": "2026-08-23T05:01:01Z",
+          "databaseId": 32619293960,
+          "displayTitle": "fix(skew): stop the multi-tab channel posting after app:error closes …",
+          "headSha": "6088813682f907d445899a7f3e7981fb4dd6c41b",
+          "status": "completed",
+          "updatedAt": "2026-08-23T05:07:41Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32619293960",
+          "workflowName": "Test"
+        },
+        "latestCompletedRun": {
+          "conclusion": "success",
+          "createdAt": "2026-08-23T05:01:01Z",
+          "databaseId": 32619293960,
+          "displayTitle": "fix(skew): stop the multi-tab channel posting after app:error closes …",
+          "headSha": "6088813682f907d445899a7f3e7981fb4dd6c41b",
+          "status": "completed",
+          "updatedAt": "2026-08-23T05:07:41Z",
+          "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32619293960",
+          "workflowName": "Test"
+        },
+        "state": {
+          "_tag": "success"
+        }
+      }
+    ],
+    "recent": [
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-23T05:07:43Z",
+        "databaseId": 32619578554,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "6088813682f907d445899a7f3e7981fb4dd6c41b",
+        "status": "completed",
+        "updatedAt": "2026-08-23T05:11:13Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32619578554",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-23T05:01:01Z",
+        "databaseId": 32619293960,
+        "displayTitle": "fix(skew): stop the multi-tab channel posting after app:error closes …",
+        "headSha": "6088813682f907d445899a7f3e7981fb4dd6c41b",
+        "status": "completed",
+        "updatedAt": "2026-08-23T05:07:41Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32619293960",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-23T04:46:20Z",
+        "databaseId": 32618684566,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "6ed7112dbe0150819d7171dc27505c106eb356e7",
+        "status": "completed",
+        "updatedAt": "2026-08-23T04:46:21Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32618684566",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-23T04:40:56Z",
+        "databaseId": 32618459503,
+        "displayTitle": "fix(skew): guard the multi-tab channel after app:error",
+        "headSha": "35eaf3fa6304c4299d78a00180ffcc3a2b35be38",
+        "status": "completed",
+        "updatedAt": "2026-08-23T04:46:18Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32618459503",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-23T04:10:24Z",
+        "databaseId": 32617205747,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "6ed7112dbe0150819d7171dc27505c106eb356e7",
+        "status": "completed",
+        "updatedAt": "2026-08-23T04:13:51Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32617205747",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-23T04:06:19Z",
+        "databaseId": 32617030052,
+        "displayTitle": "docs(ops): resolve WeeklyBand Test gate watch",
+        "headSha": "6ed7112dbe0150819d7171dc27505c106eb356e7",
+        "status": "completed",
+        "updatedAt": "2026-08-23T04:10:21Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32617030052",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-23T04:02:02Z",
+        "databaseId": 32616841636,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "3cd728be549e314cf91f5cb006f52441786f12e3",
+        "status": "completed",
+        "updatedAt": "2026-08-23T04:05:27Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32616841636",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "success",
+        "createdAt": "2026-08-23T03:56:47Z",
+        "databaseId": 32616613087,
+        "displayTitle": "test(a11y): cover WeeklyBand after its move into app/components (#65)",
+        "headSha": "3cd728be549e314cf91f5cb006f52441786f12e3",
+        "status": "completed",
+        "updatedAt": "2026-08-23T04:02:01Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32616613087",
+        "workflowName": "Test"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-23T03:54:00Z",
+        "databaseId": 32616497852,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "20434a54e465af84b0cf28b5d05194a4aa345b47",
+        "status": "completed",
+        "updatedAt": "2026-08-23T03:54:01Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32616497852",
+        "workflowName": "Deploy to Cloudflare"
+      },
+      {
+        "conclusion": "skipped",
+        "createdAt": "2026-08-23T03:50:06Z",
+        "databaseId": 32616335843,
+        "displayTitle": "Deploy to Cloudflare",
+        "headSha": "20434a54e465af84b0cf28b5d05194a4aa345b47",
+        "status": "completed",
+        "updatedAt": "2026-08-23T03:50:16Z",
+        "url": "https://github.com/skilld-dev/skilld.dev/actions/runs/32616335843",
+        "workflowName": "Deploy to Cloudflare"
+      }
+    ]
+  },
+  "http": {
+    "https://skilld.dev/": 200,
+    "https://skilld.dev/skills": 200
+  },
+  "d1": {
+    "tables": [
+      "_ai_ready_info",
+      "_cf_KV",
+      "_content_frameworks",
+      "_content_info",
+      "_content_learn",
+      "activity",
+      "ai_batch_costs",
+      "ai_batches",
+      "ai_ready_cron_runs",
+      "ai_ready_pages",
+      "ai_ready_pages_fts",
+      "ai_ready_pages_fts_config",
+      "ai_ready_pages_fts_data",
+      "ai_ready_pages_fts_docsize",
+      "ai_ready_pages_fts_idx",
+      "ai_ready_sitemaps",
+      "artifact_attestations",
+      "artifact_check_results",
+      "artifact_download_grants",
+      "artifact_resolutions",
+      "artifacts",
+      "cli_auth_codes",
+      "cli_device_sessions",
+      "cli_tokens",
+      "collection_skills_v2",
+      "collections_v2",
+      "d1_migrations",
+      "daily_health_checks",
+      "digest_runs",
+      "discovery_candidates",
+      "discovery_ledger",
+      "embedding_attempts",
+      "failed_jobs",
+      "github_app_installations",
+      "github_app_repositories",
+      "github_app_user_authorizations",
+      "github_app_webhook_deliveries",
+      "github_sync_control",
+      "install_events",
+      "job_batches",
+      "jobs",
+      "npm_guides",
+      "owners",
+      "private_artifact_attestations",
+      "private_artifact_keys",
+      "private_artifacts",
+      "registry_maintenance",
+      "repo_kind_overrides",
+      "repo_star_observations",
+      "repo_star_surges",
+      "repo_sync_progress",
+      "repo_trust_overrides",
+      "repos",
+      "scheduled_runs",
+      "skill_dirty",
+      "skill_generated",
+      "skill_likes",
+      "skill_repo_eligibility",
+      "skill_repo_review_sync_outbox",
+      "skill_revisions",
+      "skill_social_posts",
+      "skill_subscriptions",
+      "skills",
+      "skills_fts",
+      "skills_fts_config",
+      "skills_fts_data",
+      "skills_fts_docsize",
+      "skills_fts_idx",
+      "skills_sh_crawl_runs",
+      "skills_sh_discovery_observations",
+      "sqlite_sequence",
+      "sqlite_stat1",
+      "supported_repos",
+      "supported_skills",
+      "sync_jobs",
+      "tag_decisions",
+      "user_starred_repos",
+      "users",
+      "weekly_click_events",
+      "weekly_runs",
+      "x_api_alerts",
+      "x_ingest_cursor",
+      "x_post_metrics",
+      "x_post_repos",
+      "x_post_skills",
+      "x_posts"
+    ],
+    "inventory": {
+      "skills": 9518,
+      "repos": 7886,
+      "owners": 9697,
+      "users": 23,
+      "collections": 10,
+      "broken_repos": 2023
+    },
+    "activity": {
+      "new_skills": 102,
+      "changed_repos": 18,
+      "install_events": 0,
+      "new_users": 0,
+      "digests_sent": 0,
+      "digests_failed": 0
+    },
+    "pipeline": {
+      "newly_broken_repos_total": 4,
+      "newly_broken_repos_impacted": 0,
+      "skill_sync_failures": 0,
+      "stale_dirty_skills": 0,
+      "ai_submitted": 0,
+      "ai_stuck": 0,
+      "ai_failed": 0,
+      "embeddings_completed": 65,
+      "embeddings_failed": 0,
+      "embeddings_stuck": 0,
+      "failed_jobs": 4,
+      "stale_reserved_jobs": 0
+    },
+    "cost": {
+      "ai_cost_usd": 0,
+      "x_discovery_reads_today": 16,
+      "x_discovery_reads_total": 1163,
+      "x_hot_posts": 60,
+      "x_posts_24h": 125,
+      "x_newest_post_age_hours": 0,
+      "x_verified_skills": 290,
+      "x_verified_skills_24h": 12,
+      "x_posts_unscanned": 1,
+      "x_ledger_pending": 1,
+      "x_ledger_held": 79,
+      "x_ledger_stalled": 0,
+      "x_ledger_indexed": 472,
+      "x_budget_target": 2000,
+      "x_budget_used_pct": 1,
+      "x_projected_daily_reads": 76,
+      "x_projected_monthly_usd": 11.4,
+      "x_over_budget": false,
+      "x_reads_per_verified_skill": 4,
+      "x_falling_behind": false
+    },
+    "syncJobs": [
+      {
+        "name": "ai-generate-poll",
+        "cron": "45 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787543121,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "ai-generate-submit",
+        "cron": "15 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787541321,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "ai-ready:cron",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787543121,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "backfill-skill-assets",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787543120,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "daily-health-check",
+        "cron": "0 22 * * *",
+        "stale_after_seconds": 129600,
+        "last_run_at": 1787522428,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "detect-star-surges",
+        "cron": "30 4 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787459433,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "drain-skill-dirty",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787543120,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "embedding-parity-audit",
+        "cron": "0 21 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787518904,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "recompute-skill-scores",
+        "cron": "0 3 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787540487,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "reconcile-rendered",
+        "cron": "20 */6 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787530822,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "refresh-x-engagement",
+        "cron": "10 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787541021,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "send-digests",
+        "cron": "0 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787540422,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "send-weekly",
+        "cron": "0 9 * * 1",
+        "stale_after_seconds": null,
+        "last_run_at": 1787475636,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-bsky-mentions",
+        "cron": "17 */2 * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787537866,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-github-skills",
+        "cron": "0 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787540425,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-reviewed-skill-repos",
+        "cron": "*/5 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787543120,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-social-mentions",
+        "cron": "30 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787542223,
+        "last_status": "ok",
+        "last_error": null
+      },
+      {
+        "name": "sync-x-mentions",
+        "cron": "*/15 * * * *",
+        "stale_after_seconds": null,
+        "last_run_at": 1787543125,
+        "last_status": "ok",
+        "last_error": null
+      }
+    ],
+    "failedJobFingerprints": [
+      {
+        "queue": "repo-review-sync",
+        "job_type": "registry/repository-submission",
+        "exception": "no_supported_skill_paths",
+        "count": 4,
+        "first_failed_at": 1787468469,
+        "last_failed_at": 1787538629
+      }
+    ],
+    "healthEmail": [
+      {
+        "reportDate": "2026-08-24",
+        "healthStatus": "RED",
+        "deliveryStatus": "sent",
+        "recipient": "harlan@harlanzw.com",
+        "sentAt": 1787522420,
+        "error": null,
+        "reasons": [
+          "Scheduled tasks are stale: send-weekly."
+        ],
+        "warnings": [],
+        "window": {
+          "reportDate": "2026-08-24",
+          "timeZone": "Australia/Melbourne",
+          "from": "2026-08-22T22:00:20Z",
+          "to": "2026-08-23T22:00:20Z",
+          "workerVersion": "7594b759 deployed 2026-08-23T05:10:41.442505Z"
+        }
+      },
+      {
+        "reportDate": "2026-08-23",
+        "healthStatus": "GREEN",
+        "deliveryStatus": "sent",
+        "recipient": "harlan@harlanzw.com",
+        "sentAt": 1787436033,
+        "error": null,
+        "reasons": [
+          "All monitored systems are healthy."
+        ],
+        "warnings": [],
+        "window": {
+          "reportDate": "2026-08-23",
+          "timeZone": "Australia/Melbourne",
+          "from": "2026-08-21T22:00:33Z",
+          "to": "2026-08-22T22:00:33Z",
+          "workerVersion": "86f97008 deployed 2026-08-22T03:26:42.557612Z"
+        }
+      }
+    ],
+    "recentJobBatches": [
+      {
+        "id": "916712bd-acdb-4027-8267-dae54ec5ac5f",
+        "name": "registry-sync:1787540422",
+        "total_jobs": 13,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787540422,
+        "updated_at": 1787540471,
+        "finished_at": 1787540471
+      },
+      {
+        "id": "01553405-6d40-4704-92d4-b97423599e75",
+        "name": "registry-sync:1787536820",
+        "total_jobs": 12,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787536821,
+        "updated_at": 1787536866,
+        "finished_at": 1787536866
+      },
+      {
+        "id": "a81e10d0-2974-4407-b15d-97b93bba8133",
+        "name": "registry-sync:1787533220",
+        "total_jobs": 19,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787533221,
+        "updated_at": 1787533277,
+        "finished_at": 1787533277
+      },
+      {
+        "id": "c2b8de1d-bc9b-44d6-9c81-e9da3268cfe1",
+        "name": "render-repair:1787530820",
+        "total_jobs": 48,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787530820,
+        "updated_at": 1787531234,
+        "finished_at": 1787531234
+      },
+      {
+        "id": "40ca3c1f-9ddc-4421-aa39-8af3a0980c3b",
+        "name": "registry-sync:1787529620",
+        "total_jobs": 37,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787529621,
+        "updated_at": 1787530047,
+        "finished_at": 1787530047
+      },
+      {
+        "id": "baa617b7-a661-4cd5-a6a0-de954e0ef60c",
+        "name": "registry-sync:1787526020",
+        "total_jobs": 22,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787526021,
+        "updated_at": 1787526098,
+        "finished_at": 1787526098
+      },
+      {
+        "id": "c5b1e554-910e-4f91-a493-de7e4dcf913e",
+        "name": "registry-sync:1787522420",
+        "total_jobs": 27,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787522420,
+        "updated_at": 1787522517,
+        "finished_at": 1787522517
+      },
+      {
+        "id": "3a6e68ee-390a-4724-b997-7520945cd574",
+        "name": "registry-sync:1787518820",
+        "total_jobs": 16,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787518820,
+        "updated_at": 1787518864,
+        "finished_at": 1787518864
+      },
+      {
+        "id": "20d5aa9b-5272-4acd-9b8f-ea697f9c258b",
+        "name": "registry-sync:1787515221",
+        "total_jobs": 21,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787515221,
+        "updated_at": 1787515291,
+        "finished_at": 1787515291
+      },
+      {
+        "id": "63334b00-e9ca-4a6f-927c-c1ea36afe5a1",
+        "name": "registry-sync:1787511620",
+        "total_jobs": 14,
+        "pending_jobs": 0,
+        "failed_jobs": 0,
+        "created_at": 1787511621,
+        "updated_at": 1787511663,
+        "finished_at": 1787511663
+      }
+    ],
+    "registryMaintenance": [
+      {
+        "name": "nested-assets-v1",
+        "status": "complete",
+        "batch_id": "d9530bca-ad97-498d-af66-e491be12e13c",
+        "updated_at": 1785036660,
+        "last_error": null
+      }
+    ],
+    "migrations": {
+      "localHead": "0113_x_api_alerts.sql",
+      "uncommitted": [],
+      "prodHead": "0113_x_api_alerts.sql"
+    },
+    "missingExpectedTables": []
+  },
+  "workers": {
+    "outcomes": {
+      "clientDisconnected": 99,
+      "exceededMemory": 6,
+      "success": 60890
+    },
+    "nonOk": [
+      {
+        "status": "exceededMemory",
+        "requests": 6
+      }
+    ]
+  },
+  "sentry": {
+    "_tag": "available",
+    "newIssues": [],
+    "recurringIssues": [],
+    "truncatedAtLimit": false
+  }
+}
