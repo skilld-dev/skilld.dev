@@ -51,6 +51,14 @@ describe('loadFallbackSkills', () => {
     const result = await loadFallbackSkills({ db: db().db, now: NOW, limit: 10 })
     expect(result).toHaveLength(1)
     expect(result[0]?.repoSkillCount).toBe(3)
+    expect(result[0]?.registryPath).toBe('/gh/acme/many/alpha')
+  })
+
+  it('returns the repository path for one resolved Skill', async () => {
+    seedRepo('acme', 'solo', 5000, ['only'])
+
+    const result = await loadFallbackSkills({ db: db().db, now: NOW, limit: 10 })
+    expect(result[0]?.registryPath).toBe('/gh/acme/solo')
   })
 
   it('picks the same skill every time, so the page does not shuffle', async () => {

@@ -49,11 +49,12 @@ export interface TrendingFeedItem {
 export interface FallbackFeedItem {
   owner: string
   repo: string
-  slug: string
+  name: string
   canonicalName: string
+  /** Final public route. Clients must use this value directly. */
+  registryPath: string
   description: string | null
   stars: number
-  repoSkillCount: number
   starsGained: number | null
 }
 
@@ -74,8 +75,10 @@ export interface FallbackFeedItem {
 export interface TrendingSkillFeedItem {
   owner: string
   repo: string
-  slug: string
+  name: string
   canonicalName: string
+  /** Final public route. Clients must use this value directly. */
+  registryPath: string
   /**
    * How the skill was named. `social` means a person named it in a post;
    * `github` means its repository surged AND holds exactly one skill, so the
@@ -98,8 +101,6 @@ export interface TrendingSkillFeedItem {
    * showing only the post reads as a quote with no subject.
    */
   description: string | null
-  /** Current Skills in the repository, used to choose its canonical route. */
-  repoSkillCount: number
   /** Stars gained on the surge day, present only on the GitHub route. */
   starGain: number | null
   /**
@@ -141,15 +142,15 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
   return {
     owner: entry.owner,
     repo: entry.repo,
-    slug: entry.slug,
+    name: entry.slug,
     canonicalName: entry.canonicalName,
+    registryPath: entry.registryPath,
     attribution: entry.attribution,
     authorCount: entry.social?.authorCount ?? 0,
     mentionCount: entry.social?.mentionCount ?? 0,
     favouriteCount: entry.social?.engagement ?? 0,
     stars: entry.stars,
     description: entry.description,
-    repoSkillCount: entry.repoSkillCount,
     starGain: entry.github?.latestGain ?? null,
     starGainDay: entry.github?.observedDay ?? null,
     evidence: entry.evidence
@@ -162,6 +163,19 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
           favouriteCount: entry.evidence.favouriteCount,
         }
       : null,
+  }
+}
+
+function toFallbackItem(entry: Awaited<ReturnType<typeof loadFallbackSkills>>[number]): FallbackFeedItem {
+  return {
+    owner: entry.owner,
+    repo: entry.repo,
+    name: entry.slug,
+    canonicalName: entry.canonicalName,
+    registryPath: entry.registryPath,
+    description: entry.description,
+    stars: entry.stars,
+    starsGained: entry.starsGained,
   }
 }
 
@@ -243,7 +257,7 @@ export default defineCachedEventHandler(
     const skillItems = namedSkills.map(toSkillItem)
     const fallback = skillItems.length >= MIN_BEFORE_FALLBACK
       ? []
-      : await loadFallbackSkills({
+      : (await loadFallbackSkills({
           db,
           now,
           limit: MIN_BEFORE_FALLBACK - skillItems.length,
@@ -256,11 +270,11 @@ export default defineCachedEventHandler(
             ...namedSkills.map(s => `${s.owner}/${s.repo}`),
           ]),
           deprioritizeRepositories,
-        })
+        })).map(toFallbackItem)
 
     return { items, namedSkills: skillItems, fallback, computedAt: now }
   },
   // Engagement is re-read hourly at most, so a shorter cache would spend D1
   // reads to serve a ranking that cannot have changed.
-  { maxAge: 300, swr: false, name: 'feed-trending-origin-v2' },
+  { maxAge: 300, swr: false, name: 'feed-trending-origin-v3' },
 )

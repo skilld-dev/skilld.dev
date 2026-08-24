@@ -37,7 +37,7 @@ describe('integrity runtime contracts', () => {
       owner: 'antfu',
       repo: 'skills',
       name: 'vite',
-      repoSkillCount: 8,
+      registryPath: '/gh/antfu/skills/vite',
       displayName: 'Vite',
       stars: 1_000,
       branch: 'main',

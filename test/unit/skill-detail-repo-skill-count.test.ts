@@ -31,11 +31,12 @@ beforeEach(async () => {
   handler = (await import('../../layers/registry/server/api/skills/[...slug].get')).default
 })
 
-describe('skill detail repoSkillCount', () => {
-  it('counts only Skills whose source resolved, matching hub routing and the feed', async () => {
+describe('skill detail registryPath', () => {
+  it('uses only resolved Skills when choosing the canonical route', async () => {
     const body = await handler(event())
 
-    expect(body.repoSkillCount).toBe(1)
+    expect(body.registryPath).toBe('/gh/ericzakariasson/scandinavian-design')
+    expect(body).not.toHaveProperty('repoSkillCount')
   })
 })
 

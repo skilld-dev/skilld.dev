@@ -270,7 +270,8 @@ export interface LeaderboardRowInput {
   skillCount: number
   topSkill: {
     name: string
-    slug: string
+    /** Canonical route supplied by the API boundary. */
+    registryPath: string
     description: string | null
   }
   /** Unix seconds of the repository's last push, or null when GitHub had none. */
@@ -326,9 +327,7 @@ export function leaderboardBoardRows(
       key: `${item.owner}/${item.repo}/${item.topSkill.name}`,
       owner: item.owner,
       title: item.topSkill.name,
-      to: item.skillCount === 1
-        ? `/gh/${item.owner}/${item.repo}`
-        : `/gh/${item.owner}/${item.repo}/${item.topSkill.name}`,
+      to: item.topSkill.registryPath,
       subtitle: `${item.owner}/${item.repo}`,
       // The skill's own words first. The repository blurb describes the
       // container, and on a row named for the skill that reads as a mismatch.

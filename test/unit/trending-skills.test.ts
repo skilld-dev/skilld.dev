@@ -185,7 +185,7 @@ describe('loadTrendingSkills window', () => {
 })
 
 describe('loadTrendingSkills presentation', () => {
-  it('shows the canonical name while keeping the slug for routing', async () => {
+  it('returns the canonical path with the Skill identity', async () => {
     mention({
       owner: 'danyuchn',
       repo: 'asd-ste100-skill',
@@ -197,6 +197,7 @@ describe('loadTrendingSkills presentation', () => {
     const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
     expect(skill?.canonicalName).toBe('asd-ste100')
     expect(skill?.slug).toBe('asd-ste100-skill')
+    expect(skill?.registryPath).toBe('/gh/danyuchn/asd-ste100-skill')
   })
 
   it('quotes the strongest post as evidence', async () => {

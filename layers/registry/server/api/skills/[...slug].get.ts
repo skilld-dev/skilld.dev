@@ -3,6 +3,7 @@ import type { H3Event } from 'h3'
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { defineApiHandler } from '#shared/server/handler'
 import { selectSkillFiles } from '#shared/skill-files'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { isSourceResolved } from '#shared/skill-source-resolution'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
@@ -317,12 +318,18 @@ export default defineApiHandler({
     const sourceCommitSha = latestCommit?.sha ?? row?.current_sha ?? null
     const pushedAtIso = epochToIso(row?.pushed_at)
     const createdAtIso = epochToIso(row?.repo_created_at)
+    const repoSkillCount = resolvedRepoSkillCount?.skill_count ?? 0
 
     return {
       owner: skill.owner,
       repo: skill.repo,
       name: skill.name,
-      repoSkillCount: resolvedRepoSkillCount?.skill_count ?? 0,
+      registryPath: canonicalRepoSkillPath({
+        owner: skill.owner,
+        repo: skill.repo,
+        name: skill.name,
+        repoSkillCount,
+      }),
       displayName: skill.displayName,
       githubUrl,
       skillPath: rendered.skillPath,

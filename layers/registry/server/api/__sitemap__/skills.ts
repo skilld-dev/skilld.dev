@@ -1,5 +1,5 @@
 import { listOutcomeSitemapEntries } from '../../utils/outcome-sitemap'
-import { repoSkillPath } from '../../utils/skill-routes'
+import { canonicalRepoSkillPath } from '../../utils/skill-routes'
 import { listAllSkillsForSitemap, listSupportedSkillsForSitemap } from '../../utils/skills-registry'
 
 export default defineSitemapEventHandler(async (event) => {
@@ -11,7 +11,7 @@ export default defineSitemapEventHandler(async (event) => {
   return [
     ...listOutcomeSitemapEntries(),
     ...skills.map(s => ({
-      loc: repoSkillPath(s.owner, s.repo, s.name, s.repoSkillCount),
+      loc: canonicalRepoSkillPath(s),
       changefreq: 'weekly' as const,
     })),
   ]

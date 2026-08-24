@@ -664,13 +664,6 @@ export async function loadFrontDoor(
   return { checks }
 }
 
-interface TrendingSkillProbeTarget {
-  owner: string
-  repo: string
-  slug: string
-  repoSkillCount: number
-}
-
 function objectValue(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Trending response entry is invalid')
@@ -683,43 +676,41 @@ function stringValue(value: unknown, field: string): string {
   return value
 }
 
-function countValue(value: unknown, field: string): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1)
-    throw new Error(`Trending response ${field} is invalid`)
-  return value
-}
-
 function arrayValue(value: unknown, field: string): unknown[] {
   if (!Array.isArray(value))
     throw new Error(`Trending response ${field} is invalid`)
   return value
 }
 
-function parseFeedTargets(value: unknown): TrendingSkillProbeTarget[] {
+function registryPathValue(value: unknown, field: string): string {
+  const path = stringValue(value, field)
+  const segments = path.split('/').filter(Boolean)
+  if (!path.startsWith('/gh/')
+    || path.includes('?')
+    || path.includes('#')
+    || (segments.length !== 3 && segments.length !== 4)
+    || segments[0] !== 'gh'
+    || segments.some(segment => segment === '.' || segment === '..')) {
+    throw new Error(`Trending response ${field} is invalid`)
+  }
+  return path
+}
+
+function parseFeedTargets(value: unknown): string[] {
   const root = objectValue(value)
   return [...arrayValue(root.namedSkills, 'namedSkills'), ...arrayValue(root.fallback, 'fallback')]
     .map((value) => {
       const row = objectValue(value)
-      return {
-        owner: stringValue(row.owner, 'owner'),
-        repo: stringValue(row.repo, 'repo'),
-        slug: stringValue(row.slug, 'slug'),
-        repoSkillCount: countValue(row.repoSkillCount, 'repoSkillCount'),
-      }
+      return registryPathValue(row.registryPath, 'registryPath')
     })
 }
 
-function parseLeaderboardTargets(value: unknown): TrendingSkillProbeTarget[] {
+function parseLeaderboardTargets(value: unknown): string[] {
   const root = objectValue(value)
   return arrayValue(root.items, 'items').map((value) => {
     const row = objectValue(value)
     const topSkill = objectValue(row.topSkill)
-    return {
-      owner: stringValue(row.owner, 'owner'),
-      repo: stringValue(row.repo, 'repo'),
-      slug: stringValue(topSkill.name, 'topSkill.name'),
-      repoSkillCount: countValue(row.skillCount, 'skillCount'),
-    }
+    return registryPathValue(topSkill.registryPath, 'topSkill.registryPath')
   })
 }
 
@@ -727,11 +718,6 @@ async function responseJson(response: Response, source: string): Promise<unknown
   if (!response.ok)
     throw new Error(`${source} returned HTTP ${response.status}`)
   return response.json() as Promise<unknown>
-}
-
-function trendingSkillPath(target: TrendingSkillProbeTarget): string {
-  const repoPath = `/gh/${target.owner}/${target.repo}`
-  return target.repoSkillCount === 1 ? repoPath : `${repoPath}/${target.slug}`
 }
 
 export async function loadTrendingSkillPages(
@@ -747,12 +733,11 @@ export async function loadTrendingSkillPages(
     responseJson(weekResponse, 'Weekly trending feed'),
     responseJson(leaderboardResponse, 'Trending leaderboard'),
   ])
-  const targets = [
+  const paths = [...new Set([
     ...parseFeedTargets(month),
     ...parseFeedTargets(week),
     ...parseLeaderboardTargets(leaderboard),
-  ]
-  const paths = [...new Set(targets.map(trendingSkillPath))]
+  ])]
   const checks: DailyHealthCheckSummary['trendingSkills']['checks'] = []
 
   for (let offset = 0; offset < paths.length; offset += 10) {
