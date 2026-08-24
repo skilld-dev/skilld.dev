@@ -4,18 +4,19 @@
  * What the weekly email did, and who it would reach next.
  *
  * The cron writes one `weekly_runs` row per person per week, which answers
- * "did it send" but not "was it worth sending". So this reports the audience,
- * the last few windows, and every row that did not reach an inbox, since a
+ * "did the provider accept it" but not "was it worth sending". This reports the audience,
+ * the last few windows, and every unresolved row, since a
  * silent failure and a quiet week look identical from the outside.
  */
 
 import { defineApiHandler } from '#shared/server/handler'
+import { summarizeWeeklyEngagement } from '../../utils/weekly-engagement'
 
 interface WindowRow {
   window_start: number
   window_end: number
   recipients: number
-  sent: number
+  accepted: number
   skipped: number
   failed: number
   unresolved: number
@@ -23,6 +24,9 @@ interface WindowRow {
   trending_rows: number
   first_claimed_at: number
   last_sent_at: number | null
+  unique_clicks: number
+  unsubscribes: number
+  share_intents: number
 }
 
 interface ProblemRow {
@@ -45,16 +49,21 @@ export interface AdminWeeklyResponse {
     windowStart: number
     windowEnd: number
     recipients: number
-    sent: number
+    accepted: number
     skipped: number
     failed: number
     unresolved: number
     likedRows: number
     trendingRows: number
     firstClaimedAt: number
-    lastSentAt: number | null
+    lastAcceptedAt: number | null
+    uniqueClicks: number
+    uniqueClickRate: number | null
+    unsubscribes: number
+    unsubscribeRate: number | null
+    shareIntents: number
   }>
-  /** Rows that never reached an inbox, newest first. */
+  /** Rows without a resolved provider outcome, newest first. */
   problems: Array<{
     login: string
     windowEnd: number
@@ -72,7 +81,7 @@ export default defineApiHandler({
     const [audience, windows, problems] = await Promise.all([
       db.prepare(
         `SELECT
-           SUM(weekly_opt_out = 0 AND ${hasAddress}) AS reachable,
+           SUM(weekly_opt_out = 0 AND email_opt_in = 0 AND ${hasAddress}) AS reachable,
            SUM(weekly_opt_out = 1 AND ${hasAddress}) AS opted_out,
            SUM(NOT ${hasAddress}) AS no_address
          FROM users`,
@@ -81,17 +90,39 @@ export default defineApiHandler({
       db.prepare(
         `SELECT window_start, window_end,
                 COUNT(*) AS recipients,
-                SUM(status = 'sent') AS sent,
+                SUM(provider_status = 'accepted' OR (status = 'sent' AND provider_status IS NULL)) AS accepted,
                 SUM(status = 'skipped') AS skipped,
                 SUM(status = 'failed') AS failed,
                 SUM(status IN ('uncertain', 'claimed')) AS unresolved,
                 SUM(liked_count) AS liked_rows,
                 SUM(trending_count) AS trending_rows,
                 MIN(claimed_at) AS first_claimed_at,
-                MAX(sent_at) AS last_sent_at
-         FROM weekly_runs
-         GROUP BY window_end
-         ORDER BY window_end DESC
+                MAX(r.sent_at) AS last_sent_at,
+                (SELECT COUNT(DISTINCT c.user_id)
+                 FROM weekly_click_events c
+                 WHERE c.window_end = r.window_end
+                   AND c.user_id IS NOT NULL
+                   AND c.placement != 'share') AS unique_clicks,
+                (SELECT COUNT(DISTINCT e.user_id)
+                 FROM email_preference_events e
+                 WHERE e.list = 'weekly'
+                   AND e.action = 'unsubscribed'
+                   AND EXISTS (
+                     SELECT 1 FROM weekly_runs er
+                     WHERE er.window_end = r.window_end
+                       AND er.user_id = e.user_id
+                       AND er.sent_at IS NOT NULL
+                       AND e.occurred_at >= er.sent_at
+                       AND e.occurred_at < er.sent_at + 604800
+                   )) AS unsubscribes,
+                (SELECT COUNT(DISTINCT c.user_id)
+                 FROM weekly_click_events c
+                 WHERE c.window_end = r.window_end
+                   AND c.user_id IS NOT NULL
+                   AND c.placement = 'share') AS share_intents
+         FROM weekly_runs r
+         GROUP BY r.window_end
+         ORDER BY r.window_end DESC
          LIMIT 8`,
       ).all<WindowRow>(),
 
@@ -117,14 +148,15 @@ export default defineApiHandler({
         windowStart: row.window_start,
         windowEnd: row.window_end,
         recipients: row.recipients,
-        sent: row.sent,
+        accepted: row.accepted,
         skipped: row.skipped,
         failed: row.failed,
         unresolved: row.unresolved,
         likedRows: row.liked_rows,
         trendingRows: row.trending_rows,
         firstClaimedAt: row.first_claimed_at,
-        lastSentAt: row.last_sent_at,
+        lastAcceptedAt: row.last_sent_at,
+        ...summarizeWeeklyEngagement(row),
       })),
       problems: (problems.results ?? []).map(row => ({
         login: row.login,

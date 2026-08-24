@@ -77,6 +77,7 @@ async function finish(
     likedCount?: number
     trendingCount?: number
     providerMessageId?: string | null
+    providerStatus?: string | null
     sentAt?: number | null
     error?: string | null
   },
@@ -87,8 +88,9 @@ async function finish(
          liked_count = ?3,
          trending_count = ?4,
          provider_message_id = ?5,
-         sent_at = ?6,
-         error = ?7
+         provider_status = ?6,
+         sent_at = ?7,
+         error = ?8
      WHERE id = ?1`,
   ).bind(
     runId,
@@ -96,6 +98,7 @@ async function finish(
     fields.likedCount ?? 0,
     fields.trendingCount ?? 0,
     fields.providerMessageId ?? null,
+    fields.providerStatus ?? null,
     fields.sentAt ?? null,
     fields.error ?? null,
   ).run()
@@ -116,10 +119,8 @@ export async function runWeeklyForUser(
 
   const selection = await deps.select(deps.db, user, input.windowStart, input.windowEnd)
 
-  // A week with no liked changes and no trending rows has nothing to say. The
-  // template can render that state, and does for the preview, but mailing it
-  // teaches people to ignore the sender.
-  if (!selection.likedChanges.length && !input.trending.length) {
+  // Discovery is secondary. Send only when this person has a material change.
+  if (!selection.likedChanges.length) {
     await finish(deps.db, claim.runId, { status: 'skipped' })
     return { _tag: 'skipped', reason: 'nothing_to_say' }
   }
@@ -127,7 +128,7 @@ export async function runWeeklyForUser(
   const unsubscribeToken = await deps.signUnsubscribe(user.id)
   const unsubscribeUrl = `${input.siteUrl}/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken)}&list=weekly`
   const rendered = deps.render({
-    login: user.login,
+    recipientName: user.name ?? null,
     userId: user.id,
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,
@@ -161,6 +162,7 @@ export async function runWeeklyForUser(
       ...counts,
       status: 'sent',
       providerMessageId: result.messageId,
+      providerStatus: 'accepted',
       sentAt: deps.now(),
     })
     return { _tag: 'sent', runId: claim.runId, providerMessageId: result.messageId }

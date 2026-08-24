@@ -22,12 +22,12 @@ import { runWeeklyForUser } from '../utils/weekly-delivery'
 import { loadWeeklyRecipients, loadWeeklyTrending, selectWeeklyForUser } from '../utils/weekly-select'
 import { renderWeekly } from '../utils/weekly-template'
 
-const CRON = '0 9 * * 1'
+const CRON = '0 9 * * MON'
 const WINDOW_SECONDS = 7 * 24 * 60 * 60
 
 export default defineScheduledTask({
   name: 'send-weekly',
-  cron: '0 9 * * 1',
+  cron: '0 9 * * MON',
   description: 'Send the weekly email: changes to skills each person liked, plus what trended',
   async run({ context }) {
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)

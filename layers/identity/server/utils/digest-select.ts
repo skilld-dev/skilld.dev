@@ -1,9 +1,12 @@
+import { githubSkillChangeUrl, githubSkillSourceUrl } from './email-skill-links'
+
 // Per-user "should we send and what's in the email" selection. Pure DB
 // queries; no side effects. Returns null when no eligible work.
 
 export interface DigestUser {
   id: number
   login: string
+  name?: string | null
   digest_email: string | null
   email: string | null
   email_opt_in: number
@@ -24,6 +27,8 @@ export interface DigestEntry {
     changeCount: number
     commitMessages: string[]
     changedAt: number
+    sourceUrl: string
+    changeUrl: string
   }>
   changeCount: number
 }
@@ -112,6 +117,10 @@ export async function selectDigestForUser(
      WHERE a.id > ?2 AND a.id <= ?3
        AND (sub.muted_until IS NULL OR sub.muted_until <= ?4)
        AND r.repo_kind != 'aggregator'
+       AND s.current_sha IS NOT NULL
+       AND TRIM(s.current_sha) != ''
+       AND s.rendered_skill_path IS NOT NULL
+       AND TRIM(s.rendered_skill_path) != ''
        AND (sub.source != 'like' OR ${LIKE_SCOPE_SQL})
      GROUP BY s.owner, s.repo, sub.source
      ORDER BY change_count DESC, s.owner ASC, s.repo ASC
@@ -130,24 +139,34 @@ export async function selectDigestForUser(
 
   const detailStatements = groups.map(group => group.source === 'like'
     ? db.prepare(
-        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at
+        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at, a.sha,
+                s.current_sha, s.rendered_skill_path
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      WHERE a.owner = ?2
        AND a.repo = ?3
        AND a.id > ?4
        AND a.id <= ?5
+       AND s.current_sha IS NOT NULL
+       AND TRIM(s.current_sha) != ''
+       AND s.rendered_skill_path IS NOT NULL
+       AND TRIM(s.rendered_skill_path) != ''
        AND ${LIKE_SCOPE_SQL}
      ORDER BY a.id DESC`,
       ).bind(user.id, group.owner, group.repo, cursorStart, cursorEnd)
     : db.prepare(
-        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at
+        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at, a.sha,
+                s.current_sha, s.rendered_skill_path
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      WHERE a.owner = ?1
        AND a.repo = ?2
        AND a.id > ?3
        AND a.id <= ?4
+       AND s.current_sha IS NOT NULL
+       AND TRIM(s.current_sha) != ''
+       AND s.rendered_skill_path IS NOT NULL
+       AND TRIM(s.rendered_skill_path) != ''
      ORDER BY a.id DESC`,
       ).bind(group.owner, group.repo, cursorStart, cursorEnd))
   const details = await db.batch<{
@@ -155,6 +174,9 @@ export async function selectDigestForUser(
     skill_name: string
     description: string | null
     occurred_at: number
+    sha: string
+    current_sha: string
+    rendered_skill_path: string
   }>(detailStatements)
 
   const selectedSkills: Array<{
@@ -175,6 +197,9 @@ export async function selectDigestForUser(
       commitMessages: string[]
       sourceStart: number
       sourceEnd: number
+      latestSha: string
+      currentSha: string
+      path: string
     }>()
     for (const row of rows) {
       const skill = bySkill.get(row.skill_name) ?? {
@@ -184,6 +209,9 @@ export async function selectDigestForUser(
         commitMessages: [],
         sourceStart: row.occurred_at,
         sourceEnd: row.occurred_at,
+        latestSha: row.sha,
+        currentSha: row.current_sha,
+        path: row.rendered_skill_path,
       }
       skill.changeCount += 1
       skill.sourceStart = Math.min(skill.sourceStart, row.occurred_at)
@@ -199,6 +227,14 @@ export async function selectDigestForUser(
       changeCount: skill.changeCount,
       commitMessages: skill.commitMessages,
       changedAt: skill.sourceEnd,
+      sourceUrl: githubSkillSourceUrl({
+        owner: group.owner,
+        repo: group.repo,
+        name: skill.name,
+        currentSha: skill.currentSha,
+        path: skill.path,
+      }),
+      changeUrl: githubSkillChangeUrl({ owner: group.owner, repo: group.repo, sha: skill.latestSha }),
     }))
     selected.forEach((skill, skillIndex) => selectedSkills.push({
       entryIndex,
@@ -259,7 +295,7 @@ async function activityCursorAt(db: D1Database, ingestedAt: number): Promise<num
 
 export async function loadDigestEligibleUsers(db: D1Database): Promise<DigestUser[]> {
   const res = await db.prepare(
-    `SELECT id, login, digest_email, email, email_opt_in,
+    `SELECT id, login, name, digest_email, email, email_opt_in,
             digest_frequency, digest_dow, digest_hour, timezone, onboarded_at
      FROM users
      WHERE email_opt_in = 1

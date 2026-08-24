@@ -17,7 +17,6 @@ describe('digest delivery', () => {
 
   beforeEach(() => {
     sqlite = new Database(':memory:')
-    // eslint-disable-next-line ts/no-use-before-define
     sqlite.exec(TEST_SCHEMA)
     failSentWritesRemaining = 0
     failUncertainWritesRemaining = 0
@@ -301,8 +300,9 @@ describe('digest delivery', () => {
         diffExcerpt: '',
       }],
     })
-    expect(send.mock.calls[0]![0].text).toContain('alpha, beta')
-    expect(send.mock.calls[0]![0].text).toContain('3 changes')
+    expect(send.mock.calls[0]![0].text).toContain('acme/skills alpha')
+    expect(send.mock.calls[0]![0].text).toContain('acme/skills beta')
+    expect(send.mock.calls[0]![0].text).toContain('2 changes')
     expect(runRow()).toMatchObject({
       change_count: 3,
       ai_summary_used: 1,
@@ -522,9 +522,9 @@ function seedSubscription(sqlite: Database.Database): void {
     INSERT INTO repos (owner, repo, repo_kind) VALUES ('acme', 'skills', 'source');
     INSERT INTO skill_subscriptions (user_id, owner, repo, muted_until)
     VALUES (1, 'acme', 'skills', NULL);
-    INSERT INTO skills (owner, repo, name, description) VALUES
-      ('acme', 'skills', 'alpha', 'Alpha skill'),
-      ('acme', 'skills', 'beta', 'Beta skill');
+    INSERT INTO skills (owner, repo, name, description, current_sha, rendered_skill_path) VALUES
+      ('acme', 'skills', 'alpha', 'Alpha skill', 'current-alpha', 'alpha/SKILL.md'),
+      ('acme', 'skills', 'beta', 'Beta skill', 'current-beta', 'beta/SKILL.md');
     INSERT INTO skill_revisions (owner, repo, name, sha, modified_at, message) VALUES
       ('acme', 'skills', 'alpha', 'commit-a', 100, 'changed alpha'),
       ('acme', 'skills', 'alpha', 'commit-late', 50, 'late alpha'),
@@ -572,6 +572,8 @@ const TEST_SCHEMA = `
     repo TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
+    current_sha TEXT,
+    rendered_skill_path TEXT,
     PRIMARY KEY (owner, repo, name)
   );
   CREATE TABLE repos (

@@ -48,9 +48,9 @@ const PALETTE: Record<WeeklyTheme, Tokens> = {
     borderStrong: '#d6d3d1',
     text: '#1c1917',
     body: '#44403c',
-    muted: '#78716c',
-    faint: '#a8a29e',
-    accent: '#e11d48',
+    muted: '#6b625c',
+    faint: '#6b625c',
+    accent: '#be123c',
     onAccent: '#ffffff',
     quote: '#fafaf9',
     mark: '#fb7185',
@@ -114,6 +114,8 @@ export interface WeeklyTrendingSkill {
   canonicalName: string
   description: string | null
   stars: number | null
+  /** Exact current SKILL.md source. */
+  sourceUrl?: string
   reason: WeeklyReason
   evidence: WeeklyEvidence | null
 }
@@ -136,9 +138,15 @@ export interface WeeklyLikedChange {
    * message.
    */
   commitMessages: string[]
+  /** Exact current SKILL.md source. */
+  sourceUrl?: string
+  /** The latest revision that caused this row. */
+  changeUrl?: string
 }
 
 export interface WeeklyRenderInput {
+  /** Product label. The default keeps the public weekly preview unchanged. */
+  edition?: 'weekly' | 'digest'
   /**
    * Who it is addressed to, or null when nobody.
    *
@@ -147,7 +155,9 @@ export interface WeeklyRenderInput {
    * not liked any skills yet" on a marketing surface: the empty state, correct
    * for a real send and wrong as a first impression.
    */
-  login: string | null
+  login?: string | null
+  /** A person's display name. Omit the greeting when unavailable. */
+  recipientName?: string | null
   /**
    * Recipient id, carried on tracked links so a click can be attributed.
    * Null for the admin preview, which must not write click rows.
@@ -191,6 +201,9 @@ export interface WeeklyRender {
    */
   card: string
 }
+
+/** The weekly stays scannable while showing enough breadth to be useful. */
+export const MAX_WEEKLY_TRENDING = 7
 
 function esc(value: string): string {
   return value
@@ -257,11 +270,11 @@ function short(value: number): string {
 export function reasonLine(reason: WeeklyReason, now: number): string {
   switch (reason._tag) {
     case 'named':
-      return `${reason.authorCount} ${plural(reason.authorCount, 'dev', 'devs')} talked about it${mentionAge(reason.latestAt, now)}`
+      return `${reason.authorCount} ${plural(reason.authorCount, 'account', 'accounts')} mentioned it${mentionAge(reason.latestAt, now)}`
     case 'stars':
       return `+${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
     case 'named-and-stars':
-      return `${reason.authorCount} ${plural(reason.authorCount, 'dev', 'devs')} talked about it${mentionAge(reason.latestAt, now)} \u00B7 +${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
+      return `${reason.authorCount} ${plural(reason.authorCount, 'account', 'accounts')} mentioned it${mentionAge(reason.latestAt, now)} \u00B7 +${compactCount(reason.gain)} stars ${relativeDay(reason.day, now)}`
     case 'popular':
       return `${compactCount(reason.stars)} stars, no posts this week`
   }
@@ -315,8 +328,16 @@ export function trimDescription(value: string | null): string | null {
 const MAX_QUOTE = 180
 
 export function trimQuote(value: string): string {
-  const text = collapse(value.replace(/https?:\/\/\S+/g, ''))
-  return text.length <= MAX_QUOTE ? text : `${text.slice(0, MAX_QUOTE - 1).trimEnd()}\u2026`
+  const withoutCommands = value.replace(
+    /(?:^|\s)(?:npx|bunx|pnpm\s+(?:dlx|exec)|npm\s+(?:exec|x)|yarn\s+dlx)\s+skills\s+add\s+\S+/gi,
+    ' ',
+  )
+  const text = collapse(withoutCommands.replace(/https?:\/\/\S+/g, ''))
+  if (text.length <= MAX_QUOTE)
+    return text
+  const cut = text.slice(0, MAX_QUOTE - 1)
+  const boundary = cut.lastIndexOf(' ')
+  return `${(boundary > 60 ? cut.slice(0, boundary) : cut).trimEnd()}\u2026`
 }
 
 function collapse(value: string): string {
@@ -348,7 +369,7 @@ function skillUrl(siteUrl: string, owner: string, repo: string, name: string): s
 }
 
 function sectionLabel(t: Tokens, text: string): string {
-  return `<tr><td style="padding:28px 0 10px;font-family:${MONO};font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${t.faint};">${esc(text)}</td></tr>`
+  return `<tr><td style="padding:28px 0 10px;"><h2 style="margin:0;font-family:${MONO};font-size:14px;line-height:1.5;letter-spacing:0.08em;text-transform:uppercase;color:${t.faint};">${esc(text)}</h2></td></tr>`
 }
 
 /**
@@ -367,6 +388,7 @@ function row(t: Tokens, options: {
   body?: string
   meta: string
   extra?: string
+  links?: string
 }): string {
   const description = trimDescription(options.description)
   return `
@@ -374,15 +396,50 @@ function row(t: Tokens, options: {
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
     <tr>
       <td valign="top" width="44" style="width:44px;padding-right:12px;">
-        <img src="${esc(avatarUrl(options.owner))}" width="36" height="36" alt="${esc(options.owner)}"
+        <img src="${esc(avatarUrl(options.owner))}" width="36" height="36" alt=""
              style="width:36px;height:36px;border-radius:18px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
       <td valign="top">
-        <a href="${esc(options.href)}" style="font-family:${MONO};font-size:14px;font-weight:600;color:${t.text};text-decoration:none;">${esc(options.title)}</a>
-        ${description ? `<div style="margin-top:4px;font-family:${SANS};font-size:13px;line-height:1.5;color:${t.body};">${esc(description)}</div>` : ''}
+        <a href="${esc(options.href)}" style="display:inline-block;padding:11px 0;margin:-11px 0;font-family:${MONO};font-size:15px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a>
+        ${description ? `<div style="margin-top:11px;font-family:${SANS};font-size:14px;line-height:1.55;color:${t.body};">${esc(description)}</div>` : ''}
         ${options.body ?? ''}
-        <div style="margin-top:6px;font-family:${MONO};font-size:11px;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}</div>
+        <div style="margin-top:8px;font-family:${MONO};font-size:14px;line-height:1.55;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}</div>
+        ${options.links ?? ''}
         ${options.extra ?? ''}
+      </td>
+    </tr>
+  </table>
+</td></tr>`
+}
+
+/**
+ * A dense trending row.
+ *
+ * Seven full editorial rows turned the email into a feed. The Skill name,
+ * exact source, ranking reason, and evidence account stay. Descriptions,
+ * quotes, and the duplicate source action remain in the plain-text version.
+ */
+function trendingRow(t: Tokens, options: {
+  owner: string
+  title: string
+  href: string
+  meta: string
+  evidence: WeeklyEvidence | null
+}): string {
+  const evidence = options.evidence
+    ? ` · <a href="${esc(options.evidence.url)}" style="display:inline-block;padding:12px 0;margin:-12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">@${esc(options.evidence.authorHandle)} ${options.evidence.platform === 'x' ? 'on X' : 'on Bluesky'}</a>`
+    : ''
+  return `
+<tr><td style="padding:10px 0;border-top:1px solid ${t.border};">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+      <td valign="top" width="36" style="width:36px;padding-right:10px;">
+        <img src="${esc(avatarUrl(options.owner))}" width="28" height="28" alt=""
+             style="width:28px;height:28px;border-radius:14px;display:block;border:1px solid ${t.border};background:${t.quote};" />
+      </td>
+      <td valign="top">
+        <a href="${esc(options.href)}" style="display:inline-block;padding:11px 0;margin:-11px 0;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a>
+        <div style="margin-top:3px;font-family:${MONO};font-size:14px;line-height:1.45;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}${evidence}</div>
       </td>
     </tr>
   </table>
@@ -425,8 +482,8 @@ function commitList(t: Tokens, messages: readonly string[]): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:6px;">${
     subjects.map(subject => `
     <tr>
-      <td valign="top" width="12" style="width:12px;font-family:${MONO};font-size:11px;line-height:1.55;color:${t.faint};">&middot;</td>
-      <td valign="top" style="font-family:${MONO};font-size:11.5px;line-height:1.55;color:${t.body};">${esc(subject)}</td>
+      <td valign="top" width="16" style="width:16px;font-family:${MONO};font-size:14px;line-height:1.55;color:${t.faint};">&middot;</td>
+      <td valign="top" style="font-family:${MONO};font-size:14px;line-height:1.55;color:${t.body};">${esc(subject)}</td>
     </tr>`).join('')
   }</table>`
 }
@@ -438,27 +495,19 @@ function commitList(t: Tokens, messages: readonly string[]): string {
  * handle and a link back to the post. Without the link a reader has a sentence
  * in quotation marks and no way to check it.
  */
-function quote(t: Tokens, evidence: WeeklyEvidence): string {
-  const network = evidence.platform === 'x' ? 'on X' : 'on Bluesky'
-  const text = trimQuote(evidence.text)
-  return `
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:9px;">
-  <tr><td style="border-left:2px solid ${t.borderStrong};padding:2px 0 2px 10px;">
-    <div style="font-family:${SANS};font-size:13px;line-height:1.5;color:${t.body};">${esc(text)}</div>
-    <div style="margin-top:4px;font-family:${MONO};font-size:11px;color:${t.muted};">
-      <a href="${esc(evidence.url)}" style="color:${t.muted};text-decoration:none;">@${esc(evidence.authorHandle)} ${esc(network)}</a>
-    </div>
-  </td></tr>
-</table>`
-}
-
 function button(t: Tokens, href: string, label: string): string {
   return `
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 4px;">
   <tr><td style="background:${t.accent};border-radius:8px;">
-    <a href="${esc(href)}" style="display:inline-block;padding:11px 18px;font-family:${MONO};font-size:13px;font-weight:600;color:${t.onAccent};text-decoration:none;">${esc(label)}</a>
+    <a href="${esc(href)}" style="display:inline-block;padding:13px 18px;font-family:${MONO};font-size:14px;line-height:1.3;font-weight:600;color:${t.onAccent};text-decoration:none;">${esc(label)}</a>
   </td></tr>
 </table>`
+}
+
+function rowLinks(t: Tokens, links: Array<{ href: string, label: string }>): string {
+  return `<div style="margin-top:4px;font-family:${MONO};font-size:14px;line-height:20px;">${links.map(link =>
+    `<a href="${esc(link.href)}" style="display:inline-block;padding:12px 12px 12px 0;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">${esc(link.label)}</a>`,
+  ).join('')}</div>`
 }
 
 /**
@@ -480,18 +529,20 @@ function nameList(names: readonly string[], extra: number): string {
   return shown.length === 1 ? shown[0]! : `${shown[0]!} and ${shown[1]!}`
 }
 
-const LIKE_PROMPT = 'Like a skill and it shows up here the week it changes.'
+const LIKE_PROMPT = 'Like a Skill and it shows up here the week it changes.'
 
 function subjectFor(input: WeeklyRenderInput): string {
+  const edition = input.edition ?? 'weekly'
   // The liked half wins the subject when it has anything in it. Those are
   // skills this person chose; the trending half is a stranger's.
   if (input.likedChanges.length) {
     const names = nameList(input.likedChanges.map(change => change.name), input.likedOverflow)
-    return `skilld weekly: ${names} changed`
+    const verb = input.likedChanges.length + input.likedOverflow === 1 ? 'was' : 'were'
+    return `skilld ${edition}: ${names} ${verb} updated`
   }
   if (input.trending.length)
-    return `skilld weekly: ${nameList(input.trending.map(skill => skill.canonicalName), 0)}`
-  return 'skilld weekly: a quiet week'
+    return `skilld ${edition}: ${nameList(input.trending.map(skill => skill.canonicalName), 0)}`
+  return `skilld ${edition}: a quiet week`
 }
 
 /**
@@ -511,26 +562,26 @@ function preheader(input: WeeklyRenderInput): string {
   }
   if (input.trending.length) {
     return input.trackedCount
-      ? `${trackedLine(input.trackedCount)}. Devs are talking about ${trendingNames}.`
-      : `Devs are talking about ${trendingNames}.`
+      ? `${trackedLine(input.trackedCount)}. Accounts mentioned ${trendingNames}.`
+      : `Accounts mentioned ${trendingNames}.`
   }
-  return input.trackedCount ? `${trackedLine(input.trackedCount)}.` : 'Nothing changed this week.'
+  return input.trackedCount ? `${trackedLine(input.trackedCount)}.` : 'No updates this week.'
 }
 
 function greeting(input: WeeklyRenderInput): string {
   const liked = input.likedChanges.length + input.likedOverflow
   const trending = input.trending.length
   // With no recipient there is nothing true to say about what they like.
-  if (input.login === null)
-    return 'What changed in the skills you like, and what devs are talking about.'
+  if (!input.recipientName)
+    return 'Updates from the Skills you like, plus trending Skills this week.'
   if (liked && trending)
-    return `${liked} ${plural(liked, 'skill you like', 'skills you like')} changed, and ${trending} more ${plural(trending, 'is', 'are')} getting talked about.`
+    return `${liked} ${plural(liked, 'Skill you like was', 'Skills you like were')} updated.`
   if (liked)
-    return `${liked} ${plural(liked, 'skill you like', 'skills you like')} changed this week.`
+    return `${liked} ${plural(liked, 'Skill you like was', 'Skills you like were')} updated this week.`
   if (trending) {
     return input.trackedCount
-      ? 'Here is what devs are talking about this week.'
-      : 'You have not liked any skills yet, so here is what devs are talking about.'
+      ? 'Here are this week’s trending Skills.'
+      : 'You have not liked any Skills yet. Here are this week’s trending Skills.'
   }
   return input.trackedCount
     ? 'A quiet week. Back next week.'
@@ -545,14 +596,16 @@ function greeting(input: WeeklyRenderInput): string {
  * product watched these and found nothing, rather than finding nothing to say.
  */
 function trackedLine(count: number): string {
-  return `${count} ${plural(count, 'skill', 'skills')} tracked, no updates this week`
+  return `${count} ${plural(count, 'Skill', 'Skills')} tracked, no updates this week`
 }
 
 export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
+  input = { ...input, trending: input.trending.slice(0, MAX_WEEKLY_TRENDING) }
   const t = PALETTE[input.theme ?? 'light']
   const now = input.windowEnd
   const window = formatWindow(input.windowStart, input.windowEnd)
   const subject = subjectFor(input)
+  const edition = input.edition ?? 'weekly'
   const empty = !input.likedChanges.length && !input.trackedCount && !input.trending.length
 
   // Only the HTML is tracked. The plain-text part is read by clients that
@@ -566,10 +619,11 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
   const likedRows = input.likedChanges.map((change) => {
     const subjects = commitSubjects(change.commitMessages)
+    const sourceUrl = change.sourceUrl ?? skillUrl(input.siteUrl, change.owner, change.repo, change.name)
     return row(t, {
       owner: change.owner,
       title: change.name,
-      href: track(skillUrl(input.siteUrl, change.owner, change.repo, change.name), 'liked'),
+      href: sourceUrl,
       // The description explains the skill, and it only earns its line when
       // there are no commit subjects to explain what actually changed.
       description: subjects.length ? null : change.description,
@@ -579,12 +633,16 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
         `${change.changeCount} ${plural(change.changeCount, 'change', 'changes')}`,
         relativeDay(change.changedAt, now),
       ]),
+      links: rowLinks(t, [
+        ...(change.changeUrl ? [{ href: change.changeUrl, label: 'View change' }] : []),
+        { href: sourceUrl, label: 'Open SKILL.md' },
+      ]),
     })
   }).join('')
 
   const overflowRow = input.likedOverflow
-    ? `<tr><td style="padding:12px 0 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:11px;color:${t.muted};">
-         <a href="${esc(track(`${input.siteUrl}/me/likes`, 'overflow'))}" style="color:${t.muted};text-decoration:none;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'skill', 'skills')} you like changed</a>
+    ? `<tr><td style="padding:12px 0 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:20px;color:${t.muted};">
+         <a href="${esc(track(`${input.siteUrl}/me/likes`, 'overflow'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'Skill', 'Skills')} you like were updated</a>
        </td></tr>`
     : ''
 
@@ -593,76 +651,74 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   // does; this is the far more common case where trending carried the week and
   // the reader is never told the other half is theirs to populate.
   const quietRow = !input.likedChanges.length && input.trackedCount
-    ? `<tr><td style="padding:14px 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:11.5px;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(trackedLine(input.trackedCount))}</td></tr>`
+    ? `<tr><td style="padding:14px 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.55;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(trackedLine(input.trackedCount))}</td></tr>`
     : ''
 
   // Only when there is nothing to track. Telling someone who likes thirty
   // skills to go like a skill is the product failing to notice it worked.
   const likePrompt = !input.trackedCount && !input.likedChanges.length && input.trending.length
-    ? `<tr><td style="padding:16px 0 0;border-top:1px solid ${t.border};font-family:${SANS};font-size:13px;line-height:1.5;color:${t.muted};">
-         ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${t.accent};text-decoration:none;">Browse the registry</a>.
+    ? `<tr><td style="padding:16px 0 0;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.55;color:${t.muted};">
+         ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
     : ''
 
-  const trendingRows = input.trending.map(skill => row(t, {
-    owner: skill.owner,
-    title: skill.canonicalName,
-    href: track(skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName), 'trending'),
-    description: skill.description,
-    meta: trendingMeta(skill, now),
-    extra: skill.evidence ? quote(t, skill.evidence) : '',
-  })).join('')
+  const trendingRows = input.trending.map((skill) => {
+    const sourceUrl = skill.sourceUrl ?? skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName)
+    return trendingRow(t, {
+      owner: skill.owner,
+      title: skill.canonicalName,
+      href: sourceUrl,
+      meta: trendingMeta(skill, now),
+      evidence: skill.evidence,
+    })
+  }).join('')
 
   const body = empty
     ? `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
-         Like a few skills and they will show up here the week they change.
-         <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="color:${t.accent};text-decoration:none;">Browse the registry</a>.
+         Like a few Skills and they will show up here the week they change.
+         <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
     : `${input.likedChanges.length || input.trackedCount
       ? `${sectionLabel(t, 'Skills you like')}${likedRows}${overflowRow}${quietRow}`
       : ''}${input.trending.length
-      ? `${sectionLabel(t, `\u{1F525} ${input.likedChanges.length ? 'Also trending' : 'Trending this week'}`)}${trendingRows}${likePrompt}`
+      ? `${sectionLabel(t, 'Trending this week')}${trendingRows}${likePrompt}`
       : ''}`
 
-  const card = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;background:${t.surface};border:1px solid ${t.border};border-radius:8px;">
-      <tr><td style="padding:22px 28px 26px;">
+  const shareUrl = track(`${input.siteUrl}/api/share/weekly`, 'share')
+  const card = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:${t.surface};border:1px solid ${t.border};border-radius:8px;">
+      <tr><td style="padding:22px 20px 26px;">
 
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom:1px solid ${t.border};padding-bottom:14px;">
           <tr>
-            <!-- The mark is a hosted PNG, not the SVG the site uses: Gmail
-                 strips SVG entirely. Images are blocked by default in plenty of
-                 clients too, so the wordmark beside it carries the brand on its
-                 own and the alt text repeats it. -->
-            <td width="26" valign="middle" style="width:26px;padding-right:9px;">
-              <a href="${esc(track(input.siteUrl, 'footer'))}" style="text-decoration:none;">
-                <img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="skilld" style="display:block;width:22px;height:22px;border:0;border-radius:5px;" />
-              </a>
+            <!-- The mark is a hosted PNG because Gmail strips SVG. The nearby
+                 wordmark carries the name when images are blocked. -->
+            <td valign="middle" style="font-family:${MONO};font-size:14px;font-weight:600;color:${t.text};letter-spacing:-0.01em;">
+              <a href="${esc(track(input.siteUrl, 'footer'))}" style="display:inline-block;padding:11px 0;color:${t.text};text-decoration:none;"><img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="" style="display:inline-block;width:22px;height:22px;margin-right:9px;border:0;border-radius:5px;vertical-align:middle;" /><span style="vertical-align:middle;">skilld <span style="color:${t.faint};font-weight:400;">${edition}</span></span></a>
             </td>
-            <td valign="middle" style="font-family:${MONO};font-size:13px;font-weight:600;color:${t.text};letter-spacing:-0.01em;">
-              <a href="${esc(track(input.siteUrl, 'footer'))}" style="color:${t.text};text-decoration:none;">skilld</a>
-              <span style="color:${t.faint};font-weight:400;"> weekly</span>
-            </td>
-            <td align="right" valign="middle" style="font-family:${MONO};font-size:11px;color:${t.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
+            <td align="right" valign="middle" style="font-family:${MONO};font-size:14px;color:${t.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
           </tr>
         </table>
 
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr><td style="padding:22px 0 8px;">
-            ${input.login === null ? '' : `<div style="font-family:${SANS};font-size:19px;font-weight:600;line-height:1.3;color:${t.text};">Hey ${esc(input.login)},</div>`}
-            <div style="margin-top:${input.login === null ? '0' : '6px'};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">${esc(greeting(input))}</div>
+            <h1 style="margin:0;font-family:${SANS};font-size:20px;font-weight:600;line-height:1.35;color:${t.text};">${input.recipientName ? `Hi ${esc(input.recipientName)},` : 'Your Skill updates'}</h1>
+            <div style="margin-top:6px;font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">${esc(greeting(input))}</div>
           </td></tr>
           ${body}
         </table>
 
-        ${empty ? '' : button(t, track(`${input.siteUrl}/skills/trending`, 'cta'), 'See the full board')}
+        ${input.trending.length ? button(t, track(`${input.siteUrl}/skills/trending`, 'cta'), 'Browse trending Skills') : ''}
+        ${input.trending.length ? `<div style="font-family:${MONO};font-size:14px;line-height:20px;"><a href="${esc(shareUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Share this week’s board</a></div>` : ''}
 
       </td></tr>
       <tr><td style="height:3px;background:${t.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
-      <tr><td style="padding:16px 28px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:11px;line-height:1.6;color:${t.faint};">
-        You get this once a week because you have a skilld account.
-        <a href="${esc(track(input.settingsUrl, 'footer'))}" style="color:${t.muted};text-decoration:none;">Settings</a>
+      <tr><td style="padding:16px 20px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.7;color:${t.faint};">
+        ${edition === 'weekly'
+          ? 'You get this once a week because you have a skilld account.'
+          : 'You get this because you enabled the digest.'}
+        <a href="${esc(track(input.settingsUrl, 'footer'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a>
         &middot;
-        <a href="${esc(input.unsubscribeUrl)}" style="color:${t.muted};text-decoration:none;">Unsubscribe</a>
+        <a href="${esc(input.unsubscribeUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Unsubscribe</a>
       </td></tr>
     </table>`
 
@@ -673,18 +729,17 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="color-scheme" content="${input.theme ?? 'light'}" />
 <meta name="supported-color-schemes" content="${input.theme ?? 'light'}" />
-<!-- Apple Mail and iOS honour this; every other client falls through to the
-     stacks declared inline, which is why both are spelled out in full. -->
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;600&display=swap" rel="stylesheet" />
 <title>${esc(subject)}</title>
 </head>
 <body style="margin:0;padding:0;background:${t.page};-webkit-font-smoothing:antialiased;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader(input))}</div>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${t.page};padding:32px 12px;">
+<main role="main" aria-label="skilld ${edition}">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;background:${t.page};padding:24px 8px;">
   <tr><td align="center">
     ${card}
   </td></tr>
 </table>
+</main>
 </body>
 </html>`
 
@@ -695,9 +750,9 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 export function renderWeeklyText(input: WeeklyRenderInput): string {
   const now = input.windowEnd
   const lines: string[] = [
-    `skilld weekly  ${formatWindow(input.windowStart, input.windowEnd)}`,
+    `skilld ${input.edition ?? 'weekly'}  ${formatWindow(input.windowStart, input.windowEnd)}`,
     '',
-    ...(input.login === null ? [] : [`Hey ${input.login},`]),
+    ...(input.recipientName ? [`Hi ${input.recipientName},`] : []),
     greeting(input),
   ]
 
@@ -718,15 +773,17 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
           lines.push(`  ${description}`)
       }
       lines.push(`  ${change.owner}/${change.repo}, ${change.changeCount} ${plural(change.changeCount, 'change', 'changes')}, ${relativeDay(change.changedAt, now)}`)
-      lines.push(`  ${skillUrl(input.siteUrl, change.owner, change.repo, change.name)}`)
+      if (change.changeUrl)
+        lines.push(`  Change: ${change.changeUrl}`)
+      lines.push(`  Source: ${change.sourceUrl ?? skillUrl(input.siteUrl, change.owner, change.repo, change.name)}`)
       lines.push('')
     }
     if (input.likedOverflow)
-      lines.push(`+${input.likedOverflow} more you like changed: ${input.siteUrl}/me/likes`, '')
+      lines.push(`+${input.likedOverflow} more you like were updated: ${input.siteUrl}/me/likes`, '')
   }
 
   if (input.trending.length) {
-    lines.push('', input.likedChanges.length ? 'ALSO TRENDING' : 'TRENDING THIS WEEK', '')
+    lines.push('', 'TRENDING THIS WEEK', '')
     for (const skill of input.trending) {
       lines.push(`- ${skill.owner}/${skill.repo} ${skill.canonicalName}`)
       const description = trimDescription(skill.description)
@@ -734,8 +791,8 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
         lines.push(`  ${description}`)
       lines.push(`  ${trendingMeta(skill, now)}`)
       if (skill.evidence)
-        lines.push(`  "${trimQuote(skill.evidence.text)}" \u2014 @${skill.evidence.authorHandle} ${skill.evidence.url}`)
-      lines.push(`  ${skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName)}`)
+        lines.push(`  “${trimQuote(skill.evidence.text)}” from @${skill.evidence.authorHandle}: ${skill.evidence.url}`)
+      lines.push(`  Source: ${skill.sourceUrl ?? skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName)}`)
       lines.push('')
     }
     if (!input.trackedCount)

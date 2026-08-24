@@ -21,7 +21,8 @@ CREATE TABLE users (
   email TEXT,
   digest_email TEXT,
   email_opt_in INTEGER NOT NULL DEFAULT 0,
-  weekly_opt_out INTEGER NOT NULL DEFAULT 0
+  weekly_opt_out INTEGER NOT NULL DEFAULT 0,
+  name TEXT
 );
 CREATE TABLE activity (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +35,7 @@ CREATE TABLE activity (
 );
 CREATE TABLE skills (
   owner TEXT NOT NULL, repo TEXT NOT NULL, name TEXT NOT NULL,
-  slug TEXT NOT NULL, description TEXT,
+  slug TEXT NOT NULL, description TEXT, current_sha TEXT, rendered_skill_path TEXT,
   PRIMARY KEY (owner, repo, name)
 );
 CREATE TABLE repos (
@@ -61,6 +62,7 @@ CREATE TABLE weekly_runs (
   trending_count INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL CHECK (status IN ('claimed','sent','skipped','failed','uncertain')),
   provider_message_id TEXT,
+  provider_status TEXT,
   claimed_at INTEGER NOT NULL,
   sent_at INTEGER,
   error TEXT
@@ -91,6 +93,7 @@ describe('weekly delivery', () => {
     expect(second).toEqual({ _tag: 'already_claimed' })
     expect(send).toHaveBeenCalledTimes(1)
     expect(runRows()).toHaveLength(1)
+    expect(runRows()[0]).toMatchObject({ status: 'sent', provider_status: 'accepted' })
   })
 
   it('claims a different week separately', async () => {
@@ -109,7 +112,10 @@ describe('weekly delivery', () => {
   it('does not mail a week with nothing in it', async () => {
     const send = vi.fn()
 
-    const result = await runWeeklyForUser(deps({ send }), recipient(), delivery({ trending: [] }))
+    const result = await runWeeklyForUser(deps({
+      send,
+      select: async () => ({ likedChanges: [], likedOverflow: 0, trackedCount: 4 }),
+    }), recipient(), delivery())
 
     expect(result).toEqual({ _tag: 'skipped', reason: 'nothing_to_say' })
     expect(send).not.toHaveBeenCalled()
@@ -168,6 +174,7 @@ describe('weekly delivery', () => {
     sqlite.prepare(`INSERT INTO users (id, login, email, weekly_opt_out) VALUES (2, 'opted-out', 'b@example.com', 1)`).run()
     sqlite.prepare(`INSERT INTO users (id, login, email) VALUES (3, 'no-address', '   ')`).run()
     sqlite.prepare(`INSERT INTO users (id, login, email, digest_email) VALUES (4, 'verified-only', NULL, 'd@example.com')`).run()
+    sqlite.prepare(`INSERT INTO users (id, login, email, email_opt_in) VALUES (5, 'digest-enabled', 'e@example.com', 1)`).run()
 
     const recipients = await loadWeeklyRecipients(db)
 
@@ -190,8 +197,10 @@ describe('weekly selection', () => {
   afterEach(() => sqlite.close())
 
   function seedSkill(name: string) {
-    sqlite.prepare(`INSERT INTO skills (owner, repo, name, slug, description) VALUES ('antfu', 'skills', ?, ?, 'desc')`)
-      .run(name, name)
+    sqlite.prepare(`INSERT INTO skills (
+      owner, repo, name, slug, description, current_sha, rendered_skill_path
+    ) VALUES ('antfu', 'skills', ?, ?, 'desc', ?, ?)`)
+      .run(name, name, `current-${name}`, `${name}/SKILL.md`)
   }
 
   function like(name: string) {
@@ -291,7 +300,7 @@ describe('weekly selection', () => {
 })
 
 function recipient(overrides: Partial<WeeklyRecipient> = {}): WeeklyRecipient {
-  return { id: 1, login: 'harlan-zw', email: 'harlan@example.com', digest_email: null, ...overrides }
+  return { id: 1, login: 'harlan-zw', name: 'Harlan', email: 'harlan@example.com', digest_email: null, ...overrides }
 }
 
 function trendingSkill(): WeeklyTrendingSkill {
@@ -302,6 +311,7 @@ function trendingSkill(): WeeklyTrendingSkill {
     canonicalName: 'vitest',
     description: 'Testing conventions.',
     stars: 12_400,
+    sourceUrl: 'https://github.com/antfu/skills/blob/current/vitest/SKILL.md',
     reason: { _tag: 'named', authorCount: 3, mentionCount: 5 },
     evidence: null,
   }
@@ -324,7 +334,22 @@ function deps(overrides: Partial<WeeklyDeliveryDependencies>): WeeklyDeliveryDep
   return {
     db: activeDb,
     now: () => WINDOW_END,
-    select: selectWeeklyForUser,
+    select: async () => ({
+      likedChanges: [{
+        owner: 'antfu',
+        repo: 'skills',
+        name: 'vitest',
+        slug: 'vitest',
+        description: 'Testing conventions.',
+        changeCount: 1,
+        changedAt: WINDOW_END - 60,
+        commitMessages: ['Improve browser mode'],
+        sourceUrl: 'https://github.com/antfu/skills/blob/sha/vitest/SKILL.md',
+        changeUrl: 'https://github.com/antfu/skills/commit/sha',
+      }],
+      likedOverflow: 0,
+      trackedCount: 1,
+    }),
     render: renderWeekly,
     signUnsubscribe: async userId => `token-${userId}`,
     send: async () => ({ _tag: 'accepted', messageId: 'msg-1' }),
