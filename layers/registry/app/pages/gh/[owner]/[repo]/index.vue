@@ -18,7 +18,7 @@ const fetchRepoProfileOnServer = isBot.value
 const repoProfileFetch = useFetch<OrgProfile>(
   () => `/api/orgs/${sourceHub.value.owner}`,
   {
-    watch: [sourceHub],
+    watch: false,
     lazy: !fetchRepoProfileOnServer,
     immediate: fetchRepoProfileOnServer,
     server: fetchRepoProfileOnServer,
@@ -161,6 +161,9 @@ const repoSourceScanNotice = computed<string | null>(() => {
 const sourceSkillFiles = computed(() => repoSource.value?.skillFiles ?? [])
 
 const flatSkillName = computed<string | null>(() => {
+  if (repoSource.value?.routeTarget._tag === 'skill')
+    return repoSource.value.routeTarget.name
+
   if (repoSkills.value.length === 1)
     return repoSkills.value[0]?.name ?? null
 
@@ -218,9 +221,18 @@ const repoHubGithubUrl = computed(() => {
   return repoSource.value?.githubUrl ?? `https://github.com/${hub.owner}/${hub.repo}`
 })
 
-onMounted(() => {
-  refreshRepo()
-})
+const repoProfileRequested = ref<string | null>(null)
+watch([repoSourceStatus, flatSkillName], ([sourceStatus, skillName]) => {
+  const key = `${repoHub.value.owner}/${repoHub.value.repo}`.toLowerCase()
+  const sourceKey = repoSource.value
+    ? `${repoSource.value.owner}/${repoSource.value.repo}`.toLowerCase()
+    : null
+  const sourceSettled = sourceStatus === 'error' || (sourceStatus === 'success' && sourceKey === key)
+  if (import.meta.server || !sourceSettled || skillName || repoProfileRequested.value === key)
+    return
+  repoProfileRequested.value = key
+  void refreshRepo()
+}, { immediate: true })
 
 const siteOrigin = 'https://skilld.dev'
 const sourceHubCanonicalUrl = computed(() => {

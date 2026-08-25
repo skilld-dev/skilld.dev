@@ -117,20 +117,16 @@ interface DuplicateSkill {
   registryPath: string
 }
 
-const { data, status, error, refresh } = await useFetch(
+interface LiveSkill {
+  audits: SkillAudit[]
+  fetchedAt: string
+}
+
+const skillFetch = useFetch(
   () => `/api/skills/${slug.value}`,
   {
     watch: [slug],
     immediate: true,
-    // `content` (the unrendered markdown body) rides along in the API
-    // response but nothing here reads it — `contentHtml` is what renders.
-    // Dropping it before it enters Nuxt's hydration payload cuts ~100KB off
-    // every skill page (Nuxt SEO Pro flagged large SKILL.mds as
-    // payload-too-heavy).
-    transform: (input: { content: string | null } & Record<string, unknown>) => {
-      const { content: _content, ...rest } = input
-      return rest
-    },
   },
 ) as ReturnType<typeof useFetch<{
   contentHtml: string | null
@@ -209,11 +205,7 @@ const { data, status, error, refresh } = await useFetch(
   } | null
 }>>
 
-const legacySkillPath = repoSkillPath(owner.value, repo.value, name.value)
-if (data.value?.registryPath === repoHubPath(owner.value, repo.value) && useRoute().path === legacySkillPath)
-  await navigateTo(repoHubPath(owner.value, repo.value), { redirectCode: 301, replace: true })
-
-const { data: relatedData, refresh: refreshRelated } = await useFetch(
+const relatedFetch = useFetch(
   () => `/api/skill-related/${slug.value}`,
   { watch: [slug], immediate: true },
 ) as ReturnType<typeof useFetch<{
@@ -224,16 +216,7 @@ const { data: relatedData, refresh: refreshRelated } = await useFetch(
   semanticSiblings: NeighborSkill[]
 }>>
 
-watch(slug, () => {
-  refresh()
-  refreshRelated()
-})
-
-interface LiveSkill {
-  audits: SkillAudit[]
-  fetchedAt: string
-}
-const { data: liveSkill } = await useAsyncData<LiveSkill | null>(
+const liveSkillFetch = useAsyncData<LiveSkill | null>(
   () => `skill-live:${slug.value}`,
   () => $fetch<LiveSkill>(`/api/skill-live/${slug.value}`),
   {
@@ -241,6 +224,24 @@ const { data: liveSkill } = await useAsyncData<LiveSkill | null>(
     default: () => null,
   },
 )
+
+// Keep complete SSR for search and link previews. Client navigation renders
+// the loading state immediately while these independent requests run together.
+if (import.meta.server)
+  await Promise.all([skillFetch, relatedFetch, liveSkillFetch])
+
+const { data, status, error, refresh } = skillFetch
+const { data: relatedData } = relatedFetch
+const { data: liveSkill } = liveSkillFetch
+
+const legacySkillPath = computed(() => repoSkillPath(owner.value, repo.value, name.value))
+if (import.meta.server && data.value?.registryPath === repoHubPath(owner.value, repo.value) && useRoute().path === legacySkillPath.value)
+  await navigateTo(repoHubPath(owner.value, repo.value), { redirectCode: 301, replace: true })
+
+watch(data, async (skill) => {
+  if (import.meta.client && skill?.registryPath === repoHubPath(owner.value, repo.value) && useRoute().path === legacySkillPath.value)
+    await navigateTo(repoHubPath(owner.value, repo.value), { replace: true })
+}, { immediate: true })
 
 // A skill whose SKILL.md was deleted upstream still renders perfectly from the
 // cached copy, so nothing on the page told the reader it was gone. `sourceGone`

@@ -6,6 +6,7 @@ import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 const NOW_SEC = Math.floor(Date.now() / 1000)
 
 vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
+vi.stubGlobal('defineCachedEventHandler', (handler: unknown) => handler)
 vi.stubGlobal('createError', (input: Record<string, unknown>) => Object.assign(new Error(String(input.message)), input))
 vi.stubGlobal('getUserSession', () => Promise.resolve(null))
 let slug = ''
@@ -37,6 +38,7 @@ describe('skill detail registryPath', () => {
 
     expect(body.registryPath).toBe('/gh/ericzakariasson/scandinavian-design')
     expect(body).not.toHaveProperty('repoSkillCount')
+    expect(body).not.toHaveProperty('content')
   })
 })
 
