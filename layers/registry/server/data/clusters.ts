@@ -63,6 +63,11 @@
  * as pinnedExamples in the ranked order, one per author. `/skills/writing`
  * and `/skills/docs` 301 here. Anti-slop is dev-facing work: READMEs, docs,
  * and posts written with an agent.
+ *
+ * 2026-08-25: `anti-slop-coding` joined as the coding counterpart. Its seven
+ * pinned skills preserve the shared ranking and keep the page focused. It has
+ * no classifier backfill: broad code-review and refactoring results already
+ * have a category, and repeating them here would blur the promise.
  */
 
 export interface Cluster {
@@ -137,6 +142,31 @@ export const CLUSTERS: Cluster[] = [
       'mattpocock/improve-codebase-architecture',
       'mattpocock/domain-modeling',
       'anthropics/frontend-design',
+    ],
+  },
+  {
+    slug: 'anti-slop-coding',
+    label: 'Anti-slop coding',
+    icon: 'i-lucide-eraser',
+    userVoice: 'You want agent-written code cleaned before it reaches review.',
+    seoTitle: 'Claude Skills for Anti-Slop Coding',
+    seoDescription:
+      'Anti-slop coding skills for Claude Code, Cursor, and Codex. Review and remove AI-generated code slop without changing behavior, using seven ranked skills from their authors.',
+    curatorNote:
+      'Seven skills for reviewing and removing AI-generated code slop, kept in the order shared in the anti-slop coding list from August 2026.',
+    mergedFrom: null,
+    audience: 'dev',
+    categories: [],
+    pinnedExamples: [
+      'dmmulroy/install-anti-slop',
+      'cursor/thermo-nuclear-code-quality-review',
+      'brianlovin/deslop',
+      'cursor/deslop',
+      'davila7/deslop',
+      // Registry identity follows `docs/SKILL.md`; its frontmatter name
+      // (`desloppify`) renders as the display name.
+      'peteromallet/docs',
+      'asyrafhussin/code-slop',
     ],
   },
   {
