@@ -5,6 +5,12 @@ import { querySkills } from '../../layers/registry/server/utils/skills-registry'
 describe('skills registry unique owner browse', () => {
   it('returns each owner once using their highest ranked skill', async () => {
     const sqlite = new Database(':memory:')
+    let forbidSkillBodyRead = false
+    sqlite.function('forbid_skill_body_read', { deterministic: true }, (owner: string) => {
+      if (forbidSkillBodyRead)
+        throw new Error('skill listings must not read stored Markdown bodies')
+      return `# ${owner}`
+    })
     sqlite.exec(`
       CREATE TABLE repos (
         owner TEXT NOT NULL,
@@ -30,7 +36,7 @@ describe('skills registry unique owner browse', () => {
         trust_score INTEGER NOT NULL DEFAULT 0,
         modified_at INTEGER,
         first_seen_at INTEGER,
-        rendered_raw TEXT,
+        rendered_raw TEXT GENERATED ALWAYS AS (forbid_skill_body_read(owner)) VIRTUAL,
         source_resolved INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY (owner, repo, name)
       );
@@ -46,6 +52,7 @@ describe('skills registry unique owner browse', () => {
         -- Source deleted upstream: serves a 410 tombstone, listings skip it.
         ('gone', 'deleted-repo', 'ghost', 'Ghost', 'gone/deleted-repo/ghost', 99, 0);
     `)
+    forbidSkillBodyRead = true
 
     try {
       const result = await querySkills(eventFor(sqlite), {

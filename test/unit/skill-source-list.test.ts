@@ -7,6 +7,7 @@ import {
   HOMEPAGE_SKILL_LIMIT,
   HOMEPAGE_SKILLS_PER_PERSON,
   selectHomepagePersonSkills,
+  selectHomepageTrendingSkills,
 } from '../../app/utils/homepage-person-skills'
 
 describe('skill source list', () => {
@@ -44,6 +45,25 @@ describe('skill source list', () => {
 
   it('keeps the hero rail deep enough to scroll past the fold', () => {
     expect(HOMEPAGE_SKILL_LIMIT).toBeGreaterThanOrEqual(HOMEPAGE_RAIL_MINIMUM)
+  })
+
+  it('caps a dense trending feed before it reaches the hero stream', () => {
+    const items = Array.from({ length: 45 }, (_, index) => ({
+      ...homepagePersonSkillFallbacks[index % homepagePersonSkillFallbacks.length]!,
+      name: `trending-${index}`,
+      displayName: `Trending ${index}`,
+    }))
+
+    expect(selectHomepageTrendingSkills(items)).toEqual({
+      _tag: 'trending',
+      items: items.slice(0, HOMEPAGE_SKILL_LIMIT),
+    })
+  })
+
+  it('asks for fallback skills when the trending feed is thin', () => {
+    const items = homepagePersonSkillFallbacks.slice(0, HOMEPAGE_RAIL_MINIMUM - 1)
+
+    expect(selectHomepageTrendingSkills(items)).toEqual({ _tag: 'fallback' })
   })
 
   it('preserves a focused item until live data can replace it safely', async () => {

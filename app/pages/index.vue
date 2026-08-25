@@ -11,8 +11,8 @@ import WeeklyBand from '../components/WeeklyBand.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
   HOMEPAGE_PERSON_MINIMUM,
-  HOMEPAGE_RAIL_MINIMUM,
   selectHomepagePersonSkills,
+  selectHomepageTrendingSkills,
 } from '../utils/homepage-person-skills'
 
 const title = 'Curated agent skills by humans · skilld'
@@ -167,8 +167,6 @@ const { data: peopleSkillsData, execute: loadPeopleSkills } = await useFetch<Fea
   immediate: false,
 })
 
-onMounted(() => loadPeopleSkills())
-
 const fallbackPersonNamesByOwner = new Map<string, string>(
   homepagePersonSkillFallbacks.map(skill => [skill.owner, skill.maintainerName]),
 )
@@ -197,8 +195,8 @@ const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
  * The hero is the first thing anyone sees, so an empty or one-card rail there
  * is worse than showing the evergreen set.
  */
-const heroTrendingCards = computed<readonly SkillSourceItem[]>(() => {
-  const cards = trendingRepos.value.flatMap(repo =>
+const homepageTrendingSelection = computed(() => selectHomepageTrendingSkills(
+  trendingRepos.value.flatMap(repo =>
     repo.skills.map(skill => ({
       owner: repo.owner,
       repo: repo.repo,
@@ -208,11 +206,20 @@ const heroTrendingCards = computed<readonly SkillSourceItem[]>(() => {
       description: skill.description,
       context: trendingShareLabel(repo.authorCount),
     })),
-  )
-  return cards.length >= HOMEPAGE_RAIL_MINIMUM ? cards : heroSkillCards.value
+  ),
+))
+
+const heroTrendingCards = computed<readonly SkillSourceItem[]>(() => {
+  const selection = homepageTrendingSelection.value
+  return selection._tag === 'trending' ? selection.items : heroSkillCards.value
 })
 
-const heroShowsTrending = computed(() => heroTrendingCards.value !== heroSkillCards.value)
+const heroShowsTrending = computed(() => homepageTrendingSelection.value._tag === 'trending')
+
+onMounted(() => {
+  if (homepageTrendingSelection.value._tag === 'fallback')
+    void loadPeopleSkills()
+})
 
 function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
   return skill.name

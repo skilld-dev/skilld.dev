@@ -1,8 +1,8 @@
 import type { SkillSourceItem } from '../types/skill-source'
 import { formatGithubStars } from './github-stars'
 
-/** Ceiling on the hero rail; the stream scrolls, so more rows is more proof. */
-export const HOMEPAGE_SKILL_LIMIT = 30
+/** Ceiling on the hero rail; twenty rows fill the stream without ten extra avatars. */
+export const HOMEPAGE_SKILL_LIMIT = 20
 /** Below this the live data is too thin to beat the hand-picked fallbacks. */
 export const HOMEPAGE_RAIL_MINIMUM = 20
 export const HOMEPAGE_PERSON_MINIMUM = 10
@@ -23,6 +23,18 @@ export interface FeaturedPersonSection {
   repo: string
   displayName: string
   skills: FeaturedPersonSkill[]
+}
+
+export type HomepageTrendingSelection
+  = | { _tag: 'trending', items: readonly SkillSourceItem[] }
+    | { _tag: 'fallback' }
+
+export function selectHomepageTrendingSkills(
+  items: readonly SkillSourceItem[],
+): HomepageTrendingSelection {
+  return items.length >= HOMEPAGE_RAIL_MINIMUM
+    ? { _tag: 'trending', items: items.slice(0, HOMEPAGE_SKILL_LIMIT) }
+    : { _tag: 'fallback' }
 }
 
 interface PersonSkillBucket {
