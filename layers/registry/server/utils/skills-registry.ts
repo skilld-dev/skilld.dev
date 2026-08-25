@@ -17,9 +17,24 @@ import { SUPPORTED_SKILL_SQL } from './supported-sources'
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
 const FROM_SKILLS_JOIN_REPOS = `FROM skills s ${JOIN_REPOS_SQL}`
-// Selects every column SkillRow consumers expect. r.stars and r.pushed_at are
-// the only repo facts on SkillRow; the rest of `r.*` is unused but harmless.
-const SELECT_SKILL_ROW = 's.*, r.stars, r.pushed_at'
+const SELECT_SKILL_ROW = `
+  s.name,
+  s.owner,
+  s.repo,
+  s.display_name,
+  s.slug,
+  s.like_count,
+  s.description,
+  s.rendered_raw_sha256,
+  s.seo_index_score,
+  s.seo_indexable,
+  s.trust_tier,
+  s.trust_score,
+  s.modified_at,
+  s.first_seen_at,
+  r.stars,
+  r.pushed_at`
+const SELECT_SKILL_ROW_WITH_BODY = `${SELECT_SKILL_ROW}, s.rendered_raw`
 
 export interface RegistrySkill {
   name: string
@@ -65,7 +80,7 @@ interface SkillRow {
   pushed_at: number | null
   modified_at: number | null
   first_seen_at: number | null
-  rendered_raw: string | null
+  rendered_raw?: string | null
 }
 
 function rowToSkill(row: SkillRow): RegistrySkill {
@@ -96,7 +111,7 @@ function rowsToSkills(rows: SkillRow[], includeDependencies: boolean): RegistryS
     owner: row.owner,
     repo: row.repo,
     name: row.name,
-    raw: row.rendered_raw,
+    raw: row.rendered_raw ?? null,
   })))
   return rows.map(row => ({
     ...rowToSkill(row),
@@ -166,6 +181,7 @@ function firstSkillPerOwner<T extends { skill: { owner: string } }>(groups: T[])
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
   const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', uniqueOwners = false, page = 1, limit = 60, officialOwners, includeDependencies = false } = opts
+  const selectSkillRow = includeDependencies ? SELECT_SKILL_ROW_WITH_BODY : SELECT_SKILL_ROW
 
   // Listings exclude skills whose source is unresolved or deleted upstream
   // (`source_resolved = 0`): their detail pages serve 410 tombstones
@@ -257,7 +273,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   // candidates, so we fetch it whole and rank, collapse and page in JS.
   if (searchHits) {
     const rows = await db
-      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} ${where}`)
+      .prepare(`SELECT ${selectSkillRow} ${FROM_SKILLS_JOIN_REPOS} ${where}`)
       .bind(...params)
       .all<SkillRow>()
 
@@ -325,7 +341,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   const dataStmt = db
     .prepare(uniqueOwners
       ? `WITH ranked_skills AS (
-          SELECT ${SELECT_SKILL_ROW},
+          SELECT ${selectSkillRow},
             ROW_NUMBER() OVER (PARTITION BY s.owner ORDER BY ${orderBy}) AS owner_rank
           ${FROM_SKILLS_JOIN_REPOS}
           ${where}
@@ -334,7 +350,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
         WHERE owner_rank = 1
         ORDER BY ${rankedOrderBy}
         LIMIT ? OFFSET ?`
-      : `SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
+      : `SELECT ${selectSkillRow} ${FROM_SKILLS_JOIN_REPOS} ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
     .bind(...params, limit, offset)
 
   // Facets: top owners from filtered results

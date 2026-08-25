@@ -8,7 +8,7 @@ const officialOwners = new Set(officialRepos.map(r => r.owner))
 const skillPresenter = makeSkillPresenter(officialOwners)
 const ownerFacetPresenter = makeOwnerFacetPresenter(officialOwners)
 
-export default defineApiHandler({
+const skillsListHandler = defineApiHandler({
   schema: SkillsListQuery,
   handler: async ({ event, body }) => {
     const result = await querySkills(event, {
@@ -36,5 +36,18 @@ export default defineApiHandler({
       facets: { owners: result.facets.map(ownerFacetPresenter) },
       mode: result.mode,
     }
+  },
+})
+
+export default defineCachedEventHandler(skillsListHandler, {
+  maxAge: 60,
+  staleMaxAge: 60 * 5,
+  swr: true,
+  group: 'skills-list',
+  name: 'skills-list-v1',
+  getKey: (event) => {
+    const query = getRequestURL(event).searchParams
+    query.sort()
+    return query.toString() || 'default'
   },
 })

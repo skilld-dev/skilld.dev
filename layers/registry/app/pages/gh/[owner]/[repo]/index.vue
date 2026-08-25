@@ -2,6 +2,7 @@
 import type { OrgProfile } from '../../../../../server/api/orgs/[owner].get'
 import type { RepoSourceProfile } from '../../../../../server/api/repos/[owner]/[repo].get'
 import type { RepoHistoryResponse } from '../../../../../server/api/repos/[owner]/[repo]/history.get'
+import type { RepoRouteResolution } from '../../../../../server/api/repos/[owner]/[repo]/route-target.get'
 import { resolveMissingRepoRedirect } from '../../../../utils/missing-repo-recovery'
 import { parseRepoSkillSort, REPO_SKILL_SORT_OPTIONS, sortRepoSkills } from '../../../../utils/repo-skill-layout'
 import RepoSkillCard from './_RepoSkillCard.vue'
@@ -11,17 +12,36 @@ const route = useRoute()
 const owner = computed(() => String(route.params.owner ?? ''))
 const repo = computed(() => String(route.params.repo ?? ''))
 const repoHub = computed(() => ({ owner: owner.value, repo: repo.value }))
+const repoKey = computed(() => `${repoHub.value.owner}/${repoHub.value.repo}`.toLowerCase())
 const sourceHub = computed(() => repoHub.value)
 const { isBot } = useBotDetection()
-const fetchRepoProfileOnServer = isBot.value
+
+const repoRouteFetch = useFetch<RepoRouteResolution>(
+  () => `/api/repos/${repoHub.value.owner}/${repoHub.value.repo}/route-target`,
+  {
+    watch: [repoHub],
+    lazy: !isBot.value,
+    immediate: true,
+  },
+) as ReturnType<typeof useFetch<RepoRouteResolution>>
+if (isBot.value)
+  await repoRouteFetch
+const { data: repoRouteResolution, status: repoRouteStatus } = repoRouteFetch
+const repoRouteTarget = computed(() => {
+  const resolution = repoRouteResolution.value
+  if (!resolution || `${resolution.owner}/${resolution.repo}`.toLowerCase() !== repoKey.value)
+    return null
+  return resolution.target
+})
+const fetchRepoDetailsOnServer = isBot.value && repoRouteTarget.value?._tag !== 'skill'
 
 const repoProfileFetch = useFetch<OrgProfile>(
   () => `/api/orgs/${sourceHub.value.owner}`,
   {
     watch: false,
-    lazy: !fetchRepoProfileOnServer,
-    immediate: fetchRepoProfileOnServer,
-    server: fetchRepoProfileOnServer,
+    lazy: !fetchRepoDetailsOnServer,
+    immediate: fetchRepoDetailsOnServer,
+    server: fetchRepoDetailsOnServer,
   },
 ) as ReturnType<typeof useFetch<OrgProfile>>
 const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = repoProfileFetch
@@ -29,27 +49,33 @@ const { data: repoProfile, status: repoProfileStatus, refresh: refreshRepo } = r
 const repoSourceFetch = useFetch<RepoSourceProfile>(
   () => `/api/repos/${repoHub.value.owner}/${repoHub.value.repo}`,
   {
-    watch: [repoHub],
-    lazy: !isBot.value,
-    immediate: true,
+    watch: false,
+    lazy: !fetchRepoDetailsOnServer,
+    immediate: fetchRepoDetailsOnServer,
+    server: fetchRepoDetailsOnServer,
   },
 ) as ReturnType<typeof useFetch<RepoSourceProfile>>
-// Bots render blocking (see fetchRepoProfileOnServer above), so the fetch has
-// settled by the time setup() continues here. A confirmed-missing repo
+const { data: fetchedRepoSource, status: repoSourceStatus, error: repoSourceError, refresh: refreshRepoSource } = repoSourceFetch
+const repoSource = computed(() => {
+  const source = fetchedRepoSource.value
+  if (!source || `${source.owner}/${source.repo}`.toLowerCase() !== repoKey.value)
+    return null
+  return source
+})
+
+// Bots render blocking when this is a repository page. A confirmed-missing repo
 // (`/api/repos/.../....get.ts` throws 404 once GitHub itself says 404) was
 // rendering the "Source not found" card with a 200 status — a soft 404 that
 // let nonexistent owner/repo URLs (e.g. from stale tag/collection data) sit
 // in the index. Transient upstream failures don't throw there, so this only
 // fires for genuine not-found repos.
-if (fetchRepoProfileOnServer)
-  await repoSourceFetch
-const { data: repoSource, status: repoSourceStatus, error: repoSourceError, refresh: refreshRepoSource } = repoSourceFetch
-if (fetchRepoProfileOnServer && repoSourceError.value?.statusCode === 404) {
+if (fetchRepoDetailsOnServer)
+  await Promise.all([repoProfileFetch, repoSourceFetch])
+if (fetchRepoDetailsOnServer && repoSourceError.value?.statusCode === 404) {
   // Before the tombstone, check whether the repo segment is actually a skill
   // name. `/gh/<owner>/<skill>` is what an inbound link looks like when the
   // author drops the repository, and the owner profile above already carries
   // every skill this owner publishes, so the recovery costs no extra request.
-  await repoProfileFetch
   const recovery = resolveMissingRepoRedirect({
     owner: owner.value,
     repo: repo.value,
@@ -161,6 +187,9 @@ const repoSourceScanNotice = computed<string | null>(() => {
 const sourceSkillFiles = computed(() => repoSource.value?.skillFiles ?? [])
 
 const flatSkillName = computed<string | null>(() => {
+  if (repoRouteTarget.value?._tag === 'skill')
+    return repoRouteTarget.value.name
+
   if (repoSource.value?.routeTarget._tag === 'skill')
     return repoSource.value.routeTarget.name
 
@@ -178,6 +207,14 @@ const flatSkillName = computed<string | null>(() => {
   if (!name)
     return null
   return name === repoHub.value.repo ? name : null
+})
+
+const repoPageLoading = computed(() => {
+  if (repoRouteStatus.value === 'idle' || repoRouteStatus.value === 'pending')
+    return true
+  if (repoRouteTarget.value?._tag === 'skill')
+    return false
+  return !repoSource.value && (repoSourceStatus.value === 'idle' || repoSourceStatus.value === 'pending')
 })
 
 const sourceDefaultBranch = computed(() => repoSource.value?.defaultBranch ?? null)
@@ -221,9 +258,18 @@ const repoHubGithubUrl = computed(() => {
   return repoSource.value?.githubUrl ?? `https://github.com/${hub.owner}/${hub.repo}`
 })
 
+const repoSourceRequested = ref<string | null>(fetchRepoDetailsOnServer ? repoKey.value : null)
+watch([repoRouteStatus, repoRouteTarget, repoKey], ([routeStatus, routeTarget, key]) => {
+  const routeSettled = routeStatus === 'error' || (routeStatus === 'success' && routeTarget !== null)
+  if (import.meta.server || !routeSettled || routeTarget?._tag === 'skill' || repoSourceRequested.value === key)
+    return
+  repoSourceRequested.value = key
+  void refreshRepoSource()
+}, { immediate: true })
+
 const repoProfileRequested = ref<string | null>(null)
 watch([repoSourceStatus, flatSkillName], ([sourceStatus, skillName]) => {
-  const key = `${repoHub.value.owner}/${repoHub.value.repo}`.toLowerCase()
+  const key = repoKey.value
   const sourceKey = repoSource.value
     ? `${repoSource.value.owner}/${repoSource.value.repo}`.toLowerCase()
     : null
@@ -291,7 +337,7 @@ useHead(computed(() => ({
       </NuxtLink>
 
       <div
-        v-if="repoSourceStatus === 'pending' && !repoSource"
+        v-if="repoPageLoading"
         aria-busy="true"
         class="space-y-4"
       >

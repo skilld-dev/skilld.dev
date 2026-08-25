@@ -92,7 +92,7 @@ async function loadOwnerProfiles(owners: string[], db: D1Database): Promise<Map<
   return profiles
 }
 
-export default defineApiHandler({
+const featuredSkillsHandler = defineApiHandler({
   schema: FeaturedSkillsQuery,
   handler: async ({ event, body, platform }) => {
     const { orgs, perOrg, devs, perDev } = body
@@ -132,5 +132,18 @@ export default defineApiHandler({
     })
 
     return { sections: enriched, devSections: enrichedDevs }
+  },
+})
+
+export default defineCachedEventHandler(featuredSkillsHandler, {
+  maxAge: 60 * 5,
+  staleMaxAge: 60 * 15,
+  swr: true,
+  group: 'featured-skills',
+  name: 'featured-skills-v1',
+  getKey: (event) => {
+    const query = getRequestURL(event).searchParams
+    query.sort()
+    return query.toString() || 'default'
   },
 })
