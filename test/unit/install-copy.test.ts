@@ -1,8 +1,19 @@
-import { mountSuspended } from '@nuxt/test-utils/runtime'
+import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
+import { readBody } from 'h3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import { useInstallCopy } from '../../app/composables/useInstallCopy'
+
+const installEvents: Record<string, unknown>[] = []
+
+registerEndpoint('/api/events/install', {
+  method: 'POST',
+  handler: async (event) => {
+    installEvents.push(await readBody(event))
+    return { ok: true }
+  },
+})
 
 describe('install copy', () => {
   afterEach(() => {
@@ -27,7 +38,7 @@ describe('install copy', () => {
       configurable: true,
       value: execCommand,
     })
-    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue(undefined))
+    installEvents.length = 0
 
     try {
       expect('clipboard' in navigator).toBe(false)
@@ -38,6 +49,7 @@ describe('install copy', () => {
           const { copy } = useInstallCopy(
             'npx skilld add gh:antfu/skills',
             'test',
+            'install',
             { kind: 'skill', owner: 'antfu', name: 'skills' },
           )
 
@@ -55,6 +67,13 @@ describe('install copy', () => {
 
       expect(execCommand).toHaveBeenCalledWith('copy')
       expect(wrapper.get('button').attributes('data-result')).toBe('copied')
+      // The mode separates a run copy from an install copy in the ledger.
+      await vi.waitFor(() => {
+        expect(installEvents).toContainEqual(expect.objectContaining({
+          surface: 'test',
+          mode: 'install',
+        }))
+      })
     }
     finally {
       if (clipboardDescriptor)

@@ -289,6 +289,9 @@ const AUDIT_TONE_CLASS = {
 
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 
+// An agent with no terminal cannot run a command, so it needs the raw URL.
+const { copy: copyDocUrl, copied: docUrlCopied } = useClipboard({ legacy: true })
+
 // Running is the default: the agent reads the skill now and nothing lands in
 // the repository. Installing is the opt-in for a skill you want every session.
 const runCmd = computed(() => {
@@ -306,12 +309,14 @@ const installCmd = computed(() => {
 const { copy, copied } = useInstallCopy(
   runCmd,
   'skill-page-hero',
+  'run',
   () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
 )
 
 const { copy: copyInstall, copied: installCopied } = useInstallCopy(
   installCmd,
   'skill-page-install',
+  'install',
   () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
 )
 
@@ -689,16 +694,22 @@ useSchemaOrg(computed(() => {
       'offers': { '@type': 'Offer', 'price': '0', 'priceCurrency': 'USD' },
     }),
     defineHowTo({
-      '@id': `${skillPageUrl.value}#install`,
-      'name': `Install ${d.name} with skilld`,
-      'description': `Install the ${d.name} Claude Code skill for Cursor, Codex, and other agents.`,
+      '@id': `${skillPageUrl.value}#run`,
+      'name': `Run ${d.name} with skilld`,
+      'description': `Run the ${d.name} Claude Code skill in Cursor, Codex, and other agents. Installing is the opt-in second step.`,
       'totalTime': 'PT1M',
       'step': [
         {
           '@type': 'HowToStep',
-          'name': 'Run the skilld run command',
-          'text': gitInstallCmd(d.owner, d.repo, d.name),
-          'url': `${skillPageUrl.value}#install`,
+          'name': 'Run the skill',
+          'text': runCmd.value,
+          'url': `${skillPageUrl.value}#run`,
+        },
+        {
+          '@type': 'HowToStep',
+          'name': 'Keep the skill in every session',
+          'text': installCmd.value,
+          'url': `${skillPageUrl.value}#run`,
         },
       ],
     }),
@@ -1020,7 +1031,8 @@ useHead(computed(() => ({
     <template v-if="data && status !== 'pending'">
       <USeparator />
 
-      <div class="mx-auto max-w-5xl px-4 sm:px-6 pt-6 lg:hidden">
+      <!-- The rail copy of this block is a CSS-hidden twin, so only this one carries `id`. -->
+      <div id="run" class="mx-auto max-w-5xl px-4 sm:px-6 pt-6 lg:hidden">
         <h2 class="section-label mb-2">
           Run it
         </h2>
@@ -1065,12 +1077,22 @@ useHead(computed(() => ({
           </div>
           <div class="flex items-center justify-between gap-3">
             <AgentTargets class="min-w-0 flex-1" />
-            <a
-              :href="docUrl"
-              target="_blank"
-              rel="noopener"
-              class="inline-flex min-h-11 shrink-0 items-center font-mono text-xs text-muted transition-colors hover:brightness-125"
-            >Raw SKILL.md</a>
+            <div class="flex shrink-0 items-center gap-1">
+              <a
+                :href="docUrl"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex min-h-11 items-center font-mono text-xs text-muted transition-colors hover:brightness-125"
+              >Raw SKILL.md</a>
+              <UButton
+                :icon="docUrlCopied ? 'i-lucide-check' : 'i-lucide-link'"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :aria-label="docUrlCopied ? 'Copied' : 'Copy the raw SKILL.md URL'"
+                @click="() => { void copyDocUrl(docUrl) }"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -1441,12 +1463,22 @@ useHead(computed(() => ({
               </div>
               <div class="flex items-center justify-between gap-3">
                 <AgentTargets class="min-w-0 flex-1" />
-                <a
-                  :href="docUrl"
-                  target="_blank"
-                  rel="noopener"
-                  class="inline-flex min-h-11 shrink-0 items-center font-mono text-xs text-muted transition-colors hover:brightness-125"
-                >Raw SKILL.md</a>
+                <div class="flex shrink-0 items-center gap-1">
+                  <a
+                    :href="docUrl"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex min-h-11 items-center font-mono text-xs text-muted transition-colors hover:brightness-125"
+                  >Raw SKILL.md</a>
+                  <UButton
+                    :icon="docUrlCopied ? 'i-lucide-check' : 'i-lucide-link'"
+                    color="neutral"
+                    variant="ghost"
+                    size="xs"
+                    :aria-label="docUrlCopied ? 'Copied' : 'Copy the raw SKILL.md URL'"
+                    @click="() => { void copyDocUrl(docUrl) }"
+                  />
+                </div>
               </div>
             </div>
           </section>

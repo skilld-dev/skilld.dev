@@ -1,0 +1,169 @@
+import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { describe, expect, it, vi } from 'vitest'
+import { reactive, ref, toValue } from 'vue'
+
+const route = reactive({
+  path: '/gh/antfu/skills/vite',
+  query: {},
+  params: { owner: 'antfu', repo: 'skills', name: 'vite' },
+})
+
+const schemaNodes = vi.hoisted(() => ({ current: null as unknown }))
+
+mockNuxtImport('useRoute', () => () => route)
+mockNuxtImport('navigateTo', () => vi.fn())
+vi.stubGlobal('defineOgImage', () => {})
+mockNuxtImport('useSchemaOrg', () => (nodes: unknown) => {
+  schemaNodes.current = nodes
+})
+mockNuxtImport('useFetch', () => (url: unknown) => {
+  const key = typeof url === 'function' ? url() : url
+
+  if (typeof key === 'string' && key.startsWith('/api/skills/'))
+    return { data: ref(payload), status: ref('success'), error: ref(null), refresh: vi.fn() }
+  if (typeof key === 'string' && key.startsWith('/api/skill-related/')) {
+    return {
+      data: ref({ commits: [], relatedRepoSkills: [], relatedOwnerSkills: [], coOccurrenceSkills: [], semanticSiblings: [] }),
+      status: ref('success'),
+      error: ref(null),
+      refresh: vi.fn(),
+    }
+  }
+  return { data: ref(null), status: ref('success'), error: ref(null), refresh: vi.fn() }
+})
+
+const payload = {
+  owner: 'antfu',
+  repo: 'skills',
+  name: 'vite',
+  registryPath: '/gh/antfu/skills/vite',
+  displayName: 'Vite',
+  githubUrl: 'https://github.com/antfu/skills',
+  description: 'Vite configuration conventions.',
+  license: null,
+  stars: 12,
+  forks: 1,
+  pushedAt: '2026-08-01T00:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  maturity: null,
+  branch: 'main',
+  skillPath: 'skills/vite/SKILL.md',
+  resolutionStatus: 'ok',
+  sourceGone: false,
+  tier: 'community',
+  contentHtml: '<p>body</p>',
+  raw: null,
+  frontmatter: null,
+  assets: [],
+  assetCount: 0,
+  curators: [],
+  tags: [],
+  keywords: [],
+  likeCount: 0,
+  faqs: [],
+  summary: null,
+  sourceFacts: {
+    description: { present: true, length: 30, source: 'frontmatter' },
+    repository: {
+      pushedAt: '2026-08-01T00:00:00.000Z',
+      pushedAgeDays: 23,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      stars: 12,
+      forks: 1,
+      defaultBranch: 'main',
+    },
+    source: {
+      resolved: true,
+      gone: false,
+      resolutionStatus: 'ok',
+      skillPath: 'skills/vite/SKILL.md',
+      currentSha: 'abc',
+      hasCurrentSha: true,
+      latestRevisionSha: 'abc',
+      modifiedAt: null,
+      modifiedAgeDays: null,
+      referencesCount: 0,
+      lastSyncedAt: null,
+      lastSyncedAgeDays: null,
+      syncStatus: 'ok',
+    },
+    frontmatter: {
+      present: true,
+      keys: ['description', 'name'],
+      model: null,
+      allowedTools: [],
+      capabilityScopes: [],
+      mcpServers: [],
+    },
+  },
+  provenance: {
+    owner: 'antfu',
+    repo: 'skills',
+    branch: 'main',
+    skillPath: 'skills/vite/SKILL.md',
+    sourceCommitSha: 'abc',
+    sourceCommitUrl: 'https://github.com/antfu/skills/commit/abc',
+    skillFileUrl: null,
+    historyUrl: null,
+    modifiedAt: null,
+    referencesCount: 0,
+    lastSyncedAt: null,
+    syncStatus: 'ok',
+  },
+  seo: {
+    indexScore: 0,
+    indexable: false,
+    reasons: [],
+    syncedAt: null,
+    curatorCount: 0,
+    curatorReasonCount: 0,
+    approvedSocialCount: 0,
+    authorSocialCount: 0,
+  },
+  trust: { tier: 'untrusted', source: 'computed', score: 0, reasons: [], syncedAt: null },
+  duplicateGroup: null,
+}
+
+interface HowToNode {
+  '@id': string
+  'name': string
+  'step': { name: string, text: string, url: string }[]
+}
+
+function howToNode(): HowToNode {
+  const nodes = toValue(schemaNodes.current) as { '@id'?: string }[]
+  const howTo = nodes.find(node => node['@id']?.endsWith('#run'))
+  expect(howTo, 'HowTo node missing from the skill page structured data').toBeTruthy()
+  return howTo as unknown as HowToNode
+}
+
+describe('skillDetail HowTo structured data', () => {
+  it('publishes the run command the page leads with', async () => {
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
+    )
+
+    await vi.waitFor(() => {
+      expect(howToNode().step[0]!.text).toBe('npx skilld run skilld:antfu/skills/vite')
+    })
+
+    wrapper.unmount()
+  })
+
+  it('points the HowTo fragment at a section the page renders', async () => {
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
+    )
+
+    await vi.waitFor(() => {
+      const node = howToNode()
+      expect(node['@id']).toBe('https://skilld.dev/gh/antfu/skills/vite#run')
+      expect(node.step[0]!.url).toBe('https://skilld.dev/gh/antfu/skills/vite#run')
+      expect(wrapper.find('#run').exists()).toBe(true)
+    })
+
+    wrapper.unmount()
+  })
+})

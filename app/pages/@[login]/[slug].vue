@@ -25,7 +25,7 @@ const installTarget = computed(() => ({
   handle: login.value,
   slug: slug.value,
 }))
-const { copy, copied } = useInstallCopy(installCmd, 'collection-page', installTarget)
+const { copy, copied } = useInstallCopy(installCmd, 'collection-page', 'install', installTarget)
 
 useSeoMeta({
   // The global titleTemplate appends ` · skilld`; repeating it here produced

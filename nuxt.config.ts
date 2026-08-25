@@ -229,14 +229,14 @@ export default defineNuxtConfig({
     mcpServerCard: {
       name: 'dev.skilld/registry',
       title: 'skilld.dev discovery',
-      description: 'Search curated agent skills and generate install commands.',
+      description: 'Search curated agent skills and return run or install commands.',
       websiteUrl: 'https://skilld.dev',
     },
     agentSkills: {
       skills: [{
         source: 'local',
         name: 'skilld-registry',
-        description: 'Search skilld.dev and generate verified skill installation commands.',
+        description: 'Search skilld.dev and return verified commands to run or install a skill.',
         file: './skills/skilld-registry/SKILL.md',
       }],
     },
@@ -246,8 +246,8 @@ export default defineNuxtConfig({
     route: '/api/mcp',
     name: 'skilld.dev discovery',
     version: '1.0.0',
-    description: 'Discover curated agent skills with provenance and safe install-command handoff.',
-    instructions: 'Search first, inspect provenance before recommending a skill, then return an install command for the user to approve and run. This server never executes installs.',
+    description: 'Discover curated agent skills with provenance and a safe run or install command handoff.',
+    instructions: 'Search first, inspect provenance before recommending a skill, then return the run command for the user to approve and run. Offer the install command only when the user wants the skill in every session. This server never runs or installs anything.',
     sessions: false,
     browserRedirect: '/',
   },

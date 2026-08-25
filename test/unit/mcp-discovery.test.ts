@@ -249,6 +249,14 @@ describe('install_command', () => {
     expect((result.structuredContent as any).runCommand).toBeNull()
   })
 
+  it('keeps skilld run out of the note when the ref has no run command', async () => {
+    const multi = await runTool('install_command', { ref: 'gh:nuxt/nuxt' })
+    expect((multi.structuredContent as any).note).not.toContain('skilld run')
+
+    const single = await runTool('install_command', { ref: 'anthropics/skills/skill-creator' })
+    expect((single.structuredContent as any).note).toContain('skilld run')
+  })
+
   it('rejects unrecognized refs', async () => {
     const result = await runTool('install_command', { ref: 'not a ref!!' })
     expect(result).toMatchObject({ isError: true })

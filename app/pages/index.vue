@@ -248,6 +248,7 @@ const installTarget = computed<InstallTarget | null>(() => {
 const { copy: copyFeaturedInstall } = useInstallCopy(
   installCommand,
   'homepage-featured-collection',
+  'install',
   installTarget,
 )
 const copyState = refAutoReset<InstallCopyResult | { _tag: 'idle' }>({ _tag: 'idle' }, 2500)

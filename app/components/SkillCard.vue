@@ -45,6 +45,7 @@ const runCmd = computed(() => skillRunCmd(skill.owner, skill.repo, skill.name))
 const { copy, copied } = useInstallCopy(
   runCmd,
   variant === 'condensed' ? 'skill-card-condensed' : variant === 'list' ? 'skill-card-list' : 'skill-card',
+  'run',
   () => ({ kind: 'skill', owner: skill.owner, name: skill.name }),
 )
 

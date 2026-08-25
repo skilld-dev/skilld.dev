@@ -100,6 +100,30 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  // Skill detail mounts this twice, mobile and rail, and hides one with CSS
+  // only, so both live in the DOM at every breakpoint.
+  it('agentTargets keeps its ids unique when mounted twice', async () => {
+    const container = createIsolatedContainer()
+    const AgentTargets = await import('~/components/AgentTargets.vue').then(m => m.default)
+    const bothMounts = defineComponent({
+      setup: () => () => h('div', [h(AgentTargets), h(AgentTargets)]),
+    })
+    const wrapper = await mountSuspended(bothMounts, { attachTo: container })
+
+    const controls = [...container.querySelectorAll('[aria-controls]')]
+      .map(el => el.getAttribute('aria-controls'))
+    expect(new Set(controls).size).toBe(2)
+
+    // axe skips hidden nodes, so expand both lists before the scan.
+    for (const button of container.querySelectorAll('button'))
+      (button as HTMLButtonElement).click()
+    await nextTick()
+
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('likeButton has no violations when signed out', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -297,49 +321,60 @@ describe('accessibility: component coverage', () => {
     'OgLayout', // OG image layout component, rendered server-side only
     'SkillCard', // Tested at page level
     'SkillReceiptsBadge', // Tested at page level
-    'SkillReceiptsPanel', // Tested at page level
     'StatsBars', // Decorative chart, tested at page level
     'StatsHBar', // Decorative chart, tested at page level
     'StatsLeaderboard', // Tested at page level
-    'StatsScatter', // Decorative chart, tested at page level
     'UiTooltip', // Wrapper around UTooltip, exercised by parent components
   ]
 
-  it('all non-skipped components have a11y tests', async () => {
-    // This test ensures we don't forget to add a11y tests for new components
+  // Read from the `it()` blocks in this file, not from a second hand-kept
+  // list: deleting a component's axe test must fail this guard.
+  async function testedComponents(): Promise<Set<string>> {
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const source = fs.readFileSync(path.resolve(__dirname, 'a11y.spec.ts'), 'utf8')
+    const tested = new Set<string>()
+
+    for (const block of source.split(/\bit\(/).slice(1)) {
+      for (const match of block.matchAll(/components\/([\w.]+)\.vue/g))
+        tested.add(match[1]!)
+    }
+    return tested
+  }
+
+  it('derives its tested set from the axe tests in this file', async () => {
+    const tested = await testedComponents()
+    expect(tested.has('AgentTargets')).toBe(true)
+    expect(tested.has('SkillCard')).toBe(false)
+  })
+
+  it('covers every component with an axe test or a documented skip', async () => {
     const fs = await import('node:fs')
     const path = await import('node:path')
     const componentsDir = path.resolve(__dirname, '../app/components')
-
-    if (!fs.existsSync(componentsDir))
-      return
+    const tested = await testedComponents()
 
     const componentFiles = fs.readdirSync(componentsDir)
       .filter((f: string) => f.endsWith('.vue'))
       .map((f: string) => f.replace('.vue', ''))
 
-    const untestedComponents = componentFiles.filter(
-      (name: string) => !SKIPPED_COMPONENTS.includes(name),
-    )
-
-    // Each non-skipped component should have a corresponding test above
-    // If this test fails, add an axe-core test for the new component
-    for (const name of untestedComponents) {
+    for (const name of componentFiles) {
       expect(
-        SKIPPED_COMPONENTS.includes(name) || [
-          'AgentTargets',
-          'AppLogo',
-          'CompactPageHeader',
-          'InstallCommand',
-          'SkillSearchPanel',
-          'SkillSearchRepositoryModal.client',
-          'SkillSearchTrigger',
-          'SkillSourceList',
-          'SkillTable',
-          'WeeklyBand',
-        ].includes(name),
+        tested.has(name) || SKIPPED_COMPONENTS.includes(name),
         `Component "${name}" needs an accessibility test or should be added to SKIPPED_COMPONENTS with a reason`,
       ).toBe(true)
     }
+  })
+
+  it('keeps no skip for a component that no longer exists', async () => {
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const componentsDir = path.resolve(__dirname, '../app/components')
+    const componentFiles = new Set(fs.readdirSync(componentsDir)
+      .filter((f: string) => f.endsWith('.vue'))
+      .map((f: string) => f.replace('.vue', '')))
+
+    for (const name of SKIPPED_COMPONENTS)
+      expect(componentFiles.has(name), `SKIPPED_COMPONENTS lists "${name}", which no longer exists`).toBe(true)
   })
 })

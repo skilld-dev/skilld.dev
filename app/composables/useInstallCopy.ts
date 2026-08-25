@@ -19,17 +19,15 @@ export type InstallCopyResult
     | { _tag: 'error', message: string }
 
 /**
- * Which agent and mode the copy came from. Omitted by the plain copy button,
- * set by the agent setup picker.
+ * Which grammar the copied command speaks. Every surface knows this
+ * statically, so telemetry can separate a run copy from an install copy.
  */
-export interface InstallCopyContext {
-  agent: string
-  mode: 'project' | 'global' | 'once'
-}
+export type InstallCopyMode = 'run' | 'install'
 
 export function useInstallCopy(
   source: MaybeRefOrGetter<string>,
   surface: string,
+  mode: InstallCopyMode,
   target: MaybeRefOrGetter<InstallTarget | null>,
 ) {
   const { copy: rawCopy, copied, isSupported } = useClipboard({
@@ -38,7 +36,7 @@ export function useInstallCopy(
     legacy: true,
   })
 
-  async function copy(value?: string, context?: InstallCopyContext): Promise<InstallCopyResult> {
+  async function copy(value?: string): Promise<InstallCopyResult> {
     const t = toValue(target)
     if (!t)
       return { _tag: 'error', message: 'Install target unavailable.' }
@@ -60,11 +58,11 @@ export function useInstallCopy(
       method: 'POST',
       body: {
         surface,
+        mode,
         kind: t.kind,
         ...(t.kind === 'skill'
           ? { owner: t.owner, name: t.name }
           : { handle: t.handle, slug: t.slug }),
-        ...(context ?? {}),
       },
     }).catch((error) => {
       console.warn('[install-copy] Failed to record install event:', error)

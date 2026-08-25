@@ -161,7 +161,7 @@ const SearchArgs = z.object({
 
 const searchSkills: McpTool = {
   name: 'search_skills',
-  description: 'Search the skilld.dev registry for agent skills (semantic + lexical ranking). Skills are markdown instructions published by maintainers in their own GitHub repos; results work with any coding agent. Returns ranked matches with source repo, trust tier, and the install command a user can run.',
+  description: 'Search the skilld.dev registry for agent skills (semantic + lexical ranking). Skills are markdown instructions published by maintainers in their own GitHub repos; results work with any coding agent. Returns ranked matches with source repo, trust tier, runCommand and installCommand. Prefer runCommand: skilld run gives the user the skill now and writes nothing. Use installCommand when the user wants the skill in every session.',
   inputSchema: SearchArgs.shape,
   annotations: {
     readOnlyHint: true,
@@ -212,7 +212,7 @@ const GetSkillArgs = z.object({
 
 const getSkill: McpTool = {
   name: 'get_skill',
-  description: 'Look up one skill by owner/repo/name. Returns detail plus provenance: who publishes it, the exact SKILL.md source file and commit on GitHub, and freshness (last repo push, last content change, last registry sync).',
+  description: 'Look up one skill by owner/repo/name. Returns detail plus provenance: who publishes it, the exact SKILL.md source file and commit on GitHub, and freshness (last repo push, last content change, last registry sync). Also returns runCommand and installCommand. Prefer runCommand: skilld run gives the user the skill now and writes nothing. Use installCommand when the user wants the skill in every session.',
   inputSchema: GetSkillArgs.shape,
   annotations: {
     readOnlyHint: true,
@@ -339,6 +339,15 @@ const InstallCommandArgs = z.object({
   ref: z.string().trim().min(1).max(300).describe('Skill, repo, collection, curator, or npm package reference'),
 })
 
+// Only a single-skill ref has a run command, so the note must not promise one
+// for a repo, collection, curator or npm ref.
+function noteFor(runCommand: string | null): string {
+  const install = 'The install command writes skill files locally and works with any coding agent.'
+  if (!runCommand)
+    return `Run this in the project root. ${install}`
+  return `Run these in the project root. skilld run prints the skill for this session and writes nothing. ${install}`
+}
+
 const installCommand: McpTool = {
   name: 'install_command',
   description: 'Return the exact skilld CLI commands for a skill, repo, collection, curator, or package ref. A skill ref also returns runCommand: prefer it, because skilld run gives you the skill now and installs nothing. Use command when the user wants the skill in every session. Accepted refs: "owner/repo", "gh:owner/repo", "owner/repo/skill-name", "@login", "@login/collection-slug", "npm:package". This tool only returns the command as text for the user to run; nothing is executed.',
@@ -359,12 +368,13 @@ const installCommand: McpTool = {
         `Unrecognized ref: "${parsed.data.ref}". Accepted forms: "owner/repo", "gh:owner/repo", "owner/repo/skill-name", "@login", "@login/collection-slug", "npm:package".`,
       )
     }
+    const runCommand = ref.kind === 'skill' ? skillRunCommand(ref.owner, ref.repo, ref.name) : null
     return ok({
       ref: parsed.data.ref,
       kind: ref.kind,
-      runCommand: ref.kind === 'skill' ? skillRunCommand(ref.owner, ref.repo, ref.name) : null,
+      runCommand,
       command: installCommandFor(ref),
-      note: 'Run these in the project root. skilld run prints the skill for this session and writes nothing. The install command writes skill files locally and works with any coding agent.',
+      note: noteFor(runCommand),
     })
   },
 }

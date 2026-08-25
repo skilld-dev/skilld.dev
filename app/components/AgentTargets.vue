@@ -3,6 +3,9 @@
 // where it installed, so the only thing the site still knows that the CLI
 // output does not is how a user confirms the install landed.
 const open = ref(false)
+
+// Skill detail mounts this twice, so the list id must be unique per instance.
+const listId = useId()
 </script>
 
 <template>
@@ -11,7 +14,7 @@ const open = ref(false)
       type="button"
       class="min-h-11 font-mono text-xs text-muted transition-colors hover:brightness-125"
       :aria-expanded="open"
-      aria-controls="agent-targets-list"
+      :aria-controls="listId"
       @click="open = !open"
     >
       Check it worked
@@ -23,7 +26,7 @@ const open = ref(false)
     </button>
     <dl
       v-show="open"
-      id="agent-targets-list"
+      :id="listId"
       class="mt-2 space-y-1.5 text-xs"
     >
       <div v-for="agent in AGENT_TARGETS" :key="agent.id" class="flex gap-2">
