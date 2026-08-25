@@ -35,7 +35,7 @@ export const AGENT_TARGETS: readonly AgentTarget[] = [
   {
     id: 'codex',
     label: 'Codex',
-    icon: 'i-ri-openai-fill',
+    icon: 'i-simple-icons-openai',
     projectDir: '.agents/skills',
     globalDir: '~/.agents/skills',
     verify: 'Start a new Codex session. Skills are discovered at startup.',

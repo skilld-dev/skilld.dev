@@ -175,7 +175,7 @@ interface RepoSkillCountRow {
   skill_count: number
 }
 
-export default defineApiHandler({
+const skillDetailHandler = defineApiHandler({
   response: SkillDetailResponseSchema,
   handler: async ({ event, platform }) => {
     const slug = getRouterParam(event, 'slug')
@@ -336,7 +336,6 @@ export default defineApiHandler({
       branch,
       resolutionStatus: rendered.status,
       sourceGone,
-      content: rendered.body,
       contentHtml: rendered.html,
       dependencies: rendered.dependencies,
       frontmatter: rendered.frontmatter,
@@ -439,6 +438,18 @@ export default defineApiHandler({
       duplicateGroup,
     }
   },
+})
+
+// Skill detail data is public and changes only when indexing or social counts
+// update. Cache the assembled response so popular links do not repeat every D1
+// lookup and Markdown render for each reader.
+export default defineCachedEventHandler(skillDetailHandler, {
+  maxAge: 60,
+  staleMaxAge: 60 * 5,
+  swr: true,
+  group: 'skill-detail',
+  name: 'skill-detail-v1',
+  getKey: event => (getRouterParam(event, 'slug') ?? '').toLowerCase(),
 })
 
 interface RenderedView {
