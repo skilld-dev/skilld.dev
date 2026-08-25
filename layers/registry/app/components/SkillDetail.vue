@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { InstallTarget } from '~~/app/composables/useInstallCopy'
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
@@ -315,12 +314,6 @@ const { copy: copyInstall, copied: installCopied } = useInstallCopy(
   'skill-page-install',
   () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
 )
-
-const installTarget = computed<InstallTarget>(() => ({
-  kind: 'skill',
-  owner: data.value?.owner ?? '',
-  name: data.value?.name ?? '',
-}))
 
 // Pristine SKILL.md over HTTP, so an agent can read the skill without installing.
 const docUrl = computed(() => data.value
@@ -1048,7 +1041,7 @@ useHead(computed(() => ({
             />
           </div>
           <p class="text-sm text-muted">
-            Your agent reads the skill and follows it. Nothing lands in your repository.
+            Your agent reads the skill and follows it. Nothing is written to disk.
           </p>
           <div class="flex items-center gap-2 border-t border-default pt-3">
             <div class="min-w-0 flex-1">
@@ -1070,12 +1063,15 @@ useHead(computed(() => ({
               @click="copyInstall(installCmd)"
             />
           </div>
-          <AgentSetup
-            :command="installCmd"
-            :doc-url="docUrl"
-            :target="installTarget"
-            surface="skill-page-hero"
-          />
+          <div class="flex items-center justify-between gap-3">
+            <AgentTargets class="min-w-0 flex-1" />
+            <a
+              :href="docUrl"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex min-h-11 shrink-0 items-center font-mono text-xs text-muted transition-colors hover:brightness-125"
+            >Raw SKILL.md</a>
+          </div>
         </div>
       </div>
 
@@ -1421,7 +1417,7 @@ useHead(computed(() => ({
                 />
               </div>
               <p class="text-xs text-muted">
-                Your agent reads the skill and follows it. Nothing lands in your repository.
+                Your agent reads the skill and follows it. Nothing is written to disk.
               </p>
               <div class="flex items-center gap-2 border-t border-default pt-3">
                 <div class="min-w-0 flex-1">
@@ -1443,12 +1439,15 @@ useHead(computed(() => ({
                   @click="copyInstall(installCmd)"
                 />
               </div>
-              <AgentSetup
-                :command="installCmd"
-                :doc-url="docUrl"
-                :target="installTarget"
-                surface="skill-rail"
-              />
+              <div class="flex items-center justify-between gap-3">
+                <AgentTargets class="min-w-0 flex-1" />
+                <a
+                  :href="docUrl"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex min-h-11 shrink-0 items-center font-mono text-xs text-muted transition-colors hover:brightness-125"
+                >Raw SKILL.md</a>
+              </div>
             </div>
           </section>
 
