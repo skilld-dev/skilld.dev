@@ -1,5 +1,8 @@
 import type { AxeResults, RunOptions } from 'axe-core'
+import type { Component } from 'vue'
 import type { WeeklyDemoResponse } from '../../server/api/weekly/demo.get'
+import { readdirSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import axe from 'axe-core'
 import { defineComponent, h, nextTick, ref } from 'vue'
@@ -47,6 +50,25 @@ function formatViolations(results: AxeResults): string {
     .join('\n\n')
 }
 
+/**
+ * Every axe test loads its component through here, so the coverage guard at the
+ * end of this file reads what actually mounted.
+ *
+ * The guard used to split this file's own source on `it(`, which credited a
+ * skipped, commented-out, or `describe.skip` test to the component it named.
+ */
+const componentLoaders = import.meta.glob<{ default: Component }>('../app/components/**/*.vue')
+const testedComponents = new Set<string>()
+
+async function loadComponent(name: string): Promise<Component> {
+  const loader = componentLoaders[`../app/components/${name}.vue`]
+  if (!loader)
+    throw new Error(`No component at app/components/${name}.vue`)
+
+  testedComponents.add(name)
+  return (await loader()).default
+}
+
 // Cleanup containers after each test
 const containers: HTMLElement[] = []
 
@@ -66,7 +88,7 @@ describe('accessibility: components', () => {
   it('appLogo has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/AppLogo.vue').then(m => m.default),
+      await loadComponent('AppLogo'),
       { attachTo: container },
     )
     const results = await runAxe(container)
@@ -78,7 +100,7 @@ describe('accessibility: components', () => {
     const container = createIsolatedContainer()
     const command = 'npx skilld add gh:obra/superpowers -s brainstorming'
     const wrapper = await mountSuspended(
-      await import('~/components/InstallCommand.vue').then(m => m.default),
+      await loadComponent('InstallCommand'),
       { attachTo: container, props: { command } },
     )
     const results = await runAxe(container)
@@ -92,7 +114,7 @@ describe('accessibility: components', () => {
   it('agentTargets has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/AgentTargets.vue').then(m => m.default),
+      await loadComponent('AgentTargets'),
       { attachTo: container },
     )
     const results = await runAxe(container)
@@ -104,7 +126,7 @@ describe('accessibility: components', () => {
   // only, so both live in the DOM at every breakpoint.
   it('agentTargets keeps its ids unique when mounted twice', async () => {
     const container = createIsolatedContainer()
-    const AgentTargets = await import('~/components/AgentTargets.vue').then(m => m.default)
+    const AgentTargets = await loadComponent('AgentTargets')
     const bothMounts = defineComponent({
       setup: () => () => h('div', [h(AgentTargets), h(AgentTargets)]),
     })
@@ -146,7 +168,7 @@ describe('accessibility: components', () => {
   it('skillSourceList has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/SkillSourceList.vue').then(m => m.default),
+      await loadComponent('SkillSourceList'),
       {
         attachTo: container,
         props: {
@@ -170,7 +192,7 @@ describe('accessibility: components', () => {
   it('skillTable has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/SkillTable.vue').then(m => m.default),
+      await loadComponent('SkillTable'),
       {
         attachTo: container,
         props: {
@@ -196,7 +218,7 @@ describe('accessibility: components', () => {
   it('compactPageHeader has no violations with context and controls', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/CompactPageHeader.vue').then(m => m.default),
+      await loadComponent('CompactPageHeader'),
       {
         attachTo: container,
         props: {
@@ -221,7 +243,7 @@ describe('accessibility: components', () => {
   it('skillSearchPanel has no violations in its resting state', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/SkillSearchPanel.vue').then(m => m.default),
+      await loadComponent('SkillSearchPanel'),
       { attachTo: container },
     )
     const results = await runAxe(container)
@@ -235,7 +257,7 @@ describe('accessibility: components', () => {
   it('skillSearchTrigger has no violations while closed', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/SkillSearchTrigger.vue').then(m => m.default),
+      await loadComponent('SkillSearchTrigger'),
       { attachTo: container },
     )
 
@@ -253,7 +275,7 @@ describe('accessibility: components', () => {
   it('weeklyBand has no violations and hides the inbox preview from assistive tech', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('~/components/WeeklyBand.vue').then(m => m.default),
+      await loadComponent('WeeklyBand'),
       { attachTo: container },
     )
 
@@ -271,7 +293,7 @@ describe('accessibility: components', () => {
 
   it('skillSearchRepositoryModal has no violations while indexing', async () => {
     const container = createIsolatedContainer()
-    const Modal = await import('~/components/SkillSearchRepositoryModal.client.vue').then(m => m.default)
+    const Modal = await loadComponent('SkillSearchRepositoryModal.client')
     const modalStub = defineComponent({
       inheritAttrs: false,
       props: { open: Boolean },
@@ -309,6 +331,60 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
   })
+
+  it('collectionAvatar has no violations when the image fails', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('collections/_CollectionAvatar'),
+      { attachTo: container, props: { src: null, name: 'Design Engineering Essentials' } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('communityCreator has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('community/_CommunityCreator'),
+      {
+        attachTo: container,
+        props: {
+          creator: {
+            id: 1,
+            login: 'harlan-zw',
+            name: 'Harlan Wilton',
+            avatar: 'https://github.com/harlan-zw.png',
+            collectionCount: 3,
+            skillCount: 12,
+            featured: false,
+            activityAt: 1_700_000_000,
+            topCollection: {
+              authorLogin: 'harlan-zw',
+              slug: 'design-engineering-essentials',
+              name: 'Design Engineering Essentials',
+              preamble: 'The skills a design engineer reaches for daily.',
+              skillCount: 8,
+              skills: [{ owner: 'antfu', repo: 'skills', name: 'nuxt', displayName: 'Nuxt' }],
+              updatedAt: 1_700_000_000,
+            },
+            topSkill: {
+              owner: 'antfu',
+              repo: 'skills',
+              name: 'nuxt',
+              displayName: 'Nuxt',
+              description: 'Build full-stack Vue applications.',
+              stars: 1200,
+              modifiedAt: 1_700_000_000,
+            },
+          },
+        },
+      },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
 })
 
 describe('accessibility: component coverage', () => {
@@ -327,54 +403,44 @@ describe('accessibility: component coverage', () => {
     'UiTooltip', // Wrapper around UTooltip, exercised by parent components
   ]
 
-  // Read from the `it()` blocks in this file, not from a second hand-kept
-  // list: deleting a component's axe test must fail this guard.
-  async function testedComponents(): Promise<Set<string>> {
-    const fs = await import('node:fs')
-    const path = await import('node:path')
-    const source = fs.readFileSync(path.resolve(__dirname, 'a11y.spec.ts'), 'utf8')
-    const tested = new Set<string>()
+  /**
+   * `.takumi.vue` components are rendered by the OG image renderer into a
+   * picture, never into a browser DOM, so axe has no tree to scan. Underscore
+   * prefixes only keep a component out of Nuxt auto-imports, so those stay in
+   * scope and need a test.
+   */
+  const OG_IMAGE_SUFFIX = '.takumi.vue'
 
-    for (const block of source.split(/\bit\(/).slice(1)) {
-      for (const match of block.matchAll(/components\/([\w.]+)\.vue/g))
-        tested.add(match[1]!)
-    }
-    return tested
+  function componentNames(): string[] {
+    const componentsDir = resolve(__dirname, '../app/components')
+    return readdirSync(componentsDir, { recursive: true })
+      .map(entry => String(entry).replaceAll('\\', '/'))
+      .filter(file => file.endsWith('.vue') && !file.endsWith(OG_IMAGE_SUFFIX))
+      .map(file => file.slice(0, -'.vue'.length))
   }
 
-  it('derives its tested set from the axe tests in this file', async () => {
-    const tested = await testedComponents()
-    expect(tested.has('AgentTargets')).toBe(true)
-    expect(tested.has('SkillCard')).toBe(false)
+  it('records only the components an axe test actually mounted', () => {
+    expect([...testedComponents]).toContain('AgentTargets')
+    expect([...testedComponents]).not.toContain('SkillCard')
   })
 
-  it('covers every component with an axe test or a documented skip', async () => {
-    const fs = await import('node:fs')
-    const path = await import('node:path')
-    const componentsDir = path.resolve(__dirname, '../app/components')
-    const tested = await testedComponents()
-
-    const componentFiles = fs.readdirSync(componentsDir)
-      .filter((f: string) => f.endsWith('.vue'))
-      .map((f: string) => f.replace('.vue', ''))
-
-    for (const name of componentFiles) {
+  it('covers every component with an axe test or a documented skip', () => {
+    for (const name of componentNames()) {
       expect(
-        tested.has(name) || SKIPPED_COMPONENTS.includes(name),
+        testedComponents.has(name) || SKIPPED_COMPONENTS.includes(name),
         `Component "${name}" needs an accessibility test or should be added to SKIPPED_COMPONENTS with a reason`,
       ).toBe(true)
     }
   })
 
-  it('keeps no skip for a component that no longer exists', async () => {
-    const fs = await import('node:fs')
-    const path = await import('node:path')
-    const componentsDir = path.resolve(__dirname, '../app/components')
-    const componentFiles = new Set(fs.readdirSync(componentsDir)
-      .filter((f: string) => f.endsWith('.vue'))
-      .map((f: string) => f.replace('.vue', '')))
+  it('keeps no skip for a component that no longer exists', () => {
+    const names = new Set(componentNames())
 
     for (const name of SKIPPED_COMPONENTS)
-      expect(componentFiles.has(name), `SKIPPED_COMPONENTS lists "${name}", which no longer exists`).toBe(true)
+      expect(names.has(name), `SKIPPED_COMPONENTS lists "${name}", which no longer exists`).toBe(true)
+  })
+
+  it('finds the components in subdirectories too', () => {
+    expect(componentNames()).toContain('community/_CommunityCreator')
   })
 })

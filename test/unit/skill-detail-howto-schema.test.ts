@@ -1,4 +1,6 @@
-import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
+import { flushPromises } from '@vue/test-utils'
+import { readBody } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 import { reactive, ref, toValue } from 'vue'
 
@@ -9,6 +11,16 @@ const route = reactive({
 })
 
 const schemaNodes = vi.hoisted(() => ({ current: null as unknown }))
+
+const installEvents: Record<string, unknown>[] = []
+
+registerEndpoint('/api/events/install', {
+  method: 'POST',
+  handler: async (event) => {
+    installEvents.push(await readBody(event))
+    return { ok: true }
+  },
+})
 
 mockNuxtImport('useRoute', () => () => route)
 mockNuxtImport('navigateTo', () => vi.fn())
@@ -161,9 +173,50 @@ describe('skillDetail HowTo structured data', () => {
       const node = howToNode()
       expect(node['@id']).toBe('https://skilld.dev/gh/antfu/skills/vite#run')
       expect(node.step[0]!.url).toBe('https://skilld.dev/gh/antfu/skills/vite#run')
-      expect(wrapper.find('#run').exists()).toBe(true)
+      // `find` returns the first match, so it cannot see a duplicate id come back.
+      expect(wrapper.findAll('#run')).toHaveLength(1)
     })
 
     wrapper.unmount()
+  })
+})
+
+describe('skillDetail run copy telemetry', () => {
+  it('records the hero copy as mode run', async () => {
+    // vueuse falls back to execCommand when clipboard-write is not granted.
+    const execCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand')
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => true),
+    })
+    installEvents.length = 0
+
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
+    )
+
+    const copyButton = await vi.waitFor(() => {
+      const button = wrapper.findAll('button')
+        .find(candidate => candidate.attributes('aria-label') === 'Copy run command')
+      expect(button, 'skill detail is missing its run copy button').toBeTruthy()
+      return button!
+    })
+
+    await copyButton.trigger('click')
+    await flushPromises()
+
+    await vi.waitFor(() => {
+      expect(installEvents).toContainEqual(expect.objectContaining({
+        surface: 'skill-page-hero',
+        mode: 'run',
+      }))
+    })
+
+    wrapper.unmount()
+    if (execCommandDescriptor)
+      Object.defineProperty(document, 'execCommand', execCommandDescriptor)
+    else
+      Reflect.deleteProperty(document, 'execCommand')
   })
 })

@@ -39,6 +39,7 @@
     "cron:docs:check": "tsx scripts/generate-cron-docs.ts --check",
     "cron:parity": "tsx scripts/check-schedule-parity.ts",
     "design:eyebrows": "tsx scripts/check-eyebrows.ts",
+    "cli:grammar": "tsx scripts/check-published-cli-grammar.ts",
     "start:playwright:webserver": "NODE_ENV=test nuxi preview --port 5678",
     "db:migrations:dev": "wrangler d1 migrations apply DB --local",
     "db:migrations:prod": "wrangler d1 migrations apply DB --remote"

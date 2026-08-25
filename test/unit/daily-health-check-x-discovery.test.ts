@@ -16,7 +16,7 @@ function healthy(
     frontDoor: { checks: [{ url: 'https://skilld.dev/', status: 200 }] },
     trendingSkills: { checks: [] },
     inventory: { skills: 100, repos: 10, owners: 5, users: 5, collections: 3, watchedRepos: 1, brokenRepos: 0 },
-    activity: { newSkills24h: 1, repoChanges24h: 1, installEvents24h: 1, newUsers24h: 0, digestsSent24h: 0, digestsFailed24h: 0 },
+    activity: { newSkills24h: 1, repoChanges24h: 1, commandCopies24h: { run: 1, install: 0, unattributed: 0 }, newUsers24h: 0, digestsSent24h: 0, digestsFailed24h: 0 },
     pipeline: {
       syncJobs: [],
       scheduledRuns: [],

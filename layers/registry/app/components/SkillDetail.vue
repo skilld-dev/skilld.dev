@@ -1031,8 +1031,9 @@ useHead(computed(() => ({
     <template v-if="data && status !== 'pending'">
       <USeparator />
 
-      <!-- The rail copy of this block is a CSS-hidden twin, so only this one carries `id`. -->
-      <div id="run" class="mx-auto max-w-5xl px-4 sm:px-6 pt-6 lg:hidden">
+      <!-- The two "Run it" blocks are breakpoint twins, so neither can hold the anchor. -->
+      <div id="run" class="scroll-mt-24" />
+      <div class="mx-auto max-w-5xl px-4 sm:px-6 pt-6 lg:hidden">
         <h2 class="section-label mb-2">
           Run it
         </h2>
@@ -1414,10 +1415,10 @@ useHead(computed(() => ({
         >
           <section
             class="hidden lg:block"
-            aria-labelledby="rail-install-heading"
+            aria-labelledby="rail-run-heading"
           >
             <h2
-              id="rail-install-heading"
+              id="rail-run-heading"
               class="section-label mb-2"
             >
               Run it
