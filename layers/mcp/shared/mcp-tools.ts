@@ -4,6 +4,7 @@ import {
   installCommandFor,
   parseInstallRef,
   repoInstallCommand,
+  skillRunCommand,
 } from './mcp-install-command'
 
 const SITE = 'https://skilld.dev'
@@ -192,6 +193,7 @@ const searchSkills: McpTool = {
           trustTier: s.trustTier,
           official: s.official,
           url: `${SITE}/gh/${s.owner}/${s.repo}/${s.name}`,
+          runCommand: skillRunCommand(s.owner, s.repo, s.name),
           installCommand: repoInstallCommand(s.owner, s.repo, s.name),
         })),
       })
@@ -244,6 +246,7 @@ const getSkill: McpTool = {
           reasons: s.trust.reasons.slice(0, 10).map(reason => truncate(reason, 500)),
         },
         url: `${SITE}/gh/${s.owner}/${s.repo}/${s.name}`,
+        runCommand: skillRunCommand(s.owner, s.repo, s.name),
         installCommand: repoInstallCommand(s.owner, s.repo, s.name),
         provenance: {
           author: s.provenance.owner,
@@ -319,6 +322,7 @@ const getCollection: McpTool = {
           displayName: s.displayName,
           reason: truncate(s.reason, 1_000),
           url: s.name ? `${SITE}/gh/${s.owner}/${s.repo}/${s.name}` : `${SITE}/gh/${s.owner}/${s.repo}`,
+          runCommand: s.name ? skillRunCommand(s.owner, s.repo, s.name) : null,
           installCommand: repoInstallCommand(s.owner, s.repo, s.name ?? undefined),
         })),
       })
@@ -337,7 +341,7 @@ const InstallCommandArgs = z.object({
 
 const installCommand: McpTool = {
   name: 'install_command',
-  description: 'Return the exact skilld CLI command that installs a skill, repo, collection, curator, or package ref. Accepted refs: "owner/repo", "gh:owner/repo", "owner/repo/skill-name", "@login", "@login/collection-slug", "npm:package". This tool only returns the command as text for the user to run; nothing is executed.',
+  description: 'Return the exact skilld CLI commands for a skill, repo, collection, curator, or package ref. A skill ref also returns runCommand: prefer it, because skilld run gives you the skill now and installs nothing. Use command when the user wants the skill in every session. Accepted refs: "owner/repo", "gh:owner/repo", "owner/repo/skill-name", "@login", "@login/collection-slug", "npm:package". This tool only returns the command as text for the user to run; nothing is executed.',
   inputSchema: InstallCommandArgs.shape,
   annotations: {
     readOnlyHint: true,
@@ -358,8 +362,9 @@ const installCommand: McpTool = {
     return ok({
       ref: parsed.data.ref,
       kind: ref.kind,
+      runCommand: ref.kind === 'skill' ? skillRunCommand(ref.owner, ref.repo, ref.name) : null,
       command: installCommandFor(ref),
-      note: 'Run this in the project root. It installs skill files locally and works with any coding agent.',
+      note: 'Run these in the project root. skilld run prints the skill for this session and writes nothing. The install command writes skill files locally and works with any coding agent.',
     })
   },
 }

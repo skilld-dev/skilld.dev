@@ -40,9 +40,10 @@ const {
   timestampFormat?: 'absolute' | 'relative'
 }>()
 
-const installCmd = computed(() => gitInstallCmd(skill.owner, skill.repo, skill.name))
+// The card copies the run command: reading a skill costs nothing, installing is a choice.
+const runCmd = computed(() => skillRunCmd(skill.owner, skill.repo, skill.name))
 const { copy, copied } = useInstallCopy(
-  installCmd,
+  runCmd,
   variant === 'condensed' ? 'skill-card-condensed' : variant === 'list' ? 'skill-card-list' : 'skill-card',
   () => ({ kind: 'skill', owner: skill.owner, name: skill.name }),
 )
@@ -320,8 +321,8 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
         color="neutral"
         variant="ghost"
         class="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-        :aria-label="copied ? 'Copied' : `Copy install command for /${skill.name}`"
-        @click.stop.prevent="copy(installCmd)"
+        :aria-label="copied ? 'Copied' : `Copy run command for /${skill.name}`"
+        @click.stop.prevent="copy(runCmd)"
       />
     </div>
   </div>

@@ -7,9 +7,20 @@ last-reviewed: 2026-08-04
 
 # Roadmap
 
-Three horizons, worked in order. "Now" ships before "Next" starts in earnest.
+Four horizons, worked in order. "Now" ships before "Next" starts in earnest.
 
-## Now — Integrity sprint
+## Now — Transient by default
+
+A Skill is knowledge, not a dependency. Running one costs nothing, so running is the default and installing is the opt-in. VISION principle 3 changed with it: zero friction before *use*, not before install.
+
+1. **`skilld run` in the CLI.** Shipped. `skilld run <SOURCE>` resolves a Skill through the same Artifact path `skilld install` uses, writes the files to a content addressed run cache, and prints the SKILL.md with its provenance, its supporting file paths, and the commands that follow. It writes no lockfile entry, no Agent target, and no project file. *(Loop 1, principle 3.)*
+2. **Skill surfaces lead with the run command.** Shipped. `SkillCard` copies the run command. Skill detail leads with "Run it" and keeps the install command under it as "Keep it in every session". The MCP `get_skill`, `search_skills`, and `install_command` tools answer with `runCommand` beside `installCommand`. *(Loop 1, principle 3.)*
+3. **Release gate: promote skilld 3.x to npm `latest`.** Blocking. npm `latest` is 2.3.0, whose grammar is `skilld add gh:owner/repo`. The v3 grammar the site now prints (`skilld run skilld:owner/repo/skill`) fails against 2.3.0, so the site change and the CLI release ship together or the copy button hands out a broken command.
+4. **Run grammar for a collection, a curator, and a repository.** Not started, and the reason the site still prints `skilld add @login/slug` on the homepage, collection pages, and owner pages. v3 has no selector for a ref that names more than one Skill, so those surfaces cannot lead with a run command yet. Needs a CLI selector plus the skilld.dev API contract behind it. Until it lands the site prints two grammars, which is a defect with a dated owner, not a decision.
+
+**Done when:** a first-time visitor copies one command, gets the Skill in their Agent, and has written nothing to disk; and every command the site prints works against npm `latest`.
+
+## Next — Integrity sprint
 
 Make the shipped product match VISION before pushing growth. SEO recovery is pending recrawl and the trust story requires honest surfaces first. Each item lands with its own proof (test, screenshot, or typecheck).
 
@@ -23,7 +34,7 @@ Make the shipped product match VISION before pushing growth. SEO recovery is pen
 
 **Done when:** no surface contradicts a VISION principle without a dated exception, and GSC shows the guides cull and ranking swap did not regress indexed skill/repo pages.
 
-## Next — Curation authority
+## Later — Curation authority
 
 The beachhead push (VISION north-star user). Curation is the claim; this horizon makes it visible.
 
@@ -35,7 +46,7 @@ The beachhead push (VISION north-star user). Curation is the claim; this horizon
 
 **Done when:** a first-time visitor can tell within one viewport why this registry is curated and by whom.
 
-## Later — Agent-native access + watch evidence
+## Beyond — Agent-native access + watch evidence
 
 - **Discovery MCP server** at `/api/mcp`: search, skill/collection lookup, install-command handoff. Small surface on Workers next to the registry. Earns MCP-registry listings as a Loop 1 channel. Explicitly not an execution layer (principle 5).
 - **Digest instrumentation.** Opens, clicks, forwards, unsubscribe rates; watch-funnel conversion (visitor → sign-in → watching → digest received). This is the evidence bar VISION principle 4 points at.
@@ -58,4 +69,5 @@ The beachhead push (VISION north-star user). Curation is the claim; this horizon
 /skills, /skills/trending, /skills/stats, /community   browse + showcase surfaces
 ```
 
-Install commands: `npx skilld add gh:owner/repo`, `skilld add @login`, `skilld add @login/collection`.
+Skill commands: `npx skilld run skilld:owner/repo/skill` (default), `npx skilld install skilld:owner/repo/skill` (opt-in).
+Collection and curator commands still print the v2 grammar (`skilld add @login`, `skilld add @login/collection`) until the run selector in "Now" item 4 lands.
