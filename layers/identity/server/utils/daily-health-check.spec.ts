@@ -480,10 +480,20 @@ describe('cronPeriodSeconds', () => {
     expect(cronPeriodSeconds('0 9 * * 1')).toBe(7 * 24 * 60 * 60)
   })
 
+  it('reads a weekly period from a named day of week', () => {
+    // `send-weekly` is declared as `0 9 * * MON`, not `0 9 * * 1`. The numeric
+    // form was the only one modelled, so the real task fell to the 3-hour
+    // fallback and the operator report was RED on it every day.
+    expect(cronPeriodSeconds('0 9 * * MON')).toBe(7 * 24 * 60 * 60)
+    expect(cronPeriodSeconds('0 9 * * sun')).toBe(7 * 24 * 60 * 60)
+  })
+
   it('returns null for shapes it does not model, so the caller falls back', () => {
     expect(cronPeriodSeconds('0 0 1 * *')).toBeNull()
     expect(cronPeriodSeconds('*/5 */2 * * *')).toBeNull()
     expect(cronPeriodSeconds('0 0 * *')).toBeNull()
+    expect(cronPeriodSeconds('0 9 * * MON-FRI')).toBeNull()
+    expect(cronPeriodSeconds('0 9 * * XYZ')).toBeNull()
     expect(cronPeriodSeconds('')).toBeNull()
   })
 })

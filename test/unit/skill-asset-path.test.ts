@@ -11,6 +11,19 @@ describe('skill asset path normalization', () => {
     })).toBe('PKG-CONVENTIONS.md')
   })
 
+  it('collapses a duplicated prefix that kept the upstream repository casing', () => {
+    // The route segments are the lowercase registry slug, while the stale link
+    // carried GitHub's own casing. An exact comparison missed that, so the
+    // whole `/gh/.../-/` prefix stayed in the upstream path and every fetch
+    // 502'd as `Could not fetch asset`.
+    expect(normalizeSkillAssetFilePath({
+      owner: 'microsoft',
+      repo: 'github-copilot-for-azure',
+      name: 'markdown-token-optimizer',
+      filePath: 'gh/microsoft/GitHub-Copilot-for-Azure/markdown-token-optimizer/-/references/ANTI-PATTERNS.md',
+    })).toBe('references/ANTI-PATTERNS.md')
+  })
+
   it('leaves legitimate nested files unchanged', () => {
     expect(normalizeSkillAssetFilePath({
       owner: 'acme',
