@@ -4,9 +4,11 @@ import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findSkill } from '../../utils/skills-registry'
+import { fetchUpstreamText } from '../../utils/upstream-text'
 
 const ASSET_CACHE_TTL = 60 * 60 * 24 * 7
 const ASSET_MISSING_TTL = 60 * 60
+const ASSET_RETRY_AFTER = 30
 
 interface AssetCache {
   status: 'ok' | 'missing'
@@ -123,10 +125,12 @@ export default defineApiHandler({
     }
 
     // Resolve the skill directory by re-finding the SKILL.md path.
+    let treeUnavailable = false
     const treeRes = await $fetch<{ files?: { path: string }[] }>(
       `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
     ).catch(() => {
       emitOperationalEvent(createWideEvent({ operation: 'skill-asset-tree-fetch', outcome: 'failed' }))
+      treeUnavailable = true
       return null
     })
     const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -137,6 +141,12 @@ export default defineApiHandler({
     )?.path
 
     if (!skillMdPath) {
+      // A tree-listing outage must not leave a "missing" marker behind, or the
+      // asset reads as deleted for the rest of the cache window.
+      if (treeUnavailable) {
+        setHeader(event, 'retry-after', ASSET_RETRY_AFTER)
+        throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
+      }
       await writeCache(useStorage('cache'), cacheKey, {
         status: 'missing',
         raw: null,
@@ -152,12 +162,10 @@ export default defineApiHandler({
     const skillDir = skillMdPath.replace(/\/SKILL\.md$/, '')
     const fullPath = `${skillDir}/${filePath}`
     const rawUrl = `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${branch}/${fullPath}`
-    const raw = await $fetch<string>(rawUrl, { responseType: 'text' }).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-asset-fetch', outcome: 'failed' }))
-      return null
-    })
+    const upstream = await fetchUpstreamText(rawUrl)
 
-    if (raw === null) {
+    if (upstream._tag === 'missing') {
+      emitOperationalEvent(createWideEvent({ 'operation': 'skill-asset-fetch', 'outcome': 'missing', 'upstream.status': upstream.status }))
       await writeCache(useStorage('cache'), cacheKey, {
         status: 'missing',
         raw: null,
@@ -167,8 +175,18 @@ export default defineApiHandler({
         branch,
         skillPath: skillMdPath,
       } satisfies AssetCache, { ttl: ASSET_MISSING_TTL })
-      throw createError({ statusCode: 502, message: 'Could not fetch asset' })
+      throw createError({ statusCode: 404, message: 'Asset not found in repository' })
     }
+
+    if (upstream._tag === 'unavailable') {
+      // A GitHub outage must not leave a "missing" marker behind, or the asset
+      // reads as deleted for the rest of the cache window.
+      emitOperationalEvent(createWideEvent({ 'operation': 'skill-asset-fetch', 'outcome': 'failed', 'upstream.status': upstream.status ?? 0, 'attempt': upstream.attempts }))
+      setHeader(event, 'retry-after', ASSET_RETRY_AFTER)
+      throw createError({ statusCode: 503, message: 'Asset source is unavailable upstream' })
+    }
+
+    const raw = upstream.body
 
     const type = asset.type ?? classifyAsset(filePath)
     let html: string | null = null

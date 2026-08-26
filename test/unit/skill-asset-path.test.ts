@@ -19,4 +19,22 @@ describe('skill asset path normalization', () => {
       filePath: 'references/checklist.md',
     })).toBe('references/checklist.md')
   })
+
+  it('collapses the duplicated prefix when the link carries the repository own casing', () => {
+    expect(normalizeSkillAssetFilePath({
+      owner: 'microsoft',
+      repo: 'github-copilot-for-azure',
+      name: 'markdown-token-optimizer',
+      filePath: 'gh/microsoft/GitHub-Copilot-for-Azure/markdown-token-optimizer/-/references/ANTI-PATTERNS.md',
+    })).toBe('references/ANTI-PATTERNS.md')
+  })
+
+  it('keeps a nested file whose leading segments only resemble the prefix', () => {
+    expect(normalizeSkillAssetFilePath({
+      owner: 'acme',
+      repo: 'skills',
+      name: 'review',
+      filePath: 'gh/acme/skills/review/checklist.md',
+    })).toBe('gh/acme/skills/review/checklist.md')
+  })
 })
