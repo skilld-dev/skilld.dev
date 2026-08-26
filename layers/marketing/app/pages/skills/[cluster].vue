@@ -84,7 +84,7 @@ function showMore() {
   visibleCount.value += 15
 }
 
-// The <title> is keyword-shaped ("Claude Skills for UI and Design") while the
+// The <title> is keyword-shaped ("Agent Skills for UI and Design") while the
 // H1 below keeps the editorial label. VISION principle 6 grants that carve-out
 // for search surfaces only; it never reaches product UI. The skill count is
 // appended rather than baked into seoDescription so the copy stays honest when

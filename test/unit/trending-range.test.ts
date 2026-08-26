@@ -139,7 +139,7 @@ describe('trending range resolution', () => {
   })
 
   it('carries the retired leaderboard keyword target on the all range', () => {
-    expect(trendingRangeMeta('all').title).toBe('Top Claude Skill Repositories on GitHub')
+    expect(trendingRangeMeta('all').title).toBe('Top Agent Skill Repositories on GitHub')
     expect(trendingRangeDescription('all', 0)).toContain('reviewed for eligibility')
     expect(trendingRangeDescription('all', 0)).toContain('ranked by current GitHub stars')
   })
@@ -205,18 +205,18 @@ describe('month-stamped titles', () => {
   const clock = 1_787_270_400
 
   it('stamps the month the board was computed in', () => {
-    expect(trendingRangeTitle('month', clock)).toBe('Trending Claude Skills, August 2026')
-    expect(trendingRangeTitle('week', clock)).toBe('Trending Claude Skills This Week, August 2026')
+    expect(trendingRangeTitle('month', clock)).toBe('Trending Agent Skills, August 2026')
+    expect(trendingRangeTitle('week', clock)).toBe('Trending Agent Skills This Week, August 2026')
   })
 
   it('leaves the all-time range undated', () => {
     // It ranks by lifetime stars. A month on it is a false claim, and its stem
     // carries the repository cluster inherited from /skills/leaderboard.
-    expect(trendingRangeTitle('all', clock)).toBe('Top Claude Skill Repositories on GitHub')
+    expect(trendingRangeTitle('all', clock)).toBe('Top Agent Skill Repositories on GitHub')
   })
 
   it('drops the stamp when the board failed to load', () => {
-    expect(trendingRangeTitle('month', 0)).toBe('Trending Claude Skills')
+    expect(trendingRangeTitle('month', 0)).toBe('Trending Agent Skills')
   })
 })
 
@@ -255,7 +255,7 @@ describe('titles and headings use different nouns on purpose', () => {
   })
 
   it('keeps the head term in the title', () => {
-    expect(trendingRangeTitle('month', clock)).toContain('Claude Skills')
+    expect(trendingRangeTitle('month', clock)).toContain('Agent Skills')
   })
 
   it('keeps the brand noun in the heading', () => {

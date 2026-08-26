@@ -52,7 +52,7 @@ describe('cluster taxonomy', () => {
   it('carries a keyword-shaped title distinct from the editorial label', () => {
     for (const cluster of CLUSTERS) {
       expect(cluster.seoTitle.length, cluster.slug).toBeGreaterThan(0)
-      // The <title> exists to catch `claude skills for <domain>` demand. If it
+      // The <title> exists to catch `agent skills for <domain>` demand. If it
       // is just the H1 again, the rework has been undone for that row.
       expect(cluster.seoTitle, cluster.slug).not.toBe(cluster.label)
       expect(cluster.seoDescription.length, cluster.slug).toBeGreaterThan(50)

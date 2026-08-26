@@ -97,7 +97,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Design and interface work',
     icon: 'i-lucide-palette',
     userVoice: 'You care how the interface looks, moves, and reads.',
-    seoTitle: 'Claude Skills for UI and Design',
+    seoTitle: 'Agent Skills for UI and Design',
     seoDescription:
       'Curated design and UI skills for Claude Code, Cursor, and Codex. Interface feel, motion, accessibility, and component quality, each written by the person who owns that craft.',
     curatorNote:
@@ -125,7 +125,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Everyday coding',
     icon: 'i-lucide-code',
     userVoice: 'You want the handful of skills that earn their context on every project.',
-    seoTitle: 'Claude Skills for Coding',
+    seoTitle: 'Agent Skills for Coding',
     seoDescription:
       'The coding skills worth installing first, curated for Claude Code, Cursor, and Codex. Plan, verify, debug, test, and model a domain, every skill from a maintainer you can read before you run it.',
     curatorNote:
@@ -149,7 +149,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Anti-slop coding',
     icon: 'i-lucide-eraser',
     userVoice: 'You want agent-written code cleaned before it reaches review.',
-    seoTitle: 'Claude Skills for Anti-Slop Coding',
+    seoTitle: 'Agent Skills for Anti-Slop Coding',
     seoDescription:
       'Anti-slop coding skills for Claude Code, Cursor, and Codex. Review and remove AI-generated code slop without changing behavior, using seven ranked skills from their authors.',
     curatorNote:
@@ -207,7 +207,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Review and refactoring',
     icon: 'i-lucide-eye',
     userVoice: 'You read other people\'s code and reshape it without breaking it.',
-    seoTitle: 'Claude Skills for Code Review',
+    seoTitle: 'Agent Skills for Code Review',
     seoDescription:
       'Code review and refactoring skills for AI agents. Turn review comments, bot findings, and production issues into fixed code, with skills written by maintainers who review for a living.',
     curatorNote:
@@ -229,7 +229,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Testing and debugging',
     icon: 'i-lucide-flask-conical',
     userVoice: 'You want tests that prove the change, and a cause when it breaks.',
-    seoTitle: 'Claude Skills for Testing and Debugging',
+    seoTitle: 'Agent Skills for Testing and Debugging',
     seoDescription:
       'Testing and debugging skills for Claude Code and other agents: test-driven development, coverage assessment, webapp testing, systematic debugging, and the post-mortem after an incident.',
     curatorNote: null,
@@ -255,7 +255,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Performance and web quality',
     icon: 'i-lucide-gauge',
     userVoice: 'You profile the slow path before you ship it.',
-    seoTitle: 'Claude Skills for Web Performance',
+    seoTitle: 'Agent Skills for Web Performance',
     seoDescription:
       'Performance and web quality skills for agents: Core Web Vitals, performance audits, accessibility, and the checks that run before you ship. Includes Addy Osmani\'s web quality suite.',
     curatorNote:
@@ -278,7 +278,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Security and auth',
     icon: 'i-lucide-shield',
     userVoice: 'You think about the threat model before the feature ships.',
-    seoTitle: 'Claude Skills for Security',
+    seoTitle: 'Agent Skills for Security',
     seoDescription:
       'Security and auth skills for AI agents: threat modelling, integrity audits, and authentication patterns. Read the source before you run it, on every skill listed here.',
     curatorNote: null,
@@ -298,7 +298,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Backend and data',
     icon: 'i-lucide-database',
     userVoice: 'You wire up the database, the auth, and the realtime layer.',
-    seoTitle: 'Claude Skills for Backend and Databases',
+    seoTitle: 'Agent Skills for Backend and Databases',
     seoDescription:
       'Backend and database skills for agents, each from the team that builds the product: Supabase Postgres, Convex, Firebase, Stripe, Resend, and Better Auth.',
     curatorNote:
@@ -319,7 +319,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Shipping and release',
     icon: 'i-lucide-git-branch',
     userVoice: 'You own the commits, branches, and deploys at the end of the work.',
-    seoTitle: 'Claude Skills for Git and DevOps',
+    seoTitle: 'Agent Skills for Git and DevOps',
     seoDescription:
       'Git and DevOps skills for AI agents: worktrees, conventional commits, release flows, and finishing a branch cleanly. Installed as local files you can read and edit.',
     curatorNote: null,
@@ -339,7 +339,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Planning and specs',
     icon: 'i-lucide-list-checks',
     userVoice: 'You turn rough ideas into plans, specs, and scoped work.',
-    seoTitle: 'Claude Skills for Planning and Specs',
+    seoTitle: 'Agent Skills for Planning and Specs',
     seoDescription:
       'Planning skills for AI agents: brainstorm an idea, write the spec, record the decision, and hand the agent a plan it can execute. Curated, with the author named on every skill.',
     curatorNote:
@@ -361,7 +361,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'Anti-slop writing',
     icon: 'i-lucide-eraser',
     userVoice: 'You want prose that reads like a person wrote it, with the AI tells gone.',
-    seoTitle: 'Claude Skills for Anti-Slop Writing',
+    seoTitle: 'Agent Skills for Anti-Slop Writing',
     seoDescription:
       'Anti-slop skills for Claude Code, Cursor, and Codex: strip AI writing tells from prose while keeping your voice. Ten ranked skills, each from the person who wrote it.',
     curatorNote:
@@ -396,7 +396,7 @@ export const CLUSTERS: Cluster[] = [
     label: 'SEO',
     icon: 'i-lucide-search',
     userVoice: 'You want the crawler and the model to read the page the same way you do.',
-    seoTitle: 'Claude Skills for SEO',
+    seoTitle: 'Agent Skills for SEO',
     seoDescription:
       'SEO skills for Claude Code and other agents: technical audits, schema markup, Core Web Vitals, and framework-level SEO. Curated by the author of Nuxt SEO.',
     curatorNote:

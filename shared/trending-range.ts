@@ -80,7 +80,7 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
     windowDays: 7,
     path: '/skills/trending?range=week',
     canonical: `${SITE_ORIGIN}/skills/trending?range=week`,
-    title: 'Trending Claude Skills This Week',
+    title: 'Trending Agent Skills This Week',
     heading: `Trending ${SKILLS_NOUN} this week`,
     sectionLabel: 'Top skills',
   },
@@ -91,22 +91,22 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
     windowDays: 30,
     path: '/skills/trending',
     canonical: `${SITE_ORIGIN}/skills/trending`,
-    title: 'Trending Claude Skills',
+    title: 'Trending Agent Skills',
     heading: `Trending ${SKILLS_NOUN} this month`,
     sectionLabel: 'Top skills',
   },
   {
-    // Inherited verbatim from `/skills/leaderboard`, which this range replaced.
-    // The title and the description below carried a ~4,100/mo cluster
-    // (`claude skills github`, `claude skills repo`, `claude skills
-    // repository`, `top claude skills`), so they move across word for word.
+    // Inherited from `/skills/leaderboard`, which this range replaced. The
+    // title carried a ~4,100/mo `claude skills *` cluster across word for word,
+    // and then drew nothing: 0 impressions over the 28 days to 2026-08-26. The
+    // noun is now "Agent Skill", matching the heading and the rest of the site.
     id: 'all',
     label: 'All time',
     windowHours: null,
     windowDays: null,
     path: '/skills/trending?range=all',
     canonical: `${SITE_ORIGIN}/skills/trending?range=all`,
-    title: 'Top Claude Skill Repositories on GitHub',
+    title: 'Top Agent Skill Repositories on GitHub',
     heading: 'Top skill repositories',
     sectionLabel: 'Top repositories',
   },
@@ -147,10 +147,6 @@ export function trendingRangeHeading(range: TrendingRange, clockSeconds: number)
   if (range !== 'month')
     return meta.heading
   const stamp = monthStamp(clockSeconds)
-  // "Agent skills", not "Claude skills". The `<title>` targets the head term
-  // (SEO.md), and the page a reader is looking at uses the category noun
-  // brand-guidelines.md sets. Both are deliberate; they are not the same job.
-  //
   // Comma, not "in": it matches the `<title>`, and it gives the two-line
   // heading a clause to break on. See `SKILLS_NOUN`.
   return stamp ? `Trending ${SKILLS_NOUN}, ${stamp}` : meta.heading

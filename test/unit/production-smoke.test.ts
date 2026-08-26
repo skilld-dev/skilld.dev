@@ -66,11 +66,11 @@ describe('production smoke contract', () => {
     // <title>, because the page fetched without awaiting. Three deploys passed
     // a status-only smoke check with the whole category surface blank.
     const emptyShell = '<html><body><div id="__nuxt"></div>'
-      + '<script>window.__NUXT__={"data":{"seoTitle":"Claude Skills for SEO"}}</script>'
+      + '<script>window.__NUXT__={"data":{"seoTitle":"Agent Skills for SEO"}}</script>'
       + '</body></html>'
 
     expect(evaluateSmokeObservation(
-      { path: '/skills/seo', status: 200, bodyContains: ['<h1', 'Claude Skills for SEO'] },
+      { path: '/skills/seo', status: 200, bodyContains: ['<h1', 'Agent Skills for SEO'] },
       { status: 200, location: null, body: emptyShell },
     )).toEqual({
       _tag: 'failed',
@@ -80,8 +80,8 @@ describe('production smoke contract', () => {
     })
 
     expect(evaluateSmokeObservation(
-      { path: '/skills/seo', status: 200, bodyContains: ['<h1', 'Claude Skills for SEO'] },
-      { status: 200, location: null, body: '<h1>SEO</h1><title>Claude Skills for SEO · skilld</title>' },
+      { path: '/skills/seo', status: 200, bodyContains: ['<h1', 'Agent Skills for SEO'] },
+      { status: 200, location: null, body: '<h1>SEO</h1><title>Agent Skills for SEO · skilld</title>' },
     )).toEqual({ _tag: 'passed' })
   })
 

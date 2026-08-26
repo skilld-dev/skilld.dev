@@ -11,10 +11,13 @@ import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-v
 // nothing here is sold, and claiming a marketplace would misdescribe the
 // product. "Best" is likewise avoided as a banned superlative.
 //
-// Naming Claude in the title is the principle 6 SEO carve-out, which requires
-// cross-agent compatibility in the same breath; the description does that.
+// The title said "Claude Skills" to hold the head term SEO.md researched. That
+// bet drew no impression on any `claude * skills` query in three months, so the
+// title now uses the category noun the body copy and brand-guidelines.md
+// already use. The description still names Claude Code, Cursor, and Codex, so
+// the principle 6 cross-agent claim survives the rename.
 useSeoMeta({
-  title: 'Claude Skills Directory',
+  title: 'Agent Skills Directory',
   description: 'Browse curated agent skills for Claude Code, Cursor, and Codex. Search by task, maintainer, package, or tag. Every skill names its author and links the SKILL.md in their GitHub repo, so you can read it before you install.',
 })
 
