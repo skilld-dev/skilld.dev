@@ -430,8 +430,12 @@ export function cronPeriodSeconds(cron: string): number | null {
   const isFixed = (field: string): boolean => /^\d+$/.test(field)
 
   if (dayOfWeek !== '*') {
-    const isWeekday = /^[0-7]$/.test(dayOfWeek)
-    return isFixed(minute) && isFixed(hour) && isWeekday
+    // Cloudflare accepts both `1` and `MON`, and the tasks use the named form.
+    // Only the numeric form was modelled, so `send-weekly` on `0 9 * * MON`
+    // fell to the 3-hour fallback and was reported stale every day.
+    const isSingleDay = /^[0-7]$/.test(dayOfWeek)
+      || /^(?:SUN|MON|TUE|WED|THU|FRI|SAT)$/i.test(dayOfWeek)
+    return isFixed(minute) && isFixed(hour) && isSingleDay
       ? 7 * DAY_SECONDS
       : null
   }
