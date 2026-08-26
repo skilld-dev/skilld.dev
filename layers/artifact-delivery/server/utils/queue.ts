@@ -68,12 +68,13 @@ export async function consumeArtifactBuildBatch(
 }
 
 export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
+  const runtimeFetch = globalThis.fetch.bind(globalThis)
   const privateDependencies = privateArtifactAccessEnabled(env)
-    ? createPrivateBuildDependencies(env)
+    ? createPrivateBuildDependencies(env, runtimeFetch)
     : {}
   return {
     db: env.DB,
-    github: createPublicGithubSourceClient({ fetch, token: env.GITHUB_TOKEN }),
+    github: createPublicGithubSourceClient({ fetch: runtimeFetch, token: env.GITHUB_TOKEN }),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
@@ -82,11 +83,14 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
   }
 }
 
-function createPrivateBuildDependencies(env: Cloudflare.Env): Pick<
+function createPrivateBuildDependencies(
+  env: Cloudflare.Env,
+  runtimeFetch: typeof globalThis.fetch,
+): Pick<
   ArtifactBuildDependencies,
   'privateGithub' | 'privateArtifacts'
 > {
-  const githubApp = createGithubAppClientFromEnv(env)
+  const githubApp = createGithubAppClientFromEnv(env, runtimeFetch)
   const privateKeys = createD1PrivateArtifactKeyProvider(env.DB, privateArtifactWrappingKeysFromEnv(env))
   return {
     privateGithub: async (row) => {
@@ -113,7 +117,7 @@ function createPrivateBuildDependencies(env: Cloudflare.Env): Pick<
       const userToken = await loadAccountGithubAppUserToken(
         env.DB,
         access.account_id,
-        githubAppUserTokenDependenciesFromEnv(env),
+        githubAppUserTokenDependenciesFromEnv(env, runtimeFetch),
       )
       if (!userToken)
         return privateSourceNotFound()
@@ -129,7 +133,7 @@ function createPrivateBuildDependencies(env: Cloudflare.Env): Pick<
         row.repository_id,
       )
       return installationToken._tag === 'created'
-        ? createGithubSourceClient({ fetch, token: installationToken.token, visibility: 'private' })
+        ? createGithubSourceClient({ fetch: runtimeFetch, token: installationToken.token, visibility: 'private' })
         : privateSourceNotFound()
     },
     privateArtifacts: {

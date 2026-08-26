@@ -63,6 +63,34 @@ const validFiles: ArtifactSourceFile[] = [{
 }]
 
 describe('public Artifact delivery', () => {
+  it('keeps the Workers fetch receiver when it resolves a public source', async () => {
+    const runtimeFetch = vi.fn(function (this: unknown) {
+      if (this !== globalThis)
+        throw new TypeError('Illegal invocation')
+      return Promise.resolve(new Response('{}', { status: 404 }))
+    })
+    vi.stubGlobal('fetch', runtimeFetch)
+    const env = {
+      ARTIFACT_PRIVATE_ACCESS_ENABLED: 'false',
+      DB: {},
+      GITHUB_TOKEN: 'public-token',
+      PUBLIC_ARTIFACTS: {},
+      ARTIFACT_SIGNER: {},
+      ARTIFACT_TRUSTED_ROOT_JSON: trustedRootConfig(),
+    } as unknown as Cloudflare.Env
+
+    try {
+      const dependencies = createArtifactBuildDependencies(env)
+      const result = await dependencies.github.resolve(sourceRequest)
+
+      expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_NOT_FOUND' })
+      expect(runtimeFetch).toHaveBeenCalledTimes(1)
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('does not read private secrets when private access is disabled', () => {
     const forbidden = new Set([
       'GITHUB_APP_ID',
