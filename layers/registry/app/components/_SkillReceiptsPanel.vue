@@ -65,6 +65,23 @@ const AUDIT_META: Record<string, { icon: string, klass: string }> = {
   fail: { icon: 'i-lucide-shield-x', klass: 'text-error' },
 }
 const FAIL_AUDIT_META = AUDIT_META.fail!
+
+const DATETIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+  timeZone: 'UTC',
+  timeZoneName: 'short',
+})
+
+function formatDateTitle(value: Date): string {
+  return DATETIME_FORMAT.format(value)
+}
+
 function auditMeta(a: SkillAudit) {
   return AUDIT_META[a.status] ?? FAIL_AUDIT_META
 }
@@ -116,7 +133,7 @@ const hasProvenance = computed(() => Boolean(shortSha.value || modifiedDate.valu
         v-if="lastSyncedDate"
         class="font-mono text-[10px] uppercase tracking-widest"
         :class="stale ? 'text-amber-500' : 'text-muted'"
-        :title="lastSyncedDate.toLocaleString()"
+        :title="formatDateTitle(lastSyncedDate)"
       >
         Verified {{ lastSyncedAgo }}{{ stale ? ' · stale' : '' }}
       </span>
@@ -250,7 +267,7 @@ const hasProvenance = computed(() => Boolean(shortSha.value || modifiedDate.valu
           <span
             v-if="modifiedDate"
             class="tabular-nums"
-            :title="modifiedDate.toLocaleString()"
+            :title="formatDateTitle(modifiedDate)"
           >· updated {{ modifiedAgo }}</span>
         </div>
       </div>

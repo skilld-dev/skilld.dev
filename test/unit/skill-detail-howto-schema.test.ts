@@ -181,6 +181,71 @@ describe('skillDetail HowTo structured data', () => {
   })
 })
 
+describe('skillDetail command choice', () => {
+  it('shows one command and switches between one-off and install', async () => {
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
+    )
+
+    const panels = await vi.waitFor(() => {
+      const matches = wrapper.findAll('[data-testid="skill-command-panel"]')
+      expect(matches).toHaveLength(2)
+      return matches
+    })
+
+    for (const panel of panels) {
+      expect(panel.findAll('.install-command')).toHaveLength(1)
+      expect(panel.text()).not.toContain('Check it worked')
+    }
+
+    const panel = panels[0]!
+    expect(panel.get('.install-command').text()).toBe('npx skilld@beta run skilld:antfu/skills/vite')
+    expect(panel.get('button[aria-pressed="true"]').text()).toBe('One-Off')
+
+    const installTab = panel.findAll('button[aria-pressed]')
+      .find(button => button.text() === 'Install')
+    expect(installTab, 'Install mode is missing').toBeTruthy()
+    await installTab!.trigger('click')
+
+    await vi.waitFor(() => {
+      expect(panel.get('.install-command').text()).toBe('npx skilld@beta install skilld:antfu/skills/vite')
+      expect(panel.get('button[aria-label="Copy install command"]')).toBeTruthy()
+      expect(panels[1]!.get('button[aria-pressed="true"]').text()).toBe('Install')
+      expect(panel.get('button[aria-expanded="false"]').text()).toContain('Check it worked')
+    })
+
+    wrapper.unmount()
+  })
+})
+
+describe('skill command copy feedback', () => {
+  it('announces copy failures next to the command', async () => {
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/_SkillCommandPanel.vue').then(module => module.default),
+      {
+        props: {
+          modelValue: 'run',
+          runCommand: 'npx skilld@beta run skilld:antfu/skills/vite',
+          installCommand: 'npx skilld@beta install skilld:antfu/skills/vite',
+          runCopied: false,
+          installCopied: false,
+          docUrl: 'https://skilld.dev/gh/antfu/skills/vite/SKILL.md',
+          docUrlCopied: false,
+          copyError: 'Could not copy. Select the command and copy it manually.',
+        },
+      },
+    )
+
+    const status = wrapper.get('[aria-live="polite"]')
+    expect(status.text()).toBe('Could not copy. Select the command and copy it manually.')
+    expect(wrapper.get('button[aria-label="Copy run command"]').attributes('aria-describedby'))
+      .toBe(status.attributes('id'))
+
+    wrapper.unmount()
+  })
+})
+
 describe('skillDetail run copy telemetry', () => {
   it('records the hero copy as mode run', async () => {
     // vueuse falls back to execCommand when clipboard-write is not granted.
