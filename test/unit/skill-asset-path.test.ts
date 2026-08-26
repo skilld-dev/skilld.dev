@@ -32,4 +32,13 @@ describe('skill asset path normalization', () => {
       filePath: 'references/checklist.md',
     })).toBe('references/checklist.md')
   })
+
+  it('keeps a nested file whose leading segments only resemble the prefix', () => {
+    expect(normalizeSkillAssetFilePath({
+      owner: 'acme',
+      repo: 'skills',
+      name: 'review',
+      filePath: 'gh/acme/skills/review/checklist.md',
+    })).toBe('gh/acme/skills/review/checklist.md')
+  })
 })
