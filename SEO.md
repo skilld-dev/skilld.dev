@@ -88,13 +88,42 @@ four-row delete.
   production after the first pass turned out to reference skills that are not in
   the registry. Worth a human read of the actual rows.
 
+## Title pivot, 2026-08-26
+
+Every `<title>` moved from "Claude Skills" to "Agent Skills". 17 strings: the 13
+category `seoTitle` rows in `clusters.ts`, the three `/skills/trending` ranges,
+`/skills` and `/skills/best`. URLs, H1s, and descriptions did not change, so no
+redirect is involved and the principle 6 cross-agent claim still sits in the
+descriptions.
+
+The reason: the head-term bet drew nothing. Over the three months to 2026-08-26
+no `claude * skills` query recorded a single impression. Site totals for the
+same window are 2 clicks and 2,278 impressions, and the 28-day window is 2
+clicks and 202 impressions across 122 pages, down from 8,799 pages with
+impressions over three months. Every hub page the rework built is at or near
+zero: `/skills/trending` 0 impressions, `/skills/best` 1, `/skills/design` 1,
+`/skills/coding` 8.
+
+This ends the 2026-08-12 experiment two weeks before its 2026-09-10 read date.
+Recorded as a deliberate call, not an oversight: an experiment returning zero
+signal on its primary metric does not need its full window to be judged.
+
+The pivot was **not** supported by fresh volume data. DataForSEO returned
+`provider_payment_required` on 2026-08-26, so `research keywords` could not run.
+The 2026-08-12 research still says `agent skills for <foo>` is weak (10/mo) and
+`claude <domain> skills` is the larger term. That research now conflicts with
+this change and has not been re-run. Re-check it before spending further effort
+on either noun.
+
 ## What to measure, and when
 
 Recrawl lag means nothing here is readable before **2026-09-10** (four weeks).
 Check at that point, then again at eight:
 
-1. `gsc_query` type `keywords`, period `28d`: does any `claude * skills` term
-   appear at all? Any impression is signal from a baseline of zero.
+1. `gsc_query` type `keywords`, period `28d`: does any `agent * skills` term
+   appear at all? Any impression is signal from a baseline of zero. The
+   `claude * skills` form recorded zero over the three months to 2026-08-26,
+   which is what retired it.
 2. `inspect_url` on `/skills/best`, `/skills/trending?range=all`, `/skills/seo`: are
    they indexed, and did the sitemap get read?
 3. Indexed count trend. The 2026-06 scar was scaled content; if indexed pages
