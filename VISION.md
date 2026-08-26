@@ -13,11 +13,13 @@ What skilld is, why it exists, and how the pieces grow each other. This doc exis
 
 ## Mission
 
-**Curated agent skills by humans.** Skills are knowledge, and knowledge has an author. A skill is worth installing because a person who knows the tool wrote it, so provenance is the quality signal: which repository contains it, and whether you can read it before you run it. skilld is the registry that treats this as the organizing fact. Every skill is a SKILL.md a maintainer wrote and still owns, surfaced with a link back to the source, installable with one command that works with every agent.
+**Curated agent skills by humans.** Skills are knowledge, and knowledge has an author. A skill is worth installing because a person who knows the tool wrote it, so provenance is the quality signal: which repository contains it, and whether you can read it before you run it. skilld is the registry that treats this as the organizing fact. Every skill is a SKILL.md a maintainer wrote and still owns, surfaced with a link back to the source, usable with one command that works with every agent.
+
+**Transient by default.** A Skill is knowledge, not a dependency, so the default is to use it, not to keep it. `skilld run` hands the Agent the Skill for one session and writes no file, no lockfile entry, and no Agent target. Installing stays one command away and earns its place: it is for the Skill you want in every session, and it is the only path the digest watches. This lowers the cost of trying a Skill to nothing, which is exactly the cost curation needs to be cheap to act on.
 
 **The two loops are the whole product.** Every change must serve one; if a feature serves neither, cut it.
 
-- **Loop 1, Activation:** anonymous discovery → install. Land on skilld.dev, see curated Skills and recent changes, open a Skill detail, copy `npx skilld install owner/repository`, run it. No auth, no email, no friction. This is the SEO-bearing surface and the top of funnel.
+- **Loop 1, Activation:** anonymous discovery → run. Land on skilld.dev, see curated Skills and recent changes, open a Skill detail, copy `npx skilld@beta run skilld:owner/repository/skill`, give it to the Agent. The Agent reads the Skill and follows it, and nothing lands in the repository. Installing is the second step, taken only for a Skill worth keeping in every session. No auth, no email, no friction. This is the SEO-bearing surface and the top of funnel.
 - **Loop 2, Retention:** sign in with GitHub, bulk-import starred repositories that have Skills, watch collections, receive a digest when watched repositories change. The lifecycle hook and the moat.
 
 They live on the same site but are sold separately: Loop 1 is the headline, Loop 2 is a CTA strip and a "Watch for changes" affordance. Identity is one namespace, the GitHub login; collection URLs are `/@<gh-login>/<slug>`.
@@ -67,7 +69,7 @@ The cost side is a real constraint, not a footnote: the stack (Workers, D1, Vect
 
 Each surface feeds the next. A change that strengthens a loop edge is high-leverage; a change that touches no edge is suspect.
 
-1. **The skilld CLI** (`npx skilld install owner/repository`) solves the day-1 problem: install a Skill as local files, across every Agent, and keep it current. It is the trust anchor and the distribution unit; the command itself travels in READMEs, tweets, and docs.
+1. **The skilld CLI** (`npx skilld@beta run skilld:owner/repository/skill`) solves the day-1 problem: use a Skill right now, across every Agent, with nothing to clean up. `npx skilld@beta install` is the second command, for a Skill worth keeping as local files and keeping current. The CLI is the trust anchor and the distribution unit; the run command itself travels in READMEs, tweets, and docs, and it is cheaper to share because trying it is free.
 2. **The registry site** converts search intent into installs. Skill, repository, and owner pages under `/gh/*` rank for the queries our users search; npm-guides pSEO and marketing pages extend the surface. Every indexable page is a curated page (principle 2), which is what makes the surface recover and hold rank after the 2026-06 suppression.
 3. **Collections and curators** are the people layer. A curator assembles a stack at `/@login/slug`, installable in one command. Collections are the shareable artifact: a curator promoting their own collection is distribution we don't pay for, and people-first discovery (Letterboxd energy: people first, counts as context) is the brand.
 4. **Watch and digest** convert a visitor into a returner. Sign in with GitHub, import starred repositories, watch what you depend on; the digest arrives when something actually changed. This edge feeds itself: digest links land back on Skill pages, freshness data makes the registry pages better.
@@ -107,13 +109,13 @@ The 2026-06 deindexing is the founding scar: indexing everything read as scaled 
 
 **Test:** for any indexable page, can you state why a human curator would publish it? Does the change grow the number of skills a visitor can trust, or just the count? Count alone fails.
 
-### 3. Zero friction before install
+### 3. Zero friction before use
 
-Loop 1 admits no gate. Anonymous visitor to copied install command with no account, no email, no wizard. The copy button is the conversion event and time-to-copied-command is the metric. Everything between landing and that copy is friction to remove, not surface to decorate.
+Loop 1 admits no gate, and the first command costs the user nothing. Anonymous visitor to copied run command with no account, no email, no wizard, and no file written. The copy button is the conversion event and time-to-copied-command is the metric. Everything between landing and that copy is friction to remove, not surface to decorate.
 
-**How to apply:** no auth walls, newsletter modals, or "sign up to install" anywhere on the discovery path. Loop 2 CTAs stay a strip and an affordance, never an interstitial. When a change touches discovery or skill detail, ask whether it moves the copy sooner.
+**How to apply:** no auth walls, newsletter modals, or "sign up to install" anywhere on the discovery path. Every Skill surface leads with the run command; the install command sits under it as the opt-in for keeping the Skill. Loop 2 CTAs stay a strip and an affordance, never an interstitial. When a change touches discovery or skill detail, ask whether it moves the copy sooner.
 
-**Test:** can a first-time anonymous visitor go from landing to a working install command inside a minute? If any step demands identity first, fail.
+**Test:** can a first-time anonymous visitor go from landing to a working run command inside a minute, and does that command change nothing on their disk? If any step demands identity first, fail.
 
 ### 4. The digest earns its send
 

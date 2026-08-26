@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { collectionInstallCmd, curatorInstallCmd, gitInstallCmd } from '../../app/utils/install-cmd'
+import {
+  collectionInstallCmd,
+  curatorInstallCmd,
+  gitInstallCmd,
+  skillInstallCmd,
+  skillRunCmd,
+} from '../../app/utils/install-cmd'
+
+describe('skill commands', () => {
+  it.each([
+    [skillRunCmd('nuxt', 'nuxt', 'seo'), 'npx skilld@beta run skilld:nuxt/nuxt/seo'],
+    [skillInstallCmd('nuxt', 'nuxt', 'seo'), 'npx skilld@beta install skilld:nuxt/nuxt/seo'],
+  ])('returns %s', (command, expected) => {
+    expect(command).toBe(expected)
+  })
+})
 
 describe('install commands', () => {
   it.each([

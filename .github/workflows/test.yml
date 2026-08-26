@@ -35,6 +35,25 @@ jobs:
       prepare-command: pnpm nuxt prepare
       timeout-minutes: 30
 
+  # The only gate between a merge and production. `Deploy to Cloudflare` fires on
+  # this workflow's success for main, so a failure here stops the deploy.
+  #
+  # The main push runs it, pull requests do not: a site change cannot add a
+  # command to the published CLI, so gating every pull request on the CLI
+  # release would just hold unrelated work. The check clears itself once npm
+  # `latest` carries the printed grammar. To deploy before then, run
+  # `Deploy to Cloudflare` by hand.
+  published-cli-grammar:
+    if: github.event_name == 'push'
+    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+      - run: pnpm cli:grammar
+
   # Kept in this repository because the size budget needs `actions: read` and the
   # artifact from this workflow's own last green run on the base branch, neither
   # of which the shared gate models.

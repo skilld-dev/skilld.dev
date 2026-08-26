@@ -150,6 +150,7 @@ describe('get_skill', () => {
     const data = result.structuredContent as any
 
     expect(fetchApi).toHaveBeenCalledWith('/api/skills/nuxt/nuxt/nuxt-seo', { signal: undefined })
+    expect(data.runCommand).toBe('npx skilld@beta run skilld:nuxt/nuxt/nuxt-seo')
     expect(data.installCommand).toBe('npx skilld add gh:nuxt/nuxt -s nuxt-seo')
     expect(data.provenance).toMatchObject({
       author: 'nuxt',
@@ -236,6 +237,24 @@ describe('install_command', () => {
   ])('%s -> %s', async (ref, command) => {
     const result = await runTool('install_command', { ref })
     expect((result.structuredContent as any).command).toBe(command)
+  })
+
+  it('offers the run command for a skill ref', async () => {
+    const result = await runTool('install_command', { ref: 'anthropics/skills/skill-creator' })
+    expect((result.structuredContent as any).runCommand).toBe('npx skilld@beta run skilld:anthropics/skills/skill-creator')
+  })
+
+  it('has no run command for a ref that names more than one skill', async () => {
+    const result = await runTool('install_command', { ref: 'gh:nuxt/nuxt' })
+    expect((result.structuredContent as any).runCommand).toBeNull()
+  })
+
+  it('keeps skilld run out of the note when the ref has no run command', async () => {
+    const multi = await runTool('install_command', { ref: 'gh:nuxt/nuxt' })
+    expect((multi.structuredContent as any).note).not.toContain('skilld run')
+
+    const single = await runTool('install_command', { ref: 'anthropics/skills/skill-creator' })
+    expect((single.structuredContent as any).note).toContain('skilld run')
   })
 
   it('rejects unrecognized refs', async () => {

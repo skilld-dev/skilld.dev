@@ -64,7 +64,18 @@ export interface DailyHealthCheckSummary {
   activity: {
     newSkills24h: number
     repoChanges24h: number
-    installEvents24h: number
+    /**
+     * Copies of a printed command, split by which grammar was copied.
+     *
+     * Run is the default button on every Skill surface, so one total would mix
+     * two different intents. Rows from before this split, including the old
+     * project, global, and once modes, land in `unattributed`.
+     */
+    commandCopies24h: {
+      run: number
+      install: number
+      unattributed: number
+    }
     newUsers24h: number
     digestsSent24h: number
     digestsFailed24h: number
@@ -186,8 +197,10 @@ interface WeeklyRunRow {
   uncertain: number
 }
 
-interface InstallActivityRow {
-  install_events_24h: number
+interface CommandCopyRow {
+  run_copies_24h: number
+  install_copies_24h: number
+  unattributed_copies_24h: number
 }
 
 interface PipelineRow {
@@ -348,6 +361,26 @@ export async function loadGithubTokenExpiry(
 function numberValue(value: unknown): number {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+const EMPTY_COMMAND_COPIES = {
+  run_copies_24h: 0,
+  install_copies_24h: 0,
+  unattributed_copies_24h: 0,
+}
+
+/**
+ * One line naming each copy grammar, so no reader can mistake a run for an install.
+ *
+ * The unattributed part only appears while rows written before the `mode`
+ * column still fall inside the window.
+ */
+function commandCopyLine(summary: DailyHealthCheckSummary): string {
+  const { run, install, unattributed } = summary.activity.commandCopies24h
+  const parts = [`${run} run`, `${install} install`]
+  if (unattributed > 0)
+    parts.push(`${unattributed} unattributed`)
+  return parts.join(', ')
 }
 
 function errorMessage(error: unknown): string {
@@ -801,8 +834,11 @@ async function loadActivity(
        + (SELECT COUNT(*) FROM digest_runs
           WHERE status IN ('sending', 'uncertain'))) AS digests_failed_24h
   `, [sinceSec])
-  const installs = await capture(warnings, 'install activity', { install_events_24h: 0 }, () => first<InstallActivityRow>(db, `
-    SELECT COUNT(*) AS install_events_24h
+  const copies = await capture(warnings, 'command copies', EMPTY_COMMAND_COPIES, () => first<CommandCopyRow>(db, `
+    SELECT
+      COUNT(*) FILTER (WHERE mode = 'run') AS run_copies_24h,
+      COUNT(*) FILTER (WHERE mode = 'install') AS install_copies_24h,
+      COUNT(*) FILTER (WHERE mode IS NULL OR mode NOT IN ('run', 'install')) AS unattributed_copies_24h
     FROM install_events
     WHERE occurred_at >= ?1
   `, [sinceMs]))
@@ -810,7 +846,11 @@ async function loadActivity(
   return {
     newSkills24h: numberValue(row.new_skills_24h),
     repoChanges24h: numberValue(row.repo_changes_24h),
-    installEvents24h: numberValue(installs.install_events_24h),
+    commandCopies24h: {
+      run: numberValue(copies.run_copies_24h),
+      install: numberValue(copies.install_copies_24h),
+      unattributed: numberValue(copies.unattributed_copies_24h),
+    },
     newUsers24h: numberValue(row.new_users_24h),
     digestsSent24h: numberValue(row.digests_sent_24h),
     digestsFailed24h: numberValue(row.digests_failed_24h),
@@ -1127,7 +1167,7 @@ export async function buildDailyHealthCheck(
   const activity = await capture(warnings, 'activity', {
     newSkills24h: 0,
     repoChanges24h: 0,
-    installEvents24h: 0,
+    commandCopies24h: { run: 0, install: 0, unattributed: 0 },
     newUsers24h: 0,
     digestsSent24h: 0,
     digestsFailed24h: 0,
@@ -1263,7 +1303,8 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     `- ${summary.inventory.brokenRepos} broken repos, shown as known inventory and not a health gate`,
     '',
     'Last 24 hours:',
-    `- ${summary.activity.newSkills24h} new skills, ${summary.activity.repoChanges24h} changed repos, ${summary.activity.installEvents24h} install events`,
+    `- ${summary.activity.newSkills24h} new skills, ${summary.activity.repoChanges24h} changed repos`,
+    `- command copies: ${commandCopyLine(summary)}`,
     `- ${summary.activity.newUsers24h} new users, ${summary.activity.digestsSent24h} digests sent, ${summary.activity.digestsFailed24h} failed`,
     `- weekly email: ${weeklyLine(summary)}`,
     '',
@@ -1333,7 +1374,7 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
       ${card('Last 24 hours', [
         metric('new skills', summary.activity.newSkills24h),
         metric('changed repos', summary.activity.repoChanges24h),
-        metric('install events', summary.activity.installEvents24h),
+        metric('command copies', commandCopyLine(summary)),
         metric('new users', summary.activity.newUsers24h),
         metric('digests sent / failed', `${summary.activity.digestsSent24h} / ${summary.activity.digestsFailed24h}`),
         metric('last weekly', weeklyLine(summary)),

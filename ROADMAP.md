@@ -7,9 +7,22 @@ last-reviewed: 2026-08-04
 
 # Roadmap
 
-Three horizons, worked in order. "Now" ships before "Next" starts in earnest.
+Four horizons, worked in order. "Now" ships before "Next" starts in earnest.
 
-## Now — Integrity sprint
+## Now — Transient by default
+
+A Skill is knowledge, not a dependency. Running one costs nothing, so running is the default and installing is the opt-in. VISION principle 3 changed with it: zero friction before *use*, not before install.
+
+1. **`skilld run` in the CLI.** Merged in [skilld-dev/skilld#123](https://github.com/skilld-dev/skilld/pull/123), pending the beta release in item 3. `skilld run <SOURCE>` resolves a Skill through the same Artifact path `skilld install` uses, then prints SKILL.md from memory. A remote run writes nothing at all: no lockfile entry, no Agent target, no project file, no cache. Supporting files are named with a size, a kind, and a summary read from their own content; the Agent reads one with `--file`. skilld never prints a file the Skill marks executable, so a Skill that must run its own script needs an install. *(Loop 1, principle 3.)*
+2. **Skill surfaces lead with the run command.** Shipped in this PR. The v3 commands use npm's `beta` tag until v3 becomes stable. `SkillCard` copies the run command. Skill detail leads with "Run it" and keeps the install command under it as "Keep it in every session". The MCP `get_skill`, `search_skills`, and `install_command` tools answer with `runCommand` beside `installCommand`. The per-agent setup picker is gone: the CLI detects the Agent target and reports where it installed, and `skilld run` prints its own install guidance, so the site only still owns how a user confirms the install landed. *(Loop 1, principle 3, surface gate.)*
+3. **Release gate: publish the merged v3 CLI under npm `beta`.** Blocking. Skill commands now name `skilld@beta`, while repository and collection installs stay on npm `latest` and its v2 `add` grammar. The push-only grammar check resolves both command sets and stops deployment until the published beta supports `run` and `install`.
+4. **`skilld add` is kept in v3, for the refs that name more than one Skill.** Decided, not started. v3 keeps `skilld add`, and it covers `gh:owner/repo`, `@login`, `@login/slug` and `npm:pkg`. So the homepage, collection pages, and owner pages keep the command they already print, and the two grammars on the site are a decision rather than a defect. `skilld run` will accept those same multi-skill refs and answer with an index of the Skills plus the run command for each one, rather than printing every SKILL.md. The work lands in its own CLI pull request, after [skilld-dev/skilld#123](https://github.com/skilld-dev/skilld/pull/123). *(Loop 1, principle 3.)*
+
+5. **Lazy fetch on `--direct`.** Not started. A direct run still fetches every blob from GitHub, one request per file, to build a manifest it then mostly discards. The hosted path gets its manifest free from the signed Artifact attestation. The fix threads the wanted paths into `RemoteProvider::prepare`, which install and update share, so it needs its own change.
+
+**Done when:** a first-time visitor copies one command, gets the Skill in their Agent, and has written nothing to disk; and every command the site prints works against the npm tag it names.
+
+## Next — Integrity sprint
 
 Make the shipped product match VISION before pushing growth. SEO recovery is pending recrawl and the trust story requires honest surfaces first. Each item lands with its own proof (test, screenshot, or typecheck).
 
@@ -23,7 +36,7 @@ Make the shipped product match VISION before pushing growth. SEO recovery is pen
 
 **Done when:** no surface contradicts a VISION principle without a dated exception, and GSC shows the guides cull and ranking swap did not regress indexed skill/repo pages.
 
-## Next — Curation authority
+## Later — Curation authority
 
 The beachhead push (VISION north-star user). Curation is the claim; this horizon makes it visible.
 
@@ -35,7 +48,7 @@ The beachhead push (VISION north-star user). Curation is the claim; this horizon
 
 **Done when:** a first-time visitor can tell within one viewport why this registry is curated and by whom.
 
-## Later — Agent-native access + watch evidence
+## Beyond — Agent-native access + watch evidence
 
 - **Discovery MCP server** at `/api/mcp`: search, skill/collection lookup, install-command handoff. Small surface on Workers next to the registry. Earns MCP-registry listings as a Loop 1 channel. Explicitly not an execution layer (principle 5).
 - **Digest instrumentation.** Opens, clicks, forwards, unsubscribe rates; watch-funnel conversion (visitor → sign-in → watching → digest received). This is the evidence bar VISION principle 4 points at.
@@ -58,4 +71,5 @@ The beachhead push (VISION north-star user). Curation is the claim; this horizon
 /skills, /skills/trending, /skills/stats, /community   browse + showcase surfaces
 ```
 
-Install commands: `npx skilld add gh:owner/repo`, `skilld add @login`, `skilld add @login/collection`.
+Skill commands: `npx skilld@beta run skilld:owner/repo/skill` (default), `npx skilld@beta install skilld:owner/repo/skill` (opt-in).
+Collection and curator commands still print the v2 grammar (`skilld add @login`, `skilld add @login/collection`) until the run selector in "Now" item 4 lands.

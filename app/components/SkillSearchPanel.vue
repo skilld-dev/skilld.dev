@@ -31,14 +31,16 @@ const previewSkill = computed<SearchSkill | null>(() => {
   return first?._tag === 'skill' ? first.skill : null
 })
 
-const previewInstallCmd = computed(() =>
+// One skill is previewed, so this surface speaks the v3 run grammar.
+const previewRunCmd = computed(() =>
   previewSkill.value
-    ? gitInstallCmd(previewSkill.value.owner, previewSkill.value.repo, previewSkill.value.name)
+    ? skillRunCmd(previewSkill.value.owner, previewSkill.value.repo, previewSkill.value.name)
     : '',
 )
-const { copy: copyInstall, copied: installCopied } = useInstallCopy(
-  previewInstallCmd,
+const { copy: copyRun, copied: runCopied } = useInstallCopy(
+  previewRunCmd,
   'search-panel',
+  'run',
   () => ({
     kind: 'skill',
     owner: previewSkill.value?.owner ?? '',
@@ -301,7 +303,7 @@ function retryRepositoryIndex(): void {
         </ul>
       </div>
 
-      <!-- Preview: the highlighted skill, with its install command ready -->
+      <!-- Preview: the highlighted skill, with its run command ready -->
       <aside
         v-if="previewSkill"
         class="hidden w-80 shrink-0 flex-col p-4 lg:flex"
@@ -367,14 +369,15 @@ function retryRepositoryIndex(): void {
 
         <div class="mt-auto pt-4">
           <UButton
-            :label="installCopied ? 'Copied' : 'Copy install'"
-            :icon="installCopied ? 'i-lucide-check' : 'i-lucide-clipboard'"
+            :label="runCopied ? 'Copied' : 'Copy run'"
+            :aria-label="runCopied ? 'Copied' : 'Copy run command'"
+            :icon="runCopied ? 'i-lucide-check' : 'i-lucide-clipboard'"
             color="neutral"
             variant="outline"
             size="xs"
             block
             class="font-mono"
-            @click="() => { void copyInstall() }"
+            @click="() => { void copyRun() }"
           />
         </div>
       </aside>

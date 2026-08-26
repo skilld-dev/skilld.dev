@@ -7,9 +7,10 @@ export const InstallEventInput = z.object({
   name: z.string().max(128).optional(),
   handle: z.string().max(128).optional(),
   slug: z.string().max(128).optional(),
-  // Set only when the user copied from the agent setup picker.
+  // Written only by the retired agent setup picker; kept for the stored column.
   agent: z.string().max(64).optional(),
-  mode: z.enum(['project', 'global', 'once']).optional(),
+  // `run` and `install` are the live values. The first three are historical.
+  mode: z.enum(['project', 'global', 'once', 'run', 'install']).optional(),
 })
 
 export type InstallEventInput = z.infer<typeof InstallEventInput>
