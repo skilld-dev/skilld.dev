@@ -27,13 +27,13 @@ const listId = useId()
     <dl
       v-show="open"
       :id="listId"
-      class="mt-2 space-y-1.5 text-xs"
+      class="mt-2 max-h-64 space-y-3 overflow-y-auto pr-1 text-xs"
     >
-      <div v-for="agent in AGENT_TARGETS" :key="agent.id" class="flex gap-2">
-        <dt class="w-28 shrink-0 font-mono text-muted">
+      <div v-for="agent in AGENT_TARGETS" :key="agent.id" class="space-y-0.5">
+        <dt class="font-mono text-muted">
           {{ agent.label }}
         </dt>
-        <dd class="min-w-0 text-toned">
+        <dd class="text-toned">
           {{ agent.verify }}
         </dd>
       </div>

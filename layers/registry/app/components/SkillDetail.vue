@@ -5,6 +5,7 @@ import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
+import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 
 const props = defineProps<{
@@ -306,6 +307,9 @@ const installCmd = computed(() => {
   return skillInstallCmd(data.value.owner, data.value.repo, data.value.name)
 })
 
+const commandMode = ref<'run' | 'install'>('run')
+const commandCopyError = ref('')
+
 const { copy, copied } = useInstallCopy(
   runCmd,
   'skill-page-hero',
@@ -320,10 +324,26 @@ const { copy: copyInstall, copied: installCopied } = useInstallCopy(
   () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
 )
 
+async function copySkillCommand(mode: 'run' | 'install') {
+  commandCopyError.value = ''
+  const command = mode === 'run' ? runCmd.value : installCmd.value
+  const result = await (mode === 'run' ? copy(command) : copyInstall(command))
+  if (result._tag === 'error' && commandMode.value === mode)
+    commandCopyError.value = result.message
+}
+
+watch(commandMode, () => {
+  commandCopyError.value = ''
+})
+
 // Pristine SKILL.md over HTTP, so an agent can read the skill without installing.
 const docUrl = computed(() => data.value
   ? skillDocUrl(data.value.owner, data.value.repo, data.value.name)
   : '')
+
+function copySkillDocUrl() {
+  void copyDocUrl(docUrl.value)
+}
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
 const skillFileUrl = computed(() => data.value?.provenance?.skillFileUrl ?? '')
@@ -345,6 +365,8 @@ const DATETIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
   minute: '2-digit',
   second: '2-digit',
   hour12: false,
+  timeZone: 'UTC',
+  timeZoneName: 'short',
 })
 function formatDateTitle(value: Date | string | number | null | undefined): string {
   if (!value)
@@ -1031,71 +1053,24 @@ useHead(computed(() => ({
     <template v-if="data && status !== 'pending'">
       <USeparator />
 
-      <!-- The two "Run it" blocks are breakpoint twins, so neither can hold the anchor. -->
+      <!-- The two command blocks are breakpoint twins, so neither can hold the anchor. -->
       <div id="run" class="scroll-mt-24" />
       <div class="mx-auto max-w-5xl px-4 sm:px-6 pt-6 lg:hidden">
         <h2 class="section-label mb-2">
-          Run it
+          Use it
         </h2>
-        <div class="rounded-lg border border-default p-4 space-y-3">
-          <div class="flex items-center gap-2">
-            <InstallCommand
-              :command="runCmd"
-              wrap
-              class="min-w-0 flex-1 rounded-lg border border-default bg-muted px-3 py-2 text-sm"
-            />
-            <UButton
-              :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-              color="neutral"
-              variant="outline"
-              size="sm"
-              :aria-label="copied ? 'Copied' : 'Copy run command'"
-              @click="copy(runCmd)"
-            />
-          </div>
-          <p class="text-sm text-muted">
-            Your agent reads the skill and follows it. Nothing is written to disk.
-          </p>
-          <div class="flex items-center gap-2 border-t border-default pt-3">
-            <div class="min-w-0 flex-1">
-              <p class="font-mono text-xs text-muted">
-                Keep it in every session
-              </p>
-              <InstallCommand
-                :command="installCmd"
-                wrap
-                class="mt-1 block text-xs"
-              />
-            </div>
-            <UButton
-              :icon="installCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :aria-label="installCopied ? 'Copied' : 'Copy install command'"
-              @click="copyInstall(installCmd)"
-            />
-          </div>
-          <div class="flex items-center justify-between gap-3">
-            <AgentTargets class="min-w-0 flex-1" />
-            <div class="flex shrink-0 items-center gap-1">
-              <a
-                :href="docUrl"
-                target="_blank"
-                rel="noopener"
-                class="inline-flex min-h-11 items-center font-mono text-xs text-muted transition-colors hover:brightness-125"
-              >Raw SKILL.md</a>
-              <UButton
-                :icon="docUrlCopied ? 'i-lucide-check' : 'i-lucide-link'"
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                :aria-label="docUrlCopied ? 'Copied' : 'Copy the raw SKILL.md URL'"
-                @click="() => { void copyDocUrl(docUrl) }"
-              />
-            </div>
-          </div>
-        </div>
+        <SkillCommandPanel
+          v-model="commandMode"
+          :run-command="runCmd"
+          :install-command="installCmd"
+          :run-copied="copied"
+          :install-copied="installCopied"
+          :doc-url="docUrl"
+          :doc-url-copied="docUrlCopied"
+          :copy-error="commandCopyError"
+          @copy="copySkillCommand"
+          @copy-doc-url="copySkillDocUrl"
+        />
       </div>
 
       <div class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-10 lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start">
@@ -1421,67 +1396,20 @@ useHead(computed(() => ({
               id="rail-run-heading"
               class="section-label mb-2"
             >
-              Run it
+              Use it
             </h2>
-            <div class="rounded-lg border border-default p-4 space-y-3">
-              <div class="flex items-center gap-2">
-                <InstallCommand
-                  :command="runCmd"
-                  wrap
-                  class="min-w-0 flex-1 rounded-md border border-default bg-muted px-2 py-1.5 text-xs"
-                />
-                <UButton
-                  :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-                  color="neutral"
-                  variant="outline"
-                  size="xs"
-                  :aria-label="copied ? 'Copied' : 'Copy run command'"
-                  @click="copy(runCmd)"
-                />
-              </div>
-              <p class="text-xs text-muted">
-                Your agent reads the skill and follows it. Nothing is written to disk.
-              </p>
-              <div class="flex items-center gap-2 border-t border-default pt-3">
-                <div class="min-w-0 flex-1">
-                  <p class="font-mono text-xs text-muted">
-                    Keep it in every session
-                  </p>
-                  <InstallCommand
-                    :command="installCmd"
-                    wrap
-                    class="mt-1 block text-xs"
-                  />
-                </div>
-                <UButton
-                  :icon="installCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-                  color="neutral"
-                  variant="ghost"
-                  size="xs"
-                  :aria-label="installCopied ? 'Copied' : 'Copy install command'"
-                  @click="copyInstall(installCmd)"
-                />
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <AgentTargets class="min-w-0 flex-1" />
-                <div class="flex shrink-0 items-center gap-1">
-                  <a
-                    :href="docUrl"
-                    target="_blank"
-                    rel="noopener"
-                    class="inline-flex min-h-11 items-center font-mono text-xs text-muted transition-colors hover:brightness-125"
-                  >Raw SKILL.md</a>
-                  <UButton
-                    :icon="docUrlCopied ? 'i-lucide-check' : 'i-lucide-link'"
-                    color="neutral"
-                    variant="ghost"
-                    size="xs"
-                    :aria-label="docUrlCopied ? 'Copied' : 'Copy the raw SKILL.md URL'"
-                    @click="() => { void copyDocUrl(docUrl) }"
-                  />
-                </div>
-              </div>
-            </div>
+            <SkillCommandPanel
+              v-model="commandMode"
+              :run-command="runCmd"
+              :install-command="installCmd"
+              :run-copied="copied"
+              :install-copied="installCopied"
+              :doc-url="docUrl"
+              :doc-url-copied="docUrlCopied"
+              :copy-error="commandCopyError"
+              @copy="copySkillCommand"
+              @copy-doc-url="copySkillDocUrl"
+            />
           </section>
 
           <section
