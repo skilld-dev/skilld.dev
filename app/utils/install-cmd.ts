@@ -1,4 +1,5 @@
 const PREFIX = 'npx skilld add'
+const V3_PREFIX = 'npx skilld@beta'
 
 /**
  * Skill-level commands speak the v3 CLI grammar: `skilld run` for a transient
@@ -14,14 +15,14 @@ function skillRef(owner: string, repo: string, skill: string): string {
  * The default command. The agent reads the skill now and installs nothing.
  */
 export function skillRunCmd(owner: string, repo: string, skill: string): string {
-  return `npx skilld run ${skillRef(owner, repo, skill)}`
+  return `${V3_PREFIX} run ${skillRef(owner, repo, skill)}`
 }
 
 /**
  * The opt-in command. Files land in the repository and the lockfile records them.
  */
 export function skillInstallCmd(owner: string, repo: string, skill: string): string {
-  return `npx skilld install ${skillRef(owner, repo, skill)}`
+  return `${V3_PREFIX} install ${skillRef(owner, repo, skill)}`
 }
 
 export function gitInstallCmd(owner: string, repo: string, skill?: string): string {

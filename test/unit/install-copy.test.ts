@@ -63,7 +63,7 @@ describe('install copy', () => {
     await copyButton!.trigger('click')
     await flushPromises()
 
-    expect(copied).toContain('npx skilld run skilld:antfu/skills/vite')
+    expect(copied).toContain('npx skilld@beta run skilld:antfu/skills/vite')
     await vi.waitFor(() => {
       expect(installEvents).toContainEqual(expect.objectContaining({
         surface: 'skill-card',

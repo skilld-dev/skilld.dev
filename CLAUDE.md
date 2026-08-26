@@ -6,7 +6,7 @@
 
 Every change must serve one of two loops. If a feature doesn't, cut it.
 
-- **Loop 1 — Activation (anonymous discovery → run).** Land on skilld.dev → see curated/official skills + recent updates → open skill detail → copy `npx skilld run skilld:owner/repo/skill` → give it to the agent. The agent reads the skill and nothing lands on disk. Installing is the opt-in second step, for a skill worth keeping in every session. No auth, no email, no friction. SEO-bearing surface. Top of funnel.
+- **Loop 1 — Activation (anonymous discovery → run).** Land on skilld.dev → see curated/official skills + recent updates → open skill detail → copy `npx skilld@beta run skilld:owner/repo/skill` → give it to the agent. The agent reads the skill and nothing lands on disk. Installing is the opt-in second step, for a skill worth keeping in every session. No auth, no email, no friction. SEO-bearing surface. Top of funnel.
 - **Loop 2 — Retention (authenticated watching → digest).** Returning user signs in with GitHub → bulk-imports starred repos that have skills → Always watches collections → receives weekly digest email when watched repos change. Lifecycle hook + moat.
 
 These loops live on the same site but are sold separately. Loop 1 is the headline. Loop 2 is a small CTA strip on the homepage and a "Watch for changes" affordance on skill/collection pages.

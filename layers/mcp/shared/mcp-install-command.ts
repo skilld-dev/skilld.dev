@@ -10,13 +10,14 @@
  */
 
 const PREFIX = 'npx skilld add'
+const V3_PREFIX = 'npx skilld@beta'
 
 /**
  * The default handoff. `skilld run` gives the calling agent the skill now and
  * installs nothing, so a discovery client never has to write to a repository.
  */
 export function skillRunCommand(owner: string, repo: string, skill: string): string {
-  return `npx skilld run skilld:${owner}/${repo}/${skill}`
+  return `${V3_PREFIX} run skilld:${owner}/${repo}/${skill}`
 }
 
 export function repoInstallCommand(owner: string, repo: string, skill?: string): string {

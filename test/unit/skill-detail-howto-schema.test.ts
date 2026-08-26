@@ -157,7 +157,7 @@ describe('skillDetail HowTo structured data', () => {
     )
 
     await vi.waitFor(() => {
-      expect(howToNode().step[0]!.text).toBe('npx skilld run skilld:antfu/skills/vite')
+      expect(howToNode().step[0]!.text).toBe('npx skilld@beta run skilld:antfu/skills/vite')
     })
 
     wrapper.unmount()

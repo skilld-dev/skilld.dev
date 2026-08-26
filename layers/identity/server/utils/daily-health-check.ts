@@ -68,8 +68,8 @@ export interface DailyHealthCheckSummary {
      * Copies of a printed command, split by which grammar was copied.
      *
      * Run is the default button on every Skill surface, so one total would mix
-     * two different intents. Rows written before the `mode` column existed
-     * carry `mode IS NULL` and land in `unattributed`.
+     * two different intents. Rows from before this split, including the old
+     * project, global, and once modes, land in `unattributed`.
      */
     commandCopies24h: {
       run: number
@@ -834,7 +834,7 @@ async function loadActivity(
     SELECT
       COUNT(*) FILTER (WHERE mode = 'run') AS run_copies_24h,
       COUNT(*) FILTER (WHERE mode = 'install') AS install_copies_24h,
-      COUNT(*) FILTER (WHERE mode IS NULL) AS unattributed_copies_24h
+      COUNT(*) FILTER (WHERE mode IS NULL OR mode NOT IN ('run', 'install')) AS unattributed_copies_24h
     FROM install_events
     WHERE occurred_at >= ?1
   `, [sinceMs]))

@@ -150,7 +150,7 @@ describe('get_skill', () => {
     const data = result.structuredContent as any
 
     expect(fetchApi).toHaveBeenCalledWith('/api/skills/nuxt/nuxt/nuxt-seo', { signal: undefined })
-    expect(data.runCommand).toBe('npx skilld run skilld:nuxt/nuxt/nuxt-seo')
+    expect(data.runCommand).toBe('npx skilld@beta run skilld:nuxt/nuxt/nuxt-seo')
     expect(data.installCommand).toBe('npx skilld add gh:nuxt/nuxt -s nuxt-seo')
     expect(data.provenance).toMatchObject({
       author: 'nuxt',
@@ -241,7 +241,7 @@ describe('install_command', () => {
 
   it('offers the run command for a skill ref', async () => {
     const result = await runTool('install_command', { ref: 'anthropics/skills/skill-creator' })
-    expect((result.structuredContent as any).runCommand).toBe('npx skilld run skilld:anthropics/skills/skill-creator')
+    expect((result.structuredContent as any).runCommand).toBe('npx skilld@beta run skilld:anthropics/skills/skill-creator')
   })
 
   it('has no run command for a ref that names more than one skill', async () => {
