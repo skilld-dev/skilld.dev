@@ -222,8 +222,8 @@ describe('skillDetail command choice', () => {
   })
 })
 
-describe('skillDetail badge copy', () => {
-  it('copies README Markdown for the exact skill', async () => {
+describe('skillDetail badge utility', () => {
+  it('keeps both README options in the sidebar footer without a login gate', async () => {
     const execCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand')
     const copied: string[] = []
     const clipboard = vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({
@@ -247,18 +247,28 @@ describe('skillDetail badge copy', () => {
       { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
     )
 
-    const copyButton = await vi.waitFor(() => {
-      const button = wrapper.find('button[aria-label="Copy badge Markdown"]')
-      expect(button.exists()).toBe(true)
-      return button
+    const badgeUtility = await vi.waitFor(() => {
+      const section = wrapper.find('aside section[aria-labelledby="readme-badge-heading"]')
+      expect(section.exists()).toBe(true)
+      return section
     })
+    const preview = badgeUtility.get('img')
+    expect(preview.attributes('alt')).toBe('Run on skilld.dev')
+    expect(preview.attributes('src')).toBe('/b/antfu/skills/vite')
 
-    await copyButton.trigger('click')
+    const plainButton = badgeUtility.get('button[aria-label="Copy badge"]')
+    const likesButton = badgeUtility.get('button[aria-label="Copy badge with likes"]')
+
+    await plainButton.trigger('click')
+    await likesButton.trigger('click')
     await flushPromises()
 
     await vi.waitFor(() => {
       expect(copied).toContain(
-        '[![Run on skilld](https://skilld.dev/b/antfu/skills/vite)](https://skilld.dev/gh/antfu/skills/vite)',
+        '[![Run on skilld.dev](https://skilld.dev/b/antfu/skills/vite)](https://skilld.dev/gh/antfu/skills/vite)',
+      )
+      expect(copied).toContain(
+        '[![Run on skilld.dev](https://skilld.dev/b/antfu/skills/vite?likes=1)](https://skilld.dev/gh/antfu/skills/vite)',
       )
     })
 

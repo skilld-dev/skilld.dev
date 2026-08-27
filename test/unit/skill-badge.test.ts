@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createSkillBadgeResponse, loadSkillBadgeLikeCount, parseSkillBadgeTarget } from '../../server/utils/skill-badge'
-import { skillBadgeMarkdown } from '../../shared/skill-badge'
+import { skillBadgeImagePath, skillBadgeMarkdown } from '../../shared/skill-badge'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const databases: Array<ReturnType<typeof createSqliteD1>> = []
@@ -11,12 +11,15 @@ afterEach(() => {
 
 describe('skill badge', () => {
   it('creates the short README badge for a one-skill repository', () => {
-    expect(skillBadgeMarkdown({
+    const input = {
       owner: 'danielroe',
       repo: 'empathy',
       name: 'empathy',
       registryPath: '/gh/danielroe/empathy',
-    })).toBe('[![Run on skilld](https://skilld.dev/b/danielroe/empathy)](https://skilld.dev/gh/danielroe/empathy)')
+    }
+
+    expect(skillBadgeImagePath(input)).toBe('/b/danielroe/empathy')
+    expect(skillBadgeMarkdown(input)).toBe('[![Run on skilld.dev](https://skilld.dev/b/danielroe/empathy)](https://skilld.dev/gh/danielroe/empathy)')
   })
 
   it('keeps the skill name for a multi-skill repository', () => {
@@ -25,17 +28,27 @@ describe('skill badge', () => {
       repo: 'skills',
       name: 'vite',
       registryPath: '/gh/antfu/skills/vite',
-    })).toBe('[![Run on skilld](https://skilld.dev/b/antfu/skills/vite)](https://skilld.dev/gh/antfu/skills/vite)')
+    })).toBe('[![Run on skilld.dev](https://skilld.dev/b/antfu/skills/vite)](https://skilld.dev/gh/antfu/skills/vite)')
   })
 
-  it('creates a usable badge link for a skill name with spaces', () => {
+  it('adds likes only when requested', () => {
+    expect(skillBadgeMarkdown({
+      owner: 'danielroe',
+      repo: 'empathy',
+      name: 'empathy',
+      registryPath: '/gh/danielroe/empathy',
+      showLikes: true,
+    })).toBe('[![Run on skilld.dev](https://skilld.dev/b/danielroe/empathy?likes=1)](https://skilld.dev/gh/danielroe/empathy)')
+  })
+
+  it('creates usable badge and registry links for a skill name with spaces', () => {
     const markdown = skillBadgeMarkdown({
       owner: 'o',
       repo: 'r',
       name: 'My Skill',
       registryPath: '/gh/o/r/My Skill',
     })
-    const match = markdown.match(/^\[!\[Run on skilld\]\(([^)]+)\)\]\(([^)]+)\)$/)
+    const match = markdown.match(/^\[!\[Run on skilld\.dev\]\(([^)]+)\)\]\(([^)]+)\)$/)
 
     expect(match).not.toBeNull()
     const [, imageUrl, registryUrl] = match!
@@ -43,6 +56,17 @@ describe('skill badge', () => {
 
     expect(badgeTarget).toEqual({ _tag: 'skill', owner: 'o', repo: 'r', name: 'My Skill' })
     expect(registryUrl).toBe('https://skilld.dev/gh/o/r/My%20Skill')
+  })
+
+  it('returns a plain badge without querying for likes', async () => {
+    const response = createSkillBadgeResponse()
+
+    expect(response.headers.get('cache-control')).toBe('public, max-age=86400, stale-while-revalidate=604800')
+
+    const svg = await response.text()
+    expect(svg).toContain('<title>Run on skilld.dev</title>')
+    expect(svg).toContain('>skilld.dev<')
+    expect(svg).not.toContain('likes</title>')
   })
 
   it('returns an accessible, cacheable SVG with the like count', async () => {
@@ -56,10 +80,21 @@ describe('skill badge', () => {
 
     const svg = await response.text()
     expect(svg).toContain('role="img"')
-    expect(svg).toContain('<title>Run on skilld, 12 likes</title>')
+    expect(svg).toContain('<title>Run on skilld.dev, 12 likes</title>')
     expect(svg).toContain('>Run on<')
-    expect(svg).toContain('>skilld<')
+    expect(svg).toContain('>skilld.dev<')
     expect(svg).toContain('>12<')
+  })
+
+  it('hides the likes segment when the count is zero', async () => {
+    const response = createSkillBadgeResponse(0)
+
+    expect(response.headers.get('cache-control')).toBe('public, max-age=300, stale-while-revalidate=3600')
+
+    const svg = await response.text()
+    expect(svg).toContain('<title>Run on skilld.dev</title>')
+    expect(svg).not.toContain('0 likes')
+    expect(svg).not.toContain('>0<')
   })
 
   it('sums live likes for repository badges', async () => {
@@ -109,7 +144,7 @@ describe('skill badge', () => {
     })).resolves.toBe(1)
   })
 
-  it('counts only the requested skill for skill badges', async () => {
+  it('counts only the requested skill regardless of URL case', async () => {
     const database = createSqliteD1([])
     databases.push(database)
     database.raw.exec(`
@@ -128,9 +163,9 @@ describe('skill badge', () => {
 
     await expect(loadSkillBadgeLikeCount(database.db, {
       _tag: 'skill',
-      owner: 'antfu',
-      repo: 'skills',
-      name: 'vite',
+      owner: 'ANTFU',
+      repo: 'Skills',
+      name: 'Vite',
     })).resolves.toBe(1)
   })
 })

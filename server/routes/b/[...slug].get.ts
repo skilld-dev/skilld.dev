@@ -1,4 +1,4 @@
-import { createError, getRouterParam } from 'h3'
+import { createError, getQuery, getRouterParam } from 'h3'
 import { getDB } from '#server/utils/db'
 import { createSkillBadgeResponse, loadSkillBadgeLikeCount, parseSkillBadgeTarget } from '../../utils/skill-badge'
 
@@ -10,6 +10,9 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Badge not found',
     })
   }
+
+  if (getQuery(event).likes !== '1')
+    return createSkillBadgeResponse()
 
   const likeCount = await loadSkillBadgeLikeCount(getDB(event), target)
   return createSkillBadgeResponse(likeCount)

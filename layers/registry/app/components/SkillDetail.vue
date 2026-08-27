@@ -2,7 +2,7 @@
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
-import { skillBadgeMarkdown } from '~~/shared/skill-badge'
+import { skillBadgeImagePath, skillBadgeMarkdown } from '~~/shared/skill-badge'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
@@ -295,17 +295,30 @@ const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 const { copy: copyDocUrl, copied: docUrlCopied } = useClipboard({ legacy: true })
 
 const { copy: copyBadge, copied: badgeCopied } = useClipboard()
+const { copy: copyBadgeWithLikes, copied: badgeWithLikesCopied } = useClipboard()
 
-const badgeMarkdown = computed(() => data.value
-  ? skillBadgeMarkdown({
+const badgeInput = computed(() => data.value
+  ? {
       owner: data.value.owner,
       repo: data.value.repo,
       name: data.value.name,
       registryPath: data.value.registryPath,
-    })
+    }
+  : null)
+
+const badgeImageUrl = computed(() => badgeInput.value
+  ? skillBadgeImagePath(badgeInput.value)
+  : '')
+const badgeMarkdown = computed(() => badgeInput.value ? skillBadgeMarkdown(badgeInput.value) : '')
+const badgeWithLikesMarkdown = computed(() => badgeInput.value
+  ? skillBadgeMarkdown({ ...badgeInput.value, showLikes: true })
   : '')
 
-function copySkillBadgeMarkdown() {
+function copySkillBadgeMarkdown(showLikes = false) {
+  if (showLikes) {
+    void copyBadgeWithLikes(badgeWithLikesMarkdown.value)
+    return
+  }
   void copyBadge(badgeMarkdown.value)
 }
 
@@ -1036,19 +1049,6 @@ useHead(computed(() => ({
               <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
               GitHub
             </a>
-            <button
-              type="button"
-              class="data-label inline-flex min-h-11 items-center gap-1 transition-colors hover:text-default"
-              :aria-label="badgeCopied ? 'Badge Markdown copied' : 'Copy badge Markdown'"
-              @click="copySkillBadgeMarkdown"
-            >
-              <UIcon
-                :name="badgeCopied ? 'i-lucide-check' : 'i-lucide-badge'"
-                class="size-3.5"
-                aria-hidden="true"
-              />
-              {{ badgeCopied ? 'Badge copied' : 'Badge' }}
-            </button>
             <span
               v-if="data.pushedAt"
               class="data-label inline-flex items-center gap-1"
@@ -1801,6 +1801,47 @@ useHead(computed(() => ({
                 View full history →
               </a>
             </p>
+          </section>
+
+          <section
+            class="border-t border-default pt-4 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100"
+            aria-labelledby="readme-badge-heading"
+          >
+            <h2 id="readme-badge-heading" class="sr-only">
+              README badge
+            </h2>
+            <img
+              :src="badgeImageUrl"
+              alt="Run on skilld.dev"
+              width="137"
+              height="20"
+              loading="lazy"
+              decoding="async"
+            >
+            <div class="mt-1 flex flex-wrap items-center gap-1">
+              <UButton
+                type="button"
+                :label="badgeCopied ? 'Badge copied' : 'Copy badge'"
+                :icon="badgeCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                class="-ml-2 min-h-11"
+                :aria-label="badgeCopied ? 'Badge copied' : 'Copy badge'"
+                @click="copySkillBadgeMarkdown(false)"
+              />
+              <UButton
+                type="button"
+                :label="badgeWithLikesCopied ? 'Badge copied' : 'Copy badge with likes'"
+                :icon="badgeWithLikesCopied ? 'i-lucide-check' : 'i-lucide-heart'"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                class="min-h-11"
+                :aria-label="badgeWithLikesCopied ? 'Badge with likes copied' : 'Copy badge with likes'"
+                @click="copySkillBadgeMarkdown(true)"
+              />
+            </div>
           </section>
         </aside>
       </div>
