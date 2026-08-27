@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createSkillBadgeResponse, loadSkillBadgeLikeCount, parseSkillBadgeTarget } from '../../server/utils/skill-badge'
 import { skillBadgeImagePath, skillBadgeMarkdown } from '../../shared/skill-badge'
-import { createSqliteD1 } from './helpers/d1-sqlite'
+import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 const databases: Array<ReturnType<typeof createSqliteD1>> = []
 
@@ -167,5 +167,37 @@ describe('skill badge', () => {
       repo: 'Skills',
       name: 'Vite',
     })).resolves.toBe(1)
+  })
+
+  it('uses the nocase covering index for badge counts', () => {
+    const database = createSqliteD1(allMigrations())
+    databases.push(database)
+    const queries = [
+      {
+        sql: `SELECT COUNT(*) AS count
+          FROM skill_likes
+          WHERE owner = ?1 COLLATE NOCASE
+            AND repo = ?2 COLLATE NOCASE`,
+        values: ['DANIELROE', 'Empathy'],
+      },
+      {
+        sql: `SELECT COUNT(*) AS count
+          FROM skill_likes
+          WHERE owner = ?1 COLLATE NOCASE
+            AND repo = ?2 COLLATE NOCASE
+            AND name = ?3 COLLATE NOCASE`,
+        values: ['ANTFU', 'Skills', 'Vite'],
+      },
+    ]
+
+    for (const query of queries) {
+      const plan = database.raw
+        .prepare(`EXPLAIN QUERY PLAN ${query.sql}`)
+        .all(...query.values)
+        .map(row => String(row.detail))
+        .join('\n')
+
+      expect(plan).toContain('USING COVERING INDEX idx_skill_likes_skill_nocase')
+    }
   })
 })
