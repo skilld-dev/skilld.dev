@@ -301,6 +301,8 @@ const runCmd = computed(() => {
   return skillRunCmd(data.value.owner, data.value.repo, data.value.name)
 })
 
+const runPrompt = computed(() => skillRunPrompt(runCmd.value))
+
 const installCmd = computed(() => {
   if (!data.value)
     return ''
@@ -311,7 +313,7 @@ const commandMode = ref<'run' | 'install'>('run')
 const commandCopyError = ref('')
 
 const { copy, copied } = useInstallCopy(
-  runCmd,
+  runPrompt,
   'skill-page-hero',
   'run',
   () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
@@ -326,8 +328,8 @@ const { copy: copyInstall, copied: installCopied } = useInstallCopy(
 
 async function copySkillCommand(mode: 'run' | 'install') {
   commandCopyError.value = ''
-  const command = mode === 'run' ? runCmd.value : installCmd.value
-  const result = await (mode === 'run' ? copy(command) : copyInstall(command))
+  const text = mode === 'run' ? runPrompt.value : installCmd.value
+  const result = await (mode === 'run' ? copy(text) : copyInstall(text))
   if (result._tag === 'error' && commandMode.value === mode)
     commandCopyError.value = result.message
 }

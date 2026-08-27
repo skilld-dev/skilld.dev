@@ -202,6 +202,9 @@ describe('skillDetail command choice', () => {
     const panel = panels[0]!
     expect(panel.get('.install-command').text()).toBe('npx skilld@beta run skilld:antfu/skills/vite')
     expect(panel.get('button[aria-pressed="true"]').text()).toBe('One-Off')
+    expect(panel.text()).toContain('Ask your Agent')
+    expect(panel.text()).toContain('follow the loaded Skill instructions')
+    expect(panel.get('button[aria-label="Copy Agent prompt"]')).toBeTruthy()
 
     const installTab = panel.findAll('button[aria-pressed]')
       .find(button => button.text() === 'Install')
@@ -239,7 +242,7 @@ describe('skill command copy feedback', () => {
 
     const status = wrapper.get('[aria-live="polite"]')
     expect(status.text()).toBe('Could not copy. Select the command and copy it manually.')
-    expect(wrapper.get('button[aria-label="Copy run command"]').attributes('aria-describedby'))
+    expect(wrapper.get('button[aria-label="Copy Agent prompt"]').attributes('aria-describedby'))
       .toBe(status.attributes('id'))
 
     wrapper.unmount()
@@ -250,9 +253,21 @@ describe('skillDetail run copy telemetry', () => {
   it('records the hero copy as mode run', async () => {
     // vueuse falls back to execCommand when clipboard-write is not granted.
     const execCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand')
+    const copied: string[] = []
+    const clipboard = vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({
+      writeText: (text: string) => {
+        copied.push(text)
+        return Promise.resolve()
+      },
+    } as unknown as Clipboard)
     Object.defineProperty(document, 'execCommand', {
       configurable: true,
-      value: vi.fn(() => true),
+      value: vi.fn(() => {
+        const textarea = document.querySelector('textarea')
+        if (textarea)
+          copied.push(textarea.value)
+        return true
+      }),
     })
     installEvents.length = 0
 
@@ -263,13 +278,17 @@ describe('skillDetail run copy telemetry', () => {
 
     const copyButton = await vi.waitFor(() => {
       const button = wrapper.findAll('button')
-        .find(candidate => candidate.attributes('aria-label') === 'Copy run command')
+        .find(candidate => candidate.attributes('aria-label') === 'Copy Agent prompt')
       expect(button, 'skill detail is missing its run copy button').toBeTruthy()
       return button!
     })
 
     await copyButton.trigger('click')
     await flushPromises()
+
+    expect(copied).toContain(
+      'Run `npx skilld@beta run skilld:antfu/skills/vite` and follow the loaded Skill instructions.',
+    )
 
     await vi.waitFor(() => {
       expect(installEvents).toContainEqual(expect.objectContaining({
@@ -279,6 +298,7 @@ describe('skillDetail run copy telemetry', () => {
     })
 
     wrapper.unmount()
+    clipboard.mockRestore()
     if (execCommandDescriptor)
       Object.defineProperty(document, 'execCommand', execCommandDescriptor)
     else

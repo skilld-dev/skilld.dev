@@ -19,6 +19,13 @@ export function skillRunCmd(owner: string, repo: string, skill: string): string 
 }
 
 /**
+ * The text a developer gives an Agent for one transient Skill load.
+ */
+export function skillRunPrompt(command: string): string {
+  return `Run \`${command}\` and follow the loaded Skill instructions.`
+}
+
+/**
  * The opt-in command. Files land in the repository and the lockfile records them.
  */
 export function skillInstallCmd(owner: string, repo: string, skill: string): string {

@@ -35,9 +35,9 @@ const command = computed(() => mode.value === 'run' ? runCommand : installComman
 const commandCopied = computed(() => mode.value === 'run' ? runCopied : installCopied)
 const copyLabel = computed(() => commandCopied.value
   ? 'Copied'
-  : mode.value === 'run' ? 'Copy run command' : 'Copy install command')
+  : mode.value === 'run' ? 'Copy Agent prompt' : 'Copy install command')
 const description = computed(() => mode.value === 'run'
-  ? 'Your agent reads the Skill now. Nothing is written to disk.'
+  ? 'Paste this prompt into your Agent. No Skill files are written.'
   : 'Keep the Skill available in future sessions.')
 const copyErrorId = useId()
 </script>
@@ -66,11 +66,15 @@ const copyErrorId = useId()
     </div>
 
     <div class="flex items-start gap-2">
-      <InstallCommand
-        :command="command"
-        wrap
-        class="min-w-0 flex-1 rounded-md border border-default bg-muted px-3 py-2 text-sm"
-      />
+      <div class="min-w-0 flex-1 rounded-md border border-default bg-muted px-3 py-2 text-sm">
+        <p v-if="mode === 'run'" class="section-label mb-1">
+          Ask your Agent
+        </p>
+        <p v-if="mode === 'run'" class="leading-relaxed text-default">
+          Run <InstallCommand :command="command" wrap class="inline" /> and follow the loaded Skill instructions.
+        </p>
+        <InstallCommand v-else :command="command" wrap class="block" />
+      </div>
       <UButton
         :icon="commandCopied ? 'i-lucide-check' : 'i-lucide-copy'"
         color="neutral"

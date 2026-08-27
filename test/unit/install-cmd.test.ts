@@ -5,6 +5,7 @@ import {
   gitInstallCmd,
   skillInstallCmd,
   skillRunCmd,
+  skillRunPrompt,
 } from '../../app/utils/install-cmd'
 
 describe('skill commands', () => {
@@ -13,6 +14,11 @@ describe('skill commands', () => {
     [skillInstallCmd('nuxt', 'nuxt', 'seo'), 'npx skilld@beta install skilld:nuxt/nuxt/seo'],
   ])('returns %s', (command, expected) => {
     expect(command).toBe(expected)
+  })
+
+  it('turns a transient Skill command into an Agent prompt', () => {
+    expect(skillRunPrompt('npx skilld@beta run skilld:nuxt/nuxt/seo'))
+      .toBe('Run `npx skilld@beta run skilld:nuxt/nuxt/seo` and follow the loaded Skill instructions.')
   })
 })
 
