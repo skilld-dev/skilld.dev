@@ -222,6 +222,55 @@ describe('skillDetail command choice', () => {
   })
 })
 
+describe('skillDetail badge copy', () => {
+  it('copies README Markdown for the exact skill', async () => {
+    const execCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand')
+    const copied: string[] = []
+    const clipboard = vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({
+      writeText: (text: string) => {
+        copied.push(text)
+        return Promise.resolve()
+      },
+    } as unknown as Clipboard)
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => {
+        const textarea = document.querySelector('textarea')
+        if (textarea)
+          copied.push(textarea.value)
+        return true
+      }),
+    })
+
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
+    )
+
+    const copyButton = await vi.waitFor(() => {
+      const button = wrapper.find('button[aria-label="Copy badge Markdown"]')
+      expect(button.exists()).toBe(true)
+      return button
+    })
+
+    await copyButton.trigger('click')
+    await flushPromises()
+
+    await vi.waitFor(() => {
+      expect(copied).toContain(
+        '[![Run on skilld](https://skilld.dev/b/antfu/skills/vite)](https://skilld.dev/gh/antfu/skills/vite)',
+      )
+    })
+
+    wrapper.unmount()
+    clipboard.mockRestore()
+    if (execCommandDescriptor)
+      Object.defineProperty(document, 'execCommand', execCommandDescriptor)
+    else
+      Reflect.deleteProperty(document, 'execCommand')
+  })
+})
+
 describe('skill command copy feedback', () => {
   it('announces copy failures next to the command', async () => {
     const wrapper = await mountSuspended(

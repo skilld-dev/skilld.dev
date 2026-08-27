@@ -2,6 +2,7 @@
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
+import { skillBadgeMarkdown } from '~~/shared/skill-badge'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
@@ -292,6 +293,21 @@ const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 
 // An agent with no terminal cannot run a command, so it needs the raw URL.
 const { copy: copyDocUrl, copied: docUrlCopied } = useClipboard({ legacy: true })
+
+const { copy: copyBadge, copied: badgeCopied } = useClipboard()
+
+const badgeMarkdown = computed(() => data.value
+  ? skillBadgeMarkdown({
+      owner: data.value.owner,
+      repo: data.value.repo,
+      name: data.value.name,
+      registryPath: data.value.registryPath,
+    })
+  : '')
+
+function copySkillBadgeMarkdown() {
+  void copyBadge(badgeMarkdown.value)
+}
 
 // Running is the default: the agent reads the skill now and nothing lands in
 // the repository. Installing is the opt-in for a skill you want every session.
@@ -1020,6 +1036,19 @@ useHead(computed(() => ({
               <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
               GitHub
             </a>
+            <button
+              type="button"
+              class="data-label inline-flex min-h-11 items-center gap-1 transition-colors hover:text-default"
+              :aria-label="badgeCopied ? 'Badge Markdown copied' : 'Copy badge Markdown'"
+              @click="copySkillBadgeMarkdown"
+            >
+              <UIcon
+                :name="badgeCopied ? 'i-lucide-check' : 'i-lucide-badge'"
+                class="size-3.5"
+                aria-hidden="true"
+              />
+              {{ badgeCopied ? 'Badge copied' : 'Badge' }}
+            </button>
             <span
               v-if="data.pushedAt"
               class="data-label inline-flex items-center gap-1"
