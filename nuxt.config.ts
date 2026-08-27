@@ -405,7 +405,12 @@ export default defineNuxtConfig({
     // The old rule was `/api/repos/(?!index/)owner/repo`. Most-specific-wins
     // replaces the negative lookahead: the index routes take the second rule.
     '/api/repos/**': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=900, stale-while-revalidate=3600, stale-if-error=3600' } } as any,
-    '/api/repos/index/**': { headers: { 'cache-control': 'private, no-store' } } as any,
+    '/api/repos/index/**': {
+      headers: {
+        'cache-control': 'private, no-store',
+        'cloudflare-cdn-cache-control': 'private, no-store',
+      },
+    } as any,
     '/collections': { redirect: { to: '/community', statusCode: 301 } } as any,
     // 2026-08-22: `_WeeklyBand.vue` and `_FrameworkSkillsDirectory.vue` were
     // component files living inside pages/ dirs, so Nuxt made them routes:
