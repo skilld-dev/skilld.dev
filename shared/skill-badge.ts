@@ -17,9 +17,12 @@ export function skillBadgeMarkdown(input: SkillBadgeMarkdownInput): string {
     ? [input.owner, input.repo]
     : [input.owner, input.repo, input.name]
   const badgePath = badgeSegments.map(encodeURIComponent).join('/')
-  const registryPath = input.registryPath.startsWith('/')
+  const registryPath = (input.registryPath.startsWith('/')
     ? input.registryPath
-    : `/${input.registryPath}`
+    : `/${input.registryPath}`)
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/')
 
   return `[![Run on skilld](${siteUrl}/b/${badgePath})](${siteUrl}${registryPath})`
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createSkillBadgeResponse, loadSkillBadgeLikeCount } from '../../server/utils/skill-badge'
+import { createSkillBadgeResponse, loadSkillBadgeLikeCount, parseSkillBadgeTarget } from '../../server/utils/skill-badge'
 import { skillBadgeMarkdown } from '../../shared/skill-badge'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
@@ -26,6 +26,23 @@ describe('skill badge', () => {
       name: 'vite',
       registryPath: '/gh/antfu/skills/vite',
     })).toBe('[![Run on skilld](https://skilld.dev/b/antfu/skills/vite)](https://skilld.dev/gh/antfu/skills/vite)')
+  })
+
+  it('creates a usable badge link for a skill name with spaces', () => {
+    const markdown = skillBadgeMarkdown({
+      owner: 'o',
+      repo: 'r',
+      name: 'My Skill',
+      registryPath: '/gh/o/r/My Skill',
+    })
+    const match = markdown.match(/^\[!\[Run on skilld\]\(([^)]+)\)\]\(([^)]+)\)$/)
+
+    expect(match).not.toBeNull()
+    const [, imageUrl, registryUrl] = match!
+    const badgeTarget = parseSkillBadgeTarget(decodeURIComponent(new URL(imageUrl).pathname.slice(3)))
+
+    expect(badgeTarget).toEqual({ _tag: 'skill', owner: 'o', repo: 'r', name: 'My Skill' })
+    expect(registryUrl).toBe('https://skilld.dev/gh/o/r/My%20Skill')
   })
 
   it('returns an accessible, cacheable SVG with the like count', async () => {
@@ -68,6 +85,28 @@ describe('skill badge', () => {
       owner: 'danielroe',
       repo: 'empathy',
     })).resolves.toBe(2)
+  })
+
+  it('sums likes for repository badges regardless of owner and repo case', async () => {
+    const database = createSqliteD1([])
+    databases.push(database)
+    database.raw.exec(`
+      CREATE TABLE skill_likes (
+        user_id INTEGER NOT NULL,
+        owner TEXT NOT NULL,
+        repo TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, owner, repo, name)
+      );
+      INSERT INTO skill_likes VALUES (1, 'danielroe', 'empathy', 'empathy', 1);
+    `)
+
+    await expect(loadSkillBadgeLikeCount(database.db, {
+      _tag: 'repository',
+      owner: 'DANIELROE',
+      repo: 'Empathy',
+    })).resolves.toBe(1)
   })
 
   it('counts only the requested skill for skill badges', async () => {

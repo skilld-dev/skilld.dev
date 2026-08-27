@@ -10,10 +10,12 @@ const BADGE_SEGMENT = /^[\w.-]{1,100}$/
 
 export function parseSkillBadgeTarget(slug: string): SkillBadgeTarget | null {
   const segments = slug.split('/')
-  if ((segments.length !== 2 && segments.length !== 3) || !segments.every(segment => BADGE_SEGMENT.test(segment)))
+  const [owner, repo, name] = segments as [string, string, string?]
+  if ((segments.length !== 2 && segments.length !== 3) || !BADGE_SEGMENT.test(owner) || !BADGE_SEGMENT.test(repo))
+    return null
+  if (name !== undefined && (name.length === 0 || name.length > 100))
     return null
 
-  const [owner, repo, name] = segments as [string, string, string?]
   return name
     ? { _tag: 'skill', owner, repo, name }
     : { _tag: 'repository', owner, repo }
@@ -23,10 +25,10 @@ export async function loadSkillBadgeLikeCount(db: D1Database, target: SkillBadge
   const statement = target._tag === 'skill'
     ? db.prepare(`SELECT COUNT(*) AS count
         FROM skill_likes
-        WHERE owner = ?1 AND repo = ?2 AND name = ?3`).bind(target.owner, target.repo, target.name)
+        WHERE owner = ?1 COLLATE NOCASE AND repo = ?2 COLLATE NOCASE AND name = ?3`).bind(target.owner, target.repo, target.name)
     : db.prepare(`SELECT COUNT(*) AS count
         FROM skill_likes
-        WHERE owner = ?1 AND repo = ?2`).bind(target.owner, target.repo)
+        WHERE owner = ?1 COLLATE NOCASE AND repo = ?2 COLLATE NOCASE`).bind(target.owner, target.repo)
   const row = await statement.first<{ count: number }>()
   return row?.count ?? 0
 }
