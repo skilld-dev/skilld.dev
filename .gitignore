@@ -15,8 +15,10 @@ logs
 
 # Misc
 .DS_Store
+.claude/worktrees/
 .fleet
 .idea
+GOOGLE_RECOVERY.md
 
 # Cloudflare
 .wrangler
