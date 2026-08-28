@@ -1,6 +1,5 @@
 import { getDB } from '#server/utils/db'
 import { getRepo, getTree, resolveGithubBindings } from '../../../utils/github-client'
-import { resolveRepoRouteTarget } from '../../../utils/repo-route-target'
 import { resolveRepoSourceIdentity } from '../../../utils/repo-source-identity'
 import { buildUnavailableRepoSourceProfile } from '../../../utils/repo-source-profile'
 import { isTrustedAuthorRepo } from '../../../utils/trusted-author-sources'
@@ -20,7 +19,6 @@ export interface RepoSourceProfile {
   skillFileScanStatus: 'ok' | 'unavailable' | 'truncated'
   skillFileCount: number
   skillFiles: string[]
-  routeTarget: ReturnType<typeof resolveRepoRouteTarget>
   seoIndexable: boolean
 }
 
@@ -34,22 +32,7 @@ export default defineCachedEventHandler(async (event) => {
   const repo = repoParam.toLowerCase()
   const seoIndexable = isTrustedAuthorRepo(owner, repo)
   const db = getDB(event)
-  const [source, indexedSkills] = await Promise.all([
-    resolveRepoSourceIdentity(db, { owner, repo }),
-    db
-      .prepare(
-        `SELECT name
-         FROM skills
-         WHERE owner = ?
-           AND repo = ?
-           AND source_resolved = 1
-         ORDER BY name
-         LIMIT 2`,
-      )
-      .bind(owner, repo)
-      .all<{ name: string }>(),
-  ])
-  const routeTarget = resolveRepoRouteTarget((indexedSkills.results ?? []).map(row => row.name))
+  const source = await resolveRepoSourceIdentity(db, { owner, repo })
   const bindings = resolveGithubBindings(event.context.platform.env)
 
   const repoRes = await getRepo(source.owner, source.repo, bindings)
@@ -63,7 +46,6 @@ export default defineCachedEventHandler(async (event) => {
     }))
     return {
       ...buildUnavailableRepoSourceProfile(owner, repo),
-      routeTarget,
       seoIndexable,
     } satisfies RepoSourceProfile
   }
@@ -97,7 +79,6 @@ export default defineCachedEventHandler(async (event) => {
     skillFileScanStatus,
     skillFileCount: skillFiles.length,
     skillFiles,
-    routeTarget,
     seoIndexable,
   } satisfies RepoSourceProfile
 }, {

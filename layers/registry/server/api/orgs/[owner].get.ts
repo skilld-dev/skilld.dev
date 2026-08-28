@@ -141,7 +141,7 @@ async function loadOwner(owner: string, db: D1Database): Promise<OwnerRow | null
   return fetched ?? cached ?? null
 }
 
-export default defineCachedEventHandler(async (event) => {
+export default defineEventHandler(async (event) => {
   const ownerParam = getRouterParam(event, 'owner')
   if (!ownerParam)
     throw createError({ statusCode: 400, message: 'Missing owner parameter' })
@@ -262,11 +262,4 @@ export default defineCachedEventHandler(async (event) => {
   }
 
   return profile
-}, {
-  maxAge: 60,
-  swr: false,
-  getKey: (event) => {
-    const owner = getRouterParam(event, 'owner')
-    return `org-origin:v3:${(owner || '').toLowerCase()}`
-  },
 })

@@ -384,7 +384,12 @@ export default defineNuxtConfig({
     '/api/skills': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=120, stale-while-revalidate=600, stale-if-error=3600' } } as any,
     '/api/clusters': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=600' } } as any,
     '/api/clusters/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
-    '/api/orgs/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    '/api/orgs/*': {
+      headers: {
+        'cache-control': 'private, no-store',
+        'cloudflare-cdn-cache-control': 'private, no-store',
+      },
+    } as any,
     '/api/tags/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
     // Raw markdown and the typeahead index deliberately keep browser caching
     // too: both are large, identical for everyone, and only change when the
@@ -405,6 +410,12 @@ export default defineNuxtConfig({
     // The old rule was `/api/repos/(?!index/)owner/repo`. Most-specific-wins
     // replaces the negative lookahead: the index routes take the second rule.
     '/api/repos/**': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=900, stale-while-revalidate=3600, stale-if-error=3600' } } as any,
+    '/api/repos/*/*/route-target': {
+      headers: {
+        'cache-control': 'private, no-store',
+        'cloudflare-cdn-cache-control': 'private, no-store',
+      },
+    } as any,
     '/api/repos/index/**': {
       headers: {
         'cache-control': 'private, no-store',

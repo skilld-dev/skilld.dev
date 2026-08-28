@@ -8,7 +8,7 @@ export interface RepoRouteResolution {
   target: RepoRouteTarget
 }
 
-export default defineCachedEventHandler(async (event) => {
+export default defineEventHandler(async (event) => {
   const owner = getRouterParam(event, 'owner')?.toLowerCase()
   const repo = getRouterParam(event, 'repo')?.toLowerCase()
   if (!owner || !repo)
@@ -32,15 +32,4 @@ export default defineCachedEventHandler(async (event) => {
     repo,
     target: resolveRepoRouteTarget((indexedSkills.results ?? []).map(row => row.name)),
   } satisfies RepoRouteResolution
-}, {
-  maxAge: 60,
-  staleMaxAge: 60 * 5,
-  swr: true,
-  group: 'repo-route-target',
-  name: 'repo-route-target-v1',
-  getKey: (event) => {
-    const owner = (getRouterParam(event, 'owner') ?? '').toLowerCase()
-    const repo = (getRouterParam(event, 'repo') ?? '').toLowerCase()
-    return `${owner}/${repo}`
-  },
 })
