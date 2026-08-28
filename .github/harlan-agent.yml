@@ -13,5 +13,5 @@ routines:
       schedule:
         - cron: '20 6 * * *'
     timezone: Australia/Sydney
-    mode: report
+    mode: propose
     enabled: true
