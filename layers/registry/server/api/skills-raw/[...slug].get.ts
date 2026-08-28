@@ -64,14 +64,22 @@ export default defineApiHandler({
     })
     const branch = repoMeta?.defaultBranch || 'main'
 
-    const treeRes = await $fetch<{ files?: { path: string }[] }>(
+    const treeResult = await $fetch<{ files?: { path: string }[] }>(
       `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
-    ).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-raw-tree-fetch', outcome: 'failed' }))
-      return null
-    })
+    ).then(
+      response => ({ _tag: 'available' as const, files: response.files ?? [] }),
+      () => {
+        emitOperationalEvent(createWideEvent({ operation: 'skill-raw-tree-fetch', outcome: 'failed' }))
+        return { _tag: 'unavailable' as const }
+      },
+    )
 
-    const files = treeRes?.files ?? []
+    if (treeResult._tag === 'unavailable') {
+      setHeader(event, 'retry-after', RAW_RETRY_AFTER)
+      throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
+    }
+
+    const files = treeResult.files
     const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
     const skillPath = files.find(f =>
       f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
