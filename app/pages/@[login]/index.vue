@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrgProfile } from '#layers/registry/server/api/orgs/[owner].get'
+import { authorBadgeInput } from '../../utils/author-badge'
 
 const route = useRoute()
 const login = computed(() => String(route.params.login))
@@ -32,7 +33,7 @@ interface SkillGroup {
   key: string
   owner: string
   repo: string
-  skills: AuthorSkill[]
+  skills: [AuthorSkill, ...AuthorSkill[]]
 }
 
 const skillPreviewLimit = 6
@@ -154,6 +155,25 @@ function toggleRepository(group: SkillGroup): void {
   expandedRepositories.value = repositoryIsExpanded(group)
     ? expandedRepositories.value.filter(key => key !== group.key)
     : [...expandedRepositories.value, group.key]
+}
+
+function repositoryBadgeInput(group: SkillGroup) {
+  return authorBadgeInput({
+    _tag: 'repository',
+    owner: group.owner,
+    repo: group.repo,
+    name: group.skills[0].name,
+  })
+}
+
+function skillBadgeInput(group: SkillGroup, skill: AuthorSkill) {
+  return authorBadgeInput({
+    _tag: 'skill',
+    owner: skill.owner,
+    repo: skill.repo,
+    name: skill.name,
+    repositorySkillCount: group.skills.length,
+  })
 }
 
 const canonicalUrl = computed(() => `https://skilld.dev/@${login.value}`)
@@ -315,6 +335,9 @@ defineOgImage('Curator.takumi', {
               <span class="data-label tabular-nums">
                 {{ group.skills.length }} {{ group.skills.length === 1 ? 'skill' : 'skills' }}
               </span>
+              <BadgeEmbedControl
+                v-bind="repositoryBadgeInput(group)"
+              />
               <UButton
                 v-if="isOwner"
                 label="Unpublish"
@@ -376,6 +399,9 @@ defineOgImage('Curator.takumi', {
                     :name="s.name"
                     :count="s.likeCount"
                     variant="inline"
+                  />
+                  <BadgeEmbedControl
+                    v-bind="skillBadgeInput(group, s)"
                   />
                   <UButton
                     v-if="skillSourceUrl(s)"
