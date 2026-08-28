@@ -31,7 +31,7 @@ useSeoMeta({
       </p>
     </header>
 
-    <div class="mt-8 grid gap-4 border-y border-default py-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="mt-8 grid gap-4 border-y border-default py-4 sm:grid-cols-2 lg:grid-cols-3">
       <div class="flex flex-wrap items-center gap-3">
         <span class="font-mono text-sm text-muted">Target</span>
         <div class="flex gap-2" role="group" aria-label="Badge target preview">
@@ -97,28 +97,6 @@ useSeoMeta({
           />
         </div>
       </div>
-
-      <div class="flex flex-wrap items-center gap-3">
-        <span class="font-mono text-sm text-muted">GitHub theme</span>
-        <div class="flex gap-2" role="group" aria-label="GitHub theme preview">
-          <UButton
-            label="Light"
-            color="neutral"
-            :variant="githubTheme === 'light' ? 'soft' : 'outline'"
-            :aria-pressed="githubTheme === 'light'"
-            class="min-h-11"
-            @click="githubTheme = 'light'"
-          />
-          <UButton
-            label="Dark"
-            color="neutral"
-            :variant="githubTheme === 'dark' ? 'soft' : 'outline'"
-            :aria-pressed="githubTheme === 'dark'"
-            class="min-h-11"
-            @click="githubTheme = 'dark'"
-          />
-        </div>
-      </div>
     </div>
 
     <section class="mt-10" aria-labelledby="readme-context-heading">
@@ -146,11 +124,47 @@ useSeoMeta({
         :class="{ 'github-readme--dark': githubTheme === 'dark' }"
         :data-github-theme="githubTheme"
       >
-        <div class="github-readme__bar flex items-center gap-2 border-b px-5 py-3">
-          <span class="size-3 rounded-full bg-[#ff5f57]" aria-hidden="true" />
-          <span class="size-3 rounded-full bg-[#febc2e]" aria-hidden="true" />
-          <span class="size-3 rounded-full bg-[#28c840]" aria-hidden="true" />
-          <span class="ml-2 font-mono text-xs">README.md</span>
+        <div class="github-readme__bar flex min-h-11 items-center justify-between border-b ps-5">
+          <div class="flex items-center gap-2">
+            <span class="size-3 rounded-full bg-[#ff5f57]" aria-hidden="true" />
+            <span class="size-3 rounded-full bg-[#febc2e]" aria-hidden="true" />
+            <span class="size-3 rounded-full bg-[#28c840]" aria-hidden="true" />
+            <span class="ml-2 font-mono text-xs">README.md</span>
+          </div>
+          <div class="flex" role="group" aria-label="README preview color">
+            <UButton
+              type="button"
+              color="neutral"
+              variant="ghost"
+              class="min-h-11 min-w-11 justify-center rounded-none"
+              aria-label="Preview light badge"
+              :aria-pressed="githubTheme === 'light'"
+              @click="githubTheme = 'light'"
+            >
+              <span
+                class="size-3 rounded-sm border"
+                :class="githubTheme === 'light' ? 'border-primary ring-2 ring-primary/20' : 'border-default'"
+                style="background: #f6f8fa"
+                aria-hidden="true"
+              />
+            </UButton>
+            <UButton
+              type="button"
+              color="neutral"
+              variant="ghost"
+              class="min-h-11 min-w-11 justify-center rounded-none"
+              aria-label="Preview dark badge"
+              :aria-pressed="githubTheme === 'dark'"
+              @click="githubTheme = 'dark'"
+            >
+              <span
+                class="size-3 rounded-sm border"
+                :class="githubTheme === 'dark' ? 'border-primary ring-2 ring-primary/20' : 'border-default'"
+                style="background: #0d1117"
+                aria-hidden="true"
+              />
+            </UButton>
+          </div>
         </div>
         <div class="px-5 py-7 sm:px-8 sm:py-9">
           <h3 class="github-readme__title text-2xl font-semibold">
