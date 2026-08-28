@@ -6,6 +6,7 @@ import { findSkill } from '../../utils/skills-registry'
 
 const FILES_CACHE_TTL = 60 * 60 * 6
 const FILES_MISSING_TTL = 60 * 5
+const FILES_RETRY_AFTER = 30
 
 interface SkillFile {
   path: string
@@ -75,14 +76,24 @@ export default defineApiHandler({
     if (cached)
       return cached
 
-    const tree = await $fetch<{ files?: { path: string, size?: number }[] }>(
+    const treeResult = await $fetch<{ files?: { path: string, size?: number }[] }>(
       `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
-    ).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-files-tree-fetch', outcome: 'failed' }))
-      return null
-    })
+    ).then(
+      response => ({ _tag: 'available' as const, files: response.files ?? [] }),
+      () => {
+        emitOperationalEvent(createWideEvent({ operation: 'skill-files-tree-fetch', outcome: 'failed' }))
+        return { _tag: 'unavailable' as const }
+      },
+    )
 
-    if (!tree?.files?.length) {
+    if (treeResult._tag === 'unavailable') {
+      setHeader(event, 'retry-after', FILES_RETRY_AFTER)
+      throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
+    }
+
+    const tree = treeResult.files
+
+    if (!tree.length) {
       const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [], total: 0 }
       await writeCache(useStorage('cache'), cacheKey, empty, { ttl: FILES_MISSING_TTL })
       return empty
@@ -94,7 +105,7 @@ export default defineApiHandler({
     let skillDir = row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? null
     if (!skillDir) {
       const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-      const skillMd = tree.files.find(f =>
+      const skillMd = tree.find(f =>
         f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
         || f.path.toLowerCase() === `${slugifiedName}/skill.md`
         || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
@@ -110,7 +121,7 @@ export default defineApiHandler({
     }
 
     const prefix = `${skillDir}/`
-    const files: SkillFile[] = tree.files
+    const files: SkillFile[] = tree
       .filter(f => f.path.startsWith(prefix) && !f.path.endsWith('/SKILL.md'))
       .map(f => ({
         path: f.path.slice(prefix.length),
