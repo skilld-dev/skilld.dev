@@ -190,9 +190,6 @@ const flatSkillName = computed<string | null>(() => {
   if (repoRouteTarget.value?._tag === 'skill')
     return repoRouteTarget.value.name
 
-  if (repoSource.value?.routeTarget._tag === 'skill')
-    return repoSource.value.routeTarget.name
-
   if (repoSkills.value.length === 1)
     return repoSkills.value[0]?.name ?? null
 
