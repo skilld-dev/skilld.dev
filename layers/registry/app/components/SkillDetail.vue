@@ -2,7 +2,6 @@
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
-import { skillBadgeImagePath, skillBadgeMarkdown } from '~~/shared/skill-badge'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
@@ -294,9 +293,6 @@ const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 // An agent with no terminal cannot run a command, so it needs the raw URL.
 const { copy: copyDocUrl, copied: docUrlCopied } = useClipboard({ legacy: true })
 
-const { copy: copyBadge, copied: badgeCopied } = useClipboard()
-const { copy: copyBadgeWithLikes, copied: badgeWithLikesCopied } = useClipboard()
-
 const badgeInput = computed(() => data.value
   ? {
       owner: data.value.owner,
@@ -305,22 +301,6 @@ const badgeInput = computed(() => data.value
       registryPath: data.value.registryPath,
     }
   : null)
-
-const badgeImageUrl = computed(() => badgeInput.value
-  ? skillBadgeImagePath(badgeInput.value)
-  : '')
-const badgeMarkdown = computed(() => badgeInput.value ? skillBadgeMarkdown(badgeInput.value) : '')
-const badgeWithLikesMarkdown = computed(() => badgeInput.value
-  ? skillBadgeMarkdown({ ...badgeInput.value, showLikes: true })
-  : '')
-
-function copySkillBadgeMarkdown(showLikes = false) {
-  if (showLikes) {
-    void copyBadgeWithLikes(badgeWithLikesMarkdown.value)
-    return
-  }
-  void copyBadge(badgeMarkdown.value)
-}
 
 // Running is the default: the agent reads the skill now and nothing lands in
 // the repository. Installing is the opt-in for a skill you want every session.
@@ -1804,44 +1784,14 @@ useHead(computed(() => ({
           </section>
 
           <section
+            v-if="badgeInput"
             class="border-t border-default pt-4 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100"
             aria-labelledby="readme-badge-heading"
           >
             <h2 id="readme-badge-heading" class="sr-only">
               README badge
             </h2>
-            <img
-              :src="badgeImageUrl"
-              alt="Run on skilld.dev"
-              width="137"
-              height="20"
-              loading="lazy"
-              decoding="async"
-            >
-            <div class="mt-1 flex flex-wrap items-center gap-1">
-              <UButton
-                type="button"
-                :label="badgeCopied ? 'Badge copied' : 'Copy badge'"
-                :icon="badgeCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                class="-ml-2 min-h-11"
-                :aria-label="badgeCopied ? 'Badge copied' : 'Copy badge'"
-                @click="copySkillBadgeMarkdown(false)"
-              />
-              <UButton
-                type="button"
-                :label="badgeWithLikesCopied ? 'Badge copied' : 'Copy badge with likes'"
-                :icon="badgeWithLikesCopied ? 'i-lucide-check' : 'i-lucide-heart'"
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                class="min-h-11"
-                :aria-label="badgeWithLikesCopied ? 'Badge with likes copied' : 'Copy badge with likes'"
-                @click="copySkillBadgeMarkdown(true)"
-              />
-            </div>
+            <BadgeEmbedControl v-bind="badgeInput" />
           </section>
         </aside>
       </div>

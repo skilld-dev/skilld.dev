@@ -223,25 +223,7 @@ describe('skillDetail command choice', () => {
 })
 
 describe('skillDetail badge utility', () => {
-  it('keeps both README options in the sidebar footer without a login gate', async () => {
-    const execCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand')
-    const copied: string[] = []
-    const clipboard = vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({
-      writeText: (text: string) => {
-        copied.push(text)
-        return Promise.resolve()
-      },
-    } as unknown as Clipboard)
-    Object.defineProperty(document, 'execCommand', {
-      configurable: true,
-      value: vi.fn(() => {
-        const textarea = document.querySelector('textarea')
-        if (textarea)
-          copied.push(textarea.value)
-        return true
-      }),
-    })
-
+  it('shows the minimal README badge editor without a login gate', async () => {
     const wrapper = await mountSuspended(
       await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
       { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
@@ -252,32 +234,11 @@ describe('skillDetail badge utility', () => {
       expect(section.exists()).toBe(true)
       return section
     })
-    const preview = badgeUtility.get('img')
-    expect(preview.attributes('alt')).toBe('Run on skilld.dev')
-    expect(preview.attributes('src')).toBe('/b/antfu/skills/vite')
-
-    const plainButton = badgeUtility.get('button[aria-label="Copy badge"]')
-    const likesButton = badgeUtility.get('button[aria-label="Copy badge with likes"]')
-
-    await plainButton.trigger('click')
-    await likesButton.trigger('click')
-    await flushPromises()
-
-    await vi.waitFor(() => {
-      expect(copied).toContain(
-        '[![Run on skilld.dev](https://skilld.dev/b/antfu/skills/vite)](https://skilld.dev/gh/antfu/skills/vite)',
-      )
-      expect(copied).toContain(
-        '[![Run on skilld.dev](https://skilld.dev/b/antfu/skills/vite?likes=1)](https://skilld.dev/gh/antfu/skills/vite)',
-      )
-    })
+    const preview = badgeUtility.get('[data-testid="minimal-badge-light"]')
+    expect(preview.attributes('src')).toBe('/b/antfu/skills/vite?theme=light&label=0')
+    expect(badgeUtility.get('button[aria-label="Configure README badge"]')).toBeTruthy()
 
     wrapper.unmount()
-    clipboard.mockRestore()
-    if (execCommandDescriptor)
-      Object.defineProperty(document, 'execCommand', execCommandDescriptor)
-    else
-      Reflect.deleteProperty(document, 'execCommand')
   })
 })
 

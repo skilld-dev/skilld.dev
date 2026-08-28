@@ -257,6 +257,12 @@ const repoHubGithubUrl = computed(() => {
   const hub = repoHub.value
   return repoSource.value?.githubUrl ?? `https://github.com/${hub.owner}/${hub.repo}`
 })
+const repositoryBadgeInput = computed(() => ({
+  owner: repoHub.value.owner,
+  repo: repoHub.value.repo,
+  name: repoSkills.value[0]?.name ?? repoHub.value.repo,
+  registryPath: repoHubPath(repoHub.value.owner, repoHub.value.repo),
+}))
 
 const repoSourceRequested = ref<string | null>(fetchRepoDetailsOnServer ? repoKey.value : null)
 watch([repoRouteStatus, repoRouteTarget, repoKey], ([routeStatus, routeTarget, key]) => {
@@ -454,6 +460,7 @@ useHead(computed(() => ({
                 color="neutral"
                 variant="ghost"
               />
+              <BadgeEmbedControl v-bind="repositoryBadgeInput" />
             </div>
           </div>
         </div>

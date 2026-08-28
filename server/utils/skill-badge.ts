@@ -1,5 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { SkillBadgeTheme } from '../../shared/skill-badge'
+
 const PLAIN_CACHE_POLICY = 'public, max-age=86400, stale-while-revalidate=604800'
 const LIKES_CACHE_POLICY = 'public, max-age=300, stale-while-revalidate=3600'
 
@@ -8,6 +10,25 @@ export type SkillBadgeTarget
     | { _tag: 'skill', owner: string, repo: string, name: string }
 
 const BADGE_SEGMENT = /^[\w.-]{1,100}$/
+
+export interface SkillBadgeAppearance {
+  theme: SkillBadgeTheme
+  showLabel: boolean
+}
+
+export interface SkillBadgeResponseInput {
+  target: SkillBadgeTarget
+  theme?: SkillBadgeTheme
+  showLabel?: boolean
+  likeCount?: number
+}
+
+export function parseSkillBadgeAppearance(query: { theme?: unknown, label?: unknown }): SkillBadgeAppearance {
+  return {
+    theme: query.theme === 'dark' ? 'dark' : 'light',
+    showLabel: query.label !== '0',
+  }
+}
 
 export function parseSkillBadgeTarget(slug: string): SkillBadgeTarget | null {
   const segments = slug.split('/')
@@ -44,44 +65,64 @@ function badgeLikeLabel(likeCount: number): string {
   }).format(likeCount)
 }
 
-function skillBadgeSvg(likeCount?: number): string {
+function skillBadgeSvg(input: SkillBadgeResponseInput): string {
+  const { target, theme = 'light', likeCount } = input
+  const showLabel = input.showLabel !== false
   const safeLikeCount = likeCount === undefined ? null : Math.max(0, Math.floor(likeCount))
-  const showLikes = safeLikeCount !== null && safeLikeCount > 0
+  const showLikes = safeLikeCount !== null
   const likeLabel = showLikes ? badgeLikeLabel(safeLikeCount) : ''
   const likeWord = safeLikeCount === 1 ? 'like' : 'likes'
-  const countWidth = showLikes ? Math.max(37, 25 + likeLabel.length * 7) : 0
-  const width = 137 + countWidth
+  const countWidth = showLikes ? Math.max(46, 25 + likeLabel.length * 7) : 0
+  const badgeWidth = showLabel ? 153 : 81
+  const width = badgeWidth + countWidth
+  const brandX = showLabel ? 72 : 0
+  const categoryLabel = target._tag === 'repository' ? 'Skill repo' : 'Agent skill'
+  const targetLabel = target._tag === 'repository' ? 'Skill repository' : 'Agent skill'
   const accessibleLabel = showLikes
-    ? `Run on skilld.dev, ${safeLikeCount} ${likeWord}`
-    : 'Run on skilld.dev'
+    ? `${targetLabel} on skilld.dev, ${safeLikeCount} ${likeWord}`
+    : `${targetLabel} on skilld.dev`
+  const darkTheme = theme === 'dark'
+  const categoryFill = darkTheme ? '#3f3833' : '#f5f5f4'
+  const categoryText = darkTheme ? '#ffffff' : '#292524'
+  const brandFill = darkTheme ? '#f5f5f4' : '#2f2925'
+  const brandText = darkTheme ? '#292524' : '#ffffff'
+  const likesFill = darkTheme ? '#e7e5e4' : '#3f3833'
+  const likesText = darkTheme ? '#292524' : '#ffffff'
+  const categorySegment = showLabel
+    ? `
+    <rect width="72" height="22" fill="${categoryFill}"/>`
+    : ''
+  const categoryContent = showLabel
+    ? `
+  <text x="36" y="15" fill="${categoryText}" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" text-anchor="middle">${categoryLabel}</text>`
+    : ''
   const likesSegment = showLikes
     ? `
-    <rect x="137" width="${countWidth}" height="20" fill="#2f2925"/>`
+    <rect x="${badgeWidth}" width="${countWidth}" height="22" fill="${likesFill}"/>`
     : ''
   const likesContent = showLikes
     ? `
-  <path d="M12 21.35 10.55 20.03C5.4 15.36 2 12.27 2 8.5 2 5.41 4.42 3 7.5 3 9.24 3 10.91 3.81 12 5.08 13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.41 22 8.5 22 12.27 18.6 15.36 13.45 20.03Z" fill="#fb7185" transform="translate(139 2.5) scale(.58)"/>
-  <text x="156" y="14" fill="#fff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">${likeLabel}</text>`
+  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78a5.5 5.5 0 0 0 0-7.78Z" fill="none" stroke="#fb7185" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" transform="translate(${badgeWidth + 4} 3.5) scale(.55)"/>
+  <text x="${badgeWidth + 21}" y="15" fill="${likesText}" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10">${likeLabel}</text>`
     : ''
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20" viewBox="0 0 ${width} 20" role="img" aria-label="${accessibleLabel}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="22" viewBox="0 0 ${width} 22" role="img" aria-label="${accessibleLabel}">
   <title>${accessibleLabel}</title>
-  <clipPath id="r"><rect width="${width}" height="20" rx="3"/></clipPath>
+  <clipPath id="r"><rect width="${width}" height="22" rx="4"/></clipPath>
   <g clip-path="url(#r)">
-    <rect width="61" height="20" fill="#2f2925"/>
-    <rect x="61" width="76" height="20" fill="#fb7185"/>${likesSegment}
-  </g>
-  <g fill="#fff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">
-    <text x="30.5" y="14" text-anchor="middle">Run on</text>
-  </g>
-  <path d="M80 34 L135 104 L121 104 L80 52 L39 104 L25 104 Z" fill="#171311" transform="translate(62 2.5) scale(.085)"/>
-  <text x="78" y="14" fill="#171311" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">skilld.dev</text>${likesContent}
+    ${categorySegment}
+    <rect x="${brandX}" width="81" height="22" fill="${brandFill}"/>${likesSegment}
+  </g>${categoryContent}
+  <svg x="${brandX + 8.4}" y="6" width="12" height="12" viewBox="0 0 160 160" aria-hidden="true">
+    <path d="M80 34 L135 104 L121 104 L80 52 L39 104 L25 104 Z" fill="#fb7185"/>
+  </svg>
+  <text x="${brandX + 23.3}" y="15" fill="${brandText}" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" textLength="47.4" lengthAdjust="spacingAndGlyphs">skilld.dev</text>${likesContent}
 </svg>`
 }
 
-export function createSkillBadgeResponse(likeCount?: number): Response {
-  const cachePolicy = likeCount === undefined ? PLAIN_CACHE_POLICY : LIKES_CACHE_POLICY
-  return new Response(skillBadgeSvg(likeCount), {
+export function createSkillBadgeResponse(input: SkillBadgeResponseInput): Response {
+  const cachePolicy = input.likeCount === undefined ? PLAIN_CACHE_POLICY : LIKES_CACHE_POLICY
+  return new Response(skillBadgeSvg(input), {
     status: 200,
     headers: {
       'access-control-allow-origin': '*',

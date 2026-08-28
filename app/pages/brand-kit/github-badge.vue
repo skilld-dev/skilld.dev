@@ -1,0 +1,263 @@
+<script setup lang="ts">
+import GithubBadgePreview from './_GithubBadgePreview.vue'
+
+const showLikes = ref(false)
+const showLabel = ref(true)
+const target = ref<'repository' | 'skill'>('repository')
+const githubTheme = ref<'light' | 'dark'>('light')
+const badgeDestination = computed(() => target.value === 'repository'
+  ? 'skilld.dev/gh/jd-solanki/skills'
+  : 'skilld.dev/gh/jd-solanki/skills/setup-jd-solanki-skills')
+const badgeWidth = computed(() => (showLabel.value ? 153 : 81) + (showLikes.value ? 46 : 0))
+
+useSeoMeta({
+  title: 'GitHub badge · Brand kit',
+  description: 'Shareable GitHub badge for skilld.',
+  robots: 'noindex, nofollow',
+})
+</script>
+
+<template>
+  <div class="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 md:py-16">
+    <header class="max-w-2xl">
+      <p class="section-label">
+        Brand kit / GitHub badge
+      </p>
+      <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
+        A small mark with one job
+      </h1>
+      <p class="mt-4 text-base leading-relaxed text-muted">
+        Make a skill recognizable in a README, then earn the click.
+      </p>
+    </header>
+
+    <div class="mt-8 grid gap-4 border-y border-default py-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="font-mono text-sm text-muted">Target</span>
+        <div class="flex gap-2" role="group" aria-label="Badge target preview">
+          <UButton
+            label="Repository"
+            color="neutral"
+            :variant="target === 'repository' ? 'soft' : 'outline'"
+            :aria-pressed="target === 'repository'"
+            class="min-h-11"
+            @click="target = 'repository'"
+          />
+          <UButton
+            label="Individual skill"
+            color="neutral"
+            :variant="target === 'skill' ? 'soft' : 'outline'"
+            :aria-pressed="target === 'skill'"
+            class="min-h-11"
+            @click="target = 'skill'"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="font-mono text-sm text-muted">Category</span>
+        <div class="flex gap-2" role="group" aria-label="Badge category preview">
+          <UButton
+            label="Show"
+            color="neutral"
+            :variant="showLabel ? 'soft' : 'outline'"
+            :aria-pressed="showLabel"
+            class="min-h-11"
+            @click="showLabel = true"
+          />
+          <UButton
+            label="Hide"
+            color="neutral"
+            :variant="showLabel ? 'outline' : 'soft'"
+            :aria-pressed="!showLabel"
+            class="min-h-11"
+            @click="showLabel = false"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="font-mono text-sm text-muted">Data</span>
+        <div class="flex gap-2" role="group" aria-label="Badge data preview">
+          <UButton
+            label="Plain"
+            color="neutral"
+            :variant="showLikes ? 'outline' : 'soft'"
+            :aria-pressed="!showLikes"
+            class="min-h-11"
+            @click="showLikes = false"
+          />
+          <UButton
+            label="With likes"
+            color="neutral"
+            :variant="showLikes ? 'soft' : 'outline'"
+            :aria-pressed="showLikes"
+            class="min-h-11"
+            @click="showLikes = true"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="font-mono text-sm text-muted">GitHub theme</span>
+        <div class="flex gap-2" role="group" aria-label="GitHub theme preview">
+          <UButton
+            label="Light"
+            color="neutral"
+            :variant="githubTheme === 'light' ? 'soft' : 'outline'"
+            :aria-pressed="githubTheme === 'light'"
+            class="min-h-11"
+            @click="githubTheme = 'light'"
+          />
+          <UButton
+            label="Dark"
+            color="neutral"
+            :variant="githubTheme === 'dark' ? 'soft' : 'outline'"
+            :aria-pressed="githubTheme === 'dark'"
+            class="min-h-11"
+            @click="githubTheme = 'dark'"
+          />
+        </div>
+      </div>
+    </div>
+
+    <section class="mt-10" aria-labelledby="readme-context-heading">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p class="section-label">
+            README context
+          </p>
+          <h2 id="readme-context-heading" class="mt-2 text-xl font-semibold text-highlighted">
+            jd-solanki/skills
+          </h2>
+        </div>
+        <a
+          href="https://github.com/jd-solanki/skills/tree/main"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="font-mono text-sm text-muted underline decoration-default underline-offset-4 hover:text-default"
+        >
+          Open repository
+        </a>
+      </div>
+
+      <div
+        class="github-readme mt-5 overflow-hidden rounded-lg border"
+        :class="{ 'github-readme--dark': githubTheme === 'dark' }"
+        :data-github-theme="githubTheme"
+      >
+        <div class="github-readme__bar flex items-center gap-2 border-b px-5 py-3">
+          <span class="size-3 rounded-full bg-[#ff5f57]" aria-hidden="true" />
+          <span class="size-3 rounded-full bg-[#febc2e]" aria-hidden="true" />
+          <span class="size-3 rounded-full bg-[#28c840]" aria-hidden="true" />
+          <span class="ml-2 font-mono text-xs">README.md</span>
+        </div>
+        <div class="px-5 py-7 sm:px-8 sm:py-9">
+          <h3 class="github-readme__title text-2xl font-semibold">
+            JD Solanki's AI Agent Skills
+          </h3>
+          <div class="mt-5 flex items-center" aria-live="polite">
+            <GithubBadgePreview
+              :target="target"
+              :theme="githubTheme"
+              :show-label="showLabel"
+              :show-likes="showLikes"
+              class="max-w-full"
+            />
+          </div>
+          <p class="github-readme__meta mt-4 break-all font-mono text-xs">
+            Links to {{ badgeDestination }}
+          </p>
+          <h4 class="github-readme__subtitle mt-8 text-lg font-semibold">
+            Setup
+          </h4>
+          <code class="github-readme__code mt-3 block w-fit max-w-full overflow-x-auto rounded-md border px-3 py-2 text-sm">npx skills@latest add jd-solanki/skills</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-12 grid gap-6 border-y border-default py-8 md:grid-cols-[minmax(260px,0.8fr)_1fr] md:items-center" aria-labelledby="chosen-badge-heading">
+      <div class="flex min-h-24 items-center justify-center rounded-lg bg-muted px-5 py-7">
+        <GithubBadgePreview
+          :target="target"
+          :theme="githubTheme"
+          :show-label="showLabel"
+          :show-likes="showLikes"
+          class="max-w-full"
+        />
+      </div>
+      <div class="max-w-xl">
+        <h2 id="chosen-badge-heading" class="text-xl font-semibold text-highlighted">
+          Category first
+        </h2>
+        <p class="mt-2 text-base leading-relaxed text-muted">
+          Show the artifact when context helps. Hide it when space matters.
+        </p>
+        <p class="mt-3 font-mono text-xs text-muted">
+          {{ badgeWidth }} × 22 px · GitHub selects the matching theme automatically
+        </p>
+      </div>
+    </section>
+  </div>
+</template>
+
+<style scoped>
+/* GitHub's fixed canvas colors stay local to this third-party context preview. */
+.github-readme {
+  color-scheme: light;
+  color: #1f2328;
+  background: #ffffff;
+  border-color: #d0d7de;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.github-readme__bar {
+  color: #59636e;
+  background: #f6f8fa;
+  border-color: #d0d7de;
+}
+
+.github-readme__title,
+.github-readme__subtitle {
+  color: #1f2328;
+}
+
+.github-readme__meta {
+  color: #59636e;
+}
+
+.github-readme__code {
+  color: #1f2328;
+  background: #f6f8fa;
+  border-color: #d0d7de;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.github-readme--dark {
+  color-scheme: dark;
+  color: #f0f6fc;
+  background: #0d1117;
+  border-color: #30363d;
+}
+
+.github-readme--dark .github-readme__bar {
+  color: #8b949e;
+  background: #010409;
+  border-color: #30363d;
+}
+
+.github-readme--dark .github-readme__title,
+.github-readme--dark .github-readme__subtitle {
+  color: #f0f6fc;
+}
+
+.github-readme--dark .github-readme__meta {
+  color: #8b949e;
+}
+
+.github-readme--dark .github-readme__code {
+  color: #f0f6fc;
+  background: #161b22;
+  border-color: #30363d;
+}
+</style>
