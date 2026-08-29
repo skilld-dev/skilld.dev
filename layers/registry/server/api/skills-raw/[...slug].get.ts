@@ -1,7 +1,7 @@
 import { readCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
-import { resolveRepoSourceIdentity } from '../../utils/repo-source-identity'
+import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamText } from '../../utils/upstream-text'
 
@@ -14,6 +14,12 @@ interface RawCache {
   body: string | null
   branch: string | null
   path: string | null
+}
+
+interface SkillSourceRow {
+  default_branch: string | null
+  source_owner: string | null
+  source_repo: string | null
 }
 
 export default defineApiHandler({
@@ -44,7 +50,16 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const source = await resolveRepoSourceIdentity(platform.db, skill)
+    const sourceRow = await platform.db
+      .prepare(`
+        SELECT r.default_branch, r.source_owner, r.source_repo
+        FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+        WHERE s.owner = ? AND s.repo = ? AND s.name = ?
+      `)
+      .bind(skill.owner, skill.repo, skill.name)
+      .first<SkillSourceRow>()
+    const source = resolveRepoSourceIdentityFromRow(skill, sourceRow ?? undefined)
+    const branch = sourceRow?.default_branch || 'main'
     const cacheKey = filePath
       ? `skills:raw:v2:${source.owner}/${source.repo}/${skill.name}:${filePath}`
       : `skills:raw:v2:${source.owner}/${source.repo}/${skill.name}`
@@ -55,14 +70,6 @@ export default defineApiHandler({
       setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${cached.branch}/${cached.path}`)
       return cached.body
     }
-
-    const repoMeta = await $fetch<{ defaultBranch?: string }>(
-      `https://ungh.cc/repos/${source.owner}/${source.repo}`,
-    ).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-raw-repo-fetch', outcome: 'failed' }))
-      return null
-    })
-    const branch = repoMeta?.defaultBranch || 'main'
 
     const treeResult = await $fetch<{ files?: { path: string }[] }>(
       `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
