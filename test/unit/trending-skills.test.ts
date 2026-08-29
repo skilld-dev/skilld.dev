@@ -30,6 +30,7 @@ function mention(input: {
   bookmarks?: number
   postedAt?: number
   canonical?: string
+  avatar?: string
 }) {
   db().raw.prepare(
     `INSERT OR IGNORE INTO repos (owner, repo) VALUES (?, ?)`,
@@ -48,8 +49,8 @@ function mention(input: {
        text_extract, lang, posted_at, first_seen_at,
        favourite_count, repost_count, reply_count, quote_count,
        bookmark_count, impression_count, metrics_updated_at,
-       refresh_tier, next_refresh_at
-     ) VALUES (?, ?, ?, NULL, 0, ?, 'en', ?, ?, ?, 0, 0, 0, ?, 0, ?, 'hot', ?)`,
+       refresh_tier, next_refresh_at, author_avatar
+     ) VALUES (?, ?, ?, NULL, 0, ?, 'en', ?, ?, ?, 0, 0, 0, ?, 0, ?, 'hot', ?, ?)`,
   ).run(
     id,
     `a-${input.handle}`,
@@ -61,6 +62,7 @@ function mention(input: {
     input.bookmarks ?? 0,
     postedAt,
     postedAt + HOUR,
+    input.avatar ?? null,
   )
   db().raw.prepare(
     `INSERT INTO x_post_skills (post_id, owner, repo, slug, canonical_name, skill_path, detection, matched_on, verified_at)
@@ -207,5 +209,23 @@ describe('loadTrendingSkills presentation', () => {
     const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
     expect(skill?.evidence?.authorHandle).toBe('loud')
     expect(skill?.evidence?.url).toBe(`https://x.com/loud/status/${skill?.evidence?.postId}`)
+
+    expect(skill?.evidence?.authorAvatar).toBeNull()
+  })
+
+  it('carries the quoted author avatar with the evidence', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'faceless', likes: 2 })
+    mention({
+      owner: 'a',
+      repo: 'r',
+      slug: 's',
+      handle: 'faced',
+      likes: 50,
+      avatar: 'https://pbs.twimg.com/profile_images/1/faced_normal.jpg',
+    })
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.evidence?.authorHandle).toBe('faced')
+    expect(skill?.evidence?.authorAvatar).toBe('https://pbs.twimg.com/profile_images/1/faced_normal.jpg')
   })
 })

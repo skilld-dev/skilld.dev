@@ -16,6 +16,8 @@ const MIGRATIONS = [
   // Adds `platform`, which the claim query filters on so this task can never
   // send a Bluesky AT-URI to the X lookup endpoint.
   'migrations/0103_bluesky_discovery.sql',
+  // Adds `author_avatar`, which the refresh now fills from paid lookups.
+  'migrations/0116_x_posts_author_avatar.sql',
 ]
 const NOW = 1_760_000_000
 const HOUR = 3600
@@ -68,6 +70,7 @@ function freshPost(id: string, favourites: number, postedAt = NOW - HOUR): XPost
     authorId: 'a1',
     authorHandle: 'someone',
     authorName: null,
+    authorAvatar: null,
     authorFollowers: 100,
     metrics: { ...ZERO_METRICS, favouriteCount: favourites },
     urls: [],
@@ -118,6 +121,32 @@ describe('refreshXEngagement', () => {
     expect(summary.claimed).toBe(0)
     expect(summary.postsRead).toBe(0)
     expect(requested).toEqual([])
+  })
+
+  it('fills the author avatar from a lookup the run already paid for', async () => {
+    seedPost({ id: '1' })
+    const { client } = stubClient([freshPost('1', 5)])
+    // The lookup response carries the profile image the discovery read dropped.
+    client.lookupPosts = async () => ({
+      _tag: 'ok',
+      value: { posts: [{ ...freshPost('1', 5), authorAvatar: 'https://pbs.twimg.com/profile_images/1/someone_normal.jpg' }], newestId: null, nextToken: null, postsRead: 1 },
+    })
+
+    await refreshXEngagement({ db: db().db, client, now: NOW })
+
+    const row = db().raw.prepare('SELECT author_avatar FROM x_posts').get()
+    expect(row).toEqual({ author_avatar: 'https://pbs.twimg.com/profile_images/1/someone_normal.jpg' })
+  })
+
+  it('keeps a held avatar when the lookup returns none', async () => {
+    seedPost({ id: '1' })
+    db().raw.prepare(`UPDATE x_posts SET author_avatar = ? WHERE post_id = '1'`).run('https://pbs.twimg.com/profile_images/1/held_normal.jpg')
+    const { client } = stubClient([freshPost('1', 5)])
+
+    await refreshXEngagement({ db: db().db, client, now: NOW })
+
+    const row = db().raw.prepare('SELECT author_avatar FROM x_posts').get()
+    expect(row).toEqual({ author_avatar: 'https://pbs.twimg.com/profile_images/1/held_normal.jpg' })
   })
 
   it('never claims a frozen post, however overdue it looks', async () => {

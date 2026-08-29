@@ -12,6 +12,8 @@ const MIGRATIONS = [
   'migrations/0101_discovery_ledger_size_guard.sql',
   'migrations/0103_bluesky_discovery.sql',
   'migrations/0105_install_match_kind.sql',
+  // Adds `author_avatar`, which the ingest now stores.
+  'migrations/0116_x_posts_author_avatar.sql',
 ]
 const NOW = 1_760_000_000
 
@@ -36,6 +38,7 @@ function post(partial: Partial<BskyPost> = {}): BskyPost {
     authorDid: 'did:plc:abc',
     authorHandle: 'someone.bsky.social',
     authorName: 'Some One',
+    authorAvatar: 'https://cdn.bsky.app/img/avatar/plain/did:plc:abc/avatar.jpeg@jpeg',
     metrics: { ...ZERO_BSKY_METRICS, likeCount: 20 },
     urls: ['https://github.com/kepano/obsidian-skills'],
     cardText: null,
@@ -87,8 +90,12 @@ describe('ingestBskyMentions', () => {
 
     await ingestBskyMentions({ db: db().db, client, now: NOW })
 
-    expect(db().raw.prepare(`SELECT platform, refresh_tier FROM x_posts`).get())
-      .toEqual({ platform: 'bsky', refresh_tier: 'frozen' })
+    expect(db().raw.prepare(`SELECT platform, refresh_tier, author_avatar FROM x_posts`).get())
+      .toEqual({
+        platform: 'bsky',
+        refresh_tier: 'frozen',
+        author_avatar: 'https://cdn.bsky.app/img/avatar/plain/did:plc:abc/avatar.jpeg@jpeg',
+      })
   })
 
   it('records the repo in the ledger under the bsky source', async () => {
