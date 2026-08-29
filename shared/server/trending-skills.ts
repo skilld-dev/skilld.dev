@@ -40,6 +40,8 @@ export interface TrendingSkillEvidence {
   postId: string
   url: string
   authorHandle: string
+  /** Author profile image, stored at ingest. Null before the first read that carried one. */
+  authorAvatar: string | null
   text: string
   postedAt: number
   favouriteCount: number
@@ -93,6 +95,7 @@ interface MentionRow {
   post_id: string
   platform: 'x' | 'bsky'
   author_handle: string
+  author_avatar: string | null
   author_id: string
   text_extract: string
   posted_at: number
@@ -163,7 +166,7 @@ async function loadSocialEvidence(
   const rows = (await options.db
     .prepare(
       `SELECT s.owner, s.repo, s.slug, s.canonical_name,
-              p.post_id, p.platform, p.author_handle, p.author_id, p.text_extract,
+              p.post_id, p.platform, p.author_handle, p.author_avatar, p.author_id, p.text_extract,
               p.posted_at, p.favourite_count, p.repost_count, p.reply_count,
               p.quote_count, p.bookmark_count
        FROM x_post_skills s
@@ -221,6 +224,7 @@ async function loadSocialEvidence(
           postId: row.post_id,
           url: postUrl(row),
           authorHandle: row.author_handle,
+          authorAvatar: row.author_avatar ?? null,
           text: row.text_extract,
           postedAt: row.posted_at,
           favouriteCount: row.favourite_count,
@@ -243,6 +247,7 @@ async function loadSocialEvidence(
         postId: row.post_id,
         url: postUrl(row),
         authorHandle: row.author_handle,
+        authorAvatar: row.author_avatar ?? null,
         text: row.text_extract,
         postedAt: row.posted_at,
         favouriteCount: row.favourite_count,

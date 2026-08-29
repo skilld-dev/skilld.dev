@@ -243,6 +243,8 @@ export interface TrendingBoardRow {
   platform: 'x' | 'bsky' | null
   /** Who said it. */
   handle: string | null
+  /** The speaker's profile image, when the read that captured the post carried one. */
+  authorAvatar: string | null
   /** Likes on that specific post. Zero means it landed quietly, not unknown. */
   engagement: number | null
   /** Separate people who posted about it besides the displayed post author. */
@@ -335,6 +337,7 @@ export function leaderboardBoardRows(
       quote: null,
       platform: null,
       handle: null,
+      authorAvatar: null,
       engagement: null,
       otherPosters: null,
       evidenced: true,

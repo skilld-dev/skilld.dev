@@ -58,6 +58,7 @@ const rawPostSchema = z.object({
     did: z.string(),
     handle: z.string(),
     displayName: z.string().nullish(),
+    avatar: z.string().nullish(),
   }),
   record: z.object({
     text: z.string().nullish(),
@@ -119,6 +120,8 @@ export interface BskyPost {
   authorDid: string
   authorHandle: string
   authorName: string | null
+  /** CDN avatar URL from the hydrated author view. Null when the author set none. */
+  authorAvatar: string | null
   metrics: BskyMetrics
   /** Every URL on the post: link facets, embed card, and bare text links. */
   urls: string[]
@@ -285,6 +288,7 @@ function toBskyPost(raw: z.infer<typeof rawPostSchema>): BskyPost | null {
     authorDid: raw.author.did,
     authorHandle: raw.author.handle,
     authorName: raw.author.displayName ?? null,
+    authorAvatar: raw.author.avatar ?? null,
     metrics: {
       likeCount: raw.likeCount ?? 0,
       repostCount: raw.repostCount ?? 0,

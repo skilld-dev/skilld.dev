@@ -114,6 +114,8 @@ export interface TrendingSkillFeedItem {
   evidence: {
     url: string
     authorHandle: string
+    /** Author profile image, stored at ingest. Null before the first read that carried one. */
+    authorAvatar: string | null
     text: string
     postedAt: number
     platform: 'x' | 'bsky'
@@ -157,6 +159,7 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
       ? {
           url: entry.evidence.url,
           authorHandle: entry.evidence.authorHandle,
+          authorAvatar: entry.evidence.authorAvatar,
           text: entry.evidence.text,
           postedAt: entry.evidence.postedAt,
           platform: entry.evidence.platform,

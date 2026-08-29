@@ -214,11 +214,12 @@ function postWriteStatements(
          post_id, platform, author_id, author_handle, author_name, author_followers,
          text_extract, lang, posted_at, first_seen_at, favourite_count, repost_count,
          reply_count, quote_count, bookmark_count, impression_count, metrics_updated_at,
-         refresh_tier, next_refresh_at
-       ) VALUES (?1, 'bsky', ?2, ?3, ?4, 0, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, 0, ?13, 'frozen', 0)
+         refresh_tier, next_refresh_at, author_avatar
+       ) VALUES (?1, 'bsky', ?2, ?3, ?4, 0, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, 0, ?13, 'frozen', 0, ?14)
        ON CONFLICT (post_id) DO UPDATE SET
          author_handle = excluded.author_handle,
          author_name = excluded.author_name,
+         author_avatar = COALESCE(excluded.author_avatar, x_posts.author_avatar),
          favourite_count = excluded.favourite_count,
          repost_count = excluded.repost_count,
          reply_count = excluded.reply_count,
@@ -238,6 +239,7 @@ function postWriteStatements(
       m.replyCount,
       m.quoteCount,
       now,
+      post.authorAvatar,
     ),
     db.prepare(
       `INSERT OR REPLACE INTO x_post_metrics (

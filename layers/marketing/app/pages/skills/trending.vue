@@ -156,6 +156,7 @@ const board = computed<TrendingBoardRow[]>(() => {
           quote: s.evidence?.text ?? null,
           platform: s.evidence?.platform ?? null,
           handle: s.evidence?.authorHandle ?? null,
+          authorAvatar: s.evidence?.authorAvatar ?? null,
           engagement: s.evidence?.favouriteCount ?? null,
           otherPosters: trendingOtherPosters(s.authorCount, s.evidence !== null),
           evidenced: true,
@@ -181,6 +182,7 @@ const board = computed<TrendingBoardRow[]>(() => {
           quote: null,
           platform: null,
           handle: null,
+          authorAvatar: null,
           engagement: null,
           otherPosters: null,
           evidenced: false,
@@ -499,6 +501,17 @@ function rankClass(index: number): string {
                         <path v-if="row.platform === 'bsky'" d="M12 10.8C10.913 8.686 7.954 4.747 5.202 2.805 2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8" />
                         <path v-else d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932zM17.61 20.644h2.039L6.486 3.24H4.298z" />
                       </svg>
+                      <span v-if="row.authorAvatar" class="flex shrink-0">
+                        <img
+                          :src="row.authorAvatar"
+                          alt=""
+                          width="16"
+                          height="16"
+                          class="size-4 rounded-full bg-muted object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        >
+                      </span>
                       <span>@{{ row.handle }}</span>
                       <span v-if="row.when">{{ row.when }}</span>
                       <span v-if="row.engagement" class="tabular-nums">{{ likesLabel(row.engagement) }}</span>

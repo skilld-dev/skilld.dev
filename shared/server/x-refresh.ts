@@ -163,7 +163,8 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
           `UPDATE x_posts SET
              favourite_count = ?2, repost_count = ?3, reply_count = ?4,
              quote_count = ?5, bookmark_count = ?6, impression_count = ?7,
-             metrics_updated_at = ?8, refresh_tier = ?9, next_refresh_at = ?10
+             metrics_updated_at = ?8, refresh_tier = ?9, next_refresh_at = ?10,
+             author_avatar = COALESCE(?11, author_avatar)
            WHERE post_id = ?1`,
         ).bind(
           fresh.id,
@@ -176,6 +177,7 @@ export async function refreshXEngagement(deps: XRefreshDeps): Promise<XRefreshSu
           now,
           plan.tier,
           plan.nextRefreshAt,
+          fresh.authorAvatar,
         ),
       )
     }

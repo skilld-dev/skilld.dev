@@ -112,6 +112,8 @@ export interface XPost {
   authorId: string
   authorHandle: string
   authorName: string | null
+  /** Profile image URL, already paid for in `user.fields`. Null when X sent none. */
+  authorAvatar: string | null
   authorFollowers: number
   metrics: XPostMetrics
   /** Every expanded URL found on the post, de-duplicated. */
@@ -313,6 +315,7 @@ function toXPost(
     authorId: raw.author_id,
     authorHandle: user?.username ?? raw.author_id,
     authorName: user?.name ?? null,
+    authorAvatar: user?.profile_image_url ?? null,
     authorFollowers: user?.public_metrics?.followers_count ?? 0,
     conversationId: raw.conversation_id ?? null,
     articleTitle: raw.article?.title ?? null,

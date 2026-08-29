@@ -14,6 +14,8 @@ const MIGRATIONS = [
   // Widens `match_kind` to accept 'install', which an install-command
   // reference writes.
   'migrations/0105_install_match_kind.sql',
+  // Adds `author_avatar`, which the ingest now stores.
+  'migrations/0116_x_posts_author_avatar.sql',
 ]
 const NOW = 1_760_000_000
 
@@ -26,6 +28,7 @@ function post(partial: Partial<XPost> = {}): XPost {
     authorId: 'a1',
     authorHandle: 'someone',
     authorName: 'Some One',
+    authorAvatar: 'https://pbs.twimg.com/profile_images/1/someone_normal.jpg',
     authorFollowers: 500,
     metrics: { ...ZERO_METRICS, favouriteCount: 20 },
     urls: ['https://github.com/samber/cc-skills-golang'],
@@ -87,6 +90,7 @@ describe('ingestXMentions persistence', () => {
     expect(stored).toHaveLength(1)
     expect(stored[0]!.post_id).toBe('1001')
     expect(stored[0]!.favourite_count).toBe(20)
+    expect(stored[0]!.author_avatar).toBe('https://pbs.twimg.com/profile_images/1/someone_normal.jpg')
     expect(stored[0]!.refresh_tier).toBe('hot')
 
     const links = db().raw.prepare('SELECT owner, repo, match_kind FROM x_post_repos').all()
