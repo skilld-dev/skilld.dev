@@ -20,6 +20,24 @@ interface SkillSourceRow {
   default_branch: string | null
   source_owner: string | null
   source_repo: string | null
+  source_resolved: number | null
+}
+
+/**
+ * ofetch rejections carry the HTTP status, but the field is typed away by the
+ * time it reaches a catch. A status of null means the request never answered,
+ * which is an outage, never a deletion.
+ */
+function fetchErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== 'object')
+    return null
+  const status = (error as { status?: unknown }).status
+  if (typeof status === 'number')
+    return status
+  const response = (error as { response?: { status?: unknown } }).response
+  if (response && typeof response.status === 'number')
+    return response.status
+  return null
 }
 
 export default defineApiHandler({
@@ -52,12 +70,21 @@ export default defineApiHandler({
 
     const sourceRow = await platform.db
       .prepare(`
-        SELECT r.default_branch, r.source_owner, r.source_repo
+        SELECT r.default_branch, r.source_owner, r.source_repo, s.source_resolved
         FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
         WHERE s.owner = ? AND s.repo = ? AND s.name = ?
       `)
       .bind(skill.owner, skill.repo, skill.name)
       .first<SkillSourceRow>()
+
+    // The sync's verdict that this SKILL.md is gone upstream. The page serves
+    // a 410 tombstone for the same condition, and this endpoint must agree:
+    // a deleted source is permanent, so it must not share a retryable status
+    // with an outage, and it must not pay an upstream call to learn what the
+    // registry already knows (Sentry SKILLD-11, dagster-io/erk).
+    if (sourceRow?.source_resolved === 0)
+      throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
+
     const source = resolveRepoSourceIdentityFromRow(skill, sourceRow ?? undefined)
     const branch = sourceRow?.default_branch || 'main'
     const cacheKey = filePath
@@ -75,11 +102,25 @@ export default defineApiHandler({
       `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
     ).then(
       response => ({ _tag: 'available' as const, files: response.files ?? [] }),
-      () => {
+      (error: unknown) => {
+        // A 404 here is the repository or the branch gone, both permanent at
+        // this URL. Everything else is ungh failing to answer, an outage.
+        if (fetchErrorStatus(error) === 404) {
+          emitOperationalEvent(createWideEvent({ operation: 'skill-raw-tree-fetch', outcome: 'gone' }))
+          return { _tag: 'gone' as const }
+        }
         emitOperationalEvent(createWideEvent({ operation: 'skill-raw-tree-fetch', outcome: 'failed' }))
         return { _tag: 'unavailable' as const }
       },
     )
+
+    if (treeResult._tag === 'gone') {
+      // The registry has not recorded this deletion yet, so the next sync
+      // will flip `source_resolved` and short-circuit earlier. Until then a
+      // missing marker keeps repeat callers off the upstream 404.
+      await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
+      throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
+    }
 
     if (treeResult._tag === 'unavailable') {
       setHeader(event, 'retry-after', RAW_RETRY_AFTER)
