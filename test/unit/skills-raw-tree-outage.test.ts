@@ -75,9 +75,9 @@ describe('skills-raw source gone', () => {
   })
 
   it('classifies an upstream 404 tree as gone rather than an outage', async () => {
-    // ungh answers 404 for a deleted repository; ofetch carries the status on
-    // the rejection. The production culprit was dagster-io/erk, deleted
-    // upstream while the registry row still said resolved.
+    // ungh answers 404 for a deleted repository. ofetch carries the status on
+    // the rejection. Production culprit: dagster-io/erk. GitHub deleted it
+    // while its registry row still said resolved.
     const error = Object.assign(new Error('404 Not Found'), { status: 404, statusCode: 404 })
     vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(error))
 

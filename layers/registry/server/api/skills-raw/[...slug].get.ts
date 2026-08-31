@@ -24,9 +24,8 @@ interface SkillSourceRow {
 }
 
 /**
- * ofetch rejections carry the HTTP status, but the field is typed away by the
- * time it reaches a catch. A status of null means the request never answered,
- * which is an outage, never a deletion.
+ * ofetch rejections carry the HTTP status, but the type loses it. Null means
+ * the request never answered. That is an outage, never a deletion.
  */
 function fetchErrorStatus(error: unknown): number | null {
   if (!error || typeof error !== 'object')
@@ -78,10 +77,9 @@ export default defineApiHandler({
       .first<SkillSourceRow>()
 
     // The sync's verdict that this SKILL.md is gone upstream. The page serves
-    // a 410 tombstone for the same condition, and this endpoint must agree:
-    // a deleted source is permanent, so it must not share a retryable status
-    // with an outage, and it must not pay an upstream call to learn what the
-    // registry already knows (Sentry SKILLD-11, dagster-io/erk).
+    // a 410 tombstone on the same verdict, and this endpoint must agree. A
+    // gone source is permanent, so it must not read as an outage. Answer
+    // before any upstream call: the registry already knows (SKILLD-11).
     if (sourceRow?.source_resolved === 0)
       throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
 
@@ -103,8 +101,8 @@ export default defineApiHandler({
     ).then(
       response => ({ _tag: 'available' as const, files: response.files ?? [] }),
       (error: unknown) => {
-        // A 404 here is the repository or the branch gone, both permanent at
-        // this URL. Everything else is ungh failing to answer, an outage.
+        // A 404 means the repository or the branch is gone. Both are
+        // permanent at this URL. Anything else is ungh failing to answer.
         if (fetchErrorStatus(error) === 404) {
           emitOperationalEvent(createWideEvent({ operation: 'skill-raw-tree-fetch', outcome: 'gone' }))
           return { _tag: 'gone' as const }
@@ -115,9 +113,9 @@ export default defineApiHandler({
     )
 
     if (treeResult._tag === 'gone') {
-      // The registry has not recorded this deletion yet, so the next sync
-      // will flip `source_resolved` and short-circuit earlier. Until then a
-      // missing marker keeps repeat callers off the upstream 404.
+      // The registry has not recorded this deletion yet. The next sync flips
+      // `source_resolved` and short-circuits earlier. Until then, the missing
+      // marker keeps repeat callers off the upstream 404.
       await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
       throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
     }
