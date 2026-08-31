@@ -28,3 +28,10 @@ UPDATE users
 SET email_opt_in = 0
 WHERE digest_frequency = 'off'
   AND email_opt_in = 1;
+
+-- The weekly lane reads only `weekly_opt_out`, so the same Off choice must
+-- land there too: those users sat out of the weekly while it required
+-- `email_opt_in = 0`, and Off was never a weekly unsubscribe.
+UPDATE users
+SET weekly_opt_out = 1
+WHERE digest_frequency = 'off';

@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { loadDigestEligibleUsers } from '../../layers/identity/server/utils/digest-select'
+import { loadWeeklyRecipients } from '../../layers/identity/server/utils/weekly-select'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 describe('d1 migration bootstrap', () => {
@@ -390,6 +391,32 @@ describe('d1 migration bootstrap', () => {
       ])
       const eligible = await loadDigestEligibleUsers(before.db)
       expect(eligible.map(user => user.login)).toEqual(['still-weekly'])
+    }
+    finally {
+      before.close()
+    }
+  })
+
+  // The weekly lane lost its `email_opt_in` guard, so it reads only
+  // `weekly_opt_out`. A cadence-off user carried `email_opt_in = 1` out of the
+  // old digest settings, and 0117 must move that Off choice onto
+  // `weekly_opt_out` too, or the weekly cron silently resubscribes them.
+  it('keeps cadence-off users out of the weekly lane after the digest split', async () => {
+    const before = createSqliteD1(allMigrationNames().map(file => `migrations/${file}`).filter(file => file < 'migrations/0117_email_cadence_split.sql'))
+    try {
+      before.raw.exec(`
+        INSERT INTO users (
+          github_id, login, email_opt_in, digest_frequency, digest_email,
+          weekly_opt_out, onboarded_at, created_at, last_login_at
+        ) VALUES
+          (1, 'cadence-off', 1, 'off', 'off@example.com', 0, 1, 1, 1),
+          (2, 'weekly-reader', 1, 'weekly', 'weekly@example.com', 0, 1, 1, 1);
+      `)
+
+      before.raw.exec(readFileSync(resolve(process.cwd(), 'migrations/0117_email_cadence_split.sql'), 'utf8'))
+
+      const weekly = await loadWeeklyRecipients(before.db)
+      expect(weekly.map(user => user.login)).toEqual(['weekly-reader'])
     }
     finally {
       before.close()
