@@ -83,8 +83,8 @@ function copyRepoCmd(repoKey: string, cmd: string) {
   }, 2000)
 }
 
-function skillPath(skill: { owner: string, repo: string, name: string }) {
-  return repoSkillPath(skill.owner, skill.repo, skill.name)
+function skillPath(skill: { registryPath: string }) {
+  return skill.registryPath
 }
 
 function ensureProtocol(url: string): string {

@@ -168,6 +168,7 @@ describe('loadTrendingRepos', () => {
       displayName: 'note-taking',
       slug: 'kepano/obsidian-skills/note-taking',
       description: 'a skill',
+      registryPath: '/gh/kepano/obsidian-skills',
     }])
   })
 

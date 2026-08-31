@@ -40,7 +40,7 @@ useSchemaOrg(computed(() => data.value
       'hasPart': data.value.skills.slice(0, 25).map(skill => ({
         '@type': 'SoftwareApplication' as const,
         'name': skill.name,
-        'url': `${siteOrigin}${repoSkillPath(skill.owner, skill.repo, skill.name)}`,
+        'url': `${siteOrigin}${skill.registryPath}`,
         'applicationCategory': 'DeveloperApplication',
         'operatingSystem': 'Any',
       })),

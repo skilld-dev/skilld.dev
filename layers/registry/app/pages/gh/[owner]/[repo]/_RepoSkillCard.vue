@@ -3,6 +3,7 @@ interface RepoSkill {
   owner: string
   repo: string
   name: string
+  registryPath: string
   description?: string | null
   dependencies?: string[]
   modifiedAt?: number | null
@@ -46,7 +47,7 @@ const hiddenDependenciesLabel = computed(() => hiddenDependencies.value.map(name
 <template>
   <article class="group relative flex h-full min-h-36 flex-col rounded-xl border border-default p-4 transition-colors duration-200 hover:border-[var(--ui-text-muted)]">
     <NuxtLink
-      :to="repoSkillPath(skill.owner, skill.repo, skill.name)"
+      :to="skill.registryPath"
       :aria-label="`/${skill.name}`"
       class="block flex-1 pr-20 after:absolute after:inset-0"
     >

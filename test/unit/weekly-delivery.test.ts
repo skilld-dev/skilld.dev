@@ -36,6 +36,7 @@ CREATE TABLE activity (
 CREATE TABLE skills (
   owner TEXT NOT NULL, repo TEXT NOT NULL, name TEXT NOT NULL,
   slug TEXT NOT NULL, description TEXT, current_sha TEXT, rendered_skill_path TEXT,
+  source_resolved INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (owner, repo, name)
 );
 CREATE TABLE repos (

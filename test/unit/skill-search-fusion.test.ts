@@ -13,6 +13,7 @@ function skill(partial: Partial<RegistrySkill> & Pick<RegistrySkill, 'owner' | '
   return {
     displayName: partial.name,
     slug: `${partial.owner}/${partial.name}`,
+    registryPath: `/gh/${partial.owner}/${partial.repo}/${partial.name}`,
     stars: 0,
     description: null,
     renderedRawSha256: null,

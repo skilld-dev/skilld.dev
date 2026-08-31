@@ -60,7 +60,7 @@ async function select(row: SearchRow): Promise<void> {
     rememberQuery(trimmedQuery.value)
   dismiss()
   reset()
-  await navigateTo(repoSkillPath(row.skill.owner, row.skill.repo, row.skill.name))
+  await navigateTo(row.skill.registryPath)
 }
 
 function onEnter(event: KeyboardEvent): void {

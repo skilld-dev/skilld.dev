@@ -18,7 +18,7 @@ export type MissingRepoDecision
 export function resolveMissingRepoRedirect(input: {
   owner: string
   repo: string
-  skills: readonly { repo: string, name: string }[]
+  skills: readonly { repo: string, name: string, registryPath: string }[]
 }): MissingRepoDecision {
   const { owner, repo, skills } = input
   if (!owner || !repo)
@@ -33,6 +33,6 @@ export function resolveMissingRepoRedirect(input: {
 
   return {
     _tag: 'redirect',
-    location: `/gh/${owner}/${match.repo}/${match.name}`,
+    location: match.registryPath,
   }
 }

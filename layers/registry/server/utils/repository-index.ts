@@ -1,5 +1,6 @@
 import type { GitHubRepository } from '~~/shared/github-repository'
 import type { IndexedRepositorySkill, RepositoryIndexProgress } from '~~/shared/repository-index'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 
 interface RepositoryJobRow {
   payload: string
@@ -21,6 +22,7 @@ export async function findIndexedRepositorySkills(
   db: D1Database,
   repository: Pick<GitHubRepository, 'owner' | 'repo'>,
 ): Promise<IndexedRepositorySkill[]> {
+  type IndexedRepositorySkillRow = Omit<IndexedRepositorySkill, 'registryPath'>
   const result = await db.prepare(
     `SELECT
        name,
@@ -31,8 +33,17 @@ export async function findIndexedRepositorySkills(
      FROM skills
      WHERE owner = ? AND repo = ? AND source_resolved = 1
      ORDER BY name`,
-  ).bind(repository.owner, repository.repo).all<IndexedRepositorySkill>()
-  return result.results ?? []
+  ).bind(repository.owner, repository.repo).all<IndexedRepositorySkillRow>()
+  const skills = result.results ?? []
+  return skills.map(skill => ({
+    ...skill,
+    registryPath: canonicalRepoSkillPath({
+      owner: repository.owner,
+      repo: repository.repo,
+      name: skill.name,
+      repoSkillCount: skills.length,
+    }),
+  }))
 }
 
 export type RepositoryJobState

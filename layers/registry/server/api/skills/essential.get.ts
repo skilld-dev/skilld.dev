@@ -1,4 +1,5 @@
 import { getDB } from '#server/utils/db'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 
 /**
  * The skills that clear the highest bar, one per author.
@@ -22,6 +23,7 @@ interface Row {
   stars: number
   trust_tier: string
   score: number
+  repo_skill_count: number
 }
 
 /**
@@ -41,7 +43,11 @@ export default defineCachedEventHandler(async (event) => {
   // against production for the same answer.
   const res = await db.prepare(`
     SELECT s.owner, s.repo, s.name, s.display_name, s.description,
-           r.stars, s.trust_tier, MAX(s.seo_index_score) AS score
+           r.stars, s.trust_tier, MAX(s.seo_index_score) AS score,
+           (SELECT COUNT(*) FROM skills repo_skills
+            WHERE repo_skills.owner = s.owner
+              AND repo_skills.repo = s.repo
+              AND repo_skills.source_resolved = 1) AS repo_skill_count
     FROM skills s
     JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
     WHERE s.seo_indexable = 1
@@ -58,6 +64,12 @@ export default defineCachedEventHandler(async (event) => {
     owner: row.owner,
     repo: row.repo,
     name: row.name,
+    registryPath: canonicalRepoSkillPath({
+      owner: row.owner,
+      repo: row.repo,
+      name: row.name,
+      repoSkillCount: row.repo_skill_count,
+    }),
     displayName: row.display_name,
     description: row.description,
     stars: row.stars,

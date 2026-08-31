@@ -1,7 +1,7 @@
 import type { SkillsLeaderboardDbRow } from '../../utils/skills-leaderboard'
 import { z } from 'zod'
 import { defineApiHandler } from '#shared/server/handler'
-import { canonicalRepoSkillPath } from '#shared/skill-routes'
+import { canonicalRepoSkillPath, repoHubPath } from '#shared/skill-routes'
 import {
   SKILLS_LEADERBOARD_COUNT_SQL,
   SKILLS_LEADERBOARD_PAGE_SQL,
@@ -93,7 +93,7 @@ export default defineApiHandler<typeof query, SkillsLeaderboardResponse>({
         reviewedAt: row.reviewed_at,
         avatarUrl: `https://github.com/${encodeURIComponent(row.owner)}.png?size=96`,
         githubUrl: `https://github.com/${row.owner}/${row.repo}`,
-        registryUrl: `/gh/${row.owner}/${row.repo}`,
+        registryUrl: repoHubPath(row.owner, row.repo),
       })),
       ranking: 'github_stars',
       eligibility: 'reviewed_individual_generic_skill_repositories',

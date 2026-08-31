@@ -168,7 +168,7 @@ const { data: peopleSkillsData, execute: loadPeopleSkills } = await useFetch<Fea
 })
 
 const fallbackPersonNamesByOwner = new Map<string, string>(
-  homepagePersonSkillFallbacks.map(skill => [skill.owner, skill.maintainerName]),
+  homepagePersonSkillFallbacks.map(skill => [skill.owner, skill.maintainerName ?? skill.owner]),
 )
 
 const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
@@ -202,6 +202,7 @@ const homepageTrendingSelection = computed(() => selectHomepageTrendingSkills(
       repo: repo.repo,
       name: skill.name,
       displayName: skill.displayName,
+      registryPath: skill.registryPath,
       maintainerName: repo.evidence?.authorName ?? null,
       description: skill.description,
       context: trendingShareLabel(repo.authorCount),
@@ -222,9 +223,7 @@ onMounted(() => {
 })
 
 function featuredCollectionSkillPath(skill: FeaturedCollectionSkill): string {
-  return skill.name
-    ? repoSkillPath(skill.owner, skill.repo, skill.name)
-    : repoHubPath(skill.owner, skill.repo)
+  return skill.registryPath
 }
 
 function featuredCollectionSkillLabel(skill: FeaturedCollectionSkill): string {
@@ -292,7 +291,7 @@ function recentUpdateKey(item: RecentUpdateCard): string {
 function recentUpdatePath(item: RecentUpdateCard): string {
   return item.kind === 'repo'
     ? repoHubPath(item.owner, item.repo)
-    : repoSkillPath(item.owner, item.repo, item.name)
+    : item.registryPath
 }
 
 function recentUpdateTitle(item: RecentUpdateCard): string {
@@ -799,7 +798,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
           <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`">
             <NuxtLink
-              :to="`/gh/${repo.owner}/${repo.repo}`"
+              :to="repoHubPath(repo.owner, repo.repo)"
               class="group flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
             >
               <span class="flex items-center gap-2">
@@ -989,7 +988,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             <ul v-else-if="recentPublishes.length" class="home-freshness-ledger home-freshness-ledger--secondary list-none p-0">
               <li v-for="item in recentPublishes.slice(0, 5)" :key="`${item.owner}/${item.repo}/${item.name}`">
                 <NuxtLink
-                  :to="repoSkillPath(item.owner, item.repo, item.name)"
+                  :to="item.registryPath"
                   class="home-freshness-row home-freshness-row--secondary group"
                 >
                   <img

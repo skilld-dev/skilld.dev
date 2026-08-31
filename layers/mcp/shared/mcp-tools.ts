@@ -97,6 +97,7 @@ interface SkillListItem {
   official: boolean
   pushedAt: number | null
   modifiedAt: number | null
+  registryPath: string
 }
 
 interface SkillListResponse {
@@ -108,6 +109,7 @@ interface SkillDetailResponse {
   owner: string
   repo: string
   name: string
+  registryPath: string
   displayName: string
   description: string | null
   installs: number
@@ -149,6 +151,7 @@ interface CollectionDetailResponse {
     name: string | null
     displayName: string | null
     reason: string | null
+    registryPath: string
   }[]
 }
 
@@ -192,7 +195,7 @@ const searchSkills: McpTool = {
           stars: s.stars,
           trustTier: s.trustTier,
           official: s.official,
-          url: `${SITE}/gh/${s.owner}/${s.repo}/${s.name}`,
+          url: `${SITE}${s.registryPath}`,
           runCommand: skillRunCommand(s.owner, s.repo, s.name),
           installCommand: repoInstallCommand(s.owner, s.repo, s.name),
         })),
@@ -245,7 +248,7 @@ const getSkill: McpTool = {
           score: s.trust.score,
           reasons: s.trust.reasons.slice(0, 10).map(reason => truncate(reason, 500)),
         },
-        url: `${SITE}/gh/${s.owner}/${s.repo}/${s.name}`,
+        url: `${SITE}${s.registryPath}`,
         runCommand: skillRunCommand(s.owner, s.repo, s.name),
         installCommand: repoInstallCommand(s.owner, s.repo, s.name),
         provenance: {
@@ -321,7 +324,7 @@ const getCollection: McpTool = {
           name: s.name,
           displayName: s.displayName,
           reason: truncate(s.reason, 1_000),
-          url: s.name ? `${SITE}/gh/${s.owner}/${s.repo}/${s.name}` : `${SITE}/gh/${s.owner}/${s.repo}`,
+          url: `${SITE}${s.registryPath}`,
           runCommand: s.name ? skillRunCommand(s.owner, s.repo, s.name) : null,
           installCommand: repoInstallCommand(s.owner, s.repo, s.name ?? undefined),
         })),

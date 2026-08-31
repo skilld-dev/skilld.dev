@@ -10,6 +10,7 @@ interface SkillRow {
   owner: string
   repo: string
   name: string
+  registryPath: string
   slug: string
   description?: string | null
   stars?: number
@@ -84,7 +85,7 @@ function updatedLabel(skill: SkillRow): string {
     <ul class="skill-table__body list-none p-0" :aria-label="ariaLabel">
       <li v-for="skill in skills" :key="skill.slug">
         <NuxtLink
-          :to="repoSkillPath(skill.owner, skill.repo, skill.name)"
+          :to="skill.registryPath"
           class="skill-table__row group"
           :aria-label="`/${skill.name} by ${skill.owner}`"
         >

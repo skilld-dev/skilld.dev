@@ -1,3 +1,5 @@
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
+
 export const COMMUNITY_DIRECTORY_LIMIT = 60
 export const COMMUNITY_COLLECTION_SKILL_PREVIEW_LIMIT = 4
 
@@ -75,6 +77,10 @@ ranked_skills AS (
     s.description,
     s.modified_at,
     r.stars,
+    (SELECT COUNT(*) FROM skills repo_skills
+     WHERE repo_skills.owner = s.owner
+       AND repo_skills.repo = s.repo
+       AND repo_skills.source_resolved = 1) AS repo_skill_count,
     COUNT(*) OVER (PARTITION BY iu.identity_id) AS skill_count,
     ROW_NUMBER() OVER (
       PARTITION BY iu.identity_id
@@ -116,6 +122,7 @@ creators AS (
     rs.description AS skill_description,
     rs.modified_at AS skill_modified_at,
     rs.stars AS skill_stars,
+    rs.repo_skill_count,
     rs.skill_count
   FROM canonical_users u
   LEFT JOIN ranked_collections rc
@@ -156,6 +163,7 @@ export interface CommunityDirectoryRow {
   skill_description: string | null
   skill_modified_at: number | null
   skill_stars: number | null
+  repo_skill_count: number | null
   skill_count: number | null
   total_creators: number
 }
@@ -202,6 +210,7 @@ export interface CommunityDirectoryItem {
     description: string | null
     stars: number
     modifiedAt: number | null
+    registryPath: string
   } | null
 }
 
@@ -272,6 +281,12 @@ export function communityDirectoryItem(
         description: row.skill_description,
         stars: row.skill_stars ?? 0,
         modifiedAt: row.skill_modified_at,
+        registryPath: canonicalRepoSkillPath({
+          owner: row.skill_owner,
+          repo: row.skill_repo,
+          name: row.skill_name,
+          repoSkillCount: row.repo_skill_count ?? 0,
+        }),
       }
     : null
 

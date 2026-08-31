@@ -2,6 +2,10 @@ export function featuredCollectionSkillsSql(placeholders: string): string {
   return `WITH ranked_collection_skills AS (
             SELECT cs.collection_id, cs.position, cs.owner, cs.repo, cs.reason,
                    s.name, s.display_name,
+                   (SELECT COUNT(*) FROM skills repo_skills
+                    WHERE repo_skills.owner = s.owner
+                      AND repo_skills.repo = s.repo
+                      AND repo_skills.source_resolved = 1) AS repo_skill_count,
                    ROW_NUMBER() OVER (
                      PARTITION BY cs.collection_id, cs.position
                      ORDER BY s.modified_at DESC, s.name ASC
@@ -18,7 +22,7 @@ export function featuredCollectionSkillsSql(placeholders: string): string {
               AND s.source_resolved = 1
               AND s.rendered_status = 'ok'
           )
-          SELECT collection_id, position, owner, repo, name, display_name, reason
+          SELECT collection_id, position, owner, repo, name, display_name, reason, repo_skill_count
           FROM ranked_collection_skills
           WHERE rn = 1
           ORDER BY collection_id ASC, position ASC`

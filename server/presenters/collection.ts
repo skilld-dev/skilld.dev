@@ -1,3 +1,5 @@
+import { canonicalRepoSkillPath, repoHubPath } from '#shared/skill-routes'
+
 export interface CreatedCollectionRow {
   id: number
   login: string
@@ -53,6 +55,7 @@ export interface CollectionSkillRow {
   name: string | null
   display_name?: string | null
   reason: string | null
+  repo_skill_count: number
 }
 
 export function collectionDetailPresenter(collection: CollectionDetailRow, skills: CollectionSkillRow[]) {
@@ -71,6 +74,14 @@ export function collectionDetailPresenter(collection: CollectionDetailRow, skill
       owner: s.owner,
       repo: s.repo,
       name: s.name,
+      registryPath: s.name
+        ? canonicalRepoSkillPath({
+            owner: s.owner,
+            repo: s.repo,
+            name: s.name,
+            repoSkillCount: s.repo_skill_count,
+          })
+        : repoHubPath(s.owner, s.repo),
       displayName: s.display_name ?? null,
       reason: s.reason,
     })),

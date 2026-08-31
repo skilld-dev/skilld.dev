@@ -31,6 +31,7 @@ interface NeighborSkill {
   displayName: string
   description: string | null
   score: number
+  registryPath: string
 }
 
 type RelatedSkills = Awaited<ReturnType<typeof findRelatedSkills>>
@@ -120,6 +121,7 @@ async function resolveNeighborSkills(
           displayName: row.displayName,
           description: row.description,
           score: Number(n[scoreKey]) || 0,
+          registryPath: row.registryPath,
         }
       })
       .filter((s): s is NeighborSkill => s !== null)

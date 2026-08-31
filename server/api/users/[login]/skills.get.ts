@@ -1,4 +1,5 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 
 interface SkillRow {
   name: string
@@ -14,6 +15,7 @@ interface SkillRow {
   source_owner: string | null
   source_repo: string | null
   default_branch: string | null
+  repo_skill_count: number
 }
 
 export default defineApiHandler({
@@ -28,7 +30,11 @@ export default defineApiHandler({
         `SELECT s.name, s.owner, s.repo, s.display_name, s.slug, s.description,
                 s.like_count AS likeCount,
                 s.modified_at, s.last_synced_at, s.rendered_skill_path AS skill_path,
-                r.source_owner, r.source_repo, r.default_branch
+                r.source_owner, r.source_repo, r.default_branch,
+                (SELECT COUNT(*) FROM skills repo_skills
+                 WHERE repo_skills.owner = s.owner
+                   AND repo_skills.repo = s.repo
+                   AND repo_skills.source_resolved = 1) AS repo_skill_count
          FROM skills s
          JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
          WHERE s.owner = ?1 COLLATE NOCASE
@@ -39,7 +45,15 @@ export default defineApiHandler({
 
     return {
       ok: true as const,
-      items: res.results ?? [],
+      items: (res.results ?? []).map(skill => ({
+        ...skill,
+        registryPath: canonicalRepoSkillPath({
+          owner: skill.owner,
+          repo: skill.repo,
+          name: skill.name,
+          repoSkillCount: skill.repo_skill_count,
+        }),
+      })),
     }
   },
 })

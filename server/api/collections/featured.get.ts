@@ -1,5 +1,6 @@
 import { getDB } from '#server/utils/db'
 import { featuredCollectionSkillsSql } from '#server/utils/homepage-queries'
+import { canonicalRepoSkillPath, repoHubPath } from '#shared/skill-routes'
 
 interface CollectionRow {
   id: number
@@ -19,6 +20,7 @@ interface CollectionSkillRow {
   name: string | null
   display_name: string | null
   reason: string | null
+  repo_skill_count: number
 }
 
 export interface FeaturedCollectionsResponse {
@@ -35,6 +37,7 @@ export interface FeaturedCollectionsResponse {
       name: string | null
       displayName: string | null
       reason: string | null
+      registryPath: string
     }>
   }>
 }
@@ -77,6 +80,14 @@ export default defineCachedEventHandler(
         owner: skill.owner,
         repo: skill.repo,
         name: skill.name,
+        registryPath: skill.name
+          ? canonicalRepoSkillPath({
+              owner: skill.owner,
+              repo: skill.repo,
+              name: skill.name,
+              repoSkillCount: skill.repo_skill_count,
+            })
+          : repoHubPath(skill.owner, skill.repo),
         displayName: skill.display_name,
         reason: skill.reason,
       }))

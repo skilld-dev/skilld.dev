@@ -18,6 +18,7 @@ interface LikedSkill {
   stars: number | null
   likeCount: number
   likedAt: number
+  registryPath: string
 }
 
 interface LikedResponse {
@@ -113,6 +114,7 @@ useSeoMeta({
           owner: skill.owner,
           repo: skill.repo,
           name: skill.name,
+          registryPath: skill.registryPath,
           slug: skill.slug,
           description: skill.description,
           stars: skill.stars ?? 0,

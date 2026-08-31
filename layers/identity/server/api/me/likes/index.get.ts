@@ -1,4 +1,5 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { authenticated } from '../../../policies/authenticated'
 import { requireUserRow } from '../../../utils/users'
 
@@ -11,6 +12,7 @@ interface LikeRow {
   stars: number | null
   likeCount: number
   likedAt: number
+  repoSkillCount: number
 }
 
 /**
@@ -36,7 +38,11 @@ export default defineApiHandler({
           FROM skill_likes all_likes
           WHERE all_likes.owner = l.owner
             AND all_likes.repo = l.repo
-            AND all_likes.name = l.name) AS likeCount
+            AND all_likes.name = l.name) AS likeCount,
+         (SELECT COUNT(*) FROM skills repo_skills
+          WHERE repo_skills.owner = l.owner
+            AND repo_skills.repo = l.repo
+            AND repo_skills.source_resolved = 1) AS repoSkillCount
        FROM skill_likes l
        LEFT JOIN skills s ON s.owner = l.owner AND s.repo = l.repo AND s.name = l.name
        LEFT JOIN repos r ON r.owner = l.owner AND r.repo = l.repo
@@ -44,6 +50,16 @@ export default defineApiHandler({
        ORDER BY l.created_at DESC`,
     ).bind(u.id).all<LikeRow>()
 
-    return { items: results ?? [] }
+    return {
+      items: (results ?? []).map(skill => ({
+        ...skill,
+        registryPath: canonicalRepoSkillPath({
+          owner: skill.owner,
+          repo: skill.repo,
+          name: skill.name,
+          repoSkillCount: skill.repoSkillCount,
+        }),
+      })),
+    }
   },
 })

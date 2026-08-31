@@ -72,6 +72,7 @@ describe('search_skills', () => {
           stars: 999,
           trustTier: 'trusted',
           official: true,
+          registryPath: '/gh/nuxt/nuxt',
         },
       ],
     })
@@ -87,7 +88,7 @@ describe('search_skills', () => {
       repo: 'nuxt',
       name: 'nuxt-seo',
       official: true,
-      url: 'https://skilld.dev/gh/nuxt/nuxt/nuxt-seo',
+      url: 'https://skilld.dev/gh/nuxt/nuxt',
       installCommand: 'npx skilld add gh:nuxt/nuxt -s nuxt-seo',
     })
     expect(data.results[0].description.length).toBe(500)
@@ -114,6 +115,7 @@ describe('get_skill', () => {
     owner: 'nuxt',
     repo: 'nuxt',
     name: 'nuxt-seo',
+    registryPath: '/gh/nuxt/nuxt',
     displayName: 'Nuxt SEO',
     description: 'SEO for Nuxt',
     installs: 120,
@@ -189,6 +191,7 @@ describe('get_collection', () => {
         owner: 'nuxt',
         repo: 'nuxt',
         name: `skill-${index + 1}`,
+        registryPath: `/gh/nuxt/nuxt/skill-${index + 1}`,
         displayName: `Skill ${index + 1}`,
         reason: 'r'.repeat(1200),
       })),

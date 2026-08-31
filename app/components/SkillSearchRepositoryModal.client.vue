@@ -131,7 +131,7 @@ function skillLikeLabel(skill: IndexedRepositorySkill): string {
 }
 
 function skillPath(skill: IndexedRepositorySkill): string {
-  return repoSkillPath(repositoryOwner.value, repositoryName.value, skill.name)
+  return skill.registryPath
 }
 
 function sourceFileUrl(path: string): string {

@@ -7,6 +7,7 @@ const props = defineProps<{
   owner: string
   repo: string
   name: string
+  registryPath: string
   branch: string
   skillDir: string
   activePath: string
@@ -88,6 +89,7 @@ function onInlineClick(event: MouseEvent) {
           :owner="owner"
           :repo="repo"
           :name="name"
+          :registry-path="registryPath"
           :branch="branch"
           :skill-dir="skillDir"
           :active-path="activePath"
@@ -98,7 +100,7 @@ function onInlineClick(event: MouseEvent) {
     <template v-else>
       <NuxtLink
         v-if="node.asset?.type === 'markdown'"
-        :to="node.path === 'SKILL.md' ? `/gh/${owner}/${repo}/${name}` : `/gh/${owner}/${repo}/${name}/-/${node.path}`"
+        :to="node.path === 'SKILL.md' ? registryPath : `${repoSkillPath(owner, repo, name)}/-/${node.path}`"
         rel="nofollow"
         class="tree-row file"
         :class="{ active: isActive }"

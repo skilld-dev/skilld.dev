@@ -3,9 +3,9 @@ import { resolveMissingRepoRedirect } from '../../layers/registry/app/utils/miss
 import { resolveOrgsRedirect } from '../../layers/registry/server/utils/orgs-route-policy'
 
 const mattpocock = [
-  { repo: 'skills', name: 'grill-me' },
-  { repo: 'skills', name: 'batch-grill-me' },
-  { repo: 'skills', name: 'code-review' },
+  { repo: 'skills', name: 'grill-me', registryPath: '/gh/mattpocock/skills/grill-me' },
+  { repo: 'skills', name: 'batch-grill-me', registryPath: '/gh/mattpocock/skills/batch-grill-me' },
+  { repo: 'skills', name: 'code-review', registryPath: '/gh/mattpocock/skills/code-review' },
 ]
 
 describe('missing repo recovery', () => {
@@ -31,8 +31,8 @@ describe('missing repo recovery', () => {
       owner: 'acme',
       repo: 'review',
       skills: [
-        { repo: 'front', name: 'review' },
-        { repo: 'back', name: 'review' },
+        { repo: 'front', name: 'review', registryPath: '/gh/acme/front/review' },
+        { repo: 'back', name: 'review', registryPath: '/gh/acme/back/review' },
       ],
     })).toEqual({ _tag: 'not_found' })
   })

@@ -57,10 +57,8 @@ defineOgImage('Collection.takumi', {
   alt: () => `${collectionOgProps.value?.name ?? 'Collection'} by @${login.value} on skilld`,
 })
 
-function collectionSkillPath(skill: { owner: string, repo: string, name?: string | null }) {
-  return skill.name
-    ? repoSkillPath(skill.owner, skill.repo, skill.name)
-    : repoHubPath(skill.owner, skill.repo)
+function collectionSkillPath(skill: { registryPath: string }) {
+  return skill.registryPath
 }
 
 function collectionSkillLabel(skill: { repo: string, name?: string | null }) {

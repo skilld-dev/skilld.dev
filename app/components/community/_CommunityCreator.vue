@@ -114,7 +114,7 @@ function formatStars(stars: number): string {
 
       <NuxtLink
         v-if="creator.topSkill"
-        :to="`/gh/${creator.topSkill.owner}/${creator.topSkill.repo}/${creator.topSkill.name}`"
+        :to="creator.topSkill.registryPath"
         class="community-contribution group"
       >
         <span class="flex items-center justify-between gap-4">

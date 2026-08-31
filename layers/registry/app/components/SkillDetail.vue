@@ -26,6 +26,7 @@ interface RelatedSkill {
   displayName: string
   description: string | null
   slug: string
+  registryPath: string
 }
 
 interface SkillCommit {
@@ -103,6 +104,7 @@ interface NeighborSkill {
   displayName: string
   description: string | null
   score: number
+  registryPath: string
 }
 
 interface DuplicateSkill {
@@ -1108,6 +1110,7 @@ useHead(computed(() => ({
                     :owner="data.owner"
                     :repo="data.repo"
                     :name="data.name"
+                    :registry-path="data.registryPath"
                     :branch="data.branch"
                     :skill-path="data.skillPath"
                     :active-path="activeDocPath"
@@ -1540,6 +1543,7 @@ useHead(computed(() => ({
                 :owner="data.owner"
                 :repo="data.repo"
                 :name="data.name"
+                :registry-path="data.registryPath"
                 :branch="data.branch"
                 :skill-path="data.skillPath"
                 :active-path="activeDocPath"

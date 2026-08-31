@@ -1,5 +1,5 @@
 import type { SkillBadgeEmbedInput } from '~~/shared/skill-badge'
-import { repoHubPath, repoSkillPath } from '~~/shared/skill-routes'
+import { canonicalRepoSkillPath, repoHubPath } from '~~/shared/skill-routes'
 
 export type AuthorBadgeTarget
   = | {
@@ -18,9 +18,14 @@ export type AuthorBadgeTarget
 
 export function authorBadgeInput(target: AuthorBadgeTarget): SkillBadgeEmbedInput {
   const repositoryPath = repoHubPath(target.owner, target.repo)
-  const registryPath = target._tag === 'repository' || target.repositorySkillCount === 1
+  const registryPath = target._tag === 'repository'
     ? repositoryPath
-    : repoSkillPath(target.owner, target.repo, target.name)
+    : canonicalRepoSkillPath({
+        owner: target.owner,
+        repo: target.repo,
+        name: target.name,
+        repoSkillCount: target.repositorySkillCount,
+      })
 
   return {
     owner: target.owner,
