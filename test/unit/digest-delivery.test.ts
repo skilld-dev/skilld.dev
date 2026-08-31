@@ -507,10 +507,6 @@ function digestUser(overrides: Partial<DigestUser> = {}): DigestUser {
     digest_email: 'harlan@example.com',
     email: 'harlan@example.com',
     email_opt_in: 1,
-    digest_frequency: 'daily',
-    digest_dow: null,
-    digest_hour: 2,
-    timezone: 'UTC',
     onboarded_at: 1,
     ...overrides,
   }

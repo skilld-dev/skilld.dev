@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type {
-  IdentityCadenceBody,
   IdentityEmailPatchBody,
   IdentityMutationResponse,
   IdentitySubscriptionRef,
@@ -50,22 +49,13 @@ const removeSubscriptionMutation = useNuxtMutation<IdentitySubscriptionRef, Iden
   onError: actionFailed('stop watching that repo'),
 })
 
-const saveCadenceMutation = useNuxtMutation<IdentityCadenceBody, IdentityMutationResponse>({
-  mutation: async (body) => {
-    const result = await rpc.execute(identityAccountQueries.saveCadence(), body)
-    await refreshAccount()
-    return result
-  },
-  onError: actionFailed('save your digest schedule'),
-})
-
 const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutationResponse>({
   mutation: async (body) => {
     const result = await rpc.execute(identityAccountQueries.saveEmail(), body)
     await refreshAccount()
     return result
   },
-  onError: actionFailed('save your digest email'),
+  onError: actionFailed('save your email settings'),
 })
 
 const removeLikeMutation = useNuxtMutation<LikedSkill, { ok: true }>({
@@ -107,28 +97,15 @@ async function unwatch(owner: string, repo: string) {
   unwatchingRepository.value = undefined
 }
 
-const showCadence = ref(false)
-const cadence = reactive<Required<IdentityCadenceBody>>({
-  frequency: me.value?.digest_frequency ?? 'weekly',
-  dow: me.value?.digest_dow ?? 1,
-  hour: me.value?.digest_hour ?? 9,
-  timezone: me.value?.timezone ?? 'UTC',
-})
-async function saveCadence() {
-  const saved = await saveCadenceMutation.mutateSafe({ ...cadence })
-  // A closed panel reads as a saved panel, so a rejected write keeps the form
-  // open on the values the user still needs to correct.
-  if (saved._tag === 'ok')
-    showCadence.value = false
-}
-
 const showEmail = ref(false)
 const emailForm = reactive({
   digest_email: me.value?.digest_email ?? me.value?.email ?? '',
   email_opt_in: !!me.value?.email_opt_in,
+  weekly_opt_in: me.value?.weekly_opt_in ?? true,
 })
 const emailMissingAddress = computed(() =>
-  emailForm.email_opt_in && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(emailForm.digest_email.trim()),
+  (emailForm.email_opt_in || emailForm.weekly_opt_in)
+  && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(emailForm.digest_email.trim()),
 )
 async function saveEmail() {
   if (emailMissingAddress.value)
@@ -138,23 +115,10 @@ async function saveEmail() {
     showEmail.value = false
 }
 
-const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
 const likedSkills = computed(() => likes.value?.items ?? [])
 const likesUnavailable = computed(() => !!likesError.value && !likes.value)
 const likesLoading = computed(() => likesStatus.value === 'pending' && !likes.value)
 const watchedRepositoryCount = computed(() => subs.value?.items.length ?? 0)
-const digestEnabled = computed(() =>
-  !!me.value?.email_opt_in && me.value?.digest_frequency !== 'off',
-)
-const digestSchedule = computed(() => {
-  if (me.value?.digest_frequency === 'off')
-    return 'Digest paused'
-  const time = `${String(me.value?.digest_hour ?? 9).padStart(2, '0')}:00 ${me.value?.timezone ?? 'UTC'}`
-  if (me.value?.digest_frequency === 'daily')
-    return `Daily at ${time}`
-  const day = weekdayLabels[me.value?.digest_dow ?? 1]
-  return `Every ${day} at ${time}`
-})
 
 function sourceDescription(source: string): string {
   if (source === 'like')
@@ -336,93 +300,33 @@ function fmtDate(ts: number | null | undefined): string {
 
       <aside class="min-w-0 space-y-10 lg:border-l lg:border-default lg:pl-8" aria-label="Skill delivery settings">
         <section>
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <h2 class="text-lg font-semibold">
-                Change digest
-              </h2>
-            </div>
-            <UBadge
-              :label="digestEnabled ? 'On' : 'Paused'"
-              color="neutral"
-              variant="subtle"
-            />
-          </div>
+          <h2 class="text-lg font-semibold">
+            Email updates
+          </h2>
 
           <div class="mt-5 border-y border-default">
-            <div class="py-4">
-              <p class="data-label">
-                Schedule
-              </p>
-              <p class="mt-2 text-sm leading-relaxed">
-                {{ digestSchedule }}
-              </p>
-              <UButton
-                class="mt-3 min-h-11"
-                color="neutral"
-                variant="outline"
-                :label="showCadence ? 'Close schedule' : 'Edit schedule'"
-                :icon="showCadence ? 'i-lucide-chevron-up' : 'i-lucide-sliders-horizontal'"
-                :aria-expanded="showCadence"
-                aria-controls="digest-schedule-form"
-                @click="showCadence = !showCadence"
-              />
-
-              <div v-show="showCadence" id="digest-schedule-form" class="mt-4 space-y-4">
-                <div>
-                  <p class="data-label mb-2">
-                    Frequency
-                  </p>
-                  <div class="grid grid-cols-3 gap-2">
-                    <UButton
-                      v-for="f in (['weekly', 'daily', 'off'] as const)"
-                      :key="f"
-                      :label="f === 'off' ? 'Off' : `${f[0]?.toUpperCase()}${f.slice(1)}`"
-                      :variant="cadence.frequency === f ? 'solid' : 'outline'"
-                      :color="cadence.frequency === f ? 'primary' : 'neutral'"
-                      class="min-h-11 justify-center"
-                      @click="cadence.frequency = f"
-                    />
-                  </div>
-                </div>
-                <div v-if="cadence.frequency === 'weekly'">
-                  <p class="data-label mb-2">
-                    Day
-                  </p>
-                  <div class="grid grid-cols-4 gap-2">
-                    <UButton
-                      v-for="(day, index) in weekdayLabels"
-                      :key="day"
-                      :label="day.slice(0, 3)"
-                      :aria-label="day"
-                      :variant="cadence.dow === index ? 'solid' : 'outline'"
-                      :color="cadence.dow === index ? 'primary' : 'neutral'"
-                      class="min-h-11 justify-center"
-                      @click="cadence.dow = index"
-                    />
-                  </div>
-                </div>
-                <div v-if="cadence.frequency !== 'off'" class="grid grid-cols-[6rem_minmax(0,1fr)] gap-3">
-                  <UFormField label="Hour" name="digest-hour">
-                    <UInputNumber
-                      v-model="cadence.hour"
-                      :min="0"
-                      :max="23"
-                      class="w-full font-mono"
-                      :ui="{ base: 'min-h-11' }"
-                    />
-                  </UFormField>
-                  <UFormField label="Time zone" name="digest-timezone">
-                    <UInput v-model="cadence.timezone" class="w-full font-mono" :ui="{ base: 'min-h-11' }" />
-                  </UFormField>
-                </div>
-                <UButton
-                  class="min-h-11"
-                  label="Save schedule"
-                  :loading="saveCadenceMutation.pending.value"
-                  @click="saveCadence"
-                />
+            <div class="flex items-start justify-between gap-4 py-4">
+              <div>
+                <p class="text-sm font-medium">
+                  Weekly email
+                </p>
+                <p class="mt-1 text-xs leading-relaxed text-muted">
+                  New trending Skills every Monday. A Skill can return after 60 days.
+                </p>
               </div>
+              <UBadge :label="me?.weekly_opt_in ? 'On' : 'Off'" color="neutral" variant="subtle" />
+            </div>
+
+            <div class="flex items-start justify-between gap-4 border-t border-default py-4">
+              <div>
+                <p class="text-sm font-medium">
+                  Monthly digest
+                </p>
+                <p class="mt-1 text-xs leading-relaxed text-muted">
+                  Changes to liked Skills and watched Repositories on the first day of each month.
+                </p>
+              </div>
+              <UBadge :label="me?.email_opt_in ? 'On' : 'Off'" color="neutral" variant="subtle" />
             </div>
 
             <div class="border-t border-default py-4">
@@ -436,14 +340,14 @@ function fmtDate(ts: number | null | undefined): string {
                 class="mt-3 min-h-11"
                 color="neutral"
                 variant="outline"
-                :label="showEmail ? 'Close email settings' : 'Edit email'"
+                :label="showEmail ? 'Close email settings' : 'Edit email settings'"
                 :icon="showEmail ? 'i-lucide-chevron-up' : 'i-lucide-mail'"
                 :aria-expanded="showEmail"
-                aria-controls="digest-email-form"
+                aria-controls="email-settings-form"
                 @click="showEmail = !showEmail"
               />
-              <div v-show="showEmail" id="digest-email-form" class="mt-4 space-y-4">
-                <UFormField label="Digest email" name="digest-email" :error="emailMissingAddress ? 'Add a valid email address, or turn off the digest.' : undefined">
+              <div v-show="showEmail" id="email-settings-form" class="mt-4 space-y-4">
+                <UFormField label="Email address" name="email" :error="emailMissingAddress ? 'Add a valid email address, or turn off both emails.' : undefined">
                   <UInput
                     v-model="emailForm.digest_email"
                     type="email"
@@ -455,12 +359,23 @@ function fmtDate(ts: number | null | undefined): string {
                 </UFormField>
                 <label class="flex min-h-11 items-start gap-3 text-sm">
                   <input
+                    v-model="emailForm.weekly_opt_in"
+                    type="checkbox"
+                    class="mt-0.5 size-4 accent-primary"
+                  >
+                  <span>
+                    Send me the weekly email
+                    <span class="mt-0.5 block text-xs text-muted">Distinct trending Skills each Monday.</span>
+                  </span>
+                </label>
+                <label class="flex min-h-11 items-start gap-3 text-sm">
+                  <input
                     v-model="emailForm.email_opt_in"
                     type="checkbox"
                     class="mt-0.5 size-4 accent-primary"
                   >
                   <span>
-                    Send me the digest
+                    Send me the monthly digest
                     <span class="mt-0.5 block text-xs text-muted">Liked Skills and watched Repositories that changed.</span>
                   </span>
                 </label>

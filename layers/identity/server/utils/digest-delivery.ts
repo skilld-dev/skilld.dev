@@ -18,7 +18,6 @@ import type {
   SendEmailInput,
   SendEmailResult,
 } from './email'
-import type { WeeklyTrendingSkill } from './weekly-template'
 
 const CLAIM_TTL_SECONDS = 5 * 60
 
@@ -571,7 +570,7 @@ async function markUncertain(
 export async function runDigestDeliveryForUser(
   deps: DigestDeliveryDependencies,
   user: DigestUser,
-  input: { scheduledAt: number, siteUrl: string, trending?: WeeklyTrendingSkill[] },
+  input: { scheduledAt: number, siteUrl: string },
 ): Promise<DigestDeliveryResult> {
   const claim = await claimDigestWindow(deps, user, input.scheduledAt)
   if (claim._tag !== 'acquired')
@@ -622,7 +621,6 @@ export async function runDigestDeliveryForUser(
     unsubscribeUrl,
     siteUrl: input.siteUrl,
     settingsUrl: `${input.siteUrl}/me`,
-    trending: input.trending ?? [],
     entries: selection.entries.map(entry => ({
       owner: entry.owner,
       repo: entry.repo,

@@ -96,7 +96,7 @@ async function watchSelected() {
     body: { source: 'star-import', repos },
   }).catch(actionFailed('start watching those repos'))
   submitting.value = false
-  await navigateTo('/onboarding/cadence')
+  await navigateTo('/onboarding/email')
 }
 
 useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
@@ -144,7 +144,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
       <template v-else>
         None of your starred repos with "skill" in the name are in the registry yet.
       </template>
-      <NuxtLink to="/onboarding/cadence" class="underline">
+      <NuxtLink to="/onboarding/email" class="underline">
         skip ahead
       </NuxtLink>.
     </div>
@@ -203,7 +203,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
     </template>
 
     <div class="mt-8 flex items-center justify-between">
-      <NuxtLink to="/onboarding/cadence" class="text-sm text-muted hover:text-default underline">
+      <NuxtLink to="/onboarding/email" class="text-sm text-muted hover:text-default underline">
         Skip
       </NuxtLink>
       <UButton

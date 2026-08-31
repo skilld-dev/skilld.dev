@@ -46,6 +46,9 @@ CREATE UNIQUE INDEX idx_digest_window ON digest_runs(user_id, window_end);
 
 CREATE UNIQUE INDEX weekly_runs_user_window ON weekly_runs (user_id, window_end);
 
+CREATE INDEX weekly_skill_sends_recent
+  ON weekly_skill_sends (sent_at DESC, owner, repo, name);
+
 CREATE INDEX weekly_click_events_window ON weekly_click_events (window_end, placement);
 CREATE INDEX weekly_click_events_path ON weekly_click_events (path, clicked_at);
 
@@ -307,6 +310,15 @@ CREATE TABLE weekly_runs (
   claimed_at INTEGER NOT NULL,
   sent_at INTEGER,
   error TEXT
+);
+
+CREATE TABLE weekly_skill_sends (
+  window_end INTEGER NOT NULL,
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  name TEXT NOT NULL,
+  sent_at INTEGER NOT NULL,
+  PRIMARY KEY (window_end, owner, repo, name)
 );
 
 CREATE TABLE owners (

@@ -1,0 +1,48 @@
+{
+  "schema_version": 4,
+  "job_id": "email-settings-0831-1548",
+  "created": "2026-08-31T06:56:00Z",
+  "git_hash": "11fe9b8a2553ab90588dfb74fa4b24b63f4e50df",
+  "dev_port": 8787,
+  "pages_changed": [
+    "layers/identity/app/pages/me/index.vue",
+    "layers/identity/app/pages/onboarding/discover.vue",
+    "layers/identity/app/pages/onboarding/email.vue"
+  ],
+  "components_created": [],
+  "routes_to_test": [
+    "/me",
+    "/onboarding/discover",
+    "/onboarding/email",
+    "/weekly/preview"
+  ],
+  "design_system_changes": false,
+  "theme_name": "quiet editorial",
+  "contract_path": ".claude/context/jobs/email-settings-0831-1548/build-contract.md",
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "met",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met",
+    "C14": "met",
+    "C15": "met"
+  },
+  "self_assessment": {
+    "confidence": "high",
+    "weakest_area": "Authenticated pages used component tests because local browser state had no account session.",
+    "hardest_decision": "Keep one address while making the weekly email and monthly digest independent choices."
+  },
+  "has_client_animations": false,
+  "known_limitations": [],
+  "next_steps": [],
+  "dark_mode_relevant": true
+}

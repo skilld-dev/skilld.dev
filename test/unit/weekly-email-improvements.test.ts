@@ -21,6 +21,7 @@ function trending(index: number): WeeklyTrendingSkill {
 
 function input(): WeeklyRenderInput {
   return {
+    edition: 'digest',
     recipientName: 'Harlan',
     userId: 1,
     windowStart: WINDOW_END - 7 * 86_400,
@@ -67,11 +68,12 @@ describe('weekly email improvement contract', () => {
     expect(rendered.text).toContain('https://github.com/antfu/skills/blob/new-sha/skills/vitest/SKILL.md')
   })
 
-  it('keeps trending secondary and renders seven rows at most', () => {
-    const rendered = renderWeekly(input())
+  it('keeps the weekly distinct and renders seven rows at most', () => {
+    const rendered = renderWeekly({ ...input(), edition: 'weekly' })
 
     expect(rendered.html).toContain('skill-7')
     expect(rendered.html).not.toContain('skill-8')
+    expect(rendered.html).not.toContain('Improve browser mode')
   })
 
   it('uses fluid, accessible email structure', () => {
@@ -87,7 +89,7 @@ describe('weekly email improvement contract', () => {
   })
 
   it('tracks explicit share intent', () => {
-    const rendered = renderWeekly(input())
+    const rendered = renderWeekly({ ...input(), edition: 'weekly' })
     expect(rendered.html).toContain('k=share')
     expect(parseWeeklyClick({ p: '/api/share/weekly', k: 'share', w: String(WINDOW_END), u: '1' }))
       .toMatchObject({ _tag: 'ok', placement: 'share' })

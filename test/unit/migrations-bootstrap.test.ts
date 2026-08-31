@@ -182,6 +182,13 @@ describe('d1 migration bootstrap', () => {
       ).get()).toBeTruthy()
       expect(sqlite.prepare(
         `SELECT name FROM sqlite_schema
+         WHERE type = 'table' AND name = 'weekly_skill_sends'`,
+      ).get()).toBeTruthy()
+      expect(sqlite.prepare(
+        `SELECT cron, stale_after_seconds FROM sync_jobs WHERE name = 'send-digests'`,
+      ).get()).toEqual({ cron: '0 9 1 * *', stale_after_seconds: 3_024_000 })
+      expect(sqlite.prepare(
+        `SELECT name FROM sqlite_schema
          WHERE type = 'trigger' AND name = 'activity_require_ingested_at'`,
       ).get()).toBeTruthy()
       expect(sqlite.prepare(

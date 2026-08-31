@@ -3,10 +3,8 @@
 /**
  * The weekly email, sent once a week to everyone who has not opted out.
  *
- * Fires at one fixed hour rather than per-recipient local time. The digest
- * task does timezone slotting because a person chose their own hour; nobody
- * chose an hour for this one, so a single slot keeps the run to a single pass
- * and the `(user_id, window_end)` claim to a single week.
+ * Fires at one fixed hour. A single slot keeps the run to one pass and the
+ * `(user_id, window_end)` claim to one week.
  *
  * The trending half is loaded once and shared. It is the same board for
  * everyone, and re-running the ranking per recipient would spend D1 reads to
@@ -19,7 +17,7 @@ import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { sendEmailWithEnv, signUnsubToken } from '../utils/email'
 import { runWeeklyForUser } from '../utils/weekly-delivery'
-import { loadWeeklyRecipients, loadWeeklyTrending, selectWeeklyForUser } from '../utils/weekly-select'
+import { loadWeeklyRecipients, loadWeeklyTrending } from '../utils/weekly-select'
 import { renderWeekly } from '../utils/weekly-template'
 
 const CRON = '0 9 * * MON'
@@ -28,7 +26,7 @@ const WINDOW_SECONDS = 7 * 24 * 60 * 60
 export default defineScheduledTask({
   name: 'send-weekly',
   cron: '0 9 * * MON',
-  description: 'Send the weekly email: changes to skills each person liked, plus what trended',
+  description: 'Send distinct trending Skills that have not appeared in the prior 60 days',
   async run({ context }) {
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
@@ -71,7 +69,6 @@ export default defineScheduledTask({
         const result = await runWeeklyForUser({
           db,
           now: () => Math.floor(Date.now() / 1_000),
-          select: selectWeeklyForUser,
           render: renderWeekly,
           signUnsubscribe: userId => signUnsubToken(userId, tokenKey),
           send: input => sendEmailWithEnv(env, { ...input, from: emailFrom }),

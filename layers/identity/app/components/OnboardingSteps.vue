@@ -1,10 +1,9 @@
 <script setup lang="ts">
-const { step } = defineProps<{ step: 1 | 2 | 3 }>()
+const { step } = defineProps<{ step: 1 | 2 }>()
 
 const steps = [
   { n: 1, label: 'Discover' },
-  { n: 2, label: 'Schedule' },
-  { n: 3, label: 'Email' },
+  { n: 2, label: 'Email' },
 ] as const
 </script>
 

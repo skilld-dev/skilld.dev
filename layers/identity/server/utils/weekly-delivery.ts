@@ -13,19 +13,14 @@
  */
 
 import type { SendEmailInput, SendEmailResult } from './email'
-import type { WeeklyRecipient, WeeklySelection } from './weekly-select'
+import type { WeeklyRecipient } from './weekly-select'
 import type { WeeklyRender, WeeklyRenderInput, WeeklyTrendingSkill } from './weekly-template'
+import { recordWeeklySkillsSent } from './weekly-history'
 import { resolveRecipientAddress } from './weekly-select'
 
 export interface WeeklyDeliveryDependencies {
   db: D1Database
   now: () => number
-  select: (
-    db: D1Database,
-    user: WeeklyRecipient,
-    windowStart: number,
-    windowEnd: number,
-  ) => Promise<WeeklySelection>
   render: (input: WeeklyRenderInput) => WeeklyRender
   signUnsubscribe: (userId: number) => Promise<string>
   send: (input: SendEmailInput) => Promise<SendEmailResult>
@@ -117,10 +112,7 @@ export async function runWeeklyForUser(
   if (claim._tag === 'taken')
     return { _tag: 'already_claimed' }
 
-  const selection = await deps.select(deps.db, user, input.windowStart, input.windowEnd)
-
-  // Discovery is secondary. Send only when this person has a material change.
-  if (!selection.likedChanges.length) {
+  if (!input.trending.length) {
     await finish(deps.db, claim.runId, { status: 'skipped' })
     return { _tag: 'skipped', reason: 'nothing_to_say' }
   }
@@ -132,9 +124,9 @@ export async function runWeeklyForUser(
     userId: user.id,
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,
-    likedChanges: selection.likedChanges,
-    likedOverflow: selection.likedOverflow,
-    trackedCount: selection.trackedCount,
+    likedChanges: [],
+    likedOverflow: 0,
+    trackedCount: 0,
     trending: input.trending,
     siteUrl: input.siteUrl,
     unsubscribeUrl,
@@ -142,7 +134,7 @@ export async function runWeeklyForUser(
   })
 
   const counts = {
-    likedCount: selection.likedChanges.length,
+    likedCount: 0,
     trendingCount: input.trending.length,
   }
 
@@ -158,12 +150,18 @@ export async function runWeeklyForUser(
   })
 
   if (result._tag === 'accepted') {
+    const sentAt = deps.now()
     await finish(deps.db, claim.runId, {
       ...counts,
       status: 'sent',
       providerMessageId: result.messageId,
       providerStatus: 'accepted',
-      sentAt: deps.now(),
+      sentAt,
+    })
+    await recordWeeklySkillsSent(deps.db, {
+      windowEnd: input.windowEnd,
+      sentAt,
+      skills: input.trending,
     })
     return { _tag: 'sent', runId: claim.runId, providerMessageId: result.messageId }
   }
@@ -173,6 +171,11 @@ export async function runWeeklyForUser(
   // than a missed one.
   if (result._tag === 'uncertain') {
     await finish(deps.db, claim.runId, { ...counts, status: 'uncertain', error: result.error })
+    await recordWeeklySkillsSent(deps.db, {
+      windowEnd: input.windowEnd,
+      sentAt: deps.now(),
+      skills: input.trending,
+    })
     return { _tag: 'uncertain', error: result.error }
   }
 

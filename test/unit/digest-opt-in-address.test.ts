@@ -33,6 +33,23 @@ describe('digest opt-in requires a deliverable address', () => {
     expect(identityEmailPatchBodySchema.parse({ email_opt_in: false })).toEqual({ email_opt_in: false })
   })
 
+  it('requires an address for the weekly email too', () => {
+    expect(identityEmailPatchBodySchema.safeParse({ weekly_opt_in: true }).success).toBe(false)
+    expect(identityEmailPatchBodySchema.parse({ weekly_opt_in: false })).toEqual({ weekly_opt_in: false })
+  })
+
+  it('accepts both independent email choices with one address', () => {
+    expect(identityEmailPatchBodySchema.parse({
+      digest_email: 'harlan@example.com',
+      email_opt_in: false,
+      weekly_opt_in: true,
+    })).toEqual({
+      digest_email: 'harlan@example.com',
+      email_opt_in: false,
+      weekly_opt_in: true,
+    })
+  })
+
   it('repairs opted-in users that have no deliverable address', () => {
     const sqlite = new Database(':memory:')
     try {

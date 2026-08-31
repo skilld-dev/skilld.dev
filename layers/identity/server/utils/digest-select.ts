@@ -10,10 +10,6 @@ export interface DigestUser {
   digest_email: string | null
   email: string | null
   email_opt_in: number
-  digest_frequency: 'weekly' | 'daily' | 'off'
-  digest_dow: number | null
-  digest_hour: number
-  timezone: string
   onboarded_at: number | null
 }
 
@@ -40,44 +36,6 @@ export interface DigestSelection {
   cursorStart: number
   cursorEnd: number
   entries: DigestEntry[]
-}
-
-// Match the configured (dow, hour, tz) against the current UTC slot.
-// Cron fires hourly; we check whether the user's local time right now
-// is at their configured hour and (for weekly) day-of-week.
-export function shouldFireForUser(user: DigestUser, nowSec: number): boolean {
-  if (!user.email_opt_in)
-    return false
-  if (user.digest_frequency === 'off')
-    return false
-  if (!user.onboarded_at)
-    return false
-  // Project nowSec into the user's timezone using Intl. We get hour + dow.
-  let hour: number
-  let dow: number
-  try {
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: user.timezone,
-      hour: '2-digit',
-      hour12: false,
-      weekday: 'short',
-    })
-    const parts = fmt.formatToParts(new Date(nowSec * 1000))
-    const hourStr = parts.find(p => p.type === 'hour')?.value ?? '0'
-    hour = Number.parseInt(hourStr, 10)
-    if (hour === 24)
-      hour = 0
-    const wk = parts.find(p => p.type === 'weekday')?.value ?? 'Sun'
-    dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(wk)
-  }
-  catch {
-    return false
-  }
-  if (hour !== user.digest_hour)
-    return false
-  if (user.digest_frequency === 'weekly' && dow !== (user.digest_dow ?? 1))
-    return false
-  return true
 }
 
 export async function selectDigestForUser(
@@ -295,11 +253,9 @@ async function activityCursorAt(db: D1Database, ingestedAt: number): Promise<num
 
 export async function loadDigestEligibleUsers(db: D1Database): Promise<DigestUser[]> {
   const res = await db.prepare(
-    `SELECT id, login, name, digest_email, email, email_opt_in,
-            digest_frequency, digest_dow, digest_hour, timezone, onboarded_at
+    `SELECT id, login, name, digest_email, email, email_opt_in, onboarded_at
      FROM users
      WHERE email_opt_in = 1
-       AND digest_frequency != 'off'
        AND onboarded_at IS NOT NULL`,
   ).all<DigestUser>()
   return res.results ?? []

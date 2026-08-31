@@ -544,8 +544,11 @@ const LIKE_PROMPT = 'Like a Skill and it shows up here the week it changes.'
 
 function subjectFor(input: WeeklyRenderInput): string {
   const edition = input.edition ?? 'weekly'
-  // The liked half wins the subject when it has anything in it. Those are
-  // skills this person chose; the trending half is a stranger's.
+  if (edition === 'weekly') {
+    return input.trending.length
+      ? `skilld weekly: ${nameList(input.trending.map(skill => skill.canonicalName), 0)}`
+      : 'skilld weekly: a quiet week'
+  }
   if (input.likedChanges.length) {
     const names = nameList(input.likedChanges.map(change => change.name), input.likedOverflow)
     const verb = input.likedChanges.length + input.likedOverflow === 1 ? 'was' : 'were'
@@ -566,6 +569,11 @@ function subjectFor(input: WeeklyRenderInput): string {
  */
 function preheader(input: WeeklyRenderInput): string {
   const trendingNames = nameList(input.trending.map(skill => skill.canonicalName), 0)
+  if ((input.edition ?? 'weekly') === 'weekly') {
+    return input.trending.length
+      ? `This week: ${trendingNames}.`
+      : 'No new trending Skills this week.'
+  }
   if (input.likedChanges.length) {
     return input.trending.length
       ? `Also trending: ${trendingNames}.`
@@ -580,6 +588,8 @@ function preheader(input: WeeklyRenderInput): string {
 }
 
 function greeting(input: WeeklyRenderInput): string {
+  if ((input.edition ?? 'weekly') === 'weekly')
+    return 'Here are this week’s trending Skills.'
   const liked = input.likedChanges.length + input.likedOverflow
   const trending = input.trending.length
   // With no recipient there is nothing true to say about what they like.
@@ -617,6 +627,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const window = formatWindow(input.windowStart, input.windowEnd)
   const subject = subjectFor(input)
   const edition = input.edition ?? 'weekly'
+  const trendsOnly = edition === 'weekly'
   const empty = !input.likedChanges.length && !input.trackedCount && !input.trending.length
 
   // Only the HTML is tracked. The plain-text part is read by clients that
@@ -667,7 +678,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
   // Only when there is nothing to track. Telling someone who likes thirty
   // skills to go like a skill is the product failing to notice it worked.
-  const likePrompt = !input.trackedCount && !input.likedChanges.length && input.trending.length
+  const likePrompt = !trendsOnly && !input.trackedCount && !input.likedChanges.length && input.trending.length
     ? `<tr><td style="padding:16px 0 0;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.55;color:${t.muted};">
          ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
@@ -684,16 +695,20 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
     })
   }).join('')
 
-  const body = empty
-    ? `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
+  const body = trendsOnly
+    ? input.trending.length
+      ? `${sectionLabel(t, 'Trending this week')}${trendingRows}`
+      : `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">No new trending Skills this week.</td></tr>`
+    : empty
+      ? `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
          Like a few Skills and they will show up here the week they change.
          <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
-    : `${input.likedChanges.length || input.trackedCount
-      ? `${sectionLabel(t, 'Skills you like')}${likedRows}${overflowRow}${quietRow}`
-      : ''}${input.trending.length
-      ? `${sectionLabel(t, 'Trending this week')}${trendingRows}${likePrompt}`
-      : ''}`
+      : `${input.likedChanges.length || input.trackedCount
+        ? `${sectionLabel(t, 'Skills you like')}${likedRows}${overflowRow}${quietRow}`
+        : ''}${input.trending.length
+        ? `${sectionLabel(t, 'Trending this week')}${trendingRows}${likePrompt}`
+        : ''}`
 
   const shareUrl = track(`${input.siteUrl}/api/share/weekly`, 'share')
   const card = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:${t.surface};border:1px solid ${t.border};border-radius:8px;">
@@ -712,7 +727,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
           <tr><td style="padding:22px 0 8px;">
-            <h1 style="margin:0;font-family:${SANS};font-size:20px;font-weight:600;line-height:1.35;color:${t.text};">${input.recipientName ? `Hi ${esc(input.recipientName)},` : 'Your Skill updates'}</h1>
+            <h1 style="margin:0;font-family:${SANS};font-size:20px;font-weight:600;line-height:1.35;color:${t.text};">${trendsOnly ? 'This week’s trending Skills' : input.recipientName ? `Hi ${esc(input.recipientName)},` : 'Your Skill updates'}</h1>
             <div style="margin-top:6px;font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">${esc(greeting(input))}</div>
           </td></tr>
           ${body}
@@ -760,17 +775,18 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
 export function renderWeeklyText(input: WeeklyRenderInput): string {
   const now = input.windowEnd
+  const trendsOnly = (input.edition ?? 'weekly') === 'weekly'
   const lines: string[] = [
     `skilld ${input.edition ?? 'weekly'}  ${formatWindow(input.windowStart, input.windowEnd)}`,
     '',
-    ...(input.recipientName ? [`Hi ${input.recipientName},`] : []),
+    ...(!trendsOnly && input.recipientName ? [`Hi ${input.recipientName},`] : []),
     greeting(input),
   ]
 
-  if (!input.likedChanges.length && input.trackedCount)
+  if (!trendsOnly && !input.likedChanges.length && input.trackedCount)
     lines.push('', 'SKILLS YOU LIKE', '', trackedLine(input.trackedCount))
 
-  if (input.likedChanges.length) {
+  if (!trendsOnly && input.likedChanges.length) {
     lines.push('', 'SKILLS YOU LIKE', '')
     for (const change of input.likedChanges) {
       lines.push(`- ${change.owner}/${change.repo} ${change.name}`)
@@ -806,7 +822,7 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
       lines.push(`  Source: ${skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug })}`)
       lines.push('')
     }
-    if (!input.trackedCount)
+    if (!trendsOnly && !input.trackedCount)
       lines.push(LIKE_PROMPT, '')
     lines.push(`Full board: ${input.siteUrl}/skills/trending`, '')
   }

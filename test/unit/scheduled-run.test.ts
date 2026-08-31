@@ -134,6 +134,13 @@ describe('scheduled run lifecycle', () => {
     )).toMatchObject({ _tag: 'missing_run', alertable: true })
   })
 
+  it('observes the digest on its monthly schedule', () => {
+    const policy = observedSchedulePolicy('send-digests')
+
+    expect(policy.cron).toBe('0 9 1 * *')
+    expect(policy.maxSilenceSeconds).toBeGreaterThan(31 * 24 * 60 * 60)
+  })
+
   it('surfaces latest failure, expiry, and overdue started attempts', () => {
     const policy = SCHEDULE_POLICY.find(entry => entry._tag === 'observed')!
     const failed = {
