@@ -122,6 +122,20 @@ interface LiveSkill {
   fetchedAt: string
 }
 
+interface MissingSkillMatch {
+  name: string
+  owner: string
+  repo: string
+  displayName: string
+  description: string | null
+  stars: number
+}
+
+interface MissingSkillSearchResponse {
+  items: MissingSkillMatch[]
+  total: number
+}
+
 const skillFetch = useFetch(
   () => `/api/skills/${slug.value}`,
   {
@@ -233,6 +247,42 @@ if (import.meta.server)
 const { data, status, error, refresh } = skillFetch
 const { data: relatedData } = relatedFetch
 const { data: liveSkill } = liveSkillFetch
+
+const isMissingSkill = computed(() => error.value?.statusCode === 404)
+const missingSkillQuery = computed(() => name.value
+  .replace(/[-_:]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim())
+const missingSkillFetch = useFetch<MissingSkillSearchResponse>('/api/skills', {
+  query: computed(() => ({ q: missingSkillQuery.value, limit: 3 })),
+  immediate: false,
+  watch: false,
+})
+const {
+  data: missingSkillSearch,
+  status: missingSkillSearchStatus,
+  error: missingSkillSearchError,
+  execute: searchForMissingSkill,
+} = missingSkillFetch
+const missingSkillMatches = computed(() => missingSkillSearch.value?.items ?? [])
+const allMissingSkillMatchesPath = computed(() => ({
+  path: '/skills',
+  query: { q: missingSkillQuery.value },
+}))
+
+async function loadMissingSkillMatches(): Promise<void> {
+  if (!isMissingSkill.value || !missingSkillQuery.value)
+    return
+  await searchForMissingSkill()
+}
+
+if (import.meta.server && isMissingSkill.value)
+  await loadMissingSkillMatches()
+
+watch([isMissingSkill, missingSkillQuery], () => {
+  if (import.meta.client && isMissingSkill.value)
+    void loadMissingSkillMatches()
+}, { immediate: true })
 
 const legacySkillPath = computed(() => repoSkillPath(owner.value, repo.value, name.value))
 if (import.meta.server && data.value?.registryPath === repoHubPath(owner.value, repo.value) && useRoute().path === legacySkillPath.value)
@@ -833,6 +883,141 @@ useHead(computed(() => ({
         <USkeleton class="h-4 w-3/4 max-w-md" />
       </div>
 
+      <section
+        v-else-if="isMissingSkill"
+        class="editorial-state overflow-hidden rounded-lg text-left"
+        aria-labelledby="skill-heading"
+      >
+        <div class="px-4 py-6 sm:px-6">
+          <h1
+            id="skill-heading"
+            class="font-mono text-lg font-medium"
+          >
+            Skill not found
+          </h1>
+          <p class="mt-2 max-w-2xl text-base text-muted">
+            This URL does not match a published skill.
+          </p>
+          <p class="mt-1 break-words font-mono text-sm text-muted">
+            We searched for “{{ missingSkillQuery }}”.
+          </p>
+        </div>
+
+        <div class="border-t border-default">
+          <div
+            v-if="missingSkillSearchStatus === 'idle' || missingSkillSearchStatus === 'pending'"
+            class="px-4 py-6 sm:px-6"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <p class="text-sm text-muted">
+              Searching for similar skills…
+            </p>
+          </div>
+
+          <div
+            v-else-if="missingSkillSearchError"
+            class="px-4 py-6 sm:px-6"
+            role="alert"
+          >
+            <p class="text-sm text-highlighted">
+              Couldn't load similar skills.
+            </p>
+            <p class="mt-1 text-sm text-muted">
+              Check your connection, then try again.
+            </p>
+            <UButton
+              label="Retry search"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              class="mt-4 min-h-11"
+              @click="() => { void loadMissingSkillMatches() }"
+            />
+          </div>
+
+          <section
+            v-else-if="missingSkillMatches.length"
+            aria-labelledby="missing-skill-matches-heading"
+          >
+            <h2
+              id="missing-skill-matches-heading"
+              class="section-label px-4 pb-2 pt-4 sm:px-6"
+            >
+              Closest matches
+            </h2>
+            <ul class="divide-y divide-default">
+              <li
+                v-for="match in missingSkillMatches"
+                :key="`${match.owner}/${match.repo}/${match.name}`"
+              >
+                <NuxtLink
+                  :to="repoSkillPath(match.owner, match.repo, match.name)"
+                  data-testid="missing-skill-match"
+                  class="group flex min-h-11 items-start gap-3 px-4 py-4 transition-colors duration-200 hover:bg-elevated sm:px-6"
+                >
+                  <img
+                    :src="`https://github.com/${match.owner}.png?size=48`"
+                    :alt="`${match.owner} avatar`"
+                    loading="lazy"
+                    width="24"
+                    height="24"
+                    class="size-6 shrink-0 rounded-full"
+                  >
+                  <span class="min-w-0 flex-1">
+                    <span class="block break-words font-mono text-sm font-medium text-highlighted">
+                      {{ match.displayName || match.name }}
+                    </span>
+                    <span class="mt-1 block break-words font-mono text-xs text-muted">
+                      {{ match.owner }}/{{ match.repo }}
+                    </span>
+                    <span
+                      v-if="match.description"
+                      class="mt-2 block text-sm text-muted line-clamp-2"
+                    >
+                      {{ match.description }}
+                    </span>
+                  </span>
+                  <UIcon
+                    name="i-lucide-arrow-up-right"
+                    class="mt-1 size-4 shrink-0 text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    aria-hidden="true"
+                  />
+                </NuxtLink>
+              </li>
+            </ul>
+          </section>
+
+          <div v-else class="px-4 py-6 sm:px-6">
+            <p class="text-sm text-muted">
+              No similar skills found.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2 border-t border-default px-4 py-4 sm:flex-row sm:px-6">
+          <UButton
+            v-if="missingSkillMatches.length"
+            :to="allMissingSkillMatchesPath"
+            data-testid="missing-skill-all-matches"
+            label="View all matches"
+            size="sm"
+            variant="outline"
+            color="neutral"
+            class="min-h-11"
+          />
+          <UButton
+            to="/skills"
+            label="Browse skills"
+            size="sm"
+            variant="ghost"
+            color="neutral"
+            class="min-h-11"
+          />
+        </div>
+      </section>
+
       <div
         v-else-if="error || !data"
         class="py-12 text-center"
@@ -850,11 +1035,10 @@ useHead(computed(() => ({
           aria-hidden="true"
         />
         <p class="mt-3 text-sm">
-          {{ error?.statusCode === 404 ? "Couldn't find this skill. It may have been removed or the URL is incorrect." : "Couldn't load this skill. Check your connection and try again." }}
+          Couldn't load this skill. Check your connection and try again.
         </p>
         <div class="mt-4 flex items-center justify-center gap-3">
           <UButton
-            v-if="error?.statusCode !== 404"
             label="Retry"
             size="sm"
             variant="outline"

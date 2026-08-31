@@ -53,10 +53,10 @@ describe('orgs route policy', () => {
     expect(resolveOrgsRedirect('/orgs/', '')).toEqual({ _tag: 'redirect', location: '/community' })
   })
 
-  it('carries an owner across to its hub, with the query', () => {
+  it('sends an owner to its live author profile, with the query', () => {
     expect(resolveOrgsRedirect('/orgs/atlassian', '?ref=x')).toEqual({
       _tag: 'redirect',
-      location: '/gh/atlassian?ref=x',
+      location: '/@atlassian?ref=x',
     })
   })
 
