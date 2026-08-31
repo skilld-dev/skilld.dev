@@ -5,10 +5,9 @@ export type OrgsRouteDecision
 /**
  * Send retired `/orgs` URLs to their live equivalent in one hop.
  *
- * `/orgs/<owner>` became `/gh/<owner>`, so the tail carries over. The bare
- * index has no `/gh` twin: owner hubs only exist per owner. Pointing it at
- * `/gh` produced a 301 into a 404, which passes no link equity and strands the
- * reader. `/community` is the browsable owner surface.
+ * `/orgs/<owner>` became `/@<owner>`, the author profile that remains useful
+ * even after an owner has no published skills. The bare index has no author
+ * twin, so it goes to the browsable owner surface at `/community`.
  */
 export function resolveOrgsRedirect(pathname: string, search: string): OrgsRouteDecision {
   if (pathname !== '/orgs' && !pathname.startsWith('/orgs/'))
@@ -18,5 +17,5 @@ export function resolveOrgsRedirect(pathname: string, search: string): OrgsRoute
   if (!tail || tail === '/')
     return { _tag: 'redirect', location: `/community${search}` }
 
-  return { _tag: 'redirect', location: `/gh${tail}${search}` }
+  return { _tag: 'redirect', location: `/@${tail.slice(1)}${search}` }
 }
