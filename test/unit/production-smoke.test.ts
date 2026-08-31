@@ -243,6 +243,45 @@ describe('production smoke contract', () => {
     expect(delayedCleanUrlPoisoned).toBe(false)
   })
 
+  it('bounds concurrent asset requests to preserve network capacity', async () => {
+    let activeRequests = 0
+    let peakRequests = 0
+    const assets = Array.from(
+      { length: 8 },
+      (_, index) => `<script src="/_nuxt/v2/asset-${index}.js"></script>`,
+    ).join('')
+    const fetch: SmokeFetch = vi.fn(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === ASSET_COHERENCE_PATH) {
+        return new Response(assets, {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+      }
+
+      activeRequests++
+      peakRequests = Math.max(peakRequests, activeRequests)
+      if (activeRequests > 4) {
+        activeRequests--
+        throw new Error('socket capacity exceeded')
+      }
+      await new Promise(resolve => setTimeout(resolve, 1))
+      activeRequests--
+      return new Response('', { status: 200 })
+    })
+
+    const result = await runProductionSmoke({
+      baseUrl: 'https://skilld.dev',
+      attempts: 1,
+      assetCoherenceAttempts: 1,
+      fetch,
+      expectations: [{ path: ASSET_COHERENCE_PATH, status: 200 }],
+    })
+
+    expect(result._tag).toBe('passed')
+    expect(peakRequests).toBe(4)
+  })
+
   it('keeps probing assets while a new version propagates past the page budget', async () => {
     // Assets are served by the per-version ASSETS binding, so during a rollout the
     // HTML can come from the new version while an asset request still lands on the
