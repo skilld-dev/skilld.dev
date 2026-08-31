@@ -55,6 +55,8 @@ export interface ProductionSmokeDependencies {
    * itself another version switch.
    */
   assetCoherenceAttempts?: number
+  /** Maximum Nuxt asset requests that may run together. */
+  assetConcurrency?: number
   expectations?: SmokeExpectation[]
   fetch?: SmokeFetch
   wait?: (milliseconds: number) => Promise<void>
@@ -246,6 +248,27 @@ async function checkWithRetries(
   }
 }
 
+async function mapWithConcurrency<Input, Output>(
+  values: Input[],
+  concurrency: number,
+  operation: (value: Input) => Promise<Output>,
+): Promise<Output[]> {
+  const results: Output[] = []
+  let nextIndex = 0
+
+  const worker = async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex++
+      results[index] = await operation(values[index]!)
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, values.length) }, () => worker()),
+  )
+  return results
+}
+
 async function checkAssetCoherence(
   dependencies: ProductionSmokeDependencies,
   input: {
@@ -253,6 +276,7 @@ async function checkAssetCoherence(
     attempts: number
     retryDelayMs: number
     cdnCacheTtlMs: number
+    assetConcurrency: number
     wait: (milliseconds: number) => Promise<void>
   },
 ): Promise<
@@ -313,28 +337,34 @@ async function checkAssetCoherence(
         }
         else {
           const probeToken = `${Date.now()}-${attempt}`
-          const readinessResults = await Promise.all(assets.map(reportPath =>
-            checkWithRetries(dependencies, {
-              fetch: input.fetch,
-              attempts: 1,
-              retryDelayMs: 0,
-              wait: input.wait,
-              requestPath: `${reportPath}?production-smoke=${probeToken}`,
-              reportPath,
-            }),
-          ))
-          const readinessFailures = readinessResults.filter(result => result._tag === 'failed')
-          if (readinessFailures.length === 0) {
-            const cleanResults = await Promise.all(assets.map(requestPath =>
+          const readinessResults = await mapWithConcurrency(
+            assets,
+            input.assetConcurrency,
+            reportPath =>
               checkWithRetries(dependencies, {
                 fetch: input.fetch,
                 attempts: 1,
                 retryDelayMs: 0,
                 wait: input.wait,
-                requestPath,
-                reportPath: requestPath,
+                requestPath: `${reportPath}?production-smoke=${probeToken}`,
+                reportPath,
               }),
-            ))
+          )
+          const readinessFailures = readinessResults.filter(result => result._tag === 'failed')
+          if (readinessFailures.length === 0) {
+            const cleanResults = await mapWithConcurrency(
+              assets,
+              input.assetConcurrency,
+              requestPath =>
+                checkWithRetries(dependencies, {
+                  fetch: input.fetch,
+                  attempts: 1,
+                  retryDelayMs: 0,
+                  wait: input.wait,
+                  requestPath,
+                  reportPath: requestPath,
+                }),
+            )
             const cleanFailures = cleanResults.filter(result => result._tag === 'failed')
             if (cleanFailures.length === 0)
               return { _tag: 'passed' }
@@ -382,6 +412,7 @@ export async function runProductionSmoke(
     attempts,
     Math.floor(dependencies.assetCoherenceAttempts ?? 48),
   )
+  const assetConcurrency = Math.max(1, Math.floor(dependencies.assetConcurrency ?? 4))
   const expectations = dependencies.expectations ?? PRODUCTION_SMOKE_EXPECTATIONS
   const fetch = dependencies.fetch ?? globalThis.fetch
   const wait = dependencies.wait ?? waitFor
@@ -430,6 +461,7 @@ export async function runProductionSmoke(
       attempts: assetCoherenceAttempts,
       retryDelayMs,
       cdnCacheTtlMs,
+      assetConcurrency,
       wait,
     })
     if (coherence._tag === 'failed')
