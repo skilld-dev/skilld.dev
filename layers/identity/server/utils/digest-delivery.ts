@@ -640,7 +640,7 @@ export async function runDigestDeliveryForUser(
   })
 
   await transitionToSending(deps, run, selection, summary)
-  const provider = await deps.send({
+  const emailInput: SendEmailInput = {
     to: recipient,
     subject: rendered.subject,
     html: rendered.html,
@@ -650,10 +650,20 @@ export async function runDigestDeliveryForUser(
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       'X-Campaign-ID': run.delivery_key,
     },
-  }).then(
+  }
+  const attemptSend = () => deps.send(emailInput).then(
     result => ({ _tag: 'result' as const, result }),
     error => ({ _tag: 'throw' as const, error: errorMessage(error) }),
   )
+  const firstAttempt = await attemptSend()
+  // A rejected call is a definite no-send, so one immediate retry is safe and
+  // heals a transient provider failure inside the same run. On the monthly
+  // cron the next attempt would otherwise be a full cycle away. Unknown
+  // outcomes (throw, uncertain) are never retried: the first call may have
+  // delivered, and a retry would risk a duplicate email.
+  const provider = firstAttempt._tag === 'result' && firstAttempt.result._tag === 'rejected'
+    ? await attemptSend()
+    : firstAttempt
   if (provider._tag === 'throw') {
     return await markUncertain(deps, run, {
       _tag: 'unknown',

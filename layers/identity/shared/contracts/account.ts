@@ -2,7 +2,10 @@ import { z } from 'zod'
 
 // Either email needs a deliverable address.
 export const identityEmailPatchBodySchema = z.object({
-  digest_email: z.string().trim().toLowerCase().max(254).optional(),
+  // A blank address parses to "unchanged", so a lone PATCH can never null the
+  // stored address of an opted-in caller. Only a real address reaches the
+  // handler.
+  digest_email: z.string().trim().toLowerCase().max(254).transform(value => value === '' ? undefined : value).optional(),
   email_opt_in: z.boolean().optional(),
   /**
    * The weekly email, stored inverted as `weekly_opt_out`.

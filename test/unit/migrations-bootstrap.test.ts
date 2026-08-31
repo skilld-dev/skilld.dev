@@ -2,14 +2,20 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
+import { loadDigestEligibleUsers } from '../../layers/identity/server/utils/digest-select'
+import { createSqliteD1 } from './helpers/d1-sqlite'
 
 describe('d1 migration bootstrap', () => {
+  function allMigrationNames(): string[] {
+    return readdirSync(resolve(process.cwd(), 'migrations'))
+      .filter(file => file.endsWith('.sql'))
+      .sort()
+  }
+
   it('applies the complete migration history to an empty database', () => {
     const sqlite = new Database(':memory:')
     const migrationsDir = resolve(process.cwd(), 'migrations')
-    const migrations = readdirSync(migrationsDir)
-      .filter(file => file.endsWith('.sql'))
-      .sort()
+    const migrations = allMigrationNames()
 
     try {
       for (const migration of migrations) {
@@ -356,6 +362,37 @@ describe('d1 migration bootstrap', () => {
     }
     finally {
       sqlite.close()
+    }
+  })
+
+  // Turning the old per-person cadence to Off never touched `email_opt_in`,
+  // so those rows still read opted in. The monthly cron sends to every
+  // opted-in user, and 0117 must carry the Off choice over as a real opt-out.
+  it('repairs cadence-off users to opted out before the monthly cron inherits them', async () => {
+    const before = createSqliteD1(allMigrationNames().map(file => `migrations/${file}`).filter(file => file < 'migrations/0117_email_cadence_split.sql'))
+    try {
+      before.raw.exec(`
+        INSERT INTO users (
+          github_id, login, email_opt_in, digest_frequency, digest_email,
+          onboarded_at, created_at, last_login_at
+        ) VALUES
+          (1, 'turned-off', 1, 'off', 'off@example.com', 1, 1, 1),
+          (2, 'still-weekly', 1, 'weekly', 'weekly@example.com', 1, 1, 1);
+      `)
+
+      before.raw.exec(readFileSync(resolve(process.cwd(), 'migrations/0117_email_cadence_split.sql'), 'utf8'))
+
+      expect(before.raw.prepare(
+        `SELECT login, email_opt_in FROM users WHERE login IN ('turned-off', 'still-weekly') ORDER BY id`,
+      ).all()).toEqual([
+        { login: 'turned-off', email_opt_in: 0 },
+        { login: 'still-weekly', email_opt_in: 1 },
+      ])
+      const eligible = await loadDigestEligibleUsers(before.db)
+      expect(eligible.map(user => user.login)).toEqual(['still-weekly'])
+    }
+    finally {
+      before.close()
     }
   })
 

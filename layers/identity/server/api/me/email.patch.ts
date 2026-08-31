@@ -9,9 +9,9 @@ export default defineApiHandler({
   response: identityMutationResponseSchema,
   handler: async ({ event, body, platform }) => {
     const u = await requireUserRow(event)
-    const email = body.digest_email === undefined
-      ? u.digest_email
-      : body.digest_email.trim() || null
+    // The schema drops blank addresses, so an opted-in caller can never wipe
+    // the stored one here. Absent means unchanged.
+    const email = body.digest_email ?? u.digest_email
     const optIn = body.email_opt_in === undefined
       ? u.email_opt_in
       : (body.email_opt_in ? 1 : 0)
