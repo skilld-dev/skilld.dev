@@ -51,6 +51,49 @@ describe('skills-raw tree outage', () => {
   })
 })
 
+describe('skills-raw source gone', () => {
+  let emitEvent: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    emitEvent = vi.fn()
+    vi.stubGlobal('createWideEvent', () => ({ context: {}, setLevel: vi.fn(), emit: vi.fn(() => null) }))
+    vi.stubGlobal('emitOperationalEvent', emitEvent)
+  })
+
+  it('answers 410 from the registry verdict without an upstream call', async () => {
+    fixture.raw.prepare(`UPDATE skills SET source_resolved = 0 WHERE owner = 'owner' AND repo = 'repo' AND name = 'skill'`).run()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('$fetch', fetchMock)
+
+    const handler = (await import('../../layers/registry/server/api/skills-raw/[...slug].get')).default
+
+    await expect(handler(event())).rejects.toMatchObject({ statusCode: 410 })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(cache.setItem).not.toHaveBeenCalled()
+    expect(emitEvent).not.toHaveBeenCalled()
+  })
+
+  it('classifies an upstream 404 tree as gone rather than an outage', async () => {
+    // ungh answers 404 for a deleted repository. ofetch carries the status on
+    // the rejection. Production culprit: dagster-io/erk. GitHub deleted it
+    // while its registry row still said resolved.
+    const error = Object.assign(new Error('404 Not Found'), { status: 404, statusCode: 404 })
+    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(error))
+
+    const handler = (await import('../../layers/registry/server/api/skills-raw/[...slug].get')).default
+
+    await expect(handler(event())).rejects.toMatchObject({ statusCode: 410 })
+
+    expect(cache.setItem).toHaveBeenCalledWith(
+      'skills:raw:v2:owner/repo/skill',
+      expect.objectContaining({ status: 'missing' }),
+      expect.anything(),
+    )
+    expect(responseHeaders.has('retry-after')).toBe(false)
+  })
+})
+
 describe('skills-raw default branch', () => {
   it('serves a skill whose repository default branch is not main, without a repo metadata round trip', async () => {
     fixture.raw.prepare(`UPDATE repos SET default_branch = 'master' WHERE owner = 'owner' AND repo = 'repo'`).run()
