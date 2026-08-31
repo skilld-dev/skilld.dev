@@ -56,9 +56,62 @@ describe('digest delivery', () => {
     })
   })
 
+  it('retries a rejected provider send within the same run', async () => {
+    seedActivity(sqlite, { id: 1, name: 'alpha', occurredAt: 100, ingestedAt: 7_100, sha: 'sha-a' })
+    const send = vi.fn()
+      .mockResolvedValueOnce({
+        _tag: 'rejected',
+        error: 'transient provider outage',
+      })
+      .mockResolvedValueOnce({
+        _tag: 'accepted',
+        messageId: 'message-retry',
+      })
+    const deps = dependencies({ send })
+
+    const result = await runDigestDeliveryForUser(deps, digestUser(), {
+      scheduledAt: 7_299,
+      siteUrl: 'https://skilld.dev',
+    })
+
+    expect(result).toMatchObject({ _tag: 'sent', providerMessageId: 'message-retry' })
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(sqlite.prepare(`SELECT count(*) FROM digest_runs`).pluck().get()).toBe(1)
+    expect(runRow()).toMatchObject({
+      status: 'sent',
+      window_end: 7_200,
+      provider_message_id: 'message-retry',
+    })
+  })
+
+  it('records the failure when the immediate retry rejects again', async () => {
+    seedActivity(sqlite, { id: 1, name: 'alpha', occurredAt: 100, ingestedAt: 7_100, sha: 'sha-a' })
+    const send = vi.fn(async () => ({
+      _tag: 'rejected' as const,
+      error: 'still rejecting',
+    }))
+
+    const result = await runDigestDeliveryForUser(dependencies({ send }), digestUser(), {
+      scheduledAt: 7_299,
+      siteUrl: 'https://skilld.dev',
+    })
+
+    expect(result).toMatchObject({ _tag: 'failed', stage: 'provider', error: 'provider_failure' })
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(runRow()).toMatchObject({
+      status: 'failed',
+      error_code: 'provider_failure',
+      error_message: 'still rejecting',
+    })
+  })
+
   it('reclaims the exact failed window without consuming its cursor', async () => {
     seedActivity(sqlite, { id: 1, name: 'alpha', occurredAt: 100, ingestedAt: 7_100, sha: 'sha-a' })
     const send = vi.fn()
+      .mockResolvedValueOnce({
+        _tag: 'rejected',
+        error: 'destination rejected',
+      })
       .mockResolvedValueOnce({
         _tag: 'rejected',
         error: 'destination rejected',
@@ -80,7 +133,7 @@ describe('digest delivery', () => {
 
     expect(failed).toMatchObject({ _tag: 'failed', stage: 'provider' })
     expect(retried).toMatchObject({ _tag: 'sent', providerMessageId: 'message-1' })
-    expect(send).toHaveBeenCalledTimes(2)
+    expect(send).toHaveBeenCalledTimes(3)
     expect(sqlite.prepare(`SELECT count(*) FROM digest_runs`).pluck().get()).toBe(1)
     expect(runRow()).toMatchObject({
       status: 'sent',
@@ -507,10 +560,6 @@ function digestUser(overrides: Partial<DigestUser> = {}): DigestUser {
     digest_email: 'harlan@example.com',
     email: 'harlan@example.com',
     email_opt_in: 1,
-    digest_frequency: 'daily',
-    digest_dow: null,
-    digest_hour: 2,
-    timezone: 'UTC',
     onboarded_at: 1,
     ...overrides,
   }

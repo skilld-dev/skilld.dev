@@ -4,7 +4,6 @@ import {
   defineNuxtRpcQuery,
 } from '@harlan-zw/nuxt-use-query/rpc'
 import {
-  identityCadenceBodySchema,
   identityEmailPatchBodySchema,
   identityMeSchema,
   identityMutationResponseSchema,
@@ -25,12 +24,6 @@ export const identityAccountQueries = defineNuxtQueryGroup('identity:account', {
     key: ['identity', 'subscriptions'],
     path: '/api/me/subscriptions',
     response: identitySubscriptionsSchema,
-  }),
-  saveCadence: () => defineNuxtRpcMutation({
-    body: identityCadenceBodySchema,
-    method: 'PATCH',
-    path: '/api/me/cadence',
-    response: identityMutationResponseSchema,
   }),
   saveEmail: () => defineNuxtRpcMutation({
     body: identityEmailPatchBodySchema,

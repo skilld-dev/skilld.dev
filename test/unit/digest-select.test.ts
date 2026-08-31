@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { selectDigestForUser, shouldFireForUser } from '../../layers/identity/server/utils/digest-select'
+import { selectDigestForUser } from '../../layers/identity/server/utils/digest-select'
 
 describe('digest selection', () => {
   let sqlite: Database.Database
@@ -209,16 +209,6 @@ describe('digest selection', () => {
       changeCount: 2,
     })
   })
-
-  it('keeps a due user without a recipient eligible for visible preflight failure', () => {
-    const dueAt = Date.UTC(2026, 6, 23, 9, 0, 0) / 1_000
-    expect(shouldFireForUser(digestUser({
-      digest_email: null,
-      email: null,
-      digest_frequency: 'daily',
-      onboarded_at: 1,
-    }), dueAt)).toBe(true)
-  })
 })
 
 function digestUser(overrides: Partial<ReturnType<typeof baseDigestUser>> = {}) {
@@ -232,10 +222,6 @@ function baseDigestUser() {
     digest_email: 'harlan@example.com',
     email: 'harlan@example.com',
     email_opt_in: 1,
-    digest_frequency: 'weekly' as const,
-    digest_dow: 1,
-    digest_hour: 9,
-    timezone: 'UTC',
     onboarded_at: 0,
   }
 }

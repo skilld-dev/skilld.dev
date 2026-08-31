@@ -1,27 +1,19 @@
 /// <reference types="@cloudflare/workers-types" />
 
 /**
- * What goes in one person's weekly email.
- *
- * Two halves with different shapes. The liked half is per-person and comes
- * from `skill_likes` joined against `activity`. The trending half is the same
- * for everyone, so it is loaded once per run and handed in rather than
- * re-queried per recipient.
+ * The audience and distinct trending Skills for one weekly email.
  */
 
-import type {
-  WeeklyLikedChange,
-  WeeklyReason,
-  WeeklyTrendingSkill,
-} from './weekly-template'
+import type { WeeklyReason, WeeklyTrendingSkill } from './weekly-template'
 import { loadFallbackSkills } from '#shared/server/trending-fallback'
 import { loadTopStarredRepositories } from '#shared/server/trending-repos'
 import { DEFAULT_WINDOW_HOURS, loadTrendingSkills } from '#shared/server/trending-skills'
-import { githubSkillChangeUrl, githubSkillSourceUrl } from './email-skill-links'
+import { githubSkillSourceUrl } from './email-skill-links'
+import {
+  excludeRecentlySentWeeklySkills,
+  loadRecentWeeklySkillKeys,
+} from './weekly-history'
 import { MAX_WEEKLY_TRENDING } from './weekly-template'
-
-/** Liked skills listed by name. Beyond this the email stops being scannable. */
-export const MAX_LIKED_CHANGES = 5
 
 /**
  * Trending rows carried into the email.
@@ -33,14 +25,6 @@ export const MAX_LIKED_CHANGES = 5
  */
 export const MAX_TRENDING = MAX_WEEKLY_TRENDING
 
-/**
- * How many liked changes we count before giving up on an exact overflow number.
- *
- * The email says "+N more", so the number has to be real. Past this the query
- * would be paying to be precise about a number nobody reads.
- */
-const LIKED_SCAN_LIMIT = 50
-
 export interface WeeklyRecipient {
   id: number
   login: string
@@ -48,19 +32,6 @@ export interface WeeklyRecipient {
   /** Verified digest address, preferred over the GitHub profile address. */
   digest_email: string | null
   email: string | null
-}
-
-export interface WeeklySelection {
-  likedChanges: WeeklyLikedChange[]
-  likedOverflow: number
-  /**
-   * Liked skills this email could have reported on.
-   *
-   * Counted with the same own-owner exclusion the change query uses. Counting
-   * every like would promise a report on skills this email will never mention,
-   * which is a worse lie than saying nothing.
-   */
-  trackedCount: number
 }
 
 /**
@@ -81,33 +52,16 @@ export function resolveRecipientAddress(user: WeeklyRecipient): RecipientAddress
 /**
  * Everyone who should get the weekly.
  *
- * The weekly is the default lane for an account with a deliverable address.
- * A person who enables the configurable digest leaves this lane, so one
- * account cannot receive both emails for the same period.
+ * The weekly and digest are independent lists. A person can receive both.
  */
 export async function loadWeeklyRecipients(db: D1Database): Promise<WeeklyRecipient[]> {
   const res = await db.prepare(
     `SELECT id, login, name, digest_email, email
      FROM users
      WHERE weekly_opt_out = 0
-       AND email_opt_in = 0
        AND COALESCE(NULLIF(TRIM(COALESCE(digest_email, '')), ''), NULLIF(TRIM(COALESCE(email, '')), '')) IS NOT NULL`,
   ).all<WeeklyRecipient>()
   return res.results ?? []
-}
-
-interface LikedChangeRow {
-  owner: string
-  repo: string
-  name: string
-  slug: string
-  description: string | null
-  change_count: number
-  changed_at: number
-  latest_sha: string
-  current_sha: string
-  rendered_skill_path: string
-  repo_skill_count: number
 }
 
 function sourceUrl(row: {
@@ -126,146 +80,6 @@ function sourceUrl(row: {
   })
 }
 
-function changeUrl(row: { owner: string, repo: string }, sha: string): string {
-  return githubSkillChangeUrl({ ...row, sha })
-}
-
-/**
- * Changes in the window to skills this person liked.
- *
- * Scoped by like, not by subscription. A like is a statement about one skill,
- * and a repository holding twenty of them should not send twenty rows because
- * one was liked.
- *
- * Your own repositories are excluded. The 2026-08-19 send listed four skills
- * and every one of them was the recipient's, which reads as the product telling
- * you what you did last week. A digest is for changes you did not make, and
- * GitHub already emails you about your own pushes. Matched on login rather than
- * on any richer notion of ownership, because that is the only thing we know for
- * certain is the same person.
- */
-export async function selectWeeklyForUser(
-  db: D1Database,
-  user: WeeklyRecipient,
-  windowStart: number,
-  windowEnd: number,
-): Promise<WeeklySelection> {
-  const res = await db.prepare(
-    `SELECT a.owner, a.repo, a.name, s.slug, s.description,
-            s.current_sha, s.rendered_skill_path,
-            (SELECT COUNT(*) FROM skills repo_skills
-             WHERE repo_skills.owner = s.owner
-               AND repo_skills.repo = s.repo
-               AND repo_skills.source_resolved = 1) AS repo_skill_count,
-            COUNT(*) AS change_count,
-            MAX(a.occurred_at) AS changed_at,
-            (SELECT a2.sha FROM activity a2
-             WHERE a2.owner = a.owner AND a2.repo = a.repo AND a2.name = a.name
-               AND a2.occurred_at > ?2 AND a2.occurred_at <= ?3
-             ORDER BY a2.occurred_at DESC, a2.id DESC LIMIT 1) AS latest_sha
-     FROM activity a
-     JOIN skill_likes l
-       ON l.user_id = ?1 AND l.owner = a.owner AND l.repo = a.repo AND l.name = a.name
-     JOIN skills s
-       ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
-     JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
-     WHERE a.occurred_at > ?2
-       AND a.occurred_at <= ?3
-       AND r.repo_kind != 'aggregator'
-       AND LOWER(a.owner) != LOWER(?5)
-       AND s.current_sha IS NOT NULL
-       AND TRIM(s.current_sha) != ''
-       AND s.rendered_skill_path IS NOT NULL
-       AND TRIM(s.rendered_skill_path) != ''
-     GROUP BY a.owner, a.repo, a.name
-     ORDER BY changed_at DESC, change_count DESC
-     LIMIT ?4`,
-  ).bind(user.id, windowStart, windowEnd, LIKED_SCAN_LIMIT, user.login).all<LikedChangeRow>()
-
-  const rows = res.results ?? []
-  const listed = rows.slice(0, MAX_LIKED_CHANGES)
-  const [revisions, tracked] = await Promise.all([
-    latestRevisions(db, listed, windowStart, windowEnd),
-    countTrackedSkills(db, user),
-  ])
-
-  return {
-    likedChanges: listed.map((row, index) => ({
-      owner: row.owner,
-      repo: row.repo,
-      name: row.name,
-      slug: row.slug,
-      description: row.description,
-      changeCount: row.change_count,
-      changedAt: row.changed_at,
-      repoSkillCount: row.repo_skill_count,
-      commitMessages: revisions[index]?.messages ?? [],
-      sourceUrl: sourceUrl(row),
-      changeUrl: changeUrl(row, revisions[index]?.sha ?? row.latest_sha),
-    })),
-    likedOverflow: rows.length - listed.length,
-    trackedCount: tracked,
-  }
-}
-
-/**
- * Liked skills that still exist in the registry and are not this person's own.
- *
- * The join against `skills` matters: a like whose skill has since been removed
- * would inflate a number the email presents as what it is watching.
- */
-async function countTrackedSkills(db: D1Database, user: WeeklyRecipient): Promise<number> {
-  const row = await db.prepare(
-    `SELECT COUNT(*) AS tracked
-     FROM skill_likes l
-     JOIN skills s ON s.owner = l.owner AND s.repo = l.repo AND s.name = l.name
-     WHERE l.user_id = ?1
-       AND LOWER(l.owner) != LOWER(?2)
-       AND s.current_sha IS NOT NULL
-       AND TRIM(s.current_sha) != ''
-       AND s.rendered_skill_path IS NOT NULL
-       AND TRIM(s.rendered_skill_path) != ''`,
-  ).bind(user.id, user.login).first<{ tracked: number }>()
-  return row?.tracked ?? 0
-}
-
-/**
- * Commit subjects in the window, newest first, per listed skill.
- *
- * More than the three the email shows, because the template drops duplicates:
- * a week of "chore: bump" would otherwise fill the row with one sentence
- * repeated. Trimming to the subject line happens there too, so the text and
- * HTML halves cannot disagree about where a message ends.
- */
-const COMMIT_SCAN_LIMIT = 10
-
-async function latestRevisions(
-  db: D1Database,
-  rows: LikedChangeRow[],
-  windowStart: number,
-  windowEnd: number,
-): Promise<Array<{ sha: string | null, messages: string[] }>> {
-  if (!rows.length)
-    return []
-  const statements = rows.map(row => db.prepare(
-    `SELECT sha, message
-     FROM skill_revisions
-     WHERE owner = ?1 AND repo = ?2 AND name = ?3
-       AND modified_at > ?4 AND modified_at <= ?5
-       AND message IS NOT NULL AND TRIM(message) != ''
-     ORDER BY modified_at DESC
-     LIMIT ?6`,
-  ).bind(row.owner, row.repo, row.name, windowStart, windowEnd, COMMIT_SCAN_LIMIT))
-  const results = await db.batch<{ sha: string, message: string }>(statements)
-  return results.map((result) => {
-    const rows = result.results ?? []
-    return {
-      sha: rows[0]?.sha ?? null,
-      messages: rows.map(row => row.message),
-    }
-  })
-}
-
 /**
  * The trending half, identical for every recipient.
  *
@@ -278,16 +92,20 @@ export async function loadWeeklyTrending(
   db: D1Database,
   now: number,
 ): Promise<WeeklyTrendingSkill[]> {
-  const deprioritizeRepositories = await loadTopStarredRepositories(db, 20)
-  const named = await loadTrendingSkills({
+  const [deprioritizeRepositories, recentKeys] = await Promise.all([
+    loadTopStarredRepositories(db, 20),
+    loadRecentWeeklySkillKeys(db, now),
+  ])
+  const candidateLimit = MAX_TRENDING + recentKeys.size
+  const namedCandidates = await loadTrendingSkills({
     db,
     now,
     windowHours: DEFAULT_WINDOW_HOURS,
-    limit: MAX_TRENDING,
+    limit: candidateLimit,
     deprioritizeRepositories,
   })
 
-  const trending: WeeklyTrendingSkill[] = named.map(entry => ({
+  const named: WeeklyTrendingSkill[] = namedCandidates.map(entry => ({
     owner: entry.owner,
     repo: entry.repo,
     slug: entry.slug,
@@ -306,18 +124,19 @@ export async function loadWeeklyTrending(
       : null,
   }))
 
+  const trending = excludeRecentlySentWeeklySkills(named, recentKeys, MAX_TRENDING)
   if (trending.length >= MAX_TRENDING)
     return await hydrateSourceUrls(db, trending)
 
   const fallback = await loadFallbackSkills({
     db,
     now,
-    limit: MAX_TRENDING - trending.length,
+    limit: candidateLimit,
     exclude: new Set(trending.map(skill => `${skill.owner}/${skill.repo}`)),
     deprioritizeRepositories,
   })
 
-  return await hydrateSourceUrls(db, [
+  const selected = excludeRecentlySentWeeklySkills([
     ...trending,
     ...fallback.map(skill => ({
       owner: skill.owner,
@@ -330,7 +149,9 @@ export async function loadWeeklyTrending(
       reason: { _tag: 'popular' as const, stars: skill.stars },
       evidence: null,
     })),
-  ])
+  ], recentKeys, MAX_TRENDING)
+
+  return await hydrateSourceUrls(db, selected)
 }
 
 async function hydrateSourceUrls(

@@ -13,9 +13,7 @@ function accountFixture(starsSyncedAt = oldSyncTime) {
     email: 'harlan@example.com',
     digest_email: 'harlan@example.com',
     email_opt_in: true,
-    digest_frequency: 'weekly' as const,
-    digest_dow: 1,
-    digest_hour: 9,
+    weekly_opt_in: true,
     timezone: 'Australia/Melbourne',
     stars_synced_at: starsSyncedAt,
   }
@@ -43,7 +41,7 @@ let serverSubscriptions = [{ owner: 'antfu', repo: 'skills', source: 'like' }]
 let serverLikes = [likedSkillFixture()]
 let queryCall = 0
 let releaseDelete: (() => void) | undefined
-let releaseCadenceSave: (() => void) | undefined
+let releaseEmailSave: (() => void) | undefined
 
 const requestFetch = vi.hoisted(() => vi.fn())
 const executeRpc = vi.fn()
@@ -154,7 +152,7 @@ describe('account skill watchlist', () => {
   beforeEach(() => {
     queryCall = 0
     releaseDelete = undefined
-    releaseCadenceSave = undefined
+    releaseEmailSave = undefined
     serverAccount = accountFixture()
     serverSubscriptions = [{ owner: 'antfu', repo: 'skills', source: 'like' }]
     serverLikes = [likedSkillFixture()]
@@ -200,8 +198,8 @@ describe('account skill watchlist', () => {
     })
 
     executeRpc.mockImplementation(async (operation: { path: string }) => {
-      if (operation.path === '/api/me/cadence' && releaseCadenceSave)
-        await new Promise<void>(resolve => releaseCadenceSave = resolve)
+      if (operation.path === '/api/me/email' && releaseEmailSave)
+        await new Promise<void>(resolve => releaseEmailSave = resolve)
       return { ok: true }
     })
   })
@@ -266,18 +264,44 @@ describe('account skill watchlist', () => {
     expect(wrapper.text()).not.toContain('Add your first skill')
   })
 
-  it('disables schedule saving while the request is pending', async () => {
-    releaseCadenceSave = () => {}
+  it('shows separate email choices and disables saving while pending', async () => {
+    releaseEmailSave = () => {}
     const wrapper = await mountPage()
-    await wrapper.get('button[aria-controls="digest-schedule-form"]').trigger('click')
-    const save = buttonWithText(wrapper, 'Save schedule')
+    expect(wrapper.text()).toContain('Weekly email')
+    expect(wrapper.text()).toContain('Monthly digest')
+    await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
+    const save = buttonWithText(wrapper, 'Save email settings')
 
     await save.trigger('click')
     await nextTick()
     const disabledWhilePending = save.attributes('disabled') !== undefined
-    releaseCadenceSave()
+    releaseEmailSave()
     await flushPromises()
 
     expect(disabledWhilePending).toBe(true)
+  })
+
+  it('saves the weekly email and monthly digest as separate choices', async () => {
+    const wrapper = await mountPage()
+    await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
+    const labels = wrapper.findAll('label')
+    const weekly = labels.find(label => label.text().includes('weekly email'))
+    const monthly = labels.find(label => label.text().includes('monthly digest'))
+    if (!weekly || !monthly)
+      throw new Error('Could not find both email choices')
+
+    await weekly.get('input').setValue(false)
+    await monthly.get('input').setValue(false)
+    await buttonWithText(wrapper, 'Save email settings').trigger('click')
+    await flushPromises()
+
+    expect(executeRpc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/me/email' }),
+      {
+        digest_email: 'harlan@example.com',
+        email_opt_in: false,
+        weekly_opt_in: false,
+      },
+    )
   })
 })

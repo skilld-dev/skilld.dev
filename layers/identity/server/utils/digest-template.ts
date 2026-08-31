@@ -1,4 +1,3 @@
-import type { WeeklyTrendingSkill } from './weekly-template'
 import { renderWeekly } from './weekly-template'
 
 export interface DigestRepoEntry {
@@ -26,7 +25,6 @@ export interface DigestRenderInput {
   windowStart: number
   windowEnd: number
   entries: DigestRepoEntry[]
-  trending?: WeeklyTrendingSkill[]
   siteUrl?: string
   settingsUrl?: string
   unsubscribeUrl: string
@@ -65,7 +63,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
     likedChanges,
     likedOverflow: Math.max(0, changes.length - likedChanges.length),
     trackedCount: changes.length,
-    trending: input.trending ?? [],
+    trending: [],
     siteUrl,
     unsubscribeUrl: input.unsubscribeUrl,
     settingsUrl: input.settingsUrl ?? `${siteUrl}/me`,

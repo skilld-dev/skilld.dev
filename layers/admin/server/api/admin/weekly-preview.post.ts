@@ -14,15 +14,12 @@
 
 import { z } from 'zod'
 import { sendEmailWithEnv, signUnsubToken } from '#layers/identity/server/utils/email'
-import {
-  loadWeeklyTrending,
-  selectWeeklyForUser,
-} from '#layers/identity/server/utils/weekly-select'
+import { loadWeeklyTrending } from '#layers/identity/server/utils/weekly-select'
 import { renderWeekly } from '#layers/identity/server/utils/weekly-template'
 import { defineApiHandler } from '#shared/server/handler'
 
 const input = z.object({
-  /** Whose likes to build the email from. Defaults to the operator. */
+  /** Whose name to use in the preview. Defaults to the operator. */
   login: z.string().trim().min(1).max(80).default('harlan-zw'),
   /**
    * Where to mail it. Absent means render only.
@@ -56,10 +53,7 @@ export default defineApiHandler({
 
     const windowEnd = Math.floor(Date.now() / 1_000)
     const windowStart = windowEnd - WINDOW_SECONDS
-    const [selection, trending] = await Promise.all([
-      selectWeeklyForUser(db, user, windowStart, windowEnd),
-      loadWeeklyTrending(db, windowEnd),
-    ])
+    const trending = await loadWeeklyTrending(db, windowEnd)
 
     const siteUrl = (config.publicSiteUrl as string) || 'https://skilld.dev'
     const unsubscribeToken = await signUnsubToken(user.id, config.tokenKey as string)
@@ -70,9 +64,9 @@ export default defineApiHandler({
       userId: null,
       windowStart,
       windowEnd,
-      likedChanges: selection.likedChanges,
-      likedOverflow: selection.likedOverflow,
-      trackedCount: selection.trackedCount,
+      likedChanges: [],
+      likedOverflow: 0,
+      trackedCount: 0,
       trending,
       siteUrl,
       unsubscribeUrl: `${siteUrl}/api/unsubscribe?t=${encodeURIComponent(unsubscribeToken)}&list=weekly`,
@@ -80,9 +74,9 @@ export default defineApiHandler({
     })
 
     const counts = {
-      liked: selection.likedChanges.length,
-      likedOverflow: selection.likedOverflow,
-      tracked: selection.trackedCount,
+      liked: 0,
+      likedOverflow: 0,
+      tracked: 0,
       trending: trending.length,
     }
 

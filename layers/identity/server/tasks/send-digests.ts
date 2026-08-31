@@ -9,19 +9,17 @@ import {
 import {
   loadDigestEligibleUsers,
   selectDigestForUser,
-  shouldFireForUser,
 } from '../utils/digest-select'
 import { summariseChanges } from '../utils/digest-summary'
 import { renderDigest } from '../utils/digest-template'
 import { sendEmailWithEnv, signUnsubToken } from '../utils/email'
-import { loadWeeklyTrending } from '../utils/weekly-select'
 
-const CRON = '0 * * * *'
+const CRON = '0 9 1 * *'
 
 export default defineScheduledTask({
   name: 'send-digests',
-  cron: '0 * * * *',
-  description: 'Send weekly/daily digest emails to opted-in users when their cadence slot matches',
+  cron: '0 9 1 * *',
+  description: 'Send monthly changes to liked Skills and watched Repositories',
   async run({ context }) {
     const env = resolveCloudflareBindings<Cloudflare.Env>(context)
     const db = env?.DB as D1Database | undefined
@@ -44,11 +42,9 @@ export default defineScheduledTask({
       const startedAt = Date.now()
       const scheduledAt = Math.floor(startedAt / 1_000)
       const users = await loadDigestEligibleUsers(db)
-      const fireUsers = users.filter(user => shouldFireForUser(user, scheduledAt))
-      const trending = fireUsers.length ? await loadWeeklyTrending(db, scheduledAt) : []
       const summary = {
         eligible: users.length,
-        fired: fireUsers.length,
+        fired: users.length,
         sent: 0,
         skipped: 0,
         failed: 0,
@@ -59,7 +55,7 @@ export default defineScheduledTask({
         errors: [] as string[],
       }
 
-      for (const user of fireUsers) {
+      for (const user of users) {
         const result = await runDigestDeliveryForUser({
           db,
           now: () => Math.floor(Date.now() / 1_000),
@@ -74,7 +70,6 @@ export default defineScheduledTask({
         }, user, {
           scheduledAt,
           siteUrl,
-          trending,
         })
 
         if (result._tag === 'sent') {

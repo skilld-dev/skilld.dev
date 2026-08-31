@@ -66,7 +66,7 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'recompute-skill-scores', cron: '0 3 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 60 * 60 },
   { _tag: 'observed', taskName: 'refresh-x-engagement', cron: '10 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'reconcile-rendered', cron: '20 */6 * * *', maxSilenceSeconds: 15 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
-  { _tag: 'observed', taskName: 'send-digests', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
+  { _tag: 'observed', taskName: 'send-digests', cron: '0 9 1 * *', maxSilenceSeconds: 35 * 24 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'send-weekly', cron: '0 9 * * MON', maxSilenceSeconds: 8 * 24 * 60 * 60, maxRuntimeSeconds: 50 * 60, activeFromSeconds: 1787097600 },
   // Two-hourly, so six hours of silence is a real outage rather than a quiet
   // stretch. Runtime is generous because throttle backoff can stretch a run.

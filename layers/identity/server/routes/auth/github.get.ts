@@ -104,7 +104,7 @@ export default defineOAuthGitHubEventHandler({
       return sendRedirect(event, returnTo)
 
     if (!row.onboarded_at)
-      return sendRedirect(event, action === 'watch-collection' ? '/onboarding/cadence' : '/onboarding/discover')
+      return sendRedirect(event, action === 'watch-collection' ? '/onboarding/email' : '/onboarding/discover')
 
     return sendRedirect(event, '/me')
   },

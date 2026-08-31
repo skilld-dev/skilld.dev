@@ -7,6 +7,7 @@ const WINDOW_START = WINDOW_END - 7 * 86_400
 
 function input(overrides: Partial<WeeklyRenderInput> = {}): WeeklyRenderInput {
   return {
+    edition: 'digest',
     recipientName: 'Harlan',
     windowStart: WINDOW_START,
     windowEnd: WINDOW_END,
@@ -15,7 +16,7 @@ function input(overrides: Partial<WeeklyRenderInput> = {}): WeeklyRenderInput {
     trackedCount: 0,
     trending: [],
     siteUrl: 'https://skilld.dev',
-    unsubscribeUrl: 'https://skilld.dev/api/unsubscribe?t=abc&list=weekly',
+    unsubscribeUrl: 'https://skilld.dev/api/unsubscribe?t=abc&list=digest',
     settingsUrl: 'https://skilld.dev/me',
     ...overrides,
   }
@@ -251,15 +252,19 @@ describe('weekly template', () => {
   })
 
   it('offers a next action when the week produced nothing', () => {
-    const { html, subject } = renderWeekly(input())
+    const { html, subject } = renderWeekly(input({ edition: 'weekly' }))
 
     expect(subject).toBe('skilld weekly: a quiet week')
-    expect(html).toContain(encodeURIComponent('/skills'))
+    expect(html).toContain('No new trending Skills this week.')
     expect(html).not.toContain('See the full board')
   })
 
   it('carries the unsubscribe link in both halves', () => {
-    const rendered = renderWeekly(input({ trending: [trending()] }))
+    const rendered = renderWeekly(input({
+      edition: 'weekly',
+      trending: [trending()],
+      unsubscribeUrl: 'https://skilld.dev/api/unsubscribe?t=abc&list=weekly',
+    }))
 
     expect(rendered.html).toContain('list=weekly')
     expect(rendered.text).toContain('list=weekly')
@@ -301,13 +306,13 @@ describe('weekly subject and preheader', () => {
       trending: [trending()],
     }))
 
-    expect(subject).toBe('skilld weekly: vitest, tdd and 1 more were updated')
+    expect(subject).toBe('skilld digest: vitest, tdd and 1 more were updated')
   })
 
   it('names one changed skill without a tail', () => {
     const { subject } = renderWeekly(input({ likedChanges: [likedChange({ name: 'vitest' })] }))
 
-    expect(subject).toBe('skilld weekly: vitest was updated')
+    expect(subject).toBe('skilld digest: vitest was updated')
   })
 
   it('joins exactly two changed skills with and', () => {
@@ -315,7 +320,7 @@ describe('weekly subject and preheader', () => {
       likedChanges: [likedChange({ name: 'vitest' }), likedChange({ name: 'tdd' })],
     }))
 
-    expect(subject).toBe('skilld weekly: vitest and tdd were updated')
+    expect(subject).toBe('skilld digest: vitest and tdd were updated')
   })
 
   it('counts the overflow into the subject tail', () => {
@@ -324,11 +329,12 @@ describe('weekly subject and preheader', () => {
       likedOverflow: 4,
     }))
 
-    expect(subject).toBe('skilld weekly: vitest, tdd and 4 more were updated')
+    expect(subject).toBe('skilld digest: vitest, tdd and 4 more were updated')
   })
 
   it('falls back to trending names when nothing liked changed', () => {
     const { subject } = renderWeekly(input({
+      edition: 'weekly',
       trending: [
         trending({ canonicalName: 'ponytail' }),
         trending({ canonicalName: 'unlazy' }),
@@ -340,7 +346,7 @@ describe('weekly subject and preheader', () => {
   })
 
   it('says the week was quiet when there is nothing to name', () => {
-    expect(renderWeekly(input()).subject).toBe('skilld weekly: a quiet week')
+    expect(renderWeekly(input({ edition: 'weekly' })).subject).toBe('skilld weekly: a quiet week')
   })
 
   it('gives the preheader the half the subject did not name', () => {

@@ -26,10 +26,6 @@ export default defineApiHandler({
       digest_email: row.digest_email,
       email: row.email,
       email_opt_in: row.email_opt_in,
-      digest_frequency: row.digest_frequency,
-      digest_dow: row.digest_dow,
-      digest_hour: row.digest_hour,
-      timezone: row.timezone,
       onboarded_at: row.onboarded_at,
     }
     const selection = await selectDigestForUser(event.context.platform.db, digestUser, now, { windowStart: body.since ?? 0 })

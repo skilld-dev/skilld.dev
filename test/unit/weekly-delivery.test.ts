@@ -7,7 +7,6 @@ import { runWeeklyForUser } from '../../layers/identity/server/utils/weekly-deli
 import {
   loadWeeklyRecipients,
   resolveRecipientAddress,
-  selectWeeklyForUser,
 } from '../../layers/identity/server/utils/weekly-select'
 import { renderWeekly } from '../../layers/identity/server/utils/weekly-template'
 
@@ -69,6 +68,14 @@ CREATE TABLE weekly_runs (
   error TEXT
 );
 CREATE UNIQUE INDEX weekly_runs_user_window ON weekly_runs (user_id, window_end);
+CREATE TABLE weekly_skill_sends (
+  window_end INTEGER NOT NULL,
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  name TEXT NOT NULL,
+  sent_at INTEGER NOT NULL,
+  PRIMARY KEY (window_end, owner, repo, name)
+);
 `
 
 describe('weekly delivery', () => {
@@ -95,6 +102,8 @@ describe('weekly delivery', () => {
     expect(send).toHaveBeenCalledTimes(1)
     expect(runRows()).toHaveLength(1)
     expect(runRows()[0]).toMatchObject({ status: 'sent', provider_status: 'accepted' })
+    expect(sqlite.prepare(`SELECT owner, repo, name FROM weekly_skill_sends`).all())
+      .toEqual([{ owner: 'antfu', repo: 'skills', name: 'vitest' }])
   })
 
   it('claims a different week separately', async () => {
@@ -113,10 +122,7 @@ describe('weekly delivery', () => {
   it('does not mail a week with nothing in it', async () => {
     const send = vi.fn()
 
-    const result = await runWeeklyForUser(deps({
-      send,
-      select: async () => ({ likedChanges: [], likedOverflow: 0, trackedCount: 4 }),
-    }), recipient(), delivery())
+    const result = await runWeeklyForUser(deps({ send }), recipient(), delivery({ trending: [] }))
 
     expect(result).toEqual({ _tag: 'skipped', reason: 'nothing_to_say' })
     expect(send).not.toHaveBeenCalled()
@@ -179,124 +185,7 @@ describe('weekly delivery', () => {
 
     const recipients = await loadWeeklyRecipients(db)
 
-    expect(recipients.map(user => user.login).sort()).toEqual(['harlan-zw', 'verified-only'])
-  })
-})
-
-describe('weekly selection', () => {
-  let sqlite: Database.Database
-  let db: D1Database
-
-  beforeEach(() => {
-    sqlite = new Database(':memory:')
-    sqlite.exec(SCHEMA)
-    db = wrapSqlite(sqlite)
-    sqlite.prepare(`INSERT INTO users (id, login, email) VALUES (1, 'harlan-zw', 'harlan@example.com')`).run()
-    sqlite.prepare(`INSERT INTO repos (owner, repo) VALUES ('antfu', 'skills')`).run()
-  })
-
-  afterEach(() => sqlite.close())
-
-  function seedSkill(name: string) {
-    sqlite.prepare(`INSERT INTO skills (
-      owner, repo, name, slug, description, current_sha, rendered_skill_path
-    ) VALUES ('antfu', 'skills', ?, ?, 'desc', ?, ?)`)
-      .run(name, name, `current-${name}`, `${name}/SKILL.md`)
-  }
-
-  function like(name: string) {
-    sqlite.prepare(`INSERT INTO skill_likes (user_id, owner, repo, name, created_at) VALUES (1, 'antfu', 'skills', ?, 0)`).run(name)
-  }
-
-  function change(name: string, at: number) {
-    sqlite.prepare(`INSERT INTO activity (type, owner, repo, name, occurred_at, sha) VALUES ('modified', 'antfu', 'skills', ?, ?, 'sha')`)
-      .run(name, at)
-  }
-
-  it('lists only skills this person liked', async () => {
-    seedSkill('vitest')
-    seedSkill('vite')
-    like('vitest')
-    change('vitest', WINDOW_END - 100)
-    change('vite', WINDOW_END - 100)
-
-    const selection = await selectWeeklyForUser(db, recipient(), WINDOW_START, WINDOW_END)
-
-    expect(selection.likedChanges.map(entry => entry.name)).toEqual(['vitest'])
-  })
-
-  it('ignores changes outside the window', async () => {
-    seedSkill('vitest')
-    like('vitest')
-    change('vitest', WINDOW_START - 10)
-
-    const selection = await selectWeeklyForUser(db, recipient(), WINDOW_START, WINDOW_END)
-
-    expect(selection.likedChanges).toEqual([])
-  })
-
-  it('lists five and counts the rest as overflow', async () => {
-    for (let index = 0; index < 8; index++) {
-      seedSkill(`skill-${index}`)
-      like(`skill-${index}`)
-      change(`skill-${index}`, WINDOW_END - index * 3600)
-    }
-
-    const selection = await selectWeeklyForUser(db, recipient(), WINDOW_START, WINDOW_END)
-
-    expect(selection.likedChanges).toHaveLength(5)
-    expect(selection.likedOverflow).toBe(3)
-  })
-
-  it('counts every change to one skill as one row', async () => {
-    seedSkill('vitest')
-    like('vitest')
-    change('vitest', WINDOW_END - 7200)
-    change('vitest', WINDOW_END - 3600)
-
-    const selection = await selectWeeklyForUser(db, recipient(), WINDOW_START, WINDOW_END)
-
-    expect(selection.likedChanges).toHaveLength(1)
-    expect(selection.likedChanges[0]).toMatchObject({ changeCount: 2, changedAt: WINDOW_END - 3600 })
-  })
-
-  it('carries the window commits newest first', async () => {
-    seedSkill('vitest')
-    like('vitest')
-    change('vitest', WINDOW_END - 3600)
-    sqlite.prepare(`INSERT INTO skill_revisions (owner, repo, name, sha, modified_at, message) VALUES ('antfu','skills','vitest','a', ?, ?)`)
-      .run(WINDOW_END - 7200, 'older subject')
-    sqlite.prepare(`INSERT INTO skill_revisions (owner, repo, name, sha, modified_at, message) VALUES ('antfu','skills','vitest','b', ?, ?)`)
-      .run(WINDOW_END - 3600, 'newest subject')
-
-    const selection = await selectWeeklyForUser(db, recipient(), WINDOW_START, WINDOW_END)
-
-    expect(selection.likedChanges[0]!.commitMessages).toEqual(['newest subject', 'older subject'])
-  })
-
-  it('leaves out commits from outside the window', async () => {
-    seedSkill('vitest')
-    like('vitest')
-    change('vitest', WINDOW_END - 3600)
-    sqlite.prepare(`INSERT INTO skill_revisions (owner, repo, name, sha, modified_at, message) VALUES ('antfu','skills','vitest','old', ?, ?)`)
-      .run(WINDOW_START - 10, 'last month')
-    sqlite.prepare(`INSERT INTO skill_revisions (owner, repo, name, sha, modified_at, message) VALUES ('antfu','skills','vitest','new', ?, ?)`)
-      .run(WINDOW_END - 3600, 'this week')
-
-    const selection = await selectWeeklyForUser(db, recipient(), WINDOW_START, WINDOW_END)
-
-    expect(selection.likedChanges[0]!.commitMessages).toEqual(['this week'])
-  })
-
-  it('leaves out aggregator repositories', async () => {
-    sqlite.prepare(`UPDATE repos SET repo_kind = 'aggregator' WHERE owner = 'antfu'`).run()
-    seedSkill('vitest')
-    like('vitest')
-    change('vitest', WINDOW_END - 100)
-
-    const selection = await selectWeeklyForUser(db, recipient(), WINDOW_START, WINDOW_END)
-
-    expect(selection.likedChanges).toEqual([])
+    expect(recipients.map(user => user.login).sort()).toEqual(['digest-enabled', 'harlan-zw', 'verified-only'])
   })
 })
 
@@ -335,22 +224,6 @@ function deps(overrides: Partial<WeeklyDeliveryDependencies>): WeeklyDeliveryDep
   return {
     db: activeDb,
     now: () => WINDOW_END,
-    select: async () => ({
-      likedChanges: [{
-        owner: 'antfu',
-        repo: 'skills',
-        name: 'vitest',
-        slug: 'vitest',
-        description: 'Testing conventions.',
-        changeCount: 1,
-        changedAt: WINDOW_END - 60,
-        commitMessages: ['Improve browser mode'],
-        sourceUrl: 'https://github.com/antfu/skills/blob/sha/vitest/SKILL.md',
-        changeUrl: 'https://github.com/antfu/skills/commit/sha',
-      }],
-      likedOverflow: 0,
-      trackedCount: 1,
-    }),
     render: renderWeekly,
     signUnsubscribe: async userId => `token-${userId}`,
     send: async () => ({ _tag: 'accepted', messageId: 'msg-1' }),
@@ -390,7 +263,8 @@ function wrapSqlite(sqlite: Database.Database): D1Database {
     batch: async (statements: Array<D1PreparedStatement & { sql: string, params: unknown[] }>) =>
       statements.map((statement) => {
         const expanded = expand(statement.sql, statement.params)
-        return { results: sqlite.prepare(expanded.sql).all(...expanded.params), meta: { changes: 0 } }
+        const result = sqlite.prepare(expanded.sql).run(...expanded.params)
+        return { meta: { changes: result.changes, last_row_id: result.lastInsertRowid } }
       }) as unknown as D1Result[],
   } as unknown as D1Database
   return activeDb

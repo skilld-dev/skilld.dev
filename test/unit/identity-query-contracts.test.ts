@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../layers/identity/app/queries/account'
 import {
-  identityCadenceBodySchema,
   identityEmailPatchBodySchema,
   identityMeSchema,
   identityMutationResponseSchema,
@@ -24,12 +23,6 @@ describe('identity account query contracts', () => {
   })
 
   it('owns mutation paths and their shared schemas', () => {
-    expect(identityAccountQueries.saveCadence()).toMatchObject({
-      body: identityCadenceBodySchema,
-      method: 'PATCH',
-      path: '/api/me/cadence',
-      response: identityMutationResponseSchema,
-    })
     expect(identityAccountQueries.saveEmail()).toMatchObject({
       body: identityEmailPatchBodySchema,
       method: 'PATCH',
@@ -53,9 +46,6 @@ describe('identity account query contracts', () => {
       digest_email: null,
       email_opt_in: false,
       weekly_opt_in: true,
-      digest_frequency: 'weekly',
-      digest_dow: 1,
-      digest_hour: 9,
       timezone: 'Australia/Melbourne',
       stars_synced_at: null,
       onboarded_at: null,

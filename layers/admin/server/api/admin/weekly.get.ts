@@ -81,7 +81,7 @@ export default defineApiHandler({
     const [audience, windows, problems] = await Promise.all([
       db.prepare(
         `SELECT
-           SUM(weekly_opt_out = 0 AND email_opt_in = 0 AND ${hasAddress}) AS reachable,
+           SUM(weekly_opt_out = 0 AND ${hasAddress}) AS reachable,
            SUM(weekly_opt_out = 1 AND ${hasAddress}) AS opted_out,
            SUM(NOT ${hasAddress}) AS no_address
          FROM users`,
