@@ -511,6 +511,20 @@ describe('weekly with no recipient', () => {
 })
 
 describe('weekly theme', () => {
+  it('keeps Skill titles aligned with avatars when a mail client ignores negative margins', () => {
+    const { card } = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
+
+    expect(card).not.toContain('padding:11px 0;margin:-11px 0')
+  })
+
+  it('softens dividers when a mail client forces dark mode', () => {
+    const { html } = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
+
+    expect(html).toContain('@media (prefers-color-scheme: dark)')
+    expect(html).toContain('.weekly-border{border-color:#4d453b!important;}')
+    expect(html.match(/class="weekly-border"/g)?.length).toBeGreaterThanOrEqual(4)
+  })
+
   it('sends light unless asked otherwise, since inline styles are all a mail client honours', () => {
     const { html } = renderWeekly(input({ trending: [trending()] }))
 

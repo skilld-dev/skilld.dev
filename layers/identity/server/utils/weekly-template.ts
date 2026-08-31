@@ -403,15 +403,15 @@ function row(t: Tokens, options: {
 }): string {
   const description = trimDescription(options.description)
   return `
-<tr><td style="padding:14px 0;border-top:1px solid ${t.border};">
+<tr><td class="weekly-border" style="padding:14px 0;border-top:1px solid ${t.border};">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
     <tr>
       <td valign="top" width="44" style="width:44px;padding-right:12px;">
-        <img src="${esc(avatarUrl(options.owner))}" width="36" height="36" alt=""
+        <img class="weekly-border" src="${esc(avatarUrl(options.owner))}" width="36" height="36" alt=""
              style="width:36px;height:36px;border-radius:18px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
       <td valign="top">
-        <a href="${esc(options.href)}" style="display:inline-block;padding:11px 0;margin:-11px 0;font-family:${MONO};font-size:15px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a>
+        <a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:15px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a>
         ${description ? `<div style="margin-top:11px;font-family:${SANS};font-size:14px;line-height:1.55;color:${t.body};">${esc(description)}</div>` : ''}
         ${options.body ?? ''}
         <div style="margin-top:8px;font-family:${MONO};font-size:14px;line-height:1.55;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}</div>
@@ -441,15 +441,15 @@ function trendingRow(t: Tokens, options: {
     ? ` · <a href="${esc(options.evidence.url)}" style="display:inline-block;padding:12px 0;margin:-12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">@${esc(options.evidence.authorHandle)} ${options.evidence.platform === 'x' ? 'on X' : 'on Bluesky'}</a>`
     : ''
   return `
-<tr><td style="padding:10px 0;border-top:1px solid ${t.border};">
+<tr><td class="weekly-border" style="padding:10px 0;border-top:1px solid ${t.border};">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
     <tr>
       <td valign="top" width="36" style="width:36px;padding-right:10px;">
-        <img src="${esc(avatarUrl(options.owner))}" width="28" height="28" alt=""
+        <img class="weekly-border" src="${esc(avatarUrl(options.owner))}" width="28" height="28" alt=""
              style="width:28px;height:28px;border-radius:14px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
       <td valign="top">
-        <a href="${esc(options.href)}" style="display:inline-block;padding:11px 0;margin:-11px 0;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a>
+        <a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a>
         <div style="margin-top:3px;font-family:${MONO};font-size:14px;line-height:1.45;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}${evidence}</div>
       </td>
     </tr>
@@ -663,7 +663,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   }).join('')
 
   const overflowRow = input.likedOverflow
-    ? `<tr><td style="padding:12px 0 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:20px;color:${t.muted};">
+    ? `<tr><td class="weekly-border" style="padding:12px 0 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:20px;color:${t.muted};">
          <a href="${esc(track(`${input.siteUrl}/me/likes`, 'overflow'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'Skill', 'Skills')} you like were updated</a>
        </td></tr>`
     : ''
@@ -673,13 +673,13 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   // does; this is the far more common case where trending carried the week and
   // the reader is never told the other half is theirs to populate.
   const quietRow = !input.likedChanges.length && input.trackedCount
-    ? `<tr><td style="padding:14px 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.55;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(trackedLine(input.trackedCount))}</td></tr>`
+    ? `<tr><td class="weekly-border" style="padding:14px 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.55;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(trackedLine(input.trackedCount))}</td></tr>`
     : ''
 
   // Only when there is nothing to track. Telling someone who likes thirty
   // skills to go like a skill is the product failing to notice it worked.
   const likePrompt = !trendsOnly && !input.trackedCount && !input.likedChanges.length && input.trending.length
-    ? `<tr><td style="padding:16px 0 0;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.55;color:${t.muted};">
+    ? `<tr><td class="weekly-border" style="padding:16px 0 0;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.55;color:${t.muted};">
          ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
     : ''
@@ -698,9 +698,9 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const body = trendsOnly
     ? input.trending.length
       ? `${sectionLabel(t, 'Trending this week')}${trendingRows}`
-      : `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">No new trending Skills this week.</td></tr>`
+      : `<tr><td class="weekly-border" style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">No new trending Skills this week.</td></tr>`
     : empty
-      ? `<tr><td style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
+      ? `<tr><td class="weekly-border" style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
          Like a few Skills and they will show up here the week they change.
          <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
@@ -711,10 +711,10 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
         : ''}`
 
   const shareUrl = track(`${input.siteUrl}/api/share/weekly`, 'share')
-  const card = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:${t.surface};border:1px solid ${t.border};border-radius:8px;">
+  const card = `<table class="weekly-border" role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:${t.surface};border:1px solid ${t.border};border-radius:8px;">
       <tr><td style="padding:22px 20px 26px;">
 
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom:1px solid ${t.border};padding-bottom:14px;">
+        <table class="weekly-border" role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom:1px solid ${t.border};padding-bottom:14px;">
           <tr>
             <!-- The mark is a hosted PNG because Gmail strips SVG. The nearby
                  wordmark carries the name when images are blocked. -->
@@ -738,7 +738,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
       </td></tr>
       <tr><td style="height:3px;background:${t.mark};font-size:0;line-height:0;">&nbsp;</td></tr>
-      <tr><td style="padding:16px 20px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.7;color:${t.faint};">
+      <tr><td class="weekly-border" style="padding:16px 20px 20px;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:1.7;color:${t.faint};">
         ${edition === 'weekly'
           ? 'You get this once a week because you have a skilld account.'
           : 'You get this because you enabled the digest.'}
@@ -756,6 +756,10 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 <meta name="color-scheme" content="${input.theme ?? 'light'}" />
 <meta name="supported-color-schemes" content="${input.theme ?? 'light'}" />
 <title>${esc(subject)}</title>
+<style>
+@media (prefers-color-scheme: dark){.weekly-border{border-color:${PALETTE.dark.borderStrong}!important;}}
+[data-ogsc] .weekly-border{border-color:${PALETTE.dark.borderStrong}!important;}
+</style>
 </head>
 <body style="margin:0;padding:0;background:${t.page};-webkit-font-smoothing:antialiased;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader(input))}</div>
