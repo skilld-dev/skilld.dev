@@ -3,6 +3,7 @@ interface SkillLike {
   owner: string
   repo: string
   name: string
+  registryPath: string
   slug: string
   description?: string | null
   stars?: number
@@ -50,7 +51,7 @@ const { copy, copied } = useInstallCopy(
 )
 
 const skillPath = computed(() => {
-  return repoSkillPath(skill.owner, skill.repo, skill.name)
+  return skill.registryPath
 })
 
 const ownerPath = computed(() =>

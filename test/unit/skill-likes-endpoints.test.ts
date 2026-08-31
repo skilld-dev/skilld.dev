@@ -74,6 +74,7 @@ describe('skill likes endpoints', () => {
         slug TEXT NOT NULL,
         description TEXT,
         like_count INTEGER NOT NULL DEFAULT 0,
+        source_resolved INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY (owner, repo, name)
       );
       CREATE TABLE repos (

@@ -18,6 +18,7 @@ interface LikedSkill {
   slug: string
   description: string | null
   likedAt: number
+  registryPath: string
 }
 
 const { data: me } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
@@ -290,7 +291,7 @@ function fmtDate(ts: number | null | undefined): string {
               class="group flex min-w-0 items-start gap-4 py-5"
             >
               <NuxtLink
-                :to="`/gh/${skill.owner}/${skill.repo}/${skill.name}`"
+                :to="skill.registryPath"
                 class="min-w-0 flex-1 rounded-sm"
               >
                 <span class="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -507,7 +508,7 @@ function fmtDate(ts: number | null | undefined): string {
                 class="flex min-w-0 items-center gap-2 border-b border-default py-3 last:border-b-0"
               >
                 <div class="min-w-0 flex-1">
-                  <NuxtLink :to="`/gh/${source.owner}/${source.repo}`" class="flex min-h-11 items-center truncate font-mono text-xs hover:text-primary">
+                  <NuxtLink :to="repoHubPath(source.owner, source.repo)" class="flex min-h-11 items-center truncate font-mono text-xs hover:text-primary">
                     {{ source.owner }}/{{ source.repo }}
                   </NuxtLink>
                   <p class="mt-1 text-xs text-muted">

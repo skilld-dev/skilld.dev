@@ -16,6 +16,7 @@ export interface FeaturedPersonSkill {
   displayName: string
   description: string | null
   stars: number
+  registryPath: string
 }
 
 export interface FeaturedPersonSection {
@@ -96,6 +97,7 @@ export function selectHomepagePersonSkills(
         repo: skill.repo,
         name: skill.name,
         displayName: skill.displayName,
+        registryPath: skill.registryPath,
         maintainerName: person.displayName !== person.owner
           ? person.displayName
           : fallbackNamesByOwner.get(person.owner) ?? person.owner,

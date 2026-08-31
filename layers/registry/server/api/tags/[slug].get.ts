@@ -106,7 +106,11 @@ export default defineCachedEventHandler(async (event) => {
   // same-(owner,name) collisions.
   const skillsRes = await db
     .prepare(
-      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.like_count, s.description, s.rendered_raw_sha256, r.pushed_at, s.modified_at, s.first_seen_at
+      `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.like_count, s.description, s.rendered_raw_sha256, r.pushed_at, s.modified_at, s.first_seen_at,
+              (SELECT COUNT(*) FROM skills repo_skills
+               WHERE repo_skills.owner = s.owner
+                 AND repo_skills.repo = s.repo
+                 AND repo_skills.source_resolved = 1) AS repo_skill_count
        FROM skills s
        JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
        WHERE ${NOT_BROKEN_SQL} AND (

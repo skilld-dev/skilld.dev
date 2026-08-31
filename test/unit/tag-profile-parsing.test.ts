@@ -5,6 +5,7 @@ const validRow = {
   name: 'nuxt',
   owner: 'onmax',
   repo: 'nuxt-skills',
+  repo_skill_count: 3,
   display_name: 'Nuxt',
   slug: 'onmax/nuxt-skills/nuxt',
   stars: 10,

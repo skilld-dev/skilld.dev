@@ -1,11 +1,12 @@
 import { defineApiHandler } from '#shared/server/handler'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { notAggregatorSql, notBrokenSql } from '../../utils/broken'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
 
 /**
- * One skill as `[name, owner, repo, stars]`.
+ * One skill as `[name, owner, repo, stars, registryPath]`.
  *
  * Tuples rather than objects: at registry scale the repeated JSON keys cost
  * more than the data. The client rehydrates these in `useSkillSearch`.
@@ -13,7 +14,7 @@ const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
  * Stars, not installs: canonical GitHub stars are the ranking evidence, and
  * install counts are deliberately not a ranking signal.
  */
-export type TypeaheadTuple = [string, string, string, number]
+export type TypeaheadTuple = [string, string, string, number, string]
 
 export interface TypeaheadIndex {
   skills: TypeaheadTuple[]
@@ -25,6 +26,7 @@ interface Row {
   owner: string
   repo: string
   stars: number | null
+  repo_skill_count: number
 }
 
 /**
@@ -44,7 +46,11 @@ export default defineApiHandler<never, TypeaheadIndex>({
   handler: async ({ platform }): Promise<TypeaheadIndex> => {
     const res = await platform.db
       .prepare(
-        `SELECT s.name, s.owner, s.repo, r.stars
+        `SELECT s.name, s.owner, s.repo, r.stars,
+                (SELECT COUNT(*) FROM skills repo_skills
+                 WHERE repo_skills.owner = s.owner
+                   AND repo_skills.repo = s.repo
+                   AND repo_skills.source_resolved = 1) AS repo_skill_count
          FROM skills s
          JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
          WHERE ${NOT_BROKEN_SQL}
@@ -55,7 +61,18 @@ export default defineApiHandler<never, TypeaheadIndex>({
       .all<Row>()
 
     return {
-      skills: (res.results ?? []).map(r => [r.name, r.owner, r.repo, r.stars ?? 0] as TypeaheadTuple),
+      skills: (res.results ?? []).map(r => [
+        r.name,
+        r.owner,
+        r.repo,
+        r.stars ?? 0,
+        canonicalRepoSkillPath({
+          owner: r.owner,
+          repo: r.repo,
+          name: r.name,
+          repoSkillCount: r.repo_skill_count,
+        }),
+      ] as TypeaheadTuple),
       generatedAt: Math.floor(Date.now() / 1000),
     }
   },

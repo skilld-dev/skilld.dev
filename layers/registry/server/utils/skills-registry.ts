@@ -33,13 +33,22 @@ const SELECT_SKILL_ROW = `
   s.modified_at,
   s.first_seen_at,
   r.stars,
-  r.pushed_at`
+  r.pushed_at,
+  (
+    SELECT COUNT(*)
+    FROM skills repo_skills
+    WHERE repo_skills.owner = s.owner
+      AND repo_skills.repo = s.repo
+      AND repo_skills.source_resolved = 1
+  ) AS repo_skill_count`
 const SELECT_SKILL_ROW_WITH_BODY = `${SELECT_SKILL_ROW}, s.rendered_raw`
 
 export interface RegistrySkill {
   name: string
   owner: string
   repo: string
+  /** Final public route. Consumers must not rebuild it. */
+  registryPath: string
   displayName: string
   slug: string
   stars: number
@@ -67,6 +76,7 @@ interface SkillRow {
   name: string
   owner: string
   repo: string
+  repo_skill_count: number
   display_name: string
   slug: string
   stars: number | null
@@ -88,6 +98,12 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     name: row.name,
     owner: row.owner,
     repo: row.repo,
+    registryPath: canonicalRepoSkillPath({
+      owner: row.owner,
+      repo: row.repo,
+      name: row.name,
+      repoSkillCount: row.repo_skill_count,
+    }),
     displayName: row.display_name,
     slug: row.slug,
     stars: row.stars ?? 0,

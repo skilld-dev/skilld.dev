@@ -114,7 +114,7 @@ function sourcePath(item: SkillSourceItem): string {
     >
       <li v-for="(item, index) in renderedItems" :key="itemKey(item)">
         <NuxtLink
-          :to="repoSkillPath(item.owner, item.repo, item.name)"
+          :to="item.registryPath"
           :aria-label="`${item.displayName} by ${item.maintainerName || item.owner}`"
           class="skill-source-stream__item group"
         >
@@ -158,7 +158,7 @@ function sourcePath(item: SkillSourceItem): string {
   >
     <li v-for="item in renderedItems" :key="itemKey(item)">
       <NuxtLink
-        :to="repoSkillPath(item.owner, item.repo, item.name)"
+        :to="item.registryPath"
         :aria-label="`${item.displayName} by ${item.maintainerName || item.owner}`"
         class="skill-source-grid__item group"
       >

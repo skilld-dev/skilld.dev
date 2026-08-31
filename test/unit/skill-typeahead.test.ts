@@ -4,12 +4,12 @@ import { matchTypeahead } from '../../app/utils/skill-typeahead'
 
 // Trailing value is canonical GitHub stars, the ranking evidence.
 const INDEX: TypeaheadTuple[] = [
-  ['vue-testing-best-practices', 'antfu', 'skills', 5700],
-  ['vue', 'onmax', 'nuxt-skills', 1774],
-  ['vue', 'antfu', 'skills', 900],
-  ['vueuse', 'antfu', 'skills', 500],
-  ['nuxt-ui', 'onmax', 'nuxt-skills', 2000],
-  ['pdf', 'anthropics', 'skills', 8000],
+  ['vue-testing-best-practices', 'antfu', 'skills', 5700, '/gh/antfu/skills/vue-testing-best-practices'],
+  ['vue', 'onmax', 'nuxt-skills', 1774, '/gh/onmax/nuxt-skills/vue'],
+  ['vue', 'antfu', 'skills', 900, '/gh/antfu/skills/vue'],
+  ['vueuse', 'antfu', 'skills', 500, '/gh/antfu/skills/vueuse'],
+  ['nuxt-ui', 'onmax', 'nuxt-skills', 2000, '/gh/onmax/nuxt-skills/nuxt-ui'],
+  ['pdf', 'anthropics', 'skills', 8000, '/gh/anthropics/skills/pdf'],
 ]
 
 describe('matchTypeahead', () => {
@@ -43,7 +43,7 @@ describe('matchTypeahead', () => {
 
   it('is case insensitive in both directions', () => {
     expect(matchTypeahead(INDEX, 'VUE')[0]!.name).toBe('vue')
-    expect(matchTypeahead([['PDF', 'Anthropics', 'Skills', 1]], 'pdf')).toHaveLength(1)
+    expect(matchTypeahead([['PDF', 'Anthropics', 'Skills', 1, '/gh/Anthropics/Skills/PDF']], 'pdf')).toHaveLength(1)
   })
 
   it('honours the limit', () => {
@@ -58,8 +58,8 @@ describe('matchTypeahead', () => {
 
   it('ranks a name prefix above an owner prefix', () => {
     const hits = matchTypeahead([
-      ['something', 'vuejs', 'skills', 9999],
-      ['vue-router', 'someone', 'skills', 1],
+      ['something', 'vuejs', 'skills', 9999, '/gh/vuejs/skills/something'],
+      ['vue-router', 'someone', 'skills', 1, '/gh/someone/skills/vue-router'],
     ], 'vue')
     expect(hits[0]!.name).toBe('vue-router')
   })

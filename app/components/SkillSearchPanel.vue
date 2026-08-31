@@ -315,7 +315,7 @@ function retryRepositoryIndex(): void {
           /{{ previewSkill.name }}
         </p>
         <NuxtLink
-          :to="`/gh/${previewSkill.owner}`"
+          :to="ownerHubPath(previewSkill.owner)"
           class="mt-1 flex items-center gap-2 font-mono text-xs text-muted transition-colors duration-200 hover:text-default"
         >
           <img

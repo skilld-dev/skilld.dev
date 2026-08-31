@@ -326,7 +326,7 @@ defineOgImage('Curator.takumi', {
           <header class="flex flex-wrap items-end justify-between gap-3 border-b border-default pb-3">
             <div class="min-w-0">
               <h2 :id="`repository-${group.owner}-${group.repo}`" class="truncate font-mono text-lg font-semibold tracking-tight">
-                <NuxtLink :to="`/gh/${group.owner}/${group.repo}`" class="hover:text-muted">
+                <NuxtLink :to="repoHubPath(group.owner, group.repo)" class="hover:text-muted">
                   {{ group.owner }}/{{ group.repo }}
                 </NuxtLink>
               </h2>
@@ -363,7 +363,7 @@ defineOgImage('Curator.takumi', {
               <article class="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
                 <div class="min-w-0">
                   <NuxtLink
-                    :to="`/gh/${s.owner}/${s.repo}/${s.name}`"
+                    :to="s.registryPath"
                     class="group inline-flex min-h-11 max-w-full items-center gap-2 font-mono text-base font-medium transition-colors hover:text-muted"
                   >
                     <span class="truncate">{{ s.display_name || s.name }}</span>

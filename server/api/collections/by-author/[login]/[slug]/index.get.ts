@@ -27,6 +27,10 @@ export default defineApiHandler({
     const skillsRes = await platform.db.prepare(
       `WITH ranked_skills AS (
          SELECT s.owner, s.repo, s.name, s.display_name,
+                (SELECT COUNT(*) FROM skills repo_skills
+                 WHERE repo_skills.owner = s.owner
+                   AND repo_skills.repo = s.repo
+                   AND repo_skills.source_resolved = 1) AS repo_skill_count,
                 ROW_NUMBER() OVER (
                   PARTITION BY s.owner, s.repo
                   ORDER BY s.modified_at DESC, s.name ASC
@@ -36,7 +40,8 @@ export default defineApiHandler({
            AND s.source_resolved = 1
            AND s.rendered_status = 'ok'
        )
-       SELECT cs.position, cs.owner, cs.repo, rs.name, rs.display_name, cs.reason
+       SELECT cs.position, cs.owner, cs.repo, rs.name, rs.display_name, cs.reason,
+              rs.repo_skill_count
        FROM collection_skills_v2 cs
        JOIN ranked_skills rs
          ON rs.owner = cs.owner

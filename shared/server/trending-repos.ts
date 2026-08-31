@@ -9,6 +9,7 @@
 
 import type { RepoTrendInput, RepoTrendScore, TrendingWeights } from '#shared/trending-score'
 import { cleanEvidenceText } from '#shared/evidence-text'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { DEFAULT_TRENDING_WEIGHTS, rankRepoTrends } from '#shared/trending-score'
 
 /**
@@ -34,6 +35,8 @@ export interface TrendingRepoSkill {
   displayName: string | null
   slug: string
   description: string | null
+  /** Final public route. Consumers must not rebuild it. */
+  registryPath: string
 }
 
 export interface TrendingEvidence {
@@ -395,17 +398,32 @@ async function loadSkills(
     .all<SkillRow>()))
   const rows = pages.flatMap(page => page.results ?? [])
 
-  const out = new Map<string, TrendingRepoSkill[]>()
+  const grouped = new Map<string, Omit<TrendingRepoSkill, 'registryPath'>[]>()
   for (const row of rows) {
     const key = `${row.owner}/${row.repo}`
-    const list = out.get(key) ?? []
+    const list = grouped.get(key) ?? []
     list.push({
       name: row.name,
       displayName: row.display_name,
       slug: row.slug,
       description: row.description,
     })
-    out.set(key, list)
+    grouped.set(key, list)
+  }
+
+  const out = new Map<string, TrendingRepoSkill[]>()
+  for (const entry of entries) {
+    const key = `${entry.owner}/${entry.repo}`
+    const skills = grouped.get(key) ?? []
+    out.set(key, skills.map(skill => ({
+      ...skill,
+      registryPath: canonicalRepoSkillPath({
+        owner: entry.owner,
+        repo: entry.repo,
+        name: skill.name,
+        repoSkillCount: skills.length,
+      }),
+    })))
   }
   return out
 }

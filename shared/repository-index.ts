@@ -6,6 +6,7 @@ export interface IndexedRepositorySkill {
   path: string | null
   description: string | null
   likeCount: number
+  registryPath: string
 }
 
 export type RepositoryIndexProgress

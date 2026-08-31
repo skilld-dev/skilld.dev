@@ -11,6 +11,28 @@ import {
 } from '../../app/utils/homepage-person-skills'
 
 describe('skill source list', () => {
+  it('links to the canonical Skill path supplied by the server', async () => {
+    const wrapper = await mountSuspended(
+      await import('../../app/components/SkillSourceList.vue').then(module => module.default),
+      {
+        props: {
+          items: [{
+            owner: 'tt-a1i',
+            repo: 'archify',
+            name: 'archify',
+            displayName: 'Archify',
+            registryPath: '/gh/tt-a1i/archify',
+          }],
+          variant: 'stream',
+        },
+      },
+    )
+
+    expect(wrapper.get('a').attributes('href')).toBe('/gh/tt-a1i/archify')
+
+    wrapper.unmount()
+  })
+
   it('ships twenty person-authored homepage fallbacks', () => {
     expect(homepagePersonSkillFallbacks).toHaveLength(20)
     expect(new Set(homepagePersonSkillFallbacks.map(skill => skill.owner)).size).toBeGreaterThanOrEqual(10)
@@ -32,6 +54,7 @@ describe('skill source list', () => {
         displayName: `Skill ${skillIndex}`,
         description: null,
         stars: 100 - skillIndex,
+        registryPath: `/gh/person-${personIndex}/skills/skill-${skillIndex}`,
       })),
     }))
     const selected = selectHomepagePersonSkills(sections, new Map())

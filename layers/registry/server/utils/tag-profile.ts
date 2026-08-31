@@ -1,9 +1,11 @@
 import type { RegistrySkill } from './skills-registry'
+import { canonicalRepoSkillPath } from './skill-routes'
 
 export interface TagSkillRow {
   name: string
   owner: string
   repo: string
+  repo_skill_count: number
   display_name: string
   slug: string
   stars: number | null
@@ -33,6 +35,12 @@ export function parseTagSkillRow(row: TagSkillRow): ParsedTagSkillRow {
       name,
       owner,
       repo,
+      registryPath: canonicalRepoSkillPath({
+        owner,
+        repo,
+        name,
+        repoSkillCount: row.repo_skill_count,
+      }),
       displayName: row.display_name,
       slug: row.slug,
       stars: row.stars ?? 0,

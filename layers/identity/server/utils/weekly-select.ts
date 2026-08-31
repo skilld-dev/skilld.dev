@@ -107,6 +107,7 @@ interface LikedChangeRow {
   latest_sha: string
   current_sha: string
   rendered_skill_path: string
+  repo_skill_count: number
 }
 
 function sourceUrl(row: {
@@ -152,6 +153,10 @@ export async function selectWeeklyForUser(
   const res = await db.prepare(
     `SELECT a.owner, a.repo, a.name, s.slug, s.description,
             s.current_sha, s.rendered_skill_path,
+            (SELECT COUNT(*) FROM skills repo_skills
+             WHERE repo_skills.owner = s.owner
+               AND repo_skills.repo = s.repo
+               AND repo_skills.source_resolved = 1) AS repo_skill_count,
             COUNT(*) AS change_count,
             MAX(a.occurred_at) AS changed_at,
             (SELECT a2.sha FROM activity a2
@@ -193,6 +198,7 @@ export async function selectWeeklyForUser(
       description: row.description,
       changeCount: row.change_count,
       changedAt: row.changed_at,
+      repoSkillCount: row.repo_skill_count,
       commitMessages: revisions[index]?.messages ?? [],
       sourceUrl: sourceUrl(row),
       changeUrl: changeUrl(row, revisions[index]?.sha ?? row.latest_sha),
@@ -288,6 +294,7 @@ export async function loadWeeklyTrending(
     canonicalName: entry.canonicalName,
     description: entry.description,
     stars: entry.stars,
+    repoSkillCount: entry.repoSkillCount,
     reason: reasonFor(entry),
     evidence: entry.evidence
       ? {
@@ -319,6 +326,7 @@ export async function loadWeeklyTrending(
       canonicalName: skill.canonicalName,
       description: skill.description,
       stars: skill.stars,
+      repoSkillCount: skill.repoSkillCount,
       reason: { _tag: 'popular' as const, stars: skill.stars },
       evidence: null,
     })),

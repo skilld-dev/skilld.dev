@@ -7,6 +7,7 @@
 
 import { officialRepos } from '#layers/registry/server/data/official-repos'
 import { getDB } from '#server/utils/db'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { buildOfficialOwnerFilter } from '../../utils/recent-publishes-query'
 
 const officialOwnerFilter = buildOfficialOwnerFilter(officialRepos.map(r => r.owner))
@@ -22,6 +23,7 @@ interface FeedRow {
   slug: string | null
   sync_status: string | null
   stars: number | null
+  repo_skill_count: number
 }
 
 export interface RecentPublishesResponse {
@@ -36,6 +38,7 @@ export interface RecentPublishesResponse {
     occurredAt: number
     hasReceipts: boolean
     stars: number
+    registryPath: string
   }>
 }
 
@@ -46,7 +49,11 @@ export default defineCachedEventHandler(
       .prepare(
         `SELECT a.owner, a.name, a.occurred_at, a.sha,
                 s.display_name, s.repo, s.description, s.slug, s.sync_status,
-                r.stars
+                r.stars,
+                (SELECT COUNT(*) FROM skills repo_skills
+                 WHERE repo_skills.owner = s.owner
+                   AND repo_skills.repo = s.repo
+                   AND repo_skills.source_resolved = 1) AS repo_skill_count
          FROM activity a
          LEFT JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
          LEFT JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
@@ -68,6 +75,12 @@ export default defineCachedEventHandler(
       occurredAt: row.occurred_at,
       hasReceipts: row.sync_status === 'ok',
       stars: row.stars ?? 0,
+      registryPath: canonicalRepoSkillPath({
+        owner: row.owner,
+        repo: row.repo ?? 'skills',
+        name: row.name,
+        repoSkillCount: row.repo_skill_count,
+      }),
     }))
     return { items }
   },

@@ -30,7 +30,13 @@ export interface TrendingFeedItem {
   favouriteCount: number
   bookmarkCount: number
   latestPostedAt: number
-  skills: Array<{ name: string, displayName: string, slug: string, description: string | null }>
+  skills: Array<{
+    name: string
+    displayName: string
+    slug: string
+    description: string | null
+    registryPath: string
+  }>
   skillCount: number
   evidence: {
     url: string
@@ -198,6 +204,7 @@ function toItem(entry: TrendingRepo): TrendingFeedItem {
       displayName: s.displayName ?? s.name,
       slug: s.slug,
       description: s.description,
+      registryPath: s.registryPath,
     })),
     skillCount: entry.skills.length,
     evidence: entry.evidence

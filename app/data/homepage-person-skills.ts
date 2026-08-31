@@ -1,6 +1,7 @@
 import type { SkillSourceItem } from '../types/skill-source'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 
-export const homepagePersonSkillFallbacks = [
+const fallbackSkills = [
   {
     owner: 'obra',
     repo: 'superpowers',
@@ -141,4 +142,10 @@ export const homepagePersonSkillFallbacks = [
     displayName: 'performance',
     maintainerName: 'Addy Osmani',
   },
-] as const satisfies readonly SkillSourceItem[]
+] as const
+
+export const homepagePersonSkillFallbacks: readonly SkillSourceItem[] = fallbackSkills.map(skill => ({
+  ...skill,
+  // Every curated fallback repository holds several Skills.
+  registryPath: canonicalRepoSkillPath({ ...skill, repoSkillCount: 2 }),
+}))

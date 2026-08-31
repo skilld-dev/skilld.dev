@@ -29,6 +29,7 @@ export interface SearchSkill {
   owner: string
   repo: string
   slug: string
+  registryPath: string
   description?: string | null
   stars?: number
   official?: boolean
@@ -103,6 +104,7 @@ function hitToSkill(hit: TypeaheadHit): SearchSkill {
     owner: hit.owner,
     repo: hit.repo,
     slug: `${hit.owner}/${hit.name}`,
+    registryPath: hit.registryPath,
     stars: hit.stars,
   }
 }
@@ -246,6 +248,7 @@ function useSkillSearchInternal() {
                 owner: repositoryValue.owner,
                 repo: repositoryValue.repo,
                 slug: skill.slug,
+                registryPath: skill.registryPath,
               },
             }))
           : []

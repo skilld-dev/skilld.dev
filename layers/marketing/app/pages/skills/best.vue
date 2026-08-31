@@ -7,6 +7,7 @@ interface EssentialSkill {
   description: string | null
   stars: number
   trustTier: string
+  registryPath: string
 }
 
 interface EssentialResponse {
@@ -113,7 +114,7 @@ function trustLabel(tier: string): string {
       <ol class="editorial-ledger list-none p-0">
         <li v-for="(skill, index) in skills" :key="`${skill.owner}/${skill.repo}/${skill.name}`">
           <NuxtLink
-            :to="repoSkillPath(skill.owner, skill.repo, skill.name)"
+            :to="skill.registryPath"
             class="best-row group"
           >
             <span class="best-rank">{{ String(index + 1).padStart(2, '0') }}</span>

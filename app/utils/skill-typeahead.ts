@@ -1,11 +1,12 @@
-/** `[name, owner, repo, stars]`, matching the /api/skills/typeahead payload. */
-export type TypeaheadTuple = [string, string, string, number]
+/** `[name, owner, repo, stars, registryPath]`, matching the API payload. */
+export type TypeaheadTuple = [string, string, string, number, string]
 
 export interface TypeaheadHit {
   name: string
   owner: string
   repo: string
   stars: number
+  registryPath: string
 }
 
 /**
@@ -52,11 +53,11 @@ export function matchTypeahead(
     return []
 
   const scored: { hit: TypeaheadHit, tier: number }[] = []
-  for (const [name, owner, repo, stars] of index) {
+  for (const [name, owner, repo, stars, registryPath] of index) {
     const tier = tierFor(name.toLowerCase(), owner.toLowerCase(), repo.toLowerCase(), query)
     if (tier === NO_MATCH)
       continue
-    scored.push({ hit: { name, owner, repo, stars }, tier })
+    scored.push({ hit: { name, owner, repo, stars, registryPath }, tier })
     // The index is star-ordered, so once a comfortable surplus of strong
     // matches exists, scanning the long tail cannot change the top `limit`.
     if (scored.length >= limit * 20)

@@ -96,6 +96,10 @@ export function clusterMembersSql(
     FROM (
       SELECT s.owner, s.name, s.repo, s.display_name, s.description,
              s.modified_at, r.stars,
+             (SELECT COUNT(*) FROM skills repo_skills
+              WHERE repo_skills.owner = s.owner
+                AND repo_skills.repo = s.repo
+                AND repo_skills.source_resolved = 1) AS repo_skill_count,
              s.abstractness_category AS category,
              COALESCE(s.is_abstract, 0) AS is_abstract,
              ${pinnedArm} AS is_pinned,

@@ -1,4 +1,5 @@
 import { getDB } from '#server/utils/db'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 
 interface ActivityRow {
   owner: string
@@ -11,6 +12,7 @@ interface ActivityRow {
   slug: string | null
   sync_status: string | null
   change_summary: string | null
+  repo_skill_count: number
 }
 
 interface SkillEntry {
@@ -24,6 +26,7 @@ interface SkillEntry {
   occurredAt: number
   hasReceipts: boolean
   changeSummary: string | null
+  registryPath: string
 }
 
 interface SkillCard extends SkillEntry {
@@ -73,7 +76,11 @@ export default defineCachedEventHandler(
       .prepare(
         `SELECT a.owner, a.name, a.occurred_at, a.sha,
                 s.display_name, s.repo, s.description, s.slug, s.sync_status,
-                revisions.message AS change_summary
+                revisions.message AS change_summary,
+                (SELECT COUNT(*) FROM skills repo_skills
+                 WHERE repo_skills.owner = s.owner
+                   AND repo_skills.repo = s.repo
+                   AND repo_skills.source_resolved = 1) AS repo_skill_count
          FROM activity a
          INNER JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
          INNER JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
@@ -112,6 +119,12 @@ export default defineCachedEventHandler(
       occurredAt: row.occurred_at,
       hasReceipts: row.sync_status === 'ok',
       changeSummary: summarizeChange(row.change_summary),
+      registryPath: canonicalRepoSkillPath({
+        owner: row.owner,
+        repo: row.repo ?? 'skills',
+        name: row.name,
+        repoSkillCount: row.repo_skill_count,
+      }),
     }))
 
     // Group by (owner, repo) preserving order of first appearance.

@@ -33,6 +33,7 @@ function creatorFixture(overrides: Partial<CommunityDirectoryItem> = {}): Commun
       description: 'Build full-stack Vue applications.',
       stars: 1200,
       modifiedAt: 1_700_000_000,
+      registryPath: '/gh/antfu/skills/nuxt',
     },
     ...overrides,
   } as CommunityDirectoryItem

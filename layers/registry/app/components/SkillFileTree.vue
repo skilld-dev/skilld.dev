@@ -12,6 +12,7 @@ const props = defineProps<{
   owner: string
   repo: string
   name: string
+  registryPath: string
   branch: string
   // Path inside the skill folder of the doc currently rendered in the viewer.
   // Empty string means SKILL.md (root of the skill folder).
@@ -84,6 +85,7 @@ const skillDir = computed(() => props.skillPath?.replace(/\/SKILL\.md$/, '') ?? 
       :owner="owner"
       :repo="repo"
       :name="name"
+      :registry-path="registryPath"
       :branch="branch"
       :skill-dir="skillDir"
       :active-path="activePath ?? ''"

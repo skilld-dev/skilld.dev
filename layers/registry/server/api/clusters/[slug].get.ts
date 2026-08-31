@@ -1,5 +1,6 @@
 import type { Cluster } from '../../data/clusters'
 import { getDB } from '#server/utils/db'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { CLUSTER_BY_SLUG } from '../../data/clusters'
 import { clusterPageSql } from '../../utils/cluster-membership'
 import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
@@ -24,6 +25,7 @@ interface SkillRow {
   description: string | null
   stars: number
   modified_at: number | null
+  repo_skill_count: number
 }
 
 export default defineCachedEventHandler(async (event) => {
@@ -58,7 +60,7 @@ export default defineCachedEventHandler(async (event) => {
 
   // Membership is abstract-first with a capped backfill; see cluster-membership.
   const statements = clusterPageSql(
-    'owner, name, repo, display_name, description, stars, modified_at, is_abstract',
+    'owner, name, repo, display_name, description, stars, modified_at, repo_skill_count, is_abstract',
     cluster.categories,
     pinnedSkills,
     { limit, offset },
@@ -82,6 +84,12 @@ export default defineCachedEventHandler(async (event) => {
     stars: s.stars,
     modifiedAt: s.modified_at,
     slug: `${s.owner}/${s.repo}/${s.name}`,
+    registryPath: canonicalRepoSkillPath({
+      owner: s.owner,
+      repo: s.repo,
+      name: s.name,
+      repoSkillCount: s.repo_skill_count,
+    }),
   }))
   const items = page === 1
     ? curateClusterSkills(rankedItems, cluster.pinnedExamples)

@@ -10,6 +10,7 @@ interface ClusterSkill {
   stars: number
   modifiedAt: number | null
   slug: string
+  registryPath: string
 }
 
 interface ClusterDetailResponse {
@@ -265,7 +266,7 @@ defineOgImage('Page.takumi', {
           <ol class="editorial-ledger list-none p-0">
             <li v-for="(skill, index) in leadingSkills" :key="skill.slug">
               <NuxtLink
-                :to="repoSkillPath(skill.owner, skill.repo, skill.name)"
+                :to="skill.registryPath"
                 class="cluster-sequence-row group"
               >
                 <span class="cluster-sequence-number">{{ String(index + 1).padStart(2, '0') }}</span>

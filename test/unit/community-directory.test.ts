@@ -114,6 +114,7 @@ describe('community directory', () => {
         description: null,
         stars: 900,
         modifiedAt: 200,
+        registryPath: '/gh/CREATOR/popular',
       },
     })
   })

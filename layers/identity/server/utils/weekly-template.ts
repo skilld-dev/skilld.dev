@@ -12,6 +12,7 @@
  */
 
 import type { WeeklyPlacement } from './weekly-tracking'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { trackedUrl } from './weekly-tracking'
 
 export type WeeklyTheme = 'light' | 'dark'
@@ -114,6 +115,7 @@ export interface WeeklyTrendingSkill {
   canonicalName: string
   description: string | null
   stars: number | null
+  repoSkillCount?: number
   /** Exact current SKILL.md source. */
   sourceUrl?: string
   reason: WeeklyReason
@@ -129,6 +131,7 @@ export interface WeeklyLikedChange {
   changeCount: number
   /** Unix seconds of the most recent change. */
   changedAt: number
+  repoSkillCount?: number
   /**
    * Commit subjects from the window, newest first.
    *
@@ -364,8 +367,16 @@ function avatarUrl(owner: string): string {
   return `https://github.com/${encodeURIComponent(owner)}.png?size=80`
 }
 
-function skillUrl(siteUrl: string, owner: string, repo: string, name: string): string {
-  return `${siteUrl}/gh/${owner}/${repo}/${encodeURIComponent(name)}`
+function skillUrl(
+  siteUrl: string,
+  skill: { owner: string, repo: string, name: string, repoSkillCount?: number },
+): string {
+  return `${siteUrl}${canonicalRepoSkillPath({
+    owner: skill.owner,
+    repo: skill.repo,
+    name: skill.name,
+    repoSkillCount: skill.repoSkillCount ?? 0,
+  })}`
 }
 
 function sectionLabel(t: Tokens, text: string): string {
@@ -619,7 +630,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
   const likedRows = input.likedChanges.map((change) => {
     const subjects = commitSubjects(change.commitMessages)
-    const sourceUrl = change.sourceUrl ?? skillUrl(input.siteUrl, change.owner, change.repo, change.name)
+    const sourceUrl = change.sourceUrl ?? skillUrl(input.siteUrl, change)
     return row(t, {
       owner: change.owner,
       title: change.name,
@@ -663,7 +674,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
     : ''
 
   const trendingRows = input.trending.map((skill) => {
-    const sourceUrl = skill.sourceUrl ?? skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName)
+    const sourceUrl = skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug })
     return trendingRow(t, {
       owner: skill.owner,
       title: skill.canonicalName,
@@ -775,7 +786,7 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
       lines.push(`  ${change.owner}/${change.repo}, ${change.changeCount} ${plural(change.changeCount, 'change', 'changes')}, ${relativeDay(change.changedAt, now)}`)
       if (change.changeUrl)
         lines.push(`  Change: ${change.changeUrl}`)
-      lines.push(`  Source: ${change.sourceUrl ?? skillUrl(input.siteUrl, change.owner, change.repo, change.name)}`)
+      lines.push(`  Source: ${change.sourceUrl ?? skillUrl(input.siteUrl, change)}`)
       lines.push('')
     }
     if (input.likedOverflow)
@@ -792,7 +803,7 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
       lines.push(`  ${trendingMeta(skill, now)}`)
       if (skill.evidence)
         lines.push(`  “${trimQuote(skill.evidence.text)}” from @${skill.evidence.authorHandle}: ${skill.evidence.url}`)
-      lines.push(`  Source: ${skill.sourceUrl ?? skillUrl(input.siteUrl, skill.owner, skill.repo, skill.canonicalName)}`)
+      lines.push(`  Source: ${skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug })}`)
       lines.push('')
     }
     if (!input.trackedCount)
