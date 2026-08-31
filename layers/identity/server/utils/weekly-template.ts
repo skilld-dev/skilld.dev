@@ -438,7 +438,7 @@ function trendingRow(t: Tokens, options: {
   evidence: WeeklyEvidence | null
 }): string {
   const evidence = options.evidence
-    ? ` · <a href="${esc(options.evidence.url)}" style="display:inline-block;padding:12px 0;margin:-12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">@${esc(options.evidence.authorHandle)} ${options.evidence.platform === 'x' ? 'on X' : 'on Bluesky'}</a>`
+    ? ` · <a href="${esc(options.evidence.url)}" style="color:${t.muted};text-decoration:underline;text-underline-offset:3px;">@${esc(options.evidence.authorHandle)} ${options.evidence.platform === 'x' ? 'on X' : 'on Bluesky'}</a>`
     : ''
   return `
 <tr><td class="weekly-border" style="padding:10px 0;border-top:1px solid ${t.border};">
