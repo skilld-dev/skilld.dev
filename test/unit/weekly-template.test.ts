@@ -517,6 +517,22 @@ describe('weekly theme', () => {
     expect(card).not.toContain('padding:11px 0;margin:-11px 0')
   })
 
+  it('keeps inline evidence links compact when a mail client ignores negative margins', () => {
+    const { card } = renderWeekly(input({
+      edition: 'weekly',
+      trending: [trending({
+        evidence: {
+          url: 'https://x.com/antfu/status/1',
+          authorHandle: 'antfu7',
+          text: 'Vitest is trending.',
+          platform: 'x',
+        },
+      })],
+    }))
+
+    expect(card).not.toContain('margin:-')
+  })
+
   it('softens dividers when a mail client forces dark mode', () => {
     const { html } = renderWeekly(input({ edition: 'weekly', trending: [trending()] }))
 
