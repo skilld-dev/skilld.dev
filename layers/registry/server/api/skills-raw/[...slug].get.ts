@@ -4,6 +4,7 @@ import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamText } from '../../utils/upstream-text'
+import { fetchUpstreamTree } from '../../utils/upstream-tree'
 
 const RAW_CACHE_TTL = 60 * 5
 const RAW_MISSING_TTL = 60
@@ -21,22 +22,6 @@ interface SkillSourceRow {
   source_owner: string | null
   source_repo: string | null
   source_resolved: number | null
-}
-
-/**
- * ofetch rejections carry the HTTP status, but the type loses it. Null means
- * the request never answered. That is an outage, never a deletion.
- */
-function fetchErrorStatus(error: unknown): number | null {
-  if (!error || typeof error !== 'object')
-    return null
-  const status = (error as { status?: unknown }).status
-  if (typeof status === 'number')
-    return status
-  const response = (error as { response?: { status?: unknown } }).response
-  if (response && typeof response.status === 'number')
-    return response.status
-  return null
 }
 
 export default defineApiHandler({
@@ -96,21 +81,7 @@ export default defineApiHandler({
       return cached.body
     }
 
-    const treeResult = await $fetch<{ files?: { path: string }[] }>(
-      `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
-    ).then(
-      response => ({ _tag: 'available' as const, files: response.files ?? [] }),
-      (error: unknown) => {
-        // A 404 means the repository or the branch is gone. Both are
-        // permanent at this URL. Anything else is ungh failing to answer.
-        if (fetchErrorStatus(error) === 404) {
-          emitOperationalEvent(createWideEvent({ operation: 'skill-raw-tree-fetch', outcome: 'gone' }))
-          return { _tag: 'gone' as const }
-        }
-        emitOperationalEvent(createWideEvent({ operation: 'skill-raw-tree-fetch', outcome: 'failed' }))
-        return { _tag: 'unavailable' as const }
-      },
-    )
+    const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-raw-tree-fetch' })
 
     if (treeResult._tag === 'gone') {
       // The registry has not recorded this deletion yet. The next sync flips

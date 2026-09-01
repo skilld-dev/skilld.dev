@@ -25,7 +25,7 @@ beforeEach(() => {
   }
 
   vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
-  vi.stubGlobal('getRouterParam', () => 'owner/repo/skill')
+  vi.stubGlobal('getRouterParam', () => 'owner/repo/skill/references/guide.md')
   vi.stubGlobal('getUserSession', () => Promise.resolve({ user: { id: 1, login: 'tester' } }))
   vi.stubGlobal('useStorage', () => cache)
   vi.stubGlobal('setHeader', (_event: H3Event, name: string, value: string | number) => {
@@ -40,11 +40,11 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('skill-files tree outage', () => {
-  it('returns a retryable error without caching an empty file list', async () => {
+describe('skill-asset tree outage', () => {
+  it('returns a retryable error without caching the asset as missing', async () => {
     vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(new Error('tree unavailable')))
 
-    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+    const handler = (await import('../../layers/registry/server/api/skill-asset/[...slug].get')).default
 
     await expect(handler(event())).rejects.toMatchObject({ statusCode: 503 })
 
@@ -53,13 +53,13 @@ describe('skill-files tree outage', () => {
   })
 })
 
-describe('skill-files source gone', () => {
+describe('skill-asset source gone', () => {
   it('answers 410 from the registry verdict without an upstream call', async () => {
     fixture.raw.prepare(`UPDATE skills SET source_resolved = 0 WHERE owner = 'owner' AND repo = 'repo' AND name = 'skill'`).run()
     const fetchMock = vi.fn()
     vi.stubGlobal('$fetch', fetchMock)
 
-    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+    const handler = (await import('../../layers/registry/server/api/skill-asset/[...slug].get')).default
 
     await expect(handler(event())).rejects.toMatchObject({ statusCode: 410 })
 
@@ -68,13 +68,12 @@ describe('skill-files source gone', () => {
   })
 
   it('classifies an upstream 404 tree as gone rather than an outage', async () => {
-    // ungh answers 404 for a deleted repository. ofetch carries the status on
-    // the rejection. A 503 with retry-after tells an agent to retry a
-    // permanent condition, which is what raised SKILLD-11.
+    // ungh answers 404 for a deleted repository. A 503 with retry-after tells
+    // an agent to retry a permanent condition, which is what raised SKILLD-11.
     const error = Object.assign(new Error('404 Not Found'), { status: 404, statusCode: 404 })
     vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(error))
 
-    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+    const handler = (await import('../../layers/registry/server/api/skill-asset/[...slug].get')).default
 
     await expect(handler(event())).rejects.toMatchObject({ statusCode: 410 })
 
