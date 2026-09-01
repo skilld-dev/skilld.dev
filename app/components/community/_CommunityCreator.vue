@@ -119,7 +119,7 @@ function formatStars(stars: number): string {
       >
         <span class="flex items-center justify-between gap-4">
           <span class="font-mono text-sm uppercase tracking-widest text-muted">
-            Most popular skill
+            Most starred skill
           </span>
           <UIcon
             name="i-lucide-arrow-up-right"

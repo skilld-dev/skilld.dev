@@ -309,7 +309,7 @@ defineOgImage('Page.takumi', {
             Browse the rest.
           </h2>
           <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted">
-            These all target the same kind of work. We show install counts for context.
+            These all target the same kind of work.
           </p>
         </div>
         <p class="data-label">

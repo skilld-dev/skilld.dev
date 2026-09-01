@@ -4,6 +4,7 @@ import {
   installCommandFor,
   parseInstallRef,
   repoInstallCommand,
+  skillInstallCommand,
   skillRunCommand,
 } from './mcp-install-command'
 
@@ -197,7 +198,7 @@ const searchSkills: McpTool = {
           official: s.official,
           url: `${SITE}${s.registryPath}`,
           runCommand: skillRunCommand(s.owner, s.repo, s.name),
-          installCommand: repoInstallCommand(s.owner, s.repo, s.name),
+          installCommand: skillInstallCommand(s.owner, s.repo, s.name),
         })),
       })
     }
@@ -250,7 +251,7 @@ const getSkill: McpTool = {
         },
         url: `${SITE}${s.registryPath}`,
         runCommand: skillRunCommand(s.owner, s.repo, s.name),
-        installCommand: repoInstallCommand(s.owner, s.repo, s.name),
+        installCommand: skillInstallCommand(s.owner, s.repo, s.name),
         provenance: {
           author: s.provenance.owner,
           sourceRepoUrl: s.githubUrl,
@@ -326,7 +327,7 @@ const getCollection: McpTool = {
           reason: truncate(s.reason, 1_000),
           url: `${SITE}${s.registryPath}`,
           runCommand: s.name ? skillRunCommand(s.owner, s.repo, s.name) : null,
-          installCommand: repoInstallCommand(s.owner, s.repo, s.name ?? undefined),
+          installCommand: s.name ? skillInstallCommand(s.owner, s.repo, s.name) : repoInstallCommand(s.owner, s.repo),
         })),
       })
     }

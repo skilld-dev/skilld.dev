@@ -119,14 +119,14 @@ useSeoMeta({
     if (!data.value)
       return `Agent skills published by @${ownerParam.value} on skilld.`
     const tagPart = fingerprint.value ? ` ${fingerprint.value}.` : ''
-    const verb = isUser.value ? 'curated by' : 'published by'
+    const verb = isUser.value ? 'written by' : 'published by'
     return `${data.value.totalSkills} agent ${data.value.totalSkills === 1 ? 'skill' : 'skills'} ${verb} ${data.value.displayName} on skilld.${tagPart}`
   },
   ogTitle: () => data.value?.displayName ? `${data.value.displayName} on skilld` : `@${ownerParam.value} on skilld`,
   ogDescription: () => {
     if (!data.value)
       return ''
-    const verb = isUser.value ? 'curated by' : 'published by'
+    const verb = isUser.value ? 'written by' : 'published by'
     return `${data.value.totalSkills} agent skills ${verb} ${data.value.displayName}.`
   },
   ogUrl: canonicalUrl,
@@ -175,7 +175,7 @@ useSchemaOrg(computed(() => {
         'contentUrl': d.avatar,
       },
       sameAs,
-      'description': d.description ?? `Agent skills ${isUser.value ? 'curated by' : 'published by'} ${d.displayName} on skilld.`,
+      'description': d.description ?? `Agent skills ${isUser.value ? 'written by' : 'published by'} ${d.displayName} on skilld.`,
     },
     {
       '@type': 'CollectionPage' as const,
@@ -337,14 +337,14 @@ useSchemaOrg(computed(() => {
             <span
               v-if="syncStale"
               class="data-label inline-flex items-center gap-1 text-amber-500"
-              :title="data.lastSyncedAt ? `Last synced ${new Date(data.lastSyncedAt * 1000).toLocaleString()}` : 'Never synced'"
+              :title="data.lastSyncedAt ? `Last GitHub check ${new Date(data.lastSyncedAt * 1000).toLocaleString()}` : 'No GitHub check yet'"
             >
               <UIcon
                 name="i-lucide-clock-alert"
                 class="size-3"
                 aria-hidden="true"
               />
-              <span v-if="!data.lastSyncedAt">Sync pending</span>
+              <span v-if="!data.lastSyncedAt">GitHub check pending</span>
               <span v-else>
                 Synced
                 <NuxtTime
@@ -401,7 +401,7 @@ useSchemaOrg(computed(() => {
             </p>
             <div class="mt-1 max-w-xl space-y-1 text-sm leading-relaxed text-muted">
               <p>Sign in as @{{ data.owner }} with GitHub.</p>
-              <p>Your indexed skills will appear in Community.</p>
+              <p>Your indexed skills will appear on your curator profile.</p>
               <p>skilld will also check your public repositories for other <code>SKILL.md</code> files.</p>
             </div>
             <UButton
@@ -428,13 +428,13 @@ useSchemaOrg(computed(() => {
               This is your skill profile
             </p>
             <div class="mt-1 max-w-xl space-y-1 text-sm leading-relaxed text-muted">
-              <p>Your indexed skills appear on your Community profile.</p>
+              <p>Your indexed skills appear on your curator profile.</p>
               <p>skilld also checks your public repositories for other <code>SKILL.md</code> files.</p>
             </div>
             <UButton
               :to="`/@${data.owner}`"
               icon="i-lucide-user-round"
-              label="View Community profile"
+              label="View curator profile"
               color="neutral"
               variant="outline"
               size="md"
@@ -533,7 +533,7 @@ useSchemaOrg(computed(() => {
 
       <p class="mx-auto max-w-5xl px-4 sm:px-6 pb-8 text-xs text-muted">
         <span class="sr-only">{{ headline }}.</span>
-        Synced <span data-allow-mismatch="text">{{ syncedAgo }}</span>
+        Checked GitHub <span data-allow-mismatch="text">{{ syncedAgo }}</span>
       </p>
     </template>
   </div>

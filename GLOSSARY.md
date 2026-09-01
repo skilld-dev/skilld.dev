@@ -1,0 +1,159 @@
+# Glossary
+
+Canonical vocabulary for skilld.dev. Every user-visible string, public API name, doc heading, and route segment uses these terms and no synonyms.
+
+Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). That file wins for CLI commands, protocol types, and source status values. Voice and tone live in `.claude/context/brand-guidelines.md`.
+
+## Map
+
+| Term | Owner | Relation | Customer word |
+| --- | --- | --- | --- |
+| Skill | GitHub Repository, `layers/registry` | Repository 1—N Skill | "skill" |
+| Agent | the user's tool | Agent 1—N Agent target | "your agent" |
+| Repository | GitHub | Repository 1—N Skill | "repository" |
+| Artifact | skilld.dev API | Skill commit 1—1 Artifact | not shown |
+| source status | lockfile, skilld.dev API | Artifact 1—1 source status | "Verified", "Unverified", "Local" |
+| run | skilld CLI | Skill 1—1 run command | "run" |
+| install | skilld CLI | Skill 1—1 install command | "install" |
+| lockfile | skilld CLI | project 1—1 lockfile | "lockfile" |
+| curator | `layers/collections`, `/@login` | curator 1—N collection | "curator" |
+| collection | `layers/collections`, `/@login/slug` | collection N—N Skill | "collection" |
+| watch | `layers/identity` | account N—N Repository or collection | "watch" |
+| digest | `layers/identity` email | account 1—1 digest schedule | "digest" |
+| trending | `/skills/trending`, ADR-0004 | Repository 1—N social mention | "trending" |
+| registry | skilld.dev | one | "skilld" |
+| provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
+
+Collisions
+
+- "Verified" names a source status only. Never a safety claim, never a sync time.
+- "curator" and "author" both surface on profile pages. A curator assembles collections. An author writes a Skill.
+
+## Terms
+
+### Skill
+
+**Is:** a directory with a `SKILL.md` that follows the Agent Skills specification, written by a maintainer in their own Repository.
+
+**Never:** prompt, plugin, extension, module, guide.
+
+**Casing:** `Skill` in new product prose. Existing UI uses lowercase `skill`; see Open questions.
+
+### Agent
+
+**Is:** the coding tool that reads Skills: Claude Code, Codex, Cursor, Gemini CLI, and the rest of the CLI's targets.
+
+**Never:** client, tool, editor, IDE.
+
+**Casing:** `Agent` in prose, "your agent" in UI.
+
+### Repository
+
+**Is:** a GitHub repository that contains one or more Skills. The source of truth.
+
+**Never:** package host, registry entry. `repo` stays in identifiers and existing UI labels.
+
+### Artifact
+
+**Is:** immutable Skill bytes resolved from one exact source commit, delivered by the skilld.dev API to the skilld CLI.
+
+**Never:** hosted Skill, registry package, upload.
+
+### source status
+
+**Is:** the recorded provenance state for an installed Skill: `verified`, `local`, or `unverified`.
+
+**Use for:** the receipts panel and lockfile values. "Verified" means the Artifact attestation checked out.
+
+**Never:** safety state, trust score, "verified safe", a sync timestamp.
+
+### run
+
+**Is:** `skilld run`. The Agent reads the Skill for the current session and nothing lands on disk. The default command on every Skill surface.
+
+**Never:** try, preview, use once, ephemeral.
+
+### install
+
+**Is:** `skilld install`. Skill files land in the project and the lockfile records them. The opt-in second step.
+
+**Never:** add, download.
+
+### lockfile
+
+**Is:** the file the skilld CLI writes to record installed Skills, their commits, and source status.
+
+**Never:** manifest, registry file.
+
+### curator
+
+**Is:** a developer who assembles one or more collections. Identity is their GitHub login at `/@login`.
+
+**Use for:** collection pages, the `/community` directory, "Browse curators".
+
+**Never:** creator, publisher (for a person), "the Community" as a proper noun.
+
+### collection
+
+**Is:** a curated set of Skills assembled by a curator, with a reason per Skill, at `/@login/slug`.
+
+**Never:** preset, pack, bundle, kit, stack (in UI).
+
+### watch
+
+**Is:** subscribing to a Repository or collection so the digest reports its changes. The Loop 2 verb.
+
+**Never:** follow, star, subscribe, sync.
+
+### digest
+
+**Is:** the email that summarises changes to watched Repositories. Weekly by default; daily and off are options.
+
+**Never:** newsletter, notification, alert. "the weekly" is the separate opt-out email.
+
+### trending
+
+**Is:** Skills ranked by devs talking about them on X and Bluesky (ADR-0004). Never by installs.
+
+**Never:** popular, hot, top, leaderboard.
+
+### registry
+
+**Is:** skilld.dev, the curated index of Skills and the discovery MCP server.
+
+**Never:** marketplace, store, hub, catalog (in UI).
+
+### provenance
+
+**Is:** who wrote a Skill and the exact `SKILL.md` in their Repository. The quality signal.
+
+**Use for:** "written by {user}" on user pages, "published by {org}" on organization pages, source links.
+
+**Never:** trust score, verification tier, "curated by" for an author.
+
+## Banned
+
+| Never | Use instead | Why |
+| --- | --- | --- |
+| follow | watch | One Loop 2 verb |
+| sync (user-facing) | import (stars), "Checked GitHub {ago}" (freshness) | Internal jargon; say what happened |
+| use once, try, preview | run | One name for the transient path |
+| add (CLI verb) | run or install | v2 grammar |
+| popular, install count | starred, stars | Installs never rank or trust |
+| verified safe, secure, scanned | name the exact check | An attestation cannot guarantee safety |
+| people (audience) | devs | Brand guidelines |
+| Community (proper noun) | curators, `/community` route | Unglossed; the route stays |
+| named, naming (user copy) | talked about, mentioned | Internal word for the social route |
+| AI-powered | (cut) | skilld is not an AI product |
+
+## Open questions
+
+Naming calls this file does not settle. Resolve one, fold the answer in, delete the entry.
+
+1. **`Skill` or `skill` in site UI?**
+   The CLI glossary and new v3 copy use `Skill`. Most existing site UI, brand-guidelines.md, and meta descriptions use lowercase `skill`.
+   - Recase the site to `Skill`, one sweep, touches hundreds of strings.
+   - Keep lowercase on the site, record the split as deliberate.
+2. **`repo` or `repository` in site UI?**
+   The CLI glossary bans `repo`. The site uses `repo` in labels, props, and routes (`/gh/owner/repo`).
+   - Ban in new prose only, keep identifiers and routes.

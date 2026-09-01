@@ -30,7 +30,7 @@ const ownerCount = computed(() => new Set(skills.value.map(s => s.owner)).size)
 // admission, resolves to a readable SKILL.md in its author's repo, and holds
 // official or trusted-curator standing. The page leads with those criteria
 // rather than asserting a ranking and hoping.
-const title = 'Best Agent Skills, Reviewed and Ranked'
+const title = 'Skills worth installing, reviewed'
 const description = computed(() =>
   `${total.value} agent skills that passed review, one per author, each from a maintainer you can name. Works with Claude Code, Cursor, and Codex. Read the SKILL.md in the author's own repo before you install.`,
 )

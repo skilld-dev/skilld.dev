@@ -16,7 +16,7 @@ Skills are knowledge, not packages, and knowledge has an author. A skill is wort
 
 ### Two loops
 
-- **Loop 1 — Activation:** anonymous discovery → install. Land, copy, run. No friction.
+- **Loop 1 — Activation:** anonymous discovery → run. Land, copy, run. No friction. Install is the opt-in second step.
 - **Loop 2 — Retention:** sign in with GitHub, watch your stack, get a weekly digest of what changed.
 
 ## Positioning
@@ -25,7 +25,7 @@ Skills are knowledge, not packages, and knowledge has an author. A skill is wort
 - A curated registry of AI agent skills written by real people in their own GitHub repos
 - A provenance layer: every skill links back to the repo and the maintainer who wrote it
 - Organization-owned skills stay in the registry and stay searchable. The homepage leads with skills by identifiable people because provenance is the point, but org skills are ranked lower, not excluded
-- One install command, every agent: `npx skilld add gh:owner/repo`
+- One command, every agent: `npx skilld@beta run skilld:owner/repo/skill` to use a skill now, `npx skilld@beta install skilld:owner/repo/skill` to keep it
 - A watch-for-changes layer: sign in with GitHub, get a digest when watched repos change
 
 ### What we are not
@@ -59,16 +59,16 @@ The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gi
 | Term | Definition | Usage notes |
 |------|-----------|-------------|
 | **skill** | A SKILL.md file that gives an AI agent domain knowledge | Lowercase always. Not "plugin", "extension", or "module" |
-| **package skill** | A skill tied to a specific npm package, bootstrapped with `skilld author` and owned, edited, and published by its maintainer in their own repo | Never platform-authored; the platform publishes no skills (VISION anti-scope 1) |
+| **package skill** | A skill tied to a specific npm package, drafted with the skilld-maintained `generate-package-skill` Skill and owned, edited, and published by its maintainer in their own repo | Never platform-authored; the platform publishes no skills (VISION anti-scope 1) |
 | **guide skill** | A curation tag on skilld.dev for skills not tied to a package | Distributed as git skills, tagged for filtering in browse views |
 | **collection** | A curated bundle of skills assembled by a collection author | Not "preset", "pack", "bundle", or "kit" in UI (fine in marketing prose) |
 | **author** / **curator** | A developer who maintains one or more collections on skilld. Identity is their GitHub login. | Either word is fine; "curator" reads warmer in editorial copy, "author" in product UI |
 | **registry** | skilld.dev, the central hub for curated agent skills | Also hosts the MCP server |
-| **install** | Adding a skill or collection to your agent's configuration | Not "download". `skilld add` is the canonical CLI verb |
+| **run** | Handing the agent a skill for the current session. `skilld run` prints the skill and writes no file | The default verb. Every skill surface leads with the run command. Not "try", "preview", "use once", or "ephemeral" |
+| **install** | Adding a skill or collection to your agent's configuration as local files | Not "download", not "add". `skilld install` is the opt-in second step, for a skill worth keeping in every session |
 | **agent** | The coding tool that reads skills: Claude Code, Codex, Cursor, Gemini CLI, and the rest of the CLI's targets | Not "client", "tool", "editor", or "IDE". Say "your agent" in UI; name a specific agent only inside the setup picker |
 | **project install** | Installing into the current repository, the default | UI label: "Project". Not "local" |
 | **global install** | Installing into the agent's home directory, so every project sees the skill | UI label: "Global". Not "system-wide" |
-| **use once** | Pasting a prompt that points the agent at the published SKILL.md, so it reads and follows the skill without writing files | UI label: "Use once". Not "try", "preview", or "ephemeral". Only offered where a public markdown URL exists |
 | **watch** | Subscribing to a repo or collection so you receive digest emails when it changes | The Loop 2 verb. Not "follow", not "star", not "subscribe" |
 | **digest** | Periodic email summarizing changes to your watched repos | Weekly default; daily and off are options |
 | **weekly** | The one email everyone gets: skills you liked that changed, plus what trended | Lowercase, "the weekly". Not "newsletter", "roundup", or "trending digest". Opt-out, on by default. Sits beside **digest**, which is the separate watched-repo email |
@@ -76,7 +76,7 @@ The pitch: Context7 gives you docs. skills.sh gives you a leaderboard. Skilld gi
 ### Feature naming
 - Name features descriptively, not cleverly. "Stack selector" not "StackMatch"
 - No trademark-style capitalization for features (not "Smart Collections")
-- CLI commands use lowercase: `skilld add`, `skilld update`, `skilld author`
+- CLI commands use lowercase: `skilld run`, `skilld install`, `skilld update`
 
 ## Voice & Tone
 
