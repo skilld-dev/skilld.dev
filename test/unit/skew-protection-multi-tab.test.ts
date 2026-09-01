@@ -35,13 +35,17 @@ const state = vi.hoisted(() => {
   return { hooks, channels, StubChannel }
 })
 
-vi.mock('nuxt/app', () => {
+// Partial mock: other Nuxt plugins in the test app graph (nuxt-use-query's
+// payload plugin, for one) import their own `nuxt/app` exports, so replacing
+// the whole module breaks them.
+vi.mock(import('nuxt/app'), async (importOriginal) => {
   function register(name: string, handler: (payload?: unknown) => void) {
     const list = state.hooks.get(name) ?? []
     list.push(handler)
     state.hooks.set(name, list)
   }
   return {
+    ...(await importOriginal()),
     defineNuxtPlugin: (plugin: unknown) => plugin,
     reloadNuxtApp: () => {},
     useNuxtApp: () => ({
