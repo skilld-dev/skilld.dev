@@ -166,6 +166,26 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('badgeReadmeSnippet has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('BadgeReadmeSnippet'),
+      {
+        attachTo: container,
+        props: {
+          owner: 'antfu',
+          repo: 'skills',
+          name: 'vite',
+          registryPath: '/gh/antfu/skills/vite',
+        },
+      },
+    )
+
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('likeButton has no violations when signed out', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(

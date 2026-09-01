@@ -696,6 +696,10 @@ useHead(computed(() => ({
             </div>
           </div>
         </section>
+
+        <USeparator class="my-8" />
+
+        <BadgeReadmeSnippet v-bind="repositoryBadgeInput" />
       </template>
     </section>
   </div>
