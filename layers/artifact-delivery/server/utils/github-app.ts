@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { decryptToken, encryptToken } from '#layers/identity/server/utils/crypto'
 import { base64ToBytes, bytesToBase64Url } from './encoding'
+import { fetchNoRedirect } from './fetch-no-redirect'
 
 const GITHUB_API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2026-03-10'
@@ -166,7 +167,7 @@ export async function exchangeGithubAppUserCode(
   code: string,
   dependencies: GithubAppUserTokenDependencies,
 ): Promise<GithubAppUserAuthorizationResult> {
-  const response = await dependencies.fetch('https://github.com/login/oauth/access_token', {
+  const fetched = await fetchNoRedirect(dependencies.fetch, 'https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
@@ -178,9 +179,11 @@ export async function exchangeGithubAppUserCode(
       client_secret: dependencies.clientSecret,
       code,
     }).toString(),
-    redirect: 'error',
     signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
   })
+  if (fetched._tag === 'unexpected-redirect')
+    throw new Error(`GitHub App authorization redirected ${fetched.status}`)
+  const response = fetched.response
   if (response.status === 400 || response.status === 401)
     return { _tag: 'rejected' }
   if (!response.ok)
@@ -191,16 +194,18 @@ export async function exchangeGithubAppUserCode(
   const tokens = refreshedUserTokenSchema.safeParse(body)
   if (!tokens.success)
     throw new Error('GitHub App authorization returned an invalid response')
-  const identityResponse = await dependencies.fetch(`${GITHUB_API}/user`, {
+  const identityFetched = await fetchNoRedirect(dependencies.fetch, `${GITHUB_API}/user`, {
     headers: {
       'Accept': 'application/vnd.github+json',
       'Authorization': `Bearer ${tokens.data.access_token}`,
       'User-Agent': 'skilld.dev',
       'X-GitHub-Api-Version': GITHUB_API_VERSION,
     },
-    redirect: 'error',
     signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
   })
+  if (identityFetched._tag === 'unexpected-redirect')
+    throw new Error(`GitHub App identity request redirected ${identityFetched.status}`)
+  const identityResponse = identityFetched.response
   if (identityResponse.status === 401 || identityResponse.status === 403)
     return { _tag: 'rejected' }
   if (!identityResponse.ok)
@@ -286,7 +291,7 @@ export async function loadAccountGithubAppUserToken(
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
   })
-  const response = await dependencies.fetch('https://github.com/login/oauth/access_token', {
+  const fetched = await fetchNoRedirect(dependencies.fetch, 'https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
@@ -294,9 +299,11 @@ export async function loadAccountGithubAppUserToken(
       'User-Agent': 'skilld.dev',
     },
     body: body.toString(),
-    redirect: 'error',
     signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
   })
+  if (fetched._tag === 'unexpected-redirect')
+    throw new Error(`GitHub App token refresh redirected ${fetched.status}`)
+  const response = fetched.response
   if (response.status === 400 || response.status === 401)
     return await loadRotatedGithubUserToken(db, accountId, row, dependencies)
   if (!response.ok)
@@ -380,7 +387,7 @@ export function createGithubAppClient(config: GithubAppConfig): GithubAppClient 
     schema: z.ZodType<T>,
     init: { method?: 'GET' | 'POST', body?: unknown } = {},
   ): Promise<{ _tag: 'ok', value: T } | { _tag: 'not-found' }> => {
-    const response = await config.fetch(`${GITHUB_API}${path}`, {
+    const fetched = await fetchNoRedirect(config.fetch, `${GITHUB_API}${path}`, {
       method: init.method ?? 'GET',
       headers: {
         'Accept': 'application/vnd.github+json',
@@ -390,9 +397,11 @@ export function createGithubAppClient(config: GithubAppConfig): GithubAppClient 
         'X-GitHub-Api-Version': GITHUB_API_VERSION,
       },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
-      redirect: 'error',
       signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
     })
+    if (fetched._tag === 'unexpected-redirect')
+      throw new Error(`GitHub App request redirected ${fetched.status}`)
+    const response = fetched.response
     if (response.status === 401 || response.status === 403 || response.status === 404)
       return { _tag: 'not-found' }
     if (!response.ok)

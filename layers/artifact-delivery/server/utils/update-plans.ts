@@ -7,6 +7,7 @@ import {
   comparisonRelationMatches,
   relationMatchesDirectionalCounts,
 } from '../schemas/update-plans'
+import { fetchNoRedirect } from './fetch-no-redirect'
 
 const GITHUB_API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2026-03-10'
@@ -407,17 +408,17 @@ async function requestComparisonPage(
   if (etag)
     headers.set('If-None-Match', etag)
   const url = `${GITHUB_API}/repos/${encodeURIComponent(task.owner)}/${encodeURIComponent(task.repository)}/compare/${task.input.baseSha}...${task.input.headSha}?per_page=${COMMITS_PER_PAGE}&page=${page}`
-  const responseOutcome = await dependencies.fetch(url, {
+  const responseOutcome = await fetchNoRedirect(dependencies.fetch, url, {
     headers,
-    redirect: 'error',
     signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
-  }).then(
-    response => ({ _tag: 'response' as const, response }),
-    () => ({ _tag: 'failed' as const }),
-  )
+  }).catch(() => ({ _tag: 'failed' as const }))
   if (responseOutcome._tag === 'failed') {
     dependencies.reportFailure('github-compare')
     return { _tag: 'provider_failure', status: null }
+  }
+  if (responseOutcome._tag === 'unexpected-redirect') {
+    dependencies.reportFailure('github-compare')
+    return { _tag: 'provider_failure', status: responseOutcome.status }
   }
 
   const response = responseOutcome.response
