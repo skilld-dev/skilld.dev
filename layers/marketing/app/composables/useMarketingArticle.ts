@@ -1,5 +1,5 @@
 export interface MarketingArticleInput {
-  collection: 'learn' | 'pages'
+  collection: 'learn' | 'pages' | 'agents'
   /** Content path inside the collection, for example `/learn/private-repositories`. */
   path: string
   /** Public route the page canonicalises to. */
