@@ -5,11 +5,21 @@
  * `crates/skilld-core/src/target.rs`. The site and the CLI share no code, so
  * update both when a target changes. Only targets with measured search demand
  * (`skilld-seo-opportunities.md`) appear here; the CLI supports more.
+ *
+ * A page is published only when the CLI on the `beta` npm tag accepts its
+ * `--agent` value. `PUBLISHED_CLI_VERSION` names that release; bump it after
+ * each CLI release. `scripts/check-published-cli-grammar.ts` checks every
+ * published page against the real `install --help` before a deploy.
  */
+
+/** The skilld release on the `beta` npm tag whose `--agent` values these pages print. */
+export const PUBLISHED_CLI_VERSION = '3.0.0-beta.3'
 
 export interface AgentPage {
   /** CLI `--agent` value and the route segment. */
   id: string
+  /** First skilld release whose `--agent` accepts `id`. */
+  cliSince: string
   /** Display name, matching the CLI's `displayName`. */
   label: string
   /** One line for the `/agents` index. */
@@ -29,6 +39,7 @@ export interface AgentPage {
 export const AGENT_PAGES: readonly AgentPage[] = [
   {
     id: 'claude-code',
+    cliSince: '3.0.0-beta.1',
     label: 'Claude Code',
     summary: 'Terminal Agent from Anthropic. Skills load at session start or by name.',
     projectSkillsDir: '.claude/skills',
@@ -39,6 +50,7 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
   {
     id: 'codex',
+    cliSince: '3.0.0-beta.1',
     label: 'Codex',
     summary: 'Terminal and editor Agent from OpenAI. Shares its Skills directory with Amp and Zed.',
     projectSkillsDir: '.agents/skills',
@@ -48,6 +60,7 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
   {
     id: 'cursor',
+    cliSince: '3.0.0-beta.1',
     label: 'Cursor',
     summary: 'Editor Agent. Skills sit next to Rules and load on demand.',
     projectSkillsDir: '.cursor/skills',
@@ -57,6 +70,7 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
   {
     id: 'openclaw',
+    cliSince: '3.0.0-beta.4',
     label: 'OpenClaw',
     summary: 'Personal assistant Agent that runs on your own machine.',
     projectSkillsDir: 'skills',
@@ -66,6 +80,7 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
   {
     id: 'hermes',
+    cliSince: '3.0.0-beta.4',
     label: 'Hermes Agent',
     summary: 'Agent from Nous Research for long autonomous tasks.',
     projectSkillsDir: '.hermes/skills',
@@ -75,6 +90,7 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
   {
     id: 'github-copilot',
+    cliSince: '3.0.0-beta.1',
     label: 'GitHub Copilot',
     summary: 'Coding agent, CLI, and editor Agent from GitHub. Skills follow the repository.',
     projectSkillsDir: '.github/skills',
@@ -84,6 +100,7 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
   {
     id: 'gemini-cli',
+    cliSince: '3.0.0-beta.1',
     label: 'Gemini CLI',
     summary: 'Terminal Agent from Google. Check loaded Skills with /skills list.',
     projectSkillsDir: '.gemini/skills',
@@ -93,6 +110,7 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
   {
     id: 'windsurf',
+    cliSince: '3.0.0-beta.1',
     label: 'Windsurf',
     summary: 'Editor Agent with Rules, Workflows, and portable Skills.',
     projectSkillsDir: '.windsurf/skills',
@@ -102,6 +120,7 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
   {
     id: 'opencode',
+    cliSince: '3.0.0-beta.1',
     label: 'OpenCode',
     summary: 'Open-source terminal Agent. Global Skills follow XDG_CONFIG_HOME.',
     projectSkillsDir: '.opencode/skills',
@@ -112,8 +131,60 @@ export const AGENT_PAGES: readonly AgentPage[] = [
   },
 ]
 
-export function agentPageById(id: string): AgentPage | undefined {
-  return AGENT_PAGES.find(page => page.id === id)
+/**
+ * Order two skilld versions of the form `MAJOR.MINOR.PATCH[-PRE.N]`.
+ * A release without a prerelease tag sorts after one with it.
+ */
+export function compareCliVersions(a: string, b: string): number {
+  const [aCore, aPre] = a.split('-', 2) as [string, string?]
+  const [bCore, bPre] = b.split('-', 2) as [string, string?]
+  const aParts = aCore.split('.').map(Number)
+  const bParts = bCore.split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    const diff = (aParts[i] ?? 0) - (bParts[i] ?? 0)
+    if (diff !== 0)
+      return diff
+  }
+  if (aPre === bPre)
+    return 0
+  if (aPre === undefined)
+    return 1
+  if (bPre === undefined)
+    return -1
+  const aIds = aPre.split('.')
+  const bIds = bPre.split('.')
+  for (let i = 0; i < Math.max(aIds.length, bIds.length); i++) {
+    const x = aIds[i]
+    const y = bIds[i]
+    if (x === y)
+      continue
+    if (x === undefined)
+      return -1
+    if (y === undefined)
+      return 1
+    const xn = Number(x)
+    const yn = Number(y)
+    if (!Number.isNaN(xn) && !Number.isNaN(yn))
+      return xn - yn
+    return x < y ? -1 : 1
+  }
+  return 0
+}
+
+/** Pages whose `--agent` value the CLI at `cliVersion` accepts. */
+export function publishedAgentPages(cliVersion = PUBLISHED_CLI_VERSION): AgentPage[] {
+  return AGENT_PAGES.filter(page => compareCliVersions(page.cliSince, cliVersion) <= 0)
+}
+
+/** Route paths for pages that wait on a CLI release, so the sitemap skips them. */
+export function unpublishedAgentPaths(cliVersion = PUBLISHED_CLI_VERSION): string[] {
+  return AGENT_PAGES
+    .filter(page => compareCliVersions(page.cliSince, cliVersion) > 0)
+    .map(page => `/agents/${page.id}`)
+}
+
+export function agentPageById(id: string, cliVersion = PUBLISHED_CLI_VERSION): AgentPage | undefined {
+  return publishedAgentPages(cliVersion).find(page => page.id === id)
 }
 
 export interface AgentSkillCandidate {

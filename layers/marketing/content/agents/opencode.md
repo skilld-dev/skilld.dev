@@ -23,7 +23,7 @@ OpenCode discovers Skills at startup and loads the full file when a task matches
 npx skilld@beta install skilld:owner/repo/skill --agent opencode
 ```
 
-The Skill lands in `.opencode/skills`. Add `-g` to install to `~/.config/opencode/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `.opencode/skills`. Add `--global` to install to `~/.config/opencode/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 Start a new OpenCode session after an install.
 

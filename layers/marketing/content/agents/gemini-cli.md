@@ -23,7 +23,7 @@ Gemini CLI reads each Skill description at startup and loads the full file when 
 npx skilld@beta install skilld:owner/repo/skill --agent gemini-cli
 ```
 
-The Skill lands in `.gemini/skills`. Add `-g` to install to `~/.gemini/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `.gemini/skills`. Add `--global` to install to `~/.gemini/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 Start a new Gemini CLI session after an install. Run `/skills list` to see what it found.
 

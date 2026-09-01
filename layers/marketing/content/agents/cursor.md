@@ -23,7 +23,7 @@ Cursor lists the Skills it found under Settings, then Rules. The Agent loads a S
 npx skilld@beta install skilld:owner/repo/skill --agent cursor
 ```
 
-The Skill lands in `.cursor/skills`. Add `-g` to install to `~/.cursor/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `.cursor/skills`. Add `--global` to install to `~/.cursor/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 Restart Cursor after an install. The Skill then appears in Settings.
 

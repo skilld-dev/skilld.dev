@@ -34,6 +34,7 @@ interface ClusterDetailResponse {
 const { agent } = defineProps<{ agent: string }>()
 
 const page = agentPageById(agent)
+// Also 404 while the page waits on a CLI release; see PUBLISHED_CLI_VERSION.
 if (!page)
   throw createError({ statusCode: 404, statusMessage: 'Unknown Agent', fatal: true })
 

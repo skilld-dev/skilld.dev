@@ -23,7 +23,7 @@ Hermes reads each Skill description and loads the full file when a task matches.
 npx skilld@beta install skilld:owner/repo/skill --agent hermes
 ```
 
-The Skill lands in `.hermes/skills`. Add `-g` to install to `~/.hermes/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `.hermes/skills`. Add `--global` to install to `~/.hermes/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 ### Run a Skill without installing it
 
@@ -35,4 +35,4 @@ npx skilld@beta run skilld:owner/repo/skill
 
 ## Hermes Agent skills and the other Agents
 
-A Hermes Skill is a plain `SKILL.md` directory. Install the same Skill for Claude Code or Codex with a different `--agent` value, or pass `--agent all` to write it for every Agent skilld knows.
+A Hermes Skill is a plain `SKILL.md` directory. Install the same Skill for Claude Code or Codex with a different `--agent` value. Repeat `--agent` to write it for several Agents in one command.

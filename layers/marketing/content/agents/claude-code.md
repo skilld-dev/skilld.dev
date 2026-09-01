@@ -29,7 +29,7 @@ A Skill differs from `CLAUDE.md`. `CLAUDE.md` is always in context. A Skill load
 npx skilld@beta install skilld:owner/repo/skill --agent claude-code
 ```
 
-The Skill lands in `.claude/skills`. Add `-g` to install to `~/.claude/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `.claude/skills`. Add `--global` to install to `~/.claude/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 Start a new Claude Code session after an install. Skills load at startup.
 

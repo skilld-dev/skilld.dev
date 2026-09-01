@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { AGENT_PAGES } from '../../utils/agent-pages'
+import { publishedAgentPages } from '../../utils/agent-pages'
+
+const agents = publishedAgentPages()
 
 const title = 'Agent Skills for Claude Code, Codex, Cursor, and more'
 const description = 'How Skills work in each Agent skilld targets, with a curated list for each. The same Skill runs in every one of them.'
@@ -30,7 +32,7 @@ defineOgImage('Page.takumi', { title: 'Skills by Agent', description }, { alt: t
         Agents
       </h2>
       <ul class="editorial-ledger list-none p-0">
-        <li v-for="agent in AGENT_PAGES" :key="agent.id">
+        <li v-for="agent in agents" :key="agent.id">
           <NuxtLink
             :to="`/agents/${agent.id}`"
             class="flex min-h-11 flex-wrap items-baseline gap-x-4 gap-y-1 py-4 transition-opacity hover:opacity-70"

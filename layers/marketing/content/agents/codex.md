@@ -27,7 +27,7 @@ Codex discovers Skills at startup. It keeps each name and description in context
 npx skilld@beta install skilld:owner/repo/skill --agent codex
 ```
 
-The Skill lands in `.agents/skills`. Add `-g` to install to `~/.agents/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `.agents/skills`. Add `--global` to install to `~/.agents/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 Start a new Codex session after an install. Codex reads the directory at startup.
 

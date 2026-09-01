@@ -23,7 +23,7 @@ Copilot reads each Skill description at startup and loads the full file when a t
 npx skilld@beta install skilld:owner/repo/skill --agent github-copilot
 ```
 
-The Skill lands in `.github/skills`. Add `-g` to install to `~/.copilot/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `.github/skills`. Add `--global` to install to `~/.copilot/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 Restart your editor after a project install. Copilot reads `.github/skills` at startup.
 

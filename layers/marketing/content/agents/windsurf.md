@@ -23,7 +23,7 @@ Windsurf reads each Skill description and loads the full file when a task matche
 npx skilld@beta install skilld:owner/repo/skill --agent windsurf
 ```
 
-The Skill lands in `.windsurf/skills`. Add `-g` to install to `~/.codeium/windsurf/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `.windsurf/skills`. Add `--global` to install to `~/.codeium/windsurf/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 Restart Windsurf after an install.
 

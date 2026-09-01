@@ -17,7 +17,7 @@ OpenClaw is a personal assistant Agent that runs on your own machine and talks t
 
 OpenClaw reads each Skill description and loads the full file when a task matches.
 
-## Install Skills in OpenClaw
+### Install a Skill for OpenClaw
 
 Run the command from the root of your OpenClaw workspace.
 
@@ -25,7 +25,7 @@ Run the command from the root of your OpenClaw workspace.
 npx skilld@beta install skilld:owner/repo/skill --agent openclaw
 ```
 
-The Skill lands in `skills`. Add `-g` to install to `~/.openclaw/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
+The Skill lands in `skills`. Add `--global` to install to `~/.openclaw/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
 
 ### Run a Skill without installing it
 
