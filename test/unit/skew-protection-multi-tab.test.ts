@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-// No exports subpath reaches the app runtime plugins, so the patched dist file
-// itself is the artifact under test.
+// No exports subpath reaches the app runtime plugins, so the published dist
+// file itself is the artifact under test.
 // eslint-disable-next-line antfu/no-import-dist, antfu/no-import-node-modules-by-path
 import skewMultiTab from '../../node_modules/nuxt-skew-protection/dist/runtime/app/plugins/multi-tab.client.js'
 
 /**
- * Sentry SKILLD-12. nuxt-skew-protection closes its multi-tab BroadcastChannel
- * on `app:error` but leaves the `app:manifest:update` listener attached, so a
- * later outdated-build poll posts to the closed channel and surfaces as an
- * unhandled rejection.
+ * Sentry SKILLD-12. nuxt-skew-protection closed its multi-tab BroadcastChannel
+ * on `app:error` but left the `app:manifest:update` listener attached, so a
+ * later outdated-build poll posted to the closed channel and surfaced as an
+ * unhandled rejection. Fixed upstream in 1.5.2; this guards the upgrade.
  */
 
 const state = vi.hoisted(() => {
@@ -43,6 +43,11 @@ vi.mock(import('nuxt/app'), async (importOriginal) => {
     const list = state.hooks.get(name) ?? []
     list.push(handler)
     state.hooks.set(name, list)
+    return () => {
+      const index = list.indexOf(handler)
+      if (index >= 0)
+        list.splice(index, 1)
+    }
   }
   return {
     ...(await importOriginal()),

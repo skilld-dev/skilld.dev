@@ -160,8 +160,8 @@ catalogs:
       specifier: ^6.7.8
       version: 6.7.8
     nuxt-skew-protection:
-      specifier: ^1.5.1
-      version: 1.5.1
+      specifier: ^1.5.2
+      version: 1.5.2
     rangi:
       specifier: ^2.2.0
       version: 2.2.0
@@ -196,7 +196,6 @@ catalogs:
 patchedDependencies:
   hookable@5.5.3: 3b44da13a743bfa2eab02aef7246065e4dfd56e9878c206f34b51322832cfb2c
   hookable@6.1.1: 7530364d493fa95257cb863d105ed55a1bb4b46d5c9a178a6d64cb73028ed344
-  nuxt-skew-protection@1.5.1: 39e0e83926386d032c36c0b483f176c863238fca97b397b0f4170f2680452403
 
 importers:
 
@@ -373,7 +372,7 @@ importers:
         version: 17.4.1
       nuxt-skew-protection:
         specifier: 'catalog:'
-        version: 1.5.1(patch_hash=39e0e83926386d032c36c0b483f176c863238fca97b397b0f4170f2680452403)(f3f37412191eba6f37dc9b3277fb65f4)
+        version: 1.5.2(f3f37412191eba6f37dc9b3277fb65f4)
       tsx:
         specifier: 'catalog:'
         version: 4.23.13
@@ -6970,8 +6969,8 @@ packages:
     peerDependencies:
       vue: ^3.5.30
 
-  nuxt-skew-protection@1.5.1:
-    resolution: {integrity: sha512-Xzj9rl7Ghd8JbQwj+XfBLpKd+r5BWE/lrQYW/MxeZ4XtTj65amF399Dhc/Z4a8IIMTxyrIO8oWke5DhHJfXDyA==}
+  nuxt-skew-protection@1.5.2:
+    resolution: {integrity: sha512-ngl9L4kGIfXNYupoaeBe9jub85Moo0bNKEg83J+kKhIZ/FhnV2fwGwtUw2E64KHzUc8nQ1ytekaiGeJ6Qmjt3w==}
     hasBin: true
     peerDependencies:
       '@nuxtjs/robots': '>=5.6.7'
@@ -16075,7 +16074,7 @@ snapshots:
       - vite
       - zod
 
-  nuxt-skew-protection@1.5.1(patch_hash=39e0e83926386d032c36c0b483f176c863238fca97b397b0f4170f2680452403)(f3f37412191eba6f37dc9b3277fb65f4):
+  nuxt-skew-protection@1.5.2(f3f37412191eba6f37dc9b3277fb65f4):
     dependencies:
       '@nuxt/kit': 4.5.2(magic-string@1.2.3)(magicast@0.5.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.4)(rollup@4.62.4)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0)))
       '@nuxtjs/robots': 6.2.0(781970709ad9c703597a188351ef6df2)

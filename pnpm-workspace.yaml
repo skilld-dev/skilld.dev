@@ -18,7 +18,7 @@ minimumReleaseAgeExclude:
   - nuxtseo-shared@5.3.7 || 5.3.9 || 5.3.12
   - site-config-stack@4.1.4 || 4.2.1
   - sitemapd@0.2.1 || 0.2.2
-  - nuxt-skew-protection@1.5.1
+  - nuxt-skew-protection@1.5.2
   - '@nuxtjs/seo@5.3.14'
   - skilld-protocol@2.4.0
   - '@harlan-zw/comark-content@0.1.5'
@@ -49,7 +49,6 @@ packages:
 patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.1.1.patch
-  nuxt-skew-protection@1.5.1: patches/nuxt-skew-protection@1.5.1.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/workers-types': ^5.20260901.1
@@ -102,7 +101,7 @@ catalog:
   nuxt-ai-ready: ^2.0.1
   nuxt-auth-utils: ^0.5.30
   nuxt-og-image: ^6.7.8
-  nuxt-skew-protection: ^1.5.1
+  nuxt-skew-protection: ^1.5.2
   rangi: ^2.2.0
   skilld-protocol: ^2.4.0
   tailwindcss: ^4.3.3
