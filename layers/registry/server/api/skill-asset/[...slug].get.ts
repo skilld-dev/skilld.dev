@@ -5,6 +5,7 @@ import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identi
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamText } from '../../utils/upstream-text'
+import { fetchUpstreamTree } from '../../utils/upstream-tree'
 
 const ASSET_CACHE_TTL = 60 * 60 * 24 * 7
 const ASSET_MISSING_TTL = 60 * 60
@@ -25,6 +26,7 @@ interface SkillAssetRow {
   assets: string | null
   source_owner: string | null
   source_repo: string | null
+  source_resolved: number | null
 }
 
 interface RepoSkillNameRow {
@@ -77,7 +79,7 @@ export default defineApiHandler({
 
     const [row, repoSkillRows] = await Promise.all([
       platform.db
-        .prepare(`SELECT r.default_branch, r.source_owner, r.source_repo, s.assets
+        .prepare(`SELECT r.default_branch, r.source_owner, r.source_repo, s.assets, s.source_resolved
                   FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
                   WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
         .bind(skill.owner, skill.repo, skill.name)
@@ -90,6 +92,12 @@ export default defineApiHandler({
 
     if (!row)
       throw createError({ statusCode: 404, message: 'Skill metadata missing' })
+
+    // The sync's verdict that this SKILL.md is gone upstream. The page serves
+    // a 410 tombstone on the same verdict, and this endpoint must agree.
+    // Answer before any upstream call: the registry already knows (SKILLD-11).
+    if (row.source_resolved === 0)
+      throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
 
     const source = resolveRepoSourceIdentityFromRow(skill, row)
     let registered: RegisteredAsset[] = []
@@ -125,16 +133,18 @@ export default defineApiHandler({
     }
 
     // Resolve the skill directory by re-finding the SKILL.md path.
-    let treeUnavailable = false
-    const treeRes = await $fetch<{ files?: { path: string }[] }>(
-      `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`,
-    ).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-asset-tree-fetch', outcome: 'failed' }))
-      treeUnavailable = true
-      return null
-    })
+    const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-asset-tree-fetch' })
+
+    if (treeResult._tag === 'gone') {
+      // The registry has not recorded this deletion yet. The next sync flips
+      // `source_resolved` and short-circuits earlier.
+      throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
+    }
+
+    const treeUnavailable = treeResult._tag === 'unavailable'
+    const treeFiles = treeResult._tag === 'available' ? treeResult.files : []
     const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    const skillMdPath = (treeRes?.files ?? []).find(f =>
+    const skillMdPath = treeFiles.find(f =>
       f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
       || f.path.toLowerCase() === `${slugifiedName}/skill.md`
       || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
