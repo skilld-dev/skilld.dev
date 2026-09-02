@@ -51,6 +51,28 @@ describe('skills-raw tree outage', () => {
   })
 })
 
+describe('skills-raw transient tree failure', () => {
+  it('serves the Skill when the first ungh tree read fails and the next one answers', async () => {
+    // SKILLD-1E: `dimillian/skills` answered 200 from GitHub and from ungh
+    // throughout the window, and the endpoint still raised 503. This is the
+    // run-command surface, so a blip that lasts one request must not reach
+    // the agent as an instruction to retry.
+    vi.stubGlobal('createWideEvent', () => ({ context: {}, setLevel: vi.fn(), emit: vi.fn(() => null) }))
+    vi.stubGlobal('emitOperationalEvent', vi.fn())
+    const treeError = Object.assign(new Error('503 Service Unavailable'), { status: 503, statusCode: 503 })
+    vi.stubGlobal('$fetch', vi.fn()
+      .mockRejectedValueOnce(treeError)
+      .mockResolvedValueOnce({ files: [{ path: 'skills/skill/SKILL.md' }] }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('# Skill body', { status: 200 })))
+
+    const handler = (await import('../../layers/registry/server/api/skills-raw/[...slug].get')).default
+    const body = await handler(event())
+
+    expect(body).toBe('# Skill body')
+    expect(responseHeaders.has('retry-after')).toBe(false)
+  })
+})
+
 describe('skills-raw source gone', () => {
   let emitEvent: ReturnType<typeof vi.fn>
 
