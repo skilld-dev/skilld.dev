@@ -66,7 +66,7 @@ function parseTree(body: unknown): TreeAttempt {
     return { _tag: 'malformed' }
   const files = (body as { files?: unknown }).files
   if (files === undefined)
-    return { _tag: 'files', files: [] }
+    return { _tag: 'malformed' }
   if (!Array.isArray(files))
     return { _tag: 'malformed' }
   return {

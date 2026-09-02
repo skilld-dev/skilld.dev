@@ -113,4 +113,29 @@ describe('fetchUpstreamTree', () => {
 
     expect(result).toEqual({ _tag: 'unavailable' })
   })
+
+  it('reports a 200 body without a files key as malformed, not an empty repository', async () => {
+    // ungh answered, so a wrong-shape body is an outage to report, never an
+    // empty repository that would 404 the skill. Only `files: []` is an
+    // empty repo.
+    const createWideEvent = vi.fn(() => ({ context: {}, setLevel: vi.fn(), emit: vi.fn(() => null) }))
+    const emitOperationalEvent = vi.fn()
+    vi.stubGlobal('createWideEvent', createWideEvent)
+    vi.stubGlobal('emitOperationalEvent', emitOperationalEvent)
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({}))
+
+    const result = await (await load())(SOURCE, 'main', { operation: 'test', sleep: async () => {} })
+
+    expect(result).toEqual({ _tag: 'unavailable' })
+    expect(createWideEvent).toHaveBeenCalledWith({ operation: 'test', outcome: 'failed', reason: 'tree_malformed', attempt: 1 })
+  })
+
+  it('reads files as an empty repository only when the key is present', async () => {
+    const $fetch = vi.fn().mockResolvedValue({ files: [] })
+    vi.stubGlobal('$fetch', $fetch)
+
+    const result = await (await load())(SOURCE, 'main', { operation: 'test', sleep: async () => {} })
+
+    expect(result).toEqual({ _tag: 'available', files: [] })
+  })
 })
