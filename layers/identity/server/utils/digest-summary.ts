@@ -68,9 +68,28 @@ export type SummariseResult
   }
   | {
     _tag: 'fallback'
-    reason: 'no_changes' | 'binding_missing' | 'provider_failure' | 'empty_response' | 'invalid_response'
+    reason: 'no_changes' | 'binding_missing' | 'paused' | 'provider_failure' | 'empty_response' | 'invalid_response'
     error?: string
   }
+
+// The digest delivery only needs the changes, so the binding and the pause
+// switch are bound once by the caller.
+export type DigestSummariser = (input: Omit<SummariseInput, 'ai'>) => Promise<SummariseResult>
+
+// Single place that decides whether a digest run talks to the model. When the
+// summary is paused, or the binding is missing, the caller gets a fallback and
+// the provider is never called.
+export function resolveDigestSummariser(input: {
+  paused: boolean
+  ai: AiBinding | undefined
+}): DigestSummariser {
+  if (input.paused)
+    return async () => ({ _tag: 'fallback', reason: 'paused' })
+  const ai = input.ai
+  if (!ai)
+    return async () => ({ _tag: 'fallback', reason: 'binding_missing' })
+  return async changes => summariseChanges({ ai, ...changes })
+}
 
 export async function summariseChanges(input: SummariseInput): Promise<SummariseResult> {
   if (!input.changes.length)
