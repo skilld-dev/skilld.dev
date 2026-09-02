@@ -1,3 +1,4 @@
+import type { DigestUserOutcome } from '../utils/digest-run-summary'
 import type { AiBinding } from '../utils/digest-summary'
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
@@ -6,15 +7,26 @@ import { observedSchedulePolicy } from '#shared/schedule-policy'
 import {
   runDigestDeliveryForUser,
 } from '../utils/digest-delivery'
+import { summariseDigestRun } from '../utils/digest-run-summary'
 import {
   loadDigestEligibleUsers,
   selectDigestForUser,
 } from '../utils/digest-select'
-import { summariseChanges } from '../utils/digest-summary'
+import { resolveDigestSummariser } from '../utils/digest-summary'
 import { renderDigest } from '../utils/digest-template'
 import { sendEmailWithEnv, signUnsubToken } from '../utils/email'
 
 const CRON = '0 9 1 * *'
+// Kill switch: the per-repo digest sentence runs `anthropic/claude-haiku-4.5`,
+// a partner model brokered through the Workers AI binding, so every call bills
+// against AI Gateway credits. Those credits are exhausted, so each monthly run
+// returned `provider_failure: 2021: Insufficient AI Gateway credits`, delivered
+// the digest on the no-summary template, and still reported `partial`. That
+// raised a monthly AMBER on the operator health email for a feature nobody had
+// decided to keep. Paused by decision until Loop 2 has an audience worth tuning
+// the sentence for. Re-enabling costs AI Gateway credits and one send to
+// verify. Flip back to false to resume.
+const DIGEST_AI_SUMMARY_PAUSED = true
 
 export default defineScheduledTask({
   name: 'send-digests',
@@ -42,18 +54,11 @@ export default defineScheduledTask({
       const startedAt = Date.now()
       const scheduledAt = Math.floor(startedAt / 1_000)
       const users = await loadDigestEligibleUsers(db)
-      const summary = {
-        eligible: users.length,
-        fired: users.length,
-        sent: 0,
-        skipped: 0,
-        failed: 0,
-        claimed: 0,
-        uncertain: 0,
-        alreadyProcessed: 0,
-        aiFallbacks: 0,
-        errors: [] as string[],
-      }
+      const summarise = resolveDigestSummariser({
+        paused: DIGEST_AI_SUMMARY_PAUSED,
+        ai,
+      })
+      const outcomes: DigestUserOutcome[] = []
 
       for (const user of users) {
         const result = await runDigestDeliveryForUser({
@@ -61,9 +66,7 @@ export default defineScheduledTask({
           now: () => Math.floor(Date.now() / 1_000),
           newClaimToken: () => crypto.randomUUID(),
           select: selectDigestForUser,
-          summarise: ai
-            ? input => summariseChanges({ ai, ...input })
-            : async () => ({ _tag: 'fallback', reason: 'binding_missing' }),
+          summarise,
           render: renderDigest,
           signUnsubscribe: userId => signUnsubToken(userId, tokenKey),
           send: input => sendEmailWithEnv(env, { ...input, from: emailFrom }),
@@ -71,38 +74,12 @@ export default defineScheduledTask({
           scheduledAt,
           siteUrl,
         })
-
-        if (result._tag === 'sent') {
-          summary.sent += 1
-          if (result.aiFallbackReason) {
-            summary.aiFallbacks += 1
-            summary.errors.push(`user ${user.id} AI fallback: ${result.aiFallbackReason}`)
-          }
-        }
-        else if (result._tag === 'skipped') {
-          summary.skipped += 1
-        }
-        else if (result._tag === 'failed') {
-          summary.failed += 1
-          summary.errors.push(`user ${user.id} ${result.stage}: ${result.error}`)
-        }
-        else if (result._tag === 'claimed') {
-          summary.claimed += 1
-        }
-        else if (result._tag === 'delivery_uncertain') {
-          summary.uncertain += 1
-          summary.errors.push(`user ${user.id} delivery uncertain: ${result.reason}: ${result.error}`)
-        }
-        else {
-          summary.alreadyProcessed += 1
-        }
+        outcomes.push({ userId: user.id, result })
       }
 
-      const status = summary.failed > 0 || summary.uncertain > 0
-        ? (summary.sent > 0 || summary.skipped > 0 ? 'partial' : 'error')
-        : summary.aiFallbacks > 0
-          ? 'partial'
-          : 'ok'
+      const { summary, status } = summariseDigestRun(outcomes, {
+        aiSummaryPaused: DIGEST_AI_SUMMARY_PAUSED,
+      })
       await reportJobRun(db, 'send-digests', {
         cron: CRON,
         status,
