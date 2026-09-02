@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   approximateDeployedSha,
   buildWorkersQuery,
+  collectWorkflowRuns,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
@@ -124,6 +125,66 @@ describe('daily check-in observability', () => {
     ], ['Deploy to Cloudflare'])).toMatchObject([
       { name: 'Deploy to Cloudflare', state: { _tag: 'missing' } },
     ])
+  })
+
+  // The real shape from 2026-09-01: eleven skipped guard runs sat in front of the
+  // deploy that actually shipped, so a ten-run sample never reached a verdict and
+  // a healthy deploy was archived as `missing`.
+  it('samples deeper when a page of skipped guard runs hides the last verdict', () => {
+    const history = [
+      ...Array.from({ length: 11 }, (_, index) => run('Deploy to Cloudflare', 'completed', 'skipped', 30 - index)),
+      run('Deploy to Cloudflare', 'completed', 'success', 19),
+      run('Deploy to Cloudflare', 'completed', 'success', 18),
+    ]
+    const requestedLimits: number[] = []
+    const listRuns = (name: string, limit: number) => {
+      requestedLimits.push(limit)
+      return history.filter(row => row.workflowName === name).slice(0, limit)
+    }
+
+    // The gap itself: the ten-run page the collector used to take reaches no
+    // verdict, so a shipped deploy was reported as an observability gap.
+    expect(summarizeWorkflowRuns(history.slice(0, 10), ['Deploy to Cloudflare']))
+      .toMatchObject([{ name: 'Deploy to Cloudflare', state: { _tag: 'missing' } }])
+
+    const rows = collectWorkflowRuns(listRuns, ['Deploy to Cloudflare'])
+
+    expect(requestedLimits).toEqual([10, 100])
+    expect(summarizeWorkflowRuns(rows, ['Deploy to Cloudflare'])).toMatchObject([
+      {
+        name: 'Deploy to Cloudflare',
+        latestRun: run('Deploy to Cloudflare', 'completed', 'skipped', 30),
+        latestCompletedRun: run('Deploy to Cloudflare', 'completed', 'success', 19),
+        state: { _tag: 'success' },
+      },
+    ])
+  })
+
+  it('stops at one deeper sample so a workflow with no verdict in history stays missing', () => {
+    const history = Array.from({ length: 120 }, (_, index) => run('Security', 'completed', 'skipped', 99 - (index % 80)))
+    const requestedLimits: number[] = []
+    const listRuns = (name: string, limit: number) => {
+      requestedLimits.push(limit)
+      return history.filter(row => row.workflowName === name).slice(0, limit)
+    }
+
+    const rows = collectWorkflowRuns(listRuns, ['Security'])
+
+    expect(requestedLimits).toEqual([10, 100])
+    expect(summarizeWorkflowRuns(rows, ['Security'])).toMatchObject([
+      { name: 'Security', state: { _tag: 'missing' } },
+    ])
+  })
+
+  it('does not pay for a deeper sample when the head page is the whole history', () => {
+    const requestedLimits: number[] = []
+    const listRuns = (_name: string, limit: number) => {
+      requestedLimits.push(limit)
+      return [run('Test', 'completed', 'skipped', 11)]
+    }
+
+    expect(collectWorkflowRuns(listRuns, ['Test'])).toHaveLength(1)
+    expect(requestedLimits).toEqual([10])
   })
 
   it('extracts actionable health reasons from persisted report summaries', () => {
