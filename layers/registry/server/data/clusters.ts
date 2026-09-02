@@ -206,7 +206,7 @@ export const CLUSTERS: Cluster[] = [
     slug: 'code-review',
     label: 'Review and refactoring',
     icon: 'i-lucide-eye',
-    userVoice: 'You read other people\'s code and reshape it without breaking it.',
+    userVoice: 'You read other devs\' code and reshape it without breaking it.',
     seoTitle: 'Agent Skills for Code Review',
     seoDescription:
       'Code review and refactoring skills for AI agents. Turn review comments, bot findings, and production issues into fixed code, with skills written by maintainers who review for a living.',

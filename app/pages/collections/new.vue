@@ -4,7 +4,7 @@ const { isAuthenticated, user, loginUrl } = useAuth()
 
 useSeoMeta({
   title: 'New Collection',
-  description: 'Bundle the skills you reach for into a named collection.',
+  description: 'Bundle the skills you reach for into a collection.',
   robots: 'noindex',
 })
 

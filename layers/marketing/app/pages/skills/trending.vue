@@ -240,7 +240,7 @@ const boardMeta = computed(() => {
   if (leaderboard.value) {
     const parts = [`${board.value.length} of ${leaderboard.value.total} reviewed repos`]
     if (starsSyncedOn.value)
-      parts.push(`stars synced ${starsSyncedOn.value}`)
+      parts.push(`stars checked ${starsSyncedOn.value}`)
     return parts.join(' · ')
   }
   const parts = [`${board.value.length} skills`]

@@ -5,7 +5,7 @@ import CompactPageHeader from '../../app/components/CompactPageHeader.vue'
 
 const baseProps = {
   title: 'Community',
-  description: 'Curators you can follow.',
+  description: 'Curators you can watch.',
   headingId: 'community-heading',
 }
 
@@ -16,7 +16,7 @@ describe('compactPageHeader', () => {
     const heading = wrapper.get('h1')
     expect(heading.text()).toBe('Community')
     expect(heading.attributes('id')).toBe('community-heading')
-    expect(wrapper.get('header').text()).toContain('Curators you can follow.')
+    expect(wrapper.get('header').text()).toContain('Curators you can watch.')
 
     wrapper.unmount()
   })

@@ -20,9 +20,20 @@ export function skillRunCommand(owner: string, repo: string, skill: string): str
   return `${V3_PREFIX} run skilld:${owner}/${repo}/${skill}`
 }
 
-export function repoInstallCommand(owner: string, repo: string, skill?: string): string {
-  const base = `${PREFIX} gh:${owner}/${repo}`
-  return skill ? `${base} -s ${skill}` : base
+/**
+ * The opt-in handoff for one skill. Same string the web Install tab prints, so
+ * a skill has one install spelling wherever the user meets it.
+ */
+export function skillInstallCommand(owner: string, repo: string, skill: string): string {
+  return `${V3_PREFIX} install skilld:${owner}/${repo}/${skill}`
+}
+
+/**
+ * Whole-repository install. Still v2 grammar: v3 has no selector for a
+ * repository yet.
+ */
+export function repoInstallCommand(owner: string, repo: string): string {
+  return `${PREFIX} gh:${owner}/${repo}`
 }
 
 export function curatorInstallCommand(login: string): string {
@@ -93,7 +104,7 @@ export function parseInstallRef(raw: string): InstallRef | null {
 export function installCommandFor(ref: InstallRef): string {
   switch (ref.kind) {
     case 'skill':
-      return repoInstallCommand(ref.owner, ref.repo, ref.name)
+      return skillInstallCommand(ref.owner, ref.repo, ref.name)
     case 'repo':
       return repoInstallCommand(ref.owner, ref.repo)
     case 'collection':

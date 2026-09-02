@@ -198,7 +198,7 @@ defineOgImage('Curator.takumi', {
   collectionCount: () => collections.value.length,
   skillCount: () => skills.value.length,
   skills: () => skills.value.slice(0, 4).map(skill => skill.display_name || skill.name),
-}, { alt: () => `${displayName.value} Community profile on skilld` })
+}, { alt: () => `${displayName.value} curator profile on skilld` })
 </script>
 
 <template>
@@ -573,7 +573,7 @@ defineOgImage('Curator.takumi', {
         <UButton
           v-else
           to="/community"
-          label="Browse Community"
+          label="Browse curators"
           icon="i-lucide-arrow-right"
           trailing
           color="neutral"
