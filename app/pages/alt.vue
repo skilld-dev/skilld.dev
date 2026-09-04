@@ -403,15 +403,24 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     <nav class="alt-doors border-b border-default" aria-label="What you can do here">
       <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink to="#discover" class="alt-door">
-          <span class="alt-door-title">Trending this week</span>
+          <span class="alt-door-mark" aria-hidden="true">
+            <span class="trending-fire">🔥</span>
+          </span>
+          <span class="alt-door-title">Trending this week<UIcon name="i-lucide-arrow-right" class="alt-door-arrow" aria-hidden="true" /></span>
           <span class="alt-door-text">The skills devs are installing and posting about right now. Author and source on every card.</span>
         </NuxtLink>
         <NuxtLink to="#outcomes" class="alt-door">
-          <span class="alt-door-title">Skills for your kind of work</span>
+          <span class="alt-door-mark" aria-hidden="true">
+            <UIcon name="i-lucide-route" class="size-5" />
+          </span>
+          <span class="alt-door-title">Skills for your kind of work<UIcon name="i-lucide-arrow-right" class="alt-door-arrow" aria-hidden="true" /></span>
           <span class="alt-door-text">Tracks for review, testing, design, SEO, shipping. Short lists a person put together.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="alt-door">
-          <span class="alt-door-title">Watch it change</span>
+          <span class="alt-door-mark" aria-hidden="true">
+            <UIcon name="i-lucide-eye" class="size-5" />
+          </span>
+          <span class="alt-door-title">Watch it change<UIcon name="i-lucide-arrow-right" class="alt-door-arrow" aria-hidden="true" /></span>
           <span class="alt-door-text">Maintainers ship often. Watch the repos you rely on and get one digest that says what changed and why it matters.</span>
         </NuxtLink>
       </div>
