@@ -390,7 +390,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                     Copied. Paste it in your terminal.
                   </template>
                   <template v-else>
-                    One command installs into every agent. No sign-up.
+                    One command installs into your agent. No sign-up.
                   </template>
                 </p>
                 <ul class="alt-hero-agents mt-5 list-none p-0" aria-label="Agents skilld installs into">
@@ -422,21 +422,21 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             <span class="trending-fire">🔥</span>
           </span>
           <span class="alt-door-title">Trending this week<UIcon name="i-lucide-arrow-right" class="alt-door-arrow" aria-hidden="true" /></span>
-          <span class="alt-door-text">The skills devs are installing and posting about right now. Author and source on every card.</span>
+          <span class="alt-door-text">The skills devs are posting about right now. Every card names the author and links the source.</span>
         </NuxtLink>
         <NuxtLink to="#outcomes" class="alt-door">
           <span class="alt-door-mark" aria-hidden="true">
             <UIcon name="i-lucide-route" class="size-5" />
           </span>
           <span class="alt-door-title">Skills for your kind of work<UIcon name="i-lucide-arrow-right" class="alt-door-arrow" aria-hidden="true" /></span>
-          <span class="alt-door-text">Tracks for review, testing, design, SEO, shipping. Short lists a person put together.</span>
+          <span class="alt-door-text">Tracks for review, testing, design, SEO and shipping. A person picked each list.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="alt-door">
           <span class="alt-door-mark" aria-hidden="true">
             <UIcon name="i-lucide-eye" class="size-5" />
           </span>
           <span class="alt-door-title">Watch it change<UIcon name="i-lucide-arrow-right" class="alt-door-arrow" aria-hidden="true" /></span>
-          <span class="alt-door-text">Maintainers ship often. Watch the repos you rely on and get one digest that says what changed and why it matters.</span>
+          <span class="alt-door-text">Maintainers ship often. Watch the repos you rely on. One digest says what changed and why.</span>
         </NuxtLink>
       </div>
     </nav>
@@ -447,7 +447,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       class="alt-wm border-b border-default"
       aria-labelledby="trending-heading"
     >
-      <span class="alt-watermark" aria-hidden="true">Hot</span>
+      <span class="alt-watermark" aria-hidden="true">Week</span>
       <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -455,7 +455,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <span class="alt-ink">Trending</span> this week.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Skill repos devs are posting about, ranked by how many separate people shared them, not by how loud one post was. Every one links to the author's source.
+              Devs are posting about these skill repos. We count how many separate devs shared each one. Every card links the author's source.
             </p>
             <p v-if="trendingSectionRepos.length" class="data-label mt-3">
               {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
@@ -526,7 +526,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Skills for the <span class="alt-ink">work you do</span>.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-            Pick a track. Short lists a person put together, with the authors who write for them.
+            Pick a track. Each one is a short list, with the authors behind it.
           </p>
         </div>
         <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" />
@@ -553,23 +553,23 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           The <span class="alt-ink">taste test</span>.
         </h2>
         <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-          Three things are true of every skill here. Someone tasted it first. You should still read it before you run it.
+          Three things are true of every skill we list. Read it yourself before you run it.
         </p>
         <ol class="alt-test-list mt-8 list-none p-0">
           <li class="alt-test-item">
             <span class="alt-test-num" aria-hidden="true">1</span>
             <span class="alt-test-title">The maintainer wrote it.</span>
-            <span class="alt-test-text">In their own repo, under their own name. Nobody here uploads anonymously.</span>
+            <span class="alt-test-text">In their own repo, under their own name. No anonymous submissions.</span>
           </li>
           <li class="alt-test-item">
             <span class="alt-test-num" aria-hidden="true">2</span>
             <span class="alt-test-title">A person read it.</span>
-            <span class="alt-test-text">Popular gets you noticed. It does not get you in. Someone said yes.</span>
+            <span class="alt-test-text">Someone opened the SKILL.md and said yes to it.</span>
           </li>
           <li class="alt-test-item">
             <span class="alt-test-num" aria-hidden="true">3</span>
             <span class="alt-test-title">The source is one click away.</span>
-            <span class="alt-test-text">Open the SKILL.md before your agent does. Stars are the only count we show, because GitHub can vouch for them.</span>
+            <span class="alt-test-text">Open the SKILL.md before your agent does. We only show counts GitHub can vouch for.</span>
           </li>
         </ol>
       </div>
@@ -595,7 +595,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Your skills <span class="alt-ink">changed</span>. Did anyone tell you?
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-            Watch a repo and a digest says what changed and why it matters. Silence when nothing did. Your inbox stays yours.
+            Watch a repo. The digest says what changed and why. If nothing changed, we send nothing.
           </p>
           <div class="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
             <UButton
@@ -606,8 +606,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               class="min-h-11 justify-center"
             />
             <UButton
-              to="/collections"
-              label="Watch a collection"
+              to="/community"
+              label="Browse collections"
               color="neutral"
               variant="outline"
               trailing-icon="i-lucide-arrow-right"
@@ -615,6 +615,9 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               class="min-h-11 justify-center"
             />
           </div>
+          <p class="data-label mt-3">
+            To watch a repo, sign in with GitHub.
+          </p>
         </header>
 
         <div class="home-freshness-grid">
@@ -630,7 +633,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               </div>
               <UButton
                 to="/skills"
-                label="Browse all"
+                label="Browse all skills"
                 color="neutral"
                 variant="ghost"
                 size="sm"
@@ -693,10 +696,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             <div v-else class="home-freshness-state home-freshness-state--primary" role="status">
               <div>
                 <p class="font-medium">
-                  The update feed is quiet.
+                  No source changes yet.
                 </p>
                 <p class="mt-1 max-w-md text-base leading-relaxed text-muted">
-                  No tracked source changes yet.
+                  Check back after the next release.
                 </p>
                 <UButton to="/skills" label="Browse skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
               </div>
@@ -711,12 +714,12 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 </h3>
                 <p class="data-label mt-2 flex items-center gap-1.5">
                   <UIcon name="i-lucide-badge-check" class="size-3.5 shrink-0" aria-hidden="true" />
-                  From official publishers
+                  Owner verified
                 </p>
               </div>
               <UButton
-                to="/skills"
-                label="View publishers"
+                to="/skills/official"
+                label="All publishers"
                 color="neutral"
                 variant="ghost"
                 size="sm"
@@ -781,7 +784,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <p class="mt-1 text-base leading-relaxed text-muted">
                 You can still browse existing publishers.
               </p>
-              <UButton to="/skills" label="View publishers" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
+              <UButton to="/skills/official" label="Official publishers" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
             </div>
           </section>
         </div>
@@ -793,7 +796,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       class="alt-wm editorial-band home-featured-band border-b border-default"
       aria-labelledby="featured-focus-heading"
     >
-      <span class="alt-watermark" aria-hidden="true">Stack</span>
+      <span class="alt-watermark" aria-hidden="true">Picks</span>
       <div
         class="editorial-atmosphere"
         data-palette="ember"
@@ -806,17 +809,17 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-featured-heading">
           <div class="min-w-0">
             <h2 id="featured-focus-heading" class="alt-h2 text-balance">
-              A whole stack, <span class="alt-ink">one command</span>.
+              A whole collection, <span class="alt-ink">one command</span>.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Collections bundle what a stack needs, picked by a person with opinions. Install all of it, then watch for changes.
+              A collection gathers the skills one project needs. A curator picked every one. Install the set, then watch it.
             </p>
             <p v-if="featuredCollections.length" class="data-label mt-3">
               {{ featuredCollections.length }} {{ featuredCollections.length === 1 ? 'collection' : 'collections' }} · {{ featuredSkillTotal }} {{ featuredSkillTotal === 1 ? 'skill' : 'skills' }}
             </p>
           </div>
           <UButton
-            to="/collections"
+            to="/community"
             label="All collections"
             color="neutral"
             variant="ghost"
@@ -953,15 +956,15 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <div class="home-featured-install__heading">
                 <div>
                   <p class="data-label">
-                    Add all {{ leadCollection.skillCount }} skills
+                    Install all {{ leadCollection.skillCount }} skills
                   </p>
                   <p class="mt-2 text-base leading-relaxed text-muted">
-                    Run one command, or open the collection and check each source first.
+                    One command installs every skill in the collection.
                   </p>
                 </div>
                 <UButton
                   :to="`/@${leadCollection.authorLogin}/${leadCollection.slug}`"
-                  label="Inspect collection"
+                  label="Open collection"
                   color="neutral"
                   variant="ghost"
                   trailing-icon="i-lucide-arrow-up-right"
@@ -1052,7 +1055,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             You can still browse every collection.
           </p>
           <UButton
-            to="/collections"
+            to="/community"
             label="All collections"
             color="neutral"
             variant="outline"
@@ -1074,7 +1077,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Maintain something? <span class="alt-ink">Write the skill</span> for it.
             </h2>
             <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              skilld drafts, you edit and own it, it ships in your repo under your name. Send it in and a person reads it.
+              skilld drafts the skill. You edit it and own it. It ships in your repo, under your name.
             </p>
             <ul class="alt-eco-logos mt-5 list-none p-0" aria-label="Package ecosystems">
               <li
@@ -1088,7 +1091,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               </li>
             </ul>
             <p class="data-label mt-3">
-              The guide is npm-first. The Skill reads whatever manifest your repo has.
+              The guide is npm-first. The Skill reads whatever manifest your repo has, so the rest can run it too.
             </p>
           </div>
           <div class="alt-make-strip-actions">
