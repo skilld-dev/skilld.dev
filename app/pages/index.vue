@@ -355,7 +355,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               />
               <UButton
                 to="/community"
-                label="Explore community"
+                label="Browse curators"
                 color="neutral"
                 variant="outline"
                 trailing-icon="i-lucide-arrow-right"
@@ -427,7 +427,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           </div>
           <UButton
             to="/community"
-            label="Explore the community"
+            label="All curators"
             color="neutral"
             variant="ghost"
             trailing-icon="i-lucide-arrow-right"
@@ -660,7 +660,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           </p>
           <UButton
             to="/community"
-            label="Browse the community"
+            label="Browse curators"
             color="neutral"
             variant="outline"
             class="mt-4 min-h-11"
@@ -691,7 +691,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           </div>
           <UButton
             to="/community"
-            label="Browse the directory"
+            label="All curators"
             color="neutral"
             variant="ghost"
             trailing-icon="i-lucide-arrow-right"
