@@ -139,8 +139,8 @@ watch(() => route.fullPath, () => {
             class="hidden lg:inline-flex"
           />
           <UButton
-            to="/community"
-            label="Community"
+            to="/learn/author-npm-package-skills"
+            label="Make a skill"
             color="neutral"
             variant="ghost"
             size="sm"
@@ -240,8 +240,8 @@ watch(() => route.fullPath, () => {
                 class="min-h-11 justify-start"
               />
               <UButton
-                to="/community"
-                label="Community"
+                to="/learn/author-npm-package-skills"
+                label="Make a skill"
                 color="neutral"
                 variant="ghost"
                 block
