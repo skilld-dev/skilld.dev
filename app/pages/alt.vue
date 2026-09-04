@@ -451,7 +451,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 id="trending-heading" class="text-2xl font-semibold tracking-tight text-balance">
+            <h2 id="trending-heading" class="alt-h2 text-balance">
               <span class="alt-ink">Trending</span> this week.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
@@ -522,7 +522,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <span class="alt-watermark" aria-hidden="true">Work</span>
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-outcomes-intro">
-          <h2 id="outcomes-heading" class="home-outcomes-title max-w-[16ch] font-semibold text-balance">
+          <h2 id="outcomes-heading" class="alt-h2 max-w-[16ch] text-balance">
             Skills for the <span class="alt-ink">work you do</span>.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
@@ -549,7 +549,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     >
       <span class="alt-watermark" aria-hidden="true">Test</span>
       <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <h2 id="the-test-heading" class="text-2xl font-semibold tracking-tight text-balance">
+        <h2 id="the-test-heading" class="alt-h2 text-balance">
           The <span class="alt-ink">taste test</span>.
         </h2>
         <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
@@ -591,7 +591,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
       <div class="editorial-band__content home-freshness-shell mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <header class="home-freshness-header">
-          <h2 id="freshness-heading" class="home-freshness-title max-w-[15ch] font-semibold text-balance">
+          <h2 id="freshness-heading" class="alt-h2 max-w-[15ch] text-balance">
             Your skills <span class="alt-ink">changed</span>. Did anyone tell you?
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
@@ -805,7 +805,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-featured-heading">
           <div class="min-w-0">
-            <h2 id="featured-focus-heading" class="home-featured-title text-balance">
+            <h2 id="featured-focus-heading" class="alt-h2 text-balance">
               A whole stack, <span class="alt-ink">one command</span>.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
@@ -816,8 +816,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             </p>
           </div>
           <UButton
-            to="/community"
-            label="Explore the community"
+            to="/collections"
+            label="All collections"
             color="neutral"
             variant="ghost"
             trailing-icon="i-lucide-arrow-right"
@@ -850,13 +850,13 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           role="alert"
         >
           <p class="font-medium">
-            Could not load community collections.
+            Could not load collections.
           </p>
           <p class="mt-1 text-base text-muted">
             Check your connection and try again. The rest of the registry is still available.
           </p>
           <UButton
-            label="Try community collections again"
+            label="Try collections again"
             color="neutral"
             variant="outline"
             size="sm"
@@ -1046,14 +1046,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
         <div v-else class="mt-10 rounded-lg border border-default bg-default p-6">
           <p class="font-medium">
-            No community collections are featured right now.
+            No collections are featured right now.
           </p>
           <p class="mt-1 text-base text-muted">
-            The community directory is still available.
+            You can still browse every collection.
           </p>
           <UButton
-            to="/community"
-            label="Browse the community"
+            to="/collections"
+            label="All collections"
             color="neutral"
             variant="outline"
             class="mt-4 min-h-11"
@@ -1067,10 +1067,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       aria-labelledby="publish-heading"
     >
       <span class="alt-watermark" aria-hidden="true">Make</span>
-      <div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
+      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="alt-make-strip">
           <div class="min-w-0">
-            <h2 id="publish-heading" class="text-2xl font-semibold tracking-tight text-balance">
+            <h2 id="publish-heading" class="alt-h2 text-balance">
               Maintain something? <span class="alt-ink">Write the skill</span> for it.
             </h2>
             <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">

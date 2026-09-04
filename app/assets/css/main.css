@@ -1609,11 +1609,11 @@
   content: '';
   position: absolute;
   inset-inline: 0.04em 0.3em;
-  bottom: -0.06em;
-  height: 0.14em;
-  background-image: radial-gradient(circle, var(--ui-primary) 0.9px, transparent 1.1px);
-  background-size: 0.14em 0.14em;
-  opacity: 0.35;
+  bottom: -0.01em;
+  height: 0.13em;
+  background-image: radial-gradient(circle, var(--ui-primary) 1px, transparent 1.25px);
+  background-size: 0.115em 0.115em;
+  opacity: 0.6;
   pointer-events: none;
 }
 
@@ -1913,4 +1913,12 @@
   width: 7px;
   height: 7px;
   box-shadow: 0 0 10px 2px color-mix(in oklab, var(--ui-primary) 70%, transparent);
+}
+
+/* One heading scale for every band on /alt. The page had four before. */
+.alt-page .alt-h2 {
+  font-size: clamp(1.875rem, 1.5rem + 1.5vw, 2.625rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.06;
 }
