@@ -1318,3 +1318,47 @@
 .skill-markdown .shiki span {
   background: transparent !important;
 }
+
+/* /alt hero: compact category line, search and install slots above the fold. */
+.alt-hero-title {
+  font-size: clamp(2.25rem, 1.3rem + 3.4vw, 4.25rem);
+  line-height: 1.06;
+}
+
+.alt-hero-grid {
+  align-items: start;
+}
+
+.alt-hero-slots {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 36rem;
+}
+
+.alt-hero-slot {
+  min-width: 0;
+}
+
+.alt-hero-command {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0.25rem 0.5rem 0.25rem 1rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-muted);
+  overflow-x: auto;
+}
+
+.alt-hero-command .install-command {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.alt-hero-prompt {
+  font-family: var(--font-mono);
+  color: var(--ui-text-dimmed);
+  user-select: none;
+}
