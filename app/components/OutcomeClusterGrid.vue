@@ -15,6 +15,7 @@ interface ClusterCard {
   skillCount: number
   authorCount: number
   authors: string[]
+  isNew: boolean
   examples: ClusterExample[]
 }
 
@@ -96,25 +97,30 @@ const rowCapStyle = computed(() =>
           <div class="flex items-start gap-2">
             <UIcon :name="cluster.icon" class="mt-0.5 size-4 shrink-0 text-muted transition-colors group-hover:text-default" aria-hidden="true" />
             <h3 class="min-w-0 flex-1 text-base leading-snug font-semibold text-balance">
-              {{ cluster.label }}
+              {{ cluster.label }}<span v-if="cluster.isNew" class="outcome-index__new">New</span>
             </h3>
             <UIcon name="i-lucide-arrow-up-right" class="mt-0.5 size-3.5 shrink-0 text-dimmed transition-colors group-hover:text-default" aria-hidden="true" />
           </div>
           <p class="mt-1.5 flex-1 text-sm leading-normal text-muted text-pretty">
             {{ cluster.userVoice }}
           </p>
-          <span v-if="cluster.authors.length" class="outcome-index__avatars" aria-hidden="true">
-            <img
-              v-for="author in cluster.authors"
-              :key="author"
-              :src="`https://github.com/${author}.png?size=48`"
-              alt=""
-              width="24"
-              height="24"
-              class="outcome-index__avatar"
-              loading="lazy"
-              decoding="async"
-            >
+          <span class="outcome-index__foot">
+            <span v-if="cluster.authors.length" class="outcome-index__avatars" aria-hidden="true">
+              <img
+                v-for="author in cluster.authors"
+                :key="author"
+                :src="`https://github.com/${author}.png?size=48`"
+                alt=""
+                width="24"
+                height="24"
+                class="outcome-index__avatar"
+                loading="lazy"
+                decoding="async"
+              >
+            </span>
+            <span class="outcome-index__count">
+              {{ cluster.skillCount }} {{ cluster.skillCount === 1 ? 'skill' : 'skills' }}
+            </span>
           </span>
         </NuxtLink>
       </li>

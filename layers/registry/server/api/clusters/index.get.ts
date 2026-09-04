@@ -34,14 +34,22 @@ export interface ClusterCard {
   authorCount: number
   /** Distinct GitHub logins behind the cluster, most-starred first. */
   authors: string[]
+  /** Admitted inside the last 45 days, so the grid can mark it. */
+  isNew: boolean
   examples: { owner: string, name: string, repo: string, displayName: string, stars: number }[]
 }
 
 const EXAMPLES_PER_CARD = 5
+/**
+ * How long a track reads as new. Long enough that a monthly visitor sees it,
+ * short enough that "new" keeps meaning something.
+ */
+const NEW_TRACK_DAYS = 45
 const AUTHORS_PER_CARD = 8
 
 export default defineCachedEventHandler(async (event) => {
   const db = getDB(event)
+  const newestAdmissionCutoff = Date.now() - NEW_TRACK_DAYS * 24 * 60 * 60 * 1000
 
   const allCategories = Array.from(new Set(CLUSTERS.flatMap(c => c.categories)))
   if (!allCategories.length)
@@ -86,6 +94,7 @@ export default defineCachedEventHandler(async (event) => {
       userVoice: c.userVoice,
       skillCount: inCluster.length,
       authorCount: authors.length,
+      isNew: c.addedAt !== null && Date.parse(c.addedAt) >= newestAdmissionCutoff,
       authors: authors.slice(0, AUTHORS_PER_CARD),
       examples: examples.map(e => ({
         owner: e.owner,

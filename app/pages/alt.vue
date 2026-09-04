@@ -561,7 +561,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Skills for the <span class="alt-ink">work you do</span>.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-            Pick a track. Each one is a short list, with the authors behind it.
+            Pick a track. Busiest first, measured from what devs shared this week.
           </p>
         </div>
         <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" :order="TRACK_DEMAND_ORDER" />

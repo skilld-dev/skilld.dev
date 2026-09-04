@@ -101,6 +101,12 @@ export interface Cluster {
   categories: string[]
   /** Hand-picked `owner/name` keys that lead cards and detail pages. */
   pinnedExamples: string[]
+  /**
+   * ISO date the track was admitted, or null for the rows that predate the
+   * field. The grid marks a track added inside the last 45 days, so a returning
+   * visitor can see the taxonomy moved without reading a changelog.
+   */
+  addedAt: string | null
 }
 
 export const CLUSTERS: Cluster[] = [
@@ -120,6 +126,7 @@ export const CLUSTERS: Cluster[] = [
     // architecture half of the old `design` label moved to `planning`, where
     // "turn rough ideas into plans and specs" already lives.
     categories: ['interface-design'],
+    addedAt: null,
     pinnedExamples: [
       'emilkowalski/emil-design-eng',
       'jakubkrehel/make-interfaces-feel-better',
@@ -145,6 +152,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'essentials',
     audience: 'dev',
     categories: ['framework', 'rendering'],
+    addedAt: null,
     pinnedExamples: [
       'vercel-labs/find-skills',
       'othmanadi/planning-with-files',
@@ -169,6 +177,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'dev',
     categories: [],
+    addedAt: null,
     pinnedExamples: [
       'dmmulroy/install-anti-slop',
       'cursor/thermo-nuclear-code-quality-review',
@@ -195,6 +204,7 @@ export const CLUSTERS: Cluster[] = [
     audience: 'dev',
     // `scraping` moved to `research` on 2026-09-04. Values may not repeat.
     categories: ['automation'],
+    addedAt: null,
     pinnedExamples: [
       'obra/subagent-driven-development',
       'obra/dispatching-parallel-agents',
@@ -228,6 +238,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'code-review',
     audience: 'dev',
     categories: ['code-review', 'refactoring'],
+    addedAt: null,
     pinnedExamples: [
       'pbakaus/resolve-agent-reviews',
       'obra/requesting-code-review',
@@ -252,6 +263,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'dev',
     categories: ['testing', 'incident-response', 'observability'],
+    addedAt: null,
     pinnedExamples: [
       'mattpocock/tdd',
       'obra/test-driven-development',
@@ -276,6 +288,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'web-quality',
     audience: 'dev',
     categories: ['performance'],
+    addedAt: null,
     pinnedExamples: [
       'addyosmani/web-quality-audit',
       'addyosmani/core-web-vitals',
@@ -298,6 +311,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'dev',
     categories: ['security', 'auth'],
+    addedAt: null,
     pinnedExamples: [
       'wshobson/stride-analysis-patterns',
       'github/audit-integrity',
@@ -319,6 +333,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'backend-data',
     audience: 'dev',
     categories: ['data-modeling'],
+    addedAt: null,
     pinnedExamples: [
       'supabase/supabase-postgres-best-practices',
       'stripe/stripe-best-practices',
@@ -339,6 +354,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'dev',
     categories: ['ci-cd', 'deployment', 'release-management', 'migrations'],
+    addedAt: null,
     pinnedExamples: [
       'obra/using-git-worktrees',
       'github/git-commit',
@@ -360,6 +376,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'codebase-architecture',
     audience: 'dev',
     categories: ['planning', 'project-management', 'software-design'],
+    addedAt: null,
     pinnedExamples: [
       'obra/brainstorming',
       'n8n-io/spec-driven-development',
@@ -384,6 +401,7 @@ export const CLUSTERS: Cluster[] = [
     // Inherited from `writing` when it retired into this row: the
     // documentation backfill gives the page depth under the ten ranked leads.
     categories: ['documentation'],
+    addedAt: null,
     pinnedExamples: [
       'hardikpandya/stop-slop',
       'petergyang/no-ai-slop',
@@ -412,10 +430,10 @@ export const CLUSTERS: Cluster[] = [
       'Skills that draw the system: architecture and data flow, a map of a codebase you have not read, and the shape of a pull request. The top trending skill of the week sits here.',
     mergedFrom: null,
     audience: 'dev',
-    // No classifier value covers this. Diagram skills currently land in
-    // `software-design`, `documentation` and `interface-design`, none of which
-    // promise a picture. Pins carry the page until the classifier learns it.
-    categories: [],
+    // `diagramming` was added to the classifier on 2026-09-04 for this track.
+    // Pins lead; the category is the backfill under them.
+    categories: ['diagramming'],
+    addedAt: '2026-09-04',
     pinnedExamples: [
       'tt-a1i/archify',
       'garrytan/diagram',
@@ -441,6 +459,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'dev',
     categories: ['scraping'],
+    addedAt: '2026-09-04',
     pinnedExamples: [
       'browser-use/browser-use',
       'mattpocock/research',
@@ -470,6 +489,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'test',
     categories: [],
+    addedAt: null,
     pinnedExamples: [
       // Addy Osmani's, already the anchor of /skills/performance. Pinned in
       // both because it genuinely answers both questions.

@@ -1973,3 +1973,47 @@
   hyphens: none;
   text-wrap: pretty;
 }
+
+/* Track cards: the depth behind a track, and a mark on one just admitted. */
+.outcome-index__foot {
+  display: flex;
+  margin-top: 0.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.outcome-index__foot .outcome-index__avatars {
+  margin-top: 0;
+}
+
+.outcome-index__count {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--ui-text-dimmed);
+  font-variant-numeric: tabular-nums;
+}
+
+.outcome-index__new {
+  display: inline-block;
+  margin-inline-start: 0.4rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: calc(var(--ui-radius) * 0.5);
+  background: color-mix(in oklab, var(--ui-primary) 16%, transparent);
+  color: var(--ui-primary);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: 0.12em;
+}
+
+/* The icon takes the brand colour on hover, like the doors above it. */
+@media (hover: hover) {
+  .outcome-index__item:hover .iconify {
+    color: var(--ui-primary);
+  }
+}
