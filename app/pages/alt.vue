@@ -13,8 +13,8 @@ import {
   selectHomepageTrendingSkills,
 } from '../utils/homepage-person-skills'
 
-const title = 'The curated agent skills registry · skilld'
-const description = 'Agent skills written by real maintainers in their own GitHub repos. See who wrote it and read the SKILL.md before you install.'
+const title = 'The skills your agent is missing · skilld'
+const description = 'Find agent skills the maintainers wrote, keep them current, and write your own. One command, every agent, no account.'
 
 useSeoMeta({
   title,
@@ -321,10 +321,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="alt-hero-title max-w-[16ch] font-semibold tracking-[-0.045em] text-balance">
-              The curated agent skills registry.
+              The skills your agent is missing.
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Every skill is a SKILL.md a maintainer keeps in their own repo. One command installs it in every agent.
+              Written by the maintainers, read by a person, installed in one command. Find one, watch it, or write your own.
             </p>
 
             <div class="alt-hero-slots mt-8">
@@ -342,12 +342,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   Install
                 </p>
                 <div class="alt-hero-command mt-2">
-                  <span class="alt-hero-prompt" aria-hidden="true">$</span>
-                  <InstallCommand
-                    id="alt-hero-install-command"
-                    :command="heroInstallCommand"
-                    tabindex="0"
-                  />
+                  <span class="alt-hero-command-scroll">
+                    <span class="alt-hero-prompt" aria-hidden="true">$</span>
+                    <InstallCommand
+                      id="alt-hero-install-command"
+                      :command="heroInstallCommand"
+                      tabindex="0"
+                    />
+                  </span>
                   <UButton
                     :icon="heroCommandCopied ? 'i-lucide-check' : 'i-lucide-copy'"
                     color="neutral"
@@ -381,9 +383,29 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       </div>
     </section>
 
+    <nav class="alt-doors border-b border-default" aria-label="What you can do here">
+      <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
+        <NuxtLink to="#discover" class="alt-door">
+          <span class="section-label">Find</span>
+          <span class="alt-door-title">Skills the maintainers wrote</span>
+          <span class="alt-door-text">Trending this week, new arrivals, and tracks for the work you do. Author and source on every card.</span>
+        </NuxtLink>
+        <NuxtLink to="#freshness" class="alt-door">
+          <span class="section-label">Stay current</span>
+          <span class="alt-door-title">Know when a skill changes</span>
+          <span class="alt-door-text">Watch the repos you depend on. One digest says what moved and why it matters.</span>
+        </NuxtLink>
+        <NuxtLink to="#publish" class="alt-door">
+          <span class="section-label">Make</span>
+          <span class="alt-door-title">Write one for your own code</span>
+          <span class="alt-door-text">Draft a skill for a package you maintain, or index the project you are in.</span>
+        </NuxtLink>
+      </div>
+    </nav>
+
     <section
       v-if="showTrending || trendingStatus === 'pending'"
-      id="trending"
+      id="discover"
       class="border-b border-default"
       aria-labelledby="trending-heading"
     >
@@ -391,11 +413,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 id="trending-heading" class="text-2xl font-semibold tracking-tight text-balance">
-              Trending this week
+              What devs are installing this week.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Skill repositories devs are posting about on X, ranked by how many separate
-              devs shared them rather than by how loud any one post was.
+              Repos devs are posting about, ranked by how many separate people shared them. Every one links to the author's source.
             </p>
             <p v-if="trendingSectionRepos.length" class="data-label mt-3">
               {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
@@ -462,10 +483,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-outcomes-intro">
           <h2 id="outcomes-heading" class="home-outcomes-title max-w-[16ch] font-semibold text-balance">
-            What do you work on?
+            Skills for the work you do.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-            Choose the work you actually do. Each track shows who writes skills for it.
+            Pick a track. Each one shows who writes skills for it and what they cover.
           </p>
         </div>
         <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" />
@@ -489,10 +510,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-featured-heading">
           <div class="min-w-0">
             <h2 id="featured-focus-heading" class="home-featured-title text-balance">
-              Collections for better agent work.
+              A whole stack in one command.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Shared by devs on X and Bluesky, covering discovery, planning, and review.
+              Collections bundle the skills a stack needs. Install all of them at once, then watch the collection for changes.
             </p>
             <p v-if="featuredCollections.length" class="data-label mt-3">
               {{ featuredCollections.length }} {{ featuredCollections.length === 1 ? 'collection' : 'collections' }} · {{ featuredSkillTotal }} {{ featuredSkillTotal === 1 ? 'skill' : 'skills' }}
