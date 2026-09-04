@@ -368,10 +368,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           </div>
 
           <div class="home-hero-proof min-w-0">
-            <p v-if="heroShowsTrending" class="section-label mb-3 flex items-center gap-2">
-              <span class="trending-fire" aria-hidden="true">🔥</span>
-              <span>Trending this week</span>
-            </p>
             <SkillSourceList
               :items="heroTrendingCards"
               variant="stream"
@@ -386,17 +382,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     <nav class="alt-doors border-b border-default" aria-label="What you can do here">
       <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink to="#discover" class="alt-door">
-          <span class="section-label">Find</span>
           <span class="alt-door-title">Skills the maintainers wrote</span>
           <span class="alt-door-text">Trending this week, new arrivals, and tracks for the work you do. Author and source on every card.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="alt-door">
-          <span class="section-label">Stay current</span>
           <span class="alt-door-title">Know when a skill changes</span>
           <span class="alt-door-text">Watch the repos you depend on. One digest says what moved and why it matters.</span>
         </NuxtLink>
         <NuxtLink to="#publish" class="alt-door">
-          <span class="section-label">Make</span>
           <span class="alt-door-title">Write one for your own code</span>
           <span class="alt-door-text">Draft a skill for a package you maintain, or index the project you are in.</span>
         </NuxtLink>
@@ -989,10 +982,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       />
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
         <header>
-          <p class="section-label">
-            Make
-          </p>
-          <h2 id="publish-heading" class="home-section-title home-publish-title mt-4 text-balance">
+          <h2 id="publish-heading" class="home-section-title home-publish-title text-balance">
             Write a skill for your own code.
           </h2>
           <p class="home-publish-summary mt-4">
