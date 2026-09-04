@@ -22,7 +22,12 @@ interface ClusterCard {
 const { limit, rows, order } = defineProps<{
   /** Most cards to render. Bounds the list before any row cap applies. */
   limit?: number
-  /** Cap the visible grid to this many rows at every breakpoint. */
+  /**
+   * Cap the grid to this many rows. The column count is read from the rendered
+   * grid, so the cap holds at every width. A single column is left uncapped:
+   * three rows of one column is three tracks, and the rest would be gone on a
+   * phone.
+   */
   rows?: number
   /**
    * Slugs in the order they should appear. The API sorts by how many Skills
@@ -35,12 +40,32 @@ const { limit, rows, order } = defineProps<{
 const { data, status, error, refresh } = await useFetch<{ items: ClusterCard[] }>('/api/clusters', {
   key: 'home-outcome-clusters-v4',
 })
+const grid = useTemplateRef<HTMLElement>('grid')
+const columns = ref(0)
+
+/**
+ * Clipping the extra rows with `overflow` left them tabbable: keyboard focus
+ * moved to a card nobody could see. So the cap is a slice and the extra cards
+ * never render.
+ *
+ * The server renders every card, because it cannot know the viewport. The
+ * first client measurement trims it, which changes nothing on a four-column
+ * screen where the limit already matches the row cap.
+ */
+useResizeObserver(grid, ([entry]) => {
+  const template = entry && getComputedStyle(entry.target).gridTemplateColumns
+  columns.value = template && template !== 'none' ? template.split(' ').filter(Boolean).length : 0
+})
+
 const clusters = computed(() => {
   const items = data.value?.items ?? []
   const ranked = order?.length
     ? [...items].sort((a, b) => rankOf(a.slug) - rankOf(b.slug))
     : items
-  return limit ? ranked.slice(0, limit) : ranked
+  const bounded = limit ? ranked.slice(0, limit) : ranked
+  if (!rows || columns.value < 2)
+    return bounded
+  return bounded.slice(0, rows * columns.value)
 })
 
 /** Unranked slugs sort after every ranked one, in the order the API sent. */
@@ -48,9 +73,6 @@ function rankOf(slug: string): number {
   const index = order?.indexOf(slug) ?? -1
   return index === -1 ? Number.MAX_SAFE_INTEGER : index
 }
-const rowCapStyle = computed(() =>
-  rows ? { gridTemplateRows: `repeat(${rows}, auto)`, gridAutoRows: '0', rowGap: '0' } : undefined,
-)
 </script>
 
 <template>
@@ -88,7 +110,11 @@ const rowCapStyle = computed(() =>
       </div>
     </div>
 
-    <ul v-else-if="clusters.length" class="outcome-index list-none p-0" :style="rowCapStyle">
+    <ul
+      v-else-if="clusters.length"
+      ref="grid"
+      class="outcome-index list-none p-0"
+    >
       <li v-for="cluster in clusters" :key="cluster.slug" class="min-w-0">
         <NuxtLink
           :to="`/skills/${cluster.slug}`"

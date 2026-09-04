@@ -426,8 +426,10 @@ export const CLUSTERS: Cluster[] = [
     seoTitle: 'Agent Skills for Diagrams and Architecture Maps',
     seoDescription:
       'Diagram and codebase-map skills for Claude Code, Cursor, and Codex. Draw architecture, data flow, and pull requests as pictures, from the maintainers who wrote the tools.',
+    // No "trending this week" claim here. The note renders under the curator's
+    // name on the page and would be wrong within a month.
     curatorNote:
-      'Skills that draw the system: architecture and data flow, a map of a codebase you have not read, and the shape of a pull request. The top trending skill of the week sits here.',
+      'Skills that draw the system: architecture and data flow, a map of a codebase you have not read, and the shape of a pull request.',
     mergedFrom: null,
     audience: 'dev',
     // `diagramming` was added to the classifier on 2026-09-04 for this track.
