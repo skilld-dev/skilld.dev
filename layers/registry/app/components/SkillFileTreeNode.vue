@@ -10,6 +10,8 @@ const props = defineProps<{
   registryPath: string
   branch: string
   skillDir: string
+  /** Unique per tree instance, so two trees on one page cannot share an id. */
+  idPrefix: string
   activePath: string
 }>()
 
@@ -60,7 +62,7 @@ function onInlineClick(event: MouseEvent) {
       <button
         type="button"
         class="tree-row"
-        :aria-controls="`tree-${node.path}`"
+        :aria-controls="`${idPrefix}-${node.path}`"
         @click="open = !open"
       >
         <UIcon
@@ -78,7 +80,7 @@ function onInlineClick(event: MouseEvent) {
       </button>
       <ul
         v-show="open"
-        :id="`tree-${node.path}`"
+        :id="`${idPrefix}-${node.path}`"
         role="group"
         class="tree-children"
       >
@@ -92,6 +94,7 @@ function onInlineClick(event: MouseEvent) {
           :registry-path="registryPath"
           :branch="branch"
           :skill-dir="skillDir"
+          :id-prefix="idPrefix"
           :active-path="activePath"
           @select="(p) => emit('select', p)"
         />

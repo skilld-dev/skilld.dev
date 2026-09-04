@@ -89,7 +89,7 @@ useSchemaOrg(computed(() => skills.value.length
       <p v-if="error" class="editorial-state mt-6" role="alert">
         Could not load the Skill list. Browse the
         <NuxtLink :to="`/skills/${page.cluster}`" class="underline">
-          {{ cluster?.cluster.label ?? 'category' }} category
+          {{ cluster?.cluster.label ?? 'track' }} track
         </NuxtLink>
         instead.
       </p>

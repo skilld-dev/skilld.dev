@@ -44,7 +44,7 @@ const previewDocument = computed(() => card.value
       </h2>
       <UButton
         to="/login"
-        label="Sign Up"
+        label="Sign in with GitHub"
         icon="i-lucide-github"
         class="mt-5 min-h-11 w-full justify-center"
       />

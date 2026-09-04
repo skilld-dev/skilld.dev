@@ -95,7 +95,7 @@ function showMore() {
 const title = computed(() =>
   clusterData.value
     ? clusterData.value.cluster.seoTitle
-    : 'Agent skills by category',
+    : 'Agent skills by track',
 )
 const description = computed(
   () => clusterData.value
@@ -127,7 +127,7 @@ useHead({
 
 defineOgImage('Page.takumi', {
   title: () => clusterData.value?.cluster.label ?? 'Agent skills',
-  description: () => clusterData.value?.cluster.userVoice ?? 'Browse skills by category.',
+  description: () => clusterData.value?.cluster.userVoice ?? 'Browse skills by track.',
 }, { alt: () => `${clusterData.value?.cluster.label ?? 'Agent skills'} on skilld` })
 </script>
 
@@ -225,7 +225,7 @@ defineOgImage('Page.takumi', {
       <div class="flex flex-wrap gap-3">
         <UButton
           to="/skills"
-          label="Browse categories"
+          label="Browse tracks"
           color="neutral"
           variant="outline"
           icon="i-lucide-arrow-left"
@@ -340,7 +340,7 @@ defineOgImage('Page.takumi', {
         </p>
         <UButton
           to="/skills"
-          label="Browse categories"
+          label="Browse tracks"
           color="neutral"
           variant="outline"
           class="mt-4 min-h-11"
