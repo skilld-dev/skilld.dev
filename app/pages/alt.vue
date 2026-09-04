@@ -14,7 +14,7 @@ import {
 } from '../utils/homepage-person-skills'
 
 const title = 'Taste-tested agent skills ecosystem · skilld'
-const description = 'Find agent skills the maintainers wrote, keep them current, and write your own. One command, every agent, no account.'
+const description = 'Agent skills the maintainers wrote and a person read before they listed. Find one, keep it fresh, write your own. One command, every agent.'
 
 useSeoMeta({
   title,
@@ -324,7 +324,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Taste-tested agent skills ecosystem.
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Your agent is sharp, but it never read the maintainer's notes. Here they are, in the open. Find the skills, keep them fresh, write your own.
+              Every skill here was written by the maintainer and read by a person before it listed. Find one, keep it fresh, write your own.
             </p>
 
             <div class="alt-hero-slots mt-8">
@@ -374,16 +374,16 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     <nav class="alt-doors border-b border-default" aria-label="What you can do here">
       <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink to="#outcomes" class="alt-door">
-          <span class="alt-door-title">Skills the maintainers wrote</span>
-          <span class="alt-door-text">Trending this week, new arrivals, and tracks for the work you do. Author and source on every card.</span>
+          <span class="alt-door-title">Find one that passed the test</span>
+          <span class="alt-door-text">Tracks for the work you do, and what devs installed this week. Author and source on every card.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="alt-door">
           <span class="alt-door-title">Know when a skill changes</span>
           <span class="alt-door-text">Watch the repos you depend on. One digest says what moved and why it matters.</span>
         </NuxtLink>
         <NuxtLink to="#publish" class="alt-door">
-          <span class="alt-door-title">Write one for your own code</span>
-          <span class="alt-door-text">Draft a skill for a package you maintain, or index the project you are in.</span>
+          <span class="alt-door-title">Write one worth testing</span>
+          <span class="alt-door-text">Draft a skill for a package you maintain, or index the project you are in. Submit it and a person reads it.</span>
         </NuxtLink>
       </div>
     </nav>
@@ -399,7 +399,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Skills for the work you do.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-            Pick a track. Each one shows who writes skills for it and what they cover.
+            Pick a track. Each one is a short list a person put together, with the authors who write for it.
           </p>
         </div>
         <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" />
@@ -412,6 +412,38 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           trailing-icon="i-lucide-arrow-right"
           class="mt-4 min-h-11"
         />
+      </div>
+    </section>
+
+    <section
+      id="the-test"
+      class="border-b border-default"
+      aria-labelledby="the-test-heading"
+    >
+      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+        <h2 id="the-test-heading" class="text-2xl font-semibold tracking-tight text-balance">
+          The taste test.
+        </h2>
+        <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+          Three things are true of every skill on this site. Review, never a guarantee; you can still read it before you run it.
+        </p>
+        <ol class="alt-test-list mt-8 list-none p-0">
+          <li class="alt-test-item">
+            <span class="alt-test-num" aria-hidden="true">1</span>
+            <span class="alt-test-title">The maintainer wrote it.</span>
+            <span class="alt-test-text">It lives in their repo, under their name. No anonymous uploads.</span>
+          </li>
+          <li class="alt-test-item">
+            <span class="alt-test-num" aria-hidden="true">2</span>
+            <span class="alt-test-title">A person read it.</span>
+            <span class="alt-test-text">Nothing lists because it was popular. Someone said yes.</span>
+          </li>
+          <li class="alt-test-item">
+            <span class="alt-test-num" aria-hidden="true">3</span>
+            <span class="alt-test-title">The source is one click away.</span>
+            <span class="alt-test-text">Open the SKILL.md before your agent does. Stars are the only count we show, because GitHub can verify them.</span>
+          </li>
+        </ol>
       </div>
     </section>
 
@@ -430,10 +462,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
         <header>
           <h2 id="publish-heading" class="home-section-title home-publish-title text-balance">
-            Write a skill for your own code.
+            Write one. We'll read it.
           </h2>
           <p class="home-publish-summary mt-4">
-            skilld drafts it, you edit and own it, and it ships in your repo under your name.
+            skilld drafts it, you edit and own it, and it ships in your repo under your name. Submit it and a person reads it before it lists.
           </p>
         </header>
         <div class="alt-make-grid mt-8">
@@ -791,10 +823,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-featured-heading">
           <div class="min-w-0">
             <h2 id="featured-focus-heading" class="home-featured-title text-balance">
-              A whole stack in one command.
+              A whole stack, one command.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Collections bundle the skills a stack needs. Install all of them at once, then watch the collection for changes.
+              Collections bundle the skills a stack needs, picked by a person. Install all of them at once, then watch for changes.
             </p>
             <p v-if="featuredCollections.length" class="data-label mt-3">
               {{ featuredCollections.length }} {{ featuredCollections.length === 1 ? 'collection' : 'collections' }} · {{ featuredSkillTotal }} {{ featuredSkillTotal === 1 ? 'skill' : 'skills' }}
