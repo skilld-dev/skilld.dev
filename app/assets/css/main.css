@@ -1509,7 +1509,22 @@
 
 /* "ecosystem" carries the brand: rose ink and the chevron mark in place of a full stop. */
 .alt-hero-eco {
+  position: relative;
+  display: inline-block;
   color: var(--ui-primary);
+}
+
+/* Dot-grid underline: the noise field's grid, frozen, in rose. */
+.alt-hero-eco::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0.04em 0.9em;
+  bottom: -0.06em;
+  height: 0.14em;
+  background-image: radial-gradient(circle, var(--ui-primary) 0.9px, transparent 1.1px);
+  background-size: 0.14em 0.14em;
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .alt-hero-eco-mark {
@@ -1531,4 +1546,23 @@
   font-size: 0.42em;
   line-height: 1;
   transform: rotate(12deg);
+  transform-origin: 50% 80%;
+}
+
+/* A quick wiggle when the headline is hovered: 360ms, inside the motion budget. */
+.alt-hero-title:hover .alt-hero-emoji {
+  animation: alt-emoji-wiggle 360ms ease-in-out;
+}
+
+@keyframes alt-emoji-wiggle {
+  0% { transform: rotate(12deg); }
+  30% { transform: rotate(-6deg) scale(1.08); }
+  60% { transform: rotate(18deg) scale(1.04); }
+  100% { transform: rotate(12deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alt-hero-title:hover .alt-hero-emoji {
+    animation: none;
+  }
 }

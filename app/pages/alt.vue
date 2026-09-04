@@ -336,7 +336,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <span class="alt-hero-eco">ecosystem<span class="alt-hero-eco-mark" aria-hidden="true">⏶</span></span>
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Every skill here was written by its maintainer and read by a person before it went in. Find one, watch it, write your own.
+              Your agent is sharp, but it never read the maintainer's notes. They're here, and a person tasted each one first. Find one, watch it, write your own.
             </p>
 
             <div class="alt-hero-slots mt-8">
@@ -364,8 +364,13 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                     @click="() => { void copyHeroCommand() }"
                   />
                 </div>
-                <p class="data-label mt-2">
-                  One command, every agent. No account.
+                <p class="data-label mt-2" aria-live="polite">
+                  <template v-if="heroCommandCopied">
+                    Copied. Paste it in your terminal.
+                  </template>
+                  <template v-else>
+                    One command, every agent. No sign-up, no waiting.
+                  </template>
                 </p>
               </div>
             </div>
@@ -387,15 +392,15 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink to="#outcomes" class="alt-door">
           <span class="alt-door-title">Find a skill</span>
-          <span class="alt-door-text">Tracks for the work you do, and what devs installed this week. Author and source on every card.</span>
+          <span class="alt-door-text">Tracks for the work you do, plus what devs installed this week. Author and source on every card, always.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="alt-door">
           <span class="alt-door-title">Watch it change</span>
-          <span class="alt-door-text">Watch the repos you depend on. One digest says what changed and why it matters.</span>
+          <span class="alt-door-text">Maintainers move fast. Watch the repos you rely on and get one digest that says what changed and why it matters.</span>
         </NuxtLink>
         <NuxtLink to="#publish" class="alt-door">
           <span class="alt-door-title">Write your own</span>
-          <span class="alt-door-text">Draft a skill for a package you maintain, or for the project you are in. Send it in and a person reads it.</span>
+          <span class="alt-door-text">You know your code better than any model does. Draft a skill for your package or project, send it in, and a person reads it.</span>
         </NuxtLink>
       </div>
     </nav>
@@ -411,7 +416,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Skills for the work you do.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
-            Pick a track. Each one is a short list a person put together, with the authors who write for it.
+            Pick a track. Short lists a person put together, with the authors who write for them.
           </p>
         </div>
         <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" />
@@ -437,23 +442,23 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           The taste test.
         </h2>
         <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-          Three things are true of every skill here. It is a review, never a guarantee, so read it before you run it.
+          Three things are true of every skill here. Someone tasted it first. You should still read it before you run it.
         </p>
         <ol class="alt-test-list mt-8 list-none p-0">
           <li class="alt-test-item">
             <span class="alt-test-num" aria-hidden="true">1</span>
             <span class="alt-test-title">The maintainer wrote it.</span>
-            <span class="alt-test-text">It lives in their repo, under their name. No anonymous uploads.</span>
+            <span class="alt-test-text">In their own repo, under their own name. Nobody here uploads anonymously.</span>
           </li>
           <li class="alt-test-item">
             <span class="alt-test-num" aria-hidden="true">2</span>
             <span class="alt-test-title">A person read it.</span>
-            <span class="alt-test-text">Nothing gets in for being popular. Someone said yes.</span>
+            <span class="alt-test-text">Popular gets you noticed. It does not get you in. Someone said yes.</span>
           </li>
           <li class="alt-test-item">
             <span class="alt-test-num" aria-hidden="true">3</span>
             <span class="alt-test-title">The source is one click away.</span>
-            <span class="alt-test-text">Open the SKILL.md before your agent does. Stars are the only count we show, because GitHub can verify them.</span>
+            <span class="alt-test-text">Open the SKILL.md before your agent does. Stars are the only count we show, because GitHub can vouch for them.</span>
           </li>
         </ol>
       </div>
@@ -477,7 +482,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Write one. We'll read it.
           </h2>
           <p class="home-publish-summary mt-4">
-            skilld drafts it, you edit and own it, and it ships in your repo under your name. Send it in and a person reads it before it goes in.
+            skilld drafts, you edit and own it, and it ships in your repo under your name. Send it in and a person reads it, cover to cover.
           </p>
         </header>
         <div class="alt-make-grid mt-8">
@@ -486,7 +491,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               For a package you maintain
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
-              Drafts a SKILL.md from your docs and API so agents use your package the way you intended. Commit it and send it in.
+              Your docs and API become a SKILL.md, so agents use your package the way you meant it. Commit it, send it in.
             </p>
             <p class="mt-4 text-sm">
               <InstallCommand
@@ -511,7 +516,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               For the project you are in
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
-              Indexes your source and docs into a searchable project skill, so your agent finds the real file instead of guessing.
+              Your source and docs become a project skill, so your agent finds the real file instead of guessing at it.
             </p>
             <p class="mt-4 text-sm">
               <InstallCommand
@@ -625,7 +630,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Your skills changed. Did anyone tell you?
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-            Watch a repo and a digest says what changed and why it matters. Silence when nothing did.
+            Watch a repo and a digest says what changed and why it matters. Silence when nothing did. Your inbox stays yours.
           </p>
           <div class="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
             <UButton
@@ -838,7 +843,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               A whole stack, one command.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Collections bundle the skills a stack needs, picked by a person. Install all of them at once, then watch for changes.
+              Collections bundle what a stack needs, picked by a person with opinions. Install all of it, then watch for changes.
             </p>
             <p v-if="featuredCollections.length" class="data-label mt-3">
               {{ featuredCollections.length }} {{ featuredCollections.length === 1 ? 'collection' : 'collections' }} · {{ featuredSkillTotal }} {{ featuredSkillTotal === 1 ? 'skill' : 'skills' }}

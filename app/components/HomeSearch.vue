@@ -102,7 +102,7 @@ const activeDescendant = computed(() =>
       ref="input"
       v-model="query"
       icon="i-lucide-search"
-      placeholder="Search skills, or paste a GitHub URL"
+      placeholder="What should your agent learn today?"
       name="q"
       enterkeyhint="search"
       size="xl"
