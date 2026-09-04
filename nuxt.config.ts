@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
@@ -581,7 +582,8 @@ export default defineNuxtConfig({
     sitemaps: {
       pages: {
         includeAppSources: true,
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**'],
+        // An /agents page waits on a CLI release; it answers 404 until then.
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths()],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],

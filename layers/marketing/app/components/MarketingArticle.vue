@@ -71,6 +71,7 @@ function copyCommand(): void {
       </div>
     </header>
     <ContentRenderer :value="page" />
+    <slot />
   </article>
 </template>
 

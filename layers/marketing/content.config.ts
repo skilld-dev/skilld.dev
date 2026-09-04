@@ -43,5 +43,16 @@ export default defineContentConfig({
       },
       schema: articleSchema,
     }),
+    // One page per Agent target with measured search demand. The route list
+    // and the paths on each page live in `app/utils/agent-pages.ts`.
+    agents: defineCollection({
+      type: 'page',
+      source: {
+        cwd: marketingContentRoot,
+        include: 'agents/*.md',
+        prefix: '/agents',
+      },
+      schema: articleSchema,
+    }),
   },
 })

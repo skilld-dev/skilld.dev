@@ -7,7 +7,8 @@
  * `latest`; v3 Skill commands are checked against `beta`.
  *
  * The required list comes from the command builders the site renders, so a new
- * grammar is covered without editing this file.
+ * grammar is covered without editing this file. The `beta` channel also has to
+ * accept every `--agent` value an `/agents/<id>` page prints.
  */
 
 import { execFile } from 'node:child_process'
@@ -20,6 +21,7 @@ import {
   skillInstallCmd,
   skillRunCmd,
 } from '../app/utils/install-cmd'
+import { publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
 
 const run = promisify(execFile)
 
@@ -33,13 +35,17 @@ interface ChannelRequirement {
   tag: 'latest' | 'beta'
   minimumMajor: number
   commands: string[]
+  /** `--agent` values the site prints for this channel. */
+  agents: string[]
 }
 
 interface ChannelCheck {
   tag: ChannelRequirement['tag']
   version: string
   required: string[]
+  requiredAgents: string[]
   published: string[] | null
+  publishedAgents: string[] | null
   problems: string[]
 }
 
@@ -61,6 +67,7 @@ function channelRequirements(): ChannelRequirement[] {
         curatorInstallCmd('login'),
         collectionInstallCmd('login', 'slug'),
       ]),
+      agents: [],
     },
     {
       tag: 'beta',
@@ -69,6 +76,7 @@ function channelRequirements(): ChannelRequirement[] {
         skillRunCmd('owner', 'repo', 'skill'),
         skillInstallCmd('owner', 'repo', 'skill'),
       ]),
+      agents: publishedAgentPages().map(page => page.id),
     },
   ]
 }
@@ -85,8 +93,9 @@ async function publishedVersion(tag: ChannelRequirement['tag']): Promise<string>
   return version
 }
 
-async function helpText(version: string): Promise<string> {
-  const result = await run('npx', ['--yes', `${PACKAGE}@${version}`, '--help'], {
+async function helpText(version: string, subcommand?: string): Promise<string> {
+  const args = ['--yes', `${PACKAGE}@${version}`, ...(subcommand ? [subcommand] : []), '--help']
+  const result = await run('npx', args, {
     timeout: 180_000,
     env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
   }).catch((error: { stdout?: string, stderr?: string }) => error)
@@ -116,9 +125,33 @@ function publishedSubcommands(help: string): string[] | null {
   return commands.length > 0 ? commands : null
 }
 
+/**
+ * Reads the `Values:` list under `--agent` in v3's `install --help`.
+ *
+ * Returns null when that list is absent, so an unreadable help text fails the
+ * check instead of passing it.
+ */
+function publishedAgents(installHelp: string): string[] | null {
+  const plain = installHelp.replace(ANSI_COLOUR, '')
+  const option = plain.indexOf('--agent <AGENT>')
+  if (option === -1)
+    return null
+  const start = plain.indexOf('Values:', option)
+  if (start === -1)
+    return null
+  const end = plain.indexOf('.\n', start)
+  if (end === -1)
+    return null
+  const values = plain.slice(start + 'Values:'.length, end).split(/[\s,]+/).filter(Boolean)
+  return values.length > 0 ? values : null
+}
+
 async function checkChannel(requirement: ChannelRequirement): Promise<ChannelCheck> {
   const version = await publishedVersion(requirement.tag)
   const published = publishedSubcommands(await helpText(version))
+  const agents = requirement.agents.length > 0
+    ? publishedAgents(await helpText(version, 'install'))
+    : []
   const major = Number(version.split('.')[0])
   const problems: string[] = []
 
@@ -132,12 +165,22 @@ async function checkChannel(requirement: ChannelRequirement): Promise<ChannelChe
     if (missing.length > 0)
       problems.push(`does not support ${missing.join(', ')}`)
   }
+  if (!agents) {
+    problems.push('could not read its --agent values')
+  }
+  else {
+    const missing = requirement.agents.filter(agent => !agents.includes(agent))
+    if (missing.length > 0)
+      problems.push(`rejects --agent ${missing.join(', ')}`)
+  }
 
   return {
     tag: requirement.tag,
     version,
     required: requirement.commands,
+    requiredAgents: requirement.agents,
     published,
+    publishedAgents: agents,
     problems,
   }
 }
@@ -149,7 +192,7 @@ if (failed.length === 0) {
   console.log(JSON.stringify({
     _tag: 'clean',
     check: 'published-cli-grammar',
-    channels: checks.map(({ tag, version, required }) => ({ tag, version, required })),
+    channels: checks.map(({ tag, version, required, requiredAgents }) => ({ tag, version, required, requiredAgents })),
   }, null, 2))
   process.exit(0)
 }
@@ -158,9 +201,12 @@ for (const check of failed) {
   console.error(`${PACKAGE}@${check.tag} is ${check.version}: ${check.problems.join('; ')}.`)
   if (check.published)
     console.error(`It supports: ${check.published.join(', ')}.`)
+  if (check.publishedAgents && check.publishedAgents.length > 0)
+    console.error(`Its --agent values: ${check.publishedAgents.join(', ')}.`)
 }
 console.error('')
 console.error('The site prints a command that the published CLI cannot run.')
 console.error('Publish the missing CLI grammar under the npm tag named above.')
+console.error('For a rejected --agent value, hold its /agents page: raise cliSince in agent-pages.ts.')
 console.error('To deploy anyway, run the "Deploy to Cloudflare" workflow by hand.')
 process.exit(1)
