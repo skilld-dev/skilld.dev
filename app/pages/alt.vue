@@ -276,6 +276,13 @@ const authoringEcosystems = [
 
 // The command is real: the top trending repo this week, so the first copy
 // installs something. Falls back to the grammar when the rail is empty.
+/**
+ * The trending band hides itself below MIN_TRENDING_TO_SHOW, so the door has
+ * to fall back to the page that always exists. An anchor to a section that did
+ * not render is a link that does nothing.
+ */
+const trendingDoorTarget = computed(() => (showTrending.value ? '#discover' : '/skills/trending'))
+
 const heroInstallCommand = computed(() => {
   const top = heroTrendingCards.value[0]
   return top ? `npx skilld add gh:${top.owner}/${top.repo}` : 'npx skilld add gh:owner/repo'
@@ -452,7 +459,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <nav class="alt-doors" aria-label="What you can do here">
       <div class="mx-auto grid max-w-6xl gap-px px-4 sm:px-6 md:grid-cols-3">
-        <NuxtLink to="#discover" class="alt-door">
+        <NuxtLink :to="trendingDoorTarget" class="alt-door">
           <span class="alt-door-mark" aria-hidden="true">
             <span class="trending-fire">🔥</span>
           </span>
@@ -752,15 +759,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   Owner verified
                 </p>
               </div>
-              <UButton
-                to="/skills/official"
-                label="All publishers"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                trailing-icon="i-lucide-arrow-right"
-                class="min-h-11"
-              />
             </div>
 
             <div v-if="publishesStatus === 'pending'" class="home-freshness-ledger home-freshness-skeleton-list home-freshness-skeleton-list--secondary" aria-busy="true">
@@ -819,7 +817,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <p class="mt-1 text-base leading-relaxed text-muted">
                 You can still browse existing publishers.
               </p>
-              <UButton to="/skills/official" label="Official publishers" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
+              <UButton to="/skills" label="Browse skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
             </div>
           </section>
         </div>
