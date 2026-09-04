@@ -1566,3 +1566,23 @@
     animation: none;
   }
 }
+
+/* /alt make strip: authoring is a footnote, one line and one command. */
+.alt-make-strip {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.alt-make-strip-actions {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  min-width: 0;
+}
+
+@media (min-width: 64rem) {
+  .alt-make-strip {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+  }
+}

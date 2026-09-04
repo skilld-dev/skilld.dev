@@ -14,7 +14,7 @@ import {
 } from '../utils/homepage-person-skills'
 
 const title = 'Taste-tested agent skills ecosystem · skilld'
-const description = 'Agent skills written by their maintainers and read by a person before they go in. Find one, watch it, write your own. One command, every agent.'
+const description = 'Agent skills written by their maintainers and read by a person before they go in. See what devs are installing this week, install it in one command, watch it change.'
 
 useSeoMeta({
   title,
@@ -336,7 +336,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <span class="alt-hero-eco">ecosystem<span class="alt-hero-eco-mark" aria-hidden="true">⏶</span></span>
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Your agent is sharp, but it never read the maintainer's notes. They're here, and a person tasted each one first. Find one, watch it, write your own.
+              Your agent is sharp, but it never read the maintainer's notes. They're here, and a person tasted each one first. See what devs are installing this week, then watch it change.
             </p>
 
             <div class="alt-hero-slots mt-8">
@@ -390,20 +390,92 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <nav class="alt-doors border-b border-default" aria-label="What you can do here">
       <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
+        <NuxtLink to="#discover" class="alt-door">
+          <span class="alt-door-title">Trending this week</span>
+          <span class="alt-door-text">The skills devs are installing and posting about right now. Author and source on every card, always.</span>
+        </NuxtLink>
         <NuxtLink to="#outcomes" class="alt-door">
-          <span class="alt-door-title">Find a skill</span>
-          <span class="alt-door-text">Tracks for the work you do, plus what devs installed this week. Author and source on every card, always.</span>
+          <span class="alt-door-title">Skills for your kind of work</span>
+          <span class="alt-door-text">Tracks for review, testing, design, SEO, shipping. Short lists a person put together.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="alt-door">
           <span class="alt-door-title">Watch it change</span>
           <span class="alt-door-text">Maintainers move fast. Watch the repos you rely on and get one digest that says what changed and why it matters.</span>
         </NuxtLink>
-        <NuxtLink to="#publish" class="alt-door">
-          <span class="alt-door-title">Write your own</span>
-          <span class="alt-door-text">You know your code better than any model does. Draft a skill for your package or project, send it in, and a person reads it.</span>
-        </NuxtLink>
       </div>
     </nav>
+
+    <section
+      v-if="showTrending || trendingStatus === 'pending'"
+      id="discover"
+      class="border-b border-default"
+      aria-labelledby="trending-heading"
+    >
+      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+        <header class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 id="trending-heading" class="text-2xl font-semibold tracking-tight text-balance">
+              Trending this week.
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              Skill repos devs are posting about, ranked by how many separate people shared them, not by how loud one post was. Every one links to the author's source.
+            </p>
+            <p v-if="trendingSectionRepos.length" class="data-label mt-3">
+              {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
+            </p>
+          </div>
+          <UButton
+            to="/skills/trending"
+            label="See all"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            trailing-icon="i-lucide-arrow-right"
+            class="min-h-11"
+          />
+        </header>
+
+        <div v-if="trendingStatus === 'pending'" class="mt-8 grid gap-4 sm:grid-cols-2" aria-busy="true">
+          <div v-for="i in 4" :key="i" class="rounded-lg border border-default p-4">
+            <USkeleton class="h-4 w-2/3" />
+            <USkeleton class="mt-3 h-3 w-full" />
+            <USkeleton class="mt-2 h-3 w-4/5" />
+          </div>
+        </div>
+
+        <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
+          <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`">
+            <NuxtLink
+              :to="repoHubPath(repo.owner, repo.repo)"
+              class="group flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
+            >
+              <span class="flex items-center gap-2">
+                <img
+                  :src="`https://github.com/${repo.owner}.png?size=64`"
+                  alt=""
+                  width="24"
+                  height="24"
+                  class="size-6 shrink-0 rounded-full border border-default bg-muted"
+                  loading="lazy"
+                  decoding="async"
+                >
+                <span class="min-w-0 flex-1 truncate font-medium text-default">{{ repo.owner }}/{{ repo.repo }}</span>
+                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
+                  {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
+                </span>
+              </span>
+              <span v-if="repo.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
+                {{ repo.evidence.text }}
+              </span>
+              <span class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                <span>{{ trendingShareLabel(repo.authorCount) }}</span>
+                <span v-if="repo.evidence" class="font-mono">@{{ repo.evidence.authorHandle }}</span>
+              </span>
+            </NuxtLink>
+          </li>
+        </ol>
+      </div>
+    </section>
 
     <section
       id="outcomes"
@@ -459,153 +531,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             <span class="alt-test-num" aria-hidden="true">3</span>
             <span class="alt-test-title">The source is one click away.</span>
             <span class="alt-test-text">Open the SKILL.md before your agent does. Stars are the only count we show, because GitHub can vouch for them.</span>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <section
-      id="publish"
-      class="editorial-band home-band--publish border-b border-default"
-      aria-labelledby="publish-heading"
-    >
-      <div
-        class="editorial-atmosphere"
-        data-palette="rose"
-        data-geometry="bloom"
-        data-intensity="subtle"
-        aria-hidden="true"
-      />
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
-        <header>
-          <h2 id="publish-heading" class="home-section-title home-publish-title text-balance">
-            Write one. We'll read it.
-          </h2>
-          <p class="home-publish-summary mt-4">
-            skilld drafts, you edit and own it, and it ships in your repo under your name. Send it in and a person reads it, cover to cover.
-          </p>
-        </header>
-        <div class="alt-make-grid mt-8">
-          <article class="alt-make-door">
-            <h3 class="text-lg font-semibold tracking-tight">
-              For a package you maintain
-            </h3>
-            <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
-              Your docs and API become a SKILL.md, so agents use your package the way you meant it. Commit it, send it in.
-            </p>
-            <p class="mt-4 text-sm">
-              <InstallCommand
-                id="publish-run-command"
-                :command="authoringRunCommand"
-                wrap
-                tabindex="0"
-              />
-            </p>
-            <UButton
-              to="/learn/author-npm-package-skills"
-              label="Package skill guide"
-              color="neutral"
-              variant="outline"
-              size="sm"
-              trailing-icon="i-lucide-arrow-right"
-              class="mt-4 min-h-11"
-            />
-          </article>
-          <article class="alt-make-door">
-            <h3 class="text-lg font-semibold tracking-tight">
-              For the project you are in
-            </h3>
-            <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
-              Your source and docs become a project skill, so your agent finds the real file instead of guessing at it.
-            </p>
-            <p class="mt-4 text-sm">
-              <InstallCommand
-                id="publish-self-command"
-                command="npx skilld self"
-                wrap
-                tabindex="0"
-              />
-            </p>
-            <UButton
-              to="/cli"
-              label="Project skill guide"
-              color="neutral"
-              variant="outline"
-              size="sm"
-              trailing-icon="i-lucide-arrow-right"
-              class="mt-4 min-h-11"
-            />
-          </article>
-        </div>
-      </div>
-    </section>
-    <section
-      v-if="showTrending || trendingStatus === 'pending'"
-      id="discover"
-      class="border-b border-default"
-      aria-labelledby="trending-heading"
-    >
-      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <header class="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 id="trending-heading" class="text-2xl font-semibold tracking-tight text-balance">
-              What devs are installing this week.
-            </h2>
-            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Repos devs are posting about, ranked by how many separate people shared them. Every one links to the author's source.
-            </p>
-            <p v-if="trendingSectionRepos.length" class="data-label mt-3">
-              {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
-            </p>
-          </div>
-          <UButton
-            to="/skills/trending"
-            label="See all"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            trailing-icon="i-lucide-arrow-right"
-            class="min-h-11"
-          />
-        </header>
-
-        <div v-if="trendingStatus === 'pending'" class="mt-8 grid gap-4 sm:grid-cols-2" aria-busy="true">
-          <div v-for="i in 4" :key="i" class="rounded-lg border border-default p-4">
-            <USkeleton class="h-4 w-2/3" />
-            <USkeleton class="mt-3 h-3 w-full" />
-            <USkeleton class="mt-2 h-3 w-4/5" />
-          </div>
-        </div>
-
-        <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
-          <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`">
-            <NuxtLink
-              :to="repoHubPath(repo.owner, repo.repo)"
-              class="group flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
-            >
-              <span class="flex items-center gap-2">
-                <img
-                  :src="`https://github.com/${repo.owner}.png?size=64`"
-                  alt=""
-                  width="24"
-                  height="24"
-                  class="size-6 shrink-0 rounded-full border border-default bg-muted"
-                  loading="lazy"
-                  decoding="async"
-                >
-                <span class="min-w-0 flex-1 truncate font-medium text-default">{{ repo.owner }}/{{ repo.repo }}</span>
-                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
-                  {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
-                </span>
-              </span>
-              <span v-if="repo.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
-                {{ repo.evidence.text }}
-              </span>
-              <span class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                <span>{{ trendingShareLabel(repo.authorCount) }}</span>
-                <span v-if="repo.evidence" class="font-mono">@{{ repo.evidence.authorHandle }}</span>
-              </span>
-            </NuxtLink>
           </li>
         </ol>
       </div>
@@ -1089,6 +1014,43 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             variant="outline"
             class="mt-4 min-h-11"
           />
+        </div>
+      </div>
+    </section>
+    <section
+      id="publish"
+      class="border-b border-default"
+      aria-labelledby="publish-heading"
+    >
+      <div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
+        <div class="alt-make-strip">
+          <div class="min-w-0">
+            <h2 id="publish-heading" class="text-2xl font-semibold tracking-tight text-balance">
+              Maintain something? Write the skill for it.
+            </h2>
+            <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              skilld drafts, you edit and own it, it ships in your repo under your name. Send it in and a person reads it.
+            </p>
+          </div>
+          <div class="alt-make-strip-actions">
+            <p class="text-sm">
+              <InstallCommand
+                id="publish-run-command"
+                :command="authoringRunCommand"
+                wrap
+                tabindex="0"
+              />
+            </p>
+            <UButton
+              to="/learn/author-npm-package-skills"
+              label="How it works"
+              color="neutral"
+              variant="outline"
+              size="sm"
+              trailing-icon="i-lucide-arrow-right"
+              class="min-h-11"
+            />
+          </div>
         </div>
       </div>
     </section>
