@@ -18,10 +18,23 @@ interface ClusterCard {
   examples: ClusterExample[]
 }
 
+const { limit, rows } = defineProps<{
+  /** Most cards to render. Bounds the list before any row cap applies. */
+  limit?: number
+  /** Cap the visible grid to this many rows at every breakpoint. */
+  rows?: number
+}>()
+
 const { data, status, error, refresh } = await useFetch<{ items: ClusterCard[] }>('/api/clusters', {
   key: 'home-outcome-clusters-v4',
 })
-const clusters = computed(() => data.value?.items ?? [])
+const clusters = computed(() => {
+  const items = data.value?.items ?? []
+  return limit ? items.slice(0, limit) : items
+})
+const rowCapStyle = computed(() =>
+  rows ? { gridTemplateRows: `repeat(${rows}, auto)`, gridAutoRows: '0', rowGap: '0' } : undefined,
+)
 </script>
 
 <template>
@@ -59,7 +72,7 @@ const clusters = computed(() => data.value?.items ?? [])
       </div>
     </div>
 
-    <ul v-else-if="clusters.length" class="outcome-index list-none p-0">
+    <ul v-else-if="clusters.length" class="outcome-index list-none p-0" :style="rowCapStyle">
       <li v-for="cluster in clusters" :key="cluster.slug" class="min-w-0">
         <NuxtLink
           :to="`/skills/${cluster.slug}`"

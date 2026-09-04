@@ -13,7 +13,7 @@ import {
   selectHomepageTrendingSkills,
 } from '../utils/homepage-person-skills'
 
-const title = 'The skills your agent is missing · skilld'
+const title = 'The agent skills ecosystem, curated · skilld'
 const description = 'Find agent skills the maintainers wrote, keep them current, and write your own. One command, every agent, no account.'
 
 useSeoMeta({
@@ -321,27 +321,19 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="alt-hero-title max-w-[16ch] font-semibold tracking-[-0.045em] text-balance">
-              The skills your agent is missing.
+              The agent skills ecosystem, curated.
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Written by the maintainers, read by a person, installed in one command. Find one, watch it, or write your own.
+              Find skills the maintainers wrote. Keep them current. Write your own. One command, every agent.
             </p>
 
             <div class="alt-hero-slots mt-8">
               <div class="alt-hero-slot">
-                <p class="section-label">
-                  Find
-                </p>
-                <div class="mt-2">
-                  <HomeSearch />
-                </div>
+                <HomeSearch />
               </div>
 
               <div class="alt-hero-slot">
-                <p class="section-label">
-                  Install
-                </p>
-                <div class="alt-hero-command mt-2">
+                <div class="alt-hero-command">
                   <span class="alt-hero-command-scroll">
                     <span class="alt-hero-prompt" aria-hidden="true">$</span>
                     <InstallCommand
@@ -482,7 +474,16 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Pick a track. Each one shows who writes skills for it and what they cover.
           </p>
         </div>
-        <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" />
+        <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" />
+        <UButton
+          to="/skills"
+          label="All tracks"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          trailing-icon="i-lucide-arrow-right"
+          class="mt-4 min-h-11"
+        />
       </div>
     </section>
 
