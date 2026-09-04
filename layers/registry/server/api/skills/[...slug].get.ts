@@ -1,8 +1,9 @@
 import type { H3Event } from 'h3'
 import type { z } from 'zod'
+import type { Platform } from '#shared/server/platform'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
-import { readCache, writeCache } from '#shared/server/cache'
+import { cached } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { githubSkillFileUrl } from '#shared/skill-file-url'
 import { selectSkillFiles } from '#shared/skill-files'
@@ -35,6 +36,7 @@ interface CuratorEndorsement {
 const ONE_DAY_MS = 1000 * 60 * 60 * 24
 
 const DETAIL_CACHE_TTL = 60
+const DETAIL_CACHE_STALE_TTL = 60 * 5
 type SkillDetailPayload = z.infer<typeof SkillDetailResponseSchema>
 
 const OFFICIAL_REPO_KEYS = new Set(officialRepos.map(r => `${r.owner}/${r.repo}`))
@@ -188,19 +190,26 @@ const skillDetailHandler = defineApiHandler({
     if (!slug)
       throw createError({ statusCode: 400, message: 'Missing skill slug' })
 
-    const cacheKey = `skills:detail:v1:${slug.toLowerCase()}`
-    const cached = await readCache<SkillDetailPayload>(useStorage('cache'), cacheKey)
-    if (cached)
-      return cached
+    return cached({
+      storage: useStorage('cache'),
+      key: `skills:detail:v1:${slug.toLowerCase()}`,
+      ttlSeconds: DETAIL_CACHE_TTL,
+      staleSeconds: DETAIL_CACHE_STALE_TTL,
+      compute: () => loadSkillDetail(event, platform, slug),
+      schedule: promise => runAfterResponse(event, promise),
+    })
+  },
+})
 
-    const skill = await findSkill(event, slug)
-    if (!skill)
-      throw createError({ statusCode: 404, message: 'Skill not found' })
+async function loadSkillDetail(event: H3Event, platform: Platform, slug: string): Promise<SkillDetailPayload> {
+  const skill = await findSkill(event, slug)
+  if (!skill)
+    throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows, resolvedRepoSkillCount, ownerRow] = await Promise.all([
-      Promise.resolve([] satisfies CuratorEndorsement[]),
-      platform.db
-        .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
+  const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows, resolvedRepoSkillCount, ownerRow] = await Promise.all([
+    Promise.resolve([] satisfies CuratorEndorsement[]),
+    platform.db
+      .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
                          r.source_owner, r.source_repo,
                          s.current_sha, s.modified_at, s.references_count, s.assets, s.last_synced_at, s.sync_status,
                          s.source_resolved,
@@ -211,265 +220,267 @@ const skillDetailHandler = defineApiHandler({
                          s.rendered_skill_path, s.rendered_status, s.rendered_raw, s.rendered_frontmatter, s.rendered_html, s.rendered_at
                   FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
                   WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
-        .bind(skill.owner, skill.repo, skill.name)
-        .first<SkillDetailRow>(),
-      platform.db
-        .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND repo = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
-        .bind(skill.owner, skill.repo, skill.name)
-        .first<{ sha: string }>(),
-      findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
-      getGenerated<FaqPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'faq' }),
-      getGenerated<TagPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'tags' }),
-      getGenerated<SummaryPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'summary' }),
-      platform.db
-        .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
-        .bind(skill.owner, skill.repo)
-        .all<RepoSkillNameRow>(),
-      // Same definition as loadRepoSkillCounts (source_resolved = 1), so the
-      // 301 decision matches the hub routing used by feeds and sitemaps.
-      // repoSkillNames stays unfiltered: it feeds dependency parsing, not
-      // routing.
-      platform.db
-        .prepare(`SELECT COUNT(*) AS skill_count FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1`)
-        .bind(skill.owner, skill.repo)
-        .first<RepoSkillCountRow>(),
-      // Same `owners` row the owner page shows; the byline reuses it.
-      platform.db
-        .prepare(`SELECT name FROM owners WHERE owner = ?`)
-        .bind(skill.owner)
-        .first<{ name: string | null }>(),
-    ])
+      .bind(skill.owner, skill.repo, skill.name)
+      .first<SkillDetailRow>(),
+    platform.db
+      .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND repo = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
+      .bind(skill.owner, skill.repo, skill.name)
+      .first<{ sha: string }>(),
+    findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
+    getGenerated<FaqPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'faq' }),
+    getGenerated<TagPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'tags' }),
+    getGenerated<SummaryPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'summary' }),
+    platform.db
+      .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
+      .bind(skill.owner, skill.repo)
+      .all<RepoSkillNameRow>(),
+    // Same definition as loadRepoSkillCounts (source_resolved = 1), so the
+    // 301 decision matches the hub routing used by feeds and sitemaps.
+    // repoSkillNames stays unfiltered: it feeds dependency parsing, not
+    // routing.
+    platform.db
+      .prepare(`SELECT COUNT(*) AS skill_count FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1`)
+      .bind(skill.owner, skill.repo)
+      .first<RepoSkillCountRow>(),
+    // Same `owners` row the owner page shows; the byline reuses it.
+    platform.db
+      .prepare(`SELECT name FROM owners WHERE owner = ?`)
+      .bind(skill.owner)
+      .first<{ name: string | null }>(),
+  ])
 
-    const source = resolveRepoSourceIdentityFromRow(skill, row)
-    const githubUrl = `https://github.com/${source.owner}/${source.repo}`
-    const branch = row?.default_branch || 'main'
-    const repoSkillNames = (repoSkillRows.results ?? []).map(candidate => candidate.name)
+  const source = resolveRepoSourceIdentityFromRow(skill, row)
+  const githubUrl = `https://github.com/${source.owner}/${source.repo}`
+  const branch = row?.default_branch || 'main'
+  const repoSkillNames = (repoSkillRows.results ?? []).map(candidate => candidate.name)
 
-    // Warm path: render is in D1. Cold path (legacy rows or fetch_failed
-    // status): fall back to a live render so the first visit still works,
-    // then write back to D1.
-    let rendered: RenderedView
-    if (row?.rendered_html && row.rendered_status === 'ok') {
-      const reparsed = row.rendered_raw
-        ? await parseSkillMd(row.rendered_raw, {
-            owner: source.owner,
-            repo: source.repo,
-            name: skill.name,
-            branch,
-            skillDir: row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? '',
-            filePath: '',
-            skillNames: repoSkillNames,
-            registryOwner: skill.owner,
-            registryRepo: skill.repo,
-          })
-        : null
-      rendered = {
-        skillPath: row.rendered_skill_path,
-        raw: row.rendered_raw,
-        frontmatter: reparsed?.frontmatter ?? parseFrontmatterJson(row.rendered_frontmatter),
-        body: reparsed?.body ?? stripFrontmatter(row.rendered_raw ?? ''),
-        html: reparsed?.html ?? row.rendered_html,
-        dependencies: reparsed?.dependencies ?? [],
-        status: 'ok',
-      }
+  // Warm path: render is in D1. Cold path (legacy rows or fetch_failed
+  // status): fall back to a live render so the first visit still works,
+  // then write back to D1.
+  let rendered: RenderedView
+  if (row?.rendered_html && row.rendered_status === 'ok') {
+    const reparsed = row.rendered_raw
+      ? await parseSkillMd(row.rendered_raw, {
+          owner: source.owner,
+          repo: source.repo,
+          name: skill.name,
+          branch,
+          skillDir: row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? '',
+          filePath: '',
+          skillNames: repoSkillNames,
+          registryOwner: skill.owner,
+          registryRepo: skill.repo,
+        })
+      : null
+    rendered = {
+      skillPath: row.rendered_skill_path,
+      raw: row.rendered_raw,
+      frontmatter: reparsed?.frontmatter ?? parseFrontmatterJson(row.rendered_frontmatter),
+      body: reparsed?.body ?? stripFrontmatter(row.rendered_raw ?? ''),
+      html: reparsed?.html ?? row.rendered_html,
+      dependencies: reparsed?.dependencies ?? [],
+      status: 'ok',
     }
-    else {
-      rendered = await renderLive(event, {
-        sourceOwner: source.owner,
-        sourceRepo: source.repo,
-        registryOwner: skill.owner,
-        registryRepo: skill.repo,
-        name: skill.name,
-        branch,
-        skillNames: repoSkillNames,
-      })
-      // Cache cold-path result back to D1 so subsequent visits hit the warm
-      // path. Fire-and-forget; missing waitUntil context (e.g. local dev)
-      // just means we await it inline.
-      schedulePersist(event, platform.db, skill.owner, skill.repo, skill.name, rendered)
-    }
-
-    // Stale refresh: only fire when rendered_at older than threshold.
-    const renderedAge = secondsAgo(row?.rendered_at)
-    if (row?.rendered_html && renderedAge != null && renderedAge > LIVE_RENDER_STALE_SECONDS)
-      scheduleRefresh(event, platform.db, skill, source, skill.name, branch, repoSkillNames)
-
-    const rawAiTags = tagRow?.payload.tags ?? []
-    const tags = rawAiTags
-      .map(s => TAG_BY_SLUG.get(s))
-      .filter((t): t is NonNullable<typeof t> => Boolean(t))
-    const knownTagSlugs = new Set(tags.map(t => t.slug))
-    const keywords = rawAiTags.filter(t => !knownTagSlugs.has(t))
-
-    const description = frontmatterString(rendered.frontmatter, 'description') ?? skill.description ?? null
-    const license = frontmatterString(rendered.frontmatter, 'license')
-    let assets: { path: string, size: number, type: string }[] = []
-    if (row?.assets) {
-      try {
-        const parsedAssets = JSON.parse(row.assets) as unknown
-        if (Array.isArray(parsedAssets)) {
-          assets = parsedAssets.filter((a): a is { path: string, size: number, type: string } =>
-            Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string')
-        }
-      }
-      catch {
-        // Ignore malformed JSON; treat as no assets.
-      }
-    }
-    const allowedTools = parseAllowedTools(rendered.frontmatter)
-    const capability = classifyAllowedTools(allowedTools)
-    const selectedAssets = selectSkillFiles(assets)
-    // `rendered.*` describes the cached copy, which survives the file being
-    // deleted upstream, so it can only ever say "we can still render this". The
-    // stored `source_resolved` is the sync's verdict on whether the file is
-    // still there. Reading only the former reported `resolved: true` for skills
-    // whose SKILL.md upstream had been 404 for months.
-    const sourceResolved = isSourceResolved({
-      sourceResolved: row?.source_resolved,
-      renderStatus: rendered.status,
-      skillPath: rendered.skillPath,
-      raw: rendered.raw,
+  }
+  else {
+    rendered = await renderLive(event, {
+      sourceOwner: source.owner,
+      sourceRepo: source.repo,
+      registryOwner: skill.owner,
+      registryRepo: skill.repo,
+      name: skill.name,
+      branch,
+      skillNames: repoSkillNames,
     })
-    const sourceGone = !sourceResolved && row?.source_resolved === 0
-    const sourceCommitSha = latestCommit?.sha ?? row?.current_sha ?? null
-    const pushedAtIso = epochToIso(row?.pushed_at)
-    const createdAtIso = epochToIso(row?.repo_created_at)
-    const repoSkillCount = resolvedRepoSkillCount?.skill_count ?? 0
+    // Cache cold-path result back to D1 so subsequent visits hit the warm
+    // path. Fire-and-forget; missing waitUntil context (e.g. local dev)
+    // just means we await it inline.
+    schedulePersist(event, platform.db, skill.owner, skill.repo, skill.name, rendered)
+  }
 
-    const detail = {
+  // Stale refresh: only fire when rendered_at older than threshold.
+  const renderedAge = secondsAgo(row?.rendered_at)
+  if (row?.rendered_html && renderedAge != null && renderedAge > LIVE_RENDER_STALE_SECONDS)
+    scheduleRefresh(event, platform.db, skill, source, skill.name, branch, repoSkillNames)
+
+  const rawAiTags = tagRow?.payload.tags ?? []
+  const tags = rawAiTags
+    .map(s => TAG_BY_SLUG.get(s))
+    .filter((t): t is NonNullable<typeof t> => Boolean(t))
+  const knownTagSlugs = new Set(tags.map(t => t.slug))
+  const keywords = rawAiTags.filter(t => !knownTagSlugs.has(t))
+
+  const description = frontmatterString(rendered.frontmatter, 'description') ?? skill.description ?? null
+  const license = frontmatterString(rendered.frontmatter, 'license')
+  let assets: { path: string, size: number, type: string }[] = []
+  if (row?.assets) {
+    try {
+      const parsedAssets = JSON.parse(row.assets) as unknown
+      if (Array.isArray(parsedAssets)) {
+        assets = parsedAssets.filter((a): a is { path: string, size: number, type: string } =>
+          Boolean(a) && typeof a === 'object' && typeof (a as { path: unknown }).path === 'string')
+      }
+    }
+    catch {
+      // Ignore malformed JSON; treat as no assets.
+    }
+  }
+  const allowedTools = parseAllowedTools(rendered.frontmatter)
+  const capability = classifyAllowedTools(allowedTools)
+  const selectedAssets = selectSkillFiles(assets)
+  // `rendered.*` describes the cached copy, which survives the file being
+  // deleted upstream, so it can only ever say "we can still render this". The
+  // stored `source_resolved` is the sync's verdict on whether the file is
+  // still there. Reading only the former reported `resolved: true` for skills
+  // whose SKILL.md upstream had been 404 for months.
+  const sourceResolved = isSourceResolved({
+    sourceResolved: row?.source_resolved,
+    renderStatus: rendered.status,
+    skillPath: rendered.skillPath,
+    raw: rendered.raw,
+  })
+  const sourceGone = !sourceResolved && row?.source_resolved === 0
+  const sourceCommitSha = latestCommit?.sha ?? row?.current_sha ?? null
+  const pushedAtIso = epochToIso(row?.pushed_at)
+  const createdAtIso = epochToIso(row?.repo_created_at)
+  const repoSkillCount = resolvedRepoSkillCount?.skill_count ?? 0
+
+  const detail = {
+    owner: skill.owner,
+    repo: skill.repo,
+    name: skill.name,
+    registryPath: canonicalRepoSkillPath({
       owner: skill.owner,
       repo: skill.repo,
       name: skill.name,
-      registryPath: canonicalRepoSkillPath({
-        owner: skill.owner,
-        repo: skill.repo,
-        name: skill.name,
-        repoSkillCount,
-      }),
-      displayName: skill.displayName,
-      authorName: ownerRow?.name ?? null,
-      githubUrl,
-      skillPath: rendered.skillPath,
-      branch,
-      resolutionStatus: rendered.status,
-      sourceGone,
-      contentHtml: rendered.html,
-      dependencies: rendered.dependencies,
-      frontmatter: rendered.frontmatter,
-      raw: rendered.raw,
-      assets: selectedAssets.files,
-      assetCount: selectedAssets.total,
-      curators,
-      description,
-      license,
-      stars: row?.stars ?? 0,
-      forks: row?.forks ?? 0,
-      pushedAt: pushedAtIso,
-      createdAt: createdAtIso,
-      maturity: computeMaturity(row?.repo_created_at ?? null, row?.pushed_at ?? null),
-      tier: resolveTier(skill.owner, skill.repo),
-      sourceFacts: {
-        description: {
-          present: Boolean(description?.trim()),
-          length: description?.trim().length ?? 0,
-          source: frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : skill.description ? 'repository' : null,
-        },
-        repository: {
-          pushedAt: pushedAtIso,
-          pushedAgeDays: daysFromSecondsAgo(isoToSecondsAgo(pushedAtIso)),
-          createdAt: createdAtIso,
-          stars: row?.stars ?? 0,
-          forks: row?.forks ?? 0,
-          defaultBranch: branch,
-        },
-        source: {
-          resolved: sourceResolved,
-          gone: sourceGone,
-          resolutionStatus: rendered.status,
-          skillPath: rendered.skillPath,
-          currentSha: row?.current_sha ?? null,
-          hasCurrentSha: Boolean(row?.current_sha),
-          latestRevisionSha: latestCommit?.sha ?? null,
-          modifiedAt: row?.modified_at ?? null,
-          modifiedAgeDays: daysFromSecondsAgo(secondsAgo(row?.modified_at)),
-          referencesCount: row?.references_count ?? 0,
-          lastSyncedAt: row?.last_synced_at ?? null,
-          lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(row?.last_synced_at)),
-          syncStatus: row?.sync_status ?? null,
-        },
-        frontmatter: {
-          present: Boolean(rendered.frontmatter && Object.keys(rendered.frontmatter).length),
-          keys: rendered.frontmatter ? Object.keys(rendered.frontmatter).sort() : [],
-          model: frontmatterString(rendered.frontmatter, 'model'),
-          allowedTools,
-          capabilityScopes: capability.scopes,
-          mcpServers: capability.mcpServers,
-        },
+      repoSkillCount,
+    }),
+    displayName: skill.displayName,
+    authorName: ownerRow?.name ?? null,
+    githubUrl,
+    skillPath: rendered.skillPath,
+    branch,
+    resolutionStatus: rendered.status,
+    sourceGone,
+    contentHtml: rendered.html,
+    dependencies: rendered.dependencies,
+    frontmatter: rendered.frontmatter,
+    raw: rendered.raw,
+    assets: selectedAssets.files,
+    assetCount: selectedAssets.total,
+    curators,
+    description,
+    license,
+    stars: row?.stars ?? 0,
+    forks: row?.forks ?? 0,
+    pushedAt: pushedAtIso,
+    createdAt: createdAtIso,
+    maturity: computeMaturity(row?.repo_created_at ?? null, row?.pushed_at ?? null),
+    tier: resolveTier(skill.owner, skill.repo),
+    sourceFacts: {
+      description: {
+        present: Boolean(description?.trim()),
+        length: description?.trim().length ?? 0,
+        source: frontmatterString(rendered.frontmatter, 'description') ? 'frontmatter' : skill.description ? 'repository' : null,
       },
-      tags,
-      keywords,
-      // Deliberately top-level, not under `seo`: likes are displayed and back
-      // ?sort=likes, but never feed indexability or trust (ADR-0003).
-      likeCount: row?.like_count ?? 0,
-      faqs: faqRow?.payload.faqs ?? [],
-      summary: summaryRow?.payload?.text
-        ? { text: summaryRow.payload.text }
-        : null,
-      provenance: {
-        owner: skill.owner,
-        repo: skill.repo,
-        branch,
+      repository: {
+        pushedAt: pushedAtIso,
+        pushedAgeDays: daysFromSecondsAgo(isoToSecondsAgo(pushedAtIso)),
+        createdAt: createdAtIso,
+        stars: row?.stars ?? 0,
+        forks: row?.forks ?? 0,
+        defaultBranch: branch,
+      },
+      source: {
+        resolved: sourceResolved,
+        gone: sourceGone,
+        resolutionStatus: rendered.status,
         skillPath: rendered.skillPath,
-        sourceCommitSha,
-        sourceCommitUrl: sourceCommitSha
-          ? `${githubUrl}/commit/${sourceCommitSha}`
-          : null,
-        skillFileUrl: githubSkillFileUrl({
-          owner: source.owner,
-          repo: source.repo,
-          skillPath: rendered.skillPath,
-          ref: sourceCommitSha ?? branch,
-        }),
-        historyUrl: rendered.skillPath
-          ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
-          : null,
+        currentSha: row?.current_sha ?? null,
+        hasCurrentSha: Boolean(row?.current_sha),
+        latestRevisionSha: latestCommit?.sha ?? null,
         modifiedAt: row?.modified_at ?? null,
+        modifiedAgeDays: daysFromSecondsAgo(secondsAgo(row?.modified_at)),
         referencesCount: row?.references_count ?? 0,
         lastSyncedAt: row?.last_synced_at ?? null,
+        lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(row?.last_synced_at)),
         syncStatus: row?.sync_status ?? null,
       },
-      seo: {
-        indexScore: row?.seo_index_score ?? 0,
-        indexable: row?.seo_indexable === 1,
-        reasons: row?.seo_index_reasons ? JSON.parse(row.seo_index_reasons) as string[] : [],
-        syncedAt: row?.seo_index_synced_at ?? null,
-        curatorCount: row?.curator_count ?? 0,
-        curatorReasonCount: row?.curator_reason_count ?? 0,
-        approvedSocialCount: row?.approved_social_count ?? 0,
-        authorSocialCount: row?.author_social_count ?? 0,
+      frontmatter: {
+        present: Boolean(rendered.frontmatter && Object.keys(rendered.frontmatter).length),
+        keys: rendered.frontmatter ? Object.keys(rendered.frontmatter).sort() : [],
+        model: frontmatterString(rendered.frontmatter, 'model'),
+        allowedTools,
+        capabilityScopes: capability.scopes,
+        mcpServers: capability.mcpServers,
       },
-      trust: {
-        tier: row?.trust_tier ?? 'untrusted',
-        source: row?.trust_source ?? 'computed',
-        score: row?.trust_score ?? 0,
-        reasons: row?.trust_reasons ? JSON.parse(row.trust_reasons) as string[] : [],
-        syncedAt: row?.trust_synced_at ?? null,
-      },
-      duplicateGroup,
-    }
+    },
+    tags,
+    keywords,
+    // Deliberately top-level, not under `seo`: likes are displayed and back
+    // ?sort=likes, but never feed indexability or trust (ADR-0003).
+    likeCount: row?.like_count ?? 0,
+    faqs: faqRow?.payload.faqs ?? [],
+    summary: summaryRow?.payload?.text
+      ? { text: summaryRow.payload.text }
+      : null,
+    provenance: {
+      owner: skill.owner,
+      repo: skill.repo,
+      branch,
+      skillPath: rendered.skillPath,
+      sourceCommitSha,
+      sourceCommitUrl: sourceCommitSha
+        ? `${githubUrl}/commit/${sourceCommitSha}`
+        : null,
+      skillFileUrl: githubSkillFileUrl({
+        owner: source.owner,
+        repo: source.repo,
+        skillPath: rendered.skillPath,
+        ref: sourceCommitSha ?? branch,
+      }),
+      historyUrl: rendered.skillPath
+        ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
+        : null,
+      modifiedAt: row?.modified_at ?? null,
+      referencesCount: row?.references_count ?? 0,
+      lastSyncedAt: row?.last_synced_at ?? null,
+      syncStatus: row?.sync_status ?? null,
+    },
+    seo: {
+      indexScore: row?.seo_index_score ?? 0,
+      indexable: row?.seo_indexable === 1,
+      reasons: row?.seo_index_reasons ? JSON.parse(row.seo_index_reasons) as string[] : [],
+      syncedAt: row?.seo_index_synced_at ?? null,
+      curatorCount: row?.curator_count ?? 0,
+      curatorReasonCount: row?.curator_reason_count ?? 0,
+      approvedSocialCount: row?.approved_social_count ?? 0,
+      authorSocialCount: row?.author_social_count ?? 0,
+    },
+    trust: {
+      tier: row?.trust_tier ?? 'untrusted',
+      source: row?.trust_source ?? 'computed',
+      score: row?.trust_score ?? 0,
+      reasons: row?.trust_reasons ? JSON.parse(row.trust_reasons) as string[] : [],
+      syncedAt: row?.trust_synced_at ?? null,
+    },
+    duplicateGroup,
+  }
 
-    await writeCache(useStorage('cache'), cacheKey, detail, { ttl: DETAIL_CACHE_TTL })
-    return detail
-  },
-})
+  return detail
+}
 
 // Skill detail data is public and changes only when indexing or social counts
 // update. A read-through KV cache keeps popular links from repeating every D1
-// lookup and Markdown render for each reader. The cache writes go through
-// `writeCache` because Nitro's own route cache called storage.setItem bare,
-// so a KV `KV PUT failed: 429` escaped the cached handler as a 500 (Sentry
-// SKILLD-1V). Losing the entry costs one repeat computation; propagating the
-// rejection costs the user the page.
+// lookup and Markdown render for each reader. `cached` restores what Nitro's
+// route cache used to provide here (maxAge 60, staleMaxAge 300, swr) without
+// the bare `storage.setItem` that let a KV `KV PUT failed: 429` escape the
+// handler as a 500 (Sentry SKILLD-1V): a fresh entry is served as-is, a stale
+// entry is served while one background refresh recomputes, and a dead entry
+// recomputes once per key per isolate. Without that stale shield every
+// concurrent miss after the 60s TTL re-runs about six D1 queries plus a
+// possible live GitHub render, and cold-key bursts are the documented D1
+// overload mechanism on these routes (Sentry SKILLD-G/H/J/K/M/N/P/Q).
 export default skillDetailHandler
 
 interface RenderedView {
