@@ -13,7 +13,7 @@ import {
   selectHomepageTrendingSkills,
 } from '../utils/homepage-person-skills'
 
-const title = 'Agent skills ecosystem for the way you build · skilld'
+const title = 'Taste-tested agent skills ecosystem · skilld'
 const description = 'Find agent skills the maintainers wrote, keep them current, and write your own. One command, every agent, no account.'
 
 useSeoMeta({
@@ -321,7 +321,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="alt-hero-title max-w-[16ch] font-semibold tracking-[-0.045em] text-balance">
-              Agent skills ecosystem for the way you build.
+              Taste-tested agent skills ecosystem.
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
               Your agent is sharp, but it never read the maintainer's notes. Here they are, in the open. Find the skills, keep them fresh, write your own.
