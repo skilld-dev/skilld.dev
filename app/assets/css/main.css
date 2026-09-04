@@ -1550,40 +1550,31 @@
   display: inline-block;
 }
 
-/* Rose "tasted" stamp: a passport-stamp wink in the palette, set in mono. */
-.alt-hero-stamp {
+/* Emoji wink on the first line: sits on the cap line, clear of the last letter. */
+.alt-hero-emoji {
   position: absolute;
-  top: 0.02em;
+  top: -0.02em;
   right: -1.15em;
-  padding: 0.14em 0.32em 0.12em;
-  border: 0.07em solid var(--ui-primary);
-  border-radius: 0.18em;
-  font-family: var(--font-mono);
-  font-size: 0.24em;
-  font-weight: 600;
-  letter-spacing: 0.18em;
+  font-size: 0.4em;
   line-height: 1;
-  text-transform: uppercase;
-  color: var(--ui-primary);
-  opacity: 0.85;
-  transform: rotate(-8deg);
-  transform-origin: 50% 50%;
-  mix-blend-mode: screen;
+  transform: rotate(10deg);
+  transform-origin: 50% 80%;
 }
 
-/* A quick press when the headline is hovered: 360ms, inside the motion budget. */
-.alt-hero-title:hover .alt-hero-stamp {
-  animation: alt-stamp-press 360ms ease-out;
+/* A quick wiggle when the headline is hovered: 360ms, inside the motion budget. */
+.alt-hero-title:hover .alt-hero-emoji {
+  animation: alt-emoji-wiggle 360ms ease-in-out;
 }
 
-@keyframes alt-stamp-press {
-  0% { transform: rotate(-8deg) scale(1.25); opacity: 0.4; }
-  60% { transform: rotate(-8deg) scale(0.96); opacity: 1; }
-  100% { transform: rotate(-8deg) scale(1); opacity: 0.85; }
+@keyframes alt-emoji-wiggle {
+  0% { transform: rotate(10deg); }
+  30% { transform: rotate(-6deg) scale(1.08); }
+  60% { transform: rotate(16deg) scale(1.04); }
+  100% { transform: rotate(10deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .alt-hero-title:hover .alt-hero-stamp {
+  .alt-hero-title:hover .alt-hero-emoji {
     animation: none;
   }
 }

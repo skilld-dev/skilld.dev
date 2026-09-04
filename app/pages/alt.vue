@@ -337,7 +337,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="alt-hero-title font-semibold tracking-[-0.045em]">
-              <span class="alt-hero-taste">Taste-tested<span class="alt-hero-stamp" aria-hidden="true">tasted</span></span><br>
+              <span class="alt-hero-taste">Taste-tested<span class="alt-hero-emoji" aria-hidden="true">😋</span></span><br>
               agent skills<br>
               <span class="alt-hero-eco">ecosystem.</span>
             </h1>
