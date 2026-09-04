@@ -7,6 +7,7 @@ import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
+import SkillThirdPartyChecks from './_SkillThirdPartyChecks.vue'
 
 const props = defineProps<{
   owner: string
@@ -157,6 +158,8 @@ const skillFetch = useFetch(
   name: string
   registryPath: string
   displayName: string
+  /** GitHub profile name from the synced `owners` row; null until synced. */
+  authorName: string | null
   githubUrl: string
   description: string | null
   license: string | null
@@ -410,6 +413,13 @@ function copySkillDocUrl() {
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
 const skillFileUrl = computed(() => data.value?.provenance?.skillFileUrl ?? '')
+
+// Byline falls back to the login when the owner has no synced profile name.
+const authorLabel = computed(() => {
+  if (!data.value)
+    return ''
+  return resolveAuthorName(data.value.owner, data.value.authorName) ?? data.value.owner
+})
 
 const HIDDEN_FRONTMATTER_KEYS = new Set(['name', 'description', 'license'])
 
@@ -1082,16 +1092,23 @@ useHead(computed(() => ({
                   /{{ data.name }}
                 </h1>
                 <UBadge
-                  v-if="data.tier === 'official-org'"
+                  v-if="data.tier !== 'community'"
                   label="official"
                   variant="solid"
                   color="primary"
                   size="xs"
-                  title="Published by the organization that maintains this project"
+                  :title="data.tier === 'official-org' ? 'Published by the organization that maintains this project' : 'Published by the maintainer of this project'"
                 />
               </div>
-              <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-sm text-muted">
+              <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                 <span>
+                  by <NuxtLink
+                    :to="ownerHubPath(data.owner)"
+                    class="text-default hover:underline underline-offset-2"
+                  >{{ authorLabel }}</NuxtLink>
+                </span>
+                <span aria-hidden="true">·</span>
+                <span class="font-mono">
                   <NuxtLink
                     :to="ownerHubPath(data.owner)"
                     class="hover:text-default transition-colors"
@@ -1100,18 +1117,13 @@ useHead(computed(() => ({
                     class="hover:text-default transition-colors"
                   >{{ data.repo }}</NuxtLink>
                 </span>
-                <span
-                  v-if="data.stars"
-                  class="inline-flex items-center gap-1"
-                  :title="`${data.stars.toLocaleString()} GitHub stars`"
-                >
-                  <UIcon
-                    name="i-lucide-star"
-                    class="size-3.5"
-                    aria-hidden="true"
-                  />
-                  {{ formatGithubStars(data.stars) }}
-                </span>
+                <template v-if="data.stars">
+                  <span aria-hidden="true">·</span>
+                  <span
+                    class="font-mono tabular-nums"
+                    :title="`${data.stars.toLocaleString()} GitHub stars`"
+                  >{{ formatGithubStars(data.stars) }} stars</span>
+                </template>
                 <LikeButton
                   :owner="data.owner"
                   :repo="data.repo"
@@ -1121,7 +1133,7 @@ useHead(computed(() => ({
                 />
                 <span
                   v-if="data.forks"
-                  class="inline-flex items-center gap-1"
+                  class="inline-flex items-center gap-1 font-mono"
                   title="Repository forks on GitHub"
                 >
                   <UIcon
@@ -1230,10 +1242,10 @@ useHead(computed(() => ({
             </span>
             <a
               v-if="auditOverview"
-              href="#receipts"
+              href="#third-party-checks"
               class="inline-flex min-h-11 items-center gap-1 font-mono text-xs transition-colors hover:brightness-110"
               :class="AUDIT_TONE_CLASS[auditOverview.tone]"
-              :title="`Security checks: ${auditOverview.label} · ${auditOverview.detail}. View full trust signals.`"
+              :title="`Third-party checks: ${auditOverview.label} · ${auditOverview.detail}. Reports from outside skilld.`"
             >
               <UIcon
                 :name="auditOverview.icon"
@@ -1894,7 +1906,6 @@ useHead(computed(() => ({
           <SkillReceiptsPanel
             v-if="data.provenance"
             :provenance="data.provenance"
-            :audits="audits"
             :verified-summary="verifiedSummary"
             :maturity="maturity"
           />
@@ -1970,6 +1981,8 @@ useHead(computed(() => ({
               </a>
             </p>
           </section>
+
+          <SkillThirdPartyChecks :audits="audits" />
 
           <section
             v-if="badgeInput"

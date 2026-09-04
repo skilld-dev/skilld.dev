@@ -119,14 +119,14 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         color="neutral"
         variant="outline"
         icon="i-lucide-refresh-cw"
-        :label="data?.syncedAt ? 'Re-sync stars' : 'Sync stars'"
+        :label="data?.syncedAt ? 'Import stars again' : 'Import stars'"
         @click="syncStars"
       />
       <span v-if="syncing && syncProgress" class="text-xs text-muted">
         Page {{ syncProgress.page || '…' }} · {{ syncProgress.total }} repos cached · {{ syncProgress.matched }} match the registry
       </span>
       <span v-else-if="data?.syncedAt" class="text-xs text-muted">
-        Last synced {{ new Date(data.syncedAt * 1000).toLocaleString() }}
+        Last GitHub import {{ new Date(data.syncedAt * 1000).toLocaleString() }}
       </span>
     </div>
 
@@ -139,7 +139,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
     </div>
     <div v-else-if="!skillItems.length" class="mt-6 rounded-lg border border-default p-6 text-sm text-muted">
       <template v-if="!data?.syncedAt">
-        We haven't checked your stars yet. Click <strong>Sync stars</strong> above, or
+        No star import yet. Click <strong>Import stars</strong> above, or
       </template>
       <template v-else>
         None of your starred repos with "skill" in the name are in the registry yet.

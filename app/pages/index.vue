@@ -245,6 +245,13 @@ const installCommand = computed(() => {
     : ''
 })
 
+/**
+ * The authoring story runs a skilld-maintained Skill. The CLI itself never
+ * drafts a Skill, so the band hands the visitor the same run command every
+ * other surface prints.
+ */
+const authoringRunCommand = skillRunCmd('skilld-dev', 'skilld', 'generate-package-skill')
+
 const installTarget = computed<InstallTarget | null>(() => {
   const collection = leadCollection.value
   return collection
@@ -412,7 +419,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Collections for better agent work.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              Shared by devs in the skilld community, covering discovery, planning, and review.
+              Shared by devs on X and Bluesky, covering discovery, planning, and review.
             </p>
             <p v-if="featuredCollections.length" class="data-label mt-3">
               {{ featuredCollections.length }} {{ featuredCollections.length === 1 ? 'collection' : 'collections' }} · {{ featuredSkillTotal }} {{ featuredSkillTotal === 1 ? 'skill' : 'skills' }}
@@ -671,7 +678,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-featured-heading">
           <div class="min-w-0">
             <h2 id="community-heading" class="home-featured-title text-balance">
-              Curators you can follow.
+              Curators you can watch.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
               <template v-if="communityTotal">
@@ -1041,16 +1048,24 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-publish-panel">
           <div>
             <h2 id="publish-heading" class="home-section-title home-publish-title text-balance">
-              Got a setup you keep reusing?
+              Author a Skill you own
             </h2>
             <p class="home-publish-summary mt-4">
-              skilld author starts a draft. You edit, own, and publish it in your repository, or bundle skills into a collection.
+              Run the skilld-maintained generate-package-skill Skill to draft a Skill for a package you maintain. Edit it, commit it to your repository, and skilld lists it with your name.
+            </p>
+            <p class="mt-4 text-sm">
+              <InstallCommand
+                id="publish-run-command"
+                :command="authoringRunCommand"
+                wrap
+                tabindex="0"
+              />
             </p>
           </div>
           <div class="home-publish-actions">
             <UButton
               to="/learn/author-npm-package-skills"
-              label="Bootstrap a package draft"
+              label="Read the authoring guide"
               color="neutral"
               variant="outline"
               trailing-icon="i-lucide-arrow-right"

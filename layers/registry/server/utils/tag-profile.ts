@@ -1,4 +1,5 @@
 import type { RegistrySkill } from './skills-registry'
+import { githubSkillFileUrl } from '#shared/skill-file-url'
 import { canonicalRepoSkillPath } from './skill-routes'
 
 export interface TagSkillRow {
@@ -15,6 +16,12 @@ export interface TagSkillRow {
   pushed_at: number | null
   modified_at: number | null
   first_seen_at: number | null
+  rendered_skill_path: string | null
+  current_sha: string | null
+  default_branch: string | null
+  source_owner: string | null
+  source_repo: string | null
+  author_name: string | null
 }
 
 export type ParsedTagSkillRow
@@ -50,6 +57,13 @@ export function parseTagSkillRow(row: TagSkillRow): ParsedTagSkillRow {
       pushedAt: row.pushed_at ?? null,
       modifiedAt: row.modified_at ?? null,
       firstSeenAt: row.first_seen_at ?? null,
+      authorName: row.author_name ?? null,
+      skillFileUrl: githubSkillFileUrl({
+        owner: row.source_owner || owner,
+        repo: row.source_repo || repo,
+        skillPath: row.rendered_skill_path,
+        ref: row.current_sha || row.default_branch,
+      }),
       seoIndexScore: 0,
       seoIndexable: false,
       trustTier: 'untrusted',

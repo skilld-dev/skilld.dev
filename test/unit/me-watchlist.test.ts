@@ -244,11 +244,11 @@ describe('account skill watchlist', () => {
 
   it('refreshes the visible account timestamp after syncing GitHub stars', async () => {
     const wrapper = await mountPage()
-    const before = paragraphWithText(wrapper, 'Last GitHub sync:').text()
+    const before = paragraphWithText(wrapper, 'Last GitHub import:').text()
 
-    await buttonWithText(wrapper, 'Sync GitHub stars').trigger('click')
+    await buttonWithText(wrapper, 'Import stars again').trigger('click')
     await flushPromises()
-    const after = paragraphWithText(wrapper, 'Last GitHub sync:').text()
+    const after = paragraphWithText(wrapper, 'Last GitHub import:').text()
 
     expect(after).not.toBe(before)
   })

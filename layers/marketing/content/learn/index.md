@@ -4,8 +4,10 @@ description: Practical guides for finding, authoring, and shipping agent skills.
 ---
 
 ::card-grid
-- [Skills guide](/skills/guide)
-  What skills are and how curators assemble them.
-- [Official providers](/skills/official)
-  Package skills authored by skilld.
+- [Browse skills](/skills)
+  Skills written by maintainers in their own repositories, with the source one click away.
+- [Skills worth installing](/skills/best)
+  Reviewed skills, one per author, each from a maintainer you can name.
+- [Author a skill you own](/learn/author-npm-package-skills)
+  Draft a SKILL.md for your [npm](https://npmjs.com) package, then edit and commit it in your repository.
 ::

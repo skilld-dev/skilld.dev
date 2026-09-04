@@ -143,7 +143,7 @@ onMounted(() => {
   if (route.query.welcome === '1') {
     toast.add({
       title: 'You\'re all set',
-      description: 'We\'ll let you know when watched repos update.',
+      description: 'Watched repos send a digest when they change.',
       color: 'success',
       icon: 'i-lucide-check-circle',
     })
@@ -399,7 +399,7 @@ function fmtDate(ts: number | null | undefined): string {
             {{ watchedRepositoryCount }} {{ watchedRepositoryCount === 1 ? 'repository supports' : 'repositories support' }} your skill updates.
           </p>
           <p class="mt-2 text-xs leading-relaxed text-muted">
-            Last GitHub sync: {{ fmtDate(me?.stars_synced_at) }}
+            Last GitHub import: {{ fmtDate(me?.stars_synced_at) }}
           </p>
           <UButton
             :loading="syncMutation.pending.value"
@@ -407,7 +407,7 @@ function fmtDate(ts: number | null | undefined): string {
             color="neutral"
             variant="outline"
             icon="i-lucide-refresh-cw"
-            label="Sync GitHub stars"
+            label="Import stars again"
             @click="sync"
           />
 

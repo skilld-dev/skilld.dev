@@ -1,6 +1,7 @@
 import type { ProblemCode, ResolvedSource, SourceRequest } from '../schemas/contracts'
 import { z } from 'zod'
 import { base64ToBytes, digestHex } from './encoding'
+import { fetchNoRedirect } from './fetch-no-redirect'
 
 const GITHUB_API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2026-03-10'
@@ -116,11 +117,13 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     })
     if (options.token)
       headers.set('Authorization', `Bearer ${options.token}`)
-    const response = await options.fetch(`${GITHUB_API}${path}`, {
+    const fetched = await fetchNoRedirect(options.fetch, `${GITHUB_API}${path}`, {
       headers,
-      redirect: 'error',
       signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
     })
+    if (fetched._tag === 'unexpected-redirect')
+      throw new Error(`GitHub redirected ${fetched.status} to ${fetched.location ?? 'an unknown location'}`)
+    const response = fetched.response
     if (response.status === 404)
       return { _tag: 'not-found' }
     if (response.status === 401 || response.status === 403) {

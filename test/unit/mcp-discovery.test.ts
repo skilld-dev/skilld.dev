@@ -89,7 +89,7 @@ describe('search_skills', () => {
       name: 'nuxt-seo',
       official: true,
       url: 'https://skilld.dev/gh/nuxt/nuxt',
-      installCommand: 'npx skilld add gh:nuxt/nuxt -s nuxt-seo',
+      installCommand: 'npx skilld@beta install skilld:nuxt/nuxt/nuxt-seo',
     })
     expect(data.results[0].description.length).toBe(500)
   })
@@ -153,7 +153,7 @@ describe('get_skill', () => {
 
     expect(fetchApi).toHaveBeenCalledWith('/api/skills/nuxt/nuxt/nuxt-seo', { signal: undefined })
     expect(data.runCommand).toBe('npx skilld@beta run skilld:nuxt/nuxt/nuxt-seo')
-    expect(data.installCommand).toBe('npx skilld add gh:nuxt/nuxt -s nuxt-seo')
+    expect(data.installCommand).toBe('npx skilld@beta install skilld:nuxt/nuxt/nuxt-seo')
     expect(data.provenance).toMatchObject({
       author: 'nuxt',
       sourceRepoUrl: 'https://github.com/nuxt/nuxt',
@@ -233,7 +233,7 @@ describe('install_command', () => {
   it.each([
     ['gh:nuxt/nuxt', 'npx skilld add gh:nuxt/nuxt'],
     ['nuxt/nuxt', 'npx skilld add gh:nuxt/nuxt'],
-    ['anthropics/skills/skill-creator', 'npx skilld add gh:anthropics/skills -s skill-creator'],
+    ['anthropics/skills/skill-creator', 'npx skilld@beta install skilld:anthropics/skills/skill-creator'],
     ['@harlan-zw', 'npx skilld add @harlan-zw'],
     ['@harlan-zw/nuxt-stack', 'npx skilld add @harlan-zw/nuxt-stack'],
     ['npm:@scope/pkg', 'npx skilld add npm:@scope/pkg'],

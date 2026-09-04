@@ -12,11 +12,18 @@ describe('skills registry unique owner browse', () => {
       return `# ${owner}`
     })
     sqlite.exec(`
+      CREATE TABLE owners (
+        owner TEXT PRIMARY KEY,
+        name TEXT
+      );
       CREATE TABLE repos (
         owner TEXT NOT NULL,
         repo TEXT NOT NULL,
         stars INTEGER NOT NULL,
         pushed_at INTEGER,
+        default_branch TEXT,
+        source_owner TEXT,
+        source_repo TEXT,
         broken_since INTEGER,
         repo_kind TEXT NOT NULL DEFAULT 'source',
         PRIMARY KEY (owner, repo)
@@ -37,9 +44,12 @@ describe('skills registry unique owner browse', () => {
         modified_at INTEGER,
         first_seen_at INTEGER,
         rendered_raw TEXT GENERATED ALWAYS AS (forbid_skill_body_read(owner)) VIRTUAL,
+        rendered_skill_path TEXT,
+        current_sha TEXT,
         source_resolved INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY (owner, repo, name)
       );
+      INSERT INTO owners (owner, name) VALUES ('antfu', 'Anthony Fu');
       INSERT INTO repos (owner, repo, stars) VALUES
         ('antfu', 'small-repo', 10),
         ('antfu', 'top-repo', 100),
@@ -67,6 +77,8 @@ describe('skills registry unique owner browse', () => {
         ['antfu', 'vite', 9],
         ['vuejs', 'vue', 5],
       ])
+      // The byline reads the synced profile name; an unsynced owner has none.
+      expect(result.items.map(skill => skill.authorName)).toEqual(['Anthony Fu', null])
     }
     finally {
       sqlite.close()

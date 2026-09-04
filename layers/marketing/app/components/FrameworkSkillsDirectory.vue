@@ -232,7 +232,7 @@ function showMore() {
         </section>
 
         <p class="mt-8 text-xs text-muted">
-          Synced {{ syncedAgo }}
+          Checked GitHub {{ syncedAgo }}
         </p>
       </template>
     </div>

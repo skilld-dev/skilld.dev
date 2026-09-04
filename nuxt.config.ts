@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
@@ -429,6 +430,10 @@ export default defineNuxtConfig({
     // components/ dirs; these catch any URL Google already crawled.
     '/_WeeklyBand': { redirect: { to: '/', statusCode: 301 } } as any,
     '/frameworks/_FrameworkSkillsDirectory': { redirect: { to: '/frameworks/vue', statusCode: 301 } } as any,
+    // 2026-09-01: same shape. `_GithubBadgePreview.vue` sits beside the brand
+    // kit page and Nuxt made it a route. The page went indexable today, so the
+    // empty sibling redirects instead of shipping next to it.
+    '/brand-kit/_GithubBadgePreview': { redirect: { to: '/brand-kit/github-badge', statusCode: 301 } } as any,
     // 2026-08-22: llms-full.txt inlined every page's markdown into one 28.5 MB
     // file; agents truncate or time out on it. llms.txt now links each page's
     // .md (aiReady.llmsTxt.markdownLinks), so the dump redirects there. 302 so
@@ -577,7 +582,8 @@ export default defineNuxtConfig({
     sitemaps: {
       pages: {
         includeAppSources: true,
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**'],
+        // An /agents page waits on a CLI release; it answers 404 until then.
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths()],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],

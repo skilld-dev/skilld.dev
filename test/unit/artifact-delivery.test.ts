@@ -1,6 +1,7 @@
 import type { ResolvedSource, SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { ArtifactBuildDependencies } from '../../layers/artifact-delivery/server/utils/build'
 import type { ArtifactSourceFile, PublicGithubSourceClient } from '../../layers/artifact-delivery/server/utils/github-source'
+import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import {
   artifactAttestationSchema,
@@ -16,6 +17,7 @@ import {
 import { processArtifactBuild } from '../../layers/artifact-delivery/server/utils/build'
 import { checksBlockArtifact } from '../../layers/artifact-delivery/server/utils/checks'
 import { base64ToBytes, bytesToBase64Url } from '../../layers/artifact-delivery/server/utils/encoding'
+import { createPublicGithubSourceClient } from '../../layers/artifact-delivery/server/utils/github-source'
 import { createPublicArtifactGrant } from '../../layers/artifact-delivery/server/utils/grant'
 import {
   ARTIFACT_BUILD_QUEUE_NAME,
@@ -121,6 +123,24 @@ describe('public Artifact delivery', () => {
 
     expect(dependencies.privateGithub).toBeUndefined()
     expect(dependencies.privateArtifacts).toBeUndefined()
+  })
+
+  it('reaches ready through a runtime that rejects the error redirect mode', async () => {
+    // Regression for 2026-08-21 to 2026-09-01: every hosted build died at
+    // `resolving` because workerd, unlike Node, throws on that redirect mode.
+    const fetch = workerdLikeGithubFetch(validFiles[0]!)
+    const harness = await createBuildHarness(
+      validFiles,
+      false,
+      resolvedSource.repositoryId,
+      createPublicGithubSourceClient({ fetch: fetch as typeof globalThis.fetch }),
+    )
+
+    const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
+
+    expect(result).toEqual({ _tag: 'ready', resolutionId: harness.resolutionId })
+    expect(fetch).toHaveBeenCalled()
+    harness.close()
   })
 
   it('blocks failed checks before storage or signing', async () => {
@@ -559,6 +579,7 @@ async function createBuildHarness(
   files: ArtifactSourceFile[],
   privateMode = false,
   privateResolvedRepositoryId = resolvedSource.repositoryId,
+  githubOverride?: PublicGithubSourceClient,
 ) {
   const sqlite = createSqliteD1(ARTIFACT_MIGRATIONS)
   if (privateMode) {
@@ -605,7 +626,7 @@ async function createBuildHarness(
   const buildSource = privateMode
     ? { ...resolvedSource, repositoryId: privateResolvedRepositoryId, visibility: 'private' as const }
     : resolvedSource
-  const github: PublicGithubSourceClient = {
+  const github: PublicGithubSourceClient = githubOverride ?? {
     resolve: vi.fn(async () => ({ _tag: 'resolved', source: buildSource })),
     load: vi.fn(async () => ({ _tag: 'loaded', value: { source: buildSource, files } })),
   }
@@ -704,6 +725,61 @@ async function createBuildHarness(
     publicKey: keyPair.publicKey,
     close: sqlite.close,
   }
+}
+
+/**
+ * A GitHub API fake with workerd's fetch rule: only `follow` and `manual`
+ * are accepted redirect modes. Serves the requests a public build makes for
+ * `sourceRequest` and `resolvedSource` with one Skill file.
+ */
+function workerdLikeGithubFetch(file: ArtifactSourceFile) {
+  const skillsTreeSha = '3333333333333333333333333333333333333333'
+  const demoTreeSha = '4444444444444444444444444444444444444444'
+  const blobSha = createHash('sha1')
+    .update(`blob ${file.bytes.byteLength}\0`)
+    .update(file.bytes)
+    .digest('hex')
+  const repo = `/repos/${resolvedSource.owner}/${resolvedSource.repository}`
+  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.redirect === 'error')
+      throw new TypeError('Invalid redirect value, must be one of "follow" or "manual"')
+    const path = new URL(String(input)).pathname + new URL(String(input)).search
+    if (path === repo) {
+      return json({
+        id: resolvedSource.repositoryId,
+        name: resolvedSource.repository,
+        owner: { login: resolvedSource.owner },
+        private: false,
+        default_branch: 'main',
+      })
+    }
+    if (path === `${repo}/commits/${resolvedSource.commitSha}`)
+      return json({ sha: resolvedSource.commitSha, commit: { tree: { sha: resolvedSource.treeSha } } })
+    if (path === `${repo}/git/trees/${resolvedSource.treeSha}`)
+      return json({ sha: resolvedSource.treeSha, tree: [{ path: 'skills', mode: '040000', type: 'tree', sha: skillsTreeSha }] })
+    if (path === `${repo}/git/trees/${skillsTreeSha}`)
+      return json({ sha: skillsTreeSha, tree: [{ path: 'demo', mode: '040000', type: 'tree', sha: demoTreeSha }] })
+    if (path === `${repo}/git/trees/${demoTreeSha}?recursive=1`) {
+      return json({
+        sha: demoTreeSha,
+        truncated: false,
+        tree: [{ path: file.path, mode: '100644', type: 'blob', sha: blobSha, size: file.bytes.byteLength }],
+      })
+    }
+    if (path === `${repo}/git/blobs/${blobSha}`) {
+      return json({
+        sha: blobSha,
+        size: file.bytes.byteLength,
+        encoding: 'base64',
+        content: Buffer.from(file.bytes).toString('base64'),
+      })
+    }
+    return json({ message: 'Not Found' }, 404)
+  })
 }
 
 function artifactQueueBatch(resolutionId: string, attempts: number) {

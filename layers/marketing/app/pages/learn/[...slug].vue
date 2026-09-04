@@ -38,32 +38,9 @@ useHead({
 </script>
 
 <template>
-  <article class="learn-article mx-auto max-w-3xl px-4 py-12 prose prose-stone sm:px-6 dark:prose-invert">
-    <header v-if="data" class="not-prose mb-10">
-      <h1 class="text-4xl font-semibold leading-tight tracking-tight text-balance md:text-5xl">
-        {{ data.title }}
-      </h1>
-      <p class="mt-5 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-        {{ data.description }}
-      </p>
-      <p class="data-label mt-4">
-        Authoring guide
-      </p>
-    </header>
-    <ContentRenderer
-      v-if="data"
-      :value="data"
-    />
-  </article>
+  <MarketingArticle
+    v-if="data"
+    :page="data"
+    label="Authoring guide"
+  />
 </template>
-
-<style scoped>
-.learn-article :deep(a) {
-  color: var(--ui-text);
-  text-decoration-color: var(--ui-color-primary-500);
-}
-
-.learn-article :deep(a:hover) {
-  color: var(--ui-text-muted);
-}
-</style>

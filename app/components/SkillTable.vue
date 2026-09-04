@@ -18,6 +18,10 @@ interface SkillRow {
   official?: boolean
   pushedAt?: number | null
   modifiedAt?: number | null
+  /** GitHub profile name of the owner, when the owner has been synced. */
+  authorName?: string | null
+  /** SKILL.md on GitHub at the synced revision. */
+  skillFileUrl?: string | null
 }
 
 const {
@@ -46,8 +50,12 @@ function isTrending(skill: SkillRow): boolean {
 
 const now = useState('render:now', () => Number(new Date()))
 
-function ownerPath(skill: SkillRow): string {
+function repoSlug(skill: SkillRow): string {
   return `${skill.owner}/${skill.repo}`
+}
+
+function authorName(skill: SkillRow): string | null {
+  return resolveAuthorName(skill.owner, skill.authorName)
 }
 
 function updatedAt(skill: SkillRow): number | null {
@@ -83,22 +91,13 @@ function updatedLabel(skill: SkillRow): string {
     </div>
 
     <ul class="skill-table__body list-none p-0" :aria-label="ariaLabel">
-      <li v-for="skill in skills" :key="skill.slug">
+      <li v-for="skill in skills" :key="skill.slug" class="relative">
         <NuxtLink
           :to="skill.registryPath"
           class="skill-table__row group"
-          :aria-label="`/${skill.name} by ${skill.owner}`"
+          :aria-label="`/${skill.name} by ${authorName(skill) ?? skill.owner}`"
         >
           <span class="skill-table__skill">
-            <img
-              :src="`https://github.com/${skill.owner}.png?size=32`"
-              alt=""
-              width="16"
-              height="16"
-              class="size-4 shrink-0 rounded-full bg-muted"
-              loading="lazy"
-              decoding="async"
-            >
             <span class="truncate font-mono text-sm">/{{ skill.name }}</span>
             <!--
               The flame is decorative, so the meaning goes in text a screen
@@ -118,8 +117,23 @@ function updatedLabel(skill: SkillRow): string {
             />
           </span>
 
-          <span class="skill-table__source truncate font-mono text-xs text-muted">
-            {{ ownerPath(skill) }}
+          <span class="skill-table__source">
+            <img
+              :src="`https://github.com/${skill.owner}.png?size=40`"
+              alt=""
+              width="20"
+              height="20"
+              class="size-5 shrink-0 rounded-full bg-muted"
+              loading="lazy"
+              decoding="async"
+            >
+            <span class="skill-table__byline">
+              <span
+                v-if="authorName(skill)"
+                class="truncate text-xs text-toned"
+              >{{ authorName(skill) }}</span>
+              <span class="truncate font-mono text-[11px] leading-4 text-muted">{{ repoSlug(skill) }}</span>
+            </span>
           </span>
 
           <span class="skill-table__col-description text-xs leading-4 text-muted">
@@ -144,6 +158,17 @@ function updatedLabel(skill: SkillRow): string {
             {{ updatedLabel(skill) }}
           </span>
         </NuxtLink>
+        <!-- Sibling of the row link: anchors cannot nest. -->
+        <a
+          v-if="skill.skillFileUrl"
+          :href="skill.skillFileUrl"
+          target="_blank"
+          rel="noopener"
+          aria-label="Read SKILL.md on GitHub"
+          class="skill-table__file text-muted transition-colors duration-200 hover:text-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          <UIcon name="i-lucide-file-text" class="size-3.5" aria-hidden="true" />
+        </a>
       </li>
     </ul>
   </div>
@@ -163,7 +188,7 @@ function updatedLabel(skill: SkillRow): string {
   align-items: center;
   gap: 1rem;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
-  padding-inline: 0.75rem;
+  padding-inline: 0.75rem 2.75rem;
 }
 
 .skill-table__head {
@@ -187,11 +212,31 @@ function updatedLabel(skill: SkillRow): string {
   transition: background-color 200ms ease-out;
 }
 
-.skill-table__skill {
+.skill-table__skill,
+.skill-table__source {
   display: flex;
   min-inline-size: 0;
   align-items: center;
   gap: 0.5rem;
+}
+
+.skill-table__byline {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+.skill-table__file {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 0.25rem;
+  display: inline-flex;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ui-radius);
+  translate: 0 -50%;
 }
 
 .skill-table__col-description,
