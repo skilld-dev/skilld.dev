@@ -497,6 +497,9 @@ export default defineNuxtConfig({
     '/@harlan-zw/browser-automation': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
     '/@harlan-zw/vue-nuxt': { redirect: { to: '/frameworks/vue', statusCode: 301 } } as any,
     '/@harlan-zw/react': { redirect: { to: '/frameworks/react', statusCode: 301 } } as any,
+    // `/alt` was the noindex prototype of the homepage it became on
+    // 2026-09-04. Anyone holding the link lands on the real page.
+    '/alt': { redirect: { to: '/', statusCode: 301 } } as any,
     '/_nuxt/v2/**': {
       headers: {
         'cache-control': 'public, max-age=31536000, immutable',

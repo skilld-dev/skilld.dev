@@ -112,7 +112,7 @@ watch(() => route.fullPath, () => {
         </template>
 
         <template #right>
-          <SkillSearchTrigger v-if="$route.path !== '/alt'" />
+          <SkillSearchTrigger v-if="$route.path !== '/'" />
           <!--
             The flame is a deliberate exception to the "no emoji" rule in
             design-guidelines.md, asked for so Trending outweighs its siblings.
