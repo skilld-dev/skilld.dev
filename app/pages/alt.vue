@@ -13,7 +13,7 @@ import {
   selectHomepageTrendingSkills,
 } from '../utils/homepage-person-skills'
 
-const title = 'Open-source agent skills ecosystem · skilld'
+const title = 'Agent skills ecosystem for the way you build · skilld'
 const description = 'Find agent skills the maintainers wrote, keep them current, and write your own. One command, every agent, no account.'
 
 useSeoMeta({
@@ -321,10 +321,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="alt-hero-title max-w-[16ch] font-semibold tracking-[-0.045em] text-balance">
-              Open-source agent skills ecosystem.
+              Agent skills ecosystem for the way you build.
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Find skills the maintainers wrote. Keep them current. Write your own. One command, every agent.
+              You drive an agent every day. Give it the open-source skills the maintainers wrote: find them, keep them current, write your own.
             </p>
 
             <div class="alt-hero-slots mt-8">
