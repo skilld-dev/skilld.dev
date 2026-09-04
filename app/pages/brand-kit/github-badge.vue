@@ -10,10 +10,21 @@ const badgeDestination = computed(() => target.value === 'repository'
   : 'skilld.dev/gh/jd-solanki/skills/setup-jd-solanki-skills')
 const badgeWidth = computed(() => (showLabel.value ? 153 : 81) + (showLikes.value ? 46 : 0))
 
+const readmeSnippetInput = {
+  owner: 'jd-solanki',
+  repo: 'skills',
+  name: 'skills',
+  registryPath: '/gh/jd-solanki/skills',
+}
+
 useSeoMeta({
   title: 'GitHub badge · Brand kit',
-  description: 'Shareable GitHub badge for skilld.',
-  robots: 'noindex, nofollow',
+  description: 'Add the skilld badge to a README. It links readers to the Skill or Repository page and shows no counts.',
+  robots: 'index,follow',
+})
+
+useHead({
+  link: [{ rel: 'canonical', href: 'https://skilld.dev/brand-kit/github-badge' }],
 })
 </script>
 
@@ -212,6 +223,13 @@ useSeoMeta({
         </p>
       </div>
     </section>
+
+    <div class="mt-12 max-w-2xl">
+      <BadgeReadmeSnippet v-bind="readmeSnippetInput" />
+      <p class="mt-3 text-sm leading-relaxed text-muted">
+        Replace <code class="font-mono text-xs">jd-solanki/skills</code> with your own <code class="font-mono text-xs">owner/repository</code>. Add a third segment for one Skill. The copy button on any Repository page fills it in for you.
+      </p>
+    </div>
   </div>
 </template>
 
