@@ -342,7 +342,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <span class="alt-hero-eco">ecosystem.</span>
             </h1>
             <p class="mt-6 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Your agent is quick. It never read the maintainer's notes. The notes are here, and a person tasted each one before it went in. See what devs install this week, then watch the repos you rely on.
+              Your agent never read the maintainer's notes. They're here, tasted by a person first. Install in one command, then watch them change.
             </p>
 
             <div class="alt-hero-slots mt-10">
