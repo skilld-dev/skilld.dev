@@ -1489,20 +1489,34 @@
   text-wrap: pretty;
 }
 
-/* /alt hero agents: monochrome, low contrast, decoration for the install command. */
-.alt-hero-agents {
-  display: flex;
-  flex-wrap: wrap;
+/* /alt hero: agent glyphs ride the "agent skills" line, dimmed and small. */
+.alt-hero-agents-line {
+  display: inline-flex;
   align-items: center;
-  gap: 0.875rem;
-  color: var(--ui-text-dimmed);
-  opacity: 0.7;
+  gap: 0.35em;
 }
 
-.alt-hero-agents-more {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
+.alt-hero-agents {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22em;
+  margin-inline-start: 0.1em;
+  font-size: 0.34em;
+  color: var(--ui-text-dimmed);
+  opacity: 0.75;
+  transform: translateY(0.08em);
+}
+
+/* "ecosystem" carries the brand: rose ink and the chevron mark in place of a full stop. */
+.alt-hero-eco {
+  color: var(--ui-primary);
+}
+
+.alt-hero-eco-mark {
+  display: inline-block;
+  margin-inline-start: 0.08em;
+  font-size: 0.5em;
+  vertical-align: 0.1em;
 }
 
 .alt-hero-taste {

@@ -7,7 +7,6 @@ import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
-import { AGENT_TARGETS } from '../utils/agents'
 import {
   HOMEPAGE_PERSON_MINIMUM,
   selectHomepagePersonSkills,
@@ -237,10 +236,6 @@ const heroAgentLogos = [
   { id: 'gemini-cli', label: 'Gemini CLI', icon: 'i-simple-icons-googlegemini' },
   { id: 'github-copilot', label: 'GitHub Copilot', icon: 'i-simple-icons-githubcopilot' },
   { id: 'cursor', label: 'Cursor', icon: 'i-simple-icons-cursor' },
-  { id: 'windsurf', label: 'Windsurf', icon: 'i-simple-icons-windsurf' },
-  { id: 'opencode', label: 'OpenCode', icon: 'i-simple-icons-opencode' },
-  { id: 'amp', label: 'Amp', icon: 'i-simple-icons-amp' },
-  { id: 'cline', label: 'Cline', icon: 'i-simple-icons-cline' },
 ] as const
 const { copy: copyHeroCommand, copied: heroCommandCopied } = useClipboard({
   source: heroInstallCommand,
@@ -336,7 +331,9 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="alt-hero-title font-semibold tracking-[-0.045em]">
-              <span class="alt-hero-taste">Taste-tested<span class="alt-hero-emoji" aria-hidden="true">😋</span></span><br>agent skills<br>ecosystem.
+              <span class="alt-hero-taste">Taste-tested<span class="alt-hero-emoji" aria-hidden="true">😋</span></span><br>
+              <span class="alt-hero-agents-line">agent skills<span class="alt-hero-agents" aria-label="Agents skilld installs into"><UIcon v-for="agent in heroAgentLogos" :key="agent.id" :name="agent.icon" :aria-label="agent.label" /></span></span><br>
+              <span class="alt-hero-eco">ecosystem<span class="alt-hero-eco-mark" aria-hidden="true">⏶</span></span>
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
               Every skill here was written by its maintainer and read by a person before it went in. Find one, watch it, write your own.
@@ -370,14 +367,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 <p class="data-label mt-2">
                   One command, every agent. No account.
                 </p>
-                <ul class="alt-hero-agents mt-4 list-none p-0" aria-label="Agents skilld installs into">
-                  <li v-for="agent in heroAgentLogos" :key="agent.id">
-                    <UIcon :name="agent.icon" class="size-5" :aria-label="agent.label" />
-                  </li>
-                  <li class="alt-hero-agents-more">
-                    + {{ AGENT_TARGETS.length - heroAgentLogos.length }} more
-                  </li>
-                </ul>
               </div>
             </div>
           </div>
