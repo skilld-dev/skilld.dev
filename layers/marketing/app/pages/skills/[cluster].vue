@@ -380,12 +380,20 @@ defineOgImage('Page.takumi', {
   color: var(--ui-text);
 }
 
+/* Printed in the dot grid and inked rose, the same numerals the homepage
+   uses for the taste test. One brand, whichever page you land on. */
 .cluster-sequence-number {
-  padding-top: 0.75rem;
+  padding-top: 0.7rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-text-muted);
+  color: var(--ui-primary);
+  opacity: 0.85;
+  mask-image: radial-gradient(circle, #000 1.1px, transparent 1.4px);
+  mask-size: 3px 3px;
 }
 
 @media (max-width: 39.999rem) {

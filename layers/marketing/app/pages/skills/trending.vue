@@ -332,10 +332,14 @@ function formatDay(timestamp: number | null): string | null {
  * A leaderboard wants its top entries to read first. Type scale is not
  * available for that here: `design-guidelines.md` reserves large type for page
  * headings and lists "large font sizes in UI chrome" under Avoid. Contrast is,
- * so the top three ranks step up from muted to default and nothing moves.
+ * so the top three ranks step up and nothing moves.
+ *
+ * 2026-09-04: the step is opacity rather than a text colour, because the rank
+ * now carries the brand's rose ink and its dot-grid print, the same numerals
+ * the homepage uses. The mechanism is unchanged: three entries read first.
  */
 function rankClass(index: number): string {
-  return index < 3 ? 'text-default' : 'text-muted'
+  return index < 3 ? 'ledger-rank--lead' : ''
 }
 </script>
 
@@ -584,10 +588,20 @@ function rankClass(index: number): string {
 
 .ledger-rank {
   font-family: var(--font-mono, monospace);
-  font-size: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-text-muted);
-  padding-top: 0.75rem;
+  color: var(--ui-primary);
+  opacity: 0.5;
+  padding-top: 0.7rem;
+  mask-image: radial-gradient(circle, #000 1.1px, transparent 1.4px);
+  mask-size: 3px 3px;
+}
+
+.ledger-rank--lead {
+  opacity: 0.9;
 }
 
 .range-switcher {

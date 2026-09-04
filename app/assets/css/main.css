@@ -1761,12 +1761,6 @@
    band, so the page reads as one made thing instead of a decorated hero.
    ========================================================================== */
 
-/* Highlight anything on the page and the brand colour comes with it. */
-.home-page ::selection {
-  background: color-mix(in oklab, var(--ui-primary) 30%, transparent);
-  color: var(--ui-text-highlighted);
-}
-
 /* Band edges are printed in the dot grid, not drawn as a flat rule. */
 .home-page > section,
 .home-page > nav {
@@ -2050,4 +2044,38 @@
    space above it. The header is 4rem; this adds a breath on top of that. */
 .home-page > section[id] {
   scroll-margin-top: 5.5rem;
+}
+
+/* ==========================================================================
+   Brand, site wide. The homepage carries the full system; these are the two
+   parts that belong on every page, so a visitor who clicks through does not
+   leave the brand behind.
+   ========================================================================== */
+
+/* Highlight anything, anywhere, and the brand colour comes with it. */
+::selection {
+  background: color-mix(in oklab, var(--ui-primary) 30%, transparent);
+  color: var(--ui-text-highlighted);
+}
+
+/*
+ * Band edges are printed in the dot grid rather than drawn as a flat rule.
+ * The border stays in the box model and gives up its colour, so nothing
+ * reflows and the dots sit exactly where the line was.
+ */
+.editorial-band.border-b {
+  border-bottom-color: transparent;
+}
+
+.editorial-band.border-b::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 2;
+  height: 5px;
+  background-image: radial-gradient(circle, var(--ui-primary) 1.1px, transparent 1.4px);
+  background-size: 7px 5px;
+  opacity: 0.28;
+  pointer-events: none;
 }
