@@ -125,7 +125,44 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
     bodyContains: ['<h1', CLUSTER_BY_SLUG.get('seo')!.seoTitle],
   },
   { path: '/skills/tag/cloudflare', status: 200, bodyContains: ['<h1'] },
+  // Added on 2026-09-04 on measured demand. Both are new indexable surfaces,
+  // so they are checked for rendered content rather than a bare 200.
+  {
+    path: '/skills/diagrams',
+    status: 200,
+    bodyContains: ['<h1', CLUSTER_BY_SLUG.get('diagrams')!.seoTitle],
+  },
+  {
+    path: '/skills/research',
+    status: 200,
+    bodyContains: ['<h1', CLUSTER_BY_SLUG.get('research')!.seoTitle],
+  },
 ]
+
+/**
+ * Collection paths the homepage renders, from the same endpoint it reads.
+ *
+ * The featured band builds every link as `/@login/slug` from the database, and
+ * a dozen retired collection slugs are 301s in nuxt.config. Nothing stops a
+ * retired slug being featured again, and the homepage would then link, and
+ * print an install command, for a collection that redirects away. Code cannot
+ * catch that because the slugs live in D1, so the check runs against
+ * production with the real data.
+ */
+export function featuredCollectionPaths(payload: unknown): string[] {
+  const items = (payload as { items?: unknown })?.items
+  if (!Array.isArray(items))
+    return []
+
+  const paths = new Set<string>()
+  for (const item of items) {
+    const login = (item as { authorLogin?: unknown })?.authorLogin
+    const slug = (item as { slug?: unknown })?.slug
+    if (typeof login === 'string' && typeof slug === 'string' && login && slug)
+      paths.add(`/@${login}/${slug}`)
+  }
+  return [...paths]
+}
 
 export function evaluateSmokeObservation(
   expectation: SmokeExpectation,
@@ -402,6 +439,57 @@ async function checkAssetCoherence(
   }
 }
 
+/**
+ * Every collection the homepage features must answer 200 at its own URL. A 301
+ * here means the band is linking, and printing an install command for, a
+ * collection that has been retired.
+ */
+async function checkFeaturedCollectionLinks(
+  dependencies: ProductionSmokeDependencies,
+  fetch: SmokeFetch,
+): Promise<
+  | { _tag: 'passed' }
+  | { _tag: 'failed', failures: Array<{ path: string, attempts: number, result: Extract<SmokeEvaluation, { _tag: 'failed' }> }> }
+> {
+  const observation = await observe(fetch, dependencies.baseUrl, '/api/collections/featured')
+  if ('_tag' in observation || observation.status !== 200)
+    return { _tag: 'passed' }
+
+  let payload: unknown
+  try {
+    payload = JSON.parse(observation.body ?? '')
+  }
+  catch {
+    // The endpoint answered with something that is not JSON. The static
+    // expectations already cover whether the site is up, so this check has
+    // nothing to say and does not invent a failure.
+    return { _tag: 'passed' }
+  }
+
+  const failures: Array<{ path: string, attempts: number, result: Extract<SmokeEvaluation, { _tag: 'failed' }> }> = []
+  for (const path of featuredCollectionPaths(payload)) {
+    const seen = await observe(fetch, dependencies.baseUrl, path)
+    if ('_tag' in seen) {
+      failures.push({ path, attempts: 1, result: seen })
+      continue
+    }
+    if (seen.status !== 200) {
+      failures.push({
+        path,
+        attempts: 1,
+        result: {
+          _tag: 'failed',
+          reason: 'status_mismatch',
+          expected: '200, a featured collection must not redirect',
+          actual: `${seen.status}${seen.location ? ` -> ${seen.location}` : ''}`,
+        },
+      })
+    }
+  }
+
+  return failures.length ? { _tag: 'failed', failures } : { _tag: 'passed' }
+}
+
 export async function runProductionSmoke(
   dependencies: ProductionSmokeDependencies,
 ): Promise<ProductionSmokeResult> {
@@ -454,6 +542,10 @@ export async function runProductionSmoke(
       })),
     }
   }
+
+  const featured = await checkFeaturedCollectionLinks(dependencies, fetch)
+  if (featured._tag === 'failed')
+    return featured
 
   if (expectations.some(expectation => expectation.path === ASSET_COHERENCE_PATH)) {
     const coherence = await checkAssetCoherence(dependencies, {

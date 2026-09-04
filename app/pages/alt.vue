@@ -14,7 +14,7 @@ import {
 } from '../utils/homepage-person-skills'
 
 const title = 'Taste-tested agent skills ecosystem · skilld'
-const description = 'Agent skills written by their maintainers and read by a person before they go in. See what devs are installing this week, install it in one command, watch it change.'
+const description = 'Agent skills written by their maintainers and read by a person before they go in. See what devs are sharing this week, install it in one command, watch it change.'
 
 useSeoMeta({
   title,
@@ -100,11 +100,21 @@ const featuredCollections = computed(() =>
     skills: collection.skills ?? [],
   })),
 )
-const leadCollection = computed(() => featuredCollections.value[0] ?? null)
+/**
+ * The lead card prints "Install all N skills" and a live copy button, so it
+ * has to be a collection with skills in it. The API filters members on trust,
+ * source and render status, so a featured collection can arrive with a count
+ * of zero and nothing to install.
+ */
+const leadCollection = computed(() =>
+  featuredCollections.value.find(collection => collection.skills.length > 0) ?? null,
+)
 const featuredSkillTotal = computed(() =>
   featuredCollections.value.reduce((total, collection) => total + collection.skillCount, 0),
 )
-const supportingCollections = computed(() => featuredCollections.value.slice(1, 3))
+const supportingCollections = computed(() =>
+  featuredCollections.value.filter(collection => collection !== leadCollection.value).slice(0, 2),
+)
 const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
 
@@ -204,12 +214,20 @@ function featuredCollectionSkillLabel(skill: FeaturedCollectionSkill): string {
   return skill.name ? `/${skill.name}` : skill.repo
 }
 
+/** The avatar stack shows three faces, whatever the collection holds. */
 function collectionSkillOwners(collection: FeaturedCollection): string[] {
   return [...new Set(collection.skills.map(skill => skill.owner))].slice(0, 3)
 }
 
+/**
+ * The label counts every author, then names three. A seven-author collection
+ * read as a three-author one before, because the slice above was the only
+ * thing the reader saw.
+ */
 function collectionSkillOwnerLabel(collection: FeaturedCollection): string {
-  return collectionSkillOwners(collection).map(owner => `@${owner}`).join(' + ')
+  const total = new Set(collection.skills.map(skill => skill.owner)).size
+  const named = collectionSkillOwners(collection).map(owner => `@${owner}`).join(' + ')
+  return total > 3 ? `${named} +${total - 3} more` : named
 }
 
 const installCommand = computed(() => {
@@ -489,7 +507,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             <UIcon name="i-lucide-eye" class="size-5" />
           </span>
           <span class="alt-door-title">Watch it change<UIcon name="i-lucide-arrow-right" class="alt-door-arrow" aria-hidden="true" /></span>
-          <span class="alt-door-text">Maintainers ship often. Watch the repos you rely on. One digest says what changed and why.</span>
+          <span class="alt-door-text">Maintainers ship often. Watch the repos you rely on. One digest lists what changed.</span>
         </NuxtLink>
       </div>
     </nav>
@@ -648,7 +666,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Your skills <span class="alt-ink">changed</span>. Did anyone tell you?
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-            Watch a repo. The digest says what changed and why. If nothing changed, we send nothing.
+            Watch a repo. The digest lists what changed. If nothing changed, we send nothing.
           </p>
           <div class="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
             <UButton
@@ -660,7 +678,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             />
             <UButton
               to="/community"
-              label="Browse collections"
+              label="Browse curators"
               color="neutral"
               variant="outline"
               trailing-icon="i-lucide-arrow-right"
@@ -710,7 +728,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   Could not load recent updates.
                 </p>
                 <p class="mt-1 text-base leading-relaxed text-muted">
-                  Check your connection and try this list again.
+                  If the updates did not load, check your connection.
                 </p>
                 <UButton
                   label="Try updates again"
@@ -754,7 +772,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 <p class="mt-1 max-w-md text-base leading-relaxed text-muted">
                   Check back after the next release.
                 </p>
-                <UButton to="/skills" label="Browse skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
+                <UButton to="/skills" label="Browse all skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
               </div>
             </div>
           </section>
@@ -767,7 +785,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 </h3>
                 <p class="data-label mt-2 flex items-center gap-1.5">
                   <UIcon name="i-lucide-badge-check" class="size-3.5 shrink-0" aria-hidden="true" />
-                  Owner verified
+                  From official owners
                 </p>
               </div>
             </div>
@@ -786,7 +804,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 Could not load new skills.
               </p>
               <p class="mt-1 text-base leading-relaxed text-muted">
-                Check your connection and try this list again.
+                If the new skills did not load, check your connection.
               </p>
               <UButton
                 label="Try new skills again"
@@ -826,9 +844,9 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 No official skills added yet.
               </p>
               <p class="mt-1 text-base leading-relaxed text-muted">
-                You can still browse existing publishers.
+                You can still browse the skills already listed.
               </p>
-              <UButton to="/skills" label="Browse skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
+              <UButton to="/skills" label="Browse all skills" color="neutral" variant="outline" size="sm" class="mt-4 min-h-11" />
             </div>
           </section>
         </div>
@@ -864,7 +882,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           </div>
           <UButton
             to="/community"
-            label="All collections"
+            label="All curators"
             color="neutral"
             variant="ghost"
             trailing-icon="i-lucide-arrow-right"
@@ -922,9 +940,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 <h3 class="home-featured-lead__title text-balance">
                   {{ leadCollection.name }}
                 </h3>
-                <p class="mt-3">
-                  <span class="alt-tasted"><span aria-hidden="true">😋</span> Tasted</span>
-                </p>
               </div>
               <div class="home-featured-curator">
                 <img
@@ -993,6 +1008,11 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                     </span>
                   </span>
                 </NuxtLink>
+              </li>
+              <li v-if="leadCollection.skillCount > 6" class="home-featured-skill-more">
+                <span class="data-label">
+                  +{{ leadCollection.skillCount - 6 }} more in the collection
+                </span>
               </li>
             </ul>
 
@@ -1096,15 +1116,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             No collections are featured right now.
           </p>
           <p class="mt-1 text-base text-muted">
-            You can still browse every collection.
+            The link above lists every curator on the site.
           </p>
-          <UButton
-            to="/community"
-            label="All collections"
-            color="neutral"
-            variant="outline"
-            class="mt-4 min-h-11"
-          />
         </div>
       </div>
     </section>
@@ -1121,7 +1134,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Maintain something? <span class="alt-ink">Write the skill</span> for it.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              skilld drafts the skill. You edit it and own it. It ships in your repo, under your name.
+              Run the Skill and your agent drafts it. You edit it and own it. It ships in your repo, under your name.
             </p>
             <ul class="alt-eco-logos mt-5 list-none p-0" aria-label="Package ecosystems">
               <li

@@ -55,8 +55,12 @@ export default defineCachedEventHandler(
                    AND repo_skills.repo = s.repo
                    AND repo_skills.source_resolved = 1) AS repo_skill_count
          FROM activity a
-         LEFT JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
-         LEFT JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
+         -- INNER, not LEFT. An activity row whose skill has since been
+         -- deleted used to survive the join, and the fallbacks below then
+         -- invented a repo name for it, so the feed linked to a page that
+         -- does not exist. recent-updates.get.ts already joins this way.
+         JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
+         JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
          WHERE a.type = 'skill_published'
            AND ${officialOwnerFilter.sql}
          ORDER BY a.occurred_at DESC

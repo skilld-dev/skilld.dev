@@ -2041,3 +2041,10 @@
 .alt-make-command .install-command {
   min-width: 0;
 }
+
+/* "+N more" closes the lead collection's skill list when it is truncated. */
+.home-featured-skill-more {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+}
