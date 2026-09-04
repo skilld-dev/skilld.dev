@@ -324,7 +324,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Agent skills ecosystem for the way you build.
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              You drive an agent every day. Give it the open-source skills the maintainers wrote: find them, keep them current, write your own.
+              Your agent is sharp, but it never read the maintainer's notes. Here they are, in the open. Find the skills, keep them fresh, write your own.
             </p>
 
             <div class="alt-hero-slots mt-8">
