@@ -12,7 +12,9 @@
  */
 
 import { execFile } from 'node:child_process'
+import { resolve } from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import {
   collectionInstallCmd,
@@ -39,7 +41,7 @@ interface ChannelRequirement {
   agents: string[]
 }
 
-interface ChannelCheck {
+export interface ChannelCheck {
   tag: ChannelRequirement['tag']
   version: string
   required: string[]
@@ -48,6 +50,20 @@ interface ChannelCheck {
   publishedAgents: string[] | null
   problems: string[]
 }
+
+export interface PublishedCliInvocation {
+  file: string
+  args: string[]
+}
+
+export interface PublishedCliGrammarDependencies {
+  readVersion: (tag: ChannelRequirement['tag']) => Promise<string>
+  readHelp: (version: string, subcommand?: string) => Promise<string>
+}
+
+export type PublishedCliGrammarResult
+  = | { _tag: 'clean', checks: ChannelCheck[] }
+    | { _tag: 'blocked', checks: ChannelCheck[] }
 
 function subcommand(command: string): string {
   return command.split(/\s+/)[2]!
@@ -93,9 +109,16 @@ async function publishedVersion(tag: ChannelRequirement['tag']): Promise<string>
   return version
 }
 
+export function publishedCliInvocation(version: string, subcommand?: string): PublishedCliInvocation {
+  return {
+    file: 'pnpm',
+    args: ['--reporter=silent', 'dlx', `${PACKAGE}@${version}`, ...(subcommand ? [subcommand] : []), '--help'],
+  }
+}
+
 async function helpText(version: string, subcommand?: string): Promise<string> {
-  const args = ['--yes', `${PACKAGE}@${version}`, ...(subcommand ? [subcommand] : []), '--help']
-  const result = await run('npx', args, {
+  const command = publishedCliInvocation(version, subcommand)
+  const result = await run(command.file, command.args, {
     timeout: 180_000,
     env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
   }).catch((error: { stdout?: string, stderr?: string }) => error)
@@ -146,11 +169,14 @@ function publishedAgents(installHelp: string): string[] | null {
   return values.length > 0 ? values : null
 }
 
-async function checkChannel(requirement: ChannelRequirement): Promise<ChannelCheck> {
-  const version = await publishedVersion(requirement.tag)
-  const published = publishedSubcommands(await helpText(version))
+async function checkChannel(
+  requirement: ChannelRequirement,
+  dependencies: PublishedCliGrammarDependencies,
+): Promise<ChannelCheck> {
+  const version = await dependencies.readVersion(requirement.tag)
+  const published = publishedSubcommands(await dependencies.readHelp(version))
   const agents = requirement.agents.length > 0
-    ? publishedAgents(await helpText(version, 'install'))
+    ? publishedAgents(await dependencies.readHelp(version, 'install'))
     : []
   const major = Number(version.split('.')[0])
   const problems: string[] = []
@@ -185,28 +211,52 @@ async function checkChannel(requirement: ChannelRequirement): Promise<ChannelChe
   }
 }
 
-const checks = await Promise.all(channelRequirements().map(checkChannel))
-const failed = checks.filter(check => check.problems.length > 0)
+export async function runPublishedCliGrammar(
+  dependencies: PublishedCliGrammarDependencies,
+): Promise<PublishedCliGrammarResult> {
+  const checks: ChannelCheck[] = []
+  for (const requirement of channelRequirements())
+    checks.push(await checkChannel(requirement, dependencies))
 
-if (failed.length === 0) {
-  console.log(JSON.stringify({
-    _tag: 'clean',
-    check: 'published-cli-grammar',
-    channels: checks.map(({ tag, version, required, requiredAgents }) => ({ tag, version, required, requiredAgents })),
-  }, null, 2))
-  process.exit(0)
+  return checks.some(check => check.problems.length > 0)
+    ? { _tag: 'blocked', checks }
+    : { _tag: 'clean', checks }
 }
 
-for (const check of failed) {
-  console.error(`${PACKAGE}@${check.tag} is ${check.version}: ${check.problems.join('; ')}.`)
-  if (check.published)
-    console.error(`It supports: ${check.published.join(', ')}.`)
-  if (check.publishedAgents && check.publishedAgents.length > 0)
-    console.error(`Its --agent values: ${check.publishedAgents.join(', ')}.`)
+async function main(): Promise<void> {
+  const result = await runPublishedCliGrammar({
+    readVersion: publishedVersion,
+    readHelp: helpText,
+  })
+
+  if (result._tag === 'clean') {
+    console.log(JSON.stringify({
+      _tag: 'clean',
+      check: 'published-cli-grammar',
+      channels: result.checks.map(({ tag, version, required, requiredAgents }) => ({ tag, version, required, requiredAgents })),
+    }, null, 2))
+    return
+  }
+
+  for (const check of result.checks.filter(check => check.problems.length > 0)) {
+    console.error(`${PACKAGE}@${check.tag} is ${check.version}: ${check.problems.join('; ')}.`)
+    if (check.published)
+      console.error(`It supports: ${check.published.join(', ')}.`)
+    if (check.publishedAgents && check.publishedAgents.length > 0)
+      console.error(`Its --agent values: ${check.publishedAgents.join(', ')}.`)
+  }
+  console.error('')
+  console.error('The site prints a command that the published CLI cannot run.')
+  console.error('Publish the missing CLI grammar under the npm tag named above.')
+  console.error('For a rejected --agent value, hold its /agents page: raise cliSince in agent-pages.ts.')
+  console.error('To deploy anyway, run the "Deploy to Cloudflare" workflow by hand.')
+  process.exitCode = 1
 }
-console.error('')
-console.error('The site prints a command that the published CLI cannot run.')
-console.error('Publish the missing CLI grammar under the npm tag named above.')
-console.error('For a rejected --agent value, hold its /agents page: raise cliSince in agent-pages.ts.')
-console.error('To deploy anyway, run the "Deploy to Cloudflare" workflow by hand.')
-process.exit(1)
+
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : null
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })
+}
