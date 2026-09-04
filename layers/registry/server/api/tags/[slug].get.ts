@@ -107,6 +107,8 @@ export default defineCachedEventHandler(async (event) => {
   const skillsRes = await db
     .prepare(
       `SELECT DISTINCT s.name, s.owner, s.repo, s.display_name, s.slug, r.stars, s.like_count, s.description, s.rendered_raw_sha256, r.pushed_at, s.modified_at, s.first_seen_at,
+              s.rendered_skill_path, s.current_sha, r.default_branch, r.source_owner, r.source_repo,
+              (SELECT o.name FROM owners o WHERE o.owner = s.owner) AS author_name,
               (SELECT COUNT(*) FROM skills repo_skills
                WHERE repo_skills.owner = s.owner
                  AND repo_skills.repo = s.repo

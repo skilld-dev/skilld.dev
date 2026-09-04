@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { defineApiHandler } from '#shared/server/handler'
+import { githubSkillFileUrl } from '#shared/skill-file-url'
 import { selectSkillFiles } from '#shared/skill-files'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { isSourceResolved } from '#shared/skill-source-resolution'
@@ -186,7 +187,7 @@ const skillDetailHandler = defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows, resolvedRepoSkillCount] = await Promise.all([
+    const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows, resolvedRepoSkillCount, ownerRow] = await Promise.all([
       Promise.resolve([] satisfies CuratorEndorsement[]),
       platform.db
         .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
@@ -222,6 +223,11 @@ const skillDetailHandler = defineApiHandler({
         .prepare(`SELECT COUNT(*) AS skill_count FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1`)
         .bind(skill.owner, skill.repo)
         .first<RepoSkillCountRow>(),
+      // Same `owners` row the owner page shows; the byline reuses it.
+      platform.db
+        .prepare(`SELECT name FROM owners WHERE owner = ?`)
+        .bind(skill.owner)
+        .first<{ name: string | null }>(),
     ])
 
     const source = resolveRepoSourceIdentityFromRow(skill, row)
@@ -331,6 +337,7 @@ const skillDetailHandler = defineApiHandler({
         repoSkillCount,
       }),
       displayName: skill.displayName,
+      authorName: ownerRow?.name ?? null,
       githubUrl,
       skillPath: rendered.skillPath,
       branch,
@@ -407,9 +414,12 @@ const skillDetailHandler = defineApiHandler({
         sourceCommitUrl: sourceCommitSha
           ? `${githubUrl}/commit/${sourceCommitSha}`
           : null,
-        skillFileUrl: rendered.skillPath
-          ? `${githubUrl}/blob/${sourceCommitSha ?? branch}/${rendered.skillPath}`
-          : null,
+        skillFileUrl: githubSkillFileUrl({
+          owner: source.owner,
+          repo: source.repo,
+          skillPath: rendered.skillPath,
+          ref: sourceCommitSha ?? branch,
+        }),
         historyUrl: rendered.skillPath
           ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
           : null,

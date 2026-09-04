@@ -3,6 +3,7 @@ import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate
 import type { AlternateSource, HybridSearchResult, SearchMode } from './skill-search'
 import { getDB } from '#server/utils/db'
 import { readCache, writeCache } from '#shared/server/cache'
+import { githubSkillFileUrl } from '#shared/skill-file-url'
 import { JOIN_REPOS_SQL, notAggregatorSql, notBrokenSql } from './broken'
 import { buildSkillDependencyMap, skillDependencyKey } from './skill-dependencies'
 import {
@@ -32,8 +33,14 @@ const SELECT_SKILL_ROW = `
   s.trust_score,
   s.modified_at,
   s.first_seen_at,
+  s.rendered_skill_path,
+  s.current_sha,
   r.stars,
   r.pushed_at,
+  r.default_branch,
+  r.source_owner,
+  r.source_repo,
+  (SELECT o.name FROM owners o WHERE o.owner = s.owner) AS author_name,
   (
     SELECT COUNT(*)
     FROM skills repo_skills
@@ -62,6 +69,10 @@ export interface RegistrySkill {
   pushedAt: number | null
   modifiedAt: number | null
   firstSeenAt: number | null
+  /** GitHub profile name synced into `owners`; null until the owner page has been synced. */
+  authorName?: string | null
+  /** SKILL.md on GitHub at the synced revision, so every card can link the source. */
+  skillFileUrl?: string | null
   dependencies?: string[]
   /**
    * Set on search results only. When the same skill is mirrored across repos
@@ -90,6 +101,12 @@ interface SkillRow {
   pushed_at: number | null
   modified_at: number | null
   first_seen_at: number | null
+  rendered_skill_path: string | null
+  current_sha: string | null
+  default_branch: string | null
+  source_owner: string | null
+  source_repo: string | null
+  author_name: string | null
   rendered_raw?: string | null
 }
 
@@ -117,6 +134,13 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     pushedAt: row.pushed_at ?? null,
     modifiedAt: row.modified_at ?? null,
     firstSeenAt: row.first_seen_at ?? null,
+    authorName: row.author_name ?? null,
+    skillFileUrl: githubSkillFileUrl({
+      owner: row.source_owner || row.owner,
+      repo: row.source_repo || row.repo,
+      skillPath: row.rendered_skill_path,
+      ref: row.current_sha || row.default_branch,
+    }),
   }
 }
 

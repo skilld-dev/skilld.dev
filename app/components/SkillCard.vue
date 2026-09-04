@@ -13,6 +13,10 @@ interface SkillLike {
   occurredAt?: number | null
   pushedAt?: number | null
   modifiedAt?: number | null
+  /** GitHub profile name of the owner, when the owner has been synced. */
+  authorName?: string | null
+  /** SKILL.md on GitHub at the synced revision. */
+  skillFileUrl?: string | null
 }
 
 const {
@@ -54,9 +58,10 @@ const skillPath = computed(() => {
   return skill.registryPath
 })
 
-const ownerPath = computed(() =>
-  `${skill.owner}${skill.repo !== 'skills' ? `/${skill.repo}` : ''}`,
-)
+const repoSlug = computed(() => `${skill.owner}/${skill.repo}`)
+// Byline: the person first, the slug as the mono data label after it.
+const authorName = computed(() => resolveAuthorName(skill.owner, skill.authorName))
+const skillFileUrl = computed(() => skill.skillFileUrl ?? null)
 
 const resolvedTimestampFormat = computed(() =>
   timestampFormat ?? (variant === 'condensed' ? 'relative' : 'absolute'),
@@ -94,7 +99,7 @@ const linkClasses = computed(() => {
   if (variant === 'list')
     return 'flex items-center gap-4 px-4 py-3 pr-24 transition-colors duration-200 hover:bg-elevated'
   if (variant === 'condensed')
-    return 'flex h-full min-h-11 flex-col rounded-lg border border-default px-3 py-2.5 transition-colors duration-200 hover:border-[var(--ui-text-muted)]'
+    return `flex h-full min-h-11 flex-col rounded-lg border border-default px-3 py-2.5 transition-colors duration-200 hover:border-[var(--ui-text-muted)] ${skillFileUrl.value ? 'pr-10' : ''}`
   return 'flex h-full min-h-[8.5rem] flex-col rounded-lg border border-default p-4 pr-24 transition-colors duration-200 hover:border-[var(--ui-text-muted)]'
 })
 
@@ -126,11 +131,11 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
           <div class="flex items-center gap-2 min-w-0 shrink-0">
             <img
               v-if="showOwnerAvatar"
-              :src="`https://github.com/${skill.owner}.png?size=32`"
+              :src="`https://github.com/${skill.owner}.png?size=40`"
               :alt="skill.owner"
-              width="16"
-              height="16"
-              class="size-4 shrink-0 rounded-full"
+              width="20"
+              height="20"
+              class="size-5 shrink-0 rounded-full"
               loading="lazy"
             >
             <p class="font-mono text-sm font-medium truncate">
@@ -155,7 +160,9 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
             v-if="showOwnerPath"
             class="text-xs text-muted truncate"
           >
-            {{ ownerPath }}
+            <span v-if="authorName" class="text-toned">{{ authorName }}</span>
+            <span v-if="authorName" aria-hidden="true"> · </span>
+            <span class="font-mono">{{ repoSlug }}</span>
           </p>
           <p
             v-if="timestampLabel && timestampDate"
@@ -226,15 +233,17 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
         >
           <img
             v-if="showOwnerAvatar"
-            :src="`https://github.com/${skill.owner}.png?size=32`"
+            :src="`https://github.com/${skill.owner}.png?size=40`"
             :alt="skill.owner"
-            width="16"
-            height="16"
-            class="size-4 shrink-0 rounded-full"
+            width="20"
+            height="20"
+            class="size-5 shrink-0 rounded-full"
             loading="lazy"
           >
           <p class="text-xs text-muted truncate min-w-0 flex-1">
-            {{ ownerPath }}
+            <span v-if="authorName" class="text-toned">{{ authorName }}</span>
+            <span v-if="authorName" aria-hidden="true"> · </span>
+            <span class="font-mono">{{ repoSlug }}</span>
           </p>
           <span
             v-if="resolvedSignal === 'stars'"
@@ -304,10 +313,20 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
     </NuxtLink>
 
     <div
-      v-if="showCopy || showLikeButton"
+      v-if="showCopy || showLikeButton || skillFileUrl"
       class="absolute z-10 flex items-center gap-0.5"
       :class="buttonPositionClass"
     >
+      <a
+        v-if="skillFileUrl"
+        :href="skillFileUrl"
+        target="_blank"
+        rel="noopener"
+        aria-label="Read SKILL.md on GitHub"
+        class="inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors duration-200 hover:bg-elevated hover:text-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        <UIcon name="i-lucide-file-text" class="size-3.5" aria-hidden="true" />
+      </a>
       <LikeButton
         v-if="showLikeButton"
         :owner="skill.owner"
