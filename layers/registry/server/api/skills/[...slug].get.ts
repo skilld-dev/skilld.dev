@@ -1,6 +1,8 @@
 import type { H3Event } from 'h3'
+import type { z } from 'zod'
 
 import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
+import { readCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { githubSkillFileUrl } from '#shared/skill-file-url'
 import { selectSkillFiles } from '#shared/skill-files'
@@ -31,6 +33,9 @@ interface CuratorEndorsement {
 }
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24
+
+const DETAIL_CACHE_TTL = 60
+type SkillDetailPayload = z.infer<typeof SkillDetailResponseSchema>
 
 const OFFICIAL_REPO_KEYS = new Set(officialRepos.map(r => `${r.owner}/${r.repo}`))
 const OFFICIAL_REPO_KIND = new Map(officialRepos.map(r => [`${r.owner}/${r.repo}`, r.kind]))
@@ -183,6 +188,11 @@ const skillDetailHandler = defineApiHandler({
     if (!slug)
       throw createError({ statusCode: 400, message: 'Missing skill slug' })
 
+    const cacheKey = `skills:detail:v1:${slug.toLowerCase()}`
+    const cached = await readCache<SkillDetailPayload>(useStorage('cache'), cacheKey)
+    if (cached)
+      return cached
+
     const skill = await findSkill(event, slug)
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
@@ -326,7 +336,7 @@ const skillDetailHandler = defineApiHandler({
     const createdAtIso = epochToIso(row?.repo_created_at)
     const repoSkillCount = resolvedRepoSkillCount?.skill_count ?? 0
 
-    return {
+    const detail = {
       owner: skill.owner,
       repo: skill.repo,
       name: skill.name,
@@ -447,20 +457,20 @@ const skillDetailHandler = defineApiHandler({
       },
       duplicateGroup,
     }
+
+    await writeCache(useStorage('cache'), cacheKey, detail, { ttl: DETAIL_CACHE_TTL })
+    return detail
   },
 })
 
 // Skill detail data is public and changes only when indexing or social counts
-// update. Cache the assembled response so popular links do not repeat every D1
-// lookup and Markdown render for each reader.
-export default defineCachedEventHandler(skillDetailHandler, {
-  maxAge: 60,
-  staleMaxAge: 60 * 5,
-  swr: true,
-  group: 'skill-detail',
-  name: 'skill-detail-v1',
-  getKey: event => (getRouterParam(event, 'slug') ?? '').toLowerCase(),
-})
+// update. A read-through KV cache keeps popular links from repeating every D1
+// lookup and Markdown render for each reader. The cache writes go through
+// `writeCache` because Nitro's own route cache called storage.setItem bare,
+// so a KV `KV PUT failed: 429` escaped the cached handler as a 500 (Sentry
+// SKILLD-1V). Losing the entry costs one repeat computation; propagating the
+// rejection costs the user the page.
+export default skillDetailHandler
 
 interface RenderedView {
   skillPath: string | null
