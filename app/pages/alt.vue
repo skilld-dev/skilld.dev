@@ -240,13 +240,9 @@ const authoringRunCommand = skillRunCmd('skilld-dev', 'skilld', 'generate-packag
  * track by hand, then scored with a 1/log2(rank) decay and weighted
  * week 1.0, month 0.8, all-time 0.6.
  *
- * Two findings the list cannot express on its own:
- *
- * 1. Diagrams and codebase maps took 10.8% of weighted demand and the top
- *    Skill of the week (tt-a1i/archify), and no track covers it. Nothing here
- *    can surface those Skills until one exists.
- * 2. `research` was retired on 2026-08-13 and came back at 6.5%, carried by
- *    browser-use and the research Skills behind it.
+ * The measurement changed the taxonomy rather than only its order:
+ * `diagrams` was added and `research` was un-retired, both on these numbers.
+ * See the header of clusters.ts.
  *
  * Re-measure before trusting this order past October. Method and numbers:
  * ~/scratch/notes/skilld-track-demand-2026-09-04.md
@@ -255,13 +251,16 @@ const TRACK_DEMAND_ORDER = [
   'design', // 16.5%
   'context-engineering', // 15.1%
   'anti-slop', // 13.4%
+  'diagrams', // 10.8%, the track this measurement added
   'planning', // 9.8%, nearly all of it from all-time stars
   'anti-slop-coding', // 6.7%
+  'research', // 6.5%, the track this measurement brought back
   'security', // 4.7%
   'code-review', // 3.0%
   'devops', // 2.9%
   'testing', // 2.2%
   'backend-data', // 1.6%
+  // Below the twelve-tile cut. Both keep their page.
   'performance', // 0.9%
   'coding', // 0.2%
   'seo', // no trending evidence at all

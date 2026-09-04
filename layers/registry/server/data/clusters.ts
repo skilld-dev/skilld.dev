@@ -64,6 +64,18 @@
  * and `/skills/docs` 301 here. Anti-slop is dev-facing work: READMEs, docs,
  * and posts written with an agent.
  *
+ * 2026-09-04: two rows on measured demand, taking the taxonomy to 15.
+ * `diagrams` is new: it took 10.8% of weighted trending demand and the top
+ * skill of the week (tt-a1i/archify), and its skills were scattering across
+ * three tracks that promise something else. `research` returns 22 days after
+ * it was culled, at 6.5%, led by browser-use. Nothing retired against them,
+ * which is a deliberate break with principle 2: a track page answers search
+ * demand and costs a URL, while a homepage tile answers trending demand and
+ * costs the scarcest space on the site. The grid caps at twelve, so the
+ * subtraction happens there. `seo` and `coding` keep their pages and lose
+ * their tiles. Method and numbers:
+ * ~/scratch/notes/skilld-track-demand-2026-09-04.md
+ *
  * 2026-08-25: `anti-slop-coding` joined as the coding counterpart. Its seven
  * pinned skills preserve the shared ranking and keep the page focused. It has
  * no classifier backfill: broad code-review and refactoring results already
@@ -181,7 +193,8 @@ export const CLUSTERS: Cluster[] = [
       'Run multi-pass changes with focused delegation, parallel work, browser control, and verification, then build the skill you were missing.',
     mergedFrom: 'agent-workflow',
     audience: 'dev',
-    categories: ['automation', 'scraping'],
+    // `scraping` moved to `research` on 2026-09-04. Values may not repeat.
+    categories: ['automation'],
     pinnedExamples: [
       'obra/subagent-driven-development',
       'obra/dispatching-parallel-agents',
@@ -387,6 +400,59 @@ export const CLUSTERS: Cluster[] = [
     ],
   },
 
+  {
+    slug: 'diagrams',
+    label: 'Diagrams and codebase maps',
+    icon: 'i-lucide-workflow',
+    userVoice: 'You need the system drawn before you can change it.',
+    seoTitle: 'Agent Skills for Diagrams and Architecture Maps',
+    seoDescription:
+      'Diagram and codebase-map skills for Claude Code, Cursor, and Codex. Draw architecture, data flow, and pull requests as pictures, from the maintainers who wrote the tools.',
+    curatorNote:
+      'Skills that draw the system: architecture and data flow, a map of a codebase you have not read, and the shape of a pull request. The top trending skill of the week sits here.',
+    mergedFrom: null,
+    audience: 'dev',
+    // No classifier value covers this. Diagram skills currently land in
+    // `software-design`, `documentation` and `interface-design`, none of which
+    // promise a picture. Pins carry the page until the classifier learns it.
+    categories: [],
+    pinnedExamples: [
+      'tt-a1i/archify',
+      'garrytan/diagram',
+      'kingbootoshi/cartographer',
+      'coldteadotai/pr-lens',
+      'github/architecture-blueprint-generator',
+      'github/excalidraw-diagram-generator',
+      'cathrynlavery/diagram-design',
+      'humanlayer/show-me',
+      'kepano/json-canvas',
+    ],
+  },
+  {
+    slug: 'research',
+    label: 'Research and web content',
+    icon: 'i-lucide-telescope',
+    userVoice: 'You send the agent out to read the web and bring back sources.',
+    seoTitle: 'Agent Skills for Research and Web Scraping',
+    seoDescription:
+      'Research and scraping skills for Claude Code, Cursor, and Codex. Drive a browser, pull a page down to clean text, and come back with sources you can check.',
+    curatorNote:
+      'Send the agent out and get sources back: browser control, scraping, deep research passes, and turning a page or a document into text an agent can read.',
+    mergedFrom: null,
+    audience: 'dev',
+    categories: ['scraping'],
+    pinnedExamples: [
+      'browser-use/browser-use',
+      'mattpocock/research',
+      'mvanhorn/last30days',
+      'kepano/defuddle',
+      'firecrawl/convert-documents-to-markdown',
+      'garrytan/scrape',
+      'bytedance/github-deep-research',
+      'imbad0202/deep-research',
+    ],
+  },
+
   // ---------------------------------------------------------------------------
   // Demand test, admitted 2026-08-12. Outside VISION's north-star user.
   // Kept separable so the whole experiment reverses by deleting the row.
@@ -533,5 +599,9 @@ export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
  * north-star user. They have no category that answers the same question, so
  * they 301 to `/skills` rather than to a category that would mislead.
  * The route policy reads this so the old paths reach the redirect layer.
+ *
+ * 2026-09-04: `research` came off this list. It was culled on no evidence and
+ * came back with some: 6.5% of weighted trending demand, led by browser-use at
+ * rank 6 for the week. Its 301 in nuxt.config.ts went with it.
  */
-export const CULLED_CLUSTER_SLUGS: string[] = ['marketing', 'research']
+export const CULLED_CLUSTER_SLUGS: string[] = ['marketing']
