@@ -82,3 +82,11 @@ jobs:
           GITHUB_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # The page smoke above never touches the build queue. From 2026-08-21 to
+      # 2026-09-01 every hosted Artifact build failed behind green deploys,
+      # because workerd rejects a fetch redirect mode that Node accepts. This
+      # step requests one public Resolution and fails the job unless the build
+      # reaches `ready` within two minutes.
+      - name: Smoke an Artifact build
+        run: node scripts/smoke-artifact-resolution.mjs --timeout-ms 120000
