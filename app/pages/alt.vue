@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import type { FeaturedCollectionsResponse } from '~~/server/api/collections/featured.get'
-import type { CommunityDirectoryResponse } from '~~/server/api/community.get'
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
-import WeeklyBand from '../components/WeeklyBand.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
   HOMEPAGE_PERSON_MINIMUM,
@@ -67,10 +65,6 @@ const [
     refresh: refreshPublishes,
   },
   {
-    data: communityData,
-    status: communityStatus,
-  },
-  {
     data: trendingData,
     status: trendingStatus,
   },
@@ -83,9 +77,6 @@ const [
   })),
   withHomeDataTiming('home-publishes', useFetch<RecentPublishesResponse>('/api/feed/recent-publishes', {
     key: 'home-recent-publishes-v2',
-  })),
-  withHomeDataTiming('home-community', useFetch<CommunityDirectoryResponse>('/api/community', {
-    key: 'home-community-v1',
   })),
   // Server-rendered rather than lazy: the section is one of the few places on
   // the homepage whose content changes hourly, and the endpoint is cached at
@@ -131,24 +122,6 @@ const showTrending = computed(() => trendingRepos.value.length >= MIN_TRENDING_T
 
 function trendingShareLabel(authorCount: number): string {
   return authorCount === 1 ? '1 dev shared it' : `${authorCount} devs shared it`
-}
-
-const communityCurators = computed(() => (communityData.value?.items ?? []).slice(0, 6))
-const communityTotal = computed(() => communityData.value?.total ?? 0)
-
-function curatorName(curator: { name: string | null, login: string }): string {
-  return curator.name || `@${curator.login}`
-}
-
-function curatorSummary(curator: { collectionCount: number, skillCount: number }): string {
-  return [
-    curator.collectionCount
-      ? `${curator.collectionCount} ${curator.collectionCount === 1 ? 'collection' : 'collections'}`
-      : null,
-    curator.skillCount
-      ? `${curator.skillCount} ${curator.skillCount === 1 ? 'skill' : 'skills'}`
-      : null,
-  ].filter(Boolean).join(' · ')
 }
 
 type FeaturedCollectionSkill = FeaturedCollectionsResponse['items'][number]['skills'][number]
@@ -260,12 +233,6 @@ const { copy: copyHeroCommand, copied: heroCommandCopied } = useClipboard({
   legacy: true,
 })
 
-const heroQuery = ref('')
-async function submitHeroSearch(): Promise<void> {
-  const term = heroQuery.value.trim()
-  await navigateTo(term ? { path: '/skills', query: { q: term } } : '/skills')
-}
-
 const installTarget = computed<InstallTarget | null>(() => {
   const collection = leadCollection.value
   return collection
@@ -361,25 +328,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             </p>
 
             <div class="alt-hero-slots mt-8">
-              <form class="alt-hero-slot" role="search" @submit.prevent="() => { void submitHeroSearch() }">
-                <label for="alt-hero-search" class="section-label">Search</label>
-                <UInput
-                  id="alt-hero-search"
-                  v-model="heroQuery"
-                  icon="i-lucide-search"
-                  placeholder="Search skills, repos, or authors"
-                  name="q"
-                  enterkeyhint="search"
-                  size="xl"
-                  autocomplete="off"
-                  class="mt-2 w-full"
-                  :ui="{ base: 'font-mono' }"
-                >
-                  <template #trailing>
-                    <UKbd value="Enter" class="hidden sm:inline-flex" />
-                  </template>
-                </UInput>
-              </form>
+              <div class="alt-hero-slot">
+                <p class="section-label">
+                  Find
+                </p>
+                <div class="mt-2">
+                  <HomeSearch />
+                </div>
+              </div>
 
               <div class="alt-hero-slot">
                 <p class="section-label">
@@ -422,6 +378,79 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             />
           </div>
         </div>
+      </div>
+    </section>
+
+    <section
+      v-if="showTrending || trendingStatus === 'pending'"
+      id="trending"
+      class="border-b border-default"
+      aria-labelledby="trending-heading"
+    >
+      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+        <header class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 id="trending-heading" class="text-2xl font-semibold tracking-tight text-balance">
+              Trending this week
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              Skill repositories devs are posting about on X, ranked by how many separate
+              devs shared them rather than by how loud any one post was.
+            </p>
+            <p v-if="trendingSectionRepos.length" class="data-label mt-3">
+              {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
+            </p>
+          </div>
+          <UButton
+            to="/skills/trending"
+            label="See all"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            trailing-icon="i-lucide-arrow-right"
+            class="min-h-11"
+          />
+        </header>
+
+        <div v-if="trendingStatus === 'pending'" class="mt-8 grid gap-4 sm:grid-cols-2" aria-busy="true">
+          <div v-for="i in 4" :key="i" class="rounded-lg border border-default p-4">
+            <USkeleton class="h-4 w-2/3" />
+            <USkeleton class="mt-3 h-3 w-full" />
+            <USkeleton class="mt-2 h-3 w-4/5" />
+          </div>
+        </div>
+
+        <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
+          <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`">
+            <NuxtLink
+              :to="repoHubPath(repo.owner, repo.repo)"
+              class="group flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
+            >
+              <span class="flex items-center gap-2">
+                <img
+                  :src="`https://github.com/${repo.owner}.png?size=64`"
+                  alt=""
+                  width="24"
+                  height="24"
+                  class="size-6 shrink-0 rounded-full border border-default bg-muted"
+                  loading="lazy"
+                  decoding="async"
+                >
+                <span class="min-w-0 flex-1 truncate font-medium text-default">{{ repo.owner }}/{{ repo.repo }}</span>
+                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
+                  {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
+                </span>
+              </span>
+              <span v-if="repo.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
+                {{ repo.evidence.text }}
+              </span>
+              <span class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                <span>{{ trendingShareLabel(repo.authorCount) }}</span>
+                <span v-if="repo.evidence" class="font-mono">@{{ repo.evidence.authorHandle }}</span>
+              </span>
+            </NuxtLink>
+          </li>
+        </ol>
       </div>
     </section>
 
@@ -714,173 +743,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     </section>
 
     <section
-      id="community"
-      class="editorial-band home-community-band border-b border-default"
-      aria-labelledby="community-heading"
-    >
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <div class="home-featured-heading">
-          <div class="min-w-0">
-            <h2 id="community-heading" class="home-featured-title text-balance">
-              Curators you can watch.
-            </h2>
-            <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
-              <template v-if="communityTotal">
-                {{ communityTotal }} {{ communityTotal === 1 ? 'dev publishes' : 'devs publish' }} collections on skilld. Open a profile to see what they keep installed.
-              </template>
-              <template v-else>
-                Open a profile to see the collections someone keeps installed.
-              </template>
-            </p>
-          </div>
-          <UButton
-            to="/community"
-            label="Browse the directory"
-            color="neutral"
-            variant="ghost"
-            trailing-icon="i-lucide-arrow-right"
-            class="min-h-11 shrink-0 self-start"
-          />
-        </div>
-
-        <div v-if="communityStatus === 'pending'" class="home-community-grid mt-8" aria-busy="true">
-          <div v-for="i in 6" :key="i" class="home-community-card">
-            <div class="flex items-center gap-3">
-              <USkeleton class="size-10 shrink-0 rounded-full" />
-              <div class="min-w-0 flex-1">
-                <USkeleton class="h-4 w-2/3" />
-                <USkeleton class="mt-2 h-3 w-1/2" />
-              </div>
-            </div>
-            <USkeleton class="mt-5 h-4 w-4/5" />
-          </div>
-        </div>
-
-        <ul v-else-if="communityCurators.length" class="home-community-grid mt-8 list-none p-0">
-          <li v-for="curator in communityCurators" :key="curator.login" class="min-w-0">
-            <NuxtLink :to="`/@${curator.login}`" class="home-community-card group">
-              <div class="flex items-center gap-3">
-                <img
-                  :src="curator.avatar || `https://github.com/${curator.login}.png?size=80`"
-                  alt=""
-                  width="40"
-                  height="40"
-                  class="home-community-avatar"
-                  loading="lazy"
-                  decoding="async"
-                >
-                <div class="min-w-0 flex-1">
-                  <p class="truncate font-semibold tracking-tight">
-                    {{ curatorName(curator) }}
-                  </p>
-                  <p class="truncate font-mono text-xs text-muted">
-                    @{{ curator.login }}
-                  </p>
-                </div>
-                <UIcon name="i-lucide-arrow-up-right" class="size-4 shrink-0 text-muted" aria-hidden="true" />
-              </div>
-              <p v-if="curator.topCollection" class="mt-4 truncate text-sm">
-                {{ curator.topCollection.name }}
-              </p>
-              <p class="data-label mt-2">
-                {{ curatorSummary(curator) }}
-              </p>
-            </NuxtLink>
-          </li>
-        </ul>
-
-        <div v-else class="mt-8 rounded-lg border border-default bg-default p-6">
-          <p class="font-medium">
-            No curators are listed yet.
-          </p>
-          <p class="mt-1 text-base text-muted">
-            Publish a collection and your profile joins the directory.
-          </p>
-          <UButton
-            to="/collections/new"
-            label="Create a collection"
-            color="neutral"
-            variant="outline"
-            class="mt-4 min-h-11"
-          />
-        </div>
-      </div>
-    </section>
-
-    <section
-      v-if="showTrending || trendingStatus === 'pending'"
-      id="trending"
-      class="border-b border-default"
-      aria-labelledby="trending-heading"
-    >
-      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
-        <header class="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 id="trending-heading" class="text-2xl font-semibold tracking-tight text-balance">
-              Trending this week
-            </h2>
-            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Skill repositories devs are posting about on X, ranked by how many separate
-              devs shared them rather than by how loud any one post was.
-            </p>
-            <p v-if="trendingSectionRepos.length" class="data-label mt-3">
-              {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
-            </p>
-          </div>
-          <UButton
-            to="/skills/trending"
-            label="See all"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            trailing-icon="i-lucide-arrow-right"
-            class="min-h-11"
-          />
-        </header>
-
-        <div v-if="trendingStatus === 'pending'" class="mt-8 grid gap-4 sm:grid-cols-2" aria-busy="true">
-          <div v-for="i in 4" :key="i" class="rounded-lg border border-default p-4">
-            <USkeleton class="h-4 w-2/3" />
-            <USkeleton class="mt-3 h-3 w-full" />
-            <USkeleton class="mt-2 h-3 w-4/5" />
-          </div>
-        </div>
-
-        <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
-          <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`">
-            <NuxtLink
-              :to="repoHubPath(repo.owner, repo.repo)"
-              class="group flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
-            >
-              <span class="flex items-center gap-2">
-                <img
-                  :src="`https://github.com/${repo.owner}.png?size=64`"
-                  alt=""
-                  width="24"
-                  height="24"
-                  class="size-6 shrink-0 rounded-full border border-default bg-muted"
-                  loading="lazy"
-                  decoding="async"
-                >
-                <span class="min-w-0 flex-1 truncate font-medium text-default">{{ repo.owner }}/{{ repo.repo }}</span>
-                <span class="shrink-0 font-mono text-xs text-muted tabular-nums">
-                  {{ repo.skillCount }} {{ repo.skillCount === 1 ? 'skill' : 'skills' }}
-                </span>
-              </span>
-              <span v-if="repo.evidence" class="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">
-                {{ repo.evidence.text }}
-              </span>
-              <span class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                <span>{{ trendingShareLabel(repo.authorCount) }}</span>
-                <span v-if="repo.evidence" class="font-mono">@{{ repo.evidence.authorHandle }}</span>
-              </span>
-            </NuxtLink>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <section
       id="freshness"
       class="editorial-band home-freshness-band border-b border-default"
       aria-labelledby="freshness-heading"
@@ -1092,8 +954,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       </div>
     </section>
 
-    <WeeklyBand />
-
     <section
       id="publish"
       class="editorial-band home-band--publish"
@@ -1107,13 +967,24 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         aria-hidden="true"
       />
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
-        <div class="home-publish-panel">
-          <div>
-            <h2 id="publish-heading" class="home-section-title home-publish-title text-balance">
-              A person reads every skill before it lists.
-            </h2>
-            <p class="home-publish-summary mt-4">
-              Skills stay in the maintainer's repo with the source one click away. Submit yours and it lists under your name once a person has read it. Run the command below to draft a skill for a package you maintain.
+        <header>
+          <p class="section-label">
+            Make
+          </p>
+          <h2 id="publish-heading" class="home-section-title home-publish-title mt-4 text-balance">
+            Write a skill for your own code.
+          </h2>
+          <p class="home-publish-summary mt-4">
+            skilld drafts it, you edit and own it, and it ships in your repo under your name.
+          </p>
+        </header>
+        <div class="alt-make-grid mt-8">
+          <article class="alt-make-door">
+            <h3 class="text-lg font-semibold tracking-tight">
+              For a package you maintain
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
+              Drafts a SKILL.md from your docs and API so agents use your package the way you intended. Commit it and list it here.
             </p>
             <p class="mt-4 text-sm">
               <InstallCommand
@@ -1123,23 +994,41 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 tabindex="0"
               />
             </p>
-          </div>
-          <div class="home-publish-actions">
             <UButton
               to="/learn/author-npm-package-skills"
-              label="How admission works"
+              label="Package skill guide"
               color="neutral"
               variant="outline"
+              size="sm"
               trailing-icon="i-lucide-arrow-right"
-              class="min-h-11 justify-center"
+              class="mt-4 min-h-11"
             />
+          </article>
+          <article class="alt-make-door">
+            <h3 class="text-lg font-semibold tracking-tight">
+              For the project you are in
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
+              Indexes your source and docs into a searchable project skill, so your agent finds the real file instead of guessing.
+            </p>
+            <p class="mt-4 text-sm">
+              <InstallCommand
+                id="publish-self-command"
+                command="npx skilld self"
+                wrap
+                tabindex="0"
+              />
+            </p>
             <UButton
-              to="/collections/new"
-              label="Create a collection"
+              to="/cli"
+              label="Project skill guide"
+              color="neutral"
+              variant="outline"
+              size="sm"
               trailing-icon="i-lucide-arrow-right"
-              class="min-h-11 justify-center"
+              class="mt-4 min-h-11"
             />
-          </div>
+          </article>
         </div>
       </div>
     </section>

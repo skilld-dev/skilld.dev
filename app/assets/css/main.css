@@ -1362,3 +1362,22 @@
   color: var(--ui-text-dimmed);
   user-select: none;
 }
+
+.alt-make-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 48rem) {
+  .alt-make-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.alt-make-door {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: color-mix(in oklab, var(--ui-bg) 88%, transparent);
+}
