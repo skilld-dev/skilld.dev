@@ -332,7 +332,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 <template>
   <div class="home-page alt-page overflow-clip">
     <section
-      class="editorial-band home-band--hero border-b border-default"
+      class="editorial-band home-band--hero"
       aria-labelledby="hero-heading"
     >
       <NoiseField :opacity="0.24" />
@@ -346,7 +346,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
       <!-- The hero runs wider than the editorial bands below it so the proof
            rail sits beside the headline instead of compressing it. -->
-      <div class="editorial-band__content mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-14">
+      <div class="editorial-band__content mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-14">
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="alt-hero-title font-semibold tracking-[-0.045em]">
@@ -415,8 +415,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       </div>
     </section>
 
-    <nav class="alt-doors border-b border-default" aria-label="What you can do here">
-      <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
+    <nav class="alt-doors" aria-label="What you can do here">
+      <div class="mx-auto grid max-w-6xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink to="#discover" class="alt-door">
           <span class="alt-door-mark" aria-hidden="true">
             <span class="trending-fire">🔥</span>
@@ -444,11 +444,11 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     <section
       v-if="showTrending || trendingStatus === 'pending'"
       id="discover"
-      class="alt-wm border-b border-default"
+      class="alt-wm"
       aria-labelledby="trending-heading"
     >
       <span class="alt-watermark" aria-hidden="true">Week</span>
-      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 id="trending-heading" class="alt-h2 text-balance">
@@ -516,11 +516,11 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <section
       id="outcomes"
-      class="alt-wm editorial-band home-outcomes-band border-b border-default"
+      class="alt-wm editorial-band home-outcomes-band"
       aria-labelledby="outcomes-heading"
     >
       <span class="alt-watermark" aria-hidden="true">Work</span>
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-outcomes-intro">
           <h2 id="outcomes-heading" class="alt-h2 max-w-[16ch] text-balance">
             Skills for the <span class="alt-ink">work you do</span>.
@@ -544,11 +544,11 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <section
       id="the-test"
-      class="alt-wm border-b border-default"
+      class="alt-wm"
       aria-labelledby="the-test-heading"
     >
       <span class="alt-watermark" aria-hidden="true">Test</span>
-      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <h2 id="the-test-heading" class="alt-h2 text-balance">
           The <span class="alt-ink">taste test</span>.
         </h2>
@@ -577,7 +577,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <section
       id="freshness"
-      class="alt-wm editorial-band home-freshness-band border-b border-default"
+      class="alt-wm editorial-band home-freshness-band"
       aria-labelledby="freshness-heading"
     >
       <span class="alt-watermark" aria-hidden="true">Watch</span>
@@ -589,7 +589,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         aria-hidden="true"
       />
 
-      <div class="editorial-band__content home-freshness-shell mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content home-freshness-shell mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <header class="home-freshness-header">
           <h2 id="freshness-heading" class="alt-h2 max-w-[15ch] text-balance">
             Your skills <span class="alt-ink">changed</span>. Did anyone tell you?
@@ -793,7 +793,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <section
       id="featured-focus"
-      class="alt-wm editorial-band home-featured-band border-b border-default"
+      class="alt-wm editorial-band home-featured-band"
       aria-labelledby="featured-focus-heading"
     >
       <span class="alt-watermark" aria-hidden="true">Picks</span>
@@ -805,13 +805,13 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         aria-hidden="true"
       />
 
-      <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="editorial-band__content mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-featured-heading">
           <div class="min-w-0">
             <h2 id="featured-focus-heading" class="alt-h2 text-balance">
               A whole collection, <span class="alt-ink">one command</span>.
             </h2>
-            <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               A collection gathers the skills one project needs. A curator picked every one. Install the set, then watch it.
             </p>
             <p v-if="featuredCollections.length" class="data-label mt-3">
@@ -1066,17 +1066,17 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     </section>
     <section
       id="publish"
-      class="alt-wm border-b border-default"
+      class="alt-wm"
       aria-labelledby="publish-heading"
     >
       <span class="alt-watermark" aria-hidden="true">Make</span>
-      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
+      <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <div class="alt-make-strip">
           <div class="min-w-0">
             <h2 id="publish-heading" class="alt-h2 text-balance">
               Maintain something? <span class="alt-ink">Write the skill</span> for it.
             </h2>
-            <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               skilld drafts the skill. You edit it and own it. It ships in your repo, under your name.
             </p>
             <ul class="alt-eco-logos mt-5 list-none p-0" aria-label="Package ecosystems">
