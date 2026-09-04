@@ -226,16 +226,22 @@ const installCommand = computed(() => {
  */
 const authoringRunCommand = skillRunCmd('skilld-dev', 'skilld', 'generate-package-skill')
 
-const heroInstallCommand = 'npx skilld add gh:owner/repo'
+// The command is real: the top trending repo this week, so the first copy
+// installs something. Falls back to the grammar when the rail is empty.
+const heroInstallCommand = computed(() => {
+  const top = heroTrendingCards.value[0]
+  return top ? `npx skilld add gh:${top.owner}/${top.repo}` : 'npx skilld add gh:owner/repo'
+})
 
-// Low-contrast agent row under the install command. Only agents with a
-// simple-icons glyph appear; the rest are counted.
+// Named agent row under the install command: proof of "every agent".
 const heroAgentLogos = [
   { id: 'claude-code', label: 'Claude Code', icon: 'i-simple-icons-claude' },
+  { id: 'cursor', label: 'Cursor', icon: 'i-simple-icons-cursor' },
   { id: 'codex', label: 'Codex', icon: 'i-simple-icons-openai' },
   { id: 'gemini-cli', label: 'Gemini CLI', icon: 'i-simple-icons-googlegemini' },
-  { id: 'github-copilot', label: 'GitHub Copilot', icon: 'i-simple-icons-githubcopilot' },
-  { id: 'cursor', label: 'Cursor', icon: 'i-simple-icons-cursor' },
+  { id: 'github-copilot', label: 'Copilot', icon: 'i-simple-icons-githubcopilot' },
+  { id: 'windsurf', label: 'Windsurf', icon: 'i-simple-icons-windsurf' },
+  { id: 'opencode', label: 'OpenCode', icon: 'i-simple-icons-opencode' },
 ] as const
 const { copy: copyHeroCommand, copied: heroCommandCopied } = useClipboard({
   source: heroInstallCommand,
@@ -331,15 +337,15 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="alt-hero-title font-semibold tracking-[-0.045em]">
-              <span class="alt-hero-taste">Taste-tested<span class="alt-hero-emoji" aria-hidden="true">😋</span></span><br>
-              <span class="alt-hero-agents-line">agent skills<span class="alt-hero-agents" aria-label="Agents skilld installs into"><UIcon v-for="agent in heroAgentLogos" :key="agent.id" :name="agent.icon" :aria-label="agent.label" /></span></span><br>
-              <span class="alt-hero-eco">ecosystem<span class="alt-hero-eco-mark" aria-hidden="true">⏶</span></span>
+              <span class="alt-hero-taste">Taste-tested<span class="alt-hero-stamp" aria-hidden="true">tasted</span></span><br>
+              agent skills<br>
+              <span class="alt-hero-eco">ecosystem.</span>
             </h1>
-            <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Your agent is sharp, but it never read the maintainer's notes. They're here, and a person tasted each one first. See what devs are installing this week, then watch it change.
+            <p class="mt-6 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
+              Your agent is quick. It never read the maintainer's notes. The notes are here, and a person tasted each one before it went in. See what devs install this week, then watch the repos you rely on.
             </p>
 
-            <div class="alt-hero-slots mt-8">
+            <div class="alt-hero-slots mt-10">
               <div class="alt-hero-slot">
                 <HomeSearch />
               </div>
@@ -369,14 +375,20 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                     Copied. Paste it in your terminal.
                   </template>
                   <template v-else>
-                    One command, every agent. No sign-up, no waiting.
+                    One command installs into every agent. No sign-up.
                   </template>
                 </p>
+                <ul class="alt-hero-agents mt-5 list-none p-0" aria-label="Agents skilld installs into">
+                  <li v-for="agent in heroAgentLogos" :key="agent.id" class="alt-hero-agent">
+                    <UIcon :name="agent.icon" class="size-4 shrink-0" aria-hidden="true" />
+                    <span>{{ agent.label }}</span>
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
 
-          <div class="home-hero-proof min-w-0">
+          <div class="home-hero-proof alt-hero-rail min-w-0">
             <SkillSourceList
               :items="heroTrendingCards"
               variant="stream"
@@ -392,7 +404,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink to="#discover" class="alt-door">
           <span class="alt-door-title">Trending this week</span>
-          <span class="alt-door-text">The skills devs are installing and posting about right now. Author and source on every card, always.</span>
+          <span class="alt-door-text">The skills devs are installing and posting about right now. Author and source on every card.</span>
         </NuxtLink>
         <NuxtLink to="#outcomes" class="alt-door">
           <span class="alt-door-title">Skills for your kind of work</span>
@@ -400,7 +412,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         </NuxtLink>
         <NuxtLink to="#freshness" class="alt-door">
           <span class="alt-door-title">Watch it change</span>
-          <span class="alt-door-text">Maintainers move fast. Watch the repos you rely on and get one digest that says what changed and why it matters.</span>
+          <span class="alt-door-text">Maintainers ship often. Watch the repos you rely on and get one digest that says what changed and why it matters.</span>
         </NuxtLink>
       </div>
     </nav>

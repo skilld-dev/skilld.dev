@@ -1331,7 +1331,7 @@
 
 .alt-hero-slots {
   display: grid;
-  gap: 1.5rem;
+  gap: 0.75rem;
   max-width: 36rem;
 }
 
@@ -1343,11 +1343,21 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 3.25rem;
-  padding: 0.25rem 0.5rem 0.25rem 1rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: var(--ui-bg-muted);
+  min-height: 2.75rem;
+  padding: 0.125rem 0.25rem 0.125rem 0.875rem;
+  border-radius: calc(var(--ui-radius) * 0.75);
+  background: color-mix(in oklab, var(--ui-bg-muted) 70%, transparent);
+  font-size: 0.9375rem;
+}
+
+.alt-hero-command button {
+  opacity: 0.6;
+  transition: opacity 200ms ease-out;
+}
+
+.alt-hero-command:hover button,
+.alt-hero-command:focus-within button {
+  opacity: 1;
 }
 
 .alt-hero-command-scroll {
@@ -1489,22 +1499,28 @@
   text-wrap: pretty;
 }
 
-/* /alt hero: agent glyphs ride the "agent skills" line, dimmed and small. */
-.alt-hero-agents-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
+/* /alt hero: named agent row under the command. Proof of "every agent". */
+.alt-hero-agents {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1rem;
+  row-gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  color: var(--ui-text-muted);
 }
 
-.alt-hero-agents {
+.alt-hero-agent {
   display: inline-flex;
   align-items: center;
-  gap: 0.22em;
-  margin-inline-start: 0.1em;
-  font-size: 0.34em;
-  color: var(--ui-text-dimmed);
-  opacity: 0.75;
-  transform: translateY(0.08em);
+  gap: 0.375rem;
+  opacity: 0.7;
+  transition: opacity 200ms ease-out;
+}
+
+.alt-hero-agent:hover {
+  opacity: 1;
 }
 
 /* "ecosystem" carries the brand: rose ink and the chevron mark in place of a full stop. */
@@ -1512,57 +1528,62 @@
   position: relative;
   display: inline-block;
   color: var(--ui-primary);
+  opacity: 0.92;
 }
 
 /* Dot-grid underline: the noise field's grid, frozen, in rose. */
 .alt-hero-eco::after {
   content: '';
   position: absolute;
-  inset-inline: 0.04em 0.9em;
+  inset-inline: 0.04em 0.3em;
   bottom: -0.06em;
   height: 0.14em;
   background-image: radial-gradient(circle, var(--ui-primary) 0.9px, transparent 1.1px);
   background-size: 0.14em 0.14em;
-  opacity: 0.55;
+  opacity: 0.35;
   pointer-events: none;
 }
 
-.alt-hero-eco-mark {
-  display: inline-block;
-  margin-inline-start: 0.08em;
-  font-size: 0.5em;
-  vertical-align: 0.1em;
-}
 
 .alt-hero-taste {
   position: relative;
   display: inline-block;
 }
 
-.alt-hero-emoji {
+/* Rose "tasted" stamp: a passport-stamp wink in the palette, set in mono. */
+.alt-hero-stamp {
   position: absolute;
-  top: -0.15em;
-  right: -0.9em;
-  font-size: 0.42em;
+  top: 0.02em;
+  right: -1.15em;
+  padding: 0.14em 0.32em 0.12em;
+  border: 0.07em solid var(--ui-primary);
+  border-radius: 0.18em;
+  font-family: var(--font-mono);
+  font-size: 0.24em;
+  font-weight: 600;
+  letter-spacing: 0.18em;
   line-height: 1;
-  transform: rotate(12deg);
-  transform-origin: 50% 80%;
+  text-transform: uppercase;
+  color: var(--ui-primary);
+  opacity: 0.85;
+  transform: rotate(-8deg);
+  transform-origin: 50% 50%;
+  mix-blend-mode: screen;
 }
 
-/* A quick wiggle when the headline is hovered: 360ms, inside the motion budget. */
-.alt-hero-title:hover .alt-hero-emoji {
-  animation: alt-emoji-wiggle 360ms ease-in-out;
+/* A quick press when the headline is hovered: 360ms, inside the motion budget. */
+.alt-hero-title:hover .alt-hero-stamp {
+  animation: alt-stamp-press 360ms ease-out;
 }
 
-@keyframes alt-emoji-wiggle {
-  0% { transform: rotate(12deg); }
-  30% { transform: rotate(-6deg) scale(1.08); }
-  60% { transform: rotate(18deg) scale(1.04); }
-  100% { transform: rotate(12deg); }
+@keyframes alt-stamp-press {
+  0% { transform: rotate(-8deg) scale(1.25); opacity: 0.4; }
+  60% { transform: rotate(-8deg) scale(0.96); opacity: 1; }
+  100% { transform: rotate(-8deg) scale(1); opacity: 0.85; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .alt-hero-title:hover .alt-hero-emoji {
+  .alt-hero-title:hover .alt-hero-stamp {
     animation: none;
   }
 }
@@ -1584,5 +1605,24 @@
 @media (min-width: 64rem) {
   .alt-make-strip {
     grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+  }
+}
+
+/* /alt rail: fade both ends so a half row reads as depth, not a bug. */
+.alt-hero-rail {
+  mask-image: linear-gradient(to bottom, transparent, black 3rem, black calc(100% - 3rem), transparent);
+}
+
+.alt-hero-rail [class*="stream"] {
+  scrollbar-width: none;
+}
+
+.alt-hero-rail [class*="stream"]::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 40rem) {
+  .alt-hero-title {
+    font-size: 2.75rem;
   }
 }
