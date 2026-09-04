@@ -226,6 +226,19 @@ const installCommand = computed(() => {
  */
 const authoringRunCommand = skillRunCmd('skilld-dev', 'skilld', 'generate-package-skill')
 
+/**
+ * The ecosystems a maintainer arrives from. npm is lit because the guide is
+ * written for it; the rest run the same Skill against their own manifest.
+ * Static literals so the icon client bundle can find them.
+ */
+const authoringEcosystems = [
+  { id: 'npm', label: 'npm', icon: 'i-simple-icons-npm' },
+  { id: 'pypi', label: 'PyPI', icon: 'i-simple-icons-pypi' },
+  { id: 'rust', label: 'crates.io', icon: 'i-simple-icons-rust' },
+  { id: 'go', label: 'Go', icon: 'i-simple-icons-go' },
+  { id: 'rubygems', label: 'RubyGems', icon: 'i-simple-icons-rubygems' },
+] as const
+
 // The command is real: the top trending repo this week, so the first copy
 // installs something. Falls back to the grammar when the rail is empty.
 const heroInstallCommand = computed(() => {
@@ -317,7 +330,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 </script>
 
 <template>
-  <div class="home-page overflow-clip">
+  <div class="home-page alt-page overflow-clip">
     <section
       class="editorial-band home-band--hero border-b border-default"
       aria-labelledby="hero-heading"
@@ -431,14 +444,15 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     <section
       v-if="showTrending || trendingStatus === 'pending'"
       id="discover"
-      class="border-b border-default"
+      class="alt-wm border-b border-default"
       aria-labelledby="trending-heading"
     >
+      <span class="alt-watermark" aria-hidden="true">Hot</span>
       <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 id="trending-heading" class="text-2xl font-semibold tracking-tight text-balance">
-              Trending this week.
+              <span class="alt-ink">Trending</span> this week.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               Skill repos devs are posting about, ranked by how many separate people shared them, not by how loud one post was. Every one links to the author's source.
@@ -505,11 +519,11 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       class="alt-wm editorial-band home-outcomes-band border-b border-default"
       aria-labelledby="outcomes-heading"
     >
-      <span class="alt-watermark" aria-hidden="true">Tracks</span>
+      <span class="alt-watermark" aria-hidden="true">Work</span>
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-outcomes-intro">
           <h2 id="outcomes-heading" class="home-outcomes-title max-w-[16ch] font-semibold text-balance">
-            Skills for the work you do.
+            Skills for the <span class="alt-ink">work you do</span>.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
             Pick a track. Short lists a person put together, with the authors who write for them.
@@ -533,10 +547,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       class="alt-wm border-b border-default"
       aria-labelledby="the-test-heading"
     >
-      <span class="alt-watermark" aria-hidden="true">Tasted</span>
+      <span class="alt-watermark" aria-hidden="true">Test</span>
       <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <h2 id="the-test-heading" class="text-2xl font-semibold tracking-tight text-balance">
-          The taste test.
+          The <span class="alt-ink">taste test</span>.
         </h2>
         <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
           Three things are true of every skill here. Someone tasted it first. You should still read it before you run it.
@@ -578,7 +592,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content home-freshness-shell mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <header class="home-freshness-header">
           <h2 id="freshness-heading" class="home-freshness-title max-w-[15ch] font-semibold text-balance">
-            Your skills changed. Did anyone tell you?
+            Your skills <span class="alt-ink">changed</span>. Did anyone tell you?
           </h2>
           <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
             Watch a repo and a digest says what changed and why it matters. Silence when nothing did. Your inbox stays yours.
@@ -779,7 +793,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       class="alt-wm editorial-band home-featured-band border-b border-default"
       aria-labelledby="featured-focus-heading"
     >
-      <span class="alt-watermark" aria-hidden="true">Stacks</span>
+      <span class="alt-watermark" aria-hidden="true">Stack</span>
       <div
         class="editorial-atmosphere"
         data-palette="ember"
@@ -792,7 +806,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-featured-heading">
           <div class="min-w-0">
             <h2 id="featured-focus-heading" class="home-featured-title text-balance">
-              A whole stack, one command.
+              A whole stack, <span class="alt-ink">one command</span>.
             </h2>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty">
               Collections bundle what a stack needs, picked by a person with opinions. Install all of it, then watch for changes.
@@ -861,6 +875,9 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 <h3 class="home-featured-lead__title text-balance">
                   {{ leadCollection.name }}
                 </h3>
+                <p class="mt-3">
+                  <span class="alt-tasted"><span aria-hidden="true">😋</span> Tasted</span>
+                </p>
               </div>
               <div class="home-featured-curator">
                 <img
@@ -1046,17 +1063,32 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     </section>
     <section
       id="publish"
-      class="border-b border-default"
+      class="alt-wm border-b border-default"
       aria-labelledby="publish-heading"
     >
+      <span class="alt-watermark" aria-hidden="true">Make</span>
       <div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 md:py-12">
         <div class="alt-make-strip">
           <div class="min-w-0">
             <h2 id="publish-heading" class="text-2xl font-semibold tracking-tight text-balance">
-              Maintain something? Write the skill for it.
+              Maintain something? <span class="alt-ink">Write the skill</span> for it.
             </h2>
             <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               skilld drafts, you edit and own it, it ships in your repo under your name. Send it in and a person reads it.
+            </p>
+            <ul class="alt-eco-logos mt-5 list-none p-0" aria-label="Package ecosystems">
+              <li
+                v-for="ecosystem in authoringEcosystems"
+                :key="ecosystem.id"
+                class="alt-eco-logo"
+                :data-state="ecosystem.id === 'npm' ? 'live' : undefined"
+              >
+                <UIcon :name="ecosystem.icon" class="size-4 shrink-0" aria-hidden="true" />
+                <span>{{ ecosystem.label }}</span>
+              </li>
+            </ul>
+            <p class="data-label mt-3">
+              The guide is npm-first. The Skill reads whatever manifest your repo has.
             </p>
           </div>
           <div class="alt-make-strip-actions">
