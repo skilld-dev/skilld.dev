@@ -7,6 +7,7 @@ import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
+import { AGENT_TARGETS } from '../utils/agents'
 import {
   HOMEPAGE_PERSON_MINIMUM,
   selectHomepagePersonSkills,
@@ -14,7 +15,7 @@ import {
 } from '../utils/homepage-person-skills'
 
 const title = 'Taste-tested agent skills ecosystem · skilld'
-const description = 'Agent skills the maintainers wrote and a person read before they listed. Find one, keep it fresh, write your own. One command, every agent.'
+const description = 'Agent skills written by their maintainers and read by a person before they go in. Find one, watch it, write your own. One command, every agent.'
 
 useSeoMeta({
   title,
@@ -227,6 +228,20 @@ const installCommand = computed(() => {
 const authoringRunCommand = skillRunCmd('skilld-dev', 'skilld', 'generate-package-skill')
 
 const heroInstallCommand = 'npx skilld add gh:owner/repo'
+
+// Low-contrast agent row under the install command. Only agents with a
+// simple-icons glyph appear; the rest are counted.
+const heroAgentLogos = [
+  { id: 'claude-code', label: 'Claude Code', icon: 'i-simple-icons-claude' },
+  { id: 'codex', label: 'Codex', icon: 'i-simple-icons-openai' },
+  { id: 'gemini-cli', label: 'Gemini CLI', icon: 'i-simple-icons-googlegemini' },
+  { id: 'github-copilot', label: 'GitHub Copilot', icon: 'i-simple-icons-githubcopilot' },
+  { id: 'cursor', label: 'Cursor', icon: 'i-simple-icons-cursor' },
+  { id: 'windsurf', label: 'Windsurf', icon: 'i-simple-icons-windsurf' },
+  { id: 'opencode', label: 'OpenCode', icon: 'i-simple-icons-opencode' },
+  { id: 'amp', label: 'Amp', icon: 'i-simple-icons-amp' },
+  { id: 'cline', label: 'Cline', icon: 'i-simple-icons-cline' },
+] as const
 const { copy: copyHeroCommand, copied: heroCommandCopied } = useClipboard({
   source: heroInstallCommand,
   copiedDuring: 2000,
@@ -320,11 +335,11 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-14">
         <div class="home-hero-grid alt-hero-grid">
           <div class="home-hero-copy min-w-0">
-            <h1 id="hero-heading" class="alt-hero-title max-w-[16ch] font-semibold tracking-[-0.045em] text-balance">
-              Taste-tested agent skills ecosystem.
+            <h1 id="hero-heading" class="alt-hero-title font-semibold tracking-[-0.045em]">
+              <span class="alt-hero-taste">Taste-tested<span class="alt-hero-emoji" aria-hidden="true">😋</span></span><br>agent skills<br>ecosystem.
             </h1>
             <p class="mt-4 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Every skill here was written by the maintainer and read by a person before it listed. Find one, keep it fresh, write your own.
+              Every skill here was written by its maintainer and read by a person before it went in. Find one, watch it, write your own.
             </p>
 
             <div class="alt-hero-slots mt-8">
@@ -355,6 +370,14 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 <p class="data-label mt-2">
                   One command, every agent. No account.
                 </p>
+                <ul class="alt-hero-agents mt-4 list-none p-0" aria-label="Agents skilld installs into">
+                  <li v-for="agent in heroAgentLogos" :key="agent.id">
+                    <UIcon :name="agent.icon" class="size-5" :aria-label="agent.label" />
+                  </li>
+                  <li class="alt-hero-agents-more">
+                    + {{ AGENT_TARGETS.length - heroAgentLogos.length }} more
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
@@ -374,16 +397,16 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     <nav class="alt-doors border-b border-default" aria-label="What you can do here">
       <div class="mx-auto grid max-w-7xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink to="#outcomes" class="alt-door">
-          <span class="alt-door-title">Find one that passed the test</span>
+          <span class="alt-door-title">Find a skill</span>
           <span class="alt-door-text">Tracks for the work you do, and what devs installed this week. Author and source on every card.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="alt-door">
-          <span class="alt-door-title">Know when a skill changes</span>
-          <span class="alt-door-text">Watch the repos you depend on. One digest says what moved and why it matters.</span>
+          <span class="alt-door-title">Watch it change</span>
+          <span class="alt-door-text">Watch the repos you depend on. One digest says what changed and why it matters.</span>
         </NuxtLink>
         <NuxtLink to="#publish" class="alt-door">
-          <span class="alt-door-title">Write one worth testing</span>
-          <span class="alt-door-text">Draft a skill for a package you maintain, or index the project you are in. Submit it and a person reads it.</span>
+          <span class="alt-door-title">Write your own</span>
+          <span class="alt-door-text">Draft a skill for a package you maintain, or for the project you are in. Send it in and a person reads it.</span>
         </NuxtLink>
       </div>
     </nav>
@@ -425,7 +448,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           The taste test.
         </h2>
         <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-          Three things are true of every skill on this site. Review, never a guarantee; you can still read it before you run it.
+          Three things are true of every skill here. It is a review, never a guarantee, so read it before you run it.
         </p>
         <ol class="alt-test-list mt-8 list-none p-0">
           <li class="alt-test-item">
@@ -436,7 +459,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           <li class="alt-test-item">
             <span class="alt-test-num" aria-hidden="true">2</span>
             <span class="alt-test-title">A person read it.</span>
-            <span class="alt-test-text">Nothing lists because it was popular. Someone said yes.</span>
+            <span class="alt-test-text">Nothing gets in for being popular. Someone said yes.</span>
           </li>
           <li class="alt-test-item">
             <span class="alt-test-num" aria-hidden="true">3</span>
@@ -465,7 +488,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Write one. We'll read it.
           </h2>
           <p class="home-publish-summary mt-4">
-            skilld drafts it, you edit and own it, and it ships in your repo under your name. Submit it and a person reads it before it lists.
+            skilld drafts it, you edit and own it, and it ships in your repo under your name. Send it in and a person reads it before it goes in.
           </p>
         </header>
         <div class="alt-make-grid mt-8">
@@ -474,7 +497,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               For a package you maintain
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
-              Drafts a SKILL.md from your docs and API so agents use your package the way you intended. Commit it and list it here.
+              Drafts a SKILL.md from your docs and API so agents use your package the way you intended. Commit it and send it in.
             </p>
             <p class="mt-4 text-sm">
               <InstallCommand

@@ -1357,6 +1357,11 @@
   gap: 0.5rem;
   min-width: 0;
   overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.alt-hero-command-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .alt-hero-command .install-command {
@@ -1482,4 +1487,34 @@
   line-height: 1.6;
   color: var(--ui-text-muted);
   text-wrap: pretty;
+}
+
+/* /alt hero agents: monochrome, low contrast, decoration for the install command. */
+.alt-hero-agents {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+  color: var(--ui-text-dimmed);
+  opacity: 0.7;
+}
+
+.alt-hero-agents-more {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
+.alt-hero-taste {
+  position: relative;
+  display: inline-block;
+}
+
+.alt-hero-emoji {
+  position: absolute;
+  top: -0.15em;
+  right: -0.9em;
+  font-size: 0.42em;
+  line-height: 1;
+  transform: rotate(12deg);
 }
