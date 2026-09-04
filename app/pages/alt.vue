@@ -347,7 +347,9 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
             <div class="alt-hero-slots mt-10">
               <div class="alt-hero-slot">
-                <HomeSearch />
+                <div class="alt-hero-search">
+                  <HomeSearch />
+                </div>
               </div>
 
               <div class="alt-hero-slot">
@@ -500,9 +502,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <section
       id="outcomes"
-      class="editorial-band home-outcomes-band border-b border-default"
+      class="alt-wm editorial-band home-outcomes-band border-b border-default"
       aria-labelledby="outcomes-heading"
     >
+      <span class="alt-watermark" aria-hidden="true">Tracks</span>
       <div class="editorial-band__content mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-outcomes-intro">
           <h2 id="outcomes-heading" class="home-outcomes-title max-w-[16ch] font-semibold text-balance">
@@ -527,9 +530,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <section
       id="the-test"
-      class="border-b border-default"
+      class="alt-wm border-b border-default"
       aria-labelledby="the-test-heading"
     >
+      <span class="alt-watermark" aria-hidden="true">Tasted</span>
       <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16">
         <h2 id="the-test-heading" class="text-2xl font-semibold tracking-tight text-balance">
           The taste test.
@@ -559,9 +563,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <section
       id="freshness"
-      class="editorial-band home-freshness-band border-b border-default"
+      class="alt-wm editorial-band home-freshness-band border-b border-default"
       aria-labelledby="freshness-heading"
     >
+      <span class="alt-watermark" aria-hidden="true">Watch</span>
       <div
         class="editorial-atmosphere"
         data-palette="stone"
@@ -771,9 +776,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
     <section
       id="featured-focus"
-      class="editorial-band home-featured-band border-b border-default"
+      class="alt-wm editorial-band home-featured-band border-b border-default"
       aria-labelledby="featured-focus-heading"
     >
+      <span class="alt-watermark" aria-hidden="true">Stacks</span>
       <div
         class="editorial-atmosphere"
         data-palette="ember"
