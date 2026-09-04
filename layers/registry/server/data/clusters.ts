@@ -68,6 +68,11 @@
  * pinned skills preserve the shared ranking and keep the page focused. It has
  * no classifier backfill: broad code-review and refactoring results already
  * have a category, and repeating them here would blur the promise.
+ *
+ * 2026-09-04: `security` retired into `backend-data`. Both tracks already
+ * covered auth, and the merge restores the homepage limit of three rows while
+ * keeping the two anti-slop tracks separate. `/skills/security` 301s to the
+ * combined page.
  */
 
 export interface Cluster {
@@ -274,44 +279,29 @@ export const CLUSTERS: Cluster[] = [
     ],
   },
   {
-    slug: 'security',
-    label: 'Security and auth',
-    icon: 'i-lucide-shield',
-    userVoice: 'You think about the threat model before the feature ships.',
-    seoTitle: 'Agent Skills for Security',
-    seoDescription:
-      'Security and auth skills for AI agents: threat modelling, integrity audits, and authentication patterns. Read the source before you run it, on every skill listed here.',
-    curatorNote: null,
-    mergedFrom: null,
-    audience: 'dev',
-    categories: ['security', 'auth'],
-    pinnedExamples: [
-      'wshobson/stride-analysis-patterns',
-      'github/audit-integrity',
-      'bitwarden/bitwarden-security-context',
-      'wshobson/auth-implementation-patterns',
-      'better-auth/best-practices',
-    ],
-  },
-  {
     slug: 'backend-data',
-    label: 'Backend and data',
+    label: 'Backend, data, and security',
     icon: 'i-lucide-database',
-    userVoice: 'You wire up the database, the auth, and the realtime layer.',
-    seoTitle: 'Agent Skills for Backend and Databases',
+    userVoice: 'You wire up databases, auth, security, and realtime systems.',
+    seoTitle: 'Agent Skills for Backend, Databases, and Security',
     seoDescription:
-      'Backend and database skills for agents, each from the team that builds the product: Supabase Postgres, Convex, Firebase, Stripe, Resend, and Better Auth.',
+      'Backend, database, and security skills for agents: data modelling, auth patterns, threat modelling, integrity audits, and realtime systems.',
     curatorNote:
-      'Backend skills for agents wiring up databases, auth, and realtime: Supabase Postgres, Firebase, Convex, and Better Auth, each from the team that builds it.',
+      'Backend skills for agents wiring up databases, auth, security, and realtime systems, with guidance from the teams and devs who build them.',
     mergedFrom: 'backend-data',
     audience: 'dev',
-    categories: ['data-modeling'],
+    categories: ['data-modeling', 'security', 'auth'],
     pinnedExamples: [
       'supabase/supabase-postgres-best-practices',
       'stripe/stripe-best-practices',
       'get-convex/convex-quickstart',
       'firebase/firebase-basics',
       'resend/resend',
+      'wshobson/stride-analysis-patterns',
+      'github/audit-integrity',
+      'bitwarden/bitwarden-security-context',
+      'wshobson/auth-implementation-patterns',
+      'better-auth/best-practices',
     ],
   },
   {
@@ -523,6 +513,8 @@ export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
   // `writing` retired into `anti-slop` on 2026-08-22; the anti-slop anchor
   // replaced it with the same audience and the same category depth.
   'writing': 'anti-slop',
+  // Both tracks covered auth. The combined route keeps their full depth.
+  'security': 'backend-data',
 }
 
 /**
