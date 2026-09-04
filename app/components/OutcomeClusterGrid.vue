@@ -87,7 +87,7 @@ function rankOf(slug: string): number {
 
     <div v-else-if="error" class="editorial-state" role="alert">
       <p class="font-medium">
-        Could not load the work tracks.
+        Could not load the tracks.
       </p>
       <p class="mt-1 text-base text-muted">
         Check your connection and try again, or browse every skill directly.
@@ -154,7 +154,7 @@ function rankOf(slug: string): number {
 
     <div v-else class="editorial-state">
       <p class="font-medium">
-        No work tracks are available yet.
+        No tracks are available yet.
       </p>
       <p class="mt-1 text-base text-muted">
         You can still browse every indexed skill.

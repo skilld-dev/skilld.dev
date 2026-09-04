@@ -2048,3 +2048,9 @@
   align-items: center;
   padding: 0.75rem 1rem;
 }
+
+/* An in-page jump landed the heading flush against the sticky header, with no
+   space above it. The header is 4rem; this adds a breath on top of that. */
+.alt-page > section[id] {
+  scroll-margin-top: 5.5rem;
+}

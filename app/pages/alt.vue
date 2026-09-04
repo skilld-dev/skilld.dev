@@ -3,6 +3,7 @@ import type { FeaturedCollectionsResponse } from '~~/server/api/collections/feat
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
+import type { InstallTarget } from '../composables/useInstallCopy'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
@@ -321,17 +322,29 @@ const heroAgentLogos = [
  * focus landed on a code block that did nothing, and a phone had no way to
  * copy it but a text selection.
  */
-const { copy: copyAuthoringCommand, copied: authoringCommandCopied } = useClipboard({
-  source: computed(() => authoringRunCommand),
-  copiedDuring: 2000,
-  legacy: true,
+const { copy: copyAuthoringCommand, copied: authoringCommandCopied } = useInstallCopy(
+  () => authoringRunCommand,
+  'home-publish',
+  'run',
+  { kind: 'skill', owner: 'skilld-dev', name: 'generate-package-skill' },
+)
+
+/**
+ * The hero command is the page's primary call to action, so its copies are
+ * recorded like every other install command on the site. Raw useClipboard
+ * measured nothing and swallowed a failure in a browser that blocks writes.
+ */
+const heroInstallTarget = computed<InstallTarget | null>(() => {
+  const top = heroTrendingCards.value[0]
+  return top ? { kind: 'repo', owner: top.owner, repo: top.repo } : null
 })
 
-const { copy: copyHeroCommand, copied: heroCommandCopied } = useClipboard({
-  source: heroInstallCommand,
-  copiedDuring: 2000,
-  legacy: true,
-})
+const { copy: copyHeroCommand, copied: heroCommandCopied } = useInstallCopy(
+  heroInstallCommand,
+  'home-hero',
+  'install',
+  heroInstallTarget,
+)
 
 const installTarget = computed<InstallTarget | null>(() => {
   const collection = leadCollection.value
@@ -957,6 +970,10 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   </p>
                   <p class="mt-1 truncate font-mono text-sm font-medium">
                     @{{ leadCollection.authorLogin }}
+                  </p>
+                  <!-- A pick under a person's name ages invisibly without this. -->
+                  <p class="data-label mt-1">
+                    Updated {{ formatRelative(leadCollection.updatedAt) }}
                   </p>
                 </div>
               </div>

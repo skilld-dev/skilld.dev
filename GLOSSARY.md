@@ -20,6 +20,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | collection | `layers/collections`, `/@login/slug` | collection N—N Skill | "collection" |
 | watch | `layers/identity` | account N—N Repository or collection | "watch" |
 | digest | `layers/identity` email | account 1—1 digest schedule | "digest" |
+| track | `/skills/<slug>`, `layers/registry` | track 1—N Skill | "track" |
 | trending | `/skills/trending`, ADR-0004 | Repository 1—N social mention | "trending" |
 | registry | skilld.dev | one | "skilld" |
 | provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
@@ -92,6 +93,14 @@ Collisions
 **Use for:** collection pages, the `/community` directory, "Browse curators".
 
 **Never:** creator, publisher (for a person), "the Community" as a proper noun.
+
+### track
+
+**Is:** a page of Skills for one kind of work, at `/skills/<slug>`. A person writes its label, its second-person line and its pinned Skills; a classifier category fills in the depth beneath them.
+
+**Never:** cluster, category, outcome, topic, use case (in UI). `CLUSTERS` and `abstractness_category` are the internal names and stay in the code.
+
+**Collides with:** collection. A track is ours, permanent, and one per kind of work. A collection belongs to a curator, at `/@login/slug`, and any number can exist.
 
 ### collection
 
