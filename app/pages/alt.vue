@@ -298,6 +298,17 @@ const heroAgentLogos = [
   { id: 'windsurf', label: 'Windsurf', icon: 'i-simple-icons-windsurf' },
   { id: 'opencode', label: 'OpenCode', icon: 'i-simple-icons-opencode' },
 ] as const
+/**
+ * The authoring command had a tabindex and no action behind it, so keyboard
+ * focus landed on a code block that did nothing, and a phone had no way to
+ * copy it but a text selection.
+ */
+const { copy: copyAuthoringCommand, copied: authoringCommandCopied } = useClipboard({
+  source: computed(() => authoringRunCommand),
+  copiedDuring: 2000,
+  legacy: true,
+})
+
 const { copy: copyHeroCommand, copied: heroCommandCopied } = useClipboard({
   source: heroInstallCommand,
   copiedDuring: 2000,
@@ -1128,13 +1139,26 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             </p>
           </div>
           <div class="alt-make-strip-actions">
-            <p class="text-sm">
+            <div class="alt-make-command">
               <InstallCommand
                 id="publish-run-command"
                 :command="authoringRunCommand"
                 wrap
-                tabindex="0"
               />
+              <UButton
+                :icon="authoringCommandCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                class="min-h-11 min-w-11 shrink-0"
+                :aria-label="authoringCommandCopied ? 'Copied' : 'Copy the authoring command'"
+                @click="() => { void copyAuthoringCommand() }"
+              />
+            </div>
+            <p class="sr-only" aria-live="polite">
+              <template v-if="authoringCommandCopied">
+                Copied. Paste it in your terminal.
+              </template>
             </p>
             <UButton
               to="/learn/author-npm-package-skills"

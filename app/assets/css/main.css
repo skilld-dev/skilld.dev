@@ -2017,3 +2017,27 @@
     color: var(--ui-primary);
   }
 }
+
+/* Below 30rem the feed heading and its link fight for one row, so the title
+   wraps to two lines beside a button. Stack them instead. */
+@media (max-width: 30rem) {
+  .alt-page .home-freshness-feed-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+
+/* The authoring command sits beside its copy button, like the hero's. */
+.alt-make-command {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.alt-make-command .install-command {
+  min-width: 0;
+}
