@@ -231,6 +231,42 @@ const authoringRunCommand = skillRunCmd('skilld-dev', 'skilld', 'generate-packag
  * written for it; the rest run the same Skill against their own manifest.
  * Static literals so the icon client bundle can find them.
  */
+/**
+ * Track order, measured 2026-09-04 rather than assumed.
+ *
+ * `/api/clusters` sorts by how many Skills a track holds, which is supply.
+ * This is demand: the 50 named Skills trending over a week, the 50 over a
+ * month and the top 50 repositories by stars, each Skill read and placed in a
+ * track by hand, then scored with a 1/log2(rank) decay and weighted
+ * week 1.0, month 0.8, all-time 0.6.
+ *
+ * Two findings the list cannot express on its own:
+ *
+ * 1. Diagrams and codebase maps took 10.8% of weighted demand and the top
+ *    Skill of the week (tt-a1i/archify), and no track covers it. Nothing here
+ *    can surface those Skills until one exists.
+ * 2. `research` was retired on 2026-08-13 and came back at 6.5%, carried by
+ *    browser-use and the research Skills behind it.
+ *
+ * Re-measure before trusting this order past October. Method and numbers:
+ * ~/scratch/notes/skilld-track-demand-2026-09-04.md
+ */
+const TRACK_DEMAND_ORDER = [
+  'design', // 16.5%
+  'context-engineering', // 15.1%
+  'anti-slop', // 13.4%
+  'planning', // 9.8%, nearly all of it from all-time stars
+  'anti-slop-coding', // 6.7%
+  'security', // 4.7%
+  'code-review', // 3.0%
+  'devops', // 2.9%
+  'testing', // 2.2%
+  'backend-data', // 1.6%
+  'performance', // 0.9%
+  'coding', // 0.2%
+  'seo', // no trending evidence at all
+] as const
+
 const authoringEcosystems = [
   { id: 'npm', label: 'npm', icon: 'i-simple-icons-npm' },
   { id: 'pypi', label: 'PyPI', icon: 'i-simple-icons-pypi' },
@@ -529,7 +565,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             Pick a track. Each one is a short list, with the authors behind it.
           </p>
         </div>
-        <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" />
+        <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" :order="TRACK_DEMAND_ORDER" />
         <UButton
           to="/skills"
           label="All tracks"

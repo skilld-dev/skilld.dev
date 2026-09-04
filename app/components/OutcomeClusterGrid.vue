@@ -18,11 +18,17 @@ interface ClusterCard {
   examples: ClusterExample[]
 }
 
-const { limit, rows } = defineProps<{
+const { limit, rows, order } = defineProps<{
   /** Most cards to render. Bounds the list before any row cap applies. */
   limit?: number
   /** Cap the visible grid to this many rows at every breakpoint. */
   rows?: number
+  /**
+   * Slugs in the order they should appear. The API sorts by how many Skills
+   * a track holds, which is supply. Pass demand here to override it. Slugs
+   * the list does not name keep their API order, after the ones it does.
+   */
+  order?: readonly string[]
 }>()
 
 const { data, status, error, refresh } = await useFetch<{ items: ClusterCard[] }>('/api/clusters', {
@@ -30,8 +36,17 @@ const { data, status, error, refresh } = await useFetch<{ items: ClusterCard[] }
 })
 const clusters = computed(() => {
   const items = data.value?.items ?? []
-  return limit ? items.slice(0, limit) : items
+  const ranked = order?.length
+    ? [...items].sort((a, b) => rankOf(a.slug) - rankOf(b.slug))
+    : items
+  return limit ? ranked.slice(0, limit) : ranked
 })
+
+/** Unranked slugs sort after every ranked one, in the order the API sent. */
+function rankOf(slug: string): number {
+  const index = order?.indexOf(slug) ?? -1
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index
+}
 const rowCapStyle = computed(() =>
   rows ? { gridTemplateRows: `repeat(${rows}, auto)`, gridAutoRows: '0', rowGap: '0' } : undefined,
 )
