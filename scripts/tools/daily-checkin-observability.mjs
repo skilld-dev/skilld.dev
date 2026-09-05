@@ -64,6 +64,42 @@ function completedState(runs) {
   return { _tag: 'failure', consecutiveFailures }
 }
 
+// How many runs the collector asks GitHub for per workflow, and how many it asks
+// for again when that first page reached no verdict.
+//
+// GitHub cannot answer "the last run that was not skipped". Both `gh run list
+// --status` and the REST `?status=` filter take one value, and a verdict can be
+// `success`, `failure`, `cancelled`, `timed_out`, `neutral`, `action_required`
+// or `stale`, so an exclusion needs a client-side read of ordered history.
+//
+// 10 covers the ordinary case in one request. It does not cover a guard that
+// skips on every branch push: on 2026-09-01 eleven consecutive skipped deploy
+// runs sat in front of the deploy that shipped, so the ten-run page carried no
+// verdict and a healthy deploy was archived as `missing`.
+//
+// 100 is one GitHub page, the largest history a single request can return. A
+// workflow with no verdict in its last 100 runs has genuinely not reported one,
+// so `missing` there is a real observability gap rather than a short sample.
+const WORKFLOW_HEAD_SAMPLE = 10
+const WORKFLOW_VERDICT_SAMPLE = 100
+
+/**
+ * Fetch enough runs per workflow that `summarizeWorkflowRuns` can reach the last
+ * verdict. `listRuns(name, limit)` returns that workflow's runs, newest first.
+ *
+ * The deeper page is only paid for when the head page reached no verdict and was
+ * full. A short head page is the workflow's whole history, so a second request
+ * would return the same rows.
+ */
+export function collectWorkflowRuns(listRuns, workflowNames) {
+  return workflowNames.flatMap((name) => {
+    const head = listRuns(name, WORKFLOW_HEAD_SAMPLE)
+    if (head.some(carriesVerdict) || head.length < WORKFLOW_HEAD_SAMPLE)
+      return head
+    return listRuns(name, WORKFLOW_VERDICT_SAMPLE)
+  })
+}
+
 // The gate must cover every workflow the repository defines, not a hand-kept
 // list. A hardcoded list silently drops any workflow added later, which is how
 // a failing scheduled alarm can sit outside the health verdict for a full day.

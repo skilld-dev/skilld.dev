@@ -1708,9 +1708,8 @@ useHead(computed(() => ({
                 v-for="kw in data.keywords"
                 :key="`kw-${kw}`"
               >
-                <NuxtLink
-                  :to="`/skills/tag/${kw}`"
-                  class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
+                <span
+                  class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted"
                 >
                   <UIcon
                     name="i-lucide-hash"
@@ -1718,7 +1717,7 @@ useHead(computed(() => ({
                     aria-hidden="true"
                   />
                   {{ kw }}
-                </NuxtLink>
+                </span>
               </li>
             </ul>
           </section>

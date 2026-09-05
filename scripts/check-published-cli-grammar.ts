@@ -41,7 +41,7 @@ interface ChannelRequirement {
   agents: string[]
 }
 
-interface ChannelCheck {
+export interface ChannelCheck {
   tag: ChannelRequirement['tag']
   version: string
   required: string[]

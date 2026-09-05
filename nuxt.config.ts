@@ -466,6 +466,9 @@ export default defineNuxtConfig({
     '/skills/browser-automation': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
     '/skills/marketing': { redirect: { to: '/skills', statusCode: 301 } } as any,
     '/skills/research': { redirect: { to: '/skills', statusCode: 301 } } as any,
+    // 2026-09-04: Security and auth joined Backend and data. Both covered auth,
+    // and one combined track keeps the homepage grid to three rows.
+    '/skills/security': { redirect: { to: '/skills/backend-data', statusCode: 301 } } as any,
     // 2026-08-22: `writing` retired into `anti-slop`, same audience with the
     // anti-slop anchor replacing the generic one.
     '/skills/writing': { redirect: { to: '/skills/anti-slop', statusCode: 301 } } as any,

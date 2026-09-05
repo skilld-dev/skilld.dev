@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import {
   approximateDeployedSha,
   buildWorkersQuery,
+  collectWorkflowRuns,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
@@ -124,9 +125,11 @@ const ci = probe(() => {
     .sort()
   // A low-cadence workflow can fall outside a flat recent-runs page, and an
   // absent row reads as `missing`, which is an observability gap rather than a
-  // health signal. Each workflow is therefore paged on its own name.
-  const perWorkflowRows = definedWorkflows.flatMap(name =>
-    commandJson('gh', ['run', 'list', '--workflow', name, '--limit', '10', '--json', runFields]),
+  // health signal. Each workflow is therefore paged on its own name, and paged
+  // deeper when a run of skipped guard runs hides the last verdict.
+  const perWorkflowRows = collectWorkflowRuns(
+    (name, limit) => commandJson('gh', ['run', 'list', '--workflow', name, '--limit', String(limit), '--json', runFields]),
+    definedWorkflows,
   )
   const recent = commandJson('gh', ['run', 'list', '--limit', '20', '--json', runFields])
   return {
