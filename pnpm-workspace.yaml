@@ -21,6 +21,15 @@ minimumReleaseAgeExclude:
   - nuxt-skew-protection@1.5.2
   - '@nuxtjs/seo@5.3.14'
   - skilld-protocol@2.4.0
+  - skilld@3.0.0-beta.4
+  - skilld-cli-darwin-arm64@3.0.0-beta.4
+  - skilld-cli-darwin-x64@3.0.0-beta.4
+  - skilld-cli-linux-arm64-gnu@3.0.0-beta.4
+  - skilld-cli-linux-arm64-musl@3.0.0-beta.4
+  - skilld-cli-linux-x64-gnu@3.0.0-beta.4
+  - skilld-cli-linux-x64-musl@3.0.0-beta.4
+  - skilld-cli-win32-arm64-msvc@3.0.0-beta.4
+  - skilld-cli-win32-x64-msvc@3.0.0-beta.4
   - '@harlan-zw/comark-content@0.1.5'
   - eslint-plugin-harlanzw@0.20.0
   - '@iconify-json/lucide@1.2.128'
