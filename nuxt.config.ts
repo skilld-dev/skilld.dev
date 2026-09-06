@@ -69,7 +69,14 @@ export default defineNuxtConfig({
   ],
 
   nuxtCloudflare: {
-    kvCache: { binding: 'KV_CACHE' },
+    // The module's own cache driver still rejects on KV errors, and Nitro's
+    // route cache (`defineCachedFunction`, e.g. the llms.txt build) feeds every
+    // rejection to `captureError`, so one hot key under a crawler sweep turned
+    // each `KV PUT failed: 429` into a fresh Sentry issue per hot path. The
+    // `cache` storage below replaces it: same KV_CACHE binding, same 60-second
+    // TTL floor, but a rejected write resolves and reports as a `cache-write`
+    // wide event instead of an error (see #156).
+    kvCache: false,
   },
 
   wideEvents: {
@@ -336,6 +343,15 @@ export default defineNuxtConfig({
       data: {
         driver: 'cloudflare-kv-binding',
         binding: 'KV_DATA',
+      },
+      cache: {
+        // Best-effort route-cache writes over KV_CACHE: the driver wraps
+        // unstorage's cloudflare-kv-binding, floors every TTL at Cloudflare's
+        // 60-second minimum, and turns write rejections into wide events
+        // instead of propagating them to Nitro's `captureError` (issue #156).
+        driver: fileURLToPath(new URL('./server/runtime/kv-cache-storage.ts', import.meta.url)),
+        binding: 'KV_CACHE',
+        defaultTtl: 30 * 24 * 60 * 60,
       },
     },
     experimental: {

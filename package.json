@@ -80,6 +80,7 @@
     "rangi": "catalog:",
     "skilld-protocol": "catalog:",
     "tailwindcss": "catalog:",
+    "unstorage": "1.17.5",
     "vue": "catalog:",
     "zod": "catalog:"
   },
