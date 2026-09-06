@@ -49,6 +49,8 @@ export interface ChannelCheck {
   published: string[] | null
   publishedAgents: string[] | null
   problems: string[]
+  /** True when pnpm itself refused to fetch the release, so the help text was never the CLI's. */
+  fetchRefused: boolean
 }
 
 export interface PublishedCliInvocation {
@@ -68,6 +70,14 @@ export type PublishedCliGrammarResult
 function subcommand(command: string): string {
   return command.split(/\s+/)[2]!
 }
+
+/**
+ * Matches pnpm's refusal to resolve a release published inside its
+ * `minimumReleaseAge` window, which dlx reports as `ERR_PNPM_NO_MATURE_MATCHING_VERSION`.
+ */
+const RELEASE_AGE_REFUSAL = /ERR_PNPM_NO_MATURE_MATCHING_VERSION|within the minimumReleaseAge cutoff/
+
+const RELEASE_AGE_PROBLEM = 'pnpm refused to fetch it: the release is inside the minimumReleaseAge window'
 
 function uniqueSubcommands(commands: string[]): string[] {
   return [...new Set(commands.map(subcommand))].sort()
@@ -174,17 +184,22 @@ async function checkChannel(
   dependencies: PublishedCliGrammarDependencies,
 ): Promise<ChannelCheck> {
   const version = await dependencies.readVersion(requirement.tag)
-  const published = publishedSubcommands(await dependencies.readHelp(version))
-  const agents = requirement.agents.length > 0
-    ? publishedAgents(await dependencies.readHelp(version, 'install'))
-    : []
+  const topHelp = await dependencies.readHelp(version)
+  const installHelp = requirement.agents.length > 0
+    ? await dependencies.readHelp(version, 'install')
+    : null
+  const published = publishedSubcommands(topHelp)
+  const agents = installHelp === null ? [] : publishedAgents(installHelp)
   const major = Number(version.split('.')[0])
   const problems: string[] = []
+  const fetchRefused = RELEASE_AGE_REFUSAL.test(topHelp)
+    || (installHelp !== null && RELEASE_AGE_REFUSAL.test(installHelp))
 
   if (major < requirement.minimumMajor)
     problems.push(`requires major ${requirement.minimumMajor} or newer`)
   if (!published) {
-    problems.push('could not read its command list')
+    if (!fetchRefused)
+      problems.push('could not read its command list')
   }
   else {
     const missing = requirement.commands.filter(command => !published.includes(command))
@@ -192,13 +207,16 @@ async function checkChannel(
       problems.push(`does not support ${missing.join(', ')}`)
   }
   if (!agents) {
-    problems.push('could not read its --agent values')
+    if (!fetchRefused)
+      problems.push('could not read its --agent values')
   }
   else {
     const missing = requirement.agents.filter(agent => !agents.includes(agent))
     if (missing.length > 0)
       problems.push(`rejects --agent ${missing.join(', ')}`)
   }
+  if (fetchRefused)
+    problems.unshift(RELEASE_AGE_PROBLEM)
 
   return {
     tag: requirement.tag,
@@ -208,6 +226,7 @@ async function checkChannel(
     published,
     publishedAgents: agents,
     problems,
+    fetchRefused,
   }
 }
 
@@ -246,9 +265,15 @@ async function main(): Promise<void> {
       console.error(`Its --agent values: ${check.publishedAgents.join(', ')}.`)
   }
   console.error('')
-  console.error('The site prints a command that the published CLI cannot run.')
-  console.error('Publish the missing CLI grammar under the npm tag named above.')
-  console.error('For a rejected --agent value, hold its /agents page: raise cliSince in agent-pages.ts.')
+  if (result.checks.some(check => check.fetchRefused)) {
+    console.error('pnpm blocks releases published inside its minimumReleaseAge window (1 day by default).')
+    console.error('If this follows a CLI publish, exempt the package in pnpm-workspace.yaml (minimumReleaseAgeExclude) or rerun after the window passes.')
+  }
+  else {
+    console.error('The site prints a command that the published CLI cannot run.')
+    console.error('Publish the missing CLI grammar under the npm tag named above.')
+    console.error('For a rejected --agent value, hold its /agents page: raise cliSince in agent-pages.ts.')
+  }
   console.error('To deploy anyway, run the "Deploy to Cloudflare" workflow by hand.')
   process.exitCode = 1
 }
