@@ -4,7 +4,7 @@ import { relatedCacheKey } from '../../layers/registry/server/utils/skill-relate
 describe('skill-related cache key', () => {
   it('is scoped to one skill identity', () => {
     expect(relatedCacheKey({ owner: 'kotlin', repo: 'kotlin-agent-skills', name: 'jpa' }))
-      .toBe('skills:related:v2:kotlin/kotlin-agent-skills/jpa')
+      .toBe('skills:related:v3:kotlin/kotlin-agent-skills/jpa')
   })
 
   it('separates skills sharing a name across repos', () => {

@@ -15,7 +15,16 @@
  * semantic siblings now stay empty until Vectorize has evidence.
  */
 export const RELATED_CACHE_TTL = 60 * 60
-const RELATED_CACHE_VERSION = 'v2'
+/**
+ * How long past its fresh window a related-skills response stays servable
+ * when its live recompute fails. Related skills only change when the registry
+ * does, so during a D1 overload (Sentry SKILLD-1F) serving a day-old response
+ * beats 500ing the endpoint.
+ */
+export const RELATED_CACHE_STALE_TTL = 60 * 60 * 24
+// v3: entries carry a freshness envelope for readThroughCache, so v2 values
+// (raw responses) must never be read as envelopes.
+const RELATED_CACHE_VERSION = 'v3'
 
 export function relatedCacheKey(
   skill: { owner: string, repo: string, name: string },
