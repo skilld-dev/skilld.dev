@@ -158,6 +158,47 @@ describe('evaluateDailyHealthStatus', () => {
     })
   })
 
+  it('alarms on a partial run inside the report window', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        syncJobs: [{
+          name: 'send-digests',
+          status: 'partial',
+          lastRunAt: Math.floor(Date.parse('2026-07-22T09:00:00Z') / 1000),
+          stale: false,
+          error: 'failed=1',
+        }],
+      },
+    })
+    const result = evaluateDailyHealthStatus(input)
+    expect(result.status).toBe('AMBER')
+    expect(result.reasons.some(r => r.includes('send-digests'))).toBe(true)
+  })
+
+  // `reportJobRun` keeps `last_status` until the job's next run, so a monthly
+  // task paused after a partial verdict re-alarmed every night for a month.
+  // An old partial is either superseded by a newer run or covered by the
+  // staleness alarm, so it must not drive the verdict.
+  it('stays quiet on an old partial verdict from a paused monthly task', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        syncJobs: [{
+          name: 'send-digests',
+          status: 'partial',
+          lastRunAt: Math.floor(Date.parse('2026-06-22T09:00:00Z') / 1000),
+          stale: false,
+          error: 'failed=1',
+        }],
+      },
+    })
+    expect(evaluateDailyHealthStatus(input)).toEqual({
+      status: 'GREEN',
+      reasons: ['All monitored systems are healthy.'],
+    })
+  })
+
   it('marks a homepage outage red', () => {
     const input = summary({
       frontDoor: { checks: [{ url: 'https://skilld.dev/', status: 503 }] },
@@ -631,7 +672,13 @@ describe('verdict reason completeness', () => {
       pipeline: {
         ...summary().pipeline,
         syncJobs: [
-          { name: 'sync-github-skills', status: 'partial', lastRunAt: 1, stale: false, error: 'failed=4' },
+          {
+            name: 'sync-github-skills',
+            status: 'partial',
+            lastRunAt: Math.floor(Date.parse('2026-07-22T12:00:00Z') / 1000),
+            stale: false,
+            error: 'failed=4',
+          },
         ],
         staleDirtySkills: 3,
       },
