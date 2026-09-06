@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveGithubChildEnv } from './daily-checkin-github-auth.mjs'
 import {
   approximateDeployedSha,
   buildWorkersQuery,
@@ -33,12 +34,20 @@ const sinceMs = since.getTime()
 const utcDay = now.toISOString().slice(0, 10)
 const wrangler = join(root, 'node_modules/.bin/wrangler')
 
+// gh prefers an inherited GH_TOKEN/GITHUB_TOKEN over its keyring login, so an
+// expired runner token once 401'd every gh call while a valid login sat
+// unused. Resolve the child env once, before any probe runs.
+const githubAuth = resolveGithubChildEnv(spawnSync, process.env)
+const childEnv = { ...githubAuth.env, NO_COLOR: '1' }
+if (githubAuth.rejectedTokens.length > 0)
+  console.error(`${githubAuth.rejectedTokens.join(' and ')} rejected by gh; child processes use the keyring login instead.`)
+
 function run(command, args, options = {}) {
   return runReadOnlyProcess(spawnSync, command, args, {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
-    env: { ...process.env, NO_COLOR: '1' },
+    env: childEnv,
   })
 }
 
