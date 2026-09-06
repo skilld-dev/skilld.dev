@@ -2,9 +2,10 @@ import type { H3Event } from 'h3'
 import { isReplayableD1Sql, withD1ResetRecovery } from '@harlan-zw/nuxt-cloudflare/d1'
 
 const D1_TERMINAL_METHODS = new Set<PropertyKey>(['first', 'run', 'all', 'raw'])
-const LONG_RUNNING_OPERATIONS = [
+const RETRYABLE_READ_ERRORS = [
   'currently processing a long-running import',
   'currently processing a long-running export',
+  'd1 db is overloaded',
 ]
 
 interface D1MaintenanceRecoveryOptions {
@@ -146,7 +147,7 @@ async function retryD1MaintenanceRead<T>(
       )
     if (outcome._tag === 'ok')
       return outcome.value
-    if (!isLongRunningD1Maintenance(outcome.error) || attempt + 1 >= maxAttempts)
+    if (!isRetryableD1ReadError(outcome.error) || attempt + 1 >= maxAttempts)
       throw outcome.error
 
     const delayCeiling = 60 * 2 ** attempt
@@ -155,25 +156,25 @@ async function retryD1MaintenanceRead<T>(
   }
 }
 
-function isLongRunningD1Maintenance(error: unknown): boolean {
+function isRetryableD1ReadError(error: unknown): boolean {
   const seen = new WeakSet<object>()
   let current = error
   while (current !== null && current !== undefined) {
     if (typeof current !== 'object')
-      return isLongRunningD1MaintenanceMessage(String(current))
+      return isRetryableD1ReadErrorMessage(String(current))
     if (seen.has(current))
       return false
     seen.add(current)
-    if ('message' in current && typeof current.message === 'string' && isLongRunningD1MaintenanceMessage(current.message))
+    if ('message' in current && typeof current.message === 'string' && isRetryableD1ReadErrorMessage(current.message))
       return true
     current = 'cause' in current ? current.cause : undefined
   }
   return false
 }
 
-function isLongRunningD1MaintenanceMessage(message: string): boolean {
+function isRetryableD1ReadErrorMessage(message: string): boolean {
   const normalized = message.toLowerCase()
-  return LONG_RUNNING_OPERATIONS.some(operation => normalized.includes(operation))
+  return RETRYABLE_READ_ERRORS.some(error => normalized.includes(error))
 }
 
 /**

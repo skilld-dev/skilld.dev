@@ -3,7 +3,7 @@ import { createPlatformD1 } from '../../server/utils/db'
 
 function database(run: () => Promise<unknown>) {
   const statement = {
-    bind: vi.fn(function () { return this }),
+    bind: vi.fn(() => statement),
     first: vi.fn(run),
     run: vi.fn(run),
   }
@@ -41,6 +41,34 @@ describe('createPlatformD1', () => {
   it('retries a read blocked by a D1 export', async () => {
     const run = vi.fn()
       .mockRejectedValueOnce(new Error('D1_ERROR: Currently processing a long-running export.'))
+      .mockResolvedValue({ id: 1 })
+    const { db } = database(run)
+    const env = { DB: db } as Cloudflare.Env
+
+    const platformDb = createPlatformD1(env, { sleep: async () => {} }).database
+    const row = await platformDb.prepare('SELECT id FROM skills').first<{ id: number }>()
+
+    expect(row).toEqual({ id: 1 })
+    expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a read when D1 reports the database is overloaded', async () => {
+    const run = vi.fn()
+      .mockRejectedValueOnce(new Error('D1_ERROR: too many requests: D1 DB is overloaded.'))
+      .mockResolvedValue({ id: 1 })
+    const { db } = database(run)
+    const env = { DB: db } as Cloudflare.Env
+
+    const platformDb = createPlatformD1(env, { sleep: async () => {} }).database
+    const row = await platformDb.prepare('SELECT id FROM skills').first<{ id: number }>()
+
+    expect(row).toEqual({ id: 1 })
+    expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a read when the overload error is nested in a cause chain', async () => {
+    const run = vi.fn()
+      .mockRejectedValueOnce(new Error('fetch failed', { cause: new Error('D1 DB is overloaded') }))
       .mockResolvedValue({ id: 1 })
     const { db } = database(run)
     const env = { DB: db } as Cloudflare.Env
