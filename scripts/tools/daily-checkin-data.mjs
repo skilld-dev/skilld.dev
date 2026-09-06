@@ -14,7 +14,7 @@ import {
   readMigrationState,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
-import { runReadOnlyProcess } from './daily-checkin-process.mjs'
+import { ghProcessEnv, runReadOnlyProcess } from './daily-checkin-process.mjs'
 import { parseSentryIssuesResponse } from './sentry-observability.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -38,7 +38,7 @@ function run(command, args, options = {}) {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...(options.env ?? process.env), NO_COLOR: '1' },
   })
 }
 
@@ -57,6 +57,10 @@ async function probeAsync(load) {
 
 function commandJson(command, args) {
   return JSON.parse(run(command, args))
+}
+
+function ghJson(args) {
+  return JSON.parse(run('gh', args, { env: ghProcessEnv(process.env) }))
 }
 
 function d1Query(sql) {
@@ -122,10 +126,10 @@ const ci = probe(() => {
   // health signal. Each workflow is therefore paged on its own name, and paged
   // deeper when a run of skipped guard runs hides the last verdict.
   const perWorkflowRows = collectWorkflowRuns(
-    (name, limit) => commandJson('gh', ['run', 'list', '--workflow', name, '--limit', String(limit), '--json', runFields]),
+    (name, limit) => ghJson(['run', 'list', '--workflow', name, '--limit', String(limit), '--json', runFields]),
     definedWorkflows,
   )
-  const recent = commandJson('gh', ['run', 'list', '--limit', '20', '--json', runFields])
+  const recent = ghJson(['run', 'list', '--limit', '20', '--json', runFields])
   return {
     workflows: summarizeWorkflowRuns(perWorkflowRows, definedWorkflows),
     recent: recent.slice(0, 10),
