@@ -2,9 +2,10 @@ import type { H3Event } from 'h3'
 import { isReplayableD1Sql, withD1ResetRecovery } from '@harlan-zw/nuxt-cloudflare/d1'
 
 const D1_TERMINAL_METHODS = new Set<PropertyKey>(['first', 'run', 'all', 'raw'])
-const LONG_RUNNING_OPERATIONS = [
+const RETRYABLE_D1_READ_MESSAGES = [
   'currently processing a long-running import',
   'currently processing a long-running export',
+  'd1 db is overloaded',
 ]
 
 interface D1MaintenanceRecoveryOptions {
@@ -113,7 +114,7 @@ function createMaintenanceTolerantStatement(
         )
       }
       if (D1_TERMINAL_METHODS.has(property) && isReplayableD1Sql(sql)) {
-        return (...args: unknown[]) => retryD1MaintenanceRead(() => {
+        return (...args: unknown[]) => retryReplayableD1Read(() => {
           const statement = readAttempt++ === 0 ? target : prepare()
           const method: unknown = Reflect.get(statement, property, statement)
           if (typeof method !== 'function')
@@ -129,7 +130,7 @@ function createMaintenanceTolerantStatement(
   return statement
 }
 
-async function retryD1MaintenanceRead<T>(
+async function retryReplayableD1Read<T>(
   operation: () => Promise<T>,
   options: D1MaintenanceRecoveryOptions,
 ): Promise<T> {
@@ -146,7 +147,7 @@ async function retryD1MaintenanceRead<T>(
       )
     if (outcome._tag === 'ok')
       return outcome.value
-    if (!isLongRunningD1Maintenance(outcome.error) || attempt + 1 >= maxAttempts)
+    if (!isRetryableD1Read(outcome.error) || attempt + 1 >= maxAttempts)
       throw outcome.error
 
     const delayCeiling = 60 * 2 ** attempt
@@ -155,25 +156,25 @@ async function retryD1MaintenanceRead<T>(
   }
 }
 
-function isLongRunningD1Maintenance(error: unknown): boolean {
+function isRetryableD1Read(error: unknown): boolean {
   const seen = new WeakSet<object>()
   let current = error
   while (current !== null && current !== undefined) {
     if (typeof current !== 'object')
-      return isLongRunningD1MaintenanceMessage(String(current))
+      return isRetryableD1ReadMessage(String(current))
     if (seen.has(current))
       return false
     seen.add(current)
-    if ('message' in current && typeof current.message === 'string' && isLongRunningD1MaintenanceMessage(current.message))
+    if ('message' in current && typeof current.message === 'string' && isRetryableD1ReadMessage(current.message))
       return true
     current = 'cause' in current ? current.cause : undefined
   }
   return false
 }
 
-function isLongRunningD1MaintenanceMessage(message: string): boolean {
+function isRetryableD1ReadMessage(message: string): boolean {
   const normalized = message.toLowerCase()
-  return LONG_RUNNING_OPERATIONS.some(operation => normalized.includes(operation))
+  return RETRYABLE_D1_READ_MESSAGES.some(candidate => normalized.includes(candidate))
 }
 
 /**
