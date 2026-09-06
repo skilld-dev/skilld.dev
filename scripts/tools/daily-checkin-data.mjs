@@ -318,10 +318,19 @@ const d1 = probe(() => {
     : null
   // Production can be checked from a feature worktree. Compare D1 with the
   // production branch, while keeping worktree-only migrations visible.
-  const migrationState = readMigrationState(
-    args => run('git', args),
-    readdirSync(join(root, 'migrations')),
-  )
+  //
+  // readMigrationState refuses to compare against a stale ref, so a failed
+  // `git fetch` throws here. Scope that throw: the rest of the d1 probe
+  // survives, and with localHead absent the drift gate cannot misread a fetch
+  // failure as drift. A 2026-09-03 silently failed fetch archived drift that
+  // did not exist.
+  const migrations = probe(() => ({
+    ...readMigrationState(
+      args => run('git', args),
+      readdirSync(join(root, 'migrations')),
+    ),
+    prodHead: prodMigrationHead,
+  }))
 
   return {
     tables: [...tables],
@@ -334,7 +343,7 @@ const d1 = probe(() => {
     healthEmail,
     recentJobBatches,
     registryMaintenance,
-    migrations: { ...migrationState, prodHead: prodMigrationHead },
+    migrations,
     missingExpectedTables: [
       'skills',
       'repos',

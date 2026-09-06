@@ -20,6 +20,13 @@ export function approximateDeployedSha(runGit, deployedAt) {
 }
 
 export function readMigrationState(runGit, workingTreeMigrations) {
+  // Everything below reads production from the local `origin/main` ref, so the
+  // verdict is only as fresh as the last fetch. On 2026-09-03 a silently
+  // failed fetch left that ref stale and the run archived migration drift
+  // that did not exist. Refreshing here turns a failed fetch into a thrown
+  // error instead of a confidently wrong comparison; the caller scopes the
+  // error so one unreachable remote cannot take the whole probe down.
+  runGit(['fetch', 'origin', 'main'])
   const productionMigrations = migrationFiles(
     runGit(['ls-tree', '--name-only', PRODUCTION_REF, 'migrations/']),
   )

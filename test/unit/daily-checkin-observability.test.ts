@@ -33,6 +33,8 @@ function run(
 describe('daily check-in observability', () => {
   it('reads deployed state from production instead of the current feature branch', () => {
     const runGit = (args: string[]) => {
+      if (args[0] === 'fetch')
+        return ''
       if (args[0] === 'rev-list')
         return args.at(-1) === 'origin/main' ? 'deployed-sha' : 'feature-sha'
       if (args[0] === 'ls-tree' && args[2] === 'origin/main')
@@ -50,6 +52,44 @@ describe('daily check-in observability', () => {
       localHead: '0112_private_artifact_keys.sql',
       uncommitted: [],
     })
+  })
+
+  it('refreshes origin/main before comparing production migrations against it', () => {
+    const commands: string[] = []
+    const runGit = (args: string[]) => {
+      commands.push(args.join(' '))
+      if (args[0] === 'fetch')
+        return ''
+      if (args[0] === 'ls-tree' && args[2] === 'origin/main')
+        return 'migrations/0112_private_artifact_keys.sql'
+      if (args[0] === 'ls-tree' && args[2] === 'HEAD')
+        return 'migrations/0112_private_artifact_keys.sql'
+      throw new Error(`unexpected git command: ${args.join(' ')}`)
+    }
+
+    expect(readMigrationState(runGit, ['0112_private_artifact_keys.sql'])).toEqual({
+      localHead: '0112_private_artifact_keys.sql',
+      uncommitted: [],
+    })
+    const fetchAt = commands.indexOf('fetch origin main')
+    expect(fetchAt).toBeGreaterThanOrEqual(0)
+    expect(fetchAt).toBeLessThan(commands.indexOf('ls-tree --name-only origin/main migrations/'))
+  })
+
+  // A silently failed fetch left origin/main stale on 2026-09-03, and the
+  // comparison against it archived drift that did not exist. Refusing the
+  // comparison is the point: the caller scopes the throw into a probe error.
+  it('throws when the production ref cannot be refreshed instead of reading the stale one', () => {
+    const runGit = (args: string[]) => {
+      if (args[0] === 'fetch')
+        throw new Error('fatal: Authentication failed for https://github.com/')
+      if (args[0] === 'ls-tree')
+        return 'migrations/0111_github_app_delivery.sql'
+      throw new Error(`unexpected git command: ${args.join(' ')}`)
+    }
+
+    expect(() => readMigrationState(runGit, []))
+      .toThrow('Authentication failed')
   })
 
   it('scopes Worker analytics at the API boundary', () => {
