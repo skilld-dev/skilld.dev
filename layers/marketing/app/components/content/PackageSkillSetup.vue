@@ -20,7 +20,7 @@ async function copyInstructions() {
 </script>
 
 <template>
-  <div class="not-prose my-6 rounded-lg border border-default p-4" data-testid="package-skill-setup">
+  <div class="not-prose my-6 rounded-lg border border-default p-4 wrap-anywhere" data-testid="package-skill-setup">
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <p class="min-w-0 break-words font-mono text-sm text-highlighted">
         <template v-if="setup">
@@ -51,7 +51,7 @@ async function copyInstructions() {
     <UButton
       :label="copied ? 'Instructions copied' : 'Copy instructions'"
       :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-      class="mt-5 min-h-11"
+      class="mt-5 min-h-11 hover:bg-primary-600 active:bg-primary-700"
       @click="copyInstructions"
     />
     <p class="sr-only" aria-live="polite">

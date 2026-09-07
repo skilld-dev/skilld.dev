@@ -171,7 +171,7 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
             type="submit"
             label="Open guide"
             trailing-icon="i-lucide-arrow-right"
-            class="min-h-11"
+            class="min-h-11 hover:bg-primary-600 active:bg-primary-700"
             :loading="submission._tag === 'Navigating'"
           />
         </div>

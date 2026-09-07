@@ -39,3 +39,7 @@ New controls and the personalized command pass axe checks.
 
 Native form submission previously lost the manager before hydration.
 The form now targets the guide and submits both fields. Browser verification passed with JavaScript disabled.
+
+Primary button hover colors now retain text contrast.
+The guide panel wraps long package names within the mobile viewport.
+Both repairs passed browser checks.
