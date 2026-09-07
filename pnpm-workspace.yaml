@@ -38,6 +38,18 @@ minimumReleaseAgeExclude:
   - '@sentry/server-utils@10.73.0'
   - '@sentry/vue@10.73.0'
   - import-in-the-middle@3.4.0
+  # The published-cli-grammar check runs `pnpm dlx skilld@<fresh release>` on the
+  # main push, always inside the release-age window. Exempt the CLI and its
+  # platform binaries or the check can never pass after a CLI publish.
+  - skilld
+  - skilld-cli-darwin-arm64
+  - skilld-cli-darwin-x64
+  - skilld-cli-linux-arm64-gnu
+  - skilld-cli-linux-arm64-musl
+  - skilld-cli-linux-x64-gnu
+  - skilld-cli-linux-x64-musl
+  - skilld-cli-win32-arm64-msvc
+  - skilld-cli-win32-x64-msvc
 shellEmulator: true
 autoInstallPeers: false
 
