@@ -76,6 +76,11 @@ function copyCommand(): void {
 </template>
 
 <style scoped>
+/* The muted surface lowers command token contrast below 4.5:1 in light mode. */
+.learn-article :deep(pre.shiki) {
+  background: var(--ui-bg);
+}
+
 .learn-article :deep(a) {
   color: var(--ui-text);
   text-decoration-color: var(--ui-color-primary-500);

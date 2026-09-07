@@ -1,45 +1,48 @@
 # Frontend review
 
-verdict: PASS for changed surfaces
+verdict: PASS
 
-Contract has 14 criteria.
+## Contract
 
-- PASS [C1]: Desktop and mobile Make a skill links open four package manager choices.
-- PASS [C2]: All four choices open the package input with the correct manager.
-- PASS [C3]: Entered @nuxt/ui, returned with Back, and selected another manager. Input remained.
-- PASS [C4]: Submitted vue and @nuxt/ui. Guide URL preserved manager and package.
-- PASS [C5]: Empty and versioned input showed the field error without navigation. Parser tests reject malformed input.
-- PASS [C6]: Browser verified npx, pnpm dlx, yarn dlx, and bunx commands with package-specific instructions.
-- PASS [C7]: Change setup restored @nuxt/ui and the chosen manager.
-- PASS [C8]: Direct guide uses npx. Invalid query values fall back to generic instructions.
-- PASS [C9]: Delayed guide query showed aria-busy=true and a disabled loading button.
-- PASS [C10]: 375px wizard and guide have no horizontal overflow. New controls meet 44px targets.
-- PASS [C11]: 768px wizard and guide have no horizontal overflow.
-- PASS [C12]: New wizard and guide panel pass axe in light and dark modes. Existing article code contrast is noted below.
-- PASS [C13]: Keyboard selection focuses the package input. Enter submits. Errors remain associated with the input.
-- PASS [C14]: HTTP HTML includes four manager links and the selected package instructions. Native form works with JavaScript disabled.
+- PASS [C1]: Homepage, desktop header, mobile menu, and Learn open the wizard.
+- PASS [C2]: The first step offers npm, PyPI, crates.io, Go modules, and RubyGems.
+- PASS [C3]: Each choice shows the language, package example, and guide contents.
+- PASS [C4]: All five package link formats open their matching guide with normalized context.
+- PASS [C5]: Empty input shows an associated error. Keyboard focus stays on the input.
+- PASS [C6]: Change ecosystem, browser Back, and browser Forward preserve package input.
+- PASS [C7]: All five guides copy the exact displayed instructions, including package and manifest.
+- PASS [C8]: Each guide covers its file inclusion rules and release checks, with official sources.
+- PASS [C9]: Skip links open useful generic instructions for the selected ecosystem.
+- PASS [C10]: Change setup restores both selections for all five ecosystems.
+- PASS [C11]: Delayed navigation shows busy and disabled states. Navigation failure supports retry. Clipboard failure shows recovery text.
+- PASS [C12]: Wizard and guide fit 375px, 768px, and 1280px. A 214-character package causes no mobile overflow.
+- PASS [C13]: Light and dark modes pass axe checks. New controls meet 44px targets.
+- PASS [C14]: With JavaScript disabled, a package link submits to the correct guide. Server HTML contains normalized context.
 
 ## Checks
 
-- All 1,753 tests pass. Lint, typecheck, and production build pass.
-- No page errors or console errors occurred across the four final manager flows.
-- Clipboard contains the command and selected package instructions.
-- A denied clipboard write shows a visible error.
-- A 214-character package causes no mobile overflow.
-- Ripast found no token drift or unused declarations in the new files.
-- No new raw colors, custom tokens, placeholders, or unfinished code.
-- Components remain inside the marketing layer. The content component is registered for Markdown rendering.
+- All 1,764 tests pass across 248 test files.
+- Lint passes with 104 warnings and no errors. Typecheck passes.
+- The final production build passes. Browser checks use that built Cloudflare Worker locally.
+- Twenty-six accessibility checks cover both themes, three viewport widths, and every guide. All pass.
+- Package parsing includes 37 behavior tests. The replacement contract first failed against the old implementation.
+- A Go module at a domain root failed first, then passed after the parser repair.
+- The homepage's unrelated data feeds are unavailable in the local Worker. Its authoring entry works.
 
-## Existing issue outside the changed panel
+## Repairs from browser review
 
-The unchanged consumer code example fails light-mode contrast for its purple npx token, at 4.34:1.
-New controls and the personalized command pass axe checks.
+Move Copy agent instructions before the long instructions so mobile users see the action early.
+Use the default article code surface to fix command token contrast, previously 4.34:1 in light mode.
+Both repairs pass checks against the rebuilt Worker.
 
-## Repair during review
+## Limits
 
-Native form submission previously lost the manager before hydration.
-The form now targets the guide and submits both fields. Browser verification passed with JavaScript disabled.
+The wizard does not look up packages, run an external agent, or publish a package.
+Publishing guidance was checked against official documentation. No package releases were performed.
+Ripast's rename dry run failed inside its Vue adapter with TypeScript 6.
+The files were rewritten for the new behavior. Typecheck confirms their imports.
 
-Primary button hover colors now retain text contrast.
-The guide panel wraps long package names within the mobile viewport.
-Both repairs passed browser checks.
+## Evidence
+
+Local screenshots and detailed accessibility results are in `~/.dev-browser/tmp/skilld-ecosystem-*`.
+The PR includes the revised flow diagram and wizard screenshots.

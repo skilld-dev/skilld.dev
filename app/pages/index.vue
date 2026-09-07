@@ -238,18 +238,6 @@ const installCommand = computed(() => {
 })
 
 /**
- * The authoring story runs a skilld-maintained Skill. The CLI itself never
- * drafts a Skill, so the band hands the visitor the same run command every
- * other surface prints.
- */
-const authoringRunCommand = skillRunCmd('skilld-dev', 'skilld', 'generate-package-skill')
-
-/**
- * The ecosystems a maintainer arrives from. npm is lit because the guide is
- * written for it; the rest run the same Skill against their own manifest.
- * Static literals so the icon client bundle can find them.
- */
-/**
  * Track order, measured 2026-09-04 rather than assumed.
  *
  * `/api/clusters` sorts by how many Skills a track holds, which is supply.
@@ -317,18 +305,6 @@ const heroAgentLogos = [
   { id: 'windsurf', label: 'Windsurf', icon: 'i-simple-icons-windsurf' },
   { id: 'opencode', label: 'OpenCode', icon: 'i-simple-icons-opencode' },
 ] as const
-/**
- * The authoring command had a tabindex and no action behind it, so keyboard
- * focus landed on a code block that did nothing, and a phone had no way to
- * copy it but a text selection.
- */
-const { copy: copyAuthoringCommand, copied: authoringCommandCopied } = useInstallCopy(
-  () => authoringRunCommand,
-  'home-publish',
-  'run',
-  { kind: 'skill', owner: 'skilld-dev', name: 'generate-package-skill' },
-)
-
 /**
  * The hero command is the page's primary call to action, so its copies are
  * recorded like every other install command on the site. Raw useClipboard
@@ -1151,53 +1127,25 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Maintain something? <span class="home-ink">Write the skill</span> for it.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Run the Skill and your agent drafts it. You edit it and own it. It ships in your repo, under your name.
+              Choose your package ecosystem. Get the steps to draft a Skill, review it, and ship it in your repository.
             </p>
             <ul class="home-eco-logos mt-5 list-none p-0" aria-label="Package ecosystems">
               <li
                 v-for="ecosystem in authoringEcosystems"
                 :key="ecosystem.id"
                 class="home-eco-logo"
-                :data-state="ecosystem.id === 'npm' ? 'live' : undefined"
               >
                 <UIcon :name="ecosystem.icon" class="size-4 shrink-0" aria-hidden="true" />
                 <span>{{ ecosystem.label }}</span>
               </li>
             </ul>
-            <p class="data-label mt-3">
-              The guide is npm-first. The Skill reads whatever manifest your repo has, so the rest can run it too.
-            </p>
           </div>
           <div class="home-make-strip-actions">
-            <div class="home-make-command">
-              <InstallCommand
-                id="publish-run-command"
-                :command="authoringRunCommand"
-                wrap
-              />
-              <UButton
-                :icon="authoringCommandCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                class="min-h-11 min-w-11 shrink-0"
-                :aria-label="authoringCommandCopied ? 'Copied' : 'Copy the authoring command'"
-                @click="() => { void copyAuthoringCommand() }"
-              />
-            </div>
-            <p class="sr-only" aria-live="polite">
-              <template v-if="authoringCommandCopied">
-                Copied. Paste it in your terminal.
-              </template>
-            </p>
             <UButton
               to="/make-skill"
               label="Make a skill"
-              color="neutral"
-              variant="outline"
-              size="sm"
               trailing-icon="i-lucide-arrow-right"
-              class="min-h-11"
+              class="min-h-11 justify-center hover:bg-primary-600 active:bg-primary-700"
             />
           </div>
         </div>

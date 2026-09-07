@@ -3,17 +3,22 @@
   "job_id": "make-skill-wizard-0907",
   "created": "2026-09-07T08:24:34.646984+00:00",
   "git_hash": "8b1af9f6d9c1564e3acb9b3192df6aac0064efa4",
-  "dev_port": 43291,
+  "dev_port": 43419,
   "pages_changed": [
     "layers/marketing/app/pages/make-skill.vue",
-    "app/pages/index.vue"
+    "app/pages/index.vue",
+    "layers/marketing/app/components/MarketingArticle.vue"
   ],
   "components_created": [
     "layers/marketing/app/components/content/PackageSkillSetup.vue"
   ],
   "routes_to_test": [
     "/make-skill",
-    "/learn/author-npm-package-skills"
+    "/learn/author-npm-package-skills",
+    "/learn/author-pypi-package-skills",
+    "/learn/author-rust-package-skills",
+    "/learn/author-go-package-skills",
+    "/learn/author-ruby-package-skills"
   ],
   "design_system_changes": false,
   "theme_name": "quiet editorial",
@@ -36,16 +41,16 @@
   },
   "self_assessment": {
     "confidence": "high",
-    "weakest_area": "Commands were checked against package manager documentation, but external agents were not run.",
-    "hardest_decision": "Keep one canonical guide and personalize its first instructions."
+    "weakest_area": "Publishing commands were checked against official documentation. No packages were released.",
+    "hardest_decision": "Separate guides must reflect real ecosystem differences while keeping the wizard to two steps."
   },
   "has_client_animations": false,
   "known_limitations": [
-    "Yarn instructions require Yarn 2 or later.",
-    "The unchanged consumer code example has a pre-existing light-mode contrast issue."
+    "Package input personalizes instructions without a live package lookup.",
+    "No external agent was run and no package was published."
   ],
   "next_steps": [
-    "Human PR review."
+    "Wait for updated CI, then human PR review."
   ],
   "dark_mode_relevant": true
 }

@@ -1,33 +1,35 @@
 # Make a skill wizard
 
-Build `/make-skill` with package manager selection, package input, and navigation to the existing authoring guide.
-The guide uses the selected manager and package for its command and agent instructions.
-Desktop navigation, mobile navigation, and the homepage authoring link open the wizard.
+Choose the ecosystem where developers get the package.
+Enter its name or package link, then open that ecosystem's authoring guide.
+The package manager used for local development does not change this choice.
 
 ## Acceptance criteria
 
-- [C1] Opening Make a skill shows npm, pnpm, Yarn, and Bun.
-- [C2] Choosing a manager shows the package input and selected manager.
-- [C3] Back returns to manager selection and preserves the package input.
-- [C4] Submitting a scoped or unscoped package opens the guide with both selections.
-- [C5] Empty or invalid package names show an input error without navigating.
-- [C6] The guide shows the selected manager's command and package-specific agent instructions.
-- [C7] Change setup returns to the wizard with both selections filled.
-- [C8] Direct guide visits retain useful default instructions. Invalid query values never enter commands.
-- [C9] Guide navigation shows loading feedback until navigation finishes.
-- [C10] At 375px, all controls fit and have targets of at least 44px.
-- [C11] At 768px, wizard and guide have no horizontal overflow.
-- [C12] Light and dark modes retain readable text, focus, and selected states.
-- [C13] Keyboard users can select, submit, return, and read associated errors.
-- [C14] Server HTML includes manager choices and personalized guide instructions.
+- [C1] Make a skill links open the wizard from desktop navigation, mobile navigation, homepage, and Learn.
+- [C2] The first step offers npm, PyPI, crates.io, Go modules, and RubyGems.
+- [C3] Each choice shows its language, input example, and guide contents.
+- [C4] A valid package name or package link opens the matching guide with normalized package context.
+- [C5] Invalid input shows an associated error and retains focus without navigating.
+- [C6] Change ecosystem and browser Back preserve entered package text.
+- [C7] The guide shows copyable agent instructions with the selected package and manifest.
+- [C8] Each guide explains its ecosystem's file inclusion and release checks.
+- [C9] Direct guide visits and the skip link work without package context.
+- [C10] Change setup restores the selected ecosystem and package.
+- [C11] Navigation shows busy feedback. Clipboard failure remains visible and recoverable.
+- [C12] Controls fit at 375px and 768px. Long package names do not cause overflow.
+- [C13] Light and dark modes retain readable text and visible focus. Controls have 44px targets.
+- [C14] Native form submission works before hydration. Server HTML includes guide context.
 
 ## Design
 
-Use existing warm stone surfaces, rare rose actions, mono controls, and rounded-lg borders.
-Keep a compact reading width and a visible two-step sequence.
-Each step asks one question and provides one next action.
+Use warm stone surfaces, rare rose actions, mono controls, and rounded-lg borders.
+Keep two steps, one question per step, and an explicit destination on the final action.
+Show the guide contents before asking the user to continue.
 
 ## Scope
 
-No package publishing, accounts, package lookup service, or new guide content series.
-The guide remains one canonical article for packages in the npm ecosystem.
+Support the five ecosystems already shown on the homepage.
+Write separate guides for their real publishing differences.
+Package input personalizes instructions; it does not perform a package lookup.
+The wizard does not publish packages or write Skill files.

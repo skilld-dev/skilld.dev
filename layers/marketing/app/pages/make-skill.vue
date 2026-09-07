@@ -1,21 +1,13 @@
 <script setup lang="ts">
-import type { PackageManager } from '../utils/package-skill-setup'
-import { packageManagerSchema, packageSkillGuide, parsePackageSkillSetup } from '../utils/package-skill-setup'
+import { packageEcosystems, packageEcosystemSchema, packageSkillGuide, parsePackageSkillSetup } from '../utils/package-skill-setup'
 
 const route = useRoute()
 const router = useRouter()
-const managers = [
-  { value: 'npm', label: 'npm', icon: 'i-simple-icons-npm', description: 'Use npx' },
-  { value: 'pnpm', label: 'pnpm', icon: 'i-simple-icons-pnpm', description: 'Use pnpm dlx' },
-  { value: 'yarn', label: 'Yarn', icon: 'i-simple-icons-yarn', description: 'Yarn 2 or later' },
-  { value: 'bun', label: 'Bun', icon: 'i-simple-icons-bun', description: 'Use bunx' },
-] satisfies { value: PackageManager, label: string, icon: string, description: string }[]
-
-const manager = computed(() => {
-  const parsed = packageManagerSchema.safeParse(route.query.manager)
+const ecosystem = computed(() => {
+  const parsed = packageEcosystemSchema.safeParse(route.query.ecosystem)
   return parsed.success ? parsed.data : undefined
 })
-const selectedManager = computed(() => managers.find(item => item.value === manager.value))
+const selected = computed(() => ecosystem.value ? packageEcosystems[ecosystem.value] : undefined)
 const packageName = useState('make-skill-package', () => '')
 if (typeof route.query.package === 'string')
   packageName.value = route.query.package
@@ -28,7 +20,7 @@ type Submission
     | { _tag: 'Failed', message: string }
 const submission = ref<Submission>({ _tag: 'Idle' })
 
-watch(manager, async () => {
+watch(ecosystem, async () => {
   submission.value = { _tag: 'Idle' }
   await nextTick()
   packageInput.value?.inputRef?.focus()
@@ -37,8 +29,7 @@ watch(manager, async () => {
 async function openGuide() {
   if (submission.value._tag === 'Navigating')
     return
-
-  const parsed = parsePackageSkillSetup({ manager: manager.value, package: packageName.value })
+  const parsed = parsePackageSkillSetup({ ecosystem: ecosystem.value, package: packageName.value })
   if (parsed._tag === 'Err') {
     submission.value = { _tag: 'Invalid', message: parsed.message }
     packageInput.value?.inputRef?.focus()
@@ -48,7 +39,7 @@ async function openGuide() {
   packageName.value = parsed.value.package
   submission.value = { _tag: 'Navigating' }
   await router.push(packageSkillGuide(parsed.value).to).catch(() => {
-    submission.value = { _tag: 'Failed', message: 'The guide could not open. Select Open guide to try again.' }
+    submission.value = { _tag: 'Failed', message: 'The guide could not open. Submit the form again.' }
   })
   if (submission.value._tag === 'Navigating')
     submission.value = { _tag: 'Idle' }
@@ -56,7 +47,7 @@ async function openGuide() {
 
 useSeoMeta({
   title: 'Make a skill',
-  description: 'Choose your package manager and package for a guide to writing a Skill you own.',
+  description: 'Choose where you publish your package. Get a guide to writing and shipping its Skill.',
   robots: 'noindex,follow',
 })
 useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
@@ -68,76 +59,78 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
       <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
         Make a skill
       </h1>
-      <p class="mt-4 text-base leading-relaxed text-muted">
-        Start with your package. Get a guide to drafting, reviewing, and publishing a Skill you own.
+      <p class="mt-4 max-w-xl text-base leading-relaxed text-muted">
+        Help agents use your package correctly. Get the steps to write a Skill and ship it with your package.
       </p>
     </header>
 
     <ol aria-label="Setup progress" class="mt-8 flex items-center gap-3 border-b border-default pb-5 font-mono text-sm sm:gap-6">
-      <li :aria-current="!manager ? 'step' : undefined" class="flex items-center gap-2" :class="manager ? 'text-muted' : 'text-highlighted'">
-        <UIcon v-if="manager" name="i-lucide-check" class="size-4 shrink-0" aria-hidden="true" />
+      <li :aria-current="!ecosystem ? 'step' : undefined" :class="ecosystem ? 'text-muted' : 'text-highlighted'" class="flex items-center gap-2">
+        <UIcon v-if="ecosystem" name="i-lucide-check" class="size-4" aria-hidden="true" />
         <span v-else aria-hidden="true">01</span>
-        Package manager
+        Ecosystem
       </li>
       <li aria-hidden="true" class="text-muted">
         <UIcon name="i-lucide-chevron-right" class="size-4" />
       </li>
-      <li :aria-current="manager ? 'step' : undefined" class="flex items-center gap-2" :class="manager ? 'text-highlighted' : 'text-muted'">
+      <li :aria-current="ecosystem ? 'step' : undefined" :class="ecosystem ? 'text-highlighted' : 'text-muted'" class="flex items-center gap-2">
         <span aria-hidden="true">02</span>
         Package
       </li>
     </ol>
 
-    <section v-if="!manager" aria-labelledby="manager-heading" class="pt-8">
-      <h2 id="manager-heading" class="text-xl font-semibold">
-        Which package manager do you use?
+    <section v-if="!selected" aria-labelledby="ecosystem-heading" class="pt-8">
+      <h2 id="ecosystem-heading" class="text-xl font-semibold">
+        Where do you publish your package?
       </h2>
       <p class="mt-2 text-base text-muted">
-        Your guide will use its commands.
+        Choose where developers get your package.
       </p>
-      <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="mt-6 divide-y divide-default rounded-lg border border-default">
         <UButton
-          v-for="item in managers"
-          :key="item.value"
-          :to="{ path: '/make-skill', query: { manager: item.value } }"
+          v-for="(item, key) in packageEcosystems"
+          :key="key"
+          :to="{ path: '/make-skill', query: { ecosystem: key } }"
           :aria-label="item.label"
           color="neutral"
-          variant="outline"
-          class="min-h-20 justify-start gap-4 rounded-lg p-4 text-left"
+          variant="ghost"
+          class="min-h-20 w-full justify-start gap-4 rounded-none p-4 text-left first:rounded-t-lg last:rounded-b-lg"
         >
           <UIcon :name="item.icon" class="size-6 shrink-0" aria-hidden="true" />
           <span class="min-w-0 flex-1">
             <span class="block text-base font-medium">{{ item.label }}</span>
-            <span class="mt-1 block text-sm font-normal text-muted">{{ item.description }}</span>
+            <span class="mt-1 block text-sm font-normal text-muted">{{ item.language }}</span>
           </span>
           <UIcon name="i-lucide-arrow-right" class="size-4 shrink-0 text-muted" aria-hidden="true" />
         </UButton>
       </div>
     </section>
 
-    <section v-else aria-labelledby="package-heading" class="pt-8">
-      <div class="flex items-center justify-between gap-3">
-        <h2 id="package-heading" class="text-xl font-semibold">
-          Which package do you maintain?
-        </h2>
+    <section v-else aria-labelledby="package-heading" class="pt-6">
+      <div class="mb-6 flex items-center justify-between gap-3">
+        <p class="flex min-w-0 items-center gap-2 font-mono text-sm">
+          <UIcon :name="selected.icon" class="size-5 shrink-0" aria-hidden="true" />
+          {{ selected.label }}
+          <span class="text-muted">· {{ selected.language }}</span>
+        </p>
+        <UButton to="/make-skill" label="Change" aria-label="Change ecosystem" color="neutral" variant="link" class="min-h-11 shrink-0 px-0" />
       </div>
-      <p class="mt-2 text-base text-muted">
-        Your guide will use {{ selectedManager?.label }} and your package name.
-      </p>
 
+      <h2 id="package-heading" class="text-xl font-semibold">
+        {{ ecosystem === 'go' ? 'Which module do you maintain?' : 'Which package do you maintain?' }}
+      </h2>
       <form
-        action="/learn/author-npm-package-skills#run-the-authoring-skill"
+        :action="selected.guide"
         method="get"
         class="mt-6"
         novalidate
         :aria-busy="submission._tag === 'Navigating'"
         @submit.prevent="openGuide"
       >
-        <input type="hidden" name="manager" :value="manager">
         <UFormField
-          label="Package name"
+          :label="selected.inputLabel"
           name="package"
-          help="Use the name from package.json, including its scope."
+          :help="selected.help"
           :error="submission._tag === 'Invalid' ? submission.message : undefined"
           :ui="{ label: 'text-base', help: 'text-sm', error: 'text-sm' }"
         >
@@ -145,7 +138,7 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
             ref="packageInput"
             v-model="packageName"
             name="package"
-            placeholder="@your-org/your-package"
+            :placeholder="selected.example"
             autocomplete="off"
             autocapitalize="none"
             :spellcheck="false"
@@ -157,33 +150,33 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
         <p v-if="submission._tag === 'Failed'" role="alert" class="mt-3 text-sm text-error">
           {{ submission.message }}
         </p>
-        <div class="mt-8 flex items-center justify-between gap-3">
-          <UButton
-            to="/make-skill"
-            label="Back"
-            icon="i-lucide-arrow-left"
-            color="neutral"
-            variant="ghost"
-            class="min-h-11"
-            :disabled="submission._tag === 'Navigating'"
-          />
-          <UButton
-            type="submit"
-            label="Open guide"
-            trailing-icon="i-lucide-arrow-right"
-            class="min-h-11 hover:bg-primary-600 active:bg-primary-700"
-            :loading="submission._tag === 'Navigating'"
-          />
-        </div>
-      </form>
-    </section>
 
-    <UButton
-      to="/learn/author-npm-package-skills"
-      label="Read the guide without setup"
-      color="neutral"
-      variant="link"
-      class="mt-8 min-h-11 px-0 text-sm"
-    />
+        <div class="mt-8 border-t border-default pt-6">
+          <h3 class="text-base font-medium">
+            Your {{ selected.label }} guide covers
+          </h3>
+          <ul class="mt-3 space-y-2 text-sm text-muted">
+            <li v-for="topic in selected.topics" :key="topic" class="flex items-start gap-2">
+              <UIcon name="i-lucide-check" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              {{ topic }}
+            </li>
+          </ul>
+        </div>
+        <UButton
+          type="submit"
+          :label="`Open ${selected.label} guide`"
+          trailing-icon="i-lucide-arrow-right"
+          class="mt-6 min-h-11 w-full justify-center hover:bg-primary-600 active:bg-primary-700 sm:w-auto"
+          :loading="submission._tag === 'Navigating'"
+        />
+      </form>
+      <UButton
+        :to="selected.guide"
+        label="Read the guide without a package"
+        color="neutral"
+        variant="link"
+        class="mt-3 min-h-11 px-0 text-sm"
+      />
+    </section>
   </div>
 </template>
