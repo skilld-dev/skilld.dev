@@ -65,7 +65,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
-      - run: pnpm build
+      # The desktop runner sends SIGHUP after 45 seconds without output.
+      # Nitro can bundle longer than that, so the wrapper emits a heartbeat.
+      - run: pnpm exec tsx scripts/run-with-heartbeat.ts pnpm build
         env:
           NODE_OPTIONS: --max-old-space-size=8192
       - uses: harlan-zw/harlan-nuxt/.github/actions/nuxt-dx-budget@main

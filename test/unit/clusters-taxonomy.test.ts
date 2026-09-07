@@ -49,6 +49,24 @@ describe('cluster taxonomy', () => {
     expect(slugs).toHaveLength(new Set(slugs).size)
   })
 
+  it('fits the homepage grid into three rows while keeping both anti-slop tracks', () => {
+    const slugs = CLUSTERS.map(cluster => cluster.slug)
+
+    expect(CLUSTERS).toHaveLength(12)
+    expect(slugs).toContain('anti-slop')
+    expect(slugs).toContain('anti-slop-coding')
+    expect(slugs).not.toContain('security')
+    expect(RENAMED_CLUSTER_SLUGS.security).toBe('backend-data')
+
+    const backend = CLUSTERS.find(cluster => cluster.slug === 'backend-data')
+    expect(backend?.categories).toEqual(['data-modeling', 'security', 'auth'])
+    expect(backend?.pinnedExamples).toEqual(expect.arrayContaining([
+      'supabase/supabase-postgres-best-practices',
+      'wshobson/stride-analysis-patterns',
+      'better-auth/best-practices',
+    ]))
+  })
+
   it('carries a keyword-shaped title distinct from the editorial label', () => {
     for (const cluster of CLUSTERS) {
       expect(cluster.seoTitle.length, cluster.slug).toBeGreaterThan(0)

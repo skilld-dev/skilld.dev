@@ -78,6 +78,7 @@ export default defineNuxtConfig({
     fields: [
       'attempt',
       'batch.count',
+      'cache.key',
       'cache.readFailed',
       'cache.writeFailed',
       'eligible.count',
@@ -461,10 +462,14 @@ export default defineNuxtConfig({
     '/skills/ship': { redirect: { to: '/skills/devops', statusCode: 301 } } as any,
     // 2026-08-13 cull: 16 categories to 12. `debugging` and `browser-automation`
     // were absorbed by the track that already answers the same question;
-    // `marketing` and `research` had no successor, so they land on the index.
+    // `marketing` had no successor, so it lands on the index. `research` came
+    // back as a track on 2026-09-04, so its redirect went with it.
     '/skills/debugging': { redirect: { to: '/skills/testing', statusCode: 301 } } as any,
     '/skills/browser-automation': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
     '/skills/marketing': { redirect: { to: '/skills', statusCode: 301 } } as any,
+    // 2026-09-04: Security and auth joined Backend and data. Both covered auth,
+    // and one combined track keeps the homepage grid to three rows.
+    '/skills/security': { redirect: { to: '/skills/backend-data', statusCode: 301 } } as any,
     // 2026-08-22: `writing` retired into `anti-slop`, same audience with the
     // anti-slop anchor replacing the generic one.
     '/skills/writing': { redirect: { to: '/skills/anti-slop', statusCode: 301 } } as any,

@@ -75,7 +75,7 @@ export const MARKETING_REDIRECTS: Record<string, string> = {
   'master-agent': '/skills/context-engineering',
   'design': '/skills/design',
   'testing': '/skills/testing',
-  'security': '/skills/security',
+  'security': '/skills/backend-data',
   'performance': '/skills/performance',
   // Controlled-vocab tags whose category page answers the identical question.
   // Two URLs listing the same skills for the same query split the signal and

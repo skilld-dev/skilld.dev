@@ -57,7 +57,7 @@ const payload = {
   assetCount: 0,
   curators: [],
   tags: [],
-  keywords: [],
+  keywords: ['component-testing'],
   likeCount: 0,
   faqs: [],
   summary: null,
@@ -159,6 +159,22 @@ describe('skillDetail duplicate-group canonical URL', () => {
     await vi.waitFor(() => {
       const hrefs = wrapper.findAll('a').map(anchor => anchor.attributes('href'))
       expect(hrefs).toContain('/gh/source/single')
+    })
+
+    wrapper.unmount()
+  })
+
+  it('shows free-form keywords without linking to an unavailable tag page', async () => {
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      {
+        props: { owner: 'mirror', repo: 'multi', name: 'shared-skill' },
+      },
+    )
+
+    await vi.waitFor(() => {
+      expect(wrapper.text()).toContain('component-testing')
+      expect(wrapper.find('a[href="/skills/tag/component-testing"]').exists()).toBe(false)
     })
 
     wrapper.unmount()

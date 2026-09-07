@@ -273,13 +273,14 @@ const TRACK_DEMAND_ORDER = [
   'planning', // 9.8%, nearly all of it from all-time stars
   'anti-slop-coding', // 6.7%
   'research', // 6.5%, the track this measurement brought back
-  'security', // 4.7%
+  // 1.6% for backend and data, plus the 4.7% that `security` measured before
+  // it merged into this track on the same day (#134).
+  'backend-data', // 6.3%
   'code-review', // 3.0%
   'devops', // 2.9%
   'testing', // 2.2%
-  'backend-data', // 1.6%
-  // Below the twelve-tile cut. Both keep their page.
   'performance', // 0.9%
+  // Below the twelve-tile cut. Both keep their page.
   'coding', // 0.2%
   'seo', // no trending evidence at all
 ] as const
