@@ -20,10 +20,9 @@ import {
   collectionInstallCmd,
   curatorInstallCmd,
   gitInstallCmd,
-  skillInstallCmd,
-  skillRunCmd,
 } from '../app/utils/install-cmd'
 import { publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
+import { skillInstallCmd, skillRunCmd } from '../shared/skill-commands'
 
 const run = promisify(execFile)
 

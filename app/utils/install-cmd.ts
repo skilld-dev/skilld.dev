@@ -1,37 +1,10 @@
 const PREFIX = 'npx skilld add'
-const V3_PREFIX = 'npx skilld@beta'
 
 /**
- * Skill-level commands speak the v3 CLI grammar: `skilld run` for a transient
- * Skill and `skilld install` to keep it. Collection, curator and repository
- * commands still speak the v2 `add` grammar because v3 has no selector for
- * them yet. Both live here until that selector lands.
+ * Collection, curator and repository commands speak the v2 `add` grammar
+ * because v3 has no selector for them yet. Skill-level commands live in
+ * `shared/skill-commands.ts`, where the server can reach them too.
  */
-function skillRef(owner: string, repo: string, skill: string): string {
-  return `skilld:${owner}/${repo}/${skill}`
-}
-
-/**
- * The default command. The agent reads the skill now and installs nothing.
- */
-export function skillRunCmd(owner: string, repo: string, skill: string): string {
-  return `${V3_PREFIX} run ${skillRef(owner, repo, skill)}`
-}
-
-/**
- * The text a developer gives an Agent for one transient Skill load.
- */
-export function skillRunPrompt(command: string): string {
-  return `Run \`${command}\` and follow the loaded Skill instructions.`
-}
-
-/**
- * The opt-in command. Files land in the repository and the lockfile records them.
- */
-export function skillInstallCmd(owner: string, repo: string, skill: string): string {
-  return `${V3_PREFIX} install ${skillRef(owner, repo, skill)}`
-}
-
 export function gitInstallCmd(owner: string, repo: string, skill?: string): string {
   const base = `${PREFIX} gh:${owner}/${repo}`
   return skill ? `${base} -s ${skill}` : base

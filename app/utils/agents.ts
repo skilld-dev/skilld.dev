@@ -80,8 +80,3 @@ export const AGENT_TARGETS: readonly AgentTarget[] = [
     verify: 'Restart Antigravity. Skills are discovered at startup.',
   },
 ] as const
-
-/** Pristine SKILL.md as text/markdown, served by /api/skills-raw. */
-export function skillDocUrl(owner: string, repo: string, name: string): string {
-  return `https://skilld.dev/api/skills-raw/${owner}/${repo}/${name}`
-}

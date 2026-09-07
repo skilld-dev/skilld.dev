@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { skillRunCmd } from '#shared/skill-commands'
+
 interface SkillLike {
   owner: string
   repo: string

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { SKILL_RUN_PROMPT_LEAD } from '#shared/skill-commands'
+
 type CommandMode = 'run' | 'install'
 
 const {
-  runCommand,
+  runUrl,
   installCommand,
   runCopied,
   installCopied,
@@ -10,7 +12,8 @@ const {
   docUrlCopied,
   copyError,
 } = defineProps<{
-  runCommand: string
+  /** The Skill page. The Agent fetches it and receives the SKILL.md as markdown. */
+  runUrl: string
   installCommand: string
   runCopied: boolean
   installCopied: boolean
@@ -27,11 +30,10 @@ const emit = defineEmits<{
 const mode = defineModel<CommandMode>({ required: true })
 
 const modes = [
-  { label: 'One-Off', value: 'run' },
+  { label: 'Run', value: 'run' },
   { label: 'Install', value: 'install' },
 ] satisfies { label: string, value: CommandMode }[]
 
-const command = computed(() => mode.value === 'run' ? runCommand : installCommand)
 const commandCopied = computed(() => mode.value === 'run' ? runCopied : installCopied)
 const copyLabel = computed(() => commandCopied.value
   ? 'Copied'
@@ -71,9 +73,9 @@ const copyErrorId = useId()
           Ask your Agent
         </p>
         <p v-if="mode === 'run'" class="leading-relaxed text-default">
-          Run <InstallCommand :command="command" wrap class="inline" /> and follow the loaded Skill instructions.
+          {{ SKILL_RUN_PROMPT_LEAD }} <code class="install-command install-command--wrap install-command__target inline">{{ runUrl }}</code>
         </p>
-        <InstallCommand v-else :command="command" wrap class="block" />
+        <InstallCommand v-else :command="installCommand" wrap class="block" />
       </div>
       <UButton
         :icon="commandCopied ? 'i-lucide-check' : 'i-lucide-copy'"

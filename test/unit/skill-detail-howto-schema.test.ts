@@ -157,7 +157,7 @@ describe('skillDetail HowTo structured data', () => {
     )
 
     await vi.waitFor(() => {
-      expect(howToNode().step[0]!.text).toBe('npx skilld@beta run skilld:antfu/skills/vite')
+      expect(howToNode().step[0]!.text).toBe('Use this Skill: https://skilld.dev/gh/antfu/skills/vite')
     })
 
     wrapper.unmount()
@@ -182,7 +182,7 @@ describe('skillDetail HowTo structured data', () => {
 })
 
 describe('skillDetail command choice', () => {
-  it('shows one command and switches between one-off and install', async () => {
+  it('shows one command and switches between run and install', async () => {
     const wrapper = await mountSuspended(
       await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
       { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
@@ -200,10 +200,10 @@ describe('skillDetail command choice', () => {
     }
 
     const panel = panels[0]!
-    expect(panel.get('.install-command').text()).toBe('npx skilld@beta run skilld:antfu/skills/vite')
-    expect(panel.get('button[aria-pressed="true"]').text()).toBe('One-Off')
+    expect(panel.get('.install-command').text()).toBe('https://skilld.dev/gh/antfu/skills/vite')
+    expect(panel.get('button[aria-pressed="true"]').text()).toBe('Run')
     expect(panel.text()).toContain('Ask your Agent')
-    expect(panel.text()).toContain('follow the loaded Skill instructions')
+    expect(panel.text()).toContain('Use this Skill:')
     expect(panel.get('button[aria-label="Copy Agent prompt"]')).toBeTruthy()
 
     const installTab = panel.findAll('button[aria-pressed]')
@@ -249,7 +249,7 @@ describe('skill command copy feedback', () => {
       {
         props: {
           modelValue: 'run',
-          runCommand: 'npx skilld@beta run skilld:antfu/skills/vite',
+          runUrl: 'https://skilld.dev/gh/antfu/skills/vite',
           installCommand: 'npx skilld@beta install skilld:antfu/skills/vite',
           runCopied: false,
           installCopied: false,
@@ -306,9 +306,7 @@ describe('skillDetail run copy telemetry', () => {
     await copyButton.trigger('click')
     await flushPromises()
 
-    expect(copied).toContain(
-      'Run `npx skilld@beta run skilld:antfu/skills/vite` and follow the loaded Skill instructions.',
-    )
+    expect(copied).toContain('Use this Skill: https://skilld.dev/gh/antfu/skills/vite')
 
     await vi.waitFor(() => {
       expect(installEvents).toContainEqual(expect.objectContaining({
