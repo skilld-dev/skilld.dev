@@ -8,6 +8,7 @@ import {
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
+  refreshProductionRef,
   summarizeWorkflowRuns,
 } from '../../scripts/tools/daily-checkin-observability.mjs'
 
@@ -31,6 +32,8 @@ function run(
 }
 
 describe('daily check-in observability', () => {
+  const production = { _tag: 'production' as const, ref: 'origin/main' }
+
   it('reads deployed state from production instead of the current feature branch', () => {
     const runGit = (args: string[]) => {
       if (args[0] === 'rev-list')
@@ -42,14 +45,57 @@ describe('daily check-in observability', () => {
       throw new Error(`unexpected git command: ${args.join(' ')}`)
     }
 
-    expect(approximateDeployedSha(runGit, '2026-08-20T17:32:48Z')).toBe('deployed-sha')
-    expect(readMigrationState(runGit, [
+    expect(approximateDeployedSha(runGit, production, '2026-08-20T17:32:48Z')).toBe('deployed-sha')
+    expect(approximateDeployedSha(runGit, production, null)).toBe(null)
+    expect(readMigrationState(runGit, production, [
       '0108_weekly_email.sql',
       '0109_weekly_click_events.sql',
     ])).toEqual({
       localHead: '0112_private_artifact_keys.sql',
       uncommitted: [],
     })
+  })
+
+  it('keeps worktree-only migrations visible as uncommitted', () => {
+    const runGit = (args: string[]) => {
+      if (args[0] === 'ls-tree' && args[2] === 'origin/main')
+        return 'migrations/0112_private_artifact_keys.sql'
+      if (args[0] === 'ls-tree' && args[2] === 'HEAD')
+        return 'migrations/0112_private_artifact_keys.sql'
+      throw new Error(`unexpected git command: ${args.join(' ')}`)
+    }
+
+    expect(readMigrationState(runGit, production, [
+      '0112_private_artifact_keys.sql',
+      '0113_scratch.sql',
+    ])).toEqual({
+      localHead: '0112_private_artifact_keys.sql',
+      uncommitted: ['0113_scratch.sql'],
+    })
+  })
+
+  it('returns the production token only after origin/main is fetched', () => {
+    const commands: string[] = []
+    const runGit = (args: string[]) => {
+      commands.push(args.join(' '))
+      return ''
+    }
+
+    expect(refreshProductionRef(runGit)).toEqual(production)
+    expect(commands).toEqual(['fetch origin main'])
+  })
+
+  // A silently failed fetch left origin/main stale on 2026-09-03, and both the
+  // migration comparison and the deploy SHA read it. Refusing to hand out the
+  // token is the point: the caller scopes the throw into a probe error.
+  it('throws when the production ref cannot be refreshed instead of handing out the stale one', () => {
+    const runGit = (args: string[]) => {
+      if (args[0] === 'fetch')
+        throw new Error('fatal: Authentication failed for https://github.com/')
+      throw new Error(`unexpected git command: ${args.join(' ')}`)
+    }
+
+    expect(() => refreshProductionRef(runGit)).toThrow('Authentication failed')
   })
 
   it('scopes Worker analytics at the API boundary', () => {

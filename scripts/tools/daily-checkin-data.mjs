@@ -12,6 +12,7 @@ import {
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
+  refreshProductionRef,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
 import { ghEnv, runReadOnlyProcess } from './daily-checkin-process.mjs'
@@ -83,6 +84,10 @@ function d1Query(sql) {
   return statement.results ?? []
 }
 
+// One fetch per run, shared by every production read. A failed fetch becomes
+// a probe error here, so no read below can compare against a stale ref.
+const production = probe(() => refreshProductionRef(args => run('git', args)))
+
 const git = probe(() => {
   const dirty = run('git', ['status', '--short']).split('\n').filter(Boolean)
   const commits = run('git', ['log', `--since=${sinceIso}`, '--pretty=format:%H%x09%aI%x09%s'])
@@ -97,6 +102,7 @@ const git = probe(() => {
     head: run('git', ['rev-parse', 'HEAD']),
     dirtyFiles: dirty,
     commitsSinceLastRun: commits,
+    productionRef: production,
   }
 })
 
@@ -109,7 +115,7 @@ const deploy = probe(() => {
       createdOn: latest.created_on,
       versionId: latest.versions?.find(version => version.percentage === 100)?.version_id ?? latest.versions?.[0]?.version_id ?? null,
       message: latest.annotations?.['workers/message'] ?? null,
-      approxDeployedSha: approximateDeployedSha(args => run('git', args), latest.created_on),
+      approxDeployedSha: 'error' in production ? null : approximateDeployedSha(args => run('git', args), production, latest.created_on),
     },
   }
 })
@@ -331,10 +337,21 @@ const d1 = probe(() => {
     : null
   // Production can be checked from a feature worktree. Compare D1 with the
   // production branch, while keeping worktree-only migrations visible.
-  const migrationState = readMigrationState(
-    args => run('git', args),
-    readdirSync(join(root, 'migrations')),
-  )
+  //
+  // A failed `git fetch` leaves `migrations` as `{ error }` with neither
+  // `localHead` nor `prodHead`, so the drift gate cannot misread a fetch
+  // failure as drift. A 2026-09-03 silently failed fetch archived drift that
+  // did not exist.
+  const migrations = 'error' in production
+    ? { error: production.error }
+    : {
+        ...readMigrationState(
+          args => run('git', args),
+          production,
+          readdirSync(join(root, 'migrations')),
+        ),
+        prodHead: prodMigrationHead,
+      }
 
   return {
     tables: [...tables],
@@ -350,7 +367,7 @@ const d1 = probe(() => {
     healthEmail,
     recentJobBatches,
     registryMaintenance,
-    migrations: { ...migrationState, prodHead: prodMigrationHead },
+    migrations,
     missingExpectedTables: [
       'skills',
       'repos',
