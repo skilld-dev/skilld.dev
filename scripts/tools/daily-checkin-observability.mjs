@@ -13,22 +13,30 @@ function migrationFiles(tree) {
     .sort()
 }
 
-export function approximateDeployedSha(runGit, deployedAt) {
-  if (!deployedAt)
-    return null
-  return runGit(['rev-list', '-1', `--before=${deployedAt}`, PRODUCTION_REF]) || null
+/**
+ * Fetch `origin/main` and hand back the token every production read requires.
+ *
+ * `approximateDeployedSha` and `readMigrationState` both read the local
+ * `origin/main` ref, so they are only as fresh as the last fetch. On 2026-09-03
+ * a silently failed fetch left that ref stale: the run archived migration drift
+ * that did not exist, and the deploy SHA read the same stale ref. Requiring the
+ * token makes a stale read unrepresentable, and a failed fetch throws instead of
+ * returning one, so the caller decides how to scope the error.
+ */
+export function refreshProductionRef(runGit) {
+  runGit(['fetch', 'origin', 'main'])
+  return { _tag: 'production', ref: PRODUCTION_REF }
 }
 
-export function readMigrationState(runGit, workingTreeMigrations) {
-  // Everything below reads production from the local `origin/main` ref, so the
-  // verdict is only as fresh as the last fetch. On 2026-09-03 a silently
-  // failed fetch left that ref stale and the run archived migration drift
-  // that did not exist. Refreshing here turns a failed fetch into a thrown
-  // error instead of a confidently wrong comparison; the caller scopes the
-  // error so one unreachable remote cannot take the whole probe down.
-  runGit(['fetch', 'origin', 'main'])
+export function approximateDeployedSha(runGit, production, deployedAt) {
+  if (!deployedAt)
+    return null
+  return runGit(['rev-list', '-1', `--before=${deployedAt}`, production.ref]) || null
+}
+
+export function readMigrationState(runGit, production, workingTreeMigrations) {
   const productionMigrations = migrationFiles(
-    runGit(['ls-tree', '--name-only', PRODUCTION_REF, 'migrations/']),
+    runGit(['ls-tree', '--name-only', production.ref, 'migrations/']),
   )
   const currentMigrations = migrationFiles(
     runGit(['ls-tree', '--name-only', 'HEAD', 'migrations/']),

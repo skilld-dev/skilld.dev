@@ -8,6 +8,7 @@ import {
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
+  refreshProductionRef,
   summarizeWorkflowRuns,
 } from '../../scripts/tools/daily-checkin-observability.mjs'
 
@@ -31,10 +32,10 @@ function run(
 }
 
 describe('daily check-in observability', () => {
+  const production = { _tag: 'production' as const, ref: 'origin/main' }
+
   it('reads deployed state from production instead of the current feature branch', () => {
     const runGit = (args: string[]) => {
-      if (args[0] === 'fetch')
-        return ''
       if (args[0] === 'rev-list')
         return args.at(-1) === 'origin/main' ? 'deployed-sha' : 'feature-sha'
       if (args[0] === 'ls-tree' && args[2] === 'origin/main')
@@ -44,8 +45,9 @@ describe('daily check-in observability', () => {
       throw new Error(`unexpected git command: ${args.join(' ')}`)
     }
 
-    expect(approximateDeployedSha(runGit, '2026-08-20T17:32:48Z')).toBe('deployed-sha')
-    expect(readMigrationState(runGit, [
+    expect(approximateDeployedSha(runGit, production, '2026-08-20T17:32:48Z')).toBe('deployed-sha')
+    expect(approximateDeployedSha(runGit, production, null)).toBe(null)
+    expect(readMigrationState(runGit, production, [
       '0108_weekly_email.sql',
       '0109_weekly_click_events.sql',
     ])).toEqual({
@@ -54,12 +56,8 @@ describe('daily check-in observability', () => {
     })
   })
 
-  it('refreshes origin/main before comparing production migrations against it', () => {
-    const commands: string[] = []
+  it('keeps worktree-only migrations visible as uncommitted', () => {
     const runGit = (args: string[]) => {
-      commands.push(args.join(' '))
-      if (args[0] === 'fetch')
-        return ''
       if (args[0] === 'ls-tree' && args[2] === 'origin/main')
         return 'migrations/0112_private_artifact_keys.sql'
       if (args[0] === 'ls-tree' && args[2] === 'HEAD')
@@ -67,29 +65,37 @@ describe('daily check-in observability', () => {
       throw new Error(`unexpected git command: ${args.join(' ')}`)
     }
 
-    expect(readMigrationState(runGit, ['0112_private_artifact_keys.sql'])).toEqual({
+    expect(readMigrationState(runGit, production, [
+      '0112_private_artifact_keys.sql',
+      '0113_scratch.sql',
+    ])).toEqual({
       localHead: '0112_private_artifact_keys.sql',
-      uncommitted: [],
+      uncommitted: ['0113_scratch.sql'],
     })
-    const fetchAt = commands.indexOf('fetch origin main')
-    expect(fetchAt).toBeGreaterThanOrEqual(0)
-    expect(fetchAt).toBeLessThan(commands.indexOf('ls-tree --name-only origin/main migrations/'))
   })
 
-  // A silently failed fetch left origin/main stale on 2026-09-03, and the
-  // comparison against it archived drift that did not exist. Refusing the
-  // comparison is the point: the caller scopes the throw into a probe error.
-  it('throws when the production ref cannot be refreshed instead of reading the stale one', () => {
+  it('returns the production token only after origin/main is fetched', () => {
+    const commands: string[] = []
+    const runGit = (args: string[]) => {
+      commands.push(args.join(' '))
+      return ''
+    }
+
+    expect(refreshProductionRef(runGit)).toEqual(production)
+    expect(commands).toEqual(['fetch origin main'])
+  })
+
+  // A silently failed fetch left origin/main stale on 2026-09-03, and both the
+  // migration comparison and the deploy SHA read it. Refusing to hand out the
+  // token is the point: the caller scopes the throw into a probe error.
+  it('throws when the production ref cannot be refreshed instead of handing out the stale one', () => {
     const runGit = (args: string[]) => {
       if (args[0] === 'fetch')
         throw new Error('fatal: Authentication failed for https://github.com/')
-      if (args[0] === 'ls-tree')
-        return 'migrations/0111_github_app_delivery.sql'
       throw new Error(`unexpected git command: ${args.join(' ')}`)
     }
 
-    expect(() => readMigrationState(runGit, []))
-      .toThrow('Authentication failed')
+    expect(() => refreshProductionRef(runGit)).toThrow('Authentication failed')
   })
 
   it('scopes Worker analytics at the API boundary', () => {
