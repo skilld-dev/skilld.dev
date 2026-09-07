@@ -6,7 +6,6 @@ import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import type { InstallTarget } from '../composables/useInstallCopy'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
-import { skillRunCmd } from '#shared/skill-commands'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
