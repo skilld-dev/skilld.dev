@@ -253,8 +253,6 @@ describe('skill command copy feedback', () => {
           installCommand: 'npx skilld@beta install skilld:antfu/skills/vite',
           runCopied: false,
           installCopied: false,
-          docUrl: 'https://skilld.dev/gh/antfu/skills/vite/SKILL.md',
-          docUrlCopied: false,
           copyError: 'Could not copy. Select the command and copy it manually.',
         },
       },

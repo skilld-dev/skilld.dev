@@ -2,7 +2,7 @@
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
-import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRawUrl, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
+import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
@@ -347,7 +347,6 @@ const AUDIT_TONE_CLASS = {
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 
 // An agent with no terminal cannot run a command, so it needs the raw URL.
-const { copy: copyDocUrl, copied: docUrlCopied } = useClipboard({ legacy: true })
 
 const badgeInput = computed(() => data.value
   ? {
@@ -413,15 +412,6 @@ async function copySkillCommand(mode: 'run' | 'install') {
 watch(commandMode, () => {
   commandCopyError.value = ''
 })
-
-// Pristine SKILL.md over HTTP, so an agent can read the skill without installing.
-const docUrl = computed(() => data.value
-  ? skillRawUrl(data.value.owner, data.value.repo, data.value.name)
-  : '')
-
-function copySkillDocUrl() {
-  void copyDocUrl(docUrl.value)
-}
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
 const skillFileUrl = computed(() => data.value?.provenance?.skillFileUrl ?? '')
@@ -1286,11 +1276,8 @@ useHead(computed(() => ({
           :install-command="installCmd"
           :run-copied="copied"
           :install-copied="installCopied"
-          :doc-url="docUrl"
-          :doc-url-copied="docUrlCopied"
           :copy-error="commandCopyError"
           @copy="copySkillCommand"
-          @copy-doc-url="copySkillDocUrl"
         />
       </div>
 
@@ -1626,11 +1613,8 @@ useHead(computed(() => ({
               :install-command="installCmd"
               :run-copied="copied"
               :install-copied="installCopied"
-              :doc-url="docUrl"
-              :doc-url-copied="docUrlCopied"
               :copy-error="commandCopyError"
               @copy="copySkillCommand"
-              @copy-doc-url="copySkillDocUrl"
             />
           </section>
 
