@@ -1,0 +1,51 @@
+{
+  "schema_version": 4,
+  "job_id": "make-skill-wizard-0907",
+  "created": "2026-09-07T08:24:34.646984+00:00",
+  "git_hash": "8b1af9f6d9c1564e3acb9b3192df6aac0064efa4",
+  "dev_port": 43291,
+  "pages_changed": [
+    "layers/marketing/app/pages/make-skill.vue",
+    "app/pages/index.vue"
+  ],
+  "components_created": [
+    "layers/marketing/app/components/content/PackageSkillSetup.vue"
+  ],
+  "routes_to_test": [
+    "/make-skill",
+    "/learn/author-npm-package-skills"
+  ],
+  "design_system_changes": false,
+  "theme_name": "quiet editorial",
+  "contract_path": ".claude/context/jobs/make-skill-wizard-0907/build-contract.md",
+  "contract_criteria_status": {
+    "C1": "met",
+    "C2": "met",
+    "C3": "met",
+    "C4": "met",
+    "C5": "met",
+    "C6": "met",
+    "C7": "met",
+    "C8": "met",
+    "C9": "met",
+    "C10": "met",
+    "C11": "met",
+    "C12": "met",
+    "C13": "met",
+    "C14": "met"
+  },
+  "self_assessment": {
+    "confidence": "high",
+    "weakest_area": "Commands were checked against package manager documentation, but external agents were not run.",
+    "hardest_decision": "Keep one canonical guide and personalize its first instructions."
+  },
+  "has_client_animations": false,
+  "known_limitations": [
+    "Yarn instructions require Yarn 2 or later.",
+    "The unchanged consumer code example has a pre-existing light-mode contrast issue."
+  ],
+  "next_steps": [
+    "Human PR review."
+  ],
+  "dark_mode_relevant": true
+}

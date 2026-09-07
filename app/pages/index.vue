@@ -1191,8 +1191,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               </template>
             </p>
             <UButton
-              to="/learn/author-npm-package-skills"
-              label="How it works"
+              to="/make-skill"
+              label="Make a skill"
               color="neutral"
               variant="outline"
               size="sm"

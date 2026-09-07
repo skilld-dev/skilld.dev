@@ -7,7 +7,7 @@ relatedPages:
   - path: /skills
     title: Browse skills
 createdAt: 2026-05-13
-updatedAt: 2026-09-01
+updatedAt: 2026-09-07
 ---
 
 **TL;DR.** The skilld CLI never writes a skill. The skilld project maintains a visible Skill named `generate-package-skill`. Run it with `skilld run`, and your agent drafts a SKILL.md for the package you maintain. You edit the draft, commit it to your repository, and skilld lists it with your name.
@@ -16,12 +16,8 @@ This guide is for package maintainers who want a useful first pass without start
 
 ## Run the authoring Skill
 
-Open your agent inside the package you maintain, then give it this command:
-
-```bash
-cd path/to/your-package
-npx skilld@beta run skilld:skilld-dev/skilld/generate-package-skill
-```
+::package-skill-setup
+::
 
 `skilld run` prints the Skill and installs nothing. Your agent reads the instructions and follows them. Nothing lands in your repository until the agent writes the draft, and you review every file before you commit.
 
