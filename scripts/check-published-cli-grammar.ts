@@ -109,6 +109,15 @@ async function publishedVersion(tag: ChannelRequirement['tag']): Promise<string>
   return version
 }
 
+/**
+ * Runs a published package through `pnpm dlx` rather than `npx`.
+ *
+ * `npx` downloads into a per-container npm cache, so every ephemeral CI
+ * container pays the full download over the shared uplink and a slow one
+ * overruns the 180s kill and reads as a grammar failure. `pnpm dlx` resolves
+ * through the shared pnpm store the setup action mounts, so only the first
+ * container ever downloads a version.
+ */
 export function publishedCliInvocation(version: string, subcommand?: string): PublishedCliInvocation {
   return {
     file: 'pnpm',
@@ -211,6 +220,11 @@ async function checkChannel(
   }
 }
 
+/**
+ * Checks one channel at a time. Each channel's first call downloads its
+ * package through the shared store, and two parallel downloads contend for
+ * the same uplink the CI box shares with every other job.
+ */
 export async function runPublishedCliGrammar(
   dependencies: PublishedCliGrammarDependencies,
 ): Promise<PublishedCliGrammarResult> {
