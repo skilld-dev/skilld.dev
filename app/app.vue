@@ -139,7 +139,7 @@ watch(() => route.fullPath, () => {
             class="hidden lg:inline-flex"
           />
           <UButton
-            to="/learn/author-npm-package-skills"
+            to="/make-skill"
             label="Make a skill"
             color="neutral"
             variant="ghost"
@@ -240,7 +240,7 @@ watch(() => route.fullPath, () => {
                 class="min-h-11 justify-start"
               />
               <UButton
-                to="/learn/author-npm-package-skills"
+                to="/make-skill"
                 label="Make a skill"
                 color="neutral"
                 variant="ghost"

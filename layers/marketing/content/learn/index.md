@@ -8,6 +8,6 @@ description: Practical guides for finding, authoring, and shipping agent skills.
   Skills written by maintainers in their own repositories, with the source one click away.
 - [Skills worth installing](/skills/best)
   Reviewed skills, one per author, each from a maintainer you can name.
-- [Author a skill you own](/learn/author-npm-package-skills)
-  Draft a SKILL.md for your [npm](https://npmjs.com) package, then edit and commit it in your repository.
+- [Author a skill you own](/make-skill)
+  Choose your package ecosystem for a guide to writing, reviewing, and shipping a Skill.
 ::
