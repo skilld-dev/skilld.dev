@@ -21,3 +21,28 @@ export function runReadOnlyProcess(spawn, command, args, options = {}) {
     throw new Error(failureMessage(command, result).slice(0, 800))
   return String(result.stdout).trim()
 }
+
+/**
+ * gh resolves credentials from the environment before its keyring, so one
+ * stale GITHUB_TOKEN or GH_TOKEN overrides a valid `gh auth` login and every
+ * call 401s. When a token is present, validate it once with a cheap
+ * authenticated call; when gh rejects it, drop both variables so gh falls
+ * back to the keyring.
+ */
+export function ghEnv(env, spawn) {
+  if (!(env.GITHUB_TOKEN || env.GH_TOKEN))
+    return env
+  try {
+    runReadOnlyProcess(spawn, 'gh', ['api', 'user'], {
+      encoding: 'utf8',
+      env: { ...env, NO_COLOR: '1' },
+    })
+    return env
+  }
+  catch {
+    // gh rejected the environment token (or the check itself could not run),
+    // so the keyring login is the better credential source either way.
+    const { GITHUB_TOKEN: _staleToken, GH_TOKEN: _staleAltToken, ...keyringEnv } = env
+    return keyringEnv
+  }
+}

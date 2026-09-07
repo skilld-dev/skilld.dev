@@ -14,7 +14,7 @@ import {
   readMigrationState,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
-import { runReadOnlyProcess } from './daily-checkin-process.mjs'
+import { ghEnv, runReadOnlyProcess } from './daily-checkin-process.mjs'
 import { parseSentryIssuesResponse } from './sentry-observability.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -33,12 +33,18 @@ const sinceMs = since.getTime()
 const utcDay = now.toISOString().slice(0, 10)
 const wrangler = join(root, 'node_modules/.bin/wrangler')
 
+// The gh environment is resolved lazily and once per process: deciding it
+// costs a real API call, and the ci probe alone invokes gh once per workflow.
+let ghEnvironment
 function run(command, args, options = {}) {
+  const baseEnv = { ...process.env, NO_COLOR: '1' }
+  if (command === 'gh')
+    ghEnvironment ??= ghEnv(baseEnv, spawnSync)
   return runReadOnlyProcess(spawnSync, command, args, {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
-    env: { ...process.env, NO_COLOR: '1' },
+    env: command === 'gh' ? ghEnvironment : baseEnv,
   })
 }
 
