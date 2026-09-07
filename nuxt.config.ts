@@ -78,8 +78,10 @@ export default defineNuxtConfig({
     fields: [
       'attempt',
       'batch.count',
+      'cache.ageSeconds',
       'cache.key',
       'cache.readFailed',
+      'cache.servedStale',
       'cache.writeFailed',
       'eligible.count',
       'error.count',
