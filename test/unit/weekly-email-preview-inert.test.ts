@@ -1,6 +1,6 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
-import WeeklyBand from '../../app/components/WeeklyBand.vue'
+import WeeklyEmailPreview from '../../app/components/WeeklyEmailPreview.vue'
 
 const CARD = '<table><tr><td><a href="https://skilld.dev/me">Settings</a></td></tr></table>'
 
@@ -9,9 +9,9 @@ registerEndpoint('/api/weekly/demo', () => ({
   rowCount: 3,
 }))
 
-describe('weekly band email preview', () => {
+describe('weekly email preview', () => {
   it('keeps the preview links out of the tab order', async () => {
-    const wrapper = await mountSuspended(WeeklyBand)
+    const wrapper = await mountSuspended(WeeklyEmailPreview)
     const frame = wrapper.find('.home-weekly-frame')
 
     expect(frame.exists()).toBe(true)

@@ -7,7 +7,7 @@ import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import axe from 'axe-core'
 import { defineComponent, h, nextTick, ref } from 'vue'
 
-// Only WeeklyBand (and the page-level-tested OutcomeClusterGrid) call useFetch
+// Only WeeklyEmailPreview (and the page-level-tested OutcomeClusterGrid) call useFetch
 // among the components mounted here, so one file-wide mock covers it without
 // touching the other cases.
 const weeklyDemo = ref<WeeklyDemoResponse>({
@@ -331,22 +331,21 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
-  it('weeklyBand has no violations and hides the inbox preview from assistive tech', async () => {
+  it('weeklyEmailPreview has no violations and hides the inbox preview from assistive tech', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await loadComponent('WeeklyBand'),
+      await loadComponent('WeeklyEmailPreview'),
       { attachTo: container },
     )
 
-    // The demo card is the real email with roughly twenty live links; the band
-    // must keep every one of them out of the tab order and the accessibility
-    // tree. `inert` does both; a negative tabindex on the container left the
-    // links inside focusable.
+    // The demo card is the real email with roughly twenty live links; the
+    // preview must keep every one of them out of the tab order and the
+    // accessibility tree. `inert` does both; a negative tabindex on the
+    // container left the links inside focusable.
     const frame = container.querySelector('.home-weekly-frame')
     expect(frame?.getAttribute('aria-hidden')).toBe('true')
     expect(frame?.hasAttribute('inert')).toBe(true)
     expect(frame?.hasAttribute('tabindex')).toBe(false)
-    expect(container.querySelector('#weekly-heading')?.tagName).toBe('H2')
 
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
