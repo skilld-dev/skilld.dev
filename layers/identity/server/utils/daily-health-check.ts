@@ -122,6 +122,12 @@ export interface DailyHealthCheckSummary {
     discoveryCandidatesOverdue: number
     discoveryClaimsStale: number
     leaderboardApprovalsStuck: number
+    /** The invisible repositories behind the count, so the report names them. */
+    leaderboardApprovalDetails: Array<{
+      owner: string
+      repo: string
+      reviewedAt: number
+    }>
     failedJobDetails: Array<{
       queue: string
       jobType: string
@@ -245,6 +251,12 @@ interface FailedJobRow {
   job_type: string
   exception: string
   count: number
+}
+
+interface LeaderboardApprovalRow {
+  owner: string
+  repo: string
+  reviewed_at: number
 }
 
 interface CostRow {
@@ -583,7 +595,19 @@ export function evaluateDailyHealthStatus(
   if (x.readsMonth >= 500 && x.verifiedSkillsTotal === 0)
     amber.push(`X discovery has spent ${x.readsMonth} reads this month and verified no skills.`)
 
-  const partialSyncJobs = summary.pipeline.syncJobs.filter(job => job.status === 'partial')
+  // `reportJobRun` keeps `last_status` until the job's next run, so a monthly
+  // task paused after a partial verdict re-alarmed every night until the next
+  // scheduled run a month later (send-digests 2026-09-01 drove nightly AMBER
+  // into October). A partial is news only while its run falls inside this
+  // report's 24 hour window; an older verdict is either superseded by a newer
+  // run or covered by the staleness alarm above. An unparseable window keeps
+  // the unbounded filter so the alarm fails loud rather than silent.
+  const windowFromSec = Math.floor(Date.parse(summary.window.from) / 1000)
+  const partialSyncJobs = summary.pipeline.syncJobs.filter(job =>
+    job.status === 'partial'
+    && (Number.isNaN(windowFromSec)
+      || (job.lastRunAt !== null && job.lastRunAt >= windowFromSec)),
+  )
   if (partialSyncJobs.length)
     amber.push(`Scheduled tasks partially failed: ${partialSyncJobs.map(job => job.name).join(', ')}.`)
   const unhealthyScheduledRuns = summary.pipeline.scheduledRuns.filter(run => run.health.alertable)
@@ -611,7 +635,13 @@ export function evaluateDailyHealthStatus(
   if (summary.pipeline.discoveryClaimsStale > 0)
     amber.push(`${plural(summary.pipeline.discoveryClaimsStale, 'discovery claim')} remained active for over 1 hour.`)
   if (summary.pipeline.leaderboardApprovalsStuck > 0) {
-    amber.push(`${summary.pipeline.leaderboardApprovalsStuck} reviewed leaderboard ${summary.pipeline.leaderboardApprovalsStuck === 1 ? 'repository' : 'repositories'} remained invisible for over 15 minutes.`)
+    // The count alone made two consecutive reports unactionable: the operator
+    // could not tell which repository to look at. The names come from the same
+    // stuck-row query, so they always match the count.
+    const named = summary.pipeline.leaderboardApprovalDetails
+      .map(approval => `${approval.owner}/${approval.repo}`)
+      .join(', ')
+    amber.push(`${summary.pipeline.leaderboardApprovalsStuck} reviewed leaderboard ${summary.pipeline.leaderboardApprovalsStuck === 1 ? 'repository' : 'repositories'} remained invisible for over 15 minutes${named ? `: ${named}.` : '.'}`)
   }
   if (summary.warnings.length > 0)
     amber.push(`${plural(summary.warnings.length, 'report probe')} failed.`)
@@ -887,8 +917,38 @@ async function loadWeeklyRun(db: D1Database): Promise<DailyHealthCheckSummary['a
   }
 }
 
+/**
+ * One reviewed leaderboard approval that has not become visible yet: the gate
+ * still says eligible, the owner is a user (the leaderboard scope), and no
+ * healthy skill row exists for the repository.
+ *
+ * Shared by the count and the named-rows query so the number and the names in
+ * the report cannot drift apart. `param` is the placeholder index for the
+ * visibility deadline, which each statement binds at its own position.
+ */
+function leaderboardStuckSql(param: number): string {
+  return `review.status = 'eligible'
+          AND review.reviewed_at < ?${param}
+          AND EXISTS (
+            SELECT 1
+            FROM owners AS owner
+            WHERE owner.owner = review.owner
+              AND owner.kind = 'user'
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM repos AS r
+            JOIN skills AS s
+              ON s.owner = r.owner
+             AND s.repo = r.repo
+            WHERE r.owner = review.owner
+              AND r.repo = review.repo
+              AND r.broken_since IS NULL
+          )`
+}
+
 async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): Promise<DailyHealthCheckSummary['pipeline']> {
-  const [row, jobRows, scheduledRunRows, failedJobRows] = await Promise.all([
+  const [row, jobRows, scheduledRunRows, failedJobRows, leaderboardApprovalRows] = await Promise.all([
     first<PipelineRow>(db, `
       SELECT
         (SELECT COUNT(*) FROM repos WHERE broken_since >= ?1) AS newly_broken_repos_total_24h,
@@ -952,24 +1012,7 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
           WHERE retry_state = 'claimed' AND claimed_at < ?6) AS discovery_claims_stale,
         (SELECT COUNT(*)
          FROM skill_repo_eligibility AS review
-         WHERE review.status = 'eligible'
-           AND review.reviewed_at < ?7
-           AND EXISTS (
-             SELECT 1
-             FROM owners AS owner
-             WHERE owner.owner = review.owner
-               AND owner.kind = 'user'
-           )
-           AND NOT EXISTS (
-             SELECT 1
-             FROM repos AS r
-             JOIN skills AS s
-               ON s.owner = r.owner
-              AND s.repo = r.repo
-             WHERE r.owner = review.owner
-               AND r.repo = review.repo
-               AND r.broken_since IS NULL
-           )) AS leaderboard_approvals_stuck
+         WHERE ${leaderboardStuckSql(7)}) AS leaderboard_approvals_stuck
     `, [
       sinceSec,
       nowSec - DIRTY_STUCK_SECONDS,
@@ -995,6 +1038,15 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
       ORDER BY count DESC
       LIMIT 8
     `, [sinceSec]),
+    // The repositories behind the count, oldest review first, so the nightly
+    // email names what to look at instead of only how many.
+    all<LeaderboardApprovalRow>(db, `
+      SELECT review.owner, review.repo, review.reviewed_at
+      FROM skill_repo_eligibility AS review
+      WHERE ${leaderboardStuckSql(1)}
+      ORDER BY review.reviewed_at
+      LIMIT 8
+    `, [nowSec - RESERVED_STUCK_SECONDS]),
   ])
 
   const scheduledRun = (slot: ScheduledRunRow['slot']): Map<string, ScheduledRunRow> =>
@@ -1040,6 +1092,11 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
     discoveryCandidatesOverdue: numberValue(row.discovery_candidates_overdue),
     discoveryClaimsStale: numberValue(row.discovery_claims_stale),
     leaderboardApprovalsStuck: numberValue(row.leaderboard_approvals_stuck),
+    leaderboardApprovalDetails: leaderboardApprovalRows.map(approval => ({
+      owner: approval.owner,
+      repo: approval.repo,
+      reviewedAt: numberValue(approval.reviewed_at),
+    })),
     failedJobDetails: failedJobRows.map(failure => ({
       queue: failure.queue,
       jobType: failure.job_type,
@@ -1194,6 +1251,7 @@ export async function buildDailyHealthCheck(
     discoveryCandidatesOverdue: 0,
     discoveryClaimsStale: 0,
     leaderboardApprovalsStuck: 0,
+    leaderboardApprovalDetails: [],
     failedJobDetails: [],
   }, () => loadPipeline(db, Math.floor(now.getTime() / 1000), sinceSec))
   const cost = await capture(warnings, 'AI cost', {
@@ -1270,6 +1328,11 @@ function weeklyLine(summary: DailyHealthCheckSummary): string {
   return `${weekly.sent} sent, ${weekly.skipped} skipped, ${weekly.failed} failed, ${weekly.uncertain} unresolved (${date})`
 }
 
+function leaderboardApprovalLine(approval: DailyHealthCheckSummary['pipeline']['leaderboardApprovalDetails'][number]): string {
+  const reviewedAt = new Date(approval.reviewedAt * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z')
+  return `${approval.owner}/${approval.repo}: eligible review ${reviewedAt}`
+}
+
 export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): string {
   const failedJobs = summary.pipeline.failedJobDetails.map(item => `${item.queue}/${item.jobType}: ${item.count}, ${item.exception}`)
   const unhealthyTasks = summary.pipeline.syncJobs
@@ -1315,6 +1378,9 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
     `- jobs: ${summary.pipeline.failedJobs24h} failed in 24 hours, ${summary.pipeline.rejectedJobs24h} rejected, ${summary.pipeline.staleReservedJobs} stale reserved, ${summary.pipeline.openFailedBatches} open failed batches`,
     `- discovery: ${summary.pipeline.discoveryCandidatesExhausted} exhausted, ${summary.pipeline.discoveryCandidatesOverdue} overdue retries, ${summary.pipeline.discoveryClaimsStale} stale claims`,
     `- leaderboard: ${summary.pipeline.leaderboardApprovalsStuck} reviewed approvals invisible over 15 minutes`,
+    ...(summary.pipeline.leaderboardApprovalDetails.length
+      ? [plainList(summary.pipeline.leaderboardApprovalDetails.map(leaderboardApprovalLine))]
+      : []),
     '',
     'Scheduled task issues:',
     plainList([...unhealthyTasks, ...unhealthyRuns]),
@@ -1423,6 +1489,7 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
     <tr><td colspan="2" style="padding:8px"><table role="presentation" style="width:100%;background:#fff;border:1px solid #e4e7ec;border-radius:10px"><tr><td style="padding:14px 18px">
       <div style="font-size:14px;font-weight:700;margin-bottom:6px">Scheduled task issues</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList([...unhealthyTasks, ...unhealthyRuns])}</ul>
       <div style="font-size:14px;font-weight:700;margin-bottom:6px">Failed job fingerprints</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(failedJobs)}</ul>
+      ${summary.pipeline.leaderboardApprovalDetails.length ? `<div style="font-size:14px;font-weight:700;margin-bottom:6px">Leaderboard approvals invisible</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(summary.pipeline.leaderboardApprovalDetails.map(leaderboardApprovalLine))}</ul>` : ''}
       ${summary.warnings.length ? `<div style="font-size:14px;font-weight:700;margin-bottom:6px">Report warnings</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(summary.warnings)}</ul>` : ''}
     </td></tr></table></td></tr>
   </table>

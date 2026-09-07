@@ -30,6 +30,115 @@ export async function writeCache<T>(
 }
 
 /**
+ * What {@link cached} stores for one key: the computed value plus the epoch
+ * seconds it was computed at. Freshness is decided from `t`, so the storage
+ * TTL only has to carry the entry through the whole fresh + stale window.
+ */
+interface SwrEntry<T> {
+  v: T
+  t: number
+}
+
+function isSwrEntry<T>(value: unknown): value is SwrEntry<T> {
+  return typeof value === 'object' && value !== null
+    && 'v' in value && 't' in value
+    && typeof (value as SwrEntry<T>).t === 'number'
+}
+
+export interface CachedOptions<T> {
+  storage: ReadThroughCache
+  key: string
+  /** Seconds a stored value is served as-is. */
+  ttlSeconds: number
+  /** Extra seconds a stale value is served while one refresh recomputes. Zero means the entry is dead at TTL expiry. */
+  staleSeconds?: number
+  /** The full computation a cache miss must run. */
+  compute: () => Promise<T>
+  /**
+   * Runs the background refresh promise when a stale value is served.
+   * Pass the event's `waitUntil` wrapper so Workers keeps the refresh alive;
+   * the default drops it to fire-and-forget.
+   */
+  schedule?: (promise: Promise<unknown>) => void
+  /** Epoch seconds clock. */
+  now?: () => number
+}
+
+/**
+ * One in-flight computation per cache key.
+ *
+ * A bare read-through cache turns every TTL expiry into a thundering herd:
+ * after the entry dies, each concurrent request re-runs the whole compute
+ * until the first write lands, and on these routes a compute is about six D1
+ * queries plus a possible live GitHub render. The ops triage ledger
+ * attributes recurring D1 overload bursts (Sentry SKILLD-G/H/J/K/M/N/P/Q) to
+ * exactly that shape, and Nitro's `defineCachedEventHandler` had the same
+ * hole covered by `swr: true` + `staleMaxAge` before the detail route left it
+ * (Sentry SKILLD-1V). This helper restores both halves without the bare
+ * `setItem` that made a KV 429 a 500:
+ *
+ * - fresh (`age < ttlSeconds`): serve the stored value.
+ * - stale (`age < ttlSeconds + staleSeconds`): serve the stored value and
+ *   refresh in the background through `schedule`.
+ * - dead or absent: recompute, awaited.
+ *
+ * All three paths funnel into one shared promise per key, so concurrent
+ * callers share a single computation, a single D1 pass, and a single KV
+ * write, which also keeps the write under KV's one-write-per-second limit.
+ * The map is per isolate, so the guarantee is per isolate; that is still the
+ * difference between N computes and one.
+ */
+const inflightComputes = new Map<string, Promise<unknown>>()
+
+export function cached<T>(options: CachedOptions<T>): Promise<T> {
+  const { key, compute } = options
+  const freshSeconds = options.ttlSeconds
+  const maxAgeSeconds = freshSeconds + (options.staleSeconds ?? 0)
+  const nowSeconds = options.now ?? (() => Math.floor(Date.now() / 1000))
+
+  function computeOnce(): Promise<T> {
+    const pending = inflightComputes.get(key)
+    if (pending)
+      return pending as Promise<T>
+    const promise = (async () => {
+      const value = await compute()
+      await writeCache(options.storage, key, { v: value, t: nowSeconds() } satisfies SwrEntry<T>, { ttl: maxAgeSeconds })
+      return value
+    })()
+    inflightComputes.set(key, promise)
+    // Both callbacks return normally, so this derived promise never rejects
+    // and the original rejection still reaches every caller.
+    void promise.then(() => inflightComputes.delete(key), () => inflightComputes.delete(key))
+    return promise
+  }
+
+  return (async () => {
+    const entry = await readCache<SwrEntry<T>>(options.storage, key)
+    if (isSwrEntry<T>(entry)) {
+      const age = nowSeconds() - entry.t
+      if (age < freshSeconds)
+        return entry.v
+      if (age < maxAgeSeconds) {
+        const refresh = computeOnce().catch((error: unknown) => {
+          emitOperationalEvent(createWideEvent({
+            'operation': 'swr-refresh',
+            'outcome': 'failed',
+            'cache.key': key,
+            'reason': error instanceof Error ? error.message : String(error),
+          }))
+        })
+        if (options.schedule)
+          options.schedule(refresh)
+        else
+          void refresh
+        return entry.v
+      }
+    }
+    return computeOnce()
+  })()
+}
+
+/**
  * The read half of unstorage's `Storage`, structurally typed for the same
  * reason as {@link CacheStorage}.
  */

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import {
   publishedCliInvocation,
@@ -48,5 +49,39 @@ describe('published CLI grammar', () => {
 
     expect(result._tag).toBe('clean')
     expect(peakActive).toBe(1)
+    for (const check of result.checks)
+      expect(check.fetchRefused).toBe(false)
+  })
+
+  it('blames a minimumReleaseAge refusal, not the grammar', async () => {
+    const refusal = [
+      '[ERR_PNPM_NO_MATURE_MATCHING_VERSION] skilld@3.0.0-beta.4 was published at',
+      '2026-09-04T04:18:08.578Z, within the minimumReleaseAge cutoff',
+      '(2026-09-05T04:18:08.578Z)',
+    ].join(' ')
+    const result = await runPublishedCliGrammar({
+      readVersion: async tag => tag === 'latest' ? '2.3.0' : '3.0.0-beta.4',
+      readHelp: async () => refusal,
+    })
+
+    expect(result._tag).toBe('blocked')
+    for (const check of result.checks) {
+      expect(check.fetchRefused).toBe(true)
+      expect(check.problems.join(' ')).toMatch(/minimumReleaseAge/)
+      expect(check.problems.join(' ')).not.toMatch(/could not read/)
+    }
+  })
+
+  it('keeps the unreadable-grammar verdict when pnpm answers normally', async () => {
+    const result = await runPublishedCliGrammar({
+      readVersion: async tag => tag === 'latest' ? '2.3.0' : '3.0.0-beta.4',
+      readHelp: async () => 'some unrelated help text\n',
+    })
+
+    expect(result._tag).toBe('blocked')
+    for (const check of result.checks) {
+      expect(check.fetchRefused).toBe(false)
+      expect(check.problems).toContain('could not read its command list')
+    }
   })
 })

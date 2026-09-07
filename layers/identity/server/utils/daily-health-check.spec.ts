@@ -66,6 +66,7 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
       discoveryCandidatesOverdue: 0,
       discoveryClaimsStale: 0,
       leaderboardApprovalsStuck: 0,
+      leaderboardApprovalDetails: [],
       failedJobDetails: [],
     },
     cost: {
@@ -158,6 +159,47 @@ describe('evaluateDailyHealthStatus', () => {
     })
   })
 
+  it('alarms on a partial run inside the report window', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        syncJobs: [{
+          name: 'send-digests',
+          status: 'partial',
+          lastRunAt: Math.floor(Date.parse('2026-07-22T09:00:00Z') / 1000),
+          stale: false,
+          error: 'failed=1',
+        }],
+      },
+    })
+    const result = evaluateDailyHealthStatus(input)
+    expect(result.status).toBe('AMBER')
+    expect(result.reasons.some(r => r.includes('send-digests'))).toBe(true)
+  })
+
+  // `reportJobRun` keeps `last_status` until the job's next run, so a monthly
+  // task paused after a partial verdict re-alarmed every night for a month.
+  // An old partial is either superseded by a newer run or covered by the
+  // staleness alarm, so it must not drive the verdict.
+  it('stays quiet on an old partial verdict from a paused monthly task', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        syncJobs: [{
+          name: 'send-digests',
+          status: 'partial',
+          lastRunAt: Math.floor(Date.parse('2026-06-22T09:00:00Z') / 1000),
+          stale: false,
+          error: 'failed=1',
+        }],
+      },
+    })
+    expect(evaluateDailyHealthStatus(input)).toEqual({
+      status: 'GREEN',
+      reasons: ['All monitored systems are healthy.'],
+    })
+  })
+
   it('marks a homepage outage red', () => {
     const input = summary({
       frontDoor: { checks: [{ url: 'https://skilld.dev/', status: 503 }] },
@@ -223,6 +265,21 @@ describe('evaluateDailyHealthStatus', () => {
     expect(evaluateDailyHealthStatus(input)).toEqual({
       status: 'AMBER',
       reasons: ['2 reviewed leaderboard repositories remained invisible for over 15 minutes.'],
+    })
+  })
+
+  it('names the invisible leaderboard repositories in the reason', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        leaderboardApprovalsStuck: 1,
+        leaderboardApprovalDetails: [{ owner: 'missing-owner', repo: 'missing-repo', reviewedAt: 1_774_473_000 }],
+      },
+    })
+
+    expect(evaluateDailyHealthStatus(input)).toEqual({
+      status: 'AMBER',
+      reasons: ['1 reviewed leaderboard repository remained invisible for over 15 minutes: missing-owner/missing-repo.'],
     })
   })
 
@@ -468,6 +525,9 @@ describe('buildDailyHealthCheck', () => {
     expect(uncertain.activity.digestsFailed24h).toBe(1)
     expect(uncertain.pipeline.discoveryCandidatesExhausted).toBe(1)
     expect(uncertain.pipeline.leaderboardApprovalsStuck).toBe(1)
+    expect(uncertain.pipeline.leaderboardApprovalDetails).toEqual([
+      { owner: 'missing-owner', repo: 'missing-repo', reviewedAt: nowSec - 901 },
+    ])
     expect(uncertain.status).toBe('RED')
     sqlite.close()
   })
@@ -517,6 +577,21 @@ describe('daily health rendering', () => {
     expect(renderDailyHealthCheckText(input)).toContain('skilld daily health check: GREEN')
     expect(renderDailyHealthCheckHtml(input)).toContain('Pipeline &lt;degraded&gt;')
     expect(renderDailyHealthCheckHtml(input)).not.toContain('<script>')
+  })
+
+  it('renders the invisible leaderboard repositories with their review verdict', () => {
+    const input = summary({
+      pipeline: {
+        ...summary().pipeline,
+        leaderboardApprovalsStuck: 1,
+        leaderboardApprovalDetails: [{ owner: 'missing-owner', repo: 'missing-repo', reviewedAt: 1_774_473_000 }],
+      },
+    })
+
+    const text = renderDailyHealthCheckText(input)
+    const html = renderDailyHealthCheckHtml(input)
+    expect(text).toContain('missing-owner/missing-repo: eligible review 2026-03-25T21:10:00Z')
+    expect(html).toContain('missing-owner/missing-repo: eligible review 2026-03-25T21:10:00Z')
   })
 })
 
@@ -631,7 +706,13 @@ describe('verdict reason completeness', () => {
       pipeline: {
         ...summary().pipeline,
         syncJobs: [
-          { name: 'sync-github-skills', status: 'partial', lastRunAt: 1, stale: false, error: 'failed=4' },
+          {
+            name: 'sync-github-skills',
+            status: 'partial',
+            lastRunAt: Math.floor(Date.parse('2026-07-22T12:00:00Z') / 1000),
+            stale: false,
+            error: 'failed=4',
+          },
         ],
         staleDirtySkills: 3,
       },
