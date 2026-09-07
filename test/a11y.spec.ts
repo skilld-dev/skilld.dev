@@ -312,6 +312,25 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  // The hero search is a second combobox with the same wiring risk as the
+  // trigger: while closed it must not point at a listbox that is not rendered.
+  it('homeSearch has no violations while closed', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('HomeSearch'),
+      { attachTo: container },
+    )
+
+    const combobox = container.querySelector('[role="combobox"]')
+    expect(combobox).not.toBeNull()
+    expect(combobox!.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('[role="listbox"]')).toBeNull()
+
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('weeklyBand has no violations and hides the inbox preview from assistive tech', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -320,10 +339,13 @@ describe('accessibility: components', () => {
     )
 
     // The demo card is the real email with roughly twenty live links; the band
-    // must keep it out of the tab order and the accessibility tree.
+    // must keep every one of them out of the tab order and the accessibility
+    // tree. `inert` does both; a negative tabindex on the container left the
+    // links inside focusable.
     const frame = container.querySelector('.home-weekly-frame')
     expect(frame?.getAttribute('aria-hidden')).toBe('true')
-    expect(frame?.getAttribute('tabindex')).toBe('-1')
+    expect(frame?.hasAttribute('inert')).toBe(true)
+    expect(frame?.hasAttribute('tabindex')).toBe(false)
     expect(container.querySelector('#weekly-heading')?.tagName).toBe('H2')
 
     const results = await runAxe(container)
