@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SearchRow, SearchSkill } from '../composables/useSkillSearch'
+import { skillRunCmd } from '#shared/skill-commands'
 
 const emit = defineEmits<{ select: [row: SearchRow] }>()
 

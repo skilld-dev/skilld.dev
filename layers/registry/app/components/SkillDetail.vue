@@ -2,6 +2,7 @@
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
+import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
@@ -346,7 +347,6 @@ const AUDIT_TONE_CLASS = {
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
 
 // An agent with no terminal cannot run a command, so it needs the raw URL.
-const { copy: copyDocUrl, copied: docUrlCopied } = useClipboard({ legacy: true })
 
 const badgeInput = computed(() => data.value
   ? {
@@ -357,15 +357,26 @@ const badgeInput = computed(() => data.value
     }
   : null)
 
-// Running is the default: the agent reads the skill now and nothing lands in
-// the repository. Installing is the opt-in for a skill you want every session.
+// Running is the default: the Agent fetches the Skill page, receives the
+// SKILL.md as markdown, and nothing lands in the repository. Installing is the
+// opt-in for a Skill you want every session. The exact three-segment address,
+// not the canonical one: only that route answers a markdown fetch with the
+// SKILL.md (server/plugins/ai-ready-markdown-source.ts).
+const runUrl = computed(() => {
+  if (!data.value)
+    return ''
+  return exactSkillPageUrl(data.value.owner, data.value.repo, data.value.name)
+})
+
+const runPrompt = computed(() => skillRunPrompt(runUrl.value))
+
+// The CLI form survives in the meta description fallback, where a URL would
+// repeat the page's own address.
 const runCmd = computed(() => {
   if (!data.value)
     return ''
   return skillRunCmd(data.value.owner, data.value.repo, data.value.name)
 })
-
-const runPrompt = computed(() => skillRunPrompt(runCmd.value))
 
 const installCmd = computed(() => {
   if (!data.value)
@@ -401,15 +412,6 @@ async function copySkillCommand(mode: 'run' | 'install') {
 watch(commandMode, () => {
   commandCopyError.value = ''
 })
-
-// Pristine SKILL.md over HTTP, so an agent can read the skill without installing.
-const docUrl = computed(() => data.value
-  ? skillDocUrl(data.value.owner, data.value.repo, data.value.name)
-  : '')
-
-function copySkillDocUrl() {
-  void copyDocUrl(docUrl.value)
-}
 
 const githubUrl = computed(() => data.value?.githubUrl ?? '')
 const skillFileUrl = computed(() => data.value?.provenance?.skillFileUrl ?? '')
@@ -797,7 +799,7 @@ useSchemaOrg(computed(() => {
         {
           '@type': 'HowToStep',
           'name': 'Run the skill',
-          'text': runCmd.value,
+          'text': runPrompt.value,
           'url': `${skillPageUrl.value}#run`,
         },
         {
@@ -1270,15 +1272,12 @@ useHead(computed(() => ({
         </h2>
         <SkillCommandPanel
           v-model="commandMode"
-          :run-command="runCmd"
+          :run-url="runUrl"
           :install-command="installCmd"
           :run-copied="copied"
           :install-copied="installCopied"
-          :doc-url="docUrl"
-          :doc-url-copied="docUrlCopied"
           :copy-error="commandCopyError"
           @copy="copySkillCommand"
-          @copy-doc-url="copySkillDocUrl"
         />
       </div>
 
@@ -1610,15 +1609,12 @@ useHead(computed(() => ({
             </h2>
             <SkillCommandPanel
               v-model="commandMode"
-              :run-command="runCmd"
+              :run-url="runUrl"
               :install-command="installCmd"
               :run-copied="copied"
               :install-copied="installCopied"
-              :doc-url="docUrl"
-              :doc-url-copied="docUrlCopied"
               :copy-error="commandCopyError"
               @copy="copySkillCommand"
-              @copy-doc-url="copySkillDocUrl"
             />
           </section>
 
