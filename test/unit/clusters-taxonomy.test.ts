@@ -49,12 +49,17 @@ describe('cluster taxonomy', () => {
     expect(slugs).toHaveLength(new Set(slugs).size)
   })
 
-  it('fits the homepage grid into three rows while keeping both anti-slop tracks', () => {
+  // 2026-09-04: `diagrams` and `research` joined on measured demand, and
+  // `security` merged into `backend-data` the same day. The homepage grid
+  // caps itself at twelve tiles, so the count no longer has to fit three rows.
+  it('keeps security inside backend-data while the demand rows take the taxonomy to 14', () => {
     const slugs = CLUSTERS.map(cluster => cluster.slug)
 
-    expect(CLUSTERS).toHaveLength(12)
+    expect(CLUSTERS).toHaveLength(14)
     expect(slugs).toContain('anti-slop')
     expect(slugs).toContain('anti-slop-coding')
+    expect(slugs).toContain('diagrams')
+    expect(slugs).toContain('research')
     expect(slugs).not.toContain('security')
     expect(RENAMED_CLUSTER_SLUGS.security).toBe('backend-data')
 
