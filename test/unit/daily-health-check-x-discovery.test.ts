@@ -34,6 +34,7 @@ function healthy(
       discoveryCandidatesOverdue: 0,
       discoveryClaimsStale: 0,
       leaderboardApprovalsStuck: 0,
+      leaderboardApprovalDetails: [],
       failedJobDetails: [],
     },
     cost: { estimatedAiUsd24h: 0, estimatedAiUsdMonth: 0 },
