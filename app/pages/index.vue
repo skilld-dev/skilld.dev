@@ -571,39 +571,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     </section>
 
     <section
-      id="the-test"
-      class="home-wm"
-      aria-labelledby="the-test-heading"
-    >
-      <span class="home-watermark" aria-hidden="true">Test</span>
-      <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
-        <h2 id="the-test-heading" class="home-h2 text-balance">
-          What <span class="home-ink">taste-tested</span> means.
-        </h2>
-        <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-          Every skill here passed three checks before it was listed.
-        </p>
-        <ol class="home-test-list mt-8 list-none p-0">
-          <li class="home-test-item">
-            <span class="home-test-num" aria-hidden="true">1</span>
-            <span class="home-test-title">A maintainer wrote it.</span>
-            <span class="home-test-text">It lives in their repo, under their name. Nothing anonymous, nothing generated.</span>
-          </li>
-          <li class="home-test-item">
-            <span class="home-test-num" aria-hidden="true">2</span>
-            <span class="home-test-title">A person read it.</span>
-            <span class="home-test-text">Someone opened the SKILL.md and decided it earns a place. Most things don't.</span>
-          </li>
-          <li class="home-test-item">
-            <span class="home-test-num" aria-hidden="true">3</span>
-            <span class="home-test-title">You can read it too.</span>
-            <span class="home-test-text">The source is one click away, so you see it before your agent does.</span>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <section
       id="freshness"
       class="home-wm editorial-band home-freshness-band"
       aria-labelledby="freshness-heading"
