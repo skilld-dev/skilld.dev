@@ -112,7 +112,7 @@ watch(() => route.fullPath, () => {
         </template>
 
         <template #right>
-          <SkillSearchTrigger />
+          <SkillSearchTrigger v-if="$route.path !== '/'" />
           <!--
             The flame is a deliberate exception to the "no emoji" rule in
             design-guidelines.md, asked for so Trending outweighs its siblings.
@@ -139,8 +139,8 @@ watch(() => route.fullPath, () => {
             class="hidden lg:inline-flex"
           />
           <UButton
-            to="/community"
-            label="Community"
+            to="/learn/author-npm-package-skills"
+            label="Make a skill"
             color="neutral"
             variant="ghost"
             size="sm"
@@ -240,8 +240,8 @@ watch(() => route.fullPath, () => {
                 class="min-h-11 justify-start"
               />
               <UButton
-                to="/community"
-                label="Community"
+                to="/learn/author-npm-package-skills"
+                label="Make a skill"
                 color="neutral"
                 variant="ghost"
                 block

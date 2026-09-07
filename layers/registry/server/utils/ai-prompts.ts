@@ -63,6 +63,10 @@ export const ABSTRACTNESS_CATEGORIES = [
   'code-review',
   'data-modeling',
   'deployment',
+  // Added 2026-09-04. Diagram skills were landing in `software-design`,
+  // `documentation` and `interface-design`, none of which promise a picture,
+  // so /skills/diagrams had pins and no backfill under them.
+  'diagramming',
   'documentation',
   'framework',
   'incident-response',
@@ -119,6 +123,8 @@ Rules:
 - For package-specific output, set "package" to the canonical lowercase package, product, service, or repository slug. For abstract output, set "package" to null.
 - "category" must be exactly one of: ${ABSTRACTNESS_CATEGORIES.map(category => `"${category}"`).join(', ')}.
 - Content writing and Markdown conversion use the "documentation" category. This category rule does not make a repository-specific workflow abstract.
+- "diagramming" is work whose output is a picture of a structure: architecture, data flow, sequence, state, ER and flowchart diagrams, Mermaid, draw.io, Excalidraw, PlantUML, C4, and maps of a codebase drawn for a reader. Choose it over "documentation" when the artefact is the drawing rather than the prose, and over "software-design" when the skill draws the design rather than deciding it.
+- Charts, dashboards, and data visualisation are not "diagramming". A chart plots numbers and a diagram draws a structure, so put chart and dashboard work in the domain it serves, such as "data-modeling" or "observability".
 - "interface-design" is work whose output a person sees or feels: visual design, layout, typography, colour, spacing, motion, animation, transitions, component look and feel, design systems, design tokens, interface accessibility, and UI copy. Component libraries and UI kits are interface-design.
 - "software-design" is work whose output only another developer sees: architecture, domain modelling, API contracts, module boundaries, data flow, naming, and patterns such as CQRS, event sourcing, or hexagonal architecture.
 - If a skill covers both, ask what changes when it runs. If a screen changes, choose "interface-design". Choose "software-design" only when nothing a user sees changes.

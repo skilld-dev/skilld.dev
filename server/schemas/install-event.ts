@@ -2,7 +2,9 @@ import { z } from 'zod'
 
 export const InstallEventInput = z.object({
   surface: z.string().min(1).max(64),
-  kind: z.enum(['skill', 'collection']),
+  // `repo` was added on 2026-09-04 for the homepage hero, which installs a
+  // whole repository rather than one skill. It stores the repo in `name`.
+  kind: z.enum(['skill', 'collection', 'repo']),
   owner: z.string().max(128).optional(),
   name: z.string().max(128).optional(),
   handle: z.string().max(128).optional(),

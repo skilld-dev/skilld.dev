@@ -12,7 +12,18 @@ interface CollectionTarget {
   slug: string
 }
 
-export type InstallTarget = SkillTarget | CollectionTarget
+/**
+ * A whole repository, which is what `skilld add gh:owner/repo` installs. The
+ * homepage hero copies this shape, and calling it a skill would file the site's
+ * most-copied command under a skill name that does not exist.
+ */
+interface RepoTarget {
+  kind: 'repo'
+  owner: string
+  repo: string
+}
+
+export type InstallTarget = SkillTarget | CollectionTarget | RepoTarget
 
 export type InstallCopyResult
   = | { _tag: 'copied' }
@@ -62,7 +73,9 @@ export function useInstallCopy(
         kind: t.kind,
         ...(t.kind === 'skill'
           ? { owner: t.owner, name: t.name }
-          : { handle: t.handle, slug: t.slug }),
+          : t.kind === 'repo'
+            ? { owner: t.owner, name: t.repo }
+            : { handle: t.handle, slug: t.slug }),
       },
     }).catch((error) => {
       console.warn('[install-copy] Failed to record install event:', error)

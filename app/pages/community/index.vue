@@ -23,12 +23,12 @@ const filteredCreators = computed(() => (data.value?.items ?? []).filter((creato
 
 const resultSummary = computed(() => {
   const count = filteredCreators.value.length
-  const noun = count === 1 ? 'creator' : 'creators'
+  const noun = count === 1 ? 'curator' : 'curators'
   return `${count} ${noun} shown`
 })
 
-const title = 'Community'
-const description = 'Meet the devs publishing agent skills and thoughtful collections on skilld.'
+const title = 'Curators'
+const description = 'The devs publishing agent skills and collections on skilld. Each one appears once, with the collection they lead.'
 
 useSeoMeta({
   title,
@@ -46,8 +46,8 @@ defineOgImage('Page.takumi', {
 <template>
   <div>
     <CompactPageHeader
-      title="Community"
-      description="Devs publishing workflow-ready collections and skills from real GitHub repositories. Each dev appears once."
+      title="Curators"
+      description="Devs publishing collections and skills from their own GitHub repositories. Each dev appears once."
       heading-id="community-directory-heading"
     >
       <template #aside>
@@ -64,9 +64,9 @@ defineOgImage('Page.takumi', {
         <div
           class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           role="search"
-          aria-label="Filter community creators"
+          aria-label="Filter curators"
         >
-          <div class="flex flex-wrap gap-2" role="group" aria-label="Filter community creators">
+          <div class="flex flex-wrap gap-2" role="group" aria-label="Filter curators">
             <UButton
               v-for="option in filterOptions"
               :key="option.value"
@@ -95,7 +95,7 @@ defineOgImage('Page.takumi', {
         v-if="status === 'pending'"
         class="py-8"
         aria-busy="true"
-        aria-label="Loading community creators"
+        aria-label="Loading curators"
       >
         <div class="editorial-state">
           <USkeleton class="h-4 w-32" />
@@ -125,7 +125,7 @@ defineOgImage('Page.takumi', {
       <div v-else-if="!data?.items.length" class="py-8">
         <div role="status" class="editorial-state">
           <p class="text-base font-medium">
-            No creators to show yet.
+            No curators to show yet.
           </p>
           <p class="mt-2 max-w-xl text-base leading-relaxed text-muted">
             Publish a collection for one workflow, or sign in so skilld can find SKILL.md files in your public repositories.
@@ -142,7 +142,7 @@ defineOgImage('Page.takumi', {
       <div v-else-if="!filteredCreators.length" class="py-8">
         <div role="status" class="editorial-state">
           <p class="text-base font-medium">
-            No creators match this view.
+            No curators match this view.
           </p>
           <p class="mt-2 text-base leading-relaxed text-muted">
             Show everyone to see collections and individual skills together.

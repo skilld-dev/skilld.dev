@@ -104,7 +104,14 @@ const card = computed(() =>
           <p class="data-label">
             In your inbox
           </p>
-          <div class="home-weekly-frame" aria-hidden="true" tabindex="-1">
+          <!--
+            `inert`, not `tabindex="-1"`. A negative tabindex takes the
+            container out of the tab order and leaves every link inside the
+            email markup in it, so the trap this frame was built to avoid was
+            still there. `aria-hidden` over focusable children is its own
+            violation, and `inert` is what makes the pair honest.
+          -->
+          <div class="home-weekly-frame" aria-hidden="true" inert>
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="home-weekly-card" v-html="card" />
           </div>

@@ -74,6 +74,14 @@ function sortTree(list: SkillFileTreeNode[]) {
 }
 
 const skillDir = computed(() => props.skillPath?.replace(/\/SKILL\.md$/, '') ?? '')
+
+/**
+ * The skill page renders this tree twice, once floating and once inline, so a
+ * folder id built from the path alone appeared on both. Duplicate ids are
+ * invalid, and `aria-controls` resolves to the first match, which pointed the
+ * second tree's buttons at the first tree's lists.
+ */
+const treeId = useId()
 </script>
 
 <template>
@@ -88,6 +96,7 @@ const skillDir = computed(() => props.skillPath?.replace(/\/SKILL\.md$/, '') ?? 
       :registry-path="registryPath"
       :branch="branch"
       :skill-dir="skillDir"
+      :id-prefix="treeId"
       :active-path="activePath ?? ''"
       @select="(p) => emit('select', p)"
     />

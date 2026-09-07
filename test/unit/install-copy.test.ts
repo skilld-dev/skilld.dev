@@ -141,3 +141,52 @@ describe('install copy', () => {
     }
   })
 })
+
+describe('repo install target', () => {
+  beforeEach(() => {
+    installEvents.length = 0
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('records a whole-repository copy with the repo in name', async () => {
+    // Same shape as the skill-card test above: vueuse may take either the
+    // clipboard API or the execCommand fallback, so both paths are stubbed.
+    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({
+      writeText: () => Promise.resolve(),
+    } as unknown as Clipboard)
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn(() => true),
+    })
+
+    const Harness = defineComponent({
+      setup() {
+        const { copy } = useInstallCopy(
+          ref('npx skilld add gh:obra/superpowers'),
+          'home-hero',
+          'install',
+          { kind: 'repo', owner: 'obra', repo: 'superpowers' },
+        )
+        return { copy }
+      },
+      render: () => h('div'),
+    })
+
+    const wrapper = await mountSuspended(Harness)
+    await (wrapper.vm as unknown as { copy: () => Promise<unknown> }).copy()
+    await flushPromises()
+
+    expect(installEvents).toHaveLength(1)
+    expect(installEvents[0]).toMatchObject({
+      surface: 'home-hero',
+      mode: 'install',
+      kind: 'repo',
+      owner: 'obra',
+      name: 'superpowers',
+    })
+  })
+})

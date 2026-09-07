@@ -10,7 +10,10 @@ import {
 describe('production smoke contract', () => {
   it('covers the public routes implicated by the closed incidents', () => {
     expect(PRODUCTION_SMOKE_EXPECTATIONS).toEqual(expect.arrayContaining([
-      { path: '/', status: 200, bodyContains: ['<h1'] },
+      // The homepage asserts its own hero words, because the page's error
+      // branch renders an h1 too.
+      { path: '/', status: 200, bodyContains: ['<h1', 'Taste-tested'] },
+      { path: '/alt', status: 301, location: '/' },
       { path: '/skills', status: 200, bodyContains: ['<h1'] },
       { path: '/community', status: 200, bodyContains: ['<h1'] },
       { path: '/collections', status: 301, location: '/community' },

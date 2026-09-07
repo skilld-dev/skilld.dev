@@ -366,6 +366,7 @@
 
 .home-hero-grid {
   display: grid;
+  align-items: start;
   min-width: 0;
   gap: 3rem;
   align-items: center;
@@ -1317,4 +1318,764 @@
 }
 .skill-markdown .shiki span {
   background: transparent !important;
+}
+
+/* Hero: compact category line, search and install slots above the fold. */
+.home-hero-title {
+  font-size: clamp(2.25rem, 1.3rem + 3.4vw, 4.25rem);
+  line-height: 1.06;
+}
+
+.home-hero-slots {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 36rem;
+}
+
+.home-hero-slot {
+  min-width: 0;
+}
+
+.home-hero-command {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.125rem 0.25rem 0.125rem 0.875rem;
+  border-radius: calc(var(--ui-radius) * 0.75);
+  background: color-mix(in oklab, var(--ui-bg-muted) 70%, transparent);
+  font-size: 0.9375rem;
+}
+
+.home-hero-command button {
+  opacity: 0.6;
+  transition: opacity 200ms ease-out;
+}
+
+.home-hero-command:hover button,
+.home-hero-command:focus-within button {
+  opacity: 1;
+}
+
+.home-hero-command-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.home-hero-command-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.home-hero-command .install-command {
+  white-space: nowrap;
+}
+
+.home-hero-prompt {
+  font-family: var(--font-mono);
+  color: var(--ui-text-dimmed);
+  user-select: none;
+}
+
+.home-make-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 48rem) {
+  .home-make-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.home-make-door {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: color-mix(in oklab, var(--ui-bg) 88%, transparent);
+}
+
+/* the homepage doors: three things you can do here. Rose mark, mono arrow, a rule that lights on hover. */
+.home-doors {
+  background: var(--ui-bg);
+}
+
+.home-door {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 2.5rem 1.25rem;
+  color: inherit;
+  text-decoration: none;
+  border-top: 1px solid var(--ui-border);
+  transition: background-color 200ms ease-out;
+}
+
+/* The rose rule: drawn from the left on hover, 300ms. */
+.home-door::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--ui-primary);
+  transition: width 300ms ease-out;
+}
+
+.home-door:hover,
+.home-door:focus-visible {
+  background: var(--ui-bg-muted);
+}
+
+.home-door:hover::before,
+.home-door:focus-visible::before {
+  width: 100%;
+}
+
+@media (min-width: 48rem) {
+  .home-door {
+    border-top: 0;
+    border-inline-start: 1px solid var(--ui-border);
+  }
+
+  .home-door:first-child {
+    border-inline-start: 0;
+    padding-inline-start: 0;
+  }
+
+  .home-door::before {
+    top: 0;
+  }
+}
+
+.home-door-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.25rem;
+  border-radius: calc(var(--ui-radius) * 0.75);
+  color: var(--ui-primary);
+  background: color-mix(in oklab, var(--ui-primary) 12%, transparent);
+  font-size: 1rem;
+}
+
+.home-door-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.home-door-arrow {
+  width: 1rem;
+  height: 1rem;
+  color: var(--ui-primary);
+  opacity: 0;
+  transform: translateX(-0.25rem);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.home-door:hover .home-door-arrow,
+.home-door:focus-visible .home-door-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.home-door-text {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ui-text-muted);
+  text-wrap: pretty;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-door::before,
+  .home-door-arrow {
+    transition: none;
+  }
+}
+
+/* the homepage taste test: three facts, numbered, no decoration. */
+.home-test-list {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-border);
+}
+
+@media (min-width: 48rem) {
+  .home-test-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.home-test-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 1rem;
+  grid-template-rows: auto auto;
+  align-content: start;
+  row-gap: 0.375rem;
+  min-width: 0;
+  padding: 1.5rem;
+  background: var(--ui-bg);
+}
+
+.home-test-num {
+  grid-row: span 2;
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--ui-primary);
+}
+
+.home-test-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.home-test-text {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ui-text-muted);
+  text-wrap: pretty;
+}
+
+/* the homepage hero: named agent row under the command. Proof of "every agent". */
+.home-hero-agents {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1rem;
+  row-gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  color: var(--ui-text-muted);
+}
+
+.home-hero-agent {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--ui-border);
+  border-radius: calc(var(--ui-radius) * 0.75);
+  background: color-mix(in oklab, var(--ui-bg) 70%, transparent);
+  opacity: 0.75;
+  transition: opacity 200ms ease-out, border-color 200ms ease-out, transform 200ms ease-out, box-shadow 200ms ease-out;
+}
+
+/* Bloom on hover: the tile lifts and the rose glows under it. */
+.home-hero-agent:hover {
+  opacity: 1;
+  border-color: color-mix(in oklab, var(--ui-primary) 50%, transparent);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px -12px var(--ui-primary);
+}
+
+.home-hero-agents {
+  column-gap: 0.5rem;
+}
+
+/* "ecosystem" carries the brand: rose ink and the chevron mark in place of a full stop. */
+.home-hero-eco {
+  position: relative;
+  display: inline-block;
+  color: var(--ui-primary);
+  opacity: 0.92;
+}
+
+/* Dot-grid underline: the noise field's grid, frozen, in rose. */
+.home-hero-eco::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0.04em 0.3em;
+  bottom: -0.01em;
+  height: 0.13em;
+  background-image: radial-gradient(circle, var(--ui-primary) 1px, transparent 1.25px);
+  background-size: 0.115em 0.115em;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+
+.home-hero-taste {
+  position: relative;
+  display: inline-block;
+}
+
+/* Emoji wink on the first line: sits on the cap line, clear of the last letter. */
+.home-hero-emoji {
+  position: absolute;
+  top: 0.04em;
+  right: -1.55em;
+  font-size: 0.4em;
+  line-height: 1;
+  transform: rotate(10deg);
+  transform-origin: 50% 80%;
+}
+
+/* A quick wiggle when the headline is hovered: 360ms, inside the motion budget. */
+.home-hero-title:hover .home-hero-emoji {
+  animation: home-emoji-wiggle 360ms ease-in-out;
+}
+
+@keyframes home-emoji-wiggle {
+  0% { transform: rotate(10deg); }
+  30% { transform: rotate(-6deg) scale(1.08); }
+  60% { transform: rotate(16deg) scale(1.04); }
+  100% { transform: rotate(10deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-title:hover .home-hero-emoji {
+    animation: none;
+  }
+}
+
+/* the homepage make strip: authoring is a footnote, one line and one command. */
+.home-make-strip {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.home-make-strip-actions {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  min-width: 0;
+}
+
+@media (min-width: 64rem) {
+  .home-make-strip {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+  }
+}
+
+/* the homepage rail: fade both ends so a half row reads as depth, not a bug. */
+/* The packet: a rose dot that rides the rail's spine, the CLI ripple as a signal. */
+.home-hero-rail .skill-source-stream__list::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(1.125rem - 2.5px);
+  top: 1.75rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ui-primary);
+  box-shadow: 0 0 6px 1px var(--ui-primary);
+  opacity: 0;
+  animation: home-packet 2.4s ease-in infinite;
+  animation-delay: 1s;
+  pointer-events: none;
+}
+
+@keyframes home-packet {
+  0% { transform: translateY(0); opacity: 0; }
+  8% { opacity: 1; }
+  70% { opacity: 1; }
+  78% { transform: translateY(calc(100% * 1)); opacity: 0; }
+  100% { transform: translateY(0); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-rail .skill-source-stream__list::after {
+    animation: none;
+  }
+}
+
+.home-hero-rail [class*="stream"] {
+  scrollbar-width: none;
+}
+
+.home-hero-rail [class*="stream"]::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 40rem) {
+  .home-hero-title {
+    font-size: 2.75rem;
+  }
+}
+
+/* Emphasis surface, one per page: the search carries a rose-tinted bevel. */
+.home-hero-search :is(input, [role="combobox"]) {
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklab, var(--ui-primary) 22%, rgb(255 255 255 / 0.06)),
+    0 1px 0 0 rgb(0 0 0 / 0.25);
+}
+
+/* Section watermarks: a big word printed in our dot grid, fading to the edges. */
+.home-wm {
+  position: relative;
+}
+
+.home-watermark {
+  position: absolute;
+  top: 2.5rem;
+  left: 1.25rem;
+  display: none;
+  font-size: 5.5rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ui-text-highlighted);
+  opacity: 0.32;
+  pointer-events: none;
+  user-select: none;
+  mask-image:
+    radial-gradient(circle, #000 1.1px, transparent 1.4px),
+    linear-gradient(to right, #000 30%, transparent 100%),
+    linear-gradient(to bottom, #000 40%, transparent 100%);
+  mask-size: 4px 4px, 100% 100%, 100% 100%;
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
+
+@media (min-width: 80rem) {
+  .home-watermark {
+    display: block;
+  }
+}
+
+/* ==========================================================================
+   the homepage brand system, second pass. The dot grid and the rose repeat on every
+   band, so the page reads as one made thing instead of a decorated hero.
+   ========================================================================== */
+
+/* Band edges are printed in the dot grid, not drawn as a flat rule. */
+.home-page > section,
+.home-page > nav {
+  position: relative;
+}
+
+.home-page > section::after,
+.home-page > nav::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 2;
+  height: 5px;
+  background-image: radial-gradient(circle, var(--ui-primary) 1.1px, transparent 1.4px);
+  background-size: 7px 5px;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+/* One word per heading carries the hero's dot underline. */
+.home-ink {
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in oklab, var(--ui-primary) 65%, transparent);
+  text-decoration-thickness: max(2px, 0.045em);
+  text-underline-offset: 0.16em;
+  text-decoration-skip-ink: none;
+}
+
+/* Watermarks: bigger, bleeding off the left edge, still only texture. */
+.home-watermark {
+  top: 3.5rem;
+  right: calc(50% + 36rem + 1rem);
+  white-space: nowrap;
+  font-size: 2.25rem;
+  letter-spacing: -0.02em;
+  opacity: 0.26;
+  mask-image:
+    radial-gradient(circle, #000 1.1px, transparent 1.4px),
+    linear-gradient(to left, #000 78%, transparent 100%),
+    linear-gradient(to bottom, #000 82%, transparent 100%);
+  mask-size: 3px 3px, 100% 100%, 100% 100%;
+}
+
+/* Only where the gutter is wide enough to hold the word clear of the text. */
+@media (min-width: 84rem) {
+  .home-watermark {
+    display: block;
+  }
+}
+
+/* Bands without an editorial shell still need their content above the print. */
+.home-wm > div {
+  position: relative;
+  z-index: 1;
+}
+
+/* Door marks are dot-grid tiles now, not flat rose squares. */
+.home-door-mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.125rem;
+  border: 1px solid color-mix(in oklab, var(--ui-primary) 28%, transparent);
+  background-color: color-mix(in oklab, var(--ui-primary) 10%, transparent);
+  background-image: radial-gradient(circle, color-mix(in oklab, var(--ui-primary) 55%, transparent) 1px, transparent 1.3px);
+  background-size: 5px 5px;
+  transition: background-color 200ms ease-out, border-color 200ms ease-out;
+}
+
+.home-door:hover .home-door-mark,
+.home-door:focus-visible .home-door-mark {
+  border-color: color-mix(in oklab, var(--ui-primary) 55%, transparent);
+  background-color: color-mix(in oklab, var(--ui-primary) 18%, transparent);
+}
+
+/* The taste-test numerals are printed in the grid, like the watermarks. */
+.home-test-num {
+  align-self: start;
+  line-height: 0.9;
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  opacity: 0.9;
+  mask-image: radial-gradient(circle, #000 1.1px, transparent 1.4px);
+  mask-size: 3px 3px;
+}
+
+/* The tasted chip: the hero's emoji, reused wherever a person said yes. */
+.home-tasted {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.4rem;
+  border: 1px solid color-mix(in oklab, var(--ui-primary) 32%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--ui-primary) 10%, transparent);
+  color: var(--ui-primary);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Ecosystem tiles under the authoring strip. Same chip as the agent row. */
+.home-eco-logos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+
+.home-eco-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--ui-border);
+  border-radius: calc(var(--ui-radius) * 0.75);
+  background: color-mix(in oklab, var(--ui-bg) 70%, transparent);
+  opacity: 0.7;
+  transition: opacity 200ms ease-out, border-color 200ms ease-out, box-shadow 200ms ease-out;
+}
+
+.home-eco-logo:hover {
+  opacity: 1;
+  border-color: color-mix(in oklab, var(--ui-primary) 50%, transparent);
+  box-shadow: 0 8px 22px -12px var(--ui-primary);
+}
+
+.home-eco-logo[data-state="live"] {
+  opacity: 1;
+  border-color: color-mix(in oklab, var(--ui-primary) 40%, transparent);
+  color: var(--ui-text-highlighted);
+}
+
+/* The rail spine carries a rose wash under the packet. */
+.home-hero-rail .skill-source-stream__list::after {
+  width: 7px;
+  height: 7px;
+  box-shadow: 0 0 10px 2px color-mix(in oklab, var(--ui-primary) 70%, transparent);
+}
+
+/* One heading scale for every band on /alt. The page had four before. */
+.home-page .home-h2 {
+  font-size: clamp(1.875rem, 1.5rem + 1.5vw, 2.625rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+}
+
+/* The footer draws its own top edge, so the last band does not need one. */
+.home-page > section:last-of-type::after {
+  display: none;
+}
+
+/* The rail owns its scrollbar. The component's scoped rule loads last, so the
+   override has to name the same element. */
+.home-page .home-hero-rail .skill-source-stream {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}
+
+.home-page .home-hero-rail .skill-source-stream::-webkit-scrollbar {
+  display: none;
+}
+
+/* Tiles recede on their border, not on opacity. Dimmed text read as disabled. */
+.home-hero-agent,
+.home-eco-logo,
+.home-eco-logo[data-state="live"] {
+  opacity: 1;
+}
+
+.home-hero-agent {
+  font-size: 0.8125rem;
+}
+
+/* Two h3 steps under the heading scale, not four. */
+.home-page .home-featured-lead__title {
+  font-size: 1.75rem;
+}
+
+.home-page .home-freshness-primary-title,
+.home-page .home-freshness-secondary-title {
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* A whole row fits inside the fade, so no row is ever half legible. */
+.home-page .home-hero-rail .skill-source-stream {
+  mask-image: linear-gradient(to bottom, transparent 0%, black 13%, black 90%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 13%, black 90%, transparent 100%);
+}
+
+/* "No sign-up." was breaking across lines at 390px. */
+.home-page .data-label {
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+/* Track cards: the depth behind a track, and a mark on one just admitted. */
+.outcome-index__foot {
+  display: flex;
+  margin-top: 0.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.outcome-index__foot .outcome-index__avatars {
+  margin-top: 0;
+}
+
+.outcome-index__count {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--ui-text-dimmed);
+  font-variant-numeric: tabular-nums;
+}
+
+.outcome-index__new {
+  display: inline-block;
+  margin-inline-start: 0.4rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: calc(var(--ui-radius) * 0.5);
+  background: color-mix(in oklab, var(--ui-primary) 16%, transparent);
+  color: var(--ui-primary);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: 0.12em;
+}
+
+/* The icon takes the brand colour on hover, like the doors above it. */
+@media (hover: hover) {
+  .outcome-index__item:hover .iconify {
+    color: var(--ui-primary);
+  }
+}
+
+/* Below 30rem the feed heading and its link fight for one row, so the title
+   wraps to two lines beside a button. Stack them instead. */
+@media (max-width: 30rem) {
+  .home-page .home-freshness-feed-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+
+/* The authoring command sits beside its copy button, like the hero's. */
+.home-make-command {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.home-make-command .install-command {
+  min-width: 0;
+}
+
+/* "+N more" closes the lead collection's skill list when it is truncated. */
+.home-featured-skill-more {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+}
+
+/* An in-page jump landed the heading flush against the sticky header, with no
+   space above it. The header is 4rem; this adds a breath on top of that. */
+.home-page > section[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+/* ==========================================================================
+   Brand, site wide. The homepage carries the full system; these are the two
+   parts that belong on every page, so a visitor who clicks through does not
+   leave the brand behind.
+   ========================================================================== */
+
+/* Highlight anything, anywhere, and the brand colour comes with it. */
+::selection {
+  background: color-mix(in oklab, var(--ui-primary) 30%, transparent);
+  color: var(--ui-text-highlighted);
+}
+
+/*
+ * Band edges are printed in the dot grid rather than drawn as a flat rule.
+ * The border stays in the box model and gives up its colour, so nothing
+ * reflows and the dots sit exactly where the line was.
+ */
+.editorial-band.border-b {
+  border-bottom-color: transparent;
+}
+
+.editorial-band.border-b::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 2;
+  height: 5px;
+  background-image: radial-gradient(circle, var(--ui-primary) 1.1px, transparent 1.4px);
+  background-size: 7px 5px;
+  opacity: 0.28;
+  pointer-events: none;
 }

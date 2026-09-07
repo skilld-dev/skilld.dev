@@ -95,7 +95,7 @@ function showMore() {
 const title = computed(() =>
   clusterData.value
     ? clusterData.value.cluster.seoTitle
-    : 'Agent skills by category',
+    : 'Agent skills by track',
 )
 const description = computed(
   () => clusterData.value
@@ -127,7 +127,7 @@ useHead({
 
 defineOgImage('Page.takumi', {
   title: () => clusterData.value?.cluster.label ?? 'Agent skills',
-  description: () => clusterData.value?.cluster.userVoice ?? 'Browse skills by category.',
+  description: () => clusterData.value?.cluster.userVoice ?? 'Browse skills by track.',
 }, { alt: () => `${clusterData.value?.cluster.label ?? 'Agent skills'} on skilld` })
 </script>
 
@@ -225,7 +225,7 @@ defineOgImage('Page.takumi', {
       <div class="flex flex-wrap gap-3">
         <UButton
           to="/skills"
-          label="Browse categories"
+          label="Browse tracks"
           color="neutral"
           variant="outline"
           icon="i-lucide-arrow-left"
@@ -340,7 +340,7 @@ defineOgImage('Page.takumi', {
         </p>
         <UButton
           to="/skills"
-          label="Browse categories"
+          label="Browse tracks"
           color="neutral"
           variant="outline"
           class="mt-4 min-h-11"
@@ -380,12 +380,20 @@ defineOgImage('Page.takumi', {
   color: var(--ui-text);
 }
 
+/* Printed in the dot grid and inked rose, the same numerals the homepage
+   uses for the taste test. One brand, whichever page you land on. */
 .cluster-sequence-number {
-  padding-top: 0.75rem;
+  padding-top: 0.7rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-text-muted);
+  color: var(--ui-primary);
+  opacity: 0.85;
+  mask-image: radial-gradient(circle, #000 1.1px, transparent 1.4px);
+  mask-size: 3px 3px;
 }
 
 @media (max-width: 39.999rem) {

@@ -31,12 +31,12 @@ useHead({
 <template>
   <div class="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 md:py-16">
     <header class="max-w-2xl">
-      <p class="section-label">
-        Brand kit / GitHub badge
-      </p>
-      <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
-        A small mark with one job
+      <h1 class="text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
+        The GitHub badge, a small mark with one job
       </h1>
+      <p class="data-label mt-3">
+        Brand kit
+      </p>
       <p class="mt-4 text-base leading-relaxed text-muted">
         Make a skill recognizable in a README, then earn the click.
       </p>
@@ -113,12 +113,12 @@ useHead({
     <section class="mt-10" aria-labelledby="readme-context-heading">
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p class="section-label">
-            README context
-          </p>
-          <h2 id="readme-context-heading" class="mt-2 text-xl font-semibold text-highlighted">
+          <h2 id="readme-context-heading" class="text-xl font-semibold text-highlighted">
             jd-solanki/skills
           </h2>
+          <p class="data-label mt-2">
+            README context
+          </p>
         </div>
         <a
           href="https://github.com/jd-solanki/skills/tree/main"

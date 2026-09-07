@@ -20,24 +20,16 @@ const {
 } = useSkillSearch()
 
 const container = useTemplateRef<HTMLElement>('container')
-const desktopInput = useTemplateRef<{ inputRef?: HTMLInputElement }>('desktopInput')
-const mobileInput = useTemplateRef<{ inputRef?: HTMLInputElement }>('mobileInput')
+const input = useTemplateRef<{ inputRef?: HTMLInputElement }>('input')
 
 function openPanel(): void {
   open.value = true
   void loadTypeaheadIndex()
 }
 
-async function openMobile(): Promise<void> {
-  openPanel()
-  await nextTick()
-  mobileInput.value?.inputRef?.focus()
-}
-
 function dismiss(): void {
   close()
-  desktopInput.value?.inputRef?.blur()
-  mobileInput.value?.inputRef?.blur()
+  input.value?.inputRef?.blur()
 }
 
 async function goToResults(): Promise<void> {
@@ -88,7 +80,6 @@ onClickOutside(container, () => {
     close()
 })
 
-// Escape closes the panel wherever focus sits inside it.
 onKeyStroke('Escape', () => {
   if (open.value)
     dismiss()
@@ -98,9 +89,7 @@ watch(() => route.fullPath, () => {
   close()
 })
 
-// Both must be absent while the panel is closed: the listbox is not in the
-// DOM then, and ARIA references to missing ids are themselves a violation.
-const listboxId = computed(() => (open.value && rows.value.length ? 'skill-search-listbox' : undefined))
+const listboxId = computed(() => (open.value && rows.value.length ? 'home-search-listbox' : undefined))
 const activeDescendant = computed(() =>
   open.value && rows.value.length ? `skill-search-row-${activeIndex.value}` : undefined,
 )
@@ -108,23 +97,22 @@ const activeDescendant = computed(() =>
 
 <template>
   <div ref="container" class="relative">
-    <!-- Desktop: the field itself is the affordance -->
     <UInput
-      id="global-skill-search"
-      ref="desktopInput"
+      id="home-skill-search"
+      ref="input"
       v-model="query"
       icon="i-lucide-search"
-      placeholder="Search"
-      name="skill-search"
+      placeholder="What should your agent learn today?"
+      name="q"
       enterkeyhint="search"
-      size="sm"
+      size="xl"
       autocomplete="off"
       role="combobox"
       aria-label="Search skills or index a GitHub repository"
       :aria-expanded="open"
       :aria-controls="listboxId"
       :aria-activedescendant="activeDescendant"
-      class="hidden md:block md:w-44 lg:w-52"
+      class="w-full"
       :ui="{ base: 'font-mono' }"
       @focus="openPanel"
       @keydown.down="onArrow($event, 1)"
@@ -132,43 +120,15 @@ const activeDescendant = computed(() =>
       @keydown.enter="onEnter"
     >
       <template v-if="!query" #trailing>
-        <UKbd value="/" />
+        <UKbd value="Enter" class="hidden sm:inline-flex" />
       </template>
     </UInput>
-
-    <!-- Mobile: an icon until asked for, so the header stays uncrowded -->
-    <UButton
-      icon="i-lucide-search"
-      color="neutral"
-      variant="ghost"
-      size="sm"
-      class="min-h-11 min-w-11 md:hidden"
-      aria-label="Search skills"
-      :aria-expanded="open"
-      @click="() => { void openMobile() }"
-    />
 
     <Transition name="search-panel">
       <div
         v-if="open"
-        class="fixed inset-x-2 top-16 z-50 md:absolute md:inset-x-auto md:top-full md:end-0 md:mt-2 md:w-[min(46rem,calc(100vw-3rem))]"
+        class="absolute inset-x-0 top-full z-40 mt-2 md:w-[min(46rem,calc(100vw-3rem))]"
       >
-        <UInput
-          ref="mobileInput"
-          v-model="query"
-          icon="i-lucide-search"
-          placeholder="Search skills or paste GitHub URL…"
-          name="skill-search-mobile"
-          enterkeyhint="search"
-          size="lg"
-          autocomplete="off"
-          aria-label="Search skills or index a GitHub repository"
-          class="mb-2 w-full md:hidden"
-          :ui="{ base: 'font-mono' }"
-          @keydown.down="onArrow($event, 1)"
-          @keydown.up="onArrow($event, -1)"
-          @keydown.enter="onEnter"
-        />
         <SkillSearchPanel @select="(row) => { void select(row) }" />
       </div>
     </Transition>

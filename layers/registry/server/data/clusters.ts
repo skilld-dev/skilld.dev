@@ -64,6 +64,19 @@
  * and `/skills/docs` 301 here. Anti-slop is dev-facing work: READMEs, docs,
  * and posts written with an agent.
  *
+ * 2026-09-04: two rows on measured demand. The same day, `security` merged
+ * into `backend-data` (#134), so the taxonomy lands at 14, not 15.
+ * `diagrams` is new: it took 10.8% of weighted trending demand and the top
+ * skill of the week (tt-a1i/archify), and its skills were scattering across
+ * three tracks that promise something else. `research` returns 22 days after
+ * it was culled, at 6.5%, led by browser-use. Nothing retired against them,
+ * which is a deliberate break with principle 2: a track page answers search
+ * demand and costs a URL, while a homepage tile answers trending demand and
+ * costs the scarcest space on the site. The grid caps at twelve, so the
+ * subtraction happens there. `seo` and `coding` keep their pages and lose
+ * their tiles. Method and numbers:
+ * ~/scratch/notes/skilld-track-demand-2026-09-04.md
+ *
  * 2026-08-25: `anti-slop-coding` joined as the coding counterpart. Its seven
  * pinned skills preserve the shared ranking and keep the page focused. It has
  * no classifier backfill: broad code-review and refactoring results already
@@ -94,6 +107,12 @@ export interface Cluster {
   categories: string[]
   /** Hand-picked `owner/name` keys that lead cards and detail pages. */
   pinnedExamples: string[]
+  /**
+   * ISO date the track was admitted, or null for the rows that predate the
+   * field. The grid marks a track added inside the last 45 days, so a returning
+   * visitor can see the taxonomy moved without reading a changelog.
+   */
+  addedAt: string | null
 }
 
 export const CLUSTERS: Cluster[] = [
@@ -113,6 +132,7 @@ export const CLUSTERS: Cluster[] = [
     // architecture half of the old `design` label moved to `planning`, where
     // "turn rough ideas into plans and specs" already lives.
     categories: ['interface-design'],
+    addedAt: null,
     pinnedExamples: [
       'emilkowalski/emil-design-eng',
       'jakubkrehel/make-interfaces-feel-better',
@@ -138,6 +158,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'essentials',
     audience: 'dev',
     categories: ['framework', 'rendering'],
+    addedAt: null,
     pinnedExamples: [
       'vercel-labs/find-skills',
       'othmanadi/planning-with-files',
@@ -162,6 +183,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'dev',
     categories: [],
+    addedAt: null,
     pinnedExamples: [
       'dmmulroy/install-anti-slop',
       'cursor/thermo-nuclear-code-quality-review',
@@ -186,7 +208,9 @@ export const CLUSTERS: Cluster[] = [
       'Run multi-pass changes with focused delegation, parallel work, browser control, and verification, then build the skill you were missing.',
     mergedFrom: 'agent-workflow',
     audience: 'dev',
-    categories: ['automation', 'scraping'],
+    // `scraping` moved to `research` on 2026-09-04. Values may not repeat.
+    categories: ['automation'],
+    addedAt: null,
     pinnedExamples: [
       'obra/subagent-driven-development',
       'obra/dispatching-parallel-agents',
@@ -220,6 +244,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'code-review',
     audience: 'dev',
     categories: ['code-review', 'refactoring'],
+    addedAt: null,
     pinnedExamples: [
       'pbakaus/resolve-agent-reviews',
       'obra/requesting-code-review',
@@ -244,6 +269,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'dev',
     categories: ['testing', 'incident-response', 'observability'],
+    addedAt: null,
     pinnedExamples: [
       'mattpocock/tdd',
       'obra/test-driven-development',
@@ -268,6 +294,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'web-quality',
     audience: 'dev',
     categories: ['performance'],
+    addedAt: null,
     pinnedExamples: [
       'addyosmani/web-quality-audit',
       'addyosmani/core-web-vitals',
@@ -291,6 +318,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'backend-data',
     audience: 'dev',
     categories: ['data-modeling', 'security', 'auth'],
+    addedAt: null,
     pinnedExamples: [
       'supabase/supabase-postgres-best-practices',
       'stripe/stripe-best-practices',
@@ -316,6 +344,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'dev',
     categories: ['ci-cd', 'deployment', 'release-management', 'migrations'],
+    addedAt: null,
     pinnedExamples: [
       'obra/using-git-worktrees',
       'github/git-commit',
@@ -337,6 +366,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: 'codebase-architecture',
     audience: 'dev',
     categories: ['planning', 'project-management', 'software-design'],
+    addedAt: null,
     pinnedExamples: [
       'obra/brainstorming',
       'n8n-io/spec-driven-development',
@@ -361,6 +391,7 @@ export const CLUSTERS: Cluster[] = [
     // Inherited from `writing` when it retired into this row: the
     // documentation backfill gives the page depth under the ten ranked leads.
     categories: ['documentation'],
+    addedAt: null,
     pinnedExamples: [
       'hardikpandya/stop-slop',
       'petergyang/no-ai-slop',
@@ -374,6 +405,62 @@ export const CLUSTERS: Cluster[] = [
       // (`humanize`) renders as its display name.
       'aashaexo/soundshuman',
       'jalaalrd/anti-ai-slop-writing',
+    ],
+  },
+
+  {
+    slug: 'diagrams',
+    label: 'Diagrams and codebase maps',
+    icon: 'i-lucide-workflow',
+    userVoice: 'You need the system drawn before you can change it.',
+    seoTitle: 'Agent Skills for Diagrams and Architecture Maps',
+    seoDescription:
+      'Diagram and codebase-map skills for Claude Code, Cursor, and Codex. Draw architecture, data flow, and pull requests as pictures, from the maintainers who wrote the tools.',
+    // No "trending this week" claim here. The note renders under the curator's
+    // name on the page and would be wrong within a month.
+    curatorNote:
+      'Skills that draw the system: architecture and data flow, a map of a codebase you have not read, and the shape of a pull request.',
+    mergedFrom: null,
+    audience: 'dev',
+    // `diagramming` was added to the classifier on 2026-09-04 for this track.
+    // Pins lead; the category is the backfill under them.
+    categories: ['diagramming'],
+    addedAt: '2026-09-04',
+    pinnedExamples: [
+      'tt-a1i/archify',
+      'garrytan/diagram',
+      'kingbootoshi/cartographer',
+      'coldteadotai/pr-lens',
+      'github/architecture-blueprint-generator',
+      'github/excalidraw-diagram-generator',
+      'cathrynlavery/diagram-design',
+      'humanlayer/show-me',
+      'kepano/json-canvas',
+    ],
+  },
+  {
+    slug: 'research',
+    label: 'Research and web content',
+    icon: 'i-lucide-telescope',
+    userVoice: 'You send the agent out to read the web and bring back sources.',
+    seoTitle: 'Agent Skills for Research and Web Scraping',
+    seoDescription:
+      'Research and scraping skills for Claude Code, Cursor, and Codex. Drive a browser, pull a page down to clean text, and come back with sources you can check.',
+    curatorNote:
+      'Send the agent out and get sources back: browser control, scraping, deep research passes, and turning a page or a document into text an agent can read.',
+    mergedFrom: null,
+    audience: 'dev',
+    categories: ['scraping'],
+    addedAt: '2026-09-04',
+    pinnedExamples: [
+      'browser-use/browser-use',
+      'mattpocock/research',
+      'mvanhorn/last30days',
+      'kepano/defuddle',
+      'firecrawl/convert-documents-to-markdown',
+      'garrytan/scrape',
+      'bytedance/github-deep-research',
+      'imbad0202/deep-research',
     ],
   },
 
@@ -394,6 +481,7 @@ export const CLUSTERS: Cluster[] = [
     mergedFrom: null,
     audience: 'test',
     categories: [],
+    addedAt: null,
     pinnedExamples: [
       // Addy Osmani's, already the anchor of /skills/performance. Pinned in
       // both because it genuinely answers both questions.
@@ -525,5 +613,9 @@ export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {
  * north-star user. They have no category that answers the same question, so
  * they 301 to `/skills` rather than to a category that would mislead.
  * The route policy reads this so the old paths reach the redirect layer.
+ *
+ * 2026-09-04: `research` came off this list. It was culled on no evidence and
+ * came back with some: 6.5% of weighted trending demand, led by browser-use at
+ * rank 6 for the week. Its 301 in nuxt.config.ts went with it.
  */
-export const CULLED_CLUSTER_SLUGS: string[] = ['marketing', 'research']
+export const CULLED_CLUSTER_SLUGS: string[] = ['marketing']
