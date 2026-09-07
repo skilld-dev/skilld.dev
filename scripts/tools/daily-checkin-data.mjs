@@ -222,11 +222,15 @@ const d1 = probe(() => {
     has('digest_runs') ? `(SELECT COUNT(*) FROM digest_runs WHERE status = 'sent' AND sent_at >= ${sinceSec}) AS digests_sent` : 'NULL AS digests_sent',
     has('digest_runs') ? `(SELECT COUNT(*) FROM digest_runs WHERE status = 'failed' AND window_end >= ${sinceSec}) AS digests_failed` : 'NULL AS digests_failed',
   ]
+  // A count alone gives the 3-repo AMBER gate nothing to repair or prune, so
+  // the identities behind `newly_broken_repos_impacted` are archived too: one
+  // row per impacted repo with the reasons it still backs. The filter is shared
+  // with the count so the number and the rows can never disagree.
+  const impactedBrokenReposGuarded = has('repos') && has('skills') && has('user_starred_repos') && has('skill_subscriptions') && has('collection_skills_v2') && has('activity') && has('install_events')
+  const impactedBrokenReposWhere = `r.broken_since >= ${sinceSec} AND (EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) OR EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) OR EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) OR EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) OR EXISTS (SELECT 1 FROM activity a JOIN install_events ie ON ie.slug = a.owner || '/' || a.name WHERE a.owner = r.owner AND a.repo = r.repo))`
   const pipelineParts = [
     has('repos') ? `(SELECT COUNT(*) FROM repos WHERE broken_since >= ${sinceSec}) AS newly_broken_repos_total` : 'NULL AS newly_broken_repos_total',
-    has('repos') && has('skills') && has('user_starred_repos') && has('skill_subscriptions') && has('collection_skills_v2') && has('activity') && has('install_events')
-      ? `(SELECT COUNT(*) FROM repos r WHERE r.broken_since >= ${sinceSec} AND (EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) OR EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) OR EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) OR EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) OR EXISTS (SELECT 1 FROM activity a JOIN install_events ie ON ie.slug = a.owner || '/' || a.name WHERE a.owner = r.owner AND a.repo = r.repo))) AS newly_broken_repos_impacted`
-      : 'NULL AS newly_broken_repos_impacted',
+    impactedBrokenReposGuarded ? `(SELECT COUNT(*) FROM repos r WHERE ${impactedBrokenReposWhere}) AS newly_broken_repos_impacted` : 'NULL AS newly_broken_repos_impacted',
     has('skills') ? `(SELECT COUNT(*) FROM skills WHERE sync_status IS NOT NULL AND sync_status != 'ok' AND last_synced_at >= ${sinceSec}) AS skill_sync_failures` : 'NULL AS skill_sync_failures',
     has('skill_dirty') ? `(SELECT COUNT(*) FROM skill_dirty WHERE queued_at < ${Math.floor(now.getTime() / 1000) - 3600}) AS stale_dirty_skills` : 'NULL AS stale_dirty_skills',
     // `ai_batches` covers the Anthropic batch pipeline only, and embeddings never
@@ -304,6 +308,9 @@ const d1 = probe(() => {
     has('discovery_ledger') ? `(SELECT COUNT(*) FROM discovery_ledger WHERE status = 'indexed') AS x_ledger_indexed` : 'NULL AS x_ledger_indexed',
   ]
 
+  const impactedBrokenRepos = impactedBrokenReposGuarded
+    ? d1Query(`SELECT r.owner, r.repo, rtrim((CASE WHEN EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) THEN 'skill ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) THEN 'star ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) THEN 'subscription ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) THEN 'collection ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM activity a JOIN install_events ie ON ie.slug = a.owner || '/' || a.name WHERE a.owner = r.owner AND a.repo = r.repo) THEN 'install ' ELSE '' END)) AS reason FROM repos r WHERE ${impactedBrokenReposWhere} ORDER BY r.broken_since DESC`)
+    : null
   const syncJobs = has('sync_jobs')
     ? d1Query(`SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error FROM sync_jobs WHERE enabled = 1 ORDER BY name`)
     : null
@@ -333,7 +340,10 @@ const d1 = probe(() => {
     tables: [...tables],
     inventory: d1Query(`SELECT ${inventoryParts.join(', ')}`)[0],
     activity: d1Query(`SELECT ${activityParts.join(', ')}`)[0],
-    pipeline: d1Query(`SELECT ${pipelineParts.join(', ')}`)[0],
+    pipeline: {
+      ...d1Query(`SELECT ${pipelineParts.join(', ')}`)[0],
+      newly_broken_repos_impacted_identities: impactedBrokenRepos,
+    },
     cost: withXSpend(d1Query(`SELECT ${costParts.join(', ')}`)[0]),
     syncJobs,
     failedJobFingerprints,
