@@ -36,6 +36,26 @@ export function sentryRelease(): string | undefined {
   return process.env.SENTRY_RELEASE || process.env.GITHUB_SHA || undefined
 }
 
+/**
+ * The message prefix Workers KV rejects every cache write with
+ * (`KV PUT failed: 429 Too Many Requests`, Sentry SKILLD-17). Nitro's route
+ * cache treats the rejection as best-effort: it catches it, logs it, and still
+ * serves the response, then forwards the caught error to Sentry as unhandled.
+ * `writeCache` (shared/server/cache.ts) holds the same line for the project's
+ * own cache writes and records the failure as a wide event instead, so the
+ * forwarded error is a duplicate of a failure class already handled. The
+ * server Sentry config uses this predicate to drop exactly that signature in
+ * `beforeSend`; every other error still reaches Sentry.
+ */
+export function isBestEffortCacheWriteError(error: unknown): boolean {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null
+      ? (error as { message?: unknown }).message ?? (error as { value?: unknown }).value
+      : undefined
+  return typeof message === 'string' && message.startsWith('KV PUT failed:')
+}
+
 export function createSentryDataCollection() {
   return {
     userInfo: false,
