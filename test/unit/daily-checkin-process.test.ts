@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
-import { ghEnv, runReadOnlyProcess } from '../../scripts/tools/daily-checkin-process.mjs'
+import { ghEnv, runReadOnlyProcess, subprocessEnv } from '../../scripts/tools/daily-checkin-process.mjs'
 
 describe('daily check-in process runner', () => {
   it('retries one transient signal termination', () => {
@@ -48,6 +48,31 @@ describe('daily check-in gh environment', () => {
     const env = { HOME: '/home/harlan' }
 
     expect(ghEnv(env, spawn)).toEqual({ HOME: '/home/harlan' })
+    expect(spawn).not.toHaveBeenCalled()
+  })
+})
+
+describe('daily check-in subprocess environment', () => {
+  const staleEnv = { GITHUB_TOKEN: 'gho_stale', GH_TOKEN: 'ghp_stale', HOME: '/home/harlan' }
+  const rejectToken = () => vi.fn()
+    .mockReturnValue({ status: 1, stdout: '', stderr: 'gh: HTTP 401: Bad credentials (https://api.github.com/user)' })
+
+  it('serves gh the sanitized environment', () => {
+    const spawn = rejectToken()
+
+    expect(subprocessEnv('gh', staleEnv, () => ghEnv(staleEnv, spawn))).toEqual({ HOME: '/home/harlan' })
+  })
+
+  it('serves git the sanitized environment so a stale token cannot reach the credential helper', () => {
+    const spawn = rejectToken()
+
+    expect(subprocessEnv('git', staleEnv, () => ghEnv(staleEnv, spawn))).toEqual({ HOME: '/home/harlan' })
+  })
+
+  it('leaves other commands on the inherited environment without paying for token resolution', () => {
+    const spawn = rejectToken()
+
+    expect(subprocessEnv('wrangler', staleEnv, () => ghEnv(staleEnv, spawn))).toEqual(staleEnv)
     expect(spawn).not.toHaveBeenCalled()
   })
 })

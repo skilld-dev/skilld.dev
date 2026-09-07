@@ -15,7 +15,7 @@ import {
   refreshProductionRef,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
-import { ghEnv, runReadOnlyProcess } from './daily-checkin-process.mjs'
+import { ghEnv, runReadOnlyProcess, subprocessEnv } from './daily-checkin-process.mjs'
 import { parseSentryIssuesResponse } from './sentry-observability.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -39,13 +39,11 @@ const wrangler = join(root, 'node_modules/.bin/wrangler')
 let ghEnvironment
 function run(command, args, options = {}) {
   const baseEnv = { ...process.env, NO_COLOR: '1' }
-  if (command === 'gh')
-    ghEnvironment ??= ghEnv(baseEnv, spawnSync)
   return runReadOnlyProcess(spawnSync, command, args, {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
-    env: command === 'gh' ? ghEnvironment : baseEnv,
+    env: subprocessEnv(command, baseEnv, () => (ghEnvironment ??= ghEnv(baseEnv, spawnSync))),
   })
 }
 
