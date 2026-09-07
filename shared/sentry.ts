@@ -37,6 +37,22 @@ export function sentryRelease(): string | undefined {
 }
 
 /**
+ * The message an error carries as it reaches the Sentry `beforeSend` hook.
+ *
+ * The hook sees two shapes. `hint.originalException` is the thrown `Error`,
+ * so the message sits on `.message`. A serialized exception value inside
+ * `event.exception.values` is a plain object, and Sentry puts the message on
+ * `.value` (an `H3Error` serialized by Nitro keeps `.message`).
+ */
+function sentryExceptionMessage(error: unknown): unknown {
+  return error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error !== null
+      ? (error as { message?: unknown }).message ?? (error as { value?: unknown }).value
+      : undefined
+}
+
+/**
  * The message prefix Workers KV rejects every cache write with
  * (`KV PUT failed: 429 Too Many Requests`, Sentry SKILLD-17). Nitro's route
  * cache treats the rejection as best-effort: it catches it, logs it, and still
@@ -48,12 +64,26 @@ export function sentryRelease(): string | undefined {
  * `beforeSend`; every other error still reaches Sentry.
  */
 export function isBestEffortCacheWriteError(error: unknown): boolean {
-  const message = error instanceof Error
-    ? error.message
-    : typeof error === 'object' && error !== null
-      ? (error as { message?: unknown }).message ?? (error as { value?: unknown }).value
-      : undefined
+  const message = sentryExceptionMessage(error)
   return typeof message === 'string' && message.startsWith('KV PUT failed:')
+}
+
+/**
+ * The suffix shared by the intended upstream-outage 503s the registry handlers
+ * raise after `fetchUpstreamTree` or `fetchUpstreamText` reports the outage as
+ * an operational wide event ('Skill source is unavailable upstream',
+ * 'SKILL.md source is unavailable upstream', 'Asset source is unavailable
+ * upstream', Sentry SKILLD-11 and SKILLD-1E). Nitro forwards the thrown
+ * `createError` to Sentry as unhandled, so the capture duplicates a failure
+ * class the wide event already records. The server Sentry config drops that
+ * signature in `beforeSend`; every other error still reaches Sentry.
+ *
+ * The gone-source 410 ('Skill source is gone upstream') is a permanent
+ * verdict, not an outage, and does not carry the suffix, so it still lands.
+ */
+export function isExpectedUpstreamOutageError(error: unknown): boolean {
+  const message = sentryExceptionMessage(error)
+  return typeof message === 'string' && message.endsWith('unavailable upstream')
 }
 
 export function createSentryDataCollection() {
