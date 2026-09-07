@@ -595,7 +595,19 @@ export function evaluateDailyHealthStatus(
   if (x.readsMonth >= 500 && x.verifiedSkillsTotal === 0)
     amber.push(`X discovery has spent ${x.readsMonth} reads this month and verified no skills.`)
 
-  const partialSyncJobs = summary.pipeline.syncJobs.filter(job => job.status === 'partial')
+  // `reportJobRun` keeps `last_status` until the job's next run, so a monthly
+  // task paused after a partial verdict re-alarmed every night until the next
+  // scheduled run a month later (send-digests 2026-09-01 drove nightly AMBER
+  // into October). A partial is news only while its run falls inside this
+  // report's 24 hour window; an older verdict is either superseded by a newer
+  // run or covered by the staleness alarm above. An unparseable window keeps
+  // the unbounded filter so the alarm fails loud rather than silent.
+  const windowFromSec = Math.floor(Date.parse(summary.window.from) / 1000)
+  const partialSyncJobs = summary.pipeline.syncJobs.filter(job =>
+    job.status === 'partial'
+    && (Number.isNaN(windowFromSec)
+      || (job.lastRunAt !== null && job.lastRunAt >= windowFromSec)),
+  )
   if (partialSyncJobs.length)
     amber.push(`Scheduled tasks partially failed: ${partialSyncJobs.map(job => job.name).join(', ')}.`)
   const unhealthyScheduledRuns = summary.pipeline.scheduledRuns.filter(run => run.health.alertable)
