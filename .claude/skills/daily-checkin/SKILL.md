@@ -23,7 +23,7 @@ Produce one read-only morning report that answers: what changed, what broke, wha
    - AI cost is only the recorded batch estimate. Unmeasured services are unknown, not $0.
    - X API is pay-per-use at $0.005 per post read, with no included allowance and a $20/month target. Accepted 2026-08-31 at a projected $18.15/month, which raised the target from $10. Gate on `d1.cost`:
      - `x_over_budget` true is AMBER. The daily discovery budget failed to hold and the month will overrun.
-     - `x_projected_monthly_usd` above 20 is AMBER, above 40 is RED, even when `x_over_budget` is false. Report the figure every run, not only when it breaches.
+     - `x_projected_monthly_usd` above 40 is AMBER, above 60 is RED, even when `x_over_budget` is false. Harlan raised the accepted line from $30 to $40 on 2026-09-07 (issue #160). Report the figure every run, not only when it breaches.
      - `x_budget_used_pct` at 100 on consecutive days means discovery is truncating. That is the designed steady state, not a fault. Say so rather than reporting it as a failure.
      - `x_discovery_reads_today` is the billed number. `x_posts_24h` counts only posts that survived repo extraction, so a large gap between them means the search query is paying for posts it discards. Flag a gap above 50% as a query-tuning action.
 4. Write `docs/ops/checkins/YYYY-MM-DD.md`:
