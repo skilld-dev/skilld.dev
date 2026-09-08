@@ -97,6 +97,27 @@ describe('skills-raw stale fallback', () => {
     expect(responseHeaders.has('retry-after')).toBe(false)
   })
 
+  it('serves the last-good body when the tree answers but the content read is unavailable', async () => {
+    // SKILLD-11: raw.githubusercontent.com answered 503 while the ungh tree
+    // was healthy. The content stage is the observed outage point, so the
+    // stale copy must survive a content-stage failure, and the failure must
+    // not leave a "missing" marker behind.
+    cache.getItem.mockResolvedValue({
+      storedAt: Date.now() - 10 * 60 * 1000,
+      value: { status: 'ok', body: '# last good body', branch: 'main', path: 'skills/skill/SKILL.md' },
+    })
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ files: [{ path: 'skills/skill/SKILL.md' }] }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('upstream down', { status: 503 })))
+
+    const handler = (await import('../../layers/registry/server/api/skills-raw/[...slug].get')).default
+    const body = await handler(event())
+
+    expect(body).toBe('# last good body')
+    expect(responseHeaders.get('content-type')).toBe('text/markdown; charset=utf-8')
+    expect(responseHeaders.has('retry-after')).toBe(false)
+    expect(cache.setItem).not.toHaveBeenCalled()
+  })
+
   it('serves a fresh envelope without calling upstream', async () => {
     cache.getItem.mockResolvedValue({
       storedAt: Date.now(),
