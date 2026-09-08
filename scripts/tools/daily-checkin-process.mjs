@@ -46,3 +46,17 @@ export function ghEnv(env, spawn) {
     return keyringEnv
   }
 }
+
+/**
+ * Commands whose subprocesses authenticate to GitHub share the sanitized
+ * environment; everything else inherits the caller's environment untouched.
+ * git serves github.com credentials through the `gh auth git-credential`
+ * helper, which reads the same environment variables gh does, so a stale
+ * token breaks `git fetch` exactly the way it breaks gh. Resolution is
+ * handed over lazily so commands that never touch GitHub never pay for it.
+ */
+export function subprocessEnv(command, baseEnv, resolveGitHubEnv) {
+  if (command === 'gh' || command === 'git')
+    return resolveGitHubEnv()
+  return baseEnv
+}
