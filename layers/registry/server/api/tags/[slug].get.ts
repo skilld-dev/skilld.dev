@@ -207,8 +207,9 @@ export default defineCachedEventHandler(async (event) => {
 
   return profile
 }, {
-  maxAge: 60,
-  swr: false,
+  maxAge: 60 * 60, // 1 hour fresh
+  staleMaxAge: 60 * 60 * 24, // 1 day of stale-while-revalidate serving
+  swr: true,
   getKey: (event) => {
     const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
     const view = getQuery(event).view === 'data' ? 'data' : 'canonical'
