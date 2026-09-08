@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_TARGETS, skillDocUrl } from '../../app/utils/agents'
-
-describe('skillDocUrl', () => {
-  it('points at the pristine SKILL.md endpoint, which serves text/markdown', () => {
-    expect(skillDocUrl('obra', 'superpowers', 'brainstorming'))
-      .toBe('https://skilld.dev/api/skills-raw/obra/superpowers/brainstorming')
-  })
-})
+import { AGENT_TARGETS } from '../../app/utils/agents'
 
 describe('agent registry', () => {
   it('tells every agent how to confirm the install landed', () => {

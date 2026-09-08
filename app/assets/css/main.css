@@ -1568,7 +1568,7 @@
   }
 }
 
-/* the homepage make strip: authoring is a footnote, one line and one command. */
+/* The homepage authoring link opens the setup wizard. */
 .home-make-strip {
   display: grid;
   gap: 1.5rem;
@@ -1584,7 +1584,8 @@
 
 @media (min-width: 64rem) {
   .home-make-strip {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
   }
 }
 
@@ -1906,20 +1907,6 @@
     align-items: flex-start;
     gap: 0.5rem;
   }
-}
-
-/* The authoring command sits beside its copy button, like the hero's. */
-.home-make-command {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 0.25rem;
-  max-width: 100%;
-  min-width: 0;
-  font-size: 0.875rem;
-}
-
-.home-make-command .install-command {
-  min-width: 0;
 }
 
 /* "+N more" closes the lead collection's skill list when it is truncated. */
