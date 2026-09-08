@@ -73,6 +73,46 @@ describe('skills-raw transient tree failure', () => {
   })
 })
 
+describe('skills-raw stale fallback', () => {
+  beforeEach(() => {
+    vi.stubGlobal('createWideEvent', () => ({ context: {}, setLevel: vi.fn(), emit: vi.fn(() => null) }))
+    vi.stubGlobal('emitOperationalEvent', vi.fn())
+  })
+
+  it('serves the last-good body when the fresh window passed and upstream is unavailable', async () => {
+    // The body must survive its own TTL: an upstream blip minutes after the
+    // last good fetch answers with that copy, not a 503 on the run surface.
+    cache.getItem.mockResolvedValue({
+      storedAt: Date.now() - 10 * 60 * 1000,
+      value: { status: 'ok', body: '# last good body', branch: 'main', path: 'skills/skill/SKILL.md' },
+    })
+    const unavailable = Object.assign(new Error('503 Service Unavailable'), { status: 503, statusCode: 503 })
+    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(unavailable))
+
+    const handler = (await import('../../layers/registry/server/api/skills-raw/[...slug].get')).default
+    const body = await handler(event())
+
+    expect(body).toBe('# last good body')
+    expect(responseHeaders.get('content-type')).toBe('text/markdown; charset=utf-8')
+    expect(responseHeaders.has('retry-after')).toBe(false)
+  })
+
+  it('serves a fresh envelope without calling upstream', async () => {
+    cache.getItem.mockResolvedValue({
+      storedAt: Date.now(),
+      value: { status: 'ok', body: '# fresh body', branch: 'main', path: 'skills/skill/SKILL.md' },
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('$fetch', fetchMock)
+
+    const handler = (await import('../../layers/registry/server/api/skills-raw/[...slug].get')).default
+    const body = await handler(event())
+
+    expect(body).toBe('# fresh body')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
 describe('skills-raw source gone', () => {
   let emitEvent: ReturnType<typeof vi.fn>
 
@@ -108,7 +148,7 @@ describe('skills-raw source gone', () => {
     await expect(handler(event())).rejects.toMatchObject({ statusCode: 410 })
 
     expect(cache.setItem).toHaveBeenCalledWith(
-      'skills:raw:v2:owner/repo/skill',
+      'skills:raw:v3:owner/repo/skill',
       expect.objectContaining({ status: 'missing' }),
       expect.anything(),
     )
