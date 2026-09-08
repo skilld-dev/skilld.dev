@@ -109,11 +109,6 @@
   border: 1px solid oklch(0.24 0.012 60);
 }
 
-.surface-warm-elevated {
-  background: oklch(0.20 0.014 60);
-  border: 1px solid oklch(0.28 0.014 60);
-}
-
 /* Section label — editorial small caps */
 .section-label {
   @apply font-mono text-xs uppercase tracking-widest text-[var(--ui-text-muted)];
@@ -883,6 +878,21 @@
   margin-top: 2rem;
 }
 
+/* The pitch beside the email it describes. Stacked until there is room for both. */
+.home-freshness-header {
+  display: grid;
+  min-width: 0;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .home-freshness-header {
+    grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
+    gap: 3rem;
+  }
+}
+
 .home-freshness-primary,
 .home-freshness-secondary {
   min-width: 0;
@@ -1336,51 +1346,6 @@
   min-width: 0;
 }
 
-.home-hero-command {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0.125rem 0.25rem 0.125rem 0.875rem;
-  border-radius: calc(var(--ui-radius) * 0.75);
-  background: color-mix(in oklab, var(--ui-bg-muted) 70%, transparent);
-  font-size: 0.9375rem;
-}
-
-.home-hero-command button {
-  opacity: 0.6;
-  transition: opacity 200ms ease-out;
-}
-
-.home-hero-command:hover button,
-.home-hero-command:focus-within button {
-  opacity: 1;
-}
-
-.home-hero-command-scroll {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.home-hero-command-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.home-hero-command .install-command {
-  white-space: nowrap;
-}
-
-.home-hero-prompt {
-  font-family: var(--font-mono);
-  color: var(--ui-text-dimmed);
-  user-select: none;
-}
-
 .home-make-grid {
   display: grid;
   gap: 1rem;
@@ -1456,17 +1421,19 @@
   }
 }
 
+/* A bare stroke icon, like the track tiles below. It takes the rose on hover. */
 .home-door-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  margin-bottom: 0.25rem;
-  border-radius: calc(var(--ui-radius) * 0.75);
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--ui-text-muted);
+  transition: color 200ms ease-out;
+}
+
+.home-door:hover .home-door-mark,
+.home-door:focus-visible .home-door-mark {
   color: var(--ui-primary);
-  background: color-mix(in oklab, var(--ui-primary) 12%, transparent);
-  font-size: 1rem;
 }
 
 .home-door-title {
@@ -1508,55 +1475,7 @@
   }
 }
 
-/* the homepage taste test: three facts, numbered, no decoration. */
-.home-test-list {
-  display: grid;
-  gap: 1px;
-  overflow: hidden;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: var(--ui-border);
-}
-
-@media (min-width: 48rem) {
-  .home-test-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.home-test-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 1rem;
-  grid-template-rows: auto auto;
-  align-content: start;
-  row-gap: 0.375rem;
-  min-width: 0;
-  padding: 1.5rem;
-  background: var(--ui-bg);
-}
-
-.home-test-num {
-  grid-row: span 2;
-  font-family: var(--font-mono);
-  font-size: 1.5rem;
-  line-height: 1;
-  color: var(--ui-primary);
-}
-
-.home-test-title {
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.home-test-text {
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--ui-text-muted);
-  text-wrap: pretty;
-}
-
-/* the homepage hero: named agent row under the command. Proof of "every agent". */
+/* the homepage hero: named agent row under the search. Proof of "every agent". */
 .home-hero-agents {
   display: flex;
   flex-wrap: wrap;
@@ -1819,36 +1738,6 @@
   z-index: 1;
 }
 
-/* Door marks are dot-grid tiles now, not flat rose squares. */
-.home-door-mark {
-  width: 2.5rem;
-  height: 2.5rem;
-  font-size: 1.125rem;
-  border: 1px solid color-mix(in oklab, var(--ui-primary) 28%, transparent);
-  background-color: color-mix(in oklab, var(--ui-primary) 10%, transparent);
-  background-image: radial-gradient(circle, color-mix(in oklab, var(--ui-primary) 55%, transparent) 1px, transparent 1.3px);
-  background-size: 5px 5px;
-  transition: background-color 200ms ease-out, border-color 200ms ease-out;
-}
-
-.home-door:hover .home-door-mark,
-.home-door:focus-visible .home-door-mark {
-  border-color: color-mix(in oklab, var(--ui-primary) 55%, transparent);
-  background-color: color-mix(in oklab, var(--ui-primary) 18%, transparent);
-}
-
-/* The taste-test numerals are printed in the grid, like the watermarks. */
-.home-test-num {
-  align-self: start;
-  line-height: 0.9;
-  font-size: 2.5rem;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  opacity: 0.9;
-  mask-image: radial-gradient(circle, #000 1.1px, transparent 1.4px);
-  mask-size: 3px 3px;
-}
-
 /* The tasted chip: the hero's emoji, reused wherever a person said yes. */
 .home-tasted {
   display: inline-flex;
@@ -1960,7 +1849,7 @@
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 13%, black 90%, transparent 100%);
 }
 
-/* "No sign-up." was breaking across lines at 390px. */
+/* Short data labels were breaking across lines at 390px. */
 .home-page .data-label {
   hyphens: none;
   text-wrap: pretty;

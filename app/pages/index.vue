@@ -12,10 +12,11 @@ import {
   HOMEPAGE_PERSON_MINIMUM,
   selectHomepagePersonSkills,
   selectHomepageTrendingSkills,
+  uniqueByOwner,
 } from '../utils/homepage-person-skills'
 
 const title = 'Taste-tested agent skills ecosystem · skilld'
-const description = 'Agent skills written by their maintainers and read by a person before they go in. See what devs are sharing this week, install it in one command, watch it change.'
+const description = 'Agent skills written by their maintainers and read by a person before they go in. See what devs are sharing this week, find what your agent needs, and keep up when it changes.'
 
 useSeoMeta({
   title,
@@ -82,10 +83,10 @@ const [
   // the homepage whose content changes hourly, and the endpoint is cached at
   // the edge for 5 minutes, so it costs a cache read rather than a query.
   withHomeDataTiming('home-trending', useFetch<TrendingFeedResponse>('/api/feed/trending', {
-    key: 'home-trending-v1',
-    // The hero rail flattens repos to individual skills, so it needs more
-    // repos than the six-card section below it.
-    query: { limit: 12 },
+    key: 'home-trending-v2',
+    // The hero rail shows one skill per author, so it needs more repos than
+    // the six-card section below it.
+    query: { limit: 24 },
   })),
 ])
 
@@ -160,16 +161,15 @@ const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
     peopleSkillsData.value?.devSections ?? [],
     fallbackPersonNamesByOwner,
   )
-  const livePeople = new Set(liveSkills.map(skill => skill.owner))
 
-  return liveSkills.length >= HOMEPAGE_RAIL_MINIMUM
-    && livePeople.size >= HOMEPAGE_PERSON_MINIMUM
+  return liveSkills.length >= HOMEPAGE_PERSON_MINIMUM
     ? liveSkills
-    : homepagePersonSkillFallbacks
+    : uniqueByOwner(homepagePersonSkillFallbacks)
 })
 
 /**
- * Hero rail contents: the individual skills inside this week's trending repos.
+ * Hero rail contents: one skill per author from this week's trending repos,
+ * padded with the evergreen set so the stream stays deep enough to scroll.
  *
  * Flattened from repos to skills because the rail shows one skill per card,
  * while the section further down shows repos with their quoted evidence. The
@@ -192,6 +192,7 @@ const homepageTrendingSelection = computed(() => selectHomepageTrendingSkills(
       context: trendingShareLabel(repo.authorCount),
     })),
   ),
+  homepagePersonSkillFallbacks,
 ))
 
 const heroTrendingCards = computed<readonly SkillSourceItem[]>(() => {
@@ -281,8 +282,6 @@ const authoringEcosystems = [
   { id: 'rubygems', label: 'RubyGems', icon: 'i-simple-icons-rubygems' },
 ] as const
 
-// The command is real: the top trending repo this week, so the first copy
-// installs something. Falls back to the grammar when the rail is empty.
 /**
  * The trending band hides itself below MIN_TRENDING_TO_SHOW, so the door has
  * to fall back to the page that always exists. An anchor to a section that did
@@ -290,12 +289,7 @@ const authoringEcosystems = [
  */
 const trendingDoorTarget = computed(() => (showTrending.value ? '#discover' : '/skills/trending'))
 
-const heroInstallCommand = computed(() => {
-  const top = heroTrendingCards.value[0]
-  return top ? `npx skilld add gh:${top.owner}/${top.repo}` : 'npx skilld add gh:owner/repo'
-})
-
-// Named agent row under the install command: proof of "every agent".
+// Named agent row under the search: proof of "every agent".
 const heroAgentLogos = [
   { id: 'claude-code', label: 'Claude Code', icon: 'i-simple-icons-claude' },
   { id: 'cursor', label: 'Cursor', icon: 'i-simple-icons-cursor' },
@@ -305,22 +299,6 @@ const heroAgentLogos = [
   { id: 'windsurf', label: 'Windsurf', icon: 'i-simple-icons-windsurf' },
   { id: 'opencode', label: 'OpenCode', icon: 'i-simple-icons-opencode' },
 ] as const
-/**
- * The hero command is the page's primary call to action, so its copies are
- * recorded like every other install command on the site. Raw useClipboard
- * measured nothing and swallowed a failure in a browser that blocks writes.
- */
-const heroInstallTarget = computed<InstallTarget | null>(() => {
-  const top = heroTrendingCards.value[0]
-  return top ? { kind: 'repo', owner: top.owner, repo: top.repo } : null
-})
-
-const { copy: copyHeroCommand, copied: heroCommandCopied } = useInstallCopy(
-  heroInstallCommand,
-  'home-hero',
-  'install',
-  heroInstallTarget,
-)
 
 const installTarget = computed<InstallTarget | null>(() => {
   const collection = leadCollection.value
@@ -415,7 +393,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <span class="home-hero-eco">ecosystem.</span>
             </h1>
             <p class="mt-6 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Your agent never read the maintainer's notes. They're here, tasted by a person first. Install in one command, then watch them change.
+              Skills written by the maintainers themselves, read by a person before they're listed. Find what your agent needs today, then keep up when it changes.
             </p>
 
             <div class="home-hero-slots mt-10">
@@ -426,34 +404,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               </div>
 
               <div class="home-hero-slot">
-                <div class="home-hero-command">
-                  <span class="home-hero-command-scroll">
-                    <span class="home-hero-prompt" aria-hidden="true">$</span>
-                    <InstallCommand
-                      id="home-hero-install-command"
-                      :command="heroInstallCommand"
-                      tabindex="0"
-                    />
-                  </span>
-                  <UButton
-                    :icon="heroCommandCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-                    color="neutral"
-                    variant="ghost"
-                    size="sm"
-                    class="min-h-11 min-w-11 shrink-0"
-                    :aria-label="heroCommandCopied ? 'Copied' : 'Copy install command'"
-                    @click="() => { void copyHeroCommand() }"
-                  />
-                </div>
-                <p class="data-label mt-2" aria-live="polite">
-                  <template v-if="heroCommandCopied">
-                    Copied. Paste it in your terminal.
-                  </template>
-                  <template v-else>
-                    One command installs into your agent. No sign-up.
-                  </template>
-                </p>
-                <ul class="home-hero-agents mt-5 list-none p-0" aria-label="Agents skilld installs into">
+                <ul class="home-hero-agents mt-2 list-none p-0" aria-label="Agents skilld works with">
                   <li v-for="agent in heroAgentLogos" :key="agent.id" class="home-hero-agent">
                     <UIcon :name="agent.icon" class="size-4 shrink-0" aria-hidden="true" />
                     <span>{{ agent.label }}</span>
@@ -478,23 +429,17 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     <nav class="home-doors" aria-label="What you can do here">
       <div class="mx-auto grid max-w-6xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink :to="trendingDoorTarget" class="home-door">
-          <span class="home-door-mark" aria-hidden="true">
-            <span class="trending-fire">🔥</span>
-          </span>
+          <UIcon name="i-lucide-flame" class="home-door-mark" aria-hidden="true" />
           <span class="home-door-title">Trending this week<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
           <span class="home-door-text">The skills devs are posting about right now. Every card names the author and links the source.</span>
         </NuxtLink>
         <NuxtLink to="#outcomes" class="home-door">
-          <span class="home-door-mark" aria-hidden="true">
-            <UIcon name="i-lucide-route" class="size-5" />
-          </span>
+          <UIcon name="i-lucide-route" class="home-door-mark" aria-hidden="true" />
           <span class="home-door-title">Skills for your kind of work<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
           <span class="home-door-text">Tracks for review, testing, design, SEO and shipping. A person picked each list.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="home-door">
-          <span class="home-door-mark" aria-hidden="true">
-            <UIcon name="i-lucide-eye" class="size-5" />
-          </span>
+          <UIcon name="i-lucide-eye" class="home-door-mark" aria-hidden="true" />
           <span class="home-door-title">Watch it change<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
           <span class="home-door-text">Maintainers ship often. Watch the repos you rely on. One digest lists what changed.</span>
         </NuxtLink>
@@ -603,39 +548,6 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     </section>
 
     <section
-      id="the-test"
-      class="home-wm"
-      aria-labelledby="the-test-heading"
-    >
-      <span class="home-watermark" aria-hidden="true">Test</span>
-      <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
-        <h2 id="the-test-heading" class="home-h2 text-balance">
-          The <span class="home-ink">taste test</span>.
-        </h2>
-        <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-          Three things are true of every skill we list. Read it yourself before you run it.
-        </p>
-        <ol class="home-test-list mt-8 list-none p-0">
-          <li class="home-test-item">
-            <span class="home-test-num" aria-hidden="true">1</span>
-            <span class="home-test-title">The maintainer wrote it.</span>
-            <span class="home-test-text">In their own repo, under their own name. No anonymous submissions.</span>
-          </li>
-          <li class="home-test-item">
-            <span class="home-test-num" aria-hidden="true">2</span>
-            <span class="home-test-title">A person read it.</span>
-            <span class="home-test-text">Someone opened the SKILL.md and said yes to it.</span>
-          </li>
-          <li class="home-test-item">
-            <span class="home-test-num" aria-hidden="true">3</span>
-            <span class="home-test-title">The source is one click away.</span>
-            <span class="home-test-text">Open the SKILL.md before your agent does. We only show counts GitHub can vouch for.</span>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <section
       id="freshness"
       class="home-wm editorial-band home-freshness-band"
       aria-labelledby="freshness-heading"
@@ -651,33 +563,37 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
       <div class="editorial-band__content home-freshness-shell mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <header class="home-freshness-header">
-          <h2 id="freshness-heading" class="home-h2 max-w-[15ch] text-balance">
-            Your skills <span class="home-ink">changed</span>. Did anyone tell you?
-          </h2>
-          <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-            Watch a repo. The digest lists what changed. If nothing changed, we send nothing.
-          </p>
-          <div class="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <UButton
-              to="/me"
-              label="Watch your starred repos"
-              trailing-icon="i-lucide-arrow-right"
-              size="lg"
-              class="min-h-11 justify-center"
-            />
-            <UButton
-              to="/community"
-              label="Browse curators"
-              color="neutral"
-              variant="outline"
-              trailing-icon="i-lucide-arrow-right"
-              size="lg"
-              class="min-h-11 justify-center"
-            />
+          <div class="min-w-0">
+            <h2 id="freshness-heading" class="home-h2 max-w-[15ch] text-balance">
+              Your skills <span class="home-ink">changed</span>. Did anyone tell you?
+            </h2>
+            <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
+              Watch a repo. Every Monday the digest lists what changed. If nothing changed, we send nothing.
+            </p>
+            <div class="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+              <UButton
+                to="/me"
+                label="Watch your starred repos"
+                trailing-icon="i-lucide-arrow-right"
+                size="lg"
+                class="min-h-11 justify-center"
+              />
+              <UButton
+                to="/weekly/preview"
+                external
+                label="See this week's digest"
+                color="neutral"
+                variant="outline"
+                trailing-icon="i-lucide-arrow-up-right"
+                size="lg"
+                class="min-h-11 justify-center"
+              />
+            </div>
+            <p class="data-label mt-3">
+              To watch a repo, sign in with GitHub. Off in one click.
+            </p>
           </div>
-          <p class="data-label mt-3">
-            To watch a repo, sign in with GitHub.
-          </p>
+          <WeeklyEmailPreview />
         </header>
 
         <div class="home-freshness-grid">

@@ -77,11 +77,11 @@ function retryRepositoryIndex(): void {
 
 <template>
   <div
-    class="search-panel surface-warm-elevated overflow-hidden rounded-lg border border-default bg-default"
+    class="search-panel overflow-hidden rounded-lg border border-default bg-default"
   >
-    <div class="flex flex-col lg:flex-row lg:items-stretch">
+    <div class="flex flex-col xl:flex-row xl:items-stretch">
       <!-- Results -->
-      <div class="min-w-0 flex-1 lg:border-e lg:border-default">
+      <div class="min-w-0 flex-1 xl:border-e xl:border-default">
         <!-- No query: recent searches, so the panel is never a blank box -->
         <template v-if="state._tag === 'empty'">
           <div v-if="recentSearches.length" class="py-2">
@@ -307,7 +307,7 @@ function retryRepositoryIndex(): void {
       <!-- Preview: the highlighted skill, with its run command ready -->
       <aside
         v-if="previewSkill"
-        class="hidden w-80 shrink-0 flex-col p-4 lg:flex"
+        class="hidden w-80 shrink-0 flex-col p-4 xl:flex"
       >
         <p class="section-label">
           Preview

@@ -3,11 +3,13 @@ import { formatGithubStars } from './github-stars'
 
 /** Ceiling on the hero rail; twenty rows fill the stream without ten extra avatars. */
 export const HOMEPAGE_SKILL_LIMIT = 20
-/** Below this the live data is too thin to beat the hand-picked fallbacks. */
-export const HOMEPAGE_RAIL_MINIMUM = 20
+/**
+ * Below this many separate authors the trending feed is too thin to lead the
+ * rail, and the evergreen person-authored set takes over instead.
+ */
+export const HOMEPAGE_TRENDING_MINIMUM = 6
+/** Below this many people the live person feed loses to the hand-picked fallbacks. */
 export const HOMEPAGE_PERSON_MINIMUM = 10
-
-export const HOMEPAGE_SKILLS_PER_PERSON = 3
 
 export interface FeaturedPersonSkill {
   owner: string
@@ -30,12 +32,43 @@ export type HomepageTrendingSelection
   = | { _tag: 'trending', items: readonly SkillSourceItem[] }
     | { _tag: 'fallback' }
 
+/**
+ * One skill per author, first occurrence wins.
+ *
+ * The rail is a list of people as much as a list of skills: a repository with
+ * ten skills used to fill ten consecutive rows with the same face, which read
+ * as one author dominating the week rather than as ten things worth reading.
+ */
+export function uniqueByOwner(items: readonly SkillSourceItem[]): SkillSourceItem[] {
+  const seen = new Set<string>()
+  const result: SkillSourceItem[] = []
+  for (const item of items) {
+    if (seen.has(item.owner))
+      continue
+    seen.add(item.owner)
+    result.push(item)
+  }
+  return result
+}
+
+/**
+ * Hero rail from the trending feed, one skill per author, padded with the
+ * evergreen fallbacks so the stream stays deep enough to scroll.
+ *
+ * `fallback` when fewer than HOMEPAGE_TRENDING_MINIMUM authors are trending:
+ * the caller then loads the live person feed instead.
+ */
 export function selectHomepageTrendingSkills(
-  items: readonly SkillSourceItem[],
+  trending: readonly SkillSourceItem[],
+  fallbacks: readonly SkillSourceItem[],
 ): HomepageTrendingSelection {
-  return items.length >= HOMEPAGE_RAIL_MINIMUM
-    ? { _tag: 'trending', items: items.slice(0, HOMEPAGE_SKILL_LIMIT) }
-    : { _tag: 'fallback' }
+  const unique = uniqueByOwner(trending)
+  if (unique.length < HOMEPAGE_TRENDING_MINIMUM)
+    return { _tag: 'fallback' }
+
+  const owners = new Set(unique.map(item => item.owner))
+  const padding = uniqueByOwner(fallbacks).filter(item => !owners.has(item.owner))
+  return { _tag: 'trending', items: [...unique, ...padding].slice(0, HOMEPAGE_SKILL_LIMIT) }
 }
 
 interface PersonSkillBucket {
@@ -44,6 +77,7 @@ interface PersonSkillBucket {
   skills: FeaturedPersonSkill[]
 }
 
+/** The live person feed as rail rows: each person's most-starred skill, one row each. */
 export function selectHomepagePersonSkills(
   sections: readonly FeaturedPersonSection[],
   fallbackNamesByOwner: ReadonlyMap<string, string>,
@@ -75,39 +109,29 @@ export function selectHomepagePersonSkills(
       buckets.set(section.owner, bucket)
   }
 
-  const people = [...buckets.values()]
-    .map(person => ({
-      ...person,
-      skills: [...person.skills]
-        .sort((left, right) => right.stars - left.stars || left.name.localeCompare(right.name))
-        .slice(0, HOMEPAGE_SKILLS_PER_PERSON),
-    }))
-    .filter(person => person.skills.length > 0)
-
   const result: SkillSourceItem[] = []
 
-  for (let skillIndex = 0; skillIndex < HOMEPAGE_SKILLS_PER_PERSON; skillIndex++) {
-    for (const person of people) {
-      const skill = person.skills[skillIndex]
-      if (!skill)
-        continue
+  for (const person of buckets.values()) {
+    const skill = [...person.skills]
+      .sort((left, right) => right.stars - left.stars || left.name.localeCompare(right.name))[0]
+    if (!skill)
+      continue
 
-      result.push({
-        owner: skill.owner,
-        repo: skill.repo,
-        name: skill.name,
-        displayName: skill.displayName,
-        registryPath: skill.registryPath,
-        maintainerName: person.displayName !== person.owner
-          ? person.displayName
-          : fallbackNamesByOwner.get(person.owner) ?? person.owner,
-        description: skill.description,
-        context: skill.stars > 0 ? `${formatGithubStars(skill.stars)} GitHub stars` : null,
-      })
+    result.push({
+      owner: skill.owner,
+      repo: skill.repo,
+      name: skill.name,
+      displayName: skill.displayName,
+      registryPath: skill.registryPath,
+      maintainerName: person.displayName !== person.owner
+        ? person.displayName
+        : fallbackNamesByOwner.get(person.owner) ?? person.owner,
+      description: skill.description,
+      context: skill.stars > 0 ? `${formatGithubStars(skill.stars)} GitHub stars` : null,
+    })
 
-      if (result.length === HOMEPAGE_SKILL_LIMIT)
-        return result
-    }
+    if (result.length === HOMEPAGE_SKILL_LIMIT)
+      break
   }
 
   return result

@@ -3,9 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 import { homepagePersonSkillFallbacks } from '../../app/data/homepage-person-skills'
 import {
-  HOMEPAGE_RAIL_MINIMUM,
   HOMEPAGE_SKILL_LIMIT,
-  HOMEPAGE_SKILLS_PER_PERSON,
+  HOMEPAGE_TRENDING_MINIMUM,
   selectHomepagePersonSkills,
   selectHomepageTrendingSkills,
 } from '../../app/utils/homepage-person-skills'
@@ -42,7 +41,7 @@ describe('skill source list', () => {
     expect(homepagePersonSkillFallbacks.every(skill => skill.displayName === skill.name)).toBe(true)
   })
 
-  it('caps each person while filling the stream to its limit', () => {
+  it('shows one skill per person from the live feed', () => {
     const sections = Array.from({ length: 12 }, (_, personIndex) => ({
       owner: `person-${personIndex}`,
       repo: 'skills',
@@ -58,35 +57,42 @@ describe('skill source list', () => {
       })),
     }))
     const selected = selectHomepagePersonSkills(sections, new Map())
-    const countsByOwner = Map.groupBy(selected, skill => skill.owner)
 
-    expect(selected).toHaveLength(HOMEPAGE_SKILL_LIMIT)
-    expect(countsByOwner.size).toBe(12)
-    expect([...countsByOwner.values()]
-      .every(skills => skills.length <= HOMEPAGE_SKILLS_PER_PERSON)).toBe(true)
+    expect(selected).toHaveLength(12)
+    expect(new Set(selected.map(skill => skill.owner)).size).toBe(12)
+    // The most-starred skill represents each person.
+    expect(selected.every(skill => skill.name === 'skill-0')).toBe(true)
   })
 
-  it('keeps the hero rail deep enough to scroll past the fold', () => {
-    expect(HOMEPAGE_SKILL_LIMIT).toBeGreaterThanOrEqual(HOMEPAGE_RAIL_MINIMUM)
-  })
-
-  it('caps a dense trending feed before it reaches the hero stream', () => {
+  it('keeps one skill per author in the trending rail and pads it with fallbacks', () => {
+    // Three authors with five skills each, the shape a multi-skill repository produces.
     const items = Array.from({ length: 45 }, (_, index) => ({
-      ...homepagePersonSkillFallbacks[index % homepagePersonSkillFallbacks.length]!,
+      ...homepagePersonSkillFallbacks[0]!,
+      owner: `author-${index % 9}`,
       name: `trending-${index}`,
       displayName: `Trending ${index}`,
     }))
 
-    expect(selectHomepageTrendingSkills(items)).toEqual({
-      _tag: 'trending',
-      items: items.slice(0, HOMEPAGE_SKILL_LIMIT),
-    })
+    const selection = selectHomepageTrendingSkills(items, homepagePersonSkillFallbacks)
+    expect(selection._tag).toBe('trending')
+    if (selection._tag !== 'trending')
+      return
+
+    const owners = selection.items.map(skill => skill.owner)
+    expect(new Set(owners).size).toBe(owners.length)
+    expect(owners.slice(0, 9)).toEqual(Array.from({ length: 9 }, (_, index) => `author-${index}`))
+    expect(selection.items.length).toBeGreaterThan(9)
+    expect(selection.items.length).toBeLessThanOrEqual(HOMEPAGE_SKILL_LIMIT)
   })
 
-  it('asks for fallback skills when the trending feed is thin', () => {
-    const items = homepagePersonSkillFallbacks.slice(0, HOMEPAGE_RAIL_MINIMUM - 1)
+  it('asks for fallback skills when too few authors are trending', () => {
+    const items = Array.from({ length: 30 }, (_, index) => ({
+      ...homepagePersonSkillFallbacks[0]!,
+      owner: `author-${index % (HOMEPAGE_TRENDING_MINIMUM - 1)}`,
+      name: `trending-${index}`,
+    }))
 
-    expect(selectHomepageTrendingSkills(items)).toEqual({ _tag: 'fallback' })
+    expect(selectHomepageTrendingSkills(items, homepagePersonSkillFallbacks)).toEqual({ _tag: 'fallback' })
   })
 
   it('preserves a focused item until live data can replace it safely', async () => {

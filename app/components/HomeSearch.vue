@@ -127,7 +127,7 @@ const activeDescendant = computed(() =>
     <Transition name="search-panel">
       <div
         v-if="open"
-        class="absolute inset-x-0 top-full z-40 mt-2 md:w-[min(46rem,calc(100vw-3rem))]"
+        class="absolute inset-x-0 top-full z-40 mt-2"
       >
         <SkillSearchPanel @select="(row) => { void select(row) }" />
       </div>
