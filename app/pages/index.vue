@@ -1043,7 +1043,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Maintain something? <span class="home-ink">Write the skill</span> for it.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Choose your package ecosystem. Get the steps to draft a Skill, review it, and ship it in your repository.
+              Choose a package you publish or a project you maintain. Get the steps to draft a Skill, review it, and ship it in your repository.
             </p>
             <ul class="home-eco-logos mt-5 list-none p-0" aria-label="Package ecosystems">
               <li

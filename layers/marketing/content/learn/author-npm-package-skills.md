@@ -2,7 +2,7 @@
 title: Author a Skill for your npm package
 description: Draft a Skill from your public API, include it in your npm package, and check the tarball before publishing.
 relatedPages:
-  - path: /make-skill
+  - path: /make-skill?kind=package
     title: Choose another package ecosystem
   - path: /skills
     title: Browse skills

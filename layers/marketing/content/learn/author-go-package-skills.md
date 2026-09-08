@@ -2,7 +2,7 @@
 title: Author a Skill for your Go module
 description: Draft a Skill for your module, keep its files inside the module, and publish with the correct version tag.
 relatedPages:
-  - path: /make-skill
+  - path: /make-skill?kind=package
     title: Choose another package ecosystem
   - path: /skills
     title: Browse skills
