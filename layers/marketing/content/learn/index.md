@@ -9,5 +9,5 @@ description: Practical guides for finding, authoring, and shipping agent skills.
 - [Skills worth installing](/skills/best)
   Reviewed skills, one per author, each from a maintainer you can name.
 - [Author a skill you own](/make-skill)
-  Choose your package ecosystem for a guide to writing, reviewing, and shipping a Skill.
+  Choose a package or a project for a guide to writing, reviewing, and shipping a Skill.
 ::

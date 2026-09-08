@@ -2,7 +2,7 @@
 title: Author a Skill for your Rust crate
 description: Draft a Skill for your crate, include its files, and check the package with Cargo before publishing to crates.io.
 relatedPages:
-  - path: /make-skill
+  - path: /make-skill?kind=package
     title: Choose another package ecosystem
   - path: /skills
     title: Browse skills

@@ -2,7 +2,7 @@
 title: Author a Skill for your Ruby gem
 description: Draft a Skill for your Ruby API, include its files in the gemspec, and inspect the gem before publishing.
 relatedPages:
-  - path: /make-skill
+  - path: /make-skill?kind=package
     title: Choose another package ecosystem
   - path: /skills
     title: Browse skills

@@ -2,7 +2,7 @@
 title: Author a Skill for your PyPI package
 description: Draft a Skill for your Python API, include its files with your build backend, and inspect the wheel and source distribution.
 relatedPages:
-  - path: /make-skill
+  - path: /make-skill?kind=package
     title: Choose another package ecosystem
   - path: /skills
     title: Browse skills
