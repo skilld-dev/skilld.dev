@@ -53,6 +53,27 @@ export function buildWorkersQuery(sinceIso, untilIso) {
   return `query { viewer { accounts(filter: {accountTag: "5904138d55ca25d5670dca6adf99894e"}) { workersInvocationsAdaptive(limit: 100, filter: {scriptName: "skilld-dev", datetime_geq: ${JSON.stringify(sinceIso)}, datetime_leq: ${JSON.stringify(untilIso)}}) { dimensions { scriptName status } sum { requests } } } } }`
 }
 
+// The archive records `since` but until #195 nothing derived a gap from it, so
+// a run that skipped six days read as an ordinary overnight window and every
+// rate in the report was compared across unequal windows. The routine targets
+// a daily cadence, so a window past 36 hours covers at least one skipped slot:
+// the ordinary ~24h window plus jitter stays fresh, one missed day does not.
+const STALE_BASELINE_HOURS = 36
+
+export function deriveBaselineFlag(sinceIso, nowIso) {
+  const since = Date.parse(sinceIso)
+  const until = Date.parse(nowIso)
+  // state.json is hand-editable, so an unparseable timestamp or a baseline in
+  // the future is a real condition. The archive says so instead of reporting a
+  // confident NaN or negative gap.
+  if (Number.isNaN(since) || Number.isNaN(until) || until < since)
+    return { _tag: 'invalid' }
+  const gapHours = Math.round(((until - since) / 3_600_000) * 10) / 10
+  return gapHours > STALE_BASELINE_HOURS
+    ? { _tag: 'stale', gapHours }
+    : { _tag: 'fresh', gapHours }
+}
+
 // A `skipped` conclusion is a guard declining to run, not a verdict. The deploy
 // workflow is triggered by `workflow_run` from every branch and skips itself off
 // `main`, so treating `skipped` as a non-success read a working guard as a

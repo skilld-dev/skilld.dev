@@ -5,6 +5,7 @@ import {
   approximateDeployedSha,
   buildWorkersQuery,
   collectWorkflowRuns,
+  deriveBaselineFlag,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
@@ -103,6 +104,39 @@ describe('daily check-in observability', () => {
       '2026-08-20T02:28:50.987Z',
       '2026-08-21T02:53:53.726Z',
     )).toContain('filter: {scriptName: "skilld-dev"')
+  })
+
+  // The exact shape from issue #195: the routine ran on 2026-09-09 and not
+  // again until the 21:40Z slot six days later, so every "overnight" rate in
+  // the archive covered six days while reading as an ordinary window.
+  it('flags a six-day skip as a stale baseline and reports the gap hours', () => {
+    expect(deriveBaselineFlag(
+      '2026-09-09T21:40:00.000Z',
+      '2026-09-15T21:40:00.000Z',
+    )).toEqual({ _tag: 'stale', gapHours: 144 })
+  })
+
+  it('reads the daily cadence and its jitter as fresh, and a skipped slot as stale', () => {
+    expect(deriveBaselineFlag(
+      '2026-09-09T21:40:00.000Z',
+      '2026-09-10T21:40:00.000Z',
+    )).toEqual({ _tag: 'fresh', gapHours: 24 })
+    expect(deriveBaselineFlag(
+      '2026-09-09T21:40:00.000Z',
+      '2026-09-11T09:40:00.000Z',
+    )).toEqual({ _tag: 'fresh', gapHours: 36 })
+    expect(deriveBaselineFlag(
+      '2026-09-09T21:40:00.000Z',
+      '2026-09-11T09:46:00.000Z',
+    )).toEqual({ _tag: 'stale', gapHours: 36.1 })
+  })
+
+  it('reports a corrupted or future baseline as invalid instead of a confident wrong gap', () => {
+    expect(deriveBaselineFlag('garbage', '2026-09-10T21:40:00.000Z')).toEqual({ _tag: 'invalid' })
+    expect(deriveBaselineFlag(
+      '2026-09-11T00:00:00.000Z',
+      '2026-09-10T00:00:00.000Z',
+    )).toEqual({ _tag: 'invalid' })
   })
 
   it('surfaces every required workflow and preserves a failure behind an in-progress run', () => {

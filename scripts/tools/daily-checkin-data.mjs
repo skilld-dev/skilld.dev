@@ -9,6 +9,7 @@ import {
   approximateDeployedSha,
   buildWorkersQuery,
   collectWorkflowRuns,
+  deriveBaselineFlag,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
@@ -491,6 +492,7 @@ const sentry = await (async () => {
 const doc = {
   generatedAt: now.toISOString(),
   since: sinceIso,
+  baseline: deriveBaselineFlag(sinceIso, now.toISOString()),
   git,
   deploy,
   ci,
