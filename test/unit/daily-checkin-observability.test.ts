@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   approximateDeployedSha,
+  buildHealthEmailQuery,
   buildWorkersQuery,
   collectWorkflowRuns,
   parseHealthEmailRows,
@@ -103,6 +104,24 @@ describe('daily check-in observability', () => {
       '2026-08-20T02:28:50.987Z',
       '2026-08-21T02:53:53.726Z',
     )).toContain('filter: {scriptName: "skilld-dev"')
+  })
+
+  // The one-sent-report-per-Melbourne-date gate needs more than the two newest
+  // days: a two-row page cannot show continuity, so a gap three days back was
+  // invisible. report_date is the table's primary key, so the row cap can equal
+  // the window without ever hiding an in-window date.
+  it('bounds the health email read to a window that covers a week of Melbourne dates', () => {
+    const query = buildHealthEmailQuery()
+
+    const windowDays = Number(query.match(/report_date >= date\('now', '-(\d+) days'\)/)?.[1])
+    // Melbourne runs up to one day ahead of UTC, so eight UTC days is the
+    // smallest bound that always covers seven Melbourne dates.
+    expect(windowDays).toBeGreaterThanOrEqual(8)
+
+    const limit = Number(query.match(/LIMIT (\d+)\s*$/)?.[1])
+    expect(limit).toBeGreaterThanOrEqual(windowDays)
+
+    expect(query).toContain('ORDER BY report_date DESC')
   })
 
   it('surfaces every required workflow and preserves a failure behind an in-progress run', () => {

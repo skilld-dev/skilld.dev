@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   approximateDeployedSha,
+  buildHealthEmailQuery,
   buildWorkersQuery,
   collectWorkflowRuns,
   parseHealthEmailRows,
@@ -322,7 +323,7 @@ const d1 = probe(() => {
     ? d1Query(`SELECT queue, job_type, substr(exception, 1, 160) exception, COUNT(*) count, MIN(failed_at) first_failed_at, MAX(failed_at) last_failed_at FROM failed_jobs WHERE failed_at >= ${sinceSec} GROUP BY queue, job_type, substr(exception, 1, 160) ORDER BY count DESC LIMIT 10`)
     : null
   const healthEmail = has('daily_health_checks')
-    ? parseHealthEmailRows(d1Query(`SELECT report_date, health_status, delivery_status, recipient, sent_at, error, summary_json FROM daily_health_checks ORDER BY report_date DESC LIMIT 2`))
+    ? parseHealthEmailRows(d1Query(buildHealthEmailQuery()))
     : null
   const recentJobBatches = has('job_batches')
     ? d1Query(`SELECT id, name, total_jobs, pending_jobs, failed_jobs, created_at, updated_at, finished_at FROM job_batches ORDER BY updated_at DESC LIMIT 10`)

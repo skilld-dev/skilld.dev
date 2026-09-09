@@ -168,6 +168,17 @@ function stringArray(value, field) {
   return value
 }
 
+// The gate is one sent operator report per Melbourne date, so the read has to
+// show enough days to verify continuity. The old two-row page could only ever
+// verify the two newest dates, which is how a gap three days back stayed
+// invisible. Melbourne runs up to one day ahead of UTC, so eight UTC days is
+// the smallest bound that always covers seven Melbourne dates. `report_date`
+// is the table's primary key, so a row cap equal to the window can never hide
+// an in-window date.
+export function buildHealthEmailQuery() {
+  return `SELECT report_date, health_status, delivery_status, recipient, sent_at, error, summary_json FROM daily_health_checks WHERE report_date >= date('now', '-8 days') ORDER BY report_date DESC LIMIT 8`
+}
+
 export function parseHealthEmailRows(rows) {
   return rows.map((row) => {
     const summary = (() => {
