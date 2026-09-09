@@ -26,10 +26,14 @@ const save = process.argv.includes('--save')
 const now = new Date()
 const defaultSince = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 const state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null
-const since = new Date(state?.lastRunAt || defaultSince)
-const sinceIso = since.toISOString()
-const sinceSec = Math.floor(since.getTime() / 1000)
-const sinceMs = since.getTime()
+// state.json is hand-editable, so lastRunAt can be corrupted. An invalid date
+// must not kill the run before the archive records it: keep the raw value as
+// the window, deriveBaselineFlag maps it to {_tag: 'invalid'}, and the window
+// probes degrade to probe errors.
+const parsedSince = new Date(state?.lastRunAt || defaultSince)
+const sinceIso = Number.isNaN(parsedSince.getTime()) ? String(state?.lastRunAt) : parsedSince.toISOString()
+const sinceSec = Math.floor(parsedSince.getTime() / 1000)
+const sinceMs = parsedSince.getTime()
 // X deduplicates read charges per UTC day, so its budget counter is keyed on
 // the UTC date rather than on the check-in window.
 const utcDay = now.toISOString().slice(0, 10)
