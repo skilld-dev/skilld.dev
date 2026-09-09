@@ -26,4 +26,23 @@ describe('daily check-in data script', () => {
       writeFileSync(statePath, original)
     }
   }, 150_000)
+
+  // Hand edits also corrupt the file text itself: a trailing comma or a
+  // missing quote makes JSON.parse throw at the top level, so the process
+  // died on a SyntaxError before any doc, let alone an invalid baseline,
+  // could be produced.
+  it('archives an invalid baseline instead of crashing on unparseable state.json', () => {
+    const original = readFileSync(statePath, 'utf8')
+    try {
+      writeFileSync(statePath, '{"lastRunAt": "2026-09-01T01:20:49.248Z",}')
+      const result = spawnSync(process.execPath, [scriptPath], { encoding: 'utf8', timeout: 120_000 })
+
+      expect(result.status).toBe(0)
+      const doc = JSON.parse(result.stdout)
+      expect(doc.baseline).toEqual({ _tag: 'invalid' })
+    }
+    finally {
+      writeFileSync(statePath, original)
+    }
+  }, 150_000)
 })
