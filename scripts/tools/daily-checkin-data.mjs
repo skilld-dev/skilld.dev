@@ -13,6 +13,7 @@ import {
   parseWorkflowName,
   readMigrationState,
   refreshProductionRef,
+  runListArgs,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
 import { ghEnv, runReadOnlyProcess, subprocessEnv } from './daily-checkin-process.mjs'
@@ -118,8 +119,6 @@ const deploy = probe(() => {
   }
 })
 
-const runFields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
-
 const ci = probe(() => {
   const workflowDir = join(root, '.github/workflows')
   const definedWorkflows = readdirSync(workflowDir)
@@ -130,12 +129,14 @@ const ci = probe(() => {
   // A low-cadence workflow can fall outside a flat recent-runs page, and an
   // absent row reads as `missing`, which is an observability gap rather than a
   // health signal. Each workflow is therefore paged on its own name, and paged
-  // deeper when a run of skipped guard runs hides the last verdict.
+  // deeper when a run of skipped guard runs hides the last verdict. runListArgs
+  // scopes every read to main, so a PR branch failure cannot masquerade as the
+  // main gate verdict.
   const perWorkflowRows = collectWorkflowRuns(
-    (name, limit) => commandJson('gh', ['run', 'list', '--workflow', name, '--limit', String(limit), '--json', runFields]),
+    (name, limit) => commandJson('gh', runListArgs(name, limit)),
     definedWorkflows,
   )
-  const recent = commandJson('gh', ['run', 'list', '--limit', '20', '--json', runFields])
+  const recent = commandJson('gh', runListArgs(null, 20))
   return {
     workflows: summarizeWorkflowRuns(perWorkflowRows, definedWorkflows),
     recent: recent.slice(0, 10),
