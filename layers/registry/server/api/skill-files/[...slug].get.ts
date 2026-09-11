@@ -12,11 +12,15 @@ const FILES_CACHE_TTL = 60 * 60 * 6
 // cold-key crawler sweep (SKILLD-1F) serving a day-old list beats another
 // upstream tree fetch per request.
 const FILES_CACHE_STALE_TTL = 60 * 60 * 24
-// An empty file list here is usually transient: it comes from the empty-tree
-// or no-skillDir fallback while `rendered_skill_path` is still NULL, and
-// reconcile-rendered re-renders exactly those rows. Keep the base code's
-// short missing window so a just-reconciled skill rechecks in minutes
-// instead of riding the 6-hour fresh window.
+// An empty file list is only transient when the skill directory was never
+// resolved: both fallbacks return `row.rendered_skill_path` as `skillPath`,
+// which is null exactly when the no-skillDir fallback fires. A resolved skill
+// holding only SKILL.md also produces files: [] (the filter excludes
+// SKILL.md itself), so bare emptiness would drop that permanent payload onto
+// the short missing window and strip its stale protection. Keep the base
+// code's short missing window for the unresolved cases, which
+// reconcile-rendered re-renders, and let resolved payloads ride the 6-hour
+// fresh window with the day-long stale serve.
 const FILES_MISSING_TTL = 60 * 5
 // v4: entries carry a freshness envelope for readThroughCache, so v3 values
 // (raw payloads) must never be read as envelopes.
@@ -58,7 +62,7 @@ function classify(path: string): SkillFile['type'] {
 }
 
 function emptyFilesWindows(payload: SkillFilesPayload): ReadThroughWindows | undefined {
-  return payload.files.length === 0
+  return payload.files.length === 0 && payload.skillPath === null
     ? { ttl: FILES_MISSING_TTL, staleTtl: 0 }
     : undefined
 }

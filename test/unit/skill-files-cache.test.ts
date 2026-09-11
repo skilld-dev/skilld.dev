@@ -150,6 +150,37 @@ describe('skill-files cache', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps a resolved SKILL.md-only empty payload on the full fresh and stale windows', async () => {
+    // A skill directory holding only SKILL.md is fully resolved: the tree
+    // filter excludes SKILL.md itself, so files: [] with a non-null
+    // skillPath is the permanent correct answer, not a transient miss.
+    fixture.raw.prepare(
+      `UPDATE skills SET rendered_skill_path = 'skill/SKILL.md'
+       WHERE owner = 'owner' AND repo = 'repo' AND name = 'skill'`,
+    ).run()
+
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ files: [{ path: 'skill/SKILL.md', size: 100 }] }))
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    const resolved = await handler(event())
+    expect(resolved).toEqual({ skillPath: 'skill/SKILL.md', branch: 'main', files: [], total: 0 })
+    expect(cache.setItem).toHaveBeenCalledWith(
+      CACHE_KEY,
+      { storedAt: expect.any(Number), value: resolved },
+      { ttl: HOUR * 6 + HOUR * 24 },
+    )
+
+    // Seven hours later the entry is past even the resolved payload's
+    // 6-hour fresh window. An upstream failure must serve the stale
+    // envelope, not propagate.
+    cache.getItem.mockResolvedValue({ storedAt: Date.now() - 7 * HOUR * 1000, value: resolved })
+    const error = Object.assign(new Error('404 Not Found'), { status: 404, statusCode: 404 })
+    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(error))
+
+    await expect(handler(event())).resolves.toEqual(resolved)
+  })
+
   it('serves the stale envelope when the upstream tree fails', async () => {
     const stale = {
       skillPath: 'skill',
