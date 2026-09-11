@@ -1,3 +1,4 @@
+import type { ReadThroughWindows } from '#shared/server/cache'
 import { readThroughCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { selectSkillFiles } from '#shared/skill-files'
@@ -11,6 +12,12 @@ const FILES_CACHE_TTL = 60 * 60 * 6
 // cold-key crawler sweep (SKILLD-1F) serving a day-old list beats another
 // upstream tree fetch per request.
 const FILES_CACHE_STALE_TTL = 60 * 60 * 24
+// An empty file list here is usually transient: it comes from the empty-tree
+// or no-skillDir fallback while `rendered_skill_path` is still NULL, and
+// reconcile-rendered re-renders exactly those rows. Keep the base code's
+// short missing window so a just-reconciled skill rechecks in minutes
+// instead of riding the 6-hour fresh window.
+const FILES_MISSING_TTL = 60 * 5
 // v4: entries carry a freshness envelope for readThroughCache, so v3 values
 // (raw payloads) must never be read as envelopes.
 const FILES_CACHE_VERSION = 'v4'
@@ -48,6 +55,12 @@ function classify(path: string): SkillFile['type'] {
   if (ext)
     return 'code'
   return 'other'
+}
+
+function emptyFilesWindows(payload: SkillFilesPayload): ReadThroughWindows | undefined {
+  return payload.files.length === 0
+    ? { ttl: FILES_MISSING_TTL, staleTtl: 0 }
+    : undefined
 }
 
 export default defineApiHandler({
@@ -147,7 +160,7 @@ export default defineApiHandler({
           total: selected.total,
         } satisfies SkillFilesPayload
       },
-      { ttl: FILES_CACHE_TTL, staleTtl: FILES_CACHE_STALE_TTL },
+      { ttl: FILES_CACHE_TTL, staleTtl: FILES_CACHE_STALE_TTL, windowsFor: emptyFilesWindows },
     )
   },
 })

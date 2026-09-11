@@ -83,6 +83,73 @@ describe('skill-files cache', () => {
     expect(cache.setItem).not.toHaveBeenCalled()
   })
 
+  it('recomputes a cached no-skillDir empty payload once the missing window expires', async () => {
+    // Root SKILL.md with rendered_skill_path NULL: the heuristic misses, so
+    // the first run caches the transient empty fallback.
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ files: [{ path: 'SKILL.md', size: 100 }] })
+      .mockResolvedValueOnce({
+        files: [
+          { path: 'skill/SKILL.md', size: 100 },
+          { path: 'skill/assets/cover.png', size: 2048 },
+        ],
+      })
+    vi.stubGlobal('$fetch', fetchMock)
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    const empty = await handler(event())
+    expect(empty).toEqual({ skillPath: null, branch: 'main', files: [], total: 0 })
+
+    // reconcile-rendered re-renders exactly the rows this empty payload came
+    // from. Its envelope is now 10 minutes old, past the 5-minute missing
+    // window, so the next read must recompute instead of serving it.
+    fixture.raw.prepare(
+      `UPDATE skills SET rendered_skill_path = 'skill/SKILL.md'
+       WHERE owner = 'owner' AND repo = 'repo' AND name = 'skill'`,
+    ).run()
+    cache.getItem.mockResolvedValue({ storedAt: Date.now() - 10 * 60 * 1000, value: empty })
+
+    const payload = await handler(event())
+
+    expect(payload).toEqual({
+      skillPath: 'skill/SKILL.md',
+      branch: 'main',
+      files: [{ path: 'assets/cover.png', size: 2048, type: 'image' }],
+      total: 1,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('recomputes a cached empty-tree payload once the missing window expires', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ files: [] })
+      .mockResolvedValueOnce({
+        files: [
+          { path: 'skill/SKILL.md', size: 100 },
+          { path: 'skill/assets/cover.png', size: 2048 },
+        ],
+      })
+    vi.stubGlobal('$fetch', fetchMock)
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    const empty = await handler(event())
+    expect(empty).toEqual({ skillPath: null, branch: 'main', files: [], total: 0 })
+
+    cache.getItem.mockResolvedValue({ storedAt: Date.now() - 10 * 60 * 1000, value: empty })
+
+    const payload = await handler(event())
+
+    expect(payload).toEqual({
+      skillPath: null,
+      branch: 'main',
+      files: [{ path: 'assets/cover.png', size: 2048, type: 'image' }],
+      total: 1,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('serves the stale envelope when the upstream tree fails', async () => {
     const stale = {
       skillPath: 'skill',

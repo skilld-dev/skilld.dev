@@ -204,7 +204,14 @@ function parseEnvelope<T>(raw: unknown): CacheEnvelope<T> | null {
   return { storedAt, value: value as T }
 }
 
-export interface ReadThroughOptions {
+export interface ReadThroughWindows {
+  /** Seconds the value stays fresh and is served without a recompute. */
+  ttl: number
+  /** Extra seconds a stale value stays readable when its recompute fails. */
+  staleTtl: number
+}
+
+export interface ReadThroughOptions<T = unknown> {
   /** Seconds a stored value stays fresh and is served without a recompute. */
   ttl: number
   /**
@@ -214,6 +221,20 @@ export interface ReadThroughOptions {
    * served by accident.
    */
   staleTtl?: number
+  /**
+   * Fresh and stale windows for one specific value, overriding `ttl` and
+   * `staleTtl`. Read for the stored value decides whether an entry is still
+   * fresh; read for the computed value decides the KV entry TTL. Use this
+   * for values whose freshness differs from the norm, e.g. a transient
+   * empty payload that must recheck on a short missing window instead of
+   * riding the resolved payload's fresh window.
+   */
+  windowsFor?: (value: T) => ReadThroughWindows | undefined
+}
+
+function resolveWindows<T>(options: ReadThroughOptions<T>, value: T): ReadThroughWindows {
+  return options.windowsFor?.(value)
+    ?? { ttl: options.ttl, staleTtl: options.staleTtl ?? options.ttl }
 }
 
 /**
@@ -237,19 +258,19 @@ export async function readThroughCache<T>(
   storage: ReadThroughCache,
   key: string,
   compute: () => Promise<T>,
-  options: ReadThroughOptions,
+  options: ReadThroughOptions<T>,
 ): Promise<T> {
-  const { ttl, staleTtl = ttl } = options
   const now = Date.now()
   const envelope = parseEnvelope<T>(await readCache<unknown>(storage, key))
 
   if (envelope) {
+    const windows = resolveWindows(options, envelope.value)
     const ageSeconds = (now - envelope.storedAt) / 1000
-    if (ageSeconds < ttl)
+    if (ageSeconds < windows.ttl)
       return envelope.value
-    if (ageSeconds < ttl + staleTtl) {
+    if (ageSeconds < windows.ttl + windows.staleTtl) {
       try {
-        return await storeComputed(storage, key, compute, ttl + staleTtl)
+        return await storeComputed(storage, key, compute, options)
       }
       catch (error) {
         emitOperationalEvent(createWideEvent({
@@ -264,16 +285,17 @@ export async function readThroughCache<T>(
     }
   }
 
-  return storeComputed(storage, key, compute, ttl + staleTtl)
+  return storeComputed(storage, key, compute, options)
 }
 
 async function storeComputed<T>(
   storage: ReadThroughCache,
   key: string,
   compute: () => Promise<T>,
-  storageTtl: number,
+  options: ReadThroughOptions<T>,
 ): Promise<T> {
   const value = await compute()
-  await writeCache(storage, key, { storedAt: Date.now(), value } satisfies CacheEnvelope<T>, { ttl: storageTtl })
+  const windows = resolveWindows(options, value)
+  await writeCache(storage, key, { storedAt: Date.now(), value } satisfies CacheEnvelope<T>, { ttl: windows.ttl + windows.staleTtl })
   return value
 }
