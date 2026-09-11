@@ -13,14 +13,13 @@ const FILES_CACHE_TTL = 60 * 60 * 6
 // upstream tree fetch per request.
 const FILES_CACHE_STALE_TTL = 60 * 60 * 24
 // An empty file list is only transient when the skill directory was never
-// resolved: both fallbacks return `row.rendered_skill_path` as `skillPath`,
-// which is null exactly when the no-skillDir fallback fires. A resolved skill
-// holding only SKILL.md also produces files: [] (the filter excludes
-// SKILL.md itself), so bare emptiness would drop that permanent payload onto
-// the short missing window and strip its stale protection. Keep the base
-// code's short missing window for the unresolved cases, which
-// reconcile-rendered re-renders, and let resolved payloads ride the 6-hour
-// fresh window with the day-long stale serve.
+// resolved. `skillPath` carries the resolved SKILL.md path: the stored
+// `rendered_skill_path`, or the heuristic hit when that is still NULL. It is
+// null exactly when the empty-tree or no-skillDir fallback fired, which
+// reconcile-rendered re-renders, so those take the short missing window. A
+// resolved skill holding only SKILL.md also produces files: [] (the filter
+// excludes SKILL.md itself), but its non-null skillPath keeps it on the
+// 6-hour fresh window with the day-long stale serve.
 const FILES_MISSING_TTL = 60 * 5
 // v4: entries carry a freshness envelope for readThroughCache, so v3 values
 // (raw payloads) must never be read as envelopes.
@@ -130,8 +129,10 @@ export default defineApiHandler({
 
         // Resolve the skill directory: prefer the rendered_skill_path stored at
         // sync time; fall back to a name-based heuristic the same way the asset
-        // endpoint does.
-        let skillDir = row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? null
+        // endpoint does. A heuristic hit is a real resolution, so it fills
+        // skillPath too and keeps the payload off the transient missing window.
+        let skillPath = row.rendered_skill_path
+        let skillDir = skillPath?.replace(/\/SKILL\.md$/, '') ?? null
         if (!skillDir) {
           const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
           const skillMd = tree.find(f =>
@@ -139,12 +140,14 @@ export default defineApiHandler({
             || f.path.toLowerCase() === `${slugifiedName}/skill.md`
             || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
           )?.path
-          if (skillMd)
+          if (skillMd) {
             skillDir = skillMd.replace(/\/SKILL\.md$/, '')
+            skillPath = skillMd
+          }
         }
 
         if (!skillDir) {
-          return { skillPath: row.rendered_skill_path, branch, files: [], total: 0 } satisfies SkillFilesPayload
+          return { skillPath, branch, files: [], total: 0 } satisfies SkillFilesPayload
         }
 
         const prefix = `${skillDir}/`
@@ -158,7 +161,7 @@ export default defineApiHandler({
 
         const selected = selectSkillFiles(files)
         return {
-          skillPath: row.rendered_skill_path,
+          skillPath,
           branch,
           files: selected.files,
           total: selected.total,

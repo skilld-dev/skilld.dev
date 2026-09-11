@@ -52,7 +52,7 @@ describe('skill-files cache', () => {
     const payload = await handler(event())
 
     expect(payload).toEqual({
-      skillPath: null,
+      skillPath: 'skill/SKILL.md',
       branch: 'main',
       files: [{ path: 'assets/cover.png', size: 2048, type: 'image' }],
       total: 1,
@@ -142,7 +142,7 @@ describe('skill-files cache', () => {
     const payload = await handler(event())
 
     expect(payload).toEqual({
-      skillPath: null,
+      skillPath: 'skill/SKILL.md',
       branch: 'main',
       files: [{ path: 'assets/cover.png', size: 2048, type: 'image' }],
       total: 1,
@@ -174,6 +174,34 @@ describe('skill-files cache', () => {
     // Seven hours later the entry is past even the resolved payload's
     // 6-hour fresh window. An upstream failure must serve the stale
     // envelope, not propagate.
+    cache.getItem.mockResolvedValue({ storedAt: Date.now() - 7 * HOUR * 1000, value: resolved })
+    const error = Object.assign(new Error('404 Not Found'), { status: 404, statusCode: 404 })
+    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(error))
+
+    await expect(handler(event())).resolves.toEqual(resolved)
+  })
+
+  it('caches a heuristic-resolved SKILL.md-only payload with the full fresh and stale windows', async () => {
+    // rendered_skill_path is NULL but the name heuristic finds skill/SKILL.md:
+    // the directory is resolved, so the empty file list (the tree filter
+    // excludes SKILL.md itself) is the permanent correct answer. The payload
+    // must carry the resolved path so it cannot be mistaken for the
+    // unresolved fallback, and must ride the 6-hour fresh window with the
+    // day-long stale serve.
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ files: [{ path: 'skill/SKILL.md', size: 100 }] }))
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    const resolved = await handler(event())
+    expect(resolved).toEqual({ skillPath: 'skill/SKILL.md', branch: 'main', files: [], total: 0 })
+    expect(cache.setItem).toHaveBeenCalledWith(
+      CACHE_KEY,
+      { storedAt: expect.any(Number), value: resolved },
+      { ttl: HOUR * 6 + HOUR * 24 },
+    )
+
+    // Seven hours later the entry is past its fresh window. An upstream
+    // failure must serve the stale envelope, not propagate the 404.
     cache.getItem.mockResolvedValue({ storedAt: Date.now() - 7 * HOUR * 1000, value: resolved })
     const error = Object.assign(new Error('404 Not Found'), { status: 404, statusCode: 404 })
     vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(error))
