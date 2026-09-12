@@ -115,6 +115,22 @@ export function collectWorkflowRuns(listRuns, workflowNames) {
   })
 }
 
+// The fields both the gate and the recent-activity read need.
+export const WORKFLOW_RUN_FIELDS = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
+
+/**
+ * The per-workflow gate read, as `gh` arguments. `listRuns(name, limit)` in
+ * `collectWorkflowRuns` is this command, so the sample the summariser reads is
+ * exactly what GitHub returns for these args.
+ *
+ * The gate answers "is main healthy", so the page is scoped to `main`. An
+ * unfiltered `gh run list` mixes pull-request runs in newest-first, and ten red
+ * PR runs then read a green, deployed main as a broken gate (2026-09-08).
+ */
+export function listWorkflowRunsArgs(name, limit) {
+  return ['run', 'list', '--workflow', name, '--branch', 'main', '--limit', String(limit), '--json', WORKFLOW_RUN_FIELDS]
+}
+
 // The gate must cover every workflow the repository defines, not a hand-kept
 // list. A hardcoded list silently drops any workflow added later, which is how
 // a failing scheduled alarm can sit outside the health verdict for a full day.

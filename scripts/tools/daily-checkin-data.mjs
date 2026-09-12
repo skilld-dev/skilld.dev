@@ -9,11 +9,13 @@ import {
   approximateDeployedSha,
   buildWorkersQuery,
   collectWorkflowRuns,
+  listWorkflowRunsArgs,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
   refreshProductionRef,
   summarizeWorkflowRuns,
+  WORKFLOW_RUN_FIELDS,
 } from './daily-checkin-observability.mjs'
 import { ghEnv, runReadOnlyProcess, subprocessEnv } from './daily-checkin-process.mjs'
 import { parseSentryIssuesResponse } from './sentry-observability.mjs'
@@ -118,8 +120,6 @@ const deploy = probe(() => {
   }
 })
 
-const runFields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
-
 const ci = probe(() => {
   const workflowDir = join(root, '.github/workflows')
   const definedWorkflows = readdirSync(workflowDir)
@@ -132,10 +132,10 @@ const ci = probe(() => {
   // health signal. Each workflow is therefore paged on its own name, and paged
   // deeper when a run of skipped guard runs hides the last verdict.
   const perWorkflowRows = collectWorkflowRuns(
-    (name, limit) => commandJson('gh', ['run', 'list', '--workflow', name, '--limit', String(limit), '--json', runFields]),
+    (name, limit) => commandJson('gh', listWorkflowRunsArgs(name, limit)),
     definedWorkflows,
   )
-  const recent = commandJson('gh', ['run', 'list', '--limit', '20', '--json', runFields])
+  const recent = commandJson('gh', ['run', 'list', '--limit', '20', '--json', WORKFLOW_RUN_FIELDS])
   return {
     workflows: summarizeWorkflowRuns(perWorkflowRows, definedWorkflows),
     recent: recent.slice(0, 10),

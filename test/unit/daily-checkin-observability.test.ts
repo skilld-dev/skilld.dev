@@ -5,6 +5,7 @@ import {
   approximateDeployedSha,
   buildWorkersQuery,
   collectWorkflowRuns,
+  listWorkflowRunsArgs,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
@@ -17,6 +18,7 @@ function run(
   status: 'completed' | 'in_progress',
   conclusion: '' | 'failure' | 'success' | 'skipped',
   databaseId: number,
+  headBranch = 'main',
 ) {
   return {
     workflowName,
@@ -25,6 +27,7 @@ function run(
     databaseId,
     displayTitle: 'chore: bump',
     headSha: 'abc123',
+    headBranch,
     createdAt: `2026-07-27T02:${databaseId}:00Z`,
     updatedAt: `2026-07-27T02:${databaseId}:30Z`,
     url: `https://example.com/runs/${databaseId}`,
@@ -219,6 +222,41 @@ describe('daily check-in observability', () => {
     expect(requestedLimits).toEqual([10, 100])
     expect(summarizeWorkflowRuns(rows, ['Security'])).toMatchObject([
       { name: 'Security', state: { _tag: 'missing' } },
+    ])
+  })
+
+  // 2026-09-08: the per-workflow page came back unfiltered, so ten red
+  // PR-branch Test runs sat newest-first and the gate archived a broken main
+  // Test gate while main was green and deployed.
+  it('keeps failing PR-branch runs from failing the main Test gate', () => {
+    const history = [
+      run('Test', 'completed', 'failure', 8, 'feat/queue-page'),
+      run('Test', 'completed', 'failure', 7, 'feat/queue-page'),
+      run('Test', 'completed', 'failure', 6, 'feat/queue-page'),
+      run('Test', 'completed', 'success', 5, 'main'),
+    ]
+    // Stands in for the GitHub CLI: `--branch` is applied server-side, so the
+    // gate only ever sees the runs the args ask for.
+    const gh = (args: string[]) => {
+      const branchAt = args.indexOf('--branch')
+      const branch = branchAt === -1 ? null : args[branchAt + 1]
+      const limit = Number(args[args.indexOf('--limit') + 1])
+      return JSON.stringify(history
+        .filter(row => branch === null || row.headBranch === branch)
+        .slice(0, limit))
+    }
+    const listRuns = (name: string, limit: number) =>
+      JSON.parse(gh(listWorkflowRunsArgs(name, limit)))
+
+    const rows = collectWorkflowRuns(listRuns, ['Test'])
+
+    expect(summarizeWorkflowRuns(rows, ['Test'])).toMatchObject([
+      {
+        name: 'Test',
+        latestRun: run('Test', 'completed', 'success', 5, 'main'),
+        latestCompletedRun: run('Test', 'completed', 'success', 5, 'main'),
+        state: { _tag: 'success' },
+      },
     ])
   })
 
