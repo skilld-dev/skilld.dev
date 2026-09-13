@@ -17,12 +17,14 @@ function run(
   status: 'completed' | 'in_progress',
   conclusion: '' | 'failure' | 'success' | 'skipped',
   databaseId: number,
+  event: 'push' | 'pull_request' | 'workflow_run' | 'workflow_dispatch' = 'push',
 ) {
   return {
     workflowName,
     status,
     conclusion,
     databaseId,
+    event,
     displayTitle: 'chore: bump',
     headSha: 'abc123',
     createdAt: `2026-07-27T02:${databaseId}:00Z`,
@@ -131,6 +133,33 @@ describe('daily check-in observability', () => {
           consecutiveFailures: 0,
           previousConclusion: 'success',
         },
+      },
+    ])
+  })
+
+  // The shape from 2026-09-13 (issue #209): the Test workflow runs on both
+  // pull_request and push to main. Ten red PR runs sat in front of a green
+  // main run, so the gate read the repository Test workflow as failing on
+  // `main` while the latest main-branch run had passed.
+  it('reads the gate off main-branch runs, never red pull_request runs', () => {
+    const history = [
+      ...Array.from({ length: 10 }, (_, index) => run('Test', 'completed', 'failure', 40 - index, 'pull_request')),
+      run('Test', 'completed', 'success', 20, 'push'),
+    ]
+    const requestedLimits: number[] = []
+    const listRuns = (name: string, limit: number) => {
+      requestedLimits.push(limit)
+      return history.filter(row => row.workflowName === name).slice(0, limit)
+    }
+
+    const rows = collectWorkflowRuns(listRuns, ['Test'])
+
+    expect(requestedLimits).toEqual([10, 100])
+    expect(summarizeWorkflowRuns(rows, ['Test'])).toMatchObject([
+      {
+        name: 'Test',
+        latestCompletedRun: run('Test', 'completed', 'success', 20, 'push'),
+        state: { _tag: 'success' },
       },
     ])
   })

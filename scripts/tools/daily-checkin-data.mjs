@@ -118,7 +118,9 @@ const deploy = probe(() => {
   }
 })
 
-const runFields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
+// `event` separates pull_request runs from the main-branch runs the CI gate
+// buckets on; the gate must not read a red PR run as a red `main` run.
+const runFields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url,event'
 
 const ci = probe(() => {
   const workflowDir = join(root, '.github/workflows')

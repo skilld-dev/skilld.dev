@@ -62,6 +62,15 @@ function carriesVerdict(run) {
   return run.status === 'completed' && run.conclusion !== 'skipped'
 }
 
+// A pull_request run tests a branch proposal, not the branch that deploys. The
+// Test workflow runs on both, so counting red PR runs in the gate buckets read
+// a green `main` as failing (2026-09-13): the gate answers "is the default
+// branch healthy", and only non-PR runs carry that verdict. A row without an
+// `event` stays in the gate rather than silently dropping out.
+function isBranchRun(row) {
+  return row.event !== 'pull_request'
+}
+
 function completedState(runs) {
   const completed = runs.filter(carriesVerdict)
   const latest = completed[0] ?? null
@@ -104,12 +113,13 @@ const WORKFLOW_VERDICT_SAMPLE = 100
  *
  * The deeper page is only paid for when the head page reached no verdict and was
  * full. A short head page is the workflow's whole history, so a second request
- * would return the same rows.
+ * would return the same rows. Pull_request runs carry a verdict for their branch,
+ * never for the gate, so a head page full of them counts as reaching nothing.
  */
 export function collectWorkflowRuns(listRuns, workflowNames) {
   return workflowNames.flatMap((name) => {
     const head = listRuns(name, WORKFLOW_HEAD_SAMPLE)
-    if (head.some(carriesVerdict) || head.length < WORKFLOW_HEAD_SAMPLE)
+    if (head.some(row => isBranchRun(row) && carriesVerdict(row)) || head.length < WORKFLOW_HEAD_SAMPLE)
       return head
     return listRuns(name, WORKFLOW_VERDICT_SAMPLE)
   })
@@ -128,7 +138,9 @@ export function parseWorkflowName(source) {
 
 export function summarizeWorkflowRuns(rows, requiredWorkflowNames) {
   return requiredWorkflowNames.map((name) => {
-    const runs = rows.filter(row => row.workflowName === name)
+    // Gate buckets hold main-branch runs only: red pull_request runs do not gate
+    // the branch that deploys, so they must not read the workflow as failing.
+    const runs = rows.filter(row => row.workflowName === name && isBranchRun(row))
     const latestRun = runs[0] ?? null
     const latestCompletedRun = runs.find(carriesVerdict) ?? null
     const previousState = completedState(runs)
