@@ -1,7 +1,8 @@
+import type { H3Event } from 'h3'
 import type { TagPayload } from '../../jobs/generate-tags'
 import type { RegistrySkill } from '../../utils/skills-registry'
 import { getDB } from '#server/utils/db'
-import { readCache, writeCache } from '#shared/server/cache'
+import { cached, readCache, writeCache } from '#shared/server/cache'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
@@ -57,6 +58,13 @@ interface OwnerRow {
 }
 
 const OWNER_FRESH_HOURS = 24 * 7
+
+// Same windows as the skill detail route: one minute fresh, five minutes of
+// stale serving while one refresh recomputes in the background. A cold
+// compute is five-plus D1 queries plus a per-repo ungh.cc fetch, which is the
+// recurring D1 overload shape (SKILLD-1M, SKILLD-1N).
+const ORG_PROFILE_CACHE_TTL = 60
+const ORG_PROFILE_CACHE_STALE_TTL = 60 * 5
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 const kindByOwner = new Map(officialRepos.map(r => [r.owner, r.kind]))
@@ -148,6 +156,17 @@ export default defineEventHandler(async (event) => {
 
   const owner = ownerParam.toLowerCase()
 
+  return cached({
+    storage: useStorage('cache'),
+    key: `orgs:profile:v1:${owner}`,
+    ttlSeconds: ORG_PROFILE_CACHE_TTL,
+    staleSeconds: ORG_PROFILE_CACHE_STALE_TTL,
+    compute: () => loadOrgProfile(event, owner),
+    schedule: promise => runAfterResponse(event, promise),
+  })
+})
+
+async function loadOrgProfile(event: H3Event, owner: string): Promise<OrgProfile> {
   const db = getDB(event)
   const [registryResult, ownerRow] = await Promise.all([
     querySkills(event, {
@@ -262,4 +281,15 @@ export default defineEventHandler(async (event) => {
   }
 
   return profile
-})
+}
+
+function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {
+  const ctx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(promise)
+    return
+  }
+  // Local dev / non-Workers: don't block the response, but make sure the
+  // promise isn't an unhandled rejection.
+  void promise
+}
