@@ -249,6 +249,10 @@ export default defineNuxtConfig({
     llmsTxt: {
       markdownLinks: true,
     },
+    // 2.1.0 added /sitemap.md, on by default. It reads every ai_ready_pages
+    // row with no limit (about 143k), which brings back the dump that
+    // llms-full.txt retired. Every .md page would also link to it.
+    sitemapMd: false,
     mcp: {
       tools: false,
       resources: false,
