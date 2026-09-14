@@ -9,6 +9,7 @@ import {
   parseWorkflowName,
   readMigrationState,
   refreshProductionRef,
+  runListArgs,
   summarizeWorkflowRuns,
 } from '../../scripts/tools/daily-checkin-observability.mjs'
 
@@ -103,6 +104,17 @@ describe('daily check-in observability', () => {
       '2026-08-20T02:28:50.987Z',
       '2026-08-21T02:53:53.726Z',
     )).toContain('filter: {scriptName: "skilld-dev"')
+  })
+
+  // test.yml runs on every pull_request, so on 2026-09-10 four PR branch
+  // failures were archived as a broken main gate while main's own Test run on
+  // the deployed SHA passed. Every `gh run list` the collector makes must be
+  // scoped to main, both the per-workflow pages and the recent feed.
+  it('scopes every gh run list to main so a PR failure cannot read as a main failure', () => {
+    expect(runListArgs('Test', 10)).toEqual(expect.arrayContaining(['--workflow', 'Test', '--branch', 'main']))
+    expect(runListArgs('Test', 100)).toEqual(expect.arrayContaining(['--limit', '100']))
+    expect(runListArgs(null, 20)).toEqual(expect.arrayContaining(['--branch', 'main']))
+    expect(runListArgs(null, 20)).not.toContain('--workflow')
   })
 
   it('surfaces every required workflow and preserves a failure behind an in-progress run', () => {
