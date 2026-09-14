@@ -251,10 +251,8 @@ export default defineCachedEventHandler(async (event) => {
 
   return profile
 }, {
-  // Tag membership moves when a sync or the tag job lands, not per minute.
-  maxAge: 60 * 15,
-  staleMaxAge: 60 * 60,
-  swr: true,
+  maxAge: 60,
+  swr: false,
   getKey: (event) => {
     const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
     const view = getQuery(event).view === 'data' ? 'data' : 'canonical'

@@ -114,11 +114,7 @@ export default defineCachedEventHandler(async (event) => {
 
   return { items: populated }
 }, {
-  // Membership only moves when a sync or classifier run lands. A minute-long
-  // cache re-ran the category scan about 1,330 times a day across both cluster
-  // routes (827M rows read, 11 to 13 Sep 2026).
-  maxAge: 60 * 15,
-  staleMaxAge: 60 * 60,
-  swr: true,
+  maxAge: 60,
+  swr: false,
   name: 'clusters-index-origin-v4',
 })

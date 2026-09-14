@@ -103,10 +103,7 @@ export default defineCachedEventHandler(async (event) => {
     pages: Math.max(1, Math.ceil(total / limit)),
   }
 }, {
-  // Membership only moves when a sync or classifier run lands; see the index
-  // route for the read volume a minute-long cache produced.
-  maxAge: 60 * 15,
-  staleMaxAge: 60 * 60,
-  swr: true,
+  maxAge: 60,
+  swr: false,
   name: 'clusters-detail-origin-v4',
 })
