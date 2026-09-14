@@ -119,6 +119,28 @@ function completedState(runs) {
 const WORKFLOW_HEAD_SAMPLE = 10
 const WORKFLOW_VERDICT_SAMPLE = 100
 
+const workflowRunFields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
+
+/**
+ * The `gh run list` arguments every CI read must use. Scoped to `main` because
+ * test.yml also runs on pull_request: an unscoped list let four PR branch
+ * failures archive a broken main gate on 2026-09-10 while main's own Test run
+ * on the deployed SHA passed. `workflow` is null for the recent feed.
+ */
+export function runListArgs(workflow, limit) {
+  return [
+    'run',
+    'list',
+    ...(workflow ? ['--workflow', workflow] : []),
+    '--branch',
+    'main',
+    '--limit',
+    String(limit),
+    '--json',
+    workflowRunFields,
+  ]
+}
+
 /**
  * Fetch enough runs per workflow that `summarizeWorkflowRuns` can reach the last
  * verdict. `listRuns(name, limit)` returns that workflow's runs, newest first.
