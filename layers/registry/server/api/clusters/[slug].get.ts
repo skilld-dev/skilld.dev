@@ -60,7 +60,7 @@ export default defineCachedEventHandler(async (event) => {
 
   // Membership is abstract-first with a capped backfill; see cluster-membership.
   const statements = clusterPageSql(
-    'owner, name, repo, display_name, description, stars, modified_at, repo_skill_count, is_abstract',
+    'owner, name, repo, display_name, description, stars, modified_at, is_abstract',
     cluster.categories,
     pinnedSkills,
     { limit, offset },
@@ -103,7 +103,10 @@ export default defineCachedEventHandler(async (event) => {
     pages: Math.max(1, Math.ceil(total / limit)),
   }
 }, {
-  maxAge: 60,
-  swr: false,
-  name: 'clusters-detail-origin-v3',
+  // Membership only moves when a sync or classifier run lands; see the index
+  // route for the read volume a minute-long cache produced.
+  maxAge: 60 * 15,
+  staleMaxAge: 60 * 60,
+  swr: true,
+  name: 'clusters-detail-origin-v4',
 })
