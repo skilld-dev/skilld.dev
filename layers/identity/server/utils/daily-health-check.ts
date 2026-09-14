@@ -922,6 +922,10 @@ async function loadWeeklyRun(db: D1Database): Promise<DailyHealthCheckSummary['a
  * still says eligible, the owner is a user (the leaderboard scope), and no
  * healthy skill row exists for the repository.
  *
+ * A repository whose repos row is broken (deleted upstream) is excluded: the
+ * breakage is a known state reported by the broken-repo metrics, so its
+ * review would otherwise re-alarm every night forever.
+ *
  * Shared by the count and the named-rows query so the number and the names in
  * the report cannot drift apart. `param` is the placeholder index for the
  * visibility deadline, which each statement binds at its own position.
@@ -944,6 +948,13 @@ function leaderboardStuckSql(param: number): string {
             WHERE r.owner = review.owner
               AND r.repo = review.repo
               AND r.broken_since IS NULL
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM repos AS broken
+            WHERE broken.owner = review.owner
+              AND broken.repo = review.repo
+              AND broken.broken_since IS NOT NULL
           )`
 }
 
