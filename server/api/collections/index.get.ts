@@ -103,6 +103,10 @@ async function loadSkillLabels(db: D1Database, rows: CollectionIndexRow[]) {
        WHERE (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)
          AND s.source_resolved = 1
          AND s.rendered_status = 'ok'
+         -- Rank only the listed collections' repositories; \`rn\` is per repository.
+         AND (s.owner, s.repo) IN (
+           SELECT owner, repo FROM collection_skills_v2 WHERE collection_id IN (${placeholders})
+         )
      )
      SELECT cs.collection_id, cs.owner, cs.repo, rs.name, rs.display_name
      FROM collection_skills_v2 cs
@@ -115,7 +119,7 @@ async function loadSkillLabels(db: D1Database, rows: CollectionIndexRow[]) {
       )
      WHERE cs.collection_id IN (${placeholders})
      ORDER BY cs.collection_id ASC, cs.position ASC`,
-  ).bind(...ids).all<CollectionIndexSkillRow>()
+  ).bind(...ids, ...ids).all<CollectionIndexSkillRow>()
 
   for (const skill of skillsRes.results ?? []) {
     const labels = skillsByCollection.get(skill.collection_id) ?? []
