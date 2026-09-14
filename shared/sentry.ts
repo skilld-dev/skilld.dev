@@ -86,6 +86,20 @@ export function isExpectedUpstreamOutageError(error: unknown): boolean {
   return typeof message === 'string' && message.endsWith('unavailable upstream')
 }
 
+/**
+ * The message Chrome rejects a `postMessage` on a closed `BroadcastChannel`
+ * with (`InvalidStateError`, Sentry SKILLD-12). nuxt-skew-protection's
+ * multi-tab plugin closes its channel on `app:error`, and a version update
+ * already in flight can still post to it. The tab is erroring or closing
+ * anyway, and the other tabs pick the version up on their own poll, so the
+ * rejection is benign. The client Sentry config drops exactly that signature
+ * in `beforeSend`; a closed-channel post on any other target still lands.
+ */
+export function isClosedBroadcastChannelError(error: unknown): boolean {
+  const message = sentryExceptionMessage(error)
+  return message === 'Failed to execute \'postMessage\' on \'BroadcastChannel\': Channel is closed'
+}
+
 export function createSentryDataCollection() {
   return {
     userInfo: false,
