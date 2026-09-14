@@ -201,11 +201,27 @@ export default defineNuxtConfig({
   },
 
   scripts: {
+    // Bundling a registry script downloads it at build time. When
+    // static.cloudflareinsights.com is unreachable, that download threw and
+    // every build failed (#208). The fallback keeps the build green: a failed
+    // download serves the remote URL at runtime instead. Online builds still
+    // bundle as before.
+    assets: {
+      fallbackOnSrcOnBundleFail: true,
+    },
     registry: {
-      cloudflareWebAnalytics: {
-        token: 'fefd4b7eafe04d5f81621e43e5d5ef80',
-        trigger: 'server',
-      },
+      // Bundling the beacon fetches beacon.min.js from
+      // static.cloudflareinsights.com at transform time, so every vitest file
+      // fails on the network-less CI runner (#204). Telemetry serves no test,
+      // and vitest sets NODE_ENV=test before nuxt.config.ts is evaluated.
+      ...(process.env.NODE_ENV === 'test'
+        ? {}
+        : {
+            cloudflareWebAnalytics: {
+              token: 'fefd4b7eafe04d5f81621e43e5d5ef80',
+              trigger: 'server',
+            },
+          }),
     },
   },
 

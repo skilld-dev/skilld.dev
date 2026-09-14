@@ -52,3 +52,6 @@ Read `results[].result.evidence` for each registered check.
 The `skilld.database` result retains inventory, activity, pipeline, cost, and operator-email evidence.
 The `skilld.sentry-details` result retains new and recurring issue details.
 The published `@harlan-zw/nuxt-checkin@0.2.0-alpha.0` prerelease supplies the CLI.
+
+The `skilld.baseline` result records fresh or stale comparison windows.
+Invalid saved state stops the CLI before collection and never advances the saved baseline.

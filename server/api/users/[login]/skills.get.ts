@@ -1,5 +1,12 @@
+import type { H3Event } from 'h3'
+import type { Platform } from '#shared/server/platform'
+
+import { cached } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
+
+const USER_SKILLS_CACHE_TTL = 60
+const USER_SKILLS_CACHE_STALE_TTL = 60 * 5
 
 interface SkillRow {
   name: string
@@ -24,36 +31,65 @@ export default defineApiHandler({
     if (!login)
       throw createError({ statusCode: 400, message: 'login required' })
 
-    const { db } = platform
-    const res = await db
-      .prepare(
-        `SELECT s.name, s.owner, s.repo, s.display_name, s.slug, s.description,
-                s.like_count AS likeCount,
-                s.modified_at, s.last_synced_at, s.rendered_skill_path AS skill_path,
-                r.source_owner, r.source_repo, r.default_branch,
-                (SELECT COUNT(*) FROM skills repo_skills
-                 WHERE repo_skills.owner = s.owner
-                   AND repo_skills.repo = s.repo
-                   AND repo_skills.source_resolved = 1) AS repo_skill_count
-         FROM skills s
-         JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-         WHERE s.owner = ?1 COLLATE NOCASE
-         ORDER BY COALESCE(s.modified_at, s.last_synced_at, 0) DESC`,
-      )
-      .bind(login)
-      .all<SkillRow>()
-
-    return {
-      ok: true as const,
-      items: (res.results ?? []).map(skill => ({
-        ...skill,
-        registryPath: canonicalRepoSkillPath({
-          owner: skill.owner,
-          repo: skill.repo,
-          name: skill.name,
-          repoSkillCount: skill.repo_skill_count,
-        }),
-      })),
-    }
+    return cached({
+      storage: useStorage('cache'),
+      key: `user-skills:${login.toLowerCase()}`,
+      ttlSeconds: USER_SKILLS_CACHE_TTL,
+      staleSeconds: USER_SKILLS_CACHE_STALE_TTL,
+      compute: () => loadUserSkills(platform, login),
+      schedule: promise => runAfterResponse(event, promise),
+    })
   },
 })
+
+async function loadUserSkills(platform: Platform, login: string) {
+  const res = await platform.db
+    .prepare(
+      // Counted once per repo of this owner. A correlated count per row read
+      // every Skill of the repo for each row, sum(c^2): 781K rows for an
+      // owner with one 875-Skill repo.
+      `WITH repo_counts AS (
+         SELECT owner, repo, COUNT(*) AS skill_count
+         FROM skills
+         WHERE owner = ?1 COLLATE NOCASE
+           AND source_resolved = 1
+         GROUP BY owner, repo
+       )
+       SELECT s.name, s.owner, s.repo, s.display_name, s.slug, s.description,
+              s.like_count AS likeCount,
+              s.modified_at, s.last_synced_at, s.rendered_skill_path AS skill_path,
+              r.source_owner, r.source_repo, r.default_branch,
+              COALESCE(repo_counts.skill_count, 0) AS repo_skill_count
+       FROM skills s
+       JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+       LEFT JOIN repo_counts ON repo_counts.owner = s.owner AND repo_counts.repo = s.repo
+       WHERE s.owner = ?1 COLLATE NOCASE
+       ORDER BY COALESCE(s.modified_at, s.last_synced_at, 0) DESC`,
+    )
+    .bind(login)
+    .all<SkillRow>()
+
+  return {
+    ok: true as const,
+    items: (res.results ?? []).map(skill => ({
+      ...skill,
+      registryPath: canonicalRepoSkillPath({
+        owner: skill.owner,
+        repo: skill.repo,
+        name: skill.name,
+        repoSkillCount: skill.repo_skill_count,
+      }),
+    })),
+  }
+}
+
+function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {
+  const ctx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(promise)
+    return
+  }
+  // Local dev / non-Workers: don't block the response, but make sure the
+  // promise isn't an unhandled rejection.
+  void promise
+}

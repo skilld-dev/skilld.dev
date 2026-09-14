@@ -231,6 +231,9 @@ function showMore() {
           </ul>
         </section>
 
+        <!-- fetchedAt is at most maxAge + staleMaxAge (25h) old: the tag
+             profile cache revalidates synchronously past that window, so
+             this label can never report more than about a day. -->
         <p class="mt-8 text-xs text-muted">
           Checked GitHub {{ syncedAgo }}
         </p>

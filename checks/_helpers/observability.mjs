@@ -53,6 +53,27 @@ export function buildWorkersQuery(sinceIso, untilIso) {
   return `query { viewer { accounts(filter: {accountTag: "5904138d55ca25d5670dca6adf99894e"}) { workersInvocationsAdaptive(limit: 100, filter: {scriptName: "skilld-dev", datetime_geq: ${JSON.stringify(sinceIso)}, datetime_leq: ${JSON.stringify(untilIso)}}) { dimensions { scriptName status } sum { requests } } } } }`
 }
 
+// The archive records `since` but until #195 nothing derived a gap from it, so
+// a run that skipped six days read as an ordinary overnight window and every
+// rate in the report was compared across unequal windows. The routine targets
+// a daily cadence, so a window past 36 hours covers at least one skipped slot:
+// the ordinary ~24h window plus jitter stays fresh, one missed day does not.
+const STALE_BASELINE_HOURS = 36
+
+export function deriveBaselineFlag(sinceIso, nowIso) {
+  const since = Date.parse(sinceIso)
+  const until = Date.parse(nowIso)
+  // state.json is hand-editable, so an unparseable timestamp or a baseline in
+  // the future is a real condition. The archive says so instead of reporting a
+  // confident NaN or negative gap.
+  if (Number.isNaN(since) || Number.isNaN(until) || until < since)
+    return { _tag: 'invalid' }
+  const gapHours = Math.round(((until - since) / 3_600_000) * 10) / 10
+  return gapHours > STALE_BASELINE_HOURS
+    ? { _tag: 'stale', gapHours }
+    : { _tag: 'fresh', gapHours }
+}
+
 // A `skipped` conclusion is a guard declining to run, not a verdict. The deploy
 // workflow is triggered by `workflow_run` from every branch and skips itself off
 // `main`, so treating `skipped` as a non-success read a working guard as a
@@ -97,6 +118,28 @@ function completedState(runs) {
 // so `missing` there is a real observability gap rather than a short sample.
 const WORKFLOW_HEAD_SAMPLE = 10
 const WORKFLOW_VERDICT_SAMPLE = 100
+
+const workflowRunFields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
+
+/**
+ * The `gh run list` arguments every CI read must use. Scoped to `main` because
+ * test.yml also runs on pull_request: an unscoped list let four PR branch
+ * failures archive a broken main gate on 2026-09-10 while main's own Test run
+ * on the deployed SHA passed. `workflow` is null for the recent feed.
+ */
+export function runListArgs(workflow, limit) {
+  return [
+    'run',
+    'list',
+    ...(workflow ? ['--workflow', workflow] : []),
+    '--branch',
+    'main',
+    '--limit',
+    String(limit),
+    '--json',
+    workflowRunFields,
+  ]
+}
 
 /**
  * Fetch enough runs per workflow that `summarizeWorkflowRuns` can reach the last
@@ -166,6 +209,17 @@ function stringArray(value, field) {
   if (!Array.isArray(value) || value.some(item => typeof item !== 'string'))
     throw new Error(`daily health check ${field} must be a string array`)
   return value
+}
+
+// The gate is one sent operator report per Melbourne date, so the read has to
+// show enough days to verify continuity. The old two-row page could only ever
+// verify the two newest dates, which is how a gap three days back stayed
+// invisible. Melbourne runs up to one day ahead of UTC, so eight UTC days is
+// the smallest bound that always covers seven Melbourne dates. `report_date`
+// is the table's primary key, so a row cap equal to the window can never hide
+// an in-window date.
+export function buildHealthEmailQuery() {
+  return `SELECT report_date, health_status, delivery_status, recipient, sent_at, error, summary_json FROM daily_health_checks WHERE report_date >= date('now', '-8 days') ORDER BY report_date DESC LIMIT 8`
 }
 
 export function parseHealthEmailRows(rows) {

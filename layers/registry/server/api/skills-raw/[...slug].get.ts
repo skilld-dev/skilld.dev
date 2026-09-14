@@ -7,6 +7,9 @@ import { fetchUpstreamText } from '../../utils/upstream-text'
 import { fetchUpstreamTree } from '../../utils/upstream-tree'
 
 const RAW_CACHE_TTL = 60 * 5
+// The KV entry outlives the fresh window by this much, so a blip after
+// expiry still has a last-good body to fall back to instead of a 503.
+const RAW_STALE_TTL = 60 * 60
 const RAW_MISSING_TTL = 60
 const RAW_RETRY_AFTER = 30
 
@@ -15,6 +18,30 @@ interface RawCache {
   body: string | null
   branch: string | null
   path: string | null
+}
+
+/**
+ * The freshness envelope `readThroughCache` stores, read here by hand rather
+ * than through the helper: 404 and 410 must propagate even in the stale
+ * window, so only an upstream outage may fall back to the stale value.
+ */
+interface RawCacheEnvelope {
+  storedAt: number
+  value: RawCache
+}
+
+function parseLastGood(raw: unknown): { value: RawCache, ageSeconds: number } | null {
+  if (typeof raw !== 'object' || raw === null || !('storedAt' in raw) || !('value' in raw))
+    return null
+  const { storedAt, value } = raw as Record<string, unknown>
+  if (typeof storedAt !== 'number' || !Number.isFinite(storedAt))
+    return null
+  if (typeof value !== 'object' || value === null)
+    return null
+  const entry = value as RawCache
+  if (entry.status !== 'ok' || typeof entry.body !== 'string')
+    return null
+  return { value: entry, ageSeconds: (Date.now() - storedAt) / 1000 }
 }
 
 interface SkillSourceRow {
@@ -71,14 +98,33 @@ export default defineApiHandler({
     const source = resolveRepoSourceIdentityFromRow(skill, sourceRow ?? undefined)
     const branch = sourceRow?.default_branch || 'main'
     const cacheKey = filePath
-      ? `skills:raw:v2:${source.owner}/${source.repo}/${skill.name}:${filePath}`
-      : `skills:raw:v2:${source.owner}/${source.repo}/${skill.name}`
-    const cached = await readCache<RawCache>(useStorage('cache'), cacheKey)
-    if (cached?.status === 'ok' && cached.body !== null) {
+      ? `skills:raw:v3:${source.owner}/${source.repo}/${skill.name}:${filePath}`
+      : `skills:raw:v3:${source.owner}/${source.repo}/${skill.name}`
+    const lastGood = parseLastGood(await readCache<unknown>(useStorage('cache'), cacheKey))
+    if (lastGood && lastGood.ageSeconds < RAW_CACHE_TTL) {
       setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
       setHeader(event, 'cache-control', 'public, max-age=300')
-      setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${cached.branch}/${cached.path}`)
-      return cached.body
+      setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${lastGood.value.branch}/${lastGood.value.path}`)
+      return lastGood.value.body
+    }
+
+    // An upstream outage must not reach the run surface while a last-good
+    // copy is still readable. A gone or missing verdict still propagates:
+    // those are facts about the source, not about its availability.
+    const serveStale = (stage: string) => {
+      if (!lastGood || lastGood.ageSeconds >= RAW_CACHE_TTL + RAW_STALE_TTL)
+        return null
+      emitOperationalEvent(createWideEvent({
+        'operation': 'skill-raw-stale-fallback',
+        'outcome': 'degraded',
+        'cache.servedStale': true,
+        'cache.ageSeconds': Math.round(lastGood.ageSeconds),
+        'reason': stage,
+      }))
+      setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
+      setHeader(event, 'cache-control', 'public, max-age=30')
+      setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${lastGood.value.branch}/${lastGood.value.path}`)
+      return lastGood.value.body
     }
 
     const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-raw-tree-fetch' })
@@ -92,6 +138,9 @@ export default defineApiHandler({
     }
 
     if (treeResult._tag === 'unavailable') {
+      const staleBody = serveStale('tree')
+      if (staleBody !== null)
+        return staleBody
       setHeader(event, 'retry-after', RAW_RETRY_AFTER)
       throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
     }
@@ -129,12 +178,20 @@ export default defineApiHandler({
       // A GitHub outage must not leave a "missing" marker behind, or the
       // document reads as deleted for the rest of the cache window.
       emitOperationalEvent(createWideEvent({ 'operation': 'skill-raw-content-fetch', 'outcome': 'failed', 'upstream.status': raw.status ?? 0, 'attempt': raw.attempts }))
+      const staleBody = serveStale('content')
+      if (staleBody !== null)
+        return staleBody
       setHeader(event, 'retry-after', RAW_RETRY_AFTER)
       throw createError({ statusCode: 503, message: 'SKILL.md source is unavailable upstream' })
     }
 
     const body = raw.body
-    await writeCache(useStorage('cache'), cacheKey, { status: 'ok', body, branch, path: targetPath } satisfies RawCache, { ttl: RAW_CACHE_TTL })
+    await writeCache(
+      useStorage('cache'),
+      cacheKey,
+      { storedAt: Date.now(), value: { status: 'ok', body, branch, path: targetPath } } satisfies RawCacheEnvelope,
+      { ttl: RAW_CACHE_TTL + RAW_STALE_TTL },
+    )
 
     setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
     setHeader(event, 'cache-control', 'public, max-age=300')

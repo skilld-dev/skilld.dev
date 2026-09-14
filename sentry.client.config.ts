@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nuxt'
-import { createSentryDataCollection, isLocalReportingHost, SENTRY_DSN } from './shared/sentry'
+import { createSentryDataCollection, isClosedBroadcastChannelError, isLocalReportingHost, SENTRY_DSN } from './shared/sentry'
 
 if (!import.meta.dev && window.location.protocol === 'https:' && !isLocalReportingHost(window.location.hostname)) {
   // No `release` here on purpose. The Sentry bundler plugin injects the release
@@ -19,5 +19,15 @@ if (!import.meta.dev && window.location.protocol === 'https:' && !isLocalReporti
       /Importing a module script failed/i,
       /error loading dynamically imported module/i,
     ],
+    // nuxt-skew-protection's multi-tab plugin closes its BroadcastChannel on
+    // app:error, and an in-flight version update can still post to it. The
+    // rejection is a benign tab-close race (SKILLD-12), so drop that one
+    // signature and keep every other error.
+    beforeSend(event, hint) {
+      const values = event.exception?.values ?? []
+      if (isClosedBroadcastChannelError(hint.originalException) || values.some(isClosedBroadcastChannelError))
+        return null
+      return event
+    },
   })
 }

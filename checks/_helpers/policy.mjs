@@ -1,8 +1,8 @@
-import { fail, pass, unavailable, warn } from '@harlan-zw/nuxt-checkin/external'
+import { fail, pass, warn } from '@harlan-zw/nuxt-checkin/external'
 
 export function evaluateCI(data) {
   if (!data.workflows.length || data.workflows.some(workflow => workflow.state._tag === 'missing'))
-    return unavailable('Workflow evidence is missing.', data)
+    return { _tag: 'Warn', reason: 'Workflow evidence is missing.', evidence: data, coverage: 'incomplete' }
   if (data.workflows.some(workflow => workflow.state._tag === 'failure'))
     return fail('A workflow is failing.', data)
   if (data.workflows.some(workflow => workflow.state._tag === 'pending' && workflow.state.consecutiveFailures > 0))
@@ -12,11 +12,11 @@ export function evaluateCI(data) {
 
 export function evaluateD1(data, now, since) {
   if (data.missingExpectedTables.length)
-    return unavailable('Expected database tables are missing.', data)
+    return { _tag: 'Warn', reason: 'Expected database tables are missing.', evidence: data, coverage: 'incomplete' }
   if (data.migrations.error)
-    return unavailable('Production migration evidence is unavailable.', data)
+    return { _tag: 'Warn', reason: 'Production migration evidence is unavailable.', evidence: data, coverage: 'incomplete' }
   if (data.cost.x_budget_target === null)
-    return unavailable('X discovery budget is unavailable.', data)
+    return { _tag: 'Warn', reason: 'X discovery budget is unavailable.', evidence: data, coverage: 'incomplete' }
   if (data.cost.x_projected_monthly_usd > 60)
     return fail('Projected X spend exceeds $60 per month.', data)
   const failed = data.activity.digests_failed > 0

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
-import { buildWorkersQuery, parseHealthEmailRows, parseWorkflowName, summarizeWorkflowRuns } from './observability.mjs'
+import { buildHealthEmailQuery, buildWorkersQuery, parseHealthEmailRows, parseWorkflowName, runListArgs, summarizeWorkflowRuns } from './observability.mjs'
 
 const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers'].map(key => [key, {}]))
 
@@ -67,15 +67,14 @@ export function collectCI(context) {
   return collect(context, 'ci', async (context) => {
     const directory = join(context.rootDir, '.github/workflows')
     const names = (await Promise.all((await readdir(directory)).filter(file => /\.ya?ml$/.test(file)).map(async file => parseWorkflowName(await readFile(join(directory, file), 'utf8'))))).filter(Boolean).sort()
-    const fields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
     const rows = []
     for (const name of names) {
-      let page = await commandJson(context, 'gh', ['run', 'list', '--workflow', name, '--limit', '10', '--json', fields])
+      let page = await commandJson(context, 'gh', runListArgs(name, 10))
       if (!page.some(row => row.status === 'completed' && row.conclusion !== 'skipped') && page.length === 10)
-        page = await commandJson(context, 'gh', ['run', 'list', '--workflow', name, '--limit', '100', '--json', fields])
+        page = await commandJson(context, 'gh', runListArgs(name, 100))
       rows.push(...page)
     }
-    return { workflows: summarizeWorkflowRuns(rows, names), recent: (await commandJson(context, 'gh', ['run', 'list', '--limit', '20', '--json', fields])).slice(0, 10) }
+    return { workflows: summarizeWorkflowRuns(rows, names), recent: (await commandJson(context, 'gh', runListArgs(null, 20))).slice(0, 10) }
   })
 }
 function readDailyBudget(root) {
@@ -230,7 +229,7 @@ export function collectD1(context) {
       ? (await d1Query(`SELECT queue, job_type, substr(exception, 1, 160) exception, COUNT(*) count, MIN(failed_at) first_failed_at, MAX(failed_at) last_failed_at FROM failed_jobs WHERE failed_at >= ${sinceSec} GROUP BY queue, job_type, substr(exception, 1, 160) ORDER BY count DESC LIMIT 10`))
       : null
     const healthEmail = has('daily_health_checks')
-      ? parseHealthEmailRows((await d1Query(`SELECT report_date, health_status, delivery_status, recipient, sent_at, error, summary_json FROM daily_health_checks ORDER BY report_date DESC LIMIT 2`)))
+      ? parseHealthEmailRows((await d1Query(buildHealthEmailQuery())))
       : null
     const recentJobBatches = has('job_batches')
       ? (await d1Query(`SELECT id, name, total_jobs, pending_jobs, failed_jobs, created_at, updated_at, finished_at FROM job_batches ORDER BY updated_at DESC LIMIT 10`))

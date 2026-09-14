@@ -1,5 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isBestEffortCacheWriteError, isExpectedUpstreamOutageError } from '../../shared/sentry'
+import { isBestEffortCacheWriteError, isClosedBroadcastChannelError, isExpectedUpstreamOutageError } from '../../shared/sentry'
+
+describe('isClosedBroadcastChannelError', () => {
+  const closed = 'Failed to execute \'postMessage\' on \'BroadcastChannel\': Channel is closed'
+
+  it('matches the SKILLD-12 closed-channel postMessage the multi-tab plugin throws', () => {
+    expect(isClosedBroadcastChannelError(new DOMException(closed, 'InvalidStateError'))).toBe(true)
+  })
+
+  it('matches the Sentry-serialized exception, whose message arrives as value', () => {
+    expect(isClosedBroadcastChannelError({
+      type: 'InvalidStateError',
+      value: closed,
+      mechanism: { handled: false, type: 'auto.browser.global_handlers.onunhandledrejection' },
+    })).toBe(true)
+  })
+
+  it('ignores postMessage failures on other targets, which are not the tab-close race', () => {
+    expect(isClosedBroadcastChannelError(
+      new DOMException('Failed to execute \'postMessage\' on \'Worker\': Channel is closed', 'InvalidStateError'),
+    )).toBe(false)
+    expect(isClosedBroadcastChannelError(
+      new DOMException('Failed to execute \'postMessage\' on \'BroadcastChannel\': An object could not be cloned.', 'DataCloneError'),
+    )).toBe(false)
+  })
+
+  it('ignores generic invalid-state errors and values that are not errors', () => {
+    expect(isClosedBroadcastChannelError(new DOMException('The object is in an invalid state.', 'InvalidStateError'))).toBe(false)
+    expect(isClosedBroadcastChannelError(closed)).toBe(false)
+    expect(isClosedBroadcastChannelError(undefined)).toBe(false)
+  })
+})
 
 describe('isBestEffortCacheWriteError', () => {
   it('matches the SKILLD-17 rate-limited KV write signature', () => {

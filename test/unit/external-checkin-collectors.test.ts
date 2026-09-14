@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defineCheck, pass, runChecks, runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
 import { afterEach, expect, it, vi } from 'vitest'
+import ciCheck from '../../checks/external/ci'
 import databaseCheck from '../../checks/external/database'
 import deployCheck from '../../checks/external/deploy'
 import gitCheck from '../../checks/external/git'
@@ -74,4 +75,18 @@ it('rejects oversized Worker analytics evidence', async () => {
   const { report } = await runExternalChecks([workersCheck], { required: [workersCheck.id] }, { env: { CLOUDFLARE_USAGE_TOKEN: 'test-token' } })
   expect(report.coverage).toBe('incomplete')
   expect(report.results[0]?.result._tag).toBe('Unavailable')
+})
+
+it('reads production CI verdicts from main only', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-ci-'))
+  roots.push(root)
+  await mkdir(join(root, '.github/workflows'), { recursive: true })
+  await writeFile(join(root, '.github/workflows/test.yml'), 'name: Test')
+  boundary.command.mockResolvedValue({ _tag: 'Ok', stdout: '[]', stderr: '' })
+  await runExternalChecks([ciCheck], { required: [ciCheck.id] }, { rootDir: root, env: {} })
+  expect(boundary.command.mock.calls.length).toBeGreaterThan(0)
+  for (const [, command, args] of boundary.command.mock.calls) {
+    expect(command).toBe('gh')
+    expect(args[args.indexOf('--branch') + 1]).toBe('main')
+  }
 })

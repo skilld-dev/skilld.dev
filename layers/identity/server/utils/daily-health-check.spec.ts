@@ -520,6 +520,15 @@ describe('buildDailyHealthCheck', () => {
         'organization', 'missing-repo', 'eligible', 'Reviewed purpose', 'test',
         ${nowSec - 901}
       );
+      -- An upstream-deleted repository keeps its repos row with broken_since
+      -- set and no skills, so its review looks invisible forever. The
+      -- breakage is already known, so the review must not re-alarm nightly.
+      INSERT INTO owners VALUES ('gone-owner', 'user');
+      INSERT INTO repos VALUES ('gone-owner', 'gone-repo', ${nowSec - 900});
+      INSERT INTO skill_repo_eligibility VALUES (
+        'gone-owner', 'gone-repo', 'eligible', 'Reviewed purpose', 'test',
+        ${nowSec - 901}
+      );
     `)
     const uncertain = await buildDailyHealthCheck(db, { now, fetcher, workerVersion: 'version-1' })
     expect(uncertain.activity.digestsFailed24h).toBe(1)

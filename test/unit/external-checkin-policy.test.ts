@@ -16,7 +16,7 @@ it.each([[40.01, 'Warn'], [60, 'Warn'], [60.01, 'Fail']])('gates projected month
   expect(evaluateD1(data, now, since)._tag).toBe(tag)
 })
 it('keeps missing schema evidence incomplete', () => {
-  expect(evaluateD1({ ...healthy(), missingExpectedTables: ['jobs'] }, now, since)._tag).toBe('Unavailable')
+  expect(evaluateD1({ ...healthy(), missingExpectedTables: ['jobs'] }, now, since)).toMatchObject({ _tag: 'Warn', coverage: 'incomplete', evidence: { missingExpectedTables: ['jobs'] } })
 })
 it('keeps a pending workflow visible after a failure', () => {
   expect(evaluateCI({ workflows: [{ state: { _tag: 'pending', consecutiveFailures: 1 } }] })._tag).toBe('Warn')

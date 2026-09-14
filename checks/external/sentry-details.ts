@@ -24,9 +24,9 @@ export default defineExternalCheck({
     const body: unknown = JSON.parse(await readBoundedResponseText(response, 2_097_152))
     const details = parseSentryIssuesResponse(response.status, body, 'runtime credential', sinceIso, 25)
     if (details._tag !== 'available')
-      return unavailable(details.diagnostic, details)
+      return { _tag: 'Warn', reason: details.diagnostic, evidence: details, coverage: 'incomplete' }
     if (details.truncatedAtLimit)
-      return unavailable('Sentry detail results reached the page limit.', details)
+      return { _tag: 'Warn', reason: 'Sentry detail results reached the page limit.', evidence: details, coverage: 'incomplete' }
     return details.newIssues.length || details.recurringIssues.length
       ? warn('Sentry issues occurred during this window.', details)
       : pass(details)
