@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { fetchVerifiedPrimaryEmail } from '../../utils/github-emails'
 import { ownedRepoScanWarning, scanOwnedRepos } from '../../utils/scan-owned-repos'
 import { upsertUserFromGithub } from '../../utils/users'
 import { handleWatchAction } from '../../utils/watch-actions'
@@ -42,7 +43,15 @@ export default defineOAuthGitHubEventHandler({
     if (!platform)
       throw createError({ statusCode: 500, message: 'GitHub login is unavailable' })
 
-    const row = await upsertUserFromGithub(event, profile, {
+    // `/user` hides a private profile email. `emailRequired` stays off because
+    // the module's own lookup throws past onError and accepts an unverified
+    // primary. A failed lookup only costs the address, never the sign-in.
+    const email = profile.email || await fetchVerifiedPrimaryEmail(accessToken).catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'oauth-primary-email', outcome: 'failed' }))
+      return null
+    })
+
+    const row = await upsertUserFromGithub(event, { ...profile, email }, {
       accessToken,
       accessTokenExpiresIn: parsedTokens.expires_in ?? null,
       refreshToken: parsedTokens.refresh_token ?? null,
