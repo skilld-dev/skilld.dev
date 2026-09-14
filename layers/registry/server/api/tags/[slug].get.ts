@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
+import type { H3Event } from 'h3'
 import type { TagPayload } from '../../jobs/generate-tags'
 import type { RegistrySkill } from '../../utils/skills-registry'
 import type { TagSkillRow } from '../../utils/tag-profile'
@@ -69,17 +70,11 @@ export interface TagProfile {
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 
-export default defineCachedEventHandler(async (event) => {
-  const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
-  const dataView = getQuery(event).view === 'data'
+const TAG_PROFILE_FRESH_SECONDS = 60 * 60 // 1 hour fresh
+const TAG_PROFILE_STALE_SECONDS = 60 * 60 * 24 // 1 day of stale-while-revalidate after that
+const TAG_PROFILE_SERVE_WINDOW_MS = (TAG_PROFILE_FRESH_SECONDS + TAG_PROFILE_STALE_SECONDS) * 1000
 
-  // Marketing/cluster landing pages own these slugs. Hand off so crawl
-  // signal accumulates on the canonical URL instead of splitting. Their SSR
-  // data requests opt out explicitly so they can still reuse this profile.
-  const redirect = getTagRedirect(slug)
-  if (redirect && !dataView)
-    return sendRedirect(event, redirect, 301)
-
+async function buildTagProfile(event: H3Event, slug: string): Promise<TagProfile> {
   const db = getDB(event)
   const isControlledVocab = TAG_BY_SLUG.has(slug)
   let tag = TAG_BY_SLUG.get(slug)
@@ -206,12 +201,53 @@ export default defineCachedEventHandler(async (event) => {
   }
 
   return profile
-}, {
-  maxAge: 60,
-  swr: false,
-  getKey: (event) => {
-    const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
-    const view = getQuery(event).view === 'data' ? 'data' : 'canonical'
-    return `tag-origin:v2:${slug}:${view}`
+}
+
+const getCachedTagProfile = defineCachedFunction(
+  (event: H3Event, slug: string, _view: string) => buildTagProfile(event, slug),
+  {
+    name: 'tag-profile',
+    maxAge: TAG_PROFILE_FRESH_SECONDS,
+    staleMaxAge: TAG_PROFILE_STALE_SECONDS,
+    swr: true,
+    getKey: (_event, slug: string, view: string) => `tag-origin:v2:${slug}:${view}`,
+    // nitropack 2.13.4 ignores staleMaxAge when swr is on: its default
+    // validate only checks value presence, so a permanently failing refresh
+    // (for example a tag whose skills were all deleted) would serve the last
+    // good profile indefinitely instead of reverting to 404. Enforce the
+    // window here: once the entry is older than the fresh hour plus the
+    // stale day, validate returns false, nitro skips the stale-serve branch
+    // and recomputes synchronously, so the 404 propagates. This also bounds
+    // `fetchedAt`, the "Checked GitHub" label on the framework pages, to
+    // at most the same window behind any served profile.
+    validate: entry =>
+      entry.value !== undefined
+      && Date.now() - (entry.mtime ?? 0) < TAG_PROFILE_SERVE_WINDOW_MS,
   },
+)
+
+export default defineEventHandler(async (event) => {
+  const slug = (getRouterParam(event, 'slug') ?? '').toLowerCase()
+  const dataView = getQuery(event).view === 'data'
+
+  // Marketing/cluster landing pages own these slugs. Hand off so crawl
+  // signal accumulates on the canonical URL instead of splitting. Their SSR
+  // data requests opt out explicitly so they can still reuse this profile.
+  // Hoisted out of the profile cache: sendRedirect needs the live response,
+  // and the lookup is a pure in-memory read.
+  const redirect = getTagRedirect(slug)
+  if (redirect && !dataView)
+    return sendRedirect(event, redirect, 301)
+
+  // The event stays the first argument so nitro registers the background
+  // refresh on waitUntil; a non-event first arg would drop SWR
+  // revalidation on Workers.
+  const profile = await getCachedTagProfile(event, slug, dataView ? 'data' : 'canonical')
+
+  // Same header `defineCachedEventHandler` emitted for this policy (shared
+  // freshness plus stale window). etag/304 revalidation is not replicated:
+  // this endpoint is consumed through useFetch and the edge policy in the
+  // routeRules, neither of which sends conditional requests.
+  setResponseHeader(event, 'cache-control', `s-maxage=${TAG_PROFILE_FRESH_SECONDS}, stale-while-revalidate=${TAG_PROFILE_STALE_SECONDS}`)
+  return profile
 })
