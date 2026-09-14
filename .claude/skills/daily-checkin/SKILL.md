@@ -5,6 +5,17 @@ description: Gather skilld production health, growth, delivery, deploy, Workers,
 
 # Daily check-in
 
+Before running `pnpm checkin`, load the private agent credentials:
+
+```sh
+set -a
+. "$HOME/.config/harlan-checkin/skilld.dev.env"
+set +a
+```
+
+If the file is missing, report incomplete coverage. Never print tokens.
+
+
 Produce one read-only morning report that answers: what changed, what broke, what drifted, and what deserves action.
 
 ## Workflow
