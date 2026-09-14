@@ -84,6 +84,34 @@ describe('skill-files cache', () => {
     expect(cache.setItem).not.toHaveBeenCalled()
   })
 
+  it('recomputes when a stored value is not a SkillFilesPayload', async () => {
+    // Stored bytes are untrusted. A v4 entry whose value is corrupt or
+    // foreign must be a miss, not a TypeError on every read until the KV
+    // TTL expires the entry.
+    cache.getItem.mockResolvedValue({ storedAt: Date.now() - 1000, value: {} })
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      files: [
+        { path: 'skill/SKILL.md', size: 100 },
+        { path: 'skill/assets/cover.png', size: 2048 },
+      ],
+    }))
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    const payload = await handler(event())
+    expect(payload).toEqual({
+      skillPath: 'skill/SKILL.md',
+      branch: 'main',
+      files: [{ path: 'assets/cover.png', size: 2048, type: 'image' }],
+      total: 1,
+    })
+    expect(cache.setItem).toHaveBeenCalledWith(
+      CACHE_KEY,
+      { storedAt: expect.any(Number), value: payload },
+      { ttl: HOUR * 6 + HOUR * 24 },
+    )
+  })
+
   it('recomputes a cached no-skillDir empty payload once the missing window expires', async () => {
     // Root SKILL.md with rendered_skill_path NULL: the heuristic misses, so
     // the first run caches the transient empty fallback.

@@ -96,6 +96,22 @@ function resolveSkillPath(tree: readonly { path: string }[], stored: string | nu
   })?.path ?? null
 }
 
+/**
+ * The boundary parse for stored cache bytes. A v4 entry whose value is not a
+ * SkillFilesPayload (corrupt write, foreign format) fails this guard and is
+ * treated as a miss, so `emptyFilesWindows` never dereferences a shape
+ * nobody validated.
+ */
+function isSkillFilesPayload(value: unknown): value is SkillFilesPayload {
+  if (typeof value !== 'object' || value === null)
+    return false
+  const payload = value as Record<string, unknown>
+  return (payload.skillPath === null || typeof payload.skillPath === 'string')
+    && typeof payload.branch === 'string'
+    && Array.isArray(payload.files)
+    && typeof payload.total === 'number'
+}
+
 function emptyFilesWindows(payload: SkillFilesPayload): ReadThroughWindows | undefined {
   return payload.files.length === 0 && payload.skillPath === null
     ? { ttl: FILES_MISSING_TTL, staleTtl: 0 }
@@ -140,49 +156,63 @@ export default defineApiHandler({
     const branch = row.default_branch || 'main'
     const cacheKey = `skills:files:${FILES_CACHE_VERSION}:${source.owner}/${source.repo}/${skill.name}:${branch}`
 
-    return readThroughCache<SkillFilesPayload>(
-      useStorage('cache'),
-      cacheKey,
-      async () => {
-        const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-files-tree-fetch' })
+    // retry-after is an instruction to re-poll. A failed recompute is
+    // absorbed by a stale envelope, so the 503 only escapes when nothing
+    // servable is left; only that escape may carry the header. A 200 served
+    // from cache must never tell an agent to come back in 30 seconds.
+    try {
+      return await readThroughCache<SkillFilesPayload>(
+        useStorage('cache'),
+        cacheKey,
+        async () => {
+          const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-files-tree-fetch' })
 
-        if (treeResult._tag === 'gone') {
-          // The registry has not recorded this deletion yet. The next sync flips
-          // `source_resolved` and short-circuits earlier.
-          throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
-        }
+          if (treeResult._tag === 'gone') {
+            // The registry has not recorded this deletion yet. The next sync flips
+            // `source_resolved` and short-circuits earlier.
+            throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
+          }
 
-        if (treeResult._tag === 'unavailable') {
-          setHeader(event, 'retry-after', FILES_RETRY_AFTER)
-          throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
-        }
+          if (treeResult._tag === 'unavailable')
+            throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
 
-        const tree = treeResult.files
-        const skillPath = resolveSkillPath(tree, row.rendered_skill_path, skill.name)
+          const tree = treeResult.files
+          const skillPath = resolveSkillPath(tree, row.rendered_skill_path, skill.name)
 
-        if (skillPath === null) {
-          return { skillPath, branch, files: [], total: 0 } satisfies SkillFilesPayload
-        }
+          if (skillPath === null) {
+            return { skillPath, branch, files: [], total: 0 } satisfies SkillFilesPayload
+          }
 
-        const skillDir = skillDirOf(skillPath)
-        const prefix = skillDir ? `${skillDir}/` : ''
-        const files: SkillFile[] = tree
-          .filter(f => f.path.startsWith(prefix) && !isSkillMd(f.path))
-          .map(f => ({
-            path: f.path.slice(prefix.length),
-            size: f.size ?? 0,
-            type: classify(f.path),
-          }))
+          const skillDir = skillDirOf(skillPath)
+          const prefix = skillDir ? `${skillDir}/` : ''
+          const files: SkillFile[] = tree
+            .filter(f => f.path.startsWith(prefix) && !isSkillMd(f.path))
+            .map(f => ({
+              path: f.path.slice(prefix.length),
+              size: f.size ?? 0,
+              type: classify(f.path),
+            }))
 
-        const selected = selectSkillFiles(files)
-        return {
-          skillPath,
-          branch,
-          files: selected.files,
-          total: selected.total,
-        } satisfies SkillFilesPayload
-      },
-      { ttl: FILES_CACHE_TTL, staleTtl: FILES_CACHE_STALE_TTL, windowsFor: emptyFilesWindows },
-    )
+          const selected = selectSkillFiles(files)
+          return {
+            skillPath,
+            branch,
+            files: selected.files,
+            total: selected.total,
+          } satisfies SkillFilesPayload
+        },
+        {
+          ttl: FILES_CACHE_TTL,
+          staleTtl: FILES_CACHE_STALE_TTL,
+          windowsFor: emptyFilesWindows,
+          validate: isSkillFilesPayload,
+        },
+      )
+    }
+    catch (error) {
+      if ((error as { statusCode?: number } | null)?.statusCode === 503)
+        setHeader(event, 'retry-after', FILES_RETRY_AFTER)
+      throw error
+    }
   },
 })

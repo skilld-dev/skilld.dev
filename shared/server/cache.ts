@@ -64,8 +64,12 @@ export interface CachedOptions<T> {
   now?: () => number
 }
 
+/** The per-key dedup behind {@link singleFlight}. */
+const inflightComputes = new Map<string, Promise<unknown>>()
+
 /**
- * One in-flight computation per cache key.
+ * One in-flight computation per cache key, shared by {@link cached} and
+ * {@link readThroughCache}.
  *
  * A bare read-through cache turns every TTL expiry into a thundering herd:
  * after the entry dies, each concurrent request re-runs the whole compute
@@ -74,22 +78,33 @@ export interface CachedOptions<T> {
  * attributes recurring D1 overload bursts (Sentry SKILLD-G/H/J/K/M/N/P/Q) to
  * exactly that shape, and Nitro's `defineCachedEventHandler` had the same
  * hole covered by `swr: true` + `staleMaxAge` before the detail route left it
- * (Sentry SKILLD-1V). This helper restores both halves without the bare
- * `setItem` that made a KV 429 a 500:
+ * (Sentry SKILLD-1V). This helper covers both helpers without the bare
+ * `setItem` that made a KV 429 a 500: concurrent callers on one key share a
+ * single computation, a single D1 pass, and a single KV write, which also
+ * keeps the write under KV's one-write-per-second limit. The map is per
+ * isolate, so the guarantee is per isolate; that is still the difference
+ * between N computes and one.
+ */
+function singleFlight<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const pending = inflightComputes.get(key)
+  if (pending)
+    return pending as Promise<T>
+  const promise = run()
+  inflightComputes.set(key, promise)
+  // Both callbacks return normally, so this derived promise never rejects
+  // and the original rejection still reaches every caller.
+  void promise.then(() => inflightComputes.delete(key), () => inflightComputes.delete(key))
+  return promise
+}
+
+/**
+ * SWR read-through over fixed keys.
  *
  * - fresh (`age < ttlSeconds`): serve the stored value.
  * - stale (`age < ttlSeconds + staleSeconds`): serve the stored value and
  *   refresh in the background through `schedule`.
  * - dead or absent: recompute, awaited.
- *
- * All three paths funnel into one shared promise per key, so concurrent
- * callers share a single computation, a single D1 pass, and a single KV
- * write, which also keeps the write under KV's one-write-per-second limit.
- * The map is per isolate, so the guarantee is per isolate; that is still the
- * difference between N computes and one.
  */
-const inflightComputes = new Map<string, Promise<unknown>>()
-
 export function cached<T>(options: CachedOptions<T>): Promise<T> {
   const { key, compute } = options
   const freshSeconds = options.ttlSeconds
@@ -97,19 +112,11 @@ export function cached<T>(options: CachedOptions<T>): Promise<T> {
   const nowSeconds = options.now ?? (() => Math.floor(Date.now() / 1000))
 
   function computeOnce(): Promise<T> {
-    const pending = inflightComputes.get(key)
-    if (pending)
-      return pending as Promise<T>
-    const promise = (async () => {
+    return singleFlight(key, async () => {
       const value = await compute()
       await writeCache(options.storage, key, { v: value, t: nowSeconds() } satisfies SwrEntry<T>, { ttl: maxAgeSeconds })
       return value
-    })()
-    inflightComputes.set(key, promise)
-    // Both callbacks return normally, so this derived promise never rejects
-    // and the original rejection still reaches every caller.
-    void promise.then(() => inflightComputes.delete(key), () => inflightComputes.delete(key))
-    return promise
+    })
   }
 
   return (async () => {
@@ -230,6 +237,14 @@ export interface ReadThroughOptions<T = unknown> {
    * riding the resolved payload's fresh window.
    */
   windowsFor?: (value: T) => ReadThroughWindows | undefined
+  /**
+   * Shape guard for a stored value. The KV bytes are untrusted input: an
+   * entry whose value fails this guard is treated as a miss and recomputed,
+   * so a corrupt or foreign payload can neither be served nor dereferenced
+   * by `windowsFor`. Computed values skip the guard; `compute` already
+   * returns the precise type.
+   */
+  validate?: (value: unknown) => boolean
 }
 
 function resolveWindows<T>(options: ReadThroughOptions<T>, value: T): ReadThroughWindows {
@@ -261,13 +276,26 @@ export async function readThroughCache<T>(
   options: ReadThroughOptions<T>,
 ): Promise<T> {
   const now = Date.now()
-  const envelope = parseEnvelope<T>(await readCache<unknown>(storage, key))
+  const stored = parseEnvelope<T>(await readCache<unknown>(storage, key))
 
-  if (envelope) {
-    const windows = resolveWindows(options, envelope.value)
-    const ageSeconds = (now - envelope.storedAt) / 1000
+  // A stored value that fails the shape guard is corrupt or foreign. Treat
+  // the whole entry as a miss so the recompute below overwrites it, instead
+  // of letting every read trip over bytes nobody can trust.
+  const entry = stored && isUsableStoredValue(options, stored.value) ? stored : null
+  if (stored && !entry) {
+    emitOperationalEvent(createWideEvent({
+      'operation': 'cache-read-through',
+      'outcome': 'degraded',
+      'cache.key': key,
+      'reason': 'invalid-stored-value',
+    }))
+  }
+
+  if (entry) {
+    const windows = resolveWindows(options, entry.value)
+    const ageSeconds = (now - entry.storedAt) / 1000
     if (ageSeconds < windows.ttl)
-      return envelope.value
+      return entry.value
     if (ageSeconds < windows.ttl + windows.staleTtl) {
       try {
         return await storeComputed(storage, key, compute, options)
@@ -280,12 +308,16 @@ export async function readThroughCache<T>(
           'cache.ageSeconds': Math.round(ageSeconds),
           'reason': error instanceof Error ? error.message : String(error),
         }))
-        return envelope.value
+        return entry.value
       }
     }
   }
 
   return storeComputed(storage, key, compute, options)
+}
+
+function isUsableStoredValue<T>(options: ReadThroughOptions<T>, value: unknown): boolean {
+  return !options.validate || options.validate(value)
 }
 
 async function storeComputed<T>(
@@ -294,8 +326,10 @@ async function storeComputed<T>(
   compute: () => Promise<T>,
   options: ReadThroughOptions<T>,
 ): Promise<T> {
-  const value = await compute()
-  const windows = resolveWindows(options, value)
-  await writeCache(storage, key, { storedAt: Date.now(), value } satisfies CacheEnvelope<T>, { ttl: windows.ttl + windows.staleTtl })
-  return value
+  return singleFlight(key, async () => {
+    const value = await compute()
+    const windows = resolveWindows(options, value)
+    await writeCache(storage, key, { storedAt: Date.now(), value } satisfies CacheEnvelope<T>, { ttl: windows.ttl + windows.staleTtl })
+    return value
+  })
 }

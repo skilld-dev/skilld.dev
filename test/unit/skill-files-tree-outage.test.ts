@@ -53,6 +53,29 @@ describe('skill-files tree outage', () => {
   })
 })
 
+describe('skill-files stale serve', () => {
+  it('serves a stale envelope on a failed recompute without retry-after', async () => {
+    // retry-after is an instruction to re-poll. It belongs to the 503 that
+    // reaches the agent, never to a 200 served from a stale envelope, or a
+    // crawler sweep re-polls every 30 seconds against a dead upstream.
+    const stale = {
+      skillPath: 'skill',
+      branch: 'main',
+      files: [{ path: 'assets/cover.png', size: 2048, type: 'image' }],
+      total: 1,
+    }
+    // Seven hours old: past the 6-hour fresh window, inside the day-long
+    // stale window, so the failed recompute falls back to this payload.
+    cache.getItem.mockResolvedValue({ storedAt: Date.now() - 7 * 60 * 60 * 1000, value: stale })
+    vi.stubGlobal('$fetch', vi.fn().mockRejectedValue(new Error('tree unavailable')))
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    await expect(handler(event())).resolves.toEqual(stale)
+    expect(responseHeaders.has('retry-after')).toBe(false)
+  })
+})
+
 describe('skill-files source gone', () => {
   it('answers 410 from the registry verdict without an upstream call', async () => {
     fixture.raw.prepare(`UPDATE skills SET source_resolved = 0 WHERE owner = 'owner' AND repo = 'repo' AND name = 'skill'`).run()
