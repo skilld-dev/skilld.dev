@@ -17,7 +17,8 @@ A known failure stays RED when another source is unavailable.
 Unavailable evidence can never produce GREEN.
 Detailed evidence stays in the existing private report storage and operator email.
 
-Recipients, cron schedules, delivery claims, retry behavior, and pause gates stay unchanged.
+Recipients, email schedules, delivery claims, retry behavior, and pause gates stay unchanged.
+The agent keeps its 07:40 daily check-in and removes its separate 06:20 Sentry run.
 `send-digests` sends subscriber content, not system health emails.
 Its outcome already enters the daily summary.
 The embedding parity audit keeps its independent schedule and pruning policy.

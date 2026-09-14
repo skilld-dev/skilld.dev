@@ -8,13 +8,6 @@
 # run log reads well, and each finding becomes its own issue and pull request.
 version: 1
 routines:
-  - name: sentry-checkin
-    on:
-      schedule:
-        - cron: '20 6 * * *'
-    timezone: Australia/Sydney
-    mode: propose
-    enabled: true
   - name: daily-checkin
     on:
       schedule:

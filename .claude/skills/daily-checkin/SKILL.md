@@ -12,13 +12,17 @@ Produce one read-only morning report that answers: what changed, what broke, wha
 1. Run `node scripts/tools/daily-checkin-data.mjs --save` from the repo root. Preserve every probe error as a finding. The command archives raw evidence in `docs/ops/checkins/YYYY-MM-DD.json`; same-day reruns use a timestamped sibling and do not move the next baseline.
 2. Read the newest prior JSON archive and `docs/ops/triage-ledger.md`. Compare fingerprints and rates, not only totals. Treat a missing prior key as a new probe with no baseline.
 3. Verify these gates first:
+   - Read `checkin.severity`, `checkin.coverage`, and every result. Incomplete coverage cannot support GREEN.
+   - `sentry.skilld` covers the retained unresolved backlog. Missing credentials or partial pagination remain findings.
+   - `skilld.health-email` verifies the saved report against the current Worker version and a 36-hour age limit.
+   - If backlog IDs lack archived triage details, fetch their details read-only and append them to the archive.
    - Any stable non-200 `skilld.dev` front door response is RED. A retry flap is a note.
    - Read every `ci.workflows` state. `failure` means the gate is broken. `pending` after a prior failure must be followed until complete. `missing` is an observability gap. Never infer overall CI health from only the deploy workflow.
    - Any `workers.nonOk`, new Sentry issue, failed digest, failed job, stale reserved job, stale scheduled task, or missing expected table needs an explicit verdict.
    - `d1.migrations.localHead !== d1.migrations.prodHead` is migration drift. Never assume deployment applied D1 migrations.
    - `d1.healthEmail` must show one sent operator report per Melbourne date after the feature is deployed. Missing, failed, or stuck `sending` rows are findings. Always report its archived `reasons`; the color alone is insufficient.
    - Use failed-job `first_failed_at` and `last_failed_at`, plus `d1.recentJobBatches` and `d1.registryMaintenance`, to distinguish an active incident from a recovered burst. Do not call a window clean because the latest batch passed, or active because an older batch failed.
-   - Sentry issues must include their archived permalink and culprit in the proposed action. Do not require a second unarchived API read for basic triage.
+   - Sentry issues must include their archived permalink and culprit in the proposed action. Archive any extra detail reads.
    - `d1.inventory.broken_repos` is known cumulative inventory. Review `d1.pipeline.newly_broken_repos_total`, but gate health on `d1.pipeline.newly_broken_repos_impacted`. A source removal is impacting when it still backs a skill or appears in a star, subscription, collection, or install event.
    - AI cost is only the recorded batch estimate. Unmeasured services are unknown, not $0.
    - X API is pay-per-use at $0.005 per post read, with no included allowance and a $20/month target. Accepted 2026-08-31 at a projected $18.15/month, which raised the target from $10. Gate on `d1.cost`:
