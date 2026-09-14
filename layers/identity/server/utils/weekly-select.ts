@@ -50,24 +50,46 @@ export function resolveRecipientAddress(user: WeeklyRecipient): RecipientAddress
 }
 
 /**
- * Everyone who should get the weekly.
+ * Everything the weekly gate reads off a user row.
+ */
+export interface WeeklyConsent {
+  weekly_opt_out: number
+  email_opt_in: number
+  digest_email: string | null
+  email: string | null
+}
+
+/**
+ * Whether the weekly actually reaches this person.
  *
- * The weekly and digest are independent lists. A person can receive both.
+ * Single source of truth for the delivery list and the dashboard badge. The
+ * weekly and digest are independent lists and a person can receive both, so
+ * three things must hold: `weekly_opt_out` is off (the unsubscribe switch),
+ * an explicit consent signal exists (`email_opt_in` or a deliberately stored
+ * `digest_email`), and one of them holds a deliverable address. A captured
+ * GitHub profile address is none of those on its own.
+ */
+export function weeklyDeliveryActive(user: WeeklyConsent): boolean {
+  const digest = (user.digest_email ?? '').trim()
+  const address = digest !== '' ? digest : (user.email ?? '').trim()
+  return user.weekly_opt_out === 0
+    && (user.email_opt_in === 1 || user.digest_email !== null)
+    && address !== ''
+}
+
+/**
+ * Everyone who should get the weekly, decided by `weeklyDeliveryActive`.
  *
- * A captured GitHub profile address is not consent, so the list requires an
- * explicit signal: the person opted in through the email settings
- * (`email_opt_in`) or deliberately stored a delivery address (`digest_email`).
- * `weekly_opt_out` remains the unsubscribe switch on top of that.
+ * Filtering here rather than in SQL keeps the list and the `/me` badge on one
+ * predicate, so the dashboard cannot promise a delivery the run would skip.
  */
 export async function loadWeeklyRecipients(db: D1Database): Promise<WeeklyRecipient[]> {
   const res = await db.prepare(
-    `SELECT id, login, name, digest_email, email
+    `SELECT id, login, name, digest_email, email, email_opt_in, weekly_opt_out
      FROM users
-     WHERE weekly_opt_out = 0
-       AND (email_opt_in = 1 OR digest_email IS NOT NULL)
-       AND COALESCE(NULLIF(TRIM(COALESCE(digest_email, '')), ''), NULLIF(TRIM(COALESCE(email, '')), '')) IS NOT NULL`,
-  ).all<WeeklyRecipient>()
-  return res.results ?? []
+     WHERE weekly_opt_out = 0`,
+  ).all<WeeklyRecipient & WeeklyConsent>()
+  return (res.results ?? []).filter(weeklyDeliveryActive)
 }
 
 function sourceUrl(row: {

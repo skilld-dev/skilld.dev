@@ -1,4 +1,5 @@
 import type { UserRow } from '../utils/users'
+import { weeklyDeliveryActive } from '../utils/weekly-select'
 
 interface StarredRow {
   owner: string
@@ -59,7 +60,9 @@ export function mePresenter(u: UserRow) {
     avatar: u.avatar,
     digest_email: u.digest_email,
     email_opt_in: !!u.email_opt_in,
-    weekly_opt_in: !u.weekly_opt_out,
+    // Effective delivery, not the raw switch: the badge must not promise the
+    // weekly to someone the consent gate excludes.
+    weekly_opt_in: weeklyDeliveryActive(u),
     timezone: u.timezone,
     stars_synced_at: u.stars_synced_at,
     onboarded_at: u.onboarded_at,

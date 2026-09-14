@@ -29,6 +29,7 @@ export const identityMeSchema = z.object({
   avatar: z.string().nullable(),
   digest_email: z.string().nullable(),
   email_opt_in: z.boolean(),
+  /** Effective weekly delivery, decided by the same gate as the send. */
   weekly_opt_in: z.boolean(),
   timezone: z.string(),
   stars_synced_at: z.number().int().nullable(),
