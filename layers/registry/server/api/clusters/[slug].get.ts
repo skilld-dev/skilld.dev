@@ -60,7 +60,7 @@ export default defineCachedEventHandler(async (event) => {
 
   // Membership is abstract-first with a capped backfill; see cluster-membership.
   const statements = clusterPageSql(
-    'owner, name, repo, display_name, description, stars, modified_at, repo_skill_count, is_abstract',
+    'owner, name, repo, display_name, description, stars, modified_at, is_abstract',
     cluster.categories,
     pinnedSkills,
     { limit, offset },

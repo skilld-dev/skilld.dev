@@ -45,16 +45,24 @@ export default defineApiHandler({
 async function loadUserSkills(platform: Platform, login: string) {
   const res = await platform.db
     .prepare(
-      `SELECT s.name, s.owner, s.repo, s.display_name, s.slug, s.description,
+      // Counted once per repo of this owner. A correlated count per row read
+      // every Skill of the repo for each row, sum(c^2): 781K rows for an
+      // owner with one 875-Skill repo.
+      `WITH repo_counts AS (
+         SELECT owner, repo, COUNT(*) AS skill_count
+         FROM skills
+         WHERE owner = ?1 COLLATE NOCASE
+           AND source_resolved = 1
+         GROUP BY owner, repo
+       )
+       SELECT s.name, s.owner, s.repo, s.display_name, s.slug, s.description,
               s.like_count AS likeCount,
               s.modified_at, s.last_synced_at, s.rendered_skill_path AS skill_path,
               r.source_owner, r.source_repo, r.default_branch,
-              (SELECT COUNT(*) FROM skills repo_skills
-               WHERE repo_skills.owner = s.owner
-                 AND repo_skills.repo = s.repo
-                 AND repo_skills.source_resolved = 1) AS repo_skill_count
+              COALESCE(repo_counts.skill_count, 0) AS repo_skill_count
        FROM skills s
        JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+       LEFT JOIN repo_counts ON repo_counts.owner = s.owner AND repo_counts.repo = s.repo
        WHERE s.owner = ?1 COLLATE NOCASE
        ORDER BY COALESCE(s.modified_at, s.last_synced_at, 0) DESC`,
     )
