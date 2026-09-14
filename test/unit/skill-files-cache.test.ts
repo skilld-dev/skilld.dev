@@ -209,6 +209,67 @@ describe('skill-files cache', () => {
     await expect(handler(event())).resolves.toEqual(resolved)
   })
 
+  it('lists files for a case-variant skill.md the name heuristic finds', async () => {
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      files: [
+        { path: 'skill/skill.md', size: 100 },
+        { path: 'skill/assets/cover.png', size: 2048 },
+      ],
+    }))
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    await expect(handler(event())).resolves.toEqual({
+      skillPath: 'skill/skill.md',
+      branch: 'main',
+      files: [{ path: 'assets/cover.png', size: 2048, type: 'image' }],
+      total: 1,
+    })
+  })
+
+  it('lists files for a case-variant stored rendered_skill_path', async () => {
+    fixture.raw.prepare(
+      `UPDATE skills SET rendered_skill_path = 'skill/Skill.MD'
+       WHERE owner = 'owner' AND repo = 'repo' AND name = 'skill'`,
+    ).run()
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      files: [
+        { path: 'skill/Skill.MD', size: 100 },
+        { path: 'skill/assets/cover.png', size: 2048 },
+      ],
+    }))
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    await expect(handler(event())).resolves.toEqual({
+      skillPath: 'skill/Skill.MD',
+      branch: 'main',
+      files: [{ path: 'assets/cover.png', size: 2048, type: 'image' }],
+      total: 1,
+    })
+  })
+
+  it('keeps an empty list on the missing window when the stored path is absent from the tree', async () => {
+    // rendered_skill_path points at a SKILL.md the upstream tree no longer
+    // holds (moved or renamed). The empty list is a failed resolution, so it
+    // must recheck on the 5-minute window, not ride the 30-hour one.
+    fixture.raw.prepare(
+      `UPDATE skills SET rendered_skill_path = 'old/SKILL.md'
+       WHERE owner = 'owner' AND repo = 'repo' AND name = 'skill'`,
+    ).run()
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ files: [{ path: 'elsewhere/SKILL.md', size: 100 }] }))
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+
+    const empty = await handler(event())
+    expect(empty).toEqual({ skillPath: null, branch: 'main', files: [], total: 0 })
+    expect(cache.setItem).toHaveBeenCalledWith(
+      CACHE_KEY,
+      { storedAt: expect.any(Number), value: empty },
+      { ttl: 60 * 5 },
+    )
+  })
+
   it('serves the stale envelope when the upstream tree fails', async () => {
     const stale = {
       skillPath: 'skill',

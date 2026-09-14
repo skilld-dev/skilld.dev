@@ -13,10 +13,10 @@ const FILES_CACHE_TTL = 60 * 60 * 6
 // upstream tree fetch per request.
 const FILES_CACHE_STALE_TTL = 60 * 60 * 24
 // An empty file list is only transient when the skill directory was never
-// resolved. `skillPath` carries the resolved SKILL.md path: the stored
-// `rendered_skill_path`, or the heuristic hit when that is still NULL. It is
-// null exactly when the empty-tree or no-skillDir fallback fired, which
-// reconcile-rendered re-renders, so those take the short missing window. A
+// resolved. `skillPath` carries the SKILL.md path found in the upstream tree:
+// the stored `rendered_skill_path` when the tree still holds it, else the
+// heuristic hit. It is null exactly when no SKILL.md resolved (empty tree,
+// moved file, heuristic miss), so those take the short missing window. A
 // resolved skill holding only SKILL.md also produces files: [] (the filter
 // excludes SKILL.md itself), but its non-null skillPath keeps it on the
 // 6-hour fresh window with the day-long stale serve.
@@ -58,6 +58,42 @@ function classify(path: string): SkillFile['type'] {
   if (ext)
     return 'code'
   return 'other'
+}
+
+// Upstream repos spell SKILL.md in any case (skill.md, Skill.MD). Every path
+// test goes through these two helpers, so a match and the directory derived
+// from it can never disagree on case.
+function isSkillMd(path: string): boolean {
+  return /(?:^|\/)skill\.md$/i.test(path)
+}
+
+function skillDirOf(skillMdPath: string): string {
+  return skillMdPath.replace(/(?:^|\/)skill\.md$/i, '')
+}
+
+/**
+ * The SKILL.md path this skill resolves to in the upstream tree, or null when
+ * nothing does. The stored `rendered_skill_path` counts only when the tree
+ * still holds it; a moved file falls through to the name heuristic. Returning
+ * the tree's own entry means a non-null result always names a real file, so an
+ * empty file list with a non-null skillPath is a genuinely SKILL.md-only
+ * directory, never a failed resolution.
+ */
+function resolveSkillPath(tree: readonly { path: string }[], stored: string | null, name: string): string | null {
+  if (stored) {
+    const wanted = stored.toLowerCase()
+    const hit = tree.find(f => f.path.toLowerCase() === wanted)
+    if (hit)
+      return hit.path
+  }
+  const slugifiedName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  const lowerName = name.toLowerCase()
+  return tree.find((f) => {
+    const path = f.path.toLowerCase()
+    return path.endsWith(`/${slugifiedName}/skill.md`)
+      || path === `${slugifiedName}/skill.md`
+      || path.endsWith(`/${lowerName}/skill.md`)
+  })?.path ?? null
 }
 
 function emptyFilesWindows(payload: SkillFilesPayload): ReadThroughWindows | undefined {
@@ -122,37 +158,16 @@ export default defineApiHandler({
         }
 
         const tree = treeResult.files
+        const skillPath = resolveSkillPath(tree, row.rendered_skill_path, skill.name)
 
-        if (!tree.length) {
-          return { skillPath: row.rendered_skill_path, branch, files: [], total: 0 } satisfies SkillFilesPayload
-        }
-
-        // Resolve the skill directory: prefer the rendered_skill_path stored at
-        // sync time; fall back to a name-based heuristic the same way the asset
-        // endpoint does. A heuristic hit is a real resolution, so it fills
-        // skillPath too and keeps the payload off the transient missing window.
-        let skillPath = row.rendered_skill_path
-        let skillDir = skillPath?.replace(/\/SKILL\.md$/, '') ?? null
-        if (!skillDir) {
-          const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-          const skillMd = tree.find(f =>
-            f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
-            || f.path.toLowerCase() === `${slugifiedName}/skill.md`
-            || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
-          )?.path
-          if (skillMd) {
-            skillDir = skillMd.replace(/\/SKILL\.md$/, '')
-            skillPath = skillMd
-          }
-        }
-
-        if (!skillDir) {
+        if (skillPath === null) {
           return { skillPath, branch, files: [], total: 0 } satisfies SkillFilesPayload
         }
 
-        const prefix = `${skillDir}/`
+        const skillDir = skillDirOf(skillPath)
+        const prefix = skillDir ? `${skillDir}/` : ''
         const files: SkillFile[] = tree
-          .filter(f => f.path.startsWith(prefix) && !f.path.endsWith('/SKILL.md'))
+          .filter(f => f.path.startsWith(prefix) && !isSkillMd(f.path))
           .map(f => ({
             path: f.path.slice(prefix.length),
             size: f.size ?? 0,
