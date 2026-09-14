@@ -3,12 +3,14 @@ import { fileURLToPath } from 'node:url'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
+import { externalCheckin } from './shared/checkin-external'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
 
 export default defineNuxtConfig({
+  checkin: { external: externalCheckin },
   extends: ['./layers/admin', './layers/artifact-delivery', './layers/identity', './layers/registry', './layers/marketing', './layers/mcp'],
 
   hooks: {
@@ -46,6 +48,7 @@ export default defineNuxtConfig({
   },
 
   modules: [
+    '@harlan-zw/nuxt-checkin',
     '@harlan-zw/nuxt-cf-jobs',
     '@harlan-zw/nuxt-cloudflare',
     '@harlan-zw/nuxt-dx',
@@ -305,7 +308,7 @@ export default defineNuxtConfig({
     sessionPassword: '',
     adminSecret: '',
     tokenKey: '',
-    healthCheckNotifyTo: 'harlan@harlanzw.com',
+    checkinToken: '',
     publicSiteUrl: 'https://skilld.dev',
     oauth: {
       github: {

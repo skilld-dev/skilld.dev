@@ -24,7 +24,7 @@ export function parseSentryIssuesResponse(status, body, tokenSource, sinceIso, l
   if (status === 401 || status === 403) {
     const origin = tokenSource ? ` Token came from ${tokenSource}.` : ''
     return {
-      _tag: 'missing_observability',
+      _tag: /** @type {const} */ ('missing_observability'),
       status,
       diagnostic: status === 403
         ? `Sentry token lacks issue-read permission (HTTP 403).${origin} Use a token with event:read + org:read, such as the one sentry-cli writes to ~/.sentryclirc.`
@@ -33,14 +33,14 @@ export function parseSentryIssuesResponse(status, body, tokenSource, sinceIso, l
   }
   if (status < 200 || status >= 300) {
     return {
-      _tag: 'provider_failure',
+      _tag: /** @type {const} */ ('provider_failure'),
       status,
       diagnostic: `Sentry issues request failed with HTTP ${status}.`,
     }
   }
   if (!Array.isArray(body)) {
     return {
-      _tag: 'parse_failure',
+      _tag: /** @type {const} */ ('parse_failure'),
       status,
       diagnostic: 'Sentry issues response was not an array.',
     }
@@ -63,7 +63,7 @@ export function parseSentryIssuesResponse(status, body, tokenSource, sinceIso, l
       || typeof issue.firstSeen !== 'string'
       || typeof issue.lastSeen !== 'string') {
       return {
-        _tag: 'parse_failure',
+        _tag: /** @type {const} */ ('parse_failure'),
         status,
         diagnostic: 'Sentry issues response contained an invalid issue.',
       }
@@ -88,7 +88,7 @@ export function parseSentryIssuesResponse(status, body, tokenSource, sinceIso, l
       recurringIssues.push(parsed)
   }
   return {
-    _tag: 'available',
+    _tag: /** @type {const} */ ('available'),
     newIssues,
     recurringIssues,
     // A full page means Sentry had more to say. Reporting the cap keeps a

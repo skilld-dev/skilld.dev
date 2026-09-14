@@ -129,12 +129,8 @@ export type CfJobsPackageVerificationResult
     | { _tag: 'fail', issues: PackageContractIssue[] }
 
 export const CF_JOBS_SCHEMA_CONTRACT = {
-  // Bumped 0.0.5 -> 0.2.2 after checking the distributed schema rather than
-  // just the version string: all five indexes below appear in 0.2.2's
-  // `dist/runtime/server/d1.js` with byte-identical SQL, including the
-  // partial-index predicates. The jobs, job_batches and failed_jobs columns
-  // in 0.2.2 also match the migration replay exactly, so no migration is due.
-  version: '0.2.2',
+  // The 0.2.4 distributed schema preserves these five indexes and predicates.
+  version: '0.2.4',
   indexes: [
     {
       name: 'idx_jobs_dispatchable',

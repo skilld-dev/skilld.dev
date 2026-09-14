@@ -23,8 +23,8 @@ const CRON = '0 21 * * *'
  * inside the Worker uses the bindings the Worker already holds, so there is no
  * token to scope and no CI surface that can fail silently.
  *
- * Runs at 21:00 UTC, an hour before `daily-health-check`, so the verdict is
- * fresh when the operator report is written. Drift fails the run, which is the
+ * Runs at 21:00 UTC. The agent daily check-in reads the saved verdict.
+ * Drift fails the run, which is the
  * signal `evaluateScheduleHealth` already treats as alertable.
  */
 export default defineScheduledTask({

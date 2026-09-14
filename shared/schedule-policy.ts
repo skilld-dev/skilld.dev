@@ -59,7 +59,6 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'ai-generate-submit', cron: '15 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'ai-ready:cron', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'backfill-skill-assets', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
-  { _tag: 'observed', taskName: 'daily-health-check', cron: '0 22 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'detect-star-surges', cron: '30 4 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'drain-skill-dirty', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'embedding-parity-audit', cron: '0 21 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },

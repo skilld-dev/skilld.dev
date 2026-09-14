@@ -1,48 +1,15 @@
 // @vitest-environment node
-import { spawnSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
+import { expect, it } from 'vitest'
+import baselineCheck from '../../checks/external/baseline'
 
-const scriptPath = resolve(process.cwd(), 'scripts/tools/daily-checkin-data.mjs')
-const statePath = resolve(process.cwd(), 'docs/ops/checkins/state.json')
-
-describe('daily check-in data script', () => {
-  // state.json is hand-editable, so a corrupted lastRunAt is a real condition.
-  // The archive promises a {_tag: 'invalid'} baseline for it, but the script
-  // crashed on since.toISOString() before that branch could ever run, so a
-  // corrupted baseline produced a RangeError and no doc at all.
-  it('archives an invalid baseline instead of crashing on a corrupted lastRunAt', () => {
-    const original = readFileSync(statePath, 'utf8')
-    try {
-      writeFileSync(statePath, JSON.stringify({ lastRunAt: 'garbage' }))
-      const result = spawnSync(process.execPath, [scriptPath], { encoding: 'utf8', timeout: 120_000 })
-
-      expect(result.status).toBe(0)
-      const doc = JSON.parse(result.stdout)
-      expect(doc.baseline).toEqual({ _tag: 'invalid' })
-    }
-    finally {
-      writeFileSync(statePath, original)
-    }
-  }, 150_000)
-
-  // Hand edits also corrupt the file text itself: a trailing comma or a
-  // missing quote makes JSON.parse throw at the top level, so the process
-  // died on a SyntaxError before any doc, let alone an invalid baseline,
-  // could be produced.
-  it('archives an invalid baseline instead of crashing on unparseable state.json', () => {
-    const original = readFileSync(statePath, 'utf8')
-    try {
-      writeFileSync(statePath, '{"lastRunAt": "2026-09-01T01:20:49.248Z",}')
-      const result = spawnSync(process.execPath, [scriptPath], { encoding: 'utf8', timeout: 120_000 })
-
-      expect(result.status).toBe(0)
-      const doc = JSON.parse(result.stdout)
-      expect(doc.baseline).toEqual({ _tag: 'invalid' })
-    }
-    finally {
-      writeFileSync(statePath, original)
-    }
-  }, 150_000)
+const now = new Date('2026-09-14T00:00:00Z')
+it('records a stale window without blocking a successful replacement baseline', async () => {
+  const { report } = await runExternalChecks([baselineCheck], { required: [baselineCheck.id] }, { now, since: new Date(now.getTime() - 48 * 3_600_000), env: {} })
+  expect(report).toMatchObject({ severity: 'pass', coverage: 'complete', results: [{ result: { evidence: { _tag: 'stale', gapHours: 48 } } }] })
+})
+it('marks an invalid comparison window as missing evidence', async () => {
+  const { report } = await runExternalChecks([baselineCheck], { required: [baselineCheck.id] }, { now, since: new Date('invalid'), env: {} })
+  expect(report.coverage).toBe('incomplete')
+  expect(report.results[0]?.result).toMatchObject({ _tag: 'Warn', coverage: 'incomplete', evidence: { _tag: 'invalid' } })
 })

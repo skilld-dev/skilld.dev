@@ -5,21 +5,38 @@ description: Gather skilld production health, growth, delivery, deploy, Workers,
 
 # Daily check-in
 
+Before running `pnpm checkin`, load the private agent credentials:
+
+```sh
+set -a
+. "$HOME/.config/harlan-checkin/skilld.dev.env"
+set +a
+```
+
+If the file is missing, report incomplete coverage. Never print tokens.
+
+
 Produce one read-only morning report that answers: what changed, what broke, what drifted, and what deserves action.
 
 ## Workflow
 
-1. Run `node scripts/tools/daily-checkin-data.mjs --save` from the repo root. Preserve every probe error as a finding. The command archives raw evidence in `docs/ops/checkins/YYYY-MM-DD.json`; same-day reruns use a timestamped sibling and do not move the next baseline.
-2. Read the newest prior JSON archive and `docs/ops/triage-ledger.md`. Compare fingerprints and rates, not only totals. Treat a missing prior key as a new probe with no baseline.
+1. Run `pnpm checkin --save` from the repo root. Preserve every probe error as a finding. The command archives raw evidence in `docs/ops/checkins/YYYY-MM-DD.json`; same-day reruns use a timestamped sibling and do not move the next baseline.
+2. Read check evidence from `results`: `skilld.git`, `skilld.deploy`, `skilld.ci`, `skilld.database`, and `skilld.workers`.
+   Map the previous `git`, `deploy`, `ci`, `d1`, and `workers` fields to each result's `result.evidence`.
+   Read detailed Sentry evidence from `skilld.sentry-details`. Read HTTP results from `skilld.home` and `skilld.skills`.
+   Read the newest prior JSON archive and `docs/ops/triage-ledger.md`. Compare fingerprints and rates, not only totals. Treat a missing prior key as a new probe with no baseline.
 3. Verify these gates first:
+   - Read `severity`, `coverage`, and every result. Incomplete coverage cannot support GREEN.
+   - `sentry.skilld` covers the retained unresolved backlog. Missing credentials or partial pagination remain findings.
+   - `skilld.report` collects live protected health checks and verifies the current Worker version with a five-minute age limit.
+   - If backlog IDs lack archived triage details, fetch their details read-only and append them to the archive.
    - Any stable non-200 `skilld.dev` front door response is RED. A retry flap is a note.
    - Read every `ci.workflows` state. `failure` means the gate is broken. `pending` after a prior failure must be followed until complete. `missing` is an observability gap. Never infer overall CI health from only the deploy workflow.
    - Any `workers.nonOk`, new Sentry issue, failed digest, failed job, stale reserved job, stale scheduled task, or missing expected table needs an explicit verdict.
    - `d1.migrations.localHead !== d1.migrations.prodHead` is migration drift. Never assume deployment applied D1 migrations.
-   - `d1.healthEmail` must show one sent operator report per Melbourne date after the feature is deployed. Missing, failed, or stuck `sending` rows are findings. Always report its archived `reasons`; the color alone is insufficient.
-   - `baseline._tag` records the window against the daily cadence. `stale` means the routine skipped days; report the `baseline.gapHours` figure and compare rates per day, never as overnight step changes. `invalid` means the baseline is corrupted or in the future; treat it as an observability gap.
+   - `skilld.baseline` result evidence records the window against the daily cadence. `stale` means the routine skipped days; report the `gapHours` figure and compare rates per day, never as overnight step changes. The shared CLI rejects invalid or future state before collecting evidence. Repair the state or supply an explicit `--since` boundary.
    - Use failed-job `first_failed_at` and `last_failed_at`, plus `d1.recentJobBatches` and `d1.registryMaintenance`, to distinguish an active incident from a recovered burst. Do not call a window clean because the latest batch passed, or active because an older batch failed.
-   - Sentry issues must include their archived permalink and culprit in the proposed action. Do not require a second unarchived API read for basic triage.
+   - Sentry issues must include their archived permalink and culprit in the proposed action. Archive any extra detail reads.
    - `d1.inventory.broken_repos` is known cumulative inventory. Review `d1.pipeline.newly_broken_repos_total`, but gate health on `d1.pipeline.newly_broken_repos_impacted`. A source removal is impacting when it still backs a skill or appears in a star, subscription, collection, or install event.
    - AI cost is only the recorded batch estimate. Unmeasured services are unknown, not $0.
    - X API is pay-per-use at $0.005 per post read, with no included allowance and a $20/month target. Accepted 2026-08-31 at a projected $18.15/month, which raised the target from $10. Gate on `d1.cost`:
@@ -44,3 +61,7 @@ Produce one read-only morning report that answers: what changed, what broke, wha
 - Lead with failed probes. Missing data cannot support GREEN.
 - Compare step changes over equivalent windows. Do not turn cumulative queues or known broken inventory into overnight failures.
 - Keep the last 30 days of paired JSON and Markdown reports. Never delete `state.json`.
+
+Record every non-green or incomplete result in the agent tracking issue.
+Use stable site, check, and cause identities. Link existing issues and state the next action.
+Record verified recovery evidence. The controller owns issue publication; do not create issues from checks or cron jobs.
