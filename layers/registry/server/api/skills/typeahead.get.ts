@@ -46,13 +46,18 @@ export default defineApiHandler<never, TypeaheadIndex>({
   handler: async ({ platform }): Promise<TypeaheadIndex> => {
     const res = await platform.db
       .prepare(
+        // One grouped count pass. A correlated count per row read every Skill
+        // of the repo for each of ~4k rows: about 160K rows per call.
         `SELECT s.name, s.owner, s.repo, r.stars,
-                (SELECT COUNT(*) FROM skills repo_skills
-                 WHERE repo_skills.owner = s.owner
-                   AND repo_skills.repo = s.repo
-                   AND repo_skills.source_resolved = 1) AS repo_skill_count
+                COALESCE(repo_counts.skill_count, 0) AS repo_skill_count
          FROM skills s
          JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+         LEFT JOIN (
+           SELECT owner, repo, COUNT(*) AS skill_count
+           FROM skills
+           WHERE source_resolved = 1
+           GROUP BY owner, repo
+         ) repo_counts ON repo_counts.owner = s.owner AND repo_counts.repo = s.repo
          WHERE ${NOT_BROKEN_SQL}
            AND ${NOT_AGGREGATOR_SQL}
            AND s.seo_indexable = 1

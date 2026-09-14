@@ -3,12 +3,15 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   approximateDeployedSha,
+  buildHealthEmailQuery,
   buildWorkersQuery,
   collectWorkflowRuns,
+  deriveBaselineFlag,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
   refreshProductionRef,
+  runListArgs,
   summarizeWorkflowRuns,
 } from '../../scripts/tools/daily-checkin-observability.mjs'
 
@@ -103,6 +106,68 @@ describe('daily check-in observability', () => {
       '2026-08-20T02:28:50.987Z',
       '2026-08-21T02:53:53.726Z',
     )).toContain('filter: {scriptName: "skilld-dev"')
+  })
+
+  // The one-sent-report-per-Melbourne-date gate needs more than the two newest
+  // days: a two-row page cannot show continuity, so a gap three days back was
+  // invisible. report_date is the table's primary key, so the row cap can equal
+  // the window without ever hiding an in-window date.
+  it('bounds the health email read to a window that covers a week of Melbourne dates', () => {
+    const query = buildHealthEmailQuery()
+
+    const windowDays = Number(query.match(/report_date >= date\('now', '-(\d+) days'\)/)?.[1])
+    // Melbourne runs up to one day ahead of UTC, so eight UTC days is the
+    // smallest bound that always covers seven Melbourne dates.
+    expect(windowDays).toBeGreaterThanOrEqual(8)
+
+    const limit = Number(query.match(/LIMIT (\d+)\s*$/)?.[1])
+    expect(limit).toBeGreaterThanOrEqual(windowDays)
+
+    expect(query).toContain('ORDER BY report_date DESC')
+  })
+
+  // The exact shape from issue #195: the routine ran on 2026-09-09 and not
+  // again until the 21:40Z slot six days later, so every "overnight" rate in
+  // the archive covered six days while reading as an ordinary window.
+  it('flags a six-day skip as a stale baseline and reports the gap hours', () => {
+    expect(deriveBaselineFlag(
+      '2026-09-09T21:40:00.000Z',
+      '2026-09-15T21:40:00.000Z',
+    )).toEqual({ _tag: 'stale', gapHours: 144 })
+  })
+
+  it('reads the daily cadence and its jitter as fresh, and a skipped slot as stale', () => {
+    expect(deriveBaselineFlag(
+      '2026-09-09T21:40:00.000Z',
+      '2026-09-10T21:40:00.000Z',
+    )).toEqual({ _tag: 'fresh', gapHours: 24 })
+    expect(deriveBaselineFlag(
+      '2026-09-09T21:40:00.000Z',
+      '2026-09-11T09:40:00.000Z',
+    )).toEqual({ _tag: 'fresh', gapHours: 36 })
+    expect(deriveBaselineFlag(
+      '2026-09-09T21:40:00.000Z',
+      '2026-09-11T09:46:00.000Z',
+    )).toEqual({ _tag: 'stale', gapHours: 36.1 })
+  })
+
+  it('reports a corrupted or future baseline as invalid instead of a confident wrong gap', () => {
+    expect(deriveBaselineFlag('garbage', '2026-09-10T21:40:00.000Z')).toEqual({ _tag: 'invalid' })
+    expect(deriveBaselineFlag(
+      '2026-09-11T00:00:00.000Z',
+      '2026-09-10T00:00:00.000Z',
+    )).toEqual({ _tag: 'invalid' })
+  })
+
+  // test.yml runs on every pull_request, so on 2026-09-10 four PR branch
+  // failures were archived as a broken main gate while main's own Test run on
+  // the deployed SHA passed. Every `gh run list` the collector makes must be
+  // scoped to main, both the per-workflow pages and the recent feed.
+  it('scopes every gh run list to main so a PR failure cannot read as a main failure', () => {
+    expect(runListArgs('Test', 10)).toEqual(expect.arrayContaining(['--workflow', 'Test', '--branch', 'main']))
+    expect(runListArgs('Test', 100)).toEqual(expect.arrayContaining(['--limit', '100']))
+    expect(runListArgs(null, 20)).toEqual(expect.arrayContaining(['--branch', 'main']))
+    expect(runListArgs(null, 20)).not.toContain('--workflow')
   })
 
   it('surfaces every required workflow and preserves a failure behind an in-progress run', () => {

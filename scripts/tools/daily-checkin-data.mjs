@@ -7,12 +7,15 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   approximateDeployedSha,
+  buildHealthEmailQuery,
   buildWorkersQuery,
   collectWorkflowRuns,
+  deriveBaselineFlag,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
   refreshProductionRef,
+  runListArgs,
   summarizeWorkflowRuns,
 } from './daily-checkin-observability.mjs'
 import { ghEnv, runReadOnlyProcess, subprocessEnv } from './daily-checkin-process.mjs'
@@ -24,11 +27,31 @@ const statePath = join(checkinDir, 'state.json')
 const save = process.argv.includes('--save')
 const now = new Date()
 const defaultSince = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-const state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null
-const since = new Date(state?.lastRunAt || defaultSince)
-const sinceIso = since.toISOString()
-const sinceSec = Math.floor(since.getTime() / 1000)
-const sinceMs = since.getTime()
+// state.json is hand-editable, so the file text itself can be corrupted (a
+// trailing comma, a missing quote). An unparseable file must not kill the run
+// before the archive records it: the state reads as absent so the window
+// falls back to the default day, and the baseline below is archived as
+// {_tag: 'invalid'} instead of the process dying on a SyntaxError.
+const stateRead = !existsSync(statePath)
+  ? { _tag: 'absent' }
+  : (() => {
+      try {
+        return { _tag: 'read', state: JSON.parse(readFileSync(statePath, 'utf8')) }
+      }
+      catch (error) {
+        return { _tag: 'unreadable', reason: error instanceof Error ? error.message : String(error) }
+      }
+    })()
+const state = stateRead._tag === 'read' ? stateRead.state : null
+// state.json is hand-editable, so lastRunAt can be corrupted. An invalid date
+// must not kill the run before the archive records it: keep the raw value as
+// the window, deriveBaselineFlag maps it to {_tag: 'invalid'}, and the window
+// probes degrade to probe errors.
+const parsedSince = new Date(state?.lastRunAt || defaultSince)
+const sinceIso = Number.isNaN(parsedSince.getTime()) ? String(state?.lastRunAt) : parsedSince.toISOString()
+const sinceSec = Math.floor(parsedSince.getTime() / 1000)
+const sinceMs = parsedSince.getTime()
+const baseline = stateRead._tag === 'unreadable' ? { _tag: 'invalid' } : deriveBaselineFlag(sinceIso, now.toISOString())
 // X deduplicates read charges per UTC day, so its budget counter is keyed on
 // the UTC date rather than on the check-in window.
 const utcDay = now.toISOString().slice(0, 10)
@@ -118,8 +141,6 @@ const deploy = probe(() => {
   }
 })
 
-const runFields = 'databaseId,workflowName,displayTitle,headSha,status,conclusion,createdAt,updatedAt,url'
-
 const ci = probe(() => {
   const workflowDir = join(root, '.github/workflows')
   const definedWorkflows = readdirSync(workflowDir)
@@ -130,12 +151,14 @@ const ci = probe(() => {
   // A low-cadence workflow can fall outside a flat recent-runs page, and an
   // absent row reads as `missing`, which is an observability gap rather than a
   // health signal. Each workflow is therefore paged on its own name, and paged
-  // deeper when a run of skipped guard runs hides the last verdict.
+  // deeper when a run of skipped guard runs hides the last verdict. runListArgs
+  // scopes every read to main, so a PR branch failure cannot masquerade as the
+  // main gate verdict.
   const perWorkflowRows = collectWorkflowRuns(
-    (name, limit) => commandJson('gh', ['run', 'list', '--workflow', name, '--limit', String(limit), '--json', runFields]),
+    (name, limit) => commandJson('gh', runListArgs(name, limit)),
     definedWorkflows,
   )
-  const recent = commandJson('gh', ['run', 'list', '--limit', '20', '--json', runFields])
+  const recent = commandJson('gh', runListArgs(null, 20))
   return {
     workflows: summarizeWorkflowRuns(perWorkflowRows, definedWorkflows),
     recent: recent.slice(0, 10),
@@ -322,7 +345,7 @@ const d1 = probe(() => {
     ? d1Query(`SELECT queue, job_type, substr(exception, 1, 160) exception, COUNT(*) count, MIN(failed_at) first_failed_at, MAX(failed_at) last_failed_at FROM failed_jobs WHERE failed_at >= ${sinceSec} GROUP BY queue, job_type, substr(exception, 1, 160) ORDER BY count DESC LIMIT 10`)
     : null
   const healthEmail = has('daily_health_checks')
-    ? parseHealthEmailRows(d1Query(`SELECT report_date, health_status, delivery_status, recipient, sent_at, error, summary_json FROM daily_health_checks ORDER BY report_date DESC LIMIT 2`))
+    ? parseHealthEmailRows(d1Query(buildHealthEmailQuery()))
     : null
   const recentJobBatches = has('job_batches')
     ? d1Query(`SELECT id, name, total_jobs, pending_jobs, failed_jobs, created_at, updated_at, finished_at FROM job_batches ORDER BY updated_at DESC LIMIT 10`)
@@ -491,6 +514,7 @@ const sentry = await (async () => {
 const doc = {
   generatedAt: now.toISOString(),
   since: sinceIso,
+  baseline,
   git,
   deploy,
   ci,
