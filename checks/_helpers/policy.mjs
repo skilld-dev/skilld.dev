@@ -1,5 +1,6 @@
 import { fail, pass, warn } from '@harlan-zw/nuxt-checkin/external'
 
+/** @returns {import('@harlan-zw/nuxt-checkin/external').CheckResult} */
 export function evaluateCI(data) {
   if (!data.workflows.length || data.workflows.some(workflow => workflow.state._tag === 'missing'))
     return { _tag: 'Warn', reason: 'Workflow evidence is missing.', evidence: data, coverage: 'incomplete' }
@@ -10,6 +11,7 @@ export function evaluateCI(data) {
   return pass(data)
 }
 
+/** @returns {import('@harlan-zw/nuxt-checkin/external').CheckResult} */
 export function evaluateD1(data, now, since) {
   if (data.missingExpectedTables.length)
     return { _tag: 'Warn', reason: 'Expected database tables are missing.', evidence: data, coverage: 'incomplete' }

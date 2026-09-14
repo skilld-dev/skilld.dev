@@ -1,7 +1,8 @@
 minimumReleaseAgeExclude:
-  - '@harlan-zw/nuxt-checkin@0.1.0'
-  - '@harlan-zw/nuxt-checkin@0.2.0-alpha.0'
-  - '@harlan-zw/nuxt-sentry@0.1.5'
+  - '@harlan-zw/nuxt-checkin@0.2.0'
+  - '@harlan-zw/nuxt-cf-jobs@0.2.4'
+  - '@harlan-zw/nuxt-cloudflare@0.4.2'
+  - '@harlan-zw/nuxt-sentry@0.1.6'
   - '@harlan-zw/nuxt-checkin'
   - '@comark/nuxt'
   - '@comark/vue'
@@ -79,11 +80,11 @@ catalog:
   '@cloudflare/workers-types': ^5.20260901.1
   '@comark/nuxt': 0.6.2
   '@harlan-zw/comark-content': 0.1.5
-  '@harlan-zw/nuxt-cf-jobs': 0.2.3
-  '@harlan-zw/nuxt-checkin': 0.2.0-alpha.0
-  '@harlan-zw/nuxt-cloudflare': 0.4.1
+  '@harlan-zw/nuxt-cf-jobs': 0.2.4
+  '@harlan-zw/nuxt-checkin': 0.2.0
+  '@harlan-zw/nuxt-cloudflare': 0.4.2
   '@harlan-zw/nuxt-dx': 0.1.2
-  '@harlan-zw/nuxt-sentry': 0.1.5
+  '@harlan-zw/nuxt-sentry': 0.1.6
   '@harlan-zw/nuxt-use-query': 0.2.1
   '@harlan-zw/nuxt-wide-events': ^0.1.4
   '@iconify-json/lucide': ^1.2.128
@@ -159,7 +160,3 @@ allowBuilds:
   unrs-resolver: true
   vue-demi: true
   workerd: true
-
-peerDependencyRules:
-  allowedVersions:
-    '@harlan-zw/nuxt-checkin': 0.2.0-alpha.0
