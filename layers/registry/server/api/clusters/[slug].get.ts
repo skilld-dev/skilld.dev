@@ -104,6 +104,7 @@ export default defineCachedEventHandler(async (event) => {
   }
 }, {
   maxAge: 60,
-  swr: false,
+  staleMaxAge: 60 * 5,
+  swr: true,
   name: 'clusters-detail-origin-v4',
 })
