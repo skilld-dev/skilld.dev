@@ -198,6 +198,14 @@ export default defineNuxtConfig({
   },
 
   scripts: {
+    // Bundling a registry script downloads it at build time. When
+    // static.cloudflareinsights.com is unreachable, that download threw and
+    // every build failed (#208). The fallback keeps the build green: a failed
+    // download serves the remote URL at runtime instead. Online builds still
+    // bundle as before.
+    assets: {
+      fallbackOnSrcOnBundleFail: true,
+    },
     registry: {
       // Bundling the beacon fetches beacon.min.js from
       // static.cloudflareinsights.com at transform time, so every vitest file
