@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SKILL_FILE_LIMIT } from '../../shared/skill-files'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 const HOUR = 60 * 60
@@ -268,6 +269,25 @@ describe('skill-files cache', () => {
       { storedAt: expect.any(Number), value: empty },
       { ttl: 60 * 5 },
     )
+  })
+
+  it('bounds a root SKILL.md over a large repo and keeps its shallow files', async () => {
+    fixture.raw.prepare(
+      `UPDATE skills SET rendered_skill_path = 'SKILL.md'
+       WHERE owner = 'owner' AND repo = 'repo' AND name = 'skill'`,
+    ).run()
+    const deep = Array.from({ length: SKILL_FILE_LIMIT + 50 }, (_, index) => ({ path: `.github/workflows/${index}.yml`, size: 10 }))
+    vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({
+      files: [...deep, { path: 'README.md', size: 10 }, { path: 'SKILL.md', size: 100 }],
+    }))
+
+    const handler = (await import('../../layers/registry/server/api/skill-files/[...slug].get')).default
+    const payload = await handler(event())
+
+    expect(payload.skillPath).toBe('SKILL.md')
+    expect(payload.total).toBe(SKILL_FILE_LIMIT + 51)
+    expect(payload.files).toHaveLength(SKILL_FILE_LIMIT)
+    expect(payload.files.map(f => f.path)).toContain('README.md')
   })
 
   it('serves the stale envelope when the upstream tree fails', async () => {
