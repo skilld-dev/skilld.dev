@@ -1,4 +1,5 @@
 import { availableParallelism } from 'node:os'
+import { fileURLToPath } from 'node:url'
 import { defineVitestConfig } from '@nuxt/test-utils/config'
 import { configDefaults } from 'vitest/config'
 
@@ -15,6 +16,7 @@ import { configDefaults } from 'vitest/config'
 const MAX_WORKERS = Math.max(2, Math.min(6, availableParallelism() - 2))
 
 export default defineVitestConfig({
+  resolve: { alias: { '#checkin/checks': fileURLToPath(new URL('./test/fixtures/checkin-registry.ts', import.meta.url)) } },
   test: {
     globals: true,
     environment: 'nuxt',

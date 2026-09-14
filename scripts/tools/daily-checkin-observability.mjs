@@ -194,6 +194,7 @@ export function parseHealthEmailRows(rows) {
       reasons: stringArray(summary.reasons, 'reasons'),
       warnings: stringArray(summary.warnings, 'warnings'),
       window,
+      checkin: summary.checkin,
     }
   })
 }

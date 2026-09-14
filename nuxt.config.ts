@@ -46,6 +46,7 @@ export default defineNuxtConfig({
   },
 
   modules: [
+    '@harlan-zw/nuxt-checkin',
     '@harlan-zw/nuxt-cf-jobs',
     '@harlan-zw/nuxt-cloudflare',
     '@harlan-zw/nuxt-dx',

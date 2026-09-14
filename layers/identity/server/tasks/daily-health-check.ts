@@ -46,6 +46,7 @@ export default defineScheduledTask({
 
       const attempt = await sendDailyHealthCheck(db, {
         now,
+        deployment: env.CF_VERSION_METADATA?.id,
         to,
         build: (database, options) => buildDailyHealthCheck(database, {
           ...options,

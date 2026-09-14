@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { runDailyOperatorChecks } from './daily-checkin-checks.mjs'
 import {
   approximateDeployedSha,
   buildWorkersQuery,
@@ -445,8 +446,22 @@ function sentryToken() {
 // both. `truncatedAtLimit` reports when it did not.
 const SENTRY_ISSUE_LIMIT = 25
 
+const resolvedSentry = sentryToken()
+const checkin = await runDailyOperatorChecks({
+  now,
+  token: resolvedSentry?.token,
+  deployment: deploy.latest?.versionId,
+  healthReport: d1.healthEmail?.[0]?.checkin,
+  environment: process.env.SENTRY_ENVIRONMENT,
+})
+
 const sentry = await (async () => {
-  const resolved = sentryToken()
+  const backlog = checkin.results.find(check => check.id === 'sentry.skilld')?.result
+  if (backlog?._tag === 'Pass')
+    return { _tag: 'available', newIssues: [], recurringIssues: [], truncatedAtLimit: false }
+  if (backlog?._tag !== 'Warn' && backlog?._tag !== 'Fail')
+    return { _tag: 'missing_observability', status: null, diagnostic: backlog?.reason ?? 'Sentry evidence is unavailable.' }
+  const resolved = resolvedSentry
   if (!resolved) {
     return {
       _tag: 'missing_observability',
@@ -498,12 +513,13 @@ const doc = {
   d1,
   workers,
   sentry,
+  checkin,
 }
 
 console.log(JSON.stringify(doc, null, 2))
 
-const failedProbes = Object.entries({ git, deploy, ci, http, d1, workers, sentry }).filter(([name, value]) =>
-  value?.error || (name === 'sentry' && value?._tag !== 'available'),
+const failedProbes = Object.entries({ git, deploy, ci, http, d1, workers, sentry, checkin }).filter(([name, value]) =>
+  value?.error || (name === 'sentry' && value?._tag !== 'available') || (name === 'checkin' && value?.coverage !== 'complete'),
 )
 if (failedProbes.length)
   console.error(`WARN ${failedProbes.length} probes failed: ${failedProbes.map(([name]) => name).join(', ')}. Missing data is not health.`)

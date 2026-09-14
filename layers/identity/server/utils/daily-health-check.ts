@@ -1,5 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { CheckReport } from '@harlan-zw/nuxt-checkin/server'
 import type { TokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import type { LatestScheduledRun, ScheduleHealth } from '#shared/schedule-policy'
 import type { SendEmailInput, SendEmailResult } from './email'
@@ -7,6 +8,7 @@ import { TERMINAL_DISCOVERY_REJECTION_REASONS } from '#layers/registry/server/ut
 import { parseTokenExpiry, tokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
 import { DAILY_DISCOVERY_READ_BUDGET } from '#shared/server/x-ingest'
+import { runDailyHealthChecks } from './daily-health-checkin'
 
 /**
  * A failed job whose exception is a decision rather than a fault.
@@ -36,6 +38,7 @@ const CLAIM_STALE_SECONDS = 60 * 60
 export type DailyHealthStatus = 'GREEN' | 'AMBER' | 'RED'
 
 export interface DailyHealthCheckSummary {
+  checkin?: CheckReport
   status: DailyHealthStatus
   reasons: string[]
   warnings: string[]
@@ -323,6 +326,7 @@ type SummaryBuilder = (db: D1Database, options: { now: Date }) => Promise<DailyH
 type EmailSender = (input: SendEmailInput) => Promise<SendEmailResult>
 
 interface SendDailyHealthCheckOptions {
+  deployment?: string
   now?: Date
   to: string
   build?: SummaryBuilder
@@ -1344,6 +1348,7 @@ export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): st
 
   return [
     `skilld daily health check: ${summary.status}`,
+    ...(summary.checkin ? [`Check coverage: ${summary.checkin.coverage}`] : []),
     `${summary.window.reportDate} (${summary.window.timeZone})`,
     `${summary.window.from} to ${summary.window.to}`,
     summary.window.workerVersion ? `Worker: ${summary.window.workerVersion}` : null,
@@ -1432,6 +1437,7 @@ export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): st
       <h1 style="margin:0;font-size:22px;line-height:1.25">Daily health check <span style="color:${statusColor}">${summary.status}</span></h1>
       <div style="font-size:13px;color:#667085;margin-top:8px">${escapeHtml(summary.window.reportDate)} (${escapeHtml(summary.window.timeZone)})</div>
       <div style="font-size:12px;color:#667085;margin-top:3px">${escapeHtml(summary.window.from)} to ${escapeHtml(summary.window.to)}</div>
+      ${summary.checkin ? `<div style="font-size:12px;color:#667085;margin-top:3px">Check coverage: ${escapeHtml(summary.checkin.coverage)}</div>` : ''}
       ${summary.window.workerVersion ? `<div style="font-size:12px;color:#667085;margin-top:3px">Worker ${escapeHtml(summary.window.workerVersion)}</div>` : ''}
     </td></tr>
     <tr><td colspan="2" style="padding:8px"><table role="presentation" style="width:100%;background:#fff;border:1px solid #e4e7ec;border-radius:10px"><tr><td style="padding:14px 18px"><div style="font-size:14px;font-weight:700;margin-bottom:6px">Reasons</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(summary.reasons)}</ul></td></tr></table></td></tr>
@@ -1503,7 +1509,7 @@ export async function sendDailyHealthCheck(
 ): Promise<DailyHealthCheckSendResult> {
   const now = options.now ?? new Date()
   const build = options.build ?? ((database, buildOptions) => buildDailyHealthCheck(database, buildOptions))
-  const summary = await build(db, { now })
+  const summary = await runDailyHealthChecks(db, build, now, options.deployment)
   const claimedAt = Math.floor(now.getTime() / 1000)
   const staleClaimBefore = claimedAt - CLAIM_STALE_SECONDS
   const summaryJson = JSON.stringify(summary)

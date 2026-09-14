@@ -602,6 +602,33 @@ describe('sendDailyHealthCheck', () => {
     sqliteDbs.splice(0).forEach(db => db.close())
   })
 
+  it('does not send or claim when collection fails', async () => {
+    const { db, sqlite } = createDb()
+    sqliteDbs.push(sqlite)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const send = vi.fn()
+    const build = vi.fn().mockRejectedValue(new Error('Database unavailable'))
+    await expect(sendDailyHealthCheck(db, { to: 'ops@example.com', build, send })).rejects.toThrow('Daily health collection did not complete')
+    expect(build).toHaveBeenCalledTimes(1)
+    expect(send).not.toHaveBeenCalled()
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM daily_health_checks').get()).toEqual({ count: 0 })
+    expect(log).toHaveBeenCalled()
+    log.mockRestore()
+  })
+
+  it('preserves failures with incomplete evidence and stores the shared report', async () => {
+    const { db, sqlite } = createDb()
+    sqliteDbs.push(sqlite)
+    const send = vi.fn().mockResolvedValue({ _tag: 'accepted', messageId: 'msg_partial' })
+    const build = vi.fn().mockResolvedValue(summary({ status: 'RED', reasons: ['Delivery failed.'], warnings: ['Inventory unavailable.'] }))
+    await expect(sendDailyHealthCheck(db, { now: new Date('2026-07-22T22:05:00Z'), to: 'ops@example.com', build, send })).resolves.toMatchObject({ _tag: 'Sent', status: 'RED' })
+    expect(build).toHaveBeenCalledTimes(1)
+    const stored = sqlite.prepare('SELECT summary_json FROM daily_health_checks').get() as { summary_json: string }
+    expect(JSON.parse(stored.summary_json).checkin).toMatchObject({ severity: 'fail', coverage: 'incomplete', identity: { site: 'skilld.dev' } })
+    expect(send.mock.calls[0]![0]).toMatchObject({ to: 'ops@example.com', subject: 'skilld health: RED (2026-07-23)' })
+    expect(send.mock.calls[0]![0].text).toContain('Check coverage: incomplete')
+  })
+
   it('claims the report date before sending and deduplicates retries', async () => {
     const { db, sqlite } = createDb()
     sqliteDbs.push(sqlite)

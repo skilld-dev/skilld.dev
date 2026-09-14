@@ -254,6 +254,7 @@ describe('daily check-in observability', () => {
     }])).toEqual([{
       reportDate: '2026-07-27',
       healthStatus: 'RED',
+      checkin: undefined,
       deliveryStatus: 'sent',
       recipient: 'operator@example.com',
       sentAt: 123,
