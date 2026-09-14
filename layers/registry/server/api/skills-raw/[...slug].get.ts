@@ -119,7 +119,7 @@ export default defineApiHandler({
         'outcome': 'degraded',
         'cache.servedStale': true,
         'cache.ageSeconds': Math.round(lastGood.ageSeconds),
-        'upstream.stage': stage,
+        'reason': stage,
       }))
       setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
       setHeader(event, 'cache-control', 'public, max-age=30')
