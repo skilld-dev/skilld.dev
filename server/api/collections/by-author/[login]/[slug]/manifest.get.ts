@@ -41,6 +41,10 @@ export default defineApiHandler({
          WHERE (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)
            AND s.source_resolved = 1
            AND s.rendered_status = 'ok'
+           -- Rank only the collection's repositories; \`rn\` is per repository.
+           AND (s.owner, s.repo) IN (
+             SELECT owner, repo FROM collection_skills_v2 WHERE collection_id = ?1
+           )
        )
        SELECT cs.owner, cs.repo, rs.name, cs.position,
               rs.target_package

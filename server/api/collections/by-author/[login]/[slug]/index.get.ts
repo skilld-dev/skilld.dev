@@ -24,13 +24,13 @@ export default defineApiHandler({
     if (!collection)
       throw createError({ statusCode: 404, message: 'Collection not found' })
 
+    // The CTE is limited to the collection's repositories. Unfiltered, it ranked
+    // every Skill in the registry and ran the correlated repo count for each,
+    // about 1.69M rows read per call. `rn` partitions by repository, so the
+    // filter leaves every rank unchanged.
     const skillsRes = await platform.db.prepare(
       `WITH ranked_skills AS (
          SELECT s.owner, s.repo, s.name, s.display_name,
-                (SELECT COUNT(*) FROM skills repo_skills
-                 WHERE repo_skills.owner = s.owner
-                   AND repo_skills.repo = s.repo
-                   AND repo_skills.source_resolved = 1) AS repo_skill_count,
                 ROW_NUMBER() OVER (
                   PARTITION BY s.owner, s.repo
                   ORDER BY s.modified_at DESC, s.name ASC
@@ -39,9 +39,15 @@ export default defineApiHandler({
          WHERE (r.broken_since IS NULL OR r.broken_since > unixepoch() - 604800)
            AND s.source_resolved = 1
            AND s.rendered_status = 'ok'
+           AND (s.owner, s.repo) IN (
+             SELECT owner, repo FROM collection_skills_v2 WHERE collection_id = ?1
+           )
        )
        SELECT cs.position, cs.owner, cs.repo, rs.name, rs.display_name, cs.reason,
-              rs.repo_skill_count
+              (SELECT COUNT(*) FROM skills repo_skills
+               WHERE repo_skills.owner = cs.owner
+                 AND repo_skills.repo = cs.repo
+                 AND repo_skills.source_resolved = 1) AS repo_skill_count
        FROM collection_skills_v2 cs
        JOIN ranked_skills rs
          ON rs.owner = cs.owner
@@ -50,7 +56,7 @@ export default defineApiHandler({
           (cs.name IS NOT NULL AND rs.name = cs.name)
           OR (cs.name IS NULL AND rs.rn = 1)
         )
-       WHERE cs.collection_id = ?
+       WHERE cs.collection_id = ?1
        ORDER BY cs.position ASC`,
     ).bind(collection.id).all<CollectionSkillRow>()
 
