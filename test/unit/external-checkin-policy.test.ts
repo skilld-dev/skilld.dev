@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { expect, it } from 'vitest'
+import { summarizeWorkflowRuns } from '../../checks/_helpers/observability.mjs'
 import { evaluateCI, evaluateD1 } from '../../checks/_helpers/policy.mjs'
 
 const now = new Date('2026-09-14T00:00:00Z')
@@ -20,4 +21,34 @@ it('keeps missing schema evidence incomplete', () => {
 })
 it('keeps a pending workflow visible after a failure', () => {
   expect(evaluateCI({ workflows: [{ state: { _tag: 'pending', consecutiveFailures: 1 } }] })._tag).toBe('Warn')
+})
+
+it('preserves a failed workflow when another workflow has no evidence', () => {
+  const workflows = summarizeWorkflowRuns([
+    { workflowName: 'Test', status: 'completed', conclusion: 'failure' },
+  ], ['Test', 'Deploy'])
+  expect(evaluateCI({ workflows })).toMatchObject({ _tag: 'Fail', coverage: 'incomplete' })
+})
+it.each(['queued', 'in_progress'])('keeps a first %s workflow incomplete', (status) => {
+  const workflows = summarizeWorkflowRuns([{ workflowName: 'Test', status, conclusion: '' }], ['Test'])
+  expect(evaluateCI({ workflows })).toMatchObject({ _tag: 'Warn', coverage: 'incomplete' })
+})
+it('accepts a pending workflow with a previous successful verdict', () => {
+  const workflows = summarizeWorkflowRuns([
+    { workflowName: 'Test', status: 'queued', conclusion: '' },
+    { workflowName: 'Test', status: 'completed', conclusion: 'success' },
+  ], ['Test'])
+  expect(evaluateCI({ workflows })).toMatchObject({ _tag: 'Pass' })
+})
+it.each(['tables', 'migrations', 'budget'])('preserves known failures with missing %s evidence', (missing) => {
+  for (const failure of ['spend', 'delivery']) {
+    const data = {
+      ...healthy(),
+      missingExpectedTables: missing === 'tables' ? ['jobs'] : [],
+      migrations: { ...healthy().migrations, error: missing === 'migrations' ? 'Unavailable' : null },
+      cost: { ...healthy().cost, x_budget_target: missing === 'budget' ? null : 400, x_projected_monthly_usd: failure === 'spend' ? 80 : 40 },
+      activity: { digests_failed: failure === 'delivery' ? 1 : 0 },
+    }
+    expect(evaluateD1(data, now, since)).toMatchObject({ _tag: 'Fail', coverage: 'incomplete' })
+  }
 })
