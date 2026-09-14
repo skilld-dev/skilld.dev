@@ -1,4 +1,6 @@
 minimumReleaseAgeExclude:
+  - '@harlan-zw/nuxt-checkin@0.1.0'
+  - '@harlan-zw/nuxt-checkin@0.2.0-alpha.0'
   - '@harlan-zw/nuxt-sentry@0.1.5'
   - '@harlan-zw/nuxt-checkin'
   - '@comark/nuxt'
@@ -78,7 +80,7 @@ catalog:
   '@comark/nuxt': 0.6.2
   '@harlan-zw/comark-content': 0.1.5
   '@harlan-zw/nuxt-cf-jobs': 0.2.3
-  '@harlan-zw/nuxt-checkin': 0.1.0
+  '@harlan-zw/nuxt-checkin': 0.2.0-alpha.0
   '@harlan-zw/nuxt-cloudflare': 0.4.1
   '@harlan-zw/nuxt-dx': 0.1.2
   '@harlan-zw/nuxt-sentry': 0.1.5
@@ -157,3 +159,7 @@ allowBuilds:
   unrs-resolver: true
   vue-demi: true
   workerd: true
+
+peerDependencyRules:
+  allowedVersions:
+    '@harlan-zw/nuxt-checkin': 0.2.0-alpha.0

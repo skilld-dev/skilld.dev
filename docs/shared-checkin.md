@@ -26,7 +26,7 @@ Its recorded scheduled-run outcome already enters the daily summary.
 
 ## Release
 
-The check-in uses published `@harlan-zw/nuxt-checkin@0.1.0` and `@harlan-zw/nuxt-sentry@0.1.5`.
+The check-in uses published `@harlan-zw/nuxt-checkin@0.2.0-alpha.0` and `@harlan-zw/nuxt-sentry@0.1.5`.
 The lockfile resolves registry packages.
 
 ## External daily check-in
@@ -51,4 +51,4 @@ Same-day reruns preserve the morning baseline.
 Read `results[].result.evidence` for each registered check.
 The `skilld.database` result retains inventory, activity, pipeline, cost, and operator-email evidence.
 The `skilld.sentry-details` result retains new and recurring issue details.
-The pending `@harlan-zw/nuxt-checkin@0.2.0-alpha.0` release supplies the CLI.
+The published `@harlan-zw/nuxt-checkin@0.2.0-alpha.0` prerelease supplies the CLI.
