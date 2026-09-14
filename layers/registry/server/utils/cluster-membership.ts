@@ -96,10 +96,6 @@ export function clusterMembersSql(
     FROM (
       SELECT s.owner, s.name, s.repo, s.display_name, s.description,
              s.modified_at, r.stars,
-             (SELECT COUNT(*) FROM skills repo_skills
-              WHERE repo_skills.owner = s.owner
-                AND repo_skills.repo = s.repo
-                AND repo_skills.source_resolved = 1) AS repo_skill_count,
              s.abstractness_category AS category,
              COALESCE(s.is_abstract, 0) AS is_abstract,
              ${pinnedArm} AS is_pinned,
@@ -163,14 +159,33 @@ export function clusterPageSql(
   return {
     countSql: `SELECT COUNT(*) AS n FROM (${members.sql})`,
     countParams: [...members.params],
+    // The repo Skill count is a correlated subquery that reads every Skill row
+    // of the repo. Inside the membership fragment it ran once per candidate,
+    // before the page cut: about 620K rows read per page in production. Out
+    // here it runs once per row on the page. `page_pos` carries the page order
+    // out of the subquery without binding the pinned keys a second time.
     listSql: `
-    SELECT * FROM (${members.sql})
-    ORDER BY ${pinnedOrderSql} is_abstract DESC, stars DESC, modified_at DESC, name ASC
-    LIMIT ? OFFSET ?
+    SELECT paged.*,
+           (SELECT COUNT(*) FROM skills repo_skills
+            WHERE repo_skills.owner = paged.owner
+              AND repo_skills.repo = paged.repo
+              AND repo_skills.source_resolved = 1) AS repo_skill_count
+    FROM (
+      SELECT members.*,
+             ROW_NUMBER() OVER (
+               ORDER BY ${pinnedOrderSql} is_abstract DESC, stars DESC, modified_at DESC, name ASC
+             ) AS page_pos
+      FROM (${members.sql}) members
+      ORDER BY page_pos
+      LIMIT ? OFFSET ?
+    ) paged
+    ORDER BY paged.page_pos
   `,
+    // The ORDER BY `CASE` sits in the window, which comes before the
+    // membership fragment in the statement text, so its keys bind first.
     listParams: [
-      ...members.params,
       ...pinnedSkills.flatMap(skill => [skill.owner, skill.name]),
+      ...members.params,
       pageWindow.limit,
       pageWindow.offset,
     ],

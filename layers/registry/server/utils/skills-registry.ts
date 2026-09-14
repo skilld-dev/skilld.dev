@@ -2,8 +2,9 @@ import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate-canonical'
 import type { AlternateSource, HybridSearchResult, SearchMode } from './skill-search'
 import { getDB } from '#server/utils/db'
-import { readCache, writeCache } from '#shared/server/cache'
+import { cached } from '#shared/server/cache'
 import { githubSkillFileUrl } from '#shared/skill-file-url'
+import { runAfterResponse } from './after-response'
 import { JOIN_REPOS_SQL, notAggregatorSql, notBrokenSql } from './broken'
 import { buildSkillDependencyMap, skillDependencyKey } from './skill-dependencies'
 import {
@@ -18,7 +19,7 @@ import { SUPPORTED_SKILL_SQL } from './supported-sources'
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
 const FROM_SKILLS_JOIN_REPOS = `FROM skills s ${JOIN_REPOS_SQL}`
-const SELECT_SKILL_ROW = `
+const SELECT_SKILL_ROW_BASE = `
   s.name,
   s.owner,
   s.repo,
@@ -40,14 +41,28 @@ const SELECT_SKILL_ROW = `
   r.default_branch,
   r.source_owner,
   r.source_repo,
-  (SELECT o.name FROM owners o WHERE o.owner = s.owner) AS author_name,
-  (
+  (SELECT o.name FROM owners o WHERE o.owner = s.owner) AS author_name`
+
+/**
+ * Resolved-Skill total for the repo of the row aliased `alias`.
+ *
+ * Correlated, so it reads every Skill of that repo once per row it runs on.
+ * That is cheap on a page of rows and costly before one: in the select list of
+ * a sorted listing it runs for every match, since the sorter carries whole
+ * rows, which is sum(c^2) reads over the matches.
+ */
+function repoSkillCountSql(alias: string): string {
+  return `(
     SELECT COUNT(*)
     FROM skills repo_skills
-    WHERE repo_skills.owner = s.owner
-      AND repo_skills.repo = s.repo
+    WHERE repo_skills.owner = ${alias}.owner
+      AND repo_skills.repo = ${alias}.repo
       AND repo_skills.source_resolved = 1
   ) AS repo_skill_count`
+}
+
+const SELECT_SKILL_ROW = `${SELECT_SKILL_ROW_BASE},
+  ${repoSkillCountSql('s')}`
 const SELECT_SKILL_ROW_WITH_BODY = `${SELECT_SKILL_ROW}, s.rendered_raw`
 
 export interface RegistrySkill {
@@ -378,19 +393,33 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     .bind(...params)
 
   const offset = (page - 1) * limit
+  // The repo Skill count is added after the page cut, so it runs once per row
+  // on the page instead of once per match. The outer query sorts the page
+  // again by the same key, which names result columns and binds nothing.
+  const pageSelectRow = includeDependencies ? `${SELECT_SKILL_ROW_BASE}, s.rendered_raw` : SELECT_SKILL_ROW_BASE
   const dataStmt = db
     .prepare(uniqueOwners
       ? `WITH ranked_skills AS (
-          SELECT ${selectSkillRow},
+          SELECT ${pageSelectRow},
             ROW_NUMBER() OVER (PARTITION BY s.owner ORDER BY ${orderBy}) AS owner_rank
           ${FROM_SKILLS_JOIN_REPOS}
           ${where}
         )
-        SELECT * FROM ranked_skills
-        WHERE owner_rank = 1
-        ORDER BY ${rankedOrderBy}
-        LIMIT ? OFFSET ?`
-      : `SELECT ${selectSkillRow} ${FROM_SKILLS_JOIN_REPOS} ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
+        SELECT paged.*, ${repoSkillCountSql('paged')}
+        FROM (
+          SELECT * FROM ranked_skills
+          WHERE owner_rank = 1
+          ORDER BY ${rankedOrderBy}
+          LIMIT ? OFFSET ?
+        ) paged
+        ORDER BY ${rankedOrderBy}`
+      : `SELECT paged.*, ${repoSkillCountSql('paged')}
+        FROM (
+          SELECT ${pageSelectRow} ${FROM_SKILLS_JOIN_REPOS} ${where}
+          ORDER BY ${orderBy}
+          LIMIT ? OFFSET ?
+        ) paged
+        ORDER BY ${rankedOrderBy}`)
     .bind(...params, limit, offset)
 
   // Facets: top owners from filtered results
@@ -682,21 +711,55 @@ function duplicateRowToSibling(row: SkillDuplicateRow): SkillDuplicateSibling {
   }
 }
 
-// Full-table scan: ~1.4k row reads per call. Cache the row set in KV so all
+/**
+ * Resolved-Skill total per repository, counted once per statement.
+ *
+ * The correlated form, `(SELECT COUNT(*) FROM skills WHERE owner/repo match)`
+ * in the select list, reads every Skill of the repo for every outer row, so a
+ * full listing reads sum(c^2) rows: about 585K per call in production, with one
+ * repository at 875 Skills. Joining one grouped pass reads each Skill once.
+ *
+ * `repos.repo_skill_count` is not a substitute. Sync writes the number of
+ * SKILL.md files in the tree, and the paths that clear `source_resolved` never
+ * touch it; on 2026-09-14 it disagreed with this count for 7,159 of 8,618 repos.
+ */
+const REPO_SKILL_COUNTS_JOIN = `
+  LEFT JOIN (
+    SELECT owner, repo, COUNT(*) AS skill_count
+    FROM skills
+    WHERE source_resolved = 1
+    GROUP BY owner, repo
+  ) repo_counts ON repo_counts.owner = s.owner AND repo_counts.repo = s.repo`
+const REPO_SKILL_COUNT_FROM_JOIN = 'COALESCE(repo_counts.skill_count, 0) AS repo_skill_count'
+
+// Full-table scan of every indexable Skill. Cache the row set in KV so all
 // concurrent skill detail / sitemap requests share one query within the TTL
 // window instead of each one re-scanning. This was the dominant source of
-// the 6.87B read figure on D1.
-const DUPLICATE_CANDIDATES_TTL = 60 * 5
+// the 6.87B read figure on D1, and at a 5 minute TTL still read 792M rows over
+// 1,347 calls between 11 and 13 Sep 2026. Duplicate groups and sitemap entries
+// only move when a sync lands, so an hour fresh plus a day served stale while
+// one refresh runs is well inside how often they change.
+const DUPLICATE_CANDIDATES_TTL = 60 * 60
+const DUPLICATE_CANDIDATES_STALE_TTL = 60 * 60 * 24
 
-async function listDuplicateCandidateRows(
+function listDuplicateCandidateRows(
   event: H3Event,
   opts: { supportedOnly: boolean, includeAggregators?: boolean },
 ): Promise<SkillDuplicateRow[]> {
-  const cacheKey = `skills:duplicate-candidates:v2:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`
-  const cached = await readCache<SkillDuplicateRow[]>(useStorage('cache'), cacheKey)
-  if (cached)
-    return cached
+  return cached({
+    storage: useStorage('cache'),
+    key: `skills:duplicate-candidates:v3:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`,
+    ttlSeconds: DUPLICATE_CANDIDATES_TTL,
+    staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
+    compute: () => queryDuplicateCandidateRows(event, opts),
+    schedule: promise => runAfterResponse(event, promise),
+  })
+}
 
+async function queryDuplicateCandidateRows(
+  event: H3Event,
+  opts: { supportedOnly: boolean, includeAggregators?: boolean },
+): Promise<SkillDuplicateRow[]> {
   const db = getDB(event)
   const supportedSelect = `CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END`
   const supportedFilter = opts.supportedOnly ? `AND (${SUPPORTED_SKILL_SQL})` : ''
@@ -715,12 +778,9 @@ async function listDuplicateCandidateRows(
         supported_repos.support_tier,
         s.trust_tier,
         ${supportedSelect} AS is_supported,
-        (
-          SELECT COUNT(*)
-          FROM skills rc
-          WHERE rc.owner = s.owner AND rc.repo = s.repo AND rc.source_resolved = 1
-        ) AS repo_skill_count
+        ${REPO_SKILL_COUNT_FROM_JOIN}
       ${FROM_SKILLS_JOIN_REPOS}
+      ${REPO_SKILL_COUNTS_JOIN}
       LEFT JOIN supported_repos
         ON supported_repos.owner = s.owner
         AND supported_repos.repo = s.repo
@@ -732,9 +792,7 @@ async function listDuplicateCandidateRows(
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
     `)
     .all<SkillDuplicateRow>()
-  const rows = res.results ?? []
-  await writeCache(useStorage('cache'), cacheKey, rows, { ttl: DUPLICATE_CANDIDATES_TTL })
-  return rows
+  return res.results ?? []
 }
 
 export async function findDuplicateGroupForSkill(event: H3Event, slug: string): Promise<SkillDuplicateGroup | null> {
@@ -757,12 +815,18 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
   }
 }
 
-export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
-  const cacheKey = 'skills:sitemap-all:v2'
-  const cached = await readCache<SkillSitemapEntry[]>(useStorage('cache'), cacheKey)
-  if (cached)
-    return cached
+export function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
+  return cached({
+    storage: useStorage('cache'),
+    key: 'skills:sitemap-all:v3',
+    ttlSeconds: DUPLICATE_CANDIDATES_TTL,
+    staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
+    compute: () => queryAllSkillsForSitemap(event),
+    schedule: promise => runAfterResponse(event, promise),
+  })
+}
 
+async function queryAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   const db = getDB(event)
   const res = await db
     .prepare(`
@@ -778,12 +842,9 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
         supported_repos.support_tier,
         s.trust_tier,
         CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported,
-        (
-          SELECT COUNT(*)
-          FROM skills rc
-          WHERE rc.owner = s.owner AND rc.repo = s.repo AND rc.source_resolved = 1
-        ) AS repo_skill_count
+        ${REPO_SKILL_COUNT_FROM_JOIN}
       ${FROM_SKILLS_JOIN_REPOS}
+      ${REPO_SKILL_COUNTS_JOIN}
       LEFT JOIN supported_repos
         ON supported_repos.owner = s.owner
         AND supported_repos.repo = s.repo
@@ -799,7 +860,6 @@ export async function listAllSkillsForSitemap(event: H3Event): Promise<SkillSite
   const entries = rows
     .filter(row => !weakerSupportedSlugs.has(skillSlug(row)))
     .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
-  await writeCache(useStorage('cache'), cacheKey, entries, { ttl: DUPLICATE_CANDIDATES_TTL })
   return entries
 }
 
