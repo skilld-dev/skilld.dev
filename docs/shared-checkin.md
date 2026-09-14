@@ -26,10 +26,8 @@ Its recorded scheduled-run outcome already enters the daily summary.
 
 ## Release
 
-This draft requires the unpublished `@harlan-zw/nuxt-checkin@0.1.0` release from harlan-nuxt PR 143.
-After release, confirm the version and run `pnpm install` to update the lockfile.
-The draft deliberately leaves the registry lockfile unchanged.
-Local checks use the built package tarball, without committed file dependencies.
+The check-in uses published `@harlan-zw/nuxt-checkin@0.1.0` and `@harlan-zw/nuxt-sentry@0.1.5`.
+The lockfile resolves registry packages.
 
 ## External daily check-in
 
@@ -44,5 +42,3 @@ The existing detailed Sentry probe runs only when the shared check finds unresol
 It keeps recurrence and impact details for triage.
 That extra request remains an optimization opportunity.
 Live credentials and the environment mapping remain unverified.
-The draft uses `nuxt-sentry@0.1.5` as a release placeholder for the public checks export.
-Confirm its actual release version before updating the lockfile.
