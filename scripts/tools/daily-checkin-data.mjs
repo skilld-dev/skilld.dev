@@ -9,6 +9,7 @@ import {
   approximateDeployedSha,
   buildWorkersQuery,
   collectWorkflowRuns,
+  deriveBaselineFlag,
   parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
@@ -25,11 +26,31 @@ const statePath = join(checkinDir, 'state.json')
 const save = process.argv.includes('--save')
 const now = new Date()
 const defaultSince = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-const state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null
-const since = new Date(state?.lastRunAt || defaultSince)
-const sinceIso = since.toISOString()
-const sinceSec = Math.floor(since.getTime() / 1000)
-const sinceMs = since.getTime()
+// state.json is hand-editable, so the file text itself can be corrupted (a
+// trailing comma, a missing quote). An unparseable file must not kill the run
+// before the archive records it: the state reads as absent so the window
+// falls back to the default day, and the baseline below is archived as
+// {_tag: 'invalid'} instead of the process dying on a SyntaxError.
+const stateRead = !existsSync(statePath)
+  ? { _tag: 'absent' }
+  : (() => {
+      try {
+        return { _tag: 'read', state: JSON.parse(readFileSync(statePath, 'utf8')) }
+      }
+      catch (error) {
+        return { _tag: 'unreadable', reason: error instanceof Error ? error.message : String(error) }
+      }
+    })()
+const state = stateRead._tag === 'read' ? stateRead.state : null
+// state.json is hand-editable, so lastRunAt can be corrupted. An invalid date
+// must not kill the run before the archive records it: keep the raw value as
+// the window, deriveBaselineFlag maps it to {_tag: 'invalid'}, and the window
+// probes degrade to probe errors.
+const parsedSince = new Date(state?.lastRunAt || defaultSince)
+const sinceIso = Number.isNaN(parsedSince.getTime()) ? String(state?.lastRunAt) : parsedSince.toISOString()
+const sinceSec = Math.floor(parsedSince.getTime() / 1000)
+const sinceMs = parsedSince.getTime()
+const baseline = stateRead._tag === 'unreadable' ? { _tag: 'invalid' } : deriveBaselineFlag(sinceIso, now.toISOString())
 // X deduplicates read charges per UTC day, so its budget counter is keyed on
 // the UTC date rather than on the check-in window.
 const utcDay = now.toISOString().slice(0, 10)
@@ -492,6 +513,7 @@ const sentry = await (async () => {
 const doc = {
   generatedAt: now.toISOString(),
   since: sinceIso,
+  baseline,
   git,
   deploy,
   ci,
