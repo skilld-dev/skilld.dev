@@ -8,6 +8,7 @@ import databaseCheck from '../../checks/external/database'
 import deployCheck from '../../checks/external/deploy'
 import gitCheck from '../../checks/external/git'
 import healthCheck from '../../checks/external/health-email'
+import workersCheck from '../../checks/external/workers'
 
 const boundary = vi.hoisted(() => ({ command: vi.fn() }))
 vi.mock('@harlan-zw/nuxt-checkin/external', async (original) => {
@@ -18,6 +19,7 @@ const roots: string[] = []
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true })))
   boundary.command.mockReset()
+  vi.unstubAllGlobals()
 })
 
 it('shares deployment and database evidence without blocking nested collectors', async () => {
@@ -65,4 +67,11 @@ it('shares deployment and database evidence without blocking nested collectors',
   expect(result.report.results.find(check => check.id === 'skilld.database')?.result).toMatchObject({ evidence: { inventory: { skills: 23 } } })
   expect(boundary.command.mock.calls.filter(([, command, args]) => command === 'git' && args[0] === 'fetch')).toHaveLength(1)
   expect(boundary.command.mock.calls.filter(([, , args]) => args.includes('SELECT name FROM sqlite_master WHERE type = \'table\' ORDER BY name'))).toHaveLength(1)
+})
+
+it('rejects oversized Worker analytics evidence', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ data: { viewer: { accounts: [{ workersInvocationsAdaptive: [] }] } }, padding: 'x'.repeat(2_097_153) })))
+  const { report } = await runExternalChecks([workersCheck], { required: [workersCheck.id] }, { env: { CLOUDFLARE_USAGE_TOKEN: 'test-token' } })
+  expect(report.coverage).toBe('incomplete')
+  expect(report.results[0]?.result._tag).toBe('Unavailable')
 })

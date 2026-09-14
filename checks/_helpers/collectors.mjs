@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
+import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
 import { buildWorkersQuery, parseHealthEmailRows, parseWorkflowName, summarizeWorkflowRuns } from './observability.mjs'
 
 const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers'].map(key => [key, {}]))
@@ -285,7 +285,7 @@ export function collectWorkers(context) {
     if (!token)
       throw new Error('Cloudflare token is unavailable.')
     const response = await fetch('https://api.cloudflare.com/client/v4/graphql', { method: 'POST', redirect: 'error', signal: context.signal, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: buildWorkersQuery(context.since.toISOString(), context.now.toISOString()) }) })
-    const body = await response.json()
+    const body = JSON.parse(await readBoundedResponseText(response, 2_097_152))
     if (!response.ok || body.errors?.length)
       throw new Error(`Cloudflare GraphQL returned HTTP ${response.status}.`)
     const rows = body.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive
