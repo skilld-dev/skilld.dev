@@ -42,3 +42,13 @@ The existing detailed Sentry probe runs only when the shared check finds unresol
 It keeps recurrence and impact details for triage.
 That extra request remains an optimization opportunity.
 Live credentials and the environment mapping remain unverified.
+
+## Shared CLI
+
+Run `pnpm checkin --save` to prepare and execute registered external checks.
+The shared CLI writes daily archives and keeps successful state boundaries.
+Same-day reruns preserve the morning baseline.
+Read `results[].result.evidence` for each registered check.
+The `skilld.database` result retains inventory, activity, pipeline, cost, and operator-email evidence.
+The `skilld.sentry-details` result retains new and recurring issue details.
+The pending `@harlan-zw/nuxt-checkin@0.2.0-alpha.0` release supplies the CLI.

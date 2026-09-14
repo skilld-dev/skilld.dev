@@ -10,7 +10,7 @@ import {
   readMigrationState,
   refreshProductionRef,
   summarizeWorkflowRuns,
-} from '../../scripts/tools/daily-checkin-observability.mjs'
+} from '../../checks/_helpers/observability.mjs'
 
 function run(
   workflowName: string,

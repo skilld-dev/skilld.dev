@@ -1,7 +1,22 @@
 // @vitest-environment node
-import { defineCheck, pass, runChecks } from '@harlan-zw/nuxt-checkin/server'
+import { defineCheck, pass, runChecks, runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
 import { describe, expect, it, vi } from 'vitest'
-import { runDailyOperatorChecks } from '../../scripts/tools/daily-checkin-checks.mjs'
+import healthEmailCheck from '../../checks/external/health-email'
+import sentryCheck from '../../checks/external/sentry'
+
+const evidence = vi.hoisted(() => ({ deployment: undefined as string | undefined, healthReport: undefined as unknown }))
+vi.mock('../../checks/_helpers/collectors.mjs', () => ({
+  collectDeploy: async () => ({ latest: { versionId: evidence.deployment } }),
+  collectD1: async () => ({ healthEmail: [{ checkin: evidence.healthReport }] }),
+}))
+
+async function runDailyOperatorChecks({ now, token, deployment, healthReport, environment, clock, request }: any) {
+  evidence.deployment = deployment
+  evidence.healthReport = healthReport
+  vi.stubGlobal('fetch', request)
+  const { report } = await runExternalChecks([sentryCheck, healthEmailCheck], { required: ['sentry.skilld', 'skilld.health-email'], credentials: { sentry: 'SENTRY_AUTH_TOKEN' } }, { now, clock, env: { SENTRY_AUTH_TOKEN: token, SENTRY_ENVIRONMENT: environment } })
+  return report
+}
 
 const now = new Date('2026-09-14T22:00:00Z')
 const identity = { site: 'skilld.dev', environment: 'production', deployment: 'worker-123' }

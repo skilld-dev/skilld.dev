@@ -9,10 +9,13 @@ Produce one read-only morning report that answers: what changed, what broke, wha
 
 ## Workflow
 
-1. Run `node scripts/tools/daily-checkin-data.mjs --save` from the repo root. Preserve every probe error as a finding. The command archives raw evidence in `docs/ops/checkins/YYYY-MM-DD.json`; same-day reruns use a timestamped sibling and do not move the next baseline.
-2. Read the newest prior JSON archive and `docs/ops/triage-ledger.md`. Compare fingerprints and rates, not only totals. Treat a missing prior key as a new probe with no baseline.
+1. Run `pnpm checkin --save` from the repo root. Preserve every probe error as a finding. The command archives raw evidence in `docs/ops/checkins/YYYY-MM-DD.json`; same-day reruns use a timestamped sibling and do not move the next baseline.
+2. Read check evidence from `results`: `skilld.git`, `skilld.deploy`, `skilld.ci`, `skilld.database`, and `skilld.workers`.
+   Map the previous `git`, `deploy`, `ci`, `d1`, and `workers` fields to each result's `result.evidence`.
+   Read detailed Sentry evidence from `skilld.sentry-details`. Read HTTP results from `skilld.home` and `skilld.skills`.
+   Read the newest prior JSON archive and `docs/ops/triage-ledger.md`. Compare fingerprints and rates, not only totals. Treat a missing prior key as a new probe with no baseline.
 3. Verify these gates first:
-   - Read `checkin.severity`, `checkin.coverage`, and every result. Incomplete coverage cannot support GREEN.
+   - Read `severity`, `coverage`, and every result. Incomplete coverage cannot support GREEN.
    - `sentry.skilld` covers the retained unresolved backlog. Missing credentials or partial pagination remain findings.
    - `skilld.health-email` verifies the saved report against the current Worker version and a 36-hour age limit.
    - If backlog IDs lack archived triage details, fetch their details read-only and append them to the archive.
