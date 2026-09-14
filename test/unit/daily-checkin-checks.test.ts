@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { defineCheck, pass, runChecks, runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
 import { describe, expect, it, vi } from 'vitest'
-import healthEmailCheck from '../../checks/external/health-email'
+import healthEmailCheck from '../../checks/external/report'
 import sentryCheck from '../../checks/external/sentry'
 
 const evidence = vi.hoisted(() => ({ deployment: undefined as string | undefined, healthReport: undefined as unknown }))
@@ -13,8 +13,8 @@ vi.mock('../../checks/_helpers/collectors.mjs', () => ({
 async function runDailyOperatorChecks({ now, token, deployment, healthReport, environment, clock, request }: any) {
   evidence.deployment = deployment
   evidence.healthReport = healthReport
-  vi.stubGlobal('fetch', request)
-  const { report } = await runExternalChecks([sentryCheck, healthEmailCheck], { required: ['sentry.skilld', 'skilld.health-email'], credentials: { sentry: 'SENTRY_AUTH_TOKEN' } }, { now, clock, env: { SENTRY_AUTH_TOKEN: token, SENTRY_ENVIRONMENT: environment } })
+  vi.stubGlobal('fetch', async (url: string, options: unknown) => String(url).startsWith('https://skilld.dev/') ? new Response(JSON.stringify(healthReport)) : request(url, options))
+  const { report } = await runExternalChecks([sentryCheck, healthEmailCheck], { required: ['sentry.skilld', 'skilld.report'], credentials: { sentry: 'SENTRY_AUTH_TOKEN' } }, { now, clock, env: { SENTRY_AUTH_TOKEN: token, SENTRY_ENVIRONMENT: environment, NUXT_CHECKIN_TOKEN: 'report-token' } })
   return report
 }
 
@@ -29,7 +29,7 @@ async function healthReport(observedAt = now) {
 }
 
 describe('external daily check-in', () => {
-  it('combines the saved health report with the complete Sentry backlog', async () => {
+  it('combines the live health report with the complete Sentry backlog', async () => {
     const request = vi.fn().mockResolvedValue(new Response(JSON.stringify([{ id: '123', project: { slug: 'skilld' } }]), { status: 200 }))
     const report = await runDailyOperatorChecks({ clock: () => now, now, token: 'read-token', deployment: identity.deployment, healthReport: await healthReport(), environment: 'production', request })
     expect(report).toMatchObject({ severity: 'warn', coverage: 'complete' })

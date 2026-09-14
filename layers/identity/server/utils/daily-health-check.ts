@@ -1,14 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { CheckReport } from '@harlan-zw/nuxt-checkin/server'
 import type { TokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import type { LatestScheduledRun, ScheduleHealth } from '#shared/schedule-policy'
-import type { SendEmailInput, SendEmailResult } from './email'
 import { TERMINAL_DISCOVERY_REJECTION_REASONS } from '#layers/registry/server/utils/discovery-candidates'
 import { parseTokenExpiry, tokenExpiryStatus } from '#layers/registry/server/utils/github-token-expiry'
 import { evaluateScheduleHealth, SCHEDULE_POLICY } from '#shared/schedule-policy'
 import { DAILY_DISCOVERY_READ_BUDGET } from '#shared/server/x-ingest'
-import { runDailyHealthChecks } from './daily-health-checkin'
 
 /**
  * A failed job whose exception is a decision rather than a fault.
@@ -38,7 +35,6 @@ const CLAIM_STALE_SECONDS = 60 * 60
 export type DailyHealthStatus = 'GREEN' | 'AMBER' | 'RED'
 
 export interface DailyHealthCheckSummary {
-  checkin?: CheckReport
   status: DailyHealthStatus
   reasons: string[]
   warnings: string[]
@@ -316,23 +312,6 @@ export const SCHEDULE_HEALTH_LATEST_RUNS_SQL = `
   WHERE recency = 1
 `
 
-export type DailyHealthCheckSendResult
-  = | { _tag: 'Sent', reportDate: string, status: DailyHealthStatus, to: string, messageId: string }
-    | { _tag: 'Duplicate', reportDate: string, to: string }
-    | { _tag: 'SendFailed', reportDate: string, status: DailyHealthStatus, to: string, error: string }
-    | { _tag: 'Uncertain', reportDate: string, status: DailyHealthStatus, to: string, error: string }
-
-type SummaryBuilder = (db: D1Database, options: { now: Date }) => Promise<DailyHealthCheckSummary>
-type EmailSender = (input: SendEmailInput) => Promise<SendEmailResult>
-
-interface SendDailyHealthCheckOptions {
-  deployment?: string
-  now?: Date
-  to: string
-  build?: SummaryBuilder
-  send: EmailSender
-}
-
 interface BuildDailyHealthCheckOptions {
   now?: Date
   fetcher?: typeof fetch
@@ -385,20 +364,6 @@ const EMPTY_COMMAND_COPIES = {
   unattributed_copies_24h: 0,
 }
 
-/**
- * One line naming each copy grammar, so no reader can mistake a run for an install.
- *
- * The unattributed part only appears while rows written before the `mode`
- * column still fall inside the window.
- */
-function commandCopyLine(summary: DailyHealthCheckSummary): string {
-  const { run, install, unattributed } = summary.activity.commandCopies24h
-  const parts = [`${run} run`, `${install} install`]
-  if (unattributed > 0)
-    parts.push(`${unattributed} unattributed`)
-  return parts.join(', ')
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -420,15 +385,6 @@ function iso(date: Date): string {
 
 function plural(count: number, singular: string, multiple = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : multiple}`
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"]/g, character => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-  })[character]!)
 }
 
 async function first<T>(db: D1Database, sql: string, bindings: unknown[] = []): Promise<T> {
@@ -1041,7 +997,7 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
     all<SyncJobRow>(db, `
       SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error
       FROM sync_jobs
-      WHERE enabled = 1
+      WHERE enabled = 1 AND name != 'daily-health-check'
       ORDER BY name
     `),
     all<ScheduledRunRow>(db, SCHEDULE_HEALTH_LATEST_RUNS_SQL),
@@ -1319,282 +1275,4 @@ export async function buildDailyHealthCheck(
   }
   const evaluated = evaluateDailyHealthStatus(withoutStatus)
   return { ...withoutStatus, ...evaluated }
-}
-
-function formatUsd(value: number): string {
-  return `$${value.toFixed(2)}`
-}
-
-function plainList(items: string[]): string {
-  return items.length ? items.map(item => `- ${item}`).join('\n') : '- none'
-}
-
-/**
- * The last weekly run as one line, for both email halves.
- *
- * States the window date so a stale run cannot pass for a fresh one: "3 sent"
- * with no date reads the same whether it happened yesterday or in March.
- */
-function weeklyLine(summary: DailyHealthCheckSummary): string {
-  const weekly = summary.activity.weekly
-  if (!weekly)
-    return 'no run yet'
-  const date = new Date(weekly.windowEnd * 1000).toISOString().slice(0, 10)
-  return `${weekly.sent} sent, ${weekly.skipped} skipped, ${weekly.failed} failed, ${weekly.uncertain} unresolved (${date})`
-}
-
-function leaderboardApprovalLine(approval: DailyHealthCheckSummary['pipeline']['leaderboardApprovalDetails'][number]): string {
-  const reviewedAt = new Date(approval.reviewedAt * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z')
-  return `${approval.owner}/${approval.repo}: eligible review ${reviewedAt}`
-}
-
-export function renderDailyHealthCheckText(summary: DailyHealthCheckSummary): string {
-  const failedJobs = summary.pipeline.failedJobDetails.map(item => `${item.queue}/${item.jobType}: ${item.count}, ${item.exception}`)
-  const unhealthyTasks = summary.pipeline.syncJobs
-    .filter(job => job.stale || (job.status !== null && job.status !== 'ok'))
-    .map(job => `${job.name}: ${job.stale ? 'stale' : job.status}${job.error ? `, ${job.error}` : ''}`)
-  const unhealthyRuns = summary.pipeline.scheduledRuns
-    .filter(run => run.health.alertable)
-    .map(run => `${run.taskName}: ${run.health._tag}`)
-
-  return [
-    `skilld daily health check: ${summary.status}`,
-    ...(summary.checkin ? [`Check coverage: ${summary.checkin.coverage}`] : []),
-    `${summary.window.reportDate} (${summary.window.timeZone})`,
-    `${summary.window.from} to ${summary.window.to}`,
-    summary.window.workerVersion ? `Worker: ${summary.window.workerVersion}` : null,
-    '',
-    'Reasons:',
-    plainList(summary.reasons),
-    '',
-    'Front door:',
-    plainList(summary.frontDoor.checks.map(check => `${check.url}: ${check.status === null ? 'probe failed' : `HTTP ${check.status}`}`)),
-    '',
-    'Trending Skill links:',
-    `- ${summary.trendingSkills.checks.length} checked`,
-    plainList(summary.trendingSkills.checks
-      .filter(check => check.status !== 200)
-      .map(check => `${check.path}: ${check.status === null ? 'probe failed' : `HTTP ${check.status}`}`)),
-    '',
-    'Inventory:',
-    `- ${summary.inventory.skills} skills, ${summary.inventory.repos} repos, ${summary.inventory.owners} owners`,
-    `- ${summary.inventory.users} users, ${summary.inventory.collections} collections, ${summary.inventory.watchedRepos} watched repos`,
-    `- ${summary.inventory.brokenRepos} broken repos, shown as known inventory and not a health gate`,
-    '',
-    'Last 24 hours:',
-    `- ${summary.activity.newSkills24h} new skills, ${summary.activity.repoChanges24h} changed repos`,
-    `- command copies: ${commandCopyLine(summary)}`,
-    `- ${summary.activity.newUsers24h} new users, ${summary.activity.digestsSent24h} digests sent, ${summary.activity.digestsFailed24h} failed`,
-    `- weekly email: ${weeklyLine(summary)}`,
-    '',
-    'Pipeline:',
-    `- newly broken repos: ${summary.pipeline.newlyBrokenReposTotal24h} total, ${summary.pipeline.newlyBrokenReposImpacted24h} user-impacting; ${summary.pipeline.skillSyncFailures24h} new skill sync failures`,
-    `- ${summary.pipeline.staleDirtySkills} dirty skills waiting over 1 hour`,
-    `- AI batches: ${summary.pipeline.aiBatchesSubmitted} submitted, ${summary.pipeline.aiBatchesStuck} stuck, ${summary.pipeline.aiBatchesFailed24h} failed in 24 hours`,
-    `- jobs: ${summary.pipeline.failedJobs24h} failed in 24 hours, ${summary.pipeline.rejectedJobs24h} rejected, ${summary.pipeline.staleReservedJobs} stale reserved, ${summary.pipeline.openFailedBatches} open failed batches`,
-    `- discovery: ${summary.pipeline.discoveryCandidatesExhausted} exhausted, ${summary.pipeline.discoveryCandidatesOverdue} overdue retries, ${summary.pipeline.discoveryClaimsStale} stale claims`,
-    `- leaderboard: ${summary.pipeline.leaderboardApprovalsStuck} reviewed approvals invisible over 15 minutes`,
-    ...(summary.pipeline.leaderboardApprovalDetails.length
-      ? [plainList(summary.pipeline.leaderboardApprovalDetails.map(leaderboardApprovalLine))]
-      : []),
-    '',
-    'Scheduled task issues:',
-    plainList([...unhealthyTasks, ...unhealthyRuns]),
-    '',
-    'Failed job fingerprints:',
-    plainList(failedJobs),
-    '',
-    'Known AI batch cost:',
-    `- ${formatUsd(summary.cost.estimatedAiUsd24h)} in 24 hours, ${formatUsd(summary.cost.estimatedAiUsdMonth)} this UTC month`,
-    '',
-    'X discovery:',
-    `- budget ${summary.xDiscovery.budgetSpentToday}/${summary.xDiscovery.budgetLimit} today, ${summary.xDiscovery.keepingUp ? 'keeping up' : 'FALLING BEHIND'}`,
-    `- ${summary.xDiscovery.readsMonth} reads this month (${formatUsd(summary.xDiscovery.estimatedUsdMonth)}), ${summary.xDiscovery.verifiedSkillsTotal} skills verified`,
-    `- ledger pending/held/stalled: ${summary.xDiscovery.ledgerPending}/${summary.xDiscovery.ledgerHeld}/${summary.xDiscovery.ledgerStalled}`,
-    '',
-    'Report warnings:',
-    plainList(summary.warnings),
-  ].filter(line => line !== null).join('\n')
-}
-
-function metric(label: string, value: string | number): string {
-  return `<tr><td style="padding:6px 12px 6px 0;color:#667085;font-size:13px">${escapeHtml(label)}</td><td style="padding:6px 0;color:#101828;font-size:13px;font-weight:600;text-align:right">${escapeHtml(String(value))}</td></tr>`
-}
-
-function card(title: string, rows: string): string {
-  return `<td style="width:50%;vertical-align:top;padding:8px"><table role="presentation" style="width:100%;border:1px solid #e4e7ec;border-radius:10px;background:#fff"><tr><td colspan="2" style="padding:14px 16px 6px;font-size:14px;font-weight:700">${escapeHtml(title)}</td></tr><tr><td colspan="2" style="padding:0 16px 12px"><table role="presentation" style="width:100%;border-collapse:collapse">${rows}</table></td></tr></table></td>`
-}
-
-function htmlList(items: string[]): string {
-  return (items.length ? items : ['none']).map(item => `<li>${escapeHtml(item)}</li>`).join('')
-}
-
-export function renderDailyHealthCheckHtml(summary: DailyHealthCheckSummary): string {
-  const statusColor = summary.status === 'RED' ? '#b42318' : summary.status === 'AMBER' ? '#b54708' : '#067647'
-  const unhealthyTasks = summary.pipeline.syncJobs
-    .filter(job => job.stale || (job.status !== null && job.status !== 'ok'))
-    .map(job => `${job.name}: ${job.stale ? 'stale' : job.status}${job.error ? `, ${job.error}` : ''}`)
-  const unhealthyRuns = summary.pipeline.scheduledRuns
-    .filter(run => run.health.alertable)
-    .map(run => `${run.taskName}: ${run.health._tag}`)
-  const failedJobs = summary.pipeline.failedJobDetails.map(item => `${item.queue}/${item.jobType}: ${item.count}, ${item.exception}`)
-
-  return `<!doctype html>
-<html>
-<body style="font-family:system-ui,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;background:#f2f4f7;margin:0;padding:28px 14px;color:#101828">
-  <table role="presentation" style="max-width:760px;margin:0 auto;border-collapse:collapse">
-    <tr><td colspan="2" style="padding:0 8px 14px">
-      <div style="font-size:13px;color:#667085;margin-bottom:6px">skilld</div>
-      <h1 style="margin:0;font-size:22px;line-height:1.25">Daily health check <span style="color:${statusColor}">${summary.status}</span></h1>
-      <div style="font-size:13px;color:#667085;margin-top:8px">${escapeHtml(summary.window.reportDate)} (${escapeHtml(summary.window.timeZone)})</div>
-      <div style="font-size:12px;color:#667085;margin-top:3px">${escapeHtml(summary.window.from)} to ${escapeHtml(summary.window.to)}</div>
-      ${summary.checkin ? `<div style="font-size:12px;color:#667085;margin-top:3px">Check coverage: ${escapeHtml(summary.checkin.coverage)}</div>` : ''}
-      ${summary.window.workerVersion ? `<div style="font-size:12px;color:#667085;margin-top:3px">Worker ${escapeHtml(summary.window.workerVersion)}</div>` : ''}
-    </td></tr>
-    <tr><td colspan="2" style="padding:8px"><table role="presentation" style="width:100%;background:#fff;border:1px solid #e4e7ec;border-radius:10px"><tr><td style="padding:14px 18px"><div style="font-size:14px;font-weight:700;margin-bottom:6px">Reasons</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(summary.reasons)}</ul></td></tr></table></td></tr>
-    <tr>
-      ${card('Front door', summary.frontDoor.checks.map(check => metric(new URL(check.url).pathname, check.status === null ? 'PROBE FAILED' : `HTTP ${check.status}`)).join(''))}
-      ${card('Last 24 hours', [
-        metric('new skills', summary.activity.newSkills24h),
-        metric('changed repos', summary.activity.repoChanges24h),
-        metric('command copies', commandCopyLine(summary)),
-        metric('new users', summary.activity.newUsers24h),
-        metric('digests sent / failed', `${summary.activity.digestsSent24h} / ${summary.activity.digestsFailed24h}`),
-        metric('last weekly', weeklyLine(summary)),
-      ].join(''))}
-    </tr>
-    <tr>
-      ${card('Trending Skill links', [
-        metric('checked', summary.trendingSkills.checks.length),
-        metric('failed', summary.trendingSkills.checks.filter(check => check.status !== 200).length),
-      ].join(''))}
-      <td></td>
-    </tr>
-    <tr>
-      ${card('Inventory', [
-        metric('skills / repos', `${summary.inventory.skills} / ${summary.inventory.repos}`),
-        metric('owners / users', `${summary.inventory.owners} / ${summary.inventory.users}`),
-        metric('collections / watched', `${summary.inventory.collections} / ${summary.inventory.watchedRepos}`),
-        metric('known broken repos', summary.inventory.brokenRepos),
-      ].join(''))}
-      ${card('Pipeline', [
-        metric('new broken total / impacting', `${summary.pipeline.newlyBrokenReposTotal24h} / ${summary.pipeline.newlyBrokenReposImpacted24h}`),
-        metric('dirty skills over 1h', summary.pipeline.staleDirtySkills),
-        metric('AI submitted / stuck / failed', `${summary.pipeline.aiBatchesSubmitted} / ${summary.pipeline.aiBatchesStuck} / ${summary.pipeline.aiBatchesFailed24h}`),
-        metric('jobs failed / rejected / stale reserved', `${summary.pipeline.failedJobs24h} / ${summary.pipeline.rejectedJobs24h} / ${summary.pipeline.staleReservedJobs}`),
-        metric('open failed batches', summary.pipeline.openFailedBatches),
-        metric('discovery exhausted / overdue / stale', `${summary.pipeline.discoveryCandidatesExhausted} / ${summary.pipeline.discoveryCandidatesOverdue} / ${summary.pipeline.discoveryClaimsStale}`),
-        metric('leaderboard approvals stuck', summary.pipeline.leaderboardApprovalsStuck),
-      ].join(''))}
-    </tr>
-    <tr>
-      ${card('Known AI cost', [
-        metric('last 24 hours', formatUsd(summary.cost.estimatedAiUsd24h)),
-        metric('UTC month', formatUsd(summary.cost.estimatedAiUsdMonth)),
-      ].join(''))}
-      ${card('X discovery', [
-        metric('budget used today', `${summary.xDiscovery.budgetSpentToday} / ${summary.xDiscovery.budgetLimit}`),
-        metric('keeping up with stream', summary.xDiscovery.keepingUp ? 'yes' : 'NO, falling behind'),
-        metric('newest post age', summary.xDiscovery.cursorLagHours === null ? 'no posts' : `${Math.round(summary.xDiscovery.cursorLagHours)}h`),
-        metric('reads this month', `${summary.xDiscovery.readsMonth} (${formatUsd(summary.xDiscovery.estimatedUsdMonth)})`),
-        metric('posts / repos in 24h', `${summary.xDiscovery.postsStored24h} / ${summary.xDiscovery.reposDiscovered24h}`),
-        metric('skills verified 24h / total', `${summary.xDiscovery.verifiedSkills24h} / ${summary.xDiscovery.verifiedSkillsTotal}`),
-        metric('reads per verified skill', summary.xDiscovery.readsPerVerifiedSkill === null ? 'none yet' : Math.round(summary.xDiscovery.readsPerVerifiedSkill)),
-        metric('ledger pending / held / stalled', `${summary.xDiscovery.ledgerPending} / ${summary.xDiscovery.ledgerHeld} / ${summary.xDiscovery.ledgerStalled}`),
-      ].join(''))}
-    </tr>
-    <tr><td colspan="2" style="padding:8px"><table role="presentation" style="width:100%;background:#fff;border:1px solid #e4e7ec;border-radius:10px"><tr><td style="padding:14px 18px">
-      <div style="font-size:14px;font-weight:700;margin-bottom:6px">Scheduled task issues</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList([...unhealthyTasks, ...unhealthyRuns])}</ul>
-      <div style="font-size:14px;font-weight:700;margin-bottom:6px">Failed job fingerprints</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(failedJobs)}</ul>
-      ${summary.pipeline.leaderboardApprovalDetails.length ? `<div style="font-size:14px;font-weight:700;margin-bottom:6px">Leaderboard approvals invisible</div><ul style="margin:0 0 14px;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(summary.pipeline.leaderboardApprovalDetails.map(leaderboardApprovalLine))}</ul>` : ''}
-      ${summary.warnings.length ? `<div style="font-size:14px;font-weight:700;margin-bottom:6px">Report warnings</div><ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.55">${htmlList(summary.warnings)}</ul>` : ''}
-    </td></tr></table></td></tr>
-  </table>
-</body>
-</html>`
-}
-
-export async function sendDailyHealthCheck(
-  db: D1Database,
-  options: SendDailyHealthCheckOptions,
-): Promise<DailyHealthCheckSendResult> {
-  const now = options.now ?? new Date()
-  const build = options.build ?? ((database, buildOptions) => buildDailyHealthCheck(database, buildOptions))
-  const summary = await runDailyHealthChecks(db, build, now, options.deployment)
-  const claimedAt = Math.floor(now.getTime() / 1000)
-  const staleClaimBefore = claimedAt - CLAIM_STALE_SECONDS
-  const summaryJson = JSON.stringify(summary)
-
-  const claim = await db.prepare(`
-    INSERT INTO daily_health_checks (
-      report_date, health_status, delivery_status, recipient, claimed_at, summary_json
-    ) VALUES (?1, ?2, 'sending', ?3, ?4, ?5)
-    ON CONFLICT(report_date) DO UPDATE SET
-      health_status = excluded.health_status,
-      delivery_status = 'sending',
-      recipient = excluded.recipient,
-      claimed_at = excluded.claimed_at,
-      sent_at = NULL,
-      message_id = NULL,
-      error = NULL,
-      summary_json = excluded.summary_json
-    WHERE daily_health_checks.delivery_status = 'failed'
-       OR (daily_health_checks.delivery_status = 'sending' AND daily_health_checks.claimed_at < ?6)
-  `).bind(
-    summary.window.reportDate,
-    summary.status,
-    options.to,
-    claimedAt,
-    summaryJson,
-    staleClaimBefore,
-  ).run()
-
-  if (numberValue(claim.meta.changes) === 0)
-    return { _tag: 'Duplicate', reportDate: summary.window.reportDate, to: options.to }
-
-  const delivery = await options.send({
-    to: options.to,
-    subject: `skilld health: ${summary.status} (${summary.window.reportDate})`,
-    html: renderDailyHealthCheckHtml(summary),
-    text: renderDailyHealthCheckText(summary),
-  }).then(
-    result => result,
-    (error): SendEmailResult => ({
-      _tag: 'uncertain',
-      error: errorMessage(error),
-    }),
-  )
-
-  if (delivery._tag === 'accepted') {
-    await db.prepare(`
-      UPDATE daily_health_checks
-      SET delivery_status = 'sent', sent_at = ?2, message_id = ?3, error = NULL
-      WHERE report_date = ?1
-    `).bind(summary.window.reportDate, claimedAt, delivery.messageId).run()
-    return {
-      _tag: 'Sent',
-      reportDate: summary.window.reportDate,
-      status: summary.status,
-      to: options.to,
-      messageId: delivery.messageId,
-    }
-  }
-
-  if (delivery._tag === 'uncertain') {
-    return {
-      _tag: 'Uncertain',
-      reportDate: summary.window.reportDate,
-      status: summary.status,
-      to: options.to,
-      error: delivery.error,
-    }
-  }
-
-  const error = delivery.error
-  await db.prepare(`
-    UPDATE daily_health_checks
-    SET delivery_status = 'failed', error = ?2
-    WHERE report_date = ?1
-  `).bind(summary.window.reportDate, error).run()
-  return { _tag: 'SendFailed', reportDate: summary.window.reportDate, status: summary.status, to: options.to, error }
 }

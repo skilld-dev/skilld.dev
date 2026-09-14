@@ -308,7 +308,7 @@ export default defineNuxtConfig({
     sessionPassword: '',
     adminSecret: '',
     tokenKey: '',
-    healthCheckNotifyTo: 'harlan@harlanzw.com',
+    checkinToken: '',
     publicSiteUrl: 'https://skilld.dev',
     oauth: {
       github: {

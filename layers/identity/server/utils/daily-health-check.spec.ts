@@ -1,6 +1,6 @@
 import type { DailyHealthCheckSummary } from './daily-health-check'
 import Database from 'better-sqlite3'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SCHEDULE_POLICY } from '#shared/schedule-policy'
 import {
   buildDailyHealthCheck,
@@ -8,9 +8,6 @@ import {
   evaluateDailyHealthStatus,
   frontDoorFetcher,
   loadFrontDoor,
-  renderDailyHealthCheckHtml,
-  renderDailyHealthCheckText,
-  sendDailyHealthCheck,
 } from './daily-health-check'
 
 function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthCheckSummary {
@@ -98,19 +95,6 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
 
 function createDb() {
   const sqlite = new Database(':memory:')
-  sqlite.exec(`
-    CREATE TABLE daily_health_checks (
-      report_date TEXT PRIMARY KEY,
-      health_status TEXT NOT NULL,
-      delivery_status TEXT NOT NULL,
-      recipient TEXT NOT NULL,
-      claimed_at INTEGER NOT NULL,
-      sent_at INTEGER,
-      message_id TEXT,
-      error TEXT,
-      summary_json TEXT NOT NULL
-    )
-  `)
 
   const db = {
     prepare(sql: string) {
@@ -570,136 +554,6 @@ describe('cronPeriodSeconds', () => {
     expect(cronPeriodSeconds('0 9 * * MON-FRI')).toBeNull()
     expect(cronPeriodSeconds('0 9 * * XYZ')).toBeNull()
     expect(cronPeriodSeconds('')).toBeNull()
-  })
-})
-
-describe('daily health rendering', () => {
-  it('renders text and escapes untrusted HTML', () => {
-    const input = summary({
-      reasons: ['Pipeline <degraded>'],
-      pipeline: {
-        ...summary().pipeline,
-        failedJobDetails: [{ queue: 'sync', jobType: '<script>', exception: 'boom & burn', count: 2 }],
-      },
-    })
-
-    expect(renderDailyHealthCheckText(input)).toContain('skilld daily health check: GREEN')
-    expect(renderDailyHealthCheckHtml(input)).toContain('Pipeline &lt;degraded&gt;')
-    expect(renderDailyHealthCheckHtml(input)).not.toContain('<script>')
-  })
-
-  it('renders the invisible leaderboard repositories with their review verdict', () => {
-    const input = summary({
-      pipeline: {
-        ...summary().pipeline,
-        leaderboardApprovalsStuck: 1,
-        leaderboardApprovalDetails: [{ owner: 'missing-owner', repo: 'missing-repo', reviewedAt: 1_774_473_000 }],
-      },
-    })
-
-    const text = renderDailyHealthCheckText(input)
-    const html = renderDailyHealthCheckHtml(input)
-    expect(text).toContain('missing-owner/missing-repo: eligible review 2026-03-25T21:10:00Z')
-    expect(html).toContain('missing-owner/missing-repo: eligible review 2026-03-25T21:10:00Z')
-  })
-})
-
-describe('sendDailyHealthCheck', () => {
-  const sqliteDbs: Database.Database[] = []
-
-  afterEach(() => {
-    sqliteDbs.splice(0).forEach(db => db.close())
-  })
-
-  it('does not send or claim when collection fails', async () => {
-    const { db, sqlite } = createDb()
-    sqliteDbs.push(sqlite)
-    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const send = vi.fn()
-    const build = vi.fn().mockRejectedValue(new Error('Database unavailable'))
-    await expect(sendDailyHealthCheck(db, { to: 'ops@example.com', build, send })).rejects.toThrow('Daily health collection did not complete')
-    expect(build).toHaveBeenCalledTimes(1)
-    expect(send).not.toHaveBeenCalled()
-    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM daily_health_checks').get()).toEqual({ count: 0 })
-    expect(log).toHaveBeenCalled()
-    log.mockRestore()
-  })
-
-  it('preserves failures with incomplete evidence and stores the shared report', async () => {
-    const { db, sqlite } = createDb()
-    sqliteDbs.push(sqlite)
-    const send = vi.fn().mockResolvedValue({ _tag: 'accepted', messageId: 'msg_partial' })
-    const build = vi.fn().mockResolvedValue(summary({ status: 'RED', reasons: ['Delivery failed.'], warnings: ['Inventory unavailable.'] }))
-    await expect(sendDailyHealthCheck(db, { now: new Date('2026-07-22T22:05:00Z'), to: 'ops@example.com', build, send })).resolves.toMatchObject({ _tag: 'Sent', status: 'RED' })
-    expect(build).toHaveBeenCalledTimes(1)
-    const stored = sqlite.prepare('SELECT summary_json FROM daily_health_checks').get() as { summary_json: string }
-    expect(JSON.parse(stored.summary_json).checkin).toMatchObject({ severity: 'fail', coverage: 'incomplete', identity: { site: 'skilld.dev' } })
-    expect(send.mock.calls[0]![0]).toMatchObject({ to: 'ops@example.com', subject: 'skilld health: RED (2026-07-23)' })
-    expect(send.mock.calls[0]![0].text).toContain('Check coverage: incomplete')
-  })
-
-  it('claims the report date before sending and deduplicates retries', async () => {
-    const { db, sqlite } = createDb()
-    sqliteDbs.push(sqlite)
-    const send = vi.fn().mockResolvedValue({
-      _tag: 'accepted',
-      messageId: 'msg_1',
-    })
-    const build = vi.fn().mockResolvedValue(summary())
-    const input = { now: new Date('2026-07-22T22:05:00Z'), to: 'ops@example.com', build, send }
-
-    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Sent', messageId: 'msg_1' })
-    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Duplicate' })
-    expect(send).toHaveBeenCalledTimes(1)
-  })
-
-  it('records a failed delivery and allows a retry', async () => {
-    const { db, sqlite } = createDb()
-    sqliteDbs.push(sqlite)
-    const send = vi.fn()
-      .mockResolvedValueOnce({
-        _tag: 'rejected',
-        error: 'temporary failure',
-      })
-      .mockResolvedValueOnce({
-        _tag: 'accepted',
-        messageId: 'msg_2',
-      })
-    const input = {
-      now: new Date('2026-07-22T22:05:00Z'),
-      to: 'ops@example.com',
-      build: vi.fn().mockResolvedValue(summary()),
-      send,
-    }
-
-    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'SendFailed', error: 'temporary failure' })
-    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Sent', messageId: 'msg_2' })
-    expect(send).toHaveBeenCalledTimes(2)
-  })
-
-  it('leaves uncertain delivery in sending so a duplicate cannot resend', async () => {
-    const { db, sqlite } = createDb()
-    sqliteDbs.push(sqlite)
-    const send = vi.fn().mockResolvedValue({
-      _tag: 'uncertain',
-      error: 'provider acknowledgement malformed',
-    })
-    const input = {
-      now: new Date('2026-07-22T22:05:00Z'),
-      to: 'ops@example.com',
-      build: vi.fn().mockResolvedValue(summary()),
-      send,
-    }
-
-    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({
-      _tag: 'Uncertain',
-      error: 'provider acknowledgement malformed',
-    })
-    await expect(sendDailyHealthCheck(db, input)).resolves.toMatchObject({ _tag: 'Duplicate' })
-    expect(sqlite.prepare(
-      `SELECT delivery_status, error FROM daily_health_checks`,
-    ).get()).toEqual({ delivery_status: 'sending', error: null })
-    expect(send).toHaveBeenCalledTimes(1)
   })
 })
 

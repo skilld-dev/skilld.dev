@@ -2,13 +2,12 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { defineCheck, pass, runChecks, runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
+import { runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
 import { afterEach, expect, it, vi } from 'vitest'
 import ciCheck from '../../checks/external/ci'
 import databaseCheck from '../../checks/external/database'
 import deployCheck from '../../checks/external/deploy'
 import gitCheck from '../../checks/external/git'
-import healthCheck from '../../checks/external/health-email'
 import workersCheck from '../../checks/external/workers'
 
 const boundary = vi.hoisted(() => ({ command: vi.fn() }))
@@ -31,7 +30,6 @@ it('shares deployment and database evidence without blocking nested collectors',
   await mkdir(join(root, 'migrations'))
   await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400')
   await writeFile(join(root, 'migrations/001.sql'), '')
-  const health = await runChecks(['skilld.daily-health', 'skilld.daily-health-coverage'].map(id => defineCheck({ id, run: () => pass() })), { now, identity: { site: 'skilld.dev', environment: 'production', deployment: 'release-1' } })
   boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
     let output: unknown = ''
     if (command === 'git') {
@@ -62,7 +60,7 @@ it('shares deployment and database evidence without blocking nested collectors',
     }
     return { _tag: 'Ok', stdout: JSON.stringify(output), stderr: '' }
   })
-  const checks = [gitCheck, deployCheck, databaseCheck, healthCheck]
+  const checks = [gitCheck, deployCheck, databaseCheck]
   const result = await runExternalChecks(checks, { required: checks.map(check => check.id), timeoutMs: 1000, totalTimeoutMs: 1500 }, { rootDir: root, env: {}, clock: () => now })
   expect(result.report).toMatchObject({ severity: 'pass', coverage: 'complete' })
   expect(result.report.results.find(check => check.id === 'skilld.database')?.result).toMatchObject({ evidence: { inventory: { skills: 23 } } })

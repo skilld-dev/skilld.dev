@@ -1,7 +1,7 @@
 import type { ExternalOptions } from '@harlan-zw/nuxt-checkin/external'
 
 export const externalCheckin = {
-  required: ['skilld.baseline', 'skilld.git', 'skilld.deploy', 'skilld.ci', 'skilld.home', 'skilld.skills', 'skilld.database', 'skilld.workers', 'skilld.health-email', 'sentry.skilld', 'skilld.sentry-details'],
+  required: ['skilld.baseline', 'skilld.git', 'skilld.deploy', 'skilld.ci', 'skilld.home', 'skilld.skills', 'skilld.database', 'skilld.workers', 'skilld.report', 'sentry.skilld', 'skilld.sentry-details'],
   credentials: {
     sentry: {
       env: 'SENTRY_AUTH_TOKEN',

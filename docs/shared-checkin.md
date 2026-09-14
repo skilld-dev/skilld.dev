@@ -1,23 +1,20 @@
 # Daily health check
 
-The operator email uses the public Nuxt Check-in runner.
+The protected report route uses the public Nuxt Check-in runner.
 The module discovers checks in `layers/identity/server/checks` during the build.
 
 The existing summary builder and health evaluator keep their current policy.
 Both checks share one summary collection and one observation time.
 The independent required list detects missing check files.
 A run has a 60-second deadline.
-If collection fails, the sender fails before claiming or sending an email.
-The scheduled task records that failure through its existing reporting path.
+If collection fails, the report records incomplete coverage.
 Active reads may continue because D1 cannot cancel an active query.
 
-Each saved summary includes the versioned check report, deployment identity, severity, and evidence coverage.
-The email shows coverage in HTML and text.
+Each report includes deployment identity, severity, evidence coverage, and the full health summary.
 A known failure stays RED when another source is unavailable.
 Unavailable evidence can never produce GREEN.
-Detailed evidence stays in the existing private report storage and operator email.
+Detailed evidence stays in the private report and agent archive.
 
-Recipients, email schedules, delivery claims, retry behavior, and pause gates stay unchanged.
 The agent keeps its 07:40 daily check-in and removes its separate 06:20 Sentry run.
 `send-digests` sends subscriber content, not system health emails.
 Its outcome already enters the daily summary.
@@ -31,7 +28,7 @@ The lockfile resolves registry packages.
 
 ## External daily check-in
 
-The external daily script runs the public [Sentry](https://sentry.io) backlog check with the saved health report.
+The external daily script runs the public [Sentry](https://sentry.io) backlog check with the live health report.
 It validates report age, required checks, site, environment, and the deployed Worker version.
 Missing credentials or stale reports produce unavailable evidence.
 Sentry credentials stay in the existing external locations.
@@ -49,9 +46,16 @@ Run `pnpm checkin --save` to prepare and execute registered external checks.
 The shared CLI writes daily archives and keeps successful state boundaries.
 Same-day reruns preserve the morning baseline.
 Read `results[].result.evidence` for each registered check.
-The `skilld.database` result retains inventory, activity, pipeline, cost, and operator-email evidence.
+The `skilld.database` result retains inventory, activity, pipeline, and cost evidence.
 The `skilld.sentry-details` result retains new and recurring issue details.
 The published `@harlan-zw/nuxt-checkin@0.2.0` supplies the CLI.
 
 The `skilld.baseline` result records fresh or stale comparison windows.
 Invalid saved state stops the CLI before collection and never advances the saved baseline.
+
+The agent tracking issue replaces system-health email delivery.
+Set the private `NUXT_CHECKIN_TOKEN` Worker secret and the same token in the agent environment.
+The protected `/api/internal/checkin` route runs the existing health checks on demand.
+The report must match the deployed Worker and be less than five minutes old.
+The daily health email cron and X API failure emails are removed. Customer digests remain unchanged.
+Historical email records stay in D1, but checks no longer depend on them.

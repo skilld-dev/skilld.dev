@@ -17,16 +17,9 @@ export function collectDailyHealth(context: CheckContext<DailyHealthCheckEvent>)
   }))
 }
 
-export async function runDailyHealthChecks(db: D1Database, build: DailyHealthCheckEvent['build'], now: Date, deployment = 'unknown') {
-  let summary: DailyHealthCheckSummary | undefined
-  const report = await runChecks(checks, {
-    event: {
-      db,
-      build: async (database: D1Database, options: { now: Date }) => {
-        summary = await build(database, options)
-        return summary
-      },
-    } satisfies DailyHealthCheckEvent,
+export function runDailyHealthChecks(db: D1Database, build: DailyHealthCheckEvent['build'], now: Date, deployment: string) {
+  return runChecks(checks, {
+    event: { db, build } satisfies DailyHealthCheckEvent,
     now,
     required: ['skilld.daily-health', 'skilld.daily-health-coverage'],
     identity: { site: 'skilld.dev', environment: import.meta.dev ? 'development' : 'production', deployment },
@@ -34,13 +27,4 @@ export async function runDailyHealthChecks(db: D1Database, build: DailyHealthChe
     totalTimeoutMs: 60_000,
     onError: (error, id) => console.error(`Daily health check failed: ${id}`, error),
   })
-  if (!summary)
-    throw new Error('Daily health collection did not complete. No email was sent.')
-  const reasons = report.results.flatMap(({ result }) => result._tag === 'Pass' ? [] : [result.reason])
-  return {
-    ...summary,
-    checkin: report,
-    status: report.severity === 'fail' ? 'RED' as const : report.severity === 'warn' || report.coverage === 'incomplete' ? 'AMBER' as const : 'GREEN' as const,
-    reasons: reasons.length ? reasons : summary.reasons,
-  }
 }

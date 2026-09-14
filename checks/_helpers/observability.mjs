@@ -1,7 +1,3 @@
-function record(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null
-}
-
 const PRODUCTION_REF = 'origin/main'
 const isMigration = file => /^\d.*\.sql$/.test(file)
 
@@ -201,54 +197,6 @@ export function summarizeWorkflowRuns(rows, requiredWorkflowNames) {
       latestRun,
       latestCompletedRun,
       state: previousState,
-    }
-  })
-}
-
-function stringArray(value, field) {
-  if (!Array.isArray(value) || value.some(item => typeof item !== 'string'))
-    throw new Error(`daily health check ${field} must be a string array`)
-  return value
-}
-
-// The gate is one sent operator report per Melbourne date, so the read has to
-// show enough days to verify continuity. The old two-row page could only ever
-// verify the two newest dates, which is how a gap three days back stayed
-// invisible. Melbourne runs up to one day ahead of UTC, so eight UTC days is
-// the smallest bound that always covers seven Melbourne dates. `report_date`
-// is the table's primary key, so a row cap equal to the window can never hide
-// an in-window date.
-export function buildHealthEmailQuery() {
-  return `SELECT report_date, health_status, delivery_status, recipient, sent_at, error, summary_json FROM daily_health_checks WHERE report_date >= date('now', '-8 days') ORDER BY report_date DESC LIMIT 8`
-}
-
-export function parseHealthEmailRows(rows) {
-  return rows.map((row) => {
-    const summary = (() => {
-      try {
-        return record(JSON.parse(row.summary_json))
-      }
-      catch {
-        throw new Error(`daily health check ${row.report_date} has invalid summary_json`)
-      }
-    })()
-    if (!summary)
-      throw new Error(`daily health check ${row.report_date} summary_json must contain an object`)
-    const window = record(summary.window)
-    if (!window)
-      throw new Error(`daily health check ${row.report_date} summary_json is missing its window`)
-
-    return {
-      reportDate: row.report_date,
-      healthStatus: row.health_status,
-      deliveryStatus: row.delivery_status,
-      recipient: row.recipient,
-      sentAt: row.sent_at,
-      error: row.error,
-      reasons: stringArray(summary.reasons, 'reasons'),
-      warnings: stringArray(summary.warnings, 'warnings'),
-      window,
-      checkin: summary.checkin,
     }
   })
 }

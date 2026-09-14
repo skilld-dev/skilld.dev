@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
-import { buildHealthEmailQuery, buildWorkersQuery, parseHealthEmailRows, parseWorkflowName, runListArgs, summarizeWorkflowRuns } from './observability.mjs'
+import { buildWorkersQuery, parseWorkflowName, runListArgs, summarizeWorkflowRuns } from './observability.mjs'
 
 const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers'].map(key => [key, {}]))
 
@@ -223,13 +223,10 @@ export function collectD1(context) {
       ? (await d1Query(`SELECT r.owner, r.repo, rtrim((CASE WHEN EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) THEN 'skill ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) THEN 'star ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) THEN 'subscription ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) THEN 'collection ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM activity a JOIN install_events ie ON ie.slug = a.owner || '/' || a.name WHERE a.owner = r.owner AND a.repo = r.repo) THEN 'install ' ELSE '' END)) AS reason FROM repos r WHERE ${impactedBrokenReposWhere} ORDER BY r.broken_since DESC`))
       : null
     const syncJobs = has('sync_jobs')
-      ? (await d1Query(`SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error FROM sync_jobs WHERE enabled = 1 ORDER BY name`))
+      ? (await d1Query(`SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error FROM sync_jobs WHERE enabled = 1 AND name != 'daily-health-check' ORDER BY name`))
       : null
     const failedJobFingerprints = has('failed_jobs')
       ? (await d1Query(`SELECT queue, job_type, substr(exception, 1, 160) exception, COUNT(*) count, MIN(failed_at) first_failed_at, MAX(failed_at) last_failed_at FROM failed_jobs WHERE failed_at >= ${sinceSec} GROUP BY queue, job_type, substr(exception, 1, 160) ORDER BY count DESC LIMIT 10`))
-      : null
-    const healthEmail = has('daily_health_checks')
-      ? parseHealthEmailRows((await d1Query(buildHealthEmailQuery())))
       : null
     const recentJobBatches = has('job_batches')
       ? (await d1Query(`SELECT id, name, total_jobs, pending_jobs, failed_jobs, created_at, updated_at, finished_at FROM job_batches ORDER BY updated_at DESC LIMIT 10`))
@@ -259,7 +256,6 @@ export function collectD1(context) {
       cost: withXSpend((await d1Query(`SELECT ${costParts.join(', ')}`))[0]),
       syncJobs,
       failedJobFingerprints,
-      healthEmail,
       recentJobBatches,
       registryMaintenance,
       migrations,
@@ -273,7 +269,6 @@ export function collectD1(context) {
         'sync_jobs',
         'jobs',
         'failed_jobs',
-        'daily_health_checks',
       ].filter(table => !has(table)),
     }
   })

@@ -3,11 +3,9 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   approximateDeployedSha,
-  buildHealthEmailQuery,
   buildWorkersQuery,
   collectWorkflowRuns,
   deriveBaselineFlag,
-  parseHealthEmailRows,
   parseWorkflowName,
   readMigrationState,
   refreshProductionRef,
@@ -106,24 +104,6 @@ describe('daily check-in observability', () => {
       '2026-08-20T02:28:50.987Z',
       '2026-08-21T02:53:53.726Z',
     )).toContain('filter: {scriptName: "skilld-dev"')
-  })
-
-  // The one-sent-report-per-Melbourne-date gate needs more than the two newest
-  // days: a two-row page cannot show continuity, so a gap three days back was
-  // invisible. report_date is the table's primary key, so the row cap can equal
-  // the window without ever hiding an in-window date.
-  it('bounds the health email read to a window that covers a week of Melbourne dates', () => {
-    const query = buildHealthEmailQuery()
-
-    const windowDays = Number(query.match(/report_date >= date\('now', '-(\d+) days'\)/)?.[1])
-    // Melbourne runs up to one day ahead of UTC, so eight UTC days is the
-    // smallest bound that always covers seven Melbourne dates.
-    expect(windowDays).toBeGreaterThanOrEqual(8)
-
-    const limit = Number(query.match(/LIMIT (\d+)\s*$/)?.[1])
-    expect(limit).toBeGreaterThanOrEqual(windowDays)
-
-    expect(query).toContain('ORDER BY report_date DESC')
   })
 
   // The exact shape from issue #195: the routine ran on 2026-09-09 and not
@@ -296,55 +276,6 @@ describe('daily check-in observability', () => {
 
     expect(collectWorkflowRuns(listRuns, ['Test'])).toHaveLength(1)
     expect(requestedLimits).toEqual([10])
-  })
-
-  it('extracts actionable health reasons from persisted report summaries', () => {
-    expect(parseHealthEmailRows([{
-      report_date: '2026-07-27',
-      health_status: 'RED',
-      delivery_status: 'sent',
-      recipient: 'operator@example.com',
-      sent_at: 123,
-      error: null,
-      summary_json: JSON.stringify({
-        warnings: ['Cost is partial.'],
-        reasons: ['178 jobs failed in 24 hours.'],
-        window: {
-          reportDate: '2026-07-27',
-          from: '2026-07-25T22:00:49Z',
-          to: '2026-07-26T22:00:49Z',
-          workerVersion: '2cade213',
-        },
-      }),
-    }])).toEqual([{
-      reportDate: '2026-07-27',
-      healthStatus: 'RED',
-      checkin: undefined,
-      deliveryStatus: 'sent',
-      recipient: 'operator@example.com',
-      sentAt: 123,
-      error: null,
-      reasons: ['178 jobs failed in 24 hours.'],
-      warnings: ['Cost is partial.'],
-      window: {
-        reportDate: '2026-07-27',
-        from: '2026-07-25T22:00:49Z',
-        to: '2026-07-26T22:00:49Z',
-        workerVersion: '2cade213',
-      },
-    }])
-  })
-
-  it('rejects malformed persisted health summaries', () => {
-    expect(() => parseHealthEmailRows([{
-      report_date: '2026-07-27',
-      health_status: 'RED',
-      delivery_status: 'sent',
-      recipient: 'operator@example.com',
-      sent_at: 123,
-      error: null,
-      summary_json: '{',
-    }])).toThrow('invalid summary_json')
   })
 })
 
