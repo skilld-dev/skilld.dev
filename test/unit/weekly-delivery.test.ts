@@ -177,15 +177,19 @@ describe('weekly delivery', () => {
     expect(sent.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click')
   })
 
-  it('leaves out anyone who opted out or has no address', async () => {
+  it('sends only to users who consented and keeps captured profile addresses off the list', async () => {
     sqlite.prepare(`INSERT INTO users (id, login, email, weekly_opt_out) VALUES (2, 'opted-out', 'b@example.com', 1)`).run()
     sqlite.prepare(`INSERT INTO users (id, login, email) VALUES (3, 'no-address', '   ')`).run()
     sqlite.prepare(`INSERT INTO users (id, login, email, digest_email) VALUES (4, 'verified-only', NULL, 'd@example.com')`).run()
     sqlite.prepare(`INSERT INTO users (id, login, email, email_opt_in) VALUES (5, 'digest-enabled', 'e@example.com', 1)`).run()
+    // A profile address alone is not consent: no opt-in was given and no
+    // delivery address was ever deliberately stored.
+    sqlite.prepare(`INSERT INTO users (id, login, email) VALUES (6, 'profile-only', 'f@example.com')`).run()
+    sqlite.prepare(`INSERT INTO users (id, login, email, digest_email, weekly_opt_out) VALUES (7, 'weekly-unsubscribed', NULL, 'g@example.com', 1)`).run()
 
     const recipients = await loadWeeklyRecipients(db)
 
-    expect(recipients.map(user => user.login).sort()).toEqual(['digest-enabled', 'harlan-zw', 'verified-only'])
+    expect(recipients.map(user => user.login).sort()).toEqual(['digest-enabled', 'verified-only'])
   })
 })
 

@@ -53,12 +53,18 @@ export function resolveRecipientAddress(user: WeeklyRecipient): RecipientAddress
  * Everyone who should get the weekly.
  *
  * The weekly and digest are independent lists. A person can receive both.
+ *
+ * A captured GitHub profile address is not consent, so the list requires an
+ * explicit signal: the person opted in through the email settings
+ * (`email_opt_in`) or deliberately stored a delivery address (`digest_email`).
+ * `weekly_opt_out` remains the unsubscribe switch on top of that.
  */
 export async function loadWeeklyRecipients(db: D1Database): Promise<WeeklyRecipient[]> {
   const res = await db.prepare(
     `SELECT id, login, name, digest_email, email
      FROM users
      WHERE weekly_opt_out = 0
+       AND (email_opt_in = 1 OR digest_email IS NOT NULL)
        AND COALESCE(NULLIF(TRIM(COALESCE(digest_email, '')), ''), NULLIF(TRIM(COALESCE(email, '')), '')) IS NOT NULL`,
   ).all<WeeklyRecipient>()
   return res.results ?? []

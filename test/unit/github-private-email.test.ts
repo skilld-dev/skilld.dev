@@ -3,6 +3,7 @@ import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchVerifiedPrimaryEmail, pickVerifiedPrimaryEmail } from '../../layers/identity/server/utils/github-emails'
 import { upsertUserFromGithub } from '../../layers/identity/server/utils/users'
+import { loadWeeklyRecipients } from '../../layers/identity/server/utils/weekly-select'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 // users.ts reads its key from the auto-imported runtime config, which is empty
@@ -99,5 +100,19 @@ describe('upsertUserFromGithub email', () => {
     const row = await upsertUserFromGithub(event(), { id: 1, login: 'octo', email: 'new@example.com' }, credentials)
 
     expect(row.email).toBe('new@example.com')
+  })
+
+  it('never enrolls a never-consenting user in the weekly list', async () => {
+    d1.raw.exec(`
+      INSERT INTO users (
+        github_id, login, email, digest_email, email_opt_in, weekly_opt_out,
+        onboarded_at, created_at, last_login_at
+      ) VALUES (7, 'quiet', NULL, NULL, 0, 0, 1, 1, 1);
+    `)
+
+    await upsertUserFromGithub(event(), { id: 7, login: 'quiet', email: 'me@example.com' }, credentials)
+
+    const recipients = await loadWeeklyRecipients(d1.db)
+    expect(recipients.map(user => user.login)).toEqual([])
   })
 })
