@@ -624,15 +624,18 @@ export async function getFeaturedOfficialSections(
   const db = getDB(event)
   const filter = repoPairFilter(repos)
 
+  // The repo Skill count is added after the `rn` cut. Inside the window select
+  // it ran for every Skill of every featured repository: 1.24M rows read per
+  // call on production data, against about 33K this way.
   const rankedStmt = db
     .prepare(
-      `SELECT * FROM (
-        SELECT ${SELECT_SKILL_ROW},
+      `SELECT ranked.*, ${repoSkillCountSql('ranked')} FROM (
+        SELECT ${SELECT_SKILL_ROW_BASE},
           ROW_NUMBER() OVER (PARTITION BY s.owner, s.repo ORDER BY s.modified_at DESC, s.name ASC) AS rn,
           COUNT(*) OVER (PARTITION BY s.owner, s.repo) AS repo_total
         ${FROM_SKILLS_JOIN_REPOS}
         WHERE (${filter.sql}) AND ${NOT_BROKEN_SQL}
-      ) WHERE rn <= ?`,
+      ) ranked WHERE rn <= ?`,
     )
     .bind(...filter.params, perOrg)
 
@@ -878,12 +881,19 @@ export async function findRelatedSkills(
   const db = getDB(event)
   const { owner, repo, excludeName, limit = 6 } = opts
 
+  // The repo Skill count is added after the LIMIT, so it runs once per returned
+  // row instead of once per match. This handler runs about 10K times a day, and
+  // on a 875-Skill repository the same-repo read fell from 22.8K rows to 7K.
   const [repoResult, ownerResult] = await db.batch([
     db
-      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND s.repo = ? AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?`)
+      .prepare(`SELECT paged.*, ${repoSkillCountSql('paged')} FROM (
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND s.repo = ? AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?
+      ) paged ORDER BY modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
     db
-      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?`)
+      .prepare(`SELECT paged.*, ${repoSkillCountSql('paged')} FROM (
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?
+      ) paged ORDER BY stars DESC, modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
   ])
   const repoRows = (repoResult?.results ?? []) as SkillRow[]
