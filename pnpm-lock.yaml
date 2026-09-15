@@ -22,8 +22,8 @@ catalogs:
       specifier: 0.2.4
       version: 0.2.4
     '@harlan-zw/nuxt-checkin':
-      specifier: 0.2.0
-      version: 0.2.0
+      specifier: 0.2.1
+      version: 0.2.1
     '@harlan-zw/nuxt-cloudflare':
       specifier: 0.4.2
       version: 0.4.2
@@ -218,10 +218,10 @@ importers:
         version: 0.1.5(98d5e2cee3315275cd7393fa02452bc5)
       '@harlan-zw/nuxt-cf-jobs':
         specifier: 'catalog:'
-        version: 0.2.4(a2b172cf2857179621cbbf1f6c6fa8f8)
+        version: 0.2.4(b3f4b36f0baeb4c4fe05f7fb61933a94)
       '@harlan-zw/nuxt-checkin':
         specifier: 'catalog:'
-        version: 0.2.0(e385fb48e32147193c05e7ca84503583)
+        version: 0.2.1(e385fb48e32147193c05e7ca84503583)
       '@harlan-zw/nuxt-use-query':
         specifier: 'catalog:'
         version: 0.2.1(c8e02c8c74d77c0aa02a701b775491e2)
@@ -336,13 +336,13 @@ importers:
         version: 5.20260901.1
       '@harlan-zw/nuxt-cloudflare':
         specifier: 'catalog:'
-        version: 0.4.2(ac7d691632b3cf8cbedfa5110c1172e0)
+        version: 0.4.2(db28f3fe11757ae58e764bf92ffeb634)
       '@harlan-zw/nuxt-dx':
         specifier: 'catalog:'
         version: 0.1.3(530d2fb91dd879c8eaebd3f75fc3ff20)
       '@harlan-zw/nuxt-sentry':
         specifier: 'catalog:'
-        version: 0.1.6(413e11a0b686d151b08c92e68297d580)
+        version: 0.1.6(f8ac84cc9784637bb4adbca5874365ae)
       '@nuxt/a11y':
         specifier: 'catalog:'
         version: 1.0.0-alpha.1(magic-string@1.2.3)(magicast@0.5.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.4)(rollup@4.62.4)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0)))(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0))
@@ -1522,8 +1522,8 @@ packages:
       '@sentry/cloudflare':
         optional: true
 
-  '@harlan-zw/nuxt-checkin@0.2.0':
-    resolution: {integrity: sha512-1c7YBwovlMSN5cxe9jYt5Kfh7crZxlZciWvoyqdn0r/acE/Zb5lYE+byYVFVD2EZ82IOfLpecdQGijnXTSOVBw==}
+  '@harlan-zw/nuxt-checkin@0.2.1':
+    resolution: {integrity: sha512-TxNiMAitQwZ7z1KNnEnJttlHFjQ31ktOu6NEF6ai5T/hJHiasKtVaTikAW+JoN4Miukghi5fyux4OoefTM7Opw==}
     engines: {node: '>=22.12.0'}
     hasBin: true
     peerDependencies:
@@ -9755,9 +9755,9 @@ snapshots:
       - shiki
       - unplugin
 
-  '@harlan-zw/nuxt-cf-jobs@0.2.4(a2b172cf2857179621cbbf1f6c6fa8f8)':
+  '@harlan-zw/nuxt-cf-jobs@0.2.4(b3f4b36f0baeb4c4fe05f7fb61933a94)':
     dependencies:
-      '@harlan-zw/nuxt-cloudflare': 0.4.2(ac7d691632b3cf8cbedfa5110c1172e0)
+      '@harlan-zw/nuxt-cloudflare': 0.4.2(db28f3fe11757ae58e764bf92ffeb634)
       '@nuxt/kit': 4.5.2(magic-string@1.2.3)(magicast@0.5.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.4)(rollup@4.62.4)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0)))
       '@nuxt/schema': 4.5.2
       citty: 0.2.2
@@ -9765,7 +9765,7 @@ snapshots:
       nuxt: 4.5.2(@babel/plugin-proposal-decorators@8.0.2)(@babel/plugin-syntax-jsx@7.29.7)(@babel/plugin-syntax-typescript@7.29.7)(@oxc-project/types@0.144.0)(@types/node@26.4.0)(@vue/compiler-sfc@3.5.42)(better-sqlite3@13.0.3)(commander@14.0.3)(db0@0.3.4(better-sqlite3@13.0.3))(esbuild@0.28.2)(eslint@10.9.1(jiti@2.7.0)(supports-color@10.2.2))(ioredis@5.11.1(supports-color@10.2.2))(lightningcss@1.33.0)(magicast@0.5.4)(optionator@0.9.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(rollup-plugin-visualizer@7.0.1(rolldown@1.2.4)(rollup@4.62.4))(rollup@4.62.4)(srvx@0.12.5)(supports-color@10.2.2)(terser@5.50.0)(tsx@4.23.13)(typescript@6.0.3)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0))(vue-tsc@3.3.11(typescript@6.0.3))(yaml@2.9.0)
       vite: 8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0)
     optionalDependencies:
-      '@harlan-zw/nuxt-checkin': 0.2.0(e385fb48e32147193c05e7ca84503583)
+      '@harlan-zw/nuxt-checkin': 0.2.1(e385fb48e32147193c05e7ca84503583)
       '@sentry/cloudflare': 10.73.0(@cloudflare/workers-types@5.20260901.1)(wrangler@4.127.1(@cloudflare/workers-types@5.20260901.1))
     transitivePeerDependencies:
       - '@aws-sdk/client-rds-data'
@@ -9853,7 +9853,7 @@ snapshots:
       - xml2js
       - zod
 
-  '@harlan-zw/nuxt-checkin@0.2.0(e385fb48e32147193c05e7ca84503583)':
+  '@harlan-zw/nuxt-checkin@0.2.1(e385fb48e32147193c05e7ca84503583)':
     dependencies:
       '@nuxt/kit': 4.5.2(magic-string@1.2.3)(magicast@0.5.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.4)(rollup@4.62.4)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0)))
       nuxt: 4.5.2(@babel/plugin-proposal-decorators@8.0.2)(@babel/plugin-syntax-jsx@7.29.7)(@babel/plugin-syntax-typescript@7.29.7)(@oxc-project/types@0.144.0)(@types/node@26.4.0)(@vue/compiler-sfc@3.5.42)(better-sqlite3@13.0.3)(commander@14.0.3)(db0@0.3.4(better-sqlite3@13.0.3))(esbuild@0.28.2)(eslint@10.9.1(jiti@2.7.0)(supports-color@10.2.2))(ioredis@5.11.1(supports-color@10.2.2))(lightningcss@1.33.0)(magicast@0.5.4)(optionator@0.9.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(rollup-plugin-visualizer@7.0.1(rolldown@1.2.4)(rollup@4.62.4))(rollup@4.62.4)(srvx@0.12.5)(supports-color@10.2.2)(terser@5.50.0)(tsx@4.23.13)(typescript@6.0.3)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0))(vue-tsc@3.3.11(typescript@6.0.3))(yaml@2.9.0)
@@ -9867,7 +9867,7 @@ snapshots:
       - rolldown
       - unplugin
 
-  '@harlan-zw/nuxt-cloudflare@0.4.2(ac7d691632b3cf8cbedfa5110c1172e0)':
+  '@harlan-zw/nuxt-cloudflare@0.4.2(db28f3fe11757ae58e764bf92ffeb634)':
     dependencies:
       '@nuxt/kit': 4.5.2(magic-string@1.2.3)(magicast@0.5.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.4)(rollup@4.62.4)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0)))
       citty: 0.2.2
@@ -9880,7 +9880,7 @@ snapshots:
       unstorage: 1.17.5(db0@0.3.4(better-sqlite3@13.0.3))(ioredis@5.11.1(supports-color@10.2.2))
       wrangler: 4.127.1(@cloudflare/workers-types@5.20260901.1)
     optionalDependencies:
-      '@harlan-zw/nuxt-checkin': 0.2.0(e385fb48e32147193c05e7ca84503583)
+      '@harlan-zw/nuxt-checkin': 0.2.1(e385fb48e32147193c05e7ca84503583)
     transitivePeerDependencies:
       - '@azure/app-configuration'
       - '@azure/cosmos'
@@ -9944,14 +9944,14 @@ snapshots:
       - unplugin
       - vue
 
-  '@harlan-zw/nuxt-sentry@0.1.6(413e11a0b686d151b08c92e68297d580)':
+  '@harlan-zw/nuxt-sentry@0.1.6(f8ac84cc9784637bb4adbca5874365ae)':
     dependencies:
       '@nuxt/kit': 4.5.2(magic-string@1.2.3)(magicast@0.5.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.4)(rollup@4.62.4)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0)))
       '@sentry/nuxt': 10.73.0(433b670f0f22b940727aa0d678e7208d)
       nuxt: 4.5.2(@babel/plugin-proposal-decorators@8.0.2)(@babel/plugin-syntax-jsx@7.29.7)(@babel/plugin-syntax-typescript@7.29.7)(@oxc-project/types@0.144.0)(@types/node@26.4.0)(@vue/compiler-sfc@3.5.42)(better-sqlite3@13.0.3)(commander@14.0.3)(db0@0.3.4(better-sqlite3@13.0.3))(esbuild@0.28.2)(eslint@10.9.1(jiti@2.7.0)(supports-color@10.2.2))(ioredis@5.11.1(supports-color@10.2.2))(lightningcss@1.33.0)(magicast@0.5.4)(optionator@0.9.4)(oxc-parser@0.143.0)(rolldown@1.2.4)(rollup-plugin-visualizer@7.0.1(rolldown@1.2.4)(rollup@4.62.4))(rollup@4.62.4)(srvx@0.12.5)(supports-color@10.2.2)(terser@5.50.0)(tsx@4.23.13)(typescript@6.0.3)(vite@8.2.1(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.13)(yaml@2.9.0))(vue-tsc@3.3.11(typescript@6.0.3))(yaml@2.9.0)
       pathe: 2.0.3
     optionalDependencies:
-      '@harlan-zw/nuxt-checkin': 0.2.0(e385fb48e32147193c05e7ca84503583)
+      '@harlan-zw/nuxt-checkin': 0.2.1(e385fb48e32147193c05e7ca84503583)
       '@sentry/cloudflare': 10.73.0(@cloudflare/workers-types@5.20260901.1)(wrangler@4.127.1(@cloudflare/workers-types@5.20260901.1))
     transitivePeerDependencies:
       - magic-string
