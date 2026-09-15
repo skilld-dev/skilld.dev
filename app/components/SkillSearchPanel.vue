@@ -2,6 +2,8 @@
 import type { SearchRow, SearchSkill } from '../composables/useSkillSearch'
 import { skillRunCmd } from '#shared/skill-commands'
 
+const { showPreview = true } = defineProps<{ showPreview?: boolean }>()
+
 const emit = defineEmits<{ select: [row: SearchRow] }>()
 
 const {
@@ -81,7 +83,7 @@ function retryRepositoryIndex(): void {
   >
     <div class="flex flex-col xl:flex-row xl:items-stretch">
       <!-- Results -->
-      <div class="min-w-0 flex-1 xl:border-e xl:border-default">
+      <div class="min-w-0 flex-1" :class="{ 'xl:border-e xl:border-default': showPreview }">
         <!-- No query: recent searches, so the panel is never a blank box -->
         <template v-if="state._tag === 'empty'">
           <div v-if="recentSearches.length" class="py-2">
@@ -306,7 +308,7 @@ function retryRepositoryIndex(): void {
 
       <!-- Preview: the highlighted skill, with its run command ready -->
       <aside
-        v-if="previewSkill"
+        v-if="showPreview && previewSkill"
         class="hidden w-80 shrink-0 flex-col p-4 xl:flex"
       >
         <p class="section-label">

@@ -39,7 +39,8 @@ function focusGlobalSearch(): void {
   skillSearch.open.value = true
   void skillSearch.loadTypeaheadIndex()
   void nextTick(() => {
-    document.getElementById('global-skill-search')?.focus()
+    const searchInput = document.getElementById('home-skill-search') ?? document.getElementById('global-skill-search')
+    searchInput?.focus()
   })
 }
 
