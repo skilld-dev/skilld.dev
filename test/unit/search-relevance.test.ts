@@ -1,12 +1,17 @@
 import type { Database as SqliteDatabase } from 'better-sqlite3'
+import type { H3Event } from 'h3'
+import type { RegistrySkill } from '../../layers/registry/server/utils/skills-registry'
 import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   buildFtsMatchQuery,
   buildIdentifierFtsQuery,
+  hybridSkillSearch,
   LEXICAL_SEARCH_SQL,
+  rankSearchResults,
+  skillKey,
 } from '../../layers/registry/server/utils/skill-search'
 
 /**
@@ -22,6 +27,14 @@ import {
  * and asserts on ranked output using the production BM25 expression. It fails
  * if retrieval stops finding the right skills, regardless of which layer broke.
  */
+
+// Boundary stub only: these are declared retrieval orders, not measured embeddings.
+// Real SQLite retrieval and the production fusion/ranking remain under test.
+const semantic = vi.hoisted(() => ({ hits: [] as Array<{ owner: string, repo: string, name: string, score: number }> | null }))
+vi.mock('../../layers/registry/server/utils/skill-semantic-search', async importOriginal => ({
+  ...await importOriginal<typeof import('../../layers/registry/server/utils/skill-semantic-search')>(),
+  semanticSkillSearch: async () => semantic.hits,
+}))
 
 interface Fixture {
   name: string
@@ -68,6 +81,13 @@ const SKILLS: Fixture[] = [
     description: 'Optimise Core Web Vitals. Improve largest contentful paint, interaction to next paint and cumulative layout shift so pages load faster.',
   },
   {
+    name: 'design/layout',
+    owner: 'maintainer',
+    repo: 'skills',
+    displayName: 'Layout',
+    description: 'Build responsive grid layouts.',
+  },
+  {
     name: 'pdf',
     owner: 'anthropics',
     repo: 'skills',
@@ -80,7 +100,7 @@ function rankedNamesFor(sqlite: SqliteDatabase, query: string, limit = 5): strin
   const match = buildFtsMatchQuery(query)
   if (!match)
     return []
-  const rows = sqlite.prepare(LEXICAL_SEARCH_SQL).all(match, limit) as { name: string }[]
+  const rows = sqlite.prepare(LEXICAL_SEARCH_SQL).all(match, query.trim(), query.trim(), query.trim(), limit) as { name: string }[]
   return rows.map(row => row.name)
 }
 
@@ -103,9 +123,100 @@ describe('search relevance: lexical lane', () => {
       insert.run({ ...skill, slug: `${skill.owner}/${skill.name}` })
   })
 
-  it('indexes every fixture skill', () => {
-    const row = sqlite.prepare('SELECT count(*) AS n FROM skills_fts').get() as { n: number }
-    expect(row.n).toBe(SKILLS.length)
+  afterAll(() => sqlite.close())
+
+  function event(): H3Event {
+    return { context: { platform: { db: {
+      prepare: (sql: string) => ({ bind: (...values: unknown[]) => ({
+        all: async () => ({ results: sqlite.prepare(sql).all(...values) }),
+      }) }),
+    } } } } as unknown as H3Event
+  }
+
+  const registrySkills: RegistrySkill[] = SKILLS.map(s => ({
+    ...s,
+    slug: `${s.owner}/${s.name}`,
+    registryPath: `/gh/${s.owner}/${s.repo}/${s.name}`,
+    stars: 0,
+    renderedRawSha256: null,
+    seoIndexScore: 0,
+    seoIndexable: true,
+    trustTier: 'candidate',
+    trustScore: 0,
+    pushedAt: null,
+    modifiedAt: null,
+    firstSeenAt: null,
+  }))
+
+  it.each(SKILLS)('retrieves full identity $owner/$repo/$name without an embedding', async (target) => {
+    semantic.hits = []
+    const query = `${target.owner}/${target.repo}/${target.name}`
+    const result = await hybridSkillSearch(event(), query)
+    const ranked = rankSearchResults(registrySkills.filter(s => result.keys.includes(skillKey(s))), result.scoreByKey, query)
+    expect(ranked[0]?.name).toBe(target.name)
+  })
+
+  it('retrieves a full identity with different casing and outer spaces', async () => {
+    semantic.hits = []
+    const result = await hybridSkillSearch(event(), '  ANTHROPICS/SKILLS/PDF  ')
+    expect(result.keys).toContain('anthropics/skills/pdf')
+  })
+
+  it('retrieves an exact name before the lexical pool fills with shorter prefix matches', async () => {
+    semantic.hits = []
+    sqlite.exec('SAVEPOINT exact_candidate')
+    try {
+      const insert = sqlite.prepare('INSERT INTO skills (owner, repo, name, display_name, slug, description) VALUES (?, ?, ?, ?, ?, ?)')
+      for (let i = 0; i < 201; i++)
+        insert.run(`prefix${i}`, 'skills', `document-tool-${i}`, `Document Tool ${i}`, `prefix${i}/document-tool-${i}`, 'Document utilities.')
+      insert.run('target', 'skills', 'document', 'Document', 'target/document', 'Read, create, edit, combine and extract document files. '.repeat(100))
+      const result = await hybridSkillSearch(event(), 'document')
+      expect(result.keys).toContain('target/skills/document')
+      expect(result.keys.length).toBeLessThanOrEqual(200)
+    }
+    finally {
+      sqlite.exec('ROLLBACK TO exact_candidate; RELEASE exact_candidate')
+    }
+  })
+
+  it('reports unavailable search when both retrieval lanes fail', async () => {
+    semantic.hits = null
+    const failed = { context: { platform: { db: {
+      prepare: () => ({ bind: () => ({ all: async () => { throw new Error('D1 unavailable') } }) }),
+    } } } } as unknown as H3Event
+    await expect(hybridSkillSearch(failed, 'pdf')).rejects.toMatchObject({ statusCode: 503 })
+  })
+
+  it('returns no matches for punctuation when semantic retrieval is unavailable', async () => {
+    semantic.hits = null
+    expect((await hybridSkillSearch(event(), '***')).keys).toEqual([])
+  })
+
+  it('keeps a successful empty lexical result when semantic retrieval is unavailable', async () => {
+    semantic.hits = null
+    const result = await hybridSkillSearch(event(), 'zzqwx florble nonsense')
+    expect(result.keys).toEqual([])
+    expect(result.mode).toBe('lexical')
+  })
+
+  it('keeps a successful empty semantic result when lexical retrieval fails', async () => {
+    semantic.hits = []
+    const failed = { context: { platform: { db: {
+      prepare: () => ({ bind: () => ({ all: async () => { throw new Error('D1 unavailable') } }) }),
+    } } } } as unknown as H3Event
+    const result = await hybridSkillSearch(failed, 'pdf')
+    expect(result.keys).toEqual([])
+  })
+
+  it('keeps a semantic-only answer to words absent from the index', async () => {
+    const target = SKILLS.find(s => s.name === 'core-web-vitals')!
+    semantic.hits = [{ ...target, score: 0.61 }]
+    const query = 'accelerate sluggish websites'
+    expect(rankedNamesFor(sqlite, query)).toEqual([])
+    const result = await hybridSkillSearch(event(), query)
+    const ranked = rankSearchResults(registrySkills.filter(s => result.keys.includes(skillKey(s))), result.scoreByKey, query)
+    expect(ranked[0]?.name).toBe('core-web-vitals')
+    expect(result.mode).toBe('semantic')
   })
 
   // The production failure that started this work. Cosine similarity matched
@@ -158,10 +269,10 @@ describe('search relevance: lexical lane', () => {
   // description breadth, or they silently become "skills mentioning the word".
   it('keeps the identifier-qualified query off description matches', () => {
     const match = buildIdentifierFtsQuery('playwright')!
-    const rows = sqlite.prepare(LEXICAL_SEARCH_SQL).all(match, 10) as { name: string }[]
+    const rows = sqlite.prepare(LEXICAL_SEARCH_SQL).all(match, 'playwright', 'playwright', 'playwright', 10) as { name: string }[]
     expect(rows).toHaveLength(0)
 
-    const searchRows = sqlite.prepare(LEXICAL_SEARCH_SQL).all(buildFtsMatchQuery('playwright')!, 10) as { name: string }[]
+    const searchRows = sqlite.prepare(LEXICAL_SEARCH_SQL).all(buildFtsMatchQuery('playwright')!, 'playwright', 'playwright', 'playwright', 10) as { name: string }[]
     expect(searchRows.length).toBeGreaterThan(0)
   })
 })

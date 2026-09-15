@@ -2,6 +2,8 @@
 import type { SearchRow, SearchSkill } from '../composables/useSkillSearch'
 import { skillRunCmd } from '#shared/skill-commands'
 
+const { showPreview = true } = defineProps<{ showPreview?: boolean }>()
+
 const emit = defineEmits<{ select: [row: SearchRow] }>()
 
 const {
@@ -81,7 +83,7 @@ function retryRepositoryIndex(): void {
   >
     <div class="flex flex-col xl:flex-row xl:items-stretch">
       <!-- Results -->
-      <div class="min-w-0 flex-1 xl:border-e xl:border-default">
+      <div class="min-w-0 flex-1" :class="{ 'xl:border-e xl:border-default': showPreview }">
         <!-- No query: recent searches, so the panel is never a blank box -->
         <template v-if="state._tag === 'empty'">
           <div v-if="recentSearches.length" class="py-2">
@@ -223,7 +225,7 @@ function retryRepositoryIndex(): void {
           :aria-label="state._tag === 'repository' ? 'Repository indexing results' : 'Skill search results'"
           class="divide-y divide-default/60"
         >
-          <li v-for="(row, index) in rows" :key="row._tag === 'skill' ? `${row.skill.owner}/${row.skill.repo}/${row.skill.name}` : 'all'">
+          <li v-for="(row, index) in rows" :key="row._tag === 'skill' ? `${row.skill.owner}/${row.skill.repo}/${row.skill.name}` : 'all'" role="presentation">
             <button
               :id="`skill-search-row-${index}`"
               type="button" class="flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-200"
@@ -306,7 +308,7 @@ function retryRepositoryIndex(): void {
 
       <!-- Preview: the highlighted skill, with its run command ready -->
       <aside
-        v-if="previewSkill"
+        v-if="showPreview && previewSkill"
         class="hidden w-80 shrink-0 flex-col p-4 xl:flex"
       >
         <p class="section-label">

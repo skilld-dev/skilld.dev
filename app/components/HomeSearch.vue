@@ -11,7 +11,6 @@ const {
   rows,
   activeIndex,
   activeRow,
-  move,
   close,
   reset,
   rememberQuery,
@@ -21,8 +20,25 @@ const {
 
 const container = useTemplateRef<HTMLElement>('container')
 const input = useTemplateRef<{ inputRef?: HTMLInputElement }>('input')
+const keyboardSelection = ref(false)
+
+function clearSelection(): void {
+  keyboardSelection.value = false
+  activeIndex.value = -1
+}
+
+watch([trimmedQuery, rows], clearSelection, { flush: 'sync', immediate: true })
+watch(open, (visible) => {
+  if (!visible)
+    clearSelection()
+}, { flush: 'sync' })
+onBeforeUnmount(() => {
+  activeIndex.value = 0
+})
 
 function openPanel(): void {
+  if (!open.value)
+    clearSelection()
   open.value = true
   void loadTypeaheadIndex()
 }
@@ -55,24 +71,43 @@ async function select(row: SearchRow): Promise<void> {
   await navigateTo(row.skill.registryPath)
 }
 
-function onEnter(event: KeyboardEvent): void {
-  event.preventDefault()
-  const row = activeRow.value
-  if (row) {
-    void select(row)
+function submitQuery(): void {
+  if (state.value._tag === 'repository') {
+    if (state.value.status._tag === 'idle')
+      void submitRepository(state.value.repository)
     return
   }
-  if (state.value._tag !== 'repository')
-    void goToResults()
+  void goToResults()
+}
+
+function onEnter(event: KeyboardEvent): void {
+  if (event.isComposing || event.keyCode === 229)
+    return
+  event.preventDefault()
+  if (open.value && keyboardSelection.value && activeRow.value) {
+    void select(activeRow.value)
+    return
+  }
+  submitQuery()
 }
 
 function onArrow(event: KeyboardEvent, delta: number): void {
-  if (!open.value) {
-    openPanel()
+  if (event.isComposing || event.keyCode === 229)
     return
-  }
   event.preventDefault()
-  move(delta)
+  openPanel()
+  const count = rows.value.length
+  if (!count)
+    return
+  activeIndex.value = keyboardSelection.value
+    ? (activeIndex.value + delta + count) % count
+    : delta > 0 ? 0 : count - 1
+  keyboardSelection.value = true
+}
+
+function onFocusOut(event: FocusEvent): void {
+  if (!container.value?.contains(event.relatedTarget as Node | null))
+    close()
 }
 
 onClickOutside(container, () => {
@@ -89,77 +124,55 @@ watch(() => route.fullPath, () => {
   close()
 })
 
-const listboxId = computed(() => (open.value && rows.value.length ? 'home-search-listbox' : undefined))
+const listboxId = computed(() => (open.value && rows.value.length ? 'skill-search-listbox' : undefined))
 const activeDescendant = computed(() =>
-  open.value && rows.value.length ? `skill-search-row-${activeIndex.value}` : undefined,
+  open.value && keyboardSelection.value && activeRow.value ? `skill-search-row-${activeIndex.value}` : undefined,
 )
 </script>
 
 <template>
-  <div ref="container" class="relative">
-    <UInput
-      id="home-skill-search"
-      ref="input"
-      v-model="query"
-      icon="i-lucide-search"
-      placeholder="What should your agent learn today?"
-      name="q"
-      enterkeyhint="search"
-      size="xl"
-      autocomplete="off"
-      role="combobox"
-      aria-label="Search skills or index a GitHub repository"
-      :aria-expanded="open"
-      :aria-controls="listboxId"
-      :aria-activedescendant="activeDescendant"
-      class="w-full"
-      :ui="{ base: 'font-mono' }"
-      @focus="openPanel"
-      @keydown.down="onArrow($event, 1)"
-      @keydown.up="onArrow($event, -1)"
-      @keydown.enter="onEnter"
-    >
-      <template v-if="!query" #trailing>
-        <UKbd value="Enter" class="hidden sm:inline-flex" />
-      </template>
-    </UInput>
-
-    <Transition name="search-panel">
-      <div
-        v-if="open"
-        class="absolute inset-x-0 top-full z-40 mt-2"
+  <div ref="container" @focusout="onFocusOut">
+    <form role="search" class="flex items-stretch gap-2" @submit.prevent="submitQuery">
+      <UInput
+        id="home-skill-search"
+        ref="input"
+        v-model="query"
+        icon="i-lucide-search"
+        placeholder="What should your agent learn today?"
+        name="q"
+        enterkeyhint="search"
+        size="xl"
+        autocomplete="off"
+        role="combobox"
+        aria-label="Search skills or index a GitHub repository"
+        :aria-expanded="open"
+        :aria-controls="listboxId"
+        :aria-activedescendant="activeDescendant"
+        class="min-w-0 flex-1"
+        :ui="{ base: 'min-h-11 font-mono' }"
+        @focus="openPanel"
+        @click="openPanel"
+        @input="openPanel"
+        @keydown.down="onArrow($event, 1)"
+        @keydown.up="onArrow($event, -1)"
+        @keydown.enter="onEnter"
+      />
+      <UButton
+        type="submit"
+        size="xl"
+        class="min-h-11 shrink-0 justify-center font-mono"
+        :disabled="state._tag === 'repository' && state.status._tag !== 'idle'"
       >
-        <SkillSearchPanel @select="(row) => { void select(row) }" />
-      </div>
-    </Transition>
+        {{ state._tag === 'repository' ? 'Index repository' : 'Search' }}
+      </UButton>
+    </form>
+
+    <div v-if="open" class="mt-2">
+      <SkillSearchPanel :show-preview="false" @select="(row) => { void select(row) }" />
+    </div>
 
     <ClientOnly>
       <SkillSearchRepositoryModal />
     </ClientOnly>
   </div>
 </template>
-
-<style scoped>
-.search-panel-enter-active,
-.search-panel-leave-active {
-  transition: opacity 200ms ease-out, transform 200ms ease-out;
-}
-
-.search-panel-enter-from,
-.search-panel-leave-to {
-  opacity: 0;
-  transform: translateY(4px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .search-panel-enter-active,
-  .search-panel-leave-active {
-    transition: opacity 200ms ease-out;
-  }
-
-  .search-panel-enter-from,
-  .search-panel-leave-to {
-    transform: none;
-  }
-}
-</style>
