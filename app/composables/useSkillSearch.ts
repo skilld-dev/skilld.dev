@@ -7,7 +7,7 @@ import type {
 } from '#shared/repository-index'
 import type { IndexedSkillsLikeResult } from '../utils/repository-index-likes'
 import type { TypeaheadHit, TypeaheadTuple } from '../utils/skill-typeahead'
-import { createSharedComposable, promiseTimeout, refDebounced, useLocalStorage } from '@vueuse/core'
+import { createSharedComposable, promiseTimeout, useLocalStorage, watchDebounced } from '@vueuse/core'
 import { parseGitHubRepositoryUrl } from '#shared/github-repository'
 import { indexGitHubRepository } from '../utils/repository-index'
 import { likeIndexedSkills } from '../utils/repository-index-likes'
@@ -119,7 +119,6 @@ function useSkillSearchInternal() {
   const query = ref('')
   const open = ref(false)
   const activeIndex = ref(0)
-  const debouncedQuery = refDebounced(query, QUERY_DEBOUNCE_MS)
 
   const recentSearches = useLocalStorage<string[]>('skilld:recent-searches', [])
 
@@ -212,22 +211,19 @@ function useSkillSearchInternal() {
     }
   }
 
-  watch(debouncedQuery, (term) => {
-    void runSearch(term.trim())
-  })
+  watchDebounced(trimmedQuery, (term) => {
+    void runSearch(term)
+  }, { debounce: QUERY_DEBOUNCE_MS, flush: 'sync' })
 
-  // A cleared query should empty the panel immediately rather than waiting out
-  // the debounce with stale results still on screen.
-  watch(trimmedQuery, (term) => {
+  // Invalidate on input, before debounce. Old results must never remain selectable.
+  watch(trimmedQuery, () => {
     activeIndex.value = 0
-    if (!term || repository.value) {
-      inFlight?.abort()
-      inFlight = null
-      serverResults.value = null
-      serverError.value = null
-      pending.value = false
-    }
-  })
+    inFlight?.abort()
+    inFlight = null
+    serverResults.value = null
+    serverError.value = null
+    pending.value = false
+  }, { flush: 'sync' })
 
   const state = computed<SearchState>(() => {
     const term = trimmedQuery.value
