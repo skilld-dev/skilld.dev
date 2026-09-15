@@ -225,7 +225,7 @@ function retryRepositoryIndex(): void {
           :aria-label="state._tag === 'repository' ? 'Repository indexing results' : 'Skill search results'"
           class="divide-y divide-default/60"
         >
-          <li v-for="(row, index) in rows" :key="row._tag === 'skill' ? `${row.skill.owner}/${row.skill.repo}/${row.skill.name}` : 'all'">
+          <li v-for="(row, index) in rows" :key="row._tag === 'skill' ? `${row.skill.owner}/${row.skill.repo}/${row.skill.name}` : 'all'" role="presentation">
             <button
               :id="`skill-search-row-${index}`"
               type="button" class="flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-200"
