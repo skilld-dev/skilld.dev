@@ -37,7 +37,7 @@ export default defineVitestConfig({
     exclude: [...configDefaults.exclude, 'test/e2e/**', '.claude/worktrees/**'],
     server: {
       deps: {
-        inline: ['axe-core'],
+        inline: ['axe-core', 'nitropack'],
       },
     },
     environmentOptions: {

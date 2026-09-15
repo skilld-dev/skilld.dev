@@ -2,6 +2,7 @@ import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { makeOwnerFacetPresenter, makeSkillPresenter } from '../../presenters/skill'
 import { SkillsListQuery } from '../../schemas/skills-query'
+import { skillSearchCacheOptions } from '../../utils/skill-search-cache'
 import { querySkills } from '../../utils/skills-registry'
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
@@ -39,15 +40,4 @@ const skillsListHandler = defineApiHandler({
   },
 })
 
-export default defineCachedEventHandler(skillsListHandler, {
-  maxAge: 60,
-  staleMaxAge: 60 * 5,
-  swr: true,
-  group: 'skills-list',
-  name: 'skills-list-v1',
-  getKey: (event) => {
-    const query = getRequestURL(event).searchParams
-    query.sort()
-    return query.toString() || 'default'
-  },
-})
+export default defineCachedEventHandler(skillsListHandler, skillSearchCacheOptions)
