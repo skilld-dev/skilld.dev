@@ -1,7 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
 /**
- * The weekly email, sent once a week to everyone who has not opted out.
+ * The weekly email, sent once a week to everyone who consented and has not
+ * opted out.
  *
  * Fires at one fixed hour. A single slot keeps the run to one pass and the
  * `(user_id, window_end)` claim to one week.

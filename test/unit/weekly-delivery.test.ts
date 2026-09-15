@@ -3,6 +3,8 @@ import type { WeeklyRecipient } from '../../layers/identity/server/utils/weekly-
 import type { WeeklyTrendingSkill } from '../../layers/identity/server/utils/weekly-template'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { loadDigestEligibleUsers } from '../../layers/identity/server/utils/digest-select'
+import { applyResubscribe } from '../../layers/identity/server/utils/unsubscribe'
 import { runWeeklyForUser } from '../../layers/identity/server/utils/weekly-delivery'
 import {
   loadWeeklyRecipients,
@@ -21,7 +23,15 @@ CREATE TABLE users (
   digest_email TEXT,
   email_opt_in INTEGER NOT NULL DEFAULT 0,
   weekly_opt_out INTEGER NOT NULL DEFAULT 0,
+  onboarded_at INTEGER,
   name TEXT
+);
+CREATE TABLE email_preference_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  list TEXT NOT NULL,
+  action TEXT NOT NULL,
+  occurred_at INTEGER NOT NULL
 );
 CREATE TABLE activity (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -177,15 +187,30 @@ describe('weekly delivery', () => {
     expect(sent.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click')
   })
 
-  it('leaves out anyone who opted out or has no address', async () => {
+  it('sends only to users who consented and keeps captured profile addresses off the list', async () => {
     sqlite.prepare(`INSERT INTO users (id, login, email, weekly_opt_out) VALUES (2, 'opted-out', 'b@example.com', 1)`).run()
     sqlite.prepare(`INSERT INTO users (id, login, email) VALUES (3, 'no-address', '   ')`).run()
     sqlite.prepare(`INSERT INTO users (id, login, email, digest_email) VALUES (4, 'verified-only', NULL, 'd@example.com')`).run()
     sqlite.prepare(`INSERT INTO users (id, login, email, email_opt_in) VALUES (5, 'digest-enabled', 'e@example.com', 1)`).run()
+    // A profile address alone is not consent: no opt-in was given and no
+    // delivery address was ever deliberately stored.
+    sqlite.prepare(`INSERT INTO users (id, login, email) VALUES (6, 'profile-only', 'f@example.com')`).run()
+    sqlite.prepare(`INSERT INTO users (id, login, email, digest_email, weekly_opt_out) VALUES (7, 'weekly-unsubscribed', NULL, 'g@example.com', 1)`).run()
 
     const recipients = await loadWeeklyRecipients(db)
 
-    expect(recipients.map(user => user.login).sort()).toEqual(['digest-enabled', 'harlan-zw', 'verified-only'])
+    expect(recipients.map(user => user.login).sort()).toEqual(['digest-enabled', 'verified-only'])
+  })
+
+  it('keeps the restore promise: weekly resubscribe writes a consent signal the gate honors', async () => {
+    // A pre-deploy weekly recipient whose only signal was a captured profile
+    // address: no opt-in, no stored delivery address, then an unsubscribe.
+    sqlite.prepare(`INSERT INTO users (id, login, email, email_opt_in, weekly_opt_out, onboarded_at) VALUES (8, 'restored-weekly', 'r@example.com', 0, 1, 1)`).run()
+
+    await applyResubscribe(db, 8, 'weekly')
+
+    expect((await loadWeeklyRecipients(db)).map(user => user.login)).toContain('restored-weekly')
+    expect((await loadDigestEligibleUsers(db)).map(user => user.login)).not.toContain('restored-weekly')
   })
 })
 

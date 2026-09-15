@@ -75,7 +75,9 @@ export async function upsertUserFromGithub(
      ON CONFLICT(github_id) DO UPDATE SET
        login = excluded.login,
        name = excluded.name,
-       email = excluded.email,
+       -- A private profile or a failed /user/emails lookup yields no address;
+       -- that must not erase the one an earlier sign-in stored.
+       email = COALESCE(excluded.email, users.email),
        avatar = excluded.avatar,
        github_token_encrypted = excluded.github_token_encrypted,
        github_token_scopes = excluded.github_token_scopes,

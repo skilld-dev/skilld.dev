@@ -9,6 +9,7 @@
  * silent failure and a quiet week look identical from the outside.
  */
 
+import { loadWeeklyRecipients } from '#layers/identity/server/utils/weekly-select'
 import { defineApiHandler } from '#shared/server/handler'
 import { summarizeWeeklyEngagement } from '../../utils/weekly-engagement'
 
@@ -78,14 +79,14 @@ export default defineApiHandler({
     const db = platform.db
 
     const hasAddress = `TRIM(COALESCE(digest_email, COALESCE(email, ''))) != ''`
-    const [audience, windows, problems] = await Promise.all([
+    const [recipients, audience, windows, problems] = await Promise.all([
+      loadWeeklyRecipients(db),
       db.prepare(
         `SELECT
-           SUM(weekly_opt_out = 0 AND ${hasAddress}) AS reachable,
            SUM(weekly_opt_out = 1 AND ${hasAddress}) AS opted_out,
            SUM(NOT ${hasAddress}) AS no_address
          FROM users`,
-      ).first<{ reachable: number, opted_out: number, no_address: number }>(),
+      ).first<{ opted_out: number, no_address: number }>(),
 
       db.prepare(
         `SELECT window_start, window_end,
@@ -140,7 +141,7 @@ export default defineApiHandler({
 
     return {
       audience: {
-        reachable: audience?.reachable ?? 0,
+        reachable: recipients.length,
         optedOut: audience?.opted_out ?? 0,
         noAddress: audience?.no_address ?? 0,
       },

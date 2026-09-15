@@ -17,6 +17,20 @@ export interface UnsubOutcome {
 
 export type EmailPreferenceAction = 'unsubscribed' | 'restored'
 
+// Restore is the person asking for the weekly again. That consent only counts
+// on a deliverable address, and it must never touch the digest switch
+// (`email_opt_in`), which belongs to the other list.
+function weeklySetting(db: D1Database, userId: number, restored: boolean): D1PreparedStatement {
+  if (!restored)
+    return db.prepare(`UPDATE users SET weekly_opt_out = 1 WHERE id = ?1`).bind(userId)
+  return db.prepare(
+    `UPDATE users
+     SET weekly_opt_out = 0,
+         digest_email = COALESCE(digest_email, NULLIF(TRIM(email), ''))
+     WHERE id = ?1`,
+  ).bind(userId)
+}
+
 async function writePreference(
   db: D1Database,
   userId: number,
@@ -25,7 +39,7 @@ async function writePreference(
 ): Promise<void> {
   const value = action === 'restored'
   const setting = list === 'weekly'
-    ? db.prepare(`UPDATE users SET weekly_opt_out = ?2 WHERE id = ?1`).bind(userId, value ? 0 : 1)
+    ? weeklySetting(db, userId, value)
     : db.prepare(`UPDATE users SET email_opt_in = ?2 WHERE id = ?1`).bind(userId, value ? 1 : 0)
   const event = db.prepare(
     `INSERT INTO email_preference_events (user_id, list, action, occurred_at)
