@@ -58,10 +58,6 @@ export function matchTypeahead(
     if (tier === NO_MATCH)
       continue
     scored.push({ hit: { name, owner, repo, stars, registryPath }, tier })
-    // The index is star-ordered, so once a comfortable surplus of strong
-    // matches exists, scanning the long tail cannot change the top `limit`.
-    if (scored.length >= limit * 20)
-      break
   }
 
   return scored

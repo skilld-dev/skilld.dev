@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupRecommendation } from './skill-duplicate-canonical'
 import type { RegistrySkill } from './skills-registry'
+import { createError } from 'h3'
 import { getDB } from '#server/utils/db'
 import {
   canonicalTrustFirstSort,
@@ -8,6 +9,7 @@ import {
   findDuplicateCanonicalGroups,
   skillSlug,
 } from './skill-duplicate-canonical'
+import { searchPhraseBoost } from './skill-search-phrase'
 import { nameMatchBoost, semanticSkillSearch } from './skill-semantic-search'
 
 /**
@@ -110,28 +112,19 @@ export function fuseRankings(lists: RankedList[], k: number = RRF_K): Map<string
  */
 export const NAME_BOOST_SCALE = 1 / RRF_K
 
-/**
- * Weight given to provenance. Sized so an official skill outranks an unknown
- * one that a single retriever happened to place first, but cannot drag an
- * irrelevant skill up on trust alone.
- *
- * VISION principle 1: provenance is the quality signal. Without this, BM25
- * favours whichever repo has the shortest name field, which is how an unknown
- * `custom-plugin-vue` outranked antfu's official skill for "vue testing".
- */
-export const TRUST_BOOST_SCALE = 1.5 / RRF_K
-const MAX_TRUST_RANK = 5
-
-function trustBoost(skill: RegistrySkill): number {
-  const { trustTierRank } = duplicateRankingSignals(toDuplicateCandidate(skill))
-  return (Math.min(trustTierRank, MAX_TRUST_RANK) / MAX_TRUST_RANK) * TRUST_BOOST_SCALE
+/** Exact identities stay first, including Skills without an embedding. */
+function isExactIdentity(skill: RegistrySkill, query: string): boolean {
+  const normalized = query.trim().toLowerCase()
+  return normalized.length > 0 && [skill.name, skill.displayName, skill.slug, skillKey(skill)]
+    .some(identity => identity.toLowerCase() === normalized)
 }
 
-/**
- * Order retrieved rows by fused relevance, nudged by how closely the query
- * matches the skill's own name and by how trustworthy its source is, with
- * canonical GitHub stars breaking ties.
- */
+/** Provenance breaks relevance ties; it never substitutes for relevance. */
+function trustRank(skill: RegistrySkill): number {
+  return duplicateRankingSignals(toDuplicateCandidate(skill)).trustTierRank
+}
+
+/** Order by exact identity, relevance, then source provenance. */
 export function rankSearchResults(
   skills: RegistrySkill[],
   scoreByKey: Map<string, number>,
@@ -140,12 +133,17 @@ export function rankSearchResults(
   return skills
     .map(skill => ({
       skill,
+      exact: Number(isExactIdentity(skill, search)),
+      trust: trustRank(skill),
       score: (scoreByKey.get(skillKey(skill)) ?? 0)
         + nameMatchBoost(skill, search) * NAME_BOOST_SCALE
-        + trustBoost(skill),
+        + searchPhraseBoost(skill, search) * NAME_BOOST_SCALE,
     }))
     .sort((a, b) =>
-      b.score - a.score
+      b.exact - a.exact
+      || (a.exact && b.exact ? b.trust - a.trust : 0)
+      || b.score - a.score
+      || b.trust - a.trust
       || b.skill.stars - a.skill.stars
       || skillKey(a.skill).localeCompare(skillKey(b.skill)))
     .map(entry => entry.skill)
@@ -190,7 +188,7 @@ function toDuplicateCandidate(skill: RegistrySkill): DuplicateCandidate {
  * Rank order is preserved: a group is emitted at the position of its
  * best-ranked member, so collapsing can never demote a relevant result.
  */
-export function collapseSearchDuplicates(skills: RegistrySkill[]): CollapsedSearchResult[] {
+export function collapseSearchDuplicates(skills: RegistrySkill[], search = ''): CollapsedSearchResult[] {
   if (!skills.length)
     return []
 
@@ -199,7 +197,12 @@ export function collapseSearchDuplicates(skills: RegistrySkill[]): CollapsedSear
     skillByKey.set(skillKey(skill), skill)
 
   const groupByKey = new Map<string, DuplicateGroupRecommendation>()
-  const groups = findDuplicateCanonicalGroups(skills.map(toDuplicateCandidate), canonicalTrustFirstSort)
+  const groups = findDuplicateCanonicalGroups(skills.map(toDuplicateCandidate), (a, b) => {
+    // A source chosen by exact identity must survive duplicate collapsing.
+    const aExact = isExactIdentity(skillByKey.get(skillSlug(a))!, search)
+    const bExact = isExactIdentity(skillByKey.get(skillSlug(b))!, search)
+    return Number(bExact) - Number(aExact) || canonicalTrustFirstSort(a, b)
+  })
   for (const group of groups) {
     for (const row of group.rows)
       groupByKey.set(skillSlug(row), group)
@@ -258,36 +261,47 @@ export const LEXICAL_BM25_RANK = 'bm25(skills_fts, 10.0, 3.0, 3.0, 8.0, 5.0, 1.0
 
 export const LEXICAL_SEARCH_SQL = `SELECT owner, repo, name FROM skills_fts
        WHERE skills_fts MATCH ?
-       ORDER BY ${LEXICAL_BM25_RANK}
+       ORDER BY CASE WHEN name = ? COLLATE NOCASE OR display_name = ? COLLATE NOCASE OR slug = ? COLLATE NOCASE THEN 1 ELSE 0 END DESC,
+         ${LEXICAL_BM25_RANK}
        LIMIT ?`
 
 async function lexicalSkillSearch(event: H3Event, search: string): Promise<string[] | null> {
   const match = buildFtsMatchQuery(search)
   if (!match)
-    return null
+    return []
   const db = getDB(event)
-  const res = await db
-    .prepare(LEXICAL_SEARCH_SQL)
-    .bind(match, LEXICAL_TOP_K)
-    .all<SkillKeyParts>()
-    .catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-lexical-search', outcome: 'failed' }))
-      return null
-    })
-  return (res?.results ?? []).map(skillKey)
+  const identity = search.trim().split('/')
+  // FTS cannot match a phrase across owner, repo and name columns.
+  // Resolve a full identity directly, including nested Skill names.
+  const exact = identity.length >= 3
+    ? db.prepare(`SELECT owner, repo, name FROM skills
+        WHERE owner = ? COLLATE NOCASE AND repo = ? COLLATE NOCASE AND name = ? COLLATE NOCASE`)
+        .bind(identity[0], identity[1], identity.slice(2).join('/'))
+        .all<SkillKeyParts>()
+    : Promise.resolve({ results: [] as SkillKeyParts[] })
+  const results = await Promise.all([
+    exact,
+    db.prepare(LEXICAL_SEARCH_SQL).bind(match, search.trim(), search.trim(), search.trim(), LEXICAL_TOP_K).all<SkillKeyParts>(),
+  ]).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'skill-lexical-search', outcome: 'failed' }))
+    return null
+  })
+  return results === null ? null : [...new Set(results.flatMap(result => result.results ?? []).map(skillKey))]
 }
 
 /**
  * Retrieve skill candidates from both the lexical and semantic lanes and fuse
- * them. Running both matters: ~300 indexable skills have no vector yet (the
- * embedding cron is rate-limited), and semantic-only retrieval made those
- * skills unreachable even by exact name.
+ * them. Lexical retrieval keeps Skills awaiting an embedding reachable.
+ * Semantic retrieval finds relevant Skills without matching query words.
  */
 export async function hybridSkillSearch(event: H3Event, search: string): Promise<HybridSearchResult> {
   const [lexicalKeys, semanticHits] = await Promise.all([
     lexicalSkillSearch(event, search),
     semanticSkillSearch(event, search, SEMANTIC_TOP_K),
   ])
+
+  if (lexicalKeys === null && semanticHits === null)
+    throw createError({ statusCode: 503, statusMessage: 'Search is temporarily unavailable.' })
 
   const semanticKeys = semanticHits?.map(skillKey) ?? []
   const hasLexical = Boolean(lexicalKeys?.length)

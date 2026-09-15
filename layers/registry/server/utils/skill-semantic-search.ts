@@ -2,13 +2,9 @@
 import type { H3Event } from 'h3'
 import { getDB } from '#server/utils/db'
 import { writeCache } from '#shared/server/cache'
+import { EMBEDDING_MODEL, EMBEDDING_VECTOR_DIMENSIONS } from './embedding-effect'
 import { vectorIdFor } from './vector-id'
 
-// Same model + dim the AI generation pipeline embeds skills with
-// (ai-generate-submit.ts), so query vectors live in the same space as the
-// indexed skill vectors.
-const EMBEDDING_MODEL = '@cf/baai/bge-base-en-v1.5'
-const VECTORIZE_DIM = 768
 const VECTORIZE_METADATA_TOP_K = 50
 const ID_MAP_TTL_MS = 10 * 60 * 1000
 // Query vectors are a pure function of (model, text), so they only expire to
@@ -37,7 +33,7 @@ interface SkillKey {
 }
 
 export interface SemanticHit extends SkillKey {
-  /** Cosine similarity from Vectorize, 0..1. */
+  /** Cosine similarity from Vectorize, -1..1. */
   score: number
 }
 
@@ -69,8 +65,8 @@ async function getIdMap(db: D1Database): Promise<Map<string, SkillKey>> {
 
 /**
  * Semantic skill search over the Vectorize index. Returns hits ordered by
- * cosine similarity, or `null` when the AI / Vectorize bindings are absent
- * (e.g. local dev) so callers can fall back to lexical FTS.
+ * cosine similarity. Returns `null` when bindings or providers are unavailable,
+ * so callers can distinguish a failure from an empty result.
  */
 // The candidate pool is passed to D1 as a single JSON array parameter
 // (json_each), so topK is no longer bounded by D1's 100 SQL-variable cap.
@@ -93,12 +89,20 @@ export async function semanticSkillSearch(event: H3Event, query: string, topK = 
       emitOperationalEvent(createWideEvent({ operation: 'skill-semantic-search', outcome: 'failed' }))
       return null
     })
-  if (!res?.matches?.length)
+  if (res === null)
+    return null
+  if (!res.matches.length)
     return []
+
+  const matches = res.matches.filter(m => typeof m.score === 'number' && Number.isFinite(m.score))
+  if (matches.length !== res.matches.length)
+    emitOperationalEvent(createWideEvent({ operation: 'skill-semantic-search-response', outcome: 'failed' }))
+  if (!matches.length)
+    return null
 
   const hits: SemanticHit[] = []
   let needsIdMap = false
-  for (const m of res.matches) {
+  for (const m of matches) {
     const key = keyFromMetadata(m.metadata)
     if (key)
       hits.push({ ...key, score: m.score })
@@ -110,7 +114,7 @@ export async function semanticSkillSearch(event: H3Event, query: string, topK = 
     return hits
 
   const map = await getIdMap(getDB(event))
-  return res.matches.flatMap((m) => {
+  return matches.flatMap((m) => {
     const key = keyFromMetadata(m.metadata) ?? map.get(m.id)
     return key ? [{ ...key, score: m.score }] : []
   })
@@ -125,25 +129,42 @@ export async function semanticSkillSearch(event: H3Event, query: string, topK = 
  */
 async function embedQuery(ai: AiBinding, query: string): Promise<number[] | null> {
   const storage = useStorage('cache')
-  const cacheKey = `search:qvec:${await sha256Hex(query)}`
+  // Keep the default mean pooling used by the existing document vectors.
+  const contract = JSON.stringify([EMBEDDING_MODEL, 'mean', QUERY_INSTRUCTION, query])
+  const cacheKey = `search:qvec:v2:${await sha256Hex(contract)}`
   // A cache read failure is not a search failure: fall through to inference.
-  const cached = await storage.getItem<number[]>(cacheKey).catch(() => {
+  const cached = await storage.getItem<unknown>(cacheKey).catch(() => {
     emitOperationalEvent(createWideEvent({ operation: 'semantic-query-vector-cache-read', outcome: 'failed' }))
     return null
   })
-  if (cached?.length === VECTORIZE_DIM)
+  if (isQueryVector(cached))
     return cached
+  if (cached != null)
+    emitOperationalEvent(createWideEvent({ operation: 'semantic-query-vector-cache-value', outcome: 'failed' }))
 
-  const embed = await ai.run(EMBEDDING_MODEL, { text: [`${QUERY_INSTRUCTION}${query}`] }).catch(() => {
+  const outcome = await ai.run(EMBEDDING_MODEL, { text: [`${QUERY_INSTRUCTION}${query}`] }).then(response => ({ response })).catch(() => {
     emitOperationalEvent(createWideEvent({ operation: 'semantic-query-embedding', outcome: 'failed' }))
     return null
   })
-  const vec = (embed as { data?: number[][] } | null)?.data?.[0]
-  if (!vec || vec.length !== VECTORIZE_DIM)
+  if (outcome === null)
     return null
+  const embed = outcome.response
+  const vec = typeof embed === 'object' && embed !== null && 'data' in embed && Array.isArray(embed.data)
+    ? embed.data[0]
+    : null
+  if (!isQueryVector(vec)) {
+    emitOperationalEvent(createWideEvent({ operation: 'semantic-query-embedding-response', outcome: 'failed' }))
+    return null
+  }
 
   await writeCache(storage, cacheKey, vec, { ttl: QUERY_VECTOR_TTL })
   return vec
+}
+
+function isQueryVector(value: unknown): value is number[] {
+  return Array.isArray(value)
+    && value.length === EMBEDDING_VECTOR_DIMENSIONS
+    && value.every(component => typeof component === 'number' && Number.isFinite(component))
 }
 
 async function sha256Hex(text: string): Promise<string> {

@@ -5,6 +5,7 @@ import {
   buildIdentifierFtsQuery,
   collapseSearchDuplicates,
   fuseRankings,
+  rankSearchResults,
   RRF_K,
   skillKey,
 } from '../../layers/registry/server/utils/skill-search'
@@ -194,4 +195,50 @@ describe('skillKey', () => {
   it('joins the composite primary key in owner/repo/name order', () => {
     expect(skillKey({ owner: 'antfu', repo: 'skills', name: 'vue' })).toBe('antfu/skills/vue')
   })
+})
+
+describe('final search relevance', () => {
+  it('keeps the strongest semantic match above an official distant neighbour', () => {
+    const relevant = skill({ owner: 'author', repo: 'skills', name: 'retain-cycle-debugger' })
+    const distant = skill({ owner: 'vendor', repo: 'skills', name: 'agent-memory', trustTier: 'official' })
+    const keys = [skillKey(relevant), ...Array.from({ length: 48 }, (_, i) => `other/${i}`), skillKey(distant)]
+    const scores = fuseRankings([{ keys, weight: 1 }])
+    expect(rankSearchResults([distant, relevant], scores, 'stop leaking allocations')).toEqual([relevant, distant])
+  })
+
+  it.each(['pdf', 'PDF', '  pdf  ', 'author/skills/pdf'])('puts exact identity %s ahead of a fuzzy match in both lanes', (query) => {
+    const exact = skill({ owner: 'author', repo: 'skills', name: 'pdf' })
+    const fuzzy = skill({ owner: 'vendor', repo: 'skills', name: 'pdf-tools', trustTier: 'official' })
+    const scores = fuseRankings([
+      { keys: [skillKey(fuzzy), ...Array.from({ length: 198 }, (_, i) => `other/${i}`), skillKey(exact)], weight: 1.2 },
+      { keys: [skillKey(fuzzy)], weight: 1 },
+    ])
+    expect(rankSearchResults([fuzzy, exact], scores, query)[0]).toEqual(exact)
+  })
+
+  it('uses provenance when relevance is equal', () => {
+    const candidate = skill({ owner: 'a', repo: 'skills', name: 'one', stars: 10_000 })
+    const official = skill({ owner: 'b', repo: 'skills', name: 'two', trustTier: 'official' })
+    const scores = new Map([[skillKey(candidate), 0.01], [skillKey(official), 0.01]])
+    expect(rankSearchResults([candidate, official], scores, 'task')).toEqual([official, candidate])
+  })
+})
+
+describe('exact identity after duplicate collapse', () => {
+  it.each(['pdf', 'requested/skills/pdf'])('keeps the requested identity %s when its content has an official mirror', (query) => {
+    const requested = skill({ owner: 'requested', repo: 'skills', name: 'pdf', renderedRawSha256: 'd'.repeat(64) })
+    const mirror = skill({ owner: 'vendor', repo: 'skills', name: 'document-tools', trustTier: 'official', renderedRawSha256: 'd'.repeat(64) })
+    const ranked = rankSearchResults([mirror, requested], new Map(), query)
+    const collapsed = collapseSearchDuplicates(ranked, query)
+    expect(collapsed[0]?.skill).toEqual(requested)
+    expect(collapsed[0]?.alternateSources).toEqual([{ owner: 'vendor', repo: 'skills', slug: 'vendor/document-tools' }])
+    expect(collapsed[0]?.sourceCount).toBe(2)
+  })
+})
+
+it('prefers provenance among equally exact Skill names', () => {
+  const candidate = skill({ owner: 'copy', repo: 'skills', name: 'pdf' })
+  const official = skill({ owner: 'author', repo: 'skills', name: 'pdf', trustTier: 'official' })
+  const scores = new Map([[skillKey(candidate), 0.03], [skillKey(official), 0.01]])
+  expect(rankSearchResults([candidate, official], scores, 'pdf')[0]).toEqual(official)
 })

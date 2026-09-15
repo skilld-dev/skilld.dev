@@ -263,11 +263,8 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
       return { items: [], total: 0, page, pages: 0, facets: [], mode: searchHits.mode }
     conditions.push(`(s.owner || '/' || s.repo || '/' || s.name) IN (SELECT value FROM json_each(?))`)
     params.push(JSON.stringify(searchHits.keys))
-    // Deliberately not gated on `seo_indexable`. The registry table is already
-    // the curated corpus (5,669 rows, of which 5,255 are indexable), so the
-    // lexical lane reaches only 414 skills the semantic lane cannot — which is
-    // precisely the recall it was added for. Gating here would re-hide the
-    // skills still waiting on an embedding.
+    // The skills table is already curated. Search also includes Skills
+    // awaiting embeddings or indexability checks.
   }
 
   if (owner) {
@@ -335,7 +332,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     const ranked = rankSearchResults(rowsToSkills(rows.results ?? [], includeDependencies), searchHits.scoreByKey, search!)
     // Forked skill collections mirror the same SKILL.md under several owners.
     // Collapsing after ranking keeps each group at its best member's position.
-    const collapsed = collapseSearchDuplicates(ranked)
+    const collapsed = collapseSearchDuplicates(ranked, search!)
 
     const scoped = uniqueOwners ? firstSkillPerOwner(collapsed) : collapsed
     const total = scoped.length

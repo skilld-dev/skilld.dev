@@ -46,6 +46,13 @@ describe('matchTypeahead', () => {
     expect(matchTypeahead([['PDF', 'Anthropics', 'Skills', 1, '/gh/Anthropics/Skills/PDF']], 'pdf')).toHaveLength(1)
   })
 
+  it('finds an exact name after many higher-star prefix matches', () => {
+    const index: TypeaheadTuple[] = Array.from({ length: 140 }, (_, i) =>
+      [`vue-${i}`, 'owner', 'skills', 1000 - i, `/gh/owner/skills/vue-${i}`])
+    index.push(['vue', 'owner', 'skills', 1, '/gh/owner/skills/vue'])
+    expect(matchTypeahead(index, 'vue', 7)[0]?.name).toBe('vue')
+  })
+
   it('honours the limit', () => {
     expect(matchTypeahead(INDEX, 'vue', 2)).toHaveLength(2)
   })
