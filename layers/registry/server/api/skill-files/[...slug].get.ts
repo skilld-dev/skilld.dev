@@ -1,4 +1,5 @@
-import { readCache, writeCache } from '#shared/server/cache'
+import type { ReadThroughWindows } from '#shared/server/cache'
+import { readThroughCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { selectSkillFiles } from '#shared/skill-files'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
@@ -6,7 +7,23 @@ import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamTree } from '../../utils/upstream-tree'
 
 const FILES_CACHE_TTL = 60 * 60 * 6
+// How long past its fresh window a files payload stays servable when its live
+// recompute fails. The file list only changes when the repo does, so during a
+// cold-key crawler sweep (SKILLD-1F) serving a day-old list beats another
+// upstream tree fetch per request.
+const FILES_CACHE_STALE_TTL = 60 * 60 * 24
+// An empty file list is only transient when the skill directory was never
+// resolved. `skillPath` carries the SKILL.md path found in the upstream tree:
+// the stored `rendered_skill_path` when the tree still holds it, else the
+// heuristic hit. It is null exactly when no SKILL.md resolved (empty tree,
+// moved file, heuristic miss), so those take the short missing window. A
+// resolved skill holding only SKILL.md also produces files: [] (the filter
+// excludes SKILL.md itself), but its non-null skillPath keeps it on the
+// 6-hour fresh window with the day-long stale serve.
 const FILES_MISSING_TTL = 60 * 5
+// v4: entries carry a freshness envelope for readThroughCache, so v3 values
+// (raw payloads) must never be read as envelopes.
+const FILES_CACHE_VERSION = 'v4'
 const FILES_RETRY_AFTER = 30
 
 interface SkillFile {
@@ -41,6 +58,64 @@ function classify(path: string): SkillFile['type'] {
   if (ext)
     return 'code'
   return 'other'
+}
+
+// Upstream repos spell SKILL.md in any case (skill.md, Skill.MD). Every path
+// test goes through these two helpers, so a match and the directory derived
+// from it can never disagree on case.
+function isSkillMd(path: string): boolean {
+  return /(?:^|\/)skill\.md$/i.test(path)
+}
+
+function skillDirOf(skillMdPath: string): string {
+  return skillMdPath.replace(/(?:^|\/)skill\.md$/i, '')
+}
+
+/**
+ * The SKILL.md path this skill resolves to in the upstream tree, or null when
+ * nothing does. The stored `rendered_skill_path` counts only when the tree
+ * still holds it; a moved file falls through to the name heuristic. Returning
+ * the tree's own entry means a non-null result always names a real file, so an
+ * empty file list with a non-null skillPath is a genuinely SKILL.md-only
+ * directory, never a failed resolution.
+ */
+function resolveSkillPath(tree: readonly { path: string }[], stored: string | null, name: string): string | null {
+  if (stored) {
+    const wanted = stored.toLowerCase()
+    const hit = tree.find(f => f.path.toLowerCase() === wanted)
+    if (hit)
+      return hit.path
+  }
+  const slugifiedName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  const lowerName = name.toLowerCase()
+  return tree.find((f) => {
+    const path = f.path.toLowerCase()
+    return path.endsWith(`/${slugifiedName}/skill.md`)
+      || path === `${slugifiedName}/skill.md`
+      || path.endsWith(`/${lowerName}/skill.md`)
+  })?.path ?? null
+}
+
+/**
+ * The boundary parse for stored cache bytes. A v4 entry whose value is not a
+ * SkillFilesPayload (corrupt write, foreign format) fails this guard and is
+ * treated as a miss, so `emptyFilesWindows` never dereferences a shape
+ * nobody validated.
+ */
+function isSkillFilesPayload(value: unknown): value is SkillFilesPayload {
+  if (typeof value !== 'object' || value === null)
+    return false
+  const payload = value as Record<string, unknown>
+  return (payload.skillPath === null || typeof payload.skillPath === 'string')
+    && typeof payload.branch === 'string'
+    && Array.isArray(payload.files)
+    && typeof payload.total === 'number'
+}
+
+function emptyFilesWindows(payload: SkillFilesPayload): ReadThroughWindows | undefined {
+  return payload.files.length === 0 && payload.skillPath === null
+    ? { ttl: FILES_MISSING_TTL, staleTtl: 0 }
+    : undefined
 }
 
 export default defineApiHandler({
@@ -79,70 +154,65 @@ export default defineApiHandler({
 
     const source = resolveRepoSourceIdentityFromRow(skill, row)
     const branch = row.default_branch || 'main'
-    const cacheKey = `skills:files:v3:${source.owner}/${source.repo}/${skill.name}:${branch}`
-    const cached = await readCache<SkillFilesPayload>(useStorage('cache'), cacheKey)
-    if (cached)
-      return cached
+    const cacheKey = `skills:files:${FILES_CACHE_VERSION}:${source.owner}/${source.repo}/${skill.name}:${branch}`
 
-    const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-files-tree-fetch' })
+    // retry-after is an instruction to re-poll. A failed recompute is
+    // absorbed by a stale envelope, so the 503 only escapes when nothing
+    // servable is left; only that escape may carry the header. A 200 served
+    // from cache must never tell an agent to come back in 30 seconds.
+    try {
+      return await readThroughCache<SkillFilesPayload>(
+        useStorage('cache'),
+        cacheKey,
+        async () => {
+          const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-files-tree-fetch' })
 
-    if (treeResult._tag === 'gone') {
-      // The registry has not recorded this deletion yet. The next sync flips
-      // `source_resolved` and short-circuits earlier.
-      throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
+          if (treeResult._tag === 'gone') {
+            // The registry has not recorded this deletion yet. The next sync flips
+            // `source_resolved` and short-circuits earlier.
+            throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
+          }
+
+          if (treeResult._tag === 'unavailable')
+            throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
+
+          const tree = treeResult.files
+          const skillPath = resolveSkillPath(tree, row.rendered_skill_path, skill.name)
+
+          if (skillPath === null) {
+            return { skillPath, branch, files: [], total: 0 } satisfies SkillFilesPayload
+          }
+
+          const skillDir = skillDirOf(skillPath)
+          const prefix = skillDir ? `${skillDir}/` : ''
+          const files: SkillFile[] = tree
+            .filter(f => f.path.startsWith(prefix) && !isSkillMd(f.path))
+            .map(f => ({
+              path: f.path.slice(prefix.length),
+              size: f.size ?? 0,
+              type: classify(f.path),
+            }))
+
+          const selected = selectSkillFiles(files)
+          return {
+            skillPath,
+            branch,
+            files: selected.files,
+            total: selected.total,
+          } satisfies SkillFilesPayload
+        },
+        {
+          ttl: FILES_CACHE_TTL,
+          staleTtl: FILES_CACHE_STALE_TTL,
+          windowsFor: emptyFilesWindows,
+          validate: isSkillFilesPayload,
+        },
+      )
     }
-
-    if (treeResult._tag === 'unavailable') {
-      setHeader(event, 'retry-after', FILES_RETRY_AFTER)
-      throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
+    catch (error) {
+      if ((error as { statusCode?: number } | null)?.statusCode === 503)
+        setHeader(event, 'retry-after', FILES_RETRY_AFTER)
+      throw error
     }
-
-    const tree = treeResult.files
-
-    if (!tree.length) {
-      const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [], total: 0 }
-      await writeCache(useStorage('cache'), cacheKey, empty, { ttl: FILES_MISSING_TTL })
-      return empty
-    }
-
-    // Resolve the skill directory: prefer the rendered_skill_path stored at
-    // sync time; fall back to a name-based heuristic the same way the asset
-    // endpoint does.
-    let skillDir = row.rendered_skill_path?.replace(/\/SKILL\.md$/, '') ?? null
-    if (!skillDir) {
-      const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-      const skillMd = tree.find(f =>
-        f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
-        || f.path.toLowerCase() === `${slugifiedName}/skill.md`
-        || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
-      )?.path
-      if (skillMd)
-        skillDir = skillMd.replace(/\/SKILL\.md$/, '')
-    }
-
-    if (!skillDir) {
-      const empty: SkillFilesPayload = { skillPath: row.rendered_skill_path, branch, files: [], total: 0 }
-      await writeCache(useStorage('cache'), cacheKey, empty, { ttl: FILES_MISSING_TTL })
-      return empty
-    }
-
-    const prefix = `${skillDir}/`
-    const files: SkillFile[] = tree
-      .filter(f => f.path.startsWith(prefix) && !f.path.endsWith('/SKILL.md'))
-      .map(f => ({
-        path: f.path.slice(prefix.length),
-        size: f.size ?? 0,
-        type: classify(f.path),
-      }))
-
-    const selected = selectSkillFiles(files)
-    const result: SkillFilesPayload = {
-      skillPath: row.rendered_skill_path,
-      branch,
-      files: selected.files,
-      total: selected.total,
-    }
-    await writeCache(useStorage('cache'), cacheKey, result, { ttl: FILES_CACHE_TTL })
-    return result
   },
 })
