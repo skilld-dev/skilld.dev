@@ -4,9 +4,7 @@ name: Test
 # setup steps; they now come from harlan-zw/harlan-nuxt so every site shares one
 # pinned copy.
 #
-# The build and its Nuxt DX size budget moved out of the typecheck job into their
-# own job below. Pinning them to typecheck meant a type error and a bundle
-# regression could not be seen in the same run.
+# Pull request builds run separately from typechecks. Main reuses the deploy build.
 
 on:
   push:
@@ -15,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: test-${{ github.ref }}
@@ -54,10 +51,9 @@ jobs:
       - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
       - run: pnpm cli:grammar
 
-  # Kept in this repository because the size budget needs `actions: read` and the
-  # artifact from this workflow's own last green run on the base branch, neither
-  # of which the shared gate models.
   build:
+    # Main builds in the deploy workflow. Keep the build check on pull requests.
+    if: github.event_name == 'pull_request'
     runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
     timeout-minutes: 30
     steps:
@@ -70,8 +66,3 @@ jobs:
       - run: pnpm exec tsx scripts/run-with-heartbeat.ts pnpm build
         env:
           NODE_OPTIONS: --max-old-space-size=8192
-      - uses: harlan-zw/harlan-nuxt/.github/actions/nuxt-dx-budget@b17632a867d335dbddf7353cdc3427494a69d451
-        with:
-          artifact-name: nuxt-dx-size-budget-v3
-          report-path: .nuxt/dx/size-budget.json
-          threshold-kb: 10
