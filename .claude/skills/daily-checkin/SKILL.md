@@ -11,10 +11,18 @@ Before running `pnpm checkin`, load the private agent credentials:
 set -a
 . "$HOME/.config/harlan-checkin/skilld.dev.env"
 set +a
+export DAILY_CHECKIN_DIR="${DAILY_CHECKIN_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/daily-checkin/skilld-dev/skilld.dev}"
+mkdir -p "$DAILY_CHECKIN_DIR"
 ```
 
 If the file is missing, report incomplete coverage. Never print tokens.
 
+
+Every `docs/ops/checkins/` path below means `$DAILY_CHECKIN_DIR` during this run.
+Read and write JSON, Markdown, and `state.json` there. The controller discards the worktree.
+If this directory has no prior evidence, use a 24-hour window and report the missing baseline.
+Never overwrite a newer durable baseline with an older tracked archive.
+Capture the collector exit code before reading or formatting its log. Never use `$?` after a pipeline.
 
 Produce one read-only morning report that answers: what changed, what broke, what drifted, and what deserves action.
 
@@ -34,7 +42,7 @@ Produce one read-only morning report that answers: what changed, what broke, wha
    - Read every `ci.workflows` state. `failure` means the gate is broken. `pending` after a prior failure must be followed until complete. `missing` is an observability gap. Never infer overall CI health from only the deploy workflow.
    - Any `workers.nonOk`, new Sentry issue, failed digest, failed job, stale reserved job, stale scheduled task, or missing expected table needs an explicit verdict.
    - `d1.migrations.localHead !== d1.migrations.prodHead` is migration drift. Never assume deployment applied D1 migrations.
-   - `skilld.baseline` result evidence records the window against the daily cadence. `stale` means the routine skipped days; report the `gapHours` figure and compare rates per day, never as overnight step changes. The shared CLI rejects invalid or future state before collecting evidence. Repair the state or supply an explicit `--since` boundary.
+   - `skilld.baseline` result evidence records the window against the daily cadence. `stale` means the saved baseline is old, not that the scheduler skipped runs; report the `gapHours` figure and compare rates per day, never as overnight step changes. The shared CLI rejects invalid or future state before collecting evidence. Repair the state or supply an explicit `--since` boundary.
    - Use failed-job `first_failed_at` and `last_failed_at`, plus `d1.recentJobBatches` and `d1.registryMaintenance`, to distinguish an active incident from a recovered burst. Do not call a window clean because the latest batch passed, or active because an older batch failed.
    - Sentry issues must include their archived permalink and culprit in the proposed action. Archive any extra detail reads.
    - `d1.inventory.broken_repos` is known cumulative inventory. Review `d1.pipeline.newly_broken_repos_total`, but gate health on `d1.pipeline.newly_broken_repos_impacted`. A source removal is impacting when it still backs a skill or appears in a star, subscription, collection, or install event.

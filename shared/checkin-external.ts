@@ -15,6 +15,7 @@ export const externalCheckin = {
   totalTimeoutMs: 240_000,
   save: {
     dir: 'docs/ops/checkins',
+    dirEnv: 'DAILY_CHECKIN_DIR',
     stateFile: 'state.json',
     timestampKey: 'lastRunAt',
     baseline: 'daily',
