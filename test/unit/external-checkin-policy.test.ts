@@ -40,6 +40,26 @@ it('accepts a pending workflow with a previous successful verdict', () => {
   ], ['Test'])
   expect(evaluateCI({ workflows })).toMatchObject({ _tag: 'Pass' })
 })
+it('returns a complete-evidence workflow failure without a coverage flag', () => {
+  const workflows = summarizeWorkflowRuns([
+    { workflowName: 'Test', status: 'completed', conclusion: 'failure' },
+  ], ['Test'])
+  const result = evaluateCI({ workflows })
+  expect(result._tag).toBe('Fail')
+  expect(result).not.toHaveProperty('coverage')
+})
+
+it.each(['spend', 'delivery'])('returns a complete-evidence %s failure without a coverage flag', (failure) => {
+  const data = healthy()
+  if (failure === 'spend')
+    data.cost.x_projected_monthly_usd = 80
+  else
+    data.activity.digests_failed = 1
+  const result = evaluateD1(data, now, since)
+  expect(result._tag).toBe('Fail')
+  expect(result).not.toHaveProperty('coverage')
+})
+
 it.each(['tables', 'migrations', 'budget'])('preserves known failures with missing %s evidence', (missing) => {
   for (const failure of ['spend', 'delivery']) {
     const data = {
