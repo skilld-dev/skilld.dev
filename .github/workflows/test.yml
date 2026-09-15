@@ -70,7 +70,7 @@ jobs:
       - run: pnpm exec tsx scripts/run-with-heartbeat.ts pnpm build
         env:
           NODE_OPTIONS: --max-old-space-size=8192
-      - uses: harlan-zw/harlan-nuxt/.github/actions/nuxt-dx-budget@main
+      - uses: harlan-zw/harlan-nuxt/.github/actions/nuxt-dx-budget@b17632a867d335dbddf7353cdc3427494a69d451
         with:
           artifact-name: nuxt-dx-size-budget-v3
           report-path: .nuxt/dx/size-budget.json
