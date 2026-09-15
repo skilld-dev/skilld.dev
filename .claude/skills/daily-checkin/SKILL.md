@@ -20,7 +20,7 @@ Produce one read-only morning report that answers: what changed, what broke, wha
 
 ## Workflow
 
-1. Run `pnpm checkin --save` from the repo root. Preserve every probe error as a finding. The command archives raw evidence in `docs/ops/checkins/YYYY-MM-DD.json`; same-day reruns use a timestamped sibling and do not move the next baseline.
+1. Run `pnpm checkin --save` from the repo root. Preserve every probe error as a finding. The command archives raw evidence as `docs/ops/checkins/<timestamp>-<uuid>.json`, where `<timestamp>` is the observed ISO time with `:` and `.` replaced by `-`. Read the newest JSON archive in `docs/ops/checkins` for this run's evidence. Every run writes a new archive; the daily baseline lives in `state.json`, so same-day reruns do not move the next baseline.
 2. Read check evidence from `results`: `skilld.git`, `skilld.deploy`, `skilld.ci`, `skilld.database`, and `skilld.workers`.
    Map the previous `git`, `deploy`, `ci`, `d1`, and `workers` fields to each result's `result.evidence`.
    Read detailed Sentry evidence from `skilld.sentry-details`. Read HTTP results from `skilld.home` and `skilld.skills`.
