@@ -50,12 +50,7 @@ const {
 
 // The card copies the run command: reading a skill costs nothing, installing is a choice.
 const runCmd = computed(() => skillRunCmd(skill.owner, skill.repo, skill.name))
-const { copy, copied } = useInstallCopy(
-  runCmd,
-  variant === 'condensed' ? 'skill-card-condensed' : variant === 'list' ? 'skill-card-list' : 'skill-card',
-  'run',
-  () => ({ kind: 'skill', owner: skill.owner, name: skill.name }),
-)
+const { copy, copied } = useInstallCopy(runCmd)
 
 const skillPath = computed(() => {
   return skill.registryPath

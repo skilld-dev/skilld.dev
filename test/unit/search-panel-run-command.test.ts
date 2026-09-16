@@ -1,8 +1,7 @@
 import type { SearchRow, SearchSkill } from '../../app/composables/useSkillSearch'
-import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
+import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
-import { readBody } from 'h3'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref } from 'vue'
 
 const skill: SearchSkill = {
@@ -16,16 +15,6 @@ const skill: SearchSkill = {
 
 const rows = ref<SearchRow[]>([{ _tag: 'skill', skill, provisional: false }])
 
-const installEvents: Record<string, unknown>[] = []
-
-registerEndpoint('/api/events/install', {
-  method: 'POST',
-  handler: async (event) => {
-    installEvents.push(await readBody(event))
-    return { ok: true }
-  },
-})
-
 mockNuxtImport('useSkillSearch', () => () => ({
   query: ref('vite'),
   state: computed(() => ({ _tag: 'ready' as const, rows: rows.value, total: 1, mode: 'hybrid' as const })),
@@ -38,10 +27,6 @@ mockNuxtImport('useSkillSearch', () => () => ({
 }))
 
 describe('search panel command grammar', () => {
-  beforeEach(() => {
-    installEvents.length = 0
-  })
-
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
@@ -76,13 +61,6 @@ describe('search panel command grammar', () => {
     await flushPromises()
 
     expect(copied).toContain('npx skilld run antfu/skills/vite')
-    // The ledger has to see a run, not an install, or the daily split lies.
-    await vi.waitFor(() => {
-      expect(installEvents).toContainEqual(expect.objectContaining({
-        surface: 'search-panel',
-        mode: 'run',
-      }))
-    })
 
     wrapper.unmount()
   })

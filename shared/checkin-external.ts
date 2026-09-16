@@ -1,18 +1,18 @@
 import type { ExternalOptions } from '@harlan-zw/nuxt-checkin/external'
 
 export const externalCheckin = {
-  required: ['skilld.baseline', 'skilld.git', 'skilld.deploy', 'skilld.ci', 'skilld.home', 'skilld.skills', 'skilld.database', 'skilld.workers', 'skilld.report', 'sentry.skilld', 'skilld.sentry-details'],
+  required: ['skilld.baseline', 'skilld.git', 'skilld.deploy', 'skilld.ci', 'skilld.home', 'skilld.skills', 'skilld.database', 'skilld.workers', 'skilld.report'],
   prompts: [
     {
       id: 'skilld.operations',
       prompt: `Read check evidence from \`results\`: \`skilld.git\`, \`skilld.deploy\`, \`skilld.ci\`, \`skilld.database\`, and \`skilld.workers\`.
    Map the previous \`git\`, \`deploy\`, \`ci\`, \`d1\`, and \`workers\` fields to each result's \`result.evidence\`.
-   Read detailed Sentry evidence from \`skilld.sentry-details\`. Read HTTP results from \`skilld.home\` and \`skilld.skills\`.
+   Read HTTP results from \`skilld.home\` and \`skilld.skills\`.
 Interpret this site evidence:
    - \`skilld.report\` collects live protected health checks and verifies the current Worker version with a five-minute age limit.
    - Any stable non-200 \`skilld.dev\` front door response is RED. A retry flap is a note.
    - Read every \`ci.workflows\` state. \`failure\` means the gate is broken. \`pending\` after a prior failure must be followed until complete. \`missing\` is an observability gap. Never infer overall CI health from only the deploy workflow.
-   - Any \`workers.nonOk\`, new Sentry issue, failed digest, failed job, stale reserved job, stale scheduled task, or missing expected table needs an explicit verdict.
+   - Any \`workers.nonOk\`, failed digest, failed job, stale reserved job, stale scheduled task, or missing expected table needs an explicit verdict.
    - \`d1.migrations.localHead !== d1.migrations.prodHead\` is migration drift. Never assume deployment applied D1 migrations.
    - \`skilld.baseline\` result evidence records the window against the daily cadence. \`stale\` means the saved baseline is old; report the \`gapHours\` figure and compare rates per day, never as overnight step changes. The shared CLI rejects invalid or future state before collecting evidence. Repair the state or supply an explicit \`--since\` boundary.
    - Use failed-job \`first_failed_at\` and \`last_failed_at\`, plus \`d1.recentJobBatches\` and \`d1.registryMaintenance\`, to distinguish an active incident from a recovered burst. Do not call a window clean because the latest batch passed, or active because an older batch failed.
@@ -32,15 +32,6 @@ Interpret this site evidence:
       prompt: `Include a Pulse section with users, skills, repo changes, installs, digests, known AI cost, and X spend as "$X.XX/mo projected (N/<x_budget_target> reads today)". Read these values from collected evidence. Include deploy and CI changes in Overnight. Include migration, schema, deploy SHA, stale task, and observability gaps in Drift.`,
     },
   ],
-  credentials: {
-    sentry: {
-      env: 'SENTRY_AUTH_TOKEN',
-      files: [
-        { path: '~/.sentryclirc', key: 'token' },
-        { path: '.env.sentry-build-plugin', key: 'SENTRY_AUTH_TOKEN' },
-      ],
-    },
-  },
   timeoutMs: 180_000,
   totalTimeoutMs: 240_000,
   save: {

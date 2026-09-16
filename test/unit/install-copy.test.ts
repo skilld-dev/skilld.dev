@@ -1,31 +1,16 @@
-import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
+import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
-import { readBody } from 'h3'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import { useInstallCopy } from '../../app/composables/useInstallCopy'
 
-const installEvents: Record<string, unknown>[] = []
-
-registerEndpoint('/api/events/install', {
-  method: 'POST',
-  handler: async (event) => {
-    installEvents.push(await readBody(event))
-    return { ok: true }
-  },
-})
-
 describe('install copy', () => {
-  beforeEach(() => {
-    installEvents.length = 0
-  })
-
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
-  it('records a run copy from a skill card as mode run', async () => {
+  it('copies the run command from a skill card', async () => {
     // vueuse falls back to execCommand when clipboard-write is not granted,
     // so capture whichever path runs.
     const copied: string[] = []
@@ -64,12 +49,6 @@ describe('install copy', () => {
     await flushPromises()
 
     expect(copied).toContain('npx skilld run antfu/skills/vite')
-    await vi.waitFor(() => {
-      expect(installEvents).toContainEqual(expect.objectContaining({
-        surface: 'skill-card',
-        mode: 'run',
-      }))
-    })
 
     wrapper.unmount()
     if (execCommandDescriptor)
@@ -101,12 +80,7 @@ describe('install copy', () => {
       const wrapper = await mountSuspended(defineComponent({
         setup() {
           const result = ref('idle')
-          const { copy } = useInstallCopy(
-            'npx skilld add antfu/skills',
-            'test',
-            'install',
-            { kind: 'skill', owner: 'antfu', name: 'skills' },
-          )
+          const { copy } = useInstallCopy('npx skilld add antfu/skills')
 
           return () => h('button', {
             'data-result': result.value,
@@ -122,13 +96,6 @@ describe('install copy', () => {
 
       expect(execCommand).toHaveBeenCalledWith('copy')
       expect(wrapper.get('button').attributes('data-result')).toBe('copied')
-      // The mode separates a run copy from an install copy in the ledger.
-      await vi.waitFor(() => {
-        expect(installEvents).toContainEqual(expect.objectContaining({
-          surface: 'test',
-          mode: 'install',
-        }))
-      })
     }
     finally {
       if (clipboardDescriptor)
@@ -139,54 +106,5 @@ describe('install copy', () => {
       else
         Reflect.deleteProperty(document, 'execCommand')
     }
-  })
-})
-
-describe('repo install target', () => {
-  beforeEach(() => {
-    installEvents.length = 0
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
-  })
-
-  it('records a whole-repository copy with the repo in name', async () => {
-    // Same shape as the skill-card test above: vueuse may take either the
-    // clipboard API or the execCommand fallback, so both paths are stubbed.
-    vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue({
-      writeText: () => Promise.resolve(),
-    } as unknown as Clipboard)
-    Object.defineProperty(document, 'execCommand', {
-      configurable: true,
-      value: vi.fn(() => true),
-    })
-
-    const Harness = defineComponent({
-      setup() {
-        const { copy } = useInstallCopy(
-          ref('npx skilld add obra/superpowers'),
-          'home-hero',
-          'install',
-          { kind: 'repo', owner: 'obra', repo: 'superpowers' },
-        )
-        return { copy }
-      },
-      render: () => h('div'),
-    })
-
-    const wrapper = await mountSuspended(Harness)
-    await (wrapper.vm as unknown as { copy: () => Promise<unknown> }).copy()
-    await flushPromises()
-
-    expect(installEvents).toHaveLength(1)
-    expect(installEvents[0]).toMatchObject({
-      surface: 'home-hero',
-      mode: 'install',
-      kind: 'repo',
-      owner: 'obra',
-      name: 'superpowers',
-    })
   })
 })

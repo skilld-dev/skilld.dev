@@ -10,7 +10,6 @@
 export interface Platform {
   db: D1Database
   ai: Ai
-  SKILLD_ANALYTICS?: AnalyticsEngineDataset
   env: Cloudflare.Env
   requestId: string
 }

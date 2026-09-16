@@ -25,9 +25,7 @@ interface WindowRow {
   trending_rows: number
   first_claimed_at: number
   last_sent_at: number | null
-  unique_clicks: number
   unsubscribes: number
-  share_intents: number
 }
 
 interface ProblemRow {
@@ -58,11 +56,8 @@ export interface AdminWeeklyResponse {
     trendingRows: number
     firstClaimedAt: number
     lastAcceptedAt: number | null
-    uniqueClicks: number
-    uniqueClickRate: number | null
     unsubscribes: number
     unsubscribeRate: number | null
-    shareIntents: number
   }>
   /** Rows without a resolved provider outcome, newest first. */
   problems: Array<{
@@ -99,11 +94,6 @@ export default defineApiHandler({
                 SUM(trending_count) AS trending_rows,
                 MIN(claimed_at) AS first_claimed_at,
                 MAX(r.sent_at) AS last_sent_at,
-                (SELECT COUNT(DISTINCT c.user_id)
-                 FROM weekly_click_events c
-                 WHERE c.window_end = r.window_end
-                   AND c.user_id IS NOT NULL
-                   AND c.placement != 'share') AS unique_clicks,
                 (SELECT COUNT(DISTINCT e.user_id)
                  FROM email_preference_events e
                  WHERE e.list = 'weekly'
@@ -115,12 +105,7 @@ export default defineApiHandler({
                        AND er.sent_at IS NOT NULL
                        AND e.occurred_at >= er.sent_at
                        AND e.occurred_at < er.sent_at + 604800
-                   )) AS unsubscribes,
-                (SELECT COUNT(DISTINCT c.user_id)
-                 FROM weekly_click_events c
-                 WHERE c.window_end = r.window_end
-                   AND c.user_id IS NOT NULL
-                   AND c.placement = 'share') AS share_intents
+                   )) AS unsubscribes
          FROM weekly_runs r
          GROUP BY r.window_end
          ORDER BY r.window_end DESC

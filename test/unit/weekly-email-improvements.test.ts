@@ -1,7 +1,6 @@
 import type { WeeklyRenderInput, WeeklyTrendingSkill } from '../../layers/identity/server/utils/weekly-template'
 import { describe, expect, it } from 'vitest'
 import { reasonLine, renderWeekly, trimQuote } from '../../layers/identity/server/utils/weekly-template'
-import { parseWeeklyClick } from '../../layers/identity/server/utils/weekly-tracking'
 
 const WINDOW_END = 1_787_500_000
 
@@ -23,7 +22,6 @@ function input(): WeeklyRenderInput {
   return {
     edition: 'digest',
     recipientName: 'Harlan',
-    userId: 1,
     windowStart: WINDOW_END - 7 * 86_400,
     windowEnd: WINDOW_END,
     likedChanges: [{
@@ -88,10 +86,11 @@ describe('weekly email improvement contract', () => {
     expect(rendered.html).toContain('Hi Harlan,')
   })
 
-  it('tracks explicit share intent', () => {
+  it('links straight to pages with no per-reader click tracking', () => {
     const rendered = renderWeekly({ ...input(), edition: 'weekly' })
-    expect(rendered.html).toContain('k=share')
-    expect(parseWeeklyClick({ p: '/api/share/weekly', k: 'share', w: String(WINDOW_END), u: '1' }))
-      .toMatchObject({ _tag: 'ok', placement: 'share' })
+    const hrefs = [...rendered.html.matchAll(/href="([^"]+)"/g)].map(match => match[1]!)
+    expect(hrefs).toContain('https://skilld.dev/api/share/weekly')
+    expect(hrefs).toContain('https://skilld.dev/skills/trending')
+    expect(hrefs.filter(href => href.includes('/api/e/weekly'))).toEqual([])
   })
 })

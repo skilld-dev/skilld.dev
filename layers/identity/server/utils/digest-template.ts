@@ -21,7 +21,6 @@ export interface DigestRepoEntry {
 export interface DigestRenderInput {
   login: string
   recipientName?: string | null
-  userId?: number | null
   windowStart: number
   windowEnd: number
   entries: DigestRepoEntry[]
@@ -57,7 +56,6 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
   return renderWeekly({
     edition: 'digest',
     recipientName: input.recipientName ?? null,
-    userId: input.userId ?? null,
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,
     likedChanges,

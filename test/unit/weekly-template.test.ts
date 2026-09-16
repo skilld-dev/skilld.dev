@@ -101,10 +101,7 @@ describe('weekly template', () => {
   it('sends the reader to SKILL.md in the plain-text half', () => {
     const { text } = renderWeekly(input({ likedChanges: [likedChange()] }))
 
-    // Text clients follow a redirect poorly and show the raw URL, so the
-    // untracked link is worth more there than the measurement.
     expect(text).toContain('https://github.com/antfu/skills/blob/sha/SKILL.md')
-    expect(text).not.toContain('/api/e/weekly')
   })
 
   it('lists up to three commit subjects on a changed skill', () => {

@@ -615,7 +615,6 @@ export async function runDigestDeliveryForUser(
   const rendered = deps.render({
     login: user.login,
     recipientName: user.name ?? null,
-    userId: user.id,
     windowStart: selection.windowStart,
     windowEnd: selection.windowEnd,
     unsubscribeUrl,

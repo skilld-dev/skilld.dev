@@ -46,7 +46,7 @@ Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilit
 
 ## App-side architecture
 
-- **Service** — an object owning a client (Algolia, API client) or app-wide reactive state. Constructed by `createAppServices(config)` in `app/services/`, exposed via `nuxtApp.$services`. Composables that just bind keys or call `$fetch` are not services.
+- **Service** — an object owning a client (an API client) or app-wide reactive state. Constructed by `createAppServices(config)` in `app/services/`, exposed via `nuxtApp.$services`. Composables that just bind keys or call `$fetch` are not services.
 
 ## URL canonicals
 

@@ -3,7 +3,6 @@ import type { FeaturedCollectionsResponse } from '~~/server/api/collections/feat
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
-import type { InstallTarget } from '../composables/useInstallCopy'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
@@ -301,18 +300,7 @@ const heroAgentLogos = [
   { id: 'opencode', label: 'OpenCode', icon: 'i-simple-icons-opencode' },
 ] as const
 
-const installTarget = computed<InstallTarget | null>(() => {
-  const collection = leadCollection.value
-  return collection
-    ? { kind: 'collection', handle: collection.authorLogin, slug: collection.slug }
-    : null
-})
-const { copy: copyFeaturedInstall } = useInstallCopy(
-  installCommand,
-  'homepage-featured-collection',
-  'install',
-  installTarget,
-)
+const { copy: copyFeaturedInstall } = useInstallCopy(installCommand)
 const copyState = refAutoReset<InstallCopyResult | { _tag: 'idle' }>({ _tag: 'idle' }, 2500)
 
 async function copyInstallCommand() {

@@ -15,7 +15,7 @@ A known failure stays RED when another source is unavailable.
 Unavailable evidence can never produce GREEN.
 Detailed evidence stays in the private report and agent archive.
 
-The agent keeps its 07:40 daily check-in and removes its separate 06:20 Sentry run.
+The agent keeps its 07:40 daily check-in.
 `send-digests` sends subscriber content, not system health emails.
 Its outcome already enters the daily summary.
 The embedding parity audit keeps its independent schedule and pruning policy.
@@ -23,22 +23,15 @@ Its recorded scheduled-run outcome already enters the daily summary.
 
 ## Release
 
-The check-in uses published `@harlan-zw/nuxt-checkin@0.3.0` and `@harlan-zw/nuxt-sentry@0.1.7`.
+The check-in uses published `@harlan-zw/nuxt-checkin@0.3.0`.
 The lockfile resolves registry packages.
 
 ## External daily check-in
 
-The external daily script runs the public [Sentry](https://sentry.io) backlog check with the live health report.
+The external daily script reads the live health report.
 It validates report age, required checks, site, environment, and the deployed Worker version.
-Missing credentials or stale reports produce unavailable evidence.
-Sentry credentials stay in the existing external locations.
-Set `SENTRY_ENVIRONMENT` after confirming the production mapping.
-Without that setting, the backlog check includes all project environments.
-
-The existing detailed Sentry probe runs only when the shared check finds unresolved issues.
-It keeps recurrence and impact details for triage.
-That extra request remains an optimization opportunity.
-Live credentials and the environment mapping remain unverified.
+A stale report produces unavailable evidence.
+skilld.dev sends no errors to a third party. Wide events in Workers Logs are the error record.
 
 ## Shared CLI
 
@@ -47,7 +40,6 @@ The shared CLI writes daily archives and keeps successful state boundaries.
 Same-day reruns preserve the morning baseline.
 Read `results[].result.evidence` for each registered check.
 The `skilld.database` result retains inventory, activity, pipeline, and cost evidence.
-The `skilld.sentry-details` result retains new and recurring issue details.
 The published `@harlan-zw/nuxt-checkin@0.3.0` supplies the CLI.
 
 The `skilld.baseline` result records fresh or stale comparison windows.

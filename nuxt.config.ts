@@ -1,13 +1,8 @@
-import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
 import { externalCheckin } from './shared/checkin-external'
-import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
-
-const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
-  || existsSync('.env.sentry-build-plugin')
 
 export default defineNuxtConfig({
   checkin: { external: externalCheckin },
@@ -42,9 +37,6 @@ export default defineNuxtConfig({
 
   nuxtDx: {
     report: true,
-    sizeBudget: {
-      overridesKb: { 'server/plugins/sentry.ts': 326 },
-    },
   },
 
   modules: [
@@ -58,7 +50,6 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@nuxt/ui',
     '@nuxt/fonts',
-    '@nuxt/scripts',
     '@nuxtjs/seo',
     'nuxt-ai-ready',
     '@nuxtjs/mcp-toolkit',
@@ -67,7 +58,6 @@ export default defineNuxtConfig({
     'motion-v/nuxt',
     '@vueuse/nuxt',
     'nuxt-auth-utils',
-    '@sentry/nuxt/module',
     'nuxt-skew-protection',
   ],
 
@@ -203,31 +193,6 @@ export default defineNuxtConfig({
     // `/gh/**` pages earn a rule.
   },
 
-  scripts: {
-    // Bundling a registry script downloads it at build time. When
-    // static.cloudflareinsights.com is unreachable, that download threw and
-    // every build failed (#208). The fallback keeps the build green: a failed
-    // download serves the remote URL at runtime instead. Online builds still
-    // bundle as before.
-    assets: {
-      fallbackOnSrcOnBundleFail: true,
-    },
-    registry: {
-      // Bundling the beacon fetches beacon.min.js from
-      // static.cloudflareinsights.com at transform time, so every vitest file
-      // fails on the network-less CI runner (#204). Telemetry serves no test,
-      // and vitest sets NODE_ENV=test before nuxt.config.ts is evaluated.
-      ...(process.env.NODE_ENV === 'test'
-        ? {}
-        : {
-            cloudflareWebAnalytics: {
-              token: 'fefd4b7eafe04d5f81621e43e5d5ef80',
-              trigger: 'server',
-            },
-          }),
-    },
-  },
-
   devtools: { enabled: true },
 
   css: ['~/assets/css/main.css'],
@@ -328,23 +293,6 @@ export default defineNuxtConfig({
       from: {
         name: 'skilld',
         email: 'noreply@mail.skilld.dev',
-      },
-    },
-    sentry: {
-      dsn: SENTRY_DSN,
-      // Production bundles are also built for local Wrangler verification.
-      // Only CI creates a deployable build, so local previews must not report
-      // into the paid production project.
-      enabled: sentryReportingEnabled({ nodeEnv: process.env.NODE_ENV, ci: process.env.CI }),
-      environment: 'production',
-      release: sentryRelease() ?? '',
-      tracesSampleRate: 0.05,
-    },
-    public: {
-      algolia: {
-        appId: 'OFCNCOG2CU',
-        apiKey: 'f54e21fa3a2a0160595bb058179bfb1e',
-        indexName: 'npm-search',
       },
     },
   },
@@ -612,10 +560,11 @@ export default defineNuxtConfig({
   // `serverBundle: 'local'` shipped all of lucide + vscode-icons + simple-icons
   // into the Worker (8.85 MB) for the ~270 icons actually used. Every icon name
   // in this codebase is a static literal, so scanning resolves them all and
-  // inlines just those; anything the scanner misses falls back to the Iconify
-  // API rather than rendering nothing. See docs/ops/bundle-baseline-2026-07-23.md.
+  // inlines just those. The Iconify API fallback is off, so a visitor's browser
+  // never calls api.iconify.design. See docs/ops/bundle-baseline-2026-07-23.md.
   icon: {
     serverBundle: false,
+    fallbackToApi: false,
     clientBundle: {
       scan: {
         // Icon names also live in plain TS (file-tree extension map, cluster
@@ -666,28 +615,8 @@ export default defineNuxtConfig({
     },
   },
 
-  sentry: {
-    enabled: process.env.NODE_ENV === 'production',
-    org: 'harlan-zw',
-    project: 'skilld',
-    authToken: process.env.SENTRY_AUTH_TOKEN,
-    // Pin the name the bundler plugin associates sourcemaps with, so it matches
-    // the release the runtime reports instead of whatever it infers.
-    release: { name: sentryRelease() },
-    sourcemaps: {
-      disable: !hasSentryAuthToken,
-      filesToDeleteAfterUpload: ['**/*.map'],
-    },
-    bundleSizeOptimizations: {
-      excludeReplayShadowDom: true,
-      excludeReplayIframe: true,
-      excludeReplayWorker: true,
-    },
-    telemetry: false,
-  },
-
   sourcemap: {
-    client: hasSentryAuthToken ? 'hidden' : false,
+    client: false,
     server: false,
   },
 })

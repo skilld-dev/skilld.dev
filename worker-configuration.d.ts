@@ -9,7 +9,6 @@ interface __BaseEnv_Env {
 	DB: D1Database;
 	SKILL_EMBEDDINGS: VectorizeIndex;
 	EMAIL: SendEmail;
-	SKILLD_ANALYTICS: AnalyticsEngineDataset;
 	REPO_SYNC_QUEUE: Queue;
 	REPO_REVIEW_SYNC_QUEUE: Queue;
 	REPO_SYNC_DLQ: Queue;

@@ -22,12 +22,7 @@ const repositoryCount = computed(() => new Set(
 const updatedAt = computed(() => collection.value?.updatedAt
   ? new Date(collection.value.updatedAt * 1000)
   : null)
-const installTarget = computed(() => ({
-  kind: 'collection' as const,
-  handle: login.value,
-  slug: slug.value,
-}))
-const { copy, copied } = useInstallCopy(installCmd, 'collection-page', 'install', installTarget)
+const { copy, copied } = useInstallCopy(installCmd)
 
 useSeoMeta({
   // The global titleTemplate appends ` · skilld`; repeating it here produced
