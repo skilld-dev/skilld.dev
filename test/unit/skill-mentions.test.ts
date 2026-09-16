@@ -70,10 +70,14 @@ describe('extractSkillMentions install commands', () => {
     })
   })
 
-  it('reads our own CLI form', () => {
-    const [mention] = extractSkillMentions({
-      text: 'npx skilld add gh:kepano/obsidian-skills/obsidian-cli',
-    })
+  it.each([
+    'npx skilld run kepano/obsidian-skills/obsidian-cli',
+    'npx skilld install kepano/obsidian-skills/obsidian-cli --agent codex',
+    'npx skilld@latest run kepano/obsidian-skills/obsidian-cli',
+    'npx skilld run skilld:kepano/obsidian-skills/obsidian-cli',
+    'npx skilld add gh:kepano/obsidian-skills/obsidian-cli',
+  ])('reads our own CLI form: %s', (text) => {
+    const [mention] = extractSkillMentions({ text })
     expect(mention).toMatchObject({
       name: 'obsidian-cli',
       source: 'install',

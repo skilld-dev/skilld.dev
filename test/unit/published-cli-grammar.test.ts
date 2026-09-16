@@ -19,7 +19,7 @@ const agents = [
   'windsurf',
 ]
 
-const requirement = { minimumMajor: 3, commands: ['install', 'run'], agents, misprinted: [] }
+const requirement = { minimumVersion: '3.1.0', commands: ['install', 'run'], agents, misprinted: [] }
 
 function v3Help(_version: string, subcommand?: string): Promise<string> {
   if (subcommand === 'install')
@@ -37,7 +37,7 @@ describe('published CLI grammar', () => {
 
   it('passes when latest speaks every printed command and --agent value', async () => {
     const result = await runPublishedCliGrammar({
-      readVersion: async () => '3.0.0',
+      readVersion: async () => '3.1.0',
       readHelp: v3Help,
     }, requirement)
 
@@ -52,7 +52,7 @@ describe('published CLI grammar', () => {
     }, requirement)
 
     expect(result._tag).toBe('blocked')
-    expect(result.check.problems).toContain('requires major 3 or newer')
+    expect(result.check.problems).toContain('requires 3.1.0 or newer')
   })
 
   it('blames a minimumReleaseAge refusal, not the grammar', async () => {
@@ -62,7 +62,7 @@ describe('published CLI grammar', () => {
       '(2026-09-17T09:38:00.000Z)',
     ].join(' ')
     const result = await runPublishedCliGrammar({
-      readVersion: async () => '3.0.0',
+      readVersion: async () => '3.1.0',
       readHelp: async () => refusal,
     }, requirement)
 
@@ -74,7 +74,7 @@ describe('published CLI grammar', () => {
 
   it('keeps the unreadable-grammar verdict when pnpm answers normally', async () => {
     const result = await runPublishedCliGrammar({
-      readVersion: async () => '3.0.0',
+      readVersion: async () => '3.1.0',
       readHelp: async () => 'some unrelated help text\n',
     }, requirement)
 
@@ -85,10 +85,23 @@ describe('published CLI grammar', () => {
 })
 
 describe('printed CLI commands', () => {
+  it('blocks the bare Skill refs the site prints while latest predates 3.1.0', async () => {
+    const help = async (_version: string, subcommand?: string) => subcommand === 'install'
+      ? `--agent <AGENT>\n  Values: ${agents.join(', ')}.\n`
+      : 'Commands:\n  add      Add Skills\n  install  Install a Skill\n  run      Run a Skill\n\n'
+
+    const old = await runPublishedCliGrammar({ readVersion: async () => '3.0.2', readHelp: help })
+    const current = await runPublishedCliGrammar({ readVersion: async () => '3.1.0', readHelp: help })
+
+    expect(old._tag).toBe('blocked')
+    expect(old.check.problems).toEqual(['requires 3.1.0 or newer'])
+    expect(current._tag).toBe('clean')
+  })
+
   it('blocks a command pinned to another npm tag', async () => {
     const pinned = cliRequirementFor(['npx skilld@beta run skilld:owner/repo/skill'])
     const result = await runPublishedCliGrammar({
-      readVersion: async () => '3.0.0',
+      readVersion: async () => '3.1.0',
       readHelp: v3Help,
     }, pinned)
 

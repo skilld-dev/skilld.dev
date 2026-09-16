@@ -7,7 +7,7 @@ import {
 
 describe('install commands', () => {
   it.each([
-    [gitInstallCmd('nuxt', 'nuxt'), 'npx skilld add gh:nuxt/nuxt'],
+    [gitInstallCmd('nuxt', 'nuxt'), 'npx skilld add nuxt/nuxt'],
     [curatorInstallCmd('harlan-zw'), 'npx skilld add @harlan-zw'],
     [collectionInstallCmd('harlan-zw', 'nuxt'), 'npx skilld add @harlan-zw/nuxt'],
   ])('returns %s', (command, expected) => {

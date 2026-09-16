@@ -60,7 +60,7 @@ const PROSE = [
  */
 const INSTALL = [
   /npx\s+skills\s+add\s+([\w.-]+)\/([\w.-]+)\s+--skill[= ]+([\w.-]+)/gi,
-  /npx\s+skilld\s+add\s+gh:([\w.-]+)\/([\w.-]+)(?:\/([\w.-]+))?(?:\s|$)/gi,
+  /npx\s+skilld(?:@[\w.-]+)?\s+(?:add|run|install)\s+(?:gh:|skilld:)?([\w.-]+)\/([\w.-]+)(?:\/([\w.-]+))?(?:\s|$)/gi,
 ]
 
 /**

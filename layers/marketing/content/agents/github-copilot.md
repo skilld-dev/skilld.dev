@@ -3,7 +3,7 @@ title: 'GitHub Copilot skills: run curated Agent Skills in Copilot'
 description: "How to use Skills in GitHub Copilot: where Copilot reads them, how skilld installs them, and a curated list with authors. The same Skill runs in Claude Code, Codex, Cursor, and every other Agent skilld targets."
 heading: GitHub Copilot skills
 label: Agents
-command: npx skilld run skilld:owner/repo/skill
+command: npx skilld run owner/repo/skill
 publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
@@ -20,7 +20,7 @@ Copilot reads each Skill description at startup and loads the full file when a t
 ### Install a Skill for GitHub Copilot
 
 ```sh
-npx skilld install skilld:owner/repo/skill --agent github-copilot
+npx skilld install owner/repo/skill --agent github-copilot
 ```
 
 The Skill lands in `.github/skills`. Add `--global` to install to `~/.copilot/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
@@ -30,7 +30,7 @@ Restart your editor after a project install. Copilot reads `.github/skills` at s
 ### Run a Skill without installing it
 
 ```sh
-npx skilld run skilld:owner/repo/skill
+npx skilld run owner/repo/skill
 ```
 
 `skilld run` prints the Skill and writes no file. Give the command to Copilot. It reads the Skill and follows it for this session. Nothing lands in your repository, and no lockfile changes.

@@ -3,7 +3,7 @@ title: 'OpenClaw skills: run curated Agent Skills in OpenClaw'
 description: "How to use Skills in OpenClaw: where OpenClaw reads them, how skilld installs them, and a curated list with authors. The same Skill runs in Claude Code, Codex, Cursor, and every other Agent skilld targets."
 heading: OpenClaw skills
 label: Agents
-command: npx skilld run skilld:owner/repo/skill
+command: npx skilld run owner/repo/skill
 publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
@@ -22,7 +22,7 @@ OpenClaw reads each Skill description and loads the full file when a task matche
 Run the command from the root of your OpenClaw workspace.
 
 ```sh
-npx skilld install skilld:owner/repo/skill --agent openclaw
+npx skilld install owner/repo/skill --agent openclaw
 ```
 
 The Skill lands in `skills`. Add `--global` to install to `~/.openclaw/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
@@ -30,7 +30,7 @@ The Skill lands in `skills`. Add `--global` to install to `~/.openclaw/skills` i
 ### Run a Skill without installing it
 
 ```sh
-npx skilld run skilld:owner/repo/skill
+npx skilld run owner/repo/skill
 ```
 
 `skilld run` prints the Skill and writes no file. Give the command to OpenClaw. It reads the Skill and follows it for this session. Nothing lands in your repository, and no lockfile changes.

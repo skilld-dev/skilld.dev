@@ -17,7 +17,7 @@ const PREFIX = `${V3_PREFIX} add`
  * installs nothing, so a discovery client never has to write to a repository.
  */
 export function skillRunCommand(owner: string, repo: string, skill: string): string {
-  return `${V3_PREFIX} run skilld:${owner}/${repo}/${skill}`
+  return `${V3_PREFIX} run ${owner}/${repo}/${skill}`
 }
 
 /**
@@ -25,12 +25,12 @@ export function skillRunCommand(owner: string, repo: string, skill: string): str
  * a skill has one install spelling wherever the user meets it.
  */
 export function skillInstallCommand(owner: string, repo: string, skill: string): string {
-  return `${V3_PREFIX} install skilld:${owner}/${repo}/${skill}`
+  return `${V3_PREFIX} install ${owner}/${repo}/${skill}`
 }
 
 /** Whole-repository install. `add` takes every ref that names several Skills. */
 export function repoInstallCommand(owner: string, repo: string): string {
-  return `${PREFIX} gh:${owner}/${repo}`
+  return `${PREFIX} ${owner}/${repo}`
 }
 
 export function curatorInstallCommand(login: string): string {
@@ -55,8 +55,9 @@ function validSegments(...segments: string[]): boolean {
 
 /**
  * Parse a discovery ref into an installable target. Accepted forms:
- * - `gh:owner/repo` or `owner/repo` (all skills in a repo)
- * - `gh:owner/repo/name` or `owner/repo/name` (one skill)
+ * - `owner/repo` (all skills in a repo)
+ * - `owner/repo/name` (one skill)
+ * - the same refs with the `gh:` or `skilld:` prefix that older CLI output printed
  * - `@login` (everything a curator publishes)
  * - `@login/slug` (one collection)
  *
@@ -76,7 +77,7 @@ export function parseInstallRef(raw: string): InstallRef | null {
     return null
   }
 
-  const path = ref.startsWith('gh:') ? ref.slice(3) : ref
+  const path = ref.replace(/^(?:gh|skilld):/, '')
   const parts = path.split('/')
   if (parts.length === 2 && validSegments(parts[0]!, parts[1]!))
     return { kind: 'repo', owner: parts[0]!, repo: parts[1]! }

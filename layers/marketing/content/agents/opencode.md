@@ -3,7 +3,7 @@ title: 'OpenCode skills: run curated Agent Skills in OpenCode'
 description: "How to use Skills in OpenCode: where OpenCode reads them, how skilld installs them, and a curated list with authors. The same Skill runs in Claude Code, Codex, Cursor, and every other Agent skilld targets."
 heading: OpenCode skills
 label: Agents
-command: npx skilld run skilld:owner/repo/skill
+command: npx skilld run owner/repo/skill
 publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
@@ -20,7 +20,7 @@ OpenCode discovers Skills at startup and loads the full file when a task matches
 ### Install a Skill for OpenCode
 
 ```sh
-npx skilld install skilld:owner/repo/skill --agent opencode
+npx skilld install owner/repo/skill --agent opencode
 ```
 
 The Skill lands in `.opencode/skills`. Add `--global` to install to `~/.config/opencode/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
@@ -30,7 +30,7 @@ Start a new OpenCode session after an install.
 ### Run a Skill without installing it
 
 ```sh
-npx skilld run skilld:owner/repo/skill
+npx skilld run owner/repo/skill
 ```
 
 `skilld run` prints the Skill and writes no file. Give the command to OpenCode. It reads the Skill and follows it for this session. Nothing lands in your repository, and no lockfile changes.

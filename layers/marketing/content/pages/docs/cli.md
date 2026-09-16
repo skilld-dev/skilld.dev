@@ -49,7 +49,7 @@ skilld names the supporting files and prints none of them. Use `--file` to read 
 | `--direct` | Fetch a public GitHub Repository without going through skilld.dev. Give a `github:` source or a GitHub tree URL. A direct run carries the `unverified` source status. |
 
 ```sh
-npx skilld run skilld:skilld-dev/skills/find-skill
+npx skilld run skilld-dev/skills/find-skill
 ```
 
 ## skilld install
@@ -60,7 +60,7 @@ Give `SOURCE` as one of:
 
 | Source | Result |
 |---|---|
-| `skilld:OWNER/REPOSITORY/SKILL` | Install a hosted Artifact. |
+| `OWNER/REPOSITORY/SKILL` | Install a hosted Artifact. |
 | `github:OWNER/REPOSITORY/SKILL_PATH` | Install a hosted Artifact from an explicit GitHub selector. Add `--direct` to fetch the public Repository instead. |
 | `github:OWNER/REPOSITORY/SKILL_PATH#branch:BRANCH` | Same, pinned to a branch. |
 | `github:OWNER/REPOSITORY/SKILL_PATH#tag:TAG` | Same, pinned to a tag. |
@@ -79,7 +79,7 @@ Run `skilld install` without `SOURCE` to restore `.skills/skilld-lock.yaml`. Ver
 | `--direct` | Fetch a public GitHub Repository without going through skilld.dev. Give an explicit `github:` source or a GitHub tree URL. Without `--direct`, these selectors use hosted Artifact delivery. A direct install records the `unverified` source status. |
 
 ```sh
-skilld install skilld:skilld-dev/skills/find-skill --agent codex
+skilld install skilld-dev/skills/find-skill --agent codex
 ```
 
 ## skilld list

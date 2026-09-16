@@ -63,7 +63,7 @@ describe('install copy', () => {
     await copyButton!.trigger('click')
     await flushPromises()
 
-    expect(copied).toContain('npx skilld run skilld:antfu/skills/vite')
+    expect(copied).toContain('npx skilld run antfu/skills/vite')
     await vi.waitFor(() => {
       expect(installEvents).toContainEqual(expect.objectContaining({
         surface: 'skill-card',
@@ -102,7 +102,7 @@ describe('install copy', () => {
         setup() {
           const result = ref('idle')
           const { copy } = useInstallCopy(
-            'npx skilld add gh:antfu/skills',
+            'npx skilld add antfu/skills',
             'test',
             'install',
             { kind: 'skill', owner: 'antfu', name: 'skills' },
@@ -166,7 +166,7 @@ describe('repo install target', () => {
     const Harness = defineComponent({
       setup() {
         const { copy } = useInstallCopy(
-          ref('npx skilld add gh:obra/superpowers'),
+          ref('npx skilld add obra/superpowers'),
           'home-hero',
           'install',
           { kind: 'repo', owner: 'obra', repo: 'superpowers' },
