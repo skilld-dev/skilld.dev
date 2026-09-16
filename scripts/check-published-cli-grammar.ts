@@ -6,7 +6,8 @@
  * cannot fix a missing CLI command. Stable commands are checked against
  * `latest`; v3 Skill commands are checked against `beta`.
  *
- * The required list comes from the command builders the site renders, so a new
+ * The required list comes from the command builders the site renders, and each
+ * command is checked against the channel its own spelling resolves to, so a new
  * grammar is covered without editing this file. The `beta` channel also has to
  * accept every `--agent` value an `/agents/<id>` page prints.
  */
@@ -16,13 +17,14 @@ import { resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
 import {
   collectionInstallCmd,
   curatorInstallCmd,
   gitInstallCmd,
-} from '../app/utils/install-cmd'
-import { publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
-import { skillInstallCmd, skillRunCmd } from '../shared/skill-commands'
+  skillInstallCmd,
+  skillRunCmd,
+} from '../shared/skill-commands'
 
 const run = promisify(execFile)
 
@@ -32,8 +34,10 @@ const ANSI_COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, 'g')
 /** `skilld install <ref>` means "restore the lockfile" before 3.0 and "keep this Skill" after it. */
 const V3_MAJOR = 3
 
-interface ChannelRequirement {
-  tag: 'latest' | 'beta'
+export type ChannelTag = 'latest' | 'beta'
+
+export interface ChannelRequirement {
+  tag: ChannelTag
   minimumMajor: number
   commands: string[]
   /** `--agent` values the site prints for this channel. */
@@ -41,7 +45,7 @@ interface ChannelRequirement {
 }
 
 export interface ChannelCheck {
-  tag: ChannelRequirement['tag']
+  tag: ChannelTag
   version: string
   required: string[]
   requiredAgents: string[]
@@ -58,7 +62,7 @@ export interface PublishedCliInvocation {
 }
 
 export interface PublishedCliGrammarDependencies {
-  readVersion: (tag: ChannelRequirement['tag']) => Promise<string>
+  readVersion: (tag: ChannelTag) => Promise<string>
   readHelp: (version: string, subcommand?: string) => Promise<string>
 }
 
@@ -68,6 +72,18 @@ export type PublishedCliGrammarResult
 
 function subcommand(command: string): string {
   return command.split(/\s+/)[2]!
+}
+
+/**
+ * Reads the npm tag a printed command resolves to.
+ *
+ * The site spells the v3 CLI `npx skilld@beta`. A bare `npx skilld` resolves to
+ * `latest`, which is still v2, so a command left on that spelling reaches a CLI
+ * with a different ref grammar. Deriving the channel from the command keeps the
+ * two in step without a second list to maintain.
+ */
+export function channelFor(command: string): ChannelTag {
+  return command.split(/\s+/)[1] === `${PACKAGE}@beta` ? 'beta' : 'latest'
 }
 
 /**
@@ -82,31 +98,44 @@ function uniqueSubcommands(commands: string[]): string[] {
   return [...new Set(commands.map(subcommand))].sort()
 }
 
-function channelRequirements(): ChannelRequirement[] {
-  return [
-    {
-      tag: 'latest',
-      minimumMajor: 2,
-      commands: uniqueSubcommands([
-        gitInstallCmd('owner', 'repo', 'skill'),
-        curatorInstallCmd('login'),
-        collectionInstallCmd('login', 'slug'),
-      ]),
-      agents: [],
-    },
-    {
-      tag: 'beta',
-      minimumMajor: V3_MAJOR,
-      commands: uniqueSubcommands([
-        skillRunCmd('owner', 'repo', 'skill'),
-        skillInstallCmd('owner', 'repo', 'skill'),
-      ]),
-      agents: publishedAgentPages().map(page => page.id),
-    },
-  ]
+const MINIMUM_MAJOR: Record<ChannelTag, number> = { latest: 2, beta: V3_MAJOR }
+
+/**
+ * Groups the commands by the channel each one resolves to.
+ *
+ * A channel with no command is not checked, so retiring the last v2 command
+ * retires its channel. The `beta` channel is always checked, because the
+ * `/agents/<id>` pages print `--agent` values for the v3 CLI.
+ */
+export function channelRequirementsFor(commands: string[]): ChannelRequirement[] {
+  const agents = publishedAgentPages().map(page => page.id)
+  const tags: ChannelTag[] = ['latest', 'beta']
+
+  return tags.flatMap((tag) => {
+    const forTag = uniqueSubcommands(commands.filter(command => channelFor(command) === tag))
+    if (forTag.length === 0 && tag !== 'beta')
+      return []
+    return [{
+      tag,
+      minimumMajor: MINIMUM_MAJOR[tag],
+      commands: forTag,
+      agents: tag === 'beta' ? agents : [],
+    }]
+  })
 }
 
-async function publishedVersion(tag: ChannelRequirement['tag']): Promise<string> {
+/** Every command the site renders, grouped by the channel it resolves to. */
+export function channelRequirements(): ChannelRequirement[] {
+  return channelRequirementsFor([
+    gitInstallCmd('owner', 'repo'),
+    curatorInstallCmd('login'),
+    collectionInstallCmd('login', 'slug'),
+    skillRunCmd('owner', 'repo', 'skill'),
+    skillInstallCmd('owner', 'repo', 'skill'),
+  ])
+}
+
+async function publishedVersion(tag: ChannelTag): Promise<string> {
   const response = await fetch(`https://registry.npmjs.org/${PACKAGE}/${tag}`)
   if (!response.ok)
     throw new Error(`The npm registry answered HTTP ${response.status} for ${PACKAGE}@${tag}.`)
@@ -245,9 +274,10 @@ async function checkChannel(
  */
 export async function runPublishedCliGrammar(
   dependencies: PublishedCliGrammarDependencies,
+  requirements: ChannelRequirement[] = channelRequirements(),
 ): Promise<PublishedCliGrammarResult> {
   const checks: ChannelCheck[] = []
-  for (const requirement of channelRequirements())
+  for (const requirement of requirements)
     checks.push(await checkChannel(requirement, dependencies))
 
   return checks.some(check => check.problems.length > 0)

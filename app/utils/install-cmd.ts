@@ -1,22 +1,13 @@
-const PREFIX = 'npx skilld add'
-
 /**
- * Collection, curator and repository commands speak the v2 `add` grammar
- * because v3 has no selector for them yet. Skill-level commands live in
- * `shared/skill-commands.ts`, where the server can reach them too.
+ * The command builders live in `shared/skill-commands.ts` and are re-exported
+ * here through the generated alias, so every existing `~/utils/install-cmd`
+ * import keeps working and the bundler resolves one module.
  */
-export function gitInstallCmd(owner: string, repo: string, skill?: string): string {
-  const base = `${PREFIX} gh:${owner}/${repo}`
-  return skill ? `${base} -s ${skill}` : base
-}
-
-export function curatorInstallCmd(handle: string): string {
-  return `${PREFIX} @${handle}`
-}
-
-export function collectionInstallCmd(handle: string, slug: string): string {
-  return `${PREFIX} @${handle}/${slug}`
-}
+export {
+  collectionInstallCmd,
+  curatorInstallCmd,
+  gitInstallCmd,
+} from '#shared/skill-commands'
 
 export type InstallTokenRole = 'runner' | 'bin' | 'sub' | 'target' | 'flag' | 'value'
 
@@ -30,8 +21,8 @@ const SUBCOMMANDS = new Set(['add', 'remove', 'update', 'list', 'install', 'run'
 
 /**
  * Colours an install command by role so the eye lands on the part that changes.
- * The grammar is ours (`npx skilld add <target> [-s <skill>]`), so a shiki
- * grammar pass would cost a highlighter to say less than these six roles do.
+ * The grammar is ours (`npx skilld@beta add <target>`), so a shiki grammar pass
+ * would cost a highlighter to say less than these six roles do.
  */
 export function tokenizeInstallCmd(command: string): InstallToken[] {
   const words = command.trim().split(/\s+/).filter(Boolean)

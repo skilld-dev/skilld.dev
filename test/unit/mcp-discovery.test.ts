@@ -210,7 +210,7 @@ describe('get_collection', () => {
       offset: 10,
       limit: 10,
       hasMore: true,
-      installCommand: 'npx skilld add @harlan-zw/nuxt-stack',
+      installCommand: 'npx skilld@beta add @harlan-zw/nuxt-stack',
     })
     expect(data.preamble.length).toBe(2000)
     expect(data.skills).toHaveLength(10)
@@ -231,12 +231,11 @@ describe('get_collection', () => {
 
 describe('install_command', () => {
   it.each([
-    ['gh:nuxt/nuxt', 'npx skilld add gh:nuxt/nuxt'],
-    ['nuxt/nuxt', 'npx skilld add gh:nuxt/nuxt'],
+    ['gh:nuxt/nuxt', 'npx skilld@beta add gh:nuxt/nuxt'],
+    ['nuxt/nuxt', 'npx skilld@beta add gh:nuxt/nuxt'],
     ['anthropics/skills/skill-creator', 'npx skilld@beta install skilld:anthropics/skills/skill-creator'],
-    ['@harlan-zw', 'npx skilld add @harlan-zw'],
-    ['@harlan-zw/nuxt-stack', 'npx skilld add @harlan-zw/nuxt-stack'],
-    ['npm:@scope/pkg', 'npx skilld add npm:@scope/pkg'],
+    ['@harlan-zw', 'npx skilld@beta add @harlan-zw'],
+    ['@harlan-zw/nuxt-stack', 'npx skilld@beta add @harlan-zw/nuxt-stack'],
   ])('%s -> %s', async (ref, command) => {
     const result = await runTool('install_command', { ref })
     expect((result.structuredContent as any).command).toBe(command)
@@ -269,10 +268,14 @@ describe('install_command', () => {
 
 describe('parseInstallRef', () => {
   it('round-trips every ref kind through installCommandFor', () => {
-    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add gh:a/b')
-    expect(installCommandFor(parseInstallRef('npm:@scope/pkg')!)).toBe('npx skilld add npm:@scope/pkg')
+    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld@beta add gh:a/b')
     expect(parseInstallRef('a/b/c/d')).toBeNull()
     expect(parseInstallRef('@')).toBeNull()
     expect(parseInstallRef('')).toBeNull()
+  })
+
+  it('rejects an npm ref, because the v3 CLI installs no npm package', () => {
+    expect(parseInstallRef('npm:@scope/pkg')).toBeNull()
+    expect(parseInstallRef('npm:vue')).toBeNull()
   })
 })

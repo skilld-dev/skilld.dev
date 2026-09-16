@@ -125,7 +125,7 @@ components:
 - **Cards**: 1px border + warm surface. Hover transitions on border-color only. No glow, no shadow, no nested cards (use spacing + dividers for inner hierarchy).
 - **Avatars**: `rounded-full`, stack with `-space-x-2`, `border-2 border-[var(--ui-bg)]` for separation in groups.
 - **Skill source lists**: use `SkillSourceList` when a shortlist needs visible author, handle, repository, and source-linked skill name. `stream` is a vertically scrollable discovery preview; `grid` is for bounded related-skill groups. Idle auto-scroll pauses for hover, focus, touch, and reduced motion. Mixed 20-item discovery streams should represent at least 10 people and cap each person at 2 skills.
-- **Install commands**: never render one as raw text. Use `<InstallCommand :command="cmd" />` so `npx skilld add` stays quiet and the target carries the accent. Long commands wrap (`wrap`); they never get a horizontal scrollbar inside a card.
+- **Install commands**: never render one as raw text. Use `<InstallCommand :command="cmd" />` so `npx skilld@beta add` stays quiet and the target carries the accent. Long commands wrap (`wrap`); they never get a horizontal scrollbar inside a card.
 - **Badges**: `subtle` variant, size `xs`, mono font, by default. Use for stack labels and agent compatibility.
 - **Inputs**: `outline` variant, mono font, `px-3 py-2`. No bottom-border-only or pill shapes.
 - **Tooltips**: use `UiTooltip` (built on `UPopover` hover mode) for any tooltip with title + description. `UTooltip` is reserved for single-line hints on icon buttons.
@@ -190,7 +190,7 @@ components:
 | `.surface-warm` | warm dark bg `oklch(0.16 0.01 60)` + warm border | Card or panel backgrounds in dark mode |
 | `.surface-warm-elevated` | slightly lighter warm bg `oklch(0.20 0.014 60)` + warm border | Elevated panels, dropdowns, popovers in dark mode |
 | `.lead-emphasis` | masked rose corner wash plus an igniting top hairline, clipped to the card radius | The one lead pick on a page. Never more than one per page |
-| `.install-command` | six syntax roles for `npx skilld add ...`; add `--wrap` to break instead of scroll | Every rendered install command, everywhere |
+| `.install-command` | six syntax roles for `npx skilld@beta add ...`; add `--wrap` to break instead of scroll | Every rendered install command, everywhere |
 | `.editorial-band` / `__content` | isolated section shell that keeps atmosphere behind readable content | Full-width journey bands and page mastheads |
 | `.editorial-atmosphere` | mode-aware rose, ember, or stone edge gradient with masked geometry | One low-strength atmosphere layer per major band |
 | `.editorial-ledger` | border-block list with divided rows and no outer card chrome | Results, evidence, updates, and directory lists |
