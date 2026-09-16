@@ -2,6 +2,7 @@ minimumReleaseAgeExclude:
   - '@harlan-zw/nuxt-checkin@0.3.0'
   - '@harlan-zw/nuxt-cf-jobs@0.2.5'
   - '@harlan-zw/nuxt-cloudflare@0.4.3'
+  - '@harlan-zw/nuxt-sentry@0.1.7'
   - '@harlan-zw/nuxt-checkin'
   - '@comark/nuxt'
   - '@comark/vue'
@@ -37,6 +38,20 @@ minimumReleaseAgeExclude:
   - '@harlan-zw/comark-content@0.1.5'
   - eslint-plugin-harlanzw@0.20.0
   - '@iconify-json/lucide@1.2.128'
+  - '@sentry/browser-utils@10.73.0'
+  - '@sentry/browser@10.73.0'
+  - '@sentry/cloudflare@10.73.0'
+  - '@sentry/core@10.73.0'
+  - '@sentry/feedback@10.73.0'
+  - '@sentry/node-core@10.73.0'
+  - '@sentry/node@10.73.0'
+  - '@sentry/nuxt@10.73.0'
+  - '@sentry/opentelemetry@10.73.0'
+  - '@sentry/replay-canvas@10.73.0'
+  - '@sentry/replay@10.73.0'
+  - '@sentry/server-utils@10.73.0'
+  - '@sentry/vue@10.73.0'
+  - import-in-the-middle@3.4.0
   # The published-cli-grammar check runs `pnpm dlx skilld@<fresh release>` on the
   # main push, always inside the release-age window. Exempt the CLI and its
   # platform binaries or the check can never pass after a CLI publish.
@@ -149,6 +164,7 @@ catalog:
   '@harlan-zw/nuxt-checkin': 0.3.0
   '@harlan-zw/nuxt-cloudflare': 0.4.3
   '@harlan-zw/nuxt-dx': 0.1.3
+  '@harlan-zw/nuxt-sentry': 0.1.7
   '@harlan-zw/nuxt-use-query': 0.2.1
   '@harlan-zw/nuxt-wide-events': ^0.1.4
   '@iconify-json/lucide': ^1.2.128
@@ -168,6 +184,7 @@ catalog:
   '@nuxtjs/seo': ^5.3.14
   '@playwright/test': ^1.62.1
   '@resvg/resvg-js': ^2.6.2
+  '@sentry/nuxt': ^10.73.0
   '@takumi-rs/core': ^2.13.3
   '@takumi-rs/wasm': ^2.13.3
   '@types/node': ^26.4.0
@@ -182,6 +199,7 @@ catalog:
   eslint-plugin-harlanzw: ^0.20.0
   h3: 1.15.11
   happy-dom: ^20.12.0
+  import-in-the-middle: ^3.4.0
   lint-staged: ^17.4.1
   marked: ^18.0.11
   motion-v: ^2.4.0
@@ -212,7 +230,7 @@ onlyBuiltDependencies:
 trustPolicyIgnoreAfter: 262800
 allowBuilds:
   '@parcel/watcher': true
-  '@sentry/cli': set this to true or false
+  '@sentry/cli': true
   better-sqlite3: true
   core-js-pure: false
   esbuild: true

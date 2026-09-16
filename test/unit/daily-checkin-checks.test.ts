@@ -2,6 +2,7 @@
 import { defineCheck, pass, runChecks, runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
 import { describe, expect, it, vi } from 'vitest'
 import healthEmailCheck from '../../checks/external/report'
+import sentryCheck from '../../checks/external/sentry'
 
 const evidence = vi.hoisted(() => ({ deployment: undefined as string | undefined, healthReport: undefined as unknown }))
 vi.mock('../../checks/_helpers/collectors.mjs', () => ({
@@ -9,11 +10,11 @@ vi.mock('../../checks/_helpers/collectors.mjs', () => ({
   collectD1: async () => ({ healthEmail: [{ checkin: evidence.healthReport }] }),
 }))
 
-async function runDailyOperatorChecks({ now, deployment, healthReport, clock }: any) {
+async function runDailyOperatorChecks({ now, token, deployment, healthReport, environment, clock, request }: any) {
   evidence.deployment = deployment
   evidence.healthReport = healthReport
-  vi.stubGlobal('fetch', async () => new Response(JSON.stringify(healthReport)))
-  const { report } = await runExternalChecks([healthEmailCheck], { required: ['skilld.report'] }, { now, clock, env: { NUXT_CHECKIN_TOKEN: 'report-token' } })
+  vi.stubGlobal('fetch', async (url: string, options: unknown) => String(url).startsWith('https://skilld.dev/') ? new Response(JSON.stringify(healthReport)) : request(url, options))
+  const { report } = await runExternalChecks([sentryCheck, healthEmailCheck], { required: ['sentry.skilld', 'skilld.report'], credentials: { sentry: 'SENTRY_AUTH_TOKEN' } }, { now, clock, env: { SENTRY_AUTH_TOKEN: token, SENTRY_ENVIRONMENT: environment, NUXT_CHECKIN_TOKEN: 'report-token' } })
   return report
 }
 
@@ -28,20 +29,32 @@ async function healthReport(observedAt = now) {
 }
 
 describe('external daily check-in', () => {
-  it('reports a stale report as incomplete', async () => {
-    const report = await runDailyOperatorChecks({ clock: () => new Date(now.getTime() + 48 * 60 * 60 * 1000), now: new Date(now.getTime() + 48 * 60 * 60 * 1000), deployment: identity.deployment, healthReport: await healthReport() })
+  it('combines the live health report with the complete Sentry backlog', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify([{ id: '123', project: { slug: 'skilld' } }]), { status: 200 }))
+    const report = await runDailyOperatorChecks({ clock: () => now, now, token: 'read-token', deployment: identity.deployment, healthReport: await healthReport(), environment: 'production', request })
+    expect(report).toMatchObject({ severity: 'warn', coverage: 'complete' })
+    expect(report.results[0]?.result).toMatchObject({ _tag: 'Warn', evidence: { issueIds: ['123'] } })
+    const url = new URL(request.mock.calls[0]![0])
+    expect(url.searchParams.get('environment')).toBe('production')
+    expect(url.searchParams.get('start')).toBe('1970-01-01T00:00:00.000Z')
+  })
+
+  it('reports missing credentials and a stale report as incomplete', async () => {
+    const request = vi.fn()
+    const report = await runDailyOperatorChecks({ clock: () => new Date(now.getTime() + 48 * 60 * 60 * 1000), now: new Date(now.getTime() + 48 * 60 * 60 * 1000), deployment: identity.deployment, healthReport: await healthReport(), request })
     expect(report.coverage).toBe('incomplete')
-    expect(report.results.map(check => check.result._tag)).toEqual(['Unavailable'])
+    expect(report.results.map(check => check.result._tag)).toEqual(['Unavailable', 'Unavailable'])
+    expect(request).not.toHaveBeenCalled()
   })
 
   it('accepts a report collected after the external run started', async () => {
     const observedAt = new Date(now.getTime() + 5000)
-    const report = await runDailyOperatorChecks({ now, clock: () => new Date(observedAt.getTime() + 1000), deployment: identity.deployment, healthReport: await healthReport(observedAt) })
-    expect(report.results[0]?.result._tag).toBe('Pass')
+    const report = await runDailyOperatorChecks({ now, clock: () => new Date(observedAt.getTime() + 1000), deployment: identity.deployment, healthReport: await healthReport(observedAt), request: vi.fn() })
+    expect(report.results[1]?.result._tag).toBe('Pass')
   })
 
   it('rejects a health report from a previous deployment', async () => {
-    const report = await runDailyOperatorChecks({ clock: () => now, now, deployment: 'worker-new', healthReport: await healthReport() })
-    expect(report.results[0]?.result).toMatchObject({ _tag: 'Unavailable', reason: 'Check report identity does not match.' })
+    const report = await runDailyOperatorChecks({ clock: () => now, now, deployment: 'worker-new', healthReport: await healthReport(), request: vi.fn() })
+    expect(report.results[1]?.result).toMatchObject({ _tag: 'Unavailable', reason: 'Check report identity does not match.' })
   })
 })

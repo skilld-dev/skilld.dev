@@ -1,8 +1,13 @@
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
 import { externalCheckin } from './shared/checkin-external'
+import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
+
+const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
+  || existsSync('.env.sentry-build-plugin')
 
 export default defineNuxtConfig({
   checkin: { external: externalCheckin },
@@ -37,6 +42,9 @@ export default defineNuxtConfig({
 
   nuxtDx: {
     report: true,
+    sizeBudget: {
+      overridesKb: { 'server/plugins/sentry.ts': 326 },
+    },
   },
 
   modules: [
@@ -58,6 +66,7 @@ export default defineNuxtConfig({
     'motion-v/nuxt',
     '@vueuse/nuxt',
     'nuxt-auth-utils',
+    '@sentry/nuxt/module',
     'nuxt-skew-protection',
   ],
 
@@ -294,6 +303,16 @@ export default defineNuxtConfig({
         name: 'skilld',
         email: 'noreply@mail.skilld.dev',
       },
+    },
+    sentry: {
+      dsn: SENTRY_DSN,
+      // Production bundles are also built for local Wrangler verification.
+      // Only CI creates a deployable build, so local previews must not report
+      // into the paid production project.
+      enabled: sentryReportingEnabled({ nodeEnv: process.env.NODE_ENV, ci: process.env.CI }),
+      environment: 'production',
+      release: sentryRelease() ?? '',
+      tracesSampleRate: 0.05,
     },
   },
 
@@ -615,8 +634,28 @@ export default defineNuxtConfig({
     },
   },
 
+  sentry: {
+    enabled: process.env.NODE_ENV === 'production',
+    org: 'harlan-zw',
+    project: 'skilld',
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    // Pin the name the bundler plugin associates sourcemaps with, so it matches
+    // the release the runtime reports instead of whatever it infers.
+    release: { name: sentryRelease() },
+    sourcemaps: {
+      disable: !hasSentryAuthToken,
+      filesToDeleteAfterUpload: ['**/*.map'],
+    },
+    bundleSizeOptimizations: {
+      excludeReplayShadowDom: true,
+      excludeReplayIframe: true,
+      excludeReplayWorker: true,
+    },
+    telemetry: false,
+  },
+
   sourcemap: {
-    client: false,
+    client: hasSentryAuthToken ? 'hidden' : false,
     server: false,
   },
 })

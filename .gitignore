@@ -40,5 +40,8 @@ test-results/
 !.env.example
 broken-skills.json
 
+# Sentry Config File
+.env.sentry-build-plugin
+
 # PR Lens writes its previews here. They are rebuilt on demand.
 .pr-lens/
