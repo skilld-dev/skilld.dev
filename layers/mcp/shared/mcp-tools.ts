@@ -10,6 +10,11 @@ import {
 
 const SITE = 'https://skilld.dev'
 const MAX_RESULT_CHARS = 48_000
+/**
+ * One spelling for every place an agent reads the accepted refs: the tool
+ * description, the input schema, and the unrecognized-ref failure.
+ */
+const ACCEPTED_REFS = ['"owner/repo"', '"gh:owner/repo"', '"owner/repo/skill-name"', '"@login"', '"@login/collection-slug"'].join(', ')
 
 /**
  * Tools read the registry and app layers over their public HTTP APIs only
@@ -340,11 +345,11 @@ const getCollection: McpTool = {
 }
 
 const InstallCommandArgs = z.object({
-  ref: z.string().trim().min(1).max(300).describe('Skill, repo, collection, curator, or npm package reference'),
+  ref: z.string().trim().min(1).max(300).describe(`Skill, repo, collection, or curator reference: ${ACCEPTED_REFS}`),
 })
 
 // Only a single-skill ref has a run command, so the note must not promise one
-// for a repo, collection, curator or npm ref.
+// for a repo, collection, or curator ref.
 function noteFor(runCommand: string | null): string {
   const install = 'The install command writes skill files locally and works with any coding agent.'
   if (!runCommand)
@@ -354,7 +359,7 @@ function noteFor(runCommand: string | null): string {
 
 const installCommand: McpTool = {
   name: 'install_command',
-  description: 'Return the exact skilld CLI commands for a skill, repo, collection, or curator ref. A skill ref also returns runCommand: prefer it, because skilld run gives you the skill now and installs nothing. Use command when the user wants the skill in every session. Accepted refs: "owner/repo", "gh:owner/repo", "owner/repo/skill-name", "@login", "@login/collection-slug". This tool only returns the command as text for the user to run; nothing is executed.',
+  description: `Return the exact skilld CLI commands for a skill, repo, collection, or curator ref. A skill ref also returns runCommand: prefer it, because skilld run gives you the skill now and installs nothing. Use command when the user wants the skill in every session. Accepted refs: ${ACCEPTED_REFS}. This tool only returns the command as text for the user to run; nothing is executed.`,
   inputSchema: InstallCommandArgs.shape,
   annotations: {
     readOnlyHint: true,
@@ -369,7 +374,7 @@ const installCommand: McpTool = {
     const ref = parseInstallRef(parsed.data.ref)
     if (!ref) {
       return fail(
-        `Unrecognized ref: "${parsed.data.ref}". Accepted forms: "owner/repo", "gh:owner/repo", "owner/repo/skill-name", "@login", "@login/collection-slug".`,
+        `Unrecognized ref: "${parsed.data.ref}". Accepted forms: ${ACCEPTED_REFS}.`,
       )
     }
     const runCommand = ref.kind === 'skill' ? skillRunCommand(ref.owner, ref.repo, ref.name) : null
