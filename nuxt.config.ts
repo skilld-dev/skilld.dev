@@ -416,6 +416,8 @@ export default defineNuxtConfig({
     // lifetime and Cloudflare strips it downstream; `cache-control` is what the
     // browser sees. Where only the edge should cache, the browser gets the
     // no-store default from the module and only the edge header appears here.
+    // Proxied images set their own cache headers per result.
+    '/_img/**': { robots: false } as any,
     '/api/collections': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
     '/api/collections/featured': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
     '/api/community': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
