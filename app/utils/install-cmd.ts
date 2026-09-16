@@ -1,4 +1,8 @@
-import { CLI_PREFIX } from '#shared/skill-commands'
+// A relative import, not `#shared/skill-commands`: the deploy gate
+// (`scripts/check-published-cli-grammar.ts`) loads this file on a fresh
+// checkout with no generated `.nuxt/tsconfig.json`, where the alias does not
+// resolve.
+import { CLI_PREFIX } from '../../shared/skill-commands'
 
 /**
  * Repository, curator and collection commands speak the v3 `add` grammar.
