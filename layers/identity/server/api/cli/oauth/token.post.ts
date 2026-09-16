@@ -1,4 +1,5 @@
 import { OauthTokenInputSchema, TokenResponseSchema } from 'skilld-protocol/wire'
+import { z } from 'zod'
 import { defineApiHandler } from '#shared/server/handler'
 import { issueSession, presentTokenResponse, sha256Base64Url } from '../../../utils/cli-tokens'
 import { getUserById } from '../../../utils/users'
@@ -14,8 +15,13 @@ interface AuthCodeRow {
   used_at: number | null
 }
 
+// The CLI names each sign-in with the computer hostname. Only the account owner sees it.
+const TokenInputSchema = OauthTokenInputSchema.extend({
+  device_label: z.string().trim().min(1).max(64).regex(/^\P{Cc}+$/u).optional(),
+})
+
 export default defineApiHandler({
-  schema: OauthTokenInputSchema,
+  schema: TokenInputSchema,
   response: TokenResponseSchema,
   handler: async ({ event, body }) => {
     const row = await event.context.platform.db.prepare(
@@ -46,6 +52,7 @@ export default defineApiHandler({
       kind: 'oauth',
       scopes: row.scopes,
       cliVersion: row.cli_version ?? undefined,
+      deviceLabel: body.device_label,
     })
 
     return presentTokenResponse(session, user.login)
