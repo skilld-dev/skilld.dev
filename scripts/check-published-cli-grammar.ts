@@ -5,12 +5,14 @@
  * and its failure stops the deploy. Pull requests skip it, because a site change
  * cannot fix a missing CLI command.
  *
- * The required list comes from the command builders the site renders, so a new
- * grammar is covered without editing this file. The release also has to accept
+ * The required list comes from the command builders the site renders plus the
+ * inline-code commands the copy sources teach, so a new grammar is covered
+ * without editing this file. The release also has to accept
  * every `--agent` value an `/agents/<id>` page prints.
  */
 
 import { execFile } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -36,6 +38,8 @@ const ANSI_COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, 'g')
 const MINIMUM_VERSION = '3.1.0'
 /** The only spelling the site may print. A pinned tag such as `skilld@beta` bypasses `latest`. */
 const CLI_PREFIX = `npx ${PACKAGE} `
+/** Copy that teaches the printed commands. A stale spelling here reintroduces the misprint. */
+const BRAND_GUIDELINES_URL = new URL('../.claude/context/brand-guidelines.md', import.meta.url)
 
 export interface CliRequirement {
   minimumVersion: string
@@ -97,7 +101,12 @@ export function cliRequirementFor(commands: string[]): CliRequirement {
   }
 }
 
-/** Every command the site renders. */
+/** The inline-code `npx skilld …` commands a copy source teaches. */
+export function copyCommands(source: string): string[] {
+  return [...source.matchAll(/`(npx skilld[^`]*)`/g)].map(match => match[1]!.trim())
+}
+
+/** Every command the site renders, plus the ones the copy sources teach. */
 export function cliRequirement(): CliRequirement {
   return cliRequirementFor([
     gitInstallCmd('owner', 'repo'),
@@ -105,6 +114,7 @@ export function cliRequirement(): CliRequirement {
     collectionInstallCmd('login', 'slug'),
     skillRunCmd('owner', 'repo', 'skill'),
     skillInstallCmd('owner', 'repo', 'skill'),
+    ...copyCommands(readFileSync(BRAND_GUIDELINES_URL, 'utf8')),
   ])
 }
 

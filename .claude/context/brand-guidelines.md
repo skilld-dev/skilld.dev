@@ -25,7 +25,7 @@ Skills are knowledge, not packages, and knowledge has an author. A skill is wort
 - A curated registry of AI agent skills written by real people in their own GitHub repos
 - A provenance layer: every skill links back to the repo and the maintainer who wrote it
 - Organization-owned skills stay in the registry and stay searchable. The homepage leads with skills by identifiable people because provenance is the point, but org skills are ranked lower, not excluded
-- One command, every agent: `npx skilld@beta run skilld:owner/repo/skill` to use a skill now, `npx skilld@beta install skilld:owner/repo/skill` to keep it
+- One command, every agent: `npx skilld run skilld:owner/repo/skill` to use a skill now, `npx skilld install skilld:owner/repo/skill` to keep it
 - A watch-for-changes layer: sign in with GitHub, get a digest when watched repos change
 
 ### What we are not
