@@ -120,7 +120,7 @@
 }
 
 /* Install command — six syntax roles, so the eye lands on the part that is
-   unique to this skill instead of on `npx skilld@beta add` four times a page. */
+   unique to this skill instead of on `npx skilld add` four times a page. */
 .install-command {
   font-family: var(--font-mono);
   white-space: pre;

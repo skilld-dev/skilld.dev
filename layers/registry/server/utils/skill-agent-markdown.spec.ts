@@ -28,7 +28,7 @@ describe('composeAgentSkillMarkdown', () => {
   it('tells the Agent the install command and that it waits for the user', () => {
     const output = composeAgentSkillMarkdown({ ...skill, markdown: SKILL_MD, supportingFiles: [] })
 
-    expect(output).toContain('If the user asked to install this Skill, run `npx skilld@beta install skilld:nestyme/awesome-prompts/carousel-styles`.')
+    expect(output).toContain('If the user asked to install this Skill, run `npx skilld install skilld:nestyme/awesome-prompts/carousel-styles`.')
   })
 
   it('lists the files beside SKILL.md at the raw endpoint', () => {

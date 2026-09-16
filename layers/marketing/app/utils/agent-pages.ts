@@ -6,13 +6,13 @@
  * update both when a target changes. Only targets with measured search demand
  * (`skilld-seo-opportunities.md`) appear here; the CLI supports more.
  *
- * A page is published only when the CLI on the `beta` npm tag accepts its
+ * A page is published only when the CLI on the `latest` npm tag accepts its
  * `--agent` value. `PUBLISHED_CLI_VERSION` names that release; bump it after
  * each CLI release. `scripts/check-published-cli-grammar.ts` checks every
  * published page against the real `install --help` before a deploy.
  */
 
-/** The skilld release on the `beta` npm tag whose `--agent` values these pages print. */
+/** The skilld release on the `latest` npm tag whose `--agent` values these pages print. */
 export const PUBLISHED_CLI_VERSION = '3.0.0'
 
 export interface AgentPage {

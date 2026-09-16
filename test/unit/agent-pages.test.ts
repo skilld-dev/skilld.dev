@@ -35,7 +35,7 @@ describe('selectAgentSkills', () => {
 })
 
 describe('publishedAgentPages', () => {
-  it('holds back a page until the CLI on the beta tag accepts its --agent value', () => {
+  it('holds back a page until the published CLI accepts its --agent value', () => {
     const ids = publishedAgentPages('3.0.0-beta.3').map(page => page.id)
     expect(ids).not.toContain('openclaw')
     expect(ids).not.toContain('hermes')

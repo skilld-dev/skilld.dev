@@ -46,7 +46,7 @@ it('prints the install command from a checkout with no .nuxt', { timeout: 15_000
       const reason = message.split('\n').find(line => line.includes('Cannot find module')) ?? message.split('\n')[0]
       throw new Error(`gate entry failed in a bare checkout: ${reason}`)
     }
-    expect(stdout.trim()).toBe('npx skilld@beta add gh:nuxt/nuxt')
+    expect(stdout.trim()).toBe('npx skilld add gh:nuxt/nuxt')
   }
   finally {
     await rm(dir, { recursive: true, force: true })

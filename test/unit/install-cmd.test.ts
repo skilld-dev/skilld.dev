@@ -7,9 +7,9 @@ import {
 
 describe('install commands', () => {
   it.each([
-    [gitInstallCmd('nuxt', 'nuxt'), 'npx skilld@beta add gh:nuxt/nuxt'],
-    [curatorInstallCmd('harlan-zw'), 'npx skilld@beta add @harlan-zw'],
-    [collectionInstallCmd('harlan-zw', 'nuxt'), 'npx skilld@beta add @harlan-zw/nuxt'],
+    [gitInstallCmd('nuxt', 'nuxt'), 'npx skilld add gh:nuxt/nuxt'],
+    [curatorInstallCmd('harlan-zw'), 'npx skilld add @harlan-zw'],
+    [collectionInstallCmd('harlan-zw', 'nuxt'), 'npx skilld add @harlan-zw/nuxt'],
   ])('returns %s', (command, expected) => {
     expect(command).toBe(expected)
   })
@@ -22,6 +22,6 @@ describe('install commands', () => {
       curatorInstallCmd('harlan-zw'),
       collectionInstallCmd('harlan-zw', 'nuxt'),
     ])
-      expect(command.startsWith('npx skilld@beta add ')).toBe(true)
+      expect(command.startsWith('npx skilld add ')).toBe(true)
   })
 })

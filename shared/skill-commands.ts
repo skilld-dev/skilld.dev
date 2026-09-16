@@ -1,6 +1,6 @@
 const SITE_ORIGIN = 'https://skilld.dev'
-/** The v3 CLI. It ships on the `beta` npm tag; `latest` is still v2. */
-export const CLI_PREFIX = 'npx skilld@beta'
+/** The v3 CLI, on the npm `latest` tag. */
+export const CLI_PREFIX = 'npx skilld'
 
 /**
  * Every install and run command the site prints, in the v3 CLI grammar.

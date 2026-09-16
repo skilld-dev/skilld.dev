@@ -1,15 +1,13 @@
 /**
- * Fails while an npm tag for skilld cannot speak the commands the site prints.
+ * Fails while npm `latest` for skilld cannot speak the commands the site prints.
  *
  * Merging to main deploys straight to production, so this runs on the main push
  * and its failure stops the deploy. Pull requests skip it, because a site change
- * cannot fix a missing CLI command. Stable commands are checked against
- * `latest`; v3 Skill commands are checked against `beta`.
+ * cannot fix a missing CLI command.
  *
- * The required list comes from the command builders the site renders, and each
- * command is checked against the channel its own spelling resolves to, so a new
- * grammar is covered without editing this file. The `beta` channel also has to
- * accept every `--agent` value an `/agents/<id>` page prints.
+ * The required list comes from the command builders the site renders, so a new
+ * grammar is covered without editing this file. The release also has to accept
+ * every `--agent` value an `/agents/<id>` page prints.
  */
 
 import { execFile } from 'node:child_process'
@@ -32,20 +30,20 @@ const PACKAGE = 'skilld'
 /** Built from a char code so the source carries no control character. */
 const ANSI_COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, 'g')
 /** `skilld install <ref>` means "restore the lockfile" before 3.0 and "keep this Skill" after it. */
-const V3_MAJOR = 3
+const MINIMUM_MAJOR = 3
+/** The only spelling the site may print. A pinned tag such as `skilld@beta` bypasses `latest`. */
+const CLI_PREFIX = `npx ${PACKAGE} `
 
-export type ChannelTag = 'latest' | 'beta'
-
-export interface ChannelRequirement {
-  tag: ChannelTag
+export interface CliRequirement {
   minimumMajor: number
   commands: string[]
-  /** `--agent` values the site prints for this channel. */
+  /** `--agent` values the site prints. */
   agents: string[]
+  /** Printed commands that do not start with `npx skilld`. */
+  misprinted: string[]
 }
 
-export interface ChannelCheck {
-  tag: ChannelTag
+export interface CliCheck {
   version: string
   required: string[]
   requiredAgents: string[]
@@ -62,28 +60,16 @@ export interface PublishedCliInvocation {
 }
 
 export interface PublishedCliGrammarDependencies {
-  readVersion: (tag: ChannelTag) => Promise<string>
+  readVersion: () => Promise<string>
   readHelp: (version: string, subcommand?: string) => Promise<string>
 }
 
 export type PublishedCliGrammarResult
-  = | { _tag: 'clean', checks: ChannelCheck[] }
-    | { _tag: 'blocked', checks: ChannelCheck[] }
+  = | { _tag: 'clean', check: CliCheck }
+    | { _tag: 'blocked', check: CliCheck }
 
 function subcommand(command: string): string {
   return command.split(/\s+/)[2]!
-}
-
-/**
- * Reads the npm tag a printed command resolves to.
- *
- * The site spells the v3 CLI `npx skilld@beta`. A bare `npx skilld` resolves to
- * `latest`, which is still v2, so a command left on that spelling reaches a CLI
- * with a different ref grammar. Deriving the channel from the command keeps the
- * two in step without a second list to maintain.
- */
-export function channelFor(command: string): ChannelTag {
-  return command.split(/\s+/)[1] === `${PACKAGE}@beta` ? 'beta' : 'latest'
 }
 
 /**
@@ -98,35 +84,19 @@ function uniqueSubcommands(commands: string[]): string[] {
   return [...new Set(commands.map(subcommand))].sort()
 }
 
-const MINIMUM_MAJOR: Record<ChannelTag, number> = { latest: 2, beta: V3_MAJOR }
-
-/**
- * Groups the commands by the channel each one resolves to.
- *
- * A channel with no command is not checked, so retiring the last v2 command
- * retires its channel. The `beta` channel is always checked, because the
- * `/agents/<id>` pages print `--agent` values for the v3 CLI.
- */
-export function channelRequirementsFor(commands: string[]): ChannelRequirement[] {
-  const agents = publishedAgentPages().map(page => page.id)
-  const tags: ChannelTag[] = ['latest', 'beta']
-
-  return tags.flatMap((tag) => {
-    const forTag = uniqueSubcommands(commands.filter(command => channelFor(command) === tag))
-    if (forTag.length === 0 && tag !== 'beta')
-      return []
-    return [{
-      tag,
-      minimumMajor: MINIMUM_MAJOR[tag],
-      commands: forTag,
-      agents: tag === 'beta' ? agents : [],
-    }]
-  })
+/** Builds the requirement from the commands the site prints. */
+export function cliRequirementFor(commands: string[]): CliRequirement {
+  return {
+    minimumMajor: MINIMUM_MAJOR,
+    commands: uniqueSubcommands(commands),
+    agents: publishedAgentPages().map(page => page.id),
+    misprinted: commands.filter(command => !command.startsWith(CLI_PREFIX)),
+  }
 }
 
-/** Every command the site renders, grouped by the channel it resolves to. */
-export function channelRequirements(): ChannelRequirement[] {
-  return channelRequirementsFor([
+/** Every command the site renders. */
+export function cliRequirement(): CliRequirement {
+  return cliRequirementFor([
     gitInstallCmd('owner', 'repo'),
     curatorInstallCmd('login'),
     collectionInstallCmd('login', 'slug'),
@@ -135,14 +105,14 @@ export function channelRequirements(): ChannelRequirement[] {
   ])
 }
 
-async function publishedVersion(tag: ChannelTag): Promise<string> {
-  const response = await fetch(`https://registry.npmjs.org/${PACKAGE}/${tag}`)
+async function publishedVersion(): Promise<string> {
+  const response = await fetch(`https://registry.npmjs.org/${PACKAGE}/latest`)
   if (!response.ok)
-    throw new Error(`The npm registry answered HTTP ${response.status} for ${PACKAGE}@${tag}.`)
+    throw new Error(`The npm registry answered HTTP ${response.status} for ${PACKAGE}@latest.`)
 
   const { version } = await response.json() as { version?: string }
   if (!version)
-    throw new Error(`The npm registry returned no version for ${PACKAGE}@${tag}.`)
+    throw new Error(`The npm registry returned no version for ${PACKAGE}@latest.`)
 
   return version
 }
@@ -216,11 +186,11 @@ function publishedAgents(installHelp: string): string[] | null {
   return values.length > 0 ? values : null
 }
 
-async function checkChannel(
-  requirement: ChannelRequirement,
+async function checkCli(
+  requirement: CliRequirement,
   dependencies: PublishedCliGrammarDependencies,
-): Promise<ChannelCheck> {
-  const version = await dependencies.readVersion(requirement.tag)
+): Promise<CliCheck> {
+  const version = await dependencies.readVersion()
   const topHelp = await dependencies.readHelp(version)
   const installHelp = requirement.agents.length > 0
     ? await dependencies.readHelp(version, 'install')
@@ -252,11 +222,12 @@ async function checkChannel(
     if (missing.length > 0)
       problems.push(`rejects --agent ${missing.join(', ')}`)
   }
+  if (requirement.misprinted.length > 0)
+    problems.push(`is bypassed by ${requirement.misprinted.join(', ')}`)
   if (fetchRefused)
     problems.unshift(RELEASE_AGE_PROBLEM)
 
   return {
-    tag: requirement.tag,
     version,
     required: requirement.commands,
     requiredAgents: requirement.agents,
@@ -267,22 +238,14 @@ async function checkChannel(
   }
 }
 
-/**
- * Checks one channel at a time. Each channel's first call downloads its
- * package through the shared store, and two parallel downloads contend for
- * the same uplink the CI box shares with every other job.
- */
 export async function runPublishedCliGrammar(
   dependencies: PublishedCliGrammarDependencies,
-  requirements: ChannelRequirement[] = channelRequirements(),
+  requirement: CliRequirement = cliRequirement(),
 ): Promise<PublishedCliGrammarResult> {
-  const checks: ChannelCheck[] = []
-  for (const requirement of requirements)
-    checks.push(await checkChannel(requirement, dependencies))
-
-  return checks.some(check => check.problems.length > 0)
-    ? { _tag: 'blocked', checks }
-    : { _tag: 'clean', checks }
+  const check = await checkCli(requirement, dependencies)
+  return check.problems.length > 0
+    ? { _tag: 'blocked', check }
+    : { _tag: 'clean', check }
 }
 
 async function main(): Promise<void> {
@@ -290,31 +253,32 @@ async function main(): Promise<void> {
     readVersion: publishedVersion,
     readHelp: helpText,
   })
+  const { check } = result
 
   if (result._tag === 'clean') {
     console.log(JSON.stringify({
       _tag: 'clean',
       check: 'published-cli-grammar',
-      channels: result.checks.map(({ tag, version, required, requiredAgents }) => ({ tag, version, required, requiredAgents })),
+      version: check.version,
+      required: check.required,
+      requiredAgents: check.requiredAgents,
     }, null, 2))
     return
   }
 
-  for (const check of result.checks.filter(check => check.problems.length > 0)) {
-    console.error(`${PACKAGE}@${check.tag} is ${check.version}: ${check.problems.join('; ')}.`)
-    if (check.published)
-      console.error(`It supports: ${check.published.join(', ')}.`)
-    if (check.publishedAgents && check.publishedAgents.length > 0)
-      console.error(`Its --agent values: ${check.publishedAgents.join(', ')}.`)
-  }
+  console.error(`${PACKAGE}@latest is ${check.version}: ${check.problems.join('; ')}.`)
+  if (check.published)
+    console.error(`It supports: ${check.published.join(', ')}.`)
+  if (check.publishedAgents && check.publishedAgents.length > 0)
+    console.error(`Its --agent values: ${check.publishedAgents.join(', ')}.`)
   console.error('')
-  if (result.checks.some(check => check.fetchRefused)) {
+  if (check.fetchRefused) {
     console.error('pnpm blocks releases published inside its minimumReleaseAge window (1 day by default).')
     console.error('If this follows a CLI publish, exempt the package in pnpm-workspace.yaml (minimumReleaseAgeExclude) or rerun after the window passes.')
   }
   else {
     console.error('The site prints a command that the published CLI cannot run.')
-    console.error('Publish the missing CLI grammar under the npm tag named above.')
+    console.error('Print every command as `npx skilld`, and publish the missing CLI grammar to npm `latest`.')
     console.error('For a rejected --agent value, hold its /agents page: raise cliSince in agent-pages.ts.')
   }
   console.error('To deploy anyway, run the "Deploy to Cloudflare" workflow by hand.')
