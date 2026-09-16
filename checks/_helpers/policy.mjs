@@ -6,7 +6,7 @@ export function evaluateCI(data) {
     || (workflow.state._tag === 'pending' && workflow.state.previousConclusion === null))
   const coverage = incomplete ? 'incomplete' : 'complete'
   if (data.workflows.some(workflow => workflow.state._tag === 'failure'))
-    return { ...fail('A workflow is failing.', data), coverage }
+    return incomplete ? { ...fail('A workflow is failing.', data), coverage } : fail('A workflow is failing.', data)
   if (incomplete)
     return { _tag: 'Warn', reason: 'Workflow evidence is missing.', evidence: data, coverage }
   if (data.workflows.some(workflow => workflow.state._tag === 'pending' && workflow.state.consecutiveFailures > 0))
@@ -25,12 +25,12 @@ export function evaluateD1(data, now, since) {
         : null
   const coverage = missingReason ? 'incomplete' : 'complete'
   if (data.cost.x_projected_monthly_usd > 60)
-    return { ...fail('Projected X spend exceeds $60 per month.', data), coverage }
+    return missingReason ? { ...fail('Projected X spend exceeds $60 per month.', data), coverage } : fail('Projected X spend exceeds $60 per month.', data)
   const failed = data.activity.digests_failed > 0
     || data.pipeline.stale_reserved_jobs > 0
     || data.syncJobs?.some(job => job.last_status === 'error' || (job.stale_after_seconds && Number(job.last_run_at) + Number(job.stale_after_seconds) < now.getTime() / 1000))
   if (failed)
-    return { ...fail('Delivery or scheduled work needs attention.', data), coverage }
+    return missingReason ? { ...fail('Delivery or scheduled work needs attention.', data), coverage } : fail('Delivery or scheduled work needs attention.', data)
   if (missingReason)
     return { _tag: 'Warn', reason: missingReason, evidence: data, coverage }
   const warning = data.cost.x_over_budget || data.cost.x_projected_monthly_usd > 40
