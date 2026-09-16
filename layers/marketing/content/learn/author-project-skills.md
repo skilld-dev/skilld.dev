@@ -31,7 +31,7 @@ Commit the reviewed Skill.
 Any dev with access to the repository can run it:
 
 ```bash
-npx skilld run skilld:owner/repo/your-skill
+npx skilld run owner/repo/your-skill
 ```
 
 Replace `owner/repo` with your repository and `your-skill` with the Skill directory name.

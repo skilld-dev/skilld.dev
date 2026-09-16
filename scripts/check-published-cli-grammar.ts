@@ -15,7 +15,7 @@ import { resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
+import { compareCliVersions, publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
 import {
   collectionInstallCmd,
   curatorInstallCmd,
@@ -29,13 +29,16 @@ const run = promisify(execFile)
 const PACKAGE = 'skilld'
 /** Built from a char code so the source carries no control character. */
 const ANSI_COLOUR = new RegExp(`${String.fromCharCode(27)}\\[[\\d;]*m`, 'g')
-/** `skilld install <ref>` means "restore the lockfile" before 3.0 and "keep this Skill" after it. */
-const MINIMUM_MAJOR = 3
+/**
+ * The oldest CLI that parses every ref the site prints. 3.1.0 added bare
+ * `owner/repo/skill` and `owner/repo` refs; older releases need `skilld:` or `gh:`.
+ */
+const MINIMUM_VERSION = '3.1.0'
 /** The only spelling the site may print. A pinned tag such as `skilld@beta` bypasses `latest`. */
 const CLI_PREFIX = `npx ${PACKAGE} `
 
 export interface CliRequirement {
-  minimumMajor: number
+  minimumVersion: string
   commands: string[]
   /** `--agent` values the site prints. */
   agents: string[]
@@ -87,7 +90,7 @@ function uniqueSubcommands(commands: string[]): string[] {
 /** Builds the requirement from the commands the site prints. */
 export function cliRequirementFor(commands: string[]): CliRequirement {
   return {
-    minimumMajor: MINIMUM_MAJOR,
+    minimumVersion: MINIMUM_VERSION,
     commands: uniqueSubcommands(commands),
     agents: publishedAgentPages().map(page => page.id),
     misprinted: commands.filter(command => !command.startsWith(CLI_PREFIX)),
@@ -197,13 +200,12 @@ async function checkCli(
     : null
   const published = publishedSubcommands(topHelp)
   const agents = installHelp === null ? [] : publishedAgents(installHelp)
-  const major = Number(version.split('.')[0])
   const problems: string[] = []
   const fetchRefused = RELEASE_AGE_REFUSAL.test(topHelp)
     || (installHelp !== null && RELEASE_AGE_REFUSAL.test(installHelp))
 
-  if (major < requirement.minimumMajor)
-    problems.push(`requires major ${requirement.minimumMajor} or newer`)
+  if (compareCliVersions(version, requirement.minimumVersion) < 0)
+    problems.push(`requires ${requirement.minimumVersion} or newer`)
   if (!published) {
     if (!fetchRefused)
       problems.push('could not read its command list')

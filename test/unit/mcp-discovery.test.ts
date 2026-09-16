@@ -89,7 +89,7 @@ describe('search_skills', () => {
       name: 'nuxt-seo',
       official: true,
       url: 'https://skilld.dev/gh/nuxt/nuxt',
-      installCommand: 'npx skilld install skilld:nuxt/nuxt/nuxt-seo',
+      installCommand: 'npx skilld install nuxt/nuxt/nuxt-seo',
     })
     expect(data.results[0].description.length).toBe(500)
   })
@@ -152,8 +152,8 @@ describe('get_skill', () => {
     const data = result.structuredContent as any
 
     expect(fetchApi).toHaveBeenCalledWith('/api/skills/nuxt/nuxt/nuxt-seo', { signal: undefined })
-    expect(data.runCommand).toBe('npx skilld run skilld:nuxt/nuxt/nuxt-seo')
-    expect(data.installCommand).toBe('npx skilld install skilld:nuxt/nuxt/nuxt-seo')
+    expect(data.runCommand).toBe('npx skilld run nuxt/nuxt/nuxt-seo')
+    expect(data.installCommand).toBe('npx skilld install nuxt/nuxt/nuxt-seo')
     expect(data.provenance).toMatchObject({
       author: 'nuxt',
       sourceRepoUrl: 'https://github.com/nuxt/nuxt',
@@ -231,9 +231,11 @@ describe('get_collection', () => {
 
 describe('install_command', () => {
   it.each([
-    ['gh:nuxt/nuxt', 'npx skilld add gh:nuxt/nuxt'],
-    ['nuxt/nuxt', 'npx skilld add gh:nuxt/nuxt'],
-    ['anthropics/skills/skill-creator', 'npx skilld install skilld:anthropics/skills/skill-creator'],
+    ['gh:nuxt/nuxt', 'npx skilld add nuxt/nuxt'],
+    ['nuxt/nuxt', 'npx skilld add nuxt/nuxt'],
+    ['anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
+    ['skilld:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
+    ['gh:anthropics/skills/skill-creator', 'npx skilld install anthropics/skills/skill-creator'],
     ['@harlan-zw', 'npx skilld add @harlan-zw'],
     ['@harlan-zw/nuxt-stack', 'npx skilld add @harlan-zw/nuxt-stack'],
   ])('%s -> %s', async (ref, command) => {
@@ -243,7 +245,7 @@ describe('install_command', () => {
 
   it('offers the run command for a skill ref', async () => {
     const result = await runTool('install_command', { ref: 'anthropics/skills/skill-creator' })
-    expect((result.structuredContent as any).runCommand).toBe('npx skilld run skilld:anthropics/skills/skill-creator')
+    expect((result.structuredContent as any).runCommand).toBe('npx skilld run anthropics/skills/skill-creator')
   })
 
   it('has no run command for a ref that names more than one skill', async () => {
@@ -268,7 +270,7 @@ describe('install_command', () => {
 
 describe('parseInstallRef', () => {
   it('round-trips every ref kind through installCommandFor', () => {
-    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add gh:a/b')
+    expect(installCommandFor(parseInstallRef('a/b')!)).toBe('npx skilld add a/b')
     expect(parseInstallRef('a/b/c/d')).toBeNull()
     expect(parseInstallRef('@')).toBeNull()
     expect(parseInstallRef('')).toBeNull()

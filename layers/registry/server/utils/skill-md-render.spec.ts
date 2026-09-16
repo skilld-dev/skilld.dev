@@ -32,7 +32,7 @@ license: MIT
   it('highlights fenced code for languages we bundle a grammar for', async () => {
     const { html } = await parseSkillMd([
       '```bash',
-      'npx skilld add gh:owner/repo',
+      'npx skilld add owner/repo',
       '```',
     ].join('\n'))
 

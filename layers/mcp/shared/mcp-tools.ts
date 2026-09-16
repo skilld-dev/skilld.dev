@@ -14,7 +14,7 @@ const MAX_RESULT_CHARS = 48_000
  * One spelling for every place an agent reads the accepted refs: the tool
  * description, the input schema, and the unrecognized-ref failure.
  */
-const ACCEPTED_REFS = ['"owner/repo"', '"gh:owner/repo"', '"owner/repo/skill-name"', '"@login"', '"@login/collection-slug"'].join(', ')
+const ACCEPTED_REFS = ['"owner/repo"', '"owner/repo/skill-name"', '"@login"', '"@login/collection-slug"'].join(', ')
 
 /**
  * Tools read the registry and app layers over their public HTTP APIs only

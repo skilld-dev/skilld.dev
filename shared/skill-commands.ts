@@ -15,7 +15,7 @@ const ADD_PREFIX = `${CLI_PREFIX} add`
 
 /** Every Skill one GitHub Repository carries. */
 export function gitInstallCmd(owner: string, repo: string): string {
-  return `${ADD_PREFIX} gh:${owner}/${repo}`
+  return `${ADD_PREFIX} ${owner}/${repo}`
 }
 
 /** Every Skill one curator's collections name. */
@@ -29,7 +29,7 @@ export function collectionInstallCmd(handle: string, slug: string): string {
 }
 
 function skillRef(owner: string, repo: string, skill: string): string {
-  return `skilld:${owner}/${repo}/${skill}`
+  return `${owner}/${repo}/${skill}`
 }
 
 /** The Skill page. An Agent that fetches it receives the SKILL.md as markdown. */

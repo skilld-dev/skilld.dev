@@ -45,8 +45,8 @@ If the App is missing, the CLI reports that the source is not available. Install
 The commands do not change:
 
 ```sh
-npx skilld run skilld:owner/repo/skill
-npx skilld install skilld:owner/repo/skill
+npx skilld run owner/repo/skill
+npx skilld install owner/repo/skill
 ```
 
 Private Artifact responses use short lived, one time grants. The API does not expose private storage addresses. The CLI verifies the Artifact the same way it verifies a public one. See [How skilld verifies a Skill](/verify).
