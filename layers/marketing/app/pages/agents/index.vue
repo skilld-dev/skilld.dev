@@ -44,7 +44,7 @@ defineOgImage('Page.takumi', { title: 'Skills by Agent', description }, { alt: t
         </li>
       </ul>
       <p class="mt-8 text-sm text-muted">
-        The skilld CLI targets more Agents than this list. Run <code class="font-mono">npx skilld@beta install --help</code> for every value.
+        The skilld CLI targets more Agents than this list. Run <code class="font-mono">npx skilld install --help</code> for every value.
       </p>
     </section>
   </div>

@@ -98,7 +98,7 @@ describe('accessibility: components', () => {
 
   it('installCommand has no violations and keeps the command copyable as one string', async () => {
     const container = createIsolatedContainer()
-    const command = 'npx skilld@beta add gh:obra/superpowers --agent codex'
+    const command = 'npx skilld add gh:obra/superpowers --agent codex'
     const wrapper = await mountSuspended(
       await loadComponent('InstallCommand'),
       { attachTo: container, props: { command } },

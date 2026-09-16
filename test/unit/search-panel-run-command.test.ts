@@ -75,7 +75,7 @@ describe('search panel command grammar', () => {
     await copyButton!.trigger('click')
     await flushPromises()
 
-    expect(copied).toContain('npx skilld@beta run skilld:antfu/skills/vite')
+    expect(copied).toContain('npx skilld run skilld:antfu/skills/vite')
     // The ledger has to see a run, not an install, or the daily split lies.
     await vi.waitFor(() => {
       expect(installEvents).toContainEqual(expect.objectContaining({

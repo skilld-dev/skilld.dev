@@ -9,7 +9,7 @@
  * not layer domain data.
  */
 
-const V3_PREFIX = 'npx skilld@beta'
+const V3_PREFIX = 'npx skilld'
 const PREFIX = `${V3_PREFIX} add`
 
 /**

@@ -3,7 +3,7 @@ title: 'Codex skills: run curated Agent Skills in Codex CLI'
 description: "How to use Skills in Codex: where Codex reads them, how skilld installs them, and a curated list with authors. The same Skill runs in Claude Code, Codex, Cursor, and every other Agent skilld targets."
 heading: Codex skills
 label: Agents
-command: npx skilld@beta run skilld:owner/repo/skill
+command: npx skilld run skilld:owner/repo/skill
 publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
@@ -24,7 +24,7 @@ Codex discovers Skills at startup. It keeps each name and description in context
 ### Install a Skill for Codex
 
 ```sh
-npx skilld@beta install skilld:owner/repo/skill --agent codex
+npx skilld install skilld:owner/repo/skill --agent codex
 ```
 
 The Skill lands in `.agents/skills`. Add `--global` to install to `~/.agents/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
@@ -34,7 +34,7 @@ Start a new Codex session after an install. Codex reads the directory at startup
 ### Run a Skill without installing it
 
 ```sh
-npx skilld@beta run skilld:owner/repo/skill
+npx skilld run skilld:owner/repo/skill
 ```
 
 `skilld run` prints the Skill and writes no file. Give the command to Codex. It reads the Skill and follows it for this session. Nothing lands in your repository, and no lockfile changes.
