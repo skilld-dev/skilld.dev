@@ -404,6 +404,8 @@ export default defineNuxtConfig({
   // D1 per request), always fresh. D1 reads are cheap at current traffic; re-add
   // targeted caching here if/when traffic warrants it.
   routeRules: {
+    // Send only the origin to other sites, never the page path a visitor read.
+    '/**': { headers: { 'referrer-policy': 'strict-origin-when-cross-origin' } } as any,
     // Cache policy, expressed where Nuxt already puts freshness.
     //
     // This used to live in `server/plugins/cache-policy.ts` as an allowlist
