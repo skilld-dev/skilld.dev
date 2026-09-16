@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cliRequirement,
   cliRequirementFor,
+  copyCommands,
   publishedCliInvocation,
   runPublishedCliGrammar,
 } from '../../scripts/check-published-cli-grammar'
@@ -94,6 +95,25 @@ describe('printed CLI commands', () => {
 
     expect(result._tag).toBe('blocked')
     expect(result.check.problems.join(' ')).toContain('npx skilld@beta run')
+  })
+
+  it('blocks copy that teaches a pinned tag like a builder misprint', async () => {
+    const copy = 'One command: `npx skilld@beta run skilld:owner/repo/skill` to use it now.'
+    const pinned = cliRequirementFor(copyCommands(copy))
+    const result = await runPublishedCliGrammar({
+      readVersion: async () => '3.0.0',
+      readHelp: v3Help,
+    }, pinned)
+
+    expect(result._tag).toBe('blocked')
+    expect(result.check.problems.join(' ')).toContain('npx skilld@beta run')
+  })
+
+  it('reads the same commands out of copy as a builder prints', () => {
+    expect(copyCommands('Use `npx skilld run skilld:owner/repo/skill` now, `npx skilld install skilld:owner/repo/skill` to keep it.')).toEqual([
+      'npx skilld run skilld:owner/repo/skill',
+      'npx skilld install skilld:owner/repo/skill',
+    ])
   })
 
   it('prints every site command as npx skilld', () => {
