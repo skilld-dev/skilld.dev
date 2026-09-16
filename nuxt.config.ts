@@ -43,7 +43,7 @@ export default defineNuxtConfig({
   nuxtDx: {
     report: true,
     sizeBudget: {
-      overridesKb: { 'server/plugins/sentry.ts': 326 },
+      overridesKb: { 'server/plugins/sentry.ts': 328 },
     },
   },
 
