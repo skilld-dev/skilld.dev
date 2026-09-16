@@ -4,6 +4,8 @@ import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
 definePageMeta({ middleware: ['auth'] })
 
+const { user } = useUserSession()
+
 interface Skill {
   name: string
   displayName: string
@@ -111,6 +113,11 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
     <p class="mt-2 text-sm text-muted">
       We check starred GitHub repos with "skill" in the name against the registry. Choose the ones to watch. You'll only get a digest when one changes.
     </p>
+    <OwnedSkillsPrompt
+      v-if="user?.login"
+      :login="user.login"
+      class="mt-6"
+    />
 
     <div class="mt-4 flex flex-wrap items-center gap-3">
       <UButton

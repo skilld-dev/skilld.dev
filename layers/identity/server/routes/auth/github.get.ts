@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { fetchVerifiedPrimaryEmail } from '../../utils/github-emails'
-import { ownedRepoScanWarning, scanOwnedRepos } from '../../utils/scan-owned-repos'
 import { upsertUserFromGithub } from '../../utils/users'
 import { handleWatchAction } from '../../utils/watch-actions'
 
@@ -59,28 +58,6 @@ export default defineOAuthGitHubEventHandler({
       clientId: platform.env.NUXT_OAUTH_GITHUB_CLIENT_ID,
       scopes,
     })
-
-    // First-time signup: kick off a background scan of the user's public repos
-    // for SKILL.md files via GitHub code search, indexing each into `skills`.
-    if (!row.onboarded_at && accessToken) {
-      const scanPromise = scanOwnedRepos({
-        login: row.login,
-        userToken: accessToken,
-        db: platform.db,
-        env: platform.env,
-      }).then((result) => {
-        const warning = ownedRepoScanWarning(result)
-        if (warning)
-          emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'incomplete' }))
-      }).catch(() => {
-        emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'failed' }))
-      })
-      const cfCtx = (event.context as { cloudflare?: { context?: { waitUntil?: (p: Promise<unknown>) => void } } }).cloudflare?.context
-      if (cfCtx?.waitUntil)
-        cfCtx.waitUntil(scanPromise)
-      else
-        void scanPromise
-    }
 
     await setUserSession(event, {
       user: {

@@ -247,6 +247,7 @@ describe('owned GitHub repository discovery', () => {
     })
   })
 
+<<<<<<< HEAD
   it('searches each organisation the account belongs to, not just the account', async () => {
     const fetch = vi.fn(async (url: string) => {
       const query = decodeURIComponent(new URL(url).searchParams.get('q') ?? '')
@@ -314,6 +315,9 @@ describe('owned GitHub repository discovery', () => {
   })
 
   it('maps API success and OAuth warnings from the tagged outcome', () => {
+=======
+  it('maps API success from the tagged outcome', () => {
+>>>>>>> ca3ba8c1 (feat(identity): ask before indexing repositories and hide likes)
     const complete = { _tag: 'complete' as const, ...emptyResultCounts() }
     const partial = {
       _tag: 'partial' as const,
@@ -323,13 +327,6 @@ describe('owned GitHub repository discovery', () => {
 
     expect(ownedRepoScanResponse(complete)).toMatchObject({ ok: true, _tag: 'complete' })
     expect(ownedRepoScanResponse(partial)).toMatchObject({ ok: false, _tag: 'partial' })
-    expect(ownedRepoScanWarning(complete)).toBeNull()
-    expect(ownedRepoScanWarning(partial)).toEqual({
-      outcome: 'partial',
-      reason: 'incomplete_results',
-      reposFound: 0,
-      reposFailed: 0,
-    })
   })
 
   it.each([

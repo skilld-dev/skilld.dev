@@ -39,7 +39,8 @@ describe('skill likes endpoints', () => {
         stars_synced_at INTEGER,
         onboarded_at INTEGER,
         created_at INTEGER NOT NULL,
-        last_login_at INTEGER NOT NULL
+        last_login_at INTEGER NOT NULL,
+        likes_public INTEGER NOT NULL DEFAULT 0
       );
       CREATE TABLE skill_likes (
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -23,6 +23,8 @@ interface LikedSkill {
 }
 
 interface LikedResponse {
+  /** `owner` means the list is private and the viewer owns it. */
+  access: 'public' | 'owner'
   author: { login: string, name: string | null, avatar: string | null }
   items: LikedSkill[]
 }
@@ -81,6 +83,17 @@ useSeoMeta({
       <p class="mt-4 max-w-3xl text-base leading-relaxed text-muted text-pretty">
         Every skill @{{ login }} liked. Liking one watches its repository, so these are the
         skills whose changes reach their digest.
+      </p>
+
+      <p
+        v-if="data?.access === 'owner'"
+        class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted"
+      >
+        <UIcon name="i-lucide-lock" class="size-4 shrink-0" aria-hidden="true" />
+        Only you can see this.
+        <NuxtLink to="/me" class="underline hover:text-default">
+          Change in your settings
+        </NuxtLink>
       </p>
 
       <dl class="mt-6 flex flex-wrap gap-x-6 gap-y-3 border-y border-default py-3">

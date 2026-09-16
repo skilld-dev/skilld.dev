@@ -578,7 +578,8 @@ CREATE TABLE users (
   timezone TEXT NOT NULL DEFAULT 'UTC',
   onboarded_at INTEGER,
   created_at INTEGER NOT NULL,
-  last_login_at INTEGER NOT NULL
+  last_login_at INTEGER NOT NULL,
+  likes_public INTEGER NOT NULL DEFAULT 0 CHECK (likes_public IN (0, 1))
 );
 
 CREATE TRIGGER ai_ready_pages_ad AFTER DELETE ON ai_ready_pages BEGIN

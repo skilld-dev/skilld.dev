@@ -34,6 +34,23 @@ export const identityMeSchema = z.object({
   timezone: z.string(),
   stars_synced_at: z.number().int().nullable(),
   onboarded_at: z.number().int().nullable(),
+  /** Anyone can read /@login/liked when true. */
+  likes_public: z.boolean(),
+})
+
+export const identityPrivacyPatchBodySchema = z.object({
+  likes_public: z.boolean(),
+})
+
+/**
+ * The part of `POST /api/me/repos/scan` the onboarding prompt reads.
+ * Extra count fields pass through unread.
+ */
+export const identityOwnedRepoScanResponseSchema = z.object({
+  _tag: z.enum(['complete', 'partial', 'auth_failure', 'rate_limited', 'provider_failure']),
+  reposFound: z.number().int().nonnegative(),
+  reposSynced: z.number().int().nonnegative(),
+  reposFailed: z.number().int().nonnegative(),
 })
 
 export const identitySubscriptionSchema = z.object({
@@ -53,6 +70,8 @@ export const identityMutationResponseSchema = z.object({
 })
 
 export type IdentityEmailPatchBody = z.input<typeof identityEmailPatchBodySchema>
+export type IdentityPrivacyPatchBody = z.input<typeof identityPrivacyPatchBodySchema>
+export type IdentityOwnedRepoScanResponse = z.output<typeof identityOwnedRepoScanResponseSchema>
 export type IdentityMutationResponse = z.output<typeof identityMutationResponseSchema>
 
 export interface IdentitySubscriptionRef {

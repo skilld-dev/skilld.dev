@@ -15,6 +15,8 @@ export interface UserRow {
   stars_synced_at: number | null
   onboarded_at: number | null
   last_login_at: number
+  /** 1 when anyone can read /@login/liked. 0 keeps it to the owner. */
+  likes_public: number
 }
 
 export interface GitHubProfile {
@@ -104,7 +106,7 @@ export async function upsertUserFromGithub(
   const row = await d.prepare(
     `SELECT id, github_id, login, name, email, avatar,
             digest_email, email_opt_in, weekly_opt_out, timezone,
-            stars_synced_at, onboarded_at, last_login_at
+            stars_synced_at, onboarded_at, last_login_at, likes_public
      FROM users WHERE github_id = ?1`,
   ).bind(profile.id).first<UserRow>()
 
@@ -117,7 +119,7 @@ export async function getUserById(event: H3Event, id: number): Promise<UserRow |
   const row = await db(event).prepare(
     `SELECT id, github_id, login, name, email, avatar,
             digest_email, email_opt_in, weekly_opt_out, timezone,
-            stars_synced_at, onboarded_at, last_login_at
+            stars_synced_at, onboarded_at, last_login_at, likes_public
      FROM users WHERE id = ?1`,
   ).bind(id).first<UserRow>()
   return row ?? null
