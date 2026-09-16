@@ -13,10 +13,10 @@ export default defineApiHandler({
     const userCode = makeUserCode()
     await event.context.platform.db.prepare(
       `INSERT INTO cli_device_sessions (
-         device_code, user_code, cli_version,
+         device_code, user_code, cli_version, machine_hint,
          status, created_at, expires_at
-       ) VALUES (?1, ?2, ?3, 'pending', ?4, ?5)`,
-    ).bind(deviceCode, userCode, body.cli_version, now, now + 600).run()
+       ) VALUES (?1, ?2, ?3, ?4, 'pending', ?5, ?6)`,
+    ).bind(deviceCode, userCode, body.cli_version, body.machine_hint ?? null, now, now + 600).run()
 
     const site = useRuntimeConfig(event).publicSiteUrl as string
     return {
