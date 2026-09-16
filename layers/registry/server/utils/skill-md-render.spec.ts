@@ -181,5 +181,16 @@ license: MIT
       expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
       expect(doc.querySelector('a')?.textContent).not.toBe('')
     })
+    it.each([
+      ['a mailto URL', 'mailto:badge@example.com'],
+      ['a javascript URL', 'javascript:alert(1)'],
+      ['a non-image data URL', 'data:text/plain,blocked'],
+    ])('shows a scheme-blocked empty-alt image inside a link as visible text, not an empty anchor (%s)', async (_label, href) => {
+      const doc = await render(`[![](${href})](https://ci.example/acme)`)
+
+      expect(doc.querySelectorAll('a')).toHaveLength(1)
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
+      expect(doc.querySelector('a')?.textContent?.trim()).not.toBe('')
+    })
   })
 })
