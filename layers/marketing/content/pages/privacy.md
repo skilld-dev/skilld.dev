@@ -36,9 +36,9 @@ Your browser keeps your color mode and your 5 most recent searches in local stor
 
 Search sends your query to Workers AI on Cloudflare to find matching Skills. skilld stores no copy of the query text. It caches the query's embedding, a list of numbers, for up to one day. The cache entry holds nothing that identifies you.
 
-### Skill pages
+### Images
 
-A Skill page never makes your browser load an image from the Skill author's own server.
+Every avatar and every image in a Skill loads through skilld.dev. skilld.dev fetches the image from GitHub, X, Bluesky, or the host the Skill names, and sends none of your request details. Those hosts never see your IP address, and your browser never contacts them for an image. skilld.dev also sends a referrer policy that shares only the site origin with other sites you open.
 
 ## When you sign in with GitHub
 
@@ -47,13 +47,16 @@ Sign-in uses GitHub OAuth. skilld asks for two scopes:
 - `read:user` reads your profile: your GitHub ID, login, name, and avatar.
 - `user:email` reads your verified primary email address when your GitHub profile hides your email.
 
-skilld uses the same token for two more jobs. On your first sign-in, it searches your public Repositories for `SKILL.md` files. It adds the Skills it finds to the registry. When you import your stars, it reads the list of Repositories you starred.
+skilld uses the same token for two more jobs, and only when you ask:
+
+- If you choose to add your Skills during sign-up, or later from your profile, skilld searches your public Repositories for `SKILL.md` files. It adds the Skills it finds to the registry.
+- When you import your stars, skilld reads the list of Repositories you starred.
 
 skilld stores this data for your account:
 
 - Your GitHub ID, login, name, avatar URL, and email address.
 - Your GitHub tokens, encrypted. Signing out deletes them.
-- The Skills you like. Your likes are public at `skilld.dev/@your-login/liked`.
+- The Skills you like. Only you can see them, unless you turn on "Show liked Skills on your profile" in your dashboard.
 - The Repositories you watch and the stars you import.
 - The collections you create. Collections are public.
 - Your email settings and the email address you save.
@@ -66,7 +69,9 @@ skilld sends email only after you turn it on, during sign-up or in your dashboar
 - **Weekly email:** new trending Skills every Monday.
 - **Monthly digest:** changes to your liked Skills and watched Repositories, on the first day of each month.
 
-skilld sends to the address you save. If you save no address, it uses the email address from your GitHub account. Cloudflare delivers each email from `noreply@mail.skilld.dev`. Every email has an unsubscribe link. skilld records no clicks by individual readers on email links.
+skilld sends to the address you save. If you save no address, it uses the email address from your GitHub account. Cloudflare delivers each email from `noreply@mail.skilld.dev`. Every email has an unsubscribe link.
+
+Links in these emails go through skilld.dev. skilld counts clicks per day, per email issue, and per link. Every reader of an issue gets the same links, so a count holds no name, email address, IP address, or user agent.
 
 ## The skilld CLI
 
@@ -76,7 +81,7 @@ When you sign in with the CLI, skilld stores a record for that token:
 
 - The token, hashed or encrypted.
 - The CLI version.
-- The token's label, such as the name you give a personal token.
+- A label for the token. The skilld CLI sends your computer's hostname, so you can tell your devices apart. Only you can see it.
 - When skilld issued the token, and when a request last used it.
 
 If the client sends your operating system and processor type, such as `darwin-arm64`, device sign-in records it. The sign-in page shows it, so you can check which machine asks for access. You can revoke a device in your [dashboard](/me/devices).
@@ -93,7 +98,7 @@ skilld uses [Sentry](https://sentry.io) to find and fix errors.
 
 ## Services that handle your data
 
-- Cloudflare hosts skilld.dev and runs its database, cache, email delivery, Workers AI search, and request logs. It handles requests, account data, email addresses, and search queries.
+- Cloudflare hosts skilld.dev and runs its database, cache, email delivery, image proxy, Workers AI search, and request logs. It handles requests, account data, email addresses, and search queries.
 - GitHub handles sign-in and holds the source of every Skill. It handles your GitHub profile and tokens.
 - Sentry receives error reports, with the data listed above removed.
 
@@ -107,6 +112,8 @@ skilld uses [Sentry](https://sentry.io) to find and fix errors.
 
 A daily job deletes these records at 04:30 UTC. Two kinds of digest records stay longer. The newest digest record for each account stays, because the next digest starts from it. A digest that did not send successfully also stays, so a retry cannot send it twice.
 
+Cloudflare D1 keeps a point-in-time recovery history of the database. A deleted row can stay in that history for up to 30 days, and then it expires.
+
 ## Delete your account
 
 Open your [dashboard](/me) and select the Delete account button. Type your GitHub login to confirm. skilld then deletes all of this at once:
@@ -119,7 +126,7 @@ Open your [dashboard](/me) and select the Delete account button. Type your GitHu
 
 After that, skilld asks GitHub to revoke its access to your GitHub account. If GitHub does not confirm, your dashboard tells you. You can then revoke skilld in your [GitHub settings](https://github.com/settings/applications).
 
-Skills in your public Repositories stay in the registry, because GitHub is their source.
+Skills in your public Repositories stay in the registry, because GitHub is their source. Deleted data can stay in the database recovery history for up to 30 days.
 
 ## Contact
 
