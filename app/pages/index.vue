@@ -6,6 +6,7 @@ import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import type { InstallTarget } from '../composables/useInstallCopy'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
+import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
@@ -493,7 +494,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             >
               <span class="flex items-center gap-2">
                 <img
-                  :src="`https://github.com/${repo.owner}.png?size=64`"
+                  :src="githubAvatarProxyUrl(repo.owner, 64)"
                   alt=""
                   width="24"
                   height="24"
@@ -652,7 +653,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   class="home-freshness-row home-freshness-row--primary group"
                 >
                   <img
-                    :src="item.avatarUrl"
+                    :src="avatarProxyUrl(item.avatarUrl)"
                     alt=""
                     width="36"
                     height="36"
@@ -727,7 +728,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   class="home-freshness-row home-freshness-row--secondary group"
                 >
                   <img
-                    :src="`https://github.com/${item.owner}.png?size=64`"
+                    :src="githubAvatarProxyUrl(item.owner, 64)"
                     alt=""
                     width="32"
                     height="32"
@@ -848,7 +849,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               </div>
               <div class="home-featured-curator">
                 <img
-                  :src="`https://github.com/${leadCollection.authorLogin}.png?size=112`"
+                  :src="githubAvatarProxyUrl(leadCollection.authorLogin, 112)"
                   alt=""
                   width="56"
                   height="56"
@@ -900,7 +901,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                   :aria-label="`${featuredCollectionSkillLabel(skill)} by ${skill.owner}`"
                 >
                   <img
-                    :src="`https://github.com/${skill.owner}.png?size=64`"
+                    :src="githubAvatarProxyUrl(skill.owner, 64)"
                     alt=""
                     width="32"
                     height="32"
@@ -994,7 +995,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                       <img
                         v-for="owner in collectionSkillOwners(collection)"
                         :key="owner"
-                        :src="`https://github.com/${owner}.png?size=64`"
+                        :src="githubAvatarProxyUrl(owner, 64)"
                         alt=""
                         width="32"
                         height="32"

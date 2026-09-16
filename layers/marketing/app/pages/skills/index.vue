@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { trendingSkillKeySet } from '#shared/trending-keys'
 import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
@@ -458,7 +459,7 @@ function selectOwner(next: string) {
             @click="selectOwner(publisher.owner)"
           >
             <img
-              :src="`https://github.com/${publisher.owner}.png?size=32`"
+              :src="githubAvatarProxyUrl(publisher.owner, 32)"
               alt=""
               width="16"
               height="16"

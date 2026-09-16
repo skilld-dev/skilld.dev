@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TagProfile } from '#layers/registry/server/api/tags/[slug].get'
 import { getTagRedirect } from '#layers/registry/server/utils/tag-quality'
+import { avatarProxyUrl } from '#shared/image-proxy'
 
 const route = useRoute()
 const tagSlug = computed(() => route.params.slug as string)
@@ -87,7 +88,7 @@ defineOgImage('Page.takumi', {
             class="inline-flex items-center gap-2 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
           >
             <img
-              :src="o.avatar"
+              :src="avatarProxyUrl(o.avatar)"
               :alt="o.owner"
               class="size-4 rounded-sm"
               loading="lazy"

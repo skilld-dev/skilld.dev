@@ -8,6 +8,7 @@ import {
   useRafFn,
   useTimeoutFn,
 } from '@vueuse/core'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 
 const {
   items,
@@ -120,7 +121,7 @@ function sourcePath(item: SkillSourceItem): string {
         >
           <span class="skill-source-stream__avatar">
             <img
-              :src="`https://github.com/${item.owner}.png?size=96`"
+              :src="githubAvatarProxyUrl(item.owner, 96)"
               alt=""
               width="32"
               height="32"
@@ -163,7 +164,7 @@ function sourcePath(item: SkillSourceItem): string {
         class="skill-source-grid__item group"
       >
         <img
-          :src="`https://github.com/${item.owner}.png?size=48`"
+          :src="githubAvatarProxyUrl(item.owner, 48)"
           alt=""
           width="24"
           height="24"

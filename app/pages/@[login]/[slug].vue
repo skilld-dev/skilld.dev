@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
+
 const route = useRoute()
 const login = computed(() => String(route.params.login))
 const slug = computed(() => String(route.params.slug))
@@ -89,7 +91,7 @@ function collectionSkillMeta(skill: { owner: string, repo: string, name?: string
             aria-hidden="true"
           />
           <img
-            :src="`https://github.com/${login}.png?size=64`"
+            :src="githubAvatarProxyUrl(login, 64)"
             alt=""
             width="32"
             height="32"
@@ -233,7 +235,7 @@ function collectionSkillMeta(skill: { owner: string, repo: string, name?: string
               {{ String(index + 1).padStart(2, '0') }}
             </span>
             <img
-              :src="`https://github.com/${skill.owner}.png?size=64`"
+              :src="githubAvatarProxyUrl(skill.owner, 64)"
               alt=""
               width="32"
               height="32"

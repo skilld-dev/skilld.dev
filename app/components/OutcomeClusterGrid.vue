@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
+
 interface ClusterExample {
   owner: string
   name: string
@@ -135,7 +137,7 @@ function rankOf(slug: string): number {
               <img
                 v-for="author in cluster.authors"
                 :key="author"
-                :src="`https://github.com/${author}.png?size=48`"
+                :src="githubAvatarProxyUrl(author, 48)"
                 alt=""
                 width="24"
                 height="24"

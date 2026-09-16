@@ -12,6 +12,7 @@
  */
 
 import type { WeeklyPlacement } from './weekly-tracking'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { trackedUrl } from './weekly-tracking'
 
@@ -363,8 +364,12 @@ function mentionAge(latestAt: number, now: number): string {
   return latestAt ? ` \u00B7 latest ${relativeDay(latestAt, now)}` : ''
 }
 
-function avatarUrl(owner: string): string {
-  return `https://github.com/${encodeURIComponent(owner)}.png?size=80`
+/**
+ * Avatars load through the skilld.dev image proxy, so GitHub never learns who
+ * opened the email or when.
+ */
+function avatarUrl(siteUrl: string, owner: string): string {
+  return `${siteUrl}${githubAvatarProxyUrl(owner, 80)}`
 }
 
 function skillUrl(
@@ -391,6 +396,7 @@ function sectionLabel(t: Tokens, text: string): string {
  * stops a two-line description from centring the face against it.
  */
 function row(t: Tokens, options: {
+  siteUrl: string
   owner: string
   title: string
   href: string
@@ -407,7 +413,7 @@ function row(t: Tokens, options: {
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
     <tr>
       <td valign="top" width="44" style="width:44px;padding-right:12px;">
-        <img class="weekly-border" src="${esc(avatarUrl(options.owner))}" width="36" height="36" alt=""
+        <img class="weekly-border" src="${esc(avatarUrl(options.siteUrl, options.owner))}" width="36" height="36" alt=""
              style="width:36px;height:36px;border-radius:18px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
       <td valign="top">
@@ -431,6 +437,7 @@ function row(t: Tokens, options: {
  * quotes, and the duplicate source action remain in the plain-text version.
  */
 function trendingRow(t: Tokens, options: {
+  siteUrl: string
   owner: string
   title: string
   href: string
@@ -445,7 +452,7 @@ function trendingRow(t: Tokens, options: {
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
     <tr>
       <td valign="top" width="36" style="width:36px;padding-right:10px;">
-        <img class="weekly-border" src="${esc(avatarUrl(options.owner))}" width="28" height="28" alt=""
+        <img class="weekly-border" src="${esc(avatarUrl(options.siteUrl, options.owner))}" width="28" height="28" alt=""
              style="width:28px;height:28px;border-radius:14px;display:block;border:1px solid ${t.border};background:${t.quote};" />
       </td>
       <td valign="top">
@@ -643,6 +650,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
     const subjects = commitSubjects(change.commitMessages)
     const sourceUrl = change.sourceUrl ?? skillUrl(input.siteUrl, change)
     return row(t, {
+      siteUrl: input.siteUrl,
       owner: change.owner,
       title: change.name,
       href: sourceUrl,
@@ -687,6 +695,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const trendingRows = input.trending.map((skill) => {
     const sourceUrl = skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug })
     return trendingRow(t, {
+      siteUrl: input.siteUrl,
       owner: skill.owner,
       title: skill.canonicalName,
       href: sourceUrl,
