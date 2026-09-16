@@ -60,6 +60,7 @@
     "@modelcontextprotocol/sdk": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
     "@nuxt/fonts": "catalog:",
+    "@nuxt/scripts": "catalog:",
     "@nuxt/ui": "catalog:",
     "@nuxtjs/seo": "catalog:",
     "@resvg/resvg-js": "catalog:",
