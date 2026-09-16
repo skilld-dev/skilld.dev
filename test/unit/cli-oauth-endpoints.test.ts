@@ -133,6 +133,35 @@ describe('cli OAuth token endpoint', () => {
     })
   })
 
+  it('stores the device label the CLI sends', async () => {
+    const verifier = 'd'.repeat(64)
+    await insertCode({ code: 'code-label-1234567', challenge: await sha256Base64Url(verifier), port: 49155 })
+
+    setBody({
+      code: 'code-label-1234567',
+      code_verifier: verifier,
+      redirect_uri: 'http://127.0.0.1:49155/',
+      device_label: '  work-laptop  ',
+    })
+    await tokenHandler(event)
+
+    expect(sqlite.prepare('SELECT device_label FROM cli_tokens').get()).toEqual({ device_label: 'work-laptop' })
+  })
+
+  it('rejects a device label with control characters', async () => {
+    const verifier = 'e'.repeat(64)
+    await insertCode({ code: 'code-ctrl-12345678', challenge: await sha256Base64Url(verifier), port: 49156 })
+
+    setBody({
+      code: 'code-ctrl-12345678',
+      code_verifier: verifier,
+      redirect_uri: 'http://127.0.0.1:49156/',
+      device_label: 'work\u001B[31mlaptop',
+    })
+
+    await expect(tokenHandler(event)).rejects.toMatchObject({ statusCode: 400 })
+  })
+
   async function insertCode(input: { code: string, challenge: string, port: number }) {
     sqlite.prepare(`
       INSERT INTO cli_auth_codes (
