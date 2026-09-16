@@ -44,6 +44,7 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
       newUsers24h: 1,
       digestsSent24h: 4,
       digestsFailed24h: 0,
+      emailClicks: { fromDay: '2026-07-21', weekly: 2, digest: 5 },
     },
     pipeline: {
       syncJobs: [{ name: 'sync-github-skills', status: 'ok', lastRunAt: 1_774_473_600, stale: false, error: null }],
@@ -332,6 +333,7 @@ describe('buildDailyHealthCheck', () => {
       CREATE TABLE skill_subscriptions (owner TEXT, repo TEXT);
       CREATE TABLE collection_skills_v2 (owner TEXT, repo TEXT);
       CREATE TABLE activity (owner TEXT, repo TEXT, name TEXT, occurred_at INTEGER);
+      CREATE TABLE email_click_counts (day TEXT, campaign TEXT, issue INTEGER, placement TEXT, path TEXT, clicks INTEGER);
       CREATE TABLE digest_runs (
         status TEXT,
         sent_at INTEGER,
@@ -399,6 +401,11 @@ describe('buildDailyHealthCheck', () => {
       INSERT INTO collections_v2 VALUES (NULL);
       INSERT INTO user_starred_repos VALUES ('owner', 'repo');
       INSERT INTO activity VALUES ('owner', 'repo', 'skill', ${nowSec - 60});
+      -- Counters are per UTC day. The window starts on 07-21, so 07-20 is out.
+      INSERT INTO email_click_counts VALUES ('2026-07-20', 'digest', 1, 'overflow', '/me/likes', 40);
+      INSERT INTO email_click_counts VALUES ('2026-07-21', 'digest', 1, 'overflow', '/me/likes', 2);
+      INSERT INTO email_click_counts VALUES ('2026-07-22', 'digest', 1, 'footer', '/', 3);
+      INSERT INTO email_click_counts VALUES ('2026-07-22', 'weekly', 2, 'cta', '/skills', 1);
       INSERT INTO digest_runs VALUES ('sent', ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60});
       -- The discovery cursor is a single fixed row in production, and the
       -- health query reads it by key. Without it the query returns no row at
@@ -470,6 +477,7 @@ describe('buildDailyHealthCheck', () => {
     expect(built.warnings).toEqual([])
     expect(built.inventory).toMatchObject({ skills: 1, repos: 2, users: 1, watchedRepos: 1 })
     expect(built.activity).toMatchObject({ newSkills24h: 1, repoChanges24h: 1, digestsSent24h: 1 })
+    expect(built.activity.emailClicks).toEqual({ fromDay: '2026-07-21', weekly: 1, digest: 5 })
     expect(built.pipeline).toMatchObject({
       newlyBrokenReposTotal24h: 1,
       newlyBrokenReposImpacted24h: 0,

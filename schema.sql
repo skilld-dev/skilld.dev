@@ -49,6 +49,8 @@ CREATE UNIQUE INDEX weekly_runs_user_window ON weekly_runs (user_id, window_end)
 CREATE INDEX weekly_skill_sends_recent
   ON weekly_skill_sends (sent_at DESC, owner, repo, name);
 
+CREATE INDEX email_click_counts_issue ON email_click_counts (campaign, issue);
+
 CREATE INDEX idx_owners_followers ON owners (followers DESC);
 
 CREATE INDEX idx_skill_revisions_lookup
@@ -275,6 +277,16 @@ CREATE TABLE digest_runs (
   ai_summary_used INTEGER NOT NULL DEFAULT 0,
   sent_at INTEGER,
   error TEXT
+);
+
+CREATE TABLE email_click_counts (
+  day TEXT NOT NULL,
+  campaign TEXT NOT NULL CHECK (campaign IN ('weekly', 'digest')),
+  issue INTEGER NOT NULL,
+  placement TEXT NOT NULL,
+  path TEXT NOT NULL,
+  clicks INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, campaign, issue, placement, path)
 );
 
 CREATE TABLE email_preference_events (

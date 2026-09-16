@@ -21,6 +21,8 @@ export interface DigestRepoEntry {
 export interface DigestRenderInput {
   login: string
   recipientName?: string | null
+  /** Route same-site links through the aggregate click counter. Real sends only. */
+  countClicks?: boolean
   windowStart: number
   windowEnd: number
   entries: DigestRepoEntry[]
@@ -56,6 +58,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
   return renderWeekly({
     edition: 'digest',
     recipientName: input.recipientName ?? null,
+    countClicks: input.countClicks ?? false,
     windowStart: input.windowStart,
     windowEnd: input.windowEnd,
     likedChanges,

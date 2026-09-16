@@ -11,21 +11,29 @@ vi.hoisted(() => {
 })
 
 describe('weekly admin engagement', () => {
-  it('reports the unsubscribe rate per accepted recipient', () => {
+  it('reports clicks, unsubscribes, and share clicks per accepted email', () => {
     expect(summarizeWeeklyEngagement({
       accepted: 12,
+      clicks: 3,
       unsubscribes: 1,
+      share_clicks: 2,
     })).toEqual({
+      clicks: 3,
+      clicksPerAccepted: 0.25,
       unsubscribes: 1,
       unsubscribeRate: 1 / 12,
+      shareClicks: 2,
     })
   })
 
   it('does not invent rates when nobody was accepted', () => {
     expect(summarizeWeeklyEngagement({
       accepted: 0,
+      clicks: 4,
       unsubscribes: 0,
+      share_clicks: 0,
     })).toMatchObject({
+      clicksPerAccepted: null,
       unsubscribeRate: null,
     })
   })

@@ -25,7 +25,9 @@ interface WindowRow {
   trending_rows: number
   first_claimed_at: number
   last_sent_at: number | null
+  clicks: number
   unsubscribes: number
+  share_clicks: number
 }
 
 interface ProblemRow {
@@ -56,8 +58,12 @@ export interface AdminWeeklyResponse {
     trendingRows: number
     firstClaimedAt: number
     lastAcceptedAt: number | null
+    /** Aggregate link clicks for this issue, share links excluded. */
+    clicks: number
+    clicksPerAccepted: number | null
     unsubscribes: number
     unsubscribeRate: number | null
+    shareClicks: number
   }>
   /** Rows without a resolved provider outcome, newest first. */
   problems: Array<{
@@ -94,6 +100,11 @@ export default defineApiHandler({
                 SUM(trending_count) AS trending_rows,
                 MIN(claimed_at) AS first_claimed_at,
                 MAX(r.sent_at) AS last_sent_at,
+                (SELECT COALESCE(SUM(c.clicks), 0)
+                 FROM email_click_counts c
+                 WHERE c.campaign = 'weekly'
+                   AND c.issue = r.window_end
+                   AND c.placement != 'share') AS clicks,
                 (SELECT COUNT(DISTINCT e.user_id)
                  FROM email_preference_events e
                  WHERE e.list = 'weekly'
@@ -105,7 +116,12 @@ export default defineApiHandler({
                        AND er.sent_at IS NOT NULL
                        AND e.occurred_at >= er.sent_at
                        AND e.occurred_at < er.sent_at + 604800
-                   )) AS unsubscribes
+                   )) AS unsubscribes,
+                (SELECT COALESCE(SUM(c.clicks), 0)
+                 FROM email_click_counts c
+                 WHERE c.campaign = 'weekly'
+                   AND c.issue = r.window_end
+                   AND c.placement = 'share') AS share_clicks
          FROM weekly_runs r
          GROUP BY r.window_end
          ORDER BY r.window_end DESC
