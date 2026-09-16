@@ -175,9 +175,10 @@ function createSkillMd(
         if (inlineData || (url && isGithubImageUrl(url)))
           return `<img src="${escapeHtml(inlineData ? safe : url!.href)}" alt="${escapeHtml(text)}"${t} referrerpolicy="no-referrer" loading="lazy">`
         // Never load an image from another host. Offer the address as a link,
-        // unless the image already sits inside a link.
+        // unless the image already sits inside a link. An empty alt inside a
+        // link must still leave visible text, or the link renders empty.
         if (!url || linkDepth > 0)
-          return escapeHtml(text)
+          return escapeHtml(text || url?.href || '')
         return `<a href="${escapeHtml(url.href)}"${t} target="_blank" rel="noopener noreferrer">${escapeHtml(text || url.href)}</a>`
       },
       heading(this: Renderer, token: Tokens.Heading) {
