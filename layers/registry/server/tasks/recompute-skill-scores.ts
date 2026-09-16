@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
+import { retryIdempotentD1Write } from '@harlan-zw/nuxt-cloudflare/d1'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
@@ -40,7 +41,13 @@ export default defineScheduledTask({
       let result: Awaited<ReturnType<typeof recomputeAllSkillScores>> | null = null
       let error: string | null = null
       try {
-        result = await recomputeAllSkillScores(db)
+        // Replay-safe: a re-run re-reads stored scores, so rows an interrupted
+        // pass already updated are detected as unchanged and skipped. One
+        // transient D1 fault must not fail the nightly run.
+        result = await retryIdempotentD1Write({
+          safety: { _tag: 'replay-safe' },
+          run: () => recomputeAllSkillScores(db),
+        })
       }
       catch (err) {
         error = (err as Error).message
