@@ -9,8 +9,8 @@ import {
 
 describe('skill commands', () => {
   it.each([
-    [skillRunCmd('nuxt', 'nuxt', 'seo'), 'npx skilld@beta run skilld:nuxt/nuxt/seo'],
-    [skillInstallCmd('nuxt', 'nuxt', 'seo'), 'npx skilld@beta install skilld:nuxt/nuxt/seo'],
+    [skillRunCmd('nuxt', 'nuxt', 'seo'), 'npx skilld run skilld:nuxt/nuxt/seo'],
+    [skillInstallCmd('nuxt', 'nuxt', 'seo'), 'npx skilld install skilld:nuxt/nuxt/seo'],
   ])('returns %s', (command, expected) => {
     expect(command).toBe(expected)
   })

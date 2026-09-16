@@ -13,7 +13,7 @@ interface CollectionTarget {
 }
 
 /**
- * A whole repository, which is what `skilld@beta add gh:owner/repo` installs. The
+ * A whole repository, which is what `skilld add gh:owner/repo` installs. The
  * homepage hero copies this shape, and calling it a skill would file the site's
  * most-copied command under a skill name that does not exist.
  */

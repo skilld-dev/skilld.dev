@@ -3,12 +3,12 @@ title: skilld CLI reference
 description: Every skilld command with its help text, flags, and one example. Generated from the CLI help for skilld 3.0.0-beta.3.
 label: Reference
 author: Harlan Wilton
-command: npm install --global skilld@beta
+command: npm install --global skilld
 publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
 
-Generated from `skilld --help` for skilld `3.0.0-beta.3`. The v3 CLI ships on the `beta` npm tag. Use `npx skilld@beta <command>` or install it once with `npm install --global skilld@beta`.
+Generated from `skilld --help` for skilld `3.0.0-beta.3`. Use `npx skilld <command>` or install it once with `npm install --global skilld`.
 
 The npm package selects a native executable for your system. It has no JavaScript engine or fallback.
 
@@ -49,7 +49,7 @@ skilld names the supporting files and prints none of them. Use `--file` to read 
 | `--direct` | Fetch a public GitHub Repository without going through skilld.dev. Give a `github:` source or a GitHub tree URL. A direct run carries the `unverified` source status. |
 
 ```sh
-npx skilld@beta run skilld:skilld-dev/skills/find-skill
+npx skilld run skilld:skilld-dev/skills/find-skill
 ```
 
 ## skilld install

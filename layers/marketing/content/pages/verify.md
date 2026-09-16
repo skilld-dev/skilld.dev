@@ -3,7 +3,7 @@ title: How skilld verifies a Skill
 description: What a source status means, which checks the skilld CLI runs before it writes a file, and what skilld never claims about a Skill.
 label: Trust
 author: Harlan Wilton
-command: npx skilld@beta run skilld:owner/repo/skill
+command: npx skilld run skilld:owner/repo/skill
 publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
@@ -46,13 +46,13 @@ skilld never rates the instructions inside a Skill. No source status says a Skil
 `skilld run` prints `SKILL.md` to stdout. Your Agent reads it and follows it for this session. A remote run writes no Skill files. It creates no lockfile entry, Agent target, project file, or Skill cache.
 
 ```sh
-npx skilld@beta run skilld:owner/repo/skill
+npx skilld run skilld:owner/repo/skill
 ```
 
 A Skill can carry supporting files. `skilld run` names them and prints none of them. Read one when the instructions call for it:
 
 ```sh
-npx skilld@beta run skilld:owner/repo/skill --revision <commit> --file references/api.md
+npx skilld run skilld:owner/repo/skill --revision <commit> --file references/api.md
 ```
 
 skilld never prints executable or binary files. A Skill that must run its own script needs an install, and an install writes files. Ask first.

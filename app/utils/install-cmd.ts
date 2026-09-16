@@ -21,7 +21,7 @@ const SUBCOMMANDS = new Set(['add', 'remove', 'update', 'list', 'install', 'run'
 
 /**
  * Colours an install command by role so the eye lands on the part that changes.
- * The grammar is ours (`npx skilld@beta add <target>`), so a shiki grammar pass
+ * The grammar is ours (`npx skilld add <target>`), so a shiki grammar pass
  * would cost a highlighter to say less than these six roles do.
  */
 export function tokenizeInstallCmd(command: string): InstallToken[] {

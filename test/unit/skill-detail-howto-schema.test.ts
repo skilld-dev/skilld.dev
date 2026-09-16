@@ -212,7 +212,7 @@ describe('skillDetail command choice', () => {
     await installTab!.trigger('click')
 
     await vi.waitFor(() => {
-      expect(panel.get('.install-command').text()).toBe('npx skilld@beta install skilld:antfu/skills/vite')
+      expect(panel.get('.install-command').text()).toBe('npx skilld install skilld:antfu/skills/vite')
       expect(panel.get('button[aria-label="Copy install command"]')).toBeTruthy()
       expect(panels[1]!.get('button[aria-pressed="true"]').text()).toBe('Install')
       expect(panel.get('button[aria-expanded="false"]').text()).toContain('Check it worked')
@@ -250,7 +250,7 @@ describe('skill command copy feedback', () => {
         props: {
           modelValue: 'run',
           runUrl: 'https://skilld.dev/gh/antfu/skills/vite',
-          installCommand: 'npx skilld@beta install skilld:antfu/skills/vite',
+          installCommand: 'npx skilld install skilld:antfu/skills/vite',
           runCopied: false,
           installCopied: false,
           copyError: 'Could not copy. Select the command and copy it manually.',

@@ -3,7 +3,7 @@ title: 'Hermes skills: run curated Agent Skills in Hermes Agent'
 description: "How to use Skills in Hermes Agent: where Hermes reads them, how skilld installs them, and a curated list with authors. The same Skill runs in Claude Code, Codex, Cursor, and every other Agent skilld targets."
 heading: Hermes Agent skills
 label: Agents
-command: npx skilld@beta run skilld:owner/repo/skill
+command: npx skilld run skilld:owner/repo/skill
 publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
@@ -20,7 +20,7 @@ Hermes reads each Skill description and loads the full file when a task matches.
 ### Install a Skill for Hermes Agent
 
 ```sh
-npx skilld@beta install skilld:owner/repo/skill --agent hermes
+npx skilld install skilld:owner/repo/skill --agent hermes
 ```
 
 The Skill lands in `.hermes/skills`. Add `--global` to install to `~/.hermes/skills` instead. skilld detects the Agents in your project and on your machine. If it finds only one, omit `--agent`.
@@ -28,7 +28,7 @@ The Skill lands in `.hermes/skills`. Add `--global` to install to `~/.hermes/ski
 ### Run a Skill without installing it
 
 ```sh
-npx skilld@beta run skilld:owner/repo/skill
+npx skilld run skilld:owner/repo/skill
 ```
 
 `skilld run` prints the Skill and writes no file. Give the command to Hermes. It reads the Skill and follows it for this session. Nothing lands in your repository, and no lockfile changes.

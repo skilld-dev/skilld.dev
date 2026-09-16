@@ -1,14 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import {
-  channelFor,
-  channelRequirements,
-  channelRequirementsFor,
+  cliRequirement,
+  cliRequirementFor,
   publishedCliInvocation,
   runPublishedCliGrammar,
 } from '../../scripts/check-published-cli-grammar'
 
-const betaAgents = [
+const agents = [
   'claude-code',
   'codex',
   'cursor',
@@ -20,97 +19,85 @@ const betaAgents = [
   'windsurf',
 ]
 
+const requirement = { minimumMajor: 3, commands: ['install', 'run'], agents, misprinted: [] }
+
+function v3Help(_version: string, subcommand?: string): Promise<string> {
+  if (subcommand === 'install')
+    return Promise.resolve(`--agent <AGENT>\n  Values: ${agents.join(', ')}.\n`)
+  return Promise.resolve('Commands:\n  install  Install a Skill\n  run      Run a Skill\n\n')
+}
+
 describe('published CLI grammar', () => {
   it('runs a published package through pnpm without npm exec', () => {
-    expect(publishedCliInvocation('2.3.0', 'install')).toEqual({
+    expect(publishedCliInvocation('3.0.0', 'install')).toEqual({
       file: 'pnpm',
-      args: ['--reporter=silent', 'dlx', 'skilld@2.3.0', 'install', '--help'],
+      args: ['--reporter=silent', 'dlx', 'skilld@3.0.0', 'install', '--help'],
     })
   })
 
-  const twoChannels = [
-    { tag: 'latest' as const, minimumMajor: 2, commands: ['add'], agents: [] },
-    { tag: 'beta' as const, minimumMajor: 3, commands: ['install', 'run'], agents: betaAgents },
-  ]
-
-  it('checks one published package at a time', async () => {
-    let active = 0
-    let peakActive = 0
-    const readHelp = async (version: string, subcommand?: string) => {
-      active += 1
-      peakActive = Math.max(peakActive, active)
-      await new Promise(resolvePromise => setTimeout(resolvePromise, 5))
-      active -= 1
-
-      if (version === '2.3.0')
-        return 'USAGE skilld [OPTIONS] add|pull\n'
-      if (subcommand === 'install') {
-        return `--agent <AGENT>\n  Values: ${betaAgents.join(', ')}.\n`
-      }
-      return 'Commands:\n  install  Install a Skill\n  run      Run a Skill\n\n'
-    }
-
+  it('passes when latest speaks every printed command and --agent value', async () => {
     const result = await runPublishedCliGrammar({
-      readVersion: async tag => tag === 'latest' ? '2.3.0' : '3.0.0-beta.3',
-      readHelp,
-    }, twoChannels)
+      readVersion: async () => '3.0.0',
+      readHelp: v3Help,
+    }, requirement)
 
     expect(result._tag).toBe('clean')
-    expect(peakActive).toBe(1)
-    for (const check of result.checks)
-      expect(check.fetchRefused).toBe(false)
+    expect(result.check.fetchRefused).toBe(false)
+  })
+
+  it('blocks when latest is still v2', async () => {
+    const result = await runPublishedCliGrammar({
+      readVersion: async () => '2.3.0',
+      readHelp: v3Help,
+    }, requirement)
+
+    expect(result._tag).toBe('blocked')
+    expect(result.check.problems).toContain('requires major 3 or newer')
   })
 
   it('blames a minimumReleaseAge refusal, not the grammar', async () => {
     const refusal = [
-      '[ERR_PNPM_NO_MATURE_MATCHING_VERSION] skilld@3.0.0-beta.4 was published at',
-      '2026-09-04T04:18:08.578Z, within the minimumReleaseAge cutoff',
-      '(2026-09-05T04:18:08.578Z)',
+      '[ERR_PNPM_NO_MATURE_MATCHING_VERSION] skilld@3.0.0 was published at',
+      '2026-09-16T09:38:00.000Z, within the minimumReleaseAge cutoff',
+      '(2026-09-17T09:38:00.000Z)',
     ].join(' ')
     const result = await runPublishedCliGrammar({
-      readVersion: async tag => tag === 'latest' ? '2.3.0' : '3.0.0-beta.4',
+      readVersion: async () => '3.0.0',
       readHelp: async () => refusal,
-    }, twoChannels)
+    }, requirement)
 
     expect(result._tag).toBe('blocked')
-    for (const check of result.checks) {
-      expect(check.fetchRefused).toBe(true)
-      expect(check.problems.join(' ')).toMatch(/minimumReleaseAge/)
-      expect(check.problems.join(' ')).not.toMatch(/could not read/)
-    }
+    expect(result.check.fetchRefused).toBe(true)
+    expect(result.check.problems.join(' ')).toMatch(/minimumReleaseAge/)
+    expect(result.check.problems.join(' ')).not.toMatch(/could not read/)
   })
 
   it('keeps the unreadable-grammar verdict when pnpm answers normally', async () => {
     const result = await runPublishedCliGrammar({
-      readVersion: async tag => tag === 'latest' ? '2.3.0' : '3.0.0-beta.4',
+      readVersion: async () => '3.0.0',
       readHelp: async () => 'some unrelated help text\n',
-    }, twoChannels)
+    }, requirement)
 
     expect(result._tag).toBe('blocked')
-    for (const check of result.checks) {
-      expect(check.fetchRefused).toBe(false)
-      expect(check.problems).toContain('could not read its command list')
-    }
+    expect(result.check.fetchRefused).toBe(false)
+    expect(result.check.problems).toContain('could not read its command list')
   })
 })
 
-describe('published CLI channel', () => {
-  it('reads the channel off the command the site prints', () => {
-    expect(channelFor('npx skilld add @login/slug')).toBe('latest')
-    expect(channelFor('npx skilld@beta add @login/slug')).toBe('beta')
-    expect(channelFor('npx skilld@beta run skilld:owner/repo/skill')).toBe('beta')
+describe('printed CLI commands', () => {
+  it('blocks a command pinned to another npm tag', async () => {
+    const pinned = cliRequirementFor(['npx skilld@beta run skilld:owner/repo/skill'])
+    const result = await runPublishedCliGrammar({
+      readVersion: async () => '3.0.0',
+      readHelp: v3Help,
+    }, pinned)
+
+    expect(result._tag).toBe('blocked')
+    expect(result.check.problems.join(' ')).toContain('npx skilld@beta run')
   })
 
-  it('checks a v2-spelled command against latest', () => {
-    const requirements = channelRequirementsFor(['npx skilld add @login/slug'])
-
-    expect(requirements.map(requirement => requirement.tag)).toContain('latest')
-    expect(requirements.find(requirement => requirement.tag === 'latest')?.commands).toEqual(['add'])
-  })
-
-  it('prints no command that the v2 CLI would have to answer', () => {
-    // v2 reads `@login/slug` as an npm package, so a command left on `latest`
-    // reaches a CLI that cannot parse it.
-    expect(channelRequirements().map(requirement => requirement.tag)).not.toContain('latest')
+  it('prints every site command as npx skilld', () => {
+    expect(cliRequirement().misprinted).toEqual([])
+    expect(cliRequirement().commands).toEqual(['add', 'install', 'run'])
   })
 })
