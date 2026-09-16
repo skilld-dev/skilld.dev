@@ -1,4 +1,4 @@
-import { CLI_PREFIX } from '../../shared/skill-commands'
+import { CLI_PREFIX } from '#shared/skill-commands'
 
 /**
  * Repository, curator and collection commands speak the v3 `add` grammar.
