@@ -207,5 +207,14 @@ license: MIT
       expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
       expect(doc.querySelector('a')?.textContent?.trim()).not.toBe('')
     })
+
+    it('shows a blocked image with whitespace-only alt inside a link as visible text, not an invisible anchor', async () => {
+      const doc = await render('[![ ](https://tracker.example/badge.svg)](https://ci.example/acme)')
+
+      expect(doc.querySelector('img')).toBeNull()
+      expect(doc.querySelectorAll('a')).toHaveLength(1)
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
+      expect(doc.querySelector('a')?.textContent?.trim()).not.toBe('')
+    })
   })
 })
