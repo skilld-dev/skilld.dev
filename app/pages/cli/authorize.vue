@@ -11,7 +11,6 @@ const apiFetch = $fetch as any
 const device = ref<{
   user_code: string
   cli_version: string | null
-  machine_hint: string | null
   expires_at: number
   status: string
 } | null>(null)
@@ -127,10 +126,6 @@ useSeoMeta({
             CLI version
           </dt>
           <dd>{{ device.cli_version || 'unknown' }}</dd>
-          <dt class="text-muted">
-            Machine
-          </dt>
-          <dd>{{ device.machine_hint || 'unknown' }}</dd>
           <dt class="text-muted">
             Scope
           </dt>
