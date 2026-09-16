@@ -13,7 +13,7 @@
  */
 
 /** The skilld release on the `beta` npm tag whose `--agent` values these pages print. */
-export const PUBLISHED_CLI_VERSION = '3.0.0-beta.3'
+export const PUBLISHED_CLI_VERSION = '3.0.0'
 
 export interface AgentPage {
   /** CLI `--agent` value and the route segment. */
