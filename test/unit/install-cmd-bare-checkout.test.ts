@@ -10,6 +10,10 @@ import { expect, it } from 'vitest'
  * skips scripts, so no `.nuxt/tsconfig.json` exists and the generated
  * `#shared/*` alias never maps. A module the gate imports must therefore
  * resolve without it.
+ *
+ * The app reads the same builders through that alias, because a relative
+ * import from `app/` is what the Nitro build cannot externalize. Both sides
+ * meet at `shared/skill-commands.ts`, which imports nothing at all.
  */
 const run = promisify(execFile)
 
@@ -18,14 +22,12 @@ const TSX_CLI = join(ROOT, 'node_modules/tsx/dist/cli.mjs')
 
 async function bareCheckout(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'install-cmd-bare-'))
-  await mkdir(join(dir, 'app/utils'), { recursive: true })
   await mkdir(join(dir, 'shared'), { recursive: true })
   await copyFile(join(ROOT, 'tsconfig.json'), join(dir, 'tsconfig.json'))
-  await copyFile(join(ROOT, 'app/utils/install-cmd.ts'), join(dir, 'app/utils/install-cmd.ts'))
   await copyFile(join(ROOT, 'shared/skill-commands.ts'), join(dir, 'shared/skill-commands.ts'))
   await writeFile(
     join(dir, 'entry.ts'),
-    'import { gitInstallCmd } from "./app/utils/install-cmd"\nconsole.log(gitInstallCmd("nuxt", "nuxt"))\n',
+    'import { gitInstallCmd } from "./shared/skill-commands"\nconsole.log(gitInstallCmd("nuxt", "nuxt"))\n',
   )
   return dir
 }

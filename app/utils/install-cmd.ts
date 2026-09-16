@@ -1,29 +1,13 @@
-// A relative import, not `#shared/skill-commands`: the deploy gate
-// (`scripts/check-published-cli-grammar.ts`) loads this file on a fresh
-// checkout with no generated `.nuxt/tsconfig.json`, where the alias does not
-// resolve.
-import { CLI_PREFIX } from '../../shared/skill-commands'
-
 /**
- * Repository, curator and collection commands speak the v3 `add` grammar.
- * The channel matters: `latest` is still the v2 CLI, which reads `@login/slug`
- * as an npm package. Skill-level commands live in `shared/skill-commands.ts`,
- * where the server can reach them too. One Skill installs through
- * `skillInstallCmd`, because v3 `add` takes no per-Skill flag.
+ * The command builders live in `shared/skill-commands.ts` and are re-exported
+ * here through the generated alias, so every existing `~/utils/install-cmd`
+ * import keeps working and the bundler resolves one module.
  */
-const PREFIX = `${CLI_PREFIX} add`
-
-export function gitInstallCmd(owner: string, repo: string): string {
-  return `${PREFIX} gh:${owner}/${repo}`
-}
-
-export function curatorInstallCmd(handle: string): string {
-  return `${PREFIX} @${handle}`
-}
-
-export function collectionInstallCmd(handle: string, slug: string): string {
-  return `${PREFIX} @${handle}/${slug}`
-}
+export {
+  collectionInstallCmd,
+  curatorInstallCmd,
+  gitInstallCmd,
+} from '#shared/skill-commands'
 
 export type InstallTokenRole = 'runner' | 'bin' | 'sub' | 'target' | 'flag' | 'value'
 

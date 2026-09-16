@@ -17,13 +17,14 @@ import { resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
 import {
   collectionInstallCmd,
   curatorInstallCmd,
   gitInstallCmd,
-} from '../app/utils/install-cmd'
-import { publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
-import { skillInstallCmd, skillRunCmd } from '../shared/skill-commands'
+  skillInstallCmd,
+  skillRunCmd,
+} from '../shared/skill-commands'
 
 const run = promisify(execFile)
 
