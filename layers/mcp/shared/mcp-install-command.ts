@@ -9,8 +9,8 @@
  * not layer domain data.
  */
 
-const PREFIX = 'npx skilld add'
 const V3_PREFIX = 'npx skilld@beta'
+const PREFIX = `${V3_PREFIX} add`
 
 /**
  * The default handoff. `skilld run` gives the calling agent the skill now and
@@ -28,10 +28,7 @@ export function skillInstallCommand(owner: string, repo: string, skill: string):
   return `${V3_PREFIX} install skilld:${owner}/${repo}/${skill}`
 }
 
-/**
- * Whole-repository install. Still v2 grammar: v3 has no selector for a
- * repository yet.
- */
+/** Whole-repository install. `add` takes every ref that names several Skills. */
 export function repoInstallCommand(owner: string, repo: string): string {
   return `${PREFIX} gh:${owner}/${repo}`
 }
@@ -44,16 +41,11 @@ export function collectionInstallCommand(login: string, slug: string): string {
   return `${PREFIX} @${login}/${slug}`
 }
 
-export function npmInstallCommand(name: string): string {
-  return `${PREFIX} npm:${name}`
-}
-
 export type InstallRef
   = | { kind: 'skill', owner: string, repo: string, name: string }
     | { kind: 'repo', owner: string, repo: string }
     | { kind: 'collection', login: string, slug: string }
     | { kind: 'curator', login: string }
-    | { kind: 'npm', package: string }
 
 const SEGMENT_RE = /^[\w.-]+$/
 
@@ -67,7 +59,8 @@ function validSegments(...segments: string[]): boolean {
  * - `gh:owner/repo/name` or `owner/repo/name` (one skill)
  * - `@login` (everything a curator publishes)
  * - `@login/slug` (one collection)
- * - `npm:package` (package skill)
+ *
+ * An `npm:` ref has no installable target: the v3 CLI rejects it.
  */
 export function parseInstallRef(raw: string): InstallRef | null {
   const ref = raw.trim()
@@ -80,15 +73,6 @@ export function parseInstallRef(raw: string): InstallRef | null {
       return { kind: 'curator', login: parts[0]! }
     if (parts.length === 2 && validSegments(parts[0]!, parts[1]!))
       return { kind: 'collection', login: parts[0]!, slug: parts[1]! }
-    return null
-  }
-
-  if (ref.startsWith('npm:')) {
-    const pkg = ref.slice(4)
-    // npm names may be scoped (@scope/name); validate the two halves.
-    const parts = pkg.startsWith('@') ? pkg.slice(1).split('/') : [pkg]
-    if ((parts.length === 1 || parts.length === 2) && validSegments(...parts))
-      return { kind: 'npm', package: pkg }
     return null
   }
 
@@ -111,7 +95,5 @@ export function installCommandFor(ref: InstallRef): string {
       return collectionInstallCommand(ref.login, ref.slug)
     case 'curator':
       return curatorInstallCommand(ref.login)
-    case 'npm':
-      return npmInstallCommand(ref.package)
   }
 }

@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import {
+  channelFor,
+  channelRequirements,
+  channelRequirementsFor,
   publishedCliInvocation,
   runPublishedCliGrammar,
 } from '../../scripts/check-published-cli-grammar'
@@ -25,6 +28,11 @@ describe('published CLI grammar', () => {
     })
   })
 
+  const twoChannels = [
+    { tag: 'latest' as const, minimumMajor: 2, commands: ['add'], agents: [] },
+    { tag: 'beta' as const, minimumMajor: 3, commands: ['install', 'run'], agents: betaAgents },
+  ]
+
   it('checks one published package at a time', async () => {
     let active = 0
     let peakActive = 0
@@ -45,7 +53,7 @@ describe('published CLI grammar', () => {
     const result = await runPublishedCliGrammar({
       readVersion: async tag => tag === 'latest' ? '2.3.0' : '3.0.0-beta.3',
       readHelp,
-    })
+    }, twoChannels)
 
     expect(result._tag).toBe('clean')
     expect(peakActive).toBe(1)
@@ -62,7 +70,7 @@ describe('published CLI grammar', () => {
     const result = await runPublishedCliGrammar({
       readVersion: async tag => tag === 'latest' ? '2.3.0' : '3.0.0-beta.4',
       readHelp: async () => refusal,
-    })
+    }, twoChannels)
 
     expect(result._tag).toBe('blocked')
     for (const check of result.checks) {
@@ -76,12 +84,33 @@ describe('published CLI grammar', () => {
     const result = await runPublishedCliGrammar({
       readVersion: async tag => tag === 'latest' ? '2.3.0' : '3.0.0-beta.4',
       readHelp: async () => 'some unrelated help text\n',
-    })
+    }, twoChannels)
 
     expect(result._tag).toBe('blocked')
     for (const check of result.checks) {
       expect(check.fetchRefused).toBe(false)
       expect(check.problems).toContain('could not read its command list')
     }
+  })
+})
+
+describe('published CLI channel', () => {
+  it('reads the channel off the command the site prints', () => {
+    expect(channelFor('npx skilld add @login/slug')).toBe('latest')
+    expect(channelFor('npx skilld@beta add @login/slug')).toBe('beta')
+    expect(channelFor('npx skilld@beta run skilld:owner/repo/skill')).toBe('beta')
+  })
+
+  it('checks a v2-spelled command against latest', () => {
+    const requirements = channelRequirementsFor(['npx skilld add @login/slug'])
+
+    expect(requirements.map(requirement => requirement.tag)).toContain('latest')
+    expect(requirements.find(requirement => requirement.tag === 'latest')?.commands).toEqual(['add'])
+  })
+
+  it('prints no command that the v2 CLI would have to answer', () => {
+    // v2 reads `@login/slug` as an npm package, so a command left on `latest`
+    // reaches a CLI that cannot parse it.
+    expect(channelRequirements().map(requirement => requirement.tag)).not.toContain('latest')
   })
 })

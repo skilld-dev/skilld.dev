@@ -1,12 +1,12 @@
 const SITE_ORIGIN = 'https://skilld.dev'
-const V3_PREFIX = 'npx skilld@beta'
+/** The v3 CLI. It ships on the `beta` npm tag; `latest` is still v2. */
+export const CLI_PREFIX = 'npx skilld@beta'
 
 /**
  * Skill-level commands and addresses speak the v3 CLI grammar. They live in
  * `shared` because the Skill page, its cards, and the markdown twin an Agent
- * fetches all hand out the same strings. Collection, curator and repository
- * commands still speak the v2 `add` grammar in `app/utils/install-cmd.ts`,
- * because v3 has no selector for them yet.
+ * fetches all hand out the same strings. Repository, curator and collection
+ * commands speak the same grammar from `app/utils/install-cmd.ts`.
  */
 function skillRef(owner: string, repo: string, skill: string): string {
   return `skilld:${owner}/${repo}/${skill}`
@@ -35,10 +35,10 @@ export function skillRunPrompt(pageUrl: string): string {
 
 /** The CLI form of a transient load. The Agent reads the Skill now and installs nothing. */
 export function skillRunCmd(owner: string, repo: string, skill: string): string {
-  return `${V3_PREFIX} run ${skillRef(owner, repo, skill)}`
+  return `${CLI_PREFIX} run ${skillRef(owner, repo, skill)}`
 }
 
 /** The opt-in command. Files land in the repository and the lockfile records them. */
 export function skillInstallCmd(owner: string, repo: string, skill: string): string {
-  return `${V3_PREFIX} install ${skillRef(owner, repo, skill)}`
+  return `${CLI_PREFIX} install ${skillRef(owner, repo, skill)}`
 }
