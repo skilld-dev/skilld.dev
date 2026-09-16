@@ -52,8 +52,29 @@ export const identityMutationResponseSchema = z.object({
   ok: z.literal(true),
 })
 
+/**
+ * Account deletion asks for the GitHub login, typed by hand. A login that does
+ * not match deletes nothing.
+ */
+export const identityAccountDeleteBodySchema = z.object({
+  confirm_login: z.string().trim().min(1).max(100),
+})
+
+export const identityAccountDeleteResponseSchema = z.object({
+  ok: z.literal(true),
+  /** False when skilld may still appear in the person's GitHub authorized apps. */
+  github_access_revoked: z.boolean(),
+})
+
+/** GitHub logins ignore case, so the confirmation does too. */
+export function accountDeletionConfirmed(typedLogin: string, login: string): boolean {
+  return typedLogin.trim().toLowerCase() === login.toLowerCase()
+}
+
 export type IdentityEmailPatchBody = z.input<typeof identityEmailPatchBodySchema>
 export type IdentityMutationResponse = z.output<typeof identityMutationResponseSchema>
+export type IdentityAccountDeleteBody = z.input<typeof identityAccountDeleteBodySchema>
+export type IdentityAccountDeleteResponse = z.output<typeof identityAccountDeleteResponseSchema>
 
 export interface IdentitySubscriptionRef {
   owner: string
