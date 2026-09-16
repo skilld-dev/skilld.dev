@@ -8,7 +8,7 @@ updatedAt: 2026-09-17
 ## In short
 
 - You can browse skilld.dev and run Skills without an account.
-- skilld.dev loads no analytics or advertising scripts.
+- skilld.dev uses Cloudflare Web Analytics, which sets no cookies. It loads no advertising scripts.
 - An account is optional. You sign in with [GitHub](https://github.com) to like Skills, watch Repositories, get email, or connect the skilld CLI.
 - You can delete your account from your dashboard at any time.
 - The skilld CLI sends no telemetry.
@@ -18,6 +18,17 @@ updatedAt: 2026-09-17
 [Cloudflare](https://cloudflare.com) hosts skilld.dev. Every request goes through Cloudflare, which uses your IP address to deliver the page.
 
 skilld writes request logs to Cloudflare Workers Logs. A log entry holds the route, the response status, and the time the request took. It also holds your country and the Cloudflare data center that answered. It holds no IP address, user agent, or query string.
+
+### Web Analytics
+
+skilld.dev uses [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/) to count page views and measure page speed. According to [Cloudflare's metrics documentation](https://developers.cloudflare.com/web-analytics/data-metrics/), it records:
+
+- Page views and visits.
+- Page load timings and Core Web Vitals.
+- The page path and the site that referred you.
+- Your country, device type, browser, and operating system.
+
+Cloudflare states that Web Analytics uses no cookies or local storage, and that it does not fingerprint visitors by IP address or user agent. The script loads from skilld.dev itself. Its reports also go to skilld.dev, which forwards only the report body to Cloudflare. Cloudflare's analytics service does not receive your IP address, cookies, or other request headers from that request.
 
 ### Cookies
 
@@ -98,7 +109,7 @@ skilld uses [Sentry](https://sentry.io) to find and fix errors.
 
 ## Services that handle your data
 
-- Cloudflare hosts skilld.dev and runs its database, cache, email delivery, image proxy, Workers AI search, and request logs. It handles requests, account data, email addresses, and search queries.
+- Cloudflare hosts skilld.dev and runs its database, cache, email delivery, image proxy, Web Analytics, Workers AI search, and request logs. It handles requests, account data, email addresses, analytics reports, and search queries.
 - GitHub handles sign-in and holds the source of every Skill. It handles your GitHub profile and tokens.
 - Sentry receives error reports, with the data listed above removed.
 
