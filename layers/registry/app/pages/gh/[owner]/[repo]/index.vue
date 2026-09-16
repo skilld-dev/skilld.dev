@@ -3,6 +3,7 @@ import type { OrgProfile } from '../../../../../server/api/orgs/[owner].get'
 import type { RepoSourceProfile } from '../../../../../server/api/repos/[owner]/[repo].get'
 import type { RepoHistoryResponse } from '../../../../../server/api/repos/[owner]/[repo]/history.get'
 import type { RepoRouteResolution } from '../../../../../server/api/repos/[owner]/[repo]/route-target.get'
+import { avatarProxyUrl } from '#shared/image-proxy'
 import { resolveMissingRepoRedirect } from '../../../../utils/missing-repo-recovery'
 import { parseRepoSkillSort, REPO_SKILL_SORT_OPTIONS, sortRepoSkills } from '../../../../utils/repo-skill-layout'
 import RepoSkillCard from './_RepoSkillCard.vue'
@@ -403,7 +404,7 @@ useHead(computed(() => ({
             :aria-label="`${sourceHub.owner ?? repoProfile?.owner} profile`"
           >
             <img
-              :src="sourceAvatar"
+              :src="avatarProxyUrl(sourceAvatar)"
               :alt="`${sourceHub.owner ?? repoProfile?.owner} avatar`"
               width="48"
               height="48"

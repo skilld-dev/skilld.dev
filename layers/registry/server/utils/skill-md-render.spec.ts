@@ -1,4 +1,6 @@
+import type { SkillImagePolicy } from './skill-md-render'
 import { describe, expect, it } from 'vitest'
+import { importImageProxyKey, signImageProxyUrl } from '#server/utils/image-proxy'
 import { parseSkillMd } from './skill-md-render'
 
 describe('parseSkillMd', () => {
@@ -125,55 +127,68 @@ license: MIT
       filePath: '',
     }
 
-    async function render(markdown: string): Promise<Document> {
-      const { html } = await parseSkillMd(markdown, ctx)
+    async function render(markdown: string, images?: SkillImagePolicy): Promise<Document> {
+      const { html } = await parseSkillMd(markdown, ctx, images)
       return new DOMParser().parseFromString(html, 'text/html')
     }
+
+    async function proxy(): Promise<SkillImagePolicy> {
+      const key = await importImageProxyKey('test-image-proxy-key')
+      return { _tag: 'proxy', proxyUrl: href => signImageProxyUrl(key, href) }
+    }
+
+    function proxiedTarget(img: Element | null): string | null {
+      const src = img?.getAttribute('src')
+      if (!src?.startsWith('/_img/signed?'))
+        return null
+      return new URL(src, 'https://skilld.dev').searchParams.get('url')
+    }
+
+    it('shows a shields.io badge as an image loaded through the proxy', async () => {
+      const badge = 'https://img.shields.io/npm/v/skilld.svg?style=flat'
+      const doc = await render(`[![npm](${badge})](https://npmjs.com/package/skilld)`, await proxy())
+
+      const img = doc.querySelector('a img')
+      expect(proxiedTarget(img)).toBe(badge)
+      expect(img?.getAttribute('alt')).toBe('npm')
+      expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer')
+      expect(img?.getAttribute('loading')).toBe('lazy')
+      expect(doc.body.innerHTML).not.toContain('src="https://')
+    })
 
     it.each([
       ['a relative path', './diagram.png', 'https://github.com/acme/skills/raw/main/skills/diagnose/diagram.png'],
       ['raw GitHub content', 'https://raw.githubusercontent.com/acme/skills/main/a.png', 'https://raw.githubusercontent.com/acme/skills/main/a.png'],
-      ['a GitHub raw path', 'https://github.com/acme/skills/raw/main/a.png', 'https://github.com/acme/skills/raw/main/a.png'],
-      ['a GitHub attachment', 'https://github.com/user-attachments/assets/0a1b2c', 'https://github.com/user-attachments/assets/0a1b2c'],
-      ['a GitHub user image', 'https://user-images.githubusercontent.com/1/a.png', 'https://user-images.githubusercontent.com/1/a.png'],
-      ['a private GitHub user image', 'https://private-user-images.githubusercontent.com/1/a.png?jwt=x', 'https://private-user-images.githubusercontent.com/1/a.png?jwt=x'],
       ['a GitHub avatar', 'https://avatars.githubusercontent.com/u/1?v=4', 'https://avatars.githubusercontent.com/u/1?v=4'],
-    ])('shows %s as an image that sends no referrer', async (_label, href, src) => {
-      const doc = await render(`![diagram](${href})`)
+      ['a protocol relative URL', '//cdn.example.org/pixel.gif', 'https://cdn.example.org/pixel.gif'],
+    ])('loads %s through the proxy, so GitHub never sees the visitor', async (_label, href, target) => {
+      const doc = await render(`![diagram](${href})`, await proxy())
 
-      const img = doc.querySelector('img')
-      expect(img?.getAttribute('src')).toBe(src)
-      expect(img?.getAttribute('alt')).toBe('diagram')
-      expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer')
-      expect(img?.getAttribute('loading')).toBe('lazy')
+      expect(proxiedTarget(doc.querySelector('img'))).toBe(target)
     })
 
     it.each([
-      ['another host', 'https://tracker.example/pixel.gif'],
       ['plain http', 'http://raw.githubusercontent.com/acme/skills/main/a.png'],
-      ['a protocol relative URL', '//tracker.example/pixel.gif'],
-      ['a lookalike host', 'https://raw.githubusercontent.com.tracker.example/a.png'],
-      ['a GitHub page that is not a raw file', 'https://github.com/acme/skills/issues/1'],
-    ])('shows an image from %s as a link and never loads it', async (_label, href) => {
-      const doc = await render(`![status badge](${href})`)
+      ['a localhost address', 'https://localhost/pixel.gif'],
+      ['an IP address', 'https://127.0.0.1/pixel.gif'],
+    ])('never loads an image from %s', async (_label, href) => {
+      const doc = await render(`![status badge](${href})`, await proxy())
+
+      expect(doc.querySelector('img')).toBeNull()
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe(href)
+    })
+
+    it('shows external images as links when the render has no proxy', async () => {
+      const doc = await render('![status badge](https://img.shields.io/badge/a-b-blue)')
 
       expect(doc.querySelector('img')).toBeNull()
       const link = doc.querySelector('a')
       expect(link?.textContent).toBe('status badge')
-      expect(link?.getAttribute('href')).toBe(href.startsWith('//') ? `https:${href}` : href)
+      expect(link?.getAttribute('href')).toBe('https://img.shields.io/badge/a-b-blue')
       expect(link?.getAttribute('rel')).toBe('noopener noreferrer')
     })
 
-    it('shows a blocked image inside a link as the link text', async () => {
-      const doc = await render('[![build](https://tracker.example/badge.svg)](https://ci.example/acme)')
-
-      expect(doc.querySelector('img')).toBeNull()
-      expect(doc.querySelectorAll('a')).toHaveLength(1)
-      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
-      expect(doc.querySelector('a')?.textContent).toBe('build')
-    })
-
-    it('shows a blocked image with empty alt inside a link as visible text, not an empty anchor', async () => {
+    it('shows an unproxied image with empty alt inside a link as visible text, not an empty anchor', async () => {
       const doc = await render('[![](https://tracker.example/pixel.gif)](https://ci.example/acme)')
 
       expect(doc.querySelector('img')).toBeNull()

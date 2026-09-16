@@ -16,6 +16,7 @@ import { getTree, resolveGithubBindings } from '../../utils/github-client'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { skillContentSha256 } from '../../utils/skill-content-hash'
 import { getGenerated } from '../../utils/skill-generated'
+import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkill } from '../../utils/skills-registry'
 
@@ -192,7 +193,7 @@ const skillDetailHandler = defineApiHandler({
 
     return cached({
       storage: useStorage('cache'),
-      key: `skills:detail:v1:${slug.toLowerCase()}`,
+      key: `skills:detail:v2:${slug.toLowerCase()}`,
       ttlSeconds: DETAIL_CACHE_TTL,
       staleSeconds: DETAIL_CACHE_STALE_TTL,
       compute: () => loadSkillDetail(event, platform, slug),
@@ -270,7 +271,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
           skillNames: repoSkillNames,
           registryOwner: skill.owner,
           registryRepo: skill.repo,
-        })
+        }, await skillImagePolicyForEvent(event))
       : null
     rendered = {
       skillPath: row.rendered_skill_path,
@@ -555,7 +556,7 @@ async function renderLive(
         skillNames,
         registryOwner,
         registryRepo,
-      })
+      }, await skillImagePolicyForEvent(event))
       return {
         skillPath: path,
         raw,
@@ -599,7 +600,7 @@ async function renderLive(
         skillNames,
         registryOwner,
         registryRepo,
-      })
+      }, await skillImagePolicyForEvent(event))
       return {
         skillPath: match.path,
         raw,
