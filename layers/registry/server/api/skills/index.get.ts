@@ -2,16 +2,16 @@ import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { makeOwnerFacetPresenter, makeSkillPresenter } from '../../presenters/skill'
 import { SkillsListQuery } from '../../schemas/skills-query'
-import { skillSearchCacheOptions } from '../../utils/skill-search-cache'
+import { cachedSkillsSearch } from '../../utils/skill-search-cache'
 import { querySkills } from '../../utils/skills-registry'
 
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 const skillPresenter = makeSkillPresenter(officialOwners)
 const ownerFacetPresenter = makeOwnerFacetPresenter(officialOwners)
 
-const skillsListHandler = defineApiHandler({
+export default defineApiHandler({
   schema: SkillsListQuery,
-  handler: async ({ event, body }) => {
+  handler: ({ event, body }) => cachedSkillsSearch(event, async () => {
     const result = await querySkills(event, {
       search: body.q || undefined,
       owner: body.owner || undefined,
@@ -37,7 +37,5 @@ const skillsListHandler = defineApiHandler({
       facets: { owners: result.facets.map(ownerFacetPresenter) },
       mode: result.mode,
     }
-  },
+  }),
 })
-
-export default defineCachedEventHandler(skillsListHandler, skillSearchCacheOptions)
