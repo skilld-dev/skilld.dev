@@ -487,6 +487,7 @@ function markRepoSummaryCheckedStatement(
            repo_created_at = ?,
            repo_meta_synced_at = ?,
            broken_since = NULL,
+           tree_truncated_at = NULL,
            source_owner = ?,
            source_repo = ?
        WHERE owner = ? AND repo = ?`,
@@ -540,6 +541,26 @@ async function markUnchangedOwnerVerified(
          attempts = 0`,
     ).bind(checkedAt, owner, repo),
   ])
+}
+
+/**
+ * Record that this repository's tree response is too large for the GitHub API
+ * and will truncate on every attempt. Advancing the freshness cursor mirrors
+ * markRepoMissing: the repository was checked, the check has an outcome, and
+ * integrity views should not flag it as overdue. sync-candidates skips rows
+ * carrying this verdict, and every successful repo write below clears it, so
+ * a repo that becomes fetchable re-enters the normal freshness cycle.
+ */
+async function markRepoTooLarge(db: D1Database, owner: string, repo: string, now: number): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE repos
+       SET tree_truncated_at = COALESCE(tree_truncated_at, ?),
+           repo_meta_synced_at = ?
+       WHERE owner = ? AND repo = ?`,
+    )
+    .bind(now, now, owner, repo)
+    .run()
 }
 
 async function markRepoMissing(db: D1Database, owner: string, repo: string, now: number): Promise<void> {
@@ -761,6 +782,7 @@ export async function syncRepo(
 
   const tree = treeRes.data
   if (tree.truncated) {
+    await markRepoTooLarge(db, owner, repo, checkedAt)
     stats.status = 'failed'
     stats.reason = 'tree_truncated'
     return stats
@@ -851,6 +873,7 @@ export async function syncRepo(
        repo_kind_source = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind_source ELSE excluded.repo_kind_source END,
        repo_skill_count = excluded.repo_skill_count,
        broken_since = excluded.broken_since,
+       tree_truncated_at = NULL,
        source_owner = excluded.source_owner,
        source_repo = excluded.source_repo`,
   ).bind(

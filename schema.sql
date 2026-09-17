@@ -380,6 +380,7 @@ CREATE TABLE repos (
     CHECK (repo_kind_source IN ('computed', 'override')),
   repo_skill_count INTEGER NOT NULL DEFAULT 0,
   broken_since INTEGER,
+  tree_truncated_at INTEGER,
   PRIMARY KEY (owner, repo)
 );
 

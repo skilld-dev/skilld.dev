@@ -16,7 +16,9 @@ interface HistoricalDiscoveryStageOptions extends RepoSyncPriorityOptions {
 
 /**
  * Subscribed repos get the short freshness window supplied by the caller.
- * Grouping collapses multiple subscribers watching the same repo.
+ * Grouping collapses multiple subscribers watching the same repo. Repos with
+ * a recorded too-large tree verdict stay out: GitHub will truncate their tree
+ * response on every attempt, so re-picking them only burns rate limit.
  */
 export const SUBSCRIBED_SYNC_CANDIDATES_SQL = `
   SELECT r.owner, r.repo, r.repo_meta_synced_at AS ls,
@@ -27,6 +29,7 @@ export const SUBSCRIBED_SYNC_CANDIDATES_SQL = `
   LEFT JOIN discovery_candidates dc
     ON dc.owner = r.owner AND dc.repo = r.repo
   WHERE r.broken_since IS NULL
+    AND r.tree_truncated_at IS NULL
     AND (r.repo_meta_synced_at IS NULL OR r.repo_meta_synced_at < ?1)
     AND EXISTS (
       SELECT 1 FROM skills s
@@ -41,6 +44,8 @@ export const SUBSCRIBED_SYNC_CANDIDATES_SQL = `
  * every repo every hour and sorted on skills.last_synced_at, which unchanged
  * repos never advanced; the same cold rows could therefore stay at the front
  * forever. EXISTS keeps empty/retired repo rows out without grouping skills.
+ * Repos with a recorded too-large tree verdict stay out for the same reason
+ * as the subscribed sweep above.
  */
 export const GENERAL_SYNC_CANDIDATES_SQL = `
   SELECT r.owner, r.repo, r.repo_meta_synced_at AS ls,
@@ -49,6 +54,7 @@ export const GENERAL_SYNC_CANDIDATES_SQL = `
   LEFT JOIN discovery_candidates dc
     ON dc.owner = r.owner AND dc.repo = r.repo
   WHERE r.broken_since IS NULL
+    AND r.tree_truncated_at IS NULL
     AND (r.repo_meta_synced_at IS NULL OR r.repo_meta_synced_at < ?1)
     AND EXISTS (
       SELECT 1 FROM skills s
