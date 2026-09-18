@@ -20,16 +20,17 @@ concurrency:
 
 jobs:
   harlan-desktop:
-    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@main
+    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@feat-site-gate-task-cache
     with:
       # Ephemeral containers on the workstation. Safe here because the
       # repository is private; a self-hosted runner on a public repository would
       # let a fork pull request run code on that host.
       runs-on: '["self-hosted", "linux", "x64", "harlan-desktop-ci"]'
-      # vitest resolves aliases through `.nuxt/tsconfig.json`, and every suite
-      # fails to transform without it. `prepare-command` rather than dropping
-      # `--ignore-scripts`, so lint still skips the prepare it has no use for.
-      prepare-command: pnpm nuxt prepare
+      # Each check runs through `pnpm pipeline`, so an unchanged task restores
+      # from the pool's shared cache volume instead of re-running. The graph
+      # lives in pnpm-workspace.yaml: vitest still gets its `.nuxt/tsconfig.json`
+      # because every pipeline runs `dev:prepare` as a cacheable task.
+      task-cache: true
       timeout-minutes: 30
 
   # The only gate between a merge and production. `Deploy to Cloudflare` fires on

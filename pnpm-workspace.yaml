@@ -72,6 +72,75 @@ trustPolicy: no-downgrade
 packages:
   - workers/*
 
+# The site root is a workspace project too, so `pnpm pipeline` can run its
+# tasks. Every task that names no inputs hashes every tracked file, which is
+# why lint carries no inputs: `eslint .` reads the whole repository. The
+# narrowed inputs below exclude only trees those tasks never read, so a
+# docs-only push leaves typecheck and test as cache hits.
+includeWorkspaceRoot: true
+tasks:
+  dev:prepare:
+    dependsOn: []
+    inputs:
+      - nuxt.config.ts
+      - app/**
+      - modules/**
+      - layers/**
+      - server/**
+      - shared/**
+      - workers/**
+      - package.json
+      - pnpm-workspace.yaml
+      - tsconfig.json
+    outputs: ['.nuxt/**']
+  lint:
+    dependsOn: []
+    outputs: []
+  test:
+    dependsOn: [dev:prepare]
+    inputs:
+      - app/**
+      - server/**
+      - shared/**
+      - workers/**
+      - modules/**
+      - layers/**
+      - test/**
+      - skills/**
+      - migrations/**
+      - schema.sql
+      - vitest.config.ts
+      - nuxt.config.ts
+      - tsconfig.json
+      - .dev.vars.example
+      - package.json
+      - pnpm-workspace.yaml
+
+    outputs: []
+  typecheck:
+    dependsOn: [dev:prepare]
+    env: [NODE_OPTIONS]
+    inputs:
+      - app/**
+      - server/**
+      - shared/**
+      - workers/**
+      - modules/**
+      - layers/**
+      - test/**
+      - '*.ts'
+      - '*.jsonc'
+      - '*.toml'
+      - tsconfig.json
+      - .dev.vars.example
+      - package.json
+      - pnpm-workspace.yaml
+    outputs: []
+pipelines:
+  lint: [lint]
+  test: [dev:prepare, test]
+
+  typecheck: [dev:prepare, typecheck]
 patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.1.1.patch
