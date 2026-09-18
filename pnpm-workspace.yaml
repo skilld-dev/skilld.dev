@@ -77,6 +77,12 @@ packages:
 # why lint carries no inputs: `eslint .` reads the whole repository. The
 # narrowed inputs below exclude only trees those tasks never read, so a
 # docs-only push leaves typecheck and test as cache hits.
+#
+# The artifact-signer worker's suite is `test:worker`, outside the `test`
+# pipeline on purpose. Its transform reaches files above the worker directory,
+# whose tsconfig chain resolves through the root `.nuxt`, and a task in one
+# project cannot wait on another project's `dev:prepare` without a dependency
+# edge between them.
 includeWorkspaceRoot: true
 tasks:
   dev:prepare:
