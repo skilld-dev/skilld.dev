@@ -76,7 +76,9 @@ packages:
 # tasks. Every task that names no inputs hashes every tracked file, which is
 # why lint carries no inputs: `eslint .` reads the whole repository. The
 # narrowed inputs below exclude only trees those tasks never read, so a
-# docs-only push leaves typecheck and test as cache hits.
+# docs-only push leaves typecheck and test as cache hits. `scripts/**` and
+# `checks/**` count even where a task does not read them today: suites import
+# both, and the generated tsconfig that sets typecheck's reach can drift.
 #
 # The artifact-signer worker's suite is `test:worker`, outside the `test`
 # pipeline on purpose. Its transform reaches files above the worker directory,
@@ -112,6 +114,8 @@ tasks:
       - modules/**
       - layers/**
       - test/**
+      - scripts/**
+      - checks/**
       - skills/**
       - migrations/**
       - schema.sql
@@ -121,7 +125,6 @@ tasks:
       - .dev.vars.example
       - package.json
       - pnpm-workspace.yaml
-
     outputs: []
   typecheck:
     dependsOn: [dev:prepare]
@@ -134,6 +137,8 @@ tasks:
       - modules/**
       - layers/**
       - test/**
+      - scripts/**
+      - checks/**
       - '*.ts'
       - '*.jsonc'
       - '*.toml'
