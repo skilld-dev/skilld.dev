@@ -96,6 +96,7 @@ export default defineNuxtConfig({
       'eligible.count',
       'error.count',
       'failed.count',
+      'failed.tasks',
       'item.count',
       'operation',
       'outcome',
@@ -106,6 +107,8 @@ export default defineNuxtConfig({
       // discovery row parked with `outcome: 'unknown'` and nothing else was
       // indistinguishable from every other parked row in the archive.
       'reason',
+      'reinvoked.count',
+      'reinvoked.tasks',
       'repo',
       'scanned.count',
       'success.count',
