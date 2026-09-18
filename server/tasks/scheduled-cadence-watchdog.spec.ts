@@ -136,6 +136,26 @@ describe('scheduled-cadence-watchdog task', () => {
     expect(mocks.runTask).toHaveBeenCalledTimes(reinvoked.length)
   })
 
+  it('re-invokes an abandoned started run past its expiry as overdue_started', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    withRows([
+      ...healthyRows(now).filter(row => row.task_name !== OTHER_TASK),
+      runRow({
+        taskName: OTHER_TASK,
+        status: 'started',
+        startedAt: now - 10 * 60,
+        expiresAt: now - 6 * 60,
+      }),
+    ])
+
+    const result = await task.run({ context: {} } as never) as WatchdogResult
+
+    expect(result.result.reinvoked).toEqual([{ taskName: OTHER_TASK, stalled: 'overdue_started' }])
+    expect(result.result.flagged).toEqual([])
+    expect(mocks.runTask).toHaveBeenCalledOnce()
+    expect(mocks.runTask).toHaveBeenCalledWith(OTHER_TASK, expect.anything())
+  })
+
   it('leaves recently failed tasks flagged instead of re-invoking them', async () => {
     const now = Math.floor(Date.now() / 1000)
     withRows([
@@ -171,6 +191,35 @@ describe('scheduled-cadence-watchdog task', () => {
       'scheduled-cadence-watchdog',
       expect.objectContaining({ status: 'partial', error: expect.stringContaining('boom') }),
     )
+  })
+
+  it('gives up on a re-invocation that never settles so the watchdog run still reports', async () => {
+    vi.useFakeTimers()
+    try {
+      const now = Math.floor(Date.now() / 1000)
+      withRows([
+        ...healthyRows(now).filter(row => row.task_name !== QUIET_TASK),
+        runRow({ taskName: QUIET_TASK, status: 'succeeded', startedAt: now - 21 * 60 }),
+      ])
+      mocks.runTask.mockReturnValue(new Promise(() => {}))
+
+      const watchdogRun = task.run({ context: {} } as never) as Promise<WatchdogResult>
+      await vi.advanceTimersByTimeAsync(14 * 60 * 1000)
+      const result = await watchdogRun
+
+      expect(result.result.reinvoked).toEqual([])
+      expect(result.result.failed).toEqual([
+        { taskName: QUIET_TASK, error: expect.stringContaining('budget') },
+      ])
+      expect(mocks.reportJobRun).toHaveBeenCalledWith(
+        expect.anything(),
+        'scheduled-cadence-watchdog',
+        expect.objectContaining({ status: 'partial' }),
+      )
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports a missing database binding instead of querying', async () => {

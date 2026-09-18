@@ -87,19 +87,36 @@ export default defineScheduledTask({
       // The env travels with the re-invocation: cron events never run the
       // request plugin that mirrors bindings onto globalThis, so an empty
       // context would make the re-invoked task see no bindings mid-cron.
-      const outcomes = await Promise.all(stalled.map(decision =>
-        runTask(decision.taskName, {
-          payload: {},
-          context: { cloudflare: { env } },
-        }).then((): ReinvokedTask | FailedReinvocation => ({
-          _tag: 'reinvoked',
-          taskName: decision.taskName,
-          stalled: decision.stalled,
-        }), (error: unknown): ReinvokedTask | FailedReinvocation => ({
-          _tag: 'failed',
-          taskName: decision.taskName,
-          error: message(error),
-        }))))
+      // Each race is bounded by the watchdog's remaining runtime budget:
+      // runTask returns the cached in-flight promise of a hung task, so one
+      // never-settling target would otherwise hang the watchdog on every tick.
+      const { maxRuntimeSeconds } = observedSchedulePolicy(WATCHDOG_TASK_NAME)
+      const outcomes = await Promise.all(stalled.map((decision) => {
+        const remainingMs = Math.max(0, maxRuntimeSeconds * 1000 - (Date.now() - startedAt))
+        let budgetTimer: ReturnType<typeof setTimeout> | undefined
+        const budgetExceeded = new Promise<FailedReinvocation>((resolve) => {
+          budgetTimer = setTimeout(resolve, remainingMs, {
+            _tag: 'failed',
+            taskName: decision.taskName,
+            error: `re-invocation passed the watchdog runtime budget of ${maxRuntimeSeconds}s`,
+          })
+        })
+        return Promise.race([
+          runTask(decision.taskName, {
+            payload: {},
+            context: { cloudflare: { env } },
+          }).then((): ReinvokedTask | FailedReinvocation => ({
+            _tag: 'reinvoked',
+            taskName: decision.taskName,
+            stalled: decision.stalled,
+          }), (error: unknown): ReinvokedTask | FailedReinvocation => ({
+            _tag: 'failed',
+            taskName: decision.taskName,
+            error: message(error),
+          })),
+          budgetExceeded,
+        ]).finally(() => clearTimeout(budgetTimer))
+      }))
       const reinvoked = outcomes.filter(outcome => outcome._tag === 'reinvoked')
       const failed = outcomes.filter(outcome => outcome._tag === 'failed')
 
