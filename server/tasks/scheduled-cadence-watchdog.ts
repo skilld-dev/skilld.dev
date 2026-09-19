@@ -44,12 +44,14 @@ function message(error: unknown): string {
  * history, and re-invokes the stalled ones through the same Nitro task
  * registry the cron dispatch uses.
  *
- * It re-invokes silence, not failure: `missing_run`, `missing_cadence`, and
- * `overdue_started` get a fresh dispatch; `latest_failed` and `latest_expired`
- * stay flagged for the daily check-in because the task's own cadence retries
- * them, and re-invoking those every five minutes would multiply a failing
- * task's side effects. A live run inside its runtime window proves the trigger
- * fired and is left alone.
+ * It re-invokes a stalled cadence: `missing_run`, `missing_cadence`, and
+ * `overdue_started` always, plus a `latest_failed` or `latest_expired` row
+ * whose age passes `maxSilenceSeconds`: a live cadence would have written a
+ * newer row inside that window, so the silence proves the trigger is dead.
+ * The re-invocation records a fresh row that restarts the window, so a
+ * genuinely failing task gains at most one extra dispatch per window. A failed
+ * row inside the window stays flagged for the daily check-in, and a live run
+ * inside its runtime window proves the trigger fired and is left alone.
  */
 export default defineScheduledTask({
   name: 'scheduled-cadence-watchdog',

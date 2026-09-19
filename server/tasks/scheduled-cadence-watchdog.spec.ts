@@ -156,6 +156,49 @@ describe('scheduled-cadence-watchdog task', () => {
     expect(mocks.runTask).toHaveBeenCalledWith(OTHER_TASK, expect.anything())
   })
 
+  it('re-invokes a task whose latest run failed before the silence window closed as latest_failed', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    withRows([
+      ...healthyRows(now).filter(row => row.task_name !== 'sync-x-mentions'),
+      runRow({
+        taskName: 'sync-x-mentions',
+        status: 'failed',
+        startedAt: now - 2 * 60 * 60,
+        error: 'x api 503',
+      }),
+    ])
+
+    const result = await task.run({ context: {} } as never) as WatchdogResult
+
+    expect(result.result.reinvoked).toEqual([
+      { taskName: 'sync-x-mentions', stalled: 'latest_failed' },
+    ])
+    expect(result.result.flagged).toEqual([])
+    expect(mocks.runTask).toHaveBeenCalledOnce()
+    expect(mocks.runTask).toHaveBeenCalledWith('sync-x-mentions', expect.anything())
+  })
+
+  it('re-invokes a task whose latest run expired before the silence window closed as latest_expired', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    withRows([
+      ...healthyRows(now).filter(row => row.task_name !== QUIET_TASK),
+      runRow({
+        taskName: QUIET_TASK,
+        status: 'expired',
+        startedAt: now - 21 * 60,
+      }),
+    ])
+
+    const result = await task.run({ context: {} } as never) as WatchdogResult
+
+    expect(result.result.reinvoked).toEqual([
+      { taskName: QUIET_TASK, stalled: 'latest_expired' },
+    ])
+    expect(result.result.flagged).toEqual([])
+    expect(mocks.runTask).toHaveBeenCalledOnce()
+    expect(mocks.runTask).toHaveBeenCalledWith(QUIET_TASK, expect.anything())
+  })
+
   it('leaves recently failed tasks flagged instead of re-invoking them', async () => {
     const now = Math.floor(Date.now() / 1000)
     withRows([
