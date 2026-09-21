@@ -134,6 +134,23 @@ describe('scheduled run lifecycle', () => {
     )).toMatchObject({ _tag: 'missing_run', alertable: true })
   })
 
+  // purge-personal-data was authored 2026-09-17 but its first cron fire is
+  // 2026-09-22T04:30Z. An authoring-date anchor expired its 36-hour grace four
+  // days before that fire, so the nightly report raised a false missing_run.
+  it('keeps purge-personal-data healthy until its first cron fire passes', () => {
+    const policy = observedSchedulePolicy('purge-personal-data')
+    expect(policy.cron).toBe('30 4 * * *')
+    const firstFire = 1_790_051_400 // 2026-09-22T04:30Z
+
+    expect(evaluateScheduleHealth(policy, { latest: null, latestTerminal: null }, firstFire - 1))
+      .toMatchObject({ _tag: 'healthy', alertable: false })
+    expect(evaluateScheduleHealth(
+      policy,
+      { latest: null, latestTerminal: null },
+      firstFire + policy.maxSilenceSeconds + 1,
+    )).toMatchObject({ _tag: 'missing_run', alertable: true })
+  })
+
   it('observes the digest on its monthly schedule', () => {
     const policy = observedSchedulePolicy('send-digests')
 
