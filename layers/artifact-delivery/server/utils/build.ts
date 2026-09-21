@@ -298,9 +298,21 @@ function resolvedSourceFromRow(row: {
   })
 }
 
+/**
+ * The check name a source rejection reports under.
+ *
+ * It is deliberately not one of `CURRENT_ARTIFACT_CHECKS`. These results are
+ * synthesised for a Resolution that never reaches signing, so this name never
+ * enters an attestation and the signed check set is unchanged. It used to be
+ * `path-policy`, which named a check that had not run: a file-count rejection,
+ * a symbolic link and a genuine USTAR path problem all arrived identically,
+ * and the skilld CLI prints this name straight to the user.
+ */
+export const SOURCE_REJECTION_CHECK_NAME = 'source-policy'
+
 function rejectionCheckResults(rejection: SourceRejection): CheckResult[] {
   return [{
-    name: 'path-policy',
+    name: SOURCE_REJECTION_CHECK_NAME,
     version: '1',
     outcome: 'fail',
     required: true,

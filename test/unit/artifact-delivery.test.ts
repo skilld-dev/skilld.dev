@@ -27,6 +27,7 @@ import {
 import {
   createResolution,
   getResolution,
+  presentResolution,
   resolutionRequestIdentity,
   transitionResolution,
 } from '../../layers/artifact-delivery/server/utils/state'
@@ -152,6 +153,35 @@ describe('public Artifact delivery', () => {
     const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
 
     expect(result).toEqual({ _tag: 'blocked', resolutionId: harness.resolutionId })
+    expect(harness.put).not.toHaveBeenCalled()
+    expect(harness.sign).not.toHaveBeenCalled()
+    harness.close()
+  })
+
+  it('names a source rejection as a source policy failure, not a path policy one', async () => {
+    const harness = await createBuildHarness(validFiles, false, resolvedSource.repositoryId, {
+      resolve: vi.fn(async () => ({ _tag: 'resolved' as const, source: resolvedSource })),
+      load: vi.fn(async () => ({
+        _tag: 'rejected' as const,
+        code: 'INVALID_SOURCE' as const,
+        summary: 'The Skill has more than 1000 files.',
+        findings: [],
+      })),
+    } as unknown as PublicGithubSourceClient)
+
+    const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
+
+    expect(result).toEqual({ _tag: 'blocked', resolutionId: harness.resolutionId })
+    const blocked = presentResolution((await getResolution(harness.dependencies.db, harness.resolutionId))!)
+    expect(blocked).toMatchObject({
+      state: 'blocked',
+      checkResults: [{
+        name: 'source-policy',
+        outcome: 'fail',
+        required: true,
+        summary: 'The Skill has more than 1000 files.',
+      }],
+    })
     expect(harness.put).not.toHaveBeenCalled()
     expect(harness.sign).not.toHaveBeenCalled()
     harness.close()
