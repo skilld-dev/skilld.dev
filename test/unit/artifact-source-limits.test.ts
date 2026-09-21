@@ -27,7 +27,7 @@ describe('artifact source size guards', () => {
 
   it('rejects a Skill past the file ceiling by name', async () => {
     const client = createPublicGithubSourceClient({
-      fetch: skillTreeFetch(skillEntries(1001)) as unknown as typeof fetch,
+      fetch: skillTreeFetch(skillEntries(901)) as unknown as typeof fetch,
     })
 
     const loaded = await client.load(resolvedSource())
@@ -35,16 +35,16 @@ describe('artifact source size guards', () => {
     expect(loaded).toMatchObject({
       _tag: 'rejected',
       code: 'INVALID_SOURCE',
-      summary: 'The Skill has more than 1000 files.',
+      summary: 'The Skill has more than 900 files.',
     })
   })
 
   it('rejects a Skill whose packaged archive would exceed the ceiling, though its files do not', async () => {
-    // 1000 files of 10,000 bytes is 10,000,000 source bytes, inside the 10 MiB
+    // 900 files of 11,000 bytes is 9,900,000 source bytes, inside the 10 MiB
     // ceiling. Each file costs a 512-byte header plus padding to the next
-    // 512-byte block, so the archive lands at 10,753,024 bytes, outside it.
-    const entries = Array.from({ length: 1000 }, (_, index) =>
-      blob(index === 0 ? 'SKILL.md' : `references/entry-${index}.md`, skillBlobSha, 10_000))
+    // 512-byte block, so the archive lands at 10,599,424 bytes, outside it.
+    const entries = Array.from({ length: 900 }, (_, index) =>
+      blob(index === 0 ? 'SKILL.md' : `references/entry-${index}.md`, skillBlobSha, 11_000))
     const client = createPublicGithubSourceClient({
       fetch: skillTreeFetch(entries) as unknown as typeof fetch,
     })

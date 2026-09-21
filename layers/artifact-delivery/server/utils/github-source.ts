@@ -10,7 +10,11 @@ const MAX_GITHUB_JSON_BYTES = 8 * 1024 * 1024
 const MAX_TREE_ENTRIES = 2000
 const MAX_TREE_REQUESTS = 128
 const MAX_SKILL_PATH_SEGMENTS = 64
-const MAX_ARTIFACT_FILES = 1000
+// One invocation loads every blob once. With one repository read per load and
+// resolve, a handful of tree reads, the D1 state transitions and the R2 write,
+// 900 files is the largest ceiling that keeps the worst build inside the
+// Worker's 1000-subrequest budget.
+const MAX_ARTIFACT_FILES = 900
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
 const GITHUB_REQUEST_TIMEOUT_MS = 15_000
