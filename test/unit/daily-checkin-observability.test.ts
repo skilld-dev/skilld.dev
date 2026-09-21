@@ -16,7 +16,7 @@ import {
 function run(
   workflowName: string,
   status: 'completed' | 'in_progress',
-  conclusion: '' | 'failure' | 'success' | 'skipped',
+  conclusion: '' | 'failure' | 'success' | 'skipped' | 'cancelled',
   databaseId: number,
 ) {
   return {
@@ -213,6 +213,34 @@ describe('daily check-in observability', () => {
   it('reports a workflow that only ever skipped as missing, not as broken', () => {
     expect(summarizeWorkflowRuns([
       run('Deploy to Cloudflare', 'completed', 'skipped', 1),
+    ], ['Deploy to Cloudflare'])).toMatchObject([
+      { name: 'Deploy to Cloudflare', state: { _tag: 'missing' } },
+    ])
+  })
+
+  // The real shape from 2026-09-21: cancelled concurrency queue-mates sat in
+  // front of the run that deployed a1b4db6, so the gate archived failure/2 on
+  // a healthy deploy. A cancelled run never rendered a verdict.
+  it('reads through cancelled queue-mates to the deploy that actually shipped', () => {
+    const rows = [
+      run('Deploy to Cloudflare', 'completed', 'cancelled', 3),
+      run('Deploy to Cloudflare', 'completed', 'cancelled', 2),
+      run('Deploy to Cloudflare', 'completed', 'success', 1),
+    ]
+
+    expect(summarizeWorkflowRuns(rows, ['Deploy to Cloudflare'])).toMatchObject([
+      {
+        name: 'Deploy to Cloudflare',
+        latestCompletedRun: run('Deploy to Cloudflare', 'completed', 'success', 1),
+        state: { _tag: 'success' },
+      },
+    ])
+  })
+
+  it('reports a history of only cancelled runs as missing, not as a broken gate', () => {
+    expect(summarizeWorkflowRuns([
+      run('Deploy to Cloudflare', 'completed', 'cancelled', 2),
+      run('Deploy to Cloudflare', 'completed', 'cancelled', 1),
     ], ['Deploy to Cloudflare'])).toMatchObject([
       { name: 'Deploy to Cloudflare', state: { _tag: 'missing' } },
     ])

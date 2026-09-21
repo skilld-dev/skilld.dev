@@ -75,8 +75,14 @@ export function deriveBaselineFlag(sinceIso, nowIso) {
 // `main`, so treating `skipped` as a non-success read a working guard as a
 // broken gate on 2026-08-16. Skipped runs carry no signal, so they are read
 // through rather than counted either way.
+//
+// A `cancelled` conclusion is the same shape: a run cancelled by its
+// concurrency group never started, so it carries no verdict. On 2026-09-21 two
+// cancelled queue-mates in front of the deploy that shipped a1b4db6 read as
+// consecutive failures and the gate archived failure/2 on a healthy deploy.
+// Cancelled runs are read through like skipped.
 function carriesVerdict(run) {
-  return run.status === 'completed' && run.conclusion !== 'skipped'
+  return run.status === 'completed' && run.conclusion !== 'skipped' && run.conclusion !== 'cancelled'
 }
 
 function completedState(runs) {
