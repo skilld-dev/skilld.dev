@@ -2,6 +2,7 @@
 import type { TrendingFeedResponse, TrendingSkillFeedItem } from '~~/server/api/feed/trending.get'
 import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skills/leaderboard.get'
 import type { TrendingBoardRow } from '#shared/trending-range'
+import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { relativeDay, trendingBasis, trendingOtherPosters } from '#shared/trending-basis'
 import {
   leaderboardBoardRows,
@@ -443,7 +444,7 @@ function rankClass(index: number): string {
               <div class="ledger-row">
                 <span class="ledger-rank" :class="rankClass(index)">{{ String(index + 1).padStart(2, '0') }}</span>
                 <img
-                  :src="`https://github.com/${row.owner}.png?size=80`"
+                  :src="githubAvatarProxyUrl(row.owner, 80)"
                   alt=""
                   width="40"
                   height="40"
@@ -507,7 +508,7 @@ function rankClass(index: number): string {
                       </svg>
                       <span v-if="row.authorAvatar" class="flex shrink-0">
                         <img
-                          :src="row.authorAvatar"
+                          :src="avatarProxyUrl(row.authorAvatar)"
                           alt=""
                           width="16"
                           height="16"

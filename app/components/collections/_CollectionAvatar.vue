@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { avatarProxyUrl } from '#shared/image-proxy'
+
 const {
   src,
   name,
@@ -24,7 +26,7 @@ const initials = computed(() =>
   <span class="collection-avatar" :data-size="size" aria-hidden="true">
     <img
       v-if="src && !imageFailed"
-      :src
+      :src="avatarProxyUrl(src)"
       alt=""
       loading="lazy"
       decoding="async"

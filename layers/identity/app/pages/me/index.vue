@@ -5,6 +5,7 @@ import type {
   IdentitySubscriptionRef,
 } from '../../../shared/contracts/account'
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
+import { avatarProxyUrl } from '#shared/image-proxy'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
@@ -168,7 +169,7 @@ function fmtDate(ts: number | null | undefined): string {
       <div class="flex min-w-0 items-center gap-4">
         <img
           v-if="me?.avatar"
-          :src="me.avatar"
+          :src="avatarProxyUrl(me.avatar)"
           alt=""
           width="56"
           height="56"

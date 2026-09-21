@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrgProfile } from '#layers/registry/server/api/orgs/[owner].get'
+import { avatarProxyUrl } from '#shared/image-proxy'
 import { authorBadgeInput } from '../../utils/author-badge'
 
 const route = useRoute()
@@ -207,7 +208,7 @@ defineOgImage('Curator.takumi', {
       <div class="grid min-w-0 gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div class="flex min-w-0 items-start gap-4 sm:gap-5">
           <img
-            :src="avatar"
+            :src="avatarProxyUrl(avatar)"
             :alt="`${displayName} on GitHub`"
             width="96"
             height="96"

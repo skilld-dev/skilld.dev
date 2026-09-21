@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { IndexedRepositorySkill, RepositoryIndexProgress } from '#shared/repository-index'
 import type { RepoSourceProfile } from '../../layers/registry/server/api/repos/[owner]/[repo].get'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 
 type RepositoryPreviewState
   = | { _tag: 'idle' }
@@ -193,7 +194,7 @@ watch(repositoryTask, (task, previous) => {
             @click="close"
           >
             <img
-              :src="`https://github.com/${repositoryOwner}.png?size=96`"
+              :src="githubAvatarProxyUrl(repositoryOwner, 96)"
               :alt="`${repositoryOwner} avatar`"
               width="48"
               height="48"

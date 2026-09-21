@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SearchRow, SearchSkill } from '../composables/useSkillSearch'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillRunCmd } from '#shared/skill-commands'
 
 const { showPreview = true } = defineProps<{ showPreview?: boolean }>()
@@ -239,7 +240,7 @@ function retryRepositoryIndex(): void {
             >
               <template v-if="row._tag === 'skill'">
                 <img
-                  :src="`https://github.com/${row.skill.owner}.png?size=40`"
+                  :src="githubAvatarProxyUrl(row.skill.owner, 40)"
                   :alt="`${row.skill.owner} avatar`"
                   loading="lazy"
                   width="20"
@@ -322,7 +323,7 @@ function retryRepositoryIndex(): void {
           class="mt-1 flex items-center gap-2 font-mono text-xs text-muted transition-colors duration-200 hover:text-default"
         >
           <img
-            :src="`https://github.com/${previewSkill.owner}.png?size=32`"
+            :src="githubAvatarProxyUrl(previewSkill.owner, 32)"
             :alt="`${previewSkill.owner} avatar`"
             loading="lazy"
             width="16"

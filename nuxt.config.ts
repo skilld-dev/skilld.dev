@@ -404,6 +404,8 @@ export default defineNuxtConfig({
   // D1 per request), always fresh. D1 reads are cheap at current traffic; re-add
   // targeted caching here if/when traffic warrants it.
   routeRules: {
+    // Send only the origin to other sites, never the page path a visitor read.
+    '/**': { headers: { 'referrer-policy': 'strict-origin-when-cross-origin' } } as any,
     // Cache policy, expressed where Nuxt already puts freshness.
     //
     // This used to live in `server/plugins/cache-policy.ts` as an allowlist
@@ -416,6 +418,8 @@ export default defineNuxtConfig({
     // lifetime and Cloudflare strips it downstream; `cache-control` is what the
     // browser sees. Where only the edge should cache, the browser gets the
     // no-store default from the module and only the edge header appears here.
+    // Proxied images set their own cache headers per result.
+    '/_img/**': { robots: false } as any,
     '/api/collections': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
     '/api/collections/featured': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,
     '/api/community': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=60' } } as any,

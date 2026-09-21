@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillRunCmd } from '#shared/skill-commands'
 
 interface SkillLike {
@@ -133,7 +134,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
           <div class="flex items-center gap-2 min-w-0 shrink-0">
             <img
               v-if="showOwnerAvatar"
-              :src="`https://github.com/${skill.owner}.png?size=40`"
+              :src="githubAvatarProxyUrl(skill.owner, 40)"
               :alt="skill.owner"
               width="20"
               height="20"
@@ -235,7 +236,7 @@ const signalFadesOnHover = computed(() => showCopy && variant !== 'condensed')
         >
           <img
             v-if="showOwnerAvatar"
-            :src="`https://github.com/${skill.owner}.png?size=40`"
+            :src="githubAvatarProxyUrl(skill.owner, 40)"
             :alt="skill.owner"
             width="20"
             height="20"

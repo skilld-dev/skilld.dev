@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Explicitly imported by the community page; the underscore keeps it out of global auto-imports.
 import type { CommunityDirectoryItem } from '~~/server/utils/community'
+import { avatarProxyUrl } from '#shared/image-proxy'
 import CollectionAvatar from '../collections/_CollectionAvatar.vue'
 
 const { creator } = defineProps<{
@@ -34,7 +35,7 @@ function formatStars(stars: number): string {
         :aria-label="`View ${displayName}'s profile`"
       >
         <CollectionAvatar
-          :src="creator.avatar"
+          :src="avatarProxyUrl(creator.avatar)"
           :name="displayName"
           size="lg"
           class="community-creator__avatar"

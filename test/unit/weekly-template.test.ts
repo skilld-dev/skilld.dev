@@ -87,11 +87,15 @@ describe('weekly template', () => {
     expect(html).not.toContain('was discovered')
   })
 
-  it('links exact source and shows the owner avatar for every row', () => {
+  it('links exact source and shows the owner avatar through the skilld.dev image proxy', () => {
     const { html } = renderWeekly(input({ likedChanges: [likedChange()] }))
+    const avatars = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('img[width="36"]')]
+      .map(img => new URL(img.getAttribute('src')!))
 
     expect(html).toContain('https://github.com/antfu/skills/blob/sha/SKILL.md')
-    expect(html).toContain('https://github.com/antfu.png?size=80')
+    expect(avatars.map(url => [url.origin, url.pathname, url.searchParams.get('url')])).toEqual([
+      ['https://skilld.dev', '/_img/avatar', 'https://github.com/antfu.png?size=80'],
+    ])
   })
 
   it('sends the reader to SKILL.md in the plain-text half', () => {

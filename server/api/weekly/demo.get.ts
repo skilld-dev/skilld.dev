@@ -71,5 +71,7 @@ export default defineCachedEventHandler(
   },
   // The ranking is recomputed hourly at most upstream, so a shorter cache would
   // spend D1 reads to serve an answer that cannot have changed.
-  { maxAge: 3600, swr: true, name: 'weekly-demo-v1' },
+  // The name changes whenever the card markup changes, so a deploy never serves
+  // the previous markup from cache.
+  { maxAge: 3600, swr: true, name: 'weekly-demo-v2' },
 )
