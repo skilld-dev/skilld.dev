@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   harlan-desktop:
-    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@feat-site-gate-task-cache
+    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@main
     with:
       # Ephemeral containers on the workstation. Safe here because the
       # repository is private; a self-hosted runner on a public repository would
