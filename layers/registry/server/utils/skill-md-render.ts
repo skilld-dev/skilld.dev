@@ -28,6 +28,39 @@ export interface SkillRenderContext {
   registryRepo?: string
 }
 
+/**
+ * Hosts that serve GitHub content a Skill author cannot point at their own
+ * server. An image from any other host can be a tracking pixel: it reports the
+ * visitor's IP address and visit time to the author.
+ */
+const GITHUB_IMAGE_HOSTS = new Set([
+  'raw.githubusercontent.com',
+  'user-images.githubusercontent.com',
+  'private-user-images.githubusercontent.com',
+  'avatars.githubusercontent.com',
+])
+
+function parseAbsoluteUrl(href: string): URL | null {
+  if (!/^(?:https?:)?\/\//i.test(href))
+    return null
+  try {
+    return new URL(href, 'https://github.com')
+  }
+  catch {
+    // A malformed URL is not an image source; the caller shows the alt text.
+    return null
+  }
+}
+
+function isGithubImageUrl(url: URL): boolean {
+  if (url.protocol !== 'https:' || url.username || url.password || url.port)
+    return false
+  if (GITHUB_IMAGE_HOSTS.has(url.hostname))
+    return true
+  return url.hostname === 'github.com'
+    && (/^\/[^/]+\/[^/]+\/raw\//.test(url.pathname) || url.pathname.startsWith('/user-attachments/assets/'))
+}
+
 function isAbsoluteUrl(href: string): boolean {
   return /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
 }
@@ -137,7 +170,17 @@ function createSkillMd(
       image({ href, title, text }: { href: string, title?: string | null, text: string }) {
         const safe = sanitizeUrl(rewriteHref(href, 'image', ctx))
         const t = title ? ` title="${escapeHtml(title)}"` : ''
-        return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text)}"${t}>`
+        const url = parseAbsoluteUrl(safe)
+        const inlineData = /^data:image\//i.test(safe)
+        if (inlineData || (url && isGithubImageUrl(url)))
+          return `<img src="${escapeHtml(inlineData ? safe : url!.href)}" alt="${escapeHtml(text)}"${t} referrerpolicy="no-referrer" loading="lazy">`
+        // Never load an image from another host. Offer the address as a link,
+        // unless the image already sits inside a link. Whitespace-only alt
+        // counts as no alt: trim before falling back, so a blocked badge
+        // inside a link always keeps visible text.
+        if (!url || linkDepth > 0)
+          return escapeHtml(text.trim() || url?.href || href)
+        return `<a href="${escapeHtml(url.href)}"${t} target="_blank" rel="noopener noreferrer">${escapeHtml(text.trim() || url.href)}</a>`
       },
       heading(this: Renderer, token: Tokens.Heading) {
         const content = this.parser.parseInline(token.tokens)

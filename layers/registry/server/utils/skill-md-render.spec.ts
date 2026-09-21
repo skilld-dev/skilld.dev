@@ -114,4 +114,92 @@ license: MIT
     expect(parsed.html).toContain('/unknown')
     expect(parsed.html).toContain('https://example.com/tdd')
   })
+
+  describe('images', () => {
+    const ctx = {
+      owner: 'acme',
+      repo: 'skills',
+      name: 'diagnose',
+      branch: 'main',
+      skillDir: 'skills/diagnose',
+      filePath: '',
+    }
+
+    async function render(markdown: string): Promise<Document> {
+      const { html } = await parseSkillMd(markdown, ctx)
+      return new DOMParser().parseFromString(html, 'text/html')
+    }
+
+    it.each([
+      ['a relative path', './diagram.png', 'https://github.com/acme/skills/raw/main/skills/diagnose/diagram.png'],
+      ['raw GitHub content', 'https://raw.githubusercontent.com/acme/skills/main/a.png', 'https://raw.githubusercontent.com/acme/skills/main/a.png'],
+      ['a GitHub raw path', 'https://github.com/acme/skills/raw/main/a.png', 'https://github.com/acme/skills/raw/main/a.png'],
+      ['a GitHub attachment', 'https://github.com/user-attachments/assets/0a1b2c', 'https://github.com/user-attachments/assets/0a1b2c'],
+      ['a GitHub user image', 'https://user-images.githubusercontent.com/1/a.png', 'https://user-images.githubusercontent.com/1/a.png'],
+      ['a private GitHub user image', 'https://private-user-images.githubusercontent.com/1/a.png?jwt=x', 'https://private-user-images.githubusercontent.com/1/a.png?jwt=x'],
+      ['a GitHub avatar', 'https://avatars.githubusercontent.com/u/1?v=4', 'https://avatars.githubusercontent.com/u/1?v=4'],
+    ])('shows %s as an image that sends no referrer', async (_label, href, src) => {
+      const doc = await render(`![diagram](${href})`)
+
+      const img = doc.querySelector('img')
+      expect(img?.getAttribute('src')).toBe(src)
+      expect(img?.getAttribute('alt')).toBe('diagram')
+      expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer')
+      expect(img?.getAttribute('loading')).toBe('lazy')
+    })
+
+    it.each([
+      ['another host', 'https://tracker.example/pixel.gif'],
+      ['plain http', 'http://raw.githubusercontent.com/acme/skills/main/a.png'],
+      ['a protocol relative URL', '//tracker.example/pixel.gif'],
+      ['a lookalike host', 'https://raw.githubusercontent.com.tracker.example/a.png'],
+      ['a GitHub page that is not a raw file', 'https://github.com/acme/skills/issues/1'],
+    ])('shows an image from %s as a link and never loads it', async (_label, href) => {
+      const doc = await render(`![status badge](${href})`)
+
+      expect(doc.querySelector('img')).toBeNull()
+      const link = doc.querySelector('a')
+      expect(link?.textContent).toBe('status badge')
+      expect(link?.getAttribute('href')).toBe(href.startsWith('//') ? `https:${href}` : href)
+      expect(link?.getAttribute('rel')).toBe('noopener noreferrer')
+    })
+
+    it('shows a blocked image inside a link as the link text', async () => {
+      const doc = await render('[![build](https://tracker.example/badge.svg)](https://ci.example/acme)')
+
+      expect(doc.querySelector('img')).toBeNull()
+      expect(doc.querySelectorAll('a')).toHaveLength(1)
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
+      expect(doc.querySelector('a')?.textContent).toBe('build')
+    })
+
+    it('shows a blocked image with empty alt inside a link as visible text, not an empty anchor', async () => {
+      const doc = await render('[![](https://tracker.example/pixel.gif)](https://ci.example/acme)')
+
+      expect(doc.querySelector('img')).toBeNull()
+      expect(doc.querySelectorAll('a')).toHaveLength(1)
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
+      expect(doc.querySelector('a')?.textContent).not.toBe('')
+    })
+    it.each([
+      ['a mailto URL', 'mailto:badge@example.com'],
+      ['a javascript URL', 'javascript:alert(1)'],
+      ['a non-image data URL', 'data:text/plain,blocked'],
+    ])('shows a scheme-blocked empty-alt image inside a link as visible text, not an empty anchor (%s)', async (_label, href) => {
+      const doc = await render(`[![](${href})](https://ci.example/acme)`)
+
+      expect(doc.querySelectorAll('a')).toHaveLength(1)
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
+      expect(doc.querySelector('a')?.textContent?.trim()).not.toBe('')
+    })
+
+    it('shows a blocked image with whitespace-only alt inside a link as visible text, not an invisible anchor', async () => {
+      const doc = await render('[![ ](https://tracker.example/badge.svg)](https://ci.example/acme)')
+
+      expect(doc.querySelector('img')).toBeNull()
+      expect(doc.querySelectorAll('a')).toHaveLength(1)
+      expect(doc.querySelector('a')?.getAttribute('href')).toBe('https://ci.example/acme')
+      expect(doc.querySelector('a')?.textContent?.trim()).not.toBe('')
+    })
+  })
 })
