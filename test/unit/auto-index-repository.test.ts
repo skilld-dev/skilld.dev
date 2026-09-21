@@ -9,7 +9,7 @@ import {
   countSkillFiles,
   decideRepositoryEligibility,
 } from '../../layers/registry/server/utils/auto-index-repository'
-import { consumeFixedWindow, decideFixedWindow } from '../../layers/registry/server/utils/fixed-window-rate-limit'
+import { consumeFixedWindow, decideFixedWindow, deleteExpiredFixedWindowBuckets, fixedWindowStart } from '../../layers/registry/server/utils/fixed-window-rate-limit'
 
 function repoMeta(overrides: Partial<RepoMeta> = {}): RepoMeta {
   return {
@@ -176,6 +176,54 @@ describe('auto-indexing a repository the registry does not know', () => {
     expect(enqueue).not.toHaveBeenCalled()
   })
 
+  it('enqueues the lower-cased identity GitHub answers with, so the queue writes rows the registry reads', async () => {
+    getRepo = vi.fn(async () => ({
+      status: 200,
+      data: repoMeta({
+        name: 'TypeScript',
+        full_name: 'Microsoft/TypeScript',
+        owner: { login: 'Microsoft' },
+      }),
+      rateLimit: null,
+    }))
+
+    const outcome = await autoIndexMissingRepository(makeDeps(), {
+      owner: 'microsoft',
+      repo: 'typescript',
+    })
+
+    expect(outcome).toMatchObject({ _tag: 'queued', owner: 'microsoft', repo: 'typescript' })
+    expect(enqueue).toHaveBeenCalledWith({}, {
+      operation: 'submit',
+      owner: 'microsoft',
+      repo: 'typescript',
+    })
+
+    sqlite.prepare(`INSERT INTO repos (owner, repo) VALUES (?, ?)`).run('microsoft', 'typescript')
+    const second = await autoIndexMissingRepository(makeDeps(), {
+      owner: 'microsoft',
+      repo: 'typescript',
+    })
+    expect(second).toMatchObject({ _tag: 'skipped', reason: 'already_indexed' })
+    expect(enqueue).toHaveBeenCalledTimes(1)
+  })
+
+  it('never queues from a tree listing GitHub truncated', async () => {
+    getTree = vi.fn(async () => ({
+      status: 200,
+      data: { sha: 'tree-sha', tree: [], truncated: true },
+      rateLimit: null,
+    }))
+
+    const outcome = await autoIndexMissingRepository(makeDeps(), {
+      owner: 'skilld-dev',
+      repo: 'huge',
+    })
+
+    expect(outcome).toMatchObject({ _tag: 'skipped', reason: 'tree_unavailable' })
+    expect(enqueue).not.toHaveBeenCalled()
+  })
+
   it('never queues when GitHub does not answer for the repository', async () => {
     getRepo = vi.fn(async () => ({ status: 404, data: null, rateLimit: null }))
 
@@ -267,6 +315,23 @@ describe('fixed window rate limit', () => {
     expect(await consumeFixedWindow(db, { ...request, now: 1100 })).toEqual({ _tag: 'allowed', hits: 2 })
     expect(await consumeFixedWindow(db, { ...request, now: 1200 })).toEqual({ _tag: 'limited', hits: 3 })
     expect(await consumeFixedWindow(db, { ...request, now: 7200 })).toEqual({ _tag: 'allowed', hits: 1 })
+  })
+
+  it('deletes buckets whose window ended more than one window ago and keeps live ones', async () => {
+    const windowSeconds = 3600
+    const now = 100_000 * windowSeconds
+    sqlite.prepare(
+      `INSERT INTO auto_index_rate_limits (bucket, window_start, hits) VALUES (?, ?, ?)`,
+    ).run('client:stale', now - 2 * windowSeconds, 5)
+    sqlite.prepare(
+      `INSERT INTO auto_index_rate_limits (bucket, window_start, hits) VALUES (?, ?, ?)`,
+    ).run('client:current', fixedWindowStart(now, windowSeconds), 3)
+
+    const deleted = await deleteExpiredFixedWindowBuckets(db, { windowSeconds, now })
+
+    expect(deleted).toBe(1)
+    const buckets = sqlite.prepare(`SELECT bucket FROM auto_index_rate_limits`).all().map((row: unknown) => (row as { bucket: string }).bucket)
+    expect(buckets).toEqual(['client:current'])
   })
 })
 

@@ -161,6 +161,11 @@ export async function autoIndexMissingRepository(
   const treeRes = await deps.getTree(meta.owner.login, meta.name, meta.default_branch, bindings)
   if (!treeRes.data)
     return { _tag: 'skipped', owner, repo, reason: 'tree_unavailable' }
+  // GitHub cuts large listings short. Trusting the partial listing would read
+  // a skill-carrying repository as empty, or queue a submit job that fails
+  // non-retryably at the same check, so an uncountable tree is no tree.
+  if (treeRes.data.truncated === true)
+    return { _tag: 'skipped', owner, repo, reason: 'tree_unavailable' }
 
   const eligibility = decideRepositoryEligibility({
     fork: meta.fork === true,
@@ -170,10 +175,13 @@ export async function autoIndexMissingRepository(
   if (eligibility._tag === 'rejected')
     return { _tag: 'skipped', owner, repo, reason: eligibility.reason }
 
+  // Every registry entry path keys repositories lower-cased, so the queue
+  // payload must too: a canonical-cased payload writes rows no read finds and
+  // the trigger re-fires on every view.
   const queued = await deps.enqueue(deps.env, {
     operation: 'submit',
-    owner: meta.owner.login,
-    repo: meta.name,
+    owner: meta.owner.login.toLowerCase(),
+    repo: meta.name.toLowerCase(),
   })
   return queued.status === 'duplicate'
     ? { _tag: 'skipped', owner, repo, reason: 'already_queued' }

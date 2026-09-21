@@ -54,3 +54,22 @@ export async function consumeFixedWindow(
     throw new Error(`rate limit bucket ${request.bucket} returned no row`)
   return decideFixedWindow(row.hits, request.limit)
 }
+
+/**
+ * Delete buckets whose recorded window ended more than one window ago.
+ *
+ * Every unique caller inserts one row, so without this the table grows by one
+ * permanent row per visitor IP that ever touched the limited path. A deleted
+ * bucket loses nothing: the next {@link consumeFixedWindow} call inserts a
+ * fresh row starting at one hit, which is exactly what the window reset in the
+ * upsert would have produced.
+ */
+export async function deleteExpiredFixedWindowBuckets(
+  db: D1Database,
+  request: { windowSeconds: number, now: number },
+): Promise<number> {
+  const result = await db.prepare(
+    `DELETE FROM auto_index_rate_limits WHERE window_start < ?`,
+  ).bind(request.now - request.windowSeconds).run()
+  return result.meta.changes
+}
