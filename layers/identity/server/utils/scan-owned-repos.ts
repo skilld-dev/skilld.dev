@@ -24,6 +24,9 @@ interface CodeSearchResponse {
 
 interface ScanCounts {
   hits: number
+  ownersScanned: number
+  orgsScanned: number
+  orgLookupError: string | null
   reposFound: number
   reposSynced: number
   reposVerifiedOnly: number
@@ -59,6 +62,7 @@ interface ScanOwnedReposInput {
 
 interface ScanOwnedReposDependencies {
   fetch: typeof globalThis.fetch
+  listOrgs: (input: { login: string, userToken: string }) => Promise<OrgLookupOutcome>
   syncRepo: (
     owner: string,
     repo: string,
@@ -117,9 +121,67 @@ function parseCodeSearchResponse(value: unknown): CodeSearchResponse | null {
   }
 }
 
+/**
+ * One GitHub account whose public Skills this scan searches.
+ *
+ * `user:<login>` never matches a repository an organisation owns, which is why
+ * an organisation's Skills stayed invisible to this scan. Each organisation
+ * the signed-in account belongs to gets its own `org:<login>` search.
+ */
+export interface ScanOwner {
+  login: string
+  qualifier: string
+  ownerVerified: boolean
+}
+
+export type OrgLookupOutcome
+  = | { _tag: 'orgs', logins: string[], visibility: 'member' | 'public' }
+    | { _tag: 'unavailable', reason: string }
+
+/**
+ * Organisation logins, parsed once at the boundary.
+ *
+ * Returns null when the payload is not the list GitHub documents, so a shape
+ * change costs the organisation half of the scan and never the whole scan.
+ */
+export function parseOrgListResponse(value: unknown): string[] | null {
+  if (!Array.isArray(value))
+    return null
+  const logins: string[] = []
+  for (const candidate of value) {
+    if (!isRecord(candidate) || typeof candidate.login !== 'string' || !candidate.login.trim())
+      return null
+    logins.push(candidate.login)
+  }
+  return logins
+}
+
+/**
+ * The owners one scan searches: the account itself, then its organisations.
+ *
+ * `ownerVerified` stays true only for the account's own repositories. Being a
+ * member of an organisation is not proof of authorship, so an organisation
+ * repository enters the ledger unverified and earns trust the usual way.
+ */
+export function buildScanOwners(login: string, orgLogins: readonly string[]): ScanOwner[] {
+  const owners: ScanOwner[] = [{ login, qualifier: `user:${login}`, ownerVerified: true }]
+  const seen = new Set([login.toLowerCase()])
+  for (const org of orgLogins) {
+    const key = org.toLowerCase()
+    if (seen.has(key))
+      continue
+    seen.add(key)
+    owners.push({ login: org, qualifier: `org:${org}`, ownerVerified: false })
+  }
+  return owners
+}
+
 function emptyCounts(): ScanCounts {
   return {
     hits: 0,
+    ownersScanned: 0,
+    orgsScanned: 0,
+    orgLookupError: null,
     reposFound: 0,
     reposSynced: 0,
     reposVerifiedOnly: 0,
@@ -174,96 +236,174 @@ export function ownedRepoScanWarning(result: ScanResult): Record<string, unknown
   return { ...common, status: result.status, error: result.error }
 }
 
+/**
+ * List the organisations the signed-in account belongs to.
+ *
+ * `GET /user/orgs` needs the `read:org` scope, which this app does not ask
+ * for, so it answers 403 for most accounts. The public membership list needs
+ * no scope at all, so it is the fallback rather than the failure. Adding
+ * `read:org` would force every existing account to consent again, so the scan
+ * takes what the current grant allows.
+ */
+export function makeGithubOrgLister(fetchImpl: typeof globalThis.fetch) {
+  return async function listOrgs(
+    input: { login: string, userToken: string },
+  ): Promise<OrgLookupOutcome> {
+    const member = await requestOrgList(
+      fetchImpl,
+      `https://api.github.com/user/orgs?per_page=${PER_PAGE}`,
+      input.userToken,
+    )
+    if (member._tag === 'logins')
+      return { _tag: 'orgs', logins: member.logins, visibility: 'member' }
+
+    const publicOrgs = await requestOrgList(
+      fetchImpl,
+      `https://api.github.com/users/${encodeURIComponent(input.login)}/orgs?per_page=${PER_PAGE}`,
+      input.userToken,
+    )
+    if (publicOrgs._tag === 'logins')
+      return { _tag: 'orgs', logins: publicOrgs.logins, visibility: 'public' }
+    return { _tag: 'unavailable', reason: `${member.reason}; ${publicOrgs.reason}` }
+  }
+}
+
+type OrgListRequestOutcome
+  = | { _tag: 'logins', logins: string[] }
+    | { _tag: 'unavailable', reason: string }
+
+async function requestOrgList(
+  fetchImpl: typeof globalThis.fetch,
+  url: string,
+  userToken: string,
+): Promise<OrgListRequestOutcome> {
+  const outcome = await fetchImpl(url, {
+    headers: {
+      'Authorization': `Bearer ${userToken}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'skilld.dev',
+    },
+  }).then(
+    response => ({ _tag: 'response' as const, response }),
+    error => ({ _tag: 'network_failure' as const, error: errorMessage(error) }),
+  )
+  if (outcome._tag === 'network_failure')
+    return { _tag: 'unavailable', reason: outcome.error }
+  if (!outcome.response.ok)
+    return { _tag: 'unavailable', reason: `org list ${outcome.response.status}` }
+
+  const parsed = await outcome.response.json().then(
+    value => parseOrgListResponse(value),
+    () => null,
+  )
+  return parsed === null
+    ? { _tag: 'unavailable', reason: 'Invalid GitHub organisation list response' }
+    : { _tag: 'logins', logins: parsed }
+}
+
 export function makeOwnedRepoScanner(deps: ScanOwnedReposDependencies) {
   return async function scanOwnedRepos(input: ScanOwnedReposInput): Promise<ScanResult> {
     const { login, userToken, db, env } = input
-    const seen = new Set<string>()
+    const seen = new Map<string, boolean>()
     const counts = emptyCounts()
     let partialReason: 'incomplete_results' | 'result_cap' | null = null
     let candidateStateFailure = false
 
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const q = encodeURIComponent(`filename:SKILL.md user:${login} is:public`)
-      const responseOutcome = await deps.fetch(
-        `https://api.github.com/search/code?q=${q}&per_page=${PER_PAGE}&page=${page}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${userToken}`,
-            'Accept': 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-            'User-Agent': 'skilld.dev',
+    // An organisation's Skills are invisible to `user:<login>`. Losing the
+    // organisation list costs those repositories, never the account's own, so
+    // it is recorded and the scan continues.
+    const orgLookup = await deps.listOrgs({ login, userToken })
+    if (orgLookup._tag === 'unavailable')
+      counts.orgLookupError = orgLookup.reason
+    const owners = buildScanOwners(login, orgLookup._tag === 'orgs' ? orgLookup.logins : [])
+    counts.ownersScanned = owners.length
+    counts.orgsScanned = owners.length - 1
+
+    for (const owner of owners) {
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const q = encodeURIComponent(`filename:SKILL.md ${owner.qualifier} is:public`)
+        const responseOutcome = await deps.fetch(
+          `https://api.github.com/search/code?q=${q}&per_page=${PER_PAGE}&page=${page}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${userToken}`,
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'skilld.dev',
+            },
           },
-        },
-      ).then(
-        response => ({ _tag: 'response' as const, response }),
-        error => ({ _tag: 'network_failure' as const, error: errorMessage(error) }),
-      )
+        ).then(
+          response => ({ _tag: 'response' as const, response }),
+          error => ({ _tag: 'network_failure' as const, error: errorMessage(error) }),
+        )
 
-      if (responseOutcome._tag === 'network_failure') {
-        return { _tag: 'provider_failure', status: null, error: responseOutcome.error, ...counts }
-      }
-
-      const res = responseOutcome.response
-      if (!res.ok) {
-        if (res.status === 401)
-          return { _tag: 'auth_failure', status: 401, ...counts }
-        if (res.status === 403 || res.status === 429) {
-          return {
-            _tag: 'rate_limited',
-            status: res.status,
-            rateLimitRemaining: integerHeader(res.headers, 'x-ratelimit-remaining'),
-            rateLimitReset: integerHeader(res.headers, 'x-ratelimit-reset'),
-            requestId: res.headers.get('x-github-request-id'),
-            ...counts,
-          }
+        if (responseOutcome._tag === 'network_failure') {
+          return { _tag: 'provider_failure', status: null, error: responseOutcome.error, ...counts }
         }
-        return { _tag: 'provider_failure', status: res.status, error: `GitHub code search ${res.status}`, ...counts }
+
+        const res = responseOutcome.response
+        if (!res.ok) {
+          if (res.status === 401)
+            return { _tag: 'auth_failure', status: 401, ...counts }
+          if (res.status === 403 || res.status === 429) {
+            return {
+              _tag: 'rate_limited',
+              status: res.status,
+              rateLimitRemaining: integerHeader(res.headers, 'x-ratelimit-remaining'),
+              rateLimitReset: integerHeader(res.headers, 'x-ratelimit-reset'),
+              requestId: res.headers.get('x-github-request-id'),
+              ...counts,
+            }
+          }
+          return { _tag: 'provider_failure', status: res.status, error: `GitHub code search ${res.status}`, ...counts }
+        }
+
+        const jsonOutcome = await res.json().then(
+          value => ({ _tag: 'parsed' as const, value }),
+          error => ({ _tag: 'parse_failure' as const, error: errorMessage(error) }),
+        )
+        if (jsonOutcome._tag === 'parse_failure')
+          return { _tag: 'provider_failure', status: res.status, error: jsonOutcome.error, ...counts }
+
+        const body = parseCodeSearchResponse(jsonOutcome.value)
+        if (!body)
+          return { _tag: 'provider_failure', status: res.status, error: 'Invalid GitHub code search response', ...counts }
+
+        counts.hits = Math.max(counts.hits, body.total_count)
+        if (body.incomplete_results)
+          partialReason = 'incomplete_results'
+        else if (body.total_count > PER_PAGE * MAX_PAGES && !partialReason)
+          partialReason = 'result_cap'
+        else if (page === MAX_PAGES && body.items.length === PER_PAGE && !partialReason)
+          partialReason = 'result_cap'
+
+        for (const item of body.items) {
+          if (item.repository.fork)
+            continue
+          if (item.repository.owner.login.toLowerCase() !== owner.login.toLowerCase())
+            continue
+          const key = `${item.repository.owner.login}/${item.repository.name}`
+          if (seen.has(key))
+            continue
+          seen.set(key, owner.ownerVerified)
+          await upsertDiscoveryCandidate(db, {
+            owner: item.repository.owner.login,
+            repo: item.repository.name,
+            source: 'owned_scan',
+            discoveredAt: deps.now(),
+            ownerVerified: owner.ownerVerified,
+          })
+        }
+
+        if (body.items.length < PER_PAGE)
+          break
       }
-
-      const jsonOutcome = await res.json().then(
-        value => ({ _tag: 'parsed' as const, value }),
-        error => ({ _tag: 'parse_failure' as const, error: errorMessage(error) }),
-      )
-      if (jsonOutcome._tag === 'parse_failure')
-        return { _tag: 'provider_failure', status: res.status, error: jsonOutcome.error, ...counts }
-
-      const body = parseCodeSearchResponse(jsonOutcome.value)
-      if (!body)
-        return { _tag: 'provider_failure', status: res.status, error: 'Invalid GitHub code search response', ...counts }
-
-      counts.hits = body.total_count
-      if (body.incomplete_results)
-        partialReason = 'incomplete_results'
-      else if (body.total_count > PER_PAGE * MAX_PAGES && !partialReason)
-        partialReason = 'result_cap'
-      else if (page === MAX_PAGES && body.items.length === PER_PAGE && !partialReason)
-        partialReason = 'result_cap'
-
-      for (const item of body.items) {
-        if (item.repository.fork)
-          continue
-        if (item.repository.owner.login.toLowerCase() !== login.toLowerCase())
-          continue
-        const key = `${item.repository.owner.login}/${item.repository.name}`
-        if (seen.has(key))
-          continue
-        seen.add(key)
-        await upsertDiscoveryCandidate(db, {
-          owner: item.repository.owner.login,
-          repo: item.repository.name,
-          source: 'owned_scan',
-          discoveredAt: deps.now(),
-          ownerVerified: true,
-        })
-      }
-
-      if (body.items.length < PER_PAGE)
-        break
     }
 
     counts.reposFound = seen.size
     const bindings = deps.resolveGithubBindings(env)
-    for (const full of seen) {
+    for (const full of seen.keys()) {
       const [owner, repo] = full.split('/') as [string, string]
       const attemptedAt = deps.now()
       const token = deps.claimToken()
@@ -353,6 +493,7 @@ export function makeOwnedRepoScanner(deps: ScanOwnedReposDependencies) {
 
 export const scanOwnedRepos = makeOwnedRepoScanner({
   fetch: globalThis.fetch,
+  listOrgs: makeGithubOrgLister(globalThis.fetch),
   syncRepo,
   resolveGithubBindings,
   now: () => Math.floor(Date.now() / 1000),

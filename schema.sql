@@ -364,6 +364,12 @@ CREATE TABLE repo_trust_overrides (
   PRIMARY KEY (owner, repo)
 );
 
+CREATE TABLE auto_index_rate_limits (
+  bucket TEXT PRIMARY KEY,
+  window_start INTEGER NOT NULL,
+  hits INTEGER NOT NULL DEFAULT 0 CHECK (hits >= 0)
+);
+
 CREATE TABLE repos (
   owner TEXT NOT NULL,
   repo TEXT NOT NULL,
