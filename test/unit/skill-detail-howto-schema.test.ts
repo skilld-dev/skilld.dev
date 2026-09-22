@@ -1,5 +1,6 @@
-import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
+import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
+import { readBody } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
 import { reactive, ref, toValue } from 'vue'
 
@@ -10,6 +11,16 @@ const route = reactive({
 })
 
 const schemaNodes = vi.hoisted(() => ({ current: null as unknown }))
+
+const installEvents: Record<string, unknown>[] = []
+
+registerEndpoint('/api/events/install', {
+  method: 'POST',
+  handler: async (event) => {
+    installEvents.push(await readBody(event))
+    return { ok: true }
+  },
+})
 
 mockNuxtImport('useRoute', () => () => route)
 mockNuxtImport('navigateTo', () => vi.fn())
@@ -276,6 +287,7 @@ describe('skillDetail run copy telemetry', () => {
         return true
       }),
     })
+    installEvents.length = 0
 
     const wrapper = await mountSuspended(
       await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
@@ -293,6 +305,13 @@ describe('skillDetail run copy telemetry', () => {
     await flushPromises()
 
     expect(copied).toContain('Use this Skill: https://skilld.dev/gh/antfu/skills/vite')
+
+    await vi.waitFor(() => {
+      expect(installEvents).toContainEqual(expect.objectContaining({
+        surface: 'skill-page-hero',
+        mode: 'run',
+      }))
+    })
 
     wrapper.unmount()
     clipboard.mockRestore()

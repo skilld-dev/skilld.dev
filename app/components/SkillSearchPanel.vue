@@ -41,7 +41,16 @@ const previewRunCmd = computed(() =>
     ? skillRunCmd(previewSkill.value.owner, previewSkill.value.repo, previewSkill.value.name)
     : '',
 )
-const { copy: copyRun, copied: runCopied } = useInstallCopy(previewRunCmd)
+const { copy: copyRun, copied: runCopied } = useInstallCopy(
+  previewRunCmd,
+  'search-panel',
+  'run',
+  () => ({
+    kind: 'skill',
+    owner: previewSkill.value?.owner ?? '',
+    name: previewSkill.value?.name ?? '',
+  }),
+)
 
 function ownerPath(skill: SearchSkill): string {
   return `${skill.owner}${skill.repo !== 'skills' ? `/${skill.repo}` : ''}`

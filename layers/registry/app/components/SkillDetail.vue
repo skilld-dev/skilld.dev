@@ -388,9 +388,19 @@ const installCmd = computed(() => {
 const commandMode = ref<'run' | 'install'>('run')
 const commandCopyError = ref('')
 
-const { copy, copied } = useInstallCopy(runPrompt)
+const { copy, copied } = useInstallCopy(
+  runPrompt,
+  'skill-page-hero',
+  'run',
+  () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
+)
 
-const { copy: copyInstall, copied: installCopied } = useInstallCopy(installCmd)
+const { copy: copyInstall, copied: installCopied } = useInstallCopy(
+  installCmd,
+  'skill-page-install',
+  'install',
+  () => ({ kind: 'skill', owner: data.value?.owner ?? '', name: data.value?.name ?? '' }),
+)
 
 async function copySkillCommand(mode: 'run' | 'install') {
   commandCopyError.value = ''

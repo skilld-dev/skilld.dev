@@ -211,3 +211,53 @@ export function summarizeWorkflowRuns(rows, requiredWorkflowNames) {
     }
   })
 }
+
+// ── Anonymous copy analytics ────────────────────────────────────────────────
+//
+// Command copies live in Cloudflare Analytics Engine, not D1, so the daily
+// report reads them over the SQL API. Blob order is fixed by
+// `shared/analytics.ts`: surface, mode, kind, slug, country.
+
+export const ANALYTICS_ACCOUNT_TAG = '5904138d55ca25d5670dca6adf99894e'
+export const COPY_DATASET = 'skilld_web_v1'
+
+/** Analytics Engine reads `YYYY-MM-DD HH:MM:SS`, never an ISO string with `T`. */
+export function analyticsTimestamp(iso) {
+  const parsed = Date.parse(iso)
+  if (Number.isNaN(parsed))
+    throw new Error(`Analytics window boundary is not a date: ${iso}`)
+  return new Date(parsed).toISOString().slice(0, 19).replace('T', ' ')
+}
+
+/**
+ * Copies in the window, grouped by grammar, kind, and Skill.
+ *
+ * `_sample_interval` restores the true count when Analytics Engine samples,
+ * so a busy day does not read as a quiet one.
+ */
+export function buildCopyQuery(sinceIso, nowIso) {
+  return `SELECT blob2 AS mode, blob3 AS kind, blob4 AS slug, sum(_sample_interval * double1) AS copies FROM ${COPY_DATASET} WHERE timestamp >= toDateTime('${analyticsTimestamp(sinceIso)}') AND timestamp < toDateTime('${analyticsTimestamp(nowIso)}') GROUP BY mode, kind, slug ORDER BY copies DESC LIMIT 50`
+}
+
+/**
+ * Totals plus the most copied Skills.
+ *
+ * Run and install are reported apart because they are different intents: a run
+ * copy reads a Skill once, an install copy keeps it in every session.
+ */
+export function summarizeCopies(rows) {
+  const totals = { total: 0, run: 0, install: 0 }
+  for (const row of rows) {
+    const copies = Number(row.copies) || 0
+    totals.total += copies
+    if (row.mode === 'run' || row.mode === 'install')
+      totals[row.mode] += copies
+  }
+  return {
+    ...totals,
+    top: [...rows]
+      .sort((a, b) => (Number(b.copies) || 0) - (Number(a.copies) || 0))
+      .slice(0, 10)
+      .map(row => ({ slug: row.slug, kind: row.kind, mode: row.mode, copies: Number(row.copies) || 0 })),
+  }
+}

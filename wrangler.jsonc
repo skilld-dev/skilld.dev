@@ -28,6 +28,12 @@
     { "binding": "KV_CACHE", "id": "187e636458cb49faa2ae14743adc7736" },
     { "binding": "KV_DATA", "id": "cf3d794a55f84192a30f520686e1d932" }
   ],
+  // Anonymous usage aggregates. Analytics Engine holds no visitor IP address,
+  // no cookie, and no account id: see shared/analytics.ts for the blob order.
+  "analytics_engine_datasets": [
+    { "binding": "SKILLD_ANALYTICS", "dataset": "skilld_cli_v1" },
+    { "binding": "SKILLD_WEB_ANALYTICS", "dataset": "skilld_web_v1" }
+  ],
   "version_metadata": {
     "binding": "CF_VERSION_METADATA"
   },
@@ -122,9 +128,10 @@
     { "tag": "v1", "new_classes": ["$DurableObject"] },
     { "tag": "v2", "deleted_classes": ["$DurableObject"] }
   ],
-  // Logs stay on so wide events reach Workers Logs. Invocation logs record
-  // each request URL and client metadata, and traces record request spans.
-  // Both are off for visitor privacy.
+  // Wide events reach Workers Logs, and sampled traces keep request timing
+  // readable. Invocation logs are off: they record the full request URL and
+  // client metadata for every request, which the wide events already cover
+  // without the visitor detail.
   "observability": {
     "enabled": true,
     "logs": {
@@ -133,7 +140,8 @@
       "invocation_logs": false
     },
     "traces": {
-      "enabled": false
+      "enabled": true,
+      "head_sampling_rate": 0.01
     }
   },
   "routes": [
