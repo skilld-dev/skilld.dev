@@ -16,10 +16,10 @@ import {
 const migrationsDir = resolve(process.cwd(), 'migrations')
 
 describe('d1 schema verifier', () => {
-  it('fails when the ledger reports 0011 but install_events is missing', () => {
+  it('fails when the ledger reports 0015 but repo_trust_overrides is missing', () => {
     const contract = buildExpectedSchemaContract(migrationsDir)
     const actual = snapshotFromContract(contract, {
-      objects: contract.objects.filter(object => object.name !== 'install_events'),
+      objects: contract.objects.filter(object => object.name !== 'repo_trust_overrides'),
     })
 
     const result = verifyD1Schema(contract, actual)
@@ -29,7 +29,7 @@ describe('d1 schema verifier', () => {
       issues: expect.arrayContaining([
         expect.objectContaining({
           _tag: 'object_missing',
-          name: 'install_events',
+          name: 'repo_trust_overrides',
           ledgerState: 'complete',
         }),
       ]),
@@ -59,7 +59,7 @@ describe('d1 schema verifier', () => {
   it('fails when any expected migration index is missing', () => {
     const contract = buildExpectedSchemaContract(migrationsDir)
     const actual = snapshotFromContract(contract, {
-      objects: contract.objects.filter(object => object.name !== 'idx_install_events_recent'),
+      objects: contract.objects.filter(object => object.name !== 'idx_repo_trust_overrides_tier'),
     })
 
     expect(verifyD1Schema(contract, actual)).toMatchObject({
@@ -67,7 +67,7 @@ describe('d1 schema verifier', () => {
       issues: expect.arrayContaining([
         expect.objectContaining({
           _tag: 'object_missing',
-          name: 'idx_install_events_recent',
+          name: 'idx_repo_trust_overrides_tier',
         }),
       ]),
     })
@@ -76,7 +76,7 @@ describe('d1 schema verifier', () => {
   it('fails when normalized SQL shape differs', () => {
     const contract = buildExpectedSchemaContract(migrationsDir)
     const actual = snapshotFromContract(contract, {
-      objects: contract.objects.map(object => object.name === 'install_events'
+      objects: contract.objects.map(object => object.name === 'repo_trust_overrides'
         ? { ...object, sql: `${object.sql} STRICT` }
         : object),
     })
@@ -86,7 +86,7 @@ describe('d1 schema verifier', () => {
       issues: expect.arrayContaining([
         expect.objectContaining({
           _tag: 'object_sql_mismatch',
-          name: 'install_events',
+          name: 'repo_trust_overrides',
         }),
       ]),
     })

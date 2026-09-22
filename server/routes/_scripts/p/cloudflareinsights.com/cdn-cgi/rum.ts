@@ -1,3 +1,5 @@
+import { scrubRumBeaconBody } from '#shared/rum-beacon'
+
 /**
  * Forward the Cloudflare Web Analytics beacon to its real endpoint.
  *
@@ -9,7 +11,16 @@ const RUM_ENDPOINT = 'https://cloudflareinsights.com/cdn-cgi/rum'
 
 export default defineEventHandler(async (event) => {
   const url = getRequestURL(event)
-  const body = isMethod(event, 'POST') ? await readRawBody(event, 'utf8') : undefined
+  const rawBody = isMethod(event, 'POST') ? await readRawBody(event, 'utf8') : undefined
+  // Only the content type goes upstream. No IP, forwarded-for, cookie, or
+  // referer header is copied, and page URLs in the body lose their query.
+  const scrubbed = rawBody ? scrubRumBeaconBody(rawBody) : undefined
+  if (scrubbed?._tag === 'drop') {
+    emitOperationalEvent(createWideEvent({ operation: 'rum-beacon-proxy', outcome: 'failed', reason: scrubbed.reason }))
+    setResponseStatus(event, 204)
+    return null
+  }
+  const body = scrubbed?.body
   const response = await $fetch.raw(`${RUM_ENDPOINT}${url.search}`, {
     method: event.method,
     body,

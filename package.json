@@ -70,7 +70,6 @@
     "@vueuse/core": "catalog:",
     "@vueuse/nuxt": "catalog:",
     "agents": "catalog:",
-    "algoliasearch": "catalog:",
     "comark": "catalog:",
     "h3": "catalog:",
     "import-in-the-middle": "catalog:",

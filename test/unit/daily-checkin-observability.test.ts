@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   approximateDeployedSha,
+  buildCopyQuery,
   buildWorkersQuery,
   collectWorkflowRuns,
   deriveBaselineFlag,
@@ -10,6 +11,7 @@ import {
   readMigrationState,
   refreshProductionRef,
   runListArgs,
+  summarizeCopies,
   summarizeWorkflowRuns,
 } from '../../checks/_helpers/observability.mjs'
 
@@ -333,5 +335,43 @@ describe('workflow gate coverage', () => {
     expect(files.length).toBeGreaterThan(0)
     expect(declared).not.toContain(null)
     expect(new Set(declared).size).toBe(declared.length)
+  })
+})
+
+describe('command copy analytics', () => {
+  it('reads the window with Analytics Engine timestamps and sampling restored', () => {
+    const sql = buildCopyQuery('2026-09-21T00:00:00.000Z', '2026-09-22T00:00:00.000Z')
+
+    expect(sql).toContain('FROM skilld_web_v1')
+    expect(sql).toContain(`timestamp >= toDateTime('2026-09-21 00:00:00')`)
+    expect(sql).toContain(`timestamp < toDateTime('2026-09-22 00:00:00')`)
+    expect(sql).toContain('sum(_sample_interval * double1)')
+    expect(sql).not.toContain('T00:00:00.000Z')
+  })
+
+  it('refuses a window boundary that is not a date', () => {
+    expect(() => buildCopyQuery('yesterday', '2026-09-22T00:00:00.000Z')).toThrow(/not a date/)
+  })
+
+  it('splits run copies from install copies and ranks the Skills', () => {
+    expect(summarizeCopies([
+      { mode: 'run', kind: 'skill', slug: 'antfu/vite', copies: '12' },
+      { mode: 'install', kind: 'repo', slug: 'obra/superpowers', copies: 30 },
+      { mode: 'run', kind: 'skill', slug: 'harlan-zw/seo', copies: 3 },
+    ])).toMatchObject({
+      total: 45,
+      run: 15,
+      install: 30,
+      top: [
+        { slug: 'obra/superpowers', copies: 30 },
+        { slug: 'antfu/vite', copies: 12 },
+        { slug: 'harlan-zw/seo', copies: 3 },
+      ],
+    })
+  })
+
+  it('counts a grammar it does not know in the total only', () => {
+    expect(summarizeCopies([{ mode: 'once', kind: 'skill', slug: 'antfu/vite', copies: 4 }]))
+      .toMatchObject({ total: 4, run: 0, install: 0 })
   })
 })

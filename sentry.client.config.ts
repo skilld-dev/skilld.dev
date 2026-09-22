@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nuxt'
-import { createSentryDataCollection, isClosedBroadcastChannelError, isLocalReportingHost, SENTRY_DSN } from './shared/sentry'
+import { createSentryDataCollection, isClosedBroadcastChannelError, isLocalReportingHost, scrubSentryBreadcrumb, scrubSentryEvent, SENTRY_DSN, SENTRY_TUNNEL_PATH } from './shared/sentry'
 
 if (!import.meta.dev && window.location.protocol === 'https:' && !isLocalReportingHost(window.location.hostname)) {
   // No `release` here on purpose. The Sentry bundler plugin injects the release
@@ -9,8 +9,18 @@ if (!import.meta.dev && window.location.protocol === 'https:' && !isLocalReporti
   Sentry.init({
     dsn: SENTRY_DSN,
     environment: 'production',
-    tracesSampleRate: 0.1,
+    // Envelopes go to the Worker, which forwards them, so sentry.io never
+    // receives a visitor's IP address.
+    tunnel: SENTRY_TUNNEL_PATH,
+    // No browser performance tracing and no session tracking. Errors only.
+    tracesSampleRate: 0,
+    integrations: defaults => defaults.filter(integration => integration.name !== 'BrowserSession'),
+    // `userInfo: false` also makes the SDK send `infer_ip: never`, so Sentry
+    // ingest does not fill in an IP address. `sendDefaultPii` is deprecated in
+    // this SDK version and ignored when `dataCollection` is set.
     dataCollection: createSentryDataCollection(),
+    beforeBreadcrumb: scrubSentryBreadcrumb,
+    beforeSendTransaction: scrubSentryEvent,
     // Stale hashed chunks after a deploy: Nuxt's built-in nuxt:chunk-reload
     // plugin already recovers the navigation with a hard reload, so these are
     // benign, self-healing, and pure dashboard noise (Sentry SKILLD-4).
@@ -27,7 +37,7 @@ if (!import.meta.dev && window.location.protocol === 'https:' && !isLocalReporti
       const values = event.exception?.values ?? []
       if (isClosedBroadcastChannelError(hint.originalException) || values.some(isClosedBroadcastChannelError))
         return null
-      return event
+      return scrubSentryEvent(event)
     },
   })
 }

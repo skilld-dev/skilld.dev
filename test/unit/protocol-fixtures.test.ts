@@ -9,7 +9,6 @@ import { fixtures } from 'skilld-protocol/test-fixtures'
 import {
   AuditEntrySchema,
   ChangeEntrySchema,
-  CliEventInputSchema,
   CollectionManifestSchema,
   CollectionSummarySchema,
   DevicePollInputSchema,
@@ -32,7 +31,6 @@ describe('skilld-protocol fixtures round-trip in site', () => {
     ['auth.tokenResponse', TokenResponseSchema, fixtures.auth.tokenResponse],
     ['device.startResponse', DeviceStartResponseSchema, fixtures.device.startResponse],
     ['device.pollAuthorized', DevicePollResponseSchema, fixtures.device.pollAuthorized],
-    ['telemetry.installEvent', CliEventInputSchema, fixtures.telemetry.installEvent],
     ['collections.manifest', CollectionManifestSchema, fixtures.collections.manifest],
     ['collections.summary', CollectionSummarySchema, fixtures.collections.summary],
     ['collections.change', ChangeEntrySchema, fixtures.collections.change],

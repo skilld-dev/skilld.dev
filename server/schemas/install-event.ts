@@ -1,18 +1,24 @@
 import { z } from 'zod'
 
+/**
+ * Body of `POST /api/events/install`: one copy of a printed command.
+ *
+ * Nothing here names a person. The site sends only what it already printed on
+ * the page. The old `project`, `global`, `once`, and `agent` values died with
+ * the `install_events` table, so the enum holds the two live grammars.
+ */
 export const InstallEventInput = z.object({
   surface: z.string().min(1).max(64),
-  // `repo` was added on 2026-09-04 for the homepage hero, which installs a
-  // whole repository rather than one skill. It stores the repo in `name`.
+  // `repo` is what the homepage hero copies: a whole repository rather than
+  // one Skill. It stores the repository in `name`.
   kind: z.enum(['skill', 'collection', 'repo']),
   owner: z.string().max(128).optional(),
   name: z.string().max(128).optional(),
   handle: z.string().max(128).optional(),
   slug: z.string().max(128).optional(),
-  // Written only by the retired agent setup picker; kept for the stored column.
-  agent: z.string().max(64).optional(),
-  // `run` and `install` are the live values. The first three are historical.
-  mode: z.enum(['project', 'global', 'once', 'run', 'install']).optional(),
-})
+  mode: z.enum(['run', 'install']),
+// Strict, so a field the endpoint never asked for is a 400 rather than a
+// value that reaches the data point by accident.
+}).strict()
 
 export type InstallEventInput = z.infer<typeof InstallEventInput>

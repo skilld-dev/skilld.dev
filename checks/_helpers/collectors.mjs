@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
-import { buildWorkersQuery, collectWorkflowRuns, parseWorkflowName, runListArgs, summarizeWorkflowRuns } from './observability.mjs'
+import { ANALYTICS_ACCOUNT_TAG, buildCopyQuery, buildWorkersQuery, collectWorkflowRuns, parseWorkflowName, runListArgs, summarizeCopies, summarizeWorkflowRuns } from './observability.mjs'
 
-const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers'].map(key => [key, {}]))
+const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers', 'analytics'].map(key => [key, {}]))
 
 function collect(context, key, load) {
   return context.collect(resources[key], `skilld.${key}`, async signal => ({ value: await load({ ...context, signal }) }))
@@ -94,7 +94,6 @@ export function collectD1(context) {
     const root = context.rootDir
     const now = context.now
     const sinceSec = Math.floor(context.since.getTime() / 1000)
-    const sinceMs = context.since.getTime()
     const utcDay = now.toISOString().slice(0, 10)
     async function d1Query(sql) {
       const output = await commandJson(context, join(root, 'node_modules/.bin/wrangler'), ['d1', 'execute', 'DB', '--remote', '--json', '--config', 'wrangler.jsonc', '--command', sql])
@@ -132,7 +131,6 @@ export function collectD1(context) {
     const activityParts = [
       has('skills') ? `(SELECT COUNT(*) FROM skills WHERE first_seen_at >= ${sinceSec}) AS new_skills` : 'NULL AS new_skills',
       has('activity') ? `(SELECT COUNT(DISTINCT owner || '/' || repo) FROM activity WHERE occurred_at >= ${sinceSec}) AS changed_repos` : 'NULL AS changed_repos',
-      has('install_events') ? `(SELECT COUNT(*) FROM install_events WHERE occurred_at >= ${sinceMs}) AS install_events` : 'NULL AS install_events',
       has('users') ? `(SELECT COUNT(*) FROM users WHERE created_at >= ${sinceSec}) AS new_users` : 'NULL AS new_users',
       has('digest_runs') ? `(SELECT COUNT(*) FROM digest_runs WHERE status = 'sent' AND sent_at >= ${sinceSec}) AS digests_sent` : 'NULL AS digests_sent',
       has('digest_runs') ? `(SELECT COUNT(*) FROM digest_runs WHERE status = 'failed' AND window_end >= ${sinceSec}) AS digests_failed` : 'NULL AS digests_failed',
@@ -141,8 +139,8 @@ export function collectD1(context) {
     // the identities behind `newly_broken_repos_impacted` are archived too: one
     // row per impacted repo with the reasons it still backs. The filter is shared
     // with the count so the number and the rows can never disagree.
-    const impactedBrokenReposGuarded = has('repos') && has('skills') && has('user_starred_repos') && has('skill_subscriptions') && has('collection_skills_v2') && has('activity') && has('install_events')
-    const impactedBrokenReposWhere = `r.broken_since >= ${sinceSec} AND (EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) OR EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) OR EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) OR EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) OR EXISTS (SELECT 1 FROM activity a JOIN install_events ie ON ie.slug = a.owner || '/' || a.name WHERE a.owner = r.owner AND a.repo = r.repo))`
+    const impactedBrokenReposGuarded = has('repos') && has('skills') && has('user_starred_repos') && has('skill_subscriptions') && has('collection_skills_v2')
+    const impactedBrokenReposWhere = `r.broken_since >= ${sinceSec} AND (EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) OR EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) OR EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) OR EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo))`
     const pipelineParts = [
       has('repos') ? `(SELECT COUNT(*) FROM repos WHERE broken_since >= ${sinceSec}) AS newly_broken_repos_total` : 'NULL AS newly_broken_repos_total',
       impactedBrokenReposGuarded ? `(SELECT COUNT(*) FROM repos r WHERE ${impactedBrokenReposWhere}) AS newly_broken_repos_impacted` : 'NULL AS newly_broken_repos_impacted',
@@ -222,7 +220,7 @@ export function collectD1(context) {
       has('discovery_ledger') ? `(SELECT COUNT(*) FROM discovery_ledger WHERE status = 'indexed') AS x_ledger_indexed` : 'NULL AS x_ledger_indexed',
     ]
     const impactedBrokenRepos = impactedBrokenReposGuarded
-      ? (await d1Query(`SELECT r.owner, r.repo, rtrim((CASE WHEN EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) THEN 'skill ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) THEN 'star ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) THEN 'subscription ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) THEN 'collection ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM activity a JOIN install_events ie ON ie.slug = a.owner || '/' || a.name WHERE a.owner = r.owner AND a.repo = r.repo) THEN 'install ' ELSE '' END)) AS reason FROM repos r WHERE ${impactedBrokenReposWhere} ORDER BY r.broken_since DESC`))
+      ? (await d1Query(`SELECT r.owner, r.repo, rtrim((CASE WHEN EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) THEN 'skill ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) THEN 'star ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) THEN 'subscription ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) THEN 'collection ' ELSE '' END)) AS reason FROM repos r WHERE ${impactedBrokenReposWhere} ORDER BY r.broken_since DESC`))
       : null
     const syncJobs = has('sync_jobs')
       ? (await d1Query(`SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error FROM sync_jobs WHERE enabled = 1 AND name != 'daily-health-check' ORDER BY name`))
@@ -267,7 +265,6 @@ export function collectD1(context) {
         'owners',
         'users',
         'activity',
-        'install_events',
         'sync_jobs',
         'jobs',
         'failed_jobs',
@@ -293,5 +290,29 @@ export function collectWorkers(context) {
         outcomes[row.dimensions.status] = (outcomes[row.dimensions.status] ?? 0) + row.sum.requests
     }
     return { outcomes, nonOk: Object.entries(outcomes).filter(([status]) => !['success', 'clientDisconnected', 'responseStreamDisconnected'].includes(status)).map(([status, requests]) => ({ status, requests })) }
+  })
+}
+
+/**
+ * Command copies from Analytics Engine.
+ *
+ * The site's activation signal is how often a printed command is copied. It is
+ * anonymous by construction: the dataset holds surface, grammar, kind, Skill,
+ * and country, and nothing that names a visitor. D1 has no copy table to read,
+ * so the count comes over the SQL API.
+ */
+export function collectAnalytics(context) {
+  return collect(context, 'analytics', async (context) => {
+    const token = context.env.CLOUDFLARE_USAGE_TOKEN || context.env.CLOUDFLARE_API_TOKEN || context.env.CF_API_TOKEN || (await commandJson(context, join(context.rootDir, 'node_modules/.bin/wrangler'), ['auth', 'token', '--json'])).token
+    if (!token)
+      throw new Error('Cloudflare token is unavailable.')
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ANALYTICS_ACCOUNT_TAG}/analytics_engine/sql`, { method: 'POST', redirect: 'error', signal: context.signal, headers: { Authorization: `Bearer ${token}` }, body: buildCopyQuery(context.since.toISOString(), context.now.toISOString()) })
+    const text = await readBoundedResponseText(response, 2_097_152)
+    if (!response.ok)
+      throw new Error(`Analytics Engine returned HTTP ${response.status}.`)
+    const rows = JSON.parse(text).data
+    if (!Array.isArray(rows))
+      throw new Error('Analytics Engine copy evidence is unavailable.')
+    return { commandCopies: summarizeCopies(rows) }
   })
 }

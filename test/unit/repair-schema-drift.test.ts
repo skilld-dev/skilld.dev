@@ -63,9 +63,10 @@ describe('schema drift repair migration', () => {
       expect(sqlite.prepare(`SELECT id FROM failed_jobs`).pluck().all()).toEqual(['failed-1'])
       expect(sqlite.prepare(`PRAGMA foreign_key_check`).all()).toEqual([])
 
+      // Migration 0118 drops install_events, so a full replay has none to compare.
       const clean = replayAll()
       try {
-        for (const name of requiredObjects) {
+        for (const name of requiredObjects.filter(name => !name.includes('install_events'))) {
           expect(objectSql(sqlite, name)).toBe(objectSql(clean, name))
         }
       }

@@ -63,18 +63,6 @@ export interface DailyHealthCheckSummary {
   activity: {
     newSkills24h: number
     repoChanges24h: number
-    /**
-     * Copies of a printed command, split by which grammar was copied.
-     *
-     * Run is the default button on every Skill surface, so one total would mix
-     * two different intents. Rows from before this split, including the old
-     * project, global, and once modes, land in `unattributed`.
-     */
-    commandCopies24h: {
-      run: number
-      install: number
-      unattributed: number
-    }
     newUsers24h: number
     digestsSent24h: number
     digestsFailed24h: number
@@ -200,12 +188,6 @@ interface WeeklyRunRow {
   skipped: number
   failed: number
   uncertain: number
-}
-
-interface CommandCopyRow {
-  run_copies_24h: number
-  install_copies_24h: number
-  unattributed_copies_24h: number
 }
 
 interface PipelineRow {
@@ -356,12 +338,6 @@ export async function loadGithubTokenExpiry(
 function numberValue(value: unknown): number {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
-}
-
-const EMPTY_COMMAND_COPIES = {
-  run_copies_24h: 0,
-  install_copies_24h: 0,
-  unattributed_copies_24h: 0,
 }
 
 function errorMessage(error: unknown): string {
@@ -810,7 +786,6 @@ async function loadInventory(db: D1Database): Promise<DailyHealthCheckSummary['i
 async function loadActivity(
   db: D1Database,
   sinceSec: number,
-  sinceMs: number,
   warnings: string[],
 ): Promise<DailyHealthCheckSummary['activity']> {
   const row = await first<ActivityRow>(db, `
@@ -824,23 +799,10 @@ async function loadActivity(
        + (SELECT COUNT(*) FROM digest_runs
           WHERE status IN ('sending', 'uncertain'))) AS digests_failed_24h
   `, [sinceSec])
-  const copies = await capture(warnings, 'command copies', EMPTY_COMMAND_COPIES, () => first<CommandCopyRow>(db, `
-    SELECT
-      COUNT(*) FILTER (WHERE mode = 'run') AS run_copies_24h,
-      COUNT(*) FILTER (WHERE mode = 'install') AS install_copies_24h,
-      COUNT(*) FILTER (WHERE mode IS NULL OR mode NOT IN ('run', 'install')) AS unattributed_copies_24h
-    FROM install_events
-    WHERE occurred_at >= ?1
-  `, [sinceMs]))
   const weekly = await capture(warnings, 'weekly delivery', null, () => loadWeeklyRun(db))
   return {
     newSkills24h: numberValue(row.new_skills_24h),
     repoChanges24h: numberValue(row.repo_changes_24h),
-    commandCopies24h: {
-      run: numberValue(copies.run_copies_24h),
-      install: numberValue(copies.install_copies_24h),
-      unattributed: numberValue(copies.unattributed_copies_24h),
-    },
     newUsers24h: numberValue(row.new_users_24h),
     digestsSent24h: numberValue(row.digests_sent_24h),
     digestsFailed24h: numberValue(row.digests_failed_24h),
@@ -942,12 +904,6 @@ async function loadPipeline(db: D1Database, nowSec: number, sinceSec: number): P
              OR EXISTS (
                SELECT 1 FROM collection_skills_v2 cs
                WHERE cs.owner = r.owner AND cs.repo = r.repo
-             )
-             OR EXISTS (
-               SELECT 1
-               FROM activity a
-               JOIN install_events ie ON ie.slug = a.owner || '/' || a.name
-               WHERE a.owner = r.owner AND a.repo = r.repo
              )
            )) AS newly_broken_repos_impacted_24h,
         (SELECT COUNT(*) FROM skills WHERE sync_status IS NOT NULL AND sync_status != 'ok' AND last_synced_at >= ?1) AS skill_sync_failures_24h,
@@ -1176,7 +1132,6 @@ export async function buildDailyHealthCheck(
   const now = options.now ?? new Date()
   const since = new Date(now.getTime() - DAY_MS)
   const sinceSec = Math.floor(since.getTime() / 1000)
-  const sinceMs = since.getTime()
   const monthStartSec = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000)
   const warnings: string[] = []
 
@@ -1195,12 +1150,11 @@ export async function buildDailyHealthCheck(
   const activity = await capture(warnings, 'activity', {
     newSkills24h: 0,
     repoChanges24h: 0,
-    commandCopies24h: { run: 0, install: 0, unattributed: 0 },
     newUsers24h: 0,
     digestsSent24h: 0,
     digestsFailed24h: 0,
     weekly: null,
-  }, () => loadActivity(db, sinceSec, sinceMs, warnings))
+  }, () => loadActivity(db, sinceSec, warnings))
   const pipeline = await capture(warnings, 'pipeline', {
     syncJobs: [],
     scheduledRuns: SCHEDULE_POLICY.map(policy => ({

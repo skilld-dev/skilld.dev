@@ -59,9 +59,6 @@ export default defineApiHandler({
     const unsubscribeToken = await signUnsubToken(user.id, config.tokenKey as string)
     const rendered = renderWeekly({
       recipientName: user.name,
-      // Null, not the user's id. A preview is looked at by an operator, and a
-      // click from it must not land in the recipient's click history.
-      userId: null,
       windowStart,
       windowEnd,
       likedChanges: [],

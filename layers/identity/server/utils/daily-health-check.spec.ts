@@ -41,7 +41,6 @@ function summary(overrides: Partial<DailyHealthCheckSummary> = {}): DailyHealthC
     activity: {
       newSkills24h: 3,
       repoChanges24h: 7,
-      commandCopies24h: { run: 9, install: 3, unattributed: 0 },
       newUsers24h: 1,
       digestsSent24h: 4,
       digestsFailed24h: 0,
@@ -333,7 +332,6 @@ describe('buildDailyHealthCheck', () => {
       CREATE TABLE skill_subscriptions (owner TEXT, repo TEXT);
       CREATE TABLE collection_skills_v2 (owner TEXT, repo TEXT);
       CREATE TABLE activity (owner TEXT, repo TEXT, name TEXT, occurred_at INTEGER);
-      CREATE TABLE install_events (slug TEXT, occurred_at INTEGER, mode TEXT);
       CREATE TABLE digest_runs (
         status TEXT,
         sent_at INTEGER,
@@ -401,11 +399,6 @@ describe('buildDailyHealthCheck', () => {
       INSERT INTO collections_v2 VALUES (NULL);
       INSERT INTO user_starred_repos VALUES ('owner', 'repo');
       INSERT INTO activity VALUES ('owner', 'repo', 'skill', ${nowSec - 60});
-      -- One row per grammar, plus rows from before the split, so the report keeps historical copies visible.
-      INSERT INTO install_events VALUES ('owner/skill', ${now.getTime() - 60_000}, 'run');
-      INSERT INTO install_events VALUES ('owner/skill', ${now.getTime() - 60_000}, 'install');
-      INSERT INTO install_events VALUES ('owner/skill', ${now.getTime() - 60_000}, NULL);
-      INSERT INTO install_events VALUES ('owner/skill', ${now.getTime() - 60_000}, 'project');
       INSERT INTO digest_runs VALUES ('sent', ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60}, ${nowSec - 60});
       -- The discovery cursor is a single fixed row in production, and the
       -- health query reads it by key. Without it the query returns no row at
@@ -477,8 +470,6 @@ describe('buildDailyHealthCheck', () => {
     expect(built.warnings).toEqual([])
     expect(built.inventory).toMatchObject({ skills: 1, repos: 2, users: 1, watchedRepos: 1 })
     expect(built.activity).toMatchObject({ newSkills24h: 1, repoChanges24h: 1, digestsSent24h: 1 })
-    // Run is the default copy button, so a single total would hide which grammar was taken.
-    expect(built.activity.commandCopies24h).toEqual({ run: 1, install: 1, unattributed: 2 })
     expect(built.pipeline).toMatchObject({
       newlyBrokenReposTotal24h: 1,
       newlyBrokenReposImpacted24h: 0,

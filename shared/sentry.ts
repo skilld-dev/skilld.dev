@@ -1,4 +1,12 @@
+import type { Breadcrumb, Event } from '@sentry/nuxt'
+
 export const SENTRY_DSN = 'https://b275b367f8096d04db8c2ebcfadc3aba@o4510507748163584.ingest.us.sentry.io/4511781692506112'
+
+/**
+ * Same-origin path the browser SDK posts envelopes to. The Worker forwards
+ * them, so sentry.io never sees a visitor's IP address.
+ */
+export const SENTRY_TUNNEL_PATH = '/api/monitoring'
 
 export function sentryReportingEnabled(env: {
   nodeEnv: string | undefined
@@ -121,4 +129,123 @@ export function createSentryDataCollection() {
     databaseQueryData: false,
     stackFrameVariables: false,
   }
+}
+
+/**
+ * A URL without its query string or fragment. Query strings carry OAuth codes,
+ * signed tokens, and search terms, so no URL reaches Sentry with one.
+ */
+export function stripUrlQuery(url: string): string {
+  const cut = url.search(/[?#]/)
+  return cut === -1 ? url : url.slice(0, cut)
+}
+
+const URL_DATA_KEYS = ['url', 'http.url', 'url.full', 'from', 'to'] as const
+const QUERY_DATA_KEYS = ['http.query', 'http.fragment', 'url.query', 'url.fragment'] as const
+
+function scrubUrlData(data: Record<string, unknown> | undefined): void {
+  if (!data)
+    return
+  for (const key of URL_DATA_KEYS) {
+    const value = data[key]
+    if (typeof value === 'string')
+      data[key] = stripUrlQuery(value)
+  }
+  for (const key of QUERY_DATA_KEYS)
+    delete data[key]
+}
+
+/**
+ * The breadcrumb Sentry may keep, or null to drop it.
+ *
+ * Console output and UI clicks can hold page text and form values, so they
+ * never leave the browser. Fetch, XHR, and navigation breadcrumbs keep their
+ * path and lose their query string.
+ */
+export function scrubSentryBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null {
+  const category = breadcrumb.category ?? ''
+  if (category === 'console' || category.startsWith('ui.'))
+    return null
+  scrubUrlData(breadcrumb.data)
+  if (breadcrumb.message && (category === 'fetch' || category === 'xhr' || category === 'navigation'))
+    breadcrumb.message = stripUrlQuery(breadcrumb.message)
+  return breadcrumb
+}
+
+/**
+ * An event with no personal data left on it.
+ *
+ * Removes the user IP address, cookies, request headers other than the user
+ * agent, request bodies, and every query string. Breadcrumbs and HTTP spans
+ * get the same URL scrub. `dataCollection` already stops most of this at the
+ * source; this is the last check before an event leaves the process.
+ */
+export function scrubSentryEvent<T extends Event>(event: T): T {
+  if (event.user) {
+    delete event.user.ip_address
+    if (Object.keys(event.user).length === 0)
+      delete event.user
+  }
+  if (event.request) {
+    if (event.request.url)
+      event.request.url = stripUrlQuery(event.request.url)
+    delete event.request.query_string
+    delete event.request.cookies
+    delete event.request.data
+    const userAgent = event.request.headers?.['User-Agent'] ?? event.request.headers?.['user-agent']
+    event.request.headers = userAgent ? { 'User-Agent': userAgent } : undefined
+    if (!event.request.headers)
+      delete event.request.headers
+  }
+  if (event.transaction)
+    event.transaction = stripUrlQuery(event.transaction)
+  if (event.breadcrumbs) {
+    event.breadcrumbs = event.breadcrumbs
+      .map(scrubSentryBreadcrumb)
+      .filter((breadcrumb): breadcrumb is Breadcrumb => breadcrumb !== null)
+  }
+  for (const span of event.spans ?? []) {
+    scrubUrlData(span.data as Record<string, unknown> | undefined)
+    if (span.op?.startsWith('http') && span.description)
+      span.description = stripUrlQuery(span.description)
+  }
+  const traceData = event.contexts?.trace?.data as Record<string, unknown> | undefined
+  scrubUrlData(traceData)
+  return event
+}
+
+export type SentryTunnelTarget
+  = | { _tag: 'forward', url: string }
+    | { _tag: 'reject', reason: 'empty' | 'bad-header' | 'wrong-dsn' }
+
+/**
+ * Where the tunnel may forward one envelope.
+ *
+ * The envelope header names its DSN. Only the configured DSN host and project
+ * are accepted, so the tunnel cannot relay to another Sentry project or host.
+ */
+export function parseSentryTunnelEnvelope(envelope: string, dsn: string): SentryTunnelTarget {
+  const firstLine = envelope.split('\n', 1)[0]
+  if (!firstLine)
+    return { _tag: 'reject', reason: 'empty' }
+
+  let header: unknown
+  try {
+    header = JSON.parse(firstLine)
+  }
+  catch {
+    // An unparseable header is a malformed envelope, reported as a rejection.
+    return { _tag: 'reject', reason: 'bad-header' }
+  }
+  const envelopeDsn = typeof header === 'object' && header !== null ? (header as { dsn?: unknown }).dsn : undefined
+  if (typeof envelopeDsn !== 'string' || !URL.canParse(envelopeDsn))
+    return { _tag: 'reject', reason: 'bad-header' }
+
+  const expected = new URL(dsn)
+  const actual = new URL(envelopeDsn)
+  const projectId = expected.pathname.replace(/^\/+/, '')
+  if (actual.host !== expected.host || actual.pathname.replace(/^\/+/, '') !== projectId)
+    return { _tag: 'reject', reason: 'wrong-dsn' }
+
+  return { _tag: 'forward', url: `https://${expected.host}/api/${projectId}/envelope/` }
 }

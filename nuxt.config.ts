@@ -43,7 +43,7 @@ export default defineNuxtConfig({
   nuxtDx: {
     report: true,
     sizeBudget: {
-      overridesKb: { 'server/plugins/sentry.ts': 326 },
+      overridesKb: { 'server/plugins/sentry.ts': 328 },
     },
   },
 
@@ -340,13 +340,6 @@ export default defineNuxtConfig({
       release: sentryRelease() ?? '',
       tracesSampleRate: 0.05,
     },
-    public: {
-      algolia: {
-        appId: 'OFCNCOG2CU',
-        apiKey: 'f54e21fa3a2a0160595bb058179bfb1e',
-        indexName: 'npm-search',
-      },
-    },
   },
 
   nitro: {
@@ -612,10 +605,11 @@ export default defineNuxtConfig({
   // `serverBundle: 'local'` shipped all of lucide + vscode-icons + simple-icons
   // into the Worker (8.85 MB) for the ~270 icons actually used. Every icon name
   // in this codebase is a static literal, so scanning resolves them all and
-  // inlines just those; anything the scanner misses falls back to the Iconify
-  // API rather than rendering nothing. See docs/ops/bundle-baseline-2026-07-23.md.
+  // inlines just those. The Iconify API fallback is off, so a visitor's browser
+  // never calls api.iconify.design. See docs/ops/bundle-baseline-2026-07-23.md.
   icon: {
     serverBundle: false,
+    fallbackToApi: false,
     clientBundle: {
       scan: {
         // Icon names also live in plain TS (file-tree extension map, cluster
