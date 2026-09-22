@@ -1,6 +1,7 @@
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { createRegistryJobBatch } from '~~/server/utils/registry-jobs-runtime'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
+import { RECONCILE_RENDER_CANDIDATES_SQL } from '~~/server/utils/sync-candidates'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { RECONCILE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
@@ -29,16 +30,7 @@ export default defineScheduledTask({
       const startedAt = Date.now()
       const cutoff = Math.floor(Date.now() / 1000) - RECONCILE_RENDER_STALE_SECONDS
       const res = await db
-        .prepare(
-          `SELECT DISTINCT s.owner, s.repo
-         FROM skills s
-         JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-         WHERE (s.rendered_status IS NULL OR s.rendered_status != 'ok' OR s.rendered_skill_path IS NULL OR s.rendered_raw_sha256 IS NULL)
-           AND (s.last_synced_at IS NULL OR s.last_synced_at < ?1)
-           AND r.broken_since IS NULL
-         ORDER BY s.last_synced_at IS NULL DESC, s.last_synced_at ASC
-         LIMIT ?2`,
-        )
+        .prepare(RECONCILE_RENDER_CANDIDATES_SQL)
         .bind(cutoff, BATCH)
         .all<{ owner: string, repo: string }>()
 

@@ -64,6 +64,26 @@ export const GENERAL_SYNC_CANDIDATES_SQL = `
   LIMIT ?2`
 
 /**
+ * Render-repair sweep for skills whose rendered content identity is missing or
+ * not ok, oldest sync first. Keeps the same repo verdicts as the sync sweeps
+ * above: a repo carrying a too-large tree verdict truncates on every attempt,
+ * so a render job for it can never succeed and re-picking it every fire only
+ * produces guaranteed failures. Every successful repo write clears the verdict
+ * (sync-repo.ts), so an affected skill re-enters this sweep once its repo is
+ * fetchable again.
+ */
+export const RECONCILE_RENDER_CANDIDATES_SQL = `
+  SELECT DISTINCT s.owner, s.repo
+  FROM skills s
+  JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+  WHERE (s.rendered_status IS NULL OR s.rendered_status != 'ok' OR s.rendered_skill_path IS NULL OR s.rendered_raw_sha256 IS NULL)
+    AND (s.last_synced_at IS NULL OR s.last_synced_at < ?1)
+    AND r.broken_since IS NULL
+    AND r.tree_truncated_at IS NULL
+  ORDER BY s.last_synced_at IS NULL DESC, s.last_synced_at ASC
+  LIMIT ?2`
+
+/**
  * Candidate rows do not depend on an admitted skill. Stale claims are made
  * due again so a terminated Worker cannot strand a repository permanently.
  */
