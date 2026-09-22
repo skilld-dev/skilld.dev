@@ -1,3 +1,5 @@
+import { parseDocument } from 'yaml'
+
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n([\s\S]*))?$/
 const KEY_LINE_RE = /^([A-Z_][\w-]*):(.*)$/i
 const QUOTE_TRIM_RE = /^['"]|['"]$/g
@@ -42,13 +44,32 @@ function parseBlockScalar(style: string, lines: string[]): string {
   }, '').replace(/\n+$/, '')
 }
 
-export function parseFrontmatterDocument(raw: string): ParsedFrontmatterDocument {
-  const match = raw.match(FRONTMATTER_RE)
-  if (!match)
-    return { frontmatter: {}, body: raw }
+/**
+ * Decode the frontmatter block with a real YAML parser.
+ *
+ * Returns null when the block is not a mapping or the parser reports an error,
+ * so a malformed SKILL.md still reaches the lenient scanner below.
+ */
+function parseYamlMapping(source: string): Record<string, unknown> | null {
+  try {
+    const doc = parseDocument(source, { logLevel: 'silent', uniqueKeys: false })
+    if (doc.errors.length)
+      return null
+    const value = doc.toJS({ maxAliasCount: 100 })
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      return null
+    return value as Record<string, unknown>
+  }
+  catch {
+    // A YAML parse failure is expected input, not a fault: fall back to the
+    // lenient line scanner so a broken SKILL.md still yields what it can.
+    return null
+  }
+}
 
+function parseFrontmatterLines(block: string): Record<string, unknown> {
   const frontmatter: Record<string, unknown> = {}
-  const lines = match[1]!.split(NEWLINE_SPLIT_RE)
+  const lines = block.split(NEWLINE_SPLIT_RE)
   for (let index = 0; index < lines.length; index++) {
     const keyMatch = lines[index]!.match(KEY_LINE_RE)
     if (!keyMatch)
@@ -68,7 +89,26 @@ export function parseFrontmatterDocument(raw: string): ParsedFrontmatterDocument
     frontmatter[key] = parseBlockScalar(blockMatch[1]!, blockLines)
   }
 
-  return { frontmatter, body: match[2] ?? '' }
+  return frontmatter
+}
+
+/**
+ * Split a SKILL.md into its frontmatter mapping and its body.
+ *
+ * This is the one boundary where untrusted SKILL.md text becomes data. The
+ * block is decoded by the YAML parser, so quoted scalars, block scalars, and
+ * multi-line values arrive already unescaped. Callers trust the result.
+ */
+export function parseFrontmatterDocument(raw: string): ParsedFrontmatterDocument {
+  const match = raw.match(FRONTMATTER_RE)
+  if (!match)
+    return { frontmatter: {}, body: raw }
+
+  const block = match[1]!
+  return {
+    frontmatter: parseYamlMapping(block) ?? parseFrontmatterLines(block),
+    body: match[2] ?? '',
+  }
 }
 
 export interface SkillFrontmatter {

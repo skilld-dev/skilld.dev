@@ -37,3 +37,45 @@ description: Vue guidance
     })
   })
 })
+
+describe('parseSkillFile quoted scalars', () => {
+  it('decodes escaped quotes inside a double-quoted description', () => {
+    const parsed = parseSkillFile(`---
+name: pinia-skilld
+description: "Intuitive, type safe and flexible Store for Vue. ALWAYS use when writing code importing \\"pinia\\". Consult for debugging, best practices, or modifying pinia."
+metadata:
+  version: 3.0.4
+---`, 'pinia-skilld')
+
+    expect(parsed?.description).toBe('Intuitive, type safe and flexible Store for Vue. ALWAYS use when writing code importing "pinia". Consult for debugging, best practices, or modifying pinia.')
+    expect(parsed?.displayName).toBe('pinia-skilld')
+  })
+
+  it('decodes a doubled quote inside a single-quoted description', () => {
+    const parsed = parseSkillFile(`---
+name: clack-skilld
+description: 'ALWAYS use when writing code importing ''@clack/prompts''. Consult for debugging.'
+---`, 'clack-skilld')
+
+    expect(parsed?.description).toBe('ALWAYS use when writing code importing \'@clack/prompts\'. Consult for debugging.')
+  })
+
+  it('keeps an unquoted description exactly as written', () => {
+    const parsed = parseSkillFile(`---
+name: plain-skilld
+description: Writes release notes for a repository, no quoting at all
+---`, 'plain-skilld')
+
+    expect(parsed?.description).toBe('Writes release notes for a repository, no quoting at all')
+  })
+
+  it('joins a double-quoted description that wraps onto a second line', () => {
+    const parsed = parseSkillFile(`---
+name: wrapped-skilld
+description: "Use when importing \\"vue\\".
+  Consult for debugging."
+---`, 'wrapped-skilld')
+
+    expect(parsed?.description).toBe('Use when importing "vue". Consult for debugging.')
+  })
+})

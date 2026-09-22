@@ -1,6 +1,9 @@
 import type { ArtifactFile, CheckResult, ResolvedSource } from '../schemas/contracts'
 import type { ArtifactSourceFile } from './github-source'
+import { parseFrontmatter } from '#layers/registry/server/utils/skill-frontmatter'
 import { digestHex } from './encoding'
+
+const FRONTMATTER_PRESENT_RE = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/
 
 const AGENT_SKILLS_CHECK_VERSION = '2026-08-20'
 const PATH_POLICY_VERSION = '1'
@@ -167,32 +170,17 @@ function decodeText(bytes: Uint8Array): string | null {
   }
 }
 
+/**
+ * Read the two fields the Agent Skills specification requires.
+ *
+ * Shares the registry frontmatter parser so a Skill checked here and a Skill
+ * indexed by a repository sync read the same YAML the same way.
+ */
 function readSkillFrontmatter(raw: string): { name?: string, description?: string } | null {
-  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
-  if (!match)
+  if (!FRONTMATTER_PRESENT_RE.test(raw))
     return null
-  const lines = match[1]!.split(/\r?\n/)
-  const values: { name?: string, description?: string } = {}
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index]!
-    const separator = line.indexOf(':')
-    if (separator < 0)
-      continue
-    const key = line.slice(0, separator)
-    if (key !== 'name' && key !== 'description')
-      continue
-    const value = line.slice(separator + 1).trim()
-    if (value === '>' || value === '|') {
-      const block: string[] = []
-      while (index + 1 < lines.length && /^\s+/.test(lines[index + 1]!))
-        block.push(lines[++index]!.trim())
-      values[key] = value === '>' ? block.join(' ').trim() : block.join('\n').trim()
-    }
-    else {
-      values[key] = value.replace(/^(['"])([\s\S]*)\1$/, '$2').trim()
-    }
-  }
-  return values
+  const { name, description } = parseFrontmatter(raw)
+  return { name, description }
 }
 
 export function splitUstarPath(path: string): { name: string, prefix: string } | null {
