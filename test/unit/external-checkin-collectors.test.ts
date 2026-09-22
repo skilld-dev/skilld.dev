@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
 import { afterEach, expect, it, vi } from 'vitest'
+import analyticsCheck from '../../checks/external/analytics'
 import ciCheck from '../../checks/external/ci'
 import databaseCheck from '../../checks/external/database'
 import deployCheck from '../../checks/external/deploy'
@@ -73,6 +74,24 @@ it('rejects oversized Worker analytics evidence', async () => {
   const { report } = await runExternalChecks([workersCheck], { required: [workersCheck.id] }, { env: { CLOUDFLARE_USAGE_TOKEN: 'test-token' } })
   expect(report.coverage).toBe('incomplete')
   expect(report.results[0]?.result._tag).toBe('Unavailable')
+})
+
+// The ranked top page caps at 50 groups, so totals summed from that page
+// silently undercount once a day holds more groups than the cap. The totals
+// must come from their own untruncated rollup.
+it('totals command copies from an untruncated rollup, not the capped top page', async () => {
+  const topRows = Array.from({ length: 50 }, (_, index) => ({ mode: 'run', kind: 'skill', slug: `owner/skill-${index}`, copies: 1 }))
+  const totalsRows = [{ mode: 'run', copies: 50 }, { mode: 'install', copies: 10 }]
+  vi.stubGlobal('fetch', vi.fn(async (_url: string | URL, init?: { body?: string }) => {
+    return Response.json({ data: init?.body?.includes('LIMIT 50') ? topRows : totalsRows })
+  }))
+
+  const { report } = await runExternalChecks([analyticsCheck], { required: [analyticsCheck.id] }, { env: { CLOUDFLARE_USAGE_TOKEN: 'test-token' } })
+
+  expect(report.results.find(check => check.id === 'skilld.analytics')?.result).toMatchObject({
+    _tag: 'Pass',
+    evidence: { commandCopies: { total: 60, run: 50, install: 10 } },
+  })
 })
 
 it('reads production CI verdicts from main only', async () => {
