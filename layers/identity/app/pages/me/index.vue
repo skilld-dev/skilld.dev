@@ -66,10 +66,13 @@ const savePrivacyMutation = useNuxtMutation<IdentityPrivacyPatchBody, IdentityMu
     await refreshAccount()
     return result
   },
-  onError: actionFailed('save your liked Skills setting'),
+  onError: actionFailed('save your privacy settings'),
 })
 async function setLikesPublic(likesPublic: boolean) {
   await savePrivacyMutation.mutateSafe({ likes_public: likesPublic })
+}
+async function setRepoIndexing(repoIndexing: boolean) {
+  await savePrivacyMutation.mutateSafe({ repo_indexing: repoIndexing })
 }
 
 const removeLikeMutation = useNuxtMutation<LikedSkill, { ok: true }>({
@@ -427,6 +430,18 @@ function fmtDate(ts: number | null | undefined): string {
               variant="ghost"
               icon="i-lucide-heart"
               label="View liked Skills page"
+            />
+          </div>
+          <div class="border-b border-default py-4">
+            <USwitch
+              :model-value="!!me?.repo_indexing"
+              :loading="savePrivacyMutation.pending.value"
+              :disabled="!me || savePrivacyMutation.pending.value"
+              label="Add Skills from your public repositories"
+              :description="me?.repo_indexing
+                ? 'skilld checks your public repositories for SKILL.md files and gives each Skill a public page.'
+                : 'skilld does not check your repositories. Skills already added stay.'"
+              @update:model-value="setRepoIndexing"
             />
           </div>
         </section>

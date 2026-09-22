@@ -4,31 +4,45 @@ import { identityAccountQueries } from '../queries/account'
 import { ownedRepoScanFailureNotice, ownedRepoScanNotice } from '../utils/owned-repo-scan'
 
 /**
- * Asks before skilld indexes the signed-in account's public repositories.
- * Sign-in never starts this scan; only the button does.
+ * Tells the signed-in account that its public repositories are indexed, and
+ * offers the switch that stops it.
+ *
+ * Sign-in already ran the scan, because SKILL.md files in a public repository
+ * are already public and indexing them is how the registry grows. So this is a
+ * notice with a way out, not a question.
  */
 const { login } = defineProps<{ login: string }>()
 
 type PromptState
-  = | { _tag: 'asking' }
+  = | { _tag: 'indexing' }
     | { _tag: 'scanning' }
     | { _tag: 'finished', notice: OwnedRepoScanNotice }
-    | { _tag: 'dismissed' }
+    | { _tag: 'turned_off' }
 
-const state = ref<PromptState>({ _tag: 'asking' })
+const state = ref<PromptState>({ _tag: 'indexing' })
 const rpc = useNuxtRpc()
 
 const scanMutation = useNuxtMutation({
   mutation: () => rpc.execute(identityAccountQueries.scanOwnedRepos()),
 })
 
-async function addSkills() {
+const privacyMutation = useNuxtMutation({
+  mutation: () => rpc.execute(identityAccountQueries.savePrivacy(), { repo_indexing: false }),
+})
+
+async function checkNow() {
   state.value = { _tag: 'scanning' }
   const outcome = await scanMutation.mutateSafe()
   state.value = {
     _tag: 'finished',
     notice: outcome._tag === 'ok' ? ownedRepoScanNotice(outcome.data) : ownedRepoScanFailureNotice(outcome.error),
   }
+}
+
+async function turnOff() {
+  const outcome = await privacyMutation.mutateSafe()
+  if (outcome._tag === 'ok')
+    state.value = { _tag: 'turned_off' }
 }
 
 const route = useRoute()
@@ -38,33 +52,40 @@ const signInPath = computed(() => loginUrl({ returnTo: route.fullPath }))
 
 <template>
   <section
-    v-if="state._tag !== 'dismissed'"
     class="rounded-lg border border-default p-4"
     aria-labelledby="owned-skills-prompt-heading"
   >
     <h2 id="owned-skills-prompt-heading" class="text-base font-semibold text-pretty">
-      Add Skills from your public repositories to skilld.dev?
+      Your public repositories are in skilld.dev
     </h2>
     <p class="mt-2 text-sm leading-relaxed text-muted text-pretty">
-      skilld checks your public GitHub repositories for SKILL.md files. Each Skill it finds gets a public page. Nothing is added until you choose.
+      skilld checks your public GitHub repositories for SKILL.md files. Each Skill it finds gets a public page. If you would rather it did not, turn it off here.
     </p>
 
-    <div v-if="state._tag === 'finished'" class="mt-4" role="status" aria-live="polite">
-      <p
-        class="flex items-start gap-2 text-sm"
-        :class="state.notice._tag === 'added' ? 'text-default' : 'text-muted'"
-      >
-        <UIcon
-          :name="state.notice._tag === 'added' ? 'i-lucide-check' : state.notice._tag === 'none_found' ? 'i-lucide-info' : 'i-lucide-circle-alert'"
-          class="mt-0.5 size-4 shrink-0"
-          :class="state.notice._tag === 'added' ? 'text-primary' : ''"
-          aria-hidden="true"
-        />
-        {{ state.notice.message }}
-      </p>
-      <div class="mt-3 flex flex-wrap gap-2">
+    <p v-if="state._tag === 'turned_off'" class="mt-4 flex items-start gap-2 text-sm text-muted" role="status" aria-live="polite">
+      <UIcon name="i-lucide-circle-check" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      Indexing is off. Skills already added stay until you remove the SKILL.md file, or ask us to.
+    </p>
+
+    <template v-else>
+      <div v-if="state._tag === 'finished'" class="mt-4" role="status" aria-live="polite">
+        <p
+          class="flex items-start gap-2 text-sm"
+          :class="state.notice._tag === 'added' ? 'text-default' : 'text-muted'"
+        >
+          <UIcon
+            :name="state.notice._tag === 'added' ? 'i-lucide-check' : state.notice._tag === 'none_found' ? 'i-lucide-info' : 'i-lucide-circle-alert'"
+            class="mt-0.5 size-4 shrink-0"
+            :class="state.notice._tag === 'added' ? 'text-primary' : ''"
+            aria-hidden="true"
+          />
+          {{ state.notice.message }}
+        </p>
+      </div>
+
+      <div class="mt-4 flex flex-wrap items-center gap-2">
         <UButton
-          v-if="state.notice._tag === 'added'"
+          v-if="state._tag === 'finished' && state.notice._tag === 'added'"
           :to="`/@${login}`"
           label="View your Skills"
           icon="i-lucide-user-round"
@@ -74,17 +95,7 @@ const signInPath = computed(() => loginUrl({ returnTo: route.fullPath }))
           class="min-h-11"
         />
         <UButton
-          v-else-if="state.notice._tag === 'retry'"
-          label="Try again"
-          icon="i-lucide-refresh-cw"
-          size="sm"
-          color="neutral"
-          variant="outline"
-          class="min-h-11"
-          @click="addSkills"
-        />
-        <UButton
-          v-else-if="state.notice._tag === 'sign_in'"
+          v-else-if="state._tag === 'finished' && state.notice._tag === 'sign_in'"
           :to="signInPath"
           external
           label="Sign in with GitHub"
@@ -94,30 +105,30 @@ const signInPath = computed(() => loginUrl({ returnTo: route.fullPath }))
           variant="outline"
           class="min-h-11"
         />
+        <UButton
+          v-else
+          :label="state._tag === 'finished' ? 'Try again' : 'Check now'"
+          :icon="state._tag === 'finished' ? 'i-lucide-refresh-cw' : 'i-lucide-scan-search'"
+          size="sm"
+          color="neutral"
+          variant="outline"
+          class="min-h-11"
+          :loading="state._tag === 'scanning'"
+          @click="checkNow"
+        />
+        <UButton
+          label="Turn this off"
+          size="sm"
+          color="neutral"
+          variant="ghost"
+          class="min-h-11"
+          :loading="privacyMutation.pending.value"
+          @click="turnOff"
+        />
+        <span v-if="state._tag === 'scanning'" class="text-xs text-muted" role="status" aria-live="polite">
+          Checking your public repositories. This can take a minute.
+        </span>
       </div>
-    </div>
-
-    <div v-else class="mt-4 flex flex-wrap items-center gap-2">
-      <UButton
-        label="Add my Skills"
-        icon="i-lucide-scan-search"
-        size="sm"
-        class="min-h-11"
-        :loading="state._tag === 'scanning'"
-        @click="addSkills"
-      />
-      <UButton
-        v-if="state._tag === 'asking'"
-        label="Not now"
-        size="sm"
-        color="neutral"
-        variant="ghost"
-        class="min-h-11"
-        @click="state = { _tag: 'dismissed' }"
-      />
-      <span v-else class="text-xs text-muted" role="status" aria-live="polite">
-        Checking your public repositories. This can take a minute.
-      </span>
-    </div>
+    </template>
   </section>
 </template>

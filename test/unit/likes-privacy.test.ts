@@ -12,6 +12,7 @@ describe('liked list privacy', () => {
   let visibilityHandler: EventHandler
   let privacyHandler: EventHandler
   let meHandler: EventHandler
+  let scanHandler: EventHandler
 
   beforeEach(async () => {
     vi.resetModules()
@@ -34,6 +35,7 @@ describe('liked list privacy', () => {
     visibilityHandler = (await import('../../layers/identity/server/api/likes/by-user/[login]/visibility.get')).default
     privacyHandler = (await import('../../layers/identity/server/api/me/privacy.patch')).default
     meHandler = (await import('../../layers/identity/server/api/me/index.get')).default
+    scanHandler = (await import('../../layers/identity/server/api/me/repos/scan.post')).default
   })
 
   afterEach(() => {
@@ -41,24 +43,31 @@ describe('liked list privacy', () => {
     vi.unstubAllGlobals()
   })
 
-  it('keeps an existing account private after the migration', async () => {
-    await expect(listHandler(event({ viewer: null, login: 'privacy-owner' })))
-      .rejects
-      .toMatchObject({ statusCode: 404 })
+  it('shows a liked list to everyone until its owner closes it', async () => {
+    const list = await listHandler(event({ viewer: null, login: 'privacy-owner' })) as { access: string, items: Array<{ name: string }> }
+
+    expect(list.access).toBe('public')
+    expect(list.items.map(item => item.name)).toEqual(['motion'])
+    expect(await visibilityHandler(event({ viewer: VISITOR, login: 'privacy-owner' }))).toEqual({ access: 'public' })
+    expect(await meHandler(event({ viewer: OWNER }))).toMatchObject({ likes_public: true, repo_indexing: true })
+  })
+
+  it('answers a closed list and a missing account with the same 404', async () => {
+    await privacyHandler(event({ viewer: OWNER, method: 'PATCH', body: { likes_public: false } }))
+
+    const closed = await listHandler(event({ viewer: null, login: 'privacy-owner' })).catch(e => e)
+    const missing = await listHandler(event({ viewer: null, login: 'nobody' })).catch(e => e)
+
+    expect({ statusCode: closed.statusCode, message: closed.message })
+      .toEqual({ statusCode: missing.statusCode, message: missing.message })
     await expect(visibilityHandler(event({ viewer: VISITOR, login: 'privacy-owner' })))
       .rejects
       .toMatchObject({ statusCode: 404 })
   })
 
-  it('answers a private list and a missing account with the same 404', async () => {
-    const privateList = await listHandler(event({ viewer: null, login: 'privacy-owner' })).catch(e => e)
-    const missing = await listHandler(event({ viewer: null, login: 'nobody' })).catch(e => e)
+  it('shows a closed list to its owner and marks it owner only', async () => {
+    await privacyHandler(event({ viewer: OWNER, method: 'PATCH', body: { likes_public: false } }))
 
-    expect({ statusCode: privateList.statusCode, message: privateList.message })
-      .toEqual({ statusCode: missing.statusCode, message: missing.message })
-  })
-
-  it('shows a private list to its owner and marks it owner only', async () => {
     const list = await listHandler(event({ viewer: OWNER, login: 'PRIVACY-OWNER' })) as { access: string, items: Array<{ name: string }> }
 
     expect(list.access).toBe('owner')
@@ -66,31 +75,29 @@ describe('liked list privacy', () => {
     expect(await visibilityHandler(event({ viewer: OWNER, login: 'privacy-owner' }))).toEqual({ access: 'owner' })
   })
 
-  it('opens the list to everyone after the owner turns it on, and closes it again', async () => {
+  it('opens the list again after the owner turns it back on', async () => {
+    await privacyHandler(event({ viewer: OWNER, method: 'PATCH', body: { likes_public: false } }))
     await privacyHandler(event({ viewer: OWNER, method: 'PATCH', body: { likes_public: true } }))
 
-    const list = await listHandler(event({ viewer: null, login: 'privacy-owner' })) as { access: string, items: unknown[] }
-    expect(list.access).toBe('public')
-    expect(list.items).toHaveLength(1)
     expect(await visibilityHandler(event({ viewer: VISITOR, login: 'privacy-owner' }))).toEqual({ access: 'public' })
-    expect(await meHandler(event({ viewer: OWNER }))).toMatchObject({ likes_public: true })
-
-    await privacyHandler(event({ viewer: OWNER, method: 'PATCH', body: { likes_public: false } }))
-
-    await expect(listHandler(event({ viewer: VISITOR, login: 'privacy-owner' })))
-      .rejects
-      .toMatchObject({ statusCode: 404 })
   })
 
   it('changes only the caller setting', async () => {
-    await privacyHandler(event({ viewer: VISITOR, method: 'PATCH', body: { likes_public: true } }))
+    await privacyHandler(event({ viewer: VISITOR, method: 'PATCH', body: { likes_public: false } }))
 
-    await expect(listHandler(event({ viewer: null, login: 'privacy-owner' })))
-      .rejects
-      .toMatchObject({ statusCode: 404 })
+    expect(await visibilityHandler(event({ viewer: null, login: 'privacy-owner' }))).toEqual({ access: 'public' })
   })
 
-  it.each([{}, { likes_public: 'yes' }])('rejects the privacy body %j', async (body) => {
+  it('turns repository indexing off without touching the liked list', async () => {
+    await privacyHandler(event({ viewer: OWNER, method: 'PATCH', body: { repo_indexing: false } }))
+
+    expect(await meHandler(event({ viewer: OWNER }))).toMatchObject({ likes_public: true, repo_indexing: false })
+    await expect(scanHandler(event({ viewer: OWNER, method: 'POST', body: {} })))
+      .rejects
+      .toMatchObject({ statusCode: 403 })
+  })
+
+  it.each([{}, { likes_public: 'yes' }, { repo_indexing: 1 }])('rejects the privacy body %j', async (body) => {
     await expect(privacyHandler(event({ viewer: OWNER, method: 'PATCH', body })))
       .rejects
       .toMatchObject({ statusCode: 400 })
