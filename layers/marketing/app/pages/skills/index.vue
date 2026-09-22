@@ -12,7 +12,7 @@ import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-v
 // nothing here is sold, and claiming a marketplace would misdescribe the
 // product. "Best" is likewise avoided as a banned superlative.
 //
-// The title said "Claude Skills" to hold the head term SEO.md researched. That
+// The title said "Claude Skills" to hold the head term the SEO keyword rework researched (docs/work/EXECUTE-seo-keyword-rework.md). That
 // bet drew no impression on any `claude * skills` query in three months, so the
 // title now uses the category noun the body copy and brand-guidelines.md
 // already use. The description still names Claude Code, Cursor, and Codex, so

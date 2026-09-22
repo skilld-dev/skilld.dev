@@ -1,4 +1,4 @@
-# TWEET_PIVOT.md
+# The SKILL.md management thread, April 2026
 
 https://x.com/Mappletons/status/2048789569189957840
 

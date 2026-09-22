@@ -2,7 +2,7 @@
 
 Canonical vocabulary for skilld.dev. Every user-visible string, public API name, doc heading, and route segment uses these terms and no synonyms.
 
-Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). That file wins for CLI commands, protocol types, and source status values. Voice and tone live in `.claude/context/brand-guidelines.md`.
+Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). That file wins for CLI commands, protocol types, and source status values. Voice and tone live in `.claude/context/brand-guidelines.md`. The URL canonicals these terms resolve to, and the layer that owns each one, live in [`docs/arch/README.md`](docs/arch/README.md).
 
 ## Map
 
@@ -139,6 +139,50 @@ Collisions
 **Use for:** "written by {user}" on user pages, "published by {org}" on organization pages, source links.
 
 **Never:** trust score, verification tier, "curated by" for an author.
+
+### Owner
+
+**Is:** the GitHub organization or user that hosts Skill Repositories. A proxied entity, never a row skilld.dev owns. Lives at `/gh/[owner]`.
+
+**Never:** author (that is skilld's own namespace), org (bare), account, publisher.
+
+**Casing:** `Owner` in prose, `owner` in identifiers and route segments.
+
+### Author
+
+**Is:** a person with a GitHub login who publishes collections on skilld.dev. Native to this site, backed by D1, identity from GitHub OAuth. Lives at `/@<github-login>`.
+
+**Use for:** the entity behind a collection. `curator` is the customer word for the same person when the sentence is about the collections they built.
+
+**Never:** user, creator, publisher, profile.
+
+**Casing:** `Author` in prose, `author` in identifiers.
+
+### Harness
+
+**Is:** the `@skilld/harness` package that runs skilld-maintained Skills with strict output checks.
+
+**Never:** runner, executor, sandbox.
+
+### skilld-maintained Skill
+
+**Is:** a Skill the skilld project maintains for generation, review, search, or install guidance.
+
+**Use for:** those Skills only. It is not a registry admission and confers nothing on a third-party Skill.
+
+**Never:** official Skill, first-party Skill, verified Skill (`verified` is a source status).
+
+### Artifact attestation
+
+**Is:** a signed claim linking an Artifact to its Repository, commit, contents, and check results.
+
+**Never:** signature (bare), certificate, receipt.
+
+### check result
+
+**Is:** one named check, its version, its finding, and its outcome for one Artifact.
+
+**Never:** test result, scan, audit.
 
 ## Banned
 

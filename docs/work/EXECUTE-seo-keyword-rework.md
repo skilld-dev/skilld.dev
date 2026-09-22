@@ -1,11 +1,22 @@
----
-started: 2026-08-12
-last-reviewed: 2026-08-13
-scope: keyword-led rework of categories, collections, and editorial pages
-rule: every indexable surface names its target query, its admission bar, and its cull path (VISION principle 2)
----
+# SEO keyword rework
 
-# SEO initiative
+Status: open · 2026-08-12 · last reviewed 2026-08-13, title pivot 2026-08-26
+
+**Next move:** Harlan. The homepage title is the one blocker an agent cannot clear: the head terms want "Claude Skills" in it, `brand-guidelines.md` fixes it as the tagline, and the homepage earns nearly all the traffic. That is a brand call. The two smaller items below are readable work once it lands.
+
+Done means: every indexable surface names its target query, its admission bar and its cull path, and the measurement window in this document has been read against Search Console rather than projected.
+
+## Ledger
+
+- [x] Baseline recorded 2026-08-12
+- [x] The surfaces listed under Shipped, below
+- [ ] Homepage title decided, brand against head term
+- [ ] `marketing` and `research` pins read by a human against the production rows
+- [ ] The measurement window in this document read against Search Console
+
+## Log
+
+- 2026-09-22 moved out of the repository root as `SEO.md`. The ledger above is read off this document's own Open section; nothing was re-measured. The absolute keyword volumes in here are not a traffic forecast, as its own caveat says.
 
 Tracking doc for the keyword rework begun 2026-08-12. The strategy lives in
 VISION.md; this file records what shipped, what it targets, and what to measure.

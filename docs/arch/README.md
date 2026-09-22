@@ -1,23 +1,9 @@
-# skilld.dev — domain & architecture vocabulary
+# Architecture
 
-Use these terms exactly. Drift breeds shallow modules.
+How skilld.dev is shaped. The vocabulary these names use is [`GLOSSARY.md`](../../GLOSSARY.md);
+this file says where each concept lives and which layer owns it.
 
-## Domain
-
-- **Author** — a person with a GitHub login who publishes collections. Native to skilld.dev. Lives at `/@<github-login>`. Backed by D1, identity comes from GitHub OAuth.
-- **Collection** — an author-curated bundle of skills with editorial rationale. Atomic unit of sharing. Lives at `/@<github-login>/<slug>`.
-- **Curator** — collection author (D1-backed via GitHub login). Synonym for "author" in copy when referring specifically to someone who builds collections.
-- **Owner** — a GitHub organization or user that hosts Skill repositories. Proxied entity. Lives at `/gh/[owner]`.
-- **Repository** — a GitHub repository containing one or more Skills. Lives at `/gh/[owner]/[repo]`.
-- **Skill** — a `SKILL.md` resolved from a repository. Lives at `/gh/[owner]/[repo]/[name]`.
-- **Watch** — an authenticated user subscribing to a repository or collection so they receive digest emails when its Skills change. (Phase 2.)
-- **Digest** — periodic email summarizing changes to a user's watched repositories. (Phase 3.)
-- **skilld-maintained Skill:** a Skill maintained by the skilld project for generation, review, search, or install guidance. It is not a registry admission.
-- **Harness:** the JavaScript `@skilld/harness` package that runs skilld-maintained Skills with strict output checks.
-- **Artifact:** immutable Skill bytes resolved from one exact Git commit for delivery to the skilld CLI.
-- **Artifact attestation:** a signed claim that links an Artifact to its Repository, commit, contents, and check results.
-- **Check result:** one named check, version, finding, and outcome for an Artifact.
-- **Source status:** the skilld CLI provenance value: `verified`, `local`, or `unverified`.
+Use the names exactly. Drift breeds shallow modules.
 
 ## Identity rule
 

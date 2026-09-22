@@ -1,4 +1,23 @@
-# Homepage rebuild ; status
+# Homepage rebuild
+
+Status: open · 2026-09-22 · Phase 1 shipped; visual review and four follow-ups open
+
+**Next move:** Ready. Item 3 in the ledger is the one that matters: until the abstractness classifier runs as a job, only the seeded top 1200 Skills are classified and every newer Skill surfaces as `is_abstract=NULL`, so the cluster pages quietly go stale.
+
+Done means: the 6-card grid and each `/skills/<slug>` page render correctly on desktop and mobile, the six cluster URLs are in the sitemap, and a Skill added today is classified without a manual pass.
+
+## Ledger
+
+- [x] Phase 1: the 6-card grid and the six `/skills/<slug>` cluster routes
+- [ ] Visual review of `/` and `/skills/<slug>` on desktop and mobile
+- [ ] Recently Updated: apply the `is_abstract=1 AND is_official=1` filter and add the "what changed" snippet from `skill_revisions`
+- [ ] Promote the classifier to a job, keyed on the real `SKILL.md` SHA, wired into the nightly generator pass
+- [ ] Add the six `/skills/<slug>` URLs to the sitemap
+- [ ] Spot-check 30 random `is_abstract=1` rows for false positives
+
+## Log
+
+- 2026-09-22 moved out of `docs/homepage-rebuild-todo.md`. The ledger above is this document's own Remaining list; nothing was re-verified.
 
 Phase 1 shipped. Visual review on `/` and `/skills/<slug>`{lang="html"} pending; remaining items below.
 

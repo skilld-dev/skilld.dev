@@ -6,7 +6,7 @@ import {
 } from './lib/scheduled-task-source'
 
 const projectRoot = resolve(import.meta.dirname, '..')
-const target = resolve(projectRoot, 'CRON.md')
+const target = resolve(projectRoot, 'docs/arch/cron.md')
 const args = process.argv.slice(2)
 
 if (args.length !== 1 || !['--write', '--check'].includes(args[0]!))
@@ -15,11 +15,11 @@ if (args.length !== 1 || !['--write', '--check'].includes(args[0]!))
 const rendered = renderScheduledTasksDocument(projectRoot, discoverScheduledTasks(projectRoot))
 if (args[0] === '--write') {
   writeFileSync(target, rendered)
-  console.log('Updated CRON.md from scheduled task declarations.')
+  console.log('Updated docs/arch/cron.md from scheduled task declarations.')
 }
 else {
   const current = readFileSync(target, 'utf8')
   if (current !== rendered)
-    throw new Error('CRON.md is stale. Run pnpm cron:docs.')
-  console.log('CRON.md matches scheduled task declarations.')
+    throw new Error('docs/arch/cron.md is stale. Run pnpm cron:docs.')
+  console.log('docs/arch/cron.md matches scheduled task declarations.')
 }

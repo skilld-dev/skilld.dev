@@ -1,6 +1,24 @@
-# skilld.dev — GitHub Pivot Plan
+# GitHub pivot
 
-Status: Phase 1 + Phase 2 + Phase 3 shipped on `main` 2026-05-08. Phase 4 cleanup outstanding. Section-by-section deviation notes are inlined below where the shipped code diverges from the original plan.
+Status: open · 2026-05-08 · Phases 1, 2 and 3 shipped on `main`; Phase 4 cleanup and the deploy prerequisites are not done
+
+**Next move:** Harlan. Phase 4 drops the atproto and old collections tables, which is destructive and needs your go-ahead that v2 is verified. The deploy prerequisites below need account access nobody else has: `mail.skilld.dev` DNS, a verified sender domain, and Verified Destination Addresses until Cloudflare Send Email goes unrestricted.
+
+Done means: the atproto and legacy `collections` / `collection_skills` tables are dropped in prod, `mail.skilld.dev` passes SPF, DKIM and DMARC, and a digest reaches an address that was never added to the Verified Destination list.
+
+## Ledger
+
+- [x] Phase 1, 2 and 3 shipped on `main` 2026-05-08, with the deviations inlined below
+- [ ] Remote D1 migrations applied with `CLOUDFLARE_API_TOKEN`
+- [ ] `mail.skilld.dev` DNS plus verified sender domain registration
+- [ ] Verified Destination Addresses, or Cloudflare Send Email unrestricted
+- [ ] `NUXT_ANTHROPIC_API_KEY` set, so the digest stops falling back to the commits bullet
+- [ ] Phase 4: drop the atproto tables
+- [ ] Phase 4: drop the old `collections` and `collection_skills` tables, once v2 is verified
+
+## Log
+
+- 2026-09-22 moved out of the repository root as `PIVOT_PLAN.md`. The ledger above is read off this document's own Phase 4 list and its outstanding deploy prerequisites; nothing was re-verified against production.
 
 ## Two-loop product model
 
@@ -278,7 +296,7 @@ Watch-collection alternate entry: clicking "Watch this collection" on a collecti
 ### Brand & context docs
 
 - `.claude/context/brand-guidelines.md`: replace "trusted open-source developers" / "AT Protocol" / curator-as-person framing. Recenter on "curated registry" + "watch for changes." Voice stays editorial, warm.
-- `CONTEXT.md`: redefine "curator" as "collection author" (D1-backed via GitHub login). Drop atproto identity rule (lines 18-20). Update URL canonicals table (lines 37-39) — `/people/[handle]` → `/@<gh-login>`.
+- `GLOSSARY.md` and `docs/arch/README.md` (was `CONTEXT.md`): redefine "curator" as "collection author" (D1-backed via GitHub login). Drop atproto identity rule (lines 18-20). Update URL canonicals table (lines 37-39) — `/people/[handle]` → `/@<gh-login>`.
 - `SCOPE.md`: rewrite Tech Stack section (drop "AT Protocol for auth and social layer"). Add the two-loop framing as a top-level section. Update Build Phases.
 - `CLAUDE.md`: add the two-loop framing as the first section. Future agents need this mental model before touching anything.
 

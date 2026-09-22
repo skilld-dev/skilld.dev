@@ -155,6 +155,6 @@ export function parseScheduledTasksDocument(source: string, projectRoot = proces
     sourcePath: resolve(projectRoot, match[3]!),
   }))
   if (!tasks.length)
-    throw new Error('CRON.md has no generated scheduled task rows')
+    throw new Error('docs/arch/cron.md has no generated scheduled task rows')
   return tasks.sort((left, right) => left.name.localeCompare(right.name))
 }
