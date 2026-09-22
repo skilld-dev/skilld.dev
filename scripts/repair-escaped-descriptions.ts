@@ -21,7 +21,9 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { resolve } from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { parseSkillFile } from '#layers/registry/server/utils/skill-frontmatter'
 
 const LIMIT = Number.parseInt(process.argv[2] ?? '5000', 10)
@@ -54,15 +56,32 @@ function d1<T>(sql: string): T[] {
   return parsed[0]?.results ?? []
 }
 
-function main(): void {
-  console.error('[repair] querying rows whose description still holds a backslash escape...')
-  const rows = d1<SkillRow>(
+export type RepairQuery = <T>(sql: string) => T[]
+
+export interface RepairEscapedDescriptionsDependencies {
+  query: RepairQuery
+  emit: (sql: string) => void
+  limit: number
+}
+
+export interface RepairEscapedDescriptionsSummary {
+  candidates: number
+  repaired: number
+  unchanged: number
+  unparsed: number
+}
+
+export function runRepairEscapedDescriptions(
+  deps: RepairEscapedDescriptionsDependencies,
+): RepairEscapedDescriptionsSummary {
+  console.error('[repair] querying rows whose description still holds a backslash or doubled-quote escape...')
+  const rows = deps.query<SkillRow>(
     `SELECT owner, repo, name, display_name, description, rendered_raw, rendered_skill_path
      FROM skills
-     WHERE description LIKE '%\\%' ESCAPE '~'
+     WHERE (description LIKE '%\\%' ESCAPE '~' OR description LIKE '%''%')
        AND rendered_raw IS NOT NULL
      ORDER BY owner ASC, repo ASC, name ASC
-     LIMIT ${LIMIT}`,
+     LIMIT ${deps.limit}`,
   )
   console.error(`[repair] ${rows.length} candidate rows`)
 
@@ -92,7 +111,7 @@ function main(): void {
 
     // The WHERE guard pins the stale value. If a repository sync corrects the
     // row first, the UPDATE matches nothing instead of overwriting fresher text.
-    console.log(
+    deps.emit(
       `UPDATE skills SET ${sets.join(', ')} `
       + `WHERE owner = '${escape(row.owner)}' AND repo = '${escape(row.repo)}' AND name = '${escape(row.name)}' `
       + `AND description IS '${escape(row.description ?? '')}';`,
@@ -101,6 +120,17 @@ function main(): void {
   }
 
   console.error(`[repair] done. repaired=${repaired} unchanged=${unchanged} unparsed=${unparsed} of ${rows.length}`)
+  return { candidates: rows.length, repaired, unchanged, unparsed }
 }
 
-main()
+function main(): void {
+  runRepairEscapedDescriptions({
+    limit: LIMIT,
+    query: d1,
+    emit: sql => console.log(sql),
+  })
+}
+
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : null
+if (invokedPath === fileURLToPath(import.meta.url))
+  main()

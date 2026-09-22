@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { parseSkillFile } from '../../layers/registry/server/utils/skill-frontmatter'
+import {
+  parseFrontmatter,
+  parseFrontmatterDocument,
+  parseSkillFile,
+} from '../../layers/registry/server/utils/skill-frontmatter'
 
 describe('parseSkillFile labels', () => {
   it('folds a stripped block description into readable text', () => {
@@ -77,5 +81,23 @@ description: "Use when importing \\"vue\\".
 ---`, 'wrapped-skilld')
 
     expect(parsed?.description).toBe('Use when importing "vue". Consult for debugging.')
+  })
+})
+
+describe('parseFrontmatterDocument untrusted YAML', () => {
+  it('falls back to the line scanner when a recursive anchor cannot serialise', () => {
+    const raw = `---
+name: cyclic-skilld
+description: Plain description
+metadata: &m
+  nested: *m
+---
+Body`
+
+    expect(() => JSON.stringify(parseFrontmatterDocument(raw).frontmatter)).not.toThrow()
+    expect(parseFrontmatter(raw)).toMatchObject({
+      name: 'cyclic-skilld',
+      description: 'Plain description',
+    })
   })
 })

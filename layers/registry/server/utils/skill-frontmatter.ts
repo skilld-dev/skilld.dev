@@ -47,8 +47,9 @@ function parseBlockScalar(style: string, lines: string[]): string {
 /**
  * Decode the frontmatter block with a real YAML parser.
  *
- * Returns null when the block is not a mapping or the parser reports an error,
- * so a malformed SKILL.md still reaches the lenient scanner below.
+ * Returns null when the block is not a mapping, the parser reports an error,
+ * or the decoded value cannot survive JSON serialisation downstream, so a
+ * malformed SKILL.md still reaches the lenient scanner below.
  */
 function parseYamlMapping(source: string): Record<string, unknown> | null {
   try {
@@ -58,6 +59,16 @@ function parseYamlMapping(source: string): Record<string, unknown> | null {
     const value = doc.toJS({ maxAliasCount: 100 })
     if (!value || typeof value !== 'object' || Array.isArray(value))
       return null
+    try {
+      JSON.stringify(value)
+    }
+    catch {
+      // A recursive anchor expands under maxAliasCount into a cyclic object.
+      // Downstream serialises frontmatter unguarded, so reject the decoded
+      // mapping and let the lenient line scanner, which cannot produce a
+      // cycle, handle the document instead.
+      return null
+    }
     return value as Record<string, unknown>
   }
   catch {
