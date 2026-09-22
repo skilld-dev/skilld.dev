@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import type {
+  IdentityAccountDeleteBody,
+  IdentityAccountDeleteResponse,
   IdentityEmailPatchBody,
   IdentityMutationResponse,
   IdentitySubscriptionRef,
 } from '../../../shared/contracts/account'
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
 import { avatarProxyUrl } from '#shared/image-proxy'
+import { accountDeletionConfirmed } from '../../../shared/contracts/account'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
@@ -160,6 +163,58 @@ function fmtDate(ts: number | null | undefined): string {
     timeStyle: 'short',
     timeZone: me.value?.timezone ?? 'UTC',
   }).format(new Date(ts * 1000))
+}
+
+const { clear: clearSession } = useUserSession()
+const deleteDialogOpen = ref(false)
+const deleteConfirmation = ref('')
+const deleteFailed = ref(false)
+const deleteConfirmed = computed(() => !!me.value && accountDeletionConfirmed(deleteConfirmation.value, me.value.login))
+// The RPC client sends no body with DELETE, and this request needs the typed login.
+const deleteAccountMutation = useNuxtMutation<IdentityAccountDeleteBody, IdentityAccountDeleteResponse>({
+  mutation: body => $fetch<IdentityAccountDeleteResponse>('/api/me', { method: 'DELETE', body }),
+})
+
+watch(deleteDialogOpen, (open) => {
+  if (!open) {
+    deleteConfirmation.value = ''
+    deleteFailed.value = false
+  }
+})
+
+async function deleteAccount() {
+  if (!deleteConfirmed.value || deleteAccountMutation.pending.value)
+    return
+  deleteFailed.value = false
+  const deleted = await deleteAccountMutation.mutateSafe({ confirm_login: deleteConfirmation.value })
+  if (deleted._tag === 'err') {
+    deleteFailed.value = true
+    return
+  }
+
+  await clearSession()
+  toast.add(deleted.data.github_access_revoked
+    ? {
+        title: 'Your account is deleted',
+        description: 'skilld no longer has access to your GitHub account.',
+        color: 'success',
+        icon: 'i-lucide-check-circle',
+      }
+    : {
+        title: 'Your account is deleted',
+        description: 'GitHub did not confirm that skilld lost access. Revoke skilld in your GitHub settings.',
+        color: 'warning',
+        icon: 'i-lucide-triangle-alert',
+        duration: 20_000,
+        actions: [{
+          label: 'Open GitHub settings',
+          to: 'https://github.com/settings/applications',
+          target: '_blank',
+          color: 'neutral',
+          variant: 'outline',
+        }],
+      })
+  await navigateTo('/')
 }
 </script>
 
@@ -463,7 +518,101 @@ function fmtDate(ts: number | null | undefined): string {
             class="min-h-11"
           />
         </nav>
+
+        <section class="border-t border-default pt-6" aria-labelledby="delete-account-heading">
+          <h2 id="delete-account-heading" class="text-lg font-semibold">
+            Delete account
+          </h2>
+          <p class="mt-2 text-sm leading-relaxed text-muted">
+            Deleting your account removes your profile, likes, watched Repositories, collections, email settings, and CLI devices.
+            <NuxtLink to="/privacy" class="text-default underline underline-offset-2 hover:text-primary">
+              See what skilld stores
+            </NuxtLink>
+          </p>
+          <UButton
+            color="error"
+            variant="outline"
+            icon="i-lucide-trash-2"
+            label="Delete account"
+            class="mt-4 min-h-11"
+            @click="deleteDialogOpen = true"
+          />
+        </section>
       </aside>
     </div>
+
+    <UModal
+      v-model:open="deleteDialogOpen"
+      title="Delete your account"
+      description="You cannot undo this."
+      :dismissible="!deleteAccountMutation.pending.value"
+      :close="{ size: 'md', class: 'min-h-11 min-w-11 justify-center', disabled: deleteAccountMutation.pending.value }"
+      :ui="{
+        content: 'w-[calc(100vw-1.5rem)] max-w-lg rounded-lg border border-default bg-default shadow-none',
+        header: 'px-5 py-5 sm:px-6',
+        body: 'px-5 py-5 sm:px-6',
+        footer: 'justify-end gap-2 px-5 py-4 sm:px-6',
+        title: 'font-mono text-base font-medium text-highlighted',
+        description: 'text-sm text-muted',
+      }"
+    >
+      <template #body>
+        <form id="delete-account-form" class="space-y-5" @submit.prevent="deleteAccount">
+          <div>
+            <h3 class="section-label">
+              skilld deletes
+            </h3>
+            <ul class="mt-3 list-disc space-y-2 ps-5 text-sm leading-relaxed marker:text-muted">
+              <li>Your GitHub profile details and email address</li>
+              <li>Email settings and email history</li>
+              <li>Liked Skills, watched Repositories, and imported stars</li>
+              <li>Your collections</li>
+              <li>CLI devices and tokens</li>
+            </ul>
+          </div>
+          <p class="text-sm leading-relaxed text-muted">
+            skilld also asks GitHub to revoke its access to your account.
+            Skills in your public Repositories stay listed, because GitHub is their source.
+          </p>
+          <UFormField :label="`Type ${me?.login} to confirm`" name="confirm_login">
+            <UInput
+              v-model="deleteConfirmation"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              class="w-full font-mono"
+              :ui="{ base: 'min-h-11' }"
+              :disabled="deleteAccountMutation.pending.value"
+            />
+          </UFormField>
+          <p v-if="deleteFailed" class="text-sm text-error" role="alert">
+            Could not delete your account. Check your connection and try again.
+          </p>
+        </form>
+      </template>
+
+      <template #footer>
+        <UButton
+          color="neutral"
+          variant="outline"
+          label="Cancel"
+          class="min-h-11"
+          :disabled="deleteAccountMutation.pending.value"
+          @click="deleteDialogOpen = false"
+        />
+        <!-- Subtle, not solid: white text on the dark mode error color is below 4.5:1. -->
+        <UButton
+          type="submit"
+          form="delete-account-form"
+          color="error"
+          variant="subtle"
+          icon="i-lucide-trash-2"
+          label="Delete account"
+          class="min-h-11"
+          :disabled="!deleteConfirmed"
+          :loading="deleteAccountMutation.pending.value"
+        />
+      </template>
+    </UModal>
   </section>
 </template>

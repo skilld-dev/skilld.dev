@@ -319,6 +319,12 @@ watch(() => route.fullPath, () => {
           >
             Accessibility
           </NuxtLink>
+          <NuxtLink
+            to="/privacy"
+            class="font-mono text-xs text-muted underline-offset-2 hover:underline hover:text-default"
+          >
+            Privacy
+          </NuxtLink>
           <UButton
             icon="i-lucide-keyboard"
             color="neutral"
