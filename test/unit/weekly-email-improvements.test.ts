@@ -85,12 +85,4 @@ describe('weekly email improvement contract', () => {
     expect(rendered.html).not.toContain('🔥')
     expect(rendered.html).toContain('Hi Harlan,')
   })
-
-  it('links straight to pages with no per-reader click tracking', () => {
-    const rendered = renderWeekly({ ...input(), edition: 'weekly' })
-    const hrefs = [...rendered.html.matchAll(/href="([^"]+)"/g)].map(match => match[1]!)
-    expect(hrefs).toContain('https://skilld.dev/api/share/weekly')
-    expect(hrefs).toContain('https://skilld.dev/skills/trending')
-    expect(hrefs.filter(href => href.includes('/api/e/weekly'))).toEqual([])
-  })
 })

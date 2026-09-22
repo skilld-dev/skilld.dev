@@ -67,6 +67,18 @@ export interface DailyHealthCheckSummary {
     digestsSent24h: number
     digestsFailed24h: number
     /**
+     * Aggregate email link clicks, per campaign.
+     *
+     * Counters are kept per UTC day, so this sums whole days from `fromDay`
+     * onwards rather than an exact 24 hours. Digest clicks are the Loop 2
+     * evidence bar.
+     */
+    emailClicks: {
+      fromDay: string
+      weekly: number
+      digest: number
+    }
+    /**
      * The most recent weekly run, not a 24 hour count.
      *
      * The weekly fires on Mondays, so a rolling-day metric would read zero on
@@ -783,6 +795,17 @@ async function loadInventory(db: D1Database): Promise<DailyHealthCheckSummary['i
   }
 }
 
+async function loadEmailClicks(db: D1Database, fromDay: string): Promise<DailyHealthCheckSummary['activity']['emailClicks']> {
+  const row = await first<{ weekly: number | null, digest: number | null }>(db, `
+    SELECT
+      SUM(clicks) FILTER (WHERE campaign = 'weekly') AS weekly,
+      SUM(clicks) FILTER (WHERE campaign = 'digest') AS digest
+    FROM email_click_counts
+    WHERE day >= ?1
+  `, [fromDay])
+  return { fromDay, weekly: numberValue(row.weekly), digest: numberValue(row.digest) }
+}
+
 async function loadActivity(
   db: D1Database,
   sinceSec: number,
@@ -799,6 +822,8 @@ async function loadActivity(
        + (SELECT COUNT(*) FROM digest_runs
           WHERE status IN ('sending', 'uncertain'))) AS digests_failed_24h
   `, [sinceSec])
+  const fromDay = new Date(sinceSec * 1000).toISOString().slice(0, 10)
+  const emailClicks = await capture(warnings, 'email clicks', { fromDay, weekly: 0, digest: 0 }, () => loadEmailClicks(db, fromDay))
   const weekly = await capture(warnings, 'weekly delivery', null, () => loadWeeklyRun(db))
   return {
     newSkills24h: numberValue(row.new_skills_24h),
@@ -806,6 +831,7 @@ async function loadActivity(
     newUsers24h: numberValue(row.new_users_24h),
     digestsSent24h: numberValue(row.digests_sent_24h),
     digestsFailed24h: numberValue(row.digests_failed_24h),
+    emailClicks,
     weekly,
   }
 }
@@ -1153,6 +1179,7 @@ export async function buildDailyHealthCheck(
     newUsers24h: 0,
     digestsSent24h: 0,
     digestsFailed24h: 0,
+    emailClicks: { fromDay: since.toISOString().slice(0, 10), weekly: 0, digest: 0 },
     weekly: null,
   }, () => loadActivity(db, sinceSec, warnings))
   const pipeline = await capture(warnings, 'pipeline', {

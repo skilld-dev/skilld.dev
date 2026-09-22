@@ -11,8 +11,10 @@
  * inlined at every use rather than being set through classes.
  */
 
+import type { EmailPlacement } from './email-clicks'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
+import { countedEmailUrl } from './email-clicks'
 
 export type WeeklyTheme = 'light' | 'dark'
 
@@ -160,6 +162,14 @@ export interface WeeklyRenderInput {
   login?: string | null
   /** A person's display name. Omit the greeting when unavailable. */
   recipientName?: string | null
+  /**
+   * Route same-site links through the aggregate click counter.
+   *
+   * Only real sends set this. Previews and the homepage demo leave it off, so
+   * an operator or a visitor never adds to an issue's count. The links carry
+   * the edition and `windowEnd`, never the recipient.
+   */
+  countClicks?: boolean
   /** Unix seconds. */
   windowStart: number
   /** Unix seconds. */
@@ -630,9 +640,18 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const trendsOnly = edition === 'weekly'
   const empty = !input.likedChanges.length && !input.trackedCount && !input.trending.length
 
+  // Only the HTML is counted. Plain-text clients show the raw URL and often
+  // follow a redirect poorly, so a bare skilld.dev link is worth more there.
+  const track = (url: string, placement: EmailPlacement): string => input.countClicks
+    ? countedEmailUrl({ siteUrl: input.siteUrl, campaign: edition, issue: input.windowEnd }, url, placement)
+    : url
+
   const likedRows = input.likedChanges.map((change) => {
     const subjects = commitSubjects(change.commitMessages)
-    const sourceUrl = change.sourceUrl ?? skillUrl(input.siteUrl, change)
+    // Liked rows point at SKILL.md on GitHub, which is where a reader judges a
+    // change. Those clicks are counted too: the destination path is rewritten,
+    // never a whole URL.
+    const sourceUrl = track(change.sourceUrl ?? skillUrl(input.siteUrl, change), 'liked')
     return row(t, {
       siteUrl: input.siteUrl,
       owner: change.owner,
@@ -648,7 +667,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
         relativeDay(change.changedAt, now),
       ]),
       links: rowLinks(t, [
-        ...(change.changeUrl ? [{ href: change.changeUrl, label: 'View change' }] : []),
+        ...(change.changeUrl ? [{ href: track(change.changeUrl, 'liked'), label: 'View change' }] : []),
         { href: sourceUrl, label: 'Open SKILL.md' },
       ]),
     })
@@ -656,7 +675,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
   const overflowRow = input.likedOverflow
     ? `<tr><td class="weekly-border" style="padding:12px 0 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:20px;color:${t.muted};">
-         <a href="${esc(`${input.siteUrl}/me/likes`)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'Skill', 'Skills')} you like were updated</a>
+         <a href="${esc(track(`${input.siteUrl}/me/likes`, 'overflow'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'Skill', 'Skills')} you like were updated</a>
        </td></tr>`
     : ''
 
@@ -672,12 +691,12 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   // skills to go like a skill is the product failing to notice it worked.
   const likePrompt = !trendsOnly && !input.trackedCount && !input.likedChanges.length && input.trending.length
     ? `<tr><td class="weekly-border" style="padding:16px 0 0;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.55;color:${t.muted};">
-         ${LIKE_PROMPT} <a href="${esc(`${input.siteUrl}/skills`)}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
+         ${LIKE_PROMPT} <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
     : ''
 
   const trendingRows = input.trending.map((skill) => {
-    const sourceUrl = skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug })
+    const sourceUrl = track(skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug }), 'trending')
     return trendingRow(t, {
       siteUrl: input.siteUrl,
       owner: skill.owner,
@@ -695,7 +714,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
     : empty
       ? `<tr><td class="weekly-border" style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
          Like a few Skills and they will show up here the week they change.
-         <a href="${esc(`${input.siteUrl}/skills`)}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
+         <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
       : `${input.likedChanges.length || input.trackedCount
         ? `${sectionLabel(t, 'Skills you like')}${likedRows}${overflowRow}${quietRow}`
@@ -703,7 +722,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
         ? `${sectionLabel(t, 'Trending this week')}${trendingRows}${likePrompt}`
         : ''}`
 
-  const shareUrl = `${input.siteUrl}/api/share/weekly`
+  const shareUrl = track(`${input.siteUrl}/api/share/weekly`, 'share')
   const card = `<table class="weekly-border" role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:${t.surface};border:1px solid ${t.border};border-radius:8px;">
       <tr><td style="padding:22px 20px 26px;">
 
@@ -712,7 +731,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
             <!-- The mark is a hosted PNG because Gmail strips SVG. The nearby
                  wordmark carries the name when images are blocked. -->
             <td valign="middle" style="font-family:${MONO};font-size:14px;font-weight:600;color:${t.text};letter-spacing:-0.01em;">
-              <a href="${esc(input.siteUrl)}" style="display:inline-block;padding:11px 0;color:${t.text};text-decoration:none;"><img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="" style="display:inline-block;width:22px;height:22px;margin-right:9px;border:0;border-radius:5px;vertical-align:middle;" /><span style="vertical-align:middle;">skilld <span style="color:${t.faint};font-weight:400;">${edition}</span></span></a>
+              <a href="${esc(track(input.siteUrl, 'footer'))}" style="display:inline-block;padding:11px 0;color:${t.text};text-decoration:none;"><img src="${esc(input.siteUrl)}/logo-icon.png" width="22" height="22" alt="" style="display:inline-block;width:22px;height:22px;margin-right:9px;border:0;border-radius:5px;vertical-align:middle;" /><span style="vertical-align:middle;">skilld <span style="color:${t.faint};font-weight:400;">${edition}</span></span></a>
             </td>
             <td align="right" valign="middle" style="font-family:${MONO};font-size:14px;color:${t.faint};font-variant-numeric:tabular-nums;">${esc(window)}</td>
           </tr>
@@ -726,7 +745,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
           ${body}
         </table>
 
-        ${input.trending.length ? button(t, `${input.siteUrl}/skills/trending`, 'Browse trending Skills') : ''}
+        ${input.trending.length ? button(t, track(`${input.siteUrl}/skills/trending`, 'cta'), 'Browse trending Skills') : ''}
         ${input.trending.length ? `<div style="font-family:${MONO};font-size:14px;line-height:20px;"><a href="${esc(shareUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Share this week’s board</a></div>` : ''}
 
       </td></tr>
@@ -735,7 +754,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
         ${edition === 'weekly'
           ? 'You get this once a week because you have a skilld account.'
           : 'You get this because you enabled the digest.'}
-        <a href="${esc(input.settingsUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a>
+        <a href="${esc(track(input.settingsUrl, 'footer'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Settings</a>
         &middot;
         <a href="${esc(input.unsubscribeUrl)}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">Unsubscribe</a>
       </td></tr>
