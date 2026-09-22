@@ -353,15 +353,22 @@ export async function failResolution(
   row: NonNullable<Awaited<ReturnType<typeof getResolution>>>,
   code: ProblemCode,
   retryable: boolean,
-  retryAfterSeconds?: number,
+  retryAtEpochSeconds?: number,
 ): Promise<ArtifactBuildOutcome> {
   if (row.state === 'ready' || row.state === 'blocked' || row.state === 'failed' || row.state === 'revoked')
     return { _tag: row.state === 'revoked' ? 'unchanged' : row.state, resolutionId: row.id }
+  const now = dependencies.now()
+  // The upstream reset header is an absolute epoch; error_retry_after means a
+  // relative delay in seconds, like HTTP Retry-After. Store the delay a reader
+  // can add to now, and never let a clock skew store zero or a negative one.
+  const errorRetryAfter = retryAtEpochSeconds === undefined
+    ? undefined
+    : Math.max(1, retryAtEpochSeconds - now)
   const advanced = await transitionResolution(dependencies.db, row, 'failed', {
     errorCode: code,
     errorRetryable: retryable,
-    ...(retryAfterSeconds === undefined ? {} : { errorRetryAfter: retryAfterSeconds }),
-  }, dependencies.now())
+    ...(errorRetryAfter === undefined ? {} : { errorRetryAfter }),
+  }, now)
   return advanced._tag === 'superseded'
     ? { _tag: 'superseded', resolutionId: row.id }
     : { _tag: 'failed', resolutionId: row.id }

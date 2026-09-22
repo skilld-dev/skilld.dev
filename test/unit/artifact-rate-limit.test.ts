@@ -1,11 +1,32 @@
+import type { SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
+import type { ArtifactSigner } from '../../layers/artifact-delivery/server/utils/attestation'
+import type { ArtifactBuildDependencies } from '../../layers/artifact-delivery/server/utils/build'
+import type { TrustedRoot } from '../../layers/artifact-delivery/server/utils/trusted-root'
 import { describe, expect, it, vi } from 'vitest'
+import { processArtifactBuild } from '../../layers/artifact-delivery/server/utils/build'
 import {
   createPublicGithubSourceClient,
   isRetryableProblem,
 } from '../../layers/artifact-delivery/server/utils/github-source'
+import { createResolution, resolutionRequestIdentity } from '../../layers/artifact-delivery/server/utils/state'
+import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const commitSha = '0123456789abcdef0123456789abcdef01234567'
 const RESET_AT = 1_790_070_000
+const NOW = 1_787_227_200
+const ARTIFACT_MIGRATIONS = [
+  'migrations/0017_users.sql',
+  'migrations/0110_artifact_delivery.sql',
+  'migrations/0111_github_app_delivery.sql',
+  'migrations/0112_private_artifact_keys.sql',
+  'migrations/0122_artifact_resolution_retry_after.sql',
+]
+const resolutionRequest: SourceRequest = {
+  provider: 'github',
+  owner: 'skilld-dev',
+  repository: 'skills',
+  selector: { type: 'path', path: 'skills/demo' },
+}
 
 describe('gitHub rate limits as values', () => {
   it('rejects with RATE_LIMITED and the reset time instead of throwing', async () => {
@@ -118,12 +139,47 @@ describe('which problems a caller may retry', () => {
   })
 })
 
+describe('a spent quota persists a delay, not the reset epoch', () => {
+  it('stores error_retry_after as the seconds left until the reset', async () => {
+    const sqlite = createSqliteD1(ARTIFACT_MIGRATIONS)
+    const identity = await resolutionRequestIdentity(resolutionRequest, 'rate-limit-delay-0001')
+    const created = await createResolution(sqlite.db, resolutionRequest, identity, NOW)
+    if (created._tag === 'idempotency-conflict')
+      throw new Error('Test Resolution conflicted')
+    const client = createPublicGithubSourceClient({
+      fetch: vi.fn(async () => rateLimitedAt(NOW + 300)) as unknown as typeof fetch,
+    })
+    const dependencies: ArtifactBuildDependencies = {
+      db: sqlite.db,
+      github: client,
+      bucket: {} as R2Bucket,
+      signer: {} as ArtifactSigner,
+      trustedRoot: {} as TrustedRoot,
+      now: () => NOW,
+    }
+
+    const result = await processArtifactBuild(dependencies, created.row.id)
+
+    expect(result).toEqual({ _tag: 'failed', resolutionId: created.row.id })
+    const persisted = sqlite.raw.prepare(
+      'SELECT error_retry_after FROM artifact_resolutions WHERE id = ?',
+    ).get(created.row.id) as { error_retry_after: number | null }
+    expect(persisted.error_retry_after).toBeGreaterThan(0)
+    expect(persisted.error_retry_after).toBeLessThanOrEqual(300)
+    sqlite.close()
+  })
+})
+
 function rateLimited(): Response {
+  return rateLimitedAt(RESET_AT)
+}
+
+function rateLimitedAt(resetAt: number): Response {
   return new Response('{}', {
     status: 403,
     headers: {
       'x-ratelimit-remaining': '0',
-      'x-ratelimit-reset': String(RESET_AT),
+      'x-ratelimit-reset': String(resetAt),
       'content-type': 'application/json',
     },
   })

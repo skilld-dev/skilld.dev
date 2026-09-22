@@ -235,7 +235,7 @@ describe('public Artifact delivery', () => {
       state: 'failed',
       error_code: 'RATE_LIMITED',
       error_retryable: 1,
-      error_retry_after: 1_790_070_000,
+      error_retry_after: 2_842_800,
     })
     const failed = presentResolution((await getResolution(harness.dependencies.db, harness.resolutionId))!)
     expect(failed).toEqual({
