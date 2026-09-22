@@ -1,12 +1,19 @@
 import type { H3Event } from 'h3'
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
 import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
+import type { CachedRelated } from '../../utils/skill-related'
 import { readCache, readThroughCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
 import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
 import { findSkillCommitSource as resolveRepoSourceIdentityForCommits } from '../../utils/skill-commit-source'
-import { RELATED_CACHE_STALE_TTL, RELATED_CACHE_TTL, relatedCacheKey } from '../../utils/skill-related'
+import {
+  isCachedRelated,
+  RELATED_CACHE_STALE_TTL,
+  RELATED_CACHE_TTL,
+  relatedCacheKey,
+  relatedCacheWindows,
+} from '../../utils/skill-related'
 import { findRelatedSkills, findSkill, findSkillsByLookups } from '../../utils/skills-registry'
 
 const COMMITS_CACHE_TTL = 60 * 60 * 12
@@ -50,14 +57,17 @@ export default defineApiHandler({
     if (!slug)
       throw createError({ statusCode: 400, message: 'Missing skill slug' })
 
-    const skill = await findSkill(event, slug)
-    if (!skill)
-      throw createError({ statusCode: 404, message: 'Skill not found' })
-
-    return readThroughCache<SkillRelatedResponse>(
+    // The slug lookup sits inside the cached function on purpose. It is one
+    // to two D1 reads, and running it ahead of the cache made every request
+    // cost a read even on a hit. See the note in `skill-related.ts`.
+    const cached = await readThroughCache<CachedRelated<SkillRelatedResponse>>(
       useStorage('cache'),
-      relatedCacheKey(skill),
+      relatedCacheKey(slug),
       async () => {
+        const skill = await findSkill(event, slug)
+        if (!skill)
+          return { _tag: 'missing' as const }
+
         const source = await resolveRepoSourceIdentityForCommits(platform.db, skill)
 
         const [commits, related, coOccurrenceNeighbors, embeddingNeighbors] = await Promise.all([
@@ -83,10 +93,20 @@ export default defineApiHandler({
           coOccurrenceSkills,
           semanticSiblings,
         }
-        return response
+        return { _tag: 'found' as const, response }
       },
-      { ttl: RELATED_CACHE_TTL, staleTtl: RELATED_CACHE_STALE_TTL },
+      {
+        ttl: RELATED_CACHE_TTL,
+        staleTtl: RELATED_CACHE_STALE_TTL,
+        windowsFor: relatedCacheWindows,
+        validate: isCachedRelated,
+      },
     )
+
+    if (cached._tag === 'missing')
+      throw createError({ statusCode: 404, message: 'Skill not found' })
+
+    return cached.response
   },
 })
 
