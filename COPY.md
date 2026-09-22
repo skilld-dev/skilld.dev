@@ -15,10 +15,10 @@ These exact strings. Do not paraphrase them per page.
 
 | Asset | String | Where it goes |
 | --- | --- | --- |
-| Name | `skilld` lowercase by default, `Skilld` only at a sentence start, `skilld.dev` for the domain. Never SKILLD, Skill'd, Skill-d, SkillD. | everywhere |
-| Tagline | Curated agent skills by humans. | index OG image alt, the 5-word form |
-| Site description | Curated agent skills by humans, written by real maintainers in their own GitHub repos | `nuxt.config.ts` site description, which feeds every page's meta description |
-| Elevator pitch | Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes. | about copy, registry listings, anywhere two sentences are the budget |
+| Name | `skilld` lowercase by default, `Skilld` only at a sentence start, `skilld.dev` for the domain. Never SKILLD, Skill'd, Skill-d, SkillD. | guidance only (applies everywhere, not one placement) |
+| Tagline | Curated agent skills by humans. | index OG image alt |
+| Site description | Curated agent skills by humans, written by real maintainers in their own GitHub repos | `nuxt.config.ts` site description (feeds every page's meta description) |
+| Elevator pitch | Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes. | guidance only: no page ships it yet (use it where two sentences fit) |
 
 ### The product in four lengths
 

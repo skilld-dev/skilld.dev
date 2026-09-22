@@ -116,25 +116,199 @@ function walkSurfaces(dir: string, extensions: string[], found: string[] = []): 
   return found
 }
 
-function shippedSurfaceText(file: string) {
-  const source = readFileSync(file, 'utf8')
-  if (file.endsWith('.md')) {
-    return source
-      .replace(/^---\n[\s\S]*?\n---/, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      .replace(/```[\s\S]*?```/g, ' ')
-      .replace(/`[^`]*`/g, ' ')
-      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+function mdSurfaceText(source: string) {
+  return source
+    .replace(/^---\n[\s\S]*?\n---/, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+}
+
+const bracketPairs: Record<string, string> = { '(': ')', '{': '}', '[': ']' }
+
+function skipStringLiteral(code: string, start: number) {
+  const quote = code[start]
+  let index = start + 1
+  while (index < code.length && code[index] !== quote) {
+    if (code[index] === '\\') {
+      index += 2
+      continue
+    }
+    if (quote === '`' && code[index] === '$' && code[index + 1] === '{') {
+      index = spanEnd(code, index + 1) + 1
+      continue
+    }
+    index += 1
   }
+  return Math.min(index + 1, code.length)
+}
+
+function spanEnd(code: string, openIndex: number) {
+  const open = code[openIndex]
+  const close = bracketPairs[open]
+  if (!close)
+    return openIndex
+  const expected: string[] = [close]
+  let index = openIndex + 1
+  while (index < code.length) {
+    const char = code[index]!
+    if (char === '\'' || char === '"' || char === '`') {
+      index = skipStringLiteral(code, index)
+      continue
+    }
+    if (char === '/' && code[index + 1] === '/') {
+      const newline = code.indexOf('\n', index)
+      if (newline < 0)
+        return code.length
+      index = newline
+      continue
+    }
+    if (char === '/' && code[index + 1] === '*') {
+      const end = code.indexOf('*/', index + 2)
+      if (end < 0)
+        return code.length
+      index = end + 2
+      continue
+    }
+    if (char in bracketPairs) {
+      expected.push(bracketPairs[char]!)
+    }
+    else if (char === expected[expected.length - 1]) {
+      expected.pop()
+      if (expected.length === 0)
+        return index
+    }
+    index += 1
+  }
+  return code.length
+}
+
+function statementEnd(code: string, startIndex: number) {
+  const expected: string[] = []
+  let index = startIndex
+  while (index < code.length) {
+    const char = code[index]!
+    if (char === '\'' || char === '"' || char === '`') {
+      index = skipStringLiteral(code, index)
+      continue
+    }
+    if (char === '/' && code[index + 1] === '/') {
+      const newline = code.indexOf('\n', index)
+      if (newline < 0)
+        return code.length
+      index = newline
+      continue
+    }
+    if (char === '/' && code[index + 1] === '*') {
+      const end = code.indexOf('*/', index + 2)
+      if (end < 0)
+        return code.length
+      index = end + 2
+      continue
+    }
+    if (char in bracketPairs)
+      expected.push(bracketPairs[char]!)
+    else if (expected.length > 0 && char === expected[expected.length - 1])
+      expected.pop()
+    else if (expected.length === 0 && (char === '\n' || char === ';'))
+      return index
+    index += 1
+  }
+  return code.length
+}
+
+function collectStrings(code: string) {
+  const strings: string[] = []
+  let index = 0
+  while (index < code.length) {
+    const char = code[index]!
+    if (char === '\'' || char === '"' || char === '`') {
+      const end = skipStringLiteral(code, index)
+      const value = code.slice(index + 1, end - 1)
+      // Routes, URLs and file paths are identifiers, not copy.
+      if (!value.includes('/'))
+        strings.push(value)
+      index = end
+      continue
+    }
+    if (char === '/' && code[index + 1] === '/') {
+      const newline = code.indexOf('\n', index)
+      if (newline < 0)
+        break
+      index = newline
+      continue
+    }
+    if (char === '/' && code[index + 1] === '*') {
+      const end = code.indexOf('*/', index + 2)
+      if (end < 0)
+        break
+      index = end + 2
+      continue
+    }
+    index += 1
+  }
+  return strings
+}
+
+const metaCallNames = ['useSeoMeta', 'useHead', 'defineOgImage']
+const metaValueNames = ['title', 'description', 'ogTitle', 'ogDescription', 'twitterTitle', 'twitterDescription']
+
+function scriptMetaStrings(script: string) {
+  const spans: string[] = []
+  for (const name of metaCallNames) {
+    for (const match of script.matchAll(new RegExp(`\\b${name}\\s*\\(`, 'g'))) {
+      const open = match.index + match[0].length - 1
+      const end = spanEnd(script, open)
+      if (end > open)
+        spans.push(script.slice(open + 1, end))
+    }
+  }
+  for (const name of metaValueNames) {
+    for (const match of script.matchAll(new RegExp(`\\bconst\\s+${name}\\s*=`, 'g'))) {
+      const start = match.index + match[0].length
+      const end = statementEnd(script, start)
+      if (end > start)
+        spans.push(script.slice(start, end))
+    }
+  }
+  return spans.flatMap(collectStrings).join(' ')
+}
+
+const rootConfigMetaBlocks = ['site', 'mcpServerCard', 'agentSkills', 'mcp']
+
+function rootConfigMetaText() {
+  const config = readRootFile('nuxt.config.ts')
+  return rootConfigMetaBlocks.flatMap(name =>
+    [...config.matchAll(new RegExp(`\\b${name}:\\s*\\{`, 'g'))].flatMap((match) => {
+      const open = match.index + match[0].length - 1
+      const end = spanEnd(config, open)
+      return end > open ? collectStrings(config.slice(open + 1, end)) : []
+    }),
+  ).join(' ')
+}
+
+function vueSurfaceText(source: string) {
   const template = source.match(/<template>[\s\S]*<\/template>/)?.[0] ?? ''
-  return template
+  const templateText = template
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/\{\{[\s\S]*?\}\}/g, ' ')
     .replace(/<(?:"[^"]*"|'[^']*'|[^>])*>/g, (tag) => {
       const shipped = tag.match(/\b(?:alt|aria-label|title|placeholder|label)="([^"]*)"/)
       return shipped ? ` ${shipped[1]} ` : ' '
     })
+  const scriptText = [...source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)]
+    .map(match => scriptMetaStrings(match[1]!))
+    .join(' ')
+  return `${templateText} ${scriptText}`
+}
+
+function shippedSurfaceText(file: string) {
+  const source = readFileSync(file, 'utf8')
+  if (file.endsWith('.md'))
+    return mdSurfaceText(source)
+  return vueSurfaceText(source)
 }
 
 function shippedSurfaces() {
@@ -142,7 +316,10 @@ function shippedSurfaces() {
     ...walkSurfaces(join(repoRoot, 'app'), ['.vue']),
     ...walkSurfaces(join(repoRoot, 'layers'), ['.vue', '.md']),
   ]
-  return files.map(file => ({ file, text: shippedSurfaceText(file) }))
+  return [
+    ...files.map(file => ({ file, text: shippedSurfaceText(file) })),
+    { file: 'nuxt.config.ts', text: rootConfigMetaText() },
+  ]
 }
 
 function bannedLanguageTerms() {
@@ -172,6 +349,22 @@ function recordedExceptions() {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function bannedOffenders(surfaces: { file: string, text: string }[]) {
+  const exceptions = recordedExceptions()
+  const offenders: string[] = []
+  for (const { term, qualifier } of bannedLanguageTerms()) {
+    // A qualifier scopes the ban to one sense, which a text scan cannot judge.
+    if (qualifier)
+      continue
+    const pattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i')
+    for (const surface of surfaces) {
+      if (pattern.test(surface.text) && !exceptions.includes(term.toLowerCase()))
+        offenders.push(`"${term}" ships at ${surface.file} with no exception in COPY.md`)
+    }
+  }
+  return offenders
 }
 
 describe('copy contract', () => {
@@ -211,32 +404,37 @@ describe('copy contract', () => {
 
   it('ships each canonical string at every placement its row names', () => {
     const probes = placementProbes()
-    const offenders = canonicalAssets().flatMap(({ asset, value, placement }) =>
-      placement.split(',').flatMap((fragment) => {
+    const offenders = canonicalAssets().flatMap(({ asset, value, placement }) => {
+      // A row marked guidance-only carries no placement contract to check.
+      if (placement.toLowerCase().includes('guidance only'))
+        return []
+      return placement.split(',').map(fragment => fragment.trim()).filter(Boolean).flatMap((fragment) => {
         const probe = probes.find(p => normalizeCopy(fragment).includes(p.match))
         if (!probe)
-          return []
+          return [`"${asset}" names "${fragment}" but no probe can check that placement`]
         if (normalizeCopy(probe.text).includes(normalizeCopy(value)))
           return []
         return [`${asset} claims "${fragment}" but "${value}" is not there`]
-      }),
-    )
+      })
+    })
     expect(offenders, 'canonical strings missing from a claimed placement').toEqual([])
   })
 
+  it('reports a banned term shipped in script-set meta copy', () => {
+    const source = [
+      '<template>',
+      '  <p>placeholder</p>',
+      '</template>',
+      '<script setup lang="ts">',
+      'const description = \'This registry will supercharge your agent workflow.\'',
+      'useSeoMeta({ description })',
+      '</script>',
+    ].join('\n')
+    const offenders = bannedOffenders([{ file: 'fixture.vue', text: vueSurfaceText(source) }])
+    expect(offenders, 'a banned term in a meta description set in script must be reported').toContain('"supercharge" ships at fixture.vue with no exception in COPY.md')
+  })
+
   it('ships no banned term without a recorded exception', () => {
-    const exceptions = recordedExceptions()
-    const offenders: string[] = []
-    for (const { term, qualifier } of bannedLanguageTerms()) {
-      // A qualifier scopes the ban to one sense, which a text scan cannot judge.
-      if (qualifier)
-        continue
-      const pattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i')
-      for (const surface of shippedSurfaces()) {
-        if (pattern.test(surface.text) && !exceptions.includes(term.toLowerCase()))
-          offenders.push(`"${term}" ships at ${surface.file} with no exception in COPY.md`)
-      }
-    }
-    expect(offenders, 'banned terms shipped without a recorded exception').toEqual([])
+    expect(bannedOffenders(shippedSurfaces()), 'banned terms shipped without a recorded exception').toEqual([])
   })
 })
