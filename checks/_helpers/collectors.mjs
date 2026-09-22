@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
-import { buildWorkersQuery, parseWorkflowName, runListArgs, summarizeWorkflowRuns } from './observability.mjs'
+import { buildWorkersQuery, collectWorkflowRuns, parseWorkflowName, runListArgs, summarizeWorkflowRuns } from './observability.mjs'
 
 const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers'].map(key => [key, {}]))
 
@@ -67,13 +67,15 @@ export function collectCI(context) {
   return collect(context, 'ci', async (context) => {
     const directory = join(context.rootDir, '.github/workflows')
     const names = (await Promise.all((await readdir(directory)).filter(file => /\.ya?ml$/.test(file)).map(async file => parseWorkflowName(await readFile(join(directory, file), 'utf8'))))).filter(Boolean).sort()
-    const rows = []
-    for (const name of names) {
-      let page = await commandJson(context, 'gh', runListArgs(name, 10))
-      if (!page.some(row => row.status === 'completed' && row.conclusion !== 'skipped') && page.length === 10)
-        page = await commandJson(context, 'gh', runListArgs(name, 100))
-      rows.push(...page)
-    }
+    // Paging goes through collectWorkflowRuns so the re-fetch decision shares
+    // carriesVerdict with the classifier. An inline predicate here had drifted
+    // from it: a full page of cancelled queue-mates satisfied
+    // `conclusion !== 'skipped'`, hid a verdict ten runs deep, and the gate read
+    // `missing` while a healthy deploy sat at index 10.
+    const rows = await collectWorkflowRuns(
+      (name, limit) => commandJson(context, 'gh', runListArgs(name, limit)),
+      names,
+    )
     return { workflows: summarizeWorkflowRuns(rows, names), recent: (await commandJson(context, 'gh', runListArgs(null, 20))).slice(0, 10) }
   })
 }

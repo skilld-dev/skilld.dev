@@ -16,7 +16,7 @@ import {
 function run(
   workflowName: string,
   status: 'completed' | 'in_progress',
-  conclusion: '' | 'failure' | 'success' | 'skipped',
+  conclusion: '' | 'failure' | 'success' | 'skipped' | 'cancelled',
   databaseId: number,
 ) {
   return {
@@ -218,10 +218,38 @@ describe('daily check-in observability', () => {
     ])
   })
 
+  // The real shape from 2026-09-21: cancelled concurrency queue-mates sat in
+  // front of the run that deployed a1b4db6, so the gate archived failure/2 on
+  // a healthy deploy. A cancelled run never rendered a verdict.
+  it('reads through cancelled queue-mates to the deploy that actually shipped', () => {
+    const rows = [
+      run('Deploy to Cloudflare', 'completed', 'cancelled', 3),
+      run('Deploy to Cloudflare', 'completed', 'cancelled', 2),
+      run('Deploy to Cloudflare', 'completed', 'success', 1),
+    ]
+
+    expect(summarizeWorkflowRuns(rows, ['Deploy to Cloudflare'])).toMatchObject([
+      {
+        name: 'Deploy to Cloudflare',
+        latestCompletedRun: run('Deploy to Cloudflare', 'completed', 'success', 1),
+        state: { _tag: 'success' },
+      },
+    ])
+  })
+
+  it('reports a history of only cancelled runs as missing, not as a broken gate', () => {
+    expect(summarizeWorkflowRuns([
+      run('Deploy to Cloudflare', 'completed', 'cancelled', 2),
+      run('Deploy to Cloudflare', 'completed', 'cancelled', 1),
+    ], ['Deploy to Cloudflare'])).toMatchObject([
+      { name: 'Deploy to Cloudflare', state: { _tag: 'missing' } },
+    ])
+  })
+
   // The real shape from 2026-09-01: eleven skipped guard runs sat in front of the
   // deploy that actually shipped, so a ten-run sample never reached a verdict and
   // a healthy deploy was archived as `missing`.
-  it('samples deeper when a page of skipped guard runs hides the last verdict', () => {
+  it('samples deeper when a page of skipped guard runs hides the last verdict', async () => {
     const history = [
       ...Array.from({ length: 11 }, (_, index) => run('Deploy to Cloudflare', 'completed', 'skipped', 30 - index)),
       run('Deploy to Cloudflare', 'completed', 'success', 19),
@@ -238,7 +266,7 @@ describe('daily check-in observability', () => {
     expect(summarizeWorkflowRuns(history.slice(0, 10), ['Deploy to Cloudflare']))
       .toMatchObject([{ name: 'Deploy to Cloudflare', state: { _tag: 'missing' } }])
 
-    const rows = collectWorkflowRuns(listRuns, ['Deploy to Cloudflare'])
+    const rows = await collectWorkflowRuns(listRuns, ['Deploy to Cloudflare'])
 
     expect(requestedLimits).toEqual([10, 100])
     expect(summarizeWorkflowRuns(rows, ['Deploy to Cloudflare'])).toMatchObject([
@@ -251,7 +279,7 @@ describe('daily check-in observability', () => {
     ])
   })
 
-  it('stops at one deeper sample so a workflow with no verdict in history stays missing', () => {
+  it('stops at one deeper sample so a workflow with no verdict in history stays missing', async () => {
     const history = Array.from({ length: 120 }, (_, index) => run('Security', 'completed', 'skipped', 99 - (index % 80)))
     const requestedLimits: number[] = []
     const listRuns = (name: string, limit: number) => {
@@ -259,7 +287,7 @@ describe('daily check-in observability', () => {
       return history.filter(row => row.workflowName === name).slice(0, limit)
     }
 
-    const rows = collectWorkflowRuns(listRuns, ['Security'])
+    const rows = await collectWorkflowRuns(listRuns, ['Security'])
 
     expect(requestedLimits).toEqual([10, 100])
     expect(summarizeWorkflowRuns(rows, ['Security'])).toMatchObject([
@@ -267,14 +295,14 @@ describe('daily check-in observability', () => {
     ])
   })
 
-  it('does not pay for a deeper sample when the head page is the whole history', () => {
+  it('does not pay for a deeper sample when the head page is the whole history', async () => {
     const requestedLimits: number[] = []
     const listRuns = (_name: string, limit: number) => {
       requestedLimits.push(limit)
       return [run('Test', 'completed', 'skipped', 11)]
     }
 
-    expect(collectWorkflowRuns(listRuns, ['Test'])).toHaveLength(1)
+    expect(await collectWorkflowRuns(listRuns, ['Test'])).toHaveLength(1)
     expect(requestedLimits).toEqual([10])
   })
 })

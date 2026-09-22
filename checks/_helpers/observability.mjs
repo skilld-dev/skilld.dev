@@ -75,8 +75,14 @@ export function deriveBaselineFlag(sinceIso, nowIso) {
 // `main`, so treating `skipped` as a non-success read a working guard as a
 // broken gate on 2026-08-16. Skipped runs carry no signal, so they are read
 // through rather than counted either way.
+//
+// A `cancelled` conclusion is the same shape: a run cancelled by its
+// concurrency group never started, so it carries no verdict. On 2026-09-21 two
+// cancelled queue-mates in front of the deploy that shipped a1b4db6 read as
+// consecutive failures and the gate archived failure/2 on a healthy deploy.
+// Cancelled runs are read through like skipped.
 function carriesVerdict(run) {
-  return run.status === 'completed' && run.conclusion !== 'skipped'
+  return run.status === 'completed' && run.conclusion !== 'skipped' && run.conclusion !== 'cancelled'
 }
 
 function completedState(runs) {
@@ -139,19 +145,24 @@ export function runListArgs(workflow, limit) {
 
 /**
  * Fetch enough runs per workflow that `summarizeWorkflowRuns` can reach the last
- * verdict. `listRuns(name, limit)` returns that workflow's runs, newest first.
+ * verdict. `listRuns(name, limit)` returns that workflow's runs, newest first,
+ * and may be synchronous or return a promise.
  *
  * The deeper page is only paid for when the head page reached no verdict and was
  * full. A short head page is the workflow's whole history, so a second request
  * would return the same rows.
  */
-export function collectWorkflowRuns(listRuns, workflowNames) {
-  return workflowNames.flatMap((name) => {
-    const head = listRuns(name, WORKFLOW_HEAD_SAMPLE)
-    if (head.some(carriesVerdict) || head.length < WORKFLOW_HEAD_SAMPLE)
-      return head
-    return listRuns(name, WORKFLOW_VERDICT_SAMPLE)
-  })
+export async function collectWorkflowRuns(listRuns, workflowNames) {
+  const rows = []
+  for (const name of workflowNames) {
+    const head = await listRuns(name, WORKFLOW_HEAD_SAMPLE)
+    if (head.some(carriesVerdict) || head.length < WORKFLOW_HEAD_SAMPLE) {
+      rows.push(...head)
+      continue
+    }
+    rows.push(...await listRuns(name, WORKFLOW_VERDICT_SAMPLE))
+  }
+  return rows
 }
 
 // The gate must cover every workflow the repository defines, not a hand-kept
