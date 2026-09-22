@@ -2,7 +2,7 @@
 
 Status: open · 2026-08-12 · last reviewed 2026-08-13, title pivot 2026-08-26
 
-**Next move:** Harlan. The homepage title is the one blocker an agent cannot clear: the head terms want "Claude Skills" in it, `brand-guidelines.md` fixes it as the tagline, and the homepage earns nearly all the traffic. That is a brand call. The two smaller items below are readable work once it lands.
+**Next move:** Harlan. The homepage title is the one blocker an agent cannot clear: the head terms want "Claude Skills" in it, `COPY.md` fixes it as the tagline, and the homepage earns nearly all the traffic. That is a brand call. The two smaller items below are readable work once it lands.
 
 Done means: every indexable surface names its target query, its admission bar and its cull path, and the measurement window in this document has been read against Search Console rather than projected.
 
@@ -89,7 +89,7 @@ four-row delete.
 ## Open
 
 - **Homepage title** is the tagline ("Curated agent skills by humans"), fixed by
-  brand-guidelines.md. The head terms want "Claude Skills" in it, and the
+  COPY.md. The head terms want "Claude Skills" in it, and the
   homepage is where skillsmp.com earns nearly all its traffic. A brand decision,
   not an SEO one.
 - **Codex research** (`task-msq8bfh8-wob26q`, spawned 2026-08-12) never

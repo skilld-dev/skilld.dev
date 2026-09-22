@@ -6,9 +6,8 @@ emails. Nuxt on Cloudflare Workers, D1, and Workers AI.
 ## Read first
 
 - [`VISION.md`](VISION.md) — the product filter: mission, money posture, the two loops, seven principles, anti-scope. Read before any product, scope, design, or marketing decision. When it conflicts with the code, VISION wins.
-- [`DESIGN.md`](DESIGN.md) — the design tokens: colors, type, radius, spacing.
-- `.claude/context/design-guidelines.md` — the visual system in practice: components, spacing, motion. Read with DESIGN.md before UI work.
-- `.claude/context/brand-guidelines.md` — the verbal filter: voice, tone, copy, terminology, positioning. Read before any user-visible string.
+- [`DESIGN.md`](DESIGN.md) — the visual filter: tokens, the three design principles, components, motion, the noise field, and the Avoid list. Read before UI work.
+- [`COPY.md`](COPY.md) — the verbal filter: the canonical strings, the register per context, and the banned language. Read before any user-visible string.
 - [`GLOSSARY.md`](GLOSSARY.md) — every product concept. Read before a user-visible string, a public API name, a doc heading, or a route segment.
 - [`docs/arch/README.md`](docs/arch/README.md) — the layers, the identity rule, the URL canonicals, and the server and app handler shapes.
 - [`docs/work/`](docs/work/README.md) — open briefs, one `EXECUTE-*.md` each, plus the roadmap that sequences them.

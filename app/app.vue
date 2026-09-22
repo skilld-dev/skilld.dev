@@ -116,7 +116,7 @@ watch(() => route.fullPath, () => {
           <SkillSearchTrigger v-if="$route.path !== '/'" />
           <!--
             The flame is a deliberate exception to the "no emoji" rule in
-            design-guidelines.md, asked for so Trending outweighs its siblings.
+            DESIGN.md, asked for so Trending outweighs its siblings.
             It is decorative and hidden from screen readers; the label carries
             the meaning. `gap-1.5` because the button's own layout does not
             space sibling spans, which rendered "🔥Trending" run together.

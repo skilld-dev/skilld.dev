@@ -25,7 +25,7 @@ const skills = computed(() => data.value?.items ?? [])
 const total = computed(() => skills.value.length)
 const ownerCount = computed(() => new Set(skills.value.map(s => s.owner)).size)
 
-// "Best" is a superlative, which brand-guidelines.md bans *without evidence*
+// "Best" is a superlative, which COPY.md bans *without evidence*
 // and permits with it: "If something is genuinely the best at something
 // specific, say why with evidence." The evidence is the admission bar, stated
 // on the page and reconstructible from the data: every skill here passed human

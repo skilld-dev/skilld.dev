@@ -295,7 +295,7 @@ Watch-collection alternate entry: clicking "Watch this collection" on a collecti
 
 ### Brand & context docs
 
-- `.claude/context/brand-guidelines.md`: replace "trusted open-source developers" / "AT Protocol" / curator-as-person framing. Recenter on "curated registry" + "watch for changes." Voice stays editorial, warm.
+- `COPY.md`: replace "trusted open-source developers" / "AT Protocol" / curator-as-person framing. Recenter on "curated registry" + "watch for changes." Voice stays editorial, warm.
 - `GLOSSARY.md` and `docs/arch/README.md` (was `CONTEXT.md`): redefine "curator" as "collection author" (D1-backed via GitHub login). Drop atproto identity rule (lines 18-20). Update URL canonicals table (lines 37-39): `/people/[handle]` becomes `/@<gh-login>`.
 - `SCOPE.md`: rewrite Tech Stack section (drop "AT Protocol for auth and social layer"). Add the two-loop framing as a top-level section. Update Build Phases.
 - `CLAUDE.md`: add the two-loop framing as the first section. Future agents need this mental model before touching anything.

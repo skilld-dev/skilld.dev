@@ -331,7 +331,7 @@ function formatDay(timestamp: number | null): string | null {
  * Quiet emphasis for the head of the board.
  *
  * A leaderboard wants its top entries to read first. Type scale is not
- * available for that here: `design-guidelines.md` reserves large type for page
+ * available for that here: `DESIGN.md` reserves large type for page
  * headings and lists "large font sizes in UI chrome" under Avoid. Contrast is,
  * so the top three ranks step up and nothing moves.
  *
@@ -358,7 +358,7 @@ function rankClass(index: number): string {
     >
       <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <!--
-          The visible label is the heading, per design-guidelines.md, rather
+          The visible label is the heading, per DESIGN.md, rather
           than a label stacked under a screen-reader-only one. The sr-only h2
           here repeated the h1 word for word once the h1 took the category
           noun, and on the all-time range it called a list of repositories

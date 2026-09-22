@@ -99,7 +99,7 @@ This converts the editorial frame from a *taste* argument to a *trust* argument.
 ## 3. The Pivot (and what does not change)
 
 ### What does not change
-- Core thesis. Skills are knowledge, not packages. People-first discovery. Curators as the unit of trust. AT Protocol identity. (`SCOPE.md` and `brand-guidelines.md` already lock this in.)
+- Core thesis. Skills are knowledge, not packages. People-first discovery. Curators as the unit of trust. AT Protocol identity. (`SCOPE.md` and `COPY.md` already lock this in.)
 - Two skill types: package skills (canonical, authored by skilld) and guide skills (community).
 - Architecture: registry, MCP server, CLI. No rewrites.
 
@@ -124,7 +124,7 @@ Saying no here is the strategy. Every word above pulls toward Lane C and dilutes
 
 ## 4. Positioning Lines
 
-Drop-in copy. Voice matches `brand-guidelines.md`: editorial, grounded, no hype, no contrast pattern, no em dashes.
+Drop-in copy. Voice matches `COPY.md`: editorial, grounded, no hype, no contrast pattern, no em dashes.
 
 ### One-liner candidates (ordered by preference)
 1. *Curated agent skills from trusted open-source developers.* (current, keep)

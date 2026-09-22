@@ -14,7 +14,7 @@ import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-v
 //
 // The title said "Claude Skills" to hold the head term the SEO keyword rework researched (docs/work/EXECUTE-seo-keyword-rework.md). That
 // bet drew no impression on any `claude * skills` query in three months, so the
-// title now uses the category noun the body copy and brand-guidelines.md
+// title now uses the category noun the body copy and COPY.md
 // already use. The description still names Claude Code, Cursor, and Codex, so
 // the principle 6 cross-agent claim survives the rename.
 useSeoMeta({
