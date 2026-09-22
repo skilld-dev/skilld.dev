@@ -49,6 +49,131 @@ function proseParagraphs(markdown: string) {
     .filter(block => !block.startsWith('#') && !block.startsWith('|') && !block.startsWith('-') && !block.startsWith('>') && !/^\d+\./.test(block))
 }
 
+function normalizeCopy(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[`*_"'.,:;!?()[\]·—–-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function tableRows(section: string) {
+  return section
+    .split('\n')
+    .filter(line => line.startsWith('|'))
+    .slice(2)
+    .map(row => row.split('|').map(cell => cell.trim()))
+}
+
+function canonicalAssets() {
+  const section = readRootFile('COPY.md').split('## Canonical assets')[1]?.split('\n## ')[0]
+  if (!section)
+    throw new Error('COPY.md has no Canonical assets section')
+  return tableRows(section).map(cells => ({ asset: cells[1]!, value: cells[2]!, placement: cells[3]! }))
+}
+
+function indexSource() {
+  return readFileSync(join(repoRoot, 'app/pages/index.vue'), 'utf8')
+}
+
+function heroH1Text() {
+  const h1 = indexSource().match(/<h1[\s\S]*?<\/h1>/)?.[0]
+  if (!h1)
+    throw new Error('the index page has no hero H1')
+  return h1
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\{\{[\s\S]*?\}\}/g, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function indexOgAltText() {
+  const alt = indexSource().match(/defineOgImage\([\s\S]*?alt:\s*'([^']*)'/)?.[1]
+  if (!alt)
+    throw new Error('the index page defines no OG image alt')
+  return alt
+}
+
+function placementProbes() {
+  return [
+    { match: 'og image alt', text: indexOgAltText() },
+    { match: 'h1', text: heroH1Text() },
+    { match: 'site description', text: readRootFile('nuxt.config.ts') },
+  ]
+}
+
+function walkSurfaces(dir: string, extensions: string[], found: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === '.nuxt')
+      continue
+    const path = join(dir, entry.name)
+    if (entry.isDirectory())
+      walkSurfaces(path, extensions, found)
+    else if (extensions.some(extension => entry.name.endsWith(extension)))
+      found.push(path)
+  }
+  return found
+}
+
+function shippedSurfaceText(file: string) {
+  const source = readFileSync(file, 'utf8')
+  if (file.endsWith('.md')) {
+    return source
+      .replace(/^---\n[\s\S]*?\n---/, ' ')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/`[^`]*`/g, ' ')
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+  }
+  const template = source.match(/<template>[\s\S]*<\/template>/)?.[0] ?? ''
+  return template
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\{\{[\s\S]*?\}\}/g, ' ')
+    .replace(/<(?:"[^"]*"|'[^']*'|[^>])*>/g, (tag) => {
+      const shipped = tag.match(/\b(?:alt|aria-label|title|placeholder|label)="([^"]*)"/)
+      return shipped ? ` ${shipped[1]} ` : ' '
+    })
+}
+
+function shippedSurfaces() {
+  const files = [
+    ...walkSurfaces(join(repoRoot, 'app'), ['.vue']),
+    ...walkSurfaces(join(repoRoot, 'layers'), ['.vue', '.md']),
+  ]
+  return files.map(file => ({ file, text: shippedSurfaceText(file) }))
+}
+
+function bannedLanguageTerms() {
+  const section = readRootFile('COPY.md').split('## Banned language')[1]?.split('\n## ')[0]
+  if (!section)
+    throw new Error('COPY.md has no Banned language section')
+  return tableRows(section)
+    .map(cells => cells[1]!)
+    .filter(Boolean)
+    .flatMap(cell => cell.split(','))
+    .map(term => term.replace(/`/g, '').trim())
+    .filter(Boolean)
+    .map((term) => {
+      const open = term.lastIndexOf('(')
+      return open > 0 && term.endsWith(')')
+        ? { term: term.slice(0, open).trim(), qualifier: term.slice(open + 1, -1).trim() }
+        : { term, qualifier: undefined }
+    })
+}
+
+function recordedExceptions() {
+  return proseParagraphs(readRootFile('COPY.md'))
+    .filter(block => block.startsWith('**Exception'))
+    .join('\n')
+    .toLowerCase()
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 describe('copy contract', () => {
   it('names every live content surface in its scope', () => {
     const terms = scopeTerms()
@@ -82,5 +207,36 @@ describe('copy contract', () => {
         duplicates.push(`"${paragraphs[i - 1]}" / "${paragraphs[i]}"`)
     }
     expect(duplicates, 'adjacent paragraphs that repeat the same opening').toEqual([])
+  })
+
+  it('ships each canonical string at every placement its row names', () => {
+    const probes = placementProbes()
+    const offenders = canonicalAssets().flatMap(({ asset, value, placement }) =>
+      placement.split(',').flatMap((fragment) => {
+        const probe = probes.find(p => normalizeCopy(fragment).includes(p.match))
+        if (!probe)
+          return []
+        if (normalizeCopy(probe.text).includes(normalizeCopy(value)))
+          return []
+        return [`${asset} claims "${fragment}" but "${value}" is not there`]
+      }),
+    )
+    expect(offenders, 'canonical strings missing from a claimed placement').toEqual([])
+  })
+
+  it('ships no banned term without a recorded exception', () => {
+    const exceptions = recordedExceptions()
+    const offenders: string[] = []
+    for (const { term, qualifier } of bannedLanguageTerms()) {
+      // A qualifier scopes the ban to one sense, which a text scan cannot judge.
+      if (qualifier)
+        continue
+      const pattern = new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i')
+      for (const surface of shippedSurfaces()) {
+        if (pattern.test(surface.text) && !exceptions.includes(term.toLowerCase()))
+          offenders.push(`"${term}" ships at ${surface.file} with no exception in COPY.md`)
+      }
+    }
+    expect(offenders, 'banned terms shipped without a recorded exception').toEqual([])
   })
 })

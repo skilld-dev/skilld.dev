@@ -16,7 +16,7 @@ These exact strings. Do not paraphrase them per page.
 | Asset | String | Where it goes |
 | --- | --- | --- |
 | Name | `skilld` lowercase by default, `Skilld` only at a sentence start, `skilld.dev` for the domain. Never SKILLD, Skill'd, Skill-d, SkillD. | everywhere |
-| Tagline | Curated agent skills by humans. | landing H1, OG image alt, the 5-word form |
+| Tagline | Curated agent skills by humans. | index OG image alt, the 5-word form |
 | Site description | Curated agent skills by humans, written by real maintainers in their own GitHub repos | `nuxt.config.ts` site description, which feeds every page's meta description |
 | Elevator pitch | Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes. | about copy, registry listings, anywhere two sentences are the budget |
 
@@ -95,7 +95,7 @@ near-miss is also banned.
 | revolutionary, game-changing, supercharge, unlock, 10x, delightful, seamless, cutting-edge, next-generation, disrupt, empower, leverage (as a verb) | the mechanism, or the number | Startup register. The reader runs CI and can tell |
 | AI-powered, intelligent, smart, magic, automate, autonomous, copilot (as a marketing term) | name what it does | skilld serves developers who use AI agents; it is not itself an AI product. "Agent" and "skill" stay fine as category nouns ("agent skills", "install a skill"); the ban is on "AI" modifying skilld itself |
 | best, fastest, most powerful, ultimate, definitive | the specific claim, with evidence | A superlative without evidence is unfalsifiable. If something genuinely is the best at one thing, say why |
-| vibrant community, ecosystem, passionate developers, beloved by thousands | the number | "6 curators", never "a growing community" |
+| vibrant community, ecosystem (community-size claims), passionate developers, beloved by thousands | the number | "6 curators", never "a growing community". Calling skilld an ecosystem is a category claim, not a size claim; see the exception below |
 | named, naming, named by (in user-facing copy) | talked about, mentioned | Our internal words for the social-attribution route; they read as jargon. "3 devs talked about it", never "3 people named it". The technical sense survives in identifiers, ADRs and code comments, where the precision is the point |
 | people (for our audience) | dev, devs | They are developers, and "people" is a vaguer word doing a smaller job. "Developers" in full is fine where the short form reads clipped |
 | first person in a CTA | the content, then the destination | "We send this every Monday" spends the words on us. "Trending skills to your inbox every Monday" gives the reader both things that matter |
@@ -104,6 +104,12 @@ near-miss is also banned.
 against machine generation, "human" and "person" are the right words and "dev" weakens the
 point. "Curated agent skills by humans" and "person-authored skills" stay as they are. The rule
 above is about naming our audience, not about the provenance claim.
+
+**Exception, the homepage hero.** The 2026-09 homepage pivot made "Taste-tested agent skills
+ecosystem" the landing H1 and the page title. That "ecosystem" names the category skilld
+serves: skills across agents and package managers, written by their maintainers. It is not a
+community-size claim, so the scoped ban above does not cover it. Package and learn pages use
+the word in the same technical sense: npm, PyPI, crates, RubyGems.
 
 ## Open questions
 
