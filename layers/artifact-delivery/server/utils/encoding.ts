@@ -35,3 +35,18 @@ export function base64ToBytes(value: string): Uint8Array {
   const binary = atob(normalized + padding)
   return Uint8Array.from(binary, character => character.charCodeAt(0))
 }
+
+/**
+ * The SHA-1 Git records for a blob, over `blob <length>\0<bytes>`.
+ *
+ * This is the only identity shared by the Git tree, the blobs API and a
+ * Repository tarball, so it is what lets bytes arrive from an untrusted
+ * source and still be checked against what the tree named.
+ */
+export async function gitBlobShaHex(content: Uint8Array): Promise<string> {
+  const header = new TextEncoder().encode(`blob ${content.byteLength}\0`)
+  const value = new Uint8Array(header.byteLength + content.byteLength)
+  value.set(header)
+  value.set(content, header.byteLength)
+  return await digestHex('SHA-1', value)
+}

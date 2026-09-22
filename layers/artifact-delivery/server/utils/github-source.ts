@@ -1,7 +1,9 @@
 import type { ProblemCode, ResolvedSource, SourceRequest } from '../schemas/contracts'
+import type { TarballExtraction } from './tarball-source'
 import { z } from 'zod'
-import { base64ToBytes, digestHex } from './encoding'
+import { base64ToBytes, gitBlobShaHex } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
+import { extractSkillFilesFromTarball } from './tarball-source'
 import { projectedUstarBytes } from './ustar'
 
 const GITHUB_API = 'https://api.github.com'
@@ -18,6 +20,27 @@ const MAX_ARTIFACT_FILES = 900
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
 const GITHUB_REQUEST_TIMEOUT_MS = 15_000
+// A Repository tarball is one request that costs no REST quota, and it carries
+// every file of the Skill. Measured 2026-09-22 on a 33-Skill Repository: 3
+// counted requests and 0.45 s, against 6,525 requests and about 377 s per
+// blob. See notes/skilld-tarball-delivery-spike-2026-09-22.
+const TARBALL_REQUEST_TIMEOUT_MS = 60_000
+/**
+ * The largest Git tree the tarball path will read for, in source bytes.
+ *
+ * The extracted files stay in the isolate until the Artifact is packaged, and
+ * a Worker has 128 MiB. `MAX_ARTIFACT_BYTES` binds first for every Skill built
+ * today; this ceiling states the memory budget the byte source itself has to
+ * respect.
+ */
+export const TARBALL_MAX_TREE_BYTES = 128 * 1024 * 1024
+/**
+ * The archive is the whole Repository, whose size no cheap request reveals:
+ * codeload sends no `content-length` until that exact commit is cached, so the
+ * only reliable guard is a running count with a hard stop. Measured: the stop
+ * cancelled a 1.5 GiB archive after 64 MiB, 2.9 s and 390 ms of CPU.
+ */
+export const TARBALL_MAX_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 
 const shaSchema = z.string().regex(/^[a-f0-9]{40}$/)
 const repositoryResponseSchema = z.object({
@@ -63,6 +86,12 @@ const blobResponseSchema = z.object({
 })
 
 type TreeEntry = z.infer<typeof treeEntrySchema>
+
+interface ListedTree {
+  _tag: 'listed'
+  entries: TreeEntry[]
+  truncated: boolean
+}
 
 export interface ArtifactSourceFile {
   path: string
@@ -203,14 +232,14 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     owner: string,
     repository: string,
     rootTreeSha: string,
-  ): Promise<TreeEntry[] | SourceRejection> => {
+  ): Promise<ListedTree | SourceRejection> => {
     const recursive = await getTree(owner, repository, rootTreeSha, true)
     if (recursive._tag !== 'ok')
       return readRejection(recursive._tag)
     if (!recursive.value.truncated) {
       if (recursive.value.tree.length > MAX_TREE_ENTRIES)
         return sourceLimitRejection(`The Skill has more than ${MAX_TREE_ENTRIES} source entries.`)
-      return recursive.value.tree
+      return { _tag: 'listed', entries: recursive.value.tree, truncated: false }
     }
 
     const entries: TreeEntry[] = []
@@ -235,7 +264,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
           queue.push({ sha: entry.sha, prefix: path })
       }
     }
-    return entries
+    return { _tag: 'listed', entries, truncated: true }
   }
 
   const findTreeAtPath = async (
@@ -268,9 +297,9 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     name: string,
   ): Promise<string | SourceRejection> => {
     const tree = await listTreeBounded(owner, repository, treeSha)
-    if (!Array.isArray(tree))
+    if (tree._tag !== 'listed')
       return tree
-    const matches = tree
+    const matches = tree.entries
       .filter(entry => entry.type === 'blob' && (entry.path === 'SKILL.md' || entry.path.endsWith('/SKILL.md')))
       .map(entry => entry.path === 'SKILL.md' ? '.' : entry.path.slice(0, -'/SKILL.md'.length))
       .filter(path => (path === '.' ? repository : path.split('/').at(-1)) === name)
@@ -382,44 +411,146 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       if (typeof skillTree !== 'string')
         return skillTree
       const listed = await listTreeBounded(source.owner, source.repository, skillTree)
-      if (!Array.isArray(listed))
+      if (listed._tag !== 'listed')
         return listed
-      const selected = selectArtifactEntries(listed)
+      const selected = selectArtifactEntries(listed.entries)
       if (selected._tag === 'rejected')
         return selected
 
-      const files: ArtifactSourceFile[] = []
-      for (let offset = 0; offset < selected.entries.length; offset += 8) {
-        const batch = selected.entries.slice(offset, offset + 8)
-        const loaded = await Promise.all(batch.map(async (entry): Promise<ArtifactSourceFile | SourceRejection> => {
-          const response = await requestJson(
-            `/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/git/blobs/${entry.sha}`,
-            blobResponseSchema,
-          )
-          if (response._tag !== 'ok')
-            return readRejection(response._tag)
-          const content = base64ToBytes(response.value.content.replaceAll('\n', ''))
-          if (response.value.sha !== entry.sha || response.value.size !== content.byteLength || entry.size !== content.byteLength) {
-            return reject('INVALID_SOURCE', 'A Git blob changed during Artifact creation.', [entry.path])
-          }
-          const gitSha = await gitBlobSha(content)
-          if (gitSha !== entry.sha)
-            return reject('INVALID_SOURCE', 'A Git blob failed its Git digest check.', [entry.path])
-          return {
-            path: entry.path,
-            mode: entry.mode === '100755' ? 493 : 420,
-            bytes: content,
-            gitBlobSha: entry.sha,
-          }
-        }))
-        const rejected = loaded.find(isSourceRejection)
-        if (rejected)
-          return rejected
-        files.push(...loaded.filter((item): item is ArtifactSourceFile => !isSourceRejection(item)))
+      const choice = chooseArtifactByteSource({
+        treeTruncated: listed.truncated,
+        totalBlobBytes: selected.entries.reduce((total, entry) => total + entry.size, 0),
+      })
+      if (choice._tag === 'tarball') {
+        const extracted = await loadFromTarball(source, selected.entries)
+        if (extracted._tag === 'extracted')
+          return { _tag: 'loaded', value: { source, files: extracted.files } }
+        // The tarball is an optimisation, never an authority. Anything it got
+        // wrong, including a file `.gitattributes export-ignore` removed from
+        // the archive, falls through to the blobs API, which serves every blob
+        // the tree names whatever the Repository's export attributes say.
+        console.warn('Artifact tarball source unusable, reading blobs', {
+          owner: source.owner,
+          repository: source.repository,
+          commitSha: source.commitSha,
+          skillPath: source.skillPath,
+          reason: extracted.reason,
+          findings: extracted.findings.slice(0, 20),
+        })
       }
-      return { _tag: 'loaded', value: { source, files } }
+      return await loadFromBlobs(source, selected.entries)
     },
   }
+
+  async function loadFromTarball(
+    source: ResolvedSource,
+    entries: Array<TreeEntry & { size: number }>,
+  ): Promise<TarballExtraction> {
+    const headers = new Headers({
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'skilld.dev',
+      'X-GitHub-Api-Version': GITHUB_API_VERSION,
+    })
+    if (options.token)
+      headers.set('Authorization', `Bearer ${options.token}`)
+    // This request redirects to codeload, so unlike every JSON read it follows
+    // redirects. The bytes it returns are verified against the tree digests,
+    // which is what makes an unauthenticated byte host acceptable.
+    const response = await options.fetch(
+      `${GITHUB_API}/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/tarball/${source.commitSha}`,
+      { headers, redirect: 'follow', signal: AbortSignal.timeout(TARBALL_REQUEST_TIMEOUT_MS) },
+    ).catch((thrown: unknown) => {
+      // A refused connection or the request timeout lands here. The build has
+      // a complete second source, so it reports the reason and reads blobs.
+      return { _tag: 'threw' as const, message: String(thrown) }
+    })
+    if ('_tag' in response)
+      return { _tag: 'unusable', reason: 'unavailable', findings: [response.message] }
+    if (!response.ok || !response.body) {
+      await response.body?.cancel()
+      return { _tag: 'unusable', reason: 'unavailable', findings: [`GitHub returned ${response.status}`] }
+    }
+    return await extractSkillFilesFromTarball({
+      body: response.body,
+      skillPath: source.skillPath,
+      entries: entries.map(entry => ({
+        path: entry.path,
+        gitBlobSha: entry.sha,
+        size: entry.size,
+        mode: artifactFileMode(entry.mode),
+      })),
+      maxUncompressedBytes: TARBALL_MAX_UNCOMPRESSED_BYTES,
+    })
+  }
+
+  async function loadFromBlobs(
+    source: ResolvedSource,
+    entries: Array<TreeEntry & { size: number }>,
+  ): Promise<LoadSourceResult> {
+    const files: ArtifactSourceFile[] = []
+    for (let offset = 0; offset < entries.length; offset += 8) {
+      const batch = entries.slice(offset, offset + 8)
+      const loaded = await Promise.all(batch.map(async (entry): Promise<ArtifactSourceFile | SourceRejection> => {
+        const response = await requestJson(
+          `/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/git/blobs/${entry.sha}`,
+          blobResponseSchema,
+        )
+        if (response._tag !== 'ok')
+          return readRejection(response._tag)
+        const content = base64ToBytes(response.value.content.replaceAll('\n', ''))
+        if (response.value.sha !== entry.sha || response.value.size !== content.byteLength || entry.size !== content.byteLength) {
+          return reject('INVALID_SOURCE', 'A Git blob changed during Artifact creation.', [entry.path])
+        }
+        const gitSha = await gitBlobShaHex(content)
+        if (gitSha !== entry.sha)
+          return reject('INVALID_SOURCE', 'A Git blob failed its Git digest check.', [entry.path])
+        return {
+          path: entry.path,
+          mode: artifactFileMode(entry.mode),
+          bytes: content,
+          gitBlobSha: entry.sha,
+        }
+      }))
+      const rejected = loaded.find(isSourceRejection)
+      if (rejected)
+        return rejected
+      files.push(...loaded.filter((item): item is ArtifactSourceFile => !isSourceRejection(item)))
+    }
+    return { _tag: 'loaded', value: { source, files } }
+  }
+}
+
+export type ArtifactByteSource
+  = { _tag: 'tarball' }
+    | { _tag: 'per-blob', reason: 'tree-truncated' | 'tree-too-large' }
+
+/**
+ * Chooses the byte source from the one tree read the build already makes.
+ *
+ * A truncated tree means the Repository is large enough that GitHub would not
+ * list it in one response, which is the same Repository whose archive is
+ * expensive to stream. Nothing here reads `content-length`: codeload omits it
+ * whenever the archive is generated cold, so it cannot gate anything.
+ */
+export function chooseArtifactByteSource(input: {
+  treeTruncated: boolean
+  totalBlobBytes: number
+}): ArtifactByteSource {
+  if (input.treeTruncated)
+    return { _tag: 'per-blob', reason: 'tree-truncated' }
+  if (input.totalBlobBytes > TARBALL_MAX_TREE_BYTES)
+    return { _tag: 'per-blob', reason: 'tree-too-large' }
+  return { _tag: 'tarball' }
+}
+
+/**
+ * The Artifact file mode, read from the Git tree entry.
+ *
+ * A GitHub tarball widens every mode to 0664 or 0775, so the tree is the only
+ * place the executable bit survives.
+ */
+function artifactFileMode(treeMode: string): 420 | 493 {
+  return treeMode === '100755' ? 493 : 420
 }
 
 function normalizeRequestedSkillPath(input: string): string | null {
@@ -504,14 +635,6 @@ function hasControlCharacter(value: string): boolean {
 
 function comparePath(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
-}
-
-async function gitBlobSha(content: Uint8Array): Promise<string> {
-  const header = new TextEncoder().encode(`blob ${content.byteLength}\0`)
-  const value = new Uint8Array(header.byteLength + content.byteLength)
-  value.set(header)
-  value.set(content, header.byteLength)
-  return await digestHex('SHA-1', value)
 }
 
 async function readBoundedJson(response: Response, maximumBytes: number): Promise<unknown> {
