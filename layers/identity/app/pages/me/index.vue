@@ -4,6 +4,7 @@ import type {
   IdentityAccountDeleteResponse,
   IdentityEmailPatchBody,
   IdentityMutationResponse,
+  IdentityPrivacyPatchBody,
   IdentitySubscriptionRef,
 } from '../../../shared/contracts/account'
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
@@ -61,6 +62,21 @@ const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutati
   },
   onError: actionFailed('save your email settings'),
 })
+
+const savePrivacyMutation = useNuxtMutation<IdentityPrivacyPatchBody, IdentityMutationResponse>({
+  mutation: async (body) => {
+    const result = await rpc.execute(identityAccountQueries.savePrivacy(), body)
+    await refreshAccount()
+    return result
+  },
+  onError: actionFailed('save your privacy settings'),
+})
+async function setLikesPublic(likesPublic: boolean) {
+  await savePrivacyMutation.mutateSafe({ likes_public: likesPublic })
+}
+async function setRepoIndexing(repoIndexing: boolean) {
+  await savePrivacyMutation.mutateSafe({ repo_indexing: repoIndexing })
+}
 
 const removeLikeMutation = useNuxtMutation<LikedSkill, { ok: true }>({
   mutation: async (skill) => {
@@ -444,6 +460,44 @@ async function deleteAccount() {
                 />
               </div>
             </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="privacy-heading">
+          <h2 id="privacy-heading" class="text-lg font-semibold">
+            Privacy
+          </h2>
+          <div class="mt-5 border-y border-default py-4">
+            <USwitch
+              :model-value="!!me?.likes_public"
+              :loading="savePrivacyMutation.pending.value"
+              :disabled="!me || savePrivacyMutation.pending.value"
+              label="Show liked Skills on your profile"
+              :description="me?.likes_public
+                ? 'Anyone can see your liked Skills.'
+                : 'Only you can see your liked Skills.'"
+              @update:model-value="setLikesPublic"
+            />
+            <UButton
+              :to="`/@${me?.login}/liked`"
+              class="mt-3 min-h-11"
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-heart"
+              label="View liked Skills page"
+            />
+          </div>
+          <div class="border-b border-default py-4">
+            <USwitch
+              :model-value="!!me?.repo_indexing"
+              :loading="savePrivacyMutation.pending.value"
+              :disabled="!me || savePrivacyMutation.pending.value"
+              label="Add Skills from your public repositories"
+              :description="me?.repo_indexing
+                ? 'skilld checks your public repositories for SKILL.md files and gives each Skill a public page.'
+                : 'skilld does not check your repositories. Skills already added stay.'"
+              @update:model-value="setRepoIndexing"
+            />
           </div>
         </section>
 

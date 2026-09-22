@@ -124,7 +124,9 @@ describe('me email patch endpoint', () => {
         stars_synced_at INTEGER,
         onboarded_at INTEGER,
         created_at INTEGER NOT NULL,
-        last_login_at INTEGER NOT NULL
+        last_login_at INTEGER NOT NULL,
+        likes_public INTEGER NOT NULL DEFAULT 1,
+        repo_indexing INTEGER NOT NULL DEFAULT 1
       );
       INSERT INTO users (
         id, github_id, login, digest_email, email_opt_in, onboarded_at,

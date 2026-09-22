@@ -42,7 +42,9 @@ describe('cli OAuth token endpoint', () => {
         timezone TEXT NOT NULL DEFAULT 'UTC',
         onboarded_at INTEGER,
         created_at INTEGER NOT NULL,
-        last_login_at INTEGER NOT NULL
+        last_login_at INTEGER NOT NULL,
+        likes_public INTEGER NOT NULL DEFAULT 1,
+        repo_indexing INTEGER NOT NULL DEFAULT 1
       );
       CREATE TABLE cli_auth_codes (
         code TEXT PRIMARY KEY,

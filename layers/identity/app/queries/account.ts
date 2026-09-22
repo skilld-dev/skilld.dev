@@ -7,6 +7,8 @@ import {
   identityEmailPatchBodySchema,
   identityMeSchema,
   identityMutationResponseSchema,
+  identityOwnedRepoScanResponseSchema,
+  identityPrivacyPatchBodySchema,
   identitySubscriptionsSchema,
 } from '../../shared/contracts/account'
 
@@ -30,6 +32,18 @@ export const identityAccountQueries = defineNuxtQueryGroup('identity:account', {
     method: 'PATCH',
     path: '/api/me/email',
     response: identityMutationResponseSchema,
+  }),
+  savePrivacy: () => defineNuxtRpcMutation({
+    body: identityPrivacyPatchBodySchema,
+    method: 'PATCH',
+    path: '/api/me/privacy',
+    response: identityMutationResponseSchema,
+  }),
+  scanOwnedRepos: () => defineNuxtRpcMutation({
+    body: null,
+    method: 'POST',
+    path: '/api/me/repos/scan',
+    response: identityOwnedRepoScanResponseSchema,
   }),
   finishOnboarding: () => defineNuxtRpcMutation({
     body: null,

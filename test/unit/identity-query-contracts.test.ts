@@ -49,6 +49,8 @@ describe('identity account query contracts', () => {
       timezone: 'Australia/Melbourne',
       stars_synced_at: null,
       onboarded_at: null,
+      likes_public: false,
+      repo_indexing: true,
     })).toMatchObject({ login: 'harlan-zw', email_opt_in: false })
 
     expect(identitySubscriptionsSchema.parse({

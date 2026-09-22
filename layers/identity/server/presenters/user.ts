@@ -66,5 +66,7 @@ export function mePresenter(u: UserRow) {
     timezone: u.timezone,
     stars_synced_at: u.stars_synced_at,
     onboarded_at: u.onboarded_at,
+    likes_public: !!u.likes_public,
+    repo_indexing: !!u.repo_indexing,
   }
 }

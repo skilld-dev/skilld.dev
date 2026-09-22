@@ -60,17 +60,18 @@ export default defineOAuthGitHubEventHandler({
       scopes,
     })
 
-    // First-time signup: kick off a background scan of the user's public repos
-    // for SKILL.md files via GitHub code search, indexing each into `skills`.
-    if (!row.onboarded_at && accessToken) {
+    // First sign-in: scan the account's public repositories for SKILL.md and
+    // index what it finds. This is how the registry grows, and the files are
+    // already public on GitHub. `repo_indexing` is on by default, and /me
+    // turns it off; an account that turned it off is never scanned again.
+    if (!row.onboarded_at && accessToken && row.repo_indexing) {
       const scanPromise = scanOwnedRepos({
         login: row.login,
         userToken: accessToken,
         db: platform.db,
         env: platform.env,
       }).then((result) => {
-        const warning = ownedRepoScanWarning(result)
-        if (warning)
+        if (ownedRepoScanWarning(result))
           emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'incomplete' }))
       }).catch(() => {
         emitOperationalEvent(createWideEvent({ operation: 'oauth-owned-repo-scan', outcome: 'failed' }))

@@ -61,6 +61,13 @@ const { data: profile } = await useFetch<OrgProfile>(
   { key: () => `community-profile-${login.value}` },
 )
 
+// 404 when the list is private and the viewer is not its owner, so the link
+// stays hidden. That 404 is the expected answer; the page needs no error UI.
+const { data: likedList } = await useFetch<{ access: 'public' | 'owner' }>(
+  () => `/api/likes/by-user/${login.value}/visibility`,
+  { key: () => `liked-visibility-${login.value}` },
+)
+
 const displayName = computed(() => profile.value?.displayName || `@${login.value}`)
 const profileDescription = computed(() => profile.value?.description ?? '')
 const avatar = computed(() => profile.value?.avatar || `https://github.com/${login.value}.png?size=192`)
@@ -254,6 +261,16 @@ defineOgImage('Curator.takumi', {
             @click="scanRepos"
           />
           <UButton
+            v-if="likedList?.access"
+            :to="`/@${login}/liked`"
+            label="Liked"
+            icon="i-lucide-heart"
+            size="sm"
+            color="neutral"
+            variant="outline"
+            class="min-h-11"
+          />
+          <UButton
             :to="githubUrl"
             target="_blank"
             rel="noopener"
@@ -281,6 +298,13 @@ defineOgImage('Curator.takumi', {
         </div>
       </div>
 
+      <p
+        v-if="likedList?.access === 'owner'"
+        class="mt-4 flex items-center gap-2 text-xs text-muted md:justify-end"
+      >
+        <UIcon name="i-lucide-lock" class="size-3.5 shrink-0" aria-hidden="true" />
+        Only you can see your liked Skills.
+      </p>
       <p
         v-if="scanResult"
         class="mt-4 text-sm text-muted"

@@ -1,5 +1,6 @@
 import { defineApiHandler } from '#shared/server/handler'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
+import { lookupLikedList } from '../../../utils/liked-list-access'
 
 interface PublicLikeRow {
   owner: string
@@ -14,22 +15,26 @@ interface PublicLikeRow {
 }
 
 /**
- * Public list behind /@<login>/liked. Only skills still present in the registry
- * are returned — an INNER JOIN, unlike the owner's own list, because a visitor
+ * The list behind /@<login>/liked. Only Skills still present in the registry
+ * are returned: an INNER JOIN, unlike the owner's own list, because a visitor
  * has no use for a row that no longer resolves to a page.
+ *
+ * The list is private by default. It returns 404 unless its owner turned it
+ * on or the viewer is the owner.
  */
 export default defineApiHandler({
-  handler: async ({ event, platform }) => {
+  handler: async ({ event, platform, user: viewer }) => {
     const login = getRouterParam(event, 'login')
     if (!login)
       throw createError({ statusCode: 400, message: 'Missing login' })
 
-    const user = await platform.db.prepare(
-      `SELECT id, login, name, avatar FROM users WHERE login = ?1 COLLATE NOCASE`,
-    ).bind(login).first<{ id: number, login: string, name: string | null, avatar: string | null }>()
+    // The answer depends on the viewer, so no shared cache may keep it.
+    setHeader(event, 'cache-control', 'private, no-store')
 
-    if (!user)
+    const lookup = await lookupLikedList(platform.db, login, viewer?.id ?? null)
+    if (lookup._tag === 'not_found')
       throw createError({ statusCode: 404, message: 'Not found' })
+    const { owner: user, access } = lookup
 
     const { results } = await platform.db.prepare(
       `SELECT
@@ -54,6 +59,7 @@ export default defineApiHandler({
     ).bind(user.id).all<PublicLikeRow>()
 
     return {
+      access,
       author: { login: user.login, name: user.name, avatar: user.avatar },
       items: (results ?? []).map(skill => ({
         ...skill,
