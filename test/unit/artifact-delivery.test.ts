@@ -40,6 +40,7 @@ const ARTIFACT_MIGRATIONS = [
   'migrations/0110_artifact_delivery.sql',
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
+  'migrations/0122_artifact_resolution_retry_after.sql',
 ]
 const sourceRequest: SourceRequest = {
   provider: 'github',
@@ -209,6 +210,64 @@ describe('public Artifact delivery', () => {
     })
     expect(harness.put).not.toHaveBeenCalled()
     expect(harness.sign).not.toHaveBeenCalled()
+    harness.close()
+  })
+
+  it('fails a spent GitHub quota at once, with the reset time and retryable set', async () => {
+    const harness = await createBuildHarness(validFiles, false, resolvedSource.repositoryId, {
+      resolve: vi.fn(async () => ({
+        _tag: 'rejected' as const,
+        code: 'RATE_LIMITED' as const,
+        summary: 'GitHub refused the read: its rate limit is spent.',
+        findings: [],
+        retryAfterSeconds: 1_790_070_000,
+      })),
+      load: vi.fn(),
+    } as unknown as PublicGithubSourceClient)
+
+    const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
+
+    expect(result).toEqual({ _tag: 'failed', resolutionId: harness.resolutionId })
+    expect(harness.raw.prepare(
+      `SELECT state, error_code, error_retryable, error_retry_after
+       FROM artifact_resolutions WHERE id = ?`,
+    ).get(harness.resolutionId)).toEqual({
+      state: 'failed',
+      error_code: 'RATE_LIMITED',
+      error_retryable: 1,
+      error_retry_after: 1_790_070_000,
+    })
+    const failed = presentResolution((await getResolution(harness.dependencies.db, harness.resolutionId))!)
+    expect(failed).toEqual({
+      state: 'failed',
+      resolutionId: harness.resolutionId,
+      code: 'RATE_LIMITED',
+      retryable: true,
+    })
+    harness.close()
+  })
+
+  it('keeps a Repository verdict non-retryable', async () => {
+    const harness = await createBuildHarness(validFiles, false, resolvedSource.repositoryId, {
+      resolve: vi.fn(async () => ({
+        _tag: 'rejected' as const,
+        code: 'SOURCE_NOT_FOUND' as const,
+        summary: 'The Repository was not found.',
+        findings: [],
+      })),
+      load: vi.fn(),
+    } as unknown as PublicGithubSourceClient)
+
+    await processArtifactBuild(harness.dependencies, harness.resolutionId)
+
+    expect(harness.raw.prepare(
+      `SELECT error_code, error_retryable, error_retry_after
+       FROM artifact_resolutions WHERE id = ?`,
+    ).get(harness.resolutionId)).toEqual({
+      error_code: 'SOURCE_NOT_FOUND',
+      error_retryable: 0,
+      error_retry_after: null,
+    })
     harness.close()
   })
 

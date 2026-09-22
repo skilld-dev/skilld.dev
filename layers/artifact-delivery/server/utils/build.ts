@@ -24,6 +24,7 @@ import {
 } from './attestation'
 import { checkArtifactSource, checksBlockArtifact } from './checks'
 import { digestHex } from './encoding'
+import { isRetryableProblem } from './github-source'
 import {
   getResolution,
   parseCheckResults,
@@ -338,7 +339,13 @@ async function failWithRejection(
   row: NonNullable<Awaited<ReturnType<typeof getResolution>>>,
   rejection: SourceRejection,
 ): Promise<ArtifactBuildOutcome> {
-  return await failResolution(dependencies, row, rejection.code, false)
+  return await failResolution(
+    dependencies,
+    row,
+    rejection.code,
+    isRetryableProblem(rejection.code),
+    rejection.retryAfterSeconds,
+  )
 }
 
 export async function failResolution(
@@ -346,12 +353,14 @@ export async function failResolution(
   row: NonNullable<Awaited<ReturnType<typeof getResolution>>>,
   code: ProblemCode,
   retryable: boolean,
+  retryAfterSeconds?: number,
 ): Promise<ArtifactBuildOutcome> {
   if (row.state === 'ready' || row.state === 'blocked' || row.state === 'failed' || row.state === 'revoked')
     return { _tag: row.state === 'revoked' ? 'unchanged' : row.state, resolutionId: row.id }
   const advanced = await transitionResolution(dependencies.db, row, 'failed', {
     errorCode: code,
     errorRetryable: retryable,
+    ...(retryAfterSeconds === undefined ? {} : { errorRetryAfter: retryAfterSeconds }),
   }, dependencies.now())
   return advanced._tag === 'superseded'
     ? { _tag: 'superseded', resolutionId: row.id }
