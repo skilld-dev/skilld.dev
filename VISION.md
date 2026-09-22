@@ -1,6 +1,6 @@
 ---
-scope: skilld.dev (registry site, skilld CLI, discovery MCP server (planned, see ROADMAP.md), digest emails)
-distilled-from: two-loop product model (AGENTS.md), brand-guidelines.md + design-guidelines.md, ADR-0001 (URL pillars) + ADR-0002 (frozen identity) + ADR-0004 (self-sourced trending signal) + ADR-0005 (v3 product boundary), 2026-06 catalog hard-retire to indexable-only (~2.1k) + semantic search, 2026-06-16 deindex remediation (scaled-content suppression, 0.6% indexed), 2026-07-15 design engineer beachhead, Context7/skills.sh differentiation, 2026-08-04 posture decisions (free strategic asset; destination = curation authority + watch moat; beachhead framing), 2026-08-04 grill vs code audit + landscape research (installs never rank or trust; stars as the verifiable popularity signal; leaderboard kept as reviewed showcase; review-not-audit safety claim; watch asset broadened beyond the email; SEO carve-out for agent-name queries; `skilld author` as maintainer authoring aid; guides layer culled), 2026-08-20 v3 direction (Rust skilld CLI, skilld-maintained Skills, Harness, attested Artifact delivery)
+scope: skilld.dev (registry site, skilld CLI, discovery MCP server (planned, see docs/work/README.md), digest emails)
+distilled-from: two-loop product model (AGENTS.md), COPY.md + DESIGN.md, ADR-0001 (URL pillars) + ADR-0002 (frozen identity) + ADR-0004 (self-sourced trending signal) + ADR-0005 (v3 product boundary), 2026-06 catalog hard-retire to indexable-only (~2.1k) + semantic search, 2026-06-16 deindex remediation (scaled-content suppression, 0.6% indexed), 2026-07-15 design engineer beachhead, Context7/skills.sh differentiation, 2026-08-04 posture decisions (free strategic asset; destination = curation authority + watch moat; beachhead framing), 2026-08-04 grill vs code audit + landscape research (installs never rank or trust; stars as the verifiable popularity signal; leaderboard kept as reviewed showcase; review-not-audit safety claim; watch asset broadened beyond the email; SEO carve-out for agent-name queries; `skilld author` as maintainer authoring aid; guides layer culled), 2026-08-20 v3 direction (Rust skilld CLI, skilld-maintained Skills, Harness, attested Artifact delivery)
 last-reviewed: 2026-08-20
 hard-cap: 7 principles, ~280 lines. Adding a principle requires removing one.
 ---
@@ -121,7 +121,7 @@ Loop 1 admits no gate, and the first command costs the user nothing. Anonymous v
 
 Loop 2 lives or dies on one email being worth opening. A digest says what changed and why it matters: the diff that affects usage, not commit noise. The revision and diff pipeline behind it is the deep asset; digest quality is the proof that watching skilld beats watching GitHub notifications.
 
-**How to apply:** digest content is curated by the same bar as the site: material changes summarized, noise dropped, silence when nothing meaningful happened. An empty week sends nothing. Frequency is the user's (weekly default, daily, off), never ours to escalate. The bet is instrumented, not assumed: digest opens, clicks, and forwards are the evidence that decides further Loop 2 investment (bar lives in ROADMAP.md).
+**How to apply:** digest content is curated by the same bar as the site: material changes summarized, noise dropped, silence when nothing meaningful happened. An empty week sends nothing. Frequency is the user's (weekly default, daily, off), never ours to escalate. The bet is instrumented, not assumed: digest opens, clicks, and forwards are the evidence that decides further Loop 2 investment (bar lives in docs/work/README.md).
 
 **Test:** would a developer forward this digest to a teammate? Does it link back to a page that shows the change? A digest that exists to remind users we exist fails.
 
@@ -143,7 +143,7 @@ Skills install as plain files in the user's repository. They work offline, survi
 
 ### 7. Quiet craft
 
-The interface recedes; the content speaks. Warm stone, rare rose, mono chrome, borders not shadows, the noise field in exactly three contexts. The voice is editorial: confident, warm, grounded, no hype words, every claim concrete. Craft is scope, not afterthought; a feature that works but reads loud or generic is not done. Full systems live in design-guidelines.md and brand-guidelines.md; this principle makes them vetoes.
+The interface recedes; the content speaks. Warm stone, rare rose, mono chrome, borders not shadows, the noise field in exactly three contexts. The voice is editorial: confident, warm, grounded, no hype words, every claim concrete. Craft is scope, not afterthought; a feature that works but reads loud or generic is not done. Full systems live in DESIGN.md and COPY.md; this principle makes them vetoes.
 
 **How to apply:** polish PRs are first-class. New surfaces ship with empty states, motion within the 400ms budget, and copy that passes the banned-language list. The noise field never escapes its three contexts.
 

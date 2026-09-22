@@ -1,15 +1,25 @@
----
-derived-from: VISION.md + 2026-08-04 grill (code audit vs vision, competitive landscape research)
-supersedes: SCOPE.md (deleted; build phases 1-4 shipped by 2026-05-15, IA snapshot below)
-rule: every item traces to a loop edge and a VISION principle; every generated-content surface names its admission bar and cull path
-last-reviewed: 2026-08-04
----
+# Open work
 
-# Roadmap
+One brief per initiative, named `EXECUTE-<topic>.md`. The name never changes, so a link to a
+brief survives the whole life of the work. Presence in this folder means the work is open; move
+a brief to `shipped/` only when its `Done means:` line is verified end to end.
+
+Every open brief carries, in this order: an H1 title; `Status:` with the date and the branch or
+pull request; `**Next move:**` starting with `Harlan`, `Blocked`, or `Ready`; `Done means:` in
+one checkable sentence; `## Ledger` as a checkbox list; `## Log` for dated entries. Append
+progress to the `## Log`. Never open a separate progress file.
+
+- [EXECUTE-github-pivot.md](EXECUTE-github-pivot.md): Phase 4 cleanup and the mail deploy prerequisites.
+- [EXECUTE-seo-keyword-rework.md](EXECUTE-seo-keyword-rework.md): the keyword-led rework of categories, collections and editorial pages.
+- [EXECUTE-homepage-rebuild.md](EXECUTE-homepage-rebuild.md): the cluster grid, and the classifier that has to become a job.
+
+The roadmap below sequences them.
+
+## Roadmap
 
 Four horizons, worked in order. "Now" ships before "Next" starts in earnest.
 
-## Now — Transient by default
+### Now: Transient by default
 
 A Skill is knowledge, not a dependency. Running one costs nothing, so running is the default and installing is the opt-in. VISION principle 3 changed with it: zero friction before *use*, not before install.
 
@@ -22,7 +32,7 @@ A Skill is knowledge, not a dependency. Running one costs nothing, so running is
 
 **Done when:** a first-time visitor copies one command, gets the Skill in their Agent, and has written nothing to disk; and every command the site prints works against npm `latest`.
 
-## Next — Integrity sprint
+### Next: Integrity sprint
 
 Make the shipped product match VISION before pushing growth. SEO recovery is pending recrawl and the trust story requires honest surfaces first. Each item lands with its own proof (test, screenshot, or typecheck).
 
@@ -36,7 +46,7 @@ Make the shipped product match VISION before pushing growth. SEO recovery is pen
 
 **Done when:** no surface contradicts a VISION principle without a dated exception, and GSC shows the guides cull and ranking swap did not regress indexed skill/repo pages.
 
-## Later — Curation authority
+### Later: Curation authority
 
 The beachhead push (VISION north-star user). Curation is the claim; this horizon makes it visible.
 
@@ -48,7 +58,7 @@ The beachhead push (VISION north-star user). Curation is the claim; this horizon
 
 **Done when:** a first-time visitor can tell within one viewport why this registry is curated and by whom.
 
-## Beyond — Agent-native access + watch evidence
+### Beyond: Agent-native access + watch evidence
 
 - **Discovery MCP server** at `/api/mcp`: search, skill/collection lookup, install-command handoff. Small surface on Workers next to the registry. Earns MCP-registry listings as a Loop 1 channel. Explicitly not an execution layer (principle 5).
 - **Digest instrumentation.** Opens, clicks, forwards, unsubscribe rates; watch-funnel conversion (visitor → sign-in → watching → digest received). This is the evidence bar VISION principle 4 points at.
@@ -56,10 +66,10 @@ The beachhead push (VISION north-star user). Curation is the claim; this horizon
 
 ## Culled and rejected (dated)
 
-- **2026-08-04 — npm-guides layer** (`/guides/npm/*`): deleted. Post-deindex risk outweighs the pSEO play.
-- **2026-08-04 — package skills as a platform-authored line**: dead. `skilld author` survives as a maintainer authoring aid only.
-- **2026-08-04 — installs metric entirely**: unverifiable third-party telemetry scraped from skills.sh; ranking, trust input, and display all pivot to GitHub stars (synced, verifiable, free).
-- **2026-05-15 — atproto identity, curators/follows tables, legacy collections**: removed (SCOPE phases 1–4).
+- **2026-08-04, npm-guides layer** (`/guides/npm/*`): deleted. Post-deindex risk outweighs the pSEO play.
+- **2026-08-04, package skills as a platform-authored line**: dead. `skilld author` survives as a maintainer authoring aid only.
+- **2026-08-04, the installs metric entirely**: unverifiable third-party telemetry scraped from skills.sh; ranking, trust input, and display all pivot to GitHub stars (synced, verifiable, free).
+- **2026-05-15, atproto identity, curators/follows tables, legacy collections**: removed (SCOPE phases 1–4).
 
 ## IA snapshot (from SCOPE.md, still true)
 

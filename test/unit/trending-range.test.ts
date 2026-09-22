@@ -244,7 +244,7 @@ describe('month-stamped heading', () => {
 
 /**
  * The `<title>` targets the head term and the page speaks the brand's category
- * noun. Both are deliberate (SEO.md, brand-guidelines.md), and a well-meaning
+ * noun. Both are deliberate (docs/work/EXECUTE-seo-keyword-rework.md, COPY.md), and a well-meaning
  * edit that aligns them would cost one of the two.
  */
 describe('titles and headings use different nouns on purpose', () => {

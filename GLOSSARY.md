@@ -2,7 +2,7 @@
 
 Canonical vocabulary for skilld.dev. Every user-visible string, public API name, doc heading, and route segment uses these terms and no synonyms.
 
-Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). That file wins for CLI commands, protocol types, and source status values. Voice and tone live in `.claude/context/brand-guidelines.md`.
+Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). That file wins for CLI commands, protocol types, and source status values. This file owns what a concept is called. [`COPY.md`](COPY.md) owns how a sentence says it, including the register per context and the banned language. The URL canonicals these terms resolve to, and the layer that owns each one, live in [`docs/arch/README.md`](docs/arch/README.md).
 
 ## Map
 
@@ -140,6 +140,96 @@ Collisions
 
 **Never:** trust score, verification tier, "curated by" for an author.
 
+### Owner
+
+**Is:** the GitHub organization or user that hosts Skill Repositories. A proxied entity, never a row skilld.dev owns. Lives at `/gh/[owner]`.
+
+**Never:** author (that is skilld's own namespace), org (bare), account, publisher.
+
+**Casing:** `Owner` in prose, `owner` in identifiers and route segments.
+
+### Author
+
+**Is:** a person with a GitHub login who publishes collections on skilld.dev. Native to this site, backed by D1, identity from GitHub OAuth. Lives at `/@<github-login>`.
+
+**Use for:** the entity behind a collection. `curator` is the customer word for the same person when the sentence is about the collections they built.
+
+**Never:** user, creator, publisher, profile.
+
+**Casing:** `Author` in prose, `author` in identifiers.
+
+### Harness
+
+**Is:** the `@skilld/harness` package that runs skilld-maintained Skills with strict output checks.
+
+**Never:** runner, executor, sandbox.
+
+### skilld-maintained Skill
+
+**Is:** a Skill the skilld project maintains for generation, review, search, or install guidance.
+
+**Use for:** those Skills only. It is not a registry admission and confers nothing on a third-party Skill.
+
+**Never:** official Skill, first-party Skill, verified Skill (`verified` is a source status).
+
+### Artifact attestation
+
+**Is:** a signed claim linking an Artifact to its Repository, commit, contents, and check results.
+
+**Never:** signature (bare), certificate, receipt.
+
+### check result
+
+**Is:** one named check, its version, its finding, and its outcome for one Artifact.
+
+**Never:** test result, scan, audit.
+
+### package skill
+
+**Is:** a Skill tied to one npm package, drafted with the skilld-maintained `generate-package-skill` Skill and owned, edited, and published by its maintainer in their own Repository.
+
+**Never:** platform-authored. The platform publishes no Skills; `VISION.md` anti-scope 1 fixes that.
+
+**Casing:** lowercase in prose and UI.
+
+### guide skill
+
+**Is:** a curation tag for a Skill not tied to a package. Distributed as a git Skill, tagged for filtering in browse views.
+
+**Never:** tutorial, article, doc.
+
+**Casing:** lowercase in prose and UI.
+
+### project install
+
+**Is:** installing into the current repository. The default.
+
+**Use for:** the UI label `Project`.
+
+**Never:** local.
+
+### global install
+
+**Is:** installing into the Agent's home directory, so every project sees the Skill.
+
+**Use for:** the UI label `Global`.
+
+**Never:** system-wide.
+
+### weekly
+
+**Is:** the one email everyone gets: Skills you liked that changed, plus what trended. Opt-out, on by default.
+
+**Use for:** "the weekly", lowercase. It sits beside **digest**, which is the separate watched-Repository email. They are not the same send.
+
+**Never:** newsletter, roundup, trending digest.
+
+## Naming new things
+
+- Name a feature descriptively, not cleverly. "Stack selector", never "StackMatch".
+- No trademark-style capitalisation for a feature. Never "Smart Collections".
+- A CLI command is lowercase: `skilld run`, `skilld install`, `skilld update`.
+
 ## Banned
 
 | Never | Use instead | Why |
@@ -160,7 +250,7 @@ Collisions
 Naming calls this file does not settle. Resolve one, fold the answer in, delete the entry.
 
 1. **`Skill` or `skill` in site UI?**
-   The CLI glossary and new v3 copy use `Skill`. Most existing site UI, brand-guidelines.md, and meta descriptions use lowercase `skill`.
+   The CLI glossary and new v3 copy use `Skill`. Most existing site UI, COPY.md, and meta descriptions use lowercase `skill`.
    - Recase the site to `Skill`, one sweep, touches hundreds of strings.
    - Keep lowercase on the site, record the split as deliberate.
 2. **`repo` or `repository` in site UI?**

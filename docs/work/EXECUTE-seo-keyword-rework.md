@@ -1,11 +1,22 @@
----
-started: 2026-08-12
-last-reviewed: 2026-08-13
-scope: keyword-led rework of categories, collections, and editorial pages
-rule: every indexable surface names its target query, its admission bar, and its cull path (VISION principle 2)
----
+# SEO keyword rework
 
-# SEO initiative
+Status: open · 2026-08-12 · last reviewed 2026-08-13, title pivot 2026-08-26
+
+**Next move:** Harlan. The homepage title is the one blocker an agent cannot clear: the head terms want "Claude Skills" in it, `COPY.md` fixes it as the tagline, and the homepage earns nearly all the traffic. That is a brand call. The two smaller items below are readable work once it lands.
+
+Done means: every indexable surface names its target query, its admission bar and its cull path, and the measurement window in this document has been read against Search Console rather than projected.
+
+## Ledger
+
+- [x] Baseline recorded 2026-08-12
+- [x] The surfaces listed under Shipped, below
+- [ ] Homepage title decided, brand against head term
+- [ ] `marketing` and `research` pins read by a human against the production rows
+- [ ] The measurement window in this document read against Search Console
+
+## Log
+
+- 2026-09-22 moved out of the repository root as `SEO.md`. The ledger above is read off this document's own Open section; nothing was re-measured. The absolute keyword volumes in here are not a traffic forecast, as its own caveat says.
 
 Tracking doc for the keyword rework begun 2026-08-12. The strategy lives in
 VISION.md; this file records what shipped, what it targets, and what to measure.
@@ -78,7 +89,7 @@ four-row delete.
 ## Open
 
 - **Homepage title** is the tagline ("Curated agent skills by humans"), fixed by
-  brand-guidelines.md. The head terms want "Claude Skills" in it, and the
+  COPY.md. The head terms want "Claude Skills" in it, and the
   homepage is where skillsmp.com earns nearly all its traffic. A brand decision,
   not an SEO one.
 - **Codex research** (`task-msq8bfh8-wob26q`, spawned 2026-08-12) never
@@ -138,7 +149,7 @@ Check at that point, then again at eight:
 Every keyword in this research shows a collapsing trailing trend. `claude skills
 marketplace` runs `5400 → 9900 (peak) → 3600 → 880 → 320 → 0 → 0 → 0`;
 `agent skills` peaks at 18,100 and ends at 70. The `vol` figures above are
-12-month **averages** carried almost entirely by the peak.
+12-month **averages** carried almost wholly by the peak.
 
 Two readings: DataForSEO clickstream lag, or genuine post-launch decay. This was
 not resolved. The **relative ordering** between terms is trustworthy and is what

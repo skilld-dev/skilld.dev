@@ -39,7 +39,7 @@ const MINIMUM_VERSION = '3.1.0'
 /** The only spelling the site may print. A pinned tag such as `skilld@beta` bypasses `latest`. */
 const CLI_PREFIX = `npx ${PACKAGE} `
 /** Copy that teaches the printed commands. A stale spelling here reintroduces the misprint. */
-const BRAND_GUIDELINES_URL = new URL('../.claude/context/brand-guidelines.md', import.meta.url)
+const BRAND_GUIDELINES_URL = new URL('../COPY.md', import.meta.url)
 
 export interface CliRequirement {
   minimumVersion: string

@@ -17,7 +17,7 @@
 export const BATCH_KINDS = ['summary', 'tags', 'faq'] as const
 export type BatchKind = typeof BATCH_KINDS[number]
 
-// Voice rules pulled from .claude/context/brand-guidelines.md verbatim where
+// Voice rules pulled from COPY.md verbatim where
 // possible; kept self-contained so this file is the single source of truth.
 export const SHARED_SYSTEM_PROMPT = `You write derived metadata for entries in skilld.dev — a registry of AI agent "skills" (SKILL.md files in GitHub repos that Claude or other AI coding agents can install with one command).
 
