@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
-import { ANALYTICS_ACCOUNT_TAG, buildCopyQuery, buildWorkersQuery, collectWorkflowRuns, parseWorkflowName, runListArgs, summarizeCopies, summarizeWorkflowRuns } from './observability.mjs'
+import { ANALYTICS_ACCOUNT_TAG, buildCopyQuery, buildCopyTotalsQuery, buildWorkersQuery, collectWorkflowRuns, parseWorkflowName, runListArgs, summarizeCopies, summarizeWorkflowRuns } from './observability.mjs'
 
 const resources = Object.fromEntries(['github-auth', 'production-ref', 'git', 'deploy', 'ci', 'd1', 'workers', 'analytics'].map(key => [key, {}]))
 
@@ -299,20 +299,29 @@ export function collectWorkers(context) {
  * The site's activation signal is how often a printed command is copied. It is
  * anonymous by construction: the dataset holds surface, grammar, kind, Skill,
  * and country, and nothing that names a visitor. D1 has no copy table to read,
- * so the count comes over the SQL API.
+ * so the count comes over the SQL API. Totals come from their own untruncated
+ * rollup, because the ranked page caps at 50 groups and a busier day holds
+ * more.
  */
 export function collectAnalytics(context) {
   return collect(context, 'analytics', async (context) => {
     const token = context.env.CLOUDFLARE_USAGE_TOKEN || context.env.CLOUDFLARE_API_TOKEN || context.env.CF_API_TOKEN || (await commandJson(context, join(context.rootDir, 'node_modules/.bin/wrangler'), ['auth', 'token', '--json'])).token
     if (!token)
       throw new Error('Cloudflare token is unavailable.')
-    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ANALYTICS_ACCOUNT_TAG}/analytics_engine/sql`, { method: 'POST', redirect: 'error', signal: context.signal, headers: { Authorization: `Bearer ${token}` }, body: buildCopyQuery(context.since.toISOString(), context.now.toISOString()) })
-    const text = await readBoundedResponseText(response, 2_097_152)
-    if (!response.ok)
-      throw new Error(`Analytics Engine returned HTTP ${response.status}.`)
-    const rows = JSON.parse(text).data
-    if (!Array.isArray(rows))
-      throw new Error('Analytics Engine copy evidence is unavailable.')
-    return { commandCopies: summarizeCopies(rows) }
+    const readRows = async (query) => {
+      const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ANALYTICS_ACCOUNT_TAG}/analytics_engine/sql`, { method: 'POST', redirect: 'error', signal: context.signal, headers: { Authorization: `Bearer ${token}` }, body: query })
+      const text = await readBoundedResponseText(response, 2_097_152)
+      if (!response.ok)
+        throw new Error(`Analytics Engine returned HTTP ${response.status}.`)
+      const rows = JSON.parse(text).data
+      if (!Array.isArray(rows))
+        throw new Error('Analytics Engine copy evidence is unavailable.')
+      return rows
+    }
+    const [totalsRows, topRows] = await Promise.all([
+      readRows(buildCopyTotalsQuery(context.since.toISOString(), context.now.toISOString())),
+      readRows(buildCopyQuery(context.since.toISOString(), context.now.toISOString())),
+    ])
+    return { commandCopies: summarizeCopies(totalsRows, topRows) }
   })
 }

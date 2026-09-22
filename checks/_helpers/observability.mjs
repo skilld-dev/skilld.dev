@@ -230,7 +230,8 @@ export function analyticsTimestamp(iso) {
 }
 
 /**
- * Copies in the window, grouped by grammar, kind, and Skill.
+ * Copies in the window, grouped by grammar, kind, and Skill, ranked and capped
+ * at 50 rows. This page only ever feeds the ranked top list.
  *
  * `_sample_interval` restores the true count when Analytics Engine samples,
  * so a busy day does not read as a quiet one.
@@ -240,14 +241,25 @@ export function buildCopyQuery(sinceIso, nowIso) {
 }
 
 /**
+ * Copies in the window rolled up by grammar, with no row cap. Totals read
+ * this query, so a day with more Skill groups than the ranked page can hold
+ * still reports its full count.
+ */
+export function buildCopyTotalsQuery(sinceIso, nowIso) {
+  return `SELECT blob2 AS mode, sum(_sample_interval * double1) AS copies FROM ${COPY_DATASET} WHERE timestamp >= toDateTime('${analyticsTimestamp(sinceIso)}') AND timestamp < toDateTime('${analyticsTimestamp(nowIso)}') GROUP BY mode`
+}
+
+/**
  * Totals plus the most copied Skills.
  *
- * Run and install are reported apart because they are different intents: a run
- * copy reads a Skill once, an install copy keeps it in every session.
+ * Totals sum the untruncated rollup; the ranked list reads the capped page,
+ * so its rows never decide the reported totals. Run and install are reported
+ * apart because they are different intents: a run copy reads a Skill once, an
+ * install copy keeps it in every session.
  */
-export function summarizeCopies(rows) {
+export function summarizeCopies(totalsRows, topRows) {
   const totals = { total: 0, run: 0, install: 0 }
-  for (const row of rows) {
+  for (const row of totalsRows) {
     const copies = Number(row.copies) || 0
     totals.total += copies
     if (row.mode === 'run' || row.mode === 'install')
@@ -255,7 +267,7 @@ export function summarizeCopies(rows) {
   }
   return {
     ...totals,
-    top: [...rows]
+    top: [...topRows]
       .sort((a, b) => (Number(b.copies) || 0) - (Number(a.copies) || 0))
       .slice(0, 10)
       .map(row => ({ slug: row.slug, kind: row.kind, mode: row.mode, copies: Number(row.copies) || 0 })),

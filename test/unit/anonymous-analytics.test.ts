@@ -40,6 +40,21 @@ describe('anonymous analytics data points', () => {
     expect(analyticsIndex('')).toBe('unknown')
   })
 
+  // The cut keeps 32 UTF-16 code units, which encode to at most 96 UTF-8
+  // bytes: 3 bytes per BMP unit, 4 per surrogate pair. An astral slug of 40
+  // emoji therefore lands at 16 emoji, well under the cap.
+  it('keeps a 40-emoji slug under the cap instead of rejecting the data point', () => {
+    const point = copyDataPoint({
+      surface: 'skill-card',
+      mode: 'run',
+      kind: 'skill',
+      slug: '🎉'.repeat(40),
+      country: 'AU',
+    })
+    const [index] = point.indexes
+    expect(new TextEncoder().encode(index!).length).toBeLessThanOrEqual(96)
+  })
+
   it('accepts only a two-letter country from the request header', () => {
     expect(analyticsCountry('AU')).toBe('AU')
     expect(analyticsCountry(undefined)).toBe('XX')
@@ -65,7 +80,19 @@ describe('copy event endpoint', () => {
       node: { req: { headers } },
       context: {
         platform: {
-          env: { SKILLD_WEB_ANALYTICS: { writeDataPoint: (point: unknown) => written.push(point) } },
+          env: {
+            // Analytics Engine rejects an index over 96 bytes, taking the whole
+            // data point with it, so the stub mirrors that contract.
+            SKILLD_WEB_ANALYTICS: {
+              writeDataPoint: (point: { indexes: string[] }) => {
+                for (const index of point.indexes) {
+                  if (new TextEncoder().encode(index).length > 96)
+                    throw new Error('index exceeds the 96-byte Analytics Engine cap')
+                }
+                written.push(point)
+              },
+            },
+          },
         },
       },
     })
@@ -98,5 +125,12 @@ describe('copy event endpoint', () => {
       { surface: 'skill-card', kind: 'skill', owner: 'antfu', name: 'vite', mode: 'run', userId: 12 },
     )).rejects.toMatchObject({ statusCode: 400 })
     expect(written).toEqual([])
+  })
+
+  it('answers ok when an astral-character slug must be cut to the index cap', async () => {
+    await expect(loadHandler(
+      {},
+      { surface: 'skill-card', kind: 'skill', owner: '🎉', name: '🎉'.repeat(31), mode: 'run' },
+    )).resolves.toEqual({ ok: true })
   })
 })

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   approximateDeployedSha,
   buildCopyQuery,
+  buildCopyTotalsQuery,
   buildWorkersQuery,
   collectWorkflowRuns,
   deriveBaselineFlag,
@@ -351,14 +352,29 @@ describe('command copy analytics', () => {
 
   it('refuses a window boundary that is not a date', () => {
     expect(() => buildCopyQuery('yesterday', '2026-09-22T00:00:00.000Z')).toThrow(/not a date/)
+    expect(() => buildCopyTotalsQuery('2026-09-21T00:00:00.000Z', 'yesterday')).toThrow(/not a date/)
+  })
+
+  it('keeps the ranked page capped and the totals rollup untruncated', () => {
+    const top = buildCopyQuery('2026-09-21T00:00:00.000Z', '2026-09-22T00:00:00.000Z')
+    const totals = buildCopyTotalsQuery('2026-09-21T00:00:00.000Z', '2026-09-22T00:00:00.000Z')
+
+    expect(top).toContain('GROUP BY mode, kind, slug')
+    expect(top).toContain('LIMIT 50')
+    expect(totals).toContain('GROUP BY mode')
+    expect(totals).toContain('sum(_sample_interval * double1)')
+    expect(totals).not.toContain('LIMIT')
   })
 
   it('splits run copies from install copies and ranks the Skills', () => {
-    expect(summarizeCopies([
-      { mode: 'run', kind: 'skill', slug: 'antfu/vite', copies: '12' },
-      { mode: 'install', kind: 'repo', slug: 'obra/superpowers', copies: 30 },
-      { mode: 'run', kind: 'skill', slug: 'harlan-zw/seo', copies: 3 },
-    ])).toMatchObject({
+    expect(summarizeCopies(
+      [{ mode: 'run', copies: '15' }, { mode: 'install', copies: 30 }],
+      [
+        { mode: 'run', kind: 'skill', slug: 'antfu/vite', copies: '12' },
+        { mode: 'install', kind: 'repo', slug: 'obra/superpowers', copies: 30 },
+        { mode: 'run', kind: 'skill', slug: 'harlan-zw/seo', copies: 3 },
+      ],
+    )).toMatchObject({
       total: 45,
       run: 15,
       install: 30,
@@ -370,8 +386,21 @@ describe('command copy analytics', () => {
     })
   })
 
+  // Totals come from the untruncated rollup, so they never inherit the ranked
+  // page's 50-row cap.
+  it('sums the full window when 60 grouped rows feed the totals', () => {
+    const grouped = Array.from({ length: 60 }, (_, index) => ({
+      mode: index % 2 ? 'install' : 'run',
+      kind: 'skill',
+      slug: `owner/skill-${index}`,
+      copies: 1,
+    }))
+    expect(summarizeCopies(grouped, grouped.slice(0, 50)))
+      .toMatchObject({ total: 60, run: 30, install: 30 })
+  })
+
   it('counts a grammar it does not know in the total only', () => {
-    expect(summarizeCopies([{ mode: 'once', kind: 'skill', slug: 'antfu/vite', copies: 4 }]))
+    expect(summarizeCopies([{ mode: 'once', copies: 4 }], [{ mode: 'once', kind: 'skill', slug: 'antfu/vite', copies: 4 }]))
       .toMatchObject({ total: 4, run: 0, install: 0 })
   })
 })
