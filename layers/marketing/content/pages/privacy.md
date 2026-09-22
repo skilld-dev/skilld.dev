@@ -1,14 +1,14 @@
 ---
 title: Privacy
 description: What skilld.dev stores, why it needs the data, how long it keeps it, and how you delete your account.
-label: Last updated 17 September 2026
-updatedAt: 2026-09-17
+label: Last updated 22 September 2026
+updatedAt: 2026-09-22
 ---
 
 ## In short
 
 - You can browse skilld.dev and run Skills without an account.
-- skilld.dev uses Cloudflare Web Analytics, which sets no cookies. It loads no advertising scripts.
+- skilld.dev counts page views and command copies. The counts hold no name, IP address, or cookie. It loads no advertising scripts.
 - An account is optional. You sign in with [GitHub](https://github.com) to like Skills, watch Repositories, get email, or connect the skilld CLI.
 - You can delete your account from your dashboard at any time.
 - The skilld CLI sends no telemetry.
@@ -18,6 +18,8 @@ updatedAt: 2026-09-17
 [Cloudflare](https://cloudflare.com) hosts skilld.dev. Every request goes through Cloudflare, which uses your IP address to deliver the page.
 
 skilld writes request logs to Cloudflare Workers Logs. A log entry holds the route, the response status, and the time the request took. It also holds your country and the Cloudflare data center that answered. It holds no IP address, user agent, or query string.
+
+Cloudflare also records a timing trace for 1 request in 100. A trace holds the route and how long each step took. It holds no IP address and no request body.
 
 ### Web Analytics
 
@@ -29,6 +31,21 @@ skilld.dev uses [Cloudflare Web Analytics](https://www.cloudflare.com/web-analyt
 - Your country, device type, browser, and operating system.
 
 Cloudflare states that Web Analytics uses no cookies or local storage, and that it does not fingerprint visitors by IP address or user agent. The script loads from skilld.dev itself. Its reports also go to skilld.dev, which forwards only the report body to Cloudflare. Cloudflare's analytics service does not receive your IP address, cookies, or other request headers from that request.
+
+### Usage counts
+
+skilld.dev is early, so it needs to know which Skills people run and where they find them.
+
+When you copy a printed command, your browser tells skilld.dev. skilld stores one count with:
+
+- The surface that printed the command, such as a Skill card or the home page.
+- Whether the command runs a Skill or installs it.
+- The Skill, Repository, or collection the command names.
+- Your country.
+
+That count goes to [Cloudflare Analytics Engine](https://developers.cloudflare.com/analytics/analytics-engine/), which keeps it for 90 days. It holds no IP address, no cookie, and no account ID, so a count cannot be traced to you or joined to your account. skilld keeps no record of an individual copy.
+
+The skilld CLI sends no telemetry. skilld.dev accepts an anonymous run count from a CLI at the same address, under the same rules, and drops any account ID the request carries.
 
 ### Cookies
 
@@ -60,14 +77,14 @@ Sign-in uses GitHub OAuth. skilld asks for two scopes:
 
 skilld uses the same token for two more jobs, and only when you ask:
 
-- If you choose to add your Skills during sign-up, or later from your profile, skilld searches your public Repositories for `SKILL.md` files. It adds the Skills it finds to the registry.
+- When you sign in, skilld offers to search your public Repositories for `SKILL.md` files and add the Skills it finds to the registry. You can decline, and you can run the same search later from your profile.
 - When you import your stars, skilld reads the list of Repositories you starred.
 
 skilld stores this data for your account:
 
 - Your GitHub ID, login, name, avatar URL, and email address.
 - Your GitHub tokens, encrypted. Signing out deletes them.
-- The Skills you like. Only you can see them, unless you turn on "Show liked Skills on your profile" in your dashboard.
+- The Skills you like. Your profile shows them, unless you turn off "Show liked Skills on your profile" in your dashboard.
 - The Repositories you watch and the stars you import.
 - The collections you create. Collections are public.
 - Your email settings and the email address you save.
@@ -82,7 +99,7 @@ skilld sends email only after you turn it on, during sign-up or in your dashboar
 
 skilld sends to the address you save. If you save no address, it uses the email address from your GitHub account. Cloudflare delivers each email from `noreply@mail.skilld.dev`. Every email has an unsubscribe link.
 
-Links in these emails go through skilld.dev. skilld counts clicks per day, per email issue, and per link. Every reader of an issue gets the same links, so a count holds no name, email address, IP address, or user agent.
+Links in these emails go through skilld.dev. skilld counts clicks per day, per email issue, and per link. This includes the links to GitHub, which are counted by Repository. Every reader of an issue gets the same links, so a count holds no name, email address, IP address, or user agent.
 
 ## The skilld CLI
 
@@ -109,7 +126,7 @@ skilld uses [Sentry](https://sentry.io) to find and fix errors.
 
 ## Services that handle your data
 
-- Cloudflare hosts skilld.dev and runs its database, cache, email delivery, image proxy, Web Analytics, Workers AI search, and request logs. It handles requests, account data, email addresses, analytics reports, and search queries.
+- Cloudflare hosts skilld.dev and runs its database, cache, email delivery, image proxy, Web Analytics, usage counts, Workers AI search, and request logs. It handles requests, account data, email addresses, analytics reports, and search queries.
 - GitHub handles sign-in and holds the source of every Skill. It handles your GitHub profile and tokens.
 - Sentry receives error reports, with the data listed above removed.
 
@@ -120,6 +137,7 @@ skilld uses [Sentry](https://sentry.io) to find and fix errors.
 - CLI tokens stay for 7 days after they expire or you revoke them.
 - CLI sign-in codes and device sign-in requests stay for 1 day.
 - Email send records and unsubscribe history stay for 90 days.
+- Usage counts and request logs stay for 90 days. Email click counts are kept as daily totals with no account in them.
 
 A daily job deletes these records at 04:30 UTC. Two kinds of digest records stay longer. The newest digest record for each account stays, because the next digest starts from it. A digest that did not send successfully also stays, so a retry cannot send it twice.
 
