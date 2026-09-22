@@ -59,7 +59,7 @@ describe('scheduled task coverage and parity', () => {
   it('aligns local definitions, policy, generated triggers, and docs', () => {
     const tasks = discoverScheduledTasks(process.cwd())
     const generated = parseGeneratedCrons(readFileSync(resolve(process.cwd(), '.nuxt/cf-jobs/crons.suggested.toml'), 'utf8'))
-    const documented = parseScheduledTasksDocument(readFileSync(resolve(process.cwd(), 'CRON.md'), 'utf8'))
+    const documented = parseScheduledTasksDocument(readFileSync(resolve(process.cwd(), 'docs/arch/cron.md'), 'utf8'))
     const expectedCrons = [...new Set([...tasks.map(task => task.cron), ...INFRASTRUCTURE_CRONS])].sort()
 
     expect(generated.sort()).toEqual(expectedCrons)
