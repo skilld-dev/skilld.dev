@@ -211,6 +211,86 @@ export function normalizeSchemaSql(sql: string): string {
   return normalized.trim()
 }
 
+export type MigrationNamingIssue
+  = | { _tag: 'malformed_name', name: string }
+    | { _tag: 'duplicate_number', number: string, names: string[] }
+    | { _tag: 'sequence_gap', missing: string[] }
+
+export type MigrationNamingResult
+  = | { _tag: 'ok' }
+    | { _tag: 'fail', issues: MigrationNamingIssue[] }
+
+const MIGRATION_NAME_PATTERN = /^(\d{4})_[a-z0-9_]+\.sql$/
+
+/**
+ * Numbers that already carry two migrations in production.
+ *
+ * `d1_migrations` keys on the filename, and both of these are applied:
+ * `0118_repo_tree_truncated.sql` on 2026-09-21 and
+ * `0118_auto_index_rate_limits.sql` on 2026-09-22, the second through #263.
+ * Renaming either one makes `wrangler d1 migrations apply` treat it as a
+ * migration it has never seen and run its bare `CREATE TABLE` a second time.
+ * That fails, and the deploy workflow applies migrations before it ships the
+ * Worker, so the whole deploy stops. They stay as they are.
+ *
+ * Nothing new belongs here. Pick the next free number instead.
+ */
+export const APPLIED_DUPLICATE_MIGRATION_NUMBERS: Readonly<Record<string, readonly string[]>> = {
+  '0118': ['0118_auto_index_rate_limits.sql', '0118_repo_tree_truncated.sql'],
+}
+
+/**
+ * Check migration filenames against the rules the ledger depends on.
+ *
+ * Two migrations sharing a number apply in an order nobody chose, and the pair
+ * above reached production before anything noticed. A hole in the sequence
+ * usually means a rebase dropped a file. A malformed name never sorts where
+ * its author expected.
+ */
+export function verifyMigrationNaming(names: readonly string[]): MigrationNamingResult {
+  const issues: MigrationNamingIssue[] = []
+  const numbered = new Map<string, string[]>()
+  for (const name of [...names].sort()) {
+    const match = MIGRATION_NAME_PATTERN.exec(name)
+    if (!match) {
+      issues.push({ _tag: 'malformed_name', name })
+      continue
+    }
+    const number = match[1]!
+    const group = numbered.get(number)
+    if (group)
+      group.push(name)
+    else
+      numbered.set(number, [name])
+  }
+
+  for (const number of [...numbered.keys()].sort()) {
+    const group = numbered.get(number)!
+    if (group.length < 2)
+      continue
+    const applied = APPLIED_DUPLICATE_MIGRATION_NUMBERS[number]
+    if (applied && arraysEqual(group, [...applied].sort()))
+      continue
+    issues.push({ _tag: 'duplicate_number', number, names: group })
+  }
+
+  const present = [...numbered.keys()].map(Number).sort((left, right) => left - right)
+  const lowest = present[0]
+  const highest = present.at(-1)
+  if (lowest !== undefined && highest !== undefined) {
+    const missing: string[] = []
+    for (let value = lowest; value < highest; value++) {
+      const padded = String(value).padStart(4, '0')
+      if (!numbered.has(padded))
+        missing.push(padded)
+    }
+    if (missing.length > 0)
+      issues.push({ _tag: 'sequence_gap', missing })
+  }
+
+  return issues.length > 0 ? { _tag: 'fail', issues } : { _tag: 'ok' }
+}
+
 export function buildExpectedSchemaContract(migrationsDir: string): SchemaContract {
   const migrationNames = readdirSync(migrationsDir)
     .filter(file => file.endsWith('.sql'))
