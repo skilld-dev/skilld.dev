@@ -1,5 +1,5 @@
 ---
-scope: every user-facing string: marketing pages, meta tags, registry blurbs, docs, UI copy, emails, social cards
+scope: every user-facing string: marketing pages, meta tags, registry blurbs, docs, learn content, UI copy, emails, social cards
 owns: the words. DESIGN.md owns the visual system and defers voice to this file; VISION.md owns what may be claimed at all; GLOSSARY.md owns what a concept is called
 ---
 
@@ -59,8 +59,6 @@ These exact strings. Do not paraphrase them per page.
 
 These are the visual layer's half of the voice. `DESIGN.md` defers to them.
 
-These are the visual layer's half of the voice, moved here from `DESIGN.md`.
-
 - **Button labels**: short verb phrases in mono. "Browse", "Install", "View skills". Action plus object, never the destination.
 - **CTA pattern**: the first action is `Publish [noun]`, an update is `Update [noun]`.
 - **Error style**: direct, helpful, no theatre. "Couldn't load curators. Check your connection and try again."
@@ -84,8 +82,10 @@ These are the visual layer's half of the voice, moved here from `DESIGN.md`.
 
 ## Banned language
 
-Harlan's global writing rules already apply and are not repeated here: no em dashes, never the
-"it's not X, it's Y" pattern, Simplified Technical English. See `~/.claude/CLAUDE.md`.
+Harlan's global writing rules apply here. No em dashes and no hyphens as dashes: use commas,
+semicolons, colons, or new sentences. Never the "it's not X, it's Y" pattern. Simplified
+Technical English: one idea per sentence, active voice, one word one meaning. Blog posts,
+landing pages, and social copy keep their own voice.
 
 Every row carries its reason, because a ban without one cannot tell the next writer whether a
 near-miss is also banned.
