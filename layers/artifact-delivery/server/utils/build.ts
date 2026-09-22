@@ -65,6 +65,14 @@ type BuildLoad
   = { _tag: 'loaded', source: ResolvedSource, files: ArtifactSourceFile[], checked: CheckedArtifactSource }
     | { _tag: 'rejected', rejection: SourceRejection }
 
+/**
+ * The loaded source carried between the `fetching`, `packaging` and `signing`
+ * states of one invocation. A large build spends its subrequest budget on the
+ * blob fetches, so one invocation loads at most once; a resumed invocation
+ * starts with no carried load and loads again.
+ */
+type CarriedBuildLoad = BuildLoad | null
+
 export async function processArtifactBuild(
   dependencies: ArtifactBuildDependencies,
   resolutionId: string,
@@ -75,6 +83,7 @@ export async function processArtifactBuild(
   if (row.state === 'ready' || row.state === 'blocked' || row.state === 'failed' || row.state === 'revoked')
     return { _tag: row.state === 'revoked' ? 'unchanged' : row.state, resolutionId }
 
+  let carried: CarriedBuildLoad = null
   for (let step = 0; step < 10; step++) {
     const now = dependencies.now()
     if (row.state === 'requested') {
@@ -111,6 +120,7 @@ export async function processArtifactBuild(
 
     if (row.state === 'fetching') {
       const loaded = await loadAndCheck(dependencies, row, resolvedSourceFromRow(row))
+      carried = loaded._tag === 'loaded' ? loaded : null
       const checkResults = loaded._tag === 'loaded'
         ? loaded.checked.checkResults
         : rejectionCheckResults(loaded.rejection)
@@ -138,9 +148,10 @@ export async function processArtifactBuild(
     }
 
     if (row.state === 'packaging') {
-      const loaded = await requirePassingSource(dependencies, row)
+      const loaded: BuildLoad = carried ?? await requirePassingSource(dependencies, row)
       if (loaded._tag === 'rejected')
         return await failWithRejection(dependencies, row, loaded.rejection)
+      carried = loaded
       const archive = createDeterministicUstar(loaded.files)
       const contentSha256 = await digestHex('SHA-256', archive)
       const advanced = await transitionResolution(dependencies.db, row, 'signing', {
@@ -159,9 +170,10 @@ export async function processArtifactBuild(
         throw new Error('Signing Resolution has no Artifact content identity')
 
       if (!row.attestation_statement_json) {
-        const loaded = await requirePassingSource(dependencies, row)
+        const loaded: BuildLoad = carried ?? await requirePassingSource(dependencies, row)
         if (loaded._tag === 'rejected')
           return await failWithRejection(dependencies, row, loaded.rejection)
+        carried = loaded
         const archive = createDeterministicUstar(loaded.files)
         const contentSha256 = await digestHex('SHA-256', archive)
         if (contentSha256 !== row.content_sha256 || archive.byteLength !== row.content_bytes)
@@ -298,9 +310,21 @@ function resolvedSourceFromRow(row: {
   })
 }
 
+/**
+ * The check name a source rejection reports under.
+ *
+ * It is deliberately not one of `CURRENT_ARTIFACT_CHECKS`. These results are
+ * synthesised for a Resolution that never reaches signing, so this name never
+ * enters an attestation and the signed check set is unchanged. It used to be
+ * `path-policy`, which named a check that had not run: a file-count rejection,
+ * a symbolic link and a genuine USTAR path problem all arrived identically,
+ * and the skilld CLI prints this name straight to the user.
+ */
+export const SOURCE_REJECTION_CHECK_NAME = 'source-policy'
+
 function rejectionCheckResults(rejection: SourceRejection): CheckResult[] {
   return [{
-    name: 'path-policy',
+    name: SOURCE_REJECTION_CHECK_NAME,
     version: '1',
     outcome: 'fail',
     required: true,

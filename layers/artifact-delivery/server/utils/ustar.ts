@@ -63,3 +63,18 @@ function writeOctal(target: Uint8Array, offset: number, size: number, value: num
 function roundToBlock(size: number): number {
   return Math.ceil(size / BLOCK_SIZE) * BLOCK_SIZE
 }
+
+/**
+ * Bytes {@link createDeterministicUstar} will write for files of these sizes.
+ *
+ * Every file costs a 512-byte header plus its content padded up to the next
+ * 512-byte block, and the archive closes with two empty blocks. So the source
+ * total understates the archive by up to 1023 bytes per file, which is why a
+ * size guard has to run on this number rather than on the sum of the blobs.
+ */
+export function projectedUstarBytes(sizes: readonly number[]): number {
+  return sizes.reduce(
+    (total, size) => total + BLOCK_SIZE + roundToBlock(size),
+    BLOCK_SIZE * 2,
+  )
+}

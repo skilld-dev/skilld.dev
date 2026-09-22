@@ -27,6 +27,7 @@ import {
 import {
   createResolution,
   getResolution,
+  presentResolution,
   resolutionRequestIdentity,
   transitionResolution,
 } from '../../layers/artifact-delivery/server/utils/state'
@@ -143,6 +144,31 @@ describe('public Artifact delivery', () => {
     harness.close()
   })
 
+  it('keeps a 627-file build inside the Worker subrequest budget', async () => {
+    const files: ArtifactSourceFile[] = [
+      validFiles[0]!,
+      ...Array.from({ length: 626 }, (_, index) => ({
+        path: `references/entry-${index}.md`,
+        mode: 420 as const,
+        bytes: new TextEncoder().encode(`entry ${index}\n`),
+        gitBlobSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      })),
+    ]
+    const fetch = countingGithubFetch(files)
+    const harness = await createBuildHarness(
+      validFiles,
+      false,
+      resolvedSource.repositoryId,
+      createPublicGithubSourceClient({ fetch: fetch as unknown as typeof globalThis.fetch }),
+    )
+
+    const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
+
+    expect(result).toEqual({ _tag: 'ready', resolutionId: harness.resolutionId })
+    expect(fetch.mock.calls.length).toBeLessThanOrEqual(1000)
+    harness.close()
+  })
+
   it('blocks failed checks before storage or signing', async () => {
     const harness = await createBuildHarness([{
       ...validFiles[0]!,
@@ -152,6 +178,35 @@ describe('public Artifact delivery', () => {
     const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
 
     expect(result).toEqual({ _tag: 'blocked', resolutionId: harness.resolutionId })
+    expect(harness.put).not.toHaveBeenCalled()
+    expect(harness.sign).not.toHaveBeenCalled()
+    harness.close()
+  })
+
+  it('names a source rejection as a source policy failure, not a path policy one', async () => {
+    const harness = await createBuildHarness(validFiles, false, resolvedSource.repositoryId, {
+      resolve: vi.fn(async () => ({ _tag: 'resolved' as const, source: resolvedSource })),
+      load: vi.fn(async () => ({
+        _tag: 'rejected' as const,
+        code: 'INVALID_SOURCE' as const,
+        summary: 'The Skill has more than 1000 files.',
+        findings: [],
+      })),
+    } as unknown as PublicGithubSourceClient)
+
+    const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
+
+    expect(result).toEqual({ _tag: 'blocked', resolutionId: harness.resolutionId })
+    const blocked = presentResolution((await getResolution(harness.dependencies.db, harness.resolutionId))!)
+    expect(blocked).toMatchObject({
+      state: 'blocked',
+      checkResults: [{
+        name: 'source-policy',
+        outcome: 'fail',
+        required: true,
+        summary: 'The Skill has more than 1000 files.',
+      }],
+    })
     expect(harness.put).not.toHaveBeenCalled()
     expect(harness.sign).not.toHaveBeenCalled()
     harness.close()
@@ -725,6 +780,67 @@ async function createBuildHarness(
     publicKey: keyPair.publicKey,
     close: sqlite.close,
   }
+}
+
+/**
+ * A GitHub API fake serving one Skill with the given files. Every call is
+ * counted the way a Worker invocation counts subrequests.
+ */
+function countingGithubFetch(files: ArtifactSourceFile[]) {
+  const skillsTreeSha = '3333333333333333333333333333333333333333'
+  const demoTreeSha = '4444444444444444444444444444444444444444'
+  const blobs = new Map(files.map((file) => {
+    const blobSha = createHash('sha1')
+      .update(`blob ${file.bytes.byteLength}\0`)
+      .update(file.bytes)
+      .digest('hex')
+    return [blobSha, file]
+  }))
+  const repo = `/repos/${resolvedSource.owner}/${resolvedSource.repository}`
+  const tree = (path: string, mode: string, type: string, sha: string) => ({ path, mode, type, sha })
+  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.endsWith(repo)) {
+      return json({
+        id: resolvedSource.repositoryId,
+        name: resolvedSource.repository,
+        owner: { login: resolvedSource.owner },
+        private: false,
+        default_branch: 'main',
+      })
+    }
+    if (url.endsWith(`${repo}/commits/${resolvedSource.commitSha}`))
+      return json({ sha: resolvedSource.commitSha, commit: { tree: { sha: resolvedSource.treeSha } } })
+    if (url.endsWith(`${repo}/git/trees/${resolvedSource.treeSha}`))
+      return json({ sha: resolvedSource.treeSha, tree: [tree('skills', '040000', 'tree', skillsTreeSha)] })
+    if (url.endsWith(`${repo}/git/trees/${skillsTreeSha}`))
+      return json({ sha: skillsTreeSha, tree: [tree('demo', '040000', 'tree', demoTreeSha)] })
+    if (url.endsWith(`${repo}/git/trees/${demoTreeSha}?recursive=1`)) {
+      return json({
+        sha: demoTreeSha,
+        truncated: false,
+        tree: [...blobs.entries()].map(([sha, file]) => ({
+          ...tree(file.path, '100644', 'blob', sha),
+          size: file.bytes.byteLength,
+        })),
+      })
+    }
+    const blobSha = url.match(/\/git\/blobs\/([0-9a-f]{40})$/)?.[1]
+    const blob = blobSha ? blobs.get(blobSha) : undefined
+    if (blob && blobSha) {
+      return json({
+        sha: blobSha,
+        size: blob.bytes.byteLength,
+        encoding: 'base64',
+        content: Buffer.from(blob.bytes).toString('base64'),
+      })
+    }
+    return json({ message: 'Not Found' }, 404)
+  })
 }
 
 /**

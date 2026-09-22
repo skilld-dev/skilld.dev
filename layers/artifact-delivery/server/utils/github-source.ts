@@ -2,6 +2,7 @@ import type { ProblemCode, ResolvedSource, SourceRequest } from '../schemas/cont
 import { z } from 'zod'
 import { base64ToBytes, digestHex } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
+import { projectedUstarBytes } from './ustar'
 
 const GITHUB_API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2026-03-10'
@@ -9,7 +10,11 @@ const MAX_GITHUB_JSON_BYTES = 8 * 1024 * 1024
 const MAX_TREE_ENTRIES = 2000
 const MAX_TREE_REQUESTS = 128
 const MAX_SKILL_PATH_SEGMENTS = 64
-const MAX_ARTIFACT_FILES = 256
+// One invocation loads every blob once. With one repository read per load and
+// resolve, a handful of tree reads, the D1 state transitions and the R2 write,
+// 900 files is the largest ceiling that keeps the worst build inside the
+// Worker's 1000-subrequest budget.
+const MAX_ARTIFACT_FILES = 900
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
 const GITHUB_REQUEST_TIMEOUT_MS = 15_000
@@ -465,9 +470,14 @@ function selectArtifactEntries(entries: TreeEntry[]): { _tag: 'selected', entrie
   const oversized = blobs.filter(entry => entry.size > MAX_FILE_BYTES)
   if (oversized.length > 0)
     return sourceLimitRejection(`A Skill file exceeds ${MAX_FILE_BYTES} bytes.`, oversized.map(entry => entry.path))
-  const totalBytes = blobs.reduce((total, entry) => total + entry.size, 0)
-  if (totalBytes > MAX_ARTIFACT_BYTES)
-    return sourceLimitRejection(`The Skill exceeds ${MAX_ARTIFACT_BYTES} bytes.`)
+  // The signer checks `content_bytes` against this same ceiling, and
+  // `content_bytes` is the packed archive rather than the sum of the blobs. A
+  // Skill that cleared a source-total check could therefore be refused after
+  // the R2 write, with the signer's error instead of a named rejection. Guard
+  // the number the signer will actually see.
+  const projectedBytes = projectedUstarBytes(blobs.map(entry => entry.size))
+  if (projectedBytes > MAX_ARTIFACT_BYTES)
+    return sourceLimitRejection(`The packaged Skill would exceed ${MAX_ARTIFACT_BYTES} bytes.`)
   return { _tag: 'selected', entries: blobs.sort((a, b) => comparePath(a.path, b.path)) }
 }
 
