@@ -62,7 +62,9 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'detect-star-surges', cron: '30 4 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'drain-skill-dirty', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },
   { _tag: 'observed', taskName: 'embedding-parity-audit', cron: '0 21 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
-  { _tag: 'observed', taskName: 'purge-personal-data', cron: '30 4 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 10 * 60, activeFromSeconds: 1789603200 },
+  // First cron fire, not the authoring date: a grace anchored to 2026-09-17
+  // expired before the deployed trigger ever fired and read as missing_run.
+  { _tag: 'observed', taskName: 'purge-personal-data', cron: '30 4 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 10 * 60, activeFromSeconds: 1790051400 },
   { _tag: 'observed', taskName: 'recompute-skill-scores', cron: '0 3 * * *', maxSilenceSeconds: 36 * 60 * 60, maxRuntimeSeconds: 60 * 60 },
   { _tag: 'observed', taskName: 'refresh-x-engagement', cron: '10 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'reconcile-rendered', cron: '20 */6 * * *', maxSilenceSeconds: 15 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
