@@ -44,7 +44,7 @@ Open: package surface for P5 ("Stack Sam") ; deferred, not blocking.
 
 ## Remaining
 1. **Visual review** ; confirm the 6-card grid + cluster page render correctly on desktop and mobile. Dev server: `pnpm dev`.
-2. **Recently Updated tweaks** ; apply `is_abstract=1 AND is_official=1` filter; add "what changed" snippet from `skill_revisions` (PIVOT_PLAN line 250 spec'd, not built).
+2. **Recently Updated tweaks** ; apply `is_abstract=1 AND is_official=1` filter; add "what changed" snippet from `skill_revisions` (docs/work/EXECUTE-github-pivot.md line 268 spec'd, not built).
 3. **Promote classifier to a job** ; `layers/registry/server/jobs/generate-abstractness.ts` mirroring `generate-tags.ts`; key on real SKILL.md SHA so it regenerates on drift. Wire into the nightly generator pass so new skills get classified automatically. Until this lands, only the seeded top 1200 skills have classification ; newer skills surface as `is_abstract=NULL`.
 4. **Sitemap entry** ; add the 6 `/skills/<slug>`{lang="html"} URLs to the sitemap (the sitemap currently emits only `/skills/{guide,official,stats,index}`).
 5. **Spot-check classifier output** ; sample 30 random `is_abstract=1` rows; flag false positives (e.g. `seo` was a borderline call).

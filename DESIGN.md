@@ -182,6 +182,10 @@ Use `UiTooltip` (not `UTooltip`) for any tooltip that needs more than a plain st
 - **Detail panels**: slide-over or dedicated route for full metadata view. This is where data density peaks
 - **Data labels**: top-level metrics are singular and labeled ("12 skills", "3 curators"); expanded views show the full breakdown
 
+### Bound Components
+- **Skill source lists**: use `SkillSourceList` when a shortlist needs visible author, handle, repository, and source-linked skill name. `stream` is a vertically scrollable discovery preview; `grid` is for bounded related-skill groups. Idle auto-scroll pauses for hover, focus, touch, and reduced motion. Mixed 20-item discovery streams should represent at least 10 people and cap each person at 2 skills.
+- **Install commands**: never render one as raw text. Use `<InstallCommand :command="cmd" />` so `npx skilld add` stays quiet and the target carries the accent. Long commands wrap (`wrap`); they never get a horizontal scrollbar inside a card.
+
 ## Spatial & Motion
 
 - **Spacing system**: 4pt base. 4, 8, 12, 16, 24, 32, 48px.
@@ -301,7 +305,7 @@ The noise field appears in exactly three contexts on the web:
 
 It does not appear in: navigation, cards, buttons, tooltips, footers, or any UI chrome. Scarcity makes it premium.
 
-The noise field animation from the CLI (`skilld/src/ui.ts`) is the single kinetic brand element on the site. Full identity spec in `COPY.md`; this section covers visual implementation.
+The noise field animation from the CLI (`skilld/src/ui.ts`) is the single kinetic brand element on the site. This section is the full identity spec: the Core visual DNA table defines it, and the sections that follow cover the visual implementation.
 
 ### Why WebGL
 
