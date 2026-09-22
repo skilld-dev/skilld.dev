@@ -24,10 +24,10 @@ Done means: the atproto and legacy `collections` / `collection_skills` tables ar
 
 Every change in this plan must serve one of two loops. If a feature doesn't, cut it.
 
-- **Loop 1 — Activation (anonymous discovery → install).**
+- **Loop 1, Activation (anonymous discovery → install).**
   Lands on skilld.dev → sees curated/official skills + recent updates → opens skill detail → copies `npx skilld add gh:owner/repo` → runs it. No auth, no email, no friction. SEO-bearing surface. Top of funnel.
 
-- **Loop 2 — Retention (authenticated watching → digest).**
+- **Loop 2, Retention (authenticated watching → digest).**
   Returning user signs in with GitHub → bulk-imports starred repos that have skills → optionally watches collections → receives weekly (or daily) digest email when watched repos change. The CLI doesn't yet auto-update or report installs, so the digest is the *only* way users learn what changed and why. Lifecycle hook + moat.
 
 These loops live on the same site but are sold separately. Loop 1 is the headline. Loop 2 is a small CTA strip on the homepage and a "Watch for changes" affordance on skill/collection pages. Loop 2 only fires when explicitly requested.
@@ -53,18 +53,18 @@ Tables dropped (Phase 4, after migration):
 ## What stays
 
 - Existing GitHub sync infra: `server/utils/github-client.ts`, `server/utils/sync-repo.ts`, `server/tasks/sync-github-skills.ts`. Per-skill SHA tracking, ETag-conditional GETs, `skill_revisions`, `activity` table all reused as the change feed.
-- Curation tables: `is_official`, `trust_tier`, `repo_trust_overrides`, `supported_repos`. Currently 1351 official skills, 79 core-official repos, 14 trusted-author repos — enough to populate the homepage on day one.
+- Curation tables: `is_official`, `trust_tier`, `repo_trust_overrides`, `supported_repos`. Currently 1351 official skills, 79 core-official repos, 14 trusted-author repos, enough to populate the homepage on day one.
 - Collections (concept and table) survive, but moved off atproto into D1. Migrate the 2 existing collections by hand under `gh-login=harlanzw`.
 - `?prefill=name&slug&preamble&skills` URL pattern on `/collections/new` (now writes to D1).
 
 ## Identity
 
 - One namespace: `<github-login>`. URLs:
-  - `/@<gh-login>` — author profile
-  - `/@<gh-login>/<collection-slug>` — collection detail (replaces `/people/[handle]/[slug]`)
-  - `/collections` — index of `featured=1` collections, ordered by `featured_at DESC`
-  - `/collections/new` — authoring UI (login-gated)
-  - `/me` — dashboard (subscriptions, cadence, history)
+  - `/@<gh-login>`: author profile
+  - `/@<gh-login>/<collection-slug>`: collection detail (replaces `/people/[handle]/[slug]`)
+  - `/collections`: index of `featured=1` collections, ordered by `featured_at DESC`
+  - `/collections/new`: authoring UI (login-gated)
+  - `/me`: dashboard (subscriptions, cadence, history)
   - `/login`, `/onboarding/{discover,cadence,email}`
 - `/people/*` URLs all 410 except `/people/harlanzw.com` → 301 to `/@harlanzw`.
 - Sitemap regenerated to drop `/people/*` and add `/@*`.
@@ -203,14 +203,14 @@ Drop `curators`, `follows_cache`, `follows_refresh_state`. Drop old `collections
 
 `server/utils/sync-repo.ts` already tracks SKILL.md SHAs and writes `skill_revisions`. Two changes:
 
-1. **Asset SHA tracking.** Hash files under `/assets/**` per skill directory; emit `activity(type='asset_updated')` when changed. Bounded — most skills have small asset trees.
+1. **Asset SHA tracking.** Hash files under `/assets/**` per skill directory; emit `activity(type='asset_updated')` when changed. Bounded: most skills have small asset trees.
 2. **Subscription-prioritized polling.** `server/tasks/sync-github-skills.ts` adds a pre-pass: query `(owner, repo)` joined to `skill_subscriptions` with stalest > 1h, run those first; existing 24h-stalest pass picks up the rest. Conditional GETs (already implemented) keep this within rate limits.
 
 No new tasks/crons for sync. Existing hourly `sync-github-skills` does the work.
 
 ## Email + digest pipeline
 
-> **Shipped deviation (2026-05-08):** sender swapped from **Resend** to the **Cloudflare Workers `send_email` binding** (`cloudflare:email` + `mimetext`). No provider API key. Constraint: until the Cloudflare account has Send Email enabled for arbitrary destinations, every recipient must be a Verified Destination Address in the dashboard. `mail.skilld.dev` SPF/DKIM/DMARC + verified sender domain registration is still required and remains a deploy-time prerequisite. Template swapped from **vue-email** to plain functional HTML (`digest-template.ts`) — same input shape, no Vue SSR in the worker hot path; vue-email can be reintroduced later without schema or selection changes.
+> **Shipped deviation (2026-05-08):** sender swapped from **Resend** to the **Cloudflare Workers `send_email` binding** (`cloudflare:email` plus `mimetext`). No provider API key. Constraint: until the Cloudflare account has Send Email enabled for arbitrary destinations, every recipient must be a Verified Destination Address in the dashboard. `mail.skilld.dev` SPF/DKIM/DMARC + verified sender domain registration is still required and remains a deploy-time prerequisite. Template swapped from **vue-email** to plain functional HTML (`digest-template.ts`): same input shape, no Vue SSR in the worker hot path; vue-email can be reintroduced later without schema or selection changes.
 
 - **Provider:** Cloudflare Workers `send_email` binding (was: Resend). Domain `mail.skilld.dev`, SPF/DKIM/DMARC configured. Single sender identity (`noreply@mail.skilld.dev`).
 - **Templates:** plain HTML (was: vue-email). Per-skill bullets, AI summary line per skill, repo grouping when multiple skills per repo, footer with one-click unsubscribe (RFC 8058 `List-Unsubscribe` + `List-Unsubscribe-Post`).
@@ -241,10 +241,10 @@ No new tasks/crons for sync. Existing hourly `sync-github-skills` does the work.
 
 Triggered only when entering via `/login` (not pushed in users' faces). Skipped if `onboarded_at IS NOT NULL`.
 
-1. **`/login`** — single "Continue with GitHub" button. Returns to `/onboarding/discover` (or to a `?return_to=` URL if set, e.g. when a "Watch this collection" button kicked off the flow).
-2. **`/onboarding/discover`** — checkbox grid of `user_starred_repos WHERE has_skill=1`. "Watch all" toggle. Inline manual repo search for non-starred adds. CTA: "Watch N repos" → bulk-insert subscriptions.
-3. **`/onboarding/cadence`** — frequency (`weekly` default), day-of-week if weekly, hour, timezone (autodetected via `Intl.DateTimeFormat().resolvedOptions().timeZone`).
-4. **`/onboarding/email`** — confirm GitHub primary email or enter alternate. **Explicit opt-in checkbox** — unchecked by default, user has to tick it for `email_opt_in=1`. Sets `onboarded_at`, redirects to `/me`.
+1. **`/login`**: a single "Continue with GitHub" button. Returns to `/onboarding/discover` (or to a `?return_to=` URL if set, e.g. when a "Watch this collection" button kicked off the flow).
+2. **`/onboarding/discover`**: checkbox grid of `user_starred_repos WHERE has_skill=1`. "Watch all" toggle. Inline manual repo search for non-starred adds. CTA: "Watch N repos" → bulk-insert subscriptions.
+3. **`/onboarding/cadence`**: frequency (`weekly` default), day-of-week if weekly, hour, timezone (autodetected via `Intl.DateTimeFormat().resolvedOptions().timeZone`).
+4. **`/onboarding/email`**: confirm GitHub primary email or enter alternate. **Explicit opt-in checkbox**, unchecked by default, user has to tick it for `email_opt_in=1`. Sets `onboarded_at`, redirects to `/me`.
 
 Watch-collection alternate entry: clicking "Watch this collection" on a collection page, when not signed in, runs the OAuth flow with `?return_to=/@harlanzw/nuxt-stack&action=watch-collection`. After callback, server bulk-inserts subscriptions for every skill in that collection (source = `'collection:<slug>'`), then short-circuits onboarding into step 3 only (cadence + email opt-in).
 
@@ -262,12 +262,12 @@ Watch-collection alternate entry: clicking "Watch this collection" on a collecti
 ### Homepage `app/pages/index.vue`
 
 - **Headline:** "Curated skills for AI agents"
-- **Subhead:** "A curated registry of agent skills for the npm packages and GitHub repos you actually use. One install command, every agent. Get notified when they change."
+- **Subhead:** "A curated registry of agent skills for the npm packages and GitHub repos you use. One install command, every agent. Get notified when they change."
 - **Hero CTA:** install command demo with copy button (`npx skilld add gh:nuxt/nuxt`) + secondary "Browse collections" link.
 - **Below hero, in order:**
   1. Recently updated official skills (8-12 cards, `is_official=1`, sorted by `last_synced_at DESC`, with "what changed" snippet from `skill_revisions`)
   2. Featured collections (3-6, `featured=1` ordered by `featured_at DESC`)
-  3. "Watch for changes" CTA strip — single-line pitch + GitHub button
+  3. "Watch for changes" CTA strip: single-line pitch plus GitHub button
 - Delete `NetworkFeedSection.vue` entirely.
 
 ### Skill detail `layers/registry/app/pages/gh/[owner]/[repo]/[name].vue`
@@ -281,7 +281,7 @@ Watch-collection alternate entry: clicking "Watch this collection" on a collecti
 
 - Move/rename file to new route shape.
 - Drop Bluesky thread embed.
-- Primary CTA: install command for the collection (`npx skilld add @harlanzw/nuxt-stack` or equivalent — confirm CLI supports collection install).
+- Primary CTA: install command for the collection (`npx skilld add @harlanzw/nuxt-stack` or equivalent; confirm the CLI supports collection install).
 - Secondary CTA: "Watch this collection" button.
 
 ### Auth modal
@@ -296,7 +296,7 @@ Watch-collection alternate entry: clicking "Watch this collection" on a collecti
 ### Brand & context docs
 
 - `.claude/context/brand-guidelines.md`: replace "trusted open-source developers" / "AT Protocol" / curator-as-person framing. Recenter on "curated registry" + "watch for changes." Voice stays editorial, warm.
-- `GLOSSARY.md` and `docs/arch/README.md` (was `CONTEXT.md`): redefine "curator" as "collection author" (D1-backed via GitHub login). Drop atproto identity rule (lines 18-20). Update URL canonicals table (lines 37-39) — `/people/[handle]` → `/@<gh-login>`.
+- `GLOSSARY.md` and `docs/arch/README.md` (was `CONTEXT.md`): redefine "curator" as "collection author" (D1-backed via GitHub login). Drop atproto identity rule (lines 18-20). Update URL canonicals table (lines 37-39): `/people/[handle]` becomes `/@<gh-login>`.
 - `SCOPE.md`: rewrite Tech Stack section (drop "AT Protocol for auth and social layer"). Add the two-loop framing as a top-level section. Update Build Phases.
 - `CLAUDE.md`: add the two-loop framing as the first section. Future agents need this mental model before touching anything.
 
@@ -305,13 +305,13 @@ Watch-collection alternate entry: clicking "Watch this collection" on a collecti
 - Retire `project_atproto_auth_decision.md` (atproto is gone).
 - Retire `project_collection_ranking.md` (no curator-followers concept anymore).
 - Update `feedback_seeding_via_prefill.md`: prefill URL pattern survives but writes to D1, not atproto.
-- Add new memory: `project_two_loop_model.md` — the canonical mental model for the product.
+- Add new memory: `project_two_loop_model.md`, the canonical mental model for the product.
 
 ## Phasing (single ship, internal milestones)
 
 Site is unused, so no need to stage public exposure. All phases land in one push.
 
-**Phase 1 — Loop 1 cleanup (1-2 days) — SHIPPED 2026-05-08**
+**Phase 1, Loop 1 cleanup (1-2 days). SHIPPED 2026-05-08**
 - Migrations 0020 (collections v2), seed your 2 collections under `harlanzw` (manually inserted user row with placeholder GitHub data, replaced when you OAuth in Phase 2).
 - Rip atproto: deps, server code, components, tasks.
 - Rewrite homepage, skill detail page, collection routes (`/people/*` → `/@*`).
@@ -319,7 +319,7 @@ Site is unused, so no need to stage public exposure. All phases land in one push
 - Update SCOPE/CONTEXT/CLAUDE/brand docs with two-loop framing.
 - Sitemap regen.
 
-**Phase 2 — Auth + watching (3-4 days) — SHIPPED 2026-05-08 (commits 32c209f, 86eaa52, c938115)**
+**Phase 2, auth and watching (3-4 days). SHIPPED 2026-05-08 (commits 32c209f, 86eaa52, c938115)**
 - Migrations 0017 (users), 0018 (subscriptions), 0019 (starred), plus 0022 (collections backfill: ghost-user merge + FK + drop temp `author_login`).
 - GitHub OAuth handler via `nuxt-auth-utils`, AES-GCM token encryption util keyed by `NUXT_TOKEN_KEY`, cookie session.
 - `/login`, `/onboarding/{discover,cadence,email}`, `/me`.
@@ -328,18 +328,18 @@ Site is unused, so no need to stage public exposure. All phases land in one push
 - Collection authoring UI at `/collections/new` rewritten for D1 (`POST /api/collections`).
 - Collection APIs (`featured`, `by-author/*`, sitemap authors) JOIN `users` via `author_user_id`.
 
-**Phase 3 — Email + AI summary (3-4 days) — SHIPPED 2026-05-08 (commits 86aed45, 2cb0c5d)**
+**Phase 3, email and AI summary (3-4 days). SHIPPED 2026-05-08 (commits 86aed45, 2cb0c5d)**
 - Migration 0021 (digest_runs). ✅
 - ~~Resend integration~~ → Cloudflare Workers `send_email` binding (`cloudflare:email` + `mimetext`); `mail.skilld.dev` DNS still pending. ✅ (with deviation noted above)
 - ~~vue-email digest template~~ → plain functional HTML template (`digest-template.ts`); same input shape so swap remains cheap. ✅ (with deviation)
 - `layers/identity/server/tasks/send-digests.ts` + cron registration alongside `sync-github-skills` (hourly). ✅
 - Anthropic Haiku 4.5 integration with prompt caching: stable per-user system prefix (sorted subscriptions + skill descriptions, `cache_control: ephemeral`), volatile diffs in user message, failure mode = no-summary fallback. ✅
 - Unsubscribe handler (HMAC-SHA256, GET + POST, RFC 8058) + email-change verification round-trip (`/api/me/email/{verify-request,verify}`, SHA-256 hashed token, 24h expiry). ✅
-- ~~Asset SHA tracking in `sync-repo.ts`~~ — **deferred**. The SKILL.md SHA path already drives the digest; asset hashing is additive and can layer on later without schema changes.
+- ~~Asset SHA tracking in `sync-repo.ts`~~: **deferred**. The SKILL.md SHA path already drives the digest; asset hashing is additive and can layer on later without schema changes.
 - Subscription-prioritized polling pre-pass: `sync-github-skills` runs subscribed-and-stalest>1h repos before the general 24h-stalest pass. ✅
 - Outstanding deploy-time prerequisites: remote D1 migrations (`CLOUDFLARE_API_TOKEN`), `mail.skilld.dev` DNS + verified sender domain, Verified Destination Addresses (until Send Email goes unrestricted), `NUXT_ANTHROPIC_API_KEY` (digest still ships without it via the commits-bullet fallback).
 
-**Phase 4 — Cleanup (post-merge)**
+**Phase 4, cleanup (post-merge)**
 - Drop atproto tables.
 - Drop old collections + collection_skills tables (keep until v2 verified).
 - Memory file updates.
@@ -360,5 +360,5 @@ Site is unused, so no need to stage public exposure. All phases land in one push
 
 ## Open low-stakes items
 
-- Whether `skilld add @harlanzw/nuxt-stack` works in the CLI today, or only `gh:` / `npm:` prefixes — confirm before wiring collection install CTA.
+- Whether `skilld add @harlanzw/nuxt-stack` works in the CLI today, or only `gh:` / `npm:` prefixes; confirm before wiring collection install CTA.
 - Decide between Workers AI fallback or hard-fail when Anthropic is down (currently: skip summary, send digest without it).

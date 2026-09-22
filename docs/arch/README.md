@@ -9,30 +9,30 @@ Use the names exactly. Drift breeds shallow modules.
 
 - `/gh/[owner]` is *always* a GitHub-proxied entity (the repository owner namespace).
 - `/@<github-login>` is *always* an authored entity in skilld's own data (the collection-author namespace).
-- A github org and a collection author can share a name — the `@` prefix disambiguates the author namespace.
+- A GitHub org and a collection author can share a name; the `@` prefix disambiguates the author namespace.
 
 ## Layers (see ADR-0001)
 
-- **registry** — `/gh/*` and `api/orgs|repos|skills|*`. Owns GitHub proxying.
-- **identity** (Phase 2) — GitHub OAuth, sessions, `users` table, subscriptions, digests.
-- **app** — `/`, `/community`, `/@<login>/*`, `/collections/new`, `api/community|collections|feed|*`. Owns native data.
-- **marketing** — `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`. Comark renders its Markdown. Owns SEO content.
-- **admin** — existing.
+- **registry**: `/gh/*` and `api/orgs|repos|skills|*`. Owns GitHub proxying.
+- **identity** (Phase 2): GitHub OAuth, sessions, `users` table, subscriptions, digests.
+- **app**: `/`, `/community`, `/@<login>/*`, `/collections/new`, `api/community|collections|feed|*`. Owns native data.
+- **marketing**: `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`. Comark renders its Markdown. Owns SEO content.
+- **admin**: existing.
 - **artifact delivery:** `/api/v1/resolutions|artifacts|trusted-root|github/connections`. Owns exact source resolution, checks, signing, grants, and transient delivery.
 
 Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilities. Each layer is deletion-testable.
 
 ## Server-side architecture
 
-- **Platform** — request-scoped object on `event.context.platform` carrying every infrastructure binding a handler needs: `db` (D1), `ai` (Workers AI), `github` (resolved client), `requestId`. Mounted by `server/plugins/platform.ts`. Handlers must read bindings from here, never directly from `event.context.cloudflare.env`.
-- **defineApiHandler** — the single Nitro entrypoint shape: `{ schema, policy, handler, presenter }`. Schema is a zod input, policy is an array of atomic predicates AND-ed, handler receives `{ body, platform, user, event }`, presenter shapes the response. Defined in `shared/server/handler.ts`.
-- **Policy** — a `(ctx) => boolean | Promise<boolean>` atom in `layers/<layer>/server/policies/`. Composes by array.
-- **Presenter** — a `(row) => dto` in `layers/<layer>/server/presenters/`. Response shape lives here, never inline in handlers.
-- **Schema** — a zod input schema in `layers/<layer>/server/schemas/`. Auto-validated by `defineApiHandler`.
+- **Platform**: request-scoped object on `event.context.platform` carrying every infrastructure binding a handler needs: `db` (D1), `ai` (Workers AI), `github` (resolved client), `requestId`. Mounted by `server/plugins/platform.ts`. Handlers must read bindings from here, never directly from `event.context.cloudflare.env`.
+- **defineApiHandler**: the single Nitro entrypoint shape: `{ schema, policy, handler, presenter }`. Schema is a zod input, policy is an array of atomic predicates AND-ed, handler receives `{ body, platform, user, event }`, presenter shapes the response. Defined in `shared/server/handler.ts`.
+- **Policy**: a `(ctx) => boolean | Promise<boolean>` atom in `layers/<layer>/server/policies/`. Composes by array.
+- **Presenter**: a `(row) => dto` in `layers/<layer>/server/presenters/`. Response shape lives here, never inline in handlers.
+- **Schema**: a zod input schema in `layers/<layer>/server/schemas/`. Auto-validated by `defineApiHandler`.
 
 ## App-side architecture
 
-- **Service** — an object owning a client (an API client) or app-wide reactive state. Constructed by `createAppServices(config)` in `app/services/`, exposed via `nuxtApp.$services`. Composables that just bind keys or call `$fetch` are not services.
+- **Service**: an object owning an API client or app-wide reactive state. Constructed by `createAppServices(config)` in `app/services/`, exposed via `nuxtApp.$services`. Composables that just bind keys or call `$fetch` are not services.
 
 ## URL canonicals
 

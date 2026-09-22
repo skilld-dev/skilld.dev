@@ -21,7 +21,7 @@ LFC.dev, sharedcontext.ai, Contextium, swarm.services, skillburst.ai, SkillSync 
 Just don't use them. ROI unclear. Trash folder. A real risk: if Anthropic ships a built-in manager that is "good enough", Lane D wins by default.
 
 ### Lane E: "Curation, not management" (the quiet pain, our lane)
-Three replies, total. "Fewer more robust skills." "Skills written like operating docs: when to use, exact steps, gotchas. The boring part is the product." "I'm still struggling to get my agents to remember they HAVE skills."
+Three replies, total. "Fewer more solid skills." "Skills written like operating docs: when to use, exact steps, gotchas. The boring part is the product." "I'm still struggling to get my agents to remember they HAVE skills."
 
 This lane is small in the thread because nobody is articulating it yet. That is the opening.
 
@@ -94,7 +94,7 @@ This converts the editorial frame from a *taste* argument to a *trust* argument.
 
 - **Surface line**: *Curated agent skills from trusted open-source developers.* (Unchanged. Now load-bearing.)
 - **The trust frame**: *Every skill on skilld traces to a name you recognise. Either we authored it from official docs, or a named curator vouched for it. No anonymous uploads. No one-week-old accounts.*
-- **Anti-pitch**: *We do not host random SKILL.md files. We do not have 91k skills. We have the ones you would actually install.*
+- **Anti-pitch**: *We do not host random SKILL.md files. We do not have 91k skills. We have the ones you would install.*
 
 ## 3. The Pivot (and what does not change)
 
@@ -142,7 +142,7 @@ Drop-in copy. Voice matches `brand-guidelines.md`: editorial, grounded, no hype,
 > Snyk found 13% of skills on the big registries contain critical security flaws. 335 malicious skills shipped on ClawHub in a single January campaign. Anthropic itself recommends installing only from trusted sources. Skilld is that source, by construction. Every skill traces to a name. Either we authored it from official docs, or a named curator vouched for it.
 
 ### Tweet for the response thread (when we publish)
-*The thread is right: SKILL.md management is chaos. Sync tools fix the plumbing. Marketplaces brag about 91k skills you'd never install. Skilld is the editorial layer above both. Humans you can name, skills they actually use, one install command, the why per skill.*
+*The thread is right: SKILL.md management is chaos. Sync tools fix the plumbing. Marketplaces brag about 91k skills you'd never install. Skilld is the editorial layer above both. Humans you can name, skills they use, one install command, the why per skill.*
 
 ## 5. Action Items
 
@@ -150,7 +150,7 @@ Drop-in copy. Voice matches `brand-guidelines.md`: editorial, grounded, no hype,
 - [ ] **Homepage hero pass**. Strip any phrasing that reads as sync, lifecycle, or management. Lead with the editorial frame, with the trust line as the secondary beat. Touch points: `app/pages/index.vue`, hero subhead, the "How it works" copy.
 - [ ] **"Why this skill?" rationale field**. Schema + UI for collection authoring. Smallest, highest-leverage product change. Touch points: collection author flow, collection detail page, skill card hover state.
 - [ ] **Provenance line on every skill**. Human-readable trace: who authored, from what source, on what date. This is the auditable trust signal. Cheap to add to existing schema.
-- [ ] **Public response post**. Quote the original viral thread, ship the positioning post on Bluesky and personal Twitter. Window is open right now. Lead with the trust angle, not the editorial one — security is the harder-to-dismiss frame.
+- [ ] **Public response post**. Quote the original viral thread, ship the positioning post on Bluesky and personal Twitter. Window is open right now. Lead with the trust angle, not the editorial one; security is the harder-to-dismiss frame.
 - [ ] **Curator outreach**. Land 3 named curators with full stacks before any further marketing push. First targets: danielroe, atinux, sebastien chopin, pooya parsa, daniel kelly. Faces are the moat.
 
 ### Next 2-4 weeks

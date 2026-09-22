@@ -149,7 +149,7 @@ Check at that point, then again at eight:
 Every keyword in this research shows a collapsing trailing trend. `claude skills
 marketplace` runs `5400 → 9900 (peak) → 3600 → 880 → 320 → 0 → 0 → 0`;
 `agent skills` peaks at 18,100 and ends at 70. The `vol` figures above are
-12-month **averages** carried almost entirely by the peak.
+12-month **averages** carried almost wholly by the peak.
 
 Two readings: DataForSEO clickstream lag, or genuine post-launch decay. This was
 not resolved. The **relative ordering** between terms is trustworthy and is what
