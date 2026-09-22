@@ -110,6 +110,8 @@ export interface SourceRejection {
   code: ProblemCode
   summary: string
   findings: string[]
+  /** Unix seconds the caller may try again, when the upstream said so. */
+  retryAfterSeconds?: number
 }
 
 export type ResolveSourceResult
@@ -137,12 +139,15 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
 
 export function createGithubSourceClient(options: GithubClientOptions): PublicGithubSourceClient {
   const expectedVisibility = options.visibility ?? 'public'
-  const readRejection = (reason: 'not-found' | 'access-denied' | 'identity-mismatch') =>
-    sourceReadRejection(reason, expectedVisibility)
+  const readRejection = (outcome: FailedReadOutcome) =>
+    outcome._tag === 'rate-limited'
+      ? rateLimitRejection(outcome.resetAt)
+      : sourceReadRejection(outcome._tag, expectedVisibility)
   const requestJson = async <T>(path: string, schema: z.ZodType<T>): Promise<
     { _tag: 'ok', value: T }
     | { _tag: 'not-found' }
     | { _tag: 'access-denied' }
+    | { _tag: 'rate-limited', resetAt: number | null }
   > => {
     const headers = new Headers({
       'Accept': 'application/vnd.github+json',
@@ -161,8 +166,12 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     if (response.status === 404)
       return { _tag: 'not-found' }
     if (response.status === 401 || response.status === 403) {
+      // A spent quota is a fact about this minute, not about the Repository.
+      // It used to throw, which wrote nothing: the Resolution sat in its
+      // current state through the 60, 120, 240, 480 second delivery ladder and
+      // then failed as SERVICE_UNAVAILABLE with no reason on it.
       if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0')
-        throw new Error('GitHub rate limit reached')
+        return { _tag: 'rate-limited', resetAt: epochHeader(response.headers, 'x-ratelimit-reset') }
       return { _tag: 'access-denied' }
     }
     if (!response.ok)
@@ -198,7 +207,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       gitRefResponseSchema,
     )
     if (gitRef._tag !== 'ok')
-      return readRejection(gitRef._tag)
+      return readRejection(gitRef)
     if (gitRef.value.ref !== expectedRef)
       return reject('INVALID_SOURCE', 'GitHub returned another Git reference.', [gitRef.value.ref])
     if (type === 'branch') {
@@ -220,7 +229,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         annotatedTagResponseSchema,
       )
       if (tag._tag !== 'ok')
-        return readRejection(tag._tag)
+        return readRejection(tag)
       if (tag.value.sha !== object.sha)
         return reject('INVALID_SOURCE', 'GitHub returned another Git tag identity.', [value])
       object = tag.value.object
@@ -235,7 +244,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
   ): Promise<ListedTree | SourceRejection> => {
     const recursive = await getTree(owner, repository, rootTreeSha, true)
     if (recursive._tag !== 'ok')
-      return readRejection(recursive._tag)
+      return readRejection(recursive)
     if (!recursive.value.truncated) {
       if (recursive.value.tree.length > MAX_TREE_ENTRIES)
         return sourceLimitRejection(`The Skill has more than ${MAX_TREE_ENTRIES} source entries.`)
@@ -251,7 +260,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const current = queue.shift()!
       const response = await getTree(owner, repository, current.sha, false)
       if (response._tag !== 'ok')
-        return readRejection(response._tag)
+        return readRejection(response)
       if (response.value.truncated)
         return sourceLimitRejection('GitHub returned an incomplete Skill tree.')
       for (const entry of response.value.tree) {
@@ -279,7 +288,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     for (const segment of skillPath.split('/')) {
       const response = await getTree(owner, repository, currentSha, false)
       if (response._tag !== 'ok')
-        return readRejection(response._tag)
+        return readRejection(response)
       const entry = response.value.tree.find(candidate => candidate.path === segment)
       if (!entry)
         return reject('SOURCE_NOT_FOUND', 'The Skill path does not exist.', [skillPath])
@@ -322,6 +331,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         `/repos/${encodeURIComponent(request.owner)}/${encodeURIComponent(request.repository)}`,
         repositoryResponseSchema,
       )
+      if (repository._tag === 'rate-limited')
+        return rateLimitRejection(repository.resetAt)
       if (repository._tag === 'not-found')
         return reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
       if (repository._tag === 'access-denied') {
@@ -349,6 +360,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         `/repos/${encodeURIComponent(repository.value.owner.login)}/${encodeURIComponent(repository.value.name)}/commits/${requestedCommit}`,
         commitResponseSchema,
       )
+      if (commit._tag === 'rate-limited')
+        return rateLimitRejection(commit.resetAt)
       if (commit._tag === 'not-found')
         return reject('SOURCE_NOT_FOUND', 'The requested Git reference was not found.', [request.ref?.value ?? repository.value.default_branch])
       if (commit._tag === 'access-denied')
@@ -391,6 +404,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         `/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}`,
         repositoryResponseSchema,
       )
+      if (repository._tag === 'rate-limited')
+        return rateLimitRejection(repository.resetAt)
       if (repository._tag === 'not-found')
         return reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
       if (repository._tag === 'access-denied') {
@@ -496,7 +511,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
           blobResponseSchema,
         )
         if (response._tag !== 'ok')
-          return readRejection(response._tag)
+          return readRejection(response)
         const content = base64ToBytes(response.value.content.replaceAll('\n', ''))
         if (response.value.sha !== entry.sha || response.value.size !== content.byteLength || entry.size !== content.byteLength) {
           return reject('INVALID_SOURCE', 'A Git blob changed during Artifact creation.', [entry.path])
@@ -681,6 +696,38 @@ function sourceReadRejection(
 
 function sourceLimitRejection(summary: string, findings: string[] = []): SourceRejection {
   return reject('INVALID_SOURCE', summary, findings)
+}
+
+type FailedReadOutcome
+  = { _tag: 'not-found' | 'access-denied' | 'identity-mismatch' }
+    | { _tag: 'rate-limited', resetAt: number | null }
+
+function epochHeader(headers: Headers, name: string): number | null {
+  const raw = headers.get(name)
+  if (raw === null)
+    return null
+  const value = Number(raw)
+  return Number.isSafeInteger(value) && value > 0 ? value : null
+}
+
+function rateLimitRejection(resetAt: number | null): SourceRejection {
+  const rejection = reject('RATE_LIMITED', 'GitHub refused the read: its rate limit is spent.', [])
+  return resetAt === null ? rejection : { ...rejection, retryAfterSeconds: resetAt }
+}
+
+/**
+ * Whether a later attempt at the same request could answer differently.
+ *
+ * A spent quota, an unreachable upstream and an unavailable signer all pass.
+ * Every verdict about the Repository itself does not: retrying reaches the
+ * same answer and spends the budget to learn nothing.
+ */
+export function isRetryableProblem(code: ProblemCode): boolean {
+  return code === 'RATE_LIMITED'
+    || code === 'SOURCE_UNAVAILABLE'
+    || code === 'SERVICE_UNAVAILABLE'
+    || code === 'SIGNER_UNAVAILABLE'
+    || code === 'CHECK_UNAVAILABLE'
 }
 
 function reject(code: ProblemCode, summary: string, findings: string[]): SourceRejection {

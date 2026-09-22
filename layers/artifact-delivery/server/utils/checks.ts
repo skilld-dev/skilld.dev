@@ -167,6 +167,14 @@ function decodeText(bytes: Uint8Array): string | null {
   }
 }
 
+/**
+ * Minimal frontmatter reader for the Agent Skills specification check.
+ *
+ * Deliberately not the registry parser in `layers/registry`: the signer worker
+ * compiles this file on its own, so sharing that parser would pull a YAML
+ * dependency into the signing path. This reader only needs to know whether
+ * `name` and `description` are present and within their length bounds.
+ */
 function readSkillFrontmatter(raw: string): { name?: string, description?: string } | null {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
   if (!match)

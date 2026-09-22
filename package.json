@@ -84,6 +84,7 @@
     "tailwindcss": "catalog:",
     "unstorage": "catalog:",
     "vue": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
