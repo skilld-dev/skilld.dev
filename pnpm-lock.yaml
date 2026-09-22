@@ -353,6 +353,9 @@ catalogs:
     wrangler:
       specifier: ^4.127.1
       version: 4.127.1
+    yaml:
+      specifier: ^2.9.0
+      version: 2.9.0
     zod:
       specifier: ^4.5.4
       version: 4.5.4
@@ -476,6 +479,9 @@ importers:
       vue:
         specifier: 'catalog:'
         version: 3.5.42(typescript@6.0.3)
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.0
       zod:
         specifier: 'catalog:'
         version: 4.5.4
