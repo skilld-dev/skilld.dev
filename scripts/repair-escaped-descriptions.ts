@@ -13,6 +13,12 @@
  * repairs that column from the same `rendered_raw` bytes already in D1, so it
  * needs no GitHub token and reads the exact source the row was built from.
  *
+ * The old parser also truncated scalars wrapped onto continuation lines and
+ * stored undecoded escapes in `display_name`, and neither shape carries a
+ * backslash or a quote to select on. So the selector takes every row that
+ * still carries `rendered_raw`: a row whose stored values already match the
+ * bytes parses to no UPDATE at all.
+ *
  * Emits SQL on stdout and progress on stderr. It writes nothing itself.
  *
  * Usage:
@@ -41,6 +47,11 @@ interface SkillRow {
 
 const SQUOTE_RE = /'/g
 const escape = (s: string) => s.replace(SQUOTE_RE, '\'\'')
+
+/** SQL `IS` predicate pinning a column to the stale value the row was read with. */
+function staleGuard(value: string | null): string {
+  return value === null ? 'IS NULL' : `IS '${escape(value)}'`
+}
 
 function d1<T>(sql: string): T[] {
   const out = execFileSync(
@@ -74,12 +85,11 @@ export interface RepairEscapedDescriptionsSummary {
 export function runRepairEscapedDescriptions(
   deps: RepairEscapedDescriptionsDependencies,
 ): RepairEscapedDescriptionsSummary {
-  console.error('[repair] querying rows whose description still holds a backslash or doubled-quote escape...')
+  console.error('[repair] querying every row that still carries rendered raw bytes...')
   const rows = deps.query<SkillRow>(
     `SELECT owner, repo, name, display_name, description, rendered_raw, rendered_skill_path
      FROM skills
-     WHERE (description LIKE '%\\%' ESCAPE '~' OR description LIKE '%''%')
-       AND rendered_raw IS NOT NULL
+     WHERE rendered_raw IS NOT NULL
      ORDER BY owner ASC, repo ASC, name ASC
      LIMIT ${deps.limit}`,
   )
@@ -92,7 +102,12 @@ export function runRepairEscapedDescriptions(
   let unparsed = 0
 
   for (const row of rows) {
-    const dirName = row.rendered_skill_path?.replace(/\/SKILL\.md$/, '').split('/').at(-1) ?? row.name
+    // sync-repo stores a root-level SKILL.md with the path exactly 'SKILL.md'
+    // and names that skill after the repository, so the directory that decides
+    // the slug is the repository name, never the file name.
+    const dirName = row.rendered_skill_path === 'SKILL.md'
+      ? row.repo
+      : row.rendered_skill_path?.replace(/\/SKILL\.md$/, '').split('/').at(-1) ?? row.name
     const parsed = parseSkillFile(row.rendered_raw!, dirName)
     if (!parsed) {
       unparsed++
@@ -109,12 +124,13 @@ export function runRepairEscapedDescriptions(
       continue
     }
 
-    // The WHERE guard pins the stale value. If a repository sync corrects the
+    // The WHERE guard pins the stale values. If a repository sync corrects the
     // row first, the UPDATE matches nothing instead of overwriting fresher text.
     deps.emit(
       `UPDATE skills SET ${sets.join(', ')} `
       + `WHERE owner = '${escape(row.owner)}' AND repo = '${escape(row.repo)}' AND name = '${escape(row.name)}' `
-      + `AND description IS '${escape(row.description ?? '')}';`,
+      + `AND description ${staleGuard(row.description)} `
+      + `AND display_name ${staleGuard(row.display_name)};`,
     )
     repaired++
   }
