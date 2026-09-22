@@ -1,10 +1,10 @@
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { createRegistryJobBatch } from '~~/server/utils/registry-jobs-runtime'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
-import { RECONCILE_RENDER_CANDIDATES_SQL } from '~~/server/utils/sync-candidates'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { RECONCILE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
+import { RECONCILE_RENDER_CANDIDATES_SQL } from '../utils/sync-candidates'
 
 const BATCH = 50
 const CRON = '20 */6 * * *'
