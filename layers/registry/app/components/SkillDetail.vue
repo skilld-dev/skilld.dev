@@ -2,6 +2,7 @@
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
+import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
@@ -972,7 +973,7 @@ useHead(computed(() => ({
                   class="group flex min-h-11 items-start gap-3 px-4 py-4 transition-colors duration-200 hover:bg-elevated sm:px-6"
                 >
                   <img
-                    :src="`https://github.com/${match.owner}.png?size=48`"
+                    :src="githubAvatarProxyUrl(match.owner, 48)"
                     :alt="`${match.owner} avatar`"
                     loading="lazy"
                     width="24"
@@ -1078,7 +1079,7 @@ useHead(computed(() => ({
               :aria-label="`${data.owner} skill profile`"
             >
               <img
-                :src="`https://github.com/${data.owner}.png?size=96`"
+                :src="githubAvatarProxyUrl(data.owner, 96)"
                 :alt="`${data.owner} avatar`"
                 width="48"
                 height="48"
@@ -1925,7 +1926,7 @@ useHead(computed(() => ({
               >
                 <img
                   v-if="commit.authorAvatar"
-                  :src="commit.authorAvatar"
+                  :src="avatarProxyUrl(commit.authorAvatar)"
                   :alt="`${commit.authorName} avatar`"
                   width="20"
                   height="20"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { resolveClusterViewState } from '../../utils/cluster-view-state'
 
 interface ClusterSkill {
@@ -209,7 +210,7 @@ defineOgImage('Page.takumi', {
               <img
                 v-for="owner in maintainerOwners"
                 :key="owner"
-                :src="`https://github.com/${owner}.png?size=64`"
+                :src="githubAvatarProxyUrl(owner, 64)"
                 alt=""
                 width="32"
                 height="32"
@@ -271,7 +272,7 @@ defineOgImage('Page.takumi', {
               >
                 <span class="cluster-sequence-number">{{ String(index + 1).padStart(2, '0') }}</span>
                 <img
-                  :src="`https://github.com/${skill.owner}.png?size=80`"
+                  :src="githubAvatarProxyUrl(skill.owner, 80)"
                   alt=""
                   width="40"
                   height="40"

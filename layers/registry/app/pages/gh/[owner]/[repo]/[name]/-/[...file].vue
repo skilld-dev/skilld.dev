@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 
 const route = useRoute()
@@ -106,7 +107,7 @@ useHead(computed(() => ({
         :aria-label="`${name} skill`"
       >
         <img
-          :src="`https://github.com/${owner}.png?size=72`"
+          :src="githubAvatarProxyUrl(owner, 72)"
           :alt="`${owner} avatar`"
           width="40"
           height="40"

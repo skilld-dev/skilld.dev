@@ -88,3 +88,43 @@ it('reads production CI verdicts from main only', async () => {
     expect(args[args.indexOf('--branch') + 1]).toBe('main')
   }
 })
+
+// A page of cancelled queue-mates satisfied the collector's old `conclusion !==
+// 'skipped'` re-fetch predicate, so the deeper 100-run page was never paid for
+// and a verdict ten runs deep read as an observability gap.
+it('pages past a full head sample of cancelled runs to the verdict it hid', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-ci-cancelled-'))
+  roots.push(root)
+  await mkdir(join(root, '.github/workflows'), { recursive: true })
+  await writeFile(join(root, '.github/workflows/deploy.yml'), 'name: Deploy to Cloudflare')
+
+  const cancelled = Array.from({ length: 10 }, (_, index) => ({
+    workflowName: 'Deploy to Cloudflare',
+    status: 'completed',
+    conclusion: 'cancelled',
+    databaseId: 20 - index,
+    displayTitle: 'chore: bump',
+    headSha: 'abc123',
+    createdAt: `2026-09-21T02:${String(index).padStart(2, '0')}:00Z`,
+    updatedAt: `2026-09-21T02:${String(index).padStart(2, '0')}:30Z`,
+    url: `https://example.com/runs/${20 - index}`,
+  }))
+  const success = { ...cancelled[0]!, conclusion: 'success', databaseId: 10, createdAt: '2026-09-20T02:00:00Z' }
+  boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
+    if (command !== 'gh')
+      throw new Error(`unexpected command: ${command}`)
+    const rows = args.includes('--workflow') && args[args.indexOf('--limit') + 1] === '10' ? cancelled : [...cancelled, success]
+    return { _tag: 'Ok', stdout: JSON.stringify(rows), stderr: '' }
+  })
+
+  const { report } = await runExternalChecks([ciCheck], { required: [ciCheck.id] }, { rootDir: root, env: {} })
+
+  const requestedLimits = boundary.command.mock.calls
+    .filter(([, , args]) => args.includes('--workflow'))
+    .map(([, , args]) => args[args.indexOf('--limit') + 1])
+  expect(requestedLimits).toEqual(['10', '100'])
+  expect(report.results.find(check => check.id === 'skilld.ci')?.result).toMatchObject({
+    _tag: 'Pass',
+    evidence: { workflows: [{ name: 'Deploy to Cloudflare', state: { _tag: 'success' } }] },
+  })
+})

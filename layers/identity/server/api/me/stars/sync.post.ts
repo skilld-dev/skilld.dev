@@ -1,8 +1,7 @@
 import { defineApiHandler } from '#shared/server/handler'
 import { authenticated } from '../../../policies/authenticated'
 import { StarsSyncQuery } from '../../../schemas/stars'
-import { decryptToken } from '../../../utils/crypto'
-import { requireUserRow } from '../../../utils/users'
+import { requireGithubUserToken, requireUserRow } from '../../../utils/users'
 
 interface GitHubStarred {
   starred_at: string
@@ -20,13 +19,7 @@ export default defineApiHandler({
     const { db } = platform
     const { page } = body
 
-    const enc = await db.prepare(
-      `SELECT github_token_encrypted FROM users WHERE id = ?1`,
-    ).bind(u.id).first<{ github_token_encrypted: string | null }>()
-    if (!enc?.github_token_encrypted)
-      throw createError({ statusCode: 401, message: 'Re-authentication required' })
-
-    const token = await decryptToken(enc.github_token_encrypted, config.tokenKey as string)
+    const token = await requireGithubUserToken(db, u.id, config.tokenKey as string)
 
     if (page === 1)
       await db.prepare(`DELETE FROM user_starred_repos WHERE user_id = ?1`).bind(u.id).run()
@@ -40,7 +33,7 @@ export default defineApiHandler({
     })
     if (!res.ok) {
       if (res.status === 401)
-        throw createError({ statusCode: 401, message: 'Re-authentication required' })
+        throw createError({ statusCode: 401, statusMessage: 'GitHub sign-in required', message: 'GitHub rejected your access. Sign in with GitHub again.' })
       throw createError({ statusCode: 502, message: `GitHub error ${res.status}` })
     }
     const raw = await res.json() as GitHubStarred[]

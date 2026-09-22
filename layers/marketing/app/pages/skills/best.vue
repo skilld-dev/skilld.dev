@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
+
 interface EssentialSkill {
   owner: string
   repo: string
@@ -119,7 +121,7 @@ function trustLabel(tier: string): string {
           >
             <span class="best-rank">{{ String(index + 1).padStart(2, '0') }}</span>
             <img
-              :src="`https://github.com/${skill.owner}.png?size=80`"
+              :src="githubAvatarProxyUrl(skill.owner, 80)"
               alt=""
               width="40"
               height="40"

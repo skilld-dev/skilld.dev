@@ -2,9 +2,11 @@ import type { SyncRepoStats } from '../../layers/registry/server/utils/sync-repo
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  buildScanOwners,
   makeOwnedRepoScanner,
   ownedRepoScanResponse,
   ownedRepoScanWarning,
+  parseOrgListResponse,
 } from '../../layers/identity/server/utils/scan-owned-repos'
 
 function indexed(owner: string, repo: string, skillsUpserted = 1): SyncRepoStats {
@@ -19,6 +21,8 @@ function indexed(owner: string, repo: string, skillsUpserted = 1): SyncRepoStats
     activityEmitted: skillsUpserted > 0 ? 1 : 0,
   }
 }
+
+const noOrgs = async () => ({ _tag: 'orgs' as const, logins: [] as string[], visibility: 'public' as const })
 
 function searchBody(overrides: Record<string, unknown> = {}) {
   return {
@@ -67,6 +71,7 @@ describe('owned GitHub repository discovery', () => {
     }))
     const scan = makeOwnedRepoScanner({
       fetch: vi.fn(async () => Response.json(searchBody())),
+      listOrgs: noOrgs,
       syncRepo,
       resolveGithubBindings: () => ({}),
       now: () => 100,
@@ -89,6 +94,7 @@ describe('owned GitHub repository discovery', () => {
   it('does not count a zero-upsert rejection as indexed', async () => {
     const scan = makeOwnedRepoScanner({
       fetch: vi.fn(async () => Response.json(searchBody())),
+      listOrgs: noOrgs,
       syncRepo: vi.fn(async (owner, repo) => indexed(owner, repo, 0)),
       resolveGithubBindings: () => ({}),
       now: () => 100,
@@ -103,6 +109,7 @@ describe('owned GitHub repository discovery', () => {
   it('reports a stale terminal claim after sync success as a retryable candidate-state failure', async () => {
     const scan = makeOwnedRepoScanner({
       fetch: vi.fn(async () => Response.json(searchBody())),
+      listOrgs: noOrgs,
       syncRepo: vi.fn(async (owner, repo) => {
         sqlite.prepare(
           `UPDATE discovery_candidates
@@ -139,6 +146,7 @@ describe('owned GitHub repository discovery', () => {
   ])('returns an explicit partial result for incomplete or capped search', async (body, reason) => {
     const scan = makeOwnedRepoScanner({
       fetch: vi.fn(async () => Response.json(body)),
+      listOrgs: noOrgs,
       syncRepo: vi.fn(async (owner, repo) => indexed(owner, repo)),
       resolveGithubBindings: () => ({}),
       now: () => 100,
@@ -155,6 +163,7 @@ describe('owned GitHub repository discovery', () => {
     const fetch = vi.fn(async () => Response.json(searchBody({ total_count: 1_000, items })))
     const scan = makeOwnedRepoScanner({
       fetch,
+      listOrgs: noOrgs,
       syncRepo: vi.fn(async (owner, repo) => indexed(owner, repo)),
       resolveGithubBindings: () => ({}),
       now: () => 100,
@@ -174,6 +183,7 @@ describe('owned GitHub repository discovery', () => {
   ])('surfaces GitHub search status %i as %s', async (status, tag) => {
     const scan = makeOwnedRepoScanner({
       fetch: vi.fn(async () => new Response(null, { status })),
+      listOrgs: noOrgs,
       syncRepo: vi.fn(),
       resolveGithubBindings: () => ({}),
       now: () => 100,
@@ -188,6 +198,7 @@ describe('owned GitHub repository discovery', () => {
   it('carries rate-limit diagnostics from GitHub response headers', async () => {
     const scan = makeOwnedRepoScanner({
       fetch: vi.fn(async () => new Response(null, {
+        listOrgs: noOrgs,
         status: 403,
         headers: {
           'x-ratelimit-remaining': '0',
@@ -195,6 +206,7 @@ describe('owned GitHub repository discovery', () => {
           'x-github-request-id': 'REQ_123',
         },
       })),
+      listOrgs: noOrgs,
       syncRepo: vi.fn(),
       resolveGithubBindings: () => ({}),
       now: () => 100,
@@ -216,6 +228,7 @@ describe('owned GitHub repository discovery', () => {
   it('records unchanged unverified admitted candidates as already admitted', async () => {
     const scan = makeOwnedRepoScanner({
       fetch: vi.fn(async () => Response.json(searchBody())),
+      listOrgs: noOrgs,
       syncRepo: vi.fn(async (owner, repo) => ({
         ...indexed(owner, repo, 0),
         status: 'skipped-tree-sha' as const,
@@ -232,6 +245,72 @@ describe('owned GitHub repository discovery', () => {
       outcome: 'already_admitted',
       retry_state: 'complete',
     })
+  })
+
+  it('searches each organisation the account belongs to, not just the account', async () => {
+    const fetch = vi.fn(async (url: string) => {
+      const query = decodeURIComponent(new URL(url).searchParams.get('q') ?? '')
+      if (query.includes('org:vue-org')) {
+        return Response.json(searchBody({
+          items: [{
+            path: 'skills/one/SKILL.md',
+            repository: { name: 'vue-ecosystem-skills', owner: { login: 'vue-org' }, fork: false },
+          }],
+        }))
+      }
+      return Response.json(searchBody())
+    })
+    const scan = makeOwnedRepoScanner({
+      fetch: fetch as unknown as typeof globalThis.fetch,
+      listOrgs: async () => ({ _tag: 'orgs', logins: ['vue-org'], visibility: 'member' }),
+      syncRepo: vi.fn(async (owner, repo) => indexed(owner, repo)),
+      resolveGithubBindings: () => ({}),
+      now: () => 100,
+      claimToken: () => 'claim-one',
+    })
+
+    const result = await scan({ login: 'acme', userToken: 'token', db, env: {} as Cloudflare.Env })
+
+    expect(result).toMatchObject({ _tag: 'complete', orgsScanned: 1, reposFound: 2 })
+    expect(sqlite.prepare(
+      `SELECT owner, repo, owner_verified FROM discovery_candidates ORDER BY owner`,
+    ).all()).toEqual([
+      { owner: 'acme', repo: 'skills', owner_verified: 1 },
+      { owner: 'vue-org', repo: 'vue-ecosystem-skills', owner_verified: 0 },
+    ])
+  })
+
+  it('still scans the account when the organisation list is unavailable', async () => {
+    const scan = makeOwnedRepoScanner({
+      fetch: vi.fn(async () => Response.json(searchBody())),
+      listOrgs: async () => ({ _tag: 'unavailable', reason: 'org list 403' }),
+      syncRepo: vi.fn(async (owner, repo) => indexed(owner, repo)),
+      resolveGithubBindings: () => ({}),
+      now: () => 100,
+      claimToken: () => 'claim-one',
+    })
+
+    const result = await scan({ login: 'acme', userToken: 'token', db, env: {} as Cloudflare.Env })
+
+    expect(result).toMatchObject({
+      _tag: 'complete',
+      orgsScanned: 0,
+      orgLookupError: 'org list 403',
+      reposSynced: 1,
+    })
+  })
+
+  it('reads organisation logins once at the boundary and drops an unusable payload', () => {
+    expect(parseOrgListResponse([{ login: 'vue-org' }, { login: 'nuxt' }])).toEqual(['vue-org', 'nuxt'])
+    expect(parseOrgListResponse([{ id: 1 }])).toBeNull()
+    expect(parseOrgListResponse({ total_count: 1 })).toBeNull()
+  })
+
+  it('never searches the same owner twice when an organisation shares the account login', () => {
+    expect(buildScanOwners('acme', ['Acme', 'vue-org'])).toEqual([
+      { login: 'acme', qualifier: 'user:acme', ownerVerified: true },
+      { login: 'vue-org', qualifier: 'org:vue-org', ownerVerified: false },
+    ])
   })
 
   it('maps API success and OAuth warnings from the tagged outcome', () => {
@@ -269,6 +348,7 @@ describe('owned GitHub repository discovery', () => {
     const syncRepo = vi.fn()
     const scan = makeOwnedRepoScanner({
       fetch: vi.fn(async () => Response.json(searchBody())),
+      listOrgs: noOrgs,
       syncRepo,
       resolveGithubBindings: () => ({}),
       now: () => 200,
@@ -288,6 +368,9 @@ describe('owned GitHub repository discovery', () => {
 function emptyResultCounts() {
   return {
     hits: 0,
+    ownersScanned: 0,
+    orgsScanned: 0,
+    orgLookupError: null,
     reposFound: 0,
     reposSynced: 0,
     reposVerifiedOnly: 0,

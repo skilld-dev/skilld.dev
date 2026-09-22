@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 /**
  * A static route, so it wins over [slug].vue and no collection can ever be
  * reached at /@login/liked. The list is virtual: there is no collections_v2 row
@@ -61,7 +62,7 @@ useSeoMeta({
           aria-hidden="true"
         />
         <img
-          :src="`https://github.com/${login}.png?size=64`"
+          :src="githubAvatarProxyUrl(login, 64)"
           alt=""
           width="32"
           height="32"

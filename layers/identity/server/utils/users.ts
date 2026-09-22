@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { encryptToken } from './crypto'
+import { decryptToken, encryptToken } from './crypto'
 
 export interface UserRow {
   id: number
@@ -139,4 +139,44 @@ export async function requireUserRow(event: H3Event): Promise<UserRow> {
   if (!user)
     throw createError({ statusCode: 401, message: 'User not found' })
   return user
+}
+
+const GITHUB_SIGN_IN_REQUIRED = 'Your GitHub access ended when you signed out. Sign in with GitHub again.'
+
+/**
+ * Delete the GitHub OAuth tokens stored for one account.
+ *
+ * Sign-out calls this, so a closed session leaves no usable GitHub credential
+ * behind. The next GitHub sign-in stores new tokens.
+ */
+export async function clearGithubUserCredentials(db: D1Database, userId: number): Promise<void> {
+  await db.prepare(
+    `UPDATE users
+     SET github_token_encrypted = NULL,
+         github_token_scopes = NULL,
+         github_token_expires_at = NULL,
+         github_refresh_token_encrypted = NULL,
+         github_refresh_token_expires_at = NULL,
+         github_token_client_id = NULL
+     WHERE id = ?1`,
+  ).bind(userId).run()
+}
+
+/**
+ * Read the stored GitHub access token, or ask for a new GitHub sign-in.
+ *
+ * The token is absent after sign-out, so another open session must not fail
+ * with a generic error.
+ */
+export async function requireGithubUserToken(
+  db: D1Database,
+  userId: number,
+  tokenKey: string,
+): Promise<string> {
+  const row = await db.prepare(
+    `SELECT github_token_encrypted FROM users WHERE id = ?1`,
+  ).bind(userId).first<{ github_token_encrypted: string | null }>()
+  if (!row?.github_token_encrypted)
+    throw createError({ statusCode: 401, statusMessage: 'GitHub sign-in required', message: GITHUB_SIGN_IN_REQUIRED })
+  return await decryptToken(row.github_token_encrypted, tokenKey)
 }

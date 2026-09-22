@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { trendingSkillKey } from '#shared/trending-keys'
 
 /**
@@ -119,7 +120,7 @@ function updatedLabel(skill: SkillRow): string {
 
           <span class="skill-table__source">
             <img
-              :src="`https://github.com/${skill.owner}.png?size=40`"
+              :src="githubAvatarProxyUrl(skill.owner, 40)"
               alt=""
               width="20"
               height="20"

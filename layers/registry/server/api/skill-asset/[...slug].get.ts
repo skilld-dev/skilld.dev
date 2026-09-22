@@ -2,6 +2,7 @@ import { readCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
+import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamText } from '../../utils/upstream-text'
@@ -124,7 +125,7 @@ export default defineApiHandler({
       ?? { path: filePath, size: 0, type: classifyAsset(filePath) }
 
     const branch = row.default_branch || 'main'
-    const cacheKey = `skills:asset:v3:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
+    const cacheKey = `skills:asset:v4:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
     const cached = await readCache<AssetCache>(useStorage('cache'), cacheKey)
     if (cached) {
       if (cached.status === 'missing')
@@ -211,7 +212,7 @@ export default defineApiHandler({
         skillNames: (repoSkillRows.results ?? []).map(candidate => candidate.name),
         registryOwner: skill.owner,
         registryRepo: skill.repo,
-      })
+      }, await skillImagePolicyForEvent(event))
       html = parsed.html
     }
 

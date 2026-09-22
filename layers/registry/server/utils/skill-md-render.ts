@@ -1,4 +1,4 @@
-import type { Renderer, Tokens } from 'marked'
+import type { Renderer, Tokens, TokensList } from 'marked'
 import { Marked } from 'marked'
 import { escapeHtml, highlightToHtml } from '#shared/highlight'
 import { createSkillReferenceTokenizer } from './skill-dependencies'
@@ -26,6 +26,25 @@ export interface SkillRenderContext {
   skillNames?: string[]
   registryOwner?: string
   registryRepo?: string
+}
+
+/**
+ * How a render shows images from other hosts. An image loaded from another
+ * host reports the visitor's IP address and visit time to that host.
+ *
+ * - `proxy`: every https image loads through the same-origin image proxy.
+ * - `link`: images never load; each shows as a link to its address. Renders
+ *   stored at sync time use this, because signed addresses belong to request time.
+ */
+export type SkillImagePolicy
+  = | { _tag: 'proxy', proxyUrl: (href: string) => Promise<string | null> }
+    | { _tag: 'link' }
+
+function parseAbsoluteUrl(href: string): URL | null {
+  if (!/^(?:https?:)?\/\//i.test(href))
+    return null
+  // A malformed URL is not an image source; the caller shows the alt text.
+  return URL.parse(href, 'https://github.com')
 }
 
 function isAbsoluteUrl(href: string): boolean {
@@ -80,8 +99,13 @@ function rewriteHref(href: string, kind: 'link' | 'image', ctx?: SkillRenderCont
 
 const SKILL_TAG_RE = /^<(\/?)([A-Z][A-Z0-9-]*)\s*>$/
 
+function imageSource(href: string, ctx: SkillRenderContext | undefined): string {
+  return sanitizeUrl(rewriteHref(href, 'image', ctx))
+}
+
 function createSkillMd(
   ctx: SkillRenderContext | undefined,
+  proxied: ReadonlyMap<string, string>,
 ): { marked: Marked, dependencies: Set<string> } {
   const dependencies = new Set<string>()
   const tokenizeSkillReferences = createSkillReferenceTokenizer(ctx?.skillNames ?? [], ctx?.name ?? '')
@@ -135,9 +159,22 @@ function createSkillMd(
         return `<code>${escapeHtml(text)}</code>`
       },
       image({ href, title, text }: { href: string, title?: string | null, text: string }) {
-        const safe = sanitizeUrl(rewriteHref(href, 'image', ctx))
+        const safe = imageSource(href, ctx)
         const t = title ? ` title="${escapeHtml(title)}"` : ''
-        return `<img src="${escapeHtml(safe)}" alt="${escapeHtml(text)}"${t}>`
+        const url = parseAbsoluteUrl(safe)
+        const inlineData = /^data:image\//i.test(safe)
+        const src = inlineData ? safe : url && proxied.get(url.href)
+        if (src)
+          return `<img src="${escapeHtml(src)}" alt="${escapeHtml(text)}"${t} referrerpolicy="no-referrer" loading="lazy">`
+        // Never load an image straight from another host. Offer the address as
+        // a link, unless the image already sits inside a link. Whitespace-only
+        // alt counts as no alt: trim before falling back, so a blocked badge
+        // inside a link always keeps visible text. With no alt text and no
+        // parseable URL (blocked scheme, malformed href) the raw href becomes
+        // the visible text, or the link renders empty.
+        if (!url || linkDepth > 0)
+          return escapeHtml(text.trim() || url?.href || href)
+        return `<a href="${escapeHtml(url.href)}"${t} target="_blank" rel="noopener noreferrer">${escapeHtml(text.trim() || url.href)}</a>`
       },
       heading(this: Renderer, token: Tokens.Heading) {
         const content = this.parser.parseInline(token.tokens)
@@ -168,11 +205,44 @@ export interface ParsedSkillMd {
   dependencies: string[]
 }
 
-export async function parseSkillMd(raw: string, ctx?: SkillRenderContext): Promise<ParsedSkillMd> {
+/**
+ * Resolves the proxy address of every image in the document up front,
+ * because signing is async and the marked renderer is not.
+ */
+async function resolveProxiedImages(
+  tokens: TokensList,
+  ctx: SkillRenderContext | undefined,
+  images: SkillImagePolicy,
+): Promise<Map<string, string>> {
+  const proxied = new Map<string, string>()
+  if (images._tag === 'link')
+    return proxied
+  const hrefs = new Set<string>()
+  new Marked().walkTokens(tokens, (token) => {
+    if (token.type !== 'image')
+      return
+    const url = parseAbsoluteUrl(imageSource(token.href, ctx))
+    if (url?.protocol === 'https:')
+      hrefs.add(url.href)
+  })
+  await Promise.all([...hrefs].map(async (href) => {
+    const src = await images.proxyUrl(href)
+    if (src)
+      proxied.set(href, src)
+  }))
+  return proxied
+}
+
+export async function parseSkillMd(
+  raw: string,
+  ctx?: SkillRenderContext,
+  images: SkillImagePolicy = { _tag: 'link' },
+): Promise<ParsedSkillMd> {
   const { frontmatter, body } = parseFrontmatterDocument(raw)
 
-  const renderer = createSkillMd(ctx)
-  let html = renderer.marked.parse(body) as string
+  const tokens = new Marked({ gfm: true }).lexer(body)
+  const renderer = createSkillMd(ctx, await resolveProxiedImages(tokens, ctx, images))
+  let html = renderer.marked.parser(tokens)
   html = html.replace(/<pre\b([^>]*)>/g, (match, attrs: string) => {
     if (/\btabindex=/.test(attrs))
       return match

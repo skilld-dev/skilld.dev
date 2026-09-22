@@ -168,21 +168,24 @@ export default defineEventHandler(async (event) => {
 
 async function loadOrgProfile(event: H3Event, owner: string): Promise<OrgProfile> {
   const db = getDB(event)
-  const [registryResult, ownerRow] = await Promise.all([
-    querySkills(event, {
-      owner,
-      sort: 'stars',
-      page: 1,
-      limit: 200,
-      officialOwners,
-      includeDependencies: true,
-    }),
-    loadOwner(owner, db),
-  ])
+  // querySkills must gate loadOwner: an owner with no registry skills is a
+  // garbage path and 404s here, before loadOwner pays a GitHub users API call
+  // and upserts a permanent sync_status='404' owners row for every crawler
+  // miss (issue #260). Do not run the two in parallel.
+  const registryResult = await querySkills(event, {
+    owner,
+    sort: 'stars',
+    page: 1,
+    limit: 200,
+    officialOwners,
+    includeDependencies: true,
+  })
 
   if (registryResult.items.length === 0) {
     throw createError({ statusCode: 404, message: `No skills found for @${owner}` })
   }
+
+  const ownerRow = await loadOwner(owner, db)
 
   const manifestKind = kindByOwner.get(owner)
   const kind: OrgKind = manifestKind

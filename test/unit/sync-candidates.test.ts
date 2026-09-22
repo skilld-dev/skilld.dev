@@ -20,6 +20,7 @@ describe('github sync candidate selection', () => {
         repo TEXT NOT NULL,
         repo_meta_synced_at INTEGER,
         broken_since INTEGER,
+        tree_truncated_at INTEGER,
         PRIMARY KEY (owner, repo)
       );
       CREATE TABLE skills (
@@ -59,13 +60,14 @@ describe('github sync candidate selection', () => {
         ON discovery_candidates(retry_state, next_retry_at, claimed_at, last_discovered_at, owner, repo);
 
       INSERT INTO repos VALUES
-        ('acme', 'watched-due',    995000, NULL),
-        ('acme', 'watched-fresh', 999000, NULL),
-        ('acme', 'general-recent',992800, NULL),
-        ('acme', 'general-due',   850000, NULL),
-        ('acme', 'never-checked',   NULL, NULL),
-        ('acme', 'broken',        800000, 900000),
-        ('acme', 'empty-retired', 800000, NULL);
+        ('acme', 'watched-due',    995000, NULL, NULL),
+        ('acme', 'watched-fresh', 999000, NULL, NULL),
+        ('acme', 'general-recent',992800, NULL, NULL),
+        ('acme', 'general-due',   850000, NULL, NULL),
+        ('acme', 'never-checked',   NULL, NULL, NULL),
+        ('acme', 'broken',        800000, 900000, NULL),
+        ('acme', 'empty-retired', 800000, NULL, NULL),
+        ('acme', 'too-large',     850000, NULL, 900000);
 
       INSERT INTO skills VALUES
         ('acme', 'watched-due', 'one'),
@@ -73,13 +75,15 @@ describe('github sync candidate selection', () => {
         ('acme', 'general-recent', 'one'),
         ('acme', 'general-due', 'one'),
         ('acme', 'never-checked', 'one'),
-        ('acme', 'broken', 'one');
+        ('acme', 'broken', 'one'),
+        ('acme', 'too-large', 'one');
 
       INSERT INTO skill_subscriptions VALUES
         (1, 'acme', 'watched-due'),
         (2, 'acme', 'watched-due'),
         (1, 'acme', 'watched-fresh'),
-        (1, 'acme', 'empty-retired');
+        (1, 'acme', 'empty-retired'),
+        (1, 'acme', 'too-large');
 
       INSERT INTO discovery_candidates (
         owner, repo, last_discovered_at, retry_state, next_retry_at,
@@ -117,6 +121,19 @@ describe('github sync candidate selection', () => {
     expect(rows.map(row => row.repo)).not.toContain('empty-retired')
   })
 
+  it('excludes repos with a recorded too-large verdict from both sweeps', () => {
+    const subscribed = sqlite
+      .prepare(SUBSCRIBED_SYNC_CANDIDATES_SQL)
+      .all({ 1: 1_000_000 - 3600, 2: 250 }) as Array<{ repo: string }>
+    const general = sqlite
+      .prepare(GENERAL_SYNC_CANDIDATES_SQL)
+      .all({ 1: 1_000_000 - 36 * 3600, 2: 250 }) as Array<{ repo: string }>
+
+    // acme/too-large is due on both clocks, so only the verdict keeps it out.
+    expect(subscribed.map(row => row.repo)).not.toContain('too-large')
+    expect(general.map(row => row.repo)).not.toContain('too-large')
+  })
+
   it('walks the due-work partial index', () => {
     const plan = sqlite
       .prepare(`EXPLAIN QUERY PLAN ${GENERAL_SYNC_CANDIDATES_SQL}`)
@@ -148,9 +165,9 @@ describe('github sync candidate selection', () => {
   it('stages bounded historical skill-less repos without reviving broken inventory', () => {
     sqlite.exec(`
       INSERT INTO repos VALUES
-        ('archive', 'first', 1, NULL),
-        ('archive', 'second', 2, NULL),
-        ('archive', 'broken', 3, 4);
+        ('archive', 'first', 1, NULL, NULL),
+        ('archive', 'second', 2, NULL, NULL),
+        ('archive', 'broken', 3, 4, NULL);
     `)
 
     const result = sqlite

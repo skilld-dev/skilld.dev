@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrgProfile } from '../../../../server/api/orgs/[owner].get'
+import { avatarProxyUrl } from '#shared/image-proxy'
 import { resolveOwnerProfileHandoff } from '../../../utils/owner-profile-handoff'
 
 const route = useRoute()
@@ -260,7 +261,7 @@ useSchemaOrg(computed(() => {
         class="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6"
       >
         <img
-          :src="data.avatar"
+          :src="avatarProxyUrl(data.avatar)"
           :alt="`Avatar for ${data.displayName}`"
           width="96"
           height="96"

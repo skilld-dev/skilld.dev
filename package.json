@@ -2,7 +2,7 @@
   "name": "skilld-dev",
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@11.21.0",
+  "packageManager": "pnpm@12.4.2",
   "description": "Agent skills written by real maintainers in their own GitHub repos, with links to source",
   "author": {
     "name": "Harlan Wilton",
@@ -17,6 +17,7 @@
     "dev": "nuxi dev",
     "build": "nuxi prepare && nuxi build",
     "preview": "nuxi preview",
+    "dev:prepare": "nuxt prepare",
     "perf:cold-start": "node scripts/tools/measure-nitro-cold-start.mjs",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",

@@ -70,6 +70,7 @@ describe('syncRepo freshness cursor', () => {
         description TEXT,
         last_tree_sha TEXT,
         broken_since INTEGER,
+        tree_truncated_at INTEGER,
         source_owner TEXT,
         source_repo TEXT,
         PRIMARY KEY (owner, repo)
@@ -186,6 +187,44 @@ describe('syncRepo freshness cursor', () => {
     expect(github.getTree).toHaveBeenCalledOnce()
     expect(statements.some(sql => sql.includes('SELECT name, current_sha'))).toBe(false)
     expect(checkedAt).toBe(1783900800)
+  })
+
+  it('records the too-large verdict when GitHub truncates the tree', async () => {
+    github.getRepoSummary.mockResolvedValue(repoSummary('moved-tree'))
+    github.getTree.mockResolvedValue({
+      status: 200,
+      data: { sha: 'big-tree', truncated: true, tree: [] },
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+    const row = sqlite.prepare(`
+      SELECT repo_meta_synced_at, last_tree_sha, tree_truncated_at, broken_since
+      FROM repos WHERE owner = 'acme' AND repo = 'skills'
+    `).get()
+
+    expect(result.status).toBe('failed')
+    expect(result.reason).toBe('tree_truncated')
+    expect(row).toEqual({
+      repo_meta_synced_at: 1783900800,
+      last_tree_sha: 'same-tree',
+      tree_truncated_at: 1783900800,
+      broken_since: null,
+    })
+    expect(statements.some(sql => sql.includes('SELECT name, current_sha'))).toBe(false)
+  })
+
+  it('clears a stale too-large verdict once the repo syncs clean', async () => {
+    sqlite.prepare(`UPDATE repos SET tree_truncated_at = 123`).run()
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result.status).toBe('skipped-tree-sha')
+    expect(sqlite
+      .prepare(`SELECT tree_truncated_at FROM repos WHERE owner = 'acme' AND repo = 'skills'`)
+      .pluck()
+      .get()).toBeNull()
   })
 
   it('applies owner verification and queues exact recomputation on an unchanged tree', async () => {
