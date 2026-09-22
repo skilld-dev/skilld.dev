@@ -55,6 +55,19 @@ describe('parsing an email click', () => {
     })
   })
 
+  it('counts a GitHub link by owner and repository, not by commit sha', () => {
+    expect(parseEmailClick('digest', { g: '/antfu/skills/blob/abc123/vite/SKILL.md', p: 'liked', i: String(ISSUE) })).toEqual({
+      _tag: 'counted',
+      to: 'https://github.com/antfu/skills/blob/abc123/vite/SKILL.md',
+      key: { campaign: 'digest', issue: ISSUE, placement: 'liked', path: 'gh:/antfu/skills' },
+    })
+  })
+
+  it('cannot be steered off GitHub by the destination it is handed', () => {
+    for (const g of ['//evil.test/phish', 'https://evil.test', '/\\evil.test'])
+      expect(parseEmailClick('digest', { g, p: 'liked', i: String(ISSUE) })).toEqual({ _tag: 'invalid', reason: 'not-site-relative' })
+  })
+
   it('refuses an open redirect even when every other field is valid', () => {
     expect(parseEmailClick('weekly', { to: '//evil.test', p: 'cta', i: String(ISSUE) }))
       .toEqual({ _tag: 'invalid', reason: 'not-site-relative' })
@@ -204,8 +217,12 @@ describe('counted email links', () => {
     const links = counted(a.html)
     expect(links.map(String)).toEqual(counted(b.html).map(String))
     expect(links.map(url => url.pathname)).toContain('/api/e/weekly')
-    for (const url of links)
-      expect([...url.searchParams.keys()].sort()).toEqual(['i', 'p', 'to'])
+    // A counted link carries the issue, the placement, and one destination:
+    // `to` for a page here, `g` for a path on GitHub. Nothing else.
+    for (const url of links) {
+      expect([...url.searchParams.keys()].sort()).toSatisfy((keys: string[]) =>
+        keys.join() === 'i,p,to' || keys.join() === 'g,i,p')
+    }
     expect(links.map(url => parseEmailClick('weekly', Object.fromEntries(url.searchParams))._tag)).not.toContain('invalid')
   })
 

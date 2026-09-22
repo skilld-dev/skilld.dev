@@ -11,21 +11,37 @@
  * issue gets identical links, so a click cannot be tied to a person, and the
  * counter stores nothing that could.
  *
- * The destination is a site-relative path, never a URL. An off-site redirect
- * is not expressible, because a tracking redirect that accepts a URL is an open
- * redirect, and an open redirect reached from an email is a phishing primitive.
+ * The destination is never a URL. A same-site link carries a site-relative
+ * path. A GitHub link carries only its path, and the route puts the
+ * `github.com` origin back. A tracking redirect that accepts a URL is an open
+ * redirect, and an open redirect reached from an email is a phishing
+ * primitive, so neither form can express one.
  */
 
 export type EmailCampaign = 'weekly' | 'digest'
 
 export type EmailPlacement = 'liked' | 'trending' | 'cta' | 'footer' | 'overflow' | 'share'
 
+/**
+ * The only off-site host an email link may reach.
+ *
+ * Trending and liked rows point at SKILL.md on GitHub, which is where a reader
+ * judges a change. Those clicks are the clearest Loop 2 evidence, so they are
+ * counted rather than left dark. The origin is a constant here, so no request
+ * can steer the redirect elsewhere.
+ */
+export const GITHUB_ORIGIN = 'https://github.com'
+
 export interface EmailClickKey {
   campaign: EmailCampaign
   /** The send's `window_end`, in Unix seconds. Shared by every recipient. */
   issue: number
   placement: EmailPlacement
-  /** The destination path with any query or fragment removed. */
+  /**
+   * What was clicked. A same-site link stores its path with any query or
+   * fragment removed. A GitHub link stores `gh:/owner/repo`, so a new commit
+   * sha does not start a new row and weeks stay comparable.
+   */
   path: string
 }
 
@@ -84,23 +100,33 @@ function countedPath(to: string): string {
   return end === -1 ? to : to.slice(0, end)
 }
 
+/** `gh:/owner/repo`, which is the counter identity of every GitHub link. */
+export function githubCountedPath(path: string): string {
+  const [owner, repo] = path.split('/').filter(Boolean)
+  return `gh:/${owner ?? ''}${repo ? `/${repo}` : ''}`
+}
+
 /**
  * Parses one click request at the boundary.
  *
- * `campaign` is the route segment. The query carries `to` (path), `p`
- * (placement), and `i` (issue). Links sent before counting was restored carry
- * `p` as the path and `k` as the placement; they still redirect, uncounted.
+ * `campaign` is the route segment. The query carries `p` (placement), `i`
+ * (issue), and one destination: `to` for a path on this site, or `g` for a
+ * path on GitHub. Links sent before counting was restored carry `p` as the
+ * path and `k` as the placement; they still redirect, uncounted.
  */
 export function parseEmailClick(campaign: unknown, query: Record<string, unknown>): EmailClick {
-  if (query.to === undefined && query.k !== undefined) {
+  if (query.to === undefined && query.g === undefined && query.k !== undefined) {
     const legacy = parseSiteRelativePath(query.p)
     return legacy._tag === 'ok' ? { _tag: 'uncounted', to: legacy.path, reason: 'legacy-link' } : legacy
   }
 
-  const target = parseSiteRelativePath(query.to)
+  // A GitHub link is validated with the same parser, then the constant origin
+  // is put back. The request never supplies a host.
+  const offSite = query.g !== undefined
+  const target = parseSiteRelativePath(offSite ? query.g : query.to)
   if (target._tag === 'invalid')
     return target
-  const to = target.path
+  const to = offSite ? `${GITHUB_ORIGIN}${target.path}` : target.path
 
   if (typeof campaign !== 'string' || !CAMPAIGNS.has(campaign))
     return { _tag: 'uncounted', to, reason: 'bad-campaign' }
@@ -117,7 +143,7 @@ export function parseEmailClick(campaign: unknown, query: Record<string, unknown
       campaign: campaign as EmailCampaign,
       issue,
       placement: query.p as EmailPlacement,
-      path: countedPath(to),
+      path: offSite ? githubCountedPath(target.path) : countedPath(to),
     },
   }
 }
@@ -131,18 +157,21 @@ export interface EmailLinkContext {
 /**
  * The counted form of one email link, or the link unchanged.
  *
- * Off-site links stay as they are. A link this cannot rewrite costs a count,
+ * A link to this site is rewritten with `to`, and a link to GitHub with `g`.
+ * Any other host stays as it is. A link this cannot rewrite costs a count,
  * never a broken email.
  */
 export function countedEmailUrl(context: EmailLinkContext, url: string, placement: EmailPlacement): string {
   const origin = context.siteUrl.replace(/\/+$/, '')
-  const path = url === origin
-    ? '/'
-    : url.startsWith(`${origin}/`) ? url.slice(origin.length) : null
-  if (path === null || parseSiteRelativePath(path)._tag === 'invalid')
+  const target = url.startsWith(`${GITHUB_ORIGIN}/`)
+    ? { key: 'g', path: url.slice(GITHUB_ORIGIN.length) }
+    : url === origin
+      ? { key: 'to', path: '/' }
+      : url.startsWith(`${origin}/`) ? { key: 'to', path: url.slice(origin.length) } : null
+  if (!target || parseSiteRelativePath(target.path)._tag === 'invalid')
     return url
 
-  const params = new URLSearchParams({ to: path, p: placement, i: String(context.issue) })
+  const params = new URLSearchParams({ [target.key]: target.path, p: placement, i: String(context.issue) })
   return `${origin}${EMAIL_CLICK_ROUTE}/${context.campaign}?${params.toString()}`
 }
 

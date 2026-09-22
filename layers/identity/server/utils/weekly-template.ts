@@ -648,7 +648,10 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
   const likedRows = input.likedChanges.map((change) => {
     const subjects = commitSubjects(change.commitMessages)
-    const sourceUrl = change.sourceUrl ?? skillUrl(input.siteUrl, change)
+    // Liked rows point at SKILL.md on GitHub, which is where a reader judges a
+    // change. Those clicks are counted too: the destination path is rewritten,
+    // never a whole URL.
+    const sourceUrl = track(change.sourceUrl ?? skillUrl(input.siteUrl, change), 'liked')
     return row(t, {
       siteUrl: input.siteUrl,
       owner: change.owner,
@@ -664,7 +667,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
         relativeDay(change.changedAt, now),
       ]),
       links: rowLinks(t, [
-        ...(change.changeUrl ? [{ href: change.changeUrl, label: 'View change' }] : []),
+        ...(change.changeUrl ? [{ href: track(change.changeUrl, 'liked'), label: 'View change' }] : []),
         { href: sourceUrl, label: 'Open SKILL.md' },
       ]),
     })
@@ -693,7 +696,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
     : ''
 
   const trendingRows = input.trending.map((skill) => {
-    const sourceUrl = skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug })
+    const sourceUrl = track(skill.sourceUrl ?? skillUrl(input.siteUrl, { ...skill, name: skill.slug }), 'trending')
     return trendingRow(t, {
       siteUrl: input.siteUrl,
       owner: skill.owner,
