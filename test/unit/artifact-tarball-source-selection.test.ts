@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import {
   chooseArtifactByteSource,
+  createGithubSourceClient,
   createPublicGithubSourceClient,
   TARBALL_MAX_TREE_BYTES,
 } from '../../layers/artifact-delivery/server/utils/github-source'
@@ -21,18 +22,35 @@ const encoder = new TextEncoder()
 
 describe('artifact byte source choice', () => {
   it('reads the tarball when the tree is complete and inside the byte ceiling', () => {
-    expect(chooseArtifactByteSource({ treeTruncated: false, totalBlobBytes: TARBALL_MAX_TREE_BYTES }))
-      .toEqual({ _tag: 'tarball' })
+    expect(chooseArtifactByteSource({
+      visibility: 'public',
+      treeTruncated: false,
+      totalBlobBytes: TARBALL_MAX_TREE_BYTES,
+    })).toEqual({ _tag: 'tarball' })
   })
 
   it('reads blobs when the tree total passes the byte ceiling by one byte', () => {
-    expect(chooseArtifactByteSource({ treeTruncated: false, totalBlobBytes: TARBALL_MAX_TREE_BYTES + 1 }))
-      .toEqual({ _tag: 'per-blob', reason: 'tree-too-large' })
+    expect(chooseArtifactByteSource({
+      visibility: 'public',
+      treeTruncated: false,
+      totalBlobBytes: TARBALL_MAX_TREE_BYTES + 1,
+    })).toEqual({ _tag: 'per-blob', reason: 'tree-too-large' })
   })
 
   it('reads blobs when the Repository tree came back truncated', () => {
-    expect(chooseArtifactByteSource({ treeTruncated: true, totalBlobBytes: 1024 }))
-      .toEqual({ _tag: 'per-blob', reason: 'tree-truncated' })
+    expect(chooseArtifactByteSource({
+      visibility: 'public',
+      treeTruncated: true,
+      totalBlobBytes: 1024,
+    })).toEqual({ _tag: 'per-blob', reason: 'tree-truncated' })
+  })
+
+  it('reads blobs for a private Repository, whatever its tree looks like', () => {
+    expect(chooseArtifactByteSource({
+      visibility: 'private',
+      treeTruncated: false,
+      totalBlobBytes: 1024,
+    })).toEqual({ _tag: 'per-blob', reason: 'private-repository' })
   })
 })
 
@@ -135,6 +153,24 @@ describe('loading a Skill from the Repository tarball', () => {
       .toEqual(createDeterministicUstar(fromBlobs.value.files))
   })
 
+  it('asks for no tarball when the Repository is private', async () => {
+    const fetchMock = sourceFetch({ visibility: 'private' })
+    const client = createGithubSourceClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      token: 'installation-token',
+      visibility: 'private',
+    })
+
+    const loaded = await client.load({ ...resolvedSource(), visibility: 'private' })
+
+    expect(loaded._tag).toBe('loaded')
+    if (loaded._tag !== 'loaded')
+      return
+    expect(loaded.value.files.map(file => file.path)).toEqual(['SKILL.md', 'references/guide.md', 'run.sh'])
+    expect(requestedPaths(fetchMock).filter(url => url.includes('/tarball/'))).toEqual([])
+    expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toHaveLength(3)
+  })
+
   it('rejects a Skill holding a Git submodule before it reads any bytes', async () => {
     const fetchMock = sourceFetch({ submodule: true })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch })
@@ -152,6 +188,7 @@ describe('loading a Skill from the Repository tarball', () => {
 })
 
 interface FetchOptions {
+  visibility?: 'public' | 'private'
   truncated?: boolean
   omitFromTarball?: string[]
   rewriteInTarball?: Record<string, string>
@@ -191,7 +228,7 @@ function sourceFetch(options: FetchOptions) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.endsWith('/repos/skilld-dev/skills'))
-      return json(publicRepository())
+      return json({ ...publicRepository(), private: options.visibility === 'private' })
     if (url.endsWith(`/git/trees/${rootTreeSha}`))
       return json({ sha: rootTreeSha, tree: [tree('skills', skillsTreeSha)] })
     if (url.endsWith(`/git/trees/${skillsTreeSha}`))

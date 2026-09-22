@@ -433,6 +433,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         return selected
 
       const choice = chooseArtifactByteSource({
+        visibility: source.visibility,
         treeTruncated: listed.truncated,
         totalBlobBytes: selected.entries.reduce((total, entry) => total + entry.size, 0),
       })
@@ -537,10 +538,17 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
 
 export type ArtifactByteSource
   = { _tag: 'tarball' }
-    | { _tag: 'per-blob', reason: 'tree-truncated' | 'tree-too-large' }
+    | { _tag: 'per-blob', reason: 'private-repository' | 'tree-truncated' | 'tree-too-large' }
 
 /**
  * Chooses the byte source from the one tree read the build already makes.
+ *
+ * A private Repository keeps the per-blob path. Its archive URL is a
+ * pre-signed codeload link that expires five minutes after it is issued, and
+ * GitHub does not document whether credentials belong on the redirected host.
+ * Workers `fetch` follows that cross-host redirect itself, so neither question
+ * has an answer we control or have observed. Public delivery is measured;
+ * private delivery waits for a real test.
  *
  * A truncated tree means the Repository is large enough that GitHub would not
  * list it in one response, which is the same Repository whose archive is
@@ -548,9 +556,12 @@ export type ArtifactByteSource
  * whenever the archive is generated cold, so it cannot gate anything.
  */
 export function chooseArtifactByteSource(input: {
+  visibility: 'public' | 'private'
   treeTruncated: boolean
   totalBlobBytes: number
 }): ArtifactByteSource {
+  if (input.visibility !== 'public')
+    return { _tag: 'per-blob', reason: 'private-repository' }
   if (input.treeTruncated)
     return { _tag: 'per-blob', reason: 'tree-truncated' }
   if (input.totalBlobBytes > TARBALL_MAX_TREE_BYTES)
