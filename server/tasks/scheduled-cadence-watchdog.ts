@@ -128,9 +128,7 @@ export default defineScheduledTask({
           'outcome': failed.length > 0 ? 'partial' : 'completed',
           'reinvoked.count': reinvoked.length,
           'reinvoked.tasks': reinvoked.map(outcome => outcome.taskName).join(','),
-          ...(failed.length > 0
-            ? { 'failed.tasks': failed.map(outcome => outcome.taskName).join(',') }
-            : {}),
+          'failed.tasks': failed.map(outcome => outcome.taskName).join(','),
         }))
       }
 
