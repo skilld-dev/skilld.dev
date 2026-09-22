@@ -34,7 +34,7 @@ Cloudflare states that Web Analytics uses no cookies or local storage, and that 
 
 ### Usage counts
 
-skilld.dev is early, so it needs to know which Skills people run and where they find them.
+skilld.dev is early, so it needs to know which Skills developers run and where they find them.
 
 When you copy a printed command, your browser tells skilld.dev. skilld stores one count with:
 
