@@ -1,4 +1,8 @@
-const URL_KEYS = new Set(['location', 'referrer', 'url', 'href'])
+/**
+ * Timing entries carry their page or resource URL in `name`, so it scrubs
+ * like any other URL key at every nesting depth.
+ */
+const URL_KEYS = new Set(['location', 'referrer', 'url', 'href', 'name'])
 
 function stripQuery(value: string): string {
   const cut = value.search(/[?#]/)

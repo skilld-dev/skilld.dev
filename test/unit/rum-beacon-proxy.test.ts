@@ -17,8 +17,19 @@ describe('rum beacon body scrub', () => {
       location: 'https://skilld.dev/auth/github',
       referrer: 'https://www.google.com/search',
       siteToken: 'token',
-      timingsV2: { name: 'https://skilld.dev/me?t=1' },
+      timingsV2: { name: 'https://skilld.dev/me' },
     })
+  })
+
+  it('scrubs the query string out of timing entry names in the forwarded body', () => {
+    const body = JSON.stringify({
+      timingsV2: [{ name: 'https://skilld.dev/auth/github?code=abc' }],
+    })
+
+    const result = scrubRumBeaconBody(body)
+
+    expect(result._tag).toBe('forward')
+    expect((result as { body: string }).body).not.toContain('?')
   })
 
   it('drops a body it cannot parse', () => {
