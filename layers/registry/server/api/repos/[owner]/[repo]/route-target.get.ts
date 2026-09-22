@@ -1,5 +1,6 @@
 import type { RepoRouteTarget } from '../../../../utils/repo-route-target'
 import { getDB } from '#server/utils/db'
+import { scheduleAutoIndexMissingRepository } from '../../../../utils/auto-index-repository'
 import { resolveRepoRouteTarget } from '../../../../utils/repo-route-target'
 
 export interface RepoRouteResolution {
@@ -27,9 +28,18 @@ export default defineEventHandler(async (event) => {
     .bind(owner, repo)
     .all<{ name: string }>()
 
+  const names = (indexedSkills.results ?? []).map(row => row.name)
+
+  // Every `/gh/:owner/:repo` view asks this route first, and no skill rows
+  // means the registry has never seen the repository. Ask for it to be
+  // indexed, then answer with what is known now. The trigger runs after the
+  // response and cannot change it.
+  if (names.length === 0)
+    scheduleAutoIndexMissingRepository(event, { owner, repo })
+
   return {
     owner,
     repo,
-    target: resolveRepoRouteTarget((indexedSkills.results ?? []).map(row => row.name)),
+    target: resolveRepoRouteTarget(names),
   } satisfies RepoRouteResolution
 })

@@ -57,6 +57,7 @@ export interface RepoMeta {
   created_at: string
   archived?: boolean
   fork?: boolean
+  private?: boolean
 }
 
 export interface TreeEntry {
