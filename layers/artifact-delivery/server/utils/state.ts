@@ -94,6 +94,7 @@ export interface ResolutionPatch {
   encryptionKeyId?: string
   errorCode?: ProblemCode
   errorRetryable?: boolean
+  errorRetryAfter?: number
 }
 
 const transitions: Record<BuildState, readonly BuildState[]> = {
@@ -220,6 +221,7 @@ const patchColumns: Record<keyof ResolutionPatch, string> = {
   encryptionKeyId: 'encryption_key_id',
   errorCode: 'error_code',
   errorRetryable: 'error_retryable',
+  errorRetryAfter: 'error_retry_after',
 }
 
 export async function transitionResolution(
