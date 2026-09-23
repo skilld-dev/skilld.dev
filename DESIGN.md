@@ -258,8 +258,8 @@ Homepage patterns become system primitives only when they help a user make the n
 - **Directional actions**: the next useful action belongs at the end of the relevant row or band, with a 44px minimum target. Avoid detached CTA cards that repeat the section heading.
 - **Section openings**: a section opens with its heading, never with a label above its heading. Four sanctioned openings: (1) heading plus a `.data-label` line below carrying count, freshness, or authorship; (2) a 1px top rule with the next route at the end of the heading row; (3) a mono `01 / 05` sequence marker, only where band order is real information; (4) `.lead-emphasis` on a single lead pick, at most one per page. Prefer (1) by default.
 - **Provenance line**: author or organization avatar, handle, source path, and freshness are evidence. Keep them visually quieter than the skill or collection name, but never hide all provenance behind hover.
-- **Async states**: loading, empty, and error states preserve the same spatial footprint as loaded content. Errors offer a scoped retry. Empty states explain the value and give one next action.
-- **Responsive ownership**: shared compositions are container-aware. Define `container-type: inline-size` on the owning shell before using `@container`; keep a readable single-column default. Large inventories may use `content-visibility: auto` only with `contain-intrinsic-size`.
+- **Async states**: follow the craft rules in the `nuxt-frontend-design` skill. Here `.editorial-state` is the fallback panel, and errors offer a scoped retry.
+- **Responsive ownership**: shared compositions are container-aware, with a readable single-column default. The `nuxt-frontend-design` skill covers the `@container` and `content-visibility` setup.
 - **Journey flow**: intent → shortlist → provenance → inspect → install or watch. Each first-level route should make its position in this sequence obvious.
 - **Depth rule**: first-level discovery pages can use large editorial type and atmosphere. Skill detail pages stay dense and evidence-led; do not wrap `/gh/...` pages in a marketing masthead.
 
