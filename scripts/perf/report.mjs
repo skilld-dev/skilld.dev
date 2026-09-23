@@ -49,27 +49,46 @@ function gatePercent(benchmark, thresholds) {
   return Math.max(TIME_FLOOR_PERCENT, noise)
 }
 
-function classify(benchmark, thresholds) {
+function classify(benchmark, rules) {
   const delta = benchmark.deltaPercent
   if (delta === null || !benchmark.verified)
     return { ...benchmark, _tag: 'Unusable' }
-  const gate = gatePercent(benchmark, thresholds)
+  const gate = gatePercent(benchmark, rules.thresholds)
   if (Math.abs(delta) <= gate)
     return { ...benchmark, _tag: 'Unchanged', gate }
+  // A count the manifest marks `direction: either` is suspect both ways: a
+  // lost code split moves a chunk count down, a page of tiny requests moves
+  // it up. The report cannot grade it, so it flags it for a read instead.
+  if (rules.directions[benchmark.id] === 'either')
+    return { ...benchmark, _tag: 'Changed', gate }
   return { ...benchmark, _tag: delta > 0 ? 'Slower' : 'Faster', gate }
 }
 
 function subject(row) {
   const amount = formatValue(row, Math.abs(row.head.min - row.parent.min))
-  return `\`${escapeCell(row.id)}\` ${row._tag === 'Slower' ? 'grew' : 'fell'} by ${amount} (${formatPercent(Math.abs(row.deltaPercent))})`
+  const verb = row.deltaPercent > 0 ? 'grew' : 'fell'
+  return `\`${escapeCell(row.id)}\` ${verb} by ${amount} (${formatPercent(Math.abs(row.deltaPercent))})`
 }
 
 function renderOutcome(rows) {
   const unusable = rows.filter(row => row._tag === 'Unusable')
+  const changed = rows.filter(row => row._tag === 'Changed')
   const slower = rows.filter(row => row._tag === 'Slower')
   const faster = rows.filter(row => row._tag === 'Faster')
   if (unusable.length)
     return `⚠️ **${unusable.length} benchmark${unusable.length === 1 ? '' : 's'} produced no usable reading.** The two sides disagreed on their output, or the case failed.`
+  if (changed.length) {
+    const head = changed.length === 1
+      ? subject(changed[0])
+      : `${changed.length} benchmarks moved past their threshold`
+    const why = changed.length === 1
+      ? 'The manifest marks this count as suspect in both directions, so read the build before you grade the movement.'
+      : `The manifest marks these ${changed.length} counts as suspect in both directions, so read the build before you grade the movement.`
+    const rest = slower.length || faster.length
+      ? ` The same run marks ${slower.length} slower and ${faster.length} faster, past the noise this run measured.`
+      : ''
+    return `⚠️ **${head}. ${why}${rest}**`
+  }
   if (slower.length === 1 && faster.length === 0)
     return `🔴 **${subject(slower[0])}.**`
   if (faster.length === 1 && slower.length === 0)
@@ -87,7 +106,7 @@ function renderTable(rows) {
     '|---|---:|---:|---:|---:|',
   ]
   for (const row of rows) {
-    const mark = row._tag === 'Slower' ? '🔴 ' : row._tag === 'Faster' ? '🟢 ' : ''
+    const mark = row._tag === 'Slower' ? '🔴 ' : row._tag === 'Faster' ? '🟢 ' : row._tag === 'Changed' ? '⚠️ ' : ''
     const change = row._tag === 'Unusable' ? '—' : `${mark}${formatPercent(row.deltaPercent)}`
     output.push(`| \`${escapeCell(row.id)}\` | ${formatValue(row, row.parent.min)} | ${formatValue(row, row.head.min)} | ${change} | ${formatPercent(row.controlPercent)} |`)
   }
@@ -104,7 +123,7 @@ function renderHowToRead(rows) {
     '**Noise** is this run marking its own homework. It is the same build measured a second time against itself, so it should be zero and never is. A change counts only when it clears twice the noise, or 5%, whichever is larger.',
     '',
     counts > 0
-      ? `A \`count\` benchmark carries no noise at all, so any movement there is real. It counts as a change only above the threshold \`perf/benchmarks.json\` declares for it, because most feature work grows the bundle a little. ${counts} of ${rows.length} here ${counts === 1 ? 'is' : 'are'} a count.`
+      ? `A \`count\` benchmark carries no noise at all, so any movement there is real. It counts as a change only above the threshold \`perf/benchmarks.json\` declares for it, because most feature work grows the bundle a little. A count marked \`direction: either\` is suspect in both directions, so ⚠️ flags it for a read. ${counts} of ${rows.length} here ${counts === 1 ? 'is' : 'are'} a count.`
       : 'Every benchmark here is timed, so every reading carries noise.',
     '',
     'Values are the fastest of the repeats. The minimum leads, because noise only ever adds.',
@@ -114,25 +133,35 @@ function renderHowToRead(rows) {
 }
 
 /**
- * Reads each count Benchmark's `thresholdPercent` from the manifest.
+ * Reads each count Benchmark's rules from the manifest: the `thresholdPercent`
+ * a change must clear, and the `direction` when movement in both directions
+ * is suspect. A Measurement carries neither. The manifest of the revision
+ * under review decides, the same one whose cases took the samples.
  *
- * A Measurement does not carry it. The manifest of the revision under review
- * decides, the same one whose cases took the samples.
+ * A count without `direction: either` keeps the default grading, where a fall
+ * past the gate is an improvement and growth past it is a regression.
  */
 export function readThresholds(manifest) {
   const thresholds = {}
+  const directions = {}
   for (const benchmark of manifest.benchmarks ?? []) {
-    if (benchmark.thresholdPercent === undefined)
-      continue
-    if (typeof benchmark.thresholdPercent !== 'number' || !(benchmark.thresholdPercent >= 0))
-      throw new TypeError(`${benchmark.id}: thresholdPercent must be a number of 0 or more.`)
-    thresholds[benchmark.id] = benchmark.thresholdPercent
+    if (benchmark.thresholdPercent !== undefined) {
+      if (typeof benchmark.thresholdPercent !== 'number' || !(benchmark.thresholdPercent >= 0))
+        throw new TypeError(`${benchmark.id}: thresholdPercent must be a number of 0 or more.`)
+      thresholds[benchmark.id] = benchmark.thresholdPercent
+    }
+    if (benchmark.direction !== undefined) {
+      if (benchmark.direction !== 'either')
+        throw new TypeError(`${benchmark.id}: direction must be "either", or left out for the default grading.`)
+      directions[benchmark.id] = benchmark.direction
+    }
   }
-  return thresholds
+  return { thresholds, directions }
 }
 
-export function renderReport(measurement, baseLabel = '', thresholds = {}) {
-  const rows = (measurement.benchmarks ?? []).map(benchmark => classify(benchmark, thresholds))
+export function renderReport(measurement, baseLabel = '', rules = {}) {
+  const { thresholds = {}, directions = {} } = rules
+  const rows = (measurement.benchmarks ?? []).map(benchmark => classify(benchmark, { thresholds, directions }))
   const output = ['### ⚡ Perf', '', renderOutcome(rows), '']
   if (rows.length)
     output.push(...renderTable(rows), '', ...renderHowToRead(rows))

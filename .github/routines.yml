@@ -18,10 +18,15 @@ routines:
   # Reads the Measurements .github/workflows/perf.yml stores on refs/notes/perf.
   # It judges nothing until a Benchmark has ten usable Measurements, so the
   # first several runs will report coverage and file nothing.
+  #
+  # Disabled until harlan-zw/harlan-agent-kit#355 merges. The deployed Skill
+  # treats any count movement as a Regression without it, so it would judge
+  # every count Benchmark against semantics perf/benchmarks.json contradicts.
+  # Flip enabled back to true once that pull request lands.
   - name: perf-review
     on:
       schedule:
         - cron: '0 11 * * 1'
     timezone: Australia/Sydney
     mode: report
-    enabled: true
+    enabled: false

@@ -51,6 +51,7 @@
       "case": "scripts/perf/cases/client-chunk-count.mjs",
       "prepare": false,
       "thresholdPercent": 5,
+      "direction": "either",
       "source": "nuxt.config.ts",
       "measures": "number of client JavaScript chunks"
     },
