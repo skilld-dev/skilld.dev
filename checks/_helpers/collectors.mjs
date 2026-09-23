@@ -222,6 +222,13 @@ export function collectD1(context) {
     const impactedBrokenRepos = impactedBrokenReposGuarded
       ? (await d1Query(`SELECT r.owner, r.repo, rtrim((CASE WHEN EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) THEN 'skill ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM user_starred_repos usr WHERE usr.owner = r.owner AND usr.repo = r.repo) THEN 'star ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.owner = r.owner AND sub.repo = r.repo) THEN 'subscription ' ELSE '' END) || (CASE WHEN EXISTS (SELECT 1 FROM collection_skills_v2 cs WHERE cs.owner = r.owner AND cs.repo = r.repo) THEN 'collection ' ELSE '' END)) AS reason FROM repos r WHERE ${impactedBrokenReposWhere} ORDER BY r.broken_since DESC`))
       : null
+    // A bare `skill_sync_failures` count made a RED night name no Skills, so
+    // triage needed a hand-run D1 query two days running (2026-09-23). The
+    // identities behind the count are archived too, with the same filter so the
+    // number and the rows can never disagree.
+    const skillSyncFailures = has('skills')
+      ? (await d1Query(`SELECT owner, repo, name FROM skills WHERE sync_status IS NOT NULL AND sync_status != 'ok' AND last_synced_at >= ${sinceSec} ORDER BY last_synced_at DESC`))
+      : null
     const syncJobs = has('sync_jobs')
       ? (await d1Query(`SELECT name, cron, stale_after_seconds, last_run_at, last_status, last_error FROM sync_jobs WHERE enabled = 1 AND name != 'daily-health-check' ORDER BY name`))
       : null
@@ -252,6 +259,7 @@ export function collectD1(context) {
       pipeline: {
         ...(await d1Query(`SELECT ${pipelineParts.join(', ')}`))[0],
         newly_broken_repos_impacted_identities: impactedBrokenRepos,
+        skill_sync_failure_identities: skillSyncFailures,
       },
       cost: withXSpend((await d1Query(`SELECT ${costParts.join(', ')}`))[0]),
       syncJobs,
