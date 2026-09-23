@@ -1,0 +1,68 @@
+{
+  "harness": 1,
+  "repeats": 1,
+  "warmups": 0,
+  "build": "pnpm build",
+  "benchmarks": [
+    {
+      "id": "server/bytes",
+      "kind": "count",
+      "unit": "bytes",
+      "case": "scripts/perf/cases/server-bytes.mjs",
+      "prepare": false,
+      "thresholdPercent": 2,
+      "source": "nuxt.config.ts",
+      "measures": "total bytes of the Worker bundle in .output/server, source maps left out"
+    },
+    {
+      "id": "server/gzip-bytes",
+      "kind": "count",
+      "unit": "bytes",
+      "case": "scripts/perf/cases/server-gzip-bytes.mjs",
+      "prepare": false,
+      "thresholdPercent": 2,
+      "source": "nuxt.config.ts",
+      "measures": "gzip bytes of the Worker bundle, the size Cloudflare limits"
+    },
+    {
+      "id": "client/js-bytes",
+      "kind": "count",
+      "unit": "bytes",
+      "case": "scripts/perf/cases/client-js-bytes.mjs",
+      "prepare": false,
+      "thresholdPercent": 2,
+      "source": "nuxt.config.ts",
+      "measures": "total bytes of the client JavaScript this build produced"
+    },
+    {
+      "id": "client/css-bytes",
+      "kind": "count",
+      "unit": "bytes",
+      "case": "scripts/perf/cases/client-css-bytes.mjs",
+      "prepare": false,
+      "thresholdPercent": 3,
+      "source": "app/assets/css/main.css",
+      "measures": "total bytes of the client CSS this build produced"
+    },
+    {
+      "id": "client/chunk-count",
+      "kind": "count",
+      "unit": "chunks",
+      "case": "scripts/perf/cases/client-chunk-count.mjs",
+      "prepare": false,
+      "thresholdPercent": 5,
+      "source": "nuxt.config.ts",
+      "measures": "number of client JavaScript chunks"
+    },
+    {
+      "id": "client/entry-bytes",
+      "kind": "count",
+      "unit": "bytes",
+      "case": "scripts/perf/cases/client-entry-bytes.mjs",
+      "prepare": false,
+      "thresholdPercent": 1,
+      "source": "app/app.vue",
+      "measures": "bytes of the client entry chunk every page loads before it hydrates"
+    }
+  ]
+}

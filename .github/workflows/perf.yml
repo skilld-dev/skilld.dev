@@ -1,0 +1,142 @@
+name: Perf
+
+# Measures every merged commit against its parent, in one job, on one machine.
+# It runs after merge and never on a pull request, so it adds no pull request
+# latency and gates nothing. The numbers land on refs/notes/perf.
+#
+# The harness, the case files, and perf/benchmarks.json always come from the
+# revision of this workflow, not from the commit it measures. So a backfill of a
+# commit older than the harness measures it with today's Benchmarks.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - LICENSE
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: A main commit to measure against its parent. Leave empty to measure the tip.
+        required: false
+        type: string
+
+# One group for each measured commit. A single shared group keeps only one
+# pending run, so a backfill of several commits would cancel all but two.
+concurrency:
+  group: perf-${{ inputs.commit || github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  measure:
+    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
+    timeout-minutes: 45
+    steps:
+      - name: Check out the harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Installs this revision only for the heartbeat wrapper. Each measured
+      # side installs from its own lockfile below.
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+
+      - name: Name both commits
+        id: commits
+        env:
+          REQUESTED: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse --verify "${REQUESTED:-$GITHUB_SHA}^{commit}")"
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "::error::$commit is not on main. Measure main commits only."
+            exit 1
+          fi
+          parent="$(git rev-parse "$commit~1")"
+          echo "sha=$commit" >> "$GITHUB_OUTPUT"
+          echo "parent=$parent" >> "$GITHUB_OUTPUT"
+          # Each side installs from its own lockfile, so this does not affect
+          # whether the comparison holds. It tells a reader where a delta may
+          # have come from.
+          if git diff --quiet "$parent" "$commit" -- pnpm-lock.yaml; then
+            echo "dependencies_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "dependencies_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Both sides are exported from git into fresh directories. Nothing is
+      # restored into them: a restored skew-protection cache would copy the
+      # chunks of earlier deploys into the output and count them too.
+      - name: Export both commits
+        env:
+          HEAD_SHA: ${{ steps.commits.outputs.sha }}
+          PARENT_SHA: ${{ steps.commits.outputs.parent }}
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/head" "$RUNNER_TEMP/parent"
+          git archive "$HEAD_SHA" | tar -x -C "$RUNNER_TEMP/head"
+          git archive "$PARENT_SHA" | tar -x -C "$RUNNER_TEMP/parent"
+
+      # The desktop runner sends SIGHUP after 45 seconds without output.
+      # Nitro can bundle longer than that, so the wrapper emits a heartbeat.
+      - name: Build this commit
+        working-directory: ${{ runner.temp }}/head
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: |
+          pnpm install --frozen-lockfile
+          "$GITHUB_WORKSPACE/node_modules/.bin/tsx" "$GITHUB_WORKSPACE/scripts/run-with-heartbeat.ts" pnpm build
+
+      - name: Build the parent commit
+        working-directory: ${{ runner.temp }}/parent
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: |
+          pnpm install --frozen-lockfile
+          "$GITHUB_WORKSPACE/node_modules/.bin/tsx" "$GITHUB_WORKSPACE/scripts/run-with-heartbeat.ts" pnpm build
+
+      - name: Measure both builds
+        env:
+          DEPENDENCIES_CHANGED: ${{ steps.commits.outputs.dependencies_changed }}
+          HEAD_SHA: ${{ steps.commits.outputs.sha }}
+          PARENT_SHA: ${{ steps.commits.outputs.parent }}
+        run: |
+          node scripts/perf/run.mjs \
+            --head "$RUNNER_TEMP/head" \
+            --parent "$RUNNER_TEMP/parent" \
+            --commit "$HEAD_SHA" \
+            --parent-commit "$PARENT_SHA" \
+            --dependencies-changed "$DEPENDENCIES_CHANGED" \
+            --out "$RUNNER_TEMP/measurement.json"
+
+      - name: Store the measurement
+        env:
+          HEAD_SHA: ${{ steps.commits.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Another run can land a note between the fetch and the push, so
+          # take the remote copy and reapply on top of it.
+          for attempt in 1 2 3; do
+            git fetch origin "refs/notes/perf:refs/notes/perf" || true
+            git notes --ref=perf add -f -F "$RUNNER_TEMP/measurement.json" "$HEAD_SHA"
+            if git push origin refs/notes/perf; then
+              exit 0
+            fi
+            git update-ref -d refs/notes/perf || true
+            sleep $((attempt * 5))
+          done
+          echo "Could not store the measurement after three attempts."
+          exit 1
+
+      - name: Keep the measurement when the note cannot be stored
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: measurement
+          path: ${{ runner.temp }}/measurement.json
+          if-no-files-found: warn
