@@ -37,12 +37,17 @@ export function serverFiles(root) {
 }
 
 /**
- * Client chunks that this build produced.
+ * The client files this build produced.
  *
  * nuxt-skew-protection copies the chunks of earlier deploys into the output,
  * so old sessions still load. A build that restored that cache would count
- * every earlier deploy as well. `latest.json` names those retained chunks, so
- * they are left out here.
+ * every earlier deploy as well. `latest.json` names the retained JavaScript
+ * chunks, so those are left out here. The metadata records deleted `.js`
+ * only, and no metadata names the other restored asset types. A warm local
+ * cache can therefore leave stale `.css` files in the output. The
+ * non-JavaScript cases that read this list then count them. Stored
+ * Measurements stay exact: CI measures cold git-archive exports, so nothing
+ * is restored there.
  */
 export function clientFiles(root) {
   const assets = join(root, BUILD_ASSETS)
