@@ -525,6 +525,7 @@ async function markUnchangedOwnerVerified(
 ): Promise<void> {
   await db.batch([
     markRepoSummaryCheckedStatement(db, owner, repo, meta, pushedAt, checkedAt),
+    clearRepoMissingSkillsStatement(db, owner, repo, checkedAt),
     ...repoStarObservationStatements(db, owner, repo, meta.stargazers_count ?? 0, checkedAt),
     db.prepare(
       `UPDATE skills
@@ -563,6 +564,12 @@ async function markRepoTooLarge(db: D1Database, owner: string, repo: string, now
     .run()
 }
 
+/**
+ * Quarantine every skill of a repository GitHub answered 404/410 for.
+ * `path_missing` rows are deliberately left alone: their files were already
+ * gone while the repo was healthy, and overwriting them here would let the
+ * unchanged-path recovery below resurrect skills the tree itself dropped.
+ */
 async function markRepoMissing(db: D1Database, owner: string, repo: string, now: number): Promise<void> {
   await Promise.all([
     db
@@ -589,11 +596,39 @@ async function markRepoMissing(db: D1Database, owner: string, repo: string, now:
              trust_score = -50,
              trust_reasons = '["source_missing"]',
              trust_synced_at = ?
-         WHERE owner = ? AND repo = ?`,
+         WHERE owner = ? AND repo = ?
+           AND (sync_status IS NULL OR sync_status != 'path_missing')`,
       )
       .bind(now, now, now, owner, repo)
       .run(),
   ])
+}
+
+/**
+ * The flip side of markRepoMissing: a repo that re-verifies as reachable must
+ * release the skills its missing verdict quarantined, or they stay stranded —
+ * the unchanged paths only write the repos row, and the score recompute
+ * treats any non-ok sync_status as unresolved, so quarantine would outlive
+ * the outage forever. Only `repo_missing` rows flip, and only the fields the
+ * missing verdict wrote; the daily score recompute lifts the remaining seo
+ * and trust quarantine once this lands. Runs in the same batch as the repos
+ * row, so repo recovery and skill recovery commit together.
+ */
+function clearRepoMissingSkillsStatement(
+  db: D1Database,
+  owner: string,
+  repo: string,
+  checkedAt: number,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE skills
+       SET source_resolved = 1,
+           last_synced_at = ?,
+           sync_status = 'ok'
+       WHERE owner = ? AND repo = ? AND sync_status = 'repo_missing'`,
+    )
+    .bind(checkedAt, owner, repo)
 }
 
 interface SkillSnapshot {
@@ -746,6 +781,7 @@ export async function syncRepo(
     }
     await db.batch([
       markRepoSummaryCheckedStatement(db, owner, repo, meta, repoPushedAt, checkedAt),
+      clearRepoMissingSkillsStatement(db, owner, repo, checkedAt),
       ...repoStarObservationStatements(db, owner, repo, meta.stargazers_count ?? 0, checkedAt),
     ])
     stats.status = status
