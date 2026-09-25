@@ -151,7 +151,7 @@ describe('github sync candidate selection', () => {
       INSERT INTO repos VALUES
         ('gone', 'stale-broken',    500000, 100000, NULL),
         ('gone', 'recently-broken', 990000, 995000, NULL),
-        ('gone', 'just-rechecked',  100000, 990000, NULL),
+        ('gone', 'just-rechecked',  990000, 100000, NULL),
         ('gone', 'no-skills',       100000, 100000, NULL);
       INSERT INTO skills VALUES
         ('gone', 'stale-broken', 'one'),
