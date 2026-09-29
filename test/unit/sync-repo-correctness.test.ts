@@ -446,6 +446,27 @@ describe('syncRepo content acknowledgement', () => {
 
   // harlan-zw/nuxt-ai-ready ships one Skill beside test fixtures. Counting the
   // fixtures moved its one Skill off the repository URL.
+  // Broken means the tree could not be read. A readable tree with no Skills,
+  // whether the author deleted them or only fixtures remain, is not broken.
+  it.each([
+    ['deleted every Skill', [{ path: 'README.md', sha: 'readme' }]],
+    ['keeps only test fixtures', [{ path: 'test/fixtures/skills/one/SKILL.md', sha: 'fixture' }]],
+  ])('retires the rows of a repository that %s without marking it broken', async (_, entries) => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'one', 'one-old')
+    setRendered(sqlite, 'one', 'test/fixtures/skills/one/SKILL.md')
+    sqlite.prepare(`UPDATE repos SET broken_since = 1`).run()
+    github.getTree.mockResolvedValue(tree(entries))
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({ status: 'rejected', reason: 'no_supported_skill_paths' })
+    expect(sqlite.prepare(`SELECT source_resolved, sync_status FROM skills`).get())
+      .toEqual({ source_resolved: 0, sync_status: 'path_missing' })
+    expect(sqlite.prepare(`SELECT broken_since, repo_skill_count FROM repos`).get())
+      .toEqual({ broken_since: null, repo_skill_count: 0 })
+  })
+
   it('ignores test fixture SKILL.md files and retires fixture rows it indexed before', async () => {
     insertRepo(sqlite, 'old-tree')
     insertSkill(sqlite, 'nuxt-ai-ready', 'real-sha')

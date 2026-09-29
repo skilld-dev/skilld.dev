@@ -891,12 +891,15 @@ export async function syncRepo(
   const repoKind: RepoKind = kindOverride ?? classifyRepoKind(skillFiles.length)
   const repoKindSource: 'computed' | 'override' = kindOverride ? 'override' : 'computed'
 
-  const repoWrite = (brokenSince: number | null): D1PreparedStatement => db.prepare(
+  // Reaching this point means GitHub returned a readable tree, so the
+  // repository is not broken. Broken means the tree could not be read; a tree
+  // with zero Skills is a Repository with no Skills, not a broken one.
+  const repoWrite = (): D1PreparedStatement => db.prepare(
     `INSERT INTO repos (
        owner, repo, default_branch, stars, forks, description, pushed_at, repo_created_at,
        repo_meta_synced_at, last_tree_sha, repo_kind, repo_kind_source,
        repo_skill_count, broken_since, source_owner, source_repo
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
      ON CONFLICT(owner, repo) DO UPDATE SET
        default_branch = excluded.default_branch,
        stars = excluded.stars,
@@ -909,7 +912,7 @@ export async function syncRepo(
        repo_kind = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind ELSE excluded.repo_kind END,
        repo_kind_source = CASE WHEN repos.repo_kind_source = 'override' THEN repos.repo_kind_source ELSE excluded.repo_kind_source END,
        repo_skill_count = excluded.repo_skill_count,
-       broken_since = excluded.broken_since,
+       broken_since = NULL,
        tree_truncated_at = NULL,
        source_owner = excluded.source_owner,
        source_repo = excluded.source_repo`,
@@ -927,7 +930,6 @@ export async function syncRepo(
     repoKind,
     repoKindSource,
     skillFiles.length,
-    brokenSince,
     sourceOwner,
     sourceRepo,
   )
@@ -951,7 +953,7 @@ export async function syncRepo(
          WHERE owner = ? AND repo = ? AND name = ?`,
       ).bind(now, now, owner, repo, name))
     }
-    statements.push(repoWrite(now))
+    statements.push(repoWrite())
     statements.push(...repoStarObservationStatements(db, owner, repo, stars, now))
     await db.batch(statements)
     stats.status = 'rejected'
@@ -1464,7 +1466,7 @@ export async function syncRepo(
   // The content cursor is written last and only once every slice has committed.
   // A run that fails partway leaves the tree unacknowledged, so the next run
   // reprocesses the repo instead of skipping the slices it never read.
-  finalWrites.push(repoWrite(null))
+  finalWrites.push(repoWrite())
   finalWrites.push(...repoStarObservationStatements(db, owner, repo, stars, now))
   await db.batch(finalWrites)
 

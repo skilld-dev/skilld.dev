@@ -29,6 +29,7 @@ describe('github sync candidate selection', () => {
         owner TEXT NOT NULL,
         repo TEXT NOT NULL,
         name TEXT NOT NULL,
+        sync_status TEXT,
         PRIMARY KEY (owner, repo, name)
       );
       CREATE TABLE skill_subscriptions (
@@ -73,7 +74,7 @@ describe('github sync candidate selection', () => {
         ('acme', 'empty-retired', 800000, NULL, NULL),
         ('acme', 'too-large',     850000, NULL, 900000);
 
-      INSERT INTO skills VALUES
+      INSERT INTO skills (owner, repo, name) VALUES
         ('acme', 'watched-due', 'one'),
         ('acme', 'watched-fresh', 'one'),
         ('acme', 'general-recent', 'one'),
@@ -125,6 +126,26 @@ describe('github sync candidate selection', () => {
     expect(rows.map(row => row.repo)).not.toContain('empty-retired')
   })
 
+  // A readable tree with no Skills retires every row as path_missing and leaves
+  // broken_since unset. Nothing is left to refresh, so both sweeps skip it.
+  it('leaves a repository whose Skills are all retired out of both sweeps', () => {
+    sqlite.exec(`
+      INSERT INTO repos VALUES ('acme', 'all-retired', 850000, NULL, NULL);
+      INSERT INTO skills (owner, repo, name, sync_status) VALUES ('acme', 'all-retired', 'one', 'path_missing');
+      INSERT INTO skill_subscriptions VALUES (1, 'acme', 'all-retired');
+      INSERT INTO skills (owner, repo, name, sync_status) VALUES ('acme', 'general-due', 'gone', 'path_missing');
+    `)
+    const subscribed = sqlite
+      .prepare(SUBSCRIBED_SYNC_CANDIDATES_SQL)
+      .all({ 1: 1_000_000 - 3600, 2: 250 }) as Array<{ repo: string }>
+    const general = sqlite
+      .prepare(GENERAL_SYNC_CANDIDATES_SQL)
+      .all({ 1: 1_000_000 - 36 * 3600, 2: 250 }) as Array<{ repo: string }>
+
+    expect(subscribed.map(row => row.repo)).not.toContain('all-retired')
+    expect(general.map(row => row.repo)).toEqual(['never-checked', 'general-due'])
+  })
+
   it('excludes repos with a recorded too-large verdict from both sweeps', () => {
     const subscribed = sqlite
       .prepare(SUBSCRIBED_SYNC_CANDIDATES_SQL)
@@ -153,7 +174,7 @@ describe('github sync candidate selection', () => {
         ('gone', 'recently-broken', 990000, 995000, NULL),
         ('gone', 'just-rechecked',  990000, 100000, NULL),
         ('gone', 'no-skills',       100000, 100000, NULL);
-      INSERT INTO skills VALUES
+      INSERT INTO skills (owner, repo, name) VALUES
         ('gone', 'stale-broken', 'one'),
         ('gone', 'recently-broken', 'one'),
         ('gone', 'just-rechecked', 'one');
@@ -173,7 +194,7 @@ describe('github sync candidate selection', () => {
         ('gone', 'broken-long',    500000, 500000, NULL),
         ('gone', 'broken-longest', 400000, 400000, NULL),
         ('gone', 'broken-recent',  700000, 700000, NULL);
-      INSERT INTO skills VALUES
+      INSERT INTO skills (owner, repo, name) VALUES
         ('gone', 'broken-long', 'one'),
         ('gone', 'broken-longest', 'one'),
         ('gone', 'broken-recent', 'one');
