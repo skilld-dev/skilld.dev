@@ -64,6 +64,7 @@
     "@nuxt/ui": "catalog:",
     "@nuxtjs/seo": "catalog:",
     "@resvg/resvg-js": "catalog:",
+    "@sentry/cloudflare": "catalog:",
     "@sentry/nuxt": "catalog:",
     "@takumi-rs/core": "catalog:",
     "@takumi-rs/wasm": "catalog:",
