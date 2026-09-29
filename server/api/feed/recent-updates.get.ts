@@ -1,5 +1,6 @@
 import { getDB } from '#server/utils/db'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
+import { RECENT_UPDATES_SQL } from '../../utils/recent-updates-query'
 
 interface ActivityRow {
   owner: string
@@ -80,66 +81,8 @@ function summarizeChange(message: string | null): string | null {
 export default defineCachedEventHandler(
   async (event): Promise<RecentUpdatesResponse> => {
     const db = getDB(event)
-    /*
-     * One row per skill, the latest update only, then at most SKILLS_PER_REPO
-     * rows per repository, newest repositories first.
-     *
-     * The activity table logs every sync, so a repository whose bot commits
-     * daily writes hundreds of rows for one skill. A plain "latest 60 rows"
-     * read returned that single skill sixty times and nothing else, and the
-     * homepage showed one card with a skill count of sixty.
-     */
     const res = await db
-      .prepare(
-        `WITH latest_per_skill AS (
-           SELECT a.owner, a.repo, a.name, a.occurred_at, a.sha,
-                  ROW_NUMBER() OVER (
-                    PARTITION BY a.owner, a.repo, a.name
-                    ORDER BY a.occurred_at DESC
-                  ) AS skill_rank
-           FROM activity a
-           INNER JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
-           INNER JOIN repos r ON r.owner = a.owner AND r.repo = a.repo
-           WHERE a.type = 'skill_updated'
-             AND a.occurred_at >= ?
-             AND r.stars >= 100
-             AND s.is_abstract = 1 AND s.is_official = 1
-         ),
-         ranked AS (
-           SELECT owner, repo, name, occurred_at, sha,
-                  ROW_NUMBER() OVER (PARTITION BY owner, repo ORDER BY occurred_at DESC) AS repo_rank,
-                  MAX(occurred_at) OVER (PARTITION BY owner, repo) AS repo_latest,
-                  COUNT(*) OVER (PARTITION BY owner, repo) AS repo_updated_count
-           FROM latest_per_skill
-           WHERE skill_rank = 1
-         )
-         SELECT a.owner, a.name, a.occurred_at, a.sha, a.repo_updated_count,
-                s.display_name, s.repo, s.description, s.slug, s.sync_status,
-                revisions.message AS change_summary,
-                (SELECT COUNT(*) FROM skills repo_skills
-                 WHERE repo_skills.owner = s.owner
-                   AND repo_skills.repo = s.repo
-                   AND repo_skills.source_resolved = 1) AS repo_skill_count
-         FROM ranked a
-         INNER JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
-         LEFT JOIN skill_revisions revisions
-           ON revisions.owner = a.owner
-          AND revisions.repo = a.repo
-          AND revisions.name = a.name
-          AND revisions.sha = (
-            SELECT candidate.sha
-            FROM skill_revisions candidate
-            WHERE candidate.owner = a.owner
-              AND candidate.repo = a.repo
-              AND candidate.name = a.name
-              AND candidate.modified_at <= a.occurred_at
-            ORDER BY candidate.modified_at DESC, candidate.sha DESC
-            LIMIT 1
-          )
-         WHERE a.repo_rank <= ?
-         ORDER BY a.repo_latest DESC, a.occurred_at DESC
-         LIMIT ?`,
-      )
+      .prepare(RECENT_UPDATES_SQL)
       .bind(
         Math.floor(Date.now() / 1000) - WINDOW_SECONDS,
         SKILLS_PER_REPO,
@@ -209,5 +152,7 @@ export default defineCachedEventHandler(
 
     return { items: cards }
   },
-  { maxAge: 30, swr: false, name: 'feed-recent-updates-origin-v2' },
+  // Activity rows only change when a sync runs. Five minutes of staleness on a
+  // homepage feed is invisible, and each recompute is a D1 read.
+  { maxAge: 300, swr: false, name: 'feed-recent-updates-origin-v2' },
 )

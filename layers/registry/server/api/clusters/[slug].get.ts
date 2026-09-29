@@ -103,8 +103,11 @@ export default defineCachedEventHandler(async (event) => {
     pages: Math.max(1, Math.ceil(total / limit)),
   }
 }, {
-  maxAge: 60,
-  staleMaxAge: 60 * 5,
+  // Membership changes only when a sync or the classifier writes skills, and
+  // the category query reads about 48K rows. Ten minutes fresh, then served
+  // stale while one refresh runs.
+  maxAge: 60 * 10,
+  staleMaxAge: 60 * 60,
   swr: true,
   name: 'clusters-detail-origin-v4',
 })

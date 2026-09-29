@@ -157,6 +157,10 @@ function engagementOf(row: MentionRow): number {
  *
  * Ordered by engagement so the first row seen for a skill is the strongest one
  * to quote as evidence.
+ *
+ * `CROSS JOIN` fixes the join order: posts in the window first, then their
+ * skills, then one primary-key check each. With a plain JOIN the planner
+ * scanned all of `skills` first, about 18K rows per call against 1.2K.
  */
 async function loadSocialEvidence(
   options: LoadTrendingSkillsOptions,
@@ -169,9 +173,9 @@ async function loadSocialEvidence(
               p.post_id, p.platform, p.author_handle, p.author_avatar, p.author_id, p.text_extract,
               p.posted_at, p.favourite_count, p.repost_count, p.reply_count,
               p.quote_count, p.bookmark_count
-       FROM x_post_skills s
-       JOIN x_posts p ON p.post_id = s.post_id
-       JOIN skills current
+       FROM x_posts p
+       CROSS JOIN x_post_skills s ON s.post_id = p.post_id
+       CROSS JOIN skills current
          ON current.owner = s.owner
         AND current.repo = s.repo
         AND current.name = s.slug
@@ -288,6 +292,10 @@ async function loadSocialEvidence(
  *
  * `HAVING COUNT(*) = 1` is the accuracy gate, and it is enforced in SQL so no
  * caller can forget it. A repo with two skills produces no row here at all.
+ *
+ * Skills are counted only for repositories that surged inside the window. The
+ * count grouped all of `skills` before, about 15K rows per call against 4K.
+ * `CROSS JOIN` keeps the surges as the outer loop.
  */
 async function loadGithubEvidence(
   options: LoadTrendingSkillsOptions,
@@ -295,11 +303,17 @@ async function loadGithubEvidence(
 ): Promise<Map<string, SkillTrendInput>> {
   const rows = (await options.db
     .prepare(
-      `WITH single_skill_repos AS (
-         SELECT owner, repo, MIN(name) AS slug, MIN(display_name) AS display_name
-         FROM skills
-         WHERE source_resolved = 1
-         GROUP BY owner, repo
+      `WITH surged_repos AS (
+         SELECT DISTINCT owner, repo
+         FROM repo_star_surges
+         WHERE detected_at >= ?1
+       ),
+       single_skill_repos AS (
+         SELECT s.owner, s.repo, MIN(s.name) AS slug, MIN(s.display_name) AS display_name
+         FROM surged_repos
+         CROSS JOIN skills s ON s.owner = surged_repos.owner AND s.repo = surged_repos.repo
+         WHERE s.source_resolved = 1
+         GROUP BY s.owner, s.repo
          HAVING COUNT(*) = 1
        )
        SELECT r.owner, r.repo, r.slug,
