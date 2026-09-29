@@ -1,10 +1,19 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
+import pkg from './package.json'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
 import { externalCheckin } from './shared/checkin-external'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
+
+// With `serverBundle: false` and no API fallback, @nuxt/icon registers no
+// collection names, so it splits `i-vscode-icons-foo` at the first hyphen and
+// looks up collection `vscode`. The icon never resolves: SSR ships a bare class
+// and logs a warning. Naming every installed collection fixes the split.
+const iconCollections = Object.keys(pkg.dependencies)
+  .filter(name => name.startsWith('@iconify-json/'))
+  .map(name => name.slice('@iconify-json/'.length))
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
@@ -608,6 +617,7 @@ export default defineNuxtConfig({
   // inlines just those. The Iconify API fallback is off, so a visitor's browser
   // never calls api.iconify.design. See docs/ops/bundle-baseline-2026-07-23.md.
   icon: {
+    collections: iconCollections,
     serverBundle: false,
     fallbackToApi: false,
     clientBundle: {
