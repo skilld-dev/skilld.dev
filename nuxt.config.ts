@@ -55,6 +55,7 @@ export default defineNuxtConfig({
     '@harlan-zw/nuxt-use-query',
     '@harlan-zw/nuxt-wide-events',
     './modules/mdxg/src/module',
+    './modules/og-static-fonts/module',
     '@nuxt/eslint',
     '@nuxt/ui',
     '@nuxt/fonts',
