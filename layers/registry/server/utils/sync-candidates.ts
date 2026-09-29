@@ -84,6 +84,34 @@ export const RECONCILE_RENDER_CANDIDATES_SQL = `
   LIMIT ?2`
 
 /**
+ * Re-verification sweep for repos carrying a broken verdict. Every pool above
+ * filters `broken_since IS NULL`, so a single transient 404 would otherwise
+ * quarantine a repository's skills forever: nothing ever re-checks the
+ * verdict. This sweep hands a repo one cheap re-check once it has stayed
+ * broken past the caller's TTL, longest-broken first. The cooldown reads the
+ * repo's last check time rather than `broken_since` itself, because
+ * markRepoMissing keeps the original break timestamp but advances
+ * `repo_meta_synced_at` on every failed re-check, so a permanently deleted
+ * repository is re-attempted at most once per TTL instead of every sweep.
+ * Callers append these rows behind every live pool, so the small LIMIT only
+ * ever spends slots a live sync did not want.
+ */
+export const REVERIFY_BROKEN_SYNC_CANDIDATES_SQL = `
+  SELECT r.owner, r.repo, r.broken_since AS ls,
+         COALESCE(dc.owner_verified, 0) AS owner_verified
+  FROM repos r INDEXED BY repos_broken_idx
+  LEFT JOIN discovery_candidates dc
+    ON dc.owner = r.owner AND dc.repo = r.repo
+  WHERE r.broken_since <= ?1
+    AND COALESCE(r.repo_meta_synced_at, r.broken_since) <= ?1
+    AND EXISTS (
+      SELECT 1 FROM skills s
+      WHERE s.owner = r.owner AND s.repo = r.repo
+    )
+  ORDER BY r.broken_since ASC, r.owner ASC, r.repo ASC
+  LIMIT ?2`
+
+/**
  * Candidate rows do not depend on an admitted skill. Stale claims are made
  * due again so a terminated Worker cannot strand a repository permanently.
  */
@@ -155,6 +183,41 @@ export function prioritizeRepoSyncCandidates(
     ordered,
     deferred: Math.max(0, categories.total - ordered.length),
   }
+}
+
+export interface RepoReverificationAppendOptions {
+  limit: number
+  maxReverified: number
+}
+
+/**
+ * Re-verification is the lowest-priority work in a sweep. Re-check rows only
+ * join the queue through slots the live pools left free, and never more than
+ * `maxReverified` per run, so a backlog of long-broken repositories cannot
+ * crowd out fresh syncs. Rows already queued by a live pool are skipped.
+ */
+export function appendRepoReverificationCandidates(
+  ordered: Array<{ owner: string, repo: string, ownerVerified: boolean }>,
+  reverify: RepoSyncCandidate[],
+  options: RepoReverificationAppendOptions,
+): Array<{ owner: string, repo: string, ownerVerified: boolean }> {
+  const queued = new Set(ordered.map(row => candidateKey(row)))
+  const freeSlots = Math.max(0, options.limit - ordered.length)
+  const appended: Array<{ owner: string, repo: string, ownerVerified: boolean }> = []
+  for (const row of reverify) {
+    if (appended.length >= Math.min(options.maxReverified, freeSlots))
+      break
+    const key = candidateKey(row)
+    if (queued.has(key))
+      continue
+    queued.add(key)
+    appended.push({
+      owner: row.owner,
+      repo: row.repo,
+      ownerVerified: row.owner_verified === 1,
+    })
+  }
+  return [...ordered, ...appended]
 }
 
 export function historicalDiscoveryStageCapacity(

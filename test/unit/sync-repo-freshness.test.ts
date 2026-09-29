@@ -55,6 +55,17 @@ describe('syncRepo freshness cursor', () => {
         modified_at INTEGER,
         first_seen_at INTEGER,
         last_synced_at INTEGER,
+        sync_status TEXT,
+        source_resolved INTEGER,
+        seo_index_score INTEGER NOT NULL DEFAULT 0,
+        seo_indexable INTEGER NOT NULL DEFAULT 0,
+        seo_index_reasons TEXT NOT NULL DEFAULT '[]',
+        seo_index_synced_at INTEGER,
+        trust_tier TEXT NOT NULL DEFAULT 'untrusted',
+        trust_source TEXT NOT NULL DEFAULT 'computed',
+        trust_score INTEGER NOT NULL DEFAULT 0,
+        trust_reasons TEXT NOT NULL DEFAULT '[]',
+        trust_synced_at INTEGER,
         owner_verified INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (owner, repo, name)
       );
@@ -237,6 +248,61 @@ describe('syncRepo freshness cursor', () => {
       repo: 'skills',
       name: 'one',
       reason: 'owner_verified',
+    })
+  })
+
+  it('records repo_missing without overwriting a path_missing verdict', async () => {
+    sqlite.prepare(`UPDATE skills SET sync_status = 'path_missing', source_resolved = 0`).run()
+    github.getRepoSummary.mockResolvedValue({ status: 404, data: null, rateLimit: null, notModified: false })
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result.status).toBe('failed')
+    expect(result.reason).toBe('repo fetch 404')
+    expect(sqlite.prepare(`SELECT sync_status FROM skills`).pluck().get()).toBe('path_missing')
+    expect(sqlite
+      .prepare(`SELECT broken_since FROM repos WHERE owner = 'acme' AND repo = 'skills'`)
+      .pluck()
+      .get()).toBe(1783900800)
+  })
+
+  it('restores repo_missing skills once a broken repo answers again unchanged', async () => {
+    sqlite.prepare(`UPDATE repos SET broken_since = 1783812000`).run()
+    sqlite.prepare(`
+      INSERT INTO skills (owner, repo, name, current_sha, sync_status, source_resolved)
+      VALUES ('acme', 'skills', 'gone', 'gone-sha', 'path_missing', 0)
+    `).run()
+    sqlite.prepare(`
+      UPDATE skills
+      SET sync_status = 'repo_missing', source_resolved = 0, last_synced_at = 1783812000
+      WHERE sync_status IS NULL
+    `).run()
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result.status).toBe('skipped-tree-sha')
+    expect(sqlite.prepare(`
+      SELECT name, sync_status, source_resolved, last_synced_at
+      FROM skills ORDER BY name
+    `).all()).toEqual([
+      { name: 'gone', sync_status: 'path_missing', source_resolved: 0, last_synced_at: null },
+      { name: 'one', sync_status: 'ok', source_resolved: 1, last_synced_at: 1783900800 },
+    ])
+    expect(sqlite
+      .prepare(`SELECT broken_since FROM repos WHERE owner = 'acme' AND repo = 'skills'`)
+      .pluck()
+      .get()).toBeNull()
+  })
+
+  it('restores repo_missing skills on the owner-verified unchanged path too', async () => {
+    sqlite.prepare(`UPDATE skills SET sync_status = 'repo_missing', source_resolved = 0`).run()
+
+    const result = await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+
+    expect(result.status).toBe('verified-only')
+    expect(sqlite.prepare(`SELECT sync_status, source_resolved FROM skills`).get()).toEqual({
+      sync_status: 'ok',
+      source_resolved: 1,
     })
   })
 })

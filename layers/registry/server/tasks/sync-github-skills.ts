@@ -2,19 +2,26 @@ import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { createRegistryJobBatch } from '~~/server/utils/registry-jobs-runtime'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
-import { STALE_SYNC_SECONDS, SUBSCRIBED_REPO_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
+import {
+  BROKEN_REPO_REVERIFY_SECONDS,
+  STALE_SYNC_SECONDS,
+  SUBSCRIBED_REPO_STALE_SECONDS,
+} from '~~/server/utils/sync-thresholds'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import {
+  appendRepoReverificationCandidates,
   DISCOVERY_SYNC_CANDIDATES_SQL,
   GENERAL_SYNC_CANDIDATES_SQL,
   historicalDiscoveryStageCapacity,
   prioritizeRepoSyncCandidates,
+  REVERIFY_BROKEN_SYNC_CANDIDATES_SQL,
   STAGE_HISTORICAL_DISCOVERY_CANDIDATES_SQL,
   SUBSCRIBED_SYNC_CANDIDATES_SQL,
 } from '../utils/sync-candidates'
 
 const MAX_REPOS_PER_RUN = 250
 const MAX_HISTORICAL_CANDIDATES_PER_RUN = 250
+const MAX_REVERIFIED_REPOS_PER_RUN = 10
 const GENERAL_REPOS_RESERVE = 50
 const CRON = '0 * * * *'
 const CLAIM_STALE_SECONDS = 30 * 60
@@ -39,7 +46,7 @@ export default defineScheduledTask({
     }, async () => {
       const startedAt = Date.now()
       const now = Math.floor(startedAt / 1000)
-      const [subRows, stalenessRows, discoveryRows] = await Promise.all([
+      const [subRows, stalenessRows, discoveryRows, reverifyRows] = await Promise.all([
         db.prepare(SUBSCRIBED_SYNC_CANDIDATES_SQL)
           .bind(now - SUBSCRIBED_REPO_STALE_SECONDS, MAX_REPOS_PER_RUN)
           .all<{ owner: string, repo: string, ls: number | null, owner_verified: number }>(),
@@ -48,6 +55,9 @@ export default defineScheduledTask({
           .all<{ owner: string, repo: string, ls: number | null, owner_verified: number }>(),
         db.prepare(DISCOVERY_SYNC_CANDIDATES_SQL)
           .bind(now, now - CLAIM_STALE_SECONDS, MAX_REPOS_PER_RUN)
+          .all<{ owner: string, repo: string, ls: number | null, owner_verified: number }>(),
+        db.prepare(REVERIFY_BROKEN_SYNC_CANDIDATES_SQL)
+          .bind(now - BROKEN_REPO_REVERIFY_SECONDS, MAX_REVERIFIED_REPOS_PER_RUN)
           .all<{ owner: string, repo: string, ls: number | null, owner_verified: number }>(),
       ])
       const subscriberCandidates = subRows.results ?? []
@@ -88,21 +98,28 @@ export default defineScheduledTask({
           generalReserve: GENERAL_REPOS_RESERVE,
         },
       )
+      // Re-verification of long-broken repos queues last: only slots the live
+      // pools left free, capped well under the run limit.
+      const queue = appendRepoReverificationCandidates(
+        ordered,
+        reverifyRows.results ?? [],
+        { limit: MAX_REPOS_PER_RUN, maxReverified: MAX_REVERIFIED_REPOS_PER_RUN },
+      )
 
-      if (ordered.length === 0) {
+      if (queue.length === 0) {
         await reportJobRun(db, 'sync-github-skills', {
           cron: CRON,
           status: 'ok',
           durationMs: Date.now() - startedAt,
         })
-        return { result: { queued: 0, deferred, stagedHistorical } }
+        return { result: { queued: 0, deferred, stagedHistorical, reverified: 0 } }
       }
 
       const batch = await createRegistryJobBatch(
         env as Cloudflare.Env & Record<string, unknown>,
         {
           name: `registry-sync:${now}`,
-          jobs: ordered.map(({ owner, repo, ownerVerified }) => ({
+          jobs: queue.map(({ owner, repo, ownerVerified }) => ({
             operation: 'sync',
             owner,
             repo,
@@ -128,6 +145,7 @@ export default defineScheduledTask({
           queued: batch.jobIds.length,
           deferred,
           stagedHistorical,
+          reverified: queue.length - ordered.length,
           dispatchFailed: dispatchFailed.length,
         },
       }

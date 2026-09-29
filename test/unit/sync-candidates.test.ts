@@ -1,10 +1,12 @@
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  appendRepoReverificationCandidates,
   DISCOVERY_SYNC_CANDIDATES_SQL,
   GENERAL_SYNC_CANDIDATES_SQL,
   historicalDiscoveryStageCapacity,
   prioritizeRepoSyncCandidates,
+  REVERIFY_BROKEN_SYNC_CANDIDATES_SQL,
   STAGE_HISTORICAL_DISCOVERY_CANDIDATES_SQL,
   SUBSCRIBED_SYNC_CANDIDATES_SQL,
 } from '../../layers/registry/server/utils/sync-candidates'
@@ -53,6 +55,8 @@ describe('github sync candidate selection', () => {
         owner_verified INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (owner, repo)
       );
+      CREATE INDEX repos_broken_idx
+        ON repos(broken_since);
       CREATE INDEX idx_repos_sync_due
         ON repos(repo_meta_synced_at, owner, repo)
         WHERE broken_since IS NULL;
@@ -140,6 +144,54 @@ describe('github sync candidate selection', () => {
       .all({ 1: 1_000_000 - 36 * 3600, 2: 250 }) as Array<{ detail: string }>
 
     expect(plan.map(row => row.detail).join('\n')).toContain('idx_repos_sync_due')
+  })
+
+  it('re-verifies repos whose broken verdict outlived the re-verification TTL', () => {
+    sqlite.exec(`
+      INSERT INTO repos VALUES
+        ('gone', 'stale-broken',    500000, 100000, NULL),
+        ('gone', 'recently-broken', 990000, 995000, NULL),
+        ('gone', 'just-rechecked',  990000, 100000, NULL),
+        ('gone', 'no-skills',       100000, 100000, NULL);
+      INSERT INTO skills VALUES
+        ('gone', 'stale-broken', 'one'),
+        ('gone', 'recently-broken', 'one'),
+        ('gone', 'just-rechecked', 'one');
+    `)
+
+    // 1_000_000 - 172800 encodes a 48-hour re-verification TTL.
+    const rows = sqlite
+      .prepare(REVERIFY_BROKEN_SYNC_CANDIDATES_SQL)
+      .all({ 1: 1_000_000 - 172_800, 2: 250 }) as Array<{ owner: string, repo: string, ls: number }>
+
+    expect(rows).toEqual([{ owner: 'gone', repo: 'stale-broken', ls: 100000, owner_verified: 0 }])
+  })
+
+  it('re-verifies the longest-broken repos first within a small bound', () => {
+    sqlite.exec(`
+      INSERT INTO repos VALUES
+        ('gone', 'broken-long',    500000, 500000, NULL),
+        ('gone', 'broken-longest', 400000, 400000, NULL),
+        ('gone', 'broken-recent',  700000, 700000, NULL);
+      INSERT INTO skills VALUES
+        ('gone', 'broken-long', 'one'),
+        ('gone', 'broken-longest', 'one'),
+        ('gone', 'broken-recent', 'one');
+    `)
+
+    const rows = sqlite
+      .prepare(REVERIFY_BROKEN_SYNC_CANDIDATES_SQL)
+      .all({ 1: 1_000_000 - 172_800, 2: 2 }) as Array<{ repo: string }>
+
+    expect(rows.map(row => row.repo)).toEqual(['broken-longest', 'broken-long'])
+  })
+
+  it('walks the broken-repo index', () => {
+    const plan = sqlite
+      .prepare(`EXPLAIN QUERY PLAN ${REVERIFY_BROKEN_SYNC_CANDIDATES_SQL}`)
+      .all({ 1: 1_000_000 - 172_800, 2: 250 }) as Array<{ detail: string }>
+
+    expect(plan.map(row => row.detail).join('\n')).toContain('repos_broken_idx')
   })
 
   it('selects due and stale-claimed discovery candidates without skill rows', () => {
@@ -270,10 +322,59 @@ describe('github sync candidate selection', () => {
     )).toBe(3)
   })
 
+  it('appends re-verification candidates only into unused slots behind live pools', () => {
+    const ordered = [
+      { owner: 'acme', repo: 'watched', ownerVerified: false },
+    ]
+    const reverify = [
+      { owner: 'gone', repo: 'stale', ls: 1 },
+      { owner: 'gone', repo: 'older', ls: 2 },
+      { owner: 'gone', repo: 'oldest', ls: 3 },
+    ]
+
+    expect(appendRepoReverificationCandidates(ordered, reverify, { limit: 3, maxReverified: 10 })).toEqual([
+      { owner: 'acme', repo: 'watched', ownerVerified: false },
+      { owner: 'gone', repo: 'stale', ownerVerified: false },
+      { owner: 'gone', repo: 'older', ownerVerified: false },
+    ])
+  })
+
+  it('caps re-verification additions per run and skips repos already queued', () => {
+    const ordered = [
+      { owner: 'acme', repo: 'watched', ownerVerified: true },
+    ]
+    const reverify = [
+      { owner: 'acme', repo: 'watched', ls: 1 },
+      { owner: 'gone', repo: 'stale', ls: 2 },
+      { owner: 'gone', repo: 'older', ls: 3 },
+    ]
+
+    const result = appendRepoReverificationCandidates(ordered, reverify, { limit: 250, maxReverified: 1 })
+
+    expect(result).toEqual([
+      { owner: 'acme', repo: 'watched', ownerVerified: true },
+      { owner: 'gone', repo: 'stale', ownerVerified: false },
+    ])
+  })
+
+  it('appends nothing for re-verification when live pools fill the run', () => {
+    const ordered = [
+      { owner: 'acme', repo: 'watched', ownerVerified: false },
+      { owner: 'acme', repo: 'general', ownerVerified: false },
+    ]
+
+    expect(appendRepoReverificationCandidates(
+      ordered,
+      [{ owner: 'gone', repo: 'stale', ls: 1 }],
+      { limit: 2, maxReverified: 10 },
+    )).toEqual(ordered)
+  })
+
   it.each([
     [SUBSCRIBED_SYNC_CANDIDATES_SQL, 2],
     [GENERAL_SYNC_CANDIDATES_SQL, 2],
     [DISCOVERY_SYNC_CANDIDATES_SQL, 3],
+    [REVERIFY_BROKEN_SYNC_CANDIDATES_SQL, 2],
   ])('bounds candidate query results in SQL', (sql, placeholder) => {
     expect(sql).toContain(`LIMIT ?${placeholder}`)
   })
