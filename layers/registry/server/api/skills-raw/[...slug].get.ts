@@ -7,7 +7,7 @@ import { fetchUpstreamText } from '../../utils/upstream-text'
 import { fetchUpstreamTree } from '../../utils/upstream-tree'
 
 const RAW_CACHE_TTL = 60 * 5
-// The KV entry outlives the fresh window by this much, so a blip after
+// The cache entry outlives the fresh window by this much, so a blip after
 // expiry still has a last-good body to fall back to instead of a 503.
 const RAW_STALE_TTL = 60 * 60
 const RAW_MISSING_TTL = 60
@@ -100,7 +100,7 @@ export default defineApiHandler({
     const cacheKey = filePath
       ? `skills:raw:v3:${source.owner}/${source.repo}/${skill.name}:${filePath}`
       : `skills:raw:v3:${source.owner}/${source.repo}/${skill.name}`
-    const lastGood = parseLastGood(await readCache<unknown>(useStorage('cache'), cacheKey))
+    const lastGood = parseLastGood(await readCache<unknown>(useStorage('edge-cache'), cacheKey))
     if (lastGood && lastGood.ageSeconds < RAW_CACHE_TTL) {
       setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
       setHeader(event, 'cache-control', 'public, max-age=300')
@@ -133,7 +133,7 @@ export default defineApiHandler({
       // The registry has not recorded this deletion yet. The next sync flips
       // `source_resolved` and short-circuits earlier. Until then, the missing
       // marker keeps repeat callers off the upstream 404.
-      await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
+      await writeCache(useStorage('edge-cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
       throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
     }
 
@@ -154,7 +154,7 @@ export default defineApiHandler({
     )?.path
 
     if (!skillPath) {
-      await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
+      await writeCache(useStorage('edge-cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
       throw createError({ statusCode: 404, message: 'SKILL.md not found in repository' })
     }
 
@@ -170,7 +170,7 @@ export default defineApiHandler({
 
     if (raw._tag === 'missing') {
       emitOperationalEvent(createWideEvent({ 'operation': 'skill-raw-content-fetch', 'outcome': 'missing', 'upstream.status': raw.status }))
-      await writeCache(useStorage('cache'), cacheKey, { status: 'missing', body: null, branch, path: targetPath } satisfies RawCache, { ttl: RAW_MISSING_TTL })
+      await writeCache(useStorage('edge-cache'), cacheKey, { status: 'missing', body: null, branch, path: targetPath } satisfies RawCache, { ttl: RAW_MISSING_TTL })
       throw createError({ statusCode: 404, message: notFoundMessage })
     }
 
@@ -187,7 +187,7 @@ export default defineApiHandler({
 
     const body = raw.body
     await writeCache(
-      useStorage('cache'),
+      useStorage('edge-cache'),
       cacheKey,
       { storedAt: Date.now(), value: { status: 'ok', body, branch, path: targetPath } } satisfies RawCacheEnvelope,
       { ttl: RAW_CACHE_TTL + RAW_STALE_TTL },

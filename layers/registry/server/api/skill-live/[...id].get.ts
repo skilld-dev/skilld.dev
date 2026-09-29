@@ -44,11 +44,14 @@ export default defineCachedEventHandler(async (event): Promise<SkillAuditRespons
 }, {
   // One refresh a day. Every skill page render calls this route during SSR,
   // and crawlers revisit the same skills several times a day, so an hourly
-  // refresh rewrote the KV entry and refetched skills.sh on most renders.
+  // refresh rewrote the cache entry and refetched skills.sh on most renders.
   maxAge: 60 * 60 * 24,
   staleMaxAge: 60 * 60 * 24 * 7, // 1 week stale-while-revalidate window
   swr: true,
   group: 'skill-live',
+  // One key per skill, so it lives in the per-colo edge cache, not KV.
+  // See server/runtime/edge-cache-storage.ts.
+  base: '/edge-cache',
   getKey: (event) => {
     const id = getRouterParam(event, 'id') ?? ''
     return id.toLowerCase()

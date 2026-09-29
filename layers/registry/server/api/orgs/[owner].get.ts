@@ -157,7 +157,7 @@ export default defineEventHandler(async (event) => {
   const owner = ownerParam.toLowerCase()
 
   return cached({
-    storage: useStorage('cache'),
+    storage: useStorage('edge-cache'),
     key: `orgs:profile:v1:${owner}`,
     ttlSeconds: ORG_PROFILE_CACHE_TTL,
     staleSeconds: ORG_PROFILE_CACHE_STALE_TTL,
@@ -208,7 +208,7 @@ async function loadOrgProfile(event: H3Event, owner: string): Promise<OrgProfile
   await Promise.all(repos.map(async (r) => {
     const source = sourceIdentities.get(r.repo) ?? { owner, repo: r.repo }
     const cacheKey = `github:repo-desc:v2:${source.owner}/${source.repo}`
-    const cached = await readCache<string | null>(useStorage('cache'), cacheKey)
+    const cached = await readCache<string | null>(useStorage('edge-cache'), cacheKey)
     if (cached) {
       r.description = cached
       return
@@ -218,7 +218,7 @@ async function loadOrgProfile(event: H3Event, owner: string): Promise<OrgProfile
       return null
     })
     const desc = data?.repo?.description?.trim() || null
-    await writeCache(useStorage('cache'), cacheKey, desc, { ttl: 60 * 60 * 6 })
+    await writeCache(useStorage('edge-cache'), cacheKey, desc, { ttl: 60 * 60 * 6 })
     r.description = desc
   }))
 

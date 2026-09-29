@@ -121,14 +121,14 @@ export async function semanticSkillSearch(event: H3Event, query: string, topK = 
 }
 
 /**
- * Embed the query, memoised in the KV cache. The model is deterministic, so a
+ * Embed the query, memoised in the edge cache. The model is deterministic, so a
  * repeated query never needs a second inference. Search is typed one keystroke
  * at a time, and the popular prefixes of popular queries repeat constantly:
  * this is the difference between every keystroke paying for an inference and
  * only the novel ones doing so.
  */
 async function embedQuery(ai: AiBinding, query: string): Promise<number[] | null> {
-  const storage = useStorage('cache')
+  const storage = useStorage('edge-cache')
   // Keep the default mean pooling used by the existing document vectors.
   const contract = JSON.stringify([EMBEDDING_MODEL, 'mean', QUERY_INSTRUCTION, query])
   const cacheKey = `search:qvec:v2:${await sha256Hex(contract)}`

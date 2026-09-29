@@ -192,7 +192,7 @@ const skillDetailHandler = defineApiHandler({
       throw createError({ statusCode: 400, message: 'Missing skill slug' })
 
     return cached({
-      storage: useStorage('cache'),
+      storage: useStorage('edge-cache'),
       key: `skills:detail:v2:${slug.toLowerCase()}`,
       ttlSeconds: DETAIL_CACHE_TTL,
       staleSeconds: DETAIL_CACHE_STALE_TTL,
@@ -472,7 +472,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
 }
 
 // Skill detail data is public and changes only when indexing or social counts
-// update. A read-through KV cache keeps popular links from repeating every D1
+// update. A read-through cache keeps popular links from repeating every D1
 // lookup and Markdown render for each reader. `cached` restores what Nitro's
 // route cache used to provide here (maxAge 60, staleMaxAge 300, swr) without
 // the bare `storage.setItem` that let a KV `KV PUT failed: 429` escape the
