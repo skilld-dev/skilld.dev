@@ -24,7 +24,7 @@ Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilit
 
 ## Server-side architecture
 
-- **Platform**: request-scoped object on `event.context.platform` carrying every infrastructure binding a handler needs: `db` (D1), `ai` (Workers AI), `github` (resolved client), `requestId`. Mounted by `server/plugins/platform.ts`. Handlers must read bindings from here, never directly from `event.context.cloudflare.env`.
+- **Platform**: request-scoped object on `event.context.platform` carrying every infrastructure binding a handler needs: `db` (D1), `ai` (Workers AI), `github` (resolved client), `requestId`. Mounted by `server/plugins/platform.ts`. Handlers must read bindings from here, never directly from `event.context.cloudflare.env`. `db` is one D1 session per request: a safe method starts on any read replica, a mutating method starts on the primary, and a write's bookmark rides a `d1-bookmark` cookie so the next request reads it. Cron tasks and queue consumers use the raw binding, which always reaches the primary.
 - **defineApiHandler**: the single Nitro entrypoint shape: `{ schema, policy, handler, presenter }`. Schema is a zod input, policy is an array of atomic predicates AND-ed, handler receives `{ body, platform, user, event }`, presenter shapes the response. Defined in `shared/server/handler.ts`.
 - **Policy**: a `(ctx) => boolean | Promise<boolean>` atom in `layers/<layer>/server/policies/`. Composes by array.
 - **Presenter**: a `(row) => dto` in `layers/<layer>/server/presenters/`. Response shape lives here, never inline in handlers.
