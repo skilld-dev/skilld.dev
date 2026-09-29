@@ -1,5 +1,7 @@
+import { createSentryInitOptions } from '@harlan-zw/nuxt-sentry/server'
+import { SDK_VERSION } from '@sentry/cloudflare'
 import { sentryCloudflareNitroPlugin } from '@sentry/nuxt/module/plugins'
-import { createSentryDataCollection, isBestEffortCacheWriteError, isExpectedUpstreamOutageError, scrubSentryBreadcrumb, scrubSentryEvent } from '../../shared/sentry'
+import { isBestEffortCacheWriteError, isExpectedUpstreamOutageError, scrubSentryBreadcrumb, scrubSentryEvent } from '../../shared/sentry'
 
 function isDroppedSignature(error: unknown): boolean {
   return isBestEffortCacheWriteError(error) || isExpectedUpstreamOutageError(error)
@@ -17,8 +19,11 @@ export default defineNitroPlugin((nitroApp) => {
     // rather than an empty string or every event reports release "".
     release: sentry.release || undefined,
     tracesSampleRate: sentry.tracesSampleRate,
-    dataCollection: createSentryDataCollection(),
+    ...createSentryInitOptions({ sdkVersion: SDK_VERSION, dataCollection: 'none', logs: false }),
     beforeBreadcrumb: scrubSentryBreadcrumb,
+    // Sentry 11 streams spans by default and skips `beforeSendTransaction`, so
+    // a traced URL would leave unscrubbed. Static keeps every trace on that hook.
+    traceLifecycle: 'static',
     beforeSendTransaction: scrubSentryEvent,
     // Nitro's route cache catches its own KV write failures and forwards the
     // caught error here as unhandled (SKILLD-17). The registry handlers'

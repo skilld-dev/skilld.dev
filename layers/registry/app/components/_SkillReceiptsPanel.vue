@@ -42,7 +42,7 @@ const lastSyncedDate = computed(() =>
 )
 const lastSyncedAgo = useTimeAgo(computed(() => lastSyncedDate.value ?? new Date(0)))
 
-const now = useTimestamp({ interval: 60_000 })
+const now = useTimestamp({ scheduler: cb => useIntervalFn(cb, 60_000) })
 const stale = computed(() => {
   if (!provenance.lastSyncedAt)
     return false

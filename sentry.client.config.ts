@@ -1,5 +1,6 @@
+import { createSentryInitOptions } from '@harlan-zw/nuxt-sentry/server'
 import * as Sentry from '@sentry/nuxt'
-import { createSentryDataCollection, isClosedBroadcastChannelError, isLocalReportingHost, scrubSentryBreadcrumb, scrubSentryEvent, SENTRY_DSN, SENTRY_TUNNEL_PATH } from './shared/sentry'
+import { isClosedBroadcastChannelError, isLocalReportingHost, scrubSentryBreadcrumb, scrubSentryEvent, SENTRY_DSN, SENTRY_TUNNEL_PATH } from './shared/sentry'
 
 if (!import.meta.dev && window.location.protocol === 'https:' && !isLocalReportingHost(window.location.hostname)) {
   // No `release` here on purpose. The Sentry bundler plugin injects the release
@@ -15,11 +16,11 @@ if (!import.meta.dev && window.location.protocol === 'https:' && !isLocalReporti
     // No browser performance tracing and no session tracking. Errors only.
     tracesSampleRate: 0,
     integrations: defaults => defaults.filter(integration => integration.name !== 'BrowserSession'),
-    // `userInfo: false` also makes the SDK send `infer_ip: never`, so Sentry
-    // ingest does not fill in an IP address. `sendDefaultPii` is deprecated in
-    // this SDK version and ignored when `dataCollection` is set.
-    dataCollection: createSentryDataCollection(),
+    // `none` sends `infer_ip: never`, so Sentry ingest never fills in an IP.
+    ...createSentryInitOptions({ sdkVersion: Sentry.SDK_VERSION, dataCollection: 'none', logs: false }),
     beforeBreadcrumb: scrubSentryBreadcrumb,
+    // Sentry 11 streams spans by default and skips `beforeSendTransaction`.
+    traceLifecycle: 'static',
     beforeSendTransaction: scrubSentryEvent,
     // Stale hashed chunks after a deploy: Nuxt's built-in nuxt:chunk-reload
     // plugin already recovers the navigation with a hard reload, so these are

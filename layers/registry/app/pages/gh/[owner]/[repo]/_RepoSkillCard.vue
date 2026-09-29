@@ -37,7 +37,7 @@ function parseDate(timestamp: number | null | undefined): ParsedDate | null {
 
 const modifiedAt = computed(() => parseDate(skill.modifiedAt))
 const modifiedAtAgo = useTimeAgo(computed(() => modifiedAt.value?.date ?? new Date(0)), {
-  updateInterval: 60_000,
+  scheduler: cb => useIntervalFn(cb, 60_000),
 })
 const visibleDependencies = computed(() => skill.dependencies?.slice(0, 3) ?? [])
 const hiddenDependencies = computed(() => skill.dependencies?.slice(3) ?? [])

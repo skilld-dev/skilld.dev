@@ -60,7 +60,7 @@ const fingerprint = computed(() => data.value?.topTags.slice(0, 3).map(t => t.la
 // interval on every re-render, none of which were ever disposed.
 const syncedAgo = useTimeAgo(() => data.value?.fetchedAt ?? 0)
 
-const now = useTimestamp({ interval: 60_000 })
+const now = useTimestamp({ scheduler: cb => useIntervalFn(cb, 60_000) })
 const syncStale = computed(() => {
   const profile = data.value
   if (!profile)

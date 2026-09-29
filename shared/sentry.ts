@@ -108,29 +108,6 @@ export function isClosedBroadcastChannelError(error: unknown): boolean {
   return message === 'Failed to execute \'postMessage\' on \'BroadcastChannel\': Channel is closed'
 }
 
-export function createSentryDataCollection() {
-  return {
-    userInfo: false,
-    cookies: false,
-    httpHeaders: {
-      request: false,
-      response: false,
-    },
-    httpBodies: [],
-    urlQueryParams: false,
-    graphQL: {
-      document: false,
-      variables: false,
-    },
-    genAI: {
-      inputs: false,
-      outputs: false,
-    },
-    databaseQueryData: false,
-    stackFrameVariables: false,
-  }
-}
-
 /**
  * A URL without its query string or fragment. Query strings carry OAuth codes,
  * signed tokens, and search terms, so no URL reaches Sentry with one.
