@@ -64,6 +64,10 @@ minimumReleaseAgeExclude:
   - skilld-cli-linux-x64-musl
   - skilld-cli-win32-arm64-msvc
   - skilld-cli-win32-x64-msvc
+  - '@nuxtjs/mcp-toolkit@0.22.0'
+  - nuxt-ai-ready@2.4.1
+  - '@nuxt/scripts@1.3.10'
+  - motion-v@2.5.1
 shellEmulator: true
 autoInstallPeers: false
 
@@ -158,31 +162,31 @@ patchedDependencies:
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/workers-types': ^5.20260901.1
-  '@comark/nuxt': 0.6.2
+  '@comark/nuxt': 0.7.0
   '@harlan-zw/comark-content': 0.1.5
   '@harlan-zw/nuxt-cf-jobs': 0.2.5
   '@harlan-zw/nuxt-checkin': 0.3.0
   '@harlan-zw/nuxt-cloudflare': 0.4.3
-  '@harlan-zw/nuxt-dx': 0.1.3
+  '@harlan-zw/nuxt-dx': 0.2.1
   '@harlan-zw/nuxt-sentry': 0.1.7
-  '@harlan-zw/nuxt-use-query': 0.2.1
+  '@harlan-zw/nuxt-use-query': 0.2.2
   '@harlan-zw/nuxt-wide-events': ^0.1.4
   '@iconify-json/lucide': ^1.2.128
   '@iconify-json/simple-icons': ^1.2.94
   '@iconify-json/vscode-icons': ^1.2.76
   '@modelcontextprotocol/client': 2.0.0
-  '@modelcontextprotocol/sdk': 1.30.0
+  '@modelcontextprotocol/sdk': 1.30.1
   '@modelcontextprotocol/server': 2.0.0
   '@nuxt/a11y': 1.0.0-alpha.1
   '@nuxt/eslint': ^1.17.0
   '@nuxt/fonts': ^0.14.0
   '@nuxt/kit': 4.5.2
-  '@nuxt/scripts': ^1.3.8
+  '@nuxt/scripts': ^1.3.10
   '@nuxt/test-utils': ^4.2.0
-  '@nuxt/ui': ^4.11.0
+  '@nuxt/ui': ^4.11.2
   '@nuxtjs/html-validator': ^2.1.0
-  '@nuxtjs/mcp-toolkit': ^0.19.0
-  '@nuxtjs/seo': ^5.3.14
+  '@nuxtjs/mcp-toolkit': ^0.22.0
+  '@nuxtjs/seo': ^5.3.16
   '@playwright/test': ^1.62.1
   '@resvg/resvg-js': ^2.6.2
   '@sentry/nuxt': ^10.73.0
@@ -190,12 +194,12 @@ catalog:
   '@takumi-rs/wasm': ^2.13.3
   '@types/node': ^26.4.0
   '@vue/test-utils': ^2.5.0
-  '@vueuse/core': ^14.4.0
-  '@vueuse/nuxt': ^14.4.0
-  agents: ^0.22.0
+  '@vueuse/core': ^15.0.0
+  '@vueuse/nuxt': ^15.0.0
+  agents: ^0.24.0
   axe-core: ^4.13.0
   better-sqlite3: ^13.0.3
-  comark: 0.6.2
+  comark: 0.7.0
   eslint: ^10.9.1
   eslint-plugin-harlanzw: ^0.20.0
   h3: 1.15.11
@@ -203,12 +207,12 @@ catalog:
   import-in-the-middle: ^3.4.0
   lint-staged: ^17.4.1
   marked: ^18.0.11
-  motion-v: ^2.4.0
+  motion-v: ^2.5.1
   nuxt: 4.5.2
-  nuxt-ai-ready: ^2.3.4
+  nuxt-ai-ready: ^2.4.1
   nuxt-auth-utils: ^0.5.30
-  nuxt-og-image: ^6.7.8
-  nuxt-skew-protection: ^1.5.2
+  nuxt-og-image: ^6.9.1
+  nuxt-skew-protection: ^1.5.4
   rangi: ^2.2.0
   skilld-protocol: ^2.4.0
   tailwindcss: ^4.3.3
@@ -216,7 +220,7 @@ catalog:
   typescript: 6.0.3
   unstorage: 1.17.5
   vitest: ^4.1.11
-  vue: 3.5.42
+  vue: 3.5.43
   vue-tsc: ^3.3.11
   wrangler: ^4.127.1
   yaml: ^2.9.0
