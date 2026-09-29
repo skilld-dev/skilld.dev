@@ -1,10 +1,14 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
+import pkg from './package.json'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
 import { externalCheckin } from './shared/checkin-external'
+import { iconifyCollections } from './shared/icon-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
+
+const iconCollections = iconifyCollections(pkg)
 
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
@@ -608,6 +612,7 @@ export default defineNuxtConfig({
   // inlines just those. The Iconify API fallback is off, so a visitor's browser
   // never calls api.iconify.design. See docs/ops/bundle-baseline-2026-07-23.md.
   icon: {
+    collections: iconCollections,
     serverBundle: false,
     fallbackToApi: false,
     clientBundle: {
