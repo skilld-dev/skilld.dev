@@ -263,19 +263,28 @@ export async function loadTrendingRepos(options: LoadTrendingOptions): Promise<T
   return enriched
 }
 
-/** Repositories already visible at the top of GitHub-star browse surfaces. */
+/**
+ * Repositories already visible at the top of GitHub-star browse surfaces.
+ *
+ * The query walks `repos_stars_idx` from the top and stops after `limit` rows.
+ * Production SQLite rewrote an `EXISTS` here into a bloom filter over all of
+ * `skills` and scanned every repo, 14K to 52K rows per call. A scalar
+ * subquery with `LIMIT 1` is not rewritten, and `INDEXED BY` keeps the ordered
+ * walk: about 100 rows. `INDEXED BY` fails loudly if the index is dropped.
+ */
 export async function loadTopStarredRepositories(
   db: D1Database,
   limit: number,
 ): Promise<ReadonlySet<string>> {
   const rows = (await db.prepare(
     `SELECT r.owner, r.repo
-     FROM repos r
+     FROM repos r INDEXED BY repos_stars_idx
      WHERE r.stars IS NOT NULL
-       AND EXISTS (
+       AND (
          SELECT 1 FROM skills s
          WHERE s.owner = r.owner AND s.repo = r.repo AND s.source_resolved = 1
-       )
+         LIMIT 1
+       ) IS NOT NULL
      ORDER BY r.stars DESC, r.owner COLLATE NOCASE, r.repo COLLATE NOCASE
      LIMIT ?1`,
   ).bind(limit).all<{ owner: string, repo: string }>()).results ?? []

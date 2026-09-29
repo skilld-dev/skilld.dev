@@ -88,5 +88,8 @@ export default defineCachedEventHandler(
     }))
     return { items }
   },
-  { maxAge: 30, swr: false, name: 'feed-recent-publishes-origin-v1' },
+  // Publish rows only change when a sync runs. Each recompute scans about 26K
+  // activity index rows to find 12 official publishes, so five minutes of
+  // staleness on a homepage feed is the cheaper trade.
+  { maxAge: 300, swr: false, name: 'feed-recent-publishes-origin-v1' },
 )

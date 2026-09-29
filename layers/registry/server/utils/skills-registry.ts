@@ -879,12 +879,20 @@ export async function findRelatedSkills(
   const { owner, repo, excludeName, limit = 6 } = opts
 
   // The repo Skill count is added after the LIMIT, so it runs once per returned
-  // row instead of once per match. This handler runs about 10K times a day, and
-  // on a 875-Skill repository the same-repo read fell from 22.8K rows to 7K.
+  // row instead of once per match. This handler runs about 10K times a day.
+  // Every same-repo row shares one repository, so that count binds the
+  // repository directly and SQLite runs it once: on a 875-Skill repository the
+  // read fell from 22.8K rows to 7K with the LIMIT, and to 2.6K with this.
   const [repoResult, ownerResult] = await db.batch([
     db
-      .prepare(`SELECT paged.*, ${repoSkillCountSql('paged')} FROM (
-        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND s.repo = ? AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?
+      .prepare(`SELECT paged.*, (
+        SELECT COUNT(*)
+        FROM skills repo_skills
+        WHERE repo_skills.owner = ?1
+          AND repo_skills.repo = ?2
+          AND repo_skills.source_resolved = 1
+      ) AS repo_skill_count FROM (
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name != ?3 AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?4
       ) paged ORDER BY modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
     db

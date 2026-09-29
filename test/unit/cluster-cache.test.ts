@@ -42,8 +42,8 @@ function stubServerGlobals(): void {
     Object.assign(new Error(input.statusMessage), input))
 }
 
-const MAX_AGE_S = 60
-const STALE_MAX_AGE_S = 300
+const MAX_AGE_S = 600
+const STALE_MAX_AGE_S = 3600
 
 let harness: SqliteD1
 let queries = 0

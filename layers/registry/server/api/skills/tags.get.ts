@@ -46,7 +46,9 @@ export default defineCachedEventHandler(async (event): Promise<TagFacetsResponse
   const total = tags.reduce((n, t) => n + t.count, 0)
   return { tags, total }
 }, {
-  maxAge: 60,
+  // Tag payloads change only when generation writes `skill_generated`, and
+  // each recompute expands every tag list, about 50K rows read.
+  maxAge: 60 * 10,
   swr: false,
   name: 'skills-tag-facets-origin-v1',
 })
