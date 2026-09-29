@@ -911,26 +911,31 @@ export async function findRelatedSkills(
 }
 
 export async function findSkill(event: H3Event, slug: string): Promise<RegistrySkill | null> {
-  const db = getDB(event)
-  const row = await db
-    .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.slug = ?`)
-    .bind(slug)
-    .first<SkillRow>()
+  return (await findSkillWithRow(event, slug, ''))?.skill ?? null
+}
 
-  if (!row) {
-    // Try matching with repo in slug: owner/repo/name
-    const parts = slug.split('/')
-    if (parts.length >= 3) {
-      const owner = parts[0]
-      const repo = parts[1]
-      const name = parts.slice(2).join('/')
-      const altRow = await db
-        .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
-        .bind(owner, repo, name)
-        .first<SkillRow>()
-      return altRow ? rowToSkill(altRow) : null
-    }
-    return null
-  }
-  return rowToSkill(row)
+/**
+ * Resolve a request slug to a Skill in one D1 read, plus any extra columns of
+ * the same `skills s JOIN repos r` row the caller names in `extraColumnsSql`.
+ * The detail route reads its whole row this way instead of looking the Skill
+ * up and then reading the row again.
+ *
+ * `owner/repo/name` matches the primary key. Anything shorter matches
+ * `skills.slug`, which is always `owner/name`: a three-part slug never matches
+ * that column, so trying it first cost one wasted read per Skill page.
+ */
+export async function findSkillWithRow<Row extends object = object>(
+  event: H3Event,
+  slug: string,
+  extraColumnsSql: string,
+): Promise<{ skill: RegistrySkill, row: Row } | null> {
+  const db = getDB(event)
+  const select = `SELECT ${SELECT_SKILL_ROW}${extraColumnsSql ? `, ${extraColumnsSql}` : ''} ${FROM_SKILLS_JOIN_REPOS}`
+  const parts = slug.split('/')
+  const statement = parts.length >= 3
+    ? db.prepare(`${select} WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
+        .bind(parts[0], parts[1], parts.slice(2).join('/'))
+    : db.prepare(`${select} WHERE s.slug = ?`).bind(slug)
+  const row = await statement.first<SkillRow & Row>()
+  return row ? { skill: rowToSkill(row), row } : null
 }

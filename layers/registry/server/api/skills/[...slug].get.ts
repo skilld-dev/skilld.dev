@@ -2,7 +2,6 @@ import type { H3Event } from 'h3'
 import type { z } from 'zod'
 import type { Platform } from '#shared/server/platform'
 
-import { LIVE_RENDER_STALE_SECONDS } from '~~/server/utils/sync-thresholds'
 import { cached } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { githubSkillFileUrl } from '#shared/skill-file-url'
@@ -14,11 +13,10 @@ import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { SkillDetailResponseSchema } from '../../schemas/skill-responses'
 import { getTree, resolveGithubBindings } from '../../utils/github-client'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
-import { skillContentSha256 } from '../../utils/skill-content-hash'
-import { getGenerated } from '../../utils/skill-generated'
+import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
-import { findDuplicateGroupForSkill, findSkill } from '../../utils/skills-registry'
+import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 
 interface FaqPayload { faqs: { question: string, answer: string }[] }
 interface SummaryPayload { text: string }
@@ -130,6 +128,21 @@ function isoToSecondsAgo(value: string | null | undefined): number | null {
   return Math.max(0, Math.floor((Date.now() - time) / 1000))
 }
 
+/**
+ * Every column the detail reads beyond the Skill itself, read in the same
+ * statement that resolves the slug. `repo_skill_count` and `author_name`
+ * come from the shared Skill select, so they are not repeated here.
+ */
+const DETAIL_COLUMNS_SQL = `r.forks, r.repo_created_at,
+  s.references_count, s.assets, s.last_synced_at, s.sync_status, s.source_resolved,
+  s.seo_index_reasons, s.seo_index_synced_at,
+  s.curator_count, s.curator_reason_count, s.approved_social_count, s.author_social_count,
+  s.trust_source, s.trust_reasons, s.trust_synced_at,
+  s.rendered_status, s.rendered_raw, s.rendered_frontmatter, s.rendered_html,
+  (SELECT sr.sha FROM skill_revisions sr
+    WHERE sr.owner = s.owner AND sr.repo = s.repo AND sr.name = s.name
+    ORDER BY sr.modified_at DESC LIMIT 1) AS latest_revision_sha`
+
 interface SkillDetailRow {
   // repo meta
   stars: number | null
@@ -173,15 +186,14 @@ interface SkillDetailRow {
   rendered_raw: string | null
   rendered_frontmatter: string | null
   rendered_html: string | null
-  rendered_at: number | null
+  // shared Skill select
+  repo_skill_count: number
+  author_name: string | null
+  latest_revision_sha: string | null
 }
 
 interface RepoSkillNameRow {
   name: string
-}
-
-interface RepoSkillCountRow {
-  skill_count: number
 }
 
 const skillDetailHandler = defineApiHandler({
@@ -203,63 +215,37 @@ const skillDetailHandler = defineApiHandler({
 })
 
 async function loadSkillDetail(event: H3Event, platform: Platform, slug: string): Promise<SkillDetailPayload> {
-  const skill = await findSkill(event, slug)
-  if (!skill)
+  const found = await findSkillWithRow<SkillDetailRow>(event, slug, DETAIL_COLUMNS_SQL)
+  if (!found)
     throw createError({ statusCode: 404, message: 'Skill not found' })
+  const { skill, row } = found
+  const curators: CuratorEndorsement[] = []
 
-  const [curators, row, latestCommit, duplicateGroup, faqRow, tagRow, summaryRow, repoSkillRows, resolvedRepoSkillCount, ownerRow] = await Promise.all([
-    Promise.resolve([] satisfies CuratorEndorsement[]),
-    platform.db
-      .prepare(`SELECT r.stars, r.forks, r.pushed_at, r.repo_created_at, r.default_branch,
-                         r.source_owner, r.source_repo,
-                         s.current_sha, s.modified_at, s.references_count, s.assets, s.last_synced_at, s.sync_status,
-                         s.source_resolved,
-                         s.seo_index_score, s.seo_indexable, s.seo_index_reasons, s.seo_index_synced_at,
-                         s.curator_count, s.curator_reason_count, s.approved_social_count, s.author_social_count,
-                         s.like_count,
-                         s.trust_tier, s.trust_source, s.trust_score, s.trust_reasons, s.trust_synced_at,
-                         s.rendered_skill_path, s.rendered_status, s.rendered_raw, s.rendered_frontmatter, s.rendered_html, s.rendered_at
-                  FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-                  WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
-      .bind(skill.owner, skill.repo, skill.name)
-      .first<SkillDetailRow>(),
-    platform.db
-      .prepare(`SELECT sha FROM skill_revisions WHERE owner = ? AND repo = ? AND name = ? ORDER BY modified_at DESC LIMIT 1`)
-      .bind(skill.owner, skill.repo, skill.name)
-      .first<{ sha: string }>(),
+  const [duplicateGroup, generated, repoSkillRows] = await Promise.all([
     findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
-    getGenerated<FaqPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'faq' }),
-    getGenerated<TagPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'tags' }),
-    getGenerated<SummaryPayload>(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name, kind: 'summary' }),
+    getGeneratedKinds(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name }, ['faq', 'tags', 'summary']),
+    // Unfiltered on purpose: it feeds dependency parsing, not routing.
     platform.db
       .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
       .bind(skill.owner, skill.repo)
       .all<RepoSkillNameRow>(),
-    // Same definition as loadRepoSkillCounts (source_resolved = 1), so the
-    // 301 decision matches the hub routing used by feeds and sitemaps.
-    // repoSkillNames stays unfiltered: it feeds dependency parsing, not
-    // routing.
-    platform.db
-      .prepare(`SELECT COUNT(*) AS skill_count FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1`)
-      .bind(skill.owner, skill.repo)
-      .first<RepoSkillCountRow>(),
-    // Same `owners` row the owner page shows; the byline reuses it.
-    platform.db
-      .prepare(`SELECT name FROM owners WHERE owner = ?`)
-      .bind(skill.owner)
-      .first<{ name: string | null }>(),
   ])
+  const faqRow = generated.get('faq') as { payload: FaqPayload } | undefined
+  const tagRow = generated.get('tags') as { payload: TagPayload } | undefined
+  const summaryRow = generated.get('summary') as { payload: SummaryPayload } | undefined
 
   const source = resolveRepoSourceIdentityFromRow(skill, row)
   const githubUrl = `https://github.com/${source.owner}/${source.repo}`
-  const branch = row?.default_branch || 'main'
+  const branch = row.default_branch || 'main'
   const repoSkillNames = (repoSkillRows.results ?? []).map(candidate => candidate.name)
 
-  // Warm path: render is in D1. Cold path (legacy rows or fetch_failed
-  // status): fall back to a live render so the first visit still works,
-  // then write back to D1.
+  // Warm path: render is in D1. Cold path (no usable stored render): render
+  // live so the page still has content. A page view never writes the render
+  // back: the repo sync re-renders a Skill whenever its SKILL.md changes, and
+  // `reconcile-rendered` repairs rows with no usable render. A per-view write
+  // cost 557 D1 writes in two minutes of one crawler burst on 2026-09-29.
   let rendered: RenderedView
-  if (row?.rendered_html && row.rendered_status === 'ok') {
+  if (row.rendered_html && row.rendered_status === 'ok') {
     const reparsed = row.rendered_raw
       ? await parseSkillMd(row.rendered_raw, {
           owner: source.owner,
@@ -293,16 +279,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
       branch,
       skillNames: repoSkillNames,
     })
-    // Cache cold-path result back to D1 so subsequent visits hit the warm
-    // path. Fire-and-forget; missing waitUntil context (e.g. local dev)
-    // just means we await it inline.
-    schedulePersist(event, platform.db, skill.owner, skill.repo, skill.name, rendered)
   }
-
-  // Stale refresh: only fire when rendered_at older than threshold.
-  const renderedAge = secondsAgo(row?.rendered_at)
-  if (row?.rendered_html && renderedAge != null && renderedAge > LIVE_RENDER_STALE_SECONDS)
-    scheduleRefresh(event, platform.db, skill, source, skill.name, branch, repoSkillNames)
 
   const rawAiTags = tagRow?.payload.tags ?? []
   const tags = rawAiTags
@@ -314,7 +291,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   const description = frontmatterString(rendered.frontmatter, 'description') ?? skill.description ?? null
   const license = frontmatterString(rendered.frontmatter, 'license')
   let assets: { path: string, size: number, type: string }[] = []
-  if (row?.assets) {
+  if (row.assets) {
     try {
       const parsedAssets = JSON.parse(row.assets) as unknown
       if (Array.isArray(parsedAssets)) {
@@ -335,16 +312,16 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   // still there. Reading only the former reported `resolved: true` for skills
   // whose SKILL.md upstream had been 404 for months.
   const sourceResolved = isSourceResolved({
-    sourceResolved: row?.source_resolved,
+    sourceResolved: row.source_resolved,
     renderStatus: rendered.status,
     skillPath: rendered.skillPath,
     raw: rendered.raw,
   })
-  const sourceGone = !sourceResolved && row?.source_resolved === 0
-  const sourceCommitSha = latestCommit?.sha ?? row?.current_sha ?? null
-  const pushedAtIso = epochToIso(row?.pushed_at)
-  const createdAtIso = epochToIso(row?.repo_created_at)
-  const repoSkillCount = resolvedRepoSkillCount?.skill_count ?? 0
+  const sourceGone = !sourceResolved && row.source_resolved === 0
+  const sourceCommitSha = row.latest_revision_sha ?? row.current_sha ?? null
+  const pushedAtIso = epochToIso(row.pushed_at)
+  const createdAtIso = epochToIso(row.repo_created_at)
+  const repoSkillCount = row.repo_skill_count ?? 0
 
   const detail = {
     owner: skill.owner,
@@ -357,7 +334,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
       repoSkillCount,
     }),
     displayName: skill.displayName,
-    authorName: ownerRow?.name ?? null,
+    authorName: row.author_name ?? null,
     githubUrl,
     skillPath: rendered.skillPath,
     branch,
@@ -372,11 +349,11 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     curators,
     description,
     license,
-    stars: row?.stars ?? 0,
-    forks: row?.forks ?? 0,
+    stars: row.stars ?? 0,
+    forks: row.forks ?? 0,
     pushedAt: pushedAtIso,
     createdAt: createdAtIso,
-    maturity: computeMaturity(row?.repo_created_at ?? null, row?.pushed_at ?? null),
+    maturity: computeMaturity(row.repo_created_at ?? null, row.pushed_at ?? null),
     tier: resolveTier(skill.owner, skill.repo),
     sourceFacts: {
       description: {
@@ -388,8 +365,8 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
         pushedAt: pushedAtIso,
         pushedAgeDays: daysFromSecondsAgo(isoToSecondsAgo(pushedAtIso)),
         createdAt: createdAtIso,
-        stars: row?.stars ?? 0,
-        forks: row?.forks ?? 0,
+        stars: row.stars ?? 0,
+        forks: row.forks ?? 0,
         defaultBranch: branch,
       },
       source: {
@@ -397,15 +374,15 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
         gone: sourceGone,
         resolutionStatus: rendered.status,
         skillPath: rendered.skillPath,
-        currentSha: row?.current_sha ?? null,
-        hasCurrentSha: Boolean(row?.current_sha),
-        latestRevisionSha: latestCommit?.sha ?? null,
-        modifiedAt: row?.modified_at ?? null,
-        modifiedAgeDays: daysFromSecondsAgo(secondsAgo(row?.modified_at)),
-        referencesCount: row?.references_count ?? 0,
-        lastSyncedAt: row?.last_synced_at ?? null,
-        lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(row?.last_synced_at)),
-        syncStatus: row?.sync_status ?? null,
+        currentSha: row.current_sha ?? null,
+        hasCurrentSha: Boolean(row.current_sha),
+        latestRevisionSha: row.latest_revision_sha,
+        modifiedAt: row.modified_at ?? null,
+        modifiedAgeDays: daysFromSecondsAgo(secondsAgo(row.modified_at)),
+        referencesCount: row.references_count ?? 0,
+        lastSyncedAt: row.last_synced_at ?? null,
+        lastSyncedAgeDays: daysFromSecondsAgo(secondsAgo(row.last_synced_at)),
+        syncStatus: row.sync_status ?? null,
       },
       frontmatter: {
         present: Boolean(rendered.frontmatter && Object.keys(rendered.frontmatter).length),
@@ -420,7 +397,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     keywords,
     // Deliberately top-level, not under `seo`: likes are displayed and back
     // ?sort=likes, but never feed indexability or trust (ADR-0003).
-    likeCount: row?.like_count ?? 0,
+    likeCount: row.like_count ?? 0,
     faqs: faqRow?.payload.faqs ?? [],
     summary: summaryRow?.payload?.text
       ? { text: summaryRow.payload.text }
@@ -443,27 +420,27 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
       historyUrl: rendered.skillPath
         ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
         : null,
-      modifiedAt: row?.modified_at ?? null,
-      referencesCount: row?.references_count ?? 0,
-      lastSyncedAt: row?.last_synced_at ?? null,
-      syncStatus: row?.sync_status ?? null,
+      modifiedAt: row.modified_at ?? null,
+      referencesCount: row.references_count ?? 0,
+      lastSyncedAt: row.last_synced_at ?? null,
+      syncStatus: row.sync_status ?? null,
     },
     seo: {
-      indexScore: row?.seo_index_score ?? 0,
-      indexable: row?.seo_indexable === 1,
-      reasons: row?.seo_index_reasons ? JSON.parse(row.seo_index_reasons) as string[] : [],
-      syncedAt: row?.seo_index_synced_at ?? null,
-      curatorCount: row?.curator_count ?? 0,
-      curatorReasonCount: row?.curator_reason_count ?? 0,
-      approvedSocialCount: row?.approved_social_count ?? 0,
-      authorSocialCount: row?.author_social_count ?? 0,
+      indexScore: row.seo_index_score ?? 0,
+      indexable: row.seo_indexable === 1,
+      reasons: row.seo_index_reasons ? JSON.parse(row.seo_index_reasons) as string[] : [],
+      syncedAt: row.seo_index_synced_at ?? null,
+      curatorCount: row.curator_count ?? 0,
+      curatorReasonCount: row.curator_reason_count ?? 0,
+      approvedSocialCount: row.approved_social_count ?? 0,
+      authorSocialCount: row.author_social_count ?? 0,
     },
     trust: {
-      tier: row?.trust_tier ?? 'untrusted',
-      source: row?.trust_source ?? 'computed',
-      score: row?.trust_score ?? 0,
-      reasons: row?.trust_reasons ? JSON.parse(row.trust_reasons) as string[] : [],
-      syncedAt: row?.trust_synced_at ?? null,
+      tier: row.trust_tier ?? 'untrusted',
+      source: row.trust_source ?? 'computed',
+      score: row.trust_score ?? 0,
+      reasons: row.trust_reasons ? JSON.parse(row.trust_reasons) as string[] : [],
+      syncedAt: row.trust_synced_at ?? null,
     },
     duplicateGroup,
   }
@@ -479,7 +456,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
 // handler as a 500 (Sentry SKILLD-1V): a fresh entry is served as-is, a stale
 // entry is served while one background refresh recomputes, and a dead entry
 // recomputes once per key per isolate. Without that stale shield every
-// concurrent miss after the 60s TTL re-runs about six D1 queries plus a
+// concurrent miss after the 60s TTL re-runs three D1 queries plus a
 // possible live GitHub render, and cold-key bursts are the documented D1
 // overload mechanism on these routes (Sentry SKILLD-G/H/J/K/M/N/P/Q).
 export default skillDetailHandler
@@ -614,72 +591,6 @@ async function renderLive(
   }
 
   return { skillPath: null, raw: null, frontmatter: null, body: null, html: null, dependencies: [], status: 'path_missing' }
-}
-
-function schedulePersist(event: H3Event, db: D1Database, owner: string, repo: string, name: string, rendered: RenderedView): void {
-  if (rendered.status !== 'ok' || !rendered.html || rendered.raw === null)
-    return
-  const promise = skillContentSha256(rendered.raw)
-    .then(renderedRawSha256 => db
-      .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_raw_sha256 = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND repo = ? AND name = ?`)
-      .bind(
-        rendered.skillPath,
-        rendered.raw,
-        renderedRawSha256,
-        JSON.stringify(rendered.frontmatter ?? {}),
-        rendered.html,
-        Math.floor(Date.now() / 1000),
-        owner,
-        repo,
-        name,
-      )
-      .run())
-    .catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-rendered-persist', outcome: 'failed' }))
-    })
-  runAfterResponse(event, promise)
-}
-
-function scheduleRefresh(
-  event: H3Event,
-  db: D1Database,
-  registry: { owner: string, repo: string },
-  source: { owner: string, repo: string },
-  name: string,
-  branch: string,
-  skillNames: string[],
-): void {
-  const promise = (async () => {
-    const live = await renderLive(event, {
-      sourceOwner: source.owner,
-      sourceRepo: source.repo,
-      registryOwner: registry.owner,
-      registryRepo: registry.repo,
-      name,
-      branch,
-      skillNames,
-    })
-    if (live.status !== 'ok' || !live.html || live.raw === null)
-      return
-    const renderedRawSha256 = await skillContentSha256(live.raw)
-    await db
-      .prepare(`UPDATE skills SET rendered_skill_path = ?, rendered_status = 'ok', rendered_raw = ?, rendered_raw_sha256 = ?, rendered_frontmatter = ?, rendered_html = ?, rendered_at = ? WHERE owner = ? AND repo = ? AND name = ?`)
-      .bind(
-        live.skillPath,
-        live.raw,
-        renderedRawSha256,
-        JSON.stringify(live.frontmatter ?? {}),
-        live.html,
-        Math.floor(Date.now() / 1000),
-        registry.owner,
-        registry.repo,
-        name,
-      )
-      .run()
-  })().catch(() => {
-    emitOperationalEvent(createWideEvent({ operation: 'skill-stale-refresh', outcome: 'failed' }))
-  })
-  runAfterResponse(event, promise)
 }
 
 function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {

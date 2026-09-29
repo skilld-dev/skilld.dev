@@ -1,12 +1,13 @@
 import type { H3Event } from 'h3'
 import type { EmbeddingNeighbor } from '../../jobs/generate-embeddings'
 import type { CoOccurrenceNeighbor } from '../../utils/skill-co-occurrence'
+import type { SkillCommitSourceRow } from '../../utils/skill-commit-source'
 import type { CachedRelated } from '../../utils/skill-related'
 import { readCache, readThroughCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
 import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
-import { findSkillCommitSource as resolveRepoSourceIdentityForCommits } from '../../utils/skill-commit-source'
+import { skillCommitSourceFromRow } from '../../utils/skill-commit-source'
 import {
   isCachedRelated,
   RELATED_CACHE_STALE_TTL,
@@ -14,7 +15,7 @@ import {
   relatedCacheKey,
   relatedCacheWindows,
 } from '../../utils/skill-related'
-import { findRelatedSkills, findSkill, findSkillsByLookups } from '../../utils/skills-registry'
+import { findRelatedSkills, findSkillsByLookups, findSkillWithRow } from '../../utils/skills-registry'
 
 const COMMITS_CACHE_TTL = 60 * 60 * 12
 
@@ -64,11 +65,13 @@ export default defineApiHandler({
       useStorage('edge-cache'),
       relatedCacheKey(slug),
       async () => {
-        const skill = await findSkill(event, slug)
-        if (!skill)
+        // The shared Skill select already carries the commit source columns.
+        const found = await findSkillWithRow<SkillCommitSourceRow>(event, slug, '')
+        if (!found)
           return { _tag: 'missing' as const }
 
-        const source = await resolveRepoSourceIdentityForCommits(platform.db, skill)
+        const { skill } = found
+        const source = skillCommitSourceFromRow(skill, found.row)
 
         const [commits, related, coOccurrenceNeighbors, embeddingNeighbors] = await Promise.all([
           source

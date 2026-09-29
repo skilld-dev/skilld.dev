@@ -50,6 +50,24 @@ export async function getGenerated<T>(
   return row ? rowToGenerated<T>(row) : null
 }
 
+/**
+ * Several kinds for one Skill in one D1 read. The primary key leads with
+ * (owner, repo, name, kind), so the `IN` list is a handful of index seeks.
+ */
+export async function getGeneratedKinds(
+  db: D1Database,
+  key: { owner: string, repo: string, name: string },
+  kinds: GeneratedKind[],
+): Promise<Map<GeneratedKind, GeneratedRow>> {
+  if (!kinds.length)
+    return new Map()
+  const res = await db
+    .prepare(`SELECT * FROM skill_generated WHERE owner = ? AND repo = ? AND name = ? AND kind IN (${kinds.map(() => '?').join(', ')})`)
+    .bind(key.owner, key.repo, key.name, ...kinds)
+    .all<RawRow>()
+  return new Map((res.results ?? []).map(row => [row.kind as GeneratedKind, rowToGenerated(row)]))
+}
+
 export async function getGeneratedBatch<T>(
   db: D1Database,
   keys: { owner: string, repo: string, name: string }[],

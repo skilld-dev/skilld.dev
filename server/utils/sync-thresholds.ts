@@ -28,8 +28,5 @@ export const BROKEN_REPO_REVERIFY_SECONDS = 48 * 3600
 /** reconcile-rendered task: re-sync rows with non-ok rendered_status older than this. */
 export const RECONCILE_RENDER_STALE_SECONDS = 6 * 3600
 
-/** /api/skills/[...slug]: trigger a background refresh when rendered_at is older than this. */
-export const LIVE_RENDER_STALE_SECONDS = 30 * 60
-
 /** sync-github-skills: subscription-prioritised pre-pass picks up subscribed repos stalest than this. */
 export const SUBSCRIBED_REPO_STALE_SECONDS = 3600
