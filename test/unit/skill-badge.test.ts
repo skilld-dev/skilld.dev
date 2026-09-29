@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createSkillBadgeResponse, loadSkillBadgeLikeCount, parseSkillBadgeAppearance, parseSkillBadgeTarget } from '../../server/utils/skill-badge'
-import { skillBadgeEmbed, skillBadgeImagePath, skillBadgeMarkdown } from '../../shared/skill-badge'
+import { skillBadgeEmbed, skillBadgeImagePath } from '../../shared/skill-badge'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 const databases: Array<ReturnType<typeof createSqliteD1>> = []
@@ -252,25 +252,5 @@ describe('skill badge', () => {
 
       expect(plan).toContain('USING COVERING INDEX idx_skill_likes_skill_nocase')
     }
-  })
-})
-
-describe('readme markdown snippet', () => {
-  it('links the light badge to the repository page', () => {
-    expect(skillBadgeMarkdown({
-      owner: 'danielroe',
-      repo: 'empathy',
-      name: 'empathy',
-      registryPath: '/gh/danielroe/empathy',
-    })).toBe('[![skilld](https://skilld.dev/b/danielroe/empathy)](https://skilld.dev/gh/danielroe/empathy)')
-  })
-
-  it('keeps the skill segment for a multi-skill repository', () => {
-    expect(skillBadgeMarkdown({
-      owner: 'antfu',
-      repo: 'skills',
-      name: 'vite',
-      registryPath: '/gh/antfu/skills/vite',
-    })).toBe('[![skilld](https://skilld.dev/b/antfu/skills/vite)](https://skilld.dev/gh/antfu/skills/vite)')
   })
 })
