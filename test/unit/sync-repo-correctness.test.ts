@@ -467,6 +467,30 @@ describe('syncRepo content acknowledgement', () => {
       .toEqual({ broken_since: null, repo_skill_count: 0 })
   })
 
+  it('indexes a Skill added back to a repository whose rows were all retired', async () => {
+    insertRepo(sqlite, 'fixture-tree')
+    insertSkill(sqlite, 'seo-audit', 'fixture-sha')
+    setRendered(sqlite, 'seo-audit', 'test/fixtures/skills/seo-audit/SKILL.md')
+    sqlite.prepare(`UPDATE skills SET source_resolved = 0, sync_status = 'path_missing'`).run()
+    github.getTree.mockResolvedValue(tree([
+      { path: 'skills/nuxt-ai-ready/SKILL.md', sha: 'real-sha' },
+      { path: 'test/fixtures/skills/seo-audit/SKILL.md', sha: 'fixture-sha' },
+    ]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['skills/nuxt-ai-ready/SKILL.md', rawSkill('nuxt-ai-ready')]]),
+      unreadable: new Set(),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db, { submitted: true })
+
+    expect(result).toMatchObject({ status: 'indexed', skillsSeen: 1 })
+    expect(sqlite.prepare(`SELECT name FROM skills WHERE source_resolved = 1`).pluck().all())
+      .toEqual(['nuxt-ai-ready'])
+  })
+
   it('ignores test fixture SKILL.md files and retires fixture rows it indexed before', async () => {
     insertRepo(sqlite, 'old-tree')
     insertSkill(sqlite, 'nuxt-ai-ready', 'real-sha')
