@@ -264,46 +264,52 @@ interface CostRow {
  * check runs: it shares a top-of-hour tick with every hourly task. Reading only
  * the latest row reported sync-github-skills healthy through ten consecutive
  * expiries on 2026-07-26.
+ *
+ * Every access is an index seek, so the cost tracks the task count, not the
+ * history length. `tasks` walks the distinct task names one `MIN(task_name)`
+ * seek at a time, and each pick is one `LIMIT 1` seek into that task's slice
+ * of the index. A window function over the table read 551k rows per call on
+ * 2026-09-29, and the watchdog runs this every five minutes.
  */
 export const SCHEDULE_HEALTH_LATEST_RUNS_SQL = `
-  WITH ranked_scheduled_runs AS (
-    SELECT
-      task_name,
-      status,
-      started_at,
-      expires_at,
-      finished_at,
-      error,
-      ROW_NUMBER() OVER (
-        PARTITION BY task_name
-        ORDER BY started_at DESC, run_id DESC
-      ) AS recency
-    FROM scheduled_runs
-    INDEXED BY idx_scheduled_runs_task_latest
+  WITH RECURSIVE tasks(task_name) AS (
+    SELECT MIN(task_name) FROM scheduled_runs
+    UNION ALL
+    SELECT (
+      SELECT MIN(next.task_name)
+      FROM scheduled_runs AS next
+      WHERE next.task_name > tasks.task_name
+    )
+    FROM tasks
+    WHERE tasks.task_name IS NOT NULL
   ),
-  ranked_terminal_runs AS (
-    SELECT
-      task_name,
-      status,
-      started_at,
-      expires_at,
-      finished_at,
-      error,
-      ROW_NUMBER() OVER (
-        PARTITION BY task_name
-        ORDER BY started_at DESC, run_id DESC
-      ) AS recency
-    FROM scheduled_runs
-    INDEXED BY idx_scheduled_runs_task_latest
-    WHERE status != 'started'
+  picks(slot, run_id) AS (
+    SELECT 'latest', (
+      SELECT run.run_id
+      FROM scheduled_runs AS run
+      INDEXED BY idx_scheduled_runs_task_latest
+      WHERE run.task_name = tasks.task_name
+      ORDER BY run.started_at DESC, run.run_id DESC
+      LIMIT 1
+    )
+    FROM tasks
+    WHERE tasks.task_name IS NOT NULL
+    UNION ALL
+    SELECT 'terminal', (
+      SELECT run.run_id
+      FROM scheduled_runs AS run
+      INDEXED BY idx_scheduled_runs_task_latest
+      WHERE run.task_name = tasks.task_name
+        AND run.status != 'started'
+      ORDER BY run.started_at DESC, run.run_id DESC
+      LIMIT 1
+    )
+    FROM tasks
+    WHERE tasks.task_name IS NOT NULL
   )
-  SELECT 'latest' AS slot, task_name, status, started_at, expires_at, finished_at, error
-  FROM ranked_scheduled_runs
-  WHERE recency = 1
-  UNION ALL
-  SELECT 'terminal' AS slot, task_name, status, started_at, expires_at, finished_at, error
-  FROM ranked_terminal_runs
-  WHERE recency = 1
+  SELECT picks.slot, run.task_name, run.status, run.started_at, run.expires_at, run.finished_at, run.error
+  FROM picks
+  JOIN scheduled_runs AS run ON run.run_id = picks.run_id
 `
 
 interface BuildDailyHealthCheckOptions {

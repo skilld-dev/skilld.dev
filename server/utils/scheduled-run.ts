@@ -32,6 +32,22 @@ interface ScheduledTaskWrapperInput {
   policy: ObservedSchedulePolicy
 }
 
+/**
+ * How long a task's run history is kept.
+ *
+ * The health check reads only each task's latest and latest terminal run. The
+ * rest serves daily check-in triage, which reads a day or a week back. The
+ * longest cadence is the monthly digest, so 45 days keeps its previous run
+ * beside the current one.
+ */
+export const SCHEDULED_RUN_RETENTION_SECONDS = 45 * 24 * 60 * 60
+
+/**
+ * Rows one run may prune. Steady state removes one row per run; the cap only
+ * binds while a backlog drains, and it keeps each DELETE small for D1.
+ */
+export const SCHEDULED_RUN_PRUNE_BATCH = 500
+
 export const SCHEDULED_RUN_QUERIES = {
   expire: `
     UPDATE scheduled_runs
@@ -47,6 +63,19 @@ export const SCHEDULED_RUN_QUERIES = {
       run_id, task_name, declared_cron, status, started_at, expires_at,
       scheduled_at_ms, trigger_cron, cf_invocation_id, cf_version_id
     ) VALUES (?1, ?2, ?3, 'started', ?4, ?5, ?6, ?7, ?8, ?9)
+  `,
+  // Seeks the task's own slice of the index, so it reads only the rows it
+  // deletes. A task prunes only its own history when it runs, so a task whose
+  // trigger died keeps its last row for the health check to report.
+  prune: `
+    DELETE FROM scheduled_runs
+    WHERE run_id IN (
+      SELECT run_id
+      FROM scheduled_runs INDEXED BY idx_scheduled_runs_task_latest
+      WHERE task_name = ?1
+        AND started_at < ?2
+      LIMIT ?3
+    )
   `,
   finish: `
     UPDATE scheduled_runs
@@ -72,6 +101,12 @@ function persistenceError(operation: string, runId: string): Error {
 
 async function expireAbandonedRuns(db: D1Database, now: number): Promise<void> {
   await db.prepare(SCHEDULED_RUN_QUERIES.expire).bind(now).run()
+}
+
+async function pruneTaskHistory(db: D1Database, taskName: string, now: number): Promise<void> {
+  await db.prepare(SCHEDULED_RUN_QUERIES.prune)
+    .bind(taskName, now - SCHEDULED_RUN_RETENTION_SECONDS, SCHEDULED_RUN_PRUNE_BATCH)
+    .run()
 }
 
 async function insertStartedRun(
@@ -119,6 +154,7 @@ export async function runObservedTask<T>(
   const runId = dependencies.newRunId()
   await expireAbandonedRuns(dependencies.db, startedAt)
   await insertStartedRun(dependencies, input, runId, startedAt)
+  await pruneTaskHistory(dependencies.db, input.taskName, startedAt)
 
   let result: T
   try {

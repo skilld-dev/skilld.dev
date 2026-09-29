@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it, vi } from 'vitest'
-import { runObservedTask } from '../../server/utils/scheduled-run'
+import { runObservedTask, SCHEDULED_RUN_PRUNE_BATCH, SCHEDULED_RUN_RETENTION_SECONDS } from '../../server/utils/scheduled-run'
 import {
   recordScheduledTrigger,
   scheduledTriggerForTaskContext,
@@ -37,6 +37,8 @@ function database(): { sqlite: Database.Database, db: D1Database } {
   } as unknown as D1Database
   return { sqlite, db }
 }
+
+const DAY = 86_400
 
 const input = {
   taskName: 'sync-github-skills',
@@ -94,6 +96,57 @@ describe('scheduled run lifecycle', () => {
 
     expect(sqlite.prepare(`SELECT status FROM scheduled_runs WHERE run_id = 'abandoned'`).get())
       .toEqual({ status: 'expired' })
+  })
+
+  // Each run prunes only its own task's history. A task whose trigger died
+  // never runs, so its last row survives any retention window, and the
+  // health check reads a stale run instead of no run at all.
+  it('prunes its own task history past the retention window', async () => {
+    const { sqlite, db } = database()
+    const now = 100 * DAY
+    const insert = sqlite.prepare(`
+      INSERT INTO scheduled_runs (
+        run_id, task_name, declared_cron, status, started_at, expires_at,
+        finished_at, duration_ms
+      ) VALUES (?, ?, '0 * * * *', 'succeeded', ?, ? + 300, ? + 10, 10000)
+    `)
+    const at = (runId: string, taskName: string, startedAt: number) =>
+      insert.run(runId, taskName, startedAt, startedAt, startedAt)
+    at('own-old', 'sync-github-skills', now - SCHEDULED_RUN_RETENTION_SECONDS - 1)
+    at('own-recent', 'sync-github-skills', now - SCHEDULED_RUN_RETENTION_SECONDS + 1)
+    at('other-old', 'send-digests', now - SCHEDULED_RUN_RETENTION_SECONDS - 1)
+
+    await runObservedTask(
+      { db, now: () => now, newRunId: () => 'run-prune' },
+      input,
+      async () => undefined,
+    )
+
+    expect(sqlite.prepare('SELECT run_id FROM scheduled_runs ORDER BY run_id').all())
+      .toEqual([{ run_id: 'other-old' }, { run_id: 'own-recent' }, { run_id: 'run-prune' }])
+  })
+
+  it('caps each prune so a backlog drains across runs', async () => {
+    const { sqlite, db } = database()
+    const now = 100 * DAY
+    const insert = sqlite.prepare(`
+      INSERT INTO scheduled_runs (
+        run_id, task_name, declared_cron, status, started_at, expires_at,
+        finished_at, duration_ms
+      ) VALUES (?, 'sync-github-skills', '0 * * * *', 'succeeded', ?, ? + 300, ? + 10, 10000)
+    `)
+    const backlog = SCHEDULED_RUN_PRUNE_BATCH + 5
+    for (let index = 0; index < backlog; index++) {
+      const startedAt = index
+      insert.run(`old-${index}`, startedAt, startedAt, startedAt)
+    }
+    const oldRows = () => (sqlite.prepare(`SELECT COUNT(*) AS count FROM scheduled_runs WHERE run_id LIKE 'old-%'`).get() as { count: number }).count
+
+    await runObservedTask({ db, now: () => now, newRunId: () => 'run-a' }, input, async () => undefined)
+    expect(oldRows()).toBe(5)
+
+    await runObservedTask({ db, now: () => now + 1, newRunId: () => 'run-b' }, input, async () => undefined)
+    expect(oldRows()).toBe(0)
   })
 
   it('does not permit a terminal run to transition twice', () => {
