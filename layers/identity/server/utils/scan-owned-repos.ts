@@ -10,6 +10,7 @@ import {
 } from '#layers/registry/server/utils/discovery-candidates'
 import { resolveGithubBindings } from '#layers/registry/server/utils/github-client'
 import { syncRepo } from '#layers/registry/server/utils/sync-repo'
+import { isRegistrySkillPath } from '#shared/skill-path'
 
 interface CodeSearchItem {
   path: string
@@ -379,7 +380,7 @@ export function makeOwnedRepoScanner(deps: ScanOwnedReposDependencies) {
           partialReason = 'result_cap'
 
         for (const item of body.items) {
-          if (item.repository.fork)
+          if (item.repository.fork || !isRegistrySkillPath(item.path))
             continue
           if (item.repository.owner.login.toLowerCase() !== owner.login.toLowerCase())
             continue

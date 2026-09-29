@@ -2,6 +2,7 @@
 
 import type { GithubBindings, RepoMeta } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
+import { isRegistrySkillPath } from '#shared/skill-path'
 import { isCategoryPinned } from '../data/clusters'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { repoStarObservationStatements } from './repo-history'
@@ -396,7 +397,7 @@ export async function refreshRepoAssets(
   const existing = [...(await loadExistingSkillSummaries(db, owner, repo)).values()]
   const skillPaths = new Set(
     treeRes.data.tree
-      .filter(entry => entry.type === 'blob' && entry.path.endsWith(SKILL_FILE_SUFFIX))
+      .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
       .map(entry => entry.path),
   )
   let skillsChanged = 0
@@ -837,7 +838,9 @@ export async function syncRepo(
 
   const skillFiles: SkillSnapshot[] = []
   for (const entry of tree.tree) {
-    if (entry.type !== 'blob')
+    // Test fixtures are not Skills. The predicate is shared with every other
+    // discovery path, so the count behind the canonical URL agrees with it.
+    if (entry.type !== 'blob' || !isRegistrySkillPath(entry.path))
       continue
     // A repository whose SKILL.md sits at the root IS a skill, named after the
     // repository.
@@ -865,8 +868,6 @@ export async function syncRepo(
       })
       continue
     }
-    if (!entry.path.endsWith(SKILL_FILE_SUFFIX))
-      continue
     const dirName = dirNameFromSkillPath(entry.path)
     if (!dirName)
       continue

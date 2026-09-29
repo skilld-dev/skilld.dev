@@ -5,6 +5,7 @@ import type { FixedWindowDecision } from './fixed-window-rate-limit'
 import type { FetchOutcome, GithubBindings, RepoMeta, TreeResponse } from './github-client'
 import { getHeader } from 'h3'
 import { enqueueRegistryRepoJob } from '~~/server/utils/registry-jobs-runtime'
+import { isRegistrySkillPath } from '#shared/skill-path'
 import { runAfterResponse } from './after-response'
 import { consumeFixedWindow } from './fixed-window-rate-limit'
 import { getRepo, getTree, resolveGithubBindings } from './github-client'
@@ -62,10 +63,10 @@ export function decideRepositoryEligibility(input: RepositoryEligibilityInput): 
   return { _tag: 'eligible' }
 }
 
-/** `SKILL.md` blobs in a Git tree listing. */
+/** Registry Skill files in a Git tree listing. Test fixtures do not count. */
 export function countSkillFiles(tree: TreeResponse): number {
   return tree.tree.filter(
-    entry => entry.type === 'blob' && entry.path.split('/').at(-1) === 'SKILL.md',
+    entry => entry.type === 'blob' && isRegistrySkillPath(entry.path),
   ).length
 }
 

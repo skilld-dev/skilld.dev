@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { skillContentSha256 } from '../../layers/registry/server/utils/skill-content-hash'
 import { syncRepo } from '../../layers/registry/server/utils/sync-repo'
 
@@ -441,6 +442,39 @@ describe('syncRepo content acknowledgement', () => {
       { name: 'one', source_resolved: 1, sync_status: 'ok' },
       { name: 'two', source_resolved: 0, sync_status: 'path_missing' },
     ])
+  })
+
+  // harlan-zw/nuxt-ai-ready ships one Skill beside test fixtures. Counting the
+  // fixtures moved its one Skill off the repository URL.
+  it('ignores test fixture SKILL.md files and retires fixture rows it indexed before', async () => {
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'nuxt-ai-ready', 'real-sha')
+    insertSkill(sqlite, 'seo-audit', 'fixture-sha')
+    setRendered(sqlite, 'nuxt-ai-ready', 'skills/nuxt-ai-ready/SKILL.md')
+    setRendered(sqlite, 'seo-audit', 'test/fixtures/agent-skills/skills/seo-audit/SKILL.md')
+    github.getTree.mockResolvedValue(tree([
+      { path: 'skills/nuxt-ai-ready/SKILL.md', sha: 'real-sha' },
+      { path: 'test/fixtures/agent-skills/skills/seo-audit/SKILL.md', sha: 'fixture-sha' },
+      { path: 'test/fixtures/agent-skills/skills/site-review/SKILL.md', sha: 'fixture-two' },
+    ]))
+
+    const result = await syncRepo('acme', 'skills', {}, db)
+
+    expect(result).toMatchObject({ status: 'indexed', skillsSeen: 1 })
+    expect(github.getBlobsBatch).not.toHaveBeenCalled()
+    const resolved = sqlite.prepare(
+      `SELECT name FROM skills WHERE source_resolved = 1 ORDER BY name`,
+    ).pluck().all() as string[]
+    expect(resolved).toEqual(['nuxt-ai-ready'])
+    expect(sqlite.prepare(`SELECT sync_status FROM skills WHERE name = 'seo-audit'`).pluck().get())
+      .toBe('path_missing')
+    expect(sqlite.prepare(`SELECT repo_skill_count FROM repos`).pluck().get()).toBe(1)
+    expect(canonicalRepoSkillPath({
+      owner: 'acme',
+      repo: 'skills',
+      name: 'nuxt-ai-ready',
+      repoSkillCount: resolved.length,
+    })).toBe('/gh/acme/skills')
   })
 
   it('refreshes the repository description when its skill tree is unchanged', async () => {

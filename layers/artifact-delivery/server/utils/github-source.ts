@@ -1,6 +1,7 @@
 import type { ProblemCode, ResolvedSource, SourceRequest } from '../schemas/contracts'
 import type { TarballExtraction } from './tarball-source'
 import { z } from 'zod'
+import { isRegistrySkillPath } from '#shared/skill-path'
 import { base64ToBytes, gitBlobShaHex } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
 import { extractSkillFilesFromTarball } from './tarball-source'
@@ -309,7 +310,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     if (tree._tag !== 'listed')
       return tree
     const matches = tree.entries
-      .filter(entry => entry.type === 'blob' && (entry.path === 'SKILL.md' || entry.path.endsWith('/SKILL.md')))
+      .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
       .map(entry => entry.path === 'SKILL.md' ? '.' : entry.path.slice(0, -'/SKILL.md'.length))
       .filter(path => (path === '.' ? repository : path.split('/').at(-1)) === name)
     if (matches.length === 0)
