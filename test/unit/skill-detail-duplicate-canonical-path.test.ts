@@ -18,14 +18,6 @@ mockNuxtImport('useFetch', () => (url: unknown) => {
 
   if (typeof key === 'string' && key.startsWith('/api/skills/'))
     return { data: ref(skillPayload()), status: ref('success'), error: ref(null), refresh: vi.fn() }
-  if (key === `/api/skill-related/${route.params.owner}/${route.params.repo}/${route.params.name}`) {
-    return {
-      data: ref({ commits: [], relatedRepoSkills: [], relatedOwnerSkills: [], coOccurrenceSkills: [], semanticSiblings: [] }),
-      status: ref('success'),
-      error: ref(null),
-      refresh: vi.fn(),
-    }
-  }
   return { data: ref(null), status: ref('success'), error: ref(null), refresh: vi.fn() }
 })
 

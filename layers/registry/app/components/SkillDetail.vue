@@ -226,16 +226,57 @@ const skillFetch = useFetch(
   } | null
 }>>
 
-const relatedFetch = useFetch(
-  () => `/api/skill-related/${slug.value}`,
-  { watch: [slug], immediate: true },
-) as ReturnType<typeof useFetch<{
+interface SkillRelatedResponse {
   commits: SkillCommit[]
   relatedRepoSkills: RelatedSkill[]
   relatedOwnerSkills: RelatedSkill[]
   coOccurrenceSkills: NeighborSkill[]
   semanticSiblings: NeighborSkill[]
-}>>
+}
+
+// Related skills and commit history load in the browser, once either section
+// nears the viewport. Crawlers that run no JavaScript render thousands of
+// unique skill pages in bursts, and each SSR paid five D1 reads for this
+// endpoint (2026-09-29 overload). Browsers and rendering crawlers still get it.
+const {
+  data: relatedData,
+  error: relatedError,
+  execute: loadRelated,
+  clear: clearRelated,
+} = useLazyFetch<SkillRelatedResponse>(
+  () => `/api/skill-related/${slug.value}`,
+  { server: false, immediate: false, watch: false },
+)
+const relatedLoading = computed(() => !relatedData.value && !relatedError.value)
+
+const historySlot = useTemplateRef<HTMLElement>('historySlot')
+const relatedSlot = useTemplateRef<HTMLElement>('relatedSlot')
+const relatedSlotVisible = ref(false)
+const requestedRelatedSlug = ref<string | null>(null)
+
+useIntersectionObserver(
+  () => [historySlot.value, relatedSlot.value],
+  (entries) => {
+    relatedSlotVisible.value = entries.some(entry => entry.isIntersecting)
+  },
+  { rootMargin: '1200px 0px' },
+)
+
+watch([relatedSlotVisible, slug], ([visible, key]) => {
+  if (requestedRelatedSlug.value !== null && requestedRelatedSlug.value !== key) {
+    requestedRelatedSlug.value = null
+    clearRelated()
+  }
+  if (!visible || requestedRelatedSlug.value === key)
+    return
+  requestedRelatedSlug.value = key
+  void loadRelated()
+}, { flush: 'post' })
+
+function retryRelated(): void {
+  clearRelated()
+  void loadRelated()
+}
 
 const liveSkillFetch = useAsyncData<LiveSkill | null>(
   () => `skill-live:${slug.value}`,
@@ -249,10 +290,9 @@ const liveSkillFetch = useAsyncData<LiveSkill | null>(
 // Keep complete SSR for search and link previews. Client navigation renders
 // the loading state immediately while these independent requests run together.
 if (import.meta.server)
-  await Promise.all([skillFetch, relatedFetch, liveSkillFetch])
+  await Promise.all([skillFetch, liveSkillFetch])
 
 const { data, status, error, refresh } = skillFetch
-const { data: relatedData } = relatedFetch
 const { data: liveSkill } = liveSkillFetch
 
 const isMissingSkill = computed(() => error.value?.statusCode === 404)
@@ -1907,8 +1947,9 @@ useHead(computed(() => ({
           />
 
           <section
-            v-if="recentCommits.length"
+            ref="historySlot"
             aria-labelledby="history-heading"
+            :aria-busy="relatedLoading || undefined"
           >
             <h2
               id="history-heading"
@@ -1917,6 +1958,47 @@ useHead(computed(() => ({
               History
             </h2>
             <ol
+              v-if="relatedLoading"
+              class="divide-y divide-default rounded-lg border border-default"
+              aria-label="Loading recent commits"
+            >
+              <li
+                v-for="n in 3"
+                :key="n"
+                class="flex items-start gap-2.5 px-3 py-2.5"
+              >
+                <USkeleton class="size-5 shrink-0 rounded-full mt-0.5" />
+                <div class="min-w-0 flex-1 space-y-1.5">
+                  <USkeleton class="h-3.5 w-4/5" />
+                  <USkeleton class="h-3 w-1/3" />
+                </div>
+              </li>
+            </ol>
+            <div
+              v-else-if="relatedError"
+              class="rounded-lg border border-default px-3 py-3"
+              role="alert"
+            >
+              <p class="text-xs text-muted">
+                Couldn't load recent commits. Check your connection and try again.
+              </p>
+              <UButton
+                label="Retry"
+                color="neutral"
+                variant="outline"
+                size="xs"
+                class="mt-2"
+                @click="retryRelated"
+              />
+            </div>
+            <p
+              v-else-if="!recentCommits.length"
+              class="text-xs text-muted"
+            >
+              No recent commits found for this file.
+            </p>
+            <ol
+              v-else
               class="divide-y divide-default rounded-lg border border-default"
             >
               <li
@@ -1995,11 +2077,13 @@ useHead(computed(() => ({
     </template>
   </div>
 
-  <template v-if="relatedTabsAvailable.length">
+  <template v-if="data && !error">
     <USeparator />
     <section
+      ref="relatedSlot"
       class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
       aria-labelledby="related-heading"
+      :aria-busy="relatedLoading || undefined"
     >
       <h2
         id="related-heading"
@@ -2007,20 +2091,86 @@ useHead(computed(() => ({
       >
         Related skills
       </h2>
-      <UTabs
-        v-model="relatedTab"
-        :items="relatedTabsAvailable"
-        :content="false"
-        color="neutral"
-        variant="link"
-        size="xs"
-        class="mb-4"
-      />
-      <SkillSourceList
-        :items="currentRelatedItems"
-        variant="grid"
-        aria-label="Related skills"
-      />
+      <div
+        v-if="relatedLoading"
+        role="status"
+        aria-label="Loading related skills"
+      >
+        <div class="mb-4 flex gap-4 border-b border-default pb-2">
+          <USkeleton class="h-4 w-16" />
+          <USkeleton class="h-4 w-24" />
+        </div>
+        <ul class="grid list-none gap-3 p-0 sm:grid-cols-2">
+          <li
+            v-for="n in 6"
+            :key="n"
+            class="flex items-start gap-3 rounded-(--ui-radius) border border-default p-4"
+          >
+            <USkeleton class="size-6 shrink-0 rounded-md" />
+            <div class="min-w-0 flex-1 space-y-2">
+              <USkeleton class="h-4 w-1/2" />
+              <USkeleton class="h-3 w-1/3" />
+              <USkeleton class="h-3 w-full" />
+              <USkeleton class="h-3 w-4/5" />
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div
+        v-else-if="relatedError"
+        class="editorial-state"
+        role="alert"
+      >
+        <p class="font-medium">
+          Couldn't load related skills.
+        </p>
+        <p class="mt-1 text-sm text-muted">
+          Check your connection and try again.
+        </p>
+        <UButton
+          label="Retry"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          class="mt-4 min-h-11"
+          @click="retryRelated"
+        />
+      </div>
+      <div
+        v-else-if="!relatedTabsAvailable.length"
+        class="editorial-state"
+      >
+        <p class="font-medium">
+          No related skills yet.
+        </p>
+        <p class="mt-1 text-sm text-muted">
+          Browse the registry to find skills for the same job.
+        </p>
+        <UButton
+          label="Browse skills"
+          to="/skills"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          class="mt-4 min-h-11"
+        />
+      </div>
+      <template v-else>
+        <UTabs
+          v-model="relatedTab"
+          :items="relatedTabsAvailable"
+          :content="false"
+          color="neutral"
+          variant="link"
+          size="xs"
+          class="mb-4"
+        />
+        <SkillSourceList
+          :items="currentRelatedItems"
+          variant="grid"
+          aria-label="Related skills"
+        />
+      </template>
     </section>
   </template>
 </template>
