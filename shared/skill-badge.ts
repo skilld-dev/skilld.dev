@@ -60,18 +60,3 @@ export function skillBadgeEmbed(input: SkillBadgeEmbedInput): string {
   </picture>
 </a>`
 }
-
-/**
- * The one-line Markdown form of the badge for a README.
- * GitHub picks no theme for a Markdown image, so this uses the default light badge.
- */
-export function skillBadgeMarkdown(input: SkillBadgeEmbedInput): string {
-  const siteUrl = (input.siteUrl ?? DEFAULT_SITE_URL).replace(/\/+$/, '')
-  const registryPath = (input.registryPath.startsWith('/')
-    ? input.registryPath
-    : `/${input.registryPath}`)
-    .split('/')
-    .map(encodeURIComponent)
-    .join('/')
-  return `[![skilld](${skillBadgeImageUrl(input)})](${siteUrl}${registryPath})`
-}
