@@ -380,6 +380,14 @@ export default defineNuxtConfig({
       // only global keys. See server/runtime/edge-cache-storage.ts.
       'edge-cache': {
         driver: fileURLToPath(new URL('./server/runtime/edge-cache-storage.ts', import.meta.url)),
+        // Nitro writes an SWR route's entry with no per-write TTL, so this
+        // default sets the Cache API max-age for that write. It must outlive
+        // every route's fresh + stale window: skill-live (1d fresh, 7d stale)
+        // lost its stale window under the driver's 24h default, because the
+        // entry expired exactly as it went stale. 30d matches the KV cache
+        // mount. Freshness past a route's windows is decided by the stored
+        // payload, never by this TTL.
+        defaultTtl: 30 * 24 * 60 * 60,
       },
     },
     // Nitro imports dev mounts in Node at build time, where the Cache API does

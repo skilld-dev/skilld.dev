@@ -1,4 +1,5 @@
-import type { EdgeCache } from '../../server/runtime/edge-cache-storage'
+// @vitest-environment node
+import type { EdgeCache, EdgeCacheStorageOptions } from '../../server/runtime/edge-cache-storage'
 import { createStorage } from 'unstorage'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import edgeCacheDriver from '../../server/runtime/edge-cache-storage'
@@ -95,5 +96,60 @@ describe('edge-cache-storage driver', () => {
     }
     expect(await storageWith(cache).getItem('edge-cache:k')).toBeNull()
     expect(emitted[0]).toMatchObject({ 'operation': 'edge-cache-read', 'cache.readFailed': true })
+  })
+})
+
+// nuxt.config.ts relies on the `defineNuxtConfig` auto-global that only the
+// Nuxt CLI provides. Unit tests import the file cold, so provide a
+// pass-through first.
+;
+(globalThis as Record<string, unknown>).defineNuxtConfig ??= (config: unknown) => config
+
+// The config turns `import.meta.url` into filesystem paths for two Nitro
+// aliases. Vitest does not give that import a file scheme, so the real
+// `fileURLToPath` rejects it. No test here reads an alias value, so the raw
+// href is a fine stand-in.
+vi.mock('node:url', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:url')>()
+  return {
+    ...actual,
+    fileURLToPath: (url: URL | string) => {
+      try {
+        return actual.fileURLToPath(url)
+      }
+      catch {
+        return typeof url === 'string' ? url : url.href
+      }
+    },
+  }
+})
+
+const config = await import('../../nuxt.config') as {
+  default: {
+    nitro?: {
+      storage?: Record<string, Record<string, unknown> & { driver?: string }>
+    }
+  }
+}
+
+/**
+ * skill-live's declared windows: maxAge 86400 (1d fresh) + staleMaxAge 604800
+ * (7d stale). Nitro writes an SWR route's entry with no per-write TTL, so the
+ * driver default decides the Cache API max-age for that write. It must
+ * outlive the whole window, or the entry expires exactly as it goes stale and
+ * the stale-while-revalidate window can never serve.
+ */
+const SKILL_LIVE_SWR_WINDOW_SECONDS = 691_200
+
+describe('edge-cache-storage mount as production configures it', () => {
+  it('keeps a no-TTL write past skill-live\'s fresh + stale window', async () => {
+    const { driver: _driver, ...productionOptions } = config.default.nitro!.storage!['edge-cache']!
+    const { cache, entries } = memoryCache()
+    const storage = createStorage()
+    storage.mount('edge-cache', edgeCacheDriver({ cache: () => cache, ...productionOptions } as EdgeCacheStorageOptions))
+    await storage.setItem('edge-cache:skill-live:owner:repo:name', 'v')
+    const cacheControl = [...entries.values()][0]!.cacheControl!
+    const maxAge = Number(/max-age=(\d+)/.exec(cacheControl)![1])
+    expect(maxAge).toBeGreaterThanOrEqual(SKILL_LIVE_SWR_WINDOW_SECONDS)
   })
 })
