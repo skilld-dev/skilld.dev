@@ -19,6 +19,7 @@
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { parseSkillFile } from '../layers/registry/server/utils/skill-frontmatter'
+import { isRegistrySkillPath } from '../shared/skill-path'
 
 const args = process.argv.slice(2)
 const target = args[0]
@@ -70,7 +71,7 @@ const tree = gh<{ tree: TreeEntry[], truncated?: boolean }>(`repos/${owner}/${re
 if (tree.truncated)
   console.error(`[sync] WARN tree was truncated; some skills may be missing.`)
 
-const skillFiles = tree.tree.filter(e => e.type === 'blob' && e.path.endsWith('SKILL.md'))
+const skillFiles = tree.tree.filter(e => e.type === 'blob' && isRegistrySkillPath(e.path))
 console.error(`[sync] ${owner}/${repo}: ${skillFiles.length} SKILL.md files found.`)
 
 interface Skill {

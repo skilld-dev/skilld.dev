@@ -26,6 +26,7 @@ import { promisify } from 'node:util'
 import { parseSkillFile } from '#layers/registry/server/utils/skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from '#layers/registry/server/utils/skill-indexability'
 import { resolveSkillTrust } from '#layers/registry/server/utils/skill-trust'
+import { isRegistrySkillPath } from '#shared/skill-path'
 
 const execFileP = promisify(execFile)
 async function runP(cmd: string, args: string[], opts: { timeout?: number, maxBuffer?: number, cwd?: string } = {}): Promise<{ stdout: string, stderr: string, code: number }> {
@@ -136,7 +137,7 @@ async function gitListSkillFiles(dir: string): Promise<string[]> {
   const r = await runP('git', ['-C', dir, 'ls-tree', '-r', '--name-only', 'HEAD'], { maxBuffer: 64 * 1024 * 1024 })
   if (r.code !== 0)
     return []
-  return r.stdout.split('\n').filter(p => p.endsWith('SKILL.md'))
+  return r.stdout.split('\n').filter(isRegistrySkillPath)
 }
 
 async function gitTreeSha(dir: string, path: string): Promise<string> {

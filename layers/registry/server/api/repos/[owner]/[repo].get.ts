@@ -1,4 +1,5 @@
 import { getDB } from '#server/utils/db'
+import { isRegistrySkillPath } from '#shared/skill-path'
 import { getRepo, getTree, resolveGithubBindings } from '../../../utils/github-client'
 import { resolveRepoSourceIdentity } from '../../../utils/repo-source-identity'
 import { buildUnavailableRepoSourceProfile } from '../../../utils/repo-source-profile'
@@ -55,7 +56,7 @@ export default defineCachedEventHandler(async (event) => {
   const repoName = meta.name
   const treeRes = await getTree(repoOwner, repoName, meta.default_branch, bindings)
   const skillFiles = (treeRes.data?.tree ?? [])
-    .filter(entry => entry.type === 'blob' && entry.path.split('/').at(-1) === 'SKILL.md')
+    .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
     .map(entry => entry.path)
     .sort()
   const skillFileScanStatus = !treeRes.data
@@ -87,6 +88,6 @@ export default defineCachedEventHandler(async (event) => {
   getKey: (event) => {
     const owner = (getRouterParam(event, 'owner') ?? '').toLowerCase()
     const repo = (getRouterParam(event, 'repo') ?? '').toLowerCase()
-    return `repo-source:v3:${owner}/${repo}`
+    return `repo-source:v4:${owner}/${repo}`
   },
 })

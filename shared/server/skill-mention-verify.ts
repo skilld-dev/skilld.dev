@@ -32,6 +32,7 @@
 import type { GithubBindings } from '#layers/registry/server/utils/github-client'
 import { getBlobsBatch, getRepoSummary, getTree, GRAPHQL_BATCH_SIZE, hasBody } from '#layers/registry/server/utils/github-client'
 import { parseSkillFile, slugifySkillName } from '#layers/registry/server/utils/skill-frontmatter'
+import { isRegistrySkillPath } from '#shared/skill-path'
 
 /** Matches `sync-repo.ts`, so this module and the indexer agree on what a skill is. */
 const SKILL_FILE_SUFFIX = '/SKILL.md'
@@ -126,7 +127,7 @@ export async function verifySkillMention(
     return { _tag: 'unavailable', reason: 'tree-truncated' }
 
   const skillPaths = tree.data.tree
-    .filter(entry => entry.type === 'blob' && (entry.path === 'SKILL.md' || entry.path.endsWith(SKILL_FILE_SUFFIX)))
+    .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
     .map(entry => entry.path)
 
   if (skillPaths.length === 0)

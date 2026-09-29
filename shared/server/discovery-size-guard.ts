@@ -16,6 +16,7 @@
 
 import type { GithubBindings } from '#layers/registry/server/utils/github-client'
 import { getRepoSummary, getTree, hasBody } from '#layers/registry/server/utils/github-client'
+import { isRegistrySkillPath } from '#shared/skill-path'
 
 /**
  * Skills a discovered repo may hold and still be indexed without review.
@@ -26,9 +27,6 @@ import { getRepoSummary, getTree, hasBody } from '#layers/registry/server/utils/
  * every aggregator. Raising it past ~50 starts admitting the dumps.
  */
 export const AUTO_INDEX_SKILL_LIMIT = 25
-
-/** Matches `sync-repo.ts`: a skill is a blob at `<dir>/SKILL.md`. */
-const SKILL_FILE_SUFFIX = '/SKILL.md'
 
 export type RepoSizeVerdict
   = | { _tag: 'sized', skillCount: number }
@@ -80,9 +78,8 @@ export function createGithubRepoSizer(bindings: GithubBindings): MeasureRepoSize
     for (const entry of tree.data.tree) {
       if (entry.type !== 'blob')
         continue
-      // A root SKILL.md is one skill; nested ones are counted by suffix. This
-      // mirrors sync-repo.ts so the guard and the indexer never disagree.
-      if (entry.path === 'SKILL.md' || entry.path.endsWith(SKILL_FILE_SUFFIX))
+      // The indexer's own predicate, so the guard and the indexer never disagree.
+      if (isRegistrySkillPath(entry.path))
         skillCount += 1
     }
 
