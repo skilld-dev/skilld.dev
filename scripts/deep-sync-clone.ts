@@ -26,7 +26,7 @@ import { promisify } from 'node:util'
 import { parseSkillFile } from '#layers/registry/server/utils/skill-frontmatter'
 import { isOfficialSkillRepo, scoreSkillIndexability } from '#layers/registry/server/utils/skill-indexability'
 import { resolveSkillTrust } from '#layers/registry/server/utils/skill-trust'
-import { isRegistrySkillPath } from '#shared/skill-path'
+import { isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 
 const execFileP = promisify(execFile)
 async function runP(cmd: string, args: string[], opts: { timeout?: number, maxBuffer?: number, cwd?: string } = {}): Promise<{ stdout: string, stderr: string, code: number }> {
@@ -315,7 +315,7 @@ async function syncRepo(target: TopRepo, meta: RepoMetaNode | null, kindOv: Map<
       const skillDir = skillPath.includes('/') ? skillPath.slice(0, skillPath.lastIndexOf('/')) : ''
       const dirName = skillDir.split('/').pop() ?? repo
       const raw = await gitReadFile(dir, skillPath)
-      if (raw == null)
+      if (raw == null || isSkilldCacheSkill(raw))
         continue
       const parsed = parseSkillFile(raw, dirName)
       if (!parsed)

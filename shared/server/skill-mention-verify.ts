@@ -32,7 +32,7 @@
 import type { GithubBindings } from '#layers/registry/server/utils/github-client'
 import { getBlobsBatch, getRepoSummary, getTree, GRAPHQL_BATCH_SIZE, hasBody } from '#layers/registry/server/utils/github-client'
 import { parseSkillFile, slugifySkillName } from '#layers/registry/server/utils/skill-frontmatter'
-import { isRegistrySkillPath } from '#shared/skill-path'
+import { isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 
 /** Matches `sync-repo.ts`, so this module and the indexer agree on what a skill is. */
 const SKILL_FILE_SUFFIX = '/SKILL.md'
@@ -143,6 +143,9 @@ export async function verifySkillMention(
   if (byDirectory) {
     const blobs = await getBlobsBatch(owner, repo, branch, [byDirectory], deps.bindings)
     const raw = hasBody(blobs) ? blobs.data.get(byDirectory) : undefined
+    // The sync would not admit a skilld cache Skill, so it is no match here.
+    if (raw !== undefined && isSkilldCacheSkill(raw))
+      return { _tag: 'no-match' }
     const parsed = raw === undefined ? null : parseSkillFile(raw, dirNameFor(byDirectory, repo))
     const dirName = dirNameFor(byDirectory, repo)
     return {
@@ -170,6 +173,8 @@ export async function verifySkillMention(
       return { _tag: 'unavailable', reason: `blobs-${blobs.status}` }
 
     for (const [path, raw] of blobs.data) {
+      if (isSkilldCacheSkill(raw))
+        continue
       const parsed = parseSkillFile(raw, dirNameFor(path, repo))
       if (!parsed)
         continue

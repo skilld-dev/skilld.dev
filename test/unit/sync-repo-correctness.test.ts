@@ -477,6 +477,48 @@ describe('syncRepo content acknowledgement', () => {
     })).toBe('/gh/acme/skills')
   })
 
+  it('does not admit a skilld cache Skill and retires the cache rows it indexed before', async () => {
+    const cacheSkill = (name: string) => `---\nname: ${name}\ndescription: ${name} cache\n---\n**References:** [package.json](./.skilld/pkg/package.json)`
+    insertRepo(sqlite, 'old-tree')
+    insertSkill(sqlite, 'nuxt-seo', 'real-sha')
+    // Migration 0126 clears current_sha on cache rows, so their content is read again.
+    insertSkill(sqlite, 'nuxt-skilld', null)
+    setRendered(sqlite, 'nuxt-seo', 'skills/nuxt-seo/SKILL.md')
+    setRendered(sqlite, 'nuxt-skilld', '.claude/skills/nuxt-skilld/SKILL.md')
+    github.getTree.mockResolvedValue(tree([
+      { path: 'skills/nuxt-seo/SKILL.md', sha: 'real-sha' },
+      { path: '.claude/skills/nuxt-skilld/SKILL.md', sha: 'cache-sha' },
+      { path: '.claude/skills/shiki-skilld/SKILL.md', sha: 'cache-two' },
+    ]))
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([
+        ['.claude/skills/nuxt-skilld/SKILL.md', cacheSkill('nuxt-skilld')],
+        ['.claude/skills/shiki-skilld/SKILL.md', cacheSkill('shiki-skilld')],
+      ]),
+      unreadable: new Set(),
+      rateLimit: null,
+      notModified: false,
+    })
+
+    const result = await syncRepo('acme', 'skills', {}, db, { submitted: true })
+
+    expect(result.status).toBe('indexed')
+    const resolved = sqlite.prepare(
+      `SELECT name FROM skills WHERE source_resolved = 1 ORDER BY name`,
+    ).pluck().all() as string[]
+    expect(resolved).toEqual(['nuxt-seo'])
+    expect(sqlite.prepare(`SELECT sync_status FROM skills WHERE name = 'nuxt-skilld'`).pluck().get())
+      .toBe('path_missing')
+    expect(sqlite.prepare(`SELECT COUNT(*) FROM skills WHERE name = 'shiki-skilld'`).pluck().get()).toBe(0)
+    expect(canonicalRepoSkillPath({
+      owner: 'acme',
+      repo: 'skills',
+      name: 'nuxt-seo',
+      repoSkillCount: resolved.length,
+    })).toBe('/gh/acme/skills')
+  })
+
   it('refreshes the repository description when its skill tree is unchanged', async () => {
     insertRepo(sqlite, 'new-tree')
     insertSkill(sqlite, 'one', 'one-old')
@@ -727,7 +769,7 @@ function insertRepo(sqlite: Database.Database, treeSha: string): void {
   ).run(treeSha)
 }
 
-function insertSkill(sqlite: Database.Database, name: string, sha: string): void {
+function insertSkill(sqlite: Database.Database, name: string, sha: string | null): void {
   sqlite.prepare(
     `INSERT INTO skills (
        owner, repo, name, display_name, slug, current_sha, first_seen_at, source_resolved

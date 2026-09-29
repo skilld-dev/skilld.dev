@@ -108,6 +108,21 @@ describe('verifySkillMention directory path', () => {
     expect(github.getBlobsBatch.mock.calls[0]?.[3]).toEqual(['skills/thanos/SKILL.md'])
   })
 
+  it('does not verify a skilld cache Skill that the sync would not admit', async () => {
+    tree(['.claude/skills/nuxt-skilld/SKILL.md'])
+    github.getBlobsBatch.mockResolvedValue({
+      status: 200,
+      data: new Map([['.claude/skills/nuxt-skilld/SKILL.md', '---\nname: nuxt-skilld\n---\n[Docs](./.skilld/docs/_INDEX.md)\n']]),
+    })
+
+    const result = await verifySkillMention({ db: db().db, bindings }, {
+      owner: 'harlan-zw',
+      repo: 'nuxt-seo',
+      candidate: 'nuxt-skilld',
+    })
+    expect(result).toEqual({ _tag: 'no-match' })
+  })
+
   it('surfaces the frontmatter name even when the directory matched', async () => {
     // The directory found the file, but the author named the skill something
     // else. Returning the directory name here would show the wrong canonical
