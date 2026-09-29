@@ -40,3 +40,39 @@ export function isRegistrySkillPath(path: string): boolean {
     .slice(0, -2)
     .some(segment => NON_SKILL_FOLDERS.has(segment.toLowerCase()))
 }
+
+/**
+ * A Markdown link into `.skilld/`, the local cache folder skilld v2 made.
+ *
+ * `./.skilld/` is the form the CLI wrote. A bare `.skilld/` link is the same
+ * folder. A link into a nested `docs/.skilld/` is not.
+ */
+const SKILLD_CACHE_LINK = /\]\((?:\.\/)?\.skilld\//
+
+/**
+ * True when SKILL.md content is a skilld cache Skill, not a Skill the
+ * Repository wrote.
+ *
+ * skilld v2 generated a Skill per dependency, linked it to a gitignored
+ * `.skilld/` folder, and told projects to commit the SKILL.md. The committed
+ * copy repeats another package's docs and its links are dead. Ejected Skills
+ * that a Repository publishes on purpose link `./references/` instead, so the
+ * link is the marker.
+ *
+ * Measured in production on 2026-09-29, over resolved Skills:
+ *
+ * - `.skilld/` link: 8 rows, all cache Skills, including 3 from before the
+ *   `-skilld` suffix and `metadata.generated_at` existed.
+ * - `-skilld` name suffix: 37 rows, 33 of them published Skills in
+ *   skilld-dev/vue-ecosystem-skills. harlan-zw/nuxt-seo also has a hand-written
+ *   `devtools-layer-skilld`.
+ * - `metadata.generated_at`: 5 rows. It misses the older cache Skills, and
+ *   ejected Skills carry it too.
+ *
+ * The tree lists paths only, so this needs the blob. The sync reads the blob
+ * before it admits a Skill, which keeps cache Skills out of the resolved count
+ * behind the canonical URL.
+ */
+export function isSkilldCacheSkill(raw: string): boolean {
+  return SKILLD_CACHE_LINK.test(raw)
+}

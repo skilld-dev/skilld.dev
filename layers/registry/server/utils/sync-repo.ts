@@ -2,7 +2,7 @@
 
 import type { GithubBindings, RepoMeta } from './github-client'
 import type { SkillTrustTier } from './skill-trust'
-import { isRegistrySkillPath } from '#shared/skill-path'
+import { isRegistrySkillPath, isSkilldCacheSkill } from '#shared/skill-path'
 import { isCategoryPinned } from '../data/clusters'
 import { getBlobsBatch, getCommitsBatch, getRepoSummary, getTree, logRateLimit } from './github-client'
 import { repoStarObservationStatements } from './repo-history'
@@ -1117,6 +1117,10 @@ export async function syncRepo(
       }
 
       const raw = blobs.get(file.path)!
+      // A skilld cache Skill copies another package's docs. Leaving its name
+      // unseen lets the sweep below retire any row indexed from it before.
+      if (isSkilldCacheSkill(raw))
+        continue
       const parsed = parseSkillFile(raw, file.dirName)
       if (!parsed) {
         stats.status = 'rejected'

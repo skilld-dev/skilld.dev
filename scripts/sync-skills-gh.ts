@@ -19,7 +19,7 @@
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
 import { parseSkillFile } from '../layers/registry/server/utils/skill-frontmatter'
-import { isRegistrySkillPath } from '../shared/skill-path'
+import { isRegistrySkillPath, isSkilldCacheSkill } from '../shared/skill-path'
 
 const args = process.argv.slice(2)
 const target = args[0]
@@ -93,6 +93,8 @@ for (const file of skillFiles) {
   catch (err) {
     console.error(`[sync] WARN failed to fetch ${file.path}: ${(err as Error).message}`)
   }
+  if (isSkilldCacheSkill(raw))
+    continue
   const parsed = parseSkillFile(raw, dirName)
   if (!parsed)
     continue
