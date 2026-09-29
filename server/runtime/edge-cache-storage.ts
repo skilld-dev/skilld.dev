@@ -16,15 +16,18 @@ export interface EdgeCacheStorageOptions {
   /** TTL applied to a write whose caller requests none. */
   defaultTtl?: number
   /**
-   * Origin the cache keys are built on. It is a hostname inside the zone
-   * with no DNS record, so no public request can ever address an entry.
+   * Origin the cache keys are built on. It is the Worker's own hostname, so
+   * the keys sit in the zone the Worker serves. A hostname with no DNS record
+   * risks `put` storing nothing without an error, which would read as a
+   * silent 0% hit rate. The Worker answers every public request on this
+   * custom domain first, so no visitor can read an entry by this URL.
    */
   origin?: string
   /** Resolves the cache. Defaults to `caches.default`, absent outside Workers. */
   cache?: () => EdgeCache | undefined
 }
 
-const DEFAULT_ORIGIN = 'https://edge-cache.skilld.dev'
+const DEFAULT_ORIGIN = 'https://skilld.dev/_edge-cache'
 
 function defaultCache(): EdgeCache | undefined {
   return (globalThis as { caches?: { default?: EdgeCache } }).caches?.default
