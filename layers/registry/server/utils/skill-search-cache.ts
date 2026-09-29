@@ -38,7 +38,7 @@ export async function cachedSkillsSearch<T>(event: H3Event, compute: () => Promi
   if (deploymentId(event) === null)
     return compute()
   return cached({
-    storage: useStorage('cache'),
+    storage: useStorage('edge-cache'),
     key: `skills-list:v2:${await skillSearchCacheKey(event)}`,
     ttlSeconds: SEARCH_CACHE_TTL,
     staleSeconds: SEARCH_CACHE_STALE_TTL,

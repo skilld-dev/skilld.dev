@@ -126,7 +126,7 @@ export default defineApiHandler({
 
     const branch = row.default_branch || 'main'
     const cacheKey = `skills:asset:v4:${source.owner}/${source.repo}/${skill.name}:${filePath}:${branch}`
-    const cached = await readCache<AssetCache>(useStorage('cache'), cacheKey)
+    const cached = await readCache<AssetCache>(useStorage('edge-cache'), cacheKey)
     if (cached) {
       if (cached.status === 'missing')
         throw createError({ statusCode: 404, message: 'Asset content unavailable' })
@@ -158,7 +158,7 @@ export default defineApiHandler({
         setHeader(event, 'retry-after', ASSET_RETRY_AFTER)
         throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
       }
-      await writeCache(useStorage('cache'), cacheKey, {
+      await writeCache(useStorage('edge-cache'), cacheKey, {
         status: 'missing',
         raw: null,
         html: null,
@@ -177,7 +177,7 @@ export default defineApiHandler({
 
     if (upstream._tag === 'missing') {
       emitOperationalEvent(createWideEvent({ 'operation': 'skill-asset-fetch', 'outcome': 'missing', 'upstream.status': upstream.status }))
-      await writeCache(useStorage('cache'), cacheKey, {
+      await writeCache(useStorage('edge-cache'), cacheKey, {
         status: 'missing',
         raw: null,
         html: null,
@@ -225,7 +225,7 @@ export default defineApiHandler({
       branch,
       skillPath: skillMdPath,
     }
-    await writeCache(useStorage('cache'), cacheKey, result, { ttl: ASSET_CACHE_TTL })
+    await writeCache(useStorage('edge-cache'), cacheKey, result, { ttl: ASSET_CACHE_TTL })
     return result
   },
 })

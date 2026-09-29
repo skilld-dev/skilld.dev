@@ -61,7 +61,7 @@ export default defineApiHandler({
     // to two D1 reads, and running it ahead of the cache made every request
     // cost a read even on a hit. See the note in `skill-related.ts`.
     const cached = await readThroughCache<CachedRelated<SkillRelatedResponse>>(
-      useStorage('cache'),
+      useStorage('edge-cache'),
       relatedCacheKey(slug),
       async () => {
         const skill = await findSkill(event, slug)
@@ -164,7 +164,7 @@ interface GhCommitResponse {
 
 async function getSkillCommits(owner: string, repo: string, path: string): Promise<SkillCommit[]> {
   const cacheKey = `skills:commits:v2:${owner}/${repo}:${path}`
-  const cached = await readCache<SkillCommit[]>(useStorage('cache'), cacheKey)
+  const cached = await readCache<SkillCommit[]>(useStorage('edge-cache'), cacheKey)
   if (cached)
     return cached
 
@@ -191,6 +191,6 @@ async function getSkillCommits(owner: string, repo: string, path: string): Promi
     verifiedReason: c.commit?.verification?.reason ?? 'unsigned',
   }))
 
-  await writeCache(useStorage('cache'), cacheKey, commits, { ttl: COMMITS_CACHE_TTL })
+  await writeCache(useStorage('edge-cache'), cacheKey, commits, { ttl: COMMITS_CACHE_TTL })
   return commits
 }

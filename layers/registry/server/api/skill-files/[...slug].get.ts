@@ -162,7 +162,7 @@ export default defineApiHandler({
     // from cache must never tell an agent to come back in 30 seconds.
     try {
       return await readThroughCache<SkillFilesPayload>(
-        useStorage('cache'),
+        useStorage('edge-cache'),
         cacheKey,
         async () => {
           const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-files-tree-fetch' })

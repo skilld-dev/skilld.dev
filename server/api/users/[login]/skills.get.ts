@@ -32,7 +32,7 @@ export default defineApiHandler({
       throw createError({ statusCode: 400, message: 'login required' })
 
     return cached({
-      storage: useStorage('cache'),
+      storage: useStorage('edge-cache'),
       key: `user-skills:${login.toLowerCase()}`,
       ttlSeconds: USER_SKILLS_CACHE_TTL,
       staleSeconds: USER_SKILLS_CACHE_STALE_TTL,

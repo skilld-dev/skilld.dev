@@ -362,11 +362,11 @@ export default defineNuxtConfig({
       nodeCompat: true,
     },
     storage: {
-      data: {
+      'data': {
         driver: 'cloudflare-kv-binding',
         binding: 'KV_DATA',
       },
-      cache: {
+      'cache': {
         // Best-effort route-cache writes over KV_CACHE: the driver wraps
         // unstorage's cloudflare-kv-binding, floors every TTL at Cloudflare's
         // 60-second minimum, and turns write rejections into wide events
@@ -375,6 +375,17 @@ export default defineNuxtConfig({
         binding: 'KV_CACHE',
         defaultTtl: 30 * 24 * 60 * 60,
       },
+      // Per-entity read-through keys (one per skill, query, or owner) live in
+      // the Workers Cache API, which bills nothing per write. KV_CACHE keeps
+      // only global keys. See server/runtime/edge-cache-storage.ts.
+      'edge-cache': {
+        driver: fileURLToPath(new URL('./server/runtime/edge-cache-storage.ts', import.meta.url)),
+      },
+    },
+    // Nitro imports dev mounts in Node at build time, where the Cache API does
+    // not exist. Dev and Vitest get an in-memory mount instead.
+    devStorage: {
+      'edge-cache': { driver: 'memory' },
     },
     experimental: {
       tasks: true,

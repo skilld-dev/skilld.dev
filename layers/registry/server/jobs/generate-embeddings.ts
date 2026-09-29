@@ -7,7 +7,7 @@ import { readCache, writeCache } from '#shared/server/cache'
  * pseudo-embedding so the full pipeline (storage, kNN, page wiring) can be
  * exercised offline — the neighbors won't be semantic, but shapes match.
  *
- * Storage: precomputed top-N neighbor list per skill, written to KV as one
+ * Storage: precomputed top-N neighbor list per skill, written to the edge cache as one
  * blob keyed by model+version. No vector DB.
  */
 import { getGenerated, putGenerated, sha1 } from '../utils/skill-generated'
@@ -137,7 +137,7 @@ export async function getEmbeddingNeighbors(
   const naturalKey = `${skill.owner}/${skill.repo}/${skill.name}`
   const id = await vectorIdFor(skill)
   const cacheKey = `skills:embedding-neighbors:v3:${naturalKey}`
-  const cached = await readCache<EmbeddingNeighbor[]>(useStorage('cache'), cacheKey)
+  const cached = await readCache<EmbeddingNeighbor[]>(useStorage('edge-cache'), cacheKey)
   if (cached)
     return cached
 
@@ -166,7 +166,7 @@ export async function getEmbeddingNeighbors(
       break
   }
 
-  await writeCache(useStorage('cache'), cacheKey, neighbors, { ttl: NEIGHBOR_CACHE_TTL })
+  await writeCache(useStorage('edge-cache'), cacheKey, neighbors, { ttl: NEIGHBOR_CACHE_TTL })
   return neighbors
 }
 
