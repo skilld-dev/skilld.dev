@@ -6,7 +6,7 @@ interface SkillIdentity {
   name: string
 }
 
-interface SkillCommitSourceRow {
+export interface SkillCommitSourceRow {
   rendered_skill_path: string | null
   source_owner: string | null
   source_repo: string | null
@@ -28,7 +28,17 @@ export async function findSkillCommitSource(
               WHERE s.owner = ? AND s.repo = ? AND s.name = ?`)
     .bind(skill.owner, skill.repo, skill.name)
     .first<SkillCommitSourceRow>()
+  return skillCommitSourceFromRow(skill, row)
+}
 
+/**
+ * The commit source from a row the caller already read. The related route
+ * resolves the Skill with these columns, so it needs no second read.
+ */
+export function skillCommitSourceFromRow(
+  skill: SkillIdentity,
+  row: SkillCommitSourceRow | null,
+): SkillCommitSource | null {
   if (!row?.rendered_skill_path)
     return null
 
