@@ -12,6 +12,7 @@ progress to the `## Log`. Never open a separate progress file.
 - [EXECUTE-github-pivot.md](EXECUTE-github-pivot.md): Phase 4 cleanup and the mail deploy prerequisites.
 - [EXECUTE-seo-keyword-rework.md](EXECUTE-seo-keyword-rework.md): the keyword-led rework of categories, collections and editorial pages.
 - [EXECUTE-homepage-rebuild.md](EXECUTE-homepage-rebuild.md): the cluster grid, and the classifier that has to become a job.
+- [EXECUTE-cost-followup.md](EXECUTE-cost-followup.md): the week-later check on the 2026-09-29 cost and D1 overload fixes.
 
 The roadmap below sequences them.
 
