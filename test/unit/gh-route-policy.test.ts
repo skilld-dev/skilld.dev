@@ -30,4 +30,33 @@ describe('github registry route policy', () => {
     expect(resolveGhRoute('/skills/trending', ''))
       .toEqual({ _tag: 'pass' })
   })
+
+  it('rejects owner and repository segments GitHub could never issue', () => {
+    // Real paths from the 2026-09 crawl trap, as the Worker received them.
+    expect(resolveGhRoute('/gh/www.deepseek.com%20on%20skilld%20%C2%B7%20skilld', ''))
+      .toEqual({ _tag: 'not-found' })
+    expect(resolveGhRoute('/gh/mvanhorn/www.thriftbooks.com%60)%20skills%20%C2%B7%20skilld', ''))
+      .toEqual({ _tag: 'not-found' })
+    expect(resolveGhRoute('/gh/www.hackingwithswift.com+on+skilld', ''))
+      .toEqual({ _tag: 'not-found' })
+    expect(resolveGhRoute(`/gh/${'a'.repeat(40)}`, ''))
+      .toEqual({ _tag: 'not-found' })
+    expect(resolveGhRoute(`/gh/acme/${'r'.repeat(101)}`, ''))
+      .toEqual({ _tag: 'not-found' })
+  })
+
+  it('passes every segment shape a registry page serves', () => {
+    for (const path of [
+      '/gh/vueuse',
+      '/gh/vueuse.md',
+      '/gh/vueuse/',
+      '/gh/thedivergentai/GD-Agentic-Skills',
+      '/gh/jakubantalik/transitions.dev/transitions-dev',
+      '/gh/foo/my_repo.v2/skill',
+      '/gh/tag/data-race',
+      '/gh/acme/repo/skill/-/references/Weird%20File%20(1).md',
+    ]) {
+      expect(resolveGhRoute(path, '')).toEqual({ _tag: 'pass' })
+    }
+  })
 })
