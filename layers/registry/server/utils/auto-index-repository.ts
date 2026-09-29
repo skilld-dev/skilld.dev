@@ -90,11 +90,23 @@ export async function findAutoIndexBlocker(
 ): Promise<AutoIndexBlocker | null> {
   const owner = repository.owner.toLowerCase()
   const repo = repository.repo.toLowerCase()
+  // A repository whose every Skill row is `path_missing` had a readable tree
+  // with zero Skills. The sync sweeps skip it, so a page view is the only thing
+  // that notices a Skill added back. It is re-checked like an unknown
+  // repository, behind the same limiter. The discovery ledger is not consulted:
+  // its row for this repository is long settled.
   const indexed = await db.prepare(
-    `SELECT 1 AS found FROM repos WHERE owner = ? AND repo = ? LIMIT 1`,
-  ).bind(owner, repo).first<{ found: number }>()
+    `SELECT
+       EXISTS (SELECT 1 FROM skills s WHERE s.owner = r.owner AND s.repo = r.repo) AS has_rows,
+       EXISTS (
+         SELECT 1 FROM skills s
+         WHERE s.owner = r.owner AND s.repo = r.repo
+           AND COALESCE(s.sync_status, '') != 'path_missing'
+       ) AS has_live_rows
+     FROM repos r WHERE r.owner = ? AND r.repo = ? LIMIT 1`,
+  ).bind(owner, repo).first<{ has_rows: number, has_live_rows: number }>()
   if (indexed)
-    return 'already_indexed'
+    return indexed.has_rows === 1 && indexed.has_live_rows === 0 ? null : 'already_indexed'
 
   const candidate = await db.prepare(
     `SELECT 1 AS found FROM discovery_candidates WHERE owner = ? AND repo = ? LIMIT 1`,

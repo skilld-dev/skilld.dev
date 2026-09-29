@@ -59,6 +59,7 @@ describe('reconcile-rendered task', () => {
         rendered_skill_path TEXT,
         rendered_raw_sha256 TEXT,
         last_synced_at INTEGER,
+        sync_status TEXT,
         PRIMARY KEY (owner, repo, name)
       );
     `)
@@ -73,7 +74,7 @@ describe('reconcile-rendered task', () => {
         ('acme', 'needs-render', NULL, NULL),
         ('acme', 'too-large', NULL, 900000),
         ('acme', 'broken', 900000, NULL);
-      INSERT INTO skills VALUES
+      INSERT INTO skills (owner, repo, name, rendered_status, rendered_skill_path, rendered_raw_sha256, last_synced_at) VALUES
         ('acme', 'needs-render', 'one', 'failed', NULL, NULL, 100),
         ('acme', 'too-large', 'one', 'failed', NULL, NULL, 100),
         ('acme', 'broken', 'one', 'failed', NULL, NULL, 100);

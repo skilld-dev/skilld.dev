@@ -63,6 +63,7 @@ describe('auto-indexing a repository the registry does not know', () => {
     sqlite.exec(`
       CREATE TABLE repos (owner TEXT NOT NULL, repo TEXT NOT NULL, PRIMARY KEY (owner, repo));
       CREATE TABLE discovery_candidates (owner TEXT NOT NULL, repo TEXT NOT NULL, PRIMARY KEY (owner, repo));
+      CREATE TABLE skills (owner TEXT NOT NULL, repo TEXT NOT NULL, name TEXT NOT NULL, sync_status TEXT);
       CREATE TABLE auto_index_rate_limits (
         bucket TEXT PRIMARY KEY,
         window_start INTEGER NOT NULL,
@@ -112,6 +113,52 @@ describe('auto-indexing a repository the registry does not know', () => {
     expect(getRepo).not.toHaveBeenCalled()
     expect(enqueue).not.toHaveBeenCalled()
     expect(sqlite.prepare(`SELECT COUNT(*) AS n FROM auto_index_rate_limits`).get()).toEqual({ n: 0 })
+  })
+
+  // harlan-zw/nuxt-ai-ready held only test fixtures, so sync retired every row.
+  // When its real Skill lands, a page view must be enough to pick it up.
+  it('re-checks a known repository whose every Skill row is retired', async () => {
+    sqlite.exec(`
+      INSERT INTO repos (owner, repo) VALUES ('harlan-zw', 'nuxt-ai-ready');
+      INSERT INTO discovery_candidates (owner, repo) VALUES ('harlan-zw', 'nuxt-ai-ready');
+      INSERT INTO skills VALUES
+        ('harlan-zw', 'nuxt-ai-ready', 'seo-audit', 'path_missing'),
+        ('harlan-zw', 'nuxt-ai-ready', 'site-review', 'path_missing');
+    `)
+    getRepo = vi.fn(async () => ({
+      status: 200,
+      data: repoMeta({ name: 'nuxt-ai-ready', full_name: 'harlan-zw/nuxt-ai-ready', owner: { login: 'harlan-zw' } }),
+      rateLimit: null,
+    }))
+
+    const outcome = await autoIndexMissingRepository(makeDeps(), {
+      owner: 'harlan-zw',
+      repo: 'nuxt-ai-ready',
+    })
+
+    expect(outcome).toMatchObject({ _tag: 'queued', owner: 'harlan-zw', repo: 'nuxt-ai-ready' })
+    expect(enqueue).toHaveBeenCalledWith({}, {
+      operation: 'submit',
+      owner: 'harlan-zw',
+      repo: 'nuxt-ai-ready',
+    })
+  })
+
+  it('leaves a repository with one live Skill row alone', async () => {
+    sqlite.exec(`
+      INSERT INTO repos (owner, repo) VALUES ('skilld-dev', 'vue-ecosystem-skills');
+      INSERT INTO skills VALUES
+        ('skilld-dev', 'vue-ecosystem-skills', 'gone', 'path_missing'),
+        ('skilld-dev', 'vue-ecosystem-skills', 'live', 'ok');
+    `)
+
+    const outcome = await autoIndexMissingRepository(makeDeps(), {
+      owner: 'skilld-dev',
+      repo: 'vue-ecosystem-skills',
+    })
+
+    expect(outcome).toMatchObject({ _tag: 'skipped', reason: 'already_indexed' })
+    expect(getRepo).not.toHaveBeenCalled()
   })
 
   it('leaves a repository the discovery ledger already tracks alone', async () => {

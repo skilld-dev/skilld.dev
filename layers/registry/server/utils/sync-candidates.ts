@@ -34,6 +34,7 @@ export const SUBSCRIBED_SYNC_CANDIDATES_SQL = `
     AND EXISTS (
       SELECT 1 FROM skills s
       WHERE s.owner = r.owner AND s.repo = r.repo
+        AND COALESCE(s.sync_status, '') != 'path_missing'
     )
   GROUP BY r.owner, r.repo, r.repo_meta_synced_at, dc.owner_verified
   ORDER BY r.repo_meta_synced_at IS NULL DESC, r.repo_meta_synced_at ASC
@@ -44,6 +45,8 @@ export const SUBSCRIBED_SYNC_CANDIDATES_SQL = `
  * every repo every hour and sorted on skills.last_synced_at, which unchanged
  * repos never advanced; the same cold rows could therefore stay at the front
  * forever. EXISTS keeps empty/retired repo rows out without grouping skills.
+ * A repo whose every row is `path_missing` has no Skills left: its tree was
+ * readable but held none, so it is not broken and not refreshed either.
  * Repos with a recorded too-large tree verdict stay out for the same reason
  * as the subscribed sweep above.
  */
@@ -59,6 +62,7 @@ export const GENERAL_SYNC_CANDIDATES_SQL = `
     AND EXISTS (
       SELECT 1 FROM skills s
       WHERE s.owner = r.owner AND s.repo = r.repo
+        AND COALESCE(s.sync_status, '') != 'path_missing'
     )
   ORDER BY r.repo_meta_synced_at IS NULL DESC, r.repo_meta_synced_at ASC
   LIMIT ?2`
@@ -78,6 +82,7 @@ export const RECONCILE_RENDER_CANDIDATES_SQL = `
   JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
   WHERE (s.rendered_status IS NULL OR s.rendered_status != 'ok' OR s.rendered_skill_path IS NULL OR s.rendered_raw_sha256 IS NULL)
     AND (s.last_synced_at IS NULL OR s.last_synced_at < ?1)
+    AND COALESCE(s.sync_status, '') != 'path_missing'
     AND r.broken_since IS NULL
     AND r.tree_truncated_at IS NULL
   ORDER BY s.last_synced_at IS NULL DESC, s.last_synced_at ASC
