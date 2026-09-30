@@ -19,7 +19,8 @@ interface PageRow {
  * the registry does not hold it.
  *
  * A non-null answer means the Skill page returns 200: the row exists, and the
- * detail route reads the same `skills` primary key. The path comes from
+ * detail route reads the same `skills` primary key. A row whose source is gone
+ * answers null, because its page answers 410. The path comes from
  * `canonicalRepoSkillPath`, so a single-Skill repository answers with its hub
  * instead of the route that 301s there.
  *
@@ -40,7 +41,7 @@ export async function findSkillPagePath(
         (SELECT COUNT(*) FROM skills c
           WHERE c.owner = s.owner AND c.repo = s.repo AND c.source_resolved = 1) AS repo_skill_count
       FROM skills s
-      WHERE s.owner = ? AND s.repo = ?
+      WHERE s.owner = ? AND s.repo = ? AND s.source_resolved = 1
         AND (s.rendered_skill_path = ? OR (s.rendered_skill_path IS NULL AND s.name = ?))
       ORDER BY s.rendered_skill_path IS NULL
       LIMIT 1`)

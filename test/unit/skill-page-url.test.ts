@@ -56,6 +56,20 @@ describe('findSkillPagePath', () => {
     expect(await findSkillPagePath(db().db, { owner: 'acme', repository: 'pair', skillPath: 'other' })).toBeNull()
     expect(await findSkillPagePath(db().db, { owner: 'nobody', repository: 'none', skillPath: 'x' })).toBeNull()
   })
+
+  it('returns null for a Skill whose source is gone', async () => {
+    addSkill('acme', 'pair', 'a', 'a/SKILL.md', 0)
+    addSkill('acme', 'pair', 'b', 'b/SKILL.md')
+    addSkill('acme', 'pair', 'c', 'c/SKILL.md')
+    expect(await findSkillPagePath(db().db, { owner: 'acme', repository: 'pair', skillPath: 'a' })).toBeNull()
+  })
+
+  it('returns null, not the hub, when the only other Skill in the repository is live', async () => {
+    addSkill('nuxt', 'scripts', 'old', '.claude/skills/old/SKILL.md', 0)
+    addSkill('nuxt', 'scripts', 'live', 'skills/live/SKILL.md')
+    expect(await findSkillPagePath(db().db, { owner: 'nuxt', repository: 'scripts', skillPath: '.claude/skills/old' }))
+      .toBeNull()
+  })
 })
 
 const readyRow = {
