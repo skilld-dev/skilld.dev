@@ -12,7 +12,10 @@
     "noEmit": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "#shared/*": ["../../shared/*"]
+    }
   },
   "include": [
     "src/**/*.ts",
