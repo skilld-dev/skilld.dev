@@ -49,3 +49,18 @@ test('an agent that asks for Markdown is sent to the .md page', async ({ request
   expect(response.headers().location).toBe('/skills/trending.md')
   expect(response.headers().vary).toBe('Accept, Sec-Fetch-Dest')
 })
+
+test('the trending board asks the edge to keep only the anonymous render', async ({ request }) => {
+  const navigation = { 'accept': BROWSER_ACCEPT, 'sec-fetch-dest': 'document' }
+  const anonymous = await request.get('/skills/trending?range=month', { headers: navigation })
+  const withCookie = await request.get('/skills/trending?range=month', {
+    headers: { ...navigation, cookie: 'nuxt-session=not-a-session' },
+  })
+
+  expect(anonymous.headers()['cloudflare-cdn-cache-control']).toBe('public, max-age=60, stale-while-revalidate=3600')
+  // nuxt-skew-protection drops its version cookie from a document a shared cache may keep.
+  expect(anonymous.headers()['set-cookie']).toBeUndefined()
+  // A request with credentials is never stored, whatever the route asks for.
+  expect(withCookie.headers()['cloudflare-cdn-cache-control']).toBe('no-store')
+  expect(await withCookie.text()).toContain('auth:{loadStrategy:"client-only"}')
+})

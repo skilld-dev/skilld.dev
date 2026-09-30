@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { edgeCache } from '@harlan-zw/nuxt-cloudflare/cache'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
 import pkg from './package.json'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
@@ -55,6 +56,12 @@ export default defineNuxtConfig({
   modules: [
     '@harlan-zw/nuxt-checkin',
     '@harlan-zw/nuxt-cf-jobs',
+    // Before nuxt-cloudflare, on purpose. Both check each HTML response in
+    // `beforeResponse`, in module order. nuxt-skew-protection has to drop its
+    // `__nkpv` version cookie from a document a shared cache may keep before
+    // nuxt-cloudflare looks, or nuxt-cloudflare sees the cookie and marks every
+    // browser navigation `no-store`, so only crawlers would ever fill the cache.
+    'nuxt-skew-protection',
     '@harlan-zw/nuxt-cloudflare',
     '@harlan-zw/nuxt-dx',
     '@harlan-zw/nuxt-use-query',
@@ -74,7 +81,6 @@ export default defineNuxtConfig({
     '@vueuse/nuxt',
     'nuxt-auth-utils',
     '@sentry/nuxt/module',
-    'nuxt-skew-protection',
   ],
 
   nuxtCloudflare: {
@@ -200,13 +206,11 @@ export default defineNuxtConfig({
     // A guarantee a cache needs to reason about has to be denominated in the
     // same unit the cache is, which is seconds.
     //
-    // `htmlCache` is deliberately not on yet. It would publish the retention
-    // guarantee to `@harlan-zw/nuxt-cloudflare` and drop the version cookie
-    // from any document a shared cache was asked to keep, but no HTML route
-    // here asks: `app.vue` calls `useAuth()`, so the rendered shell varies by
-    // sign-in state, and shared caches key on the URL without varying on
-    // Cookie. Making the shell user-independent comes first; only then do the
-    // `/gh/**` pages earn a rule.
+    // The module publishes its retention window (36000s) to
+    // `@harlan-zw/nuxt-cloudflare`, which honours an HTML cache rule up to it,
+    // and drops the version cookie from any document a shared cache may keep.
+    // The shell renders signed out for everyone, so `/skills/trending` has the
+    // first rule. Skill, repo and category pages follow once it holds.
   },
 
   scripts: {
@@ -476,6 +480,20 @@ export default defineNuxtConfig({
       },
     } as any,
     '/api/tags/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    // The first HTML in Workers Cache, proved here before skill, repo and
+    // category pages follow. It is safe because the server renders every public
+    // page signed out and negotiates on Accept and Sec-Fetch-Dest only, both
+    // named in Vary. The cache key includes the query string, so each `?range=`
+    // board is its own entry. Browsers still get no-store and ask the edge.
+    //
+    // 60s fresh: the board's feed already caches for 300s, so this adds at most
+    // a minute. 3600s stale: the board's inputs move every 15 minutes at most
+    // (X mentions) and hourly (social mentions, engagement), so a quiet colo
+    // may serve one copy up to an hour old while it refreshes in the
+    // background, rather than render on every visit. The 3660s total sits well
+    // inside the 36000s nuxt-skew-protection keeps old chunks for.
+    // `scripts/check-edge-cache.ts` proves it after each deploy.
+    '/skills/trending': edgeCache({ maxAge: 60, staleWhileRevalidate: 3600 }),
     // Raw markdown and the typeahead index deliberately keep browser caching
     // too: both are large, identical for everyone, and only change when the
     // registry does.
