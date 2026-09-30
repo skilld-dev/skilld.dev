@@ -9,6 +9,7 @@ import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillPageState } from '../utils/skill-page-state'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
+import { resolveViewerLink } from '../utils/skill-viewer-link'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 import SkillStarTrend from './_SkillStarTrend.vue'
@@ -303,10 +304,17 @@ interface StarHistoryResponse {
   starHistory: { _tag: 'ready', approximate: boolean, points: { at: number, value: number }[] } | { _tag: string }
 }
 // Browser only: the trend is decoration, so crawlers never pay a D1 read for it.
-const { data: starHistoryData } = useLazyFetch<StarHistoryResponse>(
+// The trend shows from lg up. Below that it would wrap the byline when it
+// arrives, so smaller screens never fetch it.
+const showStarTrend = useMediaQuery('(min-width: 1024px)')
+const { data: starHistoryData, execute: loadStarHistory } = useLazyFetch<StarHistoryResponse>(
   () => `/api/repos/${owner.value}/${repo.value}/history`,
-  { server: false, watch: [owner, repo] },
+  { server: false, immediate: false, watch: false },
 )
+watch([showStarTrend, owner, repo], ([show]) => {
+  if (show)
+    void loadStarHistory()
+}, { immediate: true })
 const starTrend = computed(() => {
   const history = starHistoryData.value?.starHistory
   if (!history || history._tag !== 'ready' || !('points' in history) || history.points.length < 2)
@@ -639,6 +647,11 @@ watch(
 // `marked` render via /api/skill-asset so every previewed document goes
 // through the same renderer as the SSR'd root SKILL.md.
 const viewerSection = useTemplateRef<HTMLElement>('viewerSection')
+const filesPopoverOpen = ref(false)
+
+// The site header and the sticky viewer bar cover the top 108px, so focus and
+// anchor jumps would land underneath them.
+useHead({ htmlAttrs: { style: 'scroll-padding-top: 7rem' } })
 
 // A file opened from deep inside a long document would otherwise start
 // mid-page. Only jump when the viewer top has scrolled out of view.
@@ -683,44 +696,19 @@ async function resolveAndOpen(path: string) {
   }
 }
 
-function resolveRelativePath(baseDir: string, href: string): string | null {
-  let target = href.replace(/^\.\//, '')
-  if (target.startsWith('/')) {
-    target = target.slice(1)
-    return target.includes('..') ? null : target
-  }
-  const segments = baseDir ? baseDir.split('/').filter(Boolean) : []
-  for (const part of target.split('/')) {
-    if (part === '..') {
-      if (!segments.length)
-        return null
-      segments.pop()
-    }
-    else if (part && part !== '.') {
-      segments.push(part)
-    }
-  }
-  return segments.join('/')
-}
-
-// Intercept clicks on relative `.md` links inside the rendered preview so we
-// can swap the doc in place instead of leaving the page.
+// Intercept clicks on Markdown links inside the rendered preview so we can
+// swap the doc in place instead of leaving the page.
 function onPreviewClick(e: MouseEvent) {
-  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+  if (!data.value || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
     return
   const anchor = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
   if (!anchor)
     return
-  const href = anchor.getAttribute('href') ?? ''
-  if (!href || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:\/\//i.test(href))
-    return
-  const cleanHref = href.split('#')[0]?.split('?')[0] ?? ''
-  if (!cleanHref.toLowerCase().endsWith('.md') && !cleanHref.toLowerCase().endsWith('.markdown'))
-    return
-  const baseDir = activeDocPath.value.includes('/')
-    ? activeDocPath.value.slice(0, activeDocPath.value.lastIndexOf('/'))
-    : ''
-  const resolved = resolveRelativePath(baseDir, cleanHref)
+  const resolved = resolveViewerLink({
+    href: anchor.getAttribute('href') ?? '',
+    activeDocPath: activeDocPath.value,
+    fileRoutePrefix: `${repoSkillPath(data.value.owner, data.value.repo, data.value.name)}/-/`,
+  })
   if (!resolved)
     return
   e.preventDefault()
@@ -757,6 +745,19 @@ watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
 
 const skillMdBytes = computed(() => data.value?.raw ? new TextEncoder().encode(data.value.raw).byteLength : 0)
 const viewerCrumbs = computed(() => currentDocLabel.value.split('/'))
+
+const contextStages = computed(() => {
+  const cost = contextCost.value
+  if (!cost)
+    return []
+  const stages = [
+    { label: 'Always', tokens: formatTokenCount(cost.tokens.metadata), detail: 'The name and description. They load in every session, so your agent knows the Skill exists.' },
+    { label: 'When used', tokens: formatTokenCount(cost.tokens.instructions), detail: 'The SKILL.md body. It loads when a task matches the description.' },
+  ]
+  if (cost.tokens.resources)
+    stages.push({ label: 'On demand', tokens: formatTokenCount(cost.tokens.resources), detail: 'Markdown and data files. Your agent reads one only when SKILL.md points to it. Scripts run without entering context.' })
+  return stages
+})
 const viewerFileSize = computed(() => {
   if (!activeDocPath.value)
     return skillMdBytes.value || null
@@ -772,8 +773,8 @@ const isNonMarkdownDoc = computed(() => {
   return !lower.endsWith('.md') && !lower.endsWith('.markdown')
 })
 
-// Non-md files have no Preview tab — pin to Raw whenever the active doc is
-// not markdown, and snap back to Preview when returning to a markdown doc.
+// Non-Markdown files have no rendered view, so they always show source. Going
+// back to a Markdown file shows it rendered again.
 watch(isNonMarkdownDoc, (nonMd) => {
   contentView.value = nonMd ? 'markdown' : 'preview'
 })
@@ -1216,8 +1217,8 @@ useHead(computed(() => ({
                   :href="data.provenance.sourceCommitUrl"
                   target="_blank"
                   rel="noopener"
-                  class="font-mono text-sm text-primary tabular-nums hover:underline underline-offset-2"
-                  :title="`The Agent reads SKILL.md at commit ${shortSha}`"
+                  class="skill-sha font-mono text-sm tabular-nums hover:underline underline-offset-2"
+                  :title="`Your agent reads SKILL.md at commit ${shortSha}`"
                 >@{{ shortSha }}</a>
                 <UBadge
                   v-if="data.tier !== 'community'"
@@ -1274,10 +1275,10 @@ useHead(computed(() => ({
               </div>
             </div>
             <SkillStarTrend
-              v-if="starTrend"
+              v-if="showStarTrend && starTrend"
               :points="starTrend.points"
               :approximate="starTrend.approximate"
-              class="ml-auto hidden shrink-0 md:flex"
+              class="ml-auto hidden shrink-0 lg:flex"
             />
           </div>
           <p
@@ -1361,7 +1362,7 @@ useHead(computed(() => ({
               </span>
             </li>
             <li v-if="contextCost">
-              <span class="skill-chip">
+              <span class="skill-chip" title="Total size of every file in the Skill folder">
                 <UIcon name="i-lucide-package" class="size-3.5" aria-hidden="true" />
                 {{ formatByteSize(contextCost.totalBytes) }}
               </span>
@@ -1375,7 +1376,7 @@ useHead(computed(() => ({
                 {{ licenseLabel }}
               </span>
             </li>
-            <li>
+            <li v-if="data.provenance?.modifiedAt || data.pushedAt">
               <span
                 class="skill-chip"
                 :title="formatDateTitle(skillUpdatedDate)"
@@ -1413,45 +1414,60 @@ useHead(computed(() => ({
             v-if="contextCost"
             class="flex flex-wrap items-center gap-x-2 gap-y-1.5"
           >
-            <span class="skill-context-label">
+            <span
+              class="skill-context-label"
+              aria-hidden="true"
+            >
               <UIcon
                 name="i-lucide-layers"
                 class="size-3.5"
-                aria-hidden="true"
               />
               tokens
             </span>
-            <div
-              class="skill-context"
-              role="group"
-              aria-label="Context cost in tokens"
-            >
-              <UiTooltip
-                title="Always loaded"
-                description="The name and description. Your agent carries these in every session so it knows the Skill exists."
+            <UPopover :content="{ align: 'start', sideOffset: 6 }">
+              <button
+                type="button"
+                class="skill-context"
+                :aria-label="`Tokens: ${contextStages.map(stage => `${stage.tokens} ${stage.label.toLowerCase()}`).join(', ')}. Show how your agent loads this Skill.`"
               >
                 <span class="skill-context-stage">
                   <strong>{{ formatTokenCount(contextCost.tokens.metadata) }}</strong> always
                 </span>
-              </UiTooltip>
-              <UiTooltip
-                title="When used"
-                description="The SKILL.md body. Your agent loads it when a task matches the description."
-              >
                 <span class="skill-context-stage">
                   <strong>{{ formatTokenCount(contextCost.tokens.instructions) }}</strong> when used
                 </span>
-              </UiTooltip>
-              <UiTooltip
-                v-if="contextCost.tokens.resources"
-                title="On demand"
-                description="Markdown and data files. Your agent reads one only when SKILL.md sends it there. Scripts run without entering context."
-              >
-                <span class="skill-context-stage">
+                <span
+                  v-if="contextCost.tokens.resources"
+                  class="skill-context-stage"
+                >
                   <strong>{{ formatTokenCount(contextCost.tokens.resources) }}</strong> on demand
                 </span>
-              </UiTooltip>
-            </div>
+              </button>
+              <template #content>
+                <div class="w-80 max-w-[calc(100vw-2rem)] space-y-3 p-3 font-mono text-xs">
+                  <p class="text-default">
+                    How your agent loads this Skill
+                  </p>
+                  <dl class="space-y-2.5">
+                    <div
+                      v-for="stage in contextStages"
+                      :key="stage.label"
+                      class="grid grid-cols-[4rem_1fr] gap-x-3"
+                    >
+                      <dt class="text-default tabular-nums">
+                        {{ stage.tokens }}
+                      </dt>
+                      <dd class="text-muted">
+                        <span class="text-default">{{ stage.label }}.</span> {{ stage.detail }}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p class="text-muted">
+                    Estimated at 4 bytes per token.
+                  </p>
+                </div>
+              </template>
+            </UPopover>
           </div>
         </div>
       </template>
@@ -1482,7 +1498,7 @@ useHead(computed(() => ({
           <section
             v-if="data.contentHtml"
             ref="viewerSection"
-            class="skill-content-section scroll-mt-20"
+            class="scroll-mt-20"
             aria-labelledby="content-heading"
           >
             <div class="skill-viewer-bar">
@@ -1497,7 +1513,7 @@ useHead(computed(() => ({
               >
                 <button
                   type="button"
-                  class="shrink-0 text-muted transition-colors hover:text-default"
+                  class="inline-flex min-h-6 shrink-0 items-center text-muted transition-colors hover:text-default"
                   :aria-label="`Open SKILL.md of ${data.name}`"
                   @click="() => { void resolveAndOpen('SKILL.md') }"
                 >
@@ -1532,11 +1548,11 @@ useHead(computed(() => ({
                 @click="contentView = contentView === 'preview' ? 'markdown' : 'preview'"
               >
                 <UIcon
-                  :name="contentView === 'preview' ? 'i-lucide-code' : 'i-lucide-eye'"
+                  name="i-lucide-code"
                   class="size-3.5"
                   aria-hidden="true"
                 />
-                {{ contentView === 'preview' ? 'source' : 'preview' }}
+                source
               </button>
               <button
                 v-if="currentRaw"
@@ -1568,6 +1584,7 @@ useHead(computed(() => ({
               </a>
               <UPopover
                 v-if="contextCost"
+                v-model:open="filesPopoverOpen"
                 :content="{ align: 'end', sideOffset: 6 }"
               >
                 <button
@@ -1594,7 +1611,7 @@ useHead(computed(() => ({
                       :skill-path="data.skillPath"
                       :skill-md-size="skillMdBytes"
                       :active-path="activeDocPath"
-                      @select="(p) => { void resolveAndOpen(p) }"
+                      @select="(p) => { filesPopoverOpen = false; void resolveAndOpen(p) }"
                     />
                   </div>
                 </template>
@@ -2355,112 +2372,125 @@ useHead(computed(() => ({
 </template>
 
 <style scoped>
-.skill-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  min-height: 1.5rem;
-  padding: 0.125rem 0.375rem;
-  border: 1px solid var(--ui-border);
-  border-radius: 4px;
-  background: color-mix(in oklch, var(--ui-bg-muted) 50%, transparent);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-text-muted);
-  white-space: nowrap;
-}
-.skill-chip-link {
-  transition: color 200ms, border-color 200ms;
-}
-.skill-chip-link:hover {
-  color: var(--ui-text);
-  border-color: var(--ui-border-accented);
-}
-.skill-context {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  border: 1px solid color-mix(in oklch, var(--ui-primary) 28%, transparent);
-  border-radius: 4px;
-  background: color-mix(in oklch, var(--ui-primary) 6%, transparent);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-text-muted);
-}
-.skill-context-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--ui-primary);
-}
-.skill-context-stage {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  min-height: 1.5rem;
-  padding: 0.125rem 0.5rem;
-  white-space: nowrap;
-}
-.skill-context-stage + .skill-context-stage {
-  border-left: 1px solid color-mix(in oklch, var(--ui-primary) 18%, transparent);
-  cursor: help;
-}
-.skill-context-stage strong {
-  font-weight: 500;
-  color: var(--ui-text);
-}
+/* Components layer, so Tailwind utilities on the same element (a tone colour,
+   `hidden`) still win. Unlayered scoped CSS would beat every utility. */
+@layer components {
+  .skill-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 1.5rem;
+    padding: 0.125rem 0.375rem;
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    background: color-mix(in oklch, var(--ui-bg-muted) 50%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ui-text-muted);
+    white-space: nowrap;
+  }
+  .skill-chip-link {
+    transition: color 200ms, border-color 200ms;
+  }
+  .skill-chip-link:hover {
+    color: var(--ui-text);
+    border-color: var(--ui-border-accented);
+  }
+  .skill-context {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    border: 1px solid color-mix(in oklch, var(--ui-primary) 28%, transparent);
+    border-radius: 4px;
+    background: color-mix(in oklch, var(--ui-primary) 6%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ui-text-muted);
+    cursor: pointer;
+    transition: border-color 200ms, background-color 200ms;
+  }
+  .skill-context:hover,
+  .skill-context[aria-expanded='true'] {
+    border-color: color-mix(in oklch, var(--ui-primary) 50%, transparent);
+    background: color-mix(in oklch, var(--ui-primary) 10%, transparent);
+  }
+  .skill-context-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--syntax-arg);
+  }
+  .skill-sha {
+    color: var(--syntax-arg);
+  }
+  .skill-context-stage {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 1.5rem;
+    padding: 0.125rem 0.5rem;
+    white-space: nowrap;
+  }
+  .skill-context-stage + .skill-context-stage {
+    border-left: 1px solid color-mix(in oklch, var(--ui-primary) 18%, transparent);
+  }
+  .skill-context-stage strong {
+    font-weight: 500;
+    color: var(--ui-text);
+  }
 
-.skill-viewer-bar {
-  position: sticky;
-  top: 4rem;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
-  border: 1px solid var(--ui-border);
-  border-radius: 8px 8px 0 0;
-  background: var(--ui-bg);
-}
-.skill-viewer-action {
-  flex-shrink: 0;
-  align-items: center;
-  gap: 0.25rem;
-  min-height: 2rem;
-  padding: 0 0.5rem;
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--ui-text-muted);
-  transition: color 200ms, background-color 200ms;
-}
-.skill-viewer-action:hover,
-.skill-viewer-action[aria-pressed='true'] {
-  color: var(--ui-text);
-  background: var(--ui-bg-muted);
-}
-.skill-viewer-body {
-  border: 1px solid var(--ui-border);
-  border-top: 0;
-  border-radius: 0 0 8px 8px;
-  overflow: hidden;
-}
-/* Prose source reads top to bottom; a sideways scrollbar at the end of a long
-   file is out of reach. Code keeps its line breaks and scrolls instead. */
-.skill-markdown-wrap :deep(pre) {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.skill-viewer-body > .skill-markdown :deep(.shiki),
-.skill-viewer-body > .skill-markdown :deep(pre) {
-  border: 0;
-  border-radius: 0;
-  margin: 0;
+  .skill-viewer-bar {
+    position: sticky;
+    top: 4rem;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+    border: 1px solid var(--ui-border);
+    border-radius: 8px 8px 0 0;
+    background: var(--ui-bg);
+  }
+  .skill-viewer-action {
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 2rem;
+    padding: 0 0.5rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--ui-text-muted);
+    transition: color 200ms, background-color 200ms;
+  }
+  .skill-viewer-action:hover,
+  .skill-viewer-action[aria-pressed='true'] {
+    color: var(--ui-text);
+    background: var(--ui-bg-muted);
+  }
+  .skill-viewer-body {
+    border: 1px solid var(--ui-border);
+    border-top: 0;
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+  }
+  /* Prose source reads top to bottom; a sideways scrollbar at the end of a long
+     file is out of reach. Code keeps its line breaks and scrolls instead. */
+  .skill-markdown-wrap :deep(pre) {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .skill-viewer-body > .skill-markdown :deep(.shiki),
+  .skill-viewer-body > .skill-markdown :deep(pre) {
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+  }
 }
 
 .skill-mdxg {

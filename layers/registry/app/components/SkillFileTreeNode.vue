@@ -224,7 +224,7 @@ function onInlineClick(event: MouseEvent) {
   flex-shrink: 0;
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-text-dimmed);
+  color: var(--ui-text-muted);
 }
 .tree-label {
   min-width: 0;

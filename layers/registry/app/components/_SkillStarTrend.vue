@@ -53,6 +53,7 @@ const focusIndex = computed(() => hovered.value ?? visible.value.length - 1)
 const focusPoint = computed(() => visible.value[focusIndex.value] ?? null)
 const focusPlot = computed(() => plotted.value[focusIndex.value] ?? null)
 const gained = computed(() => (visible.value.at(-1)?.value ?? 0) - (visible.value[0]?.value ?? 0))
+const gainedLabel = computed(() => `${gained.value >= 0 ? '+' : '−'}${Math.abs(gained.value).toLocaleString()}`)
 
 function onPointerMove(event: PointerEvent) {
   const box = (event.currentTarget as SVGElement).getBoundingClientRect()
@@ -71,7 +72,8 @@ const summary = computed(() => {
   if (!first || !last)
     return 'Repository stars'
   const qualification = approximate ? ' Approximate trend; the latest total is exact.' : ''
-  return `Repository stars went from ${first.value.toLocaleString()} to ${last.value.toLocaleString()} in the last ${range.value}.${qualification}`
+  // A short history falls back to its last two points, so name the real dates.
+  return `Repository stars went from ${first.value.toLocaleString()} on ${dateFormatter.format(first.at * 1000)} to ${last.value.toLocaleString()} on ${dateFormatter.format(last.at * 1000)}.${qualification}`
 })
 </script>
 
@@ -116,17 +118,20 @@ const summary = computed(() => {
       <span
         v-if="focusPoint"
         class="whitespace-nowrap text-default"
-        aria-live="polite"
       >
         {{ focusPoint.value.toLocaleString() }}
-        <span class="text-muted">{{ hovered === null ? `stars +${gained.toLocaleString()}` : `stars ${dateFormatter.format(focusPoint.at * 1000)}` }}</span>
+        <span class="text-muted">{{ hovered === null ? `stars ${gainedLabel}` : `stars ${dateFormatter.format(focusPoint.at * 1000)}` }}</span>
       </span>
-      <span class="flex shrink-0 gap-2">
+      <span
+        class="flex shrink-0 gap-1"
+        role="group"
+        aria-label="Star trend range"
+      >
         <button
           v-for="(_, key) in RANGES"
           :key="key"
           type="button"
-          class="transition-colors"
+          class="min-h-6 px-1 transition-colors"
           :class="range === key ? 'text-default' : 'text-muted hover:text-default'"
           :aria-pressed="range === key"
           @click="range = key"
