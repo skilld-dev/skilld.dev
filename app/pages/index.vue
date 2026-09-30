@@ -7,6 +7,7 @@ import type { InstallTarget } from '../composables/useInstallCopy'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
+import { TRENDING_RANGES } from '#shared/trending-range'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
@@ -467,15 +468,18 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               {{ trendingSectionRepos.length }} {{ trendingSectionRepos.length === 1 ? 'repository' : 'repositories' }}
             </p>
           </div>
-          <UButton
-            to="/skills/trending"
-            label="See all"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            trailing-icon="i-lucide-arrow-right"
-            class="min-h-11"
-          />
+          <nav class="flex flex-wrap gap-1" aria-label="Trending boards">
+            <UButton
+              v-for="option in TRENDING_RANGES"
+              :key="option.id"
+              :to="option.path"
+              :label="option.label"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="min-h-11"
+            />
+          </nav>
         </header>
 
         <div v-if="trendingStatus === 'pending'" class="mt-8 grid gap-4 sm:grid-cols-2" aria-busy="true">

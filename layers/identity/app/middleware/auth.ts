@@ -1,4 +1,5 @@
-export default defineNuxtRouteMiddleware((to) => {
+export default defineNuxtRouteMiddleware(async (to) => {
+  await loadSession()
   const { loggedIn } = useUserSession()
   if (!loggedIn.value) {
     const returnTo = to.fullPath

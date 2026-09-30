@@ -1,3 +1,5 @@
+import { pageRobots } from '../utils/page-admissions'
+
 export interface MarketingArticleInput {
   collection: 'learn' | 'pages' | 'agents'
   /** Content path inside the collection, for example `/learn/private-repositories`. */
@@ -33,7 +35,7 @@ export async function useMarketingArticle(input: MarketingArticleInput) {
       ogTitle: title,
       ogDescription: description,
       ogUrl: canonicalUrl,
-      robots: 'index,follow',
+      robots: pageRobots(input.canonicalPath),
     })
     useHead({
       link: [{ rel: 'canonical', href: canonicalUrl }],

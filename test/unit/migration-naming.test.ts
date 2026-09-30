@@ -65,6 +65,27 @@ describe('migration naming', () => {
     })
   })
 
+  it('tolerates the numbers reserved for open pull requests', () => {
+    const result = verifyMigrationNaming([
+      '0127_clear_broken_zero_skill_repos.sql',
+      '0130_retire_stale_collections.sql',
+    ])
+
+    expect(result).toEqual({ _tag: 'ok' })
+  })
+
+  it('still reports a gap at a number nobody reserved', () => {
+    const result = verifyMigrationNaming([
+      '0130_retire_stale_collections.sql',
+      '0132_third.sql',
+    ])
+
+    expect(result).toEqual({
+      _tag: 'fail',
+      issues: [{ _tag: 'sequence_gap', missing: ['0131'] }],
+    })
+  })
+
   it('rejects a name that does not match the pattern', () => {
     const result = verifyMigrationNaming([
       '0001_first.sql',

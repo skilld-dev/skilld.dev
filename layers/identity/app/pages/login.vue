@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { parseReturnTo } from '#shared/return-to'
 
+definePageMeta({ middleware: ['session'] })
+
 const route = useRoute()
 const { loginUrl } = useAuth()
 const { loggedIn } = useUserSession()

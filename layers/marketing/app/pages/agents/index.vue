@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { publishedAgentPages } from '../../utils/agent-pages'
+import { pageRobots } from '../../utils/page-admissions'
 
 const agents = publishedAgentPages()
 
@@ -13,7 +14,7 @@ useSeoMeta({
   ogTitle: title,
   ogDescription: description,
   ogUrl: canonicalUrl,
-  robots: 'index,follow',
+  robots: pageRobots('/agents'),
 })
 useHead({ link: [{ rel: 'canonical', href: canonicalUrl }] })
 defineOgImage('Page.takumi', { title: 'Skills by Agent', description }, { alt: title })

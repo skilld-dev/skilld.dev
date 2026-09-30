@@ -8,7 +8,7 @@ const { owner, repo, name, count = 0, variant = 'detail' } = defineProps<{
 }>()
 
 const route = useRoute()
-const { isAuthenticated, user, loginUrl } = useAuth()
+const { state, loginUrl } = useAuth()
 const { isLiked, isPending, likeCount, observeLikeCount, ensureLoaded, toggle } = useLikes()
 
 const skillRef = computed(() => ({ owner, repo, name }))
@@ -43,15 +43,24 @@ const nudgeDismissed = ref(true)
  * to send to.
  */
 const showNudge = computed(() =>
-  variant === 'detail' && liked.value && isAuthenticated.value && user.value?.onboarded === false && !nudgeDismissed.value,
+  variant === 'detail'
+  && liked.value
+  && state.value._tag === 'signed-in'
+  && state.value.user.onboarded === false
+  && !nudgeDismissed.value,
 )
 
 onMounted(() => {
   nudgeDismissed.value = sessionStorage.getItem(NUDGE_KEY) === '1'
-  // Detached on purpose: the heart renders immediately in its unliked state and
-  // fills in when the session-wide like set arrives.
-  void ensureLoaded()
 })
+
+// Detached on purpose: the heart renders in its unliked state and fills in when
+// the session-wide like set arrives. The session itself lands after hydration,
+// so this waits for it rather than for mount.
+watch(() => state.value._tag === 'signed-in', (signedIn) => {
+  if (signedIn)
+    void ensureLoaded()
+}, { immediate: true })
 
 function dismissNudge() {
   nudgeDismissed.value = true
@@ -67,9 +76,8 @@ async function onToggle() {
 /**
  * On a card the heart follows the copy button's hover reveal, except once it is
  * liked — a liked skill has to be legible at a glance across a grid, which is
- * the whole point of putting hearts on cards. Safe to compute without a mounted
- * guard because this component is client-only, so there is no SSR class to
- * mismatch against.
+ * the whole point of putting hearts on cards. The server and the first client
+ * frame both render the unliked heart, so the class matches through hydration.
  */
 const revealClass = computed(() => {
   if (variant !== 'card')
@@ -82,8 +90,27 @@ const revealClass = computed(() => {
 
 <template>
   <div :class="variant === 'detail' ? 'space-y-2' : ''">
+    <!--
+      Until the session is known the heart holds its place, disabled, so the
+      control never shifts and a signed-in visitor never sees the sign-in link.
+    -->
     <UButton
-      v-if="!isAuthenticated"
+      v-if="state._tag === 'pending'"
+      type="button"
+      size="xs"
+      color="neutral"
+      :variant="variant === 'detail' ? 'outline' : 'ghost'"
+      class="min-h-11 gap-1.5"
+      :class="revealClass"
+      disabled
+      :aria-label="`Like ${name}`"
+    >
+      <UIcon name="i-lucide-heart-plus" class="size-4" aria-hidden="true" />
+      <span class="tabular-nums">{{ displayCount }}</span>
+    </UButton>
+
+    <UButton
+      v-else-if="state._tag === 'anonymous'"
       :to="anonHref"
       external
       size="xs"

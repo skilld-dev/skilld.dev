@@ -16,11 +16,11 @@ Every installed Skill records one source status in `.skills/skilld-lock.yaml`. T
 
 - `verified`: skilld checked a skilld.dev Artifact and its attestation.
 - `local`: the Skill came from a local directory or a bundled skilld-maintained Skill.
-- `unverified`: direct mode fetched the Skill from public GitHub.
+- `unverified`: direct mode fetched the Skill from public [GitHub](https://github.com).
 
 `verified` describes provenance checks. It does not endorse the instructions inside a Skill.
 
-`skilld list` shows the status of each installed Skill. `skilld verify <skill>` runs the source check again.
+`skilld list` shows the status of each installed Skill. `skilld verify <skill>`{lang="html"} runs the source check again.
 
 ## What skilld checks
 

@@ -2,6 +2,7 @@ import type { EventHandler, EventHandlerRequest, H3Event } from 'h3'
 import type { z } from 'zod'
 import type { Platform } from './platform'
 import { getHeader } from 'h3'
+import { readUserSession } from './session-access'
 
 export const MAX_API_BODY_BYTES = 1024 * 1024
 
@@ -78,10 +79,10 @@ export function defineApiHandler<
       body = parsed.data as z.infer<S>
     }
 
-    const session = await getUserSession(event).catch(() => {
+    const session = await readUserSession(event).catch(() => {
       emitOperationalEvent(createWideEvent({ operation: 'api-session', outcome: 'failed' }))
       return null
-    }) as UserSession | null
+    })
     const bearerUser = session?.user ? null : await resolveBearerUser(event)
     const user = session?.user ?? bearerUser
 

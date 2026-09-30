@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { learnContentPath } from '../../utils/learn-content-path'
+import { pageRobots } from '../../utils/page-admissions'
 
 const route = useRoute()
 const slug = computed(() => {
@@ -29,7 +30,7 @@ useSeoMeta({
   // The /learn index is a 55-word card list (GOOGLE_RECOVERY.md thin-page
   // audit). Articles stay indexable; the index earns index back when it
   // carries real editorial content.
-  robots: () => slug.value ? 'index,follow' : 'noindex,follow',
+  robots: () => slug.value ? pageRobots(`/learn/${slug.value}`) : 'noindex,follow',
 })
 
 useHead({

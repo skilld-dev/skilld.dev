@@ -25,4 +25,14 @@ describe('trusted author indexing', () => {
       { loc: '/gh/mattpocock/skills', changefreq: 'weekly', lastmod: '1970-01-01T00:00:20.000Z' },
     ])
   })
+
+  it('leaves a renamed repository hub out of the sitemap, because the page renders Source not found', () => {
+    const locs = buildTrustedAuthorSitemapEntries([
+      { owner: 'hyf0', repo: 'vue-skills', skillCount: 5, updatedAt: 1, sourceOwner: 'vuejs-ai', sourceRepo: 'skills' },
+      { owner: 'antfu', repo: 'skills', skillCount: 4, updatedAt: 1, sourceOwner: 'ANTFU', sourceRepo: 'Skills' },
+    ]).map(entry => entry.loc)
+    expect(locs).not.toContain('/gh/hyf0/vue-skills')
+    expect(locs).toContain('/gh/antfu/skills')
+    expect(locs).toContain('/gh/hyf0')
+  })
 })
