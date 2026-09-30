@@ -10,6 +10,10 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: 'html',
   timeout: 120_000,
+  // The script runs the built Worker with wrangler. `nuxi preview` ignores
+  // `--port` on the Cloudflare preset and listens on 8787. The Worker reads
+  // the migrated local D1 that `pnpm dev` uses. Without it, every Skill API
+  // call fails with 500 and pages render their error state.
   webServer: {
     command: 'pnpm start:playwright:webserver',
     url: baseURL,
