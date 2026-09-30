@@ -32,6 +32,26 @@ Interpret this site evidence:
       id: 'skilld.pulse',
       prompt: `Include a Pulse section with users, skills, repo changes, command copies split as run and install, digests, known AI cost, and X spend as "$X.XX/mo projected (N/<x_budget_target> reads today)". Read these values from collected evidence. Include deploy and CI changes in Overnight. Include migration, schema, deploy SHA, stale task, and observability gaps in Drift.`,
     },
+    {
+      id: 'skilld.seo-recovery',
+      prompt: `Add the SEO recovery section only when the run date is a Monday from 2026-10-12 through 2026-11-16. Take the run date from \`observedAt\` in Australia/Sydney. On any other date add nothing and do not mention this item.
+Week number: 1 on 2026-10-12, then plus 1 each Monday. Read \`docs/work/EXECUTE-seo-recovery.md\` and \`docs/work/seo-recovery-panel.json\` first. They own the experiments, the panel groups, and the gate. If either file is missing, report one blocked line naming it.
+Setup, read only:
+   - Site ID \`s_08aae654\`. Run \`nuxtseo whoami --json\`. The token comes from \`NUXTSEO_TOKEN\` or the CLI login. If \`nuxtseo\` is absent or \`whoami\` fails, report one blocked line naming the missing binary or token. Propose nothing else. Never print the token.
+   - Read the \`nuxtseo-cli\` Skill and its \`references/indexing.md\` first. Quote counts the CLI ships. Name \`asOf\`. Never mix datasets. Never call an indexed count current.
+   - Use only reads: \`pull\`, \`search analytics timeseries\`, \`search analytics keywords --search skilld\`, \`search indexing summary\`, \`search indexing urls\`, and \`search inspect\`. Run \`backlinks referring-domains\` only if its evidence shows \`cache\` or \`no-provider\`, so it spends nothing.
+   - Never scan, resolve, dismiss, annotate, submit a sitemap, or write to NuxtSEO, gscdump, or Search Console.
+Report a compact "SEO recovery" section with:
+   - Week number and the run date.
+   - Clicks and impressions for 7d against the previous 7d and against the 2026-09-30 baseline in the brief. Say which dataset each figure came from.
+   - The position of the brand query \`skilld\`.
+   - Indexing summary: \`totalUrls\`, \`indexed\`, \`asOf\`, and the capture age in days. A null \`asOf\` means the capture time is unavailable.
+   - For each panel group, the count of URLs at each rung: unknown, discovered, crawled, indexed. Read the panel URLs with \`search indexing urls\`. Read gscdump Watched URL checkpoints for the same URLs only if gscdump 4.6.0 or newer is installed and the panel is watched. Otherwise write "gscdump Watched URLs not available" and continue. Report Bing per-URL status only if gscdump holds Bing data for skilld. Otherwise say so.
+   - Clean referring domains, excluding the 20 spam network domains named in the brief.
+   - Each experiment's scale or kill rule from the brief, read as met, not met, or not yet readable. Give the evidence and the read date. Experiment B needs the \`b_linked\` group in the panel. Before that, it is not yet readable.
+   - State that Search Console Crawl stats and the Pages report are not in any API. Ask Harlan for two screenshots: Crawl stats, and the Pages report "Why pages aren't indexed".
+On 2026-11-09 and 2026-11-16 also add the gate decision table from the brief. Give each row the panel evidence and the result: stay, cut harder, or domain verdict. The brief dates the gate 2026-11-11. Label the read as the run date. Never treat the September 2026 spam update window as readable before 2026-10-12.`,
+    },
   ],
   credentials: {
     sentry: {
