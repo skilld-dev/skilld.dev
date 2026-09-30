@@ -50,6 +50,7 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
       v-else
       :items="accountItems"
       :content="{ align: 'end' }"
+      :ui="{ item: 'font-mono text-xs' }"
     >
       <UButton
         color="neutral"
