@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS skill_trending_admissions (
 -- Seed, 2026-09-30: today's admitted set, so the experiment never starts empty.
 -- The snapshot is the Skills on the week, month and all boards that passed the
 -- quality score (65 of 95), read from production. `first_board` is 'month' for all
--- of them because the snapshot did not keep the board. `harlan-zw/gscdump` is the
--- experiment D probe exception. The hourly task adds the rest.
+-- of them because the snapshot did not keep the board. `harlan-zw/gscdump` and
+-- `harlan-zw/nuxt-seo/nuxtjs-seo` are the experiment D probe exceptions. The hourly task adds the rest.
 INSERT OR IGNORE INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board) VALUES
   ('addyosmani', 'web-quality-skills', 'accessibility', unixepoch(), 'month'),
   ('agricidaniel', 'claude-ads', 'ads', unixepoch(), 'month'),
@@ -88,4 +88,5 @@ INSERT OR IGNORE INTO skill_trending_admissions (owner, repo, name, admitted_at,
   ('vercel-labs', 'skills', 'find-skills', unixepoch(), 'month'),
   ('zarazhangrui', 'frontend-slides', 'frontend-slides', unixepoch(), 'month'),
   ('zubair-trabzada', 'geo-seo-claude', 'geo', unixepoch(), 'month'),
-  ('harlan-zw', 'gscdump', 'gscdump', unixepoch(), 'probe');
+  ('harlan-zw', 'gscdump', 'gscdump', unixepoch(), 'probe'),
+  ('harlan-zw', 'nuxt-seo', 'nuxtjs-seo', unixepoch(), 'probe');

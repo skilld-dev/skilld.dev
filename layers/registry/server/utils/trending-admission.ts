@@ -42,13 +42,13 @@ export type TrendingBoardName = 'week' | 'month' | 'all'
  * this list; `admit-trending-skills` never removes a row, so also
  * `DELETE FROM skill_trending_admissions WHERE first_board = 'probe'`.
  *
- * `harlan-zw/nuxt-seo/nuxtseo-cli` was not in the production registry on
- * 2026-09-30. The task admits it once a sync brings it in, and not before.
+ * `harlan-zw/nuxt-seo/nuxtjs-seo` replaces `nuxtseo-cli`, which lives in a
+ * private repository that skilld can never list.
  * `harlan-zw/gscdump` is a single-Skill repository, so its hub URL is the
  * Skill page.
  */
 export const PROBE_EXCEPTIONS: readonly SkillRef[] = [
-  { owner: 'harlan-zw', repo: 'nuxt-seo', name: 'nuxtseo-cli' },
+  { owner: 'harlan-zw', repo: 'nuxt-seo', name: 'nuxtjs-seo' },
   { owner: 'harlan-zw', repo: 'gscdump', name: 'gscdump' },
 ]
 

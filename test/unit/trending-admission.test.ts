@@ -180,8 +180,11 @@ describe('probe exceptions', () => {
     expect(row.first_board).toBe('probe')
   })
 
-  it('skips an exception the registry does not hold', async () => {
+  it('admits the second exception when the registry holds it, and skips the retired one', async () => {
+    addSkill({ owner: 'harlan-zw', repo: 'nuxt-seo', name: 'nuxtjs-seo', indexable: false })
     await admitTrendingSkills(db().db, NOW)
+    const inSitemap = (await queryAllSkillsForSitemap(db().db)).map(e => `${e.owner}/${e.repo}/${e.name}`)
+    expect(inSitemap).toContain('harlan-zw/nuxt-seo/nuxtjs-seo')
     expect(admitted()).not.toContain('harlan-zw/nuxt-seo/nuxtseo-cli')
   })
 })
