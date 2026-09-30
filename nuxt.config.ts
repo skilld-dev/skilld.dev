@@ -1,6 +1,8 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { edgeCache } from '@harlan-zw/nuxt-cloudflare/cache'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
+import { frozenNoindexPaths } from './layers/marketing/app/utils/page-admissions'
 import pkg from './package.json'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
@@ -8,6 +10,14 @@ import { INDEXNOW_KEY } from './server/utils/indexnow'
 import { externalCheckin } from './shared/checkin-external'
 import { iconifyCollections } from './shared/icon-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
+import { SESSION_NAME } from './shared/server/session-access'
+
+/** Every `/agents/*` page file, so the sitemap reads the admission decision for a page nobody listed. */
+function discoveredAgentRoutes(): string[] {
+  return readdirSync(fileURLToPath(new URL('./layers/marketing/app/pages/agents', import.meta.url)))
+    .filter(file => file.endsWith('.vue') && file !== 'index.vue')
+    .map(file => `/agents/${file.slice(0, -'.vue'.length)}`)
+}
 
 const iconCollections = iconifyCollections(pkg)
 
@@ -55,6 +65,12 @@ export default defineNuxtConfig({
   modules: [
     '@harlan-zw/nuxt-checkin',
     '@harlan-zw/nuxt-cf-jobs',
+    // Before nuxt-cloudflare, on purpose. Both check each HTML response in
+    // `beforeResponse`, in module order. nuxt-skew-protection has to drop its
+    // `__nkpv` version cookie from a document a shared cache may keep before
+    // nuxt-cloudflare looks, or nuxt-cloudflare sees the cookie and marks every
+    // browser navigation `no-store`, so only crawlers would ever fill the cache.
+    'nuxt-skew-protection',
     '@harlan-zw/nuxt-cloudflare',
     '@harlan-zw/nuxt-dx',
     '@harlan-zw/nuxt-use-query',
@@ -74,7 +90,6 @@ export default defineNuxtConfig({
     '@vueuse/nuxt',
     'nuxt-auth-utils',
     '@sentry/nuxt/module',
-    'nuxt-skew-protection',
   ],
 
   nuxtCloudflare: {
@@ -200,13 +215,11 @@ export default defineNuxtConfig({
     // A guarantee a cache needs to reason about has to be denominated in the
     // same unit the cache is, which is seconds.
     //
-    // `htmlCache` is deliberately not on yet. It would publish the retention
-    // guarantee to `@harlan-zw/nuxt-cloudflare` and drop the version cookie
-    // from any document a shared cache was asked to keep, but no HTML route
-    // here asks: `app.vue` calls `useAuth()`, so the rendered shell varies by
-    // sign-in state, and shared caches key on the URL without varying on
-    // Cookie. Making the shell user-independent comes first; only then do the
-    // `/gh/**` pages earn a rule.
+    // The module publishes its retention window (36000s) to
+    // `@harlan-zw/nuxt-cloudflare`, which honours an HTML cache rule up to it,
+    // and drops the version cookie from any document a shared cache may keep.
+    // The shell renders signed out for everyone, so `/skills/trending` has the
+    // first rule. Skill, repo and category pages follow once it holds.
   },
 
   scripts: {
@@ -261,6 +274,11 @@ export default defineNuxtConfig({
     llmsTxt: {
       markdownLinks: true,
     },
+    // The module's negotiation also reads User-Agent, which a shared cache
+    // cannot key on. server/handlers/content-negotiation.ts decides from
+    // Accept and Sec-Fetch-Dest instead. Explicit `.md` URLs and the
+    // `Link: rel="alternate"` header on HTML stay with the module.
+    contentNegotiation: false,
     // 2.1.0 added /sitemap.md, on by default. It reads every ai_ready_pages
     // row with no limit (about 143k), which brings back the dump that
     // llms-full.txt retired. Every .md page would also link to it.
@@ -317,7 +335,18 @@ export default defineNuxtConfig({
     fallback: 'dark',
   },
 
+  // The server renders every public page signed out, so one stored copy can
+  // serve every visitor. The browser loads the session after hydration, and a
+  // page that needs it on the server says so with the `session` or `auth`
+  // route middleware.
+  auth: {
+    loadStrategy: 'client-only',
+  },
+
   runtimeConfig: {
+    // nuxt-auth-utils names its cookie from here; `readUserSession` looks for
+    // the same name before it opens a session.
+    session: { name: SESSION_NAME, password: '' },
     sessionPassword: '',
     adminSecret: '',
     tokenKey: '',
@@ -354,6 +383,7 @@ export default defineNuxtConfig({
     // claims every `.md` path and scanned middleware runs after a module's.
     handlers: [
       { middleware: true, handler: '~~/server/handlers/skill-md-probe.ts' },
+      { middleware: true, handler: '~~/server/handlers/content-negotiation.ts' },
       // The IndexNow key file, answered by the Worker, not by the assets router.
       { route: `/${INDEXNOW_KEY}.txt`, method: 'get', handler: '~~/server/handlers/indexnow-key.ts' },
     ],
@@ -461,6 +491,20 @@ export default defineNuxtConfig({
       },
     } as any,
     '/api/tags/*': { headers: { 'cloudflare-cdn-cache-control': 'public, max-age=300' } } as any,
+    // The first HTML in Workers Cache, proved here before skill, repo and
+    // category pages follow. It is safe because the server renders every public
+    // page signed out and negotiates on Accept and Sec-Fetch-Dest only, both
+    // named in Vary. The cache key includes the query string, so each `?range=`
+    // board is its own entry. Browsers still get no-store and ask the edge.
+    //
+    // 60s fresh: the board's feed already caches for 300s, so this adds at most
+    // a minute. 3600s stale: the board's inputs move every 15 minutes at most
+    // (X mentions) and hourly (social mentions, engagement), so a quiet colo
+    // may serve one copy up to an hour old while it refreshes in the
+    // background, rather than render on every visit. The 3660s total sits well
+    // inside the 36000s nuxt-skew-protection keeps old chunks for.
+    // `scripts/check-edge-cache.ts` proves it after each deploy.
+    '/skills/trending': edgeCache({ maxAge: 60, staleWhileRevalidate: 3600 }),
     // Raw markdown and the typeahead index deliberately keep browser caching
     // too: both are large, identical for everyone, and only change when the
     // registry does.
@@ -549,15 +593,17 @@ export default defineNuxtConfig({
     // Paginated URLs land here too. Route rules match on pathname, and Nitro
     // carries the original query across, so `/skills/leaderboard?page=2`
     // becomes `/skills/trending?range=all&page=2`. Verified against a running
-    // server rather than assumed. That URL serves 200 and self-canonicalises
-    // to `?range=all`, so the stray `page` is dropped by the canonical instead
-    // of by the redirect. Pagination went with the page: page 2 has no
-    // successor, and only page 1 ever ranked.
+    // server rather than assumed. The page then answers by the real page count
+    // of the admitted list (`resolveTrendingPage`): a page past the last one is
+    // a 404, and a real page carries its own canonical. Old leaderboard pages 2
+    // to 5 therefore 404 unless the list truly has that page. Only page 1 ever
+    // ranked, and it canonicalises to the bare `?range=all`.
     '/skills/leaderboard': { redirect: { to: '/skills/trending?range=all', statusCode: 301 } } as any,
     // Harlan's curated collections merged into the category pages, so each
     // retired collection URL points at the page that absorbed it rather than
     // 404ing. `vue-nuxt` and `react` went to the framework pages that already
-    // own those queries; `apple-apps` and `knowledge-workspace` were culled.
+    // own those queries. The 2026-09-30 retirements (`apple-apps`, `knowledge-workspace`)
+    // and the noindex `-stack` trio live in shared/retired-collections.ts.
     '/@harlan-zw/design-engineering-essentials': { redirect: { to: '/skills/design', statusCode: 301 } } as any,
     '/@harlan-zw/frontend-design': { redirect: { to: '/skills/design', statusCode: 301 } } as any,
     '/@harlan-zw/essentials': { redirect: { to: '/skills/coding', statusCode: 301 } } as any,
@@ -605,6 +651,29 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [dependencyPluginCompat()],
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            // Googlebot spends 58% of its requests on JavaScript and renders
+            // each page with its own fetches, so the number of files a page
+            // needs is a crawl cost. Rolldown's default split made one chunk per
+            // set of importers, so a `/gh` page preloaded 75 files, 38 of them
+            // under 3 KB. This gathers the small `node_modules` modules that
+            // two or more chunks share into one chunk. Larger vendor modules
+            // keep their own lazy chunks.
+            //
+            // App code is left out on purpose. A shared app module in a group
+            // becomes a hub every importer names by hash, so one edit rehashed
+            // 44 chunks in a measured build. The vendor chunk only changes
+            // when a dependency does. Numbers: docs/ops/crawl-efficiency-2026-09-30.md.
+            groups: [
+              { name: 'vendor-shared', test: /node_modules/, minShareCount: 2, maxModuleSize: 8 * 1024 },
+            ],
+          },
+        },
+      },
+    },
   },
 
   compatibilityDate: '2026-07-15',
@@ -660,10 +729,18 @@ export default defineNuxtConfig({
       pages: {
         includeAppSources: true,
         // An /agents page waits on a CLI release; it answers 404 until then.
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths()],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/make-skill', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths(), ...frozenNoindexPaths(discoveredAgentRoutes())],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],
+        includeAppSources: false,
+        chunks: 10000,
+      },
+      // Experiment E, remove 2026-11-11: retired URLs (301, 404, 410) with a
+      // fresh lastmod, so Google recrawls and drops them sooner. Not submitted.
+      // Steps: `layers/registry/server/utils/retired-sitemap.ts`.
+      retired: {
+        sources: ['/api/__sitemap__/retired'],
         includeAppSources: false,
         chunks: 10000,
       },
@@ -679,12 +756,9 @@ export default defineNuxtConfig({
       // but those pages render noindex,follow. Advertising noindex URLs in the
       // sitemap was the bulk of GSC "Crawled – currently not indexed" (~8k) and
       // the sitewide quality demotion. /orgs/* still 301s to /gh/* for link equity.
-      // `tags` now emits only editorial keep=1 vocab tags; the 274 auto-list
-      // tag pages went noindex 2026-08-22 (GOOGLE_RECOVERY.md, topology audit).
-      tags: {
-        sources: ['/api/__sitemap__/tags'],
-        includeAppSources: false,
-      },
+      // `tags` removed 2026-09-30 (SEO experiment, gate 2026-11-11): the eight
+      // keep=1 tag pages went noindex with every non-trending page. Cull path:
+      // revert the experiment commit, which restores `__sitemap__/tags.ts`.
     },
   },
 

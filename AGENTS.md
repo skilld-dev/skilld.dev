@@ -26,9 +26,8 @@ New Markdown at the repository root is an error. Identity and filters only.
   separately: Loop 1 is the headline, Loop 2 is a CTA strip and a "Watch for changes"
   affordance. `VISION.md` has the full argument.
 - **Running is the default; installing is the opt-in.** A Skill is knowledge, not a dependency.
-  A remote run writes nothing at all: no lockfile entry, no agent target, no cache. So a Skill
-  that needs to run its own script needs an install, and the site must not offer a run command
-  for one.
+  A remote run writes nothing at all: no lockfile entry, no agent target, no cache. Every Skill
+  surface leads with the run command, and the install command sits under it as the opt-in.
 - **Identity is one namespace, and the prefix decides which.** `/gh/[owner]` is always a
   GitHub-proxied entity. `/@<github-login>` is always an entity in skilld's own D1. A GitHub org
   and a collection author may share a name; the `@` disambiguates. The legacy `/people/*`

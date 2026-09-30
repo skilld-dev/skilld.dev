@@ -1,4 +1,5 @@
 import { getDB } from '#server/utils/db'
+import { hubRendersSource } from '#shared/repo-identity'
 import { isRegistrySkillPath } from '#shared/skill-path'
 import { getRepo, getTree, resolveGithubBindings } from '../../../utils/github-client'
 import { resolveRepoSourceIdentity } from '../../../utils/repo-source-identity'
@@ -31,7 +32,7 @@ export default defineCachedEventHandler(async (event) => {
 
   const owner = ownerParam.toLowerCase()
   const repo = repoParam.toLowerCase()
-  const seoIndexable = isTrustedAuthorRepo(owner, repo)
+  const trusted = isTrustedAuthorRepo(owner, repo)
   const db = getDB(event)
   const source = await resolveRepoSourceIdentity(db, { owner, repo })
   const bindings = resolveGithubBindings(event.context.platform.env)
@@ -47,13 +48,16 @@ export default defineCachedEventHandler(async (event) => {
     }))
     return {
       ...buildUnavailableRepoSourceProfile(owner, repo),
-      seoIndexable,
+      seoIndexable: trusted,
     } satisfies RepoSourceProfile
   }
 
   const meta = repoRes.data
   const repoOwner = meta.owner.login
   const repoName = meta.name
+  // A renamed repository comes back under its new identity, and the hub page
+  // then renders "Source not found". Only a hub that renders its source is indexable.
+  const seoIndexable = trusted && hubRendersSource({ owner, repo }, { owner: repoOwner, repo: repoName })
   const treeRes = await getTree(repoOwner, repoName, meta.default_branch, bindings)
   const skillFiles = (treeRes.data?.tree ?? [])
     .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
@@ -88,6 +92,6 @@ export default defineCachedEventHandler(async (event) => {
   getKey: (event) => {
     const owner = (getRouterParam(event, 'owner') ?? '').toLowerCase()
     const repo = (getRouterParam(event, 'repo') ?? '').toLowerCase()
-    return `repo-source:v4:${owner}/${repo}`
+    return `repo-source:v5:${owner}/${repo}`
   },
 })

@@ -10,13 +10,15 @@ export default defineSitemapEventHandler(async (event) => {
       SELECT
         lower(s.owner) AS owner,
         lower(s.repo) AS repo,
+        r.source_owner AS sourceOwner,
+        r.source_repo AS sourceRepo,
         COUNT(*) AS skillCount,
         MAX(COALESCE(s.modified_at, s.first_seen_at, r.pushed_at)) AS updatedAt
       FROM skills s
       JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
       WHERE ${notBrokenSql('r')}
         AND lower(s.owner || '/' || s.repo) IN (SELECT value FROM json_each(?))
-      GROUP BY lower(s.owner), lower(s.repo)
+      GROUP BY lower(s.owner), lower(s.repo), r.source_owner, r.source_repo
       ORDER BY lower(s.owner), lower(s.repo)
     `)
     .bind(JSON.stringify(trustedAuthorRepoKeys))

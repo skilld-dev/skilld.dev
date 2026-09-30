@@ -55,6 +55,7 @@ export type ScheduleHealth
     | { _tag: 'overdue_started', alertable: true, overdueSeconds: number }
 
 export const SCHEDULE_POLICY = [
+  { _tag: 'observed', taskName: 'admit-trending-skills', cron: '0 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 10 * 60 },
   { _tag: 'observed', taskName: 'ai-generate-poll', cron: '45 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 30 * 60 },
   { _tag: 'observed', taskName: 'ai-generate-submit', cron: '15 * * * *', maxSilenceSeconds: 3 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'ai-ready:cron', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 4 * 60 },

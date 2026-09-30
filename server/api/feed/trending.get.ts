@@ -7,17 +7,12 @@
  * catalog. The admin review surface reads the same loader without the filter.
  */
 
+import type { FallbackSkill } from '#shared/server/trending-fallback'
 import type { TrendingRepo } from '#shared/server/trending-repos'
 import type { TrendingSkill } from '#shared/server/trending-skills'
 import { getDB } from '#server/utils/db'
-import { loadFallbackSkills } from '#shared/server/trending-fallback'
-import {
-  DEFAULT_MAX_REPOS_PER_POST,
-  DEFAULT_MIN_LIKES,
-  loadTopStarredRepositories,
-  loadTrendingRepos,
-} from '#shared/server/trending-repos'
-import { DEFAULT_WINDOW_HOURS, loadTrendingSkills } from '#shared/server/trending-skills'
+import { loadTrendingBoard } from '#shared/server/trending-board'
+import { DEFAULT_WINDOW_HOURS } from '#shared/server/trending-skills'
 
 export interface TrendingFeedItem {
   owner: string
@@ -175,7 +170,7 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
   }
 }
 
-function toFallbackItem(entry: Awaited<ReturnType<typeof loadFallbackSkills>>[number]): FallbackFeedItem {
+function toFallbackItem(entry: FallbackSkill): FallbackFeedItem {
   return {
     owner: entry.owner,
     repo: entry.repo,
@@ -235,52 +230,11 @@ export default defineCachedEventHandler(
       24 * 30,
     )
 
-    const deprioritizeRepositories = await loadTopStarredRepositories(db, 20)
-    const [entries, namedSkills] = await Promise.all([
-      loadTrendingRepos({
-        db,
-        now,
-        limit,
-        indexedOnly: true,
-        minLikes: DEFAULT_MIN_LIKES,
-        maxReposPerPost: DEFAULT_MAX_REPOS_PER_POST,
-        deprioritizeRepositories,
-      }),
-      // Same `limit` the repository half gets. A hardcoded 12 here made the
-      // caller's `?limit=` silently a lie for the collection the page actually
-      // renders, and capped the board at a shortlist no matter what was asked
-      // for. The clamp to 50 above still bounds the per-skill lookups.
-      loadTrendingSkills({ db, now, windowHours, limit, deprioritizeRepositories }),
-    ])
+    const { entries, namedSkills, fallback: fallbackSkills } = await loadTrendingBoard({ db, now, limit, windowHours })
 
-    // Top up from GitHub stars when the socials have been quiet. Below this
-    // many entries the page reads as broken, and at fewer than eight it
-    // excludes itself from the index, so filler is better than an empty shelf.
-    //
-    // COUNTED ON THE COLLECTION THE PAGE RENDERS. This keyed off `items`, the
-    // repositories band, until 2026-08-16. That band no longer exists on the
-    // page, so filler was being decided by a number no reader could see: with
-    // 17 repositories and 3 skills the board would have gone out thin and
-    // `noindex` while this branch reported itself satisfied.
-    const MIN_BEFORE_FALLBACK = 8
     const items = entries.map(toItem)
     const skillItems = namedSkills.map(toSkillItem)
-    const fallback = skillItems.length >= MIN_BEFORE_FALLBACK
-      ? []
-      : (await loadFallbackSkills({
-          db,
-          now,
-          limit: MIN_BEFORE_FALLBACK - skillItems.length,
-          // Named skills are excluded by repository, not by skill. The filler
-          // query picks one skill per repo with `MIN(name)`, so a repo already
-          // named for one skill would otherwise return again under a different
-          // skill: same owner, same avatar, same star count, two rows.
-          exclude: new Set([
-            ...items.map(i => `${i.owner}/${i.repo}`),
-            ...namedSkills.map(s => `${s.owner}/${s.repo}`),
-          ]),
-          deprioritizeRepositories,
-        })).map(toFallbackItem)
+    const fallback = fallbackSkills.map(toFallbackItem)
 
     return { items, namedSkills: skillItems, fallback, computedAt: now }
   },

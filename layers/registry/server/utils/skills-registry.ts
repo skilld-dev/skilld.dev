@@ -15,6 +15,7 @@ import {
 import { canonicalRepoSkillPath } from './skill-routes'
 import { collapseSearchDuplicates, hybridSkillSearch, rankSearchResults } from './skill-search'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
+import { noteAdmissionFallback, SKILL_ADMISSIONS_POPULATED_SQL, SKILL_INDEXABLE_SQL } from './trending-admission'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
@@ -667,6 +668,8 @@ export interface SkillSitemapEntry {
 
 interface SkillDuplicateRow extends DuplicateCandidate {
   is_supported: number
+  /** Only the sitemap query selects it. */
+  repo_kind?: string | null
   // Resolved-Skill total for the row's repository (same definition as
   // loadRepoSkillCounts in shared/server/trending-skills.ts). Drives the
   // single-Skill repo hub routing so links never point at a URL that 301s.
@@ -748,7 +751,7 @@ function listDuplicateCandidateRows(
 ): Promise<SkillDuplicateRow[]> {
   return cached({
     storage: useStorage('cache'),
-    key: `skills:duplicate-candidates:v3:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`,
+    key: `skills:duplicate-candidates:v4:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`,
     ttlSeconds: DUPLICATE_CANDIDATES_TTL,
     staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
     compute: () => queryDuplicateCandidateRows(event, opts),
@@ -786,7 +789,7 @@ async function queryDuplicateCandidateRows(
         AND supported_repos.repo = s.repo
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
-        AND s.seo_indexable = 1
+        AND ${SKILL_INDEXABLE_SQL}
         ${aggregatorFilter}
         ${supportedFilter}
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
@@ -818,16 +821,15 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
 export function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   return cached({
     storage: useStorage('cache'),
-    key: 'skills:sitemap-all:v3',
+    key: 'skills:sitemap-all:v5',
     ttlSeconds: DUPLICATE_CANDIDATES_TTL,
     staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
-    compute: () => queryAllSkillsForSitemap(event),
+    compute: () => queryAllSkillsForSitemap(getDB(event)),
     schedule: promise => runAfterResponse(event, promise),
   })
 }
 
-async function queryAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
-  const db = getDB(event)
+export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSitemapEntry[]> {
   const res = await db
     .prepare(`
       SELECT
@@ -841,6 +843,7 @@ async function queryAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEnt
         r.pushed_at,
         supported_repos.support_tier,
         s.trust_tier,
+        r.repo_kind,
         CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported,
         ${REPO_SKILL_COUNT_FROM_JOIN}
       ${FROM_SKILLS_JOIN_REPOS}
@@ -850,25 +853,23 @@ async function queryAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEnt
         AND supported_repos.repo = s.repo
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
-        AND s.seo_indexable = 1
-        AND ${NOT_AGGREGATOR_SQL}
+        AND ${SKILL_INDEXABLE_SQL}
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
     `)
     .all<SkillDuplicateRow>()
   const rows = res.results ?? []
-  const weakerSupportedSlugs = duplicateWeakerSlugSet(rows.filter(row => row.is_supported === 1))
+  const populated = await db.prepare(`SELECT ${SKILL_ADMISSIONS_POPULATED_SQL} AS populated`).first<{ populated: number }>()
+  if (populated?.populated !== 1)
+    noteAdmissionFallback()
+  // The duplicate decision reads the same candidate set as the Skill page,
+  // aggregators included (`findDuplicateGroupForSkill`). An aggregator copy can
+  // outrank a real repo and make it the weaker duplicate, so the sitemap must
+  // see it too. Aggregators themselves never reach the sitemap.
+  const weakerSlugs = duplicateWeakerSlugSet(rows)
   const entries = rows
-    .filter(row => !weakerSupportedSlugs.has(skillSlug(row)))
+    .filter(row => row.repo_kind !== 'aggregator' && !weakerSlugs.has(skillSlug(row)))
     .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
   return entries
-}
-
-export async function listSupportedSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
-  const rows = await listDuplicateCandidateRows(event, { supportedOnly: true })
-  const weakerSlugs = duplicateWeakerSlugSet(rows)
-  return rows
-    .filter(row => !weakerSlugs.has(skillSlug(row)))
-    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
 }
 
 export async function findRelatedSkills(
@@ -892,12 +893,12 @@ export async function findRelatedSkills(
           AND repo_skills.repo = ?2
           AND repo_skills.source_resolved = 1
       ) AS repo_skill_count FROM (
-        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name != ?3 AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?4
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name != ?3 AND s.source_resolved = 1 AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?4
       ) paged ORDER BY modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
     db
       .prepare(`SELECT paged.*, ${repoSkillCountSql('paged')} FROM (
-        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND s.source_resolved = 1 AND ${NOT_BROKEN_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?
       ) paged ORDER BY stars DESC, modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
   ])

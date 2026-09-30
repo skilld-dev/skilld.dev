@@ -2,15 +2,24 @@ import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref } from 'vue'
-import LikeButton from '../../layers/identity/app/components/LikeButton.client.vue'
+import LikeButton from '../../layers/identity/app/components/LikeButton.vue'
 import { useLikes } from '../../layers/identity/app/composables/useLikes'
 
 const loggedIn = ref(true)
+/** False while the browser is still loading the session after hydration. */
+const sessionKnown = ref(true)
 const fetchMock = vi.hoisted(() => vi.fn())
 
 mockNuxtImport('useAuth', () => () => ({
+  state: computed(() => {
+    if (!sessionKnown.value)
+      return { _tag: 'pending' }
+    return loggedIn.value
+      ? { _tag: 'signed-in', user: { login: 'harlan', onboarded: true } }
+      : { _tag: 'anonymous' }
+  }),
   user: ref({ login: 'harlan', onboarded: true }),
-  isAuthenticated: computed(() => loggedIn.value),
+  isAuthenticated: computed(() => sessionKnown.value && loggedIn.value),
   isLoading: ref(false),
   logout: vi.fn(),
   loginUrl: (opts: { returnTo?: string, action?: string } = {}) => {
@@ -56,6 +65,7 @@ beforeEach(() => {
   mutation = { _tag: 'ok', likeCount: 0 }
   listGate = null
   loggedIn.value = true
+  sessionKnown.value = true
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (path: string, options?: { method?: string }) => {
     const method = options?.method ?? 'GET'
@@ -118,6 +128,29 @@ describe('likeButton toggle semantics', () => {
     expect(new URL(href, 'https://skilld.dev').searchParams.get('action')).toBe('like-skill')
     expect(new URL(href, 'https://skilld.dev').searchParams.get('return_to')).toBe('/')
     expect(link.attributes('aria-label')).toBe('Like nuxt')
+
+    wrapper.unmount()
+  })
+
+  it('holds a disabled heart with the count until the session is known, then offers the like', async () => {
+    sessionKnown.value = false
+    likedItems = [{ ...skill, likeCount: 5 }]
+    const wrapper = await mountSuspended(LikeButton, { props: { ...skill, count: 4 } })
+    await flushPromises()
+
+    const placeholder = wrapper.get('button')
+    expect(placeholder.attributes('disabled')).toBeDefined()
+    expect(placeholder.text()).toContain('4')
+    expect(wrapper.find('a').exists()).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    sessionKnown.value = true
+    await flushPromises()
+
+    const button = wrapper.get('button')
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.text()).toContain('5')
 
     wrapper.unmount()
   })

@@ -6,6 +6,7 @@ Tasks: 21. Unique Cloudflare triggers: 14.
 
 | Task | Cron | Source |
 | --- | --- | --- |
+| `admit-trending-skills` | `0 * * * *` | `layers/registry/server/tasks/admit-trending-skills.ts` |
 | `ai-generate-poll` | `45 * * * *` | `layers/registry/server/tasks/ai-generate-poll.ts` |
 | `ai-generate-submit` | `15 * * * *` | `layers/registry/server/tasks/ai-generate-submit.ts` |
 | `ai-ready:cron` | `*/5 * * * *` | `server/tasks/ai-ready-cron.ts` |

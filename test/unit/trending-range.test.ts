@@ -2,6 +2,7 @@ import type { LeaderboardRowInput } from '#shared/trending-range'
 import { describe, expect, it } from 'vitest'
 import {
   leaderboardBoardRows,
+  resolveTrendingPage,
   resolveTrendingRange,
   SKILLS_NOUN,
   TRENDING_RANGES,
@@ -261,5 +262,23 @@ describe('titles and headings use different nouns on purpose', () => {
   it('keeps the brand noun in the heading', () => {
     expect(trendingRangeHeading('month', clock)).toContain(SKILLS_NOUN)
     expect(trendingRangeHeading('month', clock)).not.toContain('Claude')
+  })
+})
+
+describe('resolveTrendingPage', () => {
+  const canonical = 'https://skilld.dev/skills/trending?range=all'
+
+  it('canonicalises page 1 to the bare range URL', () => {
+    expect(resolveTrendingPage(canonical, 1, 3)).toEqual({ _tag: 'ok', page: 1, canonical })
+  })
+
+  it('gives a real later page its own canonical', () => {
+    expect(resolveTrendingPage(canonical, 2, 3)).toEqual({ _tag: 'ok', page: 2, canonical: `${canonical}&page=2` })
+    expect(resolveTrendingPage('https://skilld.dev/skills/trending', 2, 2)).toMatchObject({ canonical: 'https://skilld.dev/skills/trending?page=2' })
+  })
+
+  it('rejects a page past the real page count', () => {
+    expect(resolveTrendingPage(canonical, 2, 1)._tag).toBe('out-of-range')
+    expect(resolveTrendingPage(canonical, 4, 3)._tag).toBe('out-of-range')
   })
 })

@@ -10,6 +10,7 @@ import { withArtifactProblems } from '../../../utils/artifact-problem'
 import { findPrivateRepositoryAccess } from '../../../utils/private-access'
 import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
 import { enqueueArtifactBuild } from '../../../utils/queue'
+import { setSkillPageUrlHeader } from '../../../utils/skill-page'
 import {
   createResolution,
   resolutionRequestIdentity,
@@ -85,6 +86,7 @@ export default withArtifactProblems(defineApiHandler({
     const response = presentArtifactResolution(result.row)
     setResponseStatus(event, response.state === 'pending' ? 202 : 200)
     setHeader(event, 'cache-control', 'private, no-store')
+    await setSkillPageUrlHeader(event, result.row)
     if (response.state === 'pending')
       setHeader(event, 'retry-after', 1)
     return result.row

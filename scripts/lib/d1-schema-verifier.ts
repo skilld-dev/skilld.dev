@@ -240,11 +240,26 @@ export const APPLIED_DUPLICATE_MIGRATION_NUMBERS: Readonly<Record<string, readon
 }
 
 /**
+ * Numbers an open pull request already claims.
+ *
+ * Parallel pull requests each take the next free number before any of them
+ * merges, so a branch can carry a hole while its siblings are still open.
+ * The gap check skips a missing number listed here. A file that arrives under
+ * the number is checked like any other. Remove the entry when the claiming
+ * pull request merges.
+ */
+export const RESERVED_MIGRATION_NUMBERS = {
+  '0128': '#320 feat(indexnow-curated) claims 0128_indexnow.sql',
+  '0129': '#322 feat(seo-trending-indexable) claims 0129_skill_trending_admissions.sql',
+} satisfies Readonly<Record<string, string>>
+
+/**
  * Check migration filenames against the rules the ledger depends on.
  *
  * Two migrations sharing a number apply in an order nobody chose, and the pair
  * above reached production before anything noticed. A hole in the sequence
- * usually means a rebase dropped a file. A malformed name never sorts where
+ * usually means a rebase dropped a file, unless the missing number is
+ * reserved for an open pull request. A malformed name never sorts where
  * its author expected.
  */
 export function verifyMigrationNaming(names: readonly string[]): MigrationNamingResult {
@@ -281,8 +296,9 @@ export function verifyMigrationNaming(names: readonly string[]): MigrationNaming
     const missing: string[] = []
     for (let value = lowest; value < highest; value++) {
       const padded = String(value).padStart(4, '0')
-      if (!numbered.has(padded))
-        missing.push(padded)
+      if (numbered.has(padded) || padded in RESERVED_MIGRATION_NUMBERS)
+        continue
+      missing.push(padded)
     }
     if (missing.length > 0)
       issues.push({ _tag: 'sequence_gap', missing })

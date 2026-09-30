@@ -1,3 +1,4 @@
+import { hubRendersSource } from '#shared/repo-identity'
 import { officialRepos } from '../data/official-repos'
 
 export interface TrustedAuthorSourceRow {
@@ -5,6 +6,9 @@ export interface TrustedAuthorSourceRow {
   repo: string
   skillCount: number
   updatedAt: number | null
+  /** GitHub identity stored for the repository, when it differs from the route. */
+  sourceOwner?: string | null
+  sourceRepo?: string | null
 }
 
 export interface TrustedAuthorSitemapEntry {
@@ -56,7 +60,8 @@ export function buildTrustedAuthorSitemapEntries(rows: readonly TrustedAuthorSou
     .map(([owner, updatedAt]) => sitemapEntry(`/gh/${owner}`, updatedAt))
 
   const repoEntries = rows
-    .filter(row => row.skillCount > 1)
+    // A renamed repository renders "Source not found", so its hub is noindex.
+    .filter(row => row.skillCount > 1 && hubRendersSource(row, { owner: row.sourceOwner ?? null, repo: row.sourceRepo ?? null }))
     .toSorted((a, b) => a.owner.localeCompare(b.owner) || a.repo.localeCompare(b.repo))
     .map(row => sitemapEntry(`/gh/${row.owner.toLowerCase()}/${row.repo.toLowerCase()}`, row.updatedAt))
 

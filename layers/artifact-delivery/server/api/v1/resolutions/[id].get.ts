@@ -10,6 +10,7 @@ import {
 } from '../../../utils/github-app'
 import { canReadPrivateResolution } from '../../../utils/private-access'
 import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
+import { setSkillPageUrlHeader } from '../../../utils/skill-page'
 import { getResolution } from '../../../utils/state'
 
 export default withArtifactProblems(defineApiHandler({
@@ -49,6 +50,7 @@ export default withArtifactProblems(defineApiHandler({
         throw createError({ statusCode: 404, message: 'Resolution not found' })
       }
     }
+    await setSkillPageUrlHeader(event, row)
     return row
   },
   presenter: presentArtifactResolution,
