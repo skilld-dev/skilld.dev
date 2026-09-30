@@ -3,14 +3,14 @@ import { z } from 'zod'
 import { cached } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { runAfterResponse } from '../../utils/after-response'
-import { findSkillPagePath } from '../../utils/skill-page-url'
+import { findSkillPagePath, skillPageCacheKey } from '../../utils/skill-page-url'
 
 const PAGE_URL_TTL = 60 * 5
 const PAGE_URL_STALE_TTL = 60 * 60
 
 const PageUrlQuery = z.object({
-  owner: z.string().min(1).max(39),
-  repo: z.string().min(1).max(100),
+  owner: z.string().min(1).max(39).regex(/^[a-z0-9-]+$/i),
+  repo: z.string().min(1).max(100).regex(/^[\w.-]+$/),
   path: z.string().min(1).max(1024),
 }).strict()
 
@@ -31,16 +31,13 @@ export default defineApiHandler({
   response: PageUrlResponse,
   handler: async ({ event, body, platform }) => {
     setHeader(event, 'cache-control', 'public, max-age=60, stale-while-revalidate=300')
+    const source = { owner: body.owner, repository: body.repo, skillPath: body.path }
     const path = await cached({
       storage: useStorage('edge-cache'),
-      key: `skills:page-url:v1:${body.owner}/${body.repo}/${body.path}`,
+      key: skillPageCacheKey(source),
       ttlSeconds: PAGE_URL_TTL,
       staleSeconds: PAGE_URL_STALE_TTL,
-      compute: () => findSkillPagePath(platform.db, {
-        owner: body.owner,
-        repository: body.repo,
-        skillPath: body.path,
-      }),
+      compute: () => findSkillPagePath(platform.db, source),
       schedule: promise => runAfterResponse(event, promise),
     })
     return { path, origin: useRuntimeConfig(event).publicSiteUrl as string }

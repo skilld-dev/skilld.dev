@@ -5,7 +5,7 @@ import { Socket } from 'node:net'
 import { createEvent, fetchWithEvent, getResponseHeader } from 'h3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveSkillPageUrl } from '../../layers/artifact-delivery/server/utils/skill-page'
-import { findSkillPagePath } from '../../layers/registry/server/utils/skill-page-url'
+import { findSkillPagePath, skillPageCacheKey } from '../../layers/registry/server/utils/skill-page-url'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 let harness: SqliteD1 | null = null
@@ -89,6 +89,25 @@ describe('findSkillPagePath', () => {
     addSkill('acme', 'pair', 'c', 'c/SKILL.md')
     expect(await findSkillPagePath(db().db, { owner: 'Acme', repository: 'Pair', skillPath: 'a' })).toBe('/gh/Acme/Pair/a')
     expect(await findSkillPagePath(db().db, { owner: 'acme', repository: 'pair', skillPath: 'a' })).toBe('/gh/acme/pair/a')
+  })
+})
+
+describe('skillPageCacheKey', () => {
+  it('keeps sources apart when a slash moves between the repository and the path', () => {
+    expect(skillPageCacheKey({ owner: 'a', repository: 'b/c', skillPath: 'd' }))
+      .not
+      .toBe(skillPageCacheKey({ owner: 'a', repository: 'b', skillPath: 'c/d' }))
+  })
+
+  it('shares one key across owner and repository case variants', () => {
+    expect(skillPageCacheKey({ owner: 'AgriciDaniel', repository: 'Claude-SEO', skillPath: 'skills/seo' }))
+      .toBe(skillPageCacheKey({ owner: 'agricidaniel', repository: 'claude-seo', skillPath: 'skills/seo' }))
+  })
+
+  it('keeps path case variants apart', () => {
+    expect(skillPageCacheKey({ owner: 'acme', repository: 'pair', skillPath: 'skills/Vue' }))
+      .not
+      .toBe(skillPageCacheKey({ owner: 'acme', repository: 'pair', skillPath: 'skills/vue' }))
   })
 })
 

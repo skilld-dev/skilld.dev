@@ -15,6 +15,19 @@ interface PageRow {
 }
 
 /**
+ * The edge cache key for one {@link findSkillPagePath} answer.
+ *
+ * Each part is encoded, so a slash cannot move between the repository and the
+ * path and land on another source's entry. Owner and repository are lowercased
+ * because the lookup matches them without case. The path keeps its case,
+ * because GitHub paths are case sensitive.
+ */
+export function skillPageCacheKey(source: SkillPageSource): string {
+  const parts = [source.owner.toLowerCase(), source.repository.toLowerCase(), source.skillPath]
+  return `skills:page-url:v2:${parts.map(encodeURIComponent).join('/')}`
+}
+
+/**
  * The canonical site path of the Skill at one repository path, or null when
  * the registry does not hold it.
  *
