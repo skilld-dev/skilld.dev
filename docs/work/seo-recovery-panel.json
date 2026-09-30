@@ -1,0 +1,83 @@
+{
+  "created": "2026-09-30",
+  "gate": "2026-11-11",
+  "baseline": "Pages report 2026-09-30: curated set in 'Discovered, currently not indexed'; retired URLs in 'Crawled, currently not indexed'. First per-URL reading comes from gscdump Watched URLs after 4.5.0 and gscdump.com#557 deploy.",
+  "groups": {
+    "c_treatment": {
+      "pr": "skilld.dev#318",
+      "expect": "crawled or indexed sooner than c_control",
+      "urls": [
+        "https://skilld.dev/gh/obra/superpowers/writing-plans",
+        "https://skilld.dev/gh/imbad0202/academic-research-skills/academic-pipeline",
+        "https://skilld.dev/gh/emilkowalski/skills/emil-design-eng",
+        "https://skilld.dev/gh/vercel-labs/agent-skills/react-best-practices",
+        "https://skilld.dev/gh/ibelick/ui-skills/create-design-md",
+        "https://skilld.dev/gh/remotion-dev/skills/remotion-best-practices",
+        "https://skilld.dev/gh/dimillian/skills/bug-hunt-swarm",
+        "https://skilld.dev/gh/onmax/nuxt-skills/arkenv",
+        "https://skilld.dev/gh/neondatabase/agent-skills/neon-postgres",
+        "https://skilld.dev/gh/clerk/skills/clerk-orgs"
+      ]
+    },
+    "c_control": {
+      "pr": "skilld.dev#318",
+      "expect": "baseline for trending pages",
+      "urls": [
+        "https://skilld.dev/gh/mattpocock/skills/ask-matt",
+        "https://skilld.dev/gh/coreyhaines31/marketingskills/ai-seo",
+        "https://skilld.dev/gh/kepano/obsidian-skills/knap",
+        "https://skilld.dev/gh/othmanadi/planning-with-files/planning-with-files",
+        "https://skilld.dev/gh/microsoft/playwright-cli/playwright-cli",
+        "https://skilld.dev/gh/antfu/skills/nitro",
+        "https://skilld.dev/gh/addyosmani/web-quality-skills/accessibility",
+        "https://skilld.dev/gh/getsentry/skills/prompt-optimizer",
+        "https://skilld.dev/gh/pbakaus/agent-reviews/resolve-agent-reviews",
+        "https://skilld.dev/gh/prisma/skills/prisma-database-setup"
+      ]
+    },
+    "d_probe": {
+      "pr": "nuxtseo.com#1314",
+      "expect": "crawled within 14 days of the link going live",
+      "urls": [
+        "https://skilld.dev/gh/harlan-zw/gscdump",
+        "https://skilld.dev/gh/harlan-zw/nuxt-seo/nuxtjs-seo"
+      ]
+    },
+    "demand": {
+      "pr": "skilld.dev#322",
+      "expect": "high search demand pages; first to earn impressions if indexed",
+      "urls": [
+        "https://skilld.dev/gh/blader/humanizer",
+        "https://skilld.dev/gh/leonxlnx/taste-skill/taste-skill",
+        "https://skilld.dev/gh/nicobailon/visual-explainer"
+      ]
+    },
+    "admitted_other": {
+      "pr": "skilld.dev#322",
+      "expect": "trending-only set without other treatment",
+      "urls": [
+        "https://skilld.dev/gh/agricidaniel/claude-ads/ads",
+        "https://skilld.dev/gh/agricidaniel/claude-seo/seo",
+        "https://skilld.dev/gh/avdlee/swift-concurrency-agent-skill",
+        "https://skilld.dev/gh/avdlee/swiftui-agent-skill/swiftui-expert-skill",
+        "https://skilld.dev/gh/axtonliu/axton-obsidian-visual-skills",
+        "https://skilld.dev/gh/browser-use/plugins/browser-use",
+        "https://skilld.dev/gh/cathrynlavery/diagram-design",
+        "https://skilld.dev/gh/cloudai-x/threejs-skills/threejs-animation",
+        "https://skilld.dev/gh/conorluddy/ios-simulator-skill",
+        "https://skilld.dev/gh/czlonkowski/n8n-skills/n8n-code-python"
+      ]
+    },
+    "retired": {
+      "pr": "skilld.dev#325",
+      "expect": "move from Crawled, not indexed to 404, 410 or redirect buckets, then drop",
+      "urls": [
+        "https://skilld.dev/orgs/0xsero",
+        "https://skilld.dev/skills/claudedjale/skillset/azure-data-tables-java",
+        "https://skilld.dev/skills/jackiexiao/jackie-skills-starter/cloudflare-dns",
+        "https://skilld.dev/skills/opusgamelabs/game-creator/worldlabs",
+        "https://skilld.dev/skills/sickn33/antigravity-awesome-skills/crewai"
+      ]
+    }
+  }
+}

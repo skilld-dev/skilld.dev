@@ -9,7 +9,7 @@ Done means: every metric in the baseline table meets its target for the week 202
 ## Ledger
 
 - [ ] Measure the week against the baseline table below
-- [ ] Review both WAF rules' matched requests for false positives, including Harlan's own Unlighthouse and nuxtseo crawls
+- [ ] Check zone security events for blocked or challenged requests from real users, including Harlan's own Unlighthouse and nuxtseo crawls
 - [ ] Stop `pnpm install` from rewriting `minimumReleaseAgeExclude`. It dropped the comment on the `skilld` CLI exemptions twice on 2026-09-29.
 - [ ] Re-time uncached skill pages (2.4 to 3.8 s before #305 and #306)
 - [ ] Move this brief to `shipped/` once every target is met
@@ -50,7 +50,7 @@ The `.env` `CLOUDFLARE_API_TOKEN` reads GraphQL Analytics and Workers Observabil
 4. GraphQL `kvOperationsAdaptiveGroups` for KV_CACHE: writes and deletes per day.
 5. Telemetry query `POST /accounts/<id>/workers/observability/telemetry/query`: event count per day, grouped by `$metadata.message`.
 6. Sentry project `skilld`: search `overloaded`, `edge-cache-write` and `traceLifecycle`.
-7. Zone security events for the two WAF rules.
+7. Zone security events. No WAF rule exists, so expect none to match.
 
 To roll back replication, send `PUT /accounts/<id>/d1/database/<id>`{lang="html"} with `{"read_replication":{"mode":"disabled"}}`. It can take up to 24 hours.
 
