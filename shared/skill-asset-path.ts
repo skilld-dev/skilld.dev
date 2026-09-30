@@ -23,3 +23,14 @@ export function normalizeSkillAssetFilePath(input: SkillAssetPathInput): string 
   )
   return (isDuplicated ? parts.slice(duplicatedPrefix.length) : parts).join('/')
 }
+
+const SKILL_FILE_PAGE_RE = /^\/gh\/[^/?#]+\/[^/?#]+\/[^/?#]+\/-\/[^/?#]/
+
+/**
+ * Whether a request path opens one file inside a Skill:
+ * `/gh/<owner>/<repo>/<name>/-/<file>`. The URL ends in the file's own name,
+ * so `/-/reference.md` is reference.md itself, never a page's Markdown twin.
+ */
+export function isSkillFilePagePath(path: string): boolean {
+  return SKILL_FILE_PAGE_RE.test(path)
+}

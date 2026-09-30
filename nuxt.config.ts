@@ -381,6 +381,8 @@ export default defineNuxtConfig({
     // Registered here, not scanned from `server/middleware`, because nuxt-ai-ready
     // claims every `.md` path and scanned middleware runs after a module's.
     handlers: [
+      // First, so content negotiation also leaves Skill file URLs alone.
+      { middleware: true, handler: '~~/server/handlers/skill-file-page.ts' },
       { middleware: true, handler: '~~/server/handlers/skill-md-probe.ts' },
       { middleware: true, handler: '~~/server/handlers/content-negotiation.ts' },
     ],
