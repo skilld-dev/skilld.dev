@@ -28,6 +28,28 @@ describe('skill badge', () => {
 </a>`)
   })
 
+  it('links a multi-skill repository badge to the repository hub, not its first skill', () => {
+    const input = {
+      owner: 'antfu',
+      repo: 'skills',
+      name: 'vite',
+      registryPath: '/gh/antfu/skills',
+    }
+
+    expect(skillBadgeImagePath(input)).toBe('/b/antfu/skills')
+    expect(skillBadgeEmbed(input)).toContain('<a href="https://skilld.dev/gh/antfu/skills">')
+    expect(skillBadgeEmbed(input)).toContain('<img alt="Skill repository on skilld.dev" src="https://skilld.dev/b/antfu/skills?theme=light">')
+  })
+
+  it('links a skill badge to the canonical skill URL', () => {
+    expect(skillBadgeEmbed({
+      owner: 'antfu',
+      repo: 'skills',
+      name: 'vite',
+      registryPath: '/gh/antfu/skills/vite',
+    })).toContain('<a href="https://skilld.dev/gh/antfu/skills/vite">')
+  })
+
   it('keeps the skill name for a multi-skill repository', () => {
     expect(skillBadgeEmbed({
       owner: 'antfu',

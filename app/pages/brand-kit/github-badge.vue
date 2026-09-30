@@ -20,7 +20,7 @@ const readmeSnippetInput = {
 useSeoMeta({
   title: 'GitHub badge · Brand kit',
   description: 'Add the skilld badge to a README. It links readers to the Skill or Repository page and shows no counts.',
-  robots: 'index,follow',
+  robots: 'noindex,follow',
 })
 
 useHead({
