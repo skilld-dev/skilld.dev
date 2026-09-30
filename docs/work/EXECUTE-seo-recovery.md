@@ -155,7 +155,7 @@ Check each PR with `gh pr view <n> --repo skilld-dev/skilld.dev`.
 | --- | --- | --- |
 | 1 | The sitemap equals the indexable set: trending boards (week, month, all) plus 2 probe pages. 65 Skills at the start. The set only grows after the gate. humanizer, taste-skill and visual-explainer are in. ui-ux-pro-max, caveman, ponytail and stop-slop are out | [#322](https://github.com/skilld-dev/skilld.dev/pull/322) |
 | 2 | Freeze and marketing page audit. Bar: 100 searches a month. `/agents/codex`, `/agents/cursor`, `/agents/claude-code` and `/vs/context7` stay indexable. The rest are noindex | [#322](https://github.com/skilld-dev/skilld.dev/pull/322) |
-| 3 | Hygiene: tag chip links, noindex URLs out of sitemaps, related lists skip gone Skills, 8 tag pages noindex; `/brand-kit/github-badge` noindex; 5 stale collections retired | [#322](https://github.com/skilld-dev/skilld.dev/pull/322), [#321](https://github.com/skilld-dev/skilld.dev/pull/321), [#326](https://github.com/skilld-dev/skilld.dev/pull/326) |
+| 3 | Hygiene: tag chip links, noindex URLs out of sitemaps, related lists skip gone Skills, 8 tag pages noindex; 5 stale collections retired | [#322](https://github.com/skilld-dev/skilld.dev/pull/322), [#326](https://github.com/skilld-dev/skilld.dev/pull/326) |
 | 4 | No zone rate limit on `/gh/*` exists, so nothing to exempt. 60 parallel requests to one `/gh/` page all returned 200 on 2026-09-30 | [#324](https://github.com/skilld-dev/skilld.dev/pull/324) |
 | 5 | Crawl waste: `www` 301; 75 to 19 JS preloads; HTML edge cache | [#316](https://github.com/skilld-dev/skilld.dev/pull/316), [#323](https://github.com/skilld-dev/skilld.dev/pull/323), [#328](https://github.com/skilld-dev/skilld.dev/pull/328), [#329](https://github.com/skilld-dev/skilld.dev/pull/329) |
 | 6 | Real 404 and 410 for missing Skills; 503 with `Retry-After` when the lookup fails | [#317](https://github.com/skilld-dev/skilld.dev/pull/317) |
@@ -173,12 +173,12 @@ Check a PR with `gh pr view <n> --repo skilld-dev/skilld.dev`.
 
 1. [#332](https://github.com/skilld-dev/skilld.dev/pull/332), the `return_to` fix. It is a security fix, so it goes first.
 2. [#334](https://github.com/skilld-dev/skilld.dev/pull/334), the edge cache check. Each deploy reports a failure until it merges.
-3. [#321](https://github.com/skilld-dev/skilld.dev/pull/321), the badge block. Any order.
-4. This brief, then [#333](https://github.com/skilld-dev/skilld.dev/pull/333), the Monday check-in. The check-in reads this brief.
-5. [nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314), the probe link. Both probe targets serve `index,follow`. The 14 day probe window runs from the day it merges.
-6. Keep in draft, do not merge:
+3. This brief, then [#333](https://github.com/skilld-dev/skilld.dev/pull/333), the Monday check-in. The check-in reads this brief.
+4. [nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314), the probe link. Both probe targets serve `index,follow`. The 14 day probe window runs from the day it merges.
+5. Keep in draft, do not merge:
    - [#318](https://github.com/skilld-dev/skilld.dev/pull/318), experiment C, deferred on 2026-10-01.
    - [#320](https://github.com/skilld-dev/skilld.dev/pull/320), IndexNow. On 2026-10-01 the owner moved IndexNow submission to another service.
+   - [#321](https://github.com/skilld-dev/skilld.dev/pull/321), which shows the badge block only on indexable hubs. A badge on a noindex page still brings people to the site, so the gate is not needed (owner, 2026-10-01).
 
 gscdump family:
 
@@ -247,7 +247,7 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 
 - Measures: the `b_linked` group. Add it to the panel first.
 - Setup:
-  - Run a GitHub README badge program. `/brand-kit/github-badge` exists ([#321](https://github.com/skilld-dev/skilld.dev/pull/321)). Ask the maintainers of the top 50 Skills to embed a badge that links to their Skill page.
+  - Run a GitHub README badge program. The badge and its embed snippet already exist at `/b/<owner>/<repo>` and `/brand-kit/github-badge`. Ask the maintainers of the top 50 Skills to embed a badge that links to their Skill page.
   - Make the skilld CLI print canonical Skill page URLs ([skilld #178](https://github.com/skilld-dev/skilld/pull/178), after [#327](https://github.com/skilld-dev/skilld.dev/pull/327)).
   - Publish one launch post on established hosts: harlanzw.com, X, HN, r/ClaudeAI. Use original data, for example "we ran the top 50 Skills across 4 Agents".
 - Never buy links. Leave the 20 spam network domains alone. Disavow only if a manual action appears.
