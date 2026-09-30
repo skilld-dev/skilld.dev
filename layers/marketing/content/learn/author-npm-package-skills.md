@@ -44,7 +44,7 @@ npm pack --dry-run
 ```
 
 Confirm it includes `skills/your-skill/SKILL.md` and every linked local file.
-This command checks the npm tarball, regardless of which package manager you use for development.
+This command checks the [npm](https://npmjs.com) tarball, regardless of which package manager you use for development.
 See the [npm pack reference](https://docs.npmjs.com/cli/v11/commands/npm-pack).
 
 ## 4. Publish and share

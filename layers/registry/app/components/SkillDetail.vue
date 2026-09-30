@@ -49,6 +49,8 @@ interface SkillTag {
   slug: string
   label: string
   description: string
+  /** Final page for the tag. A redirected tag links to its target. */
+  path: string
 }
 
 interface FaqItem {
@@ -1748,7 +1750,7 @@ useHead(computed(() => ({
                 :key="tag.slug"
               >
                 <NuxtLink
-                  :to="`/skills/tag/${tag.slug}`"
+                  :to="tag.path"
                   class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
                   :title="tag.description"
                 >

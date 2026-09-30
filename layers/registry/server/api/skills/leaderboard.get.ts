@@ -4,6 +4,7 @@ import { defineApiHandler } from '#shared/server/handler'
 import { canonicalRepoSkillPath, repoHubPath } from '#shared/skill-routes'
 import {
   SKILLS_LEADERBOARD_COUNT_SQL,
+  SKILLS_LEADERBOARD_PAGE_SIZE,
   SKILLS_LEADERBOARD_PAGE_SQL,
 } from '../../utils/skills-leaderboard'
 
@@ -11,7 +12,7 @@ const query = z.object({
   page: z.coerce.number().int().min(1).default(1),
 })
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = SKILLS_LEADERBOARD_PAGE_SIZE
 
 export interface SkillsLeaderboardItem {
   rank: number

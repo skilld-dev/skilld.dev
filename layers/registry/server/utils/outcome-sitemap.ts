@@ -10,9 +10,10 @@ export interface OutcomeSitemapEntry {
  *
  * nuxt.config excludes `/skills/**` from the pages sitemap, so a page listed
  * nowhere here is indexable but never announced. `/skills/best` is editorial,
- * not a category, so it has no row in CLUSTERS to be picked up from.
+ * not a category, so it has no row in CLUSTERS to be picked up from. `/skills`
+ * is the directory index and renders `index,follow`.
  */
-const EDITORIAL_SKILL_PAGES = ['/skills/best']
+const EDITORIAL_SKILL_PAGES = ['/skills', '/skills/best']
 
 export function listOutcomeSitemapEntries(): OutcomeSitemapEntry[] {
   return [
