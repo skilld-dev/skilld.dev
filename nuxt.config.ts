@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
 import { frozenNoindexPaths } from './layers/marketing/app/utils/page-admissions'
@@ -8,6 +8,13 @@ import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallth
 import { externalCheckin } from './shared/checkin-external'
 import { iconifyCollections } from './shared/icon-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
+
+/** Every `/agents/*` page file, so the sitemap reads the admission decision for a page nobody listed. */
+function discoveredAgentRoutes(): string[] {
+  return readdirSync(fileURLToPath(new URL('./layers/marketing/app/pages/agents', import.meta.url)))
+    .filter(file => file.endsWith('.vue') && file !== 'index.vue')
+    .map(file => `/agents/${file.slice(0, -'.vue'.length)}`)
+}
 
 const iconCollections = iconifyCollections(pkg)
 
@@ -547,10 +554,11 @@ export default defineNuxtConfig({
     // Paginated URLs land here too. Route rules match on pathname, and Nitro
     // carries the original query across, so `/skills/leaderboard?page=2`
     // becomes `/skills/trending?range=all&page=2`. Verified against a running
-    // server rather than assumed. That URL serves 200 and self-canonicalises
-    // to `?range=all`, so the stray `page` is dropped by the canonical instead
-    // of by the redirect. Pagination went with the page: page 2 has no
-    // successor, and only page 1 ever ranked.
+    // server rather than assumed. The page then answers by the real page count
+    // of the admitted list (`resolveTrendingPage`): a page past the last one is
+    // a 404, and a real page carries its own canonical. Old leaderboard pages 2
+    // to 5 therefore 404 unless the list truly has that page. Only page 1 ever
+    // ranked, and it canonicalises to the bare `?range=all`.
     '/skills/leaderboard': { redirect: { to: '/skills/trending?range=all', statusCode: 301 } } as any,
     // Harlan's curated collections merged into the category pages, so each
     // retired collection URL points at the page that absorbed it rather than
@@ -658,7 +666,7 @@ export default defineNuxtConfig({
       pages: {
         includeAppSources: true,
         // An /agents page waits on a CLI release; it answers 404 until then.
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/make-skill', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths(), ...frozenNoindexPaths()],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/make-skill', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths(), ...frozenNoindexPaths(discoveredAgentRoutes())],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],

@@ -8,8 +8,8 @@
  * the pages sitemap. To admit one, add an entry with a measured target query.
  *
  * ADMISSION BAR. An exact-match target query with at least 100 measured
- * searches a month (NuxtSEO `research keywords`, pulled 2026-09-30, kept in
- * `~/scratch/seo-deathzone-2026-09-30/gaps.csv`), or a named role in the
+ * searches a month (NuxtSEO `research keywords`, pulled 2026-09-30; each
+ * entry below records its own measurement), or a named role in the
  * 2026-11-11 gate experiments. Competitor brand queries do not qualify: they
  * are navigational, and a directory cannot win them.
  *
@@ -70,14 +70,18 @@ export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
   },
 }
 
+/** True when the audit covers the path. Every `/agents/*` page counts. */
+function isAudited(path: string): boolean {
+  return FREEZE_AUDIT_PATHS.includes(path) || path.startsWith('/agents/')
+}
+
 /**
  * True when the page may be `index,follow`. Pages outside the audit are
  * unchanged. Every `/agents/*` page counts as audited, so a new Agent page
  * starts noindex until someone admits it.
  */
 export function isPageAdmitted(path: string): boolean {
-  const audited = FREEZE_AUDIT_PATHS.includes(path) || path.startsWith('/agents/')
-  if (!audited)
+  if (!isAudited(path))
     return true
   return Object.hasOwn(PAGE_ADMISSIONS, path)
 }
@@ -86,7 +90,14 @@ export function pageRobots(path: string): 'index,follow' | 'noindex,follow' {
   return isPageAdmitted(path) ? 'index,follow' : 'noindex,follow'
 }
 
-/** Paths the pages sitemap must skip, because their pages render noindex. */
-export function frozenNoindexPaths(): string[] {
-  return FREEZE_AUDIT_PATHS.filter(path => !isPageAdmitted(path))
+/**
+ * Paths the pages sitemap must skip, because their pages render noindex.
+ *
+ * Pass every route the app defines. The result then holds each audited route
+ * that `isPageAdmitted` refuses, including an `/agents/*` page nobody listed
+ * in `FREEZE_AUDIT_PATHS`. The sitemap and the page read the same decision.
+ */
+export function frozenNoindexPaths(routes: readonly string[] = []): string[] {
+  const candidates = new Set([...FREEZE_AUDIT_PATHS, ...routes.filter(isAudited)])
+  return [...candidates].filter(path => !isPageAdmitted(path))
 }

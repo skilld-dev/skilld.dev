@@ -9,6 +9,7 @@ import {
   leaderboardBoardRows,
   MIN_INDEXABLE_ROWS,
   monthStamp,
+  resolveTrendingPage,
   resolveTrendingRange,
   TRENDING_BOARD_LIMIT,
   TRENDING_RANGES,
@@ -323,13 +324,18 @@ useSeoMeta({
 
 // Every range points at itself. A range canonicalising to another would ask
 // Google to drop the board it just crawled, which is how the `all` cluster
-// would lose the ranking it inherited from /skills/leaderboard.
+// would lose the ranking it inherited from /skills/leaderboard. A page number
+// counts only up to the real page count; past it the page is a 404.
+const pageDecision = computed(() =>
+  resolveTrendingPage(meta.value.canonical, listPage.value, admitted.value?.pageCount ?? 1))
+
+if (pageDecision.value._tag === 'out-of-range')
+  throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })
+
 useHead({
   link: [{
     rel: 'canonical',
-    href: computed(() => listPage.value > 1
-      ? `${meta.value.canonical}${meta.value.canonical.includes('?') ? '&' : '?'}page=${listPage.value}`
-      : meta.value.canonical),
+    href: computed(() => pageDecision.value._tag === 'ok' ? pageDecision.value.canonical : meta.value.canonical),
   }],
 })
 

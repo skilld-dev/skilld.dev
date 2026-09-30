@@ -24,6 +24,14 @@ describe('freeze audit', () => {
       expect(skipped).not.toContain(path)
   })
 
+  it('skips a discovered Agent page that the audit list omits', () => {
+    expect(frozenNoindexPaths()).not.toContain('/agents/newcomer')
+    const skipped = frozenNoindexPaths(['/agents/newcomer', '/agents/codex', '/frameworks/react'])
+    expect(skipped).toContain('/agents/newcomer')
+    expect(skipped).not.toContain('/agents/codex')
+    expect(skipped).not.toContain('/frameworks/react')
+  })
+
   it('starts a new Agent page noindex until it is admitted', () => {
     expect(pageRobots('/agents/newcomer')).toBe('noindex,follow')
   })

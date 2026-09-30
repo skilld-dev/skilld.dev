@@ -16,13 +16,6 @@
 export type TrendingRange = 'week' | 'month' | 'all'
 
 /**
- * The range a bare `/skills/trending` serves.
- *
- * A month, not a week. A week of social evidence routinely returns fewer than
- * eight named skills, which is the bar the page sets for its own indexability,
- * so the shorter window made the default board excuse itself from the index.
- */
-/**
  * Rows the `week` and `month` boards show at most.
  *
  * Thirty is enough to read as a leaderboard rather than a shortlist. Shared
@@ -36,6 +29,13 @@ export const TRENDING_BOARD_LIMIT = 30
  */
 export const MIN_INDEXABLE_ROWS = 8
 
+/**
+ * The range a bare `/skills/trending` serves.
+ *
+ * A month, not a week. A week of social evidence routinely returns fewer than
+ * eight named skills, which is the bar the page sets for its own indexability,
+ * so the shorter window made the default board excuse itself from the index.
+ */
 export const DEFAULT_TRENDING_RANGE: TrendingRange = 'month'
 
 const SITE_ORIGIN = 'https://skilld.dev'
@@ -203,6 +203,28 @@ export function resolveTrendingRange(value: unknown): TrendingRange {
   if (typeof candidate === 'string' && RANGE_BY_ID.has(candidate as TrendingRange))
     return candidate as TrendingRange
   return DEFAULT_TRENDING_RANGE
+}
+
+export type TrendingPage
+  = | { _tag: 'ok', page: number, canonical: string }
+    | { _tag: 'out-of-range', page: number }
+
+/**
+ * Decide what a `?page=` value means for a board.
+ *
+ * Page 1 canonicalises to the bare range URL. A page from 2 to the real page
+ * count carries its own canonical. Anything past the last real page is
+ * `out-of-range`, and the page answers 404: a page that has no rows must not
+ * become an indexable copy of the board. 404 rather than a canonical to the
+ * last page, because the old `/skills/leaderboard?page=N` redirects land here
+ * and a 404 is the honest answer for a page that no longer exists.
+ */
+export function resolveTrendingPage(canonical: string, page: number, pageCount: number): TrendingPage {
+  if (page <= 1)
+    return { _tag: 'ok', page: 1, canonical }
+  if (page > pageCount)
+    return { _tag: 'out-of-range', page }
+  return { _tag: 'ok', page, canonical: `${canonical}${canonical.includes('?') ? '&' : '?'}page=${page}` }
 }
 
 export function trendingRangeMeta(range: TrendingRange): TrendingRangeMeta {
