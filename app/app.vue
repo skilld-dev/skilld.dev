@@ -11,7 +11,6 @@ const mobileNavigation = useTemplateRef('mobileNavigation')
 const mobileNavigationToggle = useTemplateRef('mobileNavigationToggle')
 const route = useRoute()
 const isAdminLayout = computed(() => route.meta.layout === 'admin')
-const { isAuthenticated, user, logout } = useAuth()
 
 const { enabled: kbdEnabled } = useKeyboardShortcuts()
 const skillSearch = useSkillSearch()
@@ -154,48 +153,7 @@ watch(() => route.fullPath, () => {
             class="min-h-11 min-w-11"
           />
 
-          <ClientOnly>
-            <template v-if="isAuthenticated && user">
-              <UButton
-                to="/me"
-                :label="`@${user.login}`"
-                icon="i-lucide-user"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                class="hidden lg:inline-flex"
-              />
-              <UButton
-                label="Sign out"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                class="hidden lg:inline-flex"
-                @click="logout"
-              />
-            </template>
-            <UButton
-              v-else
-              to="/login"
-              label="Sign in"
-              icon="i-lucide-github"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              class="hidden lg:inline-flex"
-            />
-            <template #fallback>
-              <UButton
-                to="/login"
-                label="Sign in"
-                icon="i-lucide-github"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                class="hidden lg:inline-flex"
-              />
-            </template>
-          </ClientOnly>
+          <HeaderAccount />
 
           <UButton
             id="mobile-navigation-toggle"
@@ -249,38 +207,7 @@ watch(() => route.fullPath, () => {
                 class="min-h-11 justify-start"
               />
               <USeparator class="my-1" />
-              <ClientOnly>
-                <template v-if="isAuthenticated && user">
-                  <UButton
-                    to="/me"
-                    :label="`@${user.login}`"
-                    icon="i-lucide-user"
-                    color="neutral"
-                    variant="ghost"
-                    block
-                    class="min-h-11 justify-start"
-                  />
-                  <UButton
-                    label="Sign out"
-                    icon="i-lucide-log-out"
-                    color="neutral"
-                    variant="ghost"
-                    block
-                    class="min-h-11 justify-start"
-                    @click="logout"
-                  />
-                </template>
-                <UButton
-                  v-else
-                  to="/login"
-                  label="Sign in"
-                  icon="i-lucide-github"
-                  color="neutral"
-                  variant="ghost"
-                  block
-                  class="min-h-11 justify-start"
-                />
-              </ClientOnly>
+              <HeaderAccount variant="menu" />
             </nav>
           </div>
         </template>

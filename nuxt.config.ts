@@ -8,6 +8,7 @@ import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallth
 import { externalCheckin } from './shared/checkin-external'
 import { iconifyCollections } from './shared/icon-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
+import { SESSION_NAME } from './shared/server/session-access'
 
 /** Every `/agents/*` page file, so the sitemap reads the admission decision for a page nobody listed. */
 function discoveredAgentRoutes(): string[] {
@@ -268,6 +269,11 @@ export default defineNuxtConfig({
     llmsTxt: {
       markdownLinks: true,
     },
+    // The module's negotiation also reads User-Agent, which a shared cache
+    // cannot key on. server/handlers/content-negotiation.ts decides from
+    // Accept and Sec-Fetch-Dest instead. Explicit `.md` URLs and the
+    // `Link: rel="alternate"` header on HTML stay with the module.
+    contentNegotiation: false,
     // 2.1.0 added /sitemap.md, on by default. It reads every ai_ready_pages
     // row with no limit (about 143k), which brings back the dump that
     // llms-full.txt retired. Every .md page would also link to it.
@@ -324,7 +330,18 @@ export default defineNuxtConfig({
     fallback: 'dark',
   },
 
+  // The server renders every public page signed out, so one stored copy can
+  // serve every visitor. The browser loads the session after hydration, and a
+  // page that needs it on the server says so with the `session` or `auth`
+  // route middleware.
+  auth: {
+    loadStrategy: 'client-only',
+  },
+
   runtimeConfig: {
+    // nuxt-auth-utils names its cookie from here; `readUserSession` looks for
+    // the same name before it opens a session.
+    session: { name: SESSION_NAME, password: '' },
     sessionPassword: '',
     adminSecret: '',
     tokenKey: '',
@@ -361,6 +378,7 @@ export default defineNuxtConfig({
     // claims every `.md` path and scanned middleware runs after a module's.
     handlers: [
       { middleware: true, handler: '~~/server/handlers/skill-md-probe.ts' },
+      { middleware: true, handler: '~~/server/handlers/content-negotiation.ts' },
     ],
     alias: {
       // Cloudflare's ASSETS binding is authoritative in production and local

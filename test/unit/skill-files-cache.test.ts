@@ -3,6 +3,7 @@ import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SKILL_FILE_LIMIT } from '../../shared/skill-files'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const HOUR = 60 * 60
 const CACHE_KEY = 'skills:files:v4:owner/repo/skill:main'
@@ -339,5 +340,6 @@ function event(): H3Event {
   return {
     method: 'GET',
     context: { platform: { db: fixture.db } },
+    node: { req: { headers: { ...SIGNED_IN_HEADERS } } },
   } as unknown as H3Event
 }

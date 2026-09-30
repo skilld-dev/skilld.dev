@@ -42,7 +42,7 @@ const skills = [
 ]
 
 mockNuxtImport('useRoute', () => () => route)
-mockNuxtImport('useUserSession', () => () => ({ user: ref(null) }))
+mockNuxtImport('useUserSession', () => () => ({ user: ref(null), loggedIn: ref(false), ready: ref(true) }))
 mockNuxtImport('useFetch', () => (url: unknown) => {
   const key = String(toValue(url))
   const value = key.includes('/skills')

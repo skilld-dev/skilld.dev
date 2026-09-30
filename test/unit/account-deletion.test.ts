@@ -7,6 +7,7 @@ import { encryptToken } from '../../layers/identity/server/utils/crypto'
 import { accountDeletionConfirmed } from '../../layers/identity/shared/contracts/account'
 import { emitOperationalEvent } from '../../server/utils/operational-event'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const NOW = 1_789_603_200
 const DAY = 86_400
@@ -423,7 +424,7 @@ describe('account deletion endpoint', () => {
           },
         },
       },
-      node: { req: { headers }, res: {} },
+      node: { req: { headers: { ...SIGNED_IN_HEADERS, ...headers } }, res: {} },
     } as unknown as H3Event
   }
 

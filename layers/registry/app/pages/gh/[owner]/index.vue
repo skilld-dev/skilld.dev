@@ -5,7 +5,7 @@ import { resolveOwnerProfileHandoff } from '../../../utils/owner-profile-handoff
 
 const route = useRoute()
 const ownerParam = computed(() => (route.params.owner as string).toLowerCase())
-const { isAuthenticated, user, loginUrl } = useAuth()
+const { state: auth, loginUrl } = useAuth()
 
 const { isBot } = useBotDetection()
 
@@ -38,9 +38,9 @@ const profileHandoff = computed(() => {
   if (!profile)
     return { _tag: 'hidden' } as const
 
-  const viewer = isAuthenticated.value && user.value
-    ? { _tag: 'signed-in' as const, login: user.value.login }
-    : { _tag: 'anonymous' as const }
+  const viewer = auth.value._tag === 'signed-in'
+    ? { _tag: 'signed-in' as const, login: auth.value.user.login }
+    : auth.value
 
   return resolveOwnerProfileHandoff(profile.kind, profile.owner, viewer)
 })
@@ -393,9 +393,15 @@ useSchemaOrg(computed(() => {
             />
           </div>
 
+          <!--
+            While the session loads, the sign-in invitation holds its space
+            but stays invisible, so the owner never sees it first.
+          -->
           <div
-            v-if="profileHandoff._tag === 'sign-in'"
+            v-if="profileHandoff._tag === 'sign-in' || profileHandoff._tag === 'pending'"
             class="mt-5 max-w-2xl border-t border-default pt-4"
+            :class="{ invisible: profileHandoff._tag === 'pending' }"
+            :aria-hidden="profileHandoff._tag === 'pending' ? 'true' : undefined"
           >
             <p class="font-mono text-sm font-medium">
               Is this your GitHub account?

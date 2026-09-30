@@ -24,6 +24,12 @@ export default antfu({
         selector: 'Property[key.name="redirect"] > Literal[value="error"], Property[key.value="redirect"] > Literal[value="error"]',
         message: 'workerd rejects redirect: \'error\'; use fetchNoRedirect()',
       },
+      // On a request with no session, h3 mints one and sets its cookie, and a
+      // response that sets a cookie is never stored by a shared cache.
+      {
+        selector: 'CallExpression[callee.name="getUserSession"]',
+        message: 'getUserSession() sets a session cookie on anonymous requests; use readUserSession() from #shared/server/session-access',
+      },
     ],
   },
 })

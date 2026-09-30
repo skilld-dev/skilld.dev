@@ -186,10 +186,15 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
-  it('likeButton has no violations when signed out', async () => {
+  it.each([
+    { name: 'while the session loads', sessionKnown: false },
+    { name: 'when signed out', sessionKnown: true },
+  ])('likeButton has no violations $name', async ({ sessionKnown }) => {
+    // nuxt-auth-utils marks the session known once the browser has asked for it.
+    useState('nuxt-auth-ready').value = sessionKnown
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
-      await import('../layers/identity/app/components/LikeButton.client.vue').then(m => m.default),
+      await import('../layers/identity/app/components/LikeButton.vue').then(m => m.default),
       {
         attachTo: container,
         props: {
@@ -203,6 +208,7 @@ describe('accessibility: components', () => {
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
+    useState('nuxt-auth-ready').value = false
   })
 
   it('skillSourceList has no violations', async () => {

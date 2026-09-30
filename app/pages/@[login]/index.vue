@@ -6,8 +6,10 @@ import { authorBadgeInput } from '../../utils/author-badge'
 const route = useRoute()
 const login = computed(() => String(route.params.login))
 
-const { user } = useUserSession()
-const isOwner = computed(() => user.value?.login?.toLowerCase() === login.value.toLowerCase())
+const { state: auth } = useAuth()
+// Known only in the browser: the server renders this page signed out for
+// every visitor. The owner's controls appear once the session lands.
+const isOwner = computed(() => auth.value._tag === 'signed-in' && auth.value.user.login.toLowerCase() === login.value.toLowerCase())
 
 const {
   data: collectionsData,
@@ -63,10 +65,17 @@ const { data: profile } = await useFetch<OrgProfile>(
 
 // 404 when the list is private and the viewer is not its owner, so the link
 // stays hidden. That 404 is the expected answer; the page needs no error UI.
-const { data: likedList } = await useFetch<{ access: 'public' | 'owner' }>(
+// The global `$fetch` sends no cookie from the server, so the server render
+// asks as an anonymous visitor. The owner of a closed list asks again from
+// the browser once the session lands.
+const { data: likedList, refresh: refreshLikedList } = await useFetch<{ access: 'public' | 'owner' }>(
   () => `/api/likes/by-user/${login.value}/visibility`,
-  { key: () => `liked-visibility-${login.value}` },
+  { key: () => `liked-visibility-${login.value}`, $fetch },
 )
+watch(isOwner, (owner) => {
+  if (owner)
+    void refreshLikedList()
+})
 
 const displayName = computed(() => profile.value?.displayName || `@${login.value}`)
 const profileDescription = computed(() => profile.value?.description ?? '')

@@ -1,6 +1,7 @@
 import type { EventHandler, H3Event } from 'h3'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const NOW = new Date('2026-08-10T09:00:00.000Z')
 const NOW_SEC = Math.floor(NOW.getTime() / 1000)
@@ -237,7 +238,7 @@ describe('skill likes endpoints', () => {
     return {
       method: 'GET',
       context: { platform: { db: wrapSqlite(sqlite) }, user: { id: 1, login: 'harlan' } },
-      node: { req: { headers: {} } },
+      node: { req: { headers: { ...SIGNED_IN_HEADERS } } },
     } as unknown as H3Event
   }
 
