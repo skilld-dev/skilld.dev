@@ -148,6 +148,10 @@
     {
       "pattern": "skilld.dev",
       "custom_domain": true
+    },
+    {
+      "pattern": "www.skilld.dev",
+      "custom_domain": true
     }
   ]
 }
