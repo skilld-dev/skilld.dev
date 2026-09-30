@@ -514,7 +514,8 @@ export const CLUSTERED_CATEGORIES: Set<string> = new Set(
 )
 
 /**
- * `apple-apps` and `knowledge-workspace` stay live rather than being culled:
+ * `apple-apps` and `knowledge-workspace` stayed live until 2026-09-30, when they
+ * were retired to 410 (shared/retired-collections.ts). They had been kept because:
  * their skills had no category or framework page to land on, and retiring a
  * collection removes the `curator_reason` trust signal from everything in it.
  *

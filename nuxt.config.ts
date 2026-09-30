@@ -563,7 +563,8 @@ export default defineNuxtConfig({
     // Harlan's curated collections merged into the category pages, so each
     // retired collection URL points at the page that absorbed it rather than
     // 404ing. `vue-nuxt` and `react` went to the framework pages that already
-    // own those queries; `apple-apps` and `knowledge-workspace` were culled.
+    // own those queries. The 2026-09-30 retirements (`apple-apps`, `knowledge-workspace`)
+    // and the noindex `-stack` trio live in shared/retired-collections.ts.
     '/@harlan-zw/design-engineering-essentials': { redirect: { to: '/skills/design', statusCode: 301 } } as any,
     '/@harlan-zw/frontend-design': { redirect: { to: '/skills/design', statusCode: 301 } } as any,
     '/@harlan-zw/essentials': { redirect: { to: '/skills/coding', statusCode: 301 } } as any,
