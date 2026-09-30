@@ -404,6 +404,10 @@ const treeAssets = computed(() => {
 })
 const treeAssetCount = computed(() => skillFiles.value?.total ?? data.value?.assetCount ?? treeAssets.value.length)
 
+// A Skill that is only SKILL.md has nothing to browse, so it gets no explorer
+// and the Skill takes the width.
+const hasExplorer = computed(() => treeAssets.value.length > 0)
+
 const contextCost = computed(() => data.value
   ? resolveSkillContextCost({
       raw: data.value.raw,
@@ -648,6 +652,9 @@ watch(
 // Programmatic open from the file tree. Markdown sub-docs reuse the server's
 // `marked` render via /api/skill-asset so every previewed document goes
 // through the same renderer as the SSR'd root SKILL.md.
+// Full width on desktop, capped so ultra-wide screens keep a readable page.
+const SKILL_CONTAINER = 'mx-auto w-full max-w-[105rem] px-4 sm:px-6 lg:px-8 xl:px-10'
+
 const viewerSection = useTemplateRef<HTMLElement>('viewerSection')
 const filesPopoverOpen = ref(false)
 
@@ -987,7 +994,8 @@ useHead(computed(() => ({
 <template>
   <div>
     <section
-      class="mx-auto max-w-5xl px-4 sm:px-6 pt-10 pb-6 md:pt-14"
+      class="pt-10 pb-6 md:pt-14"
+      :class="data && !error ? SKILL_CONTAINER : 'mx-auto max-w-5xl px-4 sm:px-6'"
       :aria-labelledby="data && !error ? 'skill-heading' : undefined"
       :aria-label="!data || error ? 'Skill details' : undefined"
     >
@@ -1286,7 +1294,7 @@ useHead(computed(() => ({
           </div>
           <p
             v-if="data.description"
-            class="mt-3 text-sm text-muted leading-relaxed line-clamp-3"
+            class="mt-3 max-w-3xl text-sm text-muted leading-relaxed line-clamp-3"
           >
             {{ data.description }}
           </p>
@@ -1492,7 +1500,10 @@ useHead(computed(() => ({
 
       <!-- The two command blocks are breakpoint twins, so neither can hold the anchor. -->
       <div id="run" class="scroll-mt-24" />
-      <div class="mx-auto max-w-5xl px-4 sm:px-6 pt-6 lg:hidden">
+      <div
+        class="pt-6 lg:hidden"
+        :class="SKILL_CONTAINER"
+      >
         <h2 class="section-label mb-2">
           Use it
         </h2>
@@ -1507,8 +1518,49 @@ useHead(computed(() => ({
         />
       </div>
 
-      <div class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-10 lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start">
-        <div class="lg:col-span-8 space-y-10 md:space-y-12">
+      <div
+        class="skill-layout py-8 md:py-10"
+        :class="[SKILL_CONTAINER, { 'skill-layout--solo': !hasExplorer }]"
+      >
+        <aside
+          v-if="hasExplorer"
+          class="skill-explorer scroll-fancy hidden xl:block"
+          aria-label="Skill files"
+        >
+          <section aria-labelledby="explorer-heading">
+            <div class="mb-2 flex items-baseline justify-between gap-2">
+              <h2
+                id="explorer-heading"
+                class="section-label"
+              >
+                Files
+              </h2>
+              <span
+                v-if="contextCost"
+                class="data-label"
+              >{{ contextCost.fileCount }} {{ contextCost.fileCount === 1 ? 'file' : 'files' }} · {{ formatByteSize(contextCost.totalBytes) }}</span>
+            </div>
+            <div class="rounded-lg border border-default p-1.5">
+              <SkillFileTree
+                :assets="treeAssets"
+                :owner="data.owner"
+                :repo="data.repo"
+                :name="data.name"
+                :registry-path="data.registryPath"
+                :branch="data.branch"
+                :skill-path="data.skillPath"
+                :skill-md-size="skillMdBytes"
+                :active-path="activeDocPath"
+                @select="(p) => { void resolveAndOpen(p) }"
+              />
+              <p v-if="treeAssetCount > treeAssets.length" class="px-2 pt-2 font-mono text-[10px] text-muted">
+                Showing {{ treeAssets.length.toLocaleString() }} of {{ treeAssetCount.toLocaleString() }} files.
+              </p>
+            </div>
+          </section>
+        </aside>
+
+        <div class="min-w-0 space-y-10 md:space-y-12">
           <section
             v-if="data.contentHtml"
             ref="viewerSection"
@@ -1597,21 +1649,21 @@ useHead(computed(() => ({
                 raw
               </a>
               <UPopover
-                v-if="contextCost"
+                v-if="hasExplorer"
                 v-model:open="filesPopoverOpen"
                 :content="{ align: 'end', sideOffset: 6 }"
               >
                 <button
                   type="button"
                   class="skill-viewer-action inline-flex lg:hidden"
-                  :aria-label="`Browse ${contextCost.fileCount} files`"
+                  :aria-label="`Browse ${treeAssets.length + 1} files`"
                 >
                   <UIcon
                     name="i-lucide-folder-tree"
                     class="size-3.5"
                     aria-hidden="true"
                   />
-                  {{ contextCost.fileCount }}
+                  {{ treeAssets.length + 1 }}
                 </button>
                 <template #content>
                   <div class="max-h-[60vh] w-72 overflow-y-auto p-2">
@@ -1802,6 +1854,379 @@ useHead(computed(() => ({
             </div>
           </section>
 
+          <div
+            class="grid gap-x-10 gap-y-10 border-t border-default pt-10 md:grid-cols-2"
+            aria-label="About this Skill"
+            role="region"
+          >
+            <SkillThirdPartyChecks :audits="audits" />
+            <SkillReceiptsPanel
+              v-if="data.provenance"
+              :provenance="data.provenance"
+              :verified-summary="verifiedSummary"
+              :maturity="maturity"
+            />
+            <section
+              v-if="capabilitySummary || skillModel || frontmatterEntries.visible.length || frontmatterEntries.other.length"
+              class="md:col-span-2"
+              aria-labelledby="capability-heading"
+            >
+              <h2
+                id="capability-heading"
+                class="section-label mb-3"
+              >
+                Capability
+              </h2>
+              <div class="rounded-lg border border-default p-4 space-y-3">
+                <div
+                  v-if="capabilitySummary && capabilitySummary.scopes.length"
+                  class="space-y-1.5"
+                >
+                  <span class="data-label block">What it can do</span>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="scope in capabilitySummary.scopes"
+                      :key="scope"
+                      class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
+                      :title="SCOPE_META[scope].hint"
+                    >
+                      <UIcon
+                        :name="SCOPE_META[scope].icon"
+                        class="size-3.5"
+                        aria-hidden="true"
+                      />
+                      {{ SCOPE_META[scope].label }}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  v-if="capabilitySummary && capabilitySummary.mcp.length"
+                  class="space-y-1.5"
+                >
+                  <span class="data-label block">MCP servers</span>
+                  <div class="flex flex-wrap gap-1">
+                    <UBadge
+                      v-for="server in capabilitySummary.mcp"
+                      :key="server"
+                      :label="server"
+                      variant="subtle"
+                      color="neutral"
+                      size="xs"
+                      class="font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  v-if="skillModel"
+                  class="space-y-1.5"
+                >
+                  <span class="data-label block">Model</span>
+                  <UBadge
+                    :label="skillModel"
+                    variant="subtle"
+                    color="neutral"
+                    size="xs"
+                    class="font-mono"
+                  />
+                </div>
+
+                <dl
+                  v-if="frontmatterEntries.visible.length"
+                  class="divide-y divide-default"
+                >
+                  <div
+                    v-for="entry in frontmatterEntries.visible"
+                    :key="entry.key"
+                    class="flex flex-col gap-1 py-2 first:pt-0 last:pb-0"
+                  >
+                    <dt class="data-label">
+                      {{ entry.key }}
+                    </dt>
+                    <dd class="min-w-0 font-mono text-xs text-muted">
+                      <pre
+                        v-if="entry.complex"
+                        class="whitespace-pre-wrap break-all"
+                      >{{ entry.value }}</pre>
+                      <span
+                        v-else
+                        class="break-all"
+                      >{{ entry.value }}</span>
+                    </dd>
+                  </div>
+                </dl>
+
+                <details
+                  v-if="allowedTools.length"
+                  class="group"
+                >
+                  <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                    <UIcon
+                      name="i-lucide-chevron-right"
+                      class="size-3.5 transition-transform group-open:rotate-90"
+                      aria-hidden="true"
+                    />
+                    All {{ allowedTools.length }} allowed tools
+                  </summary>
+                  <div class="mt-3 flex flex-wrap gap-1 pl-5">
+                    <UBadge
+                      v-for="tool in allowedTools"
+                      :key="tool"
+                      :label="tool"
+                      variant="subtle"
+                      color="neutral"
+                      size="xs"
+                      class="font-mono"
+                    />
+                  </div>
+                </details>
+
+                <details
+                  v-if="frontmatterEntries.other.length"
+                  class="group"
+                >
+                  <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                    <UIcon
+                      name="i-lucide-chevron-right"
+                      class="size-3.5 transition-transform group-open:rotate-90"
+                      aria-hidden="true"
+                    />
+                    Other metadata
+                  </summary>
+                  <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-xs">
+                    <div
+                      v-for="entry in frontmatterEntries.other"
+                      :key="entry.key"
+                      class="flex flex-col gap-1 px-3 py-2"
+                    >
+                      <dt class="data-label">
+                        {{ entry.key }}
+                      </dt>
+                      <dd class="min-w-0 font-mono text-muted">
+                        <pre
+                          v-if="entry.complex"
+                          class="whitespace-pre-wrap break-all"
+                        >{{ entry.value }}</pre>
+                        <span
+                          v-else
+                          class="break-all"
+                        >{{ entry.value }}</span>
+                      </dd>
+                    </div>
+                  </dl>
+                </details>
+              </div>
+            </section>
+            <section
+              ref="historySlot"
+              class="md:col-span-2"
+              aria-labelledby="history-heading"
+              :aria-busy="relatedLoading || undefined"
+            >
+              <h2
+                id="history-heading"
+                class="section-label mb-3"
+              >
+                History
+              </h2>
+              <ol
+                v-if="relatedLoading"
+                class="divide-y divide-default rounded-lg border border-default"
+                aria-label="Loading recent commits"
+              >
+                <li
+                  v-for="n in 3"
+                  :key="n"
+                  class="flex items-start gap-2.5 px-3 py-2.5"
+                >
+                  <USkeleton class="size-5 shrink-0 rounded-full mt-0.5" />
+                  <div class="min-w-0 flex-1 space-y-1.5">
+                    <USkeleton class="h-3.5 w-4/5" />
+                    <USkeleton class="h-3 w-1/3" />
+                  </div>
+                </li>
+              </ol>
+              <div
+                v-else-if="relatedError"
+                class="rounded-lg border border-default px-3 py-3"
+                role="alert"
+              >
+                <p class="text-xs text-muted">
+                  Couldn't load recent commits. Check your connection and try again.
+                </p>
+                <UButton
+                  label="Retry"
+                  color="neutral"
+                  variant="outline"
+                  size="xs"
+                  class="mt-2"
+                  @click="retryRelated"
+                />
+              </div>
+              <p
+                v-else-if="!recentCommits.length"
+                class="text-xs text-muted"
+              >
+                No recent commits found for this file.
+              </p>
+              <ol
+                v-else
+                class="divide-y divide-default rounded-lg border border-default"
+              >
+                <li
+                  v-for="commit in recentCommits"
+                  :key="commit.sha"
+                  class="flex items-start gap-2.5 px-3 py-2.5"
+                >
+                  <img
+                    v-if="commit.authorAvatar"
+                    :src="avatarProxyUrl(commit.authorAvatar)"
+                    :alt="`${commit.authorName} avatar`"
+                    width="20"
+                    height="20"
+                    class="size-5 shrink-0 rounded-full mt-0.5"
+                  >
+                  <div
+                    v-else
+                    class="size-5 shrink-0 rounded-full bg-muted mt-0.5"
+                    aria-hidden="true"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <a
+                      :href="commit.url"
+                      target="_blank"
+                      rel="noopener"
+                      class="text-xs hover:underline underline-offset-2 transition-colors line-clamp-2 leading-snug"
+                    >
+                      {{ commit.message }}
+                    </a>
+                    <div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                      <time
+                        :datetime="commit.date"
+                        :title="commit.absolute"
+                        class="font-mono"
+                        data-allow-mismatch="text"
+                      >{{ commit.relative }}</time>
+                      <span aria-hidden="true">·</span>
+                      <code class="font-mono">{{ commit.shortSha }}</code>
+                      <UIcon
+                        v-if="commit.verified"
+                        name="i-lucide-shield-check"
+                        class="size-3 shrink-0"
+                        :title="`GPG-signed (${commit.verifiedReason})`"
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </div>
+                </li>
+              </ol>
+              <p class="mt-2 text-xs text-muted">
+                <a
+                  :href="data.provenance?.historyUrl || `${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
+                  target="_blank"
+                  rel="noopener"
+                  class="font-mono hover:text-default transition-colors"
+                >
+                  View full history →
+                </a>
+              </p>
+            </section>
+            <section
+              v-if="data.tags.length || data.keywords?.length"
+              aria-labelledby="topics-heading"
+            >
+              <h2
+                id="topics-heading"
+                class="section-label mb-3"
+              >
+                Topics
+              </h2>
+              <ul
+                role="list"
+                class="flex flex-wrap gap-1.5"
+              >
+                <li
+                  v-for="tag in data.tags"
+                  :key="tag.slug"
+                >
+                  <NuxtLink
+                    :to="tag.path"
+                    class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
+                    :title="tag.description"
+                  >
+                    <UIcon
+                      name="i-lucide-tag"
+                      class="size-3"
+                      aria-hidden="true"
+                    />
+                    {{ tag.label }}
+                  </NuxtLink>
+                </li>
+                <li
+                  v-for="kw in data.keywords"
+                  :key="`kw-${kw}`"
+                >
+                  <span
+                    class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted"
+                  >
+                    <UIcon
+                      name="i-lucide-hash"
+                      class="size-3"
+                      aria-hidden="true"
+                    />
+                    {{ kw }}
+                  </span>
+                </li>
+              </ul>
+            </section>
+            <section
+              v-if="duplicateGroup?.siblings.length"
+              aria-labelledby="duplicate-siblings-heading"
+            >
+              <h2
+                id="duplicate-siblings-heading"
+                class="section-label mb-3"
+              >
+                Also available from
+              </h2>
+              <div class="divide-y divide-default rounded-lg border border-default overflow-hidden">
+                <NuxtLink
+                  v-for="sibling in duplicateGroup.siblings"
+                  :key="sibling.slug"
+                  :to="sibling.registryPath"
+                  class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
+                  :title="`${sibling.owner}/${sibling.repo} · ${sibling.stars.toLocaleString()} GitHub stars`"
+                >
+                  <UIcon
+                    name="i-lucide-git-branch"
+                    class="size-3.5 shrink-0 text-muted"
+                    aria-hidden="true"
+                  />
+                  <span class="min-w-0 flex-1 truncate font-mono text-xs text-muted">
+                    {{ sibling.owner }}/{{ sibling.repo }}
+                  </span>
+                  <span
+                    v-if="sibling.slug === duplicateGroup.canonical.slug"
+                    class="shrink-0 font-mono text-[11px] text-muted/70"
+                  >
+                    canonical
+                  </span>
+                </NuxtLink>
+              </div>
+            </section>
+            <section
+              v-if="badgeInput"
+              class="md:col-span-2 border-t border-default pt-4 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100"
+              aria-labelledby="readme-badge-heading"
+            >
+              <h2 id="readme-badge-heading" class="sr-only">
+                README badge
+              </h2>
+              <BadgeEmbedControl v-bind="badgeInput" />
+            </section>
+          </div>
+
           <section
             v-if="data.summary"
             aria-labelledby="summary-heading"
@@ -1856,8 +2281,8 @@ useHead(computed(() => ({
         </div>
 
         <aside
-          class="mt-10 lg:mt-0 lg:col-span-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1 scroll-fancy space-y-6"
-          aria-label="Run, install and metadata"
+          class="skill-rail scroll-fancy hidden space-y-8 lg:block"
+          aria-label="Run, install and files"
         >
           <section
             class="hidden lg:block"
@@ -1880,7 +2305,11 @@ useHead(computed(() => ({
             />
           </section>
 
-          <section aria-labelledby="files-heading">
+          <section
+            v-if="hasExplorer"
+            class="hidden lg:block xl:hidden"
+            aria-labelledby="files-heading"
+          >
             <div class="mb-2 flex items-baseline justify-between gap-2">
               <h2
                 id="files-heading"
@@ -1913,374 +2342,44 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="duplicateGroup?.siblings.length"
-            aria-labelledby="duplicate-siblings-heading"
+            v-if="capabilitySummary?.scopes.length"
+            aria-labelledby="rail-scopes-heading"
           >
             <h2
-              id="duplicate-siblings-heading"
-              class="section-label mb-3"
+              id="rail-scopes-heading"
+              class="section-label mb-2"
             >
-              Also available from
-            </h2>
-            <div class="divide-y divide-default rounded-lg border border-default overflow-hidden">
-              <NuxtLink
-                v-for="sibling in duplicateGroup.siblings"
-                :key="sibling.slug"
-                :to="sibling.registryPath"
-                class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
-                :title="`${sibling.owner}/${sibling.repo} · ${sibling.stars.toLocaleString()} GitHub stars`"
-              >
-                <UIcon
-                  name="i-lucide-git-branch"
-                  class="size-3.5 shrink-0 text-muted"
-                  aria-hidden="true"
-                />
-                <span class="min-w-0 flex-1 truncate font-mono text-xs text-muted">
-                  {{ sibling.owner }}/{{ sibling.repo }}
-                </span>
-                <span
-                  v-if="sibling.slug === duplicateGroup.canonical.slug"
-                  class="shrink-0 font-mono text-[11px] text-muted/70"
-                >
-                  canonical
-                </span>
-              </NuxtLink>
-            </div>
-          </section>
-
-          <section
-            v-if="data.tags.length || data.keywords?.length"
-            aria-labelledby="topics-heading"
-          >
-            <h2
-              id="topics-heading"
-              class="section-label mb-3"
-            >
-              Topics
+              What it can do
             </h2>
             <ul
               role="list"
               class="flex flex-wrap gap-1.5"
             >
               <li
-                v-for="tag in data.tags"
-                :key="tag.slug"
+                v-for="scope in capabilitySummary.scopes"
+                :key="scope"
+                class="skill-chip"
+                :title="SCOPE_META[scope].hint"
               >
-                <NuxtLink
-                  :to="tag.path"
-                  class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
-                  :title="tag.description"
-                >
-                  <UIcon
-                    name="i-lucide-tag"
-                    class="size-3"
-                    aria-hidden="true"
-                  />
-                  {{ tag.label }}
-                </NuxtLink>
-              </li>
-              <li
-                v-for="kw in data.keywords"
-                :key="`kw-${kw}`"
-              >
-                <span
-                  class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted"
-                >
-                  <UIcon
-                    name="i-lucide-hash"
-                    class="size-3"
-                    aria-hidden="true"
-                  />
-                  {{ kw }}
-                </span>
-              </li>
-            </ul>
-          </section>
-
-          <section
-            v-if="capabilitySummary || skillModel || frontmatterEntries.visible.length || frontmatterEntries.other.length"
-            aria-labelledby="capability-heading"
-          >
-            <h2
-              id="capability-heading"
-              class="section-label mb-3"
-            >
-              Capability
-            </h2>
-            <div class="rounded-lg border border-default p-4 space-y-3">
-              <div
-                v-if="capabilitySummary && capabilitySummary.scopes.length"
-                class="space-y-1.5"
-              >
-                <span class="data-label block">What it can do</span>
-                <div class="flex flex-wrap gap-1.5">
-                  <span
-                    v-for="scope in capabilitySummary.scopes"
-                    :key="scope"
-                    class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
-                    :title="SCOPE_META[scope].hint"
-                  >
-                    <UIcon
-                      :name="SCOPE_META[scope].icon"
-                      class="size-3.5"
-                      aria-hidden="true"
-                    />
-                    {{ SCOPE_META[scope].label }}
-                  </span>
-                </div>
-              </div>
-
-              <div
-                v-if="capabilitySummary && capabilitySummary.mcp.length"
-                class="space-y-1.5"
-              >
-                <span class="data-label block">MCP servers</span>
-                <div class="flex flex-wrap gap-1">
-                  <UBadge
-                    v-for="server in capabilitySummary.mcp"
-                    :key="server"
-                    :label="server"
-                    variant="subtle"
-                    color="neutral"
-                    size="xs"
-                    class="font-mono"
-                  />
-                </div>
-              </div>
-
-              <div
-                v-if="skillModel"
-                class="space-y-1.5"
-              >
-                <span class="data-label block">Model</span>
-                <UBadge
-                  :label="skillModel"
-                  variant="subtle"
-                  color="neutral"
-                  size="xs"
-                  class="font-mono"
-                />
-              </div>
-
-              <dl
-                v-if="frontmatterEntries.visible.length"
-                class="divide-y divide-default"
-              >
-                <div
-                  v-for="entry in frontmatterEntries.visible"
-                  :key="entry.key"
-                  class="flex flex-col gap-1 py-2 first:pt-0 last:pb-0"
-                >
-                  <dt class="data-label">
-                    {{ entry.key }}
-                  </dt>
-                  <dd class="min-w-0 font-mono text-xs text-muted">
-                    <pre
-                      v-if="entry.complex"
-                      class="whitespace-pre-wrap break-all"
-                    >{{ entry.value }}</pre>
-                    <span
-                      v-else
-                      class="break-all"
-                    >{{ entry.value }}</span>
-                  </dd>
-                </div>
-              </dl>
-
-              <details
-                v-if="allowedTools.length"
-                class="group"
-              >
-                <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="size-3.5 transition-transform group-open:rotate-90"
-                    aria-hidden="true"
-                  />
-                  All {{ allowedTools.length }} allowed tools
-                </summary>
-                <div class="mt-3 flex flex-wrap gap-1 pl-5">
-                  <UBadge
-                    v-for="tool in allowedTools"
-                    :key="tool"
-                    :label="tool"
-                    variant="subtle"
-                    color="neutral"
-                    size="xs"
-                    class="font-mono"
-                  />
-                </div>
-              </details>
-
-              <details
-                v-if="frontmatterEntries.other.length"
-                class="group"
-              >
-                <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="size-3.5 transition-transform group-open:rotate-90"
-                    aria-hidden="true"
-                  />
-                  Other metadata
-                </summary>
-                <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-xs">
-                  <div
-                    v-for="entry in frontmatterEntries.other"
-                    :key="entry.key"
-                    class="flex flex-col gap-1 px-3 py-2"
-                  >
-                    <dt class="data-label">
-                      {{ entry.key }}
-                    </dt>
-                    <dd class="min-w-0 font-mono text-muted">
-                      <pre
-                        v-if="entry.complex"
-                        class="whitespace-pre-wrap break-all"
-                      >{{ entry.value }}</pre>
-                      <span
-                        v-else
-                        class="break-all"
-                      >{{ entry.value }}</span>
-                    </dd>
-                  </div>
-                </dl>
-              </details>
-            </div>
-          </section>
-
-          <SkillReceiptsPanel
-            v-if="data.provenance"
-            :provenance="data.provenance"
-            :verified-summary="verifiedSummary"
-            :maturity="maturity"
-          />
-
-          <section
-            ref="historySlot"
-            aria-labelledby="history-heading"
-            :aria-busy="relatedLoading || undefined"
-          >
-            <h2
-              id="history-heading"
-              class="section-label mb-3"
-            >
-              History
-            </h2>
-            <ol
-              v-if="relatedLoading"
-              class="divide-y divide-default rounded-lg border border-default"
-              aria-label="Loading recent commits"
-            >
-              <li
-                v-for="n in 3"
-                :key="n"
-                class="flex items-start gap-2.5 px-3 py-2.5"
-              >
-                <USkeleton class="size-5 shrink-0 rounded-full mt-0.5" />
-                <div class="min-w-0 flex-1 space-y-1.5">
-                  <USkeleton class="h-3.5 w-4/5" />
-                  <USkeleton class="h-3 w-1/3" />
-                </div>
-              </li>
-            </ol>
-            <div
-              v-else-if="relatedError"
-              class="rounded-lg border border-default px-3 py-3"
-              role="alert"
-            >
-              <p class="text-xs text-muted">
-                Couldn't load recent commits. Check your connection and try again.
-              </p>
-              <UButton
-                label="Retry"
-                color="neutral"
-                variant="outline"
-                size="xs"
-                class="mt-2"
-                @click="retryRelated"
-              />
-            </div>
-            <p
-              v-else-if="!recentCommits.length"
-              class="text-xs text-muted"
-            >
-              No recent commits found for this file.
-            </p>
-            <ol
-              v-else
-              class="divide-y divide-default rounded-lg border border-default"
-            >
-              <li
-                v-for="commit in recentCommits"
-                :key="commit.sha"
-                class="flex items-start gap-2.5 px-3 py-2.5"
-              >
-                <img
-                  v-if="commit.authorAvatar"
-                  :src="avatarProxyUrl(commit.authorAvatar)"
-                  :alt="`${commit.authorName} avatar`"
-                  width="20"
-                  height="20"
-                  class="size-5 shrink-0 rounded-full mt-0.5"
-                >
-                <div
-                  v-else
-                  class="size-5 shrink-0 rounded-full bg-muted mt-0.5"
+                <UIcon
+                  :name="SCOPE_META[scope].icon"
+                  class="size-3.5"
                   aria-hidden="true"
                 />
-                <div class="min-w-0 flex-1">
-                  <a
-                    :href="commit.url"
-                    target="_blank"
-                    rel="noopener"
-                    class="text-xs hover:underline underline-offset-2 transition-colors line-clamp-2 leading-snug"
-                  >
-                    {{ commit.message }}
-                  </a>
-                  <div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-                    <time
-                      :datetime="commit.date"
-                      :title="commit.absolute"
-                      class="font-mono"
-                      data-allow-mismatch="text"
-                    >{{ commit.relative }}</time>
-                    <span aria-hidden="true">·</span>
-                    <code class="font-mono">{{ commit.shortSha }}</code>
-                    <UIcon
-                      v-if="commit.verified"
-                      name="i-lucide-shield-check"
-                      class="size-3 shrink-0"
-                      :title="`GPG-signed (${commit.verifiedReason})`"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </div>
+                {{ SCOPE_META[scope].label }}
               </li>
-            </ol>
-            <p class="mt-2 text-xs text-muted">
-              <a
-                :href="data.provenance?.historyUrl || `${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
-                target="_blank"
-                rel="noopener"
-                class="font-mono hover:text-default transition-colors"
-              >
-                View full history →
-              </a>
-            </p>
-          </section>
-
-          <SkillThirdPartyChecks :audits="audits" />
-
-          <section
-            v-if="badgeInput"
-            class="border-t border-default pt-4 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100"
-            aria-labelledby="readme-badge-heading"
-          >
-            <h2 id="readme-badge-heading" class="sr-only">
-              README badge
-            </h2>
-            <BadgeEmbedControl v-bind="badgeInput" />
+            </ul>
+            <a
+              href="#capability-heading"
+              class="data-label mt-2 inline-flex min-h-6 items-center gap-1 transition-colors hover:text-default"
+            >
+              Allowed tools and settings
+              <UIcon
+                name="i-lucide-arrow-down"
+                class="size-3"
+                aria-hidden="true"
+              />
+            </a>
           </section>
         </aside>
       </div>
@@ -2291,7 +2390,8 @@ useHead(computed(() => ({
     <USeparator />
     <section
       ref="relatedSlot"
-      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
+      class="py-8 md:py-12"
+      :class="SKILL_CONTAINER"
       aria-labelledby="related-heading"
       :aria-busy="relatedLoading || undefined"
     >
@@ -2470,6 +2570,40 @@ useHead(computed(() => ({
     border-radius: 8px 8px 0 0;
     background: var(--ui-bg);
   }
+  /* Desktop puts the Skill in the middle: files on the left from xl, and a
+     slim rail on the right with only what a visitor acts on. Everything else
+     sits under the Skill. */
+  @media (min-width: 1024px) {
+    .skill-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 18rem;
+      column-gap: 2.5rem;
+      align-items: start;
+    }
+    .skill-rail {
+      position: sticky;
+      top: 5rem;
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+    }
+  }
+  @media (min-width: 1280px) {
+    .skill-layout {
+      grid-template-columns: 17rem minmax(0, 56rem) 18rem;
+      justify-content: space-between;
+      column-gap: 3rem;
+    }
+    .skill-layout--solo {
+      grid-template-columns: minmax(0, 56rem) 18rem;
+    }
+    .skill-explorer {
+      position: sticky;
+      top: 5rem;
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+    }
+  }
+
   /* Folders give up their width first; the file name truncates last. */
   .skill-crumb-file {
     flex-shrink: 0.05;
