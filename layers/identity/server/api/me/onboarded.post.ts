@@ -1,3 +1,4 @@
+import type { UserSession } from '#auth-utils'
 import { defineApiHandler } from '#shared/server/handler'
 import { identityMutationResponseSchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
@@ -13,11 +14,13 @@ export default defineApiHandler({
       `UPDATE users SET onboarded_at = COALESCE(onboarded_at, ?1) WHERE id = ?2`,
     ).bind(now, u.id).run()
 
-    // A bearer token has no cookie session to update.
-    if (session) {
+    // A bearer token has no cookie session to update. The handler context
+    // types the session loosely; the cookie holds nuxt-auth-utils' shape.
+    const current = session as unknown as UserSession | null
+    if (current?.user) {
       await setUserSession(event, {
-        ...session,
-        user: { ...session.user, onboarded: true },
+        ...current,
+        user: { ...current.user, onboarded: true },
       })
     }
     return { ok: true as const }

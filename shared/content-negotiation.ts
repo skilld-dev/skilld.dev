@@ -96,11 +96,11 @@ function rankAccept(accept: string): Representation {
   let rejectedHtml = false
   let sawEntry = false
 
-  accept.split(',').forEach((part, position) => {
+  for (const [position, part] of accept.split(',').entries()) {
     const [rawType = '', ...params] = part.split(';')
     const type = rawType.trim().toLowerCase()
     if (!type)
-      return
+      continue
     sawEntry = true
     const q = quality(params)
     if (MARKDOWN_TYPES.has(type)) {
@@ -118,13 +118,13 @@ function rankAccept(accept: string): Representation {
     else if (WILDCARD_TYPES.has(type) && q > 0) {
       wildcard = better(wildcard, { q, position })
     }
-  })
+  }
 
   if (!sawEntry)
     return 'html'
 
-  const md: Best | null = markdown ?? (rejectedMarkdown ? null : wildcard)
-  const ht: Best | null = html ?? (rejectedHtml ? null : wildcard)
+  const md = markdown ?? (rejectedMarkdown ? null : wildcard)
+  const ht = html ?? (rejectedHtml ? null : wildcard)
   if (!md && !ht)
     return 'not-acceptable'
   if (!md)
