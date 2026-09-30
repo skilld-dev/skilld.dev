@@ -59,3 +59,15 @@ The protected `/api/internal/checkin` route runs the existing health checks on d
 The report must match the deployed Worker and be less than five minutes old.
 The daily health email cron and X API failure emails are removed. Customer digests remain unchanged.
 Historical email records stay in D1, but checks no longer depend on them.
+
+## SEO recovery measurement
+
+The `skilld.seo-recovery` prompt item adds a weekly SEO recovery section.
+It runs only on Mondays from 2026-10-12 through 2026-11-16, by the run date in Australia/Sydney.
+On other days it adds nothing.
+It reads `docs/work/EXECUTE-seo-recovery.md` and `docs/work/seo-recovery-panel.json`.
+It uses the `nuxtseo` CLI for reads only. It needs `nuxtseo` on the PATH and a token from `NUXTSEO_TOKEN` or `nuxtseo login`.
+If either is missing, the section is one blocked line.
+It never writes to NuxtSEO, gscdump, or Search Console.
+Crawl stats and the Pages report are not in any API, so Harlan supplies those screenshots.
+On 2026-11-09 and 2026-11-16 the section adds the gate decision table.
