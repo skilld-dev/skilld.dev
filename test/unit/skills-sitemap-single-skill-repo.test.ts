@@ -67,6 +67,15 @@ describe('skills sitemap single-Skill repos', () => {
     expect(locs.some(loc => loc.startsWith('/gh/agg/'))).toBe(false)
   })
 
+  it('lists no author, collection, owner hub or multi-Skill hub, so the sitemap equals the indexable set', async () => {
+    const locs = (await handler(event())).map(entry => entry.loc)
+
+    expect(locs.filter(loc => loc.startsWith('/@'))).toEqual([])
+    expect(locs.filter(loc => /^\/gh\/[^/]+$/.test(loc))).toEqual([])
+    expect(locs).not.toContain('/gh/anthropics/skills')
+    expect(locs).toContain('/gh/anthropics/skills/pdf-processing')
+  })
+
   it('leaves out a Skill that no trending board has admitted', async () => {
     const entries = await handler(event())
 

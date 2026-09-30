@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrgProfile } from '../../../../server/api/orgs/[owner].get'
+import { entityRobots } from '#shared/entity-robots'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { resolveOwnerProfileHandoff } from '../../../utils/owner-profile-handoff'
 
@@ -131,7 +132,8 @@ useSeoMeta({
     return `${data.value.totalSkills} agent skills ${verb} ${data.value.displayName}.`
   },
   ogUrl: canonicalUrl,
-  robots: () => data.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
+  // Owner hubs stay live and linked, never indexed (owner decision 2026-10-01).
+  robots: entityRobots({ _tag: 'owner-hub' }) ?? undefined,
   twitterCard: 'summary_large_image',
 })
 

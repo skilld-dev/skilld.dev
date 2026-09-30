@@ -8,6 +8,7 @@ import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { TRENDING_RANGES } from '#shared/trending-range'
+import { AGENT_LOGOS } from '~/utils/agent-logos'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
 import {
@@ -295,15 +296,7 @@ const authoringEcosystems = [
 const trendingDoorTarget = computed(() => (showTrending.value ? '#discover' : '/skills/trending'))
 
 // Named agent row under the search: proof of "every agent".
-const heroAgentLogos = [
-  { id: 'claude-code', label: 'Claude Code', icon: 'i-simple-icons-claude' },
-  { id: 'cursor', label: 'Cursor', icon: 'i-simple-icons-cursor' },
-  { id: 'codex', label: 'Codex', icon: 'i-simple-icons-openai' },
-  { id: 'gemini-cli', label: 'Gemini CLI', icon: 'i-simple-icons-googlegemini' },
-  { id: 'github-copilot', label: 'Copilot', icon: 'i-simple-icons-githubcopilot' },
-  { id: 'windsurf', label: 'Windsurf', icon: 'i-simple-icons-windsurf' },
-  { id: 'opencode', label: 'OpenCode', icon: 'i-simple-icons-opencode' },
-] as const
+const heroAgentLogos = AGENT_LOGOS
 
 const installTarget = computed<InstallTarget | null>(() => {
   const collection = leadCollection.value

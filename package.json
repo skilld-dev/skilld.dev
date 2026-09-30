@@ -73,6 +73,7 @@
     "@vueuse/nuxt": "catalog:",
     "agents": "catalog:",
     "comark": "catalog:",
+    "fflate": "catalog:",
     "h3": "catalog:",
     "import-in-the-middle": "catalog:",
     "marked": "catalog:",

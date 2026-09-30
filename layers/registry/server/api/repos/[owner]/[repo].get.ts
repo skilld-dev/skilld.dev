@@ -1,10 +1,8 @@
 import { getDB } from '#server/utils/db'
-import { hubRendersSource } from '#shared/repo-identity'
 import { isRegistrySkillPath } from '#shared/skill-path'
 import { getRepo, getTree, resolveGithubBindings } from '../../../utils/github-client'
 import { resolveRepoSourceIdentity } from '../../../utils/repo-source-identity'
 import { buildUnavailableRepoSourceProfile } from '../../../utils/repo-source-profile'
-import { isTrustedAuthorRepo } from '../../../utils/trusted-author-sources'
 
 export interface RepoSourceProfile {
   owner: string
@@ -21,7 +19,6 @@ export interface RepoSourceProfile {
   skillFileScanStatus: 'ok' | 'unavailable' | 'truncated'
   skillFileCount: number
   skillFiles: string[]
-  seoIndexable: boolean
 }
 
 export default defineCachedEventHandler(async (event) => {
@@ -32,7 +29,6 @@ export default defineCachedEventHandler(async (event) => {
 
   const owner = ownerParam.toLowerCase()
   const repo = repoParam.toLowerCase()
-  const trusted = isTrustedAuthorRepo(owner, repo)
   const db = getDB(event)
   const source = await resolveRepoSourceIdentity(db, { owner, repo })
   const bindings = resolveGithubBindings(event.context.platform.env)
@@ -46,18 +42,12 @@ export default defineCachedEventHandler(async (event) => {
       'outcome': 'unavailable',
       'upstream.status': repoRes.status || null,
     }))
-    return {
-      ...buildUnavailableRepoSourceProfile(owner, repo),
-      seoIndexable: trusted,
-    } satisfies RepoSourceProfile
+    return buildUnavailableRepoSourceProfile(owner, repo) satisfies RepoSourceProfile
   }
 
   const meta = repoRes.data
   const repoOwner = meta.owner.login
   const repoName = meta.name
-  // A renamed repository comes back under its new identity, and the hub page
-  // then renders "Source not found". Only a hub that renders its source is indexable.
-  const seoIndexable = trusted && hubRendersSource({ owner, repo }, { owner: repoOwner, repo: repoName })
   const treeRes = await getTree(repoOwner, repoName, meta.default_branch, bindings)
   const skillFiles = (treeRes.data?.tree ?? [])
     .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
@@ -84,7 +74,6 @@ export default defineCachedEventHandler(async (event) => {
     skillFileScanStatus,
     skillFileCount: skillFiles.length,
     skillFiles,
-    seoIndexable,
   } satisfies RepoSourceProfile
 }, {
   maxAge: 60 * 15,

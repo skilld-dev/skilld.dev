@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { entityRobots } from '#shared/entity-robots'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
-import { isNoindexCollection } from '#shared/retired-collections'
 
 const route = useRoute()
 const login = computed(() => String(route.params.login))
@@ -35,8 +35,8 @@ useSeoMeta({
   // "Apple Apps · @harlan-zw · skilld · skilld".
   title: () => collection.value ? `${collection.value.name} · @${login.value}` : 'Collection',
   description: () => collection.value?.preamble ?? `Skill collection by @${login.value}`,
-  // The featured band and curator signals need these rows live; search does not need the pages.
-  robots: () => isNoindexCollection(login.value, slug.value) ? 'noindex,follow' : 'index,follow',
+  // Owner decision 2026-10-01: collections stay live and linked, never indexed.
+  robots: entityRobots({ _tag: 'collection' }) ?? undefined,
 })
 
 const canonicalUrl = computed(() => `https://skilld.dev/@${login.value}/${slug.value}`)
