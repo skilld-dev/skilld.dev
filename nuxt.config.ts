@@ -261,6 +261,11 @@ export default defineNuxtConfig({
     llmsTxt: {
       markdownLinks: true,
     },
+    // The module's negotiation also reads User-Agent, which a shared cache
+    // cannot key on. server/handlers/content-negotiation.ts decides from
+    // Accept and Sec-Fetch-Dest instead. Explicit `.md` URLs and the
+    // `Link: rel="alternate"` header on HTML stay with the module.
+    contentNegotiation: false,
     // 2.1.0 added /sitemap.md, on by default. It reads every ai_ready_pages
     // row with no limit (about 143k), which brings back the dump that
     // llms-full.txt retired. Every .md page would also link to it.
@@ -357,6 +362,7 @@ export default defineNuxtConfig({
     // claims every `.md` path and scanned middleware runs after a module's.
     handlers: [
       { middleware: true, handler: '~~/server/handlers/skill-md-probe.ts' },
+      { middleware: true, handler: '~~/server/handlers/content-negotiation.ts' },
     ],
     alias: {
       // Cloudflare's ASSETS binding is authoritative in production and local
