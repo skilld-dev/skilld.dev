@@ -5,6 +5,7 @@ import { getDB } from '#server/utils/db'
 import { cached, readCache, writeCache } from '#shared/server/cache'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
+import { GITHUB_PAGE_READ_TIMEOUT_MS } from '../../utils/github-client'
 import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { querySkills } from '../../utils/skills-registry'
@@ -69,6 +70,7 @@ const kindByOwner = new Map(officialRepos.map(r => [r.owner, r.kind]))
 
 async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerRow | null> {
   const res = await fetch(`https://api.github.com/users/${owner}`, {
+    signal: AbortSignal.timeout(GITHUB_PAGE_READ_TIMEOUT_MS),
     headers: {
       'User-Agent': 'skilld.dev',
       'Accept': 'application/vnd.github+json',

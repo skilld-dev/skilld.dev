@@ -83,11 +83,11 @@ function parseTree(body: unknown): TreeAttempt {
   }
 }
 
-async function readTree(url: string): Promise<TreeAttempt> {
+async function readTree(url: string, timeoutMs: number): Promise<TreeAttempt> {
   // ofetch retries a GET once on its own, with no delay, which is too fast to
   // clear anything. `retry: 0` keeps the policy below the only retry, so the
   // attempt count in the wide event is the real one.
-  return $fetch<unknown>(url, { retry: 0 }).then(
+  return $fetch<unknown>(url, { retry: 0, timeout: timeoutMs }).then(
     body => parseTree(body),
     (error: unknown) => {
       const status = fetchErrorStatus(error)
@@ -109,7 +109,7 @@ export async function fetchUpstreamTree(
   const url = `https://ungh.cc/repos/${source.owner}/${source.repo}/files/${branch}`
 
   for (let attempt = 1; ; attempt++) {
-    const result = await readTree(url)
+    const result = await readTree(url, policy.timeoutMs)
 
     if (result._tag === 'files') {
       if (attempt > 1)

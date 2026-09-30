@@ -1,6 +1,9 @@
 import type { QueueBatch } from '#cf-jobs/server'
 import type { ArtifactBuildDependencies } from './build'
+import type { GithubReadFailure } from './github-source'
+import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { z } from 'zod'
+import { emitOperationalEvent } from '#server/utils/operational-event'
 import { createArtifactSigner } from './attestation'
 import { failResolution, processArtifactBuild } from './build'
 import {
@@ -67,6 +70,22 @@ export async function consumeArtifactBuildBatch(
   }
 }
 
+/**
+ * A failed GitHub read names its step and endpoint path. Without them the log
+ * said only "The operation was aborted due to timeout" (2026-09-30).
+ */
+export function reportGithubReadFailure(failure: GithubReadFailure): void {
+  emitOperationalEvent(createWideEvent({
+    'operation': 'artifact-github-read',
+    'outcome': 'failed',
+    'github.step': failure.step,
+    'github.endpoint': failure.endpoint,
+    'upstream.status': failure.status ?? 0,
+    'reason': failure.reason,
+    'attempt': failure.attempts,
+  }))
+}
+
 export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
   const runtimeFetch = globalThis.fetch.bind(globalThis)
   const privateDependencies = privateArtifactAccessEnabled(env)
@@ -74,7 +93,7 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
     : {}
   return {
     db: env.DB,
-    github: createPublicGithubSourceClient({ fetch: runtimeFetch, token: env.GITHUB_TOKEN }),
+    github: createPublicGithubSourceClient({ fetch: runtimeFetch, token: env.GITHUB_TOKEN, onReadFailure: reportGithubReadFailure }),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
@@ -133,7 +152,7 @@ function createPrivateBuildDependencies(
         row.repository_id,
       )
       return installationToken._tag === 'created'
-        ? createGithubSourceClient({ fetch: runtimeFetch, token: installationToken.token, visibility: 'private' })
+        ? createGithubSourceClient({ fetch: runtimeFetch, token: installationToken.token, visibility: 'private', onReadFailure: reportGithubReadFailure })
         : privateSourceNotFound()
     },
     privateArtifacts: {

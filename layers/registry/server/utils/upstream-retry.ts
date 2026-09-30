@@ -10,14 +10,23 @@
  */
 
 /** Statuses the host is expected to clear on its own. */
-export const TRANSIENT_UPSTREAM_STATUS: ReadonlySet<number> = new Set([408, 425, 429, 500, 502, 503, 504])
+export const TRANSIENT_UPSTREAM_STATUS: ReadonlySet<number> = new Set([408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524])
 
 /** Statuses that prove the document is gone, so a retry cannot help. */
 export const MISSING_UPSTREAM_STATUS: ReadonlySet<number> = new Set([404, 410])
 
+/**
+ * How long one try may run. On 2026-09-30 GitHub answered nothing for up to
+ * 100 seconds and pages waited for it. Three tries at this ceiling plus the
+ * backoff stay under 13 seconds.
+ */
+export const UPSTREAM_TRY_TIMEOUT_MS = 4_000
+
 export interface UpstreamRetryOptions {
   /** Total attempts, including the first. */
   maxAttempts?: number
+  /** Ceiling for one try, in milliseconds. */
+  timeoutMs?: number
   /** Backoff ceiling for the first retry, doubled on each later one. */
   baseDelayMs?: number
   sleep?: (milliseconds: number) => Promise<void>
@@ -26,6 +35,7 @@ export interface UpstreamRetryOptions {
 
 export interface UpstreamRetryPolicy {
   maxAttempts: number
+  timeoutMs: number
   baseDelayMs: number
   sleep: (milliseconds: number) => Promise<void>
   random: () => number
@@ -34,6 +44,7 @@ export interface UpstreamRetryPolicy {
 export function resolveUpstreamRetryPolicy(options: UpstreamRetryOptions = {}): UpstreamRetryPolicy {
   return {
     maxAttempts: Math.max(1, Math.floor(options.maxAttempts ?? 3)),
+    timeoutMs: Math.max(1, options.timeoutMs ?? UPSTREAM_TRY_TIMEOUT_MS),
     baseDelayMs: Math.max(0, options.baseDelayMs ?? 200),
     sleep: options.sleep ?? ((milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds))),
     random: options.random ?? Math.random,

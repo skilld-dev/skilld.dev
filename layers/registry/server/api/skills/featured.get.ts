@@ -2,6 +2,7 @@ import type { TagPayload } from '../../jobs/generate-tags'
 import { defineApiHandler } from '#shared/server/handler'
 import { officialRepos } from '../../data/official-repos'
 import { FeaturedSkillsQuery } from '../../schemas/featured-query'
+import { GITHUB_PAGE_READ_TIMEOUT_MS } from '../../utils/github-client'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { getFeaturedOfficialSections, getTopReposByCount, getTopReposByStars } from '../../utils/skills-registry'
 
@@ -16,6 +17,7 @@ interface OwnerProfileRow {
 
 async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerProfileRow | null> {
   const res = await fetch(`https://api.github.com/users/${owner}`, {
+    signal: AbortSignal.timeout(GITHUB_PAGE_READ_TIMEOUT_MS),
     headers: { 'User-Agent': 'skilld.dev', 'Accept': 'application/vnd.github+json' },
   }).catch(() => {
     emitOperationalEvent(createWideEvent({ operation: 'featured-owner-fetch', outcome: 'failed' }))

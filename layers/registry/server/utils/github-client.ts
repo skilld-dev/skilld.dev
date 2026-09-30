@@ -21,6 +21,22 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 const RAW_BASE = 'https://raw.githubusercontent.com'
 
+/**
+ * How long a page handler waits for one GitHub read on a cache miss. On
+ * 2026-09-30 GitHub answered nothing for up to 100 seconds and pages waited
+ * for it. A page that cannot read GitHub in this time answers without it.
+ */
+export const GITHUB_PAGE_READ_TIMEOUT_MS = 4_000
+
+export interface GithubReadOptions {
+  /** Abort the request after this many milliseconds. Unset means no limit. */
+  timeoutMs?: number
+}
+
+function readInit(options: GithubReadOptions | undefined): RequestInit | undefined {
+  return options?.timeoutMs === undefined ? undefined : { signal: AbortSignal.timeout(options.timeoutMs) }
+}
+
 export interface GithubBindings {
   KV_CACHE?: KVNamespace
   GITHUB_TOKEN?: string
@@ -185,8 +201,9 @@ export async function getRepo(
   owner: string,
   repo: string,
   bindings: GithubBindings,
+  options?: GithubReadOptions,
 ): Promise<FetchOutcome<RepoMeta>> {
-  return ghRequest<RepoMeta>(`${API_BASE}/repos/${owner}/${repo}`, bindings)
+  return ghRequest<RepoMeta>(`${API_BASE}/repos/${owner}/${repo}`, bindings, readInit(options))
 }
 
 interface RepoSummaryGqlResponse {
@@ -291,10 +308,12 @@ export async function getTree(
   repo: string,
   ref: string,
   bindings: GithubBindings,
+  options?: GithubReadOptions,
 ): Promise<FetchOutcome<TreeResponse>> {
   return ghRequest<TreeResponse>(
     `${API_BASE}/repos/${owner}/${repo}/git/trees/${ref}?recursive=1`,
     bindings,
+    readInit(options),
   )
 }
 

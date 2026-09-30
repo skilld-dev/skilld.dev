@@ -117,6 +117,8 @@ export default defineNuxtConfig({
       'error.count',
       'failed.count',
       'failed.tasks',
+      'github.endpoint',
+      'github.step',
       'item.count',
       'operation',
       'outcome',

@@ -1,9 +1,19 @@
 import type { ProblemCode, ResolvedSource, SourceRequest } from '../schemas/contracts'
+import type { GithubReadTry } from './github-read'
 import type { TarballExtraction } from './tarball-source'
 import { z } from 'zod'
 import { isRegistrySkillPath } from '#shared/skill-path'
 import { base64ToBytes, gitBlobShaHex } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
+import {
+  describeReadError,
+  GITHUB_READ_TRY_TIMEOUT_MS,
+  githubEndpointPath,
+  isBodyLimitError,
+  isRetryableGithubStatus,
+  isTruncatedBody,
+  readGithubWithRetry,
+} from './github-read'
 import { extractSkillFilesFromTarball } from './tarball-source'
 import { projectedUstarBytes } from './ustar'
 
@@ -20,7 +30,6 @@ const MAX_SKILL_PATH_SEGMENTS = 64
 const MAX_ARTIFACT_FILES = 900
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
-const GITHUB_REQUEST_TIMEOUT_MS = 15_000
 // A Repository tarball is one request that costs no REST quota, and it carries
 // every file of the Skill. Measured 2026-09-22 on a 33-Skill Repository: 3
 // counted requests and 0.45 s, against 6,525 requests and about 377 s per
@@ -128,10 +137,25 @@ export interface PublicGithubSourceClient {
   load: (source: ResolvedSource) => Promise<LoadSourceResult>
 }
 
+/** One failed GitHub REST read. It never carries a token or a query string. */
+export interface GithubReadFailure {
+  step: GithubReadStep
+  endpoint: string
+  reason: string
+  status: number | null
+  attempts: number
+}
+
+export type GithubReadStep = 'repository' | 'ref' | 'tag' | 'commit' | 'tree' | 'blob'
+
 interface GithubClientOptions {
   fetch: typeof globalThis.fetch
   token?: string
   visibility?: 'public' | 'private'
+  /** Called once for every read that ends in failure, before it throws. */
+  onReadFailure?: (failure: GithubReadFailure) => void
+  sleep?: (milliseconds: number) => Promise<void>
+  random?: () => number
 }
 
 export function createPublicGithubSourceClient(options: GithubClientOptions): PublicGithubSourceClient {
@@ -144,12 +168,17 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     outcome._tag === 'rate-limited'
       ? rateLimitRejection(outcome.resetAt)
       : sourceReadRejection(outcome._tag, expectedVisibility)
-  const requestJson = async <T>(path: string, schema: z.ZodType<T>): Promise<
+  const requestJson = async <T>(step: GithubReadStep, path: string, schema: z.ZodType<T>): Promise<
     { _tag: 'ok', value: T }
     | { _tag: 'not-found' }
     | { _tag: 'access-denied' }
     | { _tag: 'rate-limited', resetAt: number | null }
   > => {
+    type Outcome
+      = | { _tag: 'ok', value: T }
+        | { _tag: 'not-found' }
+        | { _tag: 'access-denied' }
+        | { _tag: 'rate-limited', resetAt: number | null }
     const headers = new Headers({
       'Accept': 'application/vnd.github+json',
       'User-Agent': 'skilld.dev',
@@ -157,36 +186,73 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     })
     if (options.token)
       headers.set('Authorization', `Bearer ${options.token}`)
-    const fetched = await fetchNoRedirect(options.fetch, `${GITHUB_API}${path}`, {
-      headers,
-      signal: AbortSignal.timeout(GITHUB_REQUEST_TIMEOUT_MS),
-    })
-    if (fetched._tag === 'unexpected-redirect')
-      throw new Error(`GitHub redirected ${fetched.status} to ${fetched.location ?? 'an unknown location'}`)
-    const response = fetched.response
-    if (response.status === 404)
-      return { _tag: 'not-found' }
-    if (response.status === 401 || response.status === 403) {
-      // A spent quota is a fact about this minute, not about the Repository.
-      // It used to throw, which wrote nothing: the Resolution sat in its
-      // current state through the 60, 120, 240, 480 second delivery ladder and
-      // then failed as SERVICE_UNAVAILABLE with no reason on it.
-      if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0')
-        return { _tag: 'rate-limited', resetAt: epochHeader(response.headers, 'x-ratelimit-reset') }
-      return { _tag: 'access-denied' }
+    // Every try requests this same URL, so a retry can never read another ref.
+    const url = `${GITHUB_API}${path}`
+    const tryOnce = async (): Promise<GithubReadTry<Outcome>> => {
+      const sent = await fetchNoRedirect(options.fetch, url, {
+        headers,
+        signal: AbortSignal.timeout(GITHUB_READ_TRY_TIMEOUT_MS),
+      }).then(
+        fetched => ({ _tag: 'sent' as const, fetched }),
+        (error: unknown) => ({ _tag: 'threw' as const, error }),
+      )
+      if (sent._tag === 'threw')
+        return { _tag: 'transient', reason: describeReadError(sent.error), status: null }
+      const fetched = sent.fetched
+      if (fetched._tag === 'unexpected-redirect')
+        return { _tag: 'fatal', reason: `GitHub redirected ${fetched.status} to ${fetched.location ?? 'an unknown location'}`, status: fetched.status }
+      const response = fetched.response
+      if (response.status === 404)
+        return { _tag: 'settled', value: { _tag: 'not-found' } }
+      if (response.status === 401 || response.status === 403) {
+        // A spent quota is a fact about this minute, not about the Repository.
+        // It used to throw, which wrote nothing: the Resolution sat in its
+        // current state through the 60, 120, 240, 480 second delivery ladder and
+        // then failed as SERVICE_UNAVAILABLE with no reason on it.
+        if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0')
+          return { _tag: 'settled', value: { _tag: 'rate-limited', resetAt: epochHeader(response.headers, 'x-ratelimit-reset') } }
+        return { _tag: 'settled', value: { _tag: 'access-denied' } }
+      }
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => {
+          // The status already decided the outcome. A body that will not close changes nothing.
+        })
+        return {
+          _tag: isRetryableGithubStatus(response.status) ? 'transient' : 'fatal',
+          reason: `GitHub returned ${response.status}`,
+          status: response.status,
+        }
+      }
+      const body = await readBoundedJson(response, MAX_GITHUB_JSON_BYTES).then(
+        value => ({ _tag: 'json' as const, value }),
+        (error: unknown) => ({ _tag: 'unreadable' as const, error }),
+      )
+      if (body._tag === 'unreadable') {
+        const transient = !isBodyLimitError(body.error)
+        return {
+          _tag: transient ? 'transient' : 'fatal',
+          reason: isTruncatedBody(body.error) ? 'GitHub returned a truncated response' : describeReadError(body.error),
+          status: response.status,
+        }
+      }
+      const parsed = schema.safeParse(body.value)
+      if (!parsed.success)
+        return { _tag: 'fatal', reason: 'GitHub returned an invalid response', status: response.status }
+      return { _tag: 'settled', value: { _tag: 'ok', value: parsed.data } }
     }
-    if (!response.ok)
-      throw new Error(`GitHub returned ${response.status}`)
-    const body = await readBoundedJson(response, MAX_GITHUB_JSON_BYTES)
-    const parsed = schema.safeParse(body)
-    if (!parsed.success)
-      throw new Error('GitHub returned an invalid response')
-    return { _tag: 'ok', value: parsed.data }
+
+    const result = await readGithubWithRetry(tryOnce, { sleep: options.sleep, random: options.random })
+    if (result._tag === 'settled')
+      return result.value
+    const endpoint = githubEndpointPath(path)
+    options.onReadFailure?.({ step, endpoint, reason: result.reason, status: result.status, attempts: result.attempts })
+    throw new Error(`GitHub read failed at ${step} ${endpoint}: ${result.reason}`)
   }
 
   const getTree = async (owner: string, repository: string, sha: string, recursive: boolean) => {
     const suffix = recursive ? '?recursive=1' : ''
     const response = await requestJson(
+      'tree',
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/trees/${sha}${suffix}`,
       treeResponseSchema,
     )
@@ -204,6 +270,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     const namespace = type === 'branch' ? 'heads' : 'tags'
     const expectedRef = `refs/${namespace}/${value}`
     const gitRef = await requestJson(
+      'ref',
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/ref/${namespace}/${encodeURIComponent(value)}`,
       gitRefResponseSchema,
     )
@@ -226,6 +293,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         return reject('INVALID_SOURCE', 'The Git tag does not resolve to a commit.', [value])
       seen.add(object.sha)
       const tag = await requestJson(
+        'tag',
         `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/tags/${object.sha}`,
         annotatedTagResponseSchema,
       )
@@ -329,6 +397,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         return reject('INVALID_SOURCE', 'The Skill path is invalid.', [request.selector.path])
       }
       const repository = await requestJson(
+        'repository',
         `/repos/${encodeURIComponent(request.owner)}/${encodeURIComponent(request.repository)}`,
         repositoryResponseSchema,
       )
@@ -358,6 +427,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       if (typeof requestedCommit !== 'string')
         return requestedCommit
       const commit = await requestJson(
+        'commit',
         `/repos/${encodeURIComponent(repository.value.owner.login)}/${encodeURIComponent(repository.value.name)}/commits/${requestedCommit}`,
         commitResponseSchema,
       )
@@ -402,6 +472,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
 
     async load(source) {
       const repository = await requestJson(
+        'repository',
         `/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}`,
         repositoryResponseSchema,
       )
@@ -509,6 +580,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const batch = entries.slice(offset, offset + 8)
       const loaded = await Promise.all(batch.map(async (entry): Promise<ArtifactSourceFile | SourceRejection> => {
         const response = await requestJson(
+          'blob',
           `/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/git/blobs/${entry.sha}`,
           blobResponseSchema,
         )

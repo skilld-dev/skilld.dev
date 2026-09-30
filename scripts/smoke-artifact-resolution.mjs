@@ -25,9 +25,69 @@ export const SMOKE_SOURCE = {
 }
 
 /**
+ * @typedef {'github_unreachable' | 'build_broken'} SmokeCause
  * @typedef {{ _tag: 'ready', resolutionId: string, artifactId: string, polls: number }
- *   | { _tag: 'failed', reason: 'request_rejected' | 'build_failed' | 'build_blocked' | 'build_revoked' | 'timeout' | 'invalid_response', detail: string, resolutionId?: string }} SmokeOutcome
+ *   | { _tag: 'failed', reason: 'request_rejected' | 'build_failed' | 'build_blocked' | 'build_revoked' | 'timeout' | 'invalid_response', detail: string, resolutionId?: string, cause?: SmokeCause }} SmokeOutcome
  */
+
+export const GITHUB_PROBE_URL = 'https://api.github.com/'
+const GITHUB_PROBE_TIMEOUT_MS = 8000
+
+/**
+ * Ask api.github.com whether it answers at all.
+ *
+ * On 2026-09-30 the path from Cloudflare Workers to GitHub failed for hours.
+ * Every build stalled on its first GitHub read, and the smoke could only say
+ * "timeout". This probe runs from the runner, so it sees the GitHub side of
+ * that fault, not the Cloudflare side. Any HTTP answer below 500 counts as
+ * reachable, including a 403 from a rate limit.
+ *
+ * @returns {Promise<{ _tag: 'reachable', status: number } | { _tag: 'unreachable', reason: string }>} Whether GitHub answered.
+ */
+export async function probeGithub(fetch = globalThis.fetch) {
+  try {
+    const response = await fetch(GITHUB_PROBE_URL, {
+      headers: { 'user-agent': 'skilld-artifact-smoke/1', 'accept': 'application/vnd.github+json' },
+      signal: AbortSignal.timeout(GITHUB_PROBE_TIMEOUT_MS),
+    })
+    await response.body?.cancel()
+    if (response.status >= 500)
+      return { _tag: 'unreachable', reason: `answered ${response.status}` }
+    return { _tag: 'reachable', status: response.status }
+  }
+  catch (error) {
+    return { _tag: 'unreachable', reason: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * Add the likely cause to a build that did not reach `ready` for a reason a
+ * GitHub outage can produce: still pending at the deadline, or failed as a
+ * retryable `SERVICE_UNAVAILABLE`. A rejected, blocked or revoked build is a
+ * verdict about the Skill, so it is left alone.
+ *
+ * @param {Extract<SmokeOutcome, { _tag: 'failed' }>} outcome
+ * @param {{ retryable: boolean }} shape
+ * @param {() => ReturnType<typeof probeGithub>} probeFn
+ * @returns {Promise<Extract<SmokeOutcome, { _tag: 'failed' }>>} The outcome, with a cause when one applies.
+ */
+async function explainStall(outcome, shape, probeFn) {
+  if (!shape.retryable)
+    return outcome
+  const probe = await probeFn()
+  if (probe._tag === 'unreachable') {
+    return {
+      ...outcome,
+      cause: 'github_unreachable',
+      detail: `${outcome.detail}. Cause: GitHub unreachable from Cloudflare. ${GITHUB_PROBE_URL} did not answer from the runner (${probe.reason}). Rerun the smoke when GitHub recovers.`,
+    }
+  }
+  return {
+    ...outcome,
+    cause: 'build_broken',
+    detail: `${outcome.detail}. Cause: build broken. ${GITHUB_PROBE_URL} answered ${probe.status} from the runner, so GitHub is up. Check the artifact-build queue logs.`,
+  }
+}
 
 /**
  * @param {{
@@ -37,6 +97,7 @@ export const SMOKE_SOURCE = {
  *   wait?: (ms: number) => Promise<void>
  *   now?: () => number
  *   log?: (line: string) => void
+ *   probe?: () => ReturnType<typeof probeGithub>
  * }} options
  * @returns {Promise<SmokeOutcome>} `ready` once the build finishes, else the first failure.
  */
@@ -45,6 +106,7 @@ export async function smokeArtifactResolution(options) {
   const wait = options.wait ?? (ms => new Promise(resolve => setTimeout(resolve, ms)))
   const now = options.now ?? Date.now
   const log = options.log ?? (() => {})
+  const probe = options.probe ?? (() => probeGithub())
   const headers = {
     'accept': 'application/json',
     'cache-control': 'no-cache',
@@ -83,16 +145,19 @@ export async function smokeArtifactResolution(options) {
   let polls = 0
   for (;;) {
     const terminal = classify(body, resolutionId, polls)
-    if (terminal)
-      return terminal
+    if (terminal) {
+      return terminal._tag === 'failed' && terminal.reason === 'build_failed'
+        ? await explainStall(terminal, { retryable: body.retryable === true }, probe)
+        : terminal
+    }
     log(`resolution ${resolutionId} ${body.state}${body.stage ? ` (${body.stage})` : ''}`)
     if (now() >= deadline) {
-      return {
+      return await explainStall({
         _tag: 'failed',
         reason: 'timeout',
         detail: `resolution ${resolutionId} still ${body.state}${body.stage ? ` (${body.stage})` : ''} after ${options.timeoutMs}ms`,
         resolutionId,
-      }
+      }, { retryable: true }, probe)
     }
     await wait(Math.min(Math.max(Number(body.pollAfterMs) || 1000, 250), 5000))
     polls++
@@ -175,7 +240,7 @@ async function main() {
     console.log(`Artifact smoke passed: ${outcome.resolutionId} is ready (artifact ${outcome.artifactId}, ${outcome.polls} polls)`)
     return
   }
-  console.error(`Artifact smoke failed (${outcome.reason}): ${outcome.detail}`)
+  console.error(`Artifact smoke failed (${outcome.reason}${outcome.cause ? `, ${outcome.cause}` : ''}): ${outcome.detail}`)
   process.exitCode = 1
 }
 
