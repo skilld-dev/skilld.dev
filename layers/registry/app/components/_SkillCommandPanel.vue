@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import type { ZipState } from '../utils/skill-zip'
 import { SKILL_RUN_PROMPT_LEAD } from '#shared/skill-commands'
+import { AGENT_LOGOS } from '~/utils/agent-logos'
 
 type CommandMode = 'run' | 'install'
+type InstallTarget = 'local' | 'claude' | 'chatgpt'
 
 const {
   runUrl,
@@ -10,6 +13,8 @@ const {
   installCopied,
   copyError,
   layout = 'tabs',
+  zipName,
+  zipState = { _tag: 'idle' },
 } = defineProps<{
   /** The Skill page. The Agent fetches it and receives the SKILL.md as markdown. */
   runUrl: string
@@ -19,11 +24,28 @@ const {
   copyError: string
   /** `tabs` fits a narrow column. `stacked` shows run, then install as the opt-in. */
   layout?: 'tabs' | 'stacked'
+  /** File name of the Skill ZIP for web agents. Unset hides the download. */
+  zipName?: string
+  zipState?: ZipState
 }>()
 
 const emit = defineEmits<{
   copy: [mode: CommandMode]
+  download: []
 }>()
+
+const installTarget = ref<InstallTarget>('local')
+const installTargets = [
+  { label: 'Local agent', value: 'local' },
+  { label: 'Claude', value: 'claude' },
+  { label: 'ChatGPT', value: 'chatgpt' },
+] satisfies { label: string, value: InstallTarget }[]
+// Where each web app takes an uploaded Skill ZIP.
+const uploadSteps: Record<Exclude<InstallTarget, 'local'>, string> = {
+  claude: 'Upload it in Claude under Settings › Capabilities › Skills.',
+  chatgpt: 'Upload it in ChatGPT under Skills › Create › Upload from your computer.',
+}
+const agentNames = AGENT_LOGOS.map(agent => agent.label).join(', ')
 
 const mode = defineModel<CommandMode>({ required: true })
 
@@ -51,10 +73,31 @@ function copyFrom(next: CommandMode) {
     data-testid="skill-command-panel"
     class="space-y-6"
   >
+    <div class="flex items-center gap-2">
+      <ul
+        role="list"
+        class="skill-agent-stack"
+        :aria-label="`Works with ${agentNames}`"
+      >
+        <li
+          v-for="agent in AGENT_LOGOS"
+          :key="agent.id"
+          :title="agent.label"
+        >
+          <UIcon
+            :name="agent.icon"
+            class="size-3"
+            aria-hidden="true"
+          />
+        </li>
+      </ul>
+      <span class="data-label">Works with your agent</span>
+    </div>
+
     <div class="space-y-3">
       <div class="space-y-1">
         <h2 class="font-mono text-sm text-default">
-          Hand it to your agent
+          Run once off
         </h2>
         <p class="text-xs leading-relaxed text-muted">
           <strong class="font-medium text-default">This session only.</strong> Nothing lands on disk. Nothing to clean up.
@@ -76,31 +119,75 @@ function copyFrom(next: CommandMode) {
     </div>
 
     <div class="space-y-3 border-t border-default pt-6">
-      <div class="space-y-1">
-        <h2 class="font-mono text-sm text-default">
-          Install
-        </h2>
+      <h2 class="font-mono text-sm text-default">
+        Install as a Skill
+      </h2>
+      <div
+        role="group"
+        aria-label="Where you use it"
+        class="flex gap-4 border-b border-default"
+      >
+        <button
+          v-for="item in installTargets"
+          :key="item.value"
+          type="button"
+          class="-mb-px min-h-9 border-b font-mono text-xs transition-colors"
+          :class="installTarget === item.value
+            ? 'border-[var(--ui-text)] text-default'
+            : 'border-transparent text-muted hover:text-default'"
+          :aria-pressed="installTarget === item.value"
+          @click="installTarget = item.value"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+      <template v-if="installTarget === 'local'">
         <p class="text-xs leading-relaxed text-muted">
           The files land in your project. The lockfile records them.
         </p>
-      </div>
-      <div class="flex items-center gap-2 rounded-lg border border-default py-1 pr-1 pl-3 text-sm">
-        <InstallCommand
-          :command="installCommand"
-          wrap
-          class="block min-w-0 flex-1 py-1"
-        />
+        <div class="flex items-center gap-2 rounded-lg border border-default py-1 pr-1 pl-3 text-sm">
+          <InstallCommand
+            :command="installCommand"
+            wrap
+            class="block min-w-0 flex-1 py-1"
+          />
+          <UButton
+            :icon="installCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            class="min-h-11 min-w-11 shrink-0"
+            :aria-label="installCopied ? 'Copied' : 'Copy install command'"
+            :aria-describedby="copyError && mode === 'install' ? copyErrorId : undefined"
+            @click="copyFrom('install')"
+          />
+        </div>
+      </template>
+      <template v-else>
+        <p class="text-xs leading-relaxed text-muted">
+          Download the ZIP. {{ uploadSteps[installTarget] }}
+        </p>
         <UButton
-          :icon="installCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+          v-if="zipName"
+          :icon="zipState._tag === 'building' ? 'i-lucide-loader-circle' : 'i-lucide-download'"
+          :label="zipState._tag === 'building' ? `Packing ${zipState.done} of ${zipState.total} files` : `Download ${zipName}`"
+          :loading="false"
+          :disabled="zipState._tag === 'building'"
           color="neutral"
-          variant="ghost"
+          variant="outline"
           size="sm"
-          class="min-h-11 min-w-11 shrink-0"
-          :aria-label="installCopied ? 'Copied' : 'Copy install command'"
-          :aria-describedby="copyError && mode === 'install' ? copyErrorId : undefined"
-          @click="copyFrom('install')"
+          class="font-mono"
+          :ui="{ leadingIcon: zipState._tag === 'building' ? 'animate-spin' : '' }"
+          @click="emit('download')"
         />
-      </div>
+        <p
+          v-if="zipState._tag === 'error'"
+          aria-live="polite"
+          class="text-xs leading-relaxed text-error"
+        >
+          {{ zipState.message }}
+        </p>
+      </template>
     </div>
 
     <p
@@ -176,3 +263,27 @@ function copyFrom(next: CommandMode) {
     </p>
   </div>
 </template>
+
+<style scoped>
+/* Overlapping monochrome marks, so the row reads as "every agent" without
+   pulling focus from the commands. */
+.skill-agent-stack {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.skill-agent-stack li {
+  display: grid;
+  place-items: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: var(--ui-bg);
+  color: var(--ui-text-muted);
+}
+.skill-agent-stack li + li {
+  margin-left: -0.375rem;
+}
+</style>

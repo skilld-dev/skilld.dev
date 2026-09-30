@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
+import type { ZipState } from '../utils/skill-zip'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
@@ -10,6 +11,7 @@ import { resolveSkillPageState } from '../utils/skill-page-state'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
 import { resolveViewerLink } from '../utils/skill-viewer-link'
+import { resolveSkillZipEntries } from '../utils/skill-zip'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 import SkillStarTrend from './_SkillStarTrend.vue'
@@ -407,6 +409,62 @@ const treeAssetCount = computed(() => skillFiles.value?.total ?? data.value?.ass
 // A Skill that is only SKILL.md has nothing to browse, so it gets no explorer
 // and the Skill takes the width.
 const hasExplorer = computed(() => treeAssets.value.length > 0)
+
+// Claude and ChatGPT take a Skill as an uploaded ZIP. The browser builds it
+// from GitHub at the pinned commit, so skilld serves no bytes.
+const zipState = ref<ZipState>({ _tag: 'idle' })
+const ZIP_FETCH_BATCH = 6
+
+async function buildSkillZip(): Promise<{ name: string, bytes: Uint8Array }> {
+  const skill = data.value
+  if (!skill?.skillPath)
+    throw new Error('skilld has no path for this SKILL.md. Download it from GitHub.')
+  if (treeAssetCount.value > treeAssets.value.length)
+    throw new Error('This Skill has more files than skilld lists. Download it from GitHub.')
+  const entries = resolveSkillZipEntries({
+    owner: skill.owner,
+    repo: skill.repo,
+    ref: skill.provenance?.sourceCommitSha ?? skill.branch,
+    skillPath: skill.skillPath,
+    name: skill.name,
+    files: treeAssets.value,
+  })
+  // Loaded on click, so the ZIP code never ships in the page bundle.
+  const { zipSync } = await import('fflate')
+  const files: Record<string, Uint8Array> = {}
+  let done = 0
+  zipState.value = { _tag: 'building', done, total: entries.length }
+  for (let start = 0; start < entries.length; start += ZIP_FETCH_BATCH) {
+    await Promise.all(entries.slice(start, start + ZIP_FETCH_BATCH).map(async (entry) => {
+      const response = await fetch(entry.url)
+      if (!response.ok)
+        throw new Error(`GitHub answered ${response.status} for ${entry.zipPath}.`)
+      files[entry.zipPath] = new Uint8Array(await response.arrayBuffer())
+      done += 1
+      zipState.value = { _tag: 'building', done, total: entries.length }
+    }))
+  }
+  return { name: `${skill.name}.zip`, bytes: zipSync(files) }
+}
+
+function downloadSkillZip() {
+  if (zipState.value._tag === 'building')
+    return
+  buildSkillZip()
+    .then(({ name, bytes }) => {
+      // A copy backed by a plain ArrayBuffer, which is what Blob accepts.
+      const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/zip' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = name
+      link.click()
+      URL.revokeObjectURL(url)
+      zipState.value = { _tag: 'idle' }
+    })
+    .catch((error: unknown) => {
+      zipState.value = { _tag: 'error', message: error instanceof Error ? error.message : 'The ZIP could not be built.' }
+    })
+}
 
 const contextCost = computed(() => data.value
   ? resolveSkillContextCost({
@@ -2292,11 +2350,14 @@ useHead(computed(() => ({
             <SkillCommandPanel
               v-model="commandMode"
               layout="stacked"
+              :zip-name="data.skillPath ? `${data.name}.zip` : undefined"
+              :zip-state="zipState"
               :run-url="runUrl"
               :install-command="installCmd"
               :run-copied="copied"
               :install-copied="installCopied"
               :copy-error="commandCopyError"
+              @download="downloadSkillZip"
               @copy="copySkillCommand"
             />
           </section>
@@ -2576,7 +2637,7 @@ useHead(computed(() => ({
   @media (min-width: 1024px) {
     .skill-layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 18rem;
+      grid-template-columns: minmax(0, 1fr) 20rem;
       column-gap: 2.5rem;
       align-items: start;
     }
@@ -2599,12 +2660,12 @@ useHead(computed(() => ({
   }
   @media (min-width: 1280px) {
     .skill-layout {
-      grid-template-columns: 17rem minmax(0, 56rem) 18rem;
+      grid-template-columns: 16rem minmax(0, 56rem) 20rem;
       justify-content: space-between;
       column-gap: 3rem;
     }
     .skill-layout--solo {
-      grid-template-columns: minmax(0, 56rem) 18rem;
+      grid-template-columns: minmax(0, 56rem) 20rem;
     }
     .skill-layout:not(.skill-layout--solo) .skill-explorer {
       grid-column: 1;
