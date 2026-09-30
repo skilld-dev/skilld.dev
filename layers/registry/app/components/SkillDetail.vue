@@ -1241,14 +1241,18 @@ useHead(computed(() => ({
                   class="skill-sha font-mono text-sm tabular-nums hover:underline underline-offset-2"
                   :title="`Your agent reads SKILL.md at commit ${shortSha}`"
                 >@{{ shortSha }}</a>
-                <UBadge
+                <span
                   v-if="data.tier !== 'community'"
-                  label="official"
-                  variant="solid"
-                  color="primary"
-                  size="xs"
+                  class="skill-official"
                   :title="data.tier === 'official-org' ? 'Published by the organization that maintains this project' : 'Published by the maintainer of this project'"
-                />
+                >
+                  <UIcon
+                    name="i-lucide-badge-check"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  official
+                </span>
               </div>
               <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                 <span>
@@ -1489,11 +1493,14 @@ useHead(computed(() => ({
         :class="[SKILL_CONTAINER, { 'skill-layout--solo': !hasExplorer }]"
       >
         <aside
-          v-if="hasExplorer"
-          class="skill-explorer scroll-fancy hidden xl:block"
-          aria-label="Skill files"
+          class="skill-explorer scroll-fancy space-y-8"
+          aria-label="Skill files and history"
         >
-          <section aria-labelledby="explorer-heading">
+          <section
+            v-if="hasExplorer"
+            class="hidden xl:block"
+            aria-labelledby="explorer-heading"
+          >
             <div class="mb-2 flex items-baseline justify-between gap-2">
               <h2
                 id="explorer-heading"
@@ -1524,9 +1531,122 @@ useHead(computed(() => ({
               </p>
             </div>
           </section>
+          <section
+            ref="historySlot"
+            aria-labelledby="history-heading"
+            :aria-busy="relatedLoading || undefined"
+          >
+            <h2
+              id="history-heading"
+              class="section-label mb-3"
+            >
+              History
+            </h2>
+            <ol
+              v-if="relatedLoading"
+              class="divide-y divide-default rounded-lg border border-default"
+              aria-label="Loading recent commits"
+            >
+              <li
+                v-for="n in 3"
+                :key="n"
+                class="flex items-start gap-2.5 px-3 py-2.5"
+              >
+                <USkeleton class="size-5 shrink-0 rounded-full mt-0.5" />
+                <div class="min-w-0 flex-1 space-y-1.5">
+                  <USkeleton class="h-3.5 w-4/5" />
+                  <USkeleton class="h-3 w-1/3" />
+                </div>
+              </li>
+            </ol>
+            <div
+              v-else-if="relatedError"
+              class="rounded-lg border border-default px-3 py-3"
+              role="alert"
+            >
+              <p class="text-xs text-muted">
+                Couldn't load recent commits. Check your connection and try again.
+              </p>
+              <UButton
+                label="Retry"
+                color="neutral"
+                variant="outline"
+                size="xs"
+                class="mt-2"
+                @click="retryRelated"
+              />
+            </div>
+            <p
+              v-else-if="!recentCommits.length"
+              class="text-xs text-muted"
+            >
+              No recent commits found for this file.
+            </p>
+            <ol
+              v-else
+              class="divide-y divide-default rounded-lg border border-default"
+            >
+              <li
+                v-for="commit in recentCommits"
+                :key="commit.sha"
+                class="flex items-start gap-2.5 px-3 py-2.5"
+              >
+                <img
+                  v-if="commit.authorAvatar"
+                  :src="avatarProxyUrl(commit.authorAvatar)"
+                  :alt="`${commit.authorName} avatar`"
+                  width="20"
+                  height="20"
+                  class="size-5 shrink-0 rounded-full mt-0.5"
+                >
+                <div
+                  v-else
+                  class="size-5 shrink-0 rounded-full bg-muted mt-0.5"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 flex-1">
+                  <a
+                    :href="commit.url"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-xs hover:underline underline-offset-2 transition-colors line-clamp-2 leading-snug"
+                  >
+                    {{ commit.message }}
+                  </a>
+                  <div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                    <time
+                      :datetime="commit.date"
+                      :title="commit.absolute"
+                      class="font-mono"
+                      data-allow-mismatch="text"
+                    >{{ commit.relative }}</time>
+                    <span aria-hidden="true">·</span>
+                    <code class="font-mono">{{ commit.shortSha }}</code>
+                    <UIcon
+                      v-if="commit.verified"
+                      name="i-lucide-shield-check"
+                      class="size-3 shrink-0"
+                      :title="`GPG-signed (${commit.verifiedReason})`"
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>
+              </li>
+            </ol>
+            <p class="mt-2 text-xs text-muted">
+              <a
+                :href="data.provenance?.historyUrl || `${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
+                target="_blank"
+                rel="noopener"
+                class="font-mono hover:text-default transition-colors"
+              >
+                View full history →
+              </a>
+            </p>
+          </section>
         </aside>
 
-        <div class="min-w-0 space-y-10 md:space-y-12">
+        <div class="skill-main min-w-0 space-y-10 md:space-y-12">
           <section
             v-if="data.contentHtml"
             ref="viewerSection"
@@ -2162,8 +2282,8 @@ useHead(computed(() => ({
         </div>
 
         <aside
-          class="skill-rail scroll-fancy mt-10 space-y-8 lg:mt-0"
-          aria-label="Run, install, files and history"
+          class="skill-rail scroll-fancy hidden space-y-8 lg:block"
+          aria-label="Run, install and files"
         >
           <section
             class="hidden lg:block"
@@ -2257,119 +2377,6 @@ useHead(computed(() => ({
                 aria-hidden="true"
               />
             </a>
-          </section>
-          <section
-            ref="historySlot"
-            aria-labelledby="history-heading"
-            :aria-busy="relatedLoading || undefined"
-          >
-            <h2
-              id="history-heading"
-              class="section-label mb-3"
-            >
-              History
-            </h2>
-            <ol
-              v-if="relatedLoading"
-              class="divide-y divide-default rounded-lg border border-default"
-              aria-label="Loading recent commits"
-            >
-              <li
-                v-for="n in 3"
-                :key="n"
-                class="flex items-start gap-2.5 px-3 py-2.5"
-              >
-                <USkeleton class="size-5 shrink-0 rounded-full mt-0.5" />
-                <div class="min-w-0 flex-1 space-y-1.5">
-                  <USkeleton class="h-3.5 w-4/5" />
-                  <USkeleton class="h-3 w-1/3" />
-                </div>
-              </li>
-            </ol>
-            <div
-              v-else-if="relatedError"
-              class="rounded-lg border border-default px-3 py-3"
-              role="alert"
-            >
-              <p class="text-xs text-muted">
-                Couldn't load recent commits. Check your connection and try again.
-              </p>
-              <UButton
-                label="Retry"
-                color="neutral"
-                variant="outline"
-                size="xs"
-                class="mt-2"
-                @click="retryRelated"
-              />
-            </div>
-            <p
-              v-else-if="!recentCommits.length"
-              class="text-xs text-muted"
-            >
-              No recent commits found for this file.
-            </p>
-            <ol
-              v-else
-              class="divide-y divide-default rounded-lg border border-default"
-            >
-              <li
-                v-for="commit in recentCommits"
-                :key="commit.sha"
-                class="flex items-start gap-2.5 px-3 py-2.5"
-              >
-                <img
-                  v-if="commit.authorAvatar"
-                  :src="avatarProxyUrl(commit.authorAvatar)"
-                  :alt="`${commit.authorName} avatar`"
-                  width="20"
-                  height="20"
-                  class="size-5 shrink-0 rounded-full mt-0.5"
-                >
-                <div
-                  v-else
-                  class="size-5 shrink-0 rounded-full bg-muted mt-0.5"
-                  aria-hidden="true"
-                />
-                <div class="min-w-0 flex-1">
-                  <a
-                    :href="commit.url"
-                    target="_blank"
-                    rel="noopener"
-                    class="text-xs hover:underline underline-offset-2 transition-colors line-clamp-2 leading-snug"
-                  >
-                    {{ commit.message }}
-                  </a>
-                  <div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-                    <time
-                      :datetime="commit.date"
-                      :title="commit.absolute"
-                      class="font-mono"
-                      data-allow-mismatch="text"
-                    >{{ commit.relative }}</time>
-                    <span aria-hidden="true">·</span>
-                    <code class="font-mono">{{ commit.shortSha }}</code>
-                    <UIcon
-                      v-if="commit.verified"
-                      name="i-lucide-shield-check"
-                      class="size-3 shrink-0"
-                      :title="`GPG-signed (${commit.verifiedReason})`"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </div>
-              </li>
-            </ol>
-            <p class="mt-2 text-xs text-muted">
-              <a
-                :href="data.provenance?.historyUrl || `${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
-                target="_blank"
-                rel="noopener"
-                class="font-mono hover:text-default transition-colors"
-              >
-                View full history →
-              </a>
-            </p>
           </section>
         </aside>
       </div>
@@ -2500,6 +2507,20 @@ useHead(computed(() => ({
     color: var(--ui-text);
     border-color: var(--ui-border-accented);
   }
+  /* The solid xs badge set 10px text on rose. This keeps the accent and reads
+     at chip size. */
+  .skill-official {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid color-mix(in oklch, var(--syntax-arg) 35%, transparent);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    color: var(--syntax-arg);
+  }
   .skill-sha {
     color: var(--syntax-arg);
   }
@@ -2537,9 +2558,21 @@ useHead(computed(() => ({
     border-radius: 8px 8px 0 0;
     background: var(--ui-bg);
   }
-  /* Desktop puts the Skill in the middle: files on the left from xl, and a
-     slim rail on the right with only what a visitor acts on. Everything else
-     sits under the Skill. */
+  /* Desktop puts the Skill in the middle: files and history on the left from
+     xl, and a slim rail on the right with only what a visitor acts on.
+     History is one element, placed per breakpoint: after the Skill on small
+     screens, under it from lg, and under the files from xl. */
+  .skill-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .skill-main {
+    order: 1;
+  }
+  .skill-explorer {
+    order: 2;
+    margin-top: 2.5rem;
+  }
   @media (min-width: 1024px) {
     .skill-layout {
       display: grid;
@@ -2547,7 +2580,17 @@ useHead(computed(() => ({
       column-gap: 2.5rem;
       align-items: start;
     }
+    .skill-main {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .skill-explorer {
+      grid-column: 1;
+      grid-row: 2;
+    }
     .skill-rail {
+      grid-column: 2;
+      grid-row: 1 / span 2;
       position: sticky;
       top: 5rem;
       max-height: calc(100vh - 6rem);
@@ -2563,11 +2606,21 @@ useHead(computed(() => ({
     .skill-layout--solo {
       grid-template-columns: minmax(0, 56rem) 18rem;
     }
-    .skill-explorer {
+    .skill-layout:not(.skill-layout--solo) .skill-explorer {
+      grid-column: 1;
+      grid-row: 1;
+      margin-top: 0;
       position: sticky;
       top: 5rem;
       max-height: calc(100vh - 6rem);
       overflow-y: auto;
+    }
+    .skill-layout:not(.skill-layout--solo) .skill-main {
+      grid-column: 2;
+    }
+    .skill-layout:not(.skill-layout--solo) .skill-rail {
+      grid-column: 3;
+      grid-row: 1;
     }
   }
 

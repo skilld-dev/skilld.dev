@@ -101,7 +101,6 @@ function copyFrom(next: CommandMode) {
           @click="copyFrom('install')"
         />
       </div>
-      <AgentTargets />
     </div>
 
     <p
@@ -175,7 +174,5 @@ function copyFrom(next: CommandMode) {
     >
       {{ copyError }}
     </p>
-
-    <AgentTargets v-if="mode === 'install'" />
   </div>
 </template>
