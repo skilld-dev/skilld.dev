@@ -66,9 +66,13 @@ export async function setSkillPageUrlHeader(event: H3Event, row: ResolutionRow):
   const pageUrl = await resolveSkillPageUrl(
     row,
     async (source) => {
-      const answer = await event.$fetch<{ pageUrl: string | null }>('/api/skills/page-url', {
+      // The global $fetch, unlike event.$fetch, forwards no caller credentials to verify again.
+      // A named object passes `context`, which NitroFetchOptions does not declare.
+      const options = {
         query: { owner: source.owner, repo: source.repository, path: source.skillPath },
-      })
+        context: event.context,
+      }
+      const answer = await $fetch<{ pageUrl: string | null }>('/api/skills/page-url', options)
       return answer.pageUrl
     },
     reason => emitOperationalEvent(createWideEvent({

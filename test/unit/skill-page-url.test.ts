@@ -1,5 +1,8 @@
 import type { SqliteD1 } from './helpers/d1-sqlite'
 // @vitest-environment node
+import { IncomingMessage, ServerResponse } from 'node:http'
+import { Socket } from 'node:net'
+import { createEvent, fetchWithEvent, getResponseHeader } from 'h3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveSkillPageUrl } from '../../layers/artifact-delivery/server/utils/skill-page'
 import { findSkillPagePath } from '../../layers/registry/server/utils/skill-page-url'
@@ -126,5 +129,38 @@ describe('resolveSkillPageUrl', () => {
     }, report)
     expect(result).toBeUndefined()
     expect(report).toHaveBeenCalledWith('registry down')
+  })
+})
+
+describe('setSkillPageUrlHeader', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('reads the page URL without the caller credentials and sets the header', async () => {
+    const req = new IncomingMessage(new Socket())
+    req.method = 'POST'
+    req.url = '/api/v1/resolutions'
+    req.headers = { authorization: 'Bearer x', cookie: 'a=b', host: 'skilld.dev' }
+    const event = createEvent(req, new ServerResponse(req))
+    // Nitro's request hook wires event.$fetch this way.
+    event.$fetch = ((request: string, init?: object) => fetchWithEvent(event, request, init, { fetch: globalThis.$fetch })) as never
+    const fetch = vi.fn().mockResolvedValue({ pageUrl: 'https://skilld.dev/gh/antfu/skills/vue' })
+    vi.stubGlobal('$fetch', fetch)
+    // The Nuxt test environment binds `$fetch` at module load, so import after the stub.
+    vi.resetModules()
+    const { setSkillPageUrlHeader } = await import('../../layers/artifact-delivery/server/utils/skill-page')
+
+    await setSkillPageUrlHeader(event, readyRow)
+
+    expect(fetch).toHaveBeenCalledOnce()
+    const [url, options] = fetch.mock.calls[0]!
+    expect(url).toBe('/api/skills/page-url')
+    expect(options.query).toEqual({ owner: 'antfu', repo: 'skills', path: 'skills/vue' })
+    expect(options.context).toBe(event.context)
+    const headers = new Headers(options.headers)
+    expect(headers.get('authorization')).toBeNull()
+    expect(headers.get('cookie')).toBeNull()
+    expect(getResponseHeader(event, 'skilld-page-url')).toBe('https://skilld.dev/gh/antfu/skills/vue')
   })
 })
