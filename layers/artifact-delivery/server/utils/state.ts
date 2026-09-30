@@ -3,6 +3,7 @@ import type {
   CheckResult,
   ProblemCode,
   ResolutionResponse,
+  ResolvedSource,
   SourceRequest,
 } from '../schemas/contracts'
 import { z } from 'zod'
@@ -10,9 +11,18 @@ import {
   artifactAttestationSchema,
   checkResultSchema,
   problemCodeSchema,
+  resolvedSourceSchema,
 } from '../schemas/contracts'
 import { canonicalJson, digestHex } from './encoding'
 
+/**
+ * The Artifact policy every attestation names. The artifact signer refuses a
+ * statement under another version.
+ *
+ * Bump it when a change to loading, packaging, or checks changes what one
+ * commit produces. A ready build signed under another version is never reused,
+ * so the bump also makes every commit load from GitHub once more.
+ */
 export const ARTIFACT_POLICY_VERSION = '2026-08-20.1'
 
 export const ACTIVE_BUILD_STATES = [
@@ -249,6 +259,127 @@ export async function transitionResolution(
   if (!advanced)
     throw new Error('Advanced Resolution could not be loaded')
   return { _tag: 'advanced', row: advanced }
+}
+
+/**
+ * How a build looks for a ready public build of the same commit.
+ *
+ * - `resolved`: GitHub has resolved the request. The whole source must match.
+ * - `pinned`: the request names a commit, and no GitHub read has happened. It
+ *   matches the commit, the owner and Repository name that GitHub reported for
+ *   the ready build, and the Skill path. A Skill name matches only a build
+ *   requested by that same name, because only a resolve by name proved that
+ *   exactly one Skill in the commit has it.
+ */
+export type ReadyBuildLookup
+  = { _tag: 'resolved', source: ResolvedSource }
+    | {
+      _tag: 'pinned'
+      owner: string
+      repository: string
+      commitSha: string
+      selector: SourceRequest['selector']
+    }
+
+/** A ready public build as D1 stores it. Nothing here verifies its attestation. */
+export interface ReadyPublicBuild {
+  resolutionId: string
+  source: ResolvedSource
+  artifactId: string
+  contentSha256: string
+  contentBytes: number
+  r2Key: string
+  attestationJson: string
+}
+
+const readyPublicBuildRowSchema = z.object({
+  id: z.string().uuid(),
+  repository_id: z.number().int().positive().safe(),
+  resolved_owner: z.string(),
+  resolved_repository: z.string(),
+  commit_sha: z.string(),
+  tree_sha: z.string(),
+  skill_path: z.string(),
+  artifact_id: z.string(),
+  content_sha256: z.string(),
+  content_bytes: z.number().int().positive(),
+  r2_key: z.string(),
+  attestation_json: z.string(),
+})
+
+/**
+ * The newest ready public build that a lookup matches, or null.
+ *
+ * Only a `ready` Resolution matches, so a revoked, failed or blocked one never
+ * does. The Artifact must still have the `available` delivery status. The
+ * caller verifies the attestation and the stored bytes before it reuses them.
+ * Migration 0131 indexes both lookups.
+ */
+export async function findReadyPublicBuild(
+  db: D1Database,
+  lookup: ReadyBuildLookup,
+): Promise<ReadyPublicBuild | null> {
+  if (lookup._tag === 'resolved' && lookup.source.visibility !== 'public')
+    return null
+  const value = await readyPublicBuildStatement(db, lookup).first<Record<string, unknown>>()
+  if (!value)
+    return null
+  const row = readyPublicBuildRowSchema.parse(value)
+  return {
+    resolutionId: row.id,
+    source: resolvedSourceSchema.parse({
+      provider: 'github',
+      repositoryId: row.repository_id,
+      owner: row.resolved_owner,
+      repository: row.resolved_repository,
+      visibility: 'public',
+      commitSha: row.commit_sha,
+      treeSha: row.tree_sha,
+      skillPath: row.skill_path,
+    }),
+    artifactId: row.artifact_id,
+    contentSha256: row.content_sha256,
+    contentBytes: row.content_bytes,
+    r2Key: row.r2_key,
+    attestationJson: row.attestation_json,
+  }
+}
+
+// The first two filters repeat the WHERE clause of the migration 0131 partial
+// index word for word. SQLite uses a partial index only when they match.
+// The order is by `created_at`, not `updated_at`: without planner stats, SQLite
+// picks `idx_artifact_resolutions_state (state, updated_at)` for a pinned
+// lookup when that index can supply the order, and reads every ready row.
+const READY_PUBLIC_BUILD_SELECT = `SELECT r.id, r.repository_id, r.resolved_owner, r.resolved_repository,
+       r.commit_sha, r.tree_sha, r.skill_path, r.artifact_id, r.content_sha256,
+       r.content_bytes, r.r2_key, r.attestation_json
+     FROM artifact_resolutions r
+     JOIN artifacts a ON a.id = r.artifact_id
+     WHERE r.state = 'ready' AND r.visibility = 'public'
+       AND a.delivery_status = 'available'`
+const NEWEST_READY_BUILD = 'ORDER BY r.created_at DESC, r.id DESC LIMIT 1'
+
+function readyPublicBuildStatement(db: D1Database, lookup: ReadyBuildLookup): D1PreparedStatement {
+  if (lookup._tag === 'resolved') {
+    const { source } = lookup
+    return db.prepare(
+      `${READY_PUBLIC_BUILD_SELECT}
+       AND r.commit_sha = ?1 AND r.repository_id = ?2 AND r.skill_path = ?3
+       AND r.tree_sha = ?4 AND r.resolved_owner = ?5 AND r.resolved_repository = ?6
+     ${NEWEST_READY_BUILD}`,
+    ).bind(source.commitSha, source.repositoryId, source.skillPath, source.treeSha, source.owner, source.repository)
+  }
+  const selector = lookup.selector.type === 'path'
+    ? { filter: 'r.skill_path = ?4', value: lookup.selector.path }
+    : { filter: 'r.selector_type = \'named-skill\' AND r.selector_value = ?4', value: lookup.selector.name }
+  return db.prepare(
+    `${READY_PUBLIC_BUILD_SELECT}
+       AND r.commit_sha = ?1
+       AND r.resolved_owner = ?2 COLLATE NOCASE
+       AND r.resolved_repository = ?3 COLLATE NOCASE
+       AND ${selector.filter}
+     ${NEWEST_READY_BUILD}`,
+  ).bind(lookup.commitSha, lookup.owner, lookup.repository, selector.value)
 }
 
 export function parseCheckResults(value: string | null): CheckResult[] {

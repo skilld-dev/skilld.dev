@@ -27,16 +27,33 @@ export async function putImmutableArtifact(
     return { _tag: 'stored', key: input.key }
 
   const existing = await bucket.head(input.key)
-  if (
-    existing
-    && existing.size === input.bytes.byteLength
-    && checksumHex(existing.checksums.sha256) === input.contentSha256
-    && existing.customMetadata?.contentSha256 === input.contentSha256
-    && existing.customMetadata?.format === 'skilld-tar-v1'
-  ) {
-    return { _tag: 'existing', key: input.key }
-  }
-  return { _tag: 'mutation-rejected', key: input.key }
+  return matchesImmutableArtifact(existing, { contentSha256: input.contentSha256, contentBytes: input.bytes.byteLength })
+    ? { _tag: 'existing', key: input.key }
+    : { _tag: 'mutation-rejected', key: input.key }
+}
+
+/**
+ * Whether R2 still holds the exact public Artifact bytes under this key.
+ *
+ * It reads only object metadata. The artifact signer still reads and hashes the
+ * whole object before it signs.
+ */
+export async function hasImmutableArtifact(
+  bucket: R2Bucket,
+  input: { key: string, contentSha256: string, contentBytes: number },
+): Promise<boolean> {
+  return matchesImmutableArtifact(await bucket.head(input.key), input)
+}
+
+function matchesImmutableArtifact(
+  object: R2Object | null,
+  expected: { contentSha256: string, contentBytes: number },
+): boolean {
+  return object !== null
+    && object.size === expected.contentBytes
+    && checksumHex(object.checksums.sha256) === expected.contentSha256
+    && object.customMetadata?.contentSha256 === expected.contentSha256
+    && object.customMetadata?.format === 'skilld-tar-v1'
 }
 
 function checksumHex(value: ArrayBuffer | undefined): string | null {
