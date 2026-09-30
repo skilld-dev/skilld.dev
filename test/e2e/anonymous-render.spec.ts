@@ -16,7 +16,7 @@ for (const path of ['/skills/trending', '/skills/trending?range=all', '/gh/antfu
     expect(await withCookie.text()).toBe(await bare.text())
     expect(bare.headers()['set-cookie']).toBeUndefined()
     expect(withCookie.headers()['set-cookie']).toBeUndefined()
-    expect(bare.headers().vary).toBe('Accept, Sec-Fetch-Dest')
+    expect(bare.headers().vary).toBe('Accept, Sec-Fetch-Dest, Host')
   })
 }
 
@@ -47,7 +47,7 @@ test('an agent that asks for Markdown is sent to the .md page', async ({ request
 
   expect(response.status()).toBe(307)
   expect(response.headers().location).toBe('/skills/trending.md')
-  expect(response.headers().vary).toBe('Accept, Sec-Fetch-Dest')
+  expect(response.headers().vary).toBe('Accept, Sec-Fetch-Dest, Host')
 })
 
 test('the trending board asks the edge to keep only the anonymous render', async ({ request }) => {

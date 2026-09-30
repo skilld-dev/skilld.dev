@@ -1,6 +1,6 @@
 import type { NegotiationRequest } from '../../shared/content-negotiation'
 import { describe, expect, it } from 'vitest'
-import { decideNegotiation } from '../../shared/content-negotiation'
+import { decideNegotiation, NEGOTIATION_VARY, varyKeysEdgeCache } from '../../shared/content-negotiation'
 
 const CHROME_NAVIGATION = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'
 const GOOGLEBOT = 'text/html,application/xhtml+xml,application/signed-exchange;v=b3,application/xml;q=0.9,*/*;q=0.8'
@@ -10,7 +10,7 @@ function page(overrides: Partial<NegotiationRequest>): NegotiationRequest {
 }
 
 // The decision reads Accept and Sec-Fetch-Dest and nothing else, so a shared
-// cache that varies on those two headers can never hand one client the other
+// cache that varies on those headers can never hand one client the other
 // client's representation.
 describe('decideNegotiation: representation', () => {
   it.each([
@@ -76,5 +76,26 @@ describe('decideNegotiation: Markdown location', () => {
     { path: '/gh/antfu/skills/', location: '/gh/antfu/skills.md' },
   ])('$path redirects to $location', ({ path, location }) => {
     expect(decideNegotiation(page({ path, accept: 'text/markdown' }))).toEqual({ _tag: 'markdown', location })
+  })
+})
+
+// Workers Cache keys on the path, never the host. Vary on Host gives the www
+// host its own variant, so a stored apex page never answers a www request and
+// the canonical-host redirect still runs.
+describe('nEGOTIATION_VARY', () => {
+  it('names Accept, Sec-Fetch-Dest and Host', () => {
+    expect(NEGOTIATION_VARY.split(',').map(field => field.trim().toLowerCase()).sort())
+      .toEqual(['accept', 'host', 'sec-fetch-dest'])
+  })
+
+  it.each([
+    { vary: NEGOTIATION_VARY, expected: true },
+    { vary: 'host, sec-fetch-dest,ACCEPT', expected: true },
+    { vary: 'Accept, Sec-Fetch-Dest', expected: false },
+    { vary: 'Accept, Sec-Fetch-Dest, Host, User-Agent', expected: false },
+    { vary: '', expected: false },
+    { vary: null, expected: false },
+  ])('varyKeysEdgeCache($vary) is $expected', ({ vary, expected }) => {
+    expect(varyKeysEdgeCache(vary)).toBe(expected)
   })
 })
