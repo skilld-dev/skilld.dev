@@ -1646,6 +1646,7 @@ useHead(computed(() => ({
               <div
                 v-show="contentView === 'markdown'"
                 class="skill-markdown"
+                :class="{ 'skill-markdown-wrap': !isNonMarkdownDoc }"
               >
                 <div
                   v-if="rawHtml"
@@ -2435,6 +2436,12 @@ useHead(computed(() => ({
   border-top: 0;
   border-radius: 0 0 8px 8px;
   overflow: hidden;
+}
+/* Prose source reads top to bottom; a sideways scrollbar at the end of a long
+   file is out of reach. Code keeps its line breaks and scrolls instead. */
+.skill-markdown-wrap :deep(pre) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .skill-viewer-body > .skill-markdown :deep(.shiki),
 .skill-viewer-body > .skill-markdown :deep(pre) {
