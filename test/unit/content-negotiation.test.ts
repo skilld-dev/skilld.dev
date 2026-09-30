@@ -31,6 +31,9 @@ describe('decideNegotiation: representation', () => {
     { name: 'fetch() from a page', secFetchDest: 'empty', accept: '*/*', expected: { _tag: 'html' } },
     { name: 'Markdown refused, anything else allowed', secFetchDest: undefined, accept: 'text/markdown;q=0, text/plain;q=0, */*', expected: { _tag: 'html' } },
     { name: 'only a type the page cannot serve', secFetchDest: undefined, accept: 'image/png', expected: { _tag: 'not-acceptable' } },
+    // A skip sends the page with no Vary. A shared cache then serves that copy to every client.
+    { name: 'a JSON request to a page', secFetchDest: undefined, accept: 'application/json', expected: { _tag: 'html' } },
+    { name: 'an event stream request to a page', secFetchDest: undefined, accept: 'text/event-stream', expected: { _tag: 'html' } },
   ])('$name gets $expected._tag', ({ secFetchDest, accept, expected }) => {
     expect(decideNegotiation(page({ accept, secFetchDest }))).toEqual(expected)
   })
@@ -45,8 +48,7 @@ describe('decideNegotiation: which requests negotiate', () => {
     { name: 'a file', request: page({ path: '/robots.txt', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'an explicit Markdown URL', request: page({ path: '/gh/a/b/c.md', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'a well-known URL', request: page({ path: '/.well-known/mcp', accept: 'text/markdown' }), reason: 'not-a-page' },
-    { name: 'a JSON request', request: page({ accept: 'application/json' }), reason: 'data-request' },
-    { name: 'an event stream', request: page({ accept: 'text/event-stream' }), reason: 'data-request' },
+    { name: 'a README badge image', request: page({ path: '/b/antfu/skills', accept: 'image/*' }), reason: 'not-a-page' },
   ])('$name is skipped ($reason)', ({ request, reason }) => {
     expect(decideNegotiation(request)).toEqual({ _tag: 'skip', reason })
   })
@@ -59,6 +61,11 @@ describe('decideNegotiation: which requests negotiate', () => {
   it('negotiates a collection author page', () => {
     expect(decideNegotiation(page({ path: '/@harlan-zw', accept: 'text/markdown' })))
       .toEqual({ _tag: 'markdown', location: '/@harlan-zw.md' })
+  })
+
+  it('negotiates a page whose path starts with /b but is not a badge', () => {
+    expect(decideNegotiation(page({ path: '/brand-kit/github-badge', accept: 'text/markdown' })))
+      .toEqual({ _tag: 'markdown', location: '/brand-kit/github-badge.md' })
   })
 })
 

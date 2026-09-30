@@ -33,14 +33,15 @@ export interface NegotiationRequest {
 }
 
 export type NegotiationDecision
-  = | { _tag: 'skip', reason: 'method' | 'internal' | 'not-a-page' | 'data-request' }
+  = | { _tag: 'skip', reason: 'method' | 'internal' | 'not-a-page' }
     | { _tag: 'html' }
     | { _tag: 'markdown', location: string }
     | { _tag: 'not-acceptable' }
 
 type Representation = 'html' | 'markdown' | 'not-acceptable'
 
-const RESERVED_PATH_RE = /^\/(?:api(?:\/|$)|_|\.well-known(?:\/|$)|@(?:id|fs|vite|react-refresh)(?:\/|$))/
+// `/b/` serves the SVG README badges.
+const RESERVED_PATH_RE = /^\/(?:api(?:\/|$)|_|b\/|\.well-known(?:\/|$)|@(?:id|fs|vite|react-refresh)(?:\/|$))/
 const DATA_ACCEPT_RE = /\b(?:application\/json|text\/event-stream)\b/i
 const DOCUMENT_ACCEPT_RE = /text\/(?:html|markdown|plain)\b|\*\/\*/i
 const MARKDOWN_TYPES = new Set(['text/markdown', 'text/plain'])
@@ -58,8 +59,9 @@ export function decideNegotiation(request: NegotiationRequest): NegotiationDecis
     return { _tag: 'skip', reason: 'not-a-page' }
 
   const accept = request.accept ?? ''
+  // A data client keeps the page it always got, never a 406 or a redirect.
   if (DATA_ACCEPT_RE.test(accept) && !DOCUMENT_ACCEPT_RE.test(accept))
-    return { _tag: 'skip', reason: 'data-request' }
+    return { _tag: 'html' }
 
   const representation = representationFor(accept, request.secFetchDest)
   if (representation === 'markdown')
