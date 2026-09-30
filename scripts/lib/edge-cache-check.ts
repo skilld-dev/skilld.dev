@@ -130,7 +130,7 @@ function sessionRenderProblem(html: string): string | null {
  */
 function pageIdentity(html: string): string | null {
   const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim()
-  const canonical = html.match(/<link\b[^>]*\brel="canonical"[^>]*>/i)?.[0].match(/\bhref="([^"]*)"/i)?.[1]
+  const canonical = html.match(/<link\s[^>]*rel="canonical"[^>]*>/i)?.[0].match(/href="([^"]*)"/i)?.[1]
   return title || canonical ? `${title ?? ''} | ${canonical ?? ''}` : null
 }
 
@@ -226,8 +226,9 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
   for (const path of paths) {
     const url = new URL(path, dependencies.baseUrl).href
     const anonymous = await checkAnonymous(path, url, { fetch, wait, hitAttempts, retryDelayMs })
-    if (anonymous._tag === 'failed')
+    if (anonymous._tag === 'failed') {
       failures.push(anonymous.failure)
+    }
     else {
       checks.push({ path, cacheStatuses: anonymous.cacheStatuses })
       identities.set(anonymous.identity, [...identities.get(anonymous.identity) ?? [], path])
