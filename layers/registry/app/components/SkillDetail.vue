@@ -568,8 +568,10 @@ const licenseLabel = computed(() => {
   const license = data.value?.license?.trim()
   if (!license)
     return null
+  // "MIT", "Apache-2.0", "Proprietary" read as names. A sentence such as
+  // "Complete terms in LICENSE.txt" does not, so the chip says "License".
   const first = license.split(/[.;(]/)[0]!.trim()
-  return first.length > 24 ? `${first.slice(0, 23)}…` : first
+  return first.length <= 20 && first.split(/\s+/).length <= 2 ? first : 'License'
 })
 
 const verifiedSummary = computed<{ verified: number, total: number } | null>(() => {
@@ -745,6 +747,8 @@ watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
 
 const skillMdBytes = computed(() => data.value?.raw ? new TextEncoder().encode(data.value.raw).byteLength : 0)
 const viewerCrumbs = computed(() => currentDocLabel.value.split('/'))
+// A LICENSE file at the Skill root, which the license chip opens in the viewer.
+const licenseFile = computed(() => treeAssets.value.find(asset => /^licen[cs]e(?:\.(?:md|txt))?$/i.test(asset.path))?.path ?? null)
 
 const contextStages = computed(() => {
   const cost = contextCost.value
@@ -763,7 +767,6 @@ const viewerFileSize = computed(() => {
     return skillMdBytes.value || null
   return treeAssets.value.find(asset => asset.path === activeDocPath.value)?.size ?? null
 })
-const viewerFileExt = computed(() => currentDocLabel.value.split('.').pop()?.toLowerCase() ?? '')
 
 const isNonMarkdownDoc = computed(() => {
   const p = activeDocPath.value
@@ -1368,7 +1371,18 @@ useHead(computed(() => ({
               </span>
             </li>
             <li v-if="licenseLabel">
+              <button
+                v-if="licenseFile"
+                type="button"
+                class="skill-chip skill-chip-link"
+                :title="`License: ${data.license}. Opens ${licenseFile}.`"
+                @click="() => { void resolveAndOpen(licenseFile!) }"
+              >
+                <UIcon name="i-lucide-scale" class="size-3.5" aria-hidden="true" />
+                {{ licenseLabel }}
+              </button>
               <span
+                v-else
                 class="skill-chip"
                 :title="`License: ${data.license}`"
               >
@@ -1529,8 +1543,8 @@ useHead(computed(() => ({
                     aria-hidden="true"
                   />
                   <span
-                    class="truncate"
-                    :class="index === viewerCrumbs.length - 1 ? 'text-default' : 'text-muted'"
+                    class="min-w-0 truncate"
+                    :class="index === viewerCrumbs.length - 1 ? 'skill-crumb-file text-default' : 'text-muted'"
                   >{{ crumb }}</span>
                 </template>
               </h2>
@@ -1538,7 +1552,7 @@ useHead(computed(() => ({
                 v-if="viewerFileSize !== null"
                 class="hidden shrink-0 font-mono text-xs text-muted tabular-nums sm:inline"
               >
-                {{ formatByteSize(viewerFileSize) }} · {{ viewerFileExt }}
+                {{ formatByteSize(viewerFileSize) }}
               </span>
               <button
                 v-if="!isNonMarkdownDoc"
@@ -2455,6 +2469,10 @@ useHead(computed(() => ({
     border: 1px solid var(--ui-border);
     border-radius: 8px 8px 0 0;
     background: var(--ui-bg);
+  }
+  /* Folders give up their width first; the file name truncates last. */
+  .skill-crumb-file {
+    flex-shrink: 0.05;
   }
   .skill-viewer-action {
     flex-shrink: 0;
