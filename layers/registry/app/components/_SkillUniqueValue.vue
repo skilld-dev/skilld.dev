@@ -55,7 +55,7 @@ const { data: history } = await useFetch<RepoHistoryResponse>(
 
 const files = computed(() => resolveSkillFileFacts({ assets: props.assets, total: props.assetCount }))
 const command = computed(() => resolveSkillCommand(props, files.value))
-const excerpt = computed(() => excerptSkillHtml(props.contentHtml))
+const excerpt = computed(() => excerptSkillHtml(props.contentHtml, { description: props.description }))
 const markdownUrl = computed(() => `${props.registryPath}.md`)
 
 const pushedAtAgo = useTimeAgo(() => new Date(props.pushedAt ?? 0))
@@ -205,9 +205,6 @@ const CADENCE_LABEL = { active: 'active', steady: 'steady', dormant: 'dormant' }
         Excerpt from SKILL.md
       </h2>
       <div class="rounded-lg border border-default p-4 sm:p-6">
-        <p v-if="description" class="mb-4 text-base leading-relaxed">
-          {{ description }}
-        </p>
         <!-- eslint-disable-next-line vue/no-v-html -- HTML from the same sanitising renderer as the full body -->
         <div v-if="excerpt" class="skill-prose" v-html="excerpt" />
       </div>
