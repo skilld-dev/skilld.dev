@@ -41,7 +41,7 @@
     "cron:parity": "tsx scripts/check-schedule-parity.ts",
     "design:eyebrows": "tsx scripts/check-eyebrows.ts",
     "cli:grammar": "tsx scripts/check-published-cli-grammar.ts",
-    "start:playwright:webserver": "NODE_ENV=test nuxi preview --port 5678",
+    "start:playwright:webserver": "wrangler d1 migrations apply DB --local --config wrangler.jsonc && NODE_ENV=test wrangler dev --config .output/server/wrangler.json --persist-to .wrangler/state --port 5678",
     "db:migrations:dev": "wrangler d1 migrations apply DB --local",
     "db:migrations:prod": "wrangler d1 migrations apply DB --remote",
     "checkin": "nuxt-checkin prepare && nuxt-checkin"

@@ -8,6 +8,7 @@ describe('skill page state', () => {
     expect(resolveSkillPageState({ _tag: 'missing' })).toEqual({
       _tag: 'missing',
       status: 404,
+      retryAfterSeconds: null,
       robots: 'noindex,follow',
       canonicalPath: null,
     })
@@ -20,7 +21,7 @@ describe('skill page state', () => {
       sourceGone: true,
       registryPath: path,
       duplicateCanonicalPath: null,
-    })).toEqual({ _tag: 'gone', status: 410, robots: 'noindex,follow', canonicalPath: path })
+    })).toEqual({ _tag: 'gone', status: 410, retryAfterSeconds: null, robots: 'noindex,follow', canonicalPath: path })
   })
 
   it('indexes a curated Skill under its own URL', () => {
@@ -30,7 +31,7 @@ describe('skill page state', () => {
       sourceGone: false,
       registryPath: path,
       duplicateCanonicalPath: null,
-    })).toEqual({ _tag: 'indexable', status: null, robots: 'index,follow', canonicalPath: path })
+    })).toEqual({ _tag: 'indexable', status: null, retryAfterSeconds: null, robots: 'index,follow', canonicalPath: path })
   })
 
   it('keeps a registered but non-indexable Skill noindex with a self canonical', () => {
@@ -40,7 +41,7 @@ describe('skill page state', () => {
       sourceGone: false,
       registryPath: path,
       duplicateCanonicalPath: null,
-    })).toEqual({ _tag: 'noindex', status: null, robots: 'noindex,follow', canonicalPath: path })
+    })).toEqual({ _tag: 'noindex', status: null, retryAfterSeconds: null, robots: 'noindex,follow', canonicalPath: path })
   })
 
   it('points a weaker duplicate at its canonical Skill', () => {
@@ -53,17 +54,38 @@ describe('skill page state', () => {
     })).toEqual({
       _tag: 'duplicate',
       status: null,
+      retryAfterSeconds: null,
       robots: 'noindex,follow',
       canonicalPath: '/gh/other/tools/lint',
     })
   })
 
+  it('answers 503 with Retry-After and no noindex when the Skill API fails', () => {
+    expect(resolveSkillPageState({ _tag: 'failed' })).toEqual({
+      _tag: 'failed',
+      status: 503,
+      retryAfterSeconds: 300,
+      robots: null,
+      canonicalPath: null,
+    })
+  })
+
   it('never canonicalises to the homepage while loading or after a failure', () => {
-    for (const input of [{ _tag: 'loading' }, { _tag: 'failed' }] as const) {
+    for (const input of [{ _tag: 'loading' }, { _tag: 'failed' }] as const)
+      expect(resolveSkillPageState(input).canonicalPath).toBeNull()
+  })
+
+  it('sends Retry-After only with a 503', () => {
+    const inputs = [
+      { _tag: 'loading' },
+      { _tag: 'missing' },
+      { _tag: 'failed' },
+      { _tag: 'loaded', indexable: true, sourceGone: true, registryPath: path, duplicateCanonicalPath: null },
+      { _tag: 'loaded', indexable: true, sourceGone: false, registryPath: path, duplicateCanonicalPath: null },
+    ] as const
+    for (const input of inputs) {
       const state = resolveSkillPageState(input)
-      expect(state.canonicalPath).toBeNull()
-      expect(state.robots).toBe('noindex,follow')
-      expect(state.status).toBeNull()
+      expect(state.retryAfterSeconds !== null).toBe(state.status === 503)
     }
   })
 })
