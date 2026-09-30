@@ -11,12 +11,12 @@ publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
 
-skills.sh is Vercel's directory of Agent Skills. It indexes a large catalogue, ranks by install count, supports 73 agents, and runs audits on listed skills. If you want breadth and a popularity signal, it does that well. skilld is smaller by design: a person admits each Skill, every listing shows its author and links the source file, and `skilld run` lets your Agent use a Skill without writing a file.
+skills.sh is Vercel's directory of Agent Skills. It indexes a very large catalogue, ranks by install count, supports 73 agents, and runs audits on listed skills. If you want breadth and a popularity signal, it does that well. skilld is smaller by design: a person admits each Skill, every listing shows its author and links the source file, and `skilld run` lets your Agent use a Skill without writing a file.
 
 | | skills.sh | skilld |
 |---|---|---|
 | Who admits a Skill | Any indexed repository | A person, with a reconstructible reason |
-| Ordering signal | Install count | [GitHub](https://github.com) stars, with curation first |
+| Ordering signal | Install count | GitHub stars, with curation first |
 | Provenance shown | Repository link | Author and exact source file, one click |
 | Try before install | Install | `skilld run` prints the Skill, writes nothing |
 | Staying current | `update --all` syncs files | Source commit tracked; update shows what changed |

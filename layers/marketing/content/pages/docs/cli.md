@@ -8,9 +8,9 @@ publishedAt: 2026-09-01
 updatedAt: 2026-09-01
 ---
 
-Generated from `skilld --help` for skilld `3.0.0-beta.3`. Use `npx skilld <command>`{lang="html"} or install it once with `npm install --global skilld`.
+Generated from `skilld --help` for skilld `3.0.0-beta.3`. Use `npx skilld <command>` or install it once with `npm install --global skilld`.
 
-The [npm](https://npmjs.com) package selects a native executable for your system. It has no JavaScript engine or fallback.
+The npm package selects a native executable for your system. It has no JavaScript engine or fallback.
 
 ## Global flags
 
@@ -44,9 +44,9 @@ skilld names the supporting files and prints none of them. Use `--file` to read 
 | Argument or flag | Help |
 |---|---|
 | `SOURCE` | The Skill source to load. Same forms as `skilld install`. |
-| `--file <PATH>`{lang="html"} | Read one supporting file the Skill carries. Repeat `--file` for several. Give the path exactly as the Skill inventory reports it. Remote reads require `--revision`. Local and bundled reads do not. skilld never prints executable or binary files. Install the Skill to use one. |
-| `--revision <COMMIT>`{lang="html"} | Read supporting files from one exact remote Git commit. Use the revision that an earlier `skilld run` returned. |
-| `--direct` | Fetch a public GitHub Repository without going through skilld.dev. Give a `github:` source or a [GitHub](https://github.com) tree URL. A direct run carries the `unverified` source status. |
+| `--file <PATH>` | Read one supporting file the Skill carries. Repeat `--file` for several. Give the path exactly as the Skill inventory reports it. Remote reads require `--revision`. Local and bundled reads do not. skilld never prints executable or binary files. Install the Skill to use one. |
+| `--revision <COMMIT>` | Read supporting files from one exact remote Git commit. Use the revision that an earlier `skilld run` returned. |
+| `--direct` | Fetch a public GitHub Repository without going through skilld.dev. Give a `github:` source or a GitHub tree URL. A direct run carries the `unverified` source status. |
 
 ```sh
 npx skilld run skilld-dev/skills/find-skill
@@ -74,8 +74,8 @@ Run `skilld install` without `SOURCE` to restore `.skills/skilld-lock.yaml`. Ver
 | Flag | Help |
 |---|---|
 | `--global` | Install to your account-level Agent targets. The default is the current project. |
-| `--agent <AGENT>`{lang="html"} | Select an Agent target. Repeat `--agent` to select several. Values: `claude-code`, `cursor`, `windsurf`, `cline`, `codex`, `github-copilot`, `gemini-cli`, `goose`, `amp`, `opencode`, `roo`, `antigravity`. Default: every Agent target skilld detects. If skilld detects none, it uses `agent.targets`. |
-| `--mode <MODE>`{lang="html"} | Choose how each Agent target receives the Skill. Values: `copy`, `symlink`. The default comes from `install.mode`. A fresh configuration sets `install.mode` to `copy`. |
+| `--agent <AGENT>` | Select an Agent target. Repeat `--agent` to select several. Values: `claude-code`, `cursor`, `windsurf`, `cline`, `codex`, `github-copilot`, `gemini-cli`, `goose`, `amp`, `opencode`, `roo`, `antigravity`. Default: every Agent target skilld detects. If skilld detects none, it uses `agent.targets`. |
+| `--mode <MODE>` | Choose how each Agent target receives the Skill. Values: `copy`, `symlink`. The default comes from `install.mode`. A fresh configuration sets `install.mode` to `copy`. |
 | `--direct` | Fetch a public GitHub Repository without going through skilld.dev. Give an explicit `github:` source or a GitHub tree URL. Without `--direct`, these selectors use hosted Artifact delivery. A direct install records the `unverified` source status. |
 
 ```sh
@@ -183,8 +183,8 @@ Manage configuration.
 
 | Subcommand | Result |
 |---|---|
-| `get <KEY>`{lang="html"} | Read one value. |
-| `set <KEY> <VALUE>`{lang="html"} | Write one value. |
+| `get <KEY>` | Read one value. |
+| `set <KEY> <VALUE>` | Write one value. |
 | `list` | Show every value. |
 
 ```sh

@@ -9,11 +9,17 @@ const base = {
 }
 
 describe('buildRetiredSitemapEntries', () => {
-  it('merges every source once, sorted, each with the same fresh lastmod', () => {
+  it('merges every source once, sorted, each with the same stable lastmod', () => {
     const now = new Date('2026-10-02T08:30:00Z')
     const entries = buildRetiredSitemapEntries({ now, ...base })
     expect(entries.map(e => e.loc)).toEqual(['/@harlan-zw/old', '/gh/o/r/gone', '/orgs/acme'])
-    expect(new Set(entries.map(e => e.lastmod))).toEqual(new Set(['2026-10-02T08:30:00.000Z']))
+    expect(new Set(entries.map(e => e.lastmod))).toEqual(new Set(['2026-09-30']))
+  })
+
+  it('keeps lastmod fixed however late it regenerates', () => {
+    const early = buildRetiredSitemapEntries({ now: new Date('2026-10-01T00:00:00Z'), ...base })
+    const late = buildRetiredSitemapEntries({ now: new Date('2026-11-01T12:00:00Z'), ...base })
+    expect(late).toEqual(early)
   })
 
   it('drops anything that is not a site path', () => {

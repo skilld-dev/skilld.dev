@@ -2,7 +2,7 @@
  * SEO EXPERIMENT E, started 2026-09-30. REMOVE ON 2026-11-11.
  *
  * A temporary `retired` sitemap. It lists URLs that now answer 301, 404 or 410,
- * each with a fresh `lastmod`, so Google recrawls them and drops them sooner.
+ * each with one stable `lastmod`, so Google recrawls them and drops them sooner.
  * Google holds about 52k old URLs as "Crawled, currently not indexed", and it
  * crawls about 29 HTML pages a day. Practitioner advice, not documented
  * policy: a temporary sitemap of changed URLs speeds up the purge.
@@ -24,6 +24,13 @@
 
 export const RETIRED_SITEMAP_REMOVAL_DATE = '2026-11-11'
 
+/**
+ * One fixed `lastmod` for every URL: the experiment start. Google ignores a
+ * `lastmod` that changes on every regeneration without a real change, so a
+ * `new Date()` here would teach it to ignore the whole sitemap.
+ */
+export const RETIRED_SITEMAP_LASTMOD = '2026-09-30'
+
 export interface RetiredSitemapEntry {
   loc: string
   lastmod: string
@@ -44,13 +51,13 @@ export function isRetiredSitemapActive(now: Date): boolean {
 }
 
 /**
- * The sitemap rows: deduplicated, sorted, all with today's date as `lastmod`.
+ * The sitemap rows: deduplicated, sorted, all with the fixed experiment `lastmod`.
  * After the removal date it returns nothing.
  */
 export function buildRetiredSitemapEntries(input: RetiredSitemapInput): RetiredSitemapEntry[] {
   if (!isRetiredSitemapActive(input.now))
     return []
-  const lastmod = input.now.toISOString()
+  const lastmod = RETIRED_SITEMAP_LASTMOD
   const paths = new Set<string>()
   for (const path of [...input.goneSkillPaths, ...input.deletedCollectionPaths, ...input.probedPaths]) {
     if (path.startsWith('/'))
