@@ -107,9 +107,9 @@ useSchemaOrg(computed(() => skills.value.length
       </p>
 
       <p class="mt-6 text-base leading-relaxed text-muted">
-        {{ page.label }} can also search the registry itself. Install the skilld Skill or add the skilld MCP server.
+        {{ page.label }} can also search the registry itself, with the skilld Skill or the skilld MCP server.
         <NuxtLink to="/developers" class="text-default underline">
-          Set up {{ page.label }}
+          See the setup
         </NuxtLink>
       </p>
     </section>

@@ -19,7 +19,7 @@ describe('skill command panel registry setup link', () => {
 
     expect(setupHref()).toBe('/developers')
 
-    for (const [label, href] of [['Claude', '/developers?setup=mcp&client=claude'], ['ChatGPT', '/developers?setup=mcp&client=chatgpt']] as const) {
+    for (const [label, href] of [['Claude', '/developers?setup=mcp&app=claude'], ['ChatGPT', '/developers?setup=mcp&app=chatgpt']] as const) {
       const tab = wrapper.findAll('button').find(button => button.text() === label)!
       await tab.trigger('click')
       expect(setupHref()).toBe(href)

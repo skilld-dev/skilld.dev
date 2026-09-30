@@ -47,9 +47,9 @@ const uploadSteps: Record<Exclude<InstallTarget, 'local'>, string> = {
 }
 // The next step past one Skill: let the same client search the whole registry.
 const registrySetup: Record<InstallTarget, { to: string, label: string }> = {
-  local: { to: '/developers', label: 'Let your Agent search the registry' },
-  claude: { to: '/developers?setup=mcp&client=claude', label: 'Search the registry from Claude' },
-  chatgpt: { to: '/developers?setup=mcp&client=chatgpt', label: 'Search the registry from ChatGPT' },
+  local: { to: '/developers', label: 'Let your agent search the registry' },
+  claude: { to: '/developers?setup=mcp&app=claude', label: 'Search the registry from Claude' },
+  chatgpt: { to: '/developers?setup=mcp&app=chatgpt', label: 'Search the registry from ChatGPT' },
 }
 const agentNames = AGENT_LOGOS.map(agent => agent.label).join(', ')
 
