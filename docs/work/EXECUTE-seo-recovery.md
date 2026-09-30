@@ -169,17 +169,16 @@ Checks:
 
 Merge order:
 
-1. #317. #322 and #325 build on it. #318 is deferred and stays in draft.
-2. [#320](https://github.com/skilld-dev/skilld.dev/pull/320), IndexNow for the curated set only. It adds migration 0128.
-3. #322. It adds migration 0129, so it follows #320.
-4. #325 (experiment E). Retarget it to `main` after #317. Do not merge #318 (experiment C, deferred).
-5. #326. It adds migration 0130, so it follows #322.
-6. [#327](https://github.com/skilld-dev/skilld.dev/pull/327), the `Skilld-Page-Url` header. It comes before skilld CLI [#178](https://github.com/skilld-dev/skilld/pull/178).
-7. Any order: #321, #323.
-8. After #322 is live: [nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314), the probe link. The 14 day probe clock starts when #322 is live.
-9. Edge cache: #328, then #329, after review.
+Check a PR with `gh pr view <n> --repo skilld-dev/skilld.dev`.
 
-Release the skilld CLI that carries [skilld #178](https://github.com/skilld-dev/skilld/pull/178) only after #327 is live. The CLI must not print a Skill page URL before the site sends the header.
+1. [#332](https://github.com/skilld-dev/skilld.dev/pull/332), the `return_to` fix. It is a security fix, so it goes first.
+2. [#334](https://github.com/skilld-dev/skilld.dev/pull/334), the edge cache check. Each deploy reports a failure until it merges.
+3. [#321](https://github.com/skilld-dev/skilld.dev/pull/321), the badge block. Any order.
+4. This brief, then [#333](https://github.com/skilld-dev/skilld.dev/pull/333), the Monday check-in. The check-in reads this brief.
+5. [nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314), the probe link. Both probe targets serve `index,follow`. The 14 day probe window runs from the day it merges.
+6. Keep in draft, do not merge:
+   - [#318](https://github.com/skilld-dev/skilld.dev/pull/318), experiment C, deferred on 2026-10-01.
+   - [#320](https://github.com/skilld-dev/skilld.dev/pull/320), IndexNow. On 2026-10-01 the owner moved IndexNow submission to another service.
 
 gscdump family:
 
@@ -238,7 +237,7 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 ### A. Bing as a control
 
 - Measures: Bing's per-URL index status for all 40 panel URLs. Day 0 is 2026-09-30.
-- Setup: skilld.dev was connected to Bing in gscdump on 2026-09-30 and held no data. Harlan submits `https://skilld.dev/sitemap_index.xml` in Bing Webmaster Tools. Re-enable IndexNow for the curated set only, and only when a page changes ([#320](https://github.com/skilld-dev/skilld.dev/pull/320)).
+- Setup: skilld.dev was connected to Bing in gscdump on 2026-09-30 and held no data. Harlan submits `https://skilld.dev/sitemap_index.xml` in Bing Webmaster Tools. IndexNow submission moves to another service (owner decision, 2026-10-01). [#320](https://github.com/skilld-dev/skilld.dev/pull/320) stays in draft.
 - Limit: since 2026-09-09, gscdump reads of Bing traffic and crawl data fail for every site. Only Bing's per-URL index status works.
 - Read on 2026-10-12, after the spam update ends.
 - Scale rule: if Bing indexes the curated pages and Google does not, the content can be indexed. The problem is Google's verdict on the domain.
