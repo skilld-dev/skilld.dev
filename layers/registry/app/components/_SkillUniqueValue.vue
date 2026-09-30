@@ -5,7 +5,7 @@ import type { RepoHistoryResponse } from '../../server/api/repos/[owner]/[repo]/
 import type { SkillFileEntry } from '../utils/skill-unique-value'
 import { useTimeAgo } from '@vueuse/core'
 import RepoSparkline from '../pages/gh/[owner]/[repo]/_RepoSparkline.vue'
-import { excerptSkillHtml, resolveSkillCommand, resolveSkillFileFacts } from '../utils/skill-unique-value'
+import { excerptSkillHtml, resolveSkillCommands, resolveSkillFileFacts } from '../utils/skill-unique-value'
 
 interface RelatedItem {
   name: string
@@ -54,7 +54,7 @@ const { data: history } = await useFetch<RepoHistoryResponse>(
 )
 
 const files = computed(() => resolveSkillFileFacts({ assets: props.assets, total: props.assetCount }))
-const command = computed(() => resolveSkillCommand(props, files.value))
+const commands = computed(() => resolveSkillCommands(props))
 const excerpt = computed(() => excerptSkillHtml(props.contentHtml, { description: props.description }))
 const markdownUrl = computed(() => `${props.registryPath}.md`)
 
@@ -96,15 +96,19 @@ const CADENCE_LABEL = { active: 'active', steady: 'steady', dormant: 'dormant' }
       <dl class="grid gap-3 sm:grid-cols-2">
         <div class="rounded-lg border border-default bg-muted/30 p-3 sm:col-span-2">
           <dt class="data-label">
-            {{ command._tag === 'run' ? 'Run command' : 'Install command' }}
+            Run command
           </dt>
           <dd class="mt-2">
-            <code class="install-command install-command--wrap block">{{ command.command }}</code>
-            <p v-if="command._tag === 'install'" class="mt-2 text-sm text-muted">
-              {{ command.reason }}
-            </p>
-            <p v-else class="mt-2 text-sm text-muted">
+            <code class="install-command install-command--wrap block">{{ commands.run }}</code>
+            <p class="mt-2 text-sm text-muted">
               Your Agent reads the Skill now. Nothing lands in your repository.
+            </p>
+            <p class="data-label mt-4">
+              Install command
+            </p>
+            <code class="install-command install-command--wrap mt-2 block">{{ commands.install }}</code>
+            <p class="mt-2 text-sm text-muted">
+              Install it to keep the Skill in every session.
             </p>
           </dd>
         </div>

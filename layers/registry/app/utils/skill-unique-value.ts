@@ -40,32 +40,20 @@ export function resolveSkillFileFacts(input: { assets: readonly SkillFileEntry[]
   }
 }
 
-export type SkillCommand
-  = | { _tag: 'run', command: string }
-    | { _tag: 'install', command: string, reason: string }
+export interface SkillCommands {
+  run: string
+  install: string
+}
 
 /**
- * A remote run prints SKILL.md and text files only. It never prints
- * executable or binary files, so a Skill that carries code, or carries files
- * the page cannot inspect, gets the install command and a reason. See
- * "Running is the default; installing is the opt-in" in `AGENTS.md`.
+ * Every Skill surface leads with the run command. The install command sits
+ * beneath it as the opt-in for keeping the Skill (`VISION.md`).
  */
-export function resolveSkillCommand(
-  skill: { owner: string, repo: string, name: string },
-  files: SkillFileFacts,
-): SkillCommand {
-  const install = (reason: string): SkillCommand => ({
-    _tag: 'install',
-    command: skillInstallCmd(skill.owner, skill.repo, skill.name),
-    reason,
-  })
-  if (files._tag === 'only-skill-md')
-    return { _tag: 'run', command: skillRunCmd(skill.owner, skill.repo, skill.name) }
-  if (files.code > 0 || files.other > 0)
-    return install('This Skill ships code files. A remote run prints only text, so install it to use the code.')
-  if (!files.complete)
-    return install('This Skill ships more files than this page lists. A remote run cannot show they are all text, so install it.')
-  return { _tag: 'run', command: skillRunCmd(skill.owner, skill.repo, skill.name) }
+export function resolveSkillCommands(skill: { owner: string, repo: string, name: string }): SkillCommands {
+  return {
+    run: skillRunCmd(skill.owner, skill.repo, skill.name),
+    install: skillInstallCmd(skill.owner, skill.repo, skill.name),
+  }
 }
 
 const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'col', 'wbr'])

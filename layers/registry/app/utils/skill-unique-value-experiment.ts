@@ -8,7 +8,7 @@
  * The question: do pages that carry data GitHub lacks get crawled and indexed
  * sooner than pages that stay as they are?
  *
- * Treatment pages show the run or install command, the file inventory, the
+ * Treatment pages show the run command with install beneath it, the file inventory, the
  * repository star trend, related Skills, and a SKILL.md excerpt in place of the
  * full body. Every visitor sees the same page, crawler or not. Control pages
  * stay unchanged.

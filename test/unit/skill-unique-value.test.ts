@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   countHtmlWords,
   excerptSkillHtml,
-  resolveSkillCommand,
+  resolveSkillCommands,
   resolveSkillFileFacts,
 } from '../../layers/registry/app/utils/skill-unique-value'
 
@@ -46,38 +46,12 @@ describe('resolveSkillFileFacts', () => {
   })
 })
 
-describe('resolveSkillCommand', () => {
-  it('offers the run command when the Skill ships only text', () => {
-    const files = resolveSkillFileFacts({ assets: [asset('a.md', 'markdown')], total: 1 })
-    expect(resolveSkillCommand(ref, files)).toEqual({
-      _tag: 'run',
-      command: 'npx skilld run acme/skills/lint',
+describe('resolveSkillCommands', () => {
+  it('leads with run and offers install as the opt-in', () => {
+    expect(resolveSkillCommands(ref)).toEqual({
+      run: 'npx skilld run acme/skills/lint',
+      install: 'npx skilld install acme/skills/lint',
     })
-  })
-
-  it('offers the run command when the Skill is only SKILL.md', () => {
-    const files = resolveSkillFileFacts({ assets: [], total: 0 })
-    expect(resolveSkillCommand(ref, files)._tag).toBe('run')
-  })
-
-  it('offers only install when the Skill ships code, and says why', () => {
-    const files = resolveSkillFileFacts({ assets: [asset('scripts/x.sh', 'code')], total: 1 })
-    const command = resolveSkillCommand(ref, files)
-    expect(command._tag).toBe('install')
-    if (command._tag === 'install') {
-      expect(command.command).toBe('npx skilld install acme/skills/lint')
-      expect(command.reason).toMatch(/code/)
-    }
-  })
-
-  it('offers only install when a binary file has no known type', () => {
-    const files = resolveSkillFileFacts({ assets: [asset('bin/tool', 'other')], total: 1 })
-    expect(resolveSkillCommand(ref, files)._tag).toBe('install')
-  })
-
-  it('offers only install when the file list is cut short', () => {
-    const files = resolveSkillFileFacts({ assets: [asset('a.md', 'markdown')], total: 400 })
-    expect(resolveSkillCommand(ref, files)._tag).toBe('install')
   })
 })
 
