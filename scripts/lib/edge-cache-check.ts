@@ -11,9 +11,12 @@
  * 3. An agent that asks for Markdown still gets the 307 to the `.md` URL.
  * 4. A request that carries a session cookie gets the anonymous render, and
  *    the page tells the browser to load the session itself.
- * 5. Every page is stored under its own key: pages that differ only by query
- *    string render a different title or canonical URL.
+ * 5. Every board is stored under its own key: boards that differ only by query
+ *    string render a different title or canonical URL. The bare path and the
+ *    default range are one board, so they may share both.
  */
+
+import { DEFAULT_TRENDING_RANGE } from '../../shared/trending-range'
 
 /** The pages `nuxt.config.ts` gives an `edgeCache` rule. Each query is its own cache key. */
 export const EDGE_CACHED_PATHS = ['/skills/trending', '/skills/trending?range=month', '/skills/trending?range=all']
@@ -27,6 +30,9 @@ const BROWSER_HEADERS = {
 
 /** Opaque on purpose: the page must not read it, so it never needs to unseal. */
 const SESSION_COOKIE = 'nuxt-session=edge-cache-check'
+
+/** The bare path and the default range name one board, so one canonical URL. */
+const DEFAULT_BOARD_ALIASES = new Set(['/skills/trending', `/skills/trending?range=${DEFAULT_TRENDING_RANGE}`])
 
 /** `cf-cache-status` values that mean the edge answered without the Worker. */
 const SERVED_FROM_CACHE = new Set(['HIT', 'STALE', 'UPDATING'])
@@ -241,7 +247,7 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
   }
 
   for (const [identity, sharing] of identities) {
-    if (sharing.length > 1)
+    if (sharing.length > 1 && !sharing.every(path => DEFAULT_BOARD_ALIASES.has(path)))
       failures.push({ _tag: 'shared-cache-entry', paths: sharing, identity })
   }
 
