@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatByteSize, formatTokenCount, resolveSkillContextCost } from '../../layers/registry/app/utils/skill-context-cost'
+import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../../layers/registry/app/utils/skill-context-cost'
 
 describe('skill context cost', () => {
   it('splits tokens by loading stage and keeps scripts and images out of context', () => {
@@ -18,13 +18,22 @@ describe('skill context cost', () => {
 
     expect(cost.tokens).toEqual({ metadata: 4, instructions: 100, resources: 250 })
     expect(cost.fileCount).toBe(5)
+    expect(cost.resourceFileCount).toBe(2)
     expect(cost.totalBytes).toBe(raw.length + 14000)
   })
 
   it('counts a Skill with no source and no files as SKILL.md alone', () => {
     const cost = resolveSkillContextCost({ raw: null, name: 'x', description: null, files: [] })
 
-    expect(cost).toEqual({ fileCount: 1, totalBytes: 0, tokens: { metadata: 1, instructions: 0, resources: 0 } })
+    expect(cost).toEqual({ fileCount: 1, totalBytes: 0, tokens: { metadata: 1, instructions: 0, resources: 0 }, resourceFileCount: 0 })
+  })
+
+  it('says how each file reaches context', () => {
+    expect(resolveSkillFileContext({ path: 'reference.md', size: 4000, type: 'markdown' })).toEqual({ _tag: 'resource', tokens: 1000 })
+    expect(resolveSkillFileContext({ path: 'scripts/fill.py', size: 4000, type: 'code' })).toEqual({ _tag: 'script' })
+    expect(resolveSkillFileContext({ path: 'logo.png', size: 9000, type: 'image' })).toEqual({ _tag: 'unread' })
+    expect(resolveSkillFileContext({ path: 'LICENSE.txt', size: 1467, type: 'code' })).toEqual({ _tag: 'unread' })
+    expect(resolveSkillFileContext({ path: 'LICENSE.md', size: 1467, type: 'markdown' })).toEqual({ _tag: 'unread' })
   })
 
   it('formats counts for the chips', () => {

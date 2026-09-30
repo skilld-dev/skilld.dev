@@ -4,7 +4,7 @@ import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
-import { formatByteSize, formatTokenCount, resolveSkillContextCost } from '../utils/skill-context-cost'
+import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../utils/skill-context-cost'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillPageState } from '../utils/skill-page-state'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
@@ -755,21 +755,20 @@ watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
 
 const skillMdBytes = computed(() => data.value?.raw ? new TextEncoder().encode(data.value.raw).byteLength : 0)
 const viewerCrumbs = computed(() => currentDocLabel.value.split('/'))
+
+// What the open file costs the Agent's context, shown beside the file itself.
+const viewerContext = computed(() => {
+  const cost = contextCost.value
+  if (!cost)
+    return null
+  if (!activeDocPath.value)
+    return { _tag: 'skill' as const, cost }
+  const file = treeAssets.value.find(asset => asset.path === activeDocPath.value)
+  return file ? resolveSkillFileContext(file) : null
+})
 // A LICENSE file at the Skill root, which the license chip opens in the viewer.
 const licenseFile = computed(() => treeAssets.value.find(asset => /^licen[cs]e(?:\.(?:md|txt))?$/i.test(asset.path))?.path ?? null)
 
-const contextStages = computed(() => {
-  const cost = contextCost.value
-  if (!cost)
-    return []
-  const stages = [
-    { label: 'Always', tokens: formatTokenCount(cost.tokens.metadata), detail: 'The name and description. They load in every session, so your agent knows the Skill exists.' },
-    { label: 'When used', tokens: formatTokenCount(cost.tokens.instructions), detail: 'The SKILL.md body. It loads when a task matches the description.' },
-  ]
-  if (cost.tokens.resources)
-    stages.push({ label: 'On demand', tokens: formatTokenCount(cost.tokens.resources), detail: 'Markdown and data files. Your agent reads one only when SKILL.md points to it. Scripts run without entering context.' })
-  return stages
-})
 const viewerFileSize = computed(() => {
   if (!activeDocPath.value)
     return skillMdBytes.value || null
@@ -1432,65 +1431,6 @@ useHead(computed(() => ({
               </a>
             </li>
           </ul>
-          <div
-            v-if="contextCost"
-            class="flex flex-wrap items-center gap-x-2 gap-y-1.5"
-          >
-            <span
-              class="skill-context-label"
-              aria-hidden="true"
-            >
-              <UIcon
-                name="i-lucide-layers"
-                class="size-3.5"
-              />
-              tokens
-            </span>
-            <UPopover :content="{ align: 'start', sideOffset: 6 }">
-              <button
-                type="button"
-                class="skill-context"
-                :aria-label="`Tokens: ${contextStages.map(stage => `${stage.tokens} ${stage.label.toLowerCase()}`).join(', ')}. Show how your agent loads this Skill.`"
-              >
-                <span class="skill-context-stage">
-                  <strong>{{ formatTokenCount(contextCost.tokens.metadata) }}</strong> always
-                </span>
-                <span class="skill-context-stage">
-                  <strong>{{ formatTokenCount(contextCost.tokens.instructions) }}</strong> when used
-                </span>
-                <span
-                  v-if="contextCost.tokens.resources"
-                  class="skill-context-stage"
-                >
-                  <strong>{{ formatTokenCount(contextCost.tokens.resources) }}</strong> on demand
-                </span>
-              </button>
-              <template #content>
-                <div class="w-80 max-w-[calc(100vw-2rem)] space-y-3 p-3 font-mono text-xs">
-                  <p class="text-default">
-                    How your agent loads this Skill
-                  </p>
-                  <dl class="space-y-2.5">
-                    <div
-                      v-for="stage in contextStages"
-                      :key="stage.label"
-                      class="grid grid-cols-[4rem_1fr] gap-x-3"
-                    >
-                      <dt class="text-default tabular-nums">
-                        {{ stage.tokens }}
-                      </dt>
-                      <dd class="text-muted">
-                        <span class="text-default">{{ stage.label }}.</span> {{ stage.detail }}
-                      </dd>
-                    </div>
-                  </dl>
-                  <p class="text-muted">
-                    Estimated at 4 bytes per token.
-                  </p>
-                </div>
-              </template>
-            </UPopover>
-          </div>
         </div>
       </template>
     </section>
@@ -1685,6 +1625,32 @@ useHead(computed(() => ({
             </div>
 
             <div class="skill-viewer-body">
+              <p
+                v-if="viewerContext"
+                class="skill-context-strip"
+              >
+                <UIcon
+                  name="i-lucide-layers"
+                  class="size-3.5 shrink-0 text-[var(--syntax-arg)]"
+                  aria-hidden="true"
+                />
+                <span v-if="viewerContext._tag === 'skill'">
+                  <strong>{{ formatTokenCount(viewerContext.cost.tokens.metadata) }}</strong> tokens always: the name and description.
+                  <strong>{{ formatTokenCount(viewerContext.cost.tokens.instructions) }}</strong> when used: this file.
+                  <template v-if="viewerContext.cost.resourceFileCount">
+                    <strong>{{ formatTokenCount(viewerContext.cost.tokens.resources) }}</strong> more on demand in {{ viewerContext.cost.resourceFileCount }} {{ viewerContext.cost.resourceFileCount === 1 ? 'file' : 'files' }}.
+                  </template>
+                </span>
+                <span v-else-if="viewerContext._tag === 'resource'">
+                  <strong>{{ formatTokenCount(viewerContext.tokens) }}</strong> tokens on demand. Your agent reads this file only when SKILL.md points to it.
+                </span>
+                <span v-else-if="viewerContext._tag === 'script'">
+                  Your agent runs this script. Only its output enters context.
+                </span>
+                <span v-else>
+                  Your agent does not load this file into context unless it opens it.
+                </span>
+              </p>
               <section
                 v-show="contentView === 'preview'"
                 class="skill-mdxg p-4 sm:p-6 relative"
@@ -2511,50 +2477,28 @@ useHead(computed(() => ({
     color: var(--ui-text);
     border-color: var(--ui-border-accented);
   }
-  .skill-context {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: stretch;
-    border: 1px solid color-mix(in oklch, var(--ui-primary) 28%, transparent);
-    border-radius: 4px;
-    background: color-mix(in oklch, var(--ui-primary) 6%, transparent);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--ui-text-muted);
-    cursor: pointer;
-    transition: border-color 200ms, background-color 200ms;
-  }
-  .skill-context:hover,
-  .skill-context[aria-expanded='true'] {
-    border-color: color-mix(in oklch, var(--ui-primary) 50%, transparent);
-    background: color-mix(in oklch, var(--ui-primary) 10%, transparent);
-  }
-  .skill-context-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--syntax-arg);
-  }
   .skill-sha {
     color: var(--syntax-arg);
   }
-  .skill-context-stage {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    min-height: 1.5rem;
-    padding: 0.125rem 0.5rem;
-    white-space: nowrap;
+  .skill-context-strip {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--ui-border);
+    background: color-mix(in oklch, var(--ui-bg-muted) 40%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: var(--ui-text-muted);
   }
-  .skill-context-stage + .skill-context-stage {
-    border-left: 1px solid color-mix(in oklch, var(--ui-primary) 18%, transparent);
-  }
-  .skill-context-stage strong {
+  .skill-context-strip strong {
     font-weight: 500;
     color: var(--ui-text);
+  }
+  .skill-context-strip > .iconify,
+  .skill-context-strip > svg {
+    transform: translateY(0.125rem);
   }
 
   .skill-viewer-bar {
