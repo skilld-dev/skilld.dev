@@ -21,8 +21,8 @@
  * ADMISSION BAR. Named on a trending board, plus the existing quality score.
  *
  * CULL PATH. To end the experiment, make `isSkillIndexable` ignore
- * `trending_admitted`, delete `SKILL_ADMITTED_SQL` from the two queries in
- * `skills-registry.ts`, drop the `admit-trending-skills` task, and drop the
+ * `trending_admitted`, replace `SKILL_INDEXABLE_SQL` in the two queries of
+ * `skills-registry.ts` with `s.seo_indexable = 1`, drop the `admit-trending-skills` task, and drop the
  * table. To cull only the set, run `DELETE FROM skill_trending_admissions`.
  * At the gate, keep, widen, or revert on the panel result.
  */
@@ -34,6 +34,23 @@ import { SKILLS_LEADERBOARD_PAGE_SIZE, SKILLS_LEADERBOARD_PAGE_SQL } from './ski
 export const TRENDING_EXPERIMENT_GATE = '2026-11-11'
 
 export type TrendingBoardName = 'week' | 'month' | 'all'
+
+/**
+ * Probe exceptions for experiment D (trusted-host link probe), approved for
+ * the same gate, 2026-11-11. Each is indexable whatever its quality score, so
+ * harlanzw.com posts can link to a page Google may index. Cull path: empty
+ * this list; `admit-trending-skills` never removes a row, so also
+ * `DELETE FROM skill_trending_admissions WHERE first_board = 'probe'`.
+ *
+ * `harlan-zw/nuxt-seo/nuxtseo-cli` was not in the production registry on
+ * 2026-09-30. The task admits it once a sync brings it in, and not before.
+ * `harlan-zw/gscdump` is a single-Skill repository, so its hub URL is the
+ * Skill page.
+ */
+export const PROBE_EXCEPTIONS: readonly SkillRef[] = [
+  { owner: 'harlan-zw', repo: 'nuxt-seo', name: 'nuxtseo-cli' },
+  { owner: 'harlan-zw', repo: 'gscdump', name: 'gscdump' },
+]
 
 export interface SkillRef {
   owner: string
@@ -48,7 +65,7 @@ export interface BoardSighting {
 
 export interface Admission {
   skill: SkillRef
-  firstBoard: TrendingBoardName
+  firstBoard: TrendingBoardName | 'probe'
 }
 
 export function admissionKey(skill: SkillRef): string {
@@ -81,16 +98,30 @@ export const SKILL_ADMITTED_SQL = `EXISTS (
   WHERE adm.owner = s.owner AND adm.repo = s.repo AND adm.name = s.name
 )`
 
+const SKILL_PROBE_SQL = `EXISTS (
+  SELECT 1 FROM skill_trending_admissions adm
+  WHERE adm.owner = s.owner AND adm.repo = s.repo AND adm.name = s.name AND adm.first_board = 'probe'
+)`
+
+/**
+ * The SQL twin of `isSkillIndexable`, minus the aggregator test: admitted, and
+ * either past the quality score or a probe exception. Queries that list
+ * indexable Skills use this one clause.
+ */
+export const SKILL_INDEXABLE_SQL = `((s.seo_indexable = 1 OR ${SKILL_PROBE_SQL}) AND ${SKILL_ADMITTED_SQL})`
+
 /**
  * Columns a `skills s JOIN repos r` read adds to call `isSkillIndexable`.
  * `s.seo_indexable` is already in the shared Skill select.
  */
 export const SKILL_INDEX_INPUT_COLUMNS_SQL = `${SKILL_ADMITTED_SQL} AS trending_admitted,
+  ${SKILL_PROBE_SQL} AS probe_exception,
   r.repo_kind`
 
 export interface SkillIndexInput {
   seo_indexable: number | null
   trending_admitted: number | null
+  probe_exception: number | null
   repo_kind: string | null
 }
 
@@ -101,7 +132,7 @@ export interface SkillIndexInput {
  * them. The page now says the same.
  */
 export function isSkillIndexable(input: SkillIndexInput): boolean {
-  return input.seo_indexable === 1
+  return (input.seo_indexable === 1 || input.probe_exception === 1)
     && input.trending_admitted === 1
     && input.repo_kind !== 'aggregator'
 }
@@ -142,6 +173,20 @@ export async function loadBoardSightings(db: D1Database, now: number): Promise<B
   return sightings
 }
 
+/** Probe exceptions that exist in the registry as resolved Skills right now. */
+async function loadProbeAdmissions(db: D1Database): Promise<Admission[]> {
+  const found: Admission[] = []
+  for (const skill of PROBE_EXCEPTIONS) {
+    const row = await db
+      .prepare('SELECT 1 AS present FROM skills WHERE owner = ?1 AND repo = ?2 AND name = ?3 AND source_resolved = 1')
+      .bind(skill.owner, skill.repo, skill.name)
+      .first<{ present: number }>()
+    if (row)
+      found.push({ skill, firstBoard: 'probe' })
+  }
+  return found
+}
+
 async function loadAdmittedKeys(db: D1Database): Promise<Set<string>> {
   const rows = (await db
     .prepare('SELECT owner, repo, name FROM skill_trending_admissions')
@@ -155,17 +200,25 @@ async function loadAdmittedKeys(db: D1Database): Promise<Set<string>> {
  * `INSERT OR IGNORE` makes a replay harmless. Returns the Skills it added.
  */
 export async function admitTrendingSkills(db: D1Database, now: number): Promise<Admission[]> {
-  const [admitted, sightings] = await Promise.all([loadAdmittedKeys(db), loadBoardSightings(db, now)])
-  const admissions = planAdmissions(admitted, sightings)
-  if (admissions.length === 0)
-    return []
+  const [admitted, sightings, probes] = await Promise.all([loadAdmittedKeys(db), loadBoardSightings(db, now), loadProbeAdmissions(db)])
+  // A probe wins over a board label, even for a Skill already admitted, because
+  // only `probe` waives the quality score.
+  const probeKeys = new Set(probes.map(probe => admissionKey(probe.skill)))
+  const boards = planAdmissions(new Set([...admitted, ...probeKeys]), sightings)
 
-  const statements = admissions.map(({ skill, firstBoard }) => db
-    .prepare(`INSERT OR IGNORE INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board)
-              VALUES (?1, ?2, ?3, ?4, ?5)`)
-    .bind(skill.owner, skill.repo, skill.name, now, firstBoard))
+  const insert = (skill: SkillRef, firstBoard: string, upsert: boolean) => db
+    .prepare(`INSERT INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board)
+              VALUES (?1, ?2, ?3, ?4, ?5)
+              ${upsert ? 'ON CONFLICT (owner, repo, name) DO UPDATE SET first_board = \'probe\'' : 'ON CONFLICT (owner, repo, name) DO NOTHING'}`)
+    .bind(skill.owner, skill.repo, skill.name, now, firstBoard)
+  const statements = [
+    ...probes.map(probe => insert(probe.skill, 'probe', true)),
+    ...boards.map(({ skill, firstBoard }) => insert(skill, firstBoard, false)),
+  ]
+  if (statements.length === 0)
+    return []
   await db.batch(statements)
-  return admissions
+  return [...probes.filter(probe => !admitted.has(admissionKey(probe.skill))), ...boards]
 }
 
 export interface AdmittedSkillRow {

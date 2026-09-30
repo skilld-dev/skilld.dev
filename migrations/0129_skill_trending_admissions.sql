@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS skill_trending_admissions (
   name TEXT NOT NULL,
   -- Unix seconds of the first sighting on any board.
   admitted_at INTEGER NOT NULL,
-  -- The board that first admitted it: 'week', 'month' or 'all'.
-  first_board TEXT NOT NULL CHECK (first_board IN ('week', 'month', 'all')),
+  -- The board that first admitted it: 'week', 'month' or 'all'. 'probe' marks
+  -- a named exception for experiment D, indexable whatever its quality score.
+  first_board TEXT NOT NULL CHECK (first_board IN ('week', 'month', 'all', 'probe')),
   PRIMARY KEY (owner, repo, name)
 ) WITHOUT ROWID;

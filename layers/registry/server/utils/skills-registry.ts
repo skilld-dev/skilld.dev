@@ -15,7 +15,7 @@ import {
 import { canonicalRepoSkillPath } from './skill-routes'
 import { collapseSearchDuplicates, hybridSkillSearch, rankSearchResults } from './skill-search'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
-import { SKILL_ADMITTED_SQL } from './trending-admission'
+import { SKILL_INDEXABLE_SQL } from './trending-admission'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
@@ -787,8 +787,7 @@ async function queryDuplicateCandidateRows(
         AND supported_repos.repo = s.repo
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
-        AND s.seo_indexable = 1
-        AND ${SKILL_ADMITTED_SQL}
+        AND ${SKILL_INDEXABLE_SQL}
         ${aggregatorFilter}
         ${supportedFilter}
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
@@ -851,8 +850,7 @@ export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSit
         AND supported_repos.repo = s.repo
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
-        AND s.seo_indexable = 1
-        AND ${SKILL_ADMITTED_SQL}
+        AND ${SKILL_INDEXABLE_SQL}
         AND ${NOT_AGGREGATOR_SQL}
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
     `)

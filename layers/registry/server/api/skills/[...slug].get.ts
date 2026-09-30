@@ -172,6 +172,7 @@ interface SkillDetailRow {
   seo_index_score: number | null
   seo_indexable: number | null
   trending_admitted: number | null
+  probe_exception: number | null
   repo_kind: string | null
   seo_index_reasons: string | null
   seo_index_synced_at: number | null

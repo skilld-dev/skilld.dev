@@ -74,12 +74,17 @@ describe('planAdmissions', () => {
 })
 
 describe('isSkillIndexable', () => {
-  const base = { seo_indexable: 1, trending_admitted: 1, repo_kind: 'creator' }
+  const base = { seo_indexable: 1, trending_admitted: 1, probe_exception: 0, repo_kind: 'creator' }
 
   it('needs the quality score and an admission', () => {
     expect(isSkillIndexable(base)).toBe(true)
     expect(isSkillIndexable({ ...base, trending_admitted: 0 })).toBe(false)
     expect(isSkillIndexable({ ...base, seo_indexable: 0 })).toBe(false)
+  })
+
+  it('waives the quality score for a probe exception, never the admission', () => {
+    expect(isSkillIndexable({ ...base, seo_indexable: 0, probe_exception: 1 })).toBe(true)
+    expect(isSkillIndexable({ ...base, seo_indexable: 0, trending_admitted: 0, probe_exception: 1 })).toBe(false)
   })
 
   it('keeps aggregator repositories out', () => {
@@ -133,6 +138,29 @@ describe('sitemap equals the indexable set', () => {
 
     expect(inSitemap).toEqual(indexable)
     expect(inSitemap).toEqual(new Set(['o1/r1/admitted-ok', 'o5/r5/other-ok']))
+  })
+})
+
+describe('probe exceptions', () => {
+  it('admits a low-score probe Skill and lists it in the sitemap', async () => {
+    addSkill({ owner: 'harlan-zw', repo: 'gscdump', name: 'gscdump', indexable: false })
+    await admitTrendingSkills(db().db, NOW)
+    expect(admitted()).toContain('harlan-zw/gscdump/gscdump')
+    const inSitemap = (await queryAllSkillsForSitemap(db().db)).map(e => `${e.owner}/${e.repo}/${e.name}`)
+    expect(inSitemap).toEqual(['harlan-zw/gscdump/gscdump'])
+  })
+
+  it('upgrades a Skill already admitted from a board', async () => {
+    addSkill({ owner: 'harlan-zw', repo: 'gscdump', name: 'gscdump', indexable: false })
+    db().raw.prepare(`INSERT INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board) VALUES ('harlan-zw', 'gscdump', 'gscdump', ?, 'week')`).run(NOW)
+    await admitTrendingSkills(db().db, NOW)
+    const row = db().raw.prepare(`SELECT first_board FROM skill_trending_admissions WHERE name = 'gscdump'`).get() as { first_board: string }
+    expect(row.first_board).toBe('probe')
+  })
+
+  it('skips an exception the registry does not hold', async () => {
+    await admitTrendingSkills(db().db, NOW)
+    expect(admitted()).not.toContain('harlan-zw/nuxt-seo/nuxtseo-cli')
   })
 })
 
