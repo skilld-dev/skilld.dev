@@ -99,6 +99,16 @@ export function getTagRedirect(slug: string): string | null {
 }
 
 /**
+ * The path a page should link to for a tag.
+ *
+ * A redirected tag answers 301, and an internal link to a 301 wastes a crawl.
+ * NuxtSEO flagged these on 2026-09-29. Link the final page instead.
+ */
+export function tagLinkPath(slug: string): string {
+  return getTagRedirect(slug) ?? `/skills/tag/${slug}`
+}
+
+/**
  * True when an AI-derived tag earns its own landing page.
  * Controlled-vocab tags (TAG_BY_SLUG) are trusted and skip this gate; only
  * the marketing-conflict redirect applies to them.

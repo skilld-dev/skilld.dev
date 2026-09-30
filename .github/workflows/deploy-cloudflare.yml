@@ -110,3 +110,12 @@ jobs:
           echo '::warning::Nuxt DX reporting failed. See the report step.'
           echo '### Nuxt DX report unavailable' >> "$GITHUB_STEP_SUMMARY"
           echo 'Reporting failed. The deployment result is unchanged.' >> "$GITHUB_STEP_SUMMARY"
+
+      # Workers Cache stores `/skills/trending` (see routeRules in
+      # nuxt.config.ts). This proves a repeat visit is a hit, and that no stored
+      # response sets a cookie, hides Markdown from an agent, or carries a
+      # session. It fails the job without a rollback: the rollback smoke
+      # re-checks the previous version, and a version from before the rule
+      # could never pass these checks.
+      - name: Check the trending edge cache
+        run: pnpm production:edge-cache

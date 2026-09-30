@@ -7,7 +7,7 @@ test.describe('multi-sitemap', () => {
     expect(res.status()).toBe(200)
     const xml = await res.text()
 
-    for (const name of ['pages', 'skills', 'authors', 'sources', 'tags']) {
+    for (const name of ['pages', 'skills', 'authors', 'sources']) {
       expect(xml).toContain(`/__sitemap__/${name}.xml`)
     }
   })

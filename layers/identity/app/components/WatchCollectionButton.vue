@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{ login: string, slug: string }>()
-const { isAuthenticated, loginUrl } = useAuth()
+const { state, loginUrl } = useAuth()
 const submitting = ref(false)
 const watched = ref(false)
 
@@ -24,8 +24,19 @@ async function watchNow() {
 </script>
 
 <template>
+  <!-- Holds its place, disabled, until the browser has loaded the session. -->
   <UButton
-    v-if="!isAuthenticated"
+    v-if="state._tag === 'pending'"
+    label="Watch this collection"
+    icon="i-lucide-bell"
+    size="sm"
+    color="neutral"
+    variant="outline"
+    class="min-h-11 justify-start"
+    disabled
+  />
+  <UButton
+    v-else-if="state._tag === 'anonymous'"
     :to="anonHref"
     external
     label="Watch this collection"

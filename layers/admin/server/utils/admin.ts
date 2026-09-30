@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { timingSafeEqual } from 'node:crypto'
+import { readUserSession } from '#shared/server/session-access'
 
 const ADMIN_EMAIL = 'harlan@harlanzw.com'
 // GitHub profiles can hide the email address, so the login is the stable
@@ -14,7 +15,7 @@ export async function requireAdmin(event: H3Event): Promise<{ email: string }> {
   if (await isValidAdminAuthorization(auth, config.adminSecret))
     return { email: ADMIN_EMAIL }
 
-  const session = await getUserSession(event).catch(() => {
+  const session = await readUserSession(event).catch(() => {
     emitOperationalEvent(createWideEvent({ operation: 'admin-session', outcome: 'failed' }))
     return null
   })

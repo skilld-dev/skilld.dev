@@ -22,8 +22,15 @@ describe('resolveOwnerProfileHandoff', () => {
     })).toEqual({ _tag: 'hidden' })
   })
 
+  it('holds the handoff space on a person profile while the session loads', () => {
+    expect(resolveOwnerProfileHandoff('user', 'JonathanXDR', { _tag: 'pending' })).toEqual({
+      _tag: 'pending',
+    })
+  })
+
   it.each([
     { _tag: 'anonymous' as const },
+    { _tag: 'pending' as const },
     { _tag: 'signed-in' as const, login: 'nuxt' },
   ])('hides the personal handoff on organization profiles', (viewer) => {
     expect(resolveOwnerProfileHandoff('org', 'nuxt', viewer)).toEqual({ _tag: 'hidden' })

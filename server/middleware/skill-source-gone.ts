@@ -14,7 +14,7 @@ import {
  *
  * The key set is cached because this runs on every `/gh` request, and an
  * uncached per-request D1 read on a hot path is exactly what produced the
- * 2026-08-04 overload burst. One query an hour returns about 130 rows.
+ * 2026-08-04 overload burst. One query an hour returns about 800 rows (798 on 2026-09-30).
  *
  * `resolveGoneSkillKeys` answers null when it cannot reach either store, and
  * that leaves the response status alone. A middleware that only ever upgrades a

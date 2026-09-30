@@ -13,6 +13,7 @@ Done means: every metric in the baseline table meets its target for the week 202
 - [ ] Stop `pnpm install` from rewriting `minimumReleaseAgeExclude`. It dropped the comment on the `skilld` CLI exemptions twice on 2026-09-29.
 - [ ] Re-time uncached skill pages (2.4 to 3.8 s before #305 and #306)
 - [ ] Move this brief to `shipped/` once every target is met
+- [ ] Decide whether a zone rate limit on `/gh/*` is needed. If added, exempt verified bots with `not cf.client.bot`.
 
 ## What shipped on 2026-09-29
 
@@ -25,7 +26,6 @@ Done means: every metric in the baseline table meets its target for the week 202
 | #299 and #305 indexes and merged render queries | D1 rows read per request |
 | #303 D1 Sessions API; replication set to `auto` | Primary read share; "D1 overloaded" |
 | #306 related skills load in the browser | Reads per SSR render |
-| Zone WAF: block `47.79.0.0/16`; 50 requests per 10 s per IP on `/gh/*` | Crawler bursts |
 
 ## Baseline and targets
 

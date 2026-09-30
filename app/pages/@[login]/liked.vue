@@ -10,6 +10,11 @@ import { githubAvatarProxyUrl } from '#shared/image-proxy'
  * exactly the scaled content the 2026-06 suppression punished (VISION
  * principle 2). It is a shareable page, not an indexable one.
  */
+
+// A closed list answers only its owner, so the server render reads the
+// session and the page is never stored for anyone else.
+definePageMeta({ middleware: ['session'] })
+
 interface LikedSkill {
   owner: string
   repo: string
