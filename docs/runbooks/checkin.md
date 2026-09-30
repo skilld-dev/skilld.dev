@@ -66,6 +66,7 @@ The `skilld.seo-recovery` prompt item adds a weekly SEO recovery section.
 It runs only on Mondays from 2026-10-12 through 2026-11-16, by the run date in Australia/Sydney.
 On other days it adds nothing.
 It reads `docs/work/EXECUTE-seo-recovery.md` and `docs/work/seo-recovery-panel.json`.
+The brief and the panel file own the experiments and groups. The prompt skips any experiment the brief marks deferred.
 It uses the `nuxtseo` CLI for reads only. It needs `nuxtseo` on the PATH and a token from `NUXTSEO_TOKEN` or `nuxtseo login`.
 If either is missing, the section is one blocked line.
 It never writes to NuxtSEO, gscdump, or Search Console.
