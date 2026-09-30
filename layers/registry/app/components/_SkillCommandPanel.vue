@@ -57,7 +57,7 @@ function copyFrom(next: CommandMode) {
           Hand it to your agent
         </h2>
         <p class="text-xs leading-relaxed text-muted">
-          It reads the Skill now. Nothing lands on disk.
+          <strong class="font-medium text-default">This session only.</strong> Nothing lands on disk. Nothing to clean up.
         </p>
       </div>
       <p class="rounded-lg border border-default bg-muted px-3 py-2 text-sm leading-relaxed text-default">
@@ -68,9 +68,8 @@ function copyFrom(next: CommandMode) {
         :label="runCopied ? 'Copied' : 'Copy prompt'"
         color="neutral"
         variant="outline"
-        size="md"
-        block
-        class="min-h-11 font-mono"
+        size="sm"
+        class="font-mono"
         :aria-describedby="copyError && mode === 'run' ? copyErrorId : undefined"
         @click="copyFrom('run')"
       />
@@ -160,6 +159,13 @@ function copyFrom(next: CommandMode) {
         @click="emit('copy', mode)"
       />
     </div>
+
+    <p
+      v-if="mode === 'run'"
+      class="text-xs leading-relaxed text-muted"
+    >
+      <strong class="font-medium text-default">This session only.</strong> Nothing lands on disk.
+    </p>
 
     <p
       v-if="copyError"
