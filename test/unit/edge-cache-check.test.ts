@@ -93,6 +93,18 @@ describe('checkEdgeCache', () => {
     })
   })
 
+  it('passes when the bare path and the default range render one board', async () => {
+    const paths = ['/skills/trending', '/skills/trending?range=month', '/skills/trending?range=all']
+    const result = await run(edge({
+      anonymous: (path, count) => ({
+        body: page(null, false, path === '/skills/trending?range=all' ? path : '/skills/trending'),
+        headers: { 'cf-cache-status': count === 1 ? 'MISS' : 'HIT' },
+      }),
+    }), paths)
+
+    expect(result._tag).toBe('passed')
+  })
+
   it('retries a transient non-200 once before it fails a board', async () => {
     const inner = edge()
     let failedOnce = false
