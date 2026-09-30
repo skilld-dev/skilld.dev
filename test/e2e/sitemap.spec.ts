@@ -36,26 +36,37 @@ test.describe('multi-sitemap', () => {
       expect(loc).toMatch(/^\/(?:gh\/|skills\/(?:plan|master-agent|docs|review|debug|ship)$)/)
   })
 
-  test('authors sitemap is valid and scoped to /@', async ({ page, baseURL }) => {
-    const res = await page.request.get(`${baseURL}/__sitemap__/authors.xml`)
-    expect(res.status()).toBe(200)
-    const xml = await res.text()
-    expect(xml).toContain('<urlset')
-
-    const locs = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), m => new URL(m[1]!).pathname)
-    for (const loc of locs)
-      expect(loc).toMatch(/^\/@[^/]+(?:\/[^/]+)?$/)
+  test('authors and sources sitemaps are gone', async ({ page, baseURL }) => {
+    for (const name of ['authors', 'sources']) {
+      const res = await page.request.get(`${baseURL}/__sitemap__/${name}.xml`)
+      expect(res.status()).toBe(404)
+    }
   })
 
-  test('trusted source sitemap contains only owner and repository hubs', async ({ page, baseURL }) => {
-    const res = await page.request.get(`${baseURL}/__sitemap__/sources.xml`)
-    expect(res.status()).toBe(200)
-    const xml = await res.text()
-    expect(xml).toContain('<urlset')
+  test('the index lists no sitemap for noindex pages, and robots.txt lists only the index', async ({ page, baseURL }) => {
+    const index = await (await page.request.get(`${baseURL}/sitemap_index.xml`)).text()
+    expect(index).not.toMatch(/__sitemap__\/(?:authors|sources)\.xml/)
 
-    const locs = Array.from(xml.matchAll(/<loc>([^<]+)<\/loc>/g), m => new URL(m[1]!).pathname)
-    expect(locs.length).toBeGreaterThan(0)
-    for (const loc of locs)
-      expect(loc).toMatch(/^\/gh\/[^/]+(?:\/[^/]+)?$/)
+    const robots = await (await page.request.get(`${baseURL}/robots.txt`)).text()
+    const lines = robots.split('\n').filter(line => /^sitemap:/i.test(line))
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('/sitemap_index.xml')
   })
+})
+
+test.describe('entity pages stay out of the index', () => {
+  const noindexPaths = [
+    '/@harlan-zw',
+    '/@harlan-zw/design-engineering-essentials',
+    '/gh/anthropics',
+    '/gh/antfu/skills',
+  ]
+  for (const path of noindexPaths) {
+    test(`${path} is noindex,follow in meta and header`, async ({ page, baseURL }) => {
+      const res = await page.request.get(`${baseURL}${path}`)
+      const html = await res.text()
+      expect(html).toMatch(/<meta[^>]*name="robots"[^>]*content="noindex,\s*follow"/i)
+      expect(res.headers()['x-robots-tag']).toMatch(/^noindex,\s*follow$/i)
+    })
+  }
 })

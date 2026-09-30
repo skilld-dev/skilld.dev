@@ -8,7 +8,6 @@ import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { querySkills } from '../../utils/skills-registry'
-import { isTrustedAuthorOwner } from '../../utils/trusted-author-sources'
 
 export type OrgKind = 'org' | 'user'
 
@@ -42,7 +41,6 @@ export interface OrgProfile {
   skills: RegistrySkill[]
   lastSyncedAt: number | null
   syncStatus: 'ok' | 'failed' | 'never' | null
-  seoIndexable: boolean
   fetchedAt: string
 }
 
@@ -279,7 +277,6 @@ async function loadOrgProfile(event: H3Event, owner: string): Promise<OrgProfile
     skills: registryResult.items,
     lastSyncedAt,
     syncStatus,
-    seoIndexable: isTrustedAuthorOwner(owner),
     fetchedAt: new Date().toISOString(),
   }
 

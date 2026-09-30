@@ -131,7 +131,8 @@ useSeoMeta({
     return `${data.value.totalSkills} agent skills ${verb} ${data.value.displayName}.`
   },
   ogUrl: canonicalUrl,
-  robots: () => data.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
+  // Owner hubs stay live and linked, never indexed (owner decision 2026-10-01).
+  robots: 'noindex,follow',
   twitterCard: 'summary_large_image',
 })
 

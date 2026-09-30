@@ -299,10 +299,10 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
-  // Indexable only when the hub renders its source. A renamed repository comes
-  // back under a new identity, `repoSource` is null, and the page shows
-  // "Source not found", so it is noindex. The API applies the same rule.
-  robots: () => repoSource.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
+  // A multi-Skill hub is never indexed (owner decision 2026-10-01). A
+  // single-Skill hub renders SkillDetail, which sets its own robots from the
+  // trending admission rule and wins over this default.
+  robots: 'noindex,follow',
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,

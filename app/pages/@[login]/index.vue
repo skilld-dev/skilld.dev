@@ -201,6 +201,8 @@ useSeoMeta({
     : `${displayName.value} (@${login.value})`,
   description: () => `${skills.value.length} ${skills.value.length === 1 ? 'skill' : 'skills'} and ${collections.value.length} ${collections.value.length === 1 ? 'collection' : 'collections'} from @${login.value} on skilld.`,
   ogUrl: canonicalUrl,
+  // Owner decision 2026-10-01: profiles stay live and linked, never indexed.
+  robots: 'noindex,follow',
 })
 
 useHead({

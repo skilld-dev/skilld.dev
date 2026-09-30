@@ -721,8 +721,7 @@ export default defineNuxtConfig({
   sitemap: {
     // `/learn` index is a 55-word card list, noindex since 2026-08-22
     // (GOOGLE_RECOVERY.md). Articles stay indexable and sitemap-listed; only
-    // the bare index leaves. Global so no child sitemap can re-adopt it
-    // (authors.xml was listing it via an app-source merge quirk).
+    // the bare index leaves. Global so no child sitemap can re-adopt it.
     exclude: ['/learn'],
     sitemaps: {
       pages: {
@@ -743,14 +742,10 @@ export default defineNuxtConfig({
         includeAppSources: false,
         chunks: 10000,
       },
-      authors: {
-        sources: ['/api/__sitemap__/authors'],
-        includeAppSources: false,
-      },
-      sources: {
-        sources: ['/api/__sitemap__/trusted-authors'],
-        includeAppSources: false,
-      },
+      // `authors` and `sources` removed 2026-10-01 (owner decision): author
+      // profiles, collections, owner hubs and multi-Skill repository hubs render
+      // `noindex,follow`. A single-Skill repository hub is the Skill's own page,
+      // so the skills sitemap lists it when the trending admission rule admits it.
       // `orgs` removed: it listed every owner hub (/gh/<owner>) unconditionally,
       // but those pages render noindex,follow. Advertising noindex URLs in the
       // sitemap was the bulk of GSC "Crawled – currently not indexed" (~8k) and

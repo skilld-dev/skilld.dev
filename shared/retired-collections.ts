@@ -8,9 +8,10 @@
  * D1 on purpose. `/api/collections/featured` reads only featured rows, so
  * retiring them would empty the homepage band. Retiring them would also drop
  * `curator_count` and `curator_reason_count`, which count live collections only
- * and gate indexability for some Skills. Their pages render `noindex,follow` and
- * stay out of the authors sitemap. Revisit once other collections are featured
- * and the curator signals no longer depend on these rows.
+ * and gate indexability for some Skills. Since 2026-10-01 every collection page
+ * renders `noindex,follow`, so the list only records which rows must stay live.
+ * Revisit once other collections are featured and the curator signals no
+ * longer depend on these rows.
  */
 export interface CollectionRef {
   author: string
@@ -56,13 +57,4 @@ function has(list: readonly CollectionRef[], author: string, slug: string): bool
 
 export function isRetiredCollection(author: string, slug: string): boolean {
   return has(RETIRED_COLLECTIONS, author, slug)
-}
-
-export function isNoindexCollection(author: string, slug: string): boolean {
-  return has(NOINDEX_COLLECTIONS, author, slug)
-}
-
-/** Drops collections that must stay out of the sitemap. Runs before the migration lands too. */
-export function withoutUnindexedCollections<T extends { author_login: string, slug: string }>(rows: readonly T[]): T[] {
-  return rows.filter(row => !isRetiredCollection(row.author_login, row.slug) && !isNoindexCollection(row.author_login, row.slug))
 }
