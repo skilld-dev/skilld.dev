@@ -1,9 +1,10 @@
 import { defineExternalCheck, defineReportCheck, unavailable } from '@harlan-zw/nuxt-checkin/external'
+import { withCause } from '../_helpers/cause.mjs'
 import { collectDeploy } from '../_helpers/collectors.mjs'
 
 export default defineExternalCheck({
   id: 'skilld.report',
-  async run(context) {
+  run: withCause(async (context) => {
     const deployment = (await collectDeploy(context)).latest?.versionId
     if (!deployment)
       return unavailable('Deployed Worker identity is unavailable.')
@@ -17,5 +18,5 @@ export default defineExternalCheck({
       required: ['skilld.daily-health', 'skilld.daily-health-coverage'],
       maxAgeMs: 300_000,
     }).run({ ...context, event: { rootDir: context.rootDir, since: context.since, previous: context.previous, clock: context.clock, env: { ...context.env, CHECKIN_DEPLOYMENT: deployment } } })
-  },
+  }),
 })

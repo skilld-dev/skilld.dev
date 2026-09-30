@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { readBoundedResponseText, runCheckCommand } from '@harlan-zw/nuxt-checkin/external'
 import { ANALYTICS_ACCOUNT_TAG, buildCopyQuery, buildCopyTotalsQuery, buildWorkersQuery, collectWorkflowRuns, parseWorkflowName, runListArgs, summarizeCopies, summarizeWorkflowRuns } from './observability.mjs'
 
@@ -25,8 +25,11 @@ async function run(context, command, args) {
       })
     : baseEnv
   const result = await runCheckCommand({ ...context, env }, command, args, { maxBytes: 20 * 1024 * 1024 })
-  if (result._tag === 'Err')
-    throw new Error(result.reason)
+  if (result._tag === 'Err') {
+    // The shared CLI's Err carries no stderr, so name the failing command:
+    // the archive then says which probe broke, not just that a command did.
+    throw new Error(`${basename(command)} ${args[0] ?? ''} failed: ${result.reason}`.trim())
+  }
   return result.stdout.trim()
 }
 async function commandJson(context, command, args) {

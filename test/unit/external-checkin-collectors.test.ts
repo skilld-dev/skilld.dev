@@ -76,6 +76,15 @@ it('rejects oversized Worker analytics evidence', async () => {
   expect(report.results[0]?.result._tag).toBe('Unavailable')
 })
 
+// The published runOne archives every thrown error as the generic
+// 'Check threw an exception.' and the CLI passes no onError callback, so the
+// 2026-09-29 run's five Cloudflare failures reached the archive with no cause.
+it('archives the collector failure cause instead of the generic throw message', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Cloudflare API is unreachable.')))
+  const { report } = await runExternalChecks([workersCheck], { required: [workersCheck.id] }, { env: { CLOUDFLARE_USAGE_TOKEN: 'test-token' } })
+  expect(report.results[0]?.result).toEqual({ _tag: 'Unavailable', reason: 'Cloudflare API is unreachable.' })
+})
+
 // The ranked top page caps at 50 groups, so totals summed from that page
 // silently undercount once a day holds more groups than the cap. The totals
 // must come from their own untruncated rollup.
