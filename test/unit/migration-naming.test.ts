@@ -69,7 +69,7 @@ describe('migration naming', () => {
     const result = verifyMigrationNaming([
       '0127_clear_broken_zero_skill_repos.sql',
       '0130_retire_stale_collections.sql',
-    ])
+    ], { '0128': '#1 claims 0128', '0129': '#2 claims 0129' })
 
     expect(result).toEqual({ _tag: 'ok' })
   })

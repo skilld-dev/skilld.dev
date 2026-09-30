@@ -2,7 +2,7 @@
 
 Generated from literal `defineScheduledTask` declarations. Run `pnpm cron:docs` after schedule changes.
 
-Tasks: 21. Unique Cloudflare triggers: 14.
+Tasks: 22. Unique Cloudflare triggers: 14.
 
 | Task | Cron | Source |
 | --- | --- | --- |
