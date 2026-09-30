@@ -1399,39 +1399,47 @@ useHead(computed(() => ({
           </ul>
           <div
             v-if="contextCost"
-            class="skill-context"
-            role="group"
-            aria-label="Context cost in tokens"
+            class="flex flex-wrap items-center gap-x-2 gap-y-1.5"
           >
             <span class="skill-context-label">
-              <UIcon name="i-lucide-layers" class="size-3.5" aria-hidden="true" />
+              <UIcon
+                name="i-lucide-layers"
+                class="size-3.5"
+                aria-hidden="true"
+              />
               tokens
             </span>
-            <UiTooltip
-              title="Always loaded"
-              description="The name and description. Your agent carries these in every session so it knows the Skill exists."
+            <div
+              class="skill-context"
+              role="group"
+              aria-label="Context cost in tokens"
             >
-              <span class="skill-context-stage">
-                <strong>{{ formatTokenCount(contextCost.tokens.metadata) }}</strong> always
-              </span>
-            </UiTooltip>
-            <UiTooltip
-              title="When used"
-              description="The SKILL.md body. Your agent loads it when a task matches the description."
-            >
-              <span class="skill-context-stage">
-                <strong>{{ formatTokenCount(contextCost.tokens.instructions) }}</strong> when used
-              </span>
-            </UiTooltip>
-            <UiTooltip
-              v-if="contextCost.tokens.resources"
-              title="On demand"
-              description="Markdown and data files. Your agent reads one only when SKILL.md sends it there. Scripts run without entering context."
-            >
-              <span class="skill-context-stage">
-                <strong>{{ formatTokenCount(contextCost.tokens.resources) }}</strong> on demand
-              </span>
-            </UiTooltip>
+              <UiTooltip
+                title="Always loaded"
+                description="The name and description. Your agent carries these in every session so it knows the Skill exists."
+              >
+                <span class="skill-context-stage">
+                  <strong>{{ formatTokenCount(contextCost.tokens.metadata) }}</strong> always
+                </span>
+              </UiTooltip>
+              <UiTooltip
+                title="When used"
+                description="The SKILL.md body. Your agent loads it when a task matches the description."
+              >
+                <span class="skill-context-stage">
+                  <strong>{{ formatTokenCount(contextCost.tokens.instructions) }}</strong> when used
+                </span>
+              </UiTooltip>
+              <UiTooltip
+                v-if="contextCost.tokens.resources"
+                title="On demand"
+                description="Markdown and data files. Your agent reads one only when SKILL.md sends it there. Scripts run without entering context."
+              >
+                <span class="skill-context-stage">
+                  <strong>{{ formatTokenCount(contextCost.tokens.resources) }}</strong> on demand
+                </span>
+              </UiTooltip>
+            </div>
           </div>
         </div>
       </template>
@@ -2367,7 +2375,14 @@ useHead(computed(() => ({
   font-variant-numeric: tabular-nums;
   color: var(--ui-text-muted);
 }
-.skill-context-label,
+.skill-context-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ui-primary);
+}
 .skill-context-stage {
   display: inline-flex;
   align-items: center;
@@ -2376,10 +2391,7 @@ useHead(computed(() => ({
   padding: 0.125rem 0.5rem;
   white-space: nowrap;
 }
-.skill-context-label {
-  color: var(--ui-primary);
-}
-.skill-context-stage {
+.skill-context-stage + .skill-context-stage {
   border-left: 1px solid color-mix(in oklch, var(--ui-primary) 18%, transparent);
   cursor: help;
 }
