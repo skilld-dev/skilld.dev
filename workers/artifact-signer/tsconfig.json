@@ -4,6 +4,9 @@
     "lib": ["ES2023"],
     "module": "Preserve",
     "moduleResolution": "Bundler",
+    "paths": {
+      "#shared/*": ["../../shared/*"]
+    },
     "types": ["./worker-configuration.d.ts"],
     "allowJs": false,
     "strict": true,
@@ -12,10 +15,7 @@
     "noEmit": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "paths": {
-      "#shared/*": ["../../shared/*"]
-    }
+    "skipLibCheck": true
   },
   "include": [
     "src/**/*.ts",
