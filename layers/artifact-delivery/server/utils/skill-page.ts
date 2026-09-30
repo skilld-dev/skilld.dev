@@ -59,8 +59,8 @@ export const SKILL_PAGE_URL_HEADER = 'skilld-page-url'
  * Skill. {@link resolveSkillPageUrl} wired to the registry layer over HTTP,
  * the only way one layer reads another (ADR-0001).
  *
- * The lookup is one KV read on a warm cache. `/api/skills/page-url` reads D1
- * only when its cache entry is missing or stale.
+ * The lookup is one edge cache read, per data center, on a warm entry.
+ * `/api/skills/page-url` reads D1 only when that entry is missing or stale.
  */
 export async function setSkillPageUrlHeader(event: H3Event, row: ResolutionRow): Promise<void> {
   const pageUrl = await resolveSkillPageUrl(
