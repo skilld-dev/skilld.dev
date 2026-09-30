@@ -174,8 +174,7 @@ Check a PR with `gh pr view <n> --repo skilld-dev/skilld.dev`.
 1. [#332](https://github.com/skilld-dev/skilld.dev/pull/332), the `return_to` fix. It is a security fix, so it goes first.
 2. [#334](https://github.com/skilld-dev/skilld.dev/pull/334), the edge cache check. Each deploy reports a failure until it merges.
 3. This brief, then [#333](https://github.com/skilld-dev/skilld.dev/pull/333), the Monday check-in. The check-in reads this brief.
-4. [nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314), the probe link. Both probe targets serve `index,follow`. The 14 day probe window runs from the day it merges.
-5. Keep in draft, do not merge:
+4. Keep in draft, do not merge:
    - [#318](https://github.com/skilld-dev/skilld.dev/pull/318), experiment C, deferred on 2026-10-01.
    - [#320](https://github.com/skilld-dev/skilld.dev/pull/320), IndexNow. On 2026-10-01 the owner moved IndexNow submission to another service.
    - [#321](https://github.com/skilld-dev/skilld.dev/pull/321), which shows the badge block only on indexable hubs. A badge on a noindex page still brings people to the site, so the gate is not needed (owner, 2026-10-01).
@@ -197,7 +196,7 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 | Group | URLs | Treatment | Expect |
 | --- | ---: | --- | --- |
 | `trending_sample` | 20 | None. No template change | Baseline for admitted trending pages |
-| `d_probe` | 2 | Link from a trusted host (experiment D) | Crawled within 14 days of the link |
+| `d_probe` | 2 | One linked page and one unlinked page (experiment D) | The linked page is crawled within 14 days; the unlinked page is the comparison |
 | `demand` | 3 | High search demand, in the trending set | First to earn impressions if indexed |
 | `admitted_other` | 10 | Trending set only | Trending-only baseline |
 | `retired` | 5 | Retired URLs in the retired sitemap (experiment E) | Move out of "Crawled, currently not indexed" |
@@ -262,12 +261,12 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 ### D. Trusted host link probe
 
 - Measures: `d_probe`. It answers "domain or content?".
-- Setup: add one "View on skilld" link beside install steps that already exist on Harlan's sites. No new posts.
-  - `gh/harlan-zw/nuxt-seo/nuxtjs-seo`, linked from the nuxtseo.com CLI guide ([nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314)).
-  - `gh/harlan-zw/gscdump`, linked from gscdump.com and its docs.
+- Setup: links beside install steps that already exist on Harlan's sites. No new posts.
+  - `gh/harlan-zw/gscdump` is the linked page. gscdump.com/skill and the gscdump docs ([gscdump #149](https://github.com/harlan-zw/gscdump/pull/149)) link to it.
+  - `gh/harlan-zw/nuxt-seo/nuxtjs-seo` is the unlinked comparison. On 2026-10-01 the owner dropped the nuxtseo.com link ([nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314) is not merged).
 - Both pages are named exceptions to the trending-only rule, so they are indexable. Approved 2026-09-30.
-- The 14 day clock starts when #322 is live and the link is live.
-- Scale rule: Google crawls the linked pages within 14 days while the unlinked trending pages stay Discovered. Then a link from a trusted host can lift a page, and the domain verdict is not absolute.
+- The 14 day clock starts on 2026-09-30, when #322 went live. Both links to the gscdump page were live by then.
+- Scale rule: Google crawls the linked gscdump page within 14 days while the unlinked nuxtjs-seo page and the trending pages stay Discovered. Then a link from a trusted host can lift a page, and the domain verdict is not absolute.
 - Fallback if that read is unclear: publish 3 to 5 original write-ups on harlanzw.com that link to 2 or 3 panel URLs. This needs new posts, so it waits for content work. If Google still does not crawl the linked URLs in 14 days, the domain verdict blocks even well linked pages.
 
 ### E. Retired sitemap
