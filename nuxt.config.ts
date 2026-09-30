@@ -513,6 +513,9 @@ export default defineNuxtConfig({
         'cloudflare-cdn-cache-control': 'public, max-age=300',
       },
     } as any,
+    // The file list now comes from D1, identical for everyone and only
+    // changing on a sync, so the edge can hold it for a few minutes.
+    '/api/skill-files/**': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     '/api/skills/typeahead': {
       headers: {
         'cache-control': 'public, max-age=3600',
