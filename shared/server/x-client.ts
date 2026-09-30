@@ -176,6 +176,7 @@ export type XError
     | { _tag: 'local-blocked' }
     | { _tag: 'rate-limited', resetAt: number | null }
     | { _tag: 'cap-exceeded' }
+    | { _tag: 'credits-depleted' }
     | { _tag: 'unauthorized' }
     | { _tag: 'http-error', status: number, body: string }
     | { _tag: 'malformed-response', message: string }
@@ -195,6 +196,8 @@ export function describeXError(error: XError): string {
       return `rate limited${error.resetAt ? ` until ${new Date(error.resetAt * 1000).toISOString()}` : ''}`
     case 'cap-exceeded':
       return 'monthly X cap reached'
+    case 'credits-depleted':
+      return 'X API credits depleted'
     case 'unauthorized':
       return 'bearer token rejected'
     case 'http-error':
@@ -338,6 +341,8 @@ function toXPost(
 }
 
 function classifyFailure(status: number, headers: Headers, body: string): XError {
+  if (status === 402)
+    return { _tag: 'credits-depleted' }
   if ((status === 403 || status === 429)
     && /spend-cap-reached|spend cap has been reached|usage.?cap.?exceeded|monthly product cap/i.test(body)) {
     return { _tag: 'cap-exceeded' }

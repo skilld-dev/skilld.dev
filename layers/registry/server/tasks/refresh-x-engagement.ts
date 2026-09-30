@@ -3,6 +3,7 @@
 import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
+import { notifyXCreditDepletionWithEnv } from '~~/server/utils/x-credit-alert'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
 import { createXClient, describeXError } from '#shared/server/x-client'
 import { DEFAULT_MAX_POSTS_PER_RUN, refreshXEngagement } from '#shared/server/x-refresh'
@@ -114,6 +115,15 @@ export default defineScheduledTask({
         durationMs: summary.elapsedMs,
         error: summary.error,
       })
+      if (result.error?._tag === 'credits-depleted') {
+        await notifyXCreditDepletionWithEnv({
+          db,
+          env,
+          from: useRuntimeConfig().email.from,
+          taskName: 'refresh-x-engagement',
+          now,
+        })
+      }
       return { result: summary }
     })
   },
