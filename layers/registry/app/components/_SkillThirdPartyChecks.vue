@@ -10,6 +10,8 @@ const { audits = [] } = defineProps<{
   audits?: SkillAudit[]
 }>()
 
+const open = defineModel<boolean>('open', { default: false })
+
 const AUDIT_META: Record<string, { icon: string, klass: string }> = {
   pass: { icon: 'i-lucide-shield-check', klass: 'text-success' },
   warn: { icon: 'i-lucide-shield-alert', klass: 'text-warning' },
@@ -51,18 +53,17 @@ const AUDIT_TONE_CLASS = {
   >
     <h2
       id="third-party-checks-heading"
-      class="section-label"
+      class="section-label mb-3"
     >
       Third-party checks
     </h2>
-    <p class="mt-1 mb-3 text-xs text-muted">
-      Reports from outside skilld.
-    </p>
 
     <div class="rounded-lg border border-default min-h-[3.5rem]">
       <details
         v-if="auditOverview"
         class="group"
+        :open="open"
+        @toggle="open = ($event.target as HTMLDetailsElement).open"
       >
         <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors [&::-webkit-details-marker]:hidden">
           <UIcon

@@ -614,7 +614,7 @@ function rankClass(index: number): string {
               {{ item.name }}
             </NuxtLink>
             <span class="ml-2 font-mono text-xs text-muted">{{ item.owner }}/{{ item.repo }}</span>
-            <span v-if="item.description" class="mt-1 line-clamp-2 block text-sm leading-relaxed text-muted">
+            <span v-if="item.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
               {{ item.description }}
             </span>
           </li>

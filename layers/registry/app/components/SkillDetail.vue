@@ -564,6 +564,15 @@ const skillUpdatedDate = computed(() => {
   return modifiedAt ? new Date(modifiedAt * 1000) : pushedAtDate.value
 })
 const skillUpdatedAgo = useTimeAgo(skillUpdatedDate)
+// Descriptions double as trigger text and run long. Two lines, then "more".
+const descriptionEl = useTemplateRef<HTMLElement>('descriptionEl')
+const descriptionExpanded = ref(false)
+const descriptionClamped = ref(false)
+useResizeObserver(descriptionEl, () => {
+  const el = descriptionEl.value
+  if (el && !descriptionExpanded.value)
+    descriptionClamped.value = el.scrollHeight > el.clientHeight + 1
+})
 const shortSha = computed(() => data.value?.provenance?.sourceCommitSha?.slice(0, 7) ?? null)
 
 // Frontmatter licences are free text ("Proprietary. LICENSE.txt has complete
@@ -657,6 +666,8 @@ watch(
 const SKILL_CONTAINER = 'mx-auto w-full max-w-[105rem] px-4 sm:px-6 lg:px-8 xl:px-10'
 
 const viewerSection = useTemplateRef<HTMLElement>('viewerSection')
+// The header checks chip jumps to the checks and opens their detail.
+const checksOpen = ref(useRoute().hash === '#third-party-checks')
 const filesPopoverOpen = ref(false)
 
 // The site header and the sticky viewer bar cover the top 108px, so focus and
@@ -1291,12 +1302,29 @@ useHead(computed(() => ({
               class="ml-auto hidden shrink-0 lg:flex"
             />
           </div>
-          <p
+          <div
             v-if="data.description"
-            class="mt-3 text-sm text-muted leading-relaxed line-clamp-3"
+            class="mt-3"
           >
-            {{ data.description }}
-          </p>
+            <p
+              id="skill-description"
+              ref="descriptionEl"
+              class="text-sm text-muted leading-relaxed"
+              :class="{ 'line-clamp-2': !descriptionExpanded }"
+            >
+              {{ data.description }}
+            </p>
+            <button
+              v-if="descriptionClamped || descriptionExpanded"
+              type="button"
+              class="data-label mt-1 inline-flex min-h-6 items-center transition-colors hover:text-default"
+              :aria-expanded="descriptionExpanded"
+              aria-controls="skill-description"
+              @click="descriptionExpanded = !descriptionExpanded"
+            >
+              {{ descriptionExpanded ? 'less' : 'more' }}
+            </button>
+          </div>
 
           <div
             v-if="data.dependencies?.length"
@@ -1424,7 +1452,8 @@ useHead(computed(() => ({
                 href="#third-party-checks"
                 class="skill-chip skill-chip-link"
                 :class="AUDIT_TONE_CLASS[auditOverview.tone]"
-                :title="`Third-party checks: ${auditOverview.label} · ${auditOverview.detail}. Reports from outside skilld.`"
+                :title="`Third-party checks: ${auditOverview.label} · ${auditOverview.detail}`"
+                @click="checksOpen = true"
               >
                 <UIcon :name="auditOverview.icon" class="size-3.5" aria-hidden="true" />
                 {{ auditOverview.label }}
@@ -1444,9 +1473,6 @@ useHead(computed(() => ({
         class="pt-6 lg:hidden"
         :class="SKILL_CONTAINER"
       >
-        <h2 class="section-label mb-2">
-          Use it
-        </h2>
         <SkillCommandPanel
           v-model="commandMode"
           :run-url="runUrl"
@@ -1825,7 +1851,10 @@ useHead(computed(() => ({
             aria-label="About this Skill"
             role="region"
           >
-            <SkillThirdPartyChecks :audits="audits" />
+            <SkillThirdPartyChecks
+              v-model:open="checksOpen"
+              :audits="audits"
+            />
             <SkillReceiptsPanel
               v-if="data.provenance"
               :provenance="data.provenance"
@@ -1985,120 +2014,6 @@ useHead(computed(() => ({
               </div>
             </section>
             <section
-              ref="historySlot"
-              class="md:col-span-2"
-              aria-labelledby="history-heading"
-              :aria-busy="relatedLoading || undefined"
-            >
-              <h2
-                id="history-heading"
-                class="section-label mb-3"
-              >
-                History
-              </h2>
-              <ol
-                v-if="relatedLoading"
-                class="divide-y divide-default rounded-lg border border-default"
-                aria-label="Loading recent commits"
-              >
-                <li
-                  v-for="n in 3"
-                  :key="n"
-                  class="flex items-start gap-2.5 px-3 py-2.5"
-                >
-                  <USkeleton class="size-5 shrink-0 rounded-full mt-0.5" />
-                  <div class="min-w-0 flex-1 space-y-1.5">
-                    <USkeleton class="h-3.5 w-4/5" />
-                    <USkeleton class="h-3 w-1/3" />
-                  </div>
-                </li>
-              </ol>
-              <div
-                v-else-if="relatedError"
-                class="rounded-lg border border-default px-3 py-3"
-                role="alert"
-              >
-                <p class="text-xs text-muted">
-                  Couldn't load recent commits. Check your connection and try again.
-                </p>
-                <UButton
-                  label="Retry"
-                  color="neutral"
-                  variant="outline"
-                  size="xs"
-                  class="mt-2"
-                  @click="retryRelated"
-                />
-              </div>
-              <p
-                v-else-if="!recentCommits.length"
-                class="text-xs text-muted"
-              >
-                No recent commits found for this file.
-              </p>
-              <ol
-                v-else
-                class="divide-y divide-default rounded-lg border border-default"
-              >
-                <li
-                  v-for="commit in recentCommits"
-                  :key="commit.sha"
-                  class="flex items-start gap-2.5 px-3 py-2.5"
-                >
-                  <img
-                    v-if="commit.authorAvatar"
-                    :src="avatarProxyUrl(commit.authorAvatar)"
-                    :alt="`${commit.authorName} avatar`"
-                    width="20"
-                    height="20"
-                    class="size-5 shrink-0 rounded-full mt-0.5"
-                  >
-                  <div
-                    v-else
-                    class="size-5 shrink-0 rounded-full bg-muted mt-0.5"
-                    aria-hidden="true"
-                  />
-                  <div class="min-w-0 flex-1">
-                    <a
-                      :href="commit.url"
-                      target="_blank"
-                      rel="noopener"
-                      class="text-xs hover:underline underline-offset-2 transition-colors line-clamp-2 leading-snug"
-                    >
-                      {{ commit.message }}
-                    </a>
-                    <div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-                      <time
-                        :datetime="commit.date"
-                        :title="commit.absolute"
-                        class="font-mono"
-                        data-allow-mismatch="text"
-                      >{{ commit.relative }}</time>
-                      <span aria-hidden="true">·</span>
-                      <code class="font-mono">{{ commit.shortSha }}</code>
-                      <UIcon
-                        v-if="commit.verified"
-                        name="i-lucide-shield-check"
-                        class="size-3 shrink-0"
-                        :title="`GPG-signed (${commit.verifiedReason})`"
-                        aria-hidden="true"
-                      />
-                    </div>
-                  </div>
-                </li>
-              </ol>
-              <p class="mt-2 text-xs text-muted">
-                <a
-                  :href="data.provenance?.historyUrl || `${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
-                  target="_blank"
-                  rel="noopener"
-                  class="font-mono hover:text-default transition-colors"
-                >
-                  View full history →
-                </a>
-              </p>
-            </section>
-            <section
               v-if="data.tags.length || data.keywords?.length"
               aria-labelledby="topics-heading"
             >
@@ -2247,21 +2162,16 @@ useHead(computed(() => ({
         </div>
 
         <aside
-          class="skill-rail scroll-fancy hidden space-y-8 lg:block"
-          aria-label="Run, install and files"
+          class="skill-rail scroll-fancy mt-10 space-y-8 lg:mt-0"
+          aria-label="Run, install, files and history"
         >
           <section
             class="hidden lg:block"
-            aria-labelledby="rail-run-heading"
+            aria-label="Run or install"
           >
-            <h2
-              id="rail-run-heading"
-              class="section-label mb-2"
-            >
-              Use it
-            </h2>
             <SkillCommandPanel
               v-model="commandMode"
+              layout="stacked"
               :run-url="runUrl"
               :install-command="installCmd"
               :run-copied="copied"
@@ -2309,6 +2219,7 @@ useHead(computed(() => ({
 
           <section
             v-if="capabilitySummary?.scopes.length"
+            class="hidden lg:block"
             aria-labelledby="rail-scopes-heading"
           >
             <h2
@@ -2347,6 +2258,119 @@ useHead(computed(() => ({
               />
             </a>
           </section>
+          <section
+            ref="historySlot"
+            aria-labelledby="history-heading"
+            :aria-busy="relatedLoading || undefined"
+          >
+            <h2
+              id="history-heading"
+              class="section-label mb-3"
+            >
+              History
+            </h2>
+            <ol
+              v-if="relatedLoading"
+              class="divide-y divide-default rounded-lg border border-default"
+              aria-label="Loading recent commits"
+            >
+              <li
+                v-for="n in 3"
+                :key="n"
+                class="flex items-start gap-2.5 px-3 py-2.5"
+              >
+                <USkeleton class="size-5 shrink-0 rounded-full mt-0.5" />
+                <div class="min-w-0 flex-1 space-y-1.5">
+                  <USkeleton class="h-3.5 w-4/5" />
+                  <USkeleton class="h-3 w-1/3" />
+                </div>
+              </li>
+            </ol>
+            <div
+              v-else-if="relatedError"
+              class="rounded-lg border border-default px-3 py-3"
+              role="alert"
+            >
+              <p class="text-xs text-muted">
+                Couldn't load recent commits. Check your connection and try again.
+              </p>
+              <UButton
+                label="Retry"
+                color="neutral"
+                variant="outline"
+                size="xs"
+                class="mt-2"
+                @click="retryRelated"
+              />
+            </div>
+            <p
+              v-else-if="!recentCommits.length"
+              class="text-xs text-muted"
+            >
+              No recent commits found for this file.
+            </p>
+            <ol
+              v-else
+              class="divide-y divide-default rounded-lg border border-default"
+            >
+              <li
+                v-for="commit in recentCommits"
+                :key="commit.sha"
+                class="flex items-start gap-2.5 px-3 py-2.5"
+              >
+                <img
+                  v-if="commit.authorAvatar"
+                  :src="avatarProxyUrl(commit.authorAvatar)"
+                  :alt="`${commit.authorName} avatar`"
+                  width="20"
+                  height="20"
+                  class="size-5 shrink-0 rounded-full mt-0.5"
+                >
+                <div
+                  v-else
+                  class="size-5 shrink-0 rounded-full bg-muted mt-0.5"
+                  aria-hidden="true"
+                />
+                <div class="min-w-0 flex-1">
+                  <a
+                    :href="commit.url"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-xs hover:underline underline-offset-2 transition-colors line-clamp-2 leading-snug"
+                  >
+                    {{ commit.message }}
+                  </a>
+                  <div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                    <time
+                      :datetime="commit.date"
+                      :title="commit.absolute"
+                      class="font-mono"
+                      data-allow-mismatch="text"
+                    >{{ commit.relative }}</time>
+                    <span aria-hidden="true">·</span>
+                    <code class="font-mono">{{ commit.shortSha }}</code>
+                    <UIcon
+                      v-if="commit.verified"
+                      name="i-lucide-shield-check"
+                      class="size-3 shrink-0"
+                      :title="`GPG-signed (${commit.verifiedReason})`"
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>
+              </li>
+            </ol>
+            <p class="mt-2 text-xs text-muted">
+              <a
+                :href="data.provenance?.historyUrl || `${data.githubUrl}/commits/${data.branch}/${data.skillPath}`"
+                target="_blank"
+                rel="noopener"
+                class="font-mono hover:text-default transition-colors"
+              >
+                View full history →
+              </a>
+            </p>
+          </section>
         </aside>
       </div>
     </template>
@@ -2356,8 +2380,7 @@ useHead(computed(() => ({
     <USeparator />
     <section
       ref="relatedSlot"
-      class="py-8 md:py-12"
-      :class="SKILL_CONTAINER"
+      class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-12"
       aria-labelledby="related-heading"
       :aria-busy="relatedLoading || undefined"
     >

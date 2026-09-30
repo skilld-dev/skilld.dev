@@ -20,6 +20,7 @@ mockNuxtImport('useAsyncData', () => () => ({
   status: ref('success'),
   error: ref(null),
   refresh: vi.fn(),
+  execute: vi.fn(),
 }))
 vi.stubGlobal('defineOgImage', () => {})
 

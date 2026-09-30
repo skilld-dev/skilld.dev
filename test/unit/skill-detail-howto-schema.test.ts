@@ -174,41 +174,34 @@ describe('skillDetail HowTo structured data', () => {
 })
 
 describe('skillDetail command choice', () => {
-  it('shows one command and switches between run and install', async () => {
+  it('tabs run and install on small screens, and stacks run above install in the rail', async () => {
     const wrapper = await mountSuspended(
       await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
       { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
     )
 
-    const panels = await vi.waitFor(() => {
+    const [tabs, stacked] = await vi.waitFor(() => {
       const matches = wrapper.findAll('[data-testid="skill-command-panel"]')
       expect(matches).toHaveLength(2)
       return matches
     })
 
-    for (const panel of panels) {
-      expect(panel.findAll('.install-command')).toHaveLength(1)
-      expect(panel.text()).not.toContain('Check it worked')
-    }
-
-    const panel = panels[0]!
-    expect(panel.get('.install-command').text()).toBe('https://skilld.dev/gh/antfu/skills/vite')
-    expect(panel.get('button[aria-pressed="true"]').text()).toBe('Run')
-    expect(panel.text()).toContain('Ask your Agent')
-    expect(panel.text()).toContain('Use this Skill:')
-    expect(panel.get('button[aria-label="Copy Agent prompt"]')).toBeTruthy()
-
-    const installTab = panel.findAll('button[aria-pressed]')
-      .find(button => button.text() === 'Install')
+    expect(tabs!.findAll('.install-command')).toHaveLength(1)
+    expect(tabs!.get('.install-command').text()).toBe('https://skilld.dev/gh/antfu/skills/vite')
+    expect(tabs!.text()).toContain('Use this Skill:')
+    const installTab = tabs!.findAll('button[aria-pressed]').find(button => button.text() === 'Install')
     expect(installTab, 'Install mode is missing').toBeTruthy()
     await installTab!.trigger('click')
-
     await vi.waitFor(() => {
-      expect(panel.get('.install-command').text()).toBe('npx skilld install antfu/skills/vite')
-      expect(panel.get('button[aria-label="Copy install command"]')).toBeTruthy()
-      expect(panels[1]!.get('button[aria-pressed="true"]').text()).toBe('Install')
-      expect(panel.get('button[aria-expanded="false"]').text()).toContain('Check it worked')
+      expect(tabs!.get('.install-command').text()).toBe('npx skilld install antfu/skills/vite')
     })
+
+    expect(stacked!.findAll('.install-command').map(command => command.text())).toEqual([
+      'https://skilld.dev/gh/antfu/skills/vite',
+      'npx skilld install antfu/skills/vite',
+    ])
+    expect(stacked!.get('button[aria-label="Copy Agent prompt"]')).toBeTruthy()
+    expect(stacked!.get('button[aria-label="Copy install command"]')).toBeTruthy()
 
     wrapper.unmount()
   })
@@ -222,7 +215,7 @@ describe('skillDetail badge utility', () => {
     )
 
     const badgeUtility = await vi.waitFor(() => {
-      const section = wrapper.find('aside section[aria-labelledby="readme-badge-heading"]')
+      const section = wrapper.find('section[aria-labelledby="readme-badge-heading"]')
       expect(section.exists()).toBe(true)
       return section
     })

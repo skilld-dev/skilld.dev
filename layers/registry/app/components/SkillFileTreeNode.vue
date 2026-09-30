@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SkillFileTreeNode as TreeNode } from '../utils/skill-file-tree'
 import { formatByteSize } from '../utils/skill-context-cost'
-import { fileIcon, isInlineRenderable, shouldAutoExpandFolder } from '../utils/skill-file-tree'
+import { fileIcon, isInlineRenderable } from '../utils/skill-file-tree'
 
 const props = defineProps<{
   node: TreeNode
@@ -20,10 +20,16 @@ const emit = defineEmits<{
   select: [path: string]
 }>()
 
-const open = ref(shouldAutoExpandFolder(props.node))
+const open = ref(props.node.kind === 'dir' && props.node.initiallyOpen)
+
+// Opening a file from a link or the breadcrumb reveals it in the tree.
+watch(() => props.activePath, (active) => {
+  if (props.node.kind === 'dir' && active.startsWith(`${props.node.path}/`))
+    open.value = true
+}, { immediate: true })
 
 function countFiles(node: TreeNode): number {
-  return node.kind === 'file' ? 1 : (node.children ?? []).reduce((sum, child) => sum + countFiles(child), 0)
+  return node.kind === 'file' ? 1 : node.children.reduce((sum, child) => sum + countFiles(child), 0)
 }
 const folderFileCount = computed(() => props.node.kind === 'dir' ? countFiles(props.node) : 0)
 
