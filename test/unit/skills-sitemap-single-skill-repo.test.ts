@@ -48,6 +48,25 @@ describe('skills sitemap single-Skill repos', () => {
       .toContain('/gh/ericzakariasson/scandinavian-design/scandinavian-design')
   })
 
+  it('drops a copy that an aggregator copy outranks, as the Skill page does', async () => {
+    const sha = 'a'.repeat(64)
+    seedRepo('real', 'copy')
+    seedSkill('real', 'copy', 'shared-skill', 1)
+    seedRepo('agg', 'collection')
+    seedSkill('agg', 'collection', 'shared-skill', 1)
+    harness.raw.prepare(`UPDATE repos SET repo_kind = 'aggregator', stars = 9000 WHERE owner = 'agg'`).run()
+    harness.raw.prepare(`UPDATE repos SET stars = 5 WHERE owner = 'real'`).run()
+    harness.raw.prepare(`UPDATE skills SET rendered_raw_sha256 = ? WHERE name = 'shared-skill'`).run(sha)
+    admit('real', 'copy', 'shared-skill')
+    admit('agg', 'collection', 'shared-skill')
+    cacheMap.clear()
+
+    const locs = (await handler(event())).map(entry => entry.loc)
+
+    expect(locs).not.toContain('/gh/real/copy')
+    expect(locs.some(loc => loc.startsWith('/gh/agg/'))).toBe(false)
+  })
+
   it('leaves out a Skill that no trending board has admitted', async () => {
     const entries = await handler(event())
 

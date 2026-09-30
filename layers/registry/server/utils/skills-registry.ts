@@ -668,6 +668,8 @@ export interface SkillSitemapEntry {
 
 interface SkillDuplicateRow extends DuplicateCandidate {
   is_supported: number
+  /** Only the sitemap query selects it. */
+  repo_kind?: string | null
   // Resolved-Skill total for the row's repository (same definition as
   // loadRepoSkillCounts in shared/server/trending-skills.ts). Drives the
   // single-Skill repo hub routing so links never point at a URL that 301s.
@@ -819,7 +821,7 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
 export function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   return cached({
     storage: useStorage('cache'),
-    key: 'skills:sitemap-all:v4',
+    key: 'skills:sitemap-all:v5',
     ttlSeconds: DUPLICATE_CANDIDATES_TTL,
     staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
     compute: () => queryAllSkillsForSitemap(getDB(event)),
@@ -841,6 +843,7 @@ export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSit
         r.pushed_at,
         supported_repos.support_tier,
         s.trust_tier,
+        r.repo_kind,
         CASE WHEN (${SUPPORTED_SKILL_SQL}) THEN 1 ELSE 0 END AS is_supported,
         ${REPO_SKILL_COUNT_FROM_JOIN}
       ${FROM_SKILLS_JOIN_REPOS}
@@ -851,7 +854,6 @@ export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSit
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
         AND ${SKILL_INDEXABLE_SQL}
-        AND ${NOT_AGGREGATOR_SQL}
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
     `)
     .all<SkillDuplicateRow>()
@@ -859,9 +861,13 @@ export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSit
   const populated = await db.prepare(`SELECT ${SKILL_ADMISSIONS_POPULATED_SQL} AS populated`).first<{ populated: number }>()
   if (populated?.populated !== 1)
     noteAdmissionFallback()
+  // The duplicate decision reads the same candidate set as the Skill page,
+  // aggregators included (`findDuplicateGroupForSkill`). An aggregator copy can
+  // outrank a real repo and make it the weaker duplicate, so the sitemap must
+  // see it too. Aggregators themselves never reach the sitemap.
   const weakerSlugs = duplicateWeakerSlugSet(rows)
   const entries = rows
-    .filter(row => !weakerSlugs.has(skillSlug(row)))
+    .filter(row => row.repo_kind !== 'aggregator' && !weakerSlugs.has(skillSlug(row)))
     .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
   return entries
 }

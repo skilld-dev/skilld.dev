@@ -190,19 +190,23 @@ describe('probe exceptions', () => {
 })
 
 describe('listAdmittedSkills', () => {
-  it('lists only indexable admitted Skills, by first board', async () => {
+  const admit = (owner: string, repo: string, name: string, board: string) =>
+    db().raw.prepare(`INSERT INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board) VALUES (?, ?, ?, ?, ?)`).run(owner, repo, name, NOW, board)
+
+  it('lists admitted Skills by first board, only those the indexable set holds', async () => {
     addSkill({ owner: 'a', repo: 'one', name: 'week-skill' })
     addSkill({ owner: 'a', repo: 'two', name: 'month-skill' })
-    addSkill({ owner: 'a', repo: 'three', name: 'low-score', indexable: false })
-    const admit = db().raw.prepare(`INSERT INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board) VALUES (?, ?, ?, ?, ?)`)
-    admit.run('a', 'one', 'week-skill', NOW, 'week')
-    admit.run('a', 'two', 'month-skill', NOW, 'month')
-    admit.run('a', 'three', 'low-score', NOW, 'week')
+    addSkill({ owner: 'a', repo: 'three', name: 'duplicate-copy' })
+    admit('a', 'one', 'week-skill', 'week')
+    admit('a', 'two', 'month-skill', 'month')
+    admit('a', 'three', 'duplicate-copy', 'week')
+    // The set is what the sitemap lists; a weaker duplicate is not in it.
+    const indexable = [{ owner: 'a', repo: 'one', name: 'week-skill' }, { owner: 'a', repo: 'two', name: 'month-skill' }]
 
-    const week = await listAdmittedSkills(db().db, { board: 'week', page: 1 })
+    const week = await listAdmittedSkills(db().db, { board: 'week', page: 1, indexable })
     expect(week.rows.map(r => r.name)).toEqual(['week-skill'])
     expect(week.total).toBe(1)
-    const none = await listAdmittedSkills(db().db, { board: 'all', page: 1 })
+    const none = await listAdmittedSkills(db().db, { board: 'all', page: 1, indexable })
     expect(none.rows).toEqual([])
   })
 })

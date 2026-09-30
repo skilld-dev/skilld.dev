@@ -10,8 +10,8 @@
  * WHY. Google holds 1,433 curated URLs as "Discovered, currently not indexed"
  * and about 52k old URLs as "Crawled, currently not indexed". It crawls about
  * 29 HTML pages a day. A smaller set of pages that people demonstrably want
- * gives Google fewer, better reasons to crawl. See
- * `notes/skilld-seo-death-zone-2026-09-30.md`.
+ * gives Google fewer, better reasons to crawl. The
+ * counts come from Search Console page indexing, read on 2026-09-30.
  *
  * ADDITIVE. Trending boards change weekly, and a page that flips between index
  * and noindex confuses Google. A Skill that entered the set stays in it until
@@ -267,31 +267,28 @@ export const ADMITTED_PAGE_SIZE = 50
 /**
  * One page of admitted Skills whose first board is `board`, newest first.
  *
- * Only Skills whose page is `index,follow` appear, so every link here points at
- * an indexable page. The trending pages render these as plain links, which is
- * how a crawler finds an admitted Skill that has left the live board.
+ * `indexable` is the set of Skills whose page is `index,follow`, as the
+ * sitemap lists them (`queryAllSkillsForSitemap`): it applies the broken-repo,
+ * aggregator, quality and duplicate checks once, for every reader. A row
+ * outside it never appears, so every link here points at an indexable page.
+ * The trending pages render these as plain links, which is how a crawler finds
+ * an admitted Skill that has left the live board.
  */
 export async function listAdmittedSkills(
   db: D1Database,
-  opts: { board: TrendingBoardName, page: number },
+  opts: { board: TrendingBoardName, page: number, indexable: ReadonlyArray<{ owner: string, repo: string, name: string }> },
 ): Promise<{ rows: AdmittedSkillRow[], total: number }> {
-  const filter = `a.first_board = ?1
-    AND s.seo_indexable = 1
-    AND s.source_resolved = 1
-    AND r.repo_kind != 'aggregator'`
-  const from = `FROM skill_trending_admissions a
+  const indexable = new Set(opts.indexable.map(skill => `${skill.owner}/${skill.repo}/${skill.name}`))
+  const result = await db.prepare(`
+    SELECT s.owner, s.repo, s.name, s.description, r.stars, a.admitted_at,
+      (SELECT COUNT(*) FROM skills c WHERE c.owner = s.owner AND c.repo = s.repo AND c.source_resolved = 1) AS repo_skill_count
+    FROM skill_trending_admissions a
     JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
-    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo`
-  const [page, count] = await Promise.all([
-    db.prepare(`
-      SELECT s.owner, s.repo, s.name, s.description, r.stars, a.admitted_at,
-        (SELECT COUNT(*) FROM skills c WHERE c.owner = s.owner AND c.repo = s.repo AND c.source_resolved = 1) AS repo_skill_count
-      ${from}
-      WHERE ${filter}
-      ORDER BY a.admitted_at DESC, s.owner, s.repo, s.name
-      LIMIT ?2 OFFSET ?3
-    `).bind(opts.board, ADMITTED_PAGE_SIZE, (opts.page - 1) * ADMITTED_PAGE_SIZE).all<AdmittedSkillRow>(),
-    db.prepare(`SELECT COUNT(*) AS total ${from} WHERE ${filter}`).bind(opts.board).first<{ total: number }>(),
-  ])
-  return { rows: page.results ?? [], total: count?.total ?? 0 }
+    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+    WHERE a.first_board = ?1 AND s.source_resolved = 1
+    ORDER BY a.admitted_at DESC, s.owner, s.repo, s.name
+  `).bind(opts.board).all<AdmittedSkillRow>()
+  const rows = (result.results ?? []).filter(row => indexable.has(`${row.owner}/${row.repo}/${row.name}`))
+  const start = (opts.page - 1) * ADMITTED_PAGE_SIZE
+  return { rows: rows.slice(start, start + ADMITTED_PAGE_SIZE), total: rows.length }
 }

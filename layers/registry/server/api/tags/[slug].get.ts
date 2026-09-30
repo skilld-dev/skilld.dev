@@ -214,14 +214,12 @@ async function buildTagProfile(event: H3Event, slug: string): Promise<TagProfile
 
   const totalStars = skills.reduce((sum, s) => sum + s.stars, 0)
 
-  // 2026-08-22: tag pages are noindex sitewide (GOOGLE_RECOVERY.md, sitemap
-  // topology audit). Controlled vocab no longer bypasses; the only path back
-  // to indexable is an editorial keep=1 row for a vocab tag (see
-  // __sitemap__/tags.ts). Page still renders for internal nav.
-  // 2026-09-30 experiment, gate 2026-11-11 (see trending-admission.ts): the
-  // eight `keep = 1` tag pages leave the index and the sitemap with everything
-  // else that is not a trending Skill. Cull path: revert this experiment's commit,
-  // which restores `tagDecisionKeep` and `__sitemap__/tags.ts`.
+  // Tag pages are noindex and out of the sitemap. Thin tag listings were part
+  // of the scaled-content suppression, and the experiment that started
+  // 2026-09-30 (gate 2026-11-11, see trending-admission.ts) keeps only trending
+  // Skills in the index. The page still renders for internal navigation. Cull
+  // path: restore an editorial `keep = 1` rule and a tags sitemap source in a
+  // later change.
   const indexable = false
 
   const profile: TagProfile = {

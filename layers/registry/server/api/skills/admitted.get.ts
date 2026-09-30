@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineApiHandler } from '#shared/server/handler'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
+import { listAllSkillsForSitemap } from '../../utils/skills-registry'
 import { ADMITTED_PAGE_SIZE, listAdmittedSkills } from '../../utils/trending-admission'
 
 const query = z.object({
@@ -31,7 +32,10 @@ export interface AdmittedSkillsResponse {
  */
 export default defineApiHandler({
   schema: query,
-  handler: ({ body, platform }) => listAdmittedSkills(platform.db, body).then(result => ({ ...result, page: body.page })),
+  handler: async ({ event, body, platform }) => {
+    const indexable = await listAllSkillsForSitemap(event)
+    return { ...await listAdmittedSkills(platform.db, { ...body, indexable }), page: body.page }
+  },
   presenter: ({ rows, total, page }): AdmittedSkillsResponse => ({
     items: rows.map(row => ({
       owner: row.owner,
