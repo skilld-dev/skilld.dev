@@ -17,7 +17,6 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 - [ ] Weekly measurements 1 to 5 logged in the Log below, from 2026-10-12 to 2026-11-09
 - [ ] Experiment A read
 - [ ] Experiment B read
-- [ ] Experiment C read
 - [ ] Experiment D read
 - [ ] Experiment E read
 - [ ] Gate decision recorded on 2026-11-11
@@ -26,7 +25,8 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 ## Log
 
 - 2026-09-30 Brief written from the 2026-09-30 NuxtSEO and Search Console reads. Panel of 40 URLs fixed.
-- 2026-09-30 Two panel Skills left the index after #322 admitted only trending Skills: `onmax/nuxt-skills/arkenv` and `pbakaus/agent-reviews/resolve-agent-reviews` were on no board. `ferdinandobons/startup-skill/startup-pitch` replaces the first in `c_treatment`. `browser-use/plugins/browser-use` replaces the second in `c_control`, and `dpearson2699/swift-ios-skills/swift-concurrency` takes its place in `admitted_other`.
+- 2026-10-01 Owner deferred experiment C. Template changes wait. #318 stays in draft. The panel keeps 40 URLs; the C groups became one `trending_sample` of 20.
+- 2026-09-30 Two panel Skills left the index after #322 admitted only trending Skills: `onmax/nuxt-skills/arkenv` and `pbakaus/agent-reviews/resolve-agent-reviews` were on no board. `ferdinandobons/startup-skill/startup-pitch` and `browser-use/plugins/browser-use` replace them in the trending sample. `dpearson2699/swift-ios-skills/swift-concurrency` takes the place of the second one in `admitted_other`.
 
 ## Diagnosis
 
@@ -169,10 +169,10 @@ Checks:
 
 Merge order:
 
-1. #317. #318, #322 and #325 build on it.
+1. #317. #322 and #325 build on it. #318 is deferred and stays in draft.
 2. [#320](https://github.com/skilld-dev/skilld.dev/pull/320), IndexNow for the curated set only. It adds migration 0128.
 3. #322. It adds migration 0129, so it follows #320.
-4. #318 (experiment C) and #325 (experiment E). Retarget both to `main` after #317.
+4. #325 (experiment E). Retarget it to `main` after #317. Do not merge #318 (experiment C, deferred).
 5. #326. It adds migration 0130, so it follows #322.
 6. [#327](https://github.com/skilld-dev/skilld.dev/pull/327), the `Skilld-Page-Url` header. It comes before skilld CLI [#178](https://github.com/skilld-dev/skilld/pull/178).
 7. Any order: #321, #323.
@@ -197,8 +197,7 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 
 | Group | URLs | Treatment | Expect |
 | --- | ---: | --- | --- |
-| `c_treatment` | 10 | Experiment C template ([#318](https://github.com/skilld-dev/skilld.dev/pull/318)) | Crawled or indexed sooner than `c_control` |
-| `c_control` | 10 | None | Baseline for trending pages |
+| `trending_sample` | 20 | None. No template change | Baseline for admitted trending pages |
 | `d_probe` | 2 | Link from a trusted host (experiment D) | Crawled within 14 days of the link |
 | `demand` | 3 | High search demand, in the trending set | First to earn impressions if indexed |
 | `admitted_other` | 10 | Trending set only | Trending-only baseline |
@@ -256,16 +255,10 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 - Read at 14 days.
 - Scale rule: if 5 or more of the 10 linked URLs move from Discovered to Crawled or Indexed within 14 days, links are the lever. Put more effort there.
 
-### C. Unique value template
+### C. Unique value template (deferred)
 
-- Measures: `c_treatment` against `c_control`.
-- Setup ([#318](https://github.com/skilld-dev/skilld.dev/pull/318)):
-  - Upgrade the 7 demand-backed named Skill pages. They total about 11k searches a month at KD 0 to 9.
-  - Write 5 human concept pages: mcp vs skills, skill vs agent, skill vs command, cursor rules vs skills, and a SKILL.md format reference. `/vs/context7` is the precedent.
-  - Each page carries data GitHub does not have: the run command, Agent compatibility, whether the Skill ships scripts (run or install), stars and update trend, related Skills, and one human curation note.
-  - Show a SKILL.md excerpt, not the full body. The full body stays in the `.md` alternate for Agents.
-- Read at 14 days.
-- Scale rule: if `c_treatment` reaches "crawled" or "indexed" faster than `c_control`, roll the template out across the curated set.
+- Deferred by the owner on 2026-10-01. Template changes wait. [#318](https://github.com/skilld-dev/skilld.dev/pull/318) stays in draft.
+- To revive: undraft #318, split `trending_sample` back into treatment and control groups, and add a scale rule.
 
 ### D. Trusted host link probe
 

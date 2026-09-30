@@ -3,9 +3,9 @@
   "gate": "2026-11-11",
   "baseline": "Pages report 2026-09-30: curated set in 'Discovered, currently not indexed'; retired URLs in 'Crawled, currently not indexed'. First per-URL reading comes from gscdump Watched URLs after @gscdump 4.6.0 and gscdump.com#557 deploy.",
   "groups": {
-    "c_treatment": {
-      "pr": "skilld.dev#318",
-      "expect": "crawled or indexed sooner than c_control",
+    "trending_sample": {
+      "pr": "skilld.dev#322",
+      "expect": "baseline for admitted trending pages; no template change",
       "urls": [
         "https://skilld.dev/gh/obra/superpowers/writing-plans",
         "https://skilld.dev/gh/imbad0202/academic-research-skills/academic-pipeline",
@@ -16,13 +16,7 @@
         "https://skilld.dev/gh/dimillian/skills/bug-hunt-swarm",
         "https://skilld.dev/gh/ferdinandobons/startup-skill/startup-pitch",
         "https://skilld.dev/gh/neondatabase/agent-skills/neon-postgres",
-        "https://skilld.dev/gh/clerk/skills/clerk-orgs"
-      ]
-    },
-    "c_control": {
-      "pr": "skilld.dev#318",
-      "expect": "baseline for trending pages",
-      "urls": [
+        "https://skilld.dev/gh/clerk/skills/clerk-orgs",
         "https://skilld.dev/gh/mattpocock/skills/ask-matt",
         "https://skilld.dev/gh/coreyhaines31/marketingskills/ai-seo",
         "https://skilld.dev/gh/kepano/obsidian-skills/knap",
