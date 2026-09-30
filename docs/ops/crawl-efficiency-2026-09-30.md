@@ -1,5 +1,7 @@
 # Crawl efficiency 2026-09-30
 
+> Update 2026-09-30: [#328](https://github.com/skilld-dev/skilld.dev/pull/328) and [#329](https://github.com/skilld-dev/skilld.dev/pull/329) address the two HTML edge cache blockers below. #328 makes the shell user independent (blocker 1) and drops `User-Agent` from content negotiation (blocker 2). #329 turns on the edge cache for `/skills/trending` only, and adds `pnpm production:edge-cache` to prove it in production (the third reason). Check their state with `gh pr view <n> --repo skilld-dev/skilld.dev`. The text below records the analysis before those pull requests.
+
 Googlebot makes about 290 requests a day. 58% are JavaScript and 73% are page resource loads. Skill page HTML is `private, no-store`. This note records what we changed and what we left alone.
 
 ## Edge cache for HTML: not shipped
