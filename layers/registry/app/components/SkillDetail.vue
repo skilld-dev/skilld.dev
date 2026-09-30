@@ -8,9 +8,11 @@ import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillPageState } from '../utils/skill-page-state'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
+import { isUniqueValueTreatment } from '../utils/skill-unique-value-experiment'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 import SkillThirdPartyChecks from './_SkillThirdPartyChecks.vue'
+import SkillUniqueValue from './_SkillUniqueValue.vue'
 
 const props = defineProps<{
   owner: string
@@ -22,6 +24,8 @@ const owner = computed(() => props.owner)
 const repo = computed(() => props.repo)
 const name = computed(() => props.name)
 const slug = computed(() => `${owner.value}/${repo.value}/${name.value}`)
+// SEO experiment C (skill-unique-value-experiment.ts). Same page for every visitor.
+const uniqueValueTreatment = computed(() => isUniqueValueTreatment(slug.value))
 
 interface RelatedSkill {
   name: string
@@ -1345,8 +1349,26 @@ useHead(computed(() => ({
 
       <div class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-10 lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start">
         <div class="lg:col-span-8 space-y-10 md:space-y-12">
+          <SkillUniqueValue
+            v-if="uniqueValueTreatment"
+            :owner="data.owner"
+            :repo="data.repo"
+            :name="data.name"
+            :description="data.description"
+            :stars="data.stars"
+            :pushed-at="data.pushedAt"
+            :maturity="data.maturity"
+            :assets="data.assets"
+            :asset-count="data.assetCount"
+            :content-html="data.contentHtml"
+            :compatibility="typeof data.frontmatter?.compatibility === 'string' ? data.frontmatter.compatibility : null"
+            :curators="data.curators"
+            :skill-file-url="skillFileUrl"
+            :github-url="githubUrl"
+            :registry-path="data.registryPath"
+          />
           <section
-            v-if="data.contentHtml"
+            v-else-if="data.contentHtml"
             class="skill-content-section"
             aria-labelledby="content-heading"
           >
@@ -1781,6 +1803,7 @@ useHead(computed(() => ({
           </section>
 
           <section
+            v-if="!uniqueValueTreatment"
             class="2xl:hidden"
             aria-labelledby="files-heading"
           >
@@ -2098,7 +2121,7 @@ useHead(computed(() => ({
     </template>
   </div>
 
-  <template v-if="data && !error">
+  <template v-if="data && !error && !uniqueValueTreatment">
     <USeparator />
     <section
       ref="relatedSlot"
