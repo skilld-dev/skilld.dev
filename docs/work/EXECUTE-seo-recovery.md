@@ -26,6 +26,7 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 ## Log
 
 - 2026-09-30 Brief written from the 2026-09-30 NuxtSEO and Search Console reads. Panel of 40 URLs fixed.
+- 2026-09-30 Two panel Skills left the index after #322 admitted only trending Skills: `onmax/nuxt-skills/arkenv` and `pbakaus/agent-reviews/resolve-agent-reviews` were on no board. `ferdinandobons/startup-skill/startup-pitch` replaces the first in `c_treatment`. `browser-use/plugins/browser-use` replaces the second in `c_control`, and `dpearson2699/swift-ios-skills/swift-concurrency` takes its place in `admitted_other`.
 
 ## Diagnosis
 
