@@ -13,13 +13,16 @@
  * full body. Every visitor sees the same page, crawler or not. Control pages
  * stay unchanged.
  *
- * Every Skill below sat in the production skills sitemap and was indexable on
- * 2026-09-30 (checked against `/api/skills`, not against an HTTP status).
- * Only 7 trending Skills met that bar and render on the Skill page, so three
- * treatment Skills come from the sitemap at other star counts. Each control
- * Skill has the nearest star count among the remaining repositories. That
- * leaves the trending signal uneven between the groups; read the result
- * with that in mind.
+ * Every Skill below sits on a trending list (week, month, or all-time), in the
+ * production skills sitemap, and was indexable on 2026-09-30. A parallel
+ * experiment keeps only trending Skills indexable, so a control outside those
+ * lists would leave the index. Membership came from `/api/feed/trending`,
+ * `/api/skills/leaderboard`, and the sitemap, checked against `/api/skills`,
+ * not against an HTTP status. Only Skills whose canonical page is the
+ * three-segment `SkillDetail` route qualify; single-Skill repositories render
+ * on the repository hub. Twenty-two Skills qualified. Two were dropped and the
+ * rest were paired by repository stars. Within each pair, the treatment Skill
+ * alternates between the higher and the lower star count.
  *
  * Cull path: after the decision, delete this file, `skill-unique-value.ts`,
  * `_SkillUniqueValue.vue`, and the `isUniqueValueTreatment` branches in
@@ -31,29 +34,29 @@ export const UNIQUE_VALUE_EXPERIMENT = {
   endsOn: '2026-11-11',
   /** Treatment: `owner/repo/name`. */
   treatment: [
+    'obra/superpowers/writing-plans',
+    'imbad0202/academic-research-skills/academic-pipeline',
     'emilkowalski/skills/emil-design-eng',
     'vercel-labs/agent-skills/react-best-practices',
-    'microsoft/playwright-cli/playwright-cli',
-    'getsentry/skills/prompt-optimizer',
+    'ibelick/ui-skills/create-design-md',
+    'remotion-dev/skills/remotion-best-practices',
+    'dimillian/skills/bug-hunt-swarm',
+    'onmax/nuxt-skills/arkenv',
     'neondatabase/agent-skills/neon-postgres',
     'clerk/skills/clerk-orgs',
-    'prisma/skills/prisma-database-setup',
-    'remotion-dev/skills/remotion-best-practices',
-    'makenotion/claude-code-notion-plugin/knowledge-capture',
-    'resend/resend-skills/agent-email-inbox',
   ],
-  /** Control: matched to the treatment Skill on the same line by repository stars. */
+  /** Control: the star-matched partner of the treatment Skill at the same index. */
   control: [
-    'vercel-labs/agent-browser/agent-browser',
-    'openai/skills/aspnet-core',
-    'huggingface/skills/hf-cli',
-    'kotlin/kotlin-agent-skills/kotlin-backend-jpa-entity-mapping',
-    'wdm0006/python-skills/verifying-external-behavior',
-    'mapbox/mapbox-agent-skills/mapbox-android-patterns',
-    'get-convex/agent-skills/convex-quickstart',
-    'google-gemini/gemini-skills/gemini-api-dev',
-    'tavily-ai/skills/tavily-best-practices',
-    'sanity-io/agent-toolkit/content-experimentation-best-practices',
+    'mattpocock/skills/ask-matt',
+    'coreyhaines31/marketingskills/ai-seo',
+    'kepano/obsidian-skills/knap',
+    'othmanadi/planning-with-files/planning-with-files',
+    'microsoft/playwright-cli/playwright-cli',
+    'antfu/skills/nitro',
+    'addyosmani/web-quality-skills/accessibility',
+    'getsentry/skills/prompt-optimizer',
+    'pbakaus/agent-reviews/resolve-agent-reviews',
+    'prisma/skills/prisma-database-setup',
   ],
 } as const
 
