@@ -29,6 +29,12 @@
  * `SkillDetail.vue`. If the treatment wins, roll the template out by
  * removing the gate; if not, remove the template.
  */
+/*
+ * 2026-09-30: swapped `onmax/nuxt-skills/arkenv` (treatment) for `ferdinandobons/startup-skill/startup-pitch`,
+ * and `pbakaus/agent-reviews/resolve-agent-reviews` (control) for `browser-use/plugins/browser-use`.
+ * The trending-only rule (#322) left both originals off every board, so they went
+ * `noindex,follow` and no longer matched their indexable partners.
+ */
 export const UNIQUE_VALUE_EXPERIMENT = {
   startedOn: '2026-09-30',
   endsOn: '2026-11-11',
@@ -41,7 +47,7 @@ export const UNIQUE_VALUE_EXPERIMENT = {
     'ibelick/ui-skills/create-design-md',
     'remotion-dev/skills/remotion-best-practices',
     'dimillian/skills/bug-hunt-swarm',
-    'onmax/nuxt-skills/arkenv',
+    'ferdinandobons/startup-skill/startup-pitch',
     'neondatabase/agent-skills/neon-postgres',
     'clerk/skills/clerk-orgs',
   ],
@@ -55,7 +61,7 @@ export const UNIQUE_VALUE_EXPERIMENT = {
     'antfu/skills/nitro',
     'addyosmani/web-quality-skills/accessibility',
     'getsentry/skills/prompt-optimizer',
-    'pbakaus/agent-reviews/resolve-agent-reviews',
+    'browser-use/plugins/browser-use',
     'prisma/skills/prisma-database-setup',
   ],
 } as const
