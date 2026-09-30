@@ -135,6 +135,21 @@ describe('createXClient search', () => {
 })
 
 describe('createXClient failures', () => {
+  it('classifies exhausted X credits separately from rate limits', async () => {
+    const client = createXClient({
+      bearerToken: 't',
+      allowNetwork: true,
+      fetchImpl: async () => jsonResponse({
+        title: 'Payment Required',
+        detail: 'Credits depleted',
+        type: 'https://api.x.com/2/problems/credits-depleted',
+      }, { status: 402 }),
+    })
+
+    expect(await client.searchRecent({ query: 'q', sinceId: null }))
+      .toEqual({ _tag: 'err', error: { _tag: 'credits-depleted' } })
+  })
+
   it('reports a missing token instead of calling the API', async () => {
     let called = false
     const client = createXClient({
