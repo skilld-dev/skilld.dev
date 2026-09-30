@@ -21,7 +21,7 @@ describe('opt-in GitHub App connection routes', () => {
     vi.setSystemTime(NOW * 1000)
     cookies.clear()
     // The browser arrives signed in; the routes add their state cookies to it.
-    rememberCookies(SIGNED_IN_HEADERS.cookie!)
+    rememberCookies(SIGNED_IN_HEADERS.cookie)
     responseHeaders.clear()
     fixture = createSqliteD1([
       'migrations/0017_users.sql',

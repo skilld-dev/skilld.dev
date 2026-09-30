@@ -5,4 +5,4 @@
  * test that stubs `getUserSession` with a signed-in user sends these too. The
  * value is opaque; the stub decides who the session belongs to.
  */
-export const SIGNED_IN_HEADERS: Readonly<Record<string, string>> = { cookie: 'nuxt-session=test-session' }
+export const SIGNED_IN_HEADERS = { cookie: 'nuxt-session=test-session' } satisfies Record<string, string>
