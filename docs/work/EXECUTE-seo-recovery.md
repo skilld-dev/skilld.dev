@@ -1,8 +1,8 @@
 # SEO recovery
 
-Status: open · 2026-09-30 · PRs skilld.dev #317 to #329; gate 2026-11-11
+Status: open · 2026-09-30 · PRs skilld.dev #316 to #329; gate 2026-11-11
 
-**Next move:** Harlan. Submit `sitemap_index.xml` in Bing Webmaster Tools. After the retired sitemap PR ships, submit `retired.xml` in Search Console. Then run the first weekly measurement on 2026-10-05.
+**Next move:** Harlan. Submit `sitemap_index.xml` in Bing Webmaster Tools. After the retired sitemap PR ships, submit `retired.xml` in Search Console. Then run the first weekly measurement on 2026-10-12.
 
 Done means: the gate table below has a decision for 2026-11-11, and every panel URL in [seo-recovery-panel.json](seo-recovery-panel.json) has a coverage state read on that date.
 
@@ -14,7 +14,7 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 - [ ] Load the panel with `gscdump indexing watch add`
 - [ ] Add a `b_linked` group of 10 Skill URLs to the panel before experiment B starts
 - [ ] Add a NuxtSEO annotation on the day gscdump.com #557 goes live
-- [ ] Weekly measurement 1 to 6 logged in `docs/ops/checkins/`
+- [ ] Weekly measurements 1 to 5 logged in the Log below, from 2026-10-12 to 2026-11-09
 - [ ] Experiment A read
 - [ ] Experiment B read
 - [ ] Experiment C read
@@ -25,7 +25,7 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Log
 
-- 2026-09-30 Brief written from the 2026-09-30 check-in. Panel of 40 URLs fixed.
+- 2026-09-30 Brief written from the 2026-09-30 NuxtSEO and Search Console reads. Panel of 40 URLs fixed.
 
 ## Diagnosis
 
@@ -178,7 +178,7 @@ Merge order:
 8. After #322 is live: [nuxtseo.com #1314](https://github.com/harlan-zw/nuxtseo.com/pull/1314), the probe link. The 14 day probe clock starts when #322 is live.
 9. Edge cache: #328, then #329, after review.
 
-skilld CLI #178 waits for #327 to be live. Do not release the CLI before the site sends the header.
+Release the skilld CLI that carries [skilld #178](https://github.com/skilld-dev/skilld/pull/178) only after #327 is live. The CLI must not print a Skill page URL before the site sends the header.
 
 gscdump family:
 
@@ -202,14 +202,15 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 | `demand` | 3 | High search demand, in the trending set | First to earn impressions if indexed |
 | `admitted_other` | 10 | Trending set only | Trending-only baseline |
 | `retired` | 5 | Retired URLs in the retired sitemap (experiment E) | Move out of "Crawled, currently not indexed" |
+| `b_linked` | 10, to fill | Outside links from README badges (experiment B) | Crawled or indexed within 14 days of the link |
 
-Experiment B needs a `b_linked` group of 10 Skill URLs that receive outside links. The panel has none yet. Pick them from the top 50 Skills whose authors get a badge request, then add them to the JSON.
+The `b_linked` group is not in the panel yet. Its 10 URLs are the Skill pages that receive outside links. When the first badge links land, pick them from the top 50 Skills whose maintainers got a badge request. Then move `b_linked` from `pending_groups` to `groups` in the JSON.
 
 Baseline: the Pages report of 2026-09-30. The curated URLs sit in "Discovered, currently not indexed". The retired URLs sit in "Crawled, currently not indexed". The first per-URL reading comes from gscdump Watched URLs, after gscdump 4.6.0 and gscdump.com #557 are live. Load the panel with `gscdump indexing watch add`. Add at most 50 URLs per call.
 
 ## Weekly measurement
 
-Every Monday, about 10 minutes. Log one line per week in `docs/ops/checkins/`.
+Every Monday from 2026-10-12, about 10 minutes. The first read waits for the spam update to end. Log one line per week in the Log above.
 
 1. Read each panel URL's coverage state with `nuxtseo search indexing urls` or `nuxtseo search inspect`. Record the rung: unknown, discovered, crawled, indexed.
 2. Read Search Console crawl stats in the UI. This is the leading signal.
@@ -224,7 +225,7 @@ Every Monday, about 10 minutes. Log one line per week in `docs/ops/checkins/`.
 4. Read clean referring domains (`nuxtseo backlinks referring-domains`) and GitHub and Bing referral sessions.
 5. Read the Pages report totals: "Crawled, currently not indexed" (baseline 51,962) and "Discovered, currently not indexed" (baseline 1,433).
 
-Read no result before the September 2026 spam update ends, about 2026-10-08.
+Read no result before the September 2026 spam update ends, about 2026-10-08. The first read is 2026-10-12.
 
 ## Experiments, 2026-10-08 to 2026-11-04
 
@@ -237,9 +238,9 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 ### A. Bing as a control
 
 - Measures: Bing's per-URL index status for all 40 panel URLs. Day 0 is 2026-09-30.
-- Setup: skilld.dev is connected to Bing in gscdump and holds no data yet. Harlan submits `https://skilld.dev/sitemap_index.xml` in Bing Webmaster Tools. Re-enable IndexNow for the curated set only, and only when a page changes ([#320](https://github.com/skilld-dev/skilld.dev/pull/320)).
+- Setup: skilld.dev was connected to Bing in gscdump on 2026-09-30 and held no data. Harlan submits `https://skilld.dev/sitemap_index.xml` in Bing Webmaster Tools. Re-enable IndexNow for the curated set only, and only when a page changes ([#320](https://github.com/skilld-dev/skilld.dev/pull/320)).
 - Limit: since 2026-09-09, gscdump reads of Bing traffic and crawl data fail for every site. Only Bing's per-URL index status works.
-- Read at 7 days.
+- Read on 2026-10-12, after the spam update ends.
 - Scale rule: if Bing indexes the curated pages and Google does not, the content can be indexed. The problem is Google's verdict on the domain.
 - Bonus: Bing feeds ChatGPT and Copilot answers.
 
@@ -247,7 +248,7 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 
 - Measures: the `b_linked` group. Add it to the panel first.
 - Setup:
-  - Run a GitHub README badge program. `/brand-kit/github-badge` exists ([#321](https://github.com/skilld-dev/skilld.dev/pull/321)). Ask the authors of the top 50 Skills to embed a badge that links to their Skill page.
+  - Run a GitHub README badge program. `/brand-kit/github-badge` exists ([#321](https://github.com/skilld-dev/skilld.dev/pull/321)). Ask the maintainers of the top 50 Skills to embed a badge that links to their Skill page.
   - Make the skilld CLI print canonical Skill page URLs ([skilld #178](https://github.com/skilld-dev/skilld/pull/178), after [#327](https://github.com/skilld-dev/skilld.dev/pull/327)).
   - Publish one launch post on established hosts: harlanzw.com, X, HN, r/ClaudeAI. Use original data, for example "we ran the top 50 Skills across 4 Agents".
 - Never buy links. Leave the 20 spam network domains alone. Disavow only if a manual action appears.
