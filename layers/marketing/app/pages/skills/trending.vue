@@ -33,9 +33,9 @@ const BOARD_LIMIT = 30
 /** Evidenced rows a board needs before it asks to be indexed. */
 const MIN_INDEXABLE_ROWS = 8
 
-const { isAuthenticated, user } = useAuth()
+const { state: auth } = useAuth()
 /** Someone already getting the weekly is never shown an invitation to get it. */
-const receivingWeekly = computed(() => isAuthenticated.value && user.value?.onboarded === true)
+const receivingWeekly = computed(() => auth.value._tag === 'signed-in' && auth.value.user.onboarded === true)
 
 const route = useRoute()
 /**
@@ -395,7 +395,17 @@ function rankClass(index: number): string {
         class="trending-board-layout"
         :class="{ 'trending-board-layout--with-cta': showWeeklyCta }"
       >
-        <div v-if="showWeeklyCta" class="trending-board-cta">
+        <!--
+          The server renders this page signed out for every visitor. The
+          invitation keeps its column but stays invisible until the browser
+          knows who is looking, so a weekly reader never sees it first.
+        -->
+        <div
+          v-if="showWeeklyCta"
+          class="trending-board-cta"
+          :class="{ invisible: auth._tag === 'pending' }"
+          :aria-hidden="auth._tag === 'pending' ? 'true' : undefined"
+        >
           <TrendingWeeklyCta />
         </div>
 
