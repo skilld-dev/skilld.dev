@@ -1,3 +1,4 @@
+import { defineEventHandler, getRequestHost, sendRedirect, setResponseHeaders } from 'h3'
 import { canonicalHostRedirect } from '../utils/canonical-host'
 
 // 2026-09-30: Search Console crawl stats showed Googlebot requesting
@@ -12,8 +13,17 @@ import { canonicalHostRedirect } from '../utils/canonical-host'
 // `trailing-slash.ts`. Module handlers run after scanned middleware. So a
 // `www` request gets this one 301 and reaches no other rule; the apex then
 // applies its own rules to the redirected URL.
+//
+// Workers Cache keys on the path and query, never the host, and a route rule's
+// cache headers are already on the event by the time this runs. So the 301 is
+// always uncacheable: stored, it would answer the apex URL and loop.
 export default defineEventHandler((event) => {
   const url = canonicalHostRedirect(getRequestHost(event), event.path)
-  if (url)
-    return sendRedirect(event, url, 301)
+  if (!url)
+    return
+  setResponseHeaders(event, {
+    'cache-control': 'private, no-store',
+    'cloudflare-cdn-cache-control': 'no-store',
+  })
+  return sendRedirect(event, url, 301)
 })
