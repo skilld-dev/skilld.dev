@@ -96,6 +96,20 @@ export function highlightToHtml(code: string, raw: string | null | undefined): s
   const lang = resolveHighlightLang(raw)
   if (!lang)
     return null
-  const body = tokenize(code, { lang }).map(renderToken).join('')
-  return `<pre tabindex="0" class="rangi shiki shj-lang-${lang}"><code>${body}</code></pre>`
+  return `<pre tabindex="0" class="rangi shiki shj-lang-${lang}"><code>${tokenizeToHtml(code, lang)}</code></pre>`
+}
+
+function tokenizeToHtml(code: string, lang: SkilldLang): string {
+  return tokenize(code, { lang }).map(renderToken).join('')
+}
+
+/**
+ * Highlight a snippet to the inner spans only, for a caller that owns the
+ * surrounding `<code>` element. Unhighlightable input comes back escaped, so
+ * the result is always safe to bind with `v-html`. Stripping the tags gives
+ * back the input text exactly.
+ */
+export function highlightCodeBody(code: string, raw: string | null | undefined): string {
+  const lang = resolveHighlightLang(raw)
+  return lang ? tokenizeToHtml(code, lang) : escapeHtml(code)
 }

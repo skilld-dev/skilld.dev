@@ -116,9 +116,14 @@ function onInlineClick(event: MouseEvent) {
       </ul>
     </template>
     <template v-else>
-      <NuxtLink
+      <!--
+        A plain anchor, so a click swaps the document in place. A router link
+        would first navigate to the file view page. The href still opens that
+        page in a new tab.
+      -->
+      <a
         v-if="node.asset?.type === 'markdown'"
-        :to="node.path === 'SKILL.md' ? registryPath : `${repoSkillPath(owner, repo, name)}/-/${node.path}`"
+        :href="node.path === 'SKILL.md' ? registryPath : `${repoSkillPath(owner, repo, name)}/-/${node.path}`"
         rel="nofollow"
         class="tree-row file"
         :class="{ active: isActive }"
@@ -136,7 +141,7 @@ function onInlineClick(event: MouseEvent) {
           v-if="node.asset?.size"
           class="tree-size"
         >{{ formatByteSize(node.asset.size) }}</span>
-      </NuxtLink>
+      </a>
       <button
         v-else-if="inlineRenderable"
         type="button"

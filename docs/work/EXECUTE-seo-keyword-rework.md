@@ -6,6 +6,8 @@ Status: open · 2026-08-12 · last reviewed 2026-08-13, title pivot 2026-08-26
 
 Done means: every indexable surface names its target query, its admission bar and its cull path, and the measurement window in this document has been read against Search Console rather than projected.
 
+Measurement plan superseded by [EXECUTE-seo-recovery.md](EXECUTE-seo-recovery.md). Read that brief for what to measure and when.
+
 ## Ledger
 
 - [x] Baseline recorded 2026-08-12

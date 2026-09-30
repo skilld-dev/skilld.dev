@@ -19,7 +19,7 @@ mockNuxtImport('useRoute', () => {
 describe('skill detail route title', () => {
   it('sets a useful title before the skill payload loads', async () => {
     const wrapper = await mountSuspended(
-      await import('../../layers/registry/app/pages/gh/[owner]/[repo]/[name].vue').then(module => module.default),
+      await import('../../layers/registry/app/pages/gh/[owner]/[repo]/[name]/index.vue').then(module => module.default),
       {
         global: {
           stubs: {

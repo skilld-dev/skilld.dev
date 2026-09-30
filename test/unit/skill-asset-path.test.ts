@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeSkillAssetFilePath } from '../../shared/skill-asset-path'
+import { isSkillFilePagePath, normalizeSkillAssetFilePath } from '../../shared/skill-asset-path'
 
 describe('skill asset path normalization', () => {
   it('collapses a stale relative registry link duplicated into the asset path', () => {
@@ -40,5 +40,26 @@ describe('skill asset path normalization', () => {
       name: 'review',
       filePath: 'gh/acme/skills/review/checklist.md',
     })).toBe('gh/acme/skills/review/checklist.md')
+  })
+})
+
+describe('isSkillFilePagePath', () => {
+  it.each([
+    '/gh/anthropics/skills/pdf/-/reference.md',
+    '/gh/anthropics/skills/pdf/-/scripts/check_bounding_boxes.py',
+    '/gh/anthropics/skills/pdf/-/LICENSE.txt?ref=main',
+  ])('claims the Skill file URL %s', (path) => {
+    expect(isSkillFilePagePath(path)).toBe(true)
+  })
+
+  it.each([
+    // The Skill page and its Markdown twin stay with nuxt-ai-ready.
+    '/gh/anthropics/skills/pdf',
+    '/gh/anthropics/skills/pdf.md',
+    '/gh/anthropics/skills/pdf/-/',
+    '/gh/anthropics/skills.md',
+    '/api/skill-asset/anthropics/skills/pdf/reference.md',
+  ])('leaves %s alone', (path) => {
+    expect(isSkillFilePagePath(path)).toBe(false)
   })
 })
