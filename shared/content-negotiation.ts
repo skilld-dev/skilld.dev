@@ -40,7 +40,8 @@ export type NegotiationDecision
 
 type Representation = 'html' | 'markdown' | 'not-acceptable'
 
-const RESERVED_PATH_RE = /^\/(?:api(?:\/|$)|_|\.well-known(?:\/|$)|@(?:id|fs|vite|react-refresh)(?:\/|$))/
+// `/b/` serves the SVG README badges.
+const RESERVED_PATH_RE = /^\/(?:api(?:\/|$)|_|b\/|\.well-known(?:\/|$)|@(?:id|fs|vite|react-refresh)(?:\/|$))/
 const DATA_ACCEPT_RE = /\b(?:application\/json|text\/event-stream)\b/i
 const DOCUMENT_ACCEPT_RE = /text\/(?:html|markdown|plain)\b|\*\/\*/i
 const MARKDOWN_TYPES = new Set(['text/markdown', 'text/plain'])
