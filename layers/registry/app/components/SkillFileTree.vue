@@ -42,7 +42,7 @@ const treeId = useId()
 </script>
 
 <template>
-  <ul class="skill-file-tree" role="tree">
+  <ul class="skill-file-tree">
     <SkillFileTreeNode
       v-for="node in nodes"
       :key="node.path"

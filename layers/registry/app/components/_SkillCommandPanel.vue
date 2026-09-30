@@ -36,7 +36,7 @@ const emit = defineEmits<{
 
 const installTarget = ref<InstallTarget>('local')
 const installTargets = [
-  { label: 'Local agent', value: 'local' },
+  { label: 'Terminal', value: 'local' },
   { label: 'Claude', value: 'claude' },
   { label: 'ChatGPT', value: 'chatgpt' },
 ] satisfies { label: string, value: InstallTarget }[]
@@ -59,6 +59,7 @@ const copyLabel = computed(() => commandCopied.value
   ? 'Copied'
   : mode.value === 'run' ? 'Copy Agent prompt' : 'Copy install command')
 const copyErrorId = useId()
+const installPanelId = useId()
 
 // Stacked shows both commands, so the copy error follows the last click.
 function copyFrom(next: CommandMode) {
@@ -74,12 +75,12 @@ function copyFrom(next: CommandMode) {
     class="space-y-6"
   >
     <div class="flex items-center gap-2">
-      <ul
-        role="list"
+      <div
+        role="img"
         class="skill-agent-stack"
         :aria-label="`Works with ${agentNames}`"
       >
-        <li
+        <span
           v-for="agent in AGENT_LOGOS"
           :key="agent.id"
           :title="agent.label"
@@ -89,9 +90,12 @@ function copyFrom(next: CommandMode) {
             class="size-3"
             aria-hidden="true"
           />
-        </li>
-      </ul>
-      <span class="data-label">Works with your agent</span>
+        </span>
+      </div>
+      <span
+        class="data-label"
+        aria-hidden="true"
+      >Works with your agent</span>
     </div>
 
     <div class="space-y-3">
@@ -136,58 +140,64 @@ function copyFrom(next: CommandMode) {
             ? 'border-[var(--ui-text)] text-default'
             : 'border-transparent text-muted hover:text-default'"
           :aria-pressed="installTarget === item.value"
+          :aria-controls="installPanelId"
           @click="installTarget = item.value"
         >
           {{ item.label }}
         </button>
       </div>
-      <template v-if="installTarget === 'local'">
-        <p class="text-xs leading-relaxed text-muted">
-          The files land in your project. The lockfile records them.
-        </p>
-        <div class="flex items-center gap-2 rounded-lg border border-default py-1 pr-1 pl-3 text-sm">
-          <InstallCommand
-            :command="installCommand"
-            wrap
-            class="block min-w-0 flex-1 py-1"
-          />
+      <div
+        :id="installPanelId"
+        class="space-y-3"
+      >
+        <template v-if="installTarget === 'local'">
+          <p class="text-xs leading-relaxed text-muted">
+            The files land in your project. The lockfile records them.
+          </p>
+          <div class="flex items-center gap-2 rounded-lg border border-default py-1 pr-1 pl-3 text-sm">
+            <InstallCommand
+              :command="installCommand"
+              wrap
+              class="block min-w-0 flex-1 py-1"
+            />
+            <UButton
+              :icon="installCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="min-h-11 min-w-11 shrink-0"
+              :aria-label="installCopied ? 'Copied' : 'Copy install command'"
+              :aria-describedby="copyError && mode === 'install' ? copyErrorId : undefined"
+              @click="copyFrom('install')"
+            />
+          </div>
+        </template>
+        <template v-else>
+          <p class="text-xs leading-relaxed text-muted">
+            Download the ZIP. {{ uploadSteps[installTarget] }}
+          </p>
           <UButton
-            :icon="installCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+            v-if="zipName"
+            :icon="zipState._tag === 'building' ? 'i-lucide-loader-circle' : 'i-lucide-download'"
+            :label="zipState._tag === 'building' ? `Packing ${zipState.done} of ${zipState.total} files` : `Download ${zipName}`"
+            :loading="false"
+            :disabled="zipState._tag === 'building'"
             color="neutral"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            class="min-h-11 min-w-11 shrink-0"
-            :aria-label="installCopied ? 'Copied' : 'Copy install command'"
-            :aria-describedby="copyError && mode === 'install' ? copyErrorId : undefined"
-            @click="copyFrom('install')"
+            class="font-mono"
+            :ui="{ leadingIcon: zipState._tag === 'building' ? 'animate-spin' : '' }"
+            @click="emit('download')"
           />
-        </div>
-      </template>
-      <template v-else>
-        <p class="text-xs leading-relaxed text-muted">
-          Download the ZIP. {{ uploadSteps[installTarget] }}
-        </p>
-        <UButton
-          v-if="zipName"
-          :icon="zipState._tag === 'building' ? 'i-lucide-loader-circle' : 'i-lucide-download'"
-          :label="zipState._tag === 'building' ? `Packing ${zipState.done} of ${zipState.total} files` : `Download ${zipName}`"
-          :loading="false"
-          :disabled="zipState._tag === 'building'"
-          color="neutral"
-          variant="outline"
-          size="sm"
-          class="font-mono"
-          :ui="{ leadingIcon: zipState._tag === 'building' ? 'animate-spin' : '' }"
-          @click="emit('download')"
-        />
-        <p
-          v-if="zipState._tag === 'error'"
-          aria-live="polite"
-          class="text-xs leading-relaxed text-error"
-        >
-          {{ zipState.message }}
-        </p>
-      </template>
+          <p
+            v-if="zipState._tag === 'error'"
+            aria-live="polite"
+            class="text-xs leading-relaxed text-error"
+          >
+            {{ zipState.message }}
+          </p>
+        </template>
+      </div>
     </div>
 
     <p
@@ -213,7 +223,7 @@ function copyFrom(next: CommandMode) {
         v-for="item in modes"
         :key="item.value"
         type="button"
-        class="-mb-px min-h-11 border-b font-mono text-xs transition-colors"
+        class="-mb-px min-h-11 min-w-11 border-b font-mono text-xs transition-colors"
         :class="mode === item.value
           ? 'border-primary text-default'
           : 'border-transparent text-muted hover:text-default'"
@@ -269,11 +279,8 @@ function copyFrom(next: CommandMode) {
    pulling focus from the commands. */
 .skill-agent-stack {
   display: flex;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
-.skill-agent-stack li {
+.skill-agent-stack > span {
   display: grid;
   place-items: center;
   width: 1.375rem;
@@ -283,7 +290,7 @@ function copyFrom(next: CommandMode) {
   background: var(--ui-bg);
   color: var(--ui-text-muted);
 }
-.skill-agent-stack li + li {
+.skill-agent-stack > span + span {
   margin-left: -0.375rem;
 }
 </style>

@@ -46,7 +46,9 @@ const githubUrl = computed(() => {
   return `https://github.com/${props.owner}/${props.repo}/blob/${props.branch}/${props.skillDir}/${props.node.path}`
 })
 
-function onMarkdownClick(event: MouseEvent) {
+// A plain click opens the file in the viewer. Modified clicks keep the
+// browser default, so cmd-click still opens the file link in a new tab.
+function onFileClick(event: MouseEvent) {
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
     return
   event.preventDefault()
@@ -56,24 +58,15 @@ function onMarkdownClick(event: MouseEvent) {
 const inlineRenderable = computed(() =>
   props.node.kind === 'file' && !!props.node.asset && isInlineRenderable(props.node.asset.type),
 )
-
-function onInlineClick(event: MouseEvent) {
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
-    return
-  event.preventDefault()
-  emit('select', props.node.path)
-}
 </script>
 
 <template>
-  <li
-    role="treeitem"
-    :aria-expanded="node.kind === 'dir' ? open : undefined"
-  >
+  <li>
     <template v-if="node.kind === 'dir'">
       <button
         type="button"
         class="tree-row"
+        :aria-expanded="open"
         :aria-controls="`${idPrefix}-${node.path}`"
         @click="open = !open"
       >
@@ -96,7 +89,6 @@ function onInlineClick(event: MouseEvent) {
       <ul
         v-show="open"
         :id="`${idPrefix}-${node.path}`"
-        role="group"
         class="tree-children"
       >
         <SkillFileTreeNode
@@ -127,8 +119,9 @@ function onInlineClick(event: MouseEvent) {
         rel="nofollow"
         class="tree-row file"
         :class="{ active: isActive }"
+        :aria-current="isActive ? 'true' : undefined"
         :title="node.path"
-        @click="onMarkdownClick"
+        @click="onFileClick"
       >
         <span class="tree-spacer" aria-hidden="true" />
         <UIcon
@@ -147,8 +140,9 @@ function onInlineClick(event: MouseEvent) {
         type="button"
         class="tree-row file"
         :class="{ active: isActive }"
+        :aria-current="isActive ? 'true' : undefined"
         :title="node.path"
-        @click="onInlineClick"
+        @click="onFileClick"
       >
         <span class="tree-spacer" aria-hidden="true" />
         <UIcon
@@ -201,7 +195,7 @@ function onInlineClick(event: MouseEvent) {
 }
 .tree-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.375rem;
   width: 100%;
   padding: 0.25rem 0.5rem;
@@ -237,11 +231,11 @@ function onInlineClick(event: MouseEvent) {
   font-variant-numeric: tabular-nums;
   color: var(--ui-text-muted);
 }
+/* The explorer column is narrow, so long names wrap instead of hiding the
+   part that tells two files apart. */
 .tree-label {
   min-width: 0;
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 </style>

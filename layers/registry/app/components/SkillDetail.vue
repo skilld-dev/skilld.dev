@@ -6,6 +6,7 @@ import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../utils/skill-context-cost'
+import { fileIcon, highlightLangFromPath } from '../utils/skill-file-tree'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillPageState } from '../utils/skill-page-state'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
@@ -429,16 +430,23 @@ const hasExplorer = computed(() => treeAssets.value.length > 0)
 const zipState = ref<ZipState>({ _tag: 'idle' })
 const ZIP_FETCH_BATCH = 6
 
-async function buildSkillZip(): Promise<{ name: string, bytes: Uint8Array }> {
+// Each click starts a numbered build. Progress from an older build that is
+// still in flight must not overwrite the state of the current one.
+let zipBuildId = 0
+
+async function buildSkillZip(buildId: number, signal: AbortSignal): Promise<{ name: string, bytes: Uint8Array }> {
   const skill = data.value
   if (!skill?.skillPath)
     throw new Error('skilld has no path for this SKILL.md. Download it from GitHub.')
   if (treeAssetCount.value > treeAssets.value.length)
     throw new Error('This Skill has more files than skilld lists. Download it from GitHub.')
+  // The live file list walks the branch head, so the files come from there too.
+  // The recorded commit is the fallback when only the synced list exists.
+  const ref = skillFiles.value?.files.length ? skillFiles.value.branch : (skill.provenance?.sourceCommitSha ?? skill.branch)
   const entries = resolveSkillZipEntries({
     owner: skill.owner,
     repo: skill.repo,
-    ref: skill.provenance?.sourceCommitSha ?? skill.branch,
+    ref,
     skillPath: skill.skillPath,
     name: skill.name,
     files: treeAssets.value,
@@ -450,12 +458,13 @@ async function buildSkillZip(): Promise<{ name: string, bytes: Uint8Array }> {
   zipState.value = { _tag: 'building', done, total: entries.length }
   for (let start = 0; start < entries.length; start += ZIP_FETCH_BATCH) {
     await Promise.all(entries.slice(start, start + ZIP_FETCH_BATCH).map(async (entry) => {
-      const response = await fetch(entry.url)
+      const response = await fetch(entry.url, { signal })
       if (!response.ok)
         throw new Error(`GitHub answered ${response.status} for ${entry.zipPath}.`)
       files[entry.zipPath] = new Uint8Array(await response.arrayBuffer())
       done += 1
-      zipState.value = { _tag: 'building', done, total: entries.length }
+      if (buildId === zipBuildId)
+        zipState.value = { _tag: 'building', done, total: entries.length }
     }))
   }
   return { name: `${skill.name}.zip`, bytes: zipSync(files) }
@@ -464,7 +473,9 @@ async function buildSkillZip(): Promise<{ name: string, bytes: Uint8Array }> {
 function downloadSkillZip() {
   if (zipState.value._tag === 'building')
     return
-  buildSkillZip()
+  const buildId = ++zipBuildId
+  const controller = new AbortController()
+  buildSkillZip(buildId, controller.signal)
     .then(({ name, bytes }) => {
       // A copy backed by a plain ArrayBuffer, which is what Blob accepts.
       const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/zip' }))
@@ -472,11 +483,15 @@ function downloadSkillZip() {
       link.href = url
       link.download = name
       link.click()
-      URL.revokeObjectURL(url)
+      // Safari and Firefox read the URL after the click returns.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
       zipState.value = { _tag: 'idle' }
     })
     .catch((error: unknown) => {
-      zipState.value = { _tag: 'error', message: error instanceof Error ? error.message : 'The ZIP could not be built.' }
+      // Stop the files still downloading, so none of them reports progress.
+      controller.abort()
+      if (buildId === zipBuildId)
+        zipState.value = { _tag: 'error', message: error instanceof Error ? error.message : 'The ZIP could not be built.' }
     })
 }
 
@@ -492,15 +507,15 @@ const contextCost = computed(() => data.value
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
 const auditOverview = computed(() => resolveSkillAuditOverview(audits.value))
 
+// The base tones are for dark surfaces. Light mode needs a darker shade to
+// reach 4.5:1 against the warm background.
 const AUDIT_TONE_CLASS = {
-  success: 'text-success',
-  warning: 'text-warning',
-  error: 'text-error',
+  success: 'text-success-700 dark:text-success',
+  warning: 'text-warning-800 dark:text-warning',
+  error: 'text-error-700 dark:text-error',
 } as const
 
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
-
-// An agent with no terminal cannot run a command, so it needs the raw URL.
 
 const badgeInput = computed(() => data.value
   ? {
@@ -693,8 +708,6 @@ const rawHtml = ref<string | null>(null)
 const rawPlain = ref<string | null>(null)
 const rawError = ref<string | null>(null)
 
-import { fileIcon, highlightLangFromPath } from '../utils/skill-file-tree'
-
 // Path of the doc currently active in the viewer, relative to the skill folder.
 // Empty string === SKILL.md. Used to highlight the file tree.
 const activeDocPath = ref<string>(initialFile ? props.file! : '')
@@ -715,28 +728,16 @@ const rawSourceUrl = computed(() => resolveSkillRawUrl({
 const currentContentHtml = computed(() => subDocHtml.value ?? data.value?.contentHtml ?? null)
 // Surfaced when a sub-doc fetch fails so the user gets feedback instead of a
 // silent no-op. Cleared on every successful navigation and on raw refresh.
+const MISSING_FILE_MESSAGE = 'This file is not in the Skill folder.'
+// Only a finished fetch can say the file is missing. On a client navigation
+// the fetch is still running here, and the watcher below applies its result.
 const docLoadError = ref<{ path: string, message: string } | null>(
-  props.file && !initialFile ? { path: props.file, message: 'This file is not in the Skill folder.' } : null,
+  props.file && !initialFile && initialFileFetch?.error.value ? { path: props.file, message: MISSING_FILE_MESSAGE } : null,
 )
 // True while a tree click is fetching a sub-doc; drives the skeleton overlay
 // so the user doesn't stare at the previous doc.
 const docLoading = ref<string | null>(null)
 
-// Reset sub-doc state whenever the loaded skill changes so navigating between
-// skills always lands on the root SKILL.md.
-watch(
-  () => data.value,
-  () => {
-    activeDocPath.value = ''
-    subDocHtml.value = null
-    subDocRaw.value = null
-    docLoadError.value = null
-  },
-)
-
-// Programmatic open from the file tree. Markdown sub-docs reuse the server's
-// `marked` render via /api/skill-asset so every previewed document goes
-// through the same renderer as the SSR'd root SKILL.md.
 // The body goes full width on desktop, capped so ultra-wide screens keep a
 // readable page. The header keeps its 1024px column.
 const SKILL_CONTAINER = 'mx-auto w-full max-w-[105rem] px-4 sm:px-6 lg:px-8 xl:px-10'
@@ -768,9 +769,20 @@ function syncViewerUrl(path: string) {
     ? `${base}/-/${path.split('/').map(encodeURIComponent).join('/')}`
     : base
   if (window.location.pathname !== next)
-    window.history.replaceState(window.history.state, '', next)
+    window.history.replaceState({ ...window.history.state, current: next }, '', next)
 }
 
+function showAsset(path: string, asset: { raw: string, html: string | null }) {
+  activeDocPath.value = path
+  subDocRaw.value = asset.raw
+  subDocHtml.value = /\.(?:md|markdown)$/i.test(path) ? asset.html : null
+  syncViewerUrl(path)
+  revealViewerTop()
+}
+
+// Programmatic open from the file tree. Markdown sub-docs reuse the server's
+// `marked` render via /api/skill-asset so every previewed document goes
+// through the same renderer as the SSR'd root SKILL.md.
 async function resolveAndOpen(path: string) {
   if (!data.value)
     return
@@ -796,16 +808,37 @@ async function resolveAndOpen(path: string) {
     })
     if (!asset?.raw)
       return
-    activeDocPath.value = path
-    subDocRaw.value = asset.raw
-    syncViewerUrl(path)
-    revealViewerTop()
-    const isMd = path.toLowerCase().endsWith('.md') || path.toLowerCase().endsWith('.markdown')
-    subDocHtml.value = isMd ? asset.html : null
+    showAsset(path, asset)
   }
   finally {
     docLoading.value = null
   }
+}
+
+// Navigating to another Skill lands on its SKILL.md.
+watch(() => data.value?.registryPath, (registryPath, previous) => {
+  if (!previous || registryPath === previous)
+    return
+  activeDocPath.value = ''
+  subDocHtml.value = null
+  subDocRaw.value = null
+  docLoadError.value = null
+})
+
+// A deep link reached by client navigation, or by Back, was not rendered on
+// the server. Its file fetch finishes after setup, so apply it here.
+if (initialFileFetch) {
+  watch([initialFileFetch.data, initialFileFetch.error], ([asset, error]) => {
+    if (!props.file)
+      return
+    if (asset?.raw) {
+      if (activeDocPath.value !== props.file)
+        showAsset(props.file, asset)
+      return
+    }
+    if (error)
+      docLoadError.value = { path: props.file, message: MISSING_FILE_MESSAGE }
+  })
 }
 
 // Intercept clicks on Markdown links inside the rendered preview so we can
@@ -981,6 +1014,11 @@ const pageState = computed(() => {
 // Set the status while rendering on the server. A missing Skill keeps its
 // helpful page, but the response says 404 so Google drops the URL instead of
 // filing it as a soft 404.
+// A deep link to a file the Skill does not have answers 404 and shows the
+// Skill with a notice, like a missing page with a way back.
+if (import.meta.server && props.file && !initialFile && data.value)
+  setResponseStatus(useRequestEvent()!, 404)
+
 if (import.meta.server && pageState.value.status) {
   const event = useRequestEvent()!
   setResponseStatus(event, pageState.value.status)
@@ -1078,14 +1116,15 @@ const skillDescription = computed(() => {
 
 // A deep link is a view of the Skill page, so it stays out of the index and
 // points its canonical at the Skill.
-const deepLinkTitle = computed(() => props.file
-  ? `${props.file.split('/').pop()} · ${data.value?.name ?? props.name}`
+const deepLinkTitle = computed(() => activeDocPath.value
+  ? `${activeDocPath.value.split('/').pop()} · ${data.value?.name ?? props.name}`
   : null)
 
 useSeoMeta({
   title: () => deepLinkTitle.value ?? skillTitle.value,
   description: () => skillDescription.value,
   robots: () => props.file ? 'noindex,follow' : pageState.value.robots ?? undefined,
+  ogUrl: () => pageState.value.canonicalPath ? `${siteOrigin}${pageState.value.canonicalPath}` : undefined,
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
@@ -1587,11 +1626,110 @@ useHead(computed(() => ({
 
       <div
         class="skill-layout py-8 md:py-10"
-        :class="[SKILL_CONTAINER, { 'skill-layout--solo': !hasExplorer }]"
+        :class="hasExplorer ? SKILL_CONTAINER : ['mx-auto max-w-5xl px-4 sm:px-6', 'skill-layout--solo']"
       >
         <aside
+          class="skill-rail scroll-fancy hidden space-y-8 lg:block"
+          aria-label="Run and install"
+        >
+          <section aria-label="Run or install">
+            <SkillCommandPanel
+              v-model="commandMode"
+              layout="stacked"
+              :zip-name="data.skillPath ? `${data.name}.zip` : undefined"
+              :zip-state="zipState"
+              :run-url="runUrl"
+              :install-command="installCmd"
+              :run-copied="copied"
+              :install-copied="installCopied"
+              :copy-error="commandCopyError"
+              @download="downloadSkillZip"
+              @copy="copySkillCommand"
+            />
+          </section>
+
+          <section
+            v-if="hasExplorer"
+            class="hidden lg:block xl:hidden"
+            aria-labelledby="files-heading"
+          >
+            <div class="mb-2 flex items-baseline justify-between gap-2">
+              <h2
+                id="files-heading"
+                class="section-label"
+              >
+                Files
+              </h2>
+              <span
+                v-if="contextCost"
+                class="data-label"
+              >{{ contextCost.fileCount }} {{ contextCost.fileCount === 1 ? 'file' : 'files' }} · {{ formatByteSize(contextCost.totalBytes) }}</span>
+            </div>
+            <div class="rounded-lg border border-default p-1.5">
+              <SkillFileTree
+                :assets="treeAssets"
+                :owner="data.owner"
+                :repo="data.repo"
+                :name="data.name"
+                :registry-path="data.registryPath"
+                :branch="data.branch"
+                :skill-path="data.skillPath"
+                :skill-md-size="skillMdBytes"
+                :active-path="activeDocPath"
+                @select="(p) => { void resolveAndOpen(p) }"
+              />
+              <p v-if="treeAssetCount > treeAssets.length" class="px-2 pt-2 font-mono text-[10px] text-muted">
+                Showing {{ treeAssets.length.toLocaleString() }} of {{ treeAssetCount.toLocaleString() }} files.
+              </p>
+            </div>
+          </section>
+
+          <section
+            v-if="capabilitySummary?.scopes.length"
+            class="hidden lg:block"
+            aria-labelledby="rail-scopes-heading"
+          >
+            <h2
+              id="rail-scopes-heading"
+              class="section-label mb-2"
+            >
+              What it can do
+            </h2>
+            <ul
+              role="list"
+              class="flex flex-wrap gap-1.5"
+            >
+              <li
+                v-for="scope in capabilitySummary.scopes"
+                :key="scope"
+                class="skill-chip"
+                :title="SCOPE_META[scope].hint"
+              >
+                <UIcon
+                  :name="SCOPE_META[scope].icon"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                {{ SCOPE_META[scope].label }}
+              </li>
+            </ul>
+            <a
+              href="#capability-heading"
+              class="data-label mt-2 inline-flex min-h-6 items-center gap-1 transition-colors hover:text-default"
+            >
+              Allowed tools and settings
+              <UIcon
+                name="i-lucide-arrow-down"
+                class="size-3"
+                aria-hidden="true"
+              />
+            </a>
+          </section>
+        </aside>
+
+        <aside
           class="skill-explorer scroll-fancy space-y-8"
-          aria-label="Skill files and history"
+          aria-label="Files and history"
         >
           <section
             v-if="hasExplorer"
@@ -1762,7 +1900,7 @@ useHead(computed(() => ({
               >
                 <button
                   type="button"
-                  class="inline-flex min-h-6 shrink-0 items-center text-muted transition-colors hover:text-default"
+                  class="skill-crumb-root inline-flex min-h-6 min-w-0 items-center text-muted transition-colors hover:text-default"
                   :aria-label="`Open SKILL.md of ${data.name}`"
                   @click="() => { void resolveAndOpen('SKILL.md') }"
                 >
@@ -1801,7 +1939,7 @@ useHead(computed(() => ({
                   class="size-3.5"
                   aria-hidden="true"
                 />
-                source
+                <span class="sr-only sm:not-sr-only">source</span>
               </button>
               <button
                 v-if="currentRaw"
@@ -2377,108 +2515,6 @@ useHead(computed(() => ({
             </p>
           </section>
         </div>
-
-        <aside
-          class="skill-rail scroll-fancy hidden space-y-8 lg:block"
-          aria-label="Run, install and files"
-        >
-          <section
-            class="hidden lg:block"
-            aria-label="Run or install"
-          >
-            <SkillCommandPanel
-              v-model="commandMode"
-              layout="stacked"
-              :zip-name="data.skillPath ? `${data.name}.zip` : undefined"
-              :zip-state="zipState"
-              :run-url="runUrl"
-              :install-command="installCmd"
-              :run-copied="copied"
-              :install-copied="installCopied"
-              :copy-error="commandCopyError"
-              @download="downloadSkillZip"
-              @copy="copySkillCommand"
-            />
-          </section>
-
-          <section
-            v-if="hasExplorer"
-            class="hidden lg:block xl:hidden"
-            aria-labelledby="files-heading"
-          >
-            <div class="mb-2 flex items-baseline justify-between gap-2">
-              <h2
-                id="files-heading"
-                class="section-label"
-              >
-                Files
-              </h2>
-              <span
-                v-if="contextCost"
-                class="data-label"
-              >{{ contextCost.fileCount }} {{ contextCost.fileCount === 1 ? 'file' : 'files' }} · {{ formatByteSize(contextCost.totalBytes) }}</span>
-            </div>
-            <div class="rounded-lg border border-default p-1.5">
-              <SkillFileTree
-                :assets="treeAssets"
-                :owner="data.owner"
-                :repo="data.repo"
-                :name="data.name"
-                :registry-path="data.registryPath"
-                :branch="data.branch"
-                :skill-path="data.skillPath"
-                :skill-md-size="skillMdBytes"
-                :active-path="activeDocPath"
-                @select="(p) => { void resolveAndOpen(p) }"
-              />
-              <p v-if="treeAssetCount > treeAssets.length" class="px-2 pt-2 font-mono text-[10px] text-muted">
-                Showing {{ treeAssets.length.toLocaleString() }} of {{ treeAssetCount.toLocaleString() }} files.
-              </p>
-            </div>
-          </section>
-
-          <section
-            v-if="capabilitySummary?.scopes.length"
-            class="hidden lg:block"
-            aria-labelledby="rail-scopes-heading"
-          >
-            <h2
-              id="rail-scopes-heading"
-              class="section-label mb-2"
-            >
-              What it can do
-            </h2>
-            <ul
-              role="list"
-              class="flex flex-wrap gap-1.5"
-            >
-              <li
-                v-for="scope in capabilitySummary.scopes"
-                :key="scope"
-                class="skill-chip"
-                :title="SCOPE_META[scope].hint"
-              >
-                <UIcon
-                  :name="SCOPE_META[scope].icon"
-                  class="size-3.5"
-                  aria-hidden="true"
-                />
-                {{ SCOPE_META[scope].label }}
-              </li>
-            </ul>
-            <a
-              href="#capability-heading"
-              class="data-label mt-2 inline-flex min-h-6 items-center gap-1 transition-colors hover:text-default"
-            >
-              Allowed tools and settings
-              <UIcon
-                name="i-lucide-arrow-down"
-                class="size-3"
-                aria-hidden="true"
-              />
-            </a>
-          </section>
-        </aside>
       </div>
     </template>
   </div>
@@ -2704,7 +2740,7 @@ useHead(computed(() => ({
       column-gap: 3rem;
     }
     .skill-layout--solo {
-      grid-template-columns: minmax(0, 56rem) 20rem;
+      grid-template-columns: minmax(0, 1fr) 20rem;
     }
     .skill-layout:not(.skill-layout--solo) .skill-explorer {
       grid-column: 1;
@@ -2727,6 +2763,18 @@ useHead(computed(() => ({
   /* Folders give up their width first; the file name truncates last. */
   .skill-crumb-file {
     flex-shrink: 0.05;
+  }
+  .skill-crumb-root {
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.5rem;
+  }
+  @media (pointer: coarse) {
+    .skill-viewer-action {
+      min-height: 2.75rem;
+    }
   }
   .skill-viewer-action {
     flex-shrink: 0;
