@@ -22,6 +22,14 @@ export type TrendingRange = 'week' | 'month' | 'all'
  * eight named skills, which is the bar the page sets for its own indexability,
  * so the shorter window made the default board excuse itself from the index.
  */
+/**
+ * Rows the `week` and `month` boards show at most.
+ *
+ * Thirty is enough to read as a leaderboard rather than a shortlist. Shared
+ * because the SEO admission job must count exactly the rows a reader can see.
+ */
+export const TRENDING_BOARD_LIMIT = 30
+
 export const DEFAULT_TRENDING_RANGE: TrendingRange = 'month'
 
 const SITE_ORIGIN = 'https://skilld.dev'

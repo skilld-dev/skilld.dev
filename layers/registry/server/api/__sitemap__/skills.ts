@@ -1,13 +1,14 @@
 import { listOutcomeSitemapEntries } from '../../utils/outcome-sitemap'
 import { canonicalRepoSkillPath } from '../../utils/skill-routes'
-import { listAllSkillsForSitemap, listSupportedSkillsForSitemap } from '../../utils/skills-registry'
+import { listAllSkillsForSitemap } from '../../utils/skills-registry'
 
+/**
+ * Skill URLs in the sitemap are exactly the Skill pages that render
+ * `index,follow`. `listAllSkillsForSitemap` applies the trending admission
+ * rule (`trending-admission.ts`) that the Skill API applies to the page.
+ */
 export default defineSitemapEventHandler(async (event) => {
-  const query = getQuery(event)
-  const supportedOnly = query.supported !== 'false' && query.supported !== '0'
-  const skills = supportedOnly
-    ? await listSupportedSkillsForSitemap(event)
-    : await listAllSkillsForSitemap(event)
+  const skills = await listAllSkillsForSitemap(event)
   return [
     ...listOutcomeSitemapEntries(),
     ...skills.map(s => ({

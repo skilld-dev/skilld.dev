@@ -8,6 +8,7 @@ import {
   leaderboardBoardRows,
   monthStamp,
   resolveTrendingRange,
+  TRENDING_BOARD_LIMIT,
   TRENDING_RANGES,
   trendingRangeDescription,
   trendingRangeHeading,
@@ -19,16 +20,13 @@ import TrendingWeeklyCta from '../../components/TrendingWeeklyCta.vue'
 /**
  * Rows the feed board shows at most.
  *
- * Thirty is enough to read as a leaderboard rather than a shortlist, and the
- * fallback tail fills it out when the evidenced rows run short. Applied twice
- * on purpose: as the request, so the server does not rank more than is wanted,
- * and as a slice, so the fallback tail cannot push the board past it.
- *
- * The `all` range is not capped by it. That board serves one page of reviewed
- * repositories, and truncating a page the endpoint already sized would drop
- * twenty rows for no reason.
+ * Applied twice on purpose: as the request, so the server does not rank more
+ * than is wanted, and as a slice, so the fallback tail cannot push the board
+ * past it. The `all` range is not capped by it: that board serves one page of
+ * reviewed repositories, and truncating a page the endpoint already sized
+ * would drop twenty rows for no reason.
  */
-const BOARD_LIMIT = 30
+const BOARD_LIMIT = TRENDING_BOARD_LIMIT
 
 /** Evidenced rows a board needs before it asks to be indexed. */
 const MIN_INDEXABLE_ROWS = 8

@@ -17,6 +17,7 @@ import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
+import { isSkillIndexable, SKILL_INDEX_INPUT_COLUMNS_SQL } from '../../utils/trending-admission'
 
 interface FaqPayload { faqs: { question: string, answer: string }[] }
 interface SummaryPayload { text: string }
@@ -134,6 +135,7 @@ function isoToSecondsAgo(value: string | null | undefined): number | null {
  * come from the shared Skill select, so they are not repeated here.
  */
 const DETAIL_COLUMNS_SQL = `r.forks, r.repo_created_at,
+  ${SKILL_INDEX_INPUT_COLUMNS_SQL},
   s.references_count, s.assets, s.last_synced_at, s.sync_status, s.source_resolved,
   s.seo_index_reasons, s.seo_index_synced_at,
   s.curator_count, s.curator_reason_count, s.approved_social_count, s.author_social_count,
@@ -168,6 +170,8 @@ interface SkillDetailRow {
   // seo / trust
   seo_index_score: number | null
   seo_indexable: number | null
+  trending_admitted: number | null
+  repo_kind: string | null
   seo_index_reasons: string | null
   seo_index_synced_at: number | null
   curator_count: number | null
@@ -427,7 +431,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     },
     seo: {
       indexScore: row.seo_index_score ?? 0,
-      indexable: row.seo_indexable === 1,
+      indexable: isSkillIndexable(row),
       reasons: row.seo_index_reasons ? JSON.parse(row.seo_index_reasons) as string[] : [],
       syncedAt: row.seo_index_synced_at ?? null,
       curatorCount: row.curator_count ?? 0,

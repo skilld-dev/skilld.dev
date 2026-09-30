@@ -15,6 +15,7 @@ import {
 import { canonicalRepoSkillPath } from './skill-routes'
 import { collapseSearchDuplicates, hybridSkillSearch, rankSearchResults } from './skill-search'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
+import { SKILL_ADMITTED_SQL } from './trending-admission'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
@@ -748,7 +749,7 @@ function listDuplicateCandidateRows(
 ): Promise<SkillDuplicateRow[]> {
   return cached({
     storage: useStorage('cache'),
-    key: `skills:duplicate-candidates:v3:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`,
+    key: `skills:duplicate-candidates:v4:${opts.supportedOnly ? 'supported' : 'all'}:${opts.includeAggregators ? 'agg' : 'noagg'}`,
     ttlSeconds: DUPLICATE_CANDIDATES_TTL,
     staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
     compute: () => queryDuplicateCandidateRows(event, opts),
@@ -787,6 +788,7 @@ async function queryDuplicateCandidateRows(
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
         AND s.seo_indexable = 1
+        AND ${SKILL_ADMITTED_SQL}
         ${aggregatorFilter}
         ${supportedFilter}
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
@@ -818,16 +820,15 @@ function findDuplicateGroupInRows(rows: SkillDuplicateRow[], slug: string): Skil
 export function listAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
   return cached({
     storage: useStorage('cache'),
-    key: 'skills:sitemap-all:v3',
+    key: 'skills:sitemap-all:v4',
     ttlSeconds: DUPLICATE_CANDIDATES_TTL,
     staleSeconds: DUPLICATE_CANDIDATES_STALE_TTL,
-    compute: () => queryAllSkillsForSitemap(event),
+    compute: () => queryAllSkillsForSitemap(getDB(event)),
     schedule: promise => runAfterResponse(event, promise),
   })
 }
 
-async function queryAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
-  const db = getDB(event)
+export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSitemapEntry[]> {
   const res = await db
     .prepare(`
       SELECT
@@ -851,24 +852,17 @@ async function queryAllSkillsForSitemap(event: H3Event): Promise<SkillSitemapEnt
         AND supported_repos.enabled = 1
       WHERE ${NOT_BROKEN_SQL}
         AND s.seo_indexable = 1
+        AND ${SKILL_ADMITTED_SQL}
         AND ${NOT_AGGREGATOR_SQL}
       ORDER BY s.owner ASC, s.repo ASC, s.name ASC
     `)
     .all<SkillDuplicateRow>()
   const rows = res.results ?? []
-  const weakerSupportedSlugs = duplicateWeakerSlugSet(rows.filter(row => row.is_supported === 1))
-  const entries = rows
-    .filter(row => !weakerSupportedSlugs.has(skillSlug(row)))
-    .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
-  return entries
-}
-
-export async function listSupportedSkillsForSitemap(event: H3Event): Promise<SkillSitemapEntry[]> {
-  const rows = await listDuplicateCandidateRows(event, { supportedOnly: true })
   const weakerSlugs = duplicateWeakerSlugSet(rows)
-  return rows
+  const entries = rows
     .filter(row => !weakerSlugs.has(skillSlug(row)))
     .map(row => ({ name: row.name, owner: row.owner, repo: row.repo, repoSkillCount: row.repo_skill_count ?? 0 }))
+  return entries
 }
 
 export async function findRelatedSkills(

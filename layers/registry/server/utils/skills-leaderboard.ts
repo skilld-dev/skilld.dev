@@ -80,6 +80,9 @@ export const SKILLS_LEADERBOARD_SQL = `
     repository.repo COLLATE NOCASE ASC
 `
 
+/** Rows one page of the `all` board holds. The board shows page 1 only. */
+export const SKILLS_LEADERBOARD_PAGE_SIZE = 50
+
 export const SKILLS_LEADERBOARD_PAGE_SQL = `
   ${SKILLS_LEADERBOARD_SQL}
   LIMIT ? OFFSET ?
