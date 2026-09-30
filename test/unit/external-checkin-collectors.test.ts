@@ -117,6 +117,61 @@ it('reads production CI verdicts from main only', async () => {
   }
 })
 
+// GitHub's per-workflow `gh run list` intermittently serves a day-stale
+// snapshot: on 2026-09-30 the archive read the Deploy gate success while the
+// live gate had failed at 16:55Z on run 36747725607, and the same command
+// reproduced rows from three different days. The unscoped recent feed answers
+// from separate evidence, so a verdict-carrying run it shows that the
+// per-workflow page lacks must decide the gate, not the stale page.
+it('does not archive a stale per-workflow page as a passing gate', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-ci-stale-'))
+  roots.push(root)
+  await mkdir(join(root, '.github/workflows'), { recursive: true })
+  await writeFile(join(root, '.github/workflows/deploy.yml'), 'name: Deploy to Cloudflare')
+
+  const staleSuccess = {
+    workflowName: 'Deploy to Cloudflare',
+    status: 'completed',
+    conclusion: 'success',
+    databaseId: 36740000000,
+    displayTitle: 'chore: bump',
+    headSha: 'abc123',
+    createdAt: '2026-09-30T02:00:00Z',
+    updatedAt: '2026-09-30T02:20:00Z',
+    url: 'https://example.com/runs/36740000000',
+  }
+  const failedRun = {
+    workflowName: 'Deploy to Cloudflare',
+    status: 'completed',
+    conclusion: 'failure',
+    databaseId: 36747725607,
+    displayTitle: 'chore: bump',
+    headSha: 'def456',
+    createdAt: '2026-09-30T16:55:00Z',
+    updatedAt: '2026-09-30T17:15:00Z',
+    url: 'https://example.com/runs/36747725607',
+  }
+  boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
+    if (command !== 'gh')
+      throw new Error(`unexpected command: ${command}`)
+    const rows = args.includes('--workflow') ? [staleSuccess] : [failedRun]
+    return { _tag: 'Ok', stdout: JSON.stringify(rows), stderr: '' }
+  })
+
+  const { report } = await runExternalChecks([ciCheck], { required: [ciCheck.id] }, { rootDir: root, env: {} })
+
+  expect(report.results.find(check => check.id === 'skilld.ci')?.result).toMatchObject({
+    _tag: 'Fail',
+    evidence: {
+      workflows: [{
+        name: 'Deploy to Cloudflare',
+        latestRun: { databaseId: 36747725607 },
+        state: { _tag: 'failure', consecutiveFailures: 1 },
+      }],
+    },
+  })
+})
+
 // A page of cancelled queue-mates satisfied the collector's old `conclusion !==
 // 'skipped'` re-fetch predicate, so the deeper 100-run page was never paid for
 // and a verdict ten runs deep read as an observability gap.

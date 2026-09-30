@@ -176,9 +176,31 @@ export function parseWorkflowName(source) {
   return unquoted || null
 }
 
-export function summarizeWorkflowRuns(rows, requiredWorkflowNames) {
+// GitHub's per-workflow `gh run list` intermittently serves a day-stale
+// snapshot: the 2026-09-30 archive read the Deploy gate success while the live
+// gate had failed at 16:55Z (run 36747725607), and re-running the same command
+// reproduced rows from three different days. The unscoped recent feed answers
+// from separate evidence, so a run it shows for the workflow that is newer than
+// the page's newest run proves the page is stale. Those rows join the page, and
+// the verdict is computed from the union, so a stale page can only ever hide a
+// verdict the feed re-reveals, never replace one.
+export function corroborateWorkflowRuns(pageRows, corroboratingRows) {
+  if (!corroboratingRows.length)
+    return pageRows
+  const known = new Set(pageRows.map(run => run.databaseId))
+  const newestPageId = pageRows.reduce((max, run) => Math.max(max, run.databaseId), Number.NEGATIVE_INFINITY)
+  const missing = corroboratingRows.filter(run => run.databaseId > newestPageId && !known.has(run.databaseId))
+  if (!missing.length)
+    return pageRows
+  return [...missing, ...pageRows].sort((a, b) => b.databaseId - a.databaseId)
+}
+
+export function summarizeWorkflowRuns(rows, requiredWorkflowNames, corroboratingRows = []) {
   return requiredWorkflowNames.map((name) => {
-    const runs = rows.filter(row => row.workflowName === name)
+    const runs = corroborateWorkflowRuns(
+      rows.filter(row => row.workflowName === name),
+      corroboratingRows.filter(row => row.workflowName === name),
+    )
     const latestRun = runs[0] ?? null
     const latestCompletedRun = runs.find(carriesVerdict) ?? null
     const previousState = completedState(runs)

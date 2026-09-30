@@ -75,11 +75,16 @@ export function collectCI(context) {
     // from it: a full page of cancelled queue-mates satisfied
     // `conclusion !== 'skipped'`, hid a verdict ten runs deep, and the gate read
     // `missing` while a healthy deploy sat at index 10.
+    //
+    // The recent feed doubles as the staleness witness: a per-workflow page can
+    // serve a day-stale snapshot, so the summary cross-checks every page against
+    // the feed and folds in any newer run the page is missing (2026-09-30).
+    const feed = await commandJson(context, 'gh', runListArgs(null, 20))
     const rows = await collectWorkflowRuns(
       (name, limit) => commandJson(context, 'gh', runListArgs(name, limit)),
       names,
     )
-    return { workflows: summarizeWorkflowRuns(rows, names), recent: (await commandJson(context, 'gh', runListArgs(null, 20))).slice(0, 10) }
+    return { workflows: summarizeWorkflowRuns(rows, names, feed), recent: feed.slice(0, 10) }
   })
 }
 function readDailyBudget(root) {
