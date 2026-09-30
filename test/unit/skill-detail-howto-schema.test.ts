@@ -200,7 +200,7 @@ describe('skillDetail command choice', () => {
       'https://skilld.dev/gh/antfu/skills/vite',
       'npx skilld install antfu/skills/vite',
     ])
-    expect(stacked!.get('button[aria-label="Copy Agent prompt"]')).toBeTruthy()
+    expect(stacked!.findAll('button').some(button => button.text() === 'Copy prompt')).toBe(true)
     expect(stacked!.get('button[aria-label="Copy install command"]')).toBeTruthy()
 
     wrapper.unmount()

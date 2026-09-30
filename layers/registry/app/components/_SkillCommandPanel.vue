@@ -51,43 +51,40 @@ function copyFrom(next: CommandMode) {
     data-testid="skill-command-panel"
     class="space-y-6"
   >
-    <div class="space-y-2">
-      <div class="flex items-baseline justify-between gap-2">
+    <div class="space-y-3">
+      <div class="space-y-1">
         <h2 class="font-mono text-sm text-default">
-          Run
+          Hand it to your agent
         </h2>
-        <span class="data-label">this session</span>
-      </div>
-      <p class="text-xs leading-relaxed text-muted">
-        Paste this into your agent. It reads the Skill now, and nothing lands on disk.
-      </p>
-      <div class="flex items-center gap-2 rounded-lg border border-default bg-muted py-1 pr-1 pl-3 text-sm">
-        <p class="min-w-0 flex-1 py-1 leading-relaxed text-default">
-          {{ SKILL_RUN_PROMPT_LEAD }} <code class="install-command install-command--wrap install-command__target inline">{{ runUrl }}</code>
+        <p class="text-xs leading-relaxed text-muted">
+          It reads the Skill now. Nothing lands on disk.
         </p>
-        <UButton
-          :icon="runCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          class="min-h-11 min-w-11 shrink-0"
-          :aria-label="runCopied ? 'Copied' : 'Copy Agent prompt'"
-          :aria-describedby="copyError && mode === 'run' ? copyErrorId : undefined"
-          @click="copyFrom('run')"
-        />
       </div>
+      <p class="rounded-lg border border-default bg-muted px-3 py-2 text-sm leading-relaxed text-default">
+        {{ SKILL_RUN_PROMPT_LEAD }} <code class="install-command install-command--wrap install-command__target inline">{{ runUrl }}</code>
+      </p>
+      <UButton
+        :icon="runCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+        :label="runCopied ? 'Copied' : 'Copy prompt'"
+        color="neutral"
+        variant="outline"
+        size="md"
+        block
+        class="min-h-11 font-mono"
+        :aria-describedby="copyError && mode === 'run' ? copyErrorId : undefined"
+        @click="copyFrom('run')"
+      />
     </div>
 
-    <div class="space-y-2 border-t border-default pt-5">
-      <div class="flex items-baseline justify-between gap-2">
+    <div class="space-y-3 border-t border-default pt-6">
+      <div class="space-y-1">
         <h2 class="font-mono text-sm text-default">
           Install
         </h2>
-        <span class="data-label">every session</span>
+        <p class="text-xs leading-relaxed text-muted">
+          The files land in your project. The lockfile records them.
+        </p>
       </div>
-      <p class="text-xs leading-relaxed text-muted">
-        The files land in your project, and the lockfile records them.
-      </p>
       <div class="flex items-center gap-2 rounded-lg border border-default py-1 pr-1 pl-3 text-sm">
         <InstallCommand
           :command="installCommand"
