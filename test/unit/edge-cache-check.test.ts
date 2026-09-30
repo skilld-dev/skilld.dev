@@ -81,6 +81,21 @@ describe('checkEdgeCache', () => {
     })
   })
 
+  it('gives every anonymous request an abort signal so a hung edge cannot block the job', async () => {
+    const inner = edge()
+    const signals: unknown[] = []
+    const result = await run(async (url, init) => {
+      if (!new Headers(init.headers).get('cookie') && new Headers(init.headers).get('accept') !== 'text/markdown')
+        signals.push(init.signal)
+      return inner(url, init)
+    })
+
+    expect(result._tag).toBe('passed')
+    expect(signals.length).toBeGreaterThan(0)
+    for (const signal of signals)
+      expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('fails when the edge never answers from its cache', async () => {
     const result = await run(edge({ anonymous: () => ({ headers: { 'cf-cache-status': 'MISS' } }) }))
 

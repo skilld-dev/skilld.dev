@@ -66,7 +66,7 @@ type Fetched
 
 async function request(fetch: EdgeCacheFetch, url: string, headers: Record<string, string>): Promise<Fetched> {
   try {
-    const response = await fetch(url, { headers, redirect: 'manual' })
+    const response = await fetch(url, { headers, redirect: 'manual', signal: AbortSignal.timeout(15_000) })
     return { _tag: 'ok', response, body: await response.text() }
   }
   catch (error) {
