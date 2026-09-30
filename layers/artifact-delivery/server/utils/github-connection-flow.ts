@@ -1,3 +1,4 @@
+import { parseReturnTo } from '#shared/return-to'
 import { bytesToBase64Url } from './encoding'
 
 export const GITHUB_CONNECTION_STATE_COOKIE = 'github_connection_state'
@@ -8,13 +9,7 @@ export function createGithubConnectionState(): string {
 }
 
 export function githubConnectionReturnTo(value: string | undefined): string {
-  if (!value?.startsWith('/'))
-    return '/me'
-  const base = 'https://skilld.invalid'
-  if (!URL.canParse(value, base))
-    return '/me'
-  const resolved = new URL(value, base)
-  return resolved.origin === base ? value : '/me'
+  return parseReturnTo(value)
 }
 
 export function githubConnectionStateMatches(expected: string | undefined, actual: string): boolean {

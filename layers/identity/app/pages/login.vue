@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { parseReturnTo } from '#shared/return-to'
+
 const route = useRoute()
 const { loginUrl } = useAuth()
 const { loggedIn } = useUserSession()
 
-const returnTo = computed(() => typeof route.query.return_to === 'string' ? route.query.return_to : '')
+const returnTo = computed(() => typeof route.query.return_to === 'string' ? parseReturnTo(route.query.return_to, '') : '')
 const action = computed(() => typeof route.query.action === 'string' ? route.query.action : '')
 const error = computed(() => typeof route.query.error === 'string' ? route.query.error : '')
 

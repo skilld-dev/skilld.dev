@@ -6,12 +6,11 @@
  * is lost by the time `onSuccess` fires. Stash it in a 10-minute cookie and
  * `auth/github.get.ts:onSuccess` reads it back.
  */
+import { parseReturnTo } from '#shared/return-to'
 
 export default defineEventHandler((event) => {
   const query = getQuery(event)
-  const returnTo = typeof query.return_to === 'string' && query.return_to.startsWith('/')
-    ? query.return_to
-    : '/me'
+  const returnTo = parseReturnTo(query.return_to)
 
   setCookie(event, 'cli_return_to', returnTo, {
     httpOnly: true,
