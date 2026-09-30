@@ -648,6 +648,29 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [dependencyPluginCompat()],
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            // Googlebot spends 58% of its requests on JavaScript and renders
+            // each page with its own fetches, so the number of files a page
+            // needs is a crawl cost. Rolldown's default split made one chunk per
+            // set of importers, so a `/gh` page preloaded 75 files, 38 of them
+            // under 3 KB. This gathers the small `node_modules` modules that
+            // two or more chunks share into one chunk. Larger vendor modules
+            // keep their own lazy chunks.
+            //
+            // App code is left out on purpose. A shared app module in a group
+            // becomes a hub every importer names by hash, so one edit rehashed
+            // 44 chunks in a measured build. The vendor chunk only changes
+            // when a dependency does. Numbers: docs/ops/crawl-efficiency-2026-09-30.md.
+            groups: [
+              { name: 'vendor-shared', test: /node_modules/, minShareCount: 2, maxModuleSize: 8 * 1024 },
+            ],
+          },
+        },
+      },
+    },
   },
 
   compatibilityDate: '2026-07-15',
