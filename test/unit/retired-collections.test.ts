@@ -6,10 +6,8 @@ import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import {
   findRetiredCollection,
-  isNoindexCollection,
   NOINDEX_COLLECTIONS,
   RETIRED_COLLECTIONS,
-  withoutUnindexedCollections,
 } from '../../shared/retired-collections'
 
 describe('findRetiredCollection', () => {
@@ -36,31 +34,6 @@ describe('findRetiredCollection', () => {
     expect(findRetiredCollection('/@harlan-zw/agent-building-stack')).toBeNull()
     expect(findRetiredCollection('/@someone/apple-apps')).toBeNull()
     expect(findRetiredCollection('/@harlan-zw')).toBeNull()
-  })
-})
-
-describe('isNoindexCollection', () => {
-  it('flags the old featured trio only', () => {
-    for (const slug of ['agent-building-stack', 'agent-workflow-stack', 'typescript-engineering-stack'])
-      expect(isNoindexCollection('harlan-zw', slug)).toBe(true)
-    expect(isNoindexCollection('someone', 'agent-building-stack')).toBe(false)
-    expect(isNoindexCollection('harlan-zw', 'essentials')).toBe(false)
-    expect(isNoindexCollection('harlan-zw', 'apple-apps')).toBe(false)
-  })
-})
-
-describe('withoutUnindexedCollections', () => {
-  it('drops retired and noindex rows and keeps the rest in order', () => {
-    const rows = [
-      { author_login: 'harlan-zw', slug: 'essentials' },
-      { author_login: 'harlan-zw', slug: 'apple-apps' },
-      { author_login: 'someone', slug: 'apple-apps' },
-      { author_login: 'harlan-zw', slug: 'typescript-engineering-stack' },
-    ]
-    expect(withoutUnindexedCollections(rows)).toEqual([
-      { author_login: 'harlan-zw', slug: 'essentials' },
-      { author_login: 'someone', slug: 'apple-apps' },
-    ])
   })
 })
 
