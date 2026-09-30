@@ -45,6 +45,12 @@ const uploadSteps: Record<Exclude<InstallTarget, 'local'>, string> = {
   claude: 'Upload it in Claude under Settings › Capabilities › Skills.',
   chatgpt: 'Upload it in ChatGPT under Skills › Create › Upload from your computer.',
 }
+// The next step past one Skill: let the same client search the whole registry.
+const registrySetup: Record<InstallTarget, { to: string, label: string }> = {
+  local: { to: '/developers', label: 'Let your Agent search the registry' },
+  claude: { to: '/developers?setup=mcp&client=claude', label: 'Search the registry from Claude' },
+  chatgpt: { to: '/developers?setup=mcp&client=chatgpt', label: 'Search the registry from ChatGPT' },
+}
 const agentNames = AGENT_LOGOS.map(agent => agent.label).join(', ')
 
 const mode = defineModel<CommandMode>({ required: true })
@@ -197,6 +203,12 @@ function copyFrom(next: CommandMode) {
             {{ zipState.message }}
           </p>
         </template>
+        <NuxtLink
+          :to="registrySetup[installTarget].to"
+          class="inline-flex min-h-11 items-center text-xs text-muted underline underline-offset-2 hover:text-default"
+        >
+          {{ registrySetup[installTarget].label }}
+        </NuxtLink>
       </div>
     </div>
 
