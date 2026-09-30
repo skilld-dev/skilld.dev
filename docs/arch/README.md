@@ -33,6 +33,9 @@ Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilit
 ## App-side architecture
 
 - **Service**: an object owning an API client or app-wide reactive state. Constructed by `createAppServices(config)` in `app/services/`, exposed via `nuxtApp.$services`. Composables that just bind keys or call `$fetch` are not services.
+- **Public pages render signed out**: the server never reads the session for a public page, so one stored copy can serve every visitor. The browser loads the session after hydration. `useAuth().state` is `pending`, `anonymous`, or `signed-in`, and an auth-dependent control renders a same-size placeholder while it is `pending`. A page that needs the session on the server uses the `session` or `auth` route middleware, which also marks the response `private, no-store`.
+- **Session reads**: server code reads the session with `readUserSession()`. It opens a session only when the request carries one, because h3 sets a new session cookie on every other read. ESLint bans a direct `getUserSession()`.
+- **Markdown negotiation**: `shared/content-negotiation.ts` decides HTML or a 307 to the `.md` URL from `Accept` and `Sec-Fetch-Dest` only, and every page response names both in `Vary`.
 
 ## URL canonicals
 
