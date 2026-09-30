@@ -810,8 +810,13 @@ const pageState = computed(() => {
 // Set the status while rendering on the server. A missing Skill keeps its
 // helpful page, but the response says 404 so Google drops the URL instead of
 // filing it as a soft 404.
-if (import.meta.server && pageState.value.status)
-  setResponseStatus(useRequestEvent()!, pageState.value.status)
+if (import.meta.server && pageState.value.status) {
+  const event = useRequestEvent()!
+  setResponseStatus(event, pageState.value.status)
+  // A 503 tells Google the failure is transient, so it retries the URL.
+  if (pageState.value.retryAfterSeconds)
+    useResponseHeader('Retry-After').value = String(pageState.value.retryAfterSeconds)
+}
 
 // 2026-08-22: the shared "A Claude Code skill for Cursor, Codex, and other
 // agents." suffix is gone. Identical boilerplate across 1,300+ meta
@@ -903,7 +908,7 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
-  robots: () => pageState.value.robots,
+  robots: () => pageState.value.robots ?? undefined,
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
