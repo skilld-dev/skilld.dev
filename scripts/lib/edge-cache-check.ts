@@ -11,6 +11,8 @@
  * 3. An agent that asks for Markdown still gets the 307 to the `.md` URL.
  * 4. A request that carries a session cookie gets the anonymous render, and
  *    the page tells the browser to load the session itself.
+ * 5. Every page is stored under its own key: pages that differ only by query
+ *    string render a different title or canonical URL.
  */
 
 /** The pages `nuxt.config.ts` gives an `edgeCache` rule. Each query is its own cache key. */
@@ -41,6 +43,7 @@ export type EdgeCacheFailure
     | { _tag: 'never-served-from-cache', path: string, cacheStatuses: string[] }
     | { _tag: 'markdown-location', path: string, actual: string | null }
     | { _tag: 'rendered-for-session', path: string, reason: string }
+    | { _tag: 'shared-cache-entry', paths: string[], identity: string | null }
 
 export type EdgeCacheCheckResult
   = | { _tag: 'passed', checks: Array<{ path: string, cacheStatuses: string[] }> }
@@ -121,17 +124,41 @@ function sessionRenderProblem(html: string): string | null {
   return null
 }
 
+/**
+ * What a page says about itself: its `<title>` and canonical URL. Two ranges
+ * that share both were answered from one cache entry, or render one board.
+ */
+function pageIdentity(html: string): string | null {
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim()
+  const canonical = html.match(/<link\b[^>]*\brel="canonical"[^>]*>/i)?.[0].match(/\bhref="([^"]*)"/i)?.[1]
+  return title || canonical ? `${title ?? ''} | ${canonical ?? ''}` : null
+}
+
+/** One retry after a delay: a deploy or an origin restart can answer a 5xx once. */
+async function requestAnonymous(
+  url: string,
+  input: { fetch: EdgeCacheFetch, wait: (milliseconds: number) => Promise<void>, retryDelayMs: number },
+): Promise<Fetched> {
+  const first = await request(input.fetch, url, BROWSER_HEADERS)
+  if (first._tag === 'error' || first.response.status === 200)
+    return first
+  await input.wait(input.retryDelayMs)
+  return request(input.fetch, url, BROWSER_HEADERS)
+}
+
 async function checkAnonymous(
   path: string,
   url: string,
   input: { fetch: EdgeCacheFetch, wait: (milliseconds: number) => Promise<void>, hitAttempts: number, retryDelayMs: number },
-): Promise<{ _tag: 'passed', cacheStatuses: string[] } | { _tag: 'failed', failure: EdgeCacheFailure }> {
+): Promise<{ _tag: 'passed', cacheStatuses: string[], identity: string | null } | { _tag: 'failed', failure: EdgeCacheFailure }> {
   const cacheStatuses: string[] = []
+  let identity: string | null = null
   for (let attempt = 0; attempt <= input.hitAttempts; attempt++) {
-    const fetched = await request(input.fetch, url, BROWSER_HEADERS)
+    const fetched = await requestAnonymous(url, input)
     if (fetched._tag === 'error')
       return { _tag: 'failed', failure: { _tag: 'network-error', path, request: 'anonymous', message: fetched.message } }
     const { response } = fetched
+    identity = pageIdentity(fetched.body)
     if (response.status !== 200)
       return { _tag: 'failed', failure: { _tag: 'status', path, request: 'anonymous', expected: 200, actual: response.status } }
     const cookies = cookieNames(response)
@@ -144,7 +171,7 @@ async function checkAnonymous(
     const status = (response.headers.get('cf-cache-status') ?? 'NONE').toUpperCase()
     cacheStatuses.push(status)
     if (attempt > 0 && SERVED_FROM_CACHE.has(status))
-      return { _tag: 'passed', cacheStatuses }
+      return { _tag: 'passed', cacheStatuses, identity }
     if (attempt < input.hitAttempts && attempt > 0)
       await input.wait(input.retryDelayMs)
   }
@@ -195,18 +222,26 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
 
   const failures: EdgeCacheFailure[] = []
   const checks: Array<{ path: string, cacheStatuses: string[] }> = []
+  const identities = new Map<string | null, string[]>()
   for (const path of paths) {
     const url = new URL(path, dependencies.baseUrl).href
     const anonymous = await checkAnonymous(path, url, { fetch, wait, hitAttempts, retryDelayMs })
     if (anonymous._tag === 'failed')
       failures.push(anonymous.failure)
-    else
+    else {
       checks.push({ path, cacheStatuses: anonymous.cacheStatuses })
+      identities.set(anonymous.identity, [...identities.get(anonymous.identity) ?? [], path])
+    }
 
     for (const failure of [await checkMarkdown(path, url, fetch), await checkSessionCookie(path, url, fetch)]) {
       if (failure)
         failures.push(failure)
     }
+  }
+
+  for (const [identity, sharing] of identities) {
+    if (sharing.length > 1)
+      failures.push({ _tag: 'shared-cache-entry', paths: sharing, identity })
   }
 
   return failures.length ? { _tag: 'failed', failures } : { _tag: 'passed', checks }

@@ -5,14 +5,14 @@ import { checkEdgeCache } from '../../scripts/lib/edge-cache-check'
 const BASE = 'https://skilld.dev'
 
 /** A payload the way Nuxt serializes it: state keys point at array slots. */
-function page(session: unknown = null, authReady = false): string {
+function page(session: unknown = null, authReady = false, path = '/skills/trending'): string {
   const payload = JSON.stringify([
     { state: 1 },
     { '$snuxt-session': 2, '$snuxt-auth-ready': 3 },
     session,
     authReady,
   ])
-  return `<html><head><script>window.__NUXT__={};window.__NUXT__.config={public:{auth:{loadStrategy:"client-only"}}}</script></head>`
+  return `<html><head><title>Trending ${path}</title><link rel="canonical" href="https://skilld.dev${path}"><script>window.__NUXT__={};window.__NUXT__.config={public:{auth:{loadStrategy:"client-only"}}}</script></head>`
     + `<body><h1>Trending</h1><script type="application/json" data-nuxt-data="nuxt-app" data-ssr="true" id="__NUXT_DATA__">${payload}</script></body></html>`
 }
 
@@ -23,7 +23,7 @@ interface Answer {
   body?: string
 }
 
-function response(answer: Answer): Response {
+function response(answer: Answer, path = '/skills/trending'): Response {
   const headers = new Headers({
     'content-type': 'text/html;charset=utf-8',
     'vary': 'Accept, Sec-Fetch-Dest',
@@ -31,7 +31,7 @@ function response(answer: Answer): Response {
   })
   for (const cookie of answer.cookies ?? [])
     headers.append('set-cookie', cookie)
-  return new Response(answer.body ?? page(), { status: answer.status ?? 200, headers })
+  return new Response(answer.body ?? page(null, false, path), { status: answer.status ?? 200, headers })
 }
 
 /**
@@ -49,18 +49,18 @@ function edge(overrides: Partial<Record<'anonymous' | 'markdown' | 'session', (p
         status: 307,
         headers: { location: `${pathname}.md` },
         body: '',
-      })
+      }, path)
     }
     if (headers.get('cookie')) {
       return response(overrides.session?.(path, 0) ?? {
         headers: { 'cf-cache-status': 'HIT' },
-      })
+      }, path)
     }
     const count = (seen.get(path) ?? 0) + 1
     seen.set(path, count)
     return response(overrides.anonymous?.(path, count) ?? {
       headers: { 'cf-cache-status': count === 1 ? 'MISS' : 'HIT' },
-    })
+    }, path)
   }
 }
 
@@ -78,6 +78,42 @@ describe('checkEdgeCache', () => {
         { path: '/skills/trending', cacheStatuses: ['MISS', 'HIT'] },
         { path: '/skills/trending?range=all', cacheStatuses: ['MISS', 'HIT'] },
       ],
+    })
+  })
+
+  it('fails when two boards render one page, as a cache key that ignores the query string would', async () => {
+    const paths = ['/skills/trending', '/skills/trending?range=month', '/skills/trending?range=all']
+    const result = await run(edge({
+      anonymous: (_path, count) => ({ body: page(null, false, '/skills/trending'), headers: { 'cf-cache-status': count === 1 ? 'MISS' : 'HIT' } }),
+    }), paths)
+
+    expect(result).toMatchObject({
+      _tag: 'failed',
+      failures: [{ _tag: 'shared-cache-entry', paths }],
+    })
+  })
+
+  it('retries a transient non-200 once before it fails a board', async () => {
+    const inner = edge()
+    let failedOnce = false
+    const result = await run(async (url, init) => {
+      const headers = new Headers(init.headers)
+      if (!failedOnce && !headers.get('cookie') && headers.get('accept') !== 'text/markdown') {
+        failedOnce = true
+        return response({ status: 503 })
+      }
+      return inner(url, init)
+    })
+
+    expect(result._tag).toBe('passed')
+  })
+
+  it('fails a board that answers non-200 twice', async () => {
+    const result = await run(edge({ anonymous: () => ({ status: 503 }) }))
+
+    expect(result).toMatchObject({
+      _tag: 'failed',
+      failures: [{ _tag: 'status', path: '/skills/trending', request: 'anonymous', expected: 200, actual: 503 }],
     })
   })
 
