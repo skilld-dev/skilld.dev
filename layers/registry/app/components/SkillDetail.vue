@@ -5,6 +5,7 @@ import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
+import { resolveSkillPageState } from '../utils/skill-page-state'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
@@ -790,9 +791,32 @@ const canonicalSkillPagePath = computed(() => {
   const canonical = duplicateGroup.value?.canonical
   return canonical?.registryPath ?? skillPagePath.value
 })
-const canonicalSkillPageUrl = computed(() => {
-  return `${siteOrigin}${canonicalSkillPagePath.value}`
+
+const pageState = computed(() => {
+  const skill = data.value
+  if (isMissingSkill.value)
+    return resolveSkillPageState({ _tag: 'missing' })
+  if (!skill)
+    return resolveSkillPageState({ _tag: error.value ? 'failed' : 'loading' })
+  return resolveSkillPageState({
+    _tag: 'loaded',
+    indexable: skill.seo.indexable,
+    sourceGone: skill.sourceGone,
+    registryPath: skill.registryPath,
+    duplicateCanonicalPath: isWeakerDuplicate.value ? canonicalSkillPagePath.value : null,
+  })
 })
+
+// Set the status while rendering on the server. A missing Skill keeps its
+// helpful page, but the response says 404 so Google drops the URL instead of
+// filing it as a soft 404.
+if (import.meta.server && pageState.value.status) {
+  const event = useRequestEvent()!
+  setResponseStatus(event, pageState.value.status)
+  // A 503 tells Google the failure is transient, so it retries the URL.
+  if (pageState.value.retryAfterSeconds)
+    useResponseHeader('Retry-After').value = String(pageState.value.retryAfterSeconds)
+}
 
 // 2026-08-22: the shared "A Claude Code skill for Cursor, Codex, and other
 // agents." suffix is gone. Identical boilerplate across 1,300+ meta
@@ -884,9 +908,7 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
-  robots: () => {
-    return data.value?.seo.indexable && !isWeakerDuplicate.value ? 'index,follow' : 'noindex,follow'
-  },
+  robots: () => pageState.value.robots ?? undefined,
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
@@ -894,12 +916,9 @@ useSeoMeta({
 })
 
 useHead(computed(() => ({
-  link: [
-    {
-      rel: 'canonical',
-      href: canonicalSkillPageUrl.value,
-    },
-  ],
+  link: pageState.value.canonicalPath
+    ? [{ rel: 'canonical', href: `${siteOrigin}${pageState.value.canonicalPath}` }]
+    : [],
 })))
 </script>
 
