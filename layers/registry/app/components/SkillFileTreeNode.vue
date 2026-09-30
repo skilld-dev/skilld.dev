@@ -22,6 +22,11 @@ const emit = defineEmits<{
 
 const open = ref(shouldAutoExpandFolder(props.node))
 
+function countFiles(node: TreeNode): number {
+  return node.kind === 'file' ? 1 : (node.children ?? []).reduce((sum, child) => sum + countFiles(child), 0)
+}
+const folderFileCount = computed(() => props.node.kind === 'dir' ? countFiles(props.node) : 0)
+
 const isActive = computed(() => {
   if (props.node.kind !== 'file')
     return false
@@ -78,6 +83,9 @@ function onInlineClick(event: MouseEvent) {
           aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
+        <span
+          class="tree-size"
+        >{{ folderFileCount }} {{ folderFileCount === 1 ? 'file' : 'files' }}</span>
       </button>
       <ul
         v-show="open"

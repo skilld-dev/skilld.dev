@@ -638,6 +638,16 @@ watch(
 // Programmatic open from the file tree. Markdown sub-docs reuse the server's
 // `marked` render via /api/skill-asset so every previewed document goes
 // through the same renderer as the SSR'd root SKILL.md.
+const viewerSection = useTemplateRef<HTMLElement>('viewerSection')
+
+// A file opened from deep inside a long document would otherwise start
+// mid-page. Only jump when the viewer top has scrolled out of view.
+function revealViewerTop() {
+  const section = viewerSection.value
+  if (section && section.getBoundingClientRect().top < 0)
+    section.scrollIntoView({ block: 'start' })
+}
+
 async function resolveAndOpen(path: string) {
   if (!data.value)
     return
@@ -649,6 +659,7 @@ async function resolveAndOpen(path: string) {
       activeDocPath.value = ''
       subDocHtml.value = null
       subDocRaw.value = null
+      revealViewerTop()
       return
     }
     const asset = await $fetch<{ status: 'ok', raw: string, html: string | null, type: 'markdown' | 'code' | 'image' | 'data' | 'other' }>(
@@ -663,6 +674,7 @@ async function resolveAndOpen(path: string) {
       return
     activeDocPath.value = path
     subDocRaw.value = asset.raw
+    revealViewerTop()
     const isMd = path.toLowerCase().endsWith('.md') || path.toLowerCase().endsWith('.markdown')
     subDocHtml.value = isMd ? asset.html : null
   }
@@ -1469,7 +1481,8 @@ useHead(computed(() => ({
         <div class="lg:col-span-8 space-y-10 md:space-y-12">
           <section
             v-if="data.contentHtml"
-            class="skill-content-section"
+            ref="viewerSection"
+            class="skill-content-section scroll-mt-20"
             aria-labelledby="content-heading"
           >
             <div class="skill-viewer-bar">
@@ -1847,7 +1860,7 @@ useHead(computed(() => ({
               <span
                 v-if="contextCost"
                 class="data-label"
-              >{{ contextCost.fileCount }} files · {{ formatByteSize(contextCost.totalBytes) }}</span>
+              >{{ contextCost.fileCount }} {{ contextCost.fileCount === 1 ? 'file' : 'files' }} · {{ formatByteSize(contextCost.totalBytes) }}</span>
             </div>
             <div class="rounded-lg border border-default p-1.5">
               <SkillFileTree
