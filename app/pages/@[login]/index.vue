@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrgProfile } from '#layers/registry/server/api/orgs/[owner].get'
+import { entityRobots } from '#shared/entity-robots'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { authorBadgeInput } from '../../utils/author-badge'
 
@@ -202,7 +203,7 @@ useSeoMeta({
   description: () => `${skills.value.length} ${skills.value.length === 1 ? 'skill' : 'skills'} and ${collections.value.length} ${collections.value.length === 1 ? 'collection' : 'collections'} from @${login.value} on skilld.`,
   ogUrl: canonicalUrl,
   // Owner decision 2026-10-01: profiles stay live and linked, never indexed.
-  robots: 'noindex,follow',
+  robots: entityRobots({ _tag: 'author-profile' }) ?? undefined,
 })
 
 useHead({

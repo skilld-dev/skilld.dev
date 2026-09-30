@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrgProfile } from '../../../../server/api/orgs/[owner].get'
+import { entityRobots } from '#shared/entity-robots'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { resolveOwnerProfileHandoff } from '../../../utils/owner-profile-handoff'
 
@@ -132,7 +133,7 @@ useSeoMeta({
   },
   ogUrl: canonicalUrl,
   // Owner hubs stay live and linked, never indexed (owner decision 2026-10-01).
-  robots: 'noindex,follow',
+  robots: entityRobots({ _tag: 'owner-hub' }) ?? undefined,
   twitterCard: 'summary_large_image',
 })
 

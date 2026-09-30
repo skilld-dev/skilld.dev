@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { entityRobots } from '#shared/entity-robots'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 
 const route = useRoute()
@@ -35,7 +36,7 @@ useSeoMeta({
   title: () => collection.value ? `${collection.value.name} · @${login.value}` : 'Collection',
   description: () => collection.value?.preamble ?? `Skill collection by @${login.value}`,
   // Owner decision 2026-10-01: collections stay live and linked, never indexed.
-  robots: 'noindex,follow',
+  robots: entityRobots({ _tag: 'collection' }) ?? undefined,
 })
 
 const canonicalUrl = computed(() => `https://skilld.dev/@${login.value}/${slug.value}`)

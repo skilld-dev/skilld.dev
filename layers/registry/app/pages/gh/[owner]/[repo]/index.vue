@@ -3,6 +3,7 @@ import type { OrgProfile } from '../../../../../server/api/orgs/[owner].get'
 import type { RepoSourceProfile } from '../../../../../server/api/repos/[owner]/[repo].get'
 import type { RepoHistoryResponse } from '../../../../../server/api/repos/[owner]/[repo]/history.get'
 import type { RepoRouteResolution } from '../../../../../server/api/repos/[owner]/[repo]/route-target.get'
+import { entityRobots } from '#shared/entity-robots'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { resolveMissingRepoRedirect } from '../../../../utils/missing-repo-recovery'
 import { parseRepoSkillSort, REPO_SKILL_SORT_OPTIONS, sortRepoSkills } from '../../../../utils/repo-skill-layout'
@@ -299,10 +300,8 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
-  // A multi-Skill hub is never indexed (owner decision 2026-10-01). A
-  // single-Skill hub renders SkillDetail, which sets its own robots from the
-  // trending admission rule and wins over this default.
-  robots: 'noindex,follow',
+  // One decision: a hub rendering SkillDetail leaves robots to the Skill page.
+  robots: () => entityRobots({ _tag: 'repo-hub', renderedAsSkill: flatSkillName.value !== null }) ?? undefined,
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
