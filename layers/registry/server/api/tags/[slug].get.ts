@@ -67,17 +67,6 @@ async function derivedTagCount(event: H3Event, db: D1Database, slug: string): Pr
   return Object.hasOwn(counts, slug) ? counts[slug]! : 0
 }
 
-// Curated indexability for derived tags (migration 0064). A derived tag earns
-// an indexable page only when a sub-agent audit ticked it (keep=1). Absent or
-// crossed → the page still renders for internal nav but is noindex + omitted
-// from the sitemap.
-async function tagDecisionKeep(db: D1Database, slug: string): Promise<boolean> {
-  const row = await db
-    .prepare(`SELECT keep FROM tag_decisions WHERE slug = ?`)
-    .bind(slug)
-    .first<{ keep: number }>()
-  return row?.keep === 1
-}
 
 export interface TagOwner {
   owner: string
@@ -151,7 +140,7 @@ async function buildTagProfile(event: H3Event, slug: string): Promise<TagProfile
               (SELECT o.name FROM owners o WHERE o.owner = s.owner) AS author_name
        FROM skills s
        JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-       WHERE ${NOT_BROKEN_SQL} AND (
+       WHERE s.source_resolved = 1 AND ${NOT_BROKEN_SQL} AND (
          (s.owner, s.repo, s.name) IN (SELECT owner, repo, name FROM skills_fts WHERE skills_fts MATCH ?)
          OR s.owner = ?
          OR EXISTS (
@@ -220,7 +209,8 @@ async function buildTagProfile(event: H3Event, slug: string): Promise<TagProfile
     .slice(0, 5)
     .map(([s, count]) => {
       const t = TAG_BY_SLUG.get(s)
-      return t ? { slug: t.slug, label: t.label, count } : null
+      // A redirected tag answers 301, and a page must not link to a 301.
+      return t && !getTagRedirect(t.slug) ? { slug: t.slug, label: t.label, count } : null
     })
     .filter((r): r is RelatedTag => r !== null)
 
@@ -230,7 +220,11 @@ async function buildTagProfile(event: H3Event, slug: string): Promise<TagProfile
   // topology audit). Controlled vocab no longer bypasses; the only path back
   // to indexable is an editorial keep=1 row for a vocab tag (see
   // __sitemap__/tags.ts). Page still renders for internal nav.
-  const indexable = await tagDecisionKeep(db, slug) && isControlledVocab
+  // 2026-09-30 experiment, gate 2026-11-11 (see trending-admission.ts): the
+  // eight `keep = 1` tag pages leave the index and the sitemap with everything
+  // else that is not a trending Skill. Cull path: revert this experiment's commit,
+  // which restores `tagDecisionKeep` and `__sitemap__/tags.ts`.
+  const indexable = false
 
   const profile: TagProfile = {
     tag: { slug: tag.slug, label: tag.label, description: tag.description },
@@ -253,7 +247,7 @@ const getCachedTagProfile = defineCachedFunction(
     maxAge: TAG_PROFILE_FRESH_SECONDS,
     staleMaxAge: TAG_PROFILE_STALE_SECONDS,
     swr: true,
-    getKey: (_event, slug: string, view: string) => `tag-origin:v2:${slug}:${view}`,
+    getKey: (_event, slug: string, view: string) => `tag-origin:v3:${slug}:${view}`,
     // nitropack 2.13.4 ignores staleMaxAge when swr is on: its default
     // validate only checks value presence, so a permanently failing refresh
     // (for example a tag whose skills were all deleted) would serve the last

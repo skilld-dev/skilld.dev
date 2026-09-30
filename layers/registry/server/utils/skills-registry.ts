@@ -886,12 +886,12 @@ export async function findRelatedSkills(
           AND repo_skills.repo = ?2
           AND repo_skills.source_resolved = 1
       ) AS repo_skill_count FROM (
-        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name != ?3 AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?4
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ?1 AND s.repo = ?2 AND s.name != ?3 AND s.source_resolved = 1 AND ${NOT_BROKEN_SQL} ORDER BY s.modified_at DESC, s.name ASC LIMIT ?4
       ) paged ORDER BY modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
     db
       .prepare(`SELECT paged.*, ${repoSkillCountSql('paged')} FROM (
-        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND ${NOT_BROKEN_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?
+        SELECT ${SELECT_SKILL_ROW_BASE} ${FROM_SKILLS_JOIN_REPOS} WHERE s.owner = ? AND NOT (s.repo = ?) AND s.name != ? AND s.source_resolved = 1 AND ${NOT_BROKEN_SQL} ORDER BY r.stars DESC, s.modified_at DESC, s.name ASC LIMIT ?
       ) paged ORDER BY stars DESC, modified_at DESC, name ASC`)
       .bind(owner, repo, excludeName, limit),
   ])

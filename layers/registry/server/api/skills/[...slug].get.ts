@@ -17,6 +17,7 @@ import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
+import { tagLinkPath } from '../../utils/tag-quality'
 import { isSkillIndexable, SKILL_INDEX_INPUT_COLUMNS_SQL } from '../../utils/trending-admission'
 
 interface FaqPayload { faqs: { question: string, answer: string }[] }
@@ -209,7 +210,7 @@ const skillDetailHandler = defineApiHandler({
 
     return cached({
       storage: useStorage('edge-cache'),
-      key: `skills:detail:v2:${slug.toLowerCase()}`,
+      key: `skills:detail:v3:${slug.toLowerCase()}`,
       ttlSeconds: DETAIL_CACHE_TTL,
       staleSeconds: DETAIL_CACHE_STALE_TTL,
       compute: () => loadSkillDetail(event, platform, slug),
@@ -289,6 +290,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   const tags = rawAiTags
     .map(s => TAG_BY_SLUG.get(s))
     .filter((t): t is NonNullable<typeof t> => Boolean(t))
+    .map(t => ({ ...t, path: tagLinkPath(t.slug) }))
   const knownTagSlugs = new Set(tags.map(t => t.slug))
   const keywords = rawAiTags.filter(t => !knownTagSlugs.has(t))
 

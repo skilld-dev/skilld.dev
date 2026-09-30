@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { unpublishedAgentPaths } from './layers/marketing/app/utils/agent-pages'
+import { frozenNoindexPaths } from './layers/marketing/app/utils/page-admissions'
 import pkg from './package.json'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
@@ -657,7 +658,7 @@ export default defineNuxtConfig({
       pages: {
         includeAppSources: true,
         // An /agents page waits on a CLI release; it answers 404 until then.
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths()],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/make-skill', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths(), ...frozenNoindexPaths()],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],
@@ -676,12 +677,9 @@ export default defineNuxtConfig({
       // but those pages render noindex,follow. Advertising noindex URLs in the
       // sitemap was the bulk of GSC "Crawled – currently not indexed" (~8k) and
       // the sitewide quality demotion. /orgs/* still 301s to /gh/* for link equity.
-      // `tags` now emits only editorial keep=1 vocab tags; the 274 auto-list
-      // tag pages went noindex 2026-08-22 (GOOGLE_RECOVERY.md, topology audit).
-      tags: {
-        sources: ['/api/__sitemap__/tags'],
-        includeAppSources: false,
-      },
+      // `tags` removed 2026-09-30 (SEO experiment, gate 2026-11-11): the eight
+      // keep=1 tag pages went noindex with every non-trending page. Cull path:
+      // revert the experiment commit, which restores `__sitemap__/tags.ts`.
     },
   },
 

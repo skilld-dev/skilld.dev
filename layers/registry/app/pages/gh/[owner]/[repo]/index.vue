@@ -299,7 +299,11 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
-  robots: () => repoSource.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
+  // The API decides `seoIndexable` from the route identity. `repoSource` is null
+  // for a renamed repository, whose GitHub identity differs from the registry
+  // route, so reading it here made `/gh/hyf0/vue-skills` noindex while the
+  // sitemap listed it. Read the fetched value directly.
+  robots: () => fetchedRepoSource.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
