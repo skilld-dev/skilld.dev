@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import SetupSnippet from '../components/_SetupSnippet.vue'
 import {
   cursorInstallUrl,
-  mcpClients,
-  mcpClientSchema,
+  mcpApps,
+  mcpAppSchema,
   REGISTRY_MCP_URL,
   setupModes,
   setupModeSchema,
@@ -17,8 +18,8 @@ const mode = computed(() => {
   const parsed = setupModeSchema.safeParse(route.query.setup)
   return parsed.success ? parsed.data : 'cli'
 })
-const client = computed(() => {
-  const parsed = mcpClientSchema.safeParse(route.query.client)
+const app = computed(() => {
+  const parsed = mcpAppSchema.safeParse(route.query.app)
   return parsed.success ? parsed.data : 'chatgpt'
 })
 
@@ -36,6 +37,10 @@ useSeoMeta({
 })
 useHead({ link: [{ rel: 'canonical', href: canonicalUrl }] })
 defineOgImage('Page.takumi', { title, description }, { alt: title })
+
+const stepClass = 'grid grid-cols-[2rem_minmax(0,1fr)] gap-x-3'
+const indexClass = 'pt-0.5 font-mono text-sm text-muted'
+const uiClass = 'font-medium text-default'
 </script>
 
 <template>
@@ -61,10 +66,18 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
           replace
           :aria-current="mode === key ? 'true' : undefined"
           class="flex min-h-20 flex-col gap-1 rounded-lg border p-4 transition-colors"
-          :class="mode === key ? 'border-primary' : 'border-default hover:border-[var(--ui-text-muted)]'"
+          :class="mode === key ? 'border-primary bg-elevated' : 'border-default hover:border-[var(--ui-text-muted)]'"
         >
-          <span class="flex items-baseline justify-between gap-3">
-            <span class="text-base font-medium">{{ item.label }}</span>
+          <span class="flex items-center justify-between gap-3">
+            <span class="flex items-center gap-2 text-base font-medium">
+              <UIcon
+                :name="mode === key ? 'i-lucide-circle-check' : 'i-lucide-circle'"
+                class="size-4 shrink-0"
+                :class="mode === key ? 'text-primary' : 'text-muted'"
+                aria-hidden="true"
+              />
+              {{ item.label }}
+            </span>
             <span class="data-label">{{ item.hint }}</span>
           </span>
           <span class="text-sm text-muted">{{ item.detail }}</span>
@@ -77,8 +90,8 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
         Set up the CLI
       </h2>
       <ol class="mt-6 list-none space-y-10 p-0">
-        <li class="setup-step">
-          <span class="setup-step__index" aria-hidden="true">01</span>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">01</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
               Install the skilld Skill
@@ -86,7 +99,7 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
             <p class="mt-2 text-sm leading-relaxed text-muted">
               The skilld Skill teaches your Agent to search, run, and install Skills with the CLI. skilld writes it where your Agent reads Skills. Start a new session after the install.
             </p>
-            <SetupSnippet class="mt-3" :code="setupSnippets.skilldSkill" label="install command" lang="sh" />
+            <SetupSnippet class="mt-3" :code="setupSnippets.skilldSkill" label="install command" format="skilld" />
             <UButton
               :to="SKILLD_SKILL_SOURCE"
               target="_blank"
@@ -97,20 +110,20 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
             />
           </div>
         </li>
-        <li class="setup-step">
-          <span class="setup-step__index" aria-hidden="true">02</span>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">02</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
-              Ask your Agent
+              Ask your agent
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
               Ask in plain words. Your Agent searches the registry, then runs the Skill for this session. A run writes nothing to your project.
             </p>
-            <SetupSnippet class="mt-3" :code="setupSnippets.cliPrompt" label="example prompt" wrap />
+            <SetupSnippet class="mt-3" :code="setupSnippets.cliPrompt" label="example prompt" />
           </div>
         </li>
-        <li class="setup-step">
-          <span class="setup-step__index" aria-hidden="true">03</span>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">03</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
               Keep the Skills you use
@@ -128,8 +141,8 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
         Add the MCP server
       </h2>
       <ol class="mt-6 list-none space-y-10 p-0">
-        <li class="setup-step">
-          <span class="setup-step__index" aria-hidden="true">01</span>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">01</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
               Copy the server URL
@@ -140,38 +153,36 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
             <SetupSnippet class="mt-3" :code="REGISTRY_MCP_URL" label="server URL" />
           </div>
         </li>
-        <li class="setup-step">
-          <span class="setup-step__index" aria-hidden="true">02</span>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">02</span>
           <div class="min-w-0">
-            <h3 id="mcp-client-heading" class="text-base font-medium">
-              Add it to your client
+            <h3 id="mcp-app-heading" class="text-base font-medium">
+              Add it where you work
             </h3>
-            <!-- The border rides on the wrapper: the nav scrolls sideways, which would clip a tab's -mb-px underline. -->
-            <div class="mt-3 border-b border-default">
-              <nav
-                aria-labelledby="mcp-client-heading"
-                class="flex gap-4 overflow-x-auto"
+            <!-- Tabs wrap to a second line instead of scrolling, so none hides off screen on a phone. -->
+            <nav
+              aria-labelledby="mcp-app-heading"
+              class="mt-3 flex flex-wrap gap-x-4 border-b border-default"
+            >
+              <NuxtLink
+                v-for="(item, key) in mcpApps"
+                :key="key"
+                :to="{ query: { setup: 'mcp', app: key } }"
+                replace
+                :aria-current="app === key ? 'true' : undefined"
+                class="-mb-px flex min-h-11 items-center border-b-2 font-mono text-xs whitespace-nowrap transition-colors"
+                :class="app === key ? 'border-primary text-default' : 'border-transparent text-muted hover:text-default'"
               >
-                <NuxtLink
-                  v-for="(item, key) in mcpClients"
-                  :key="key"
-                  :to="{ query: { setup: 'mcp', client: key } }"
-                  replace
-                  :aria-current="client === key ? 'true' : undefined"
-                  class="flex min-h-11 shrink-0 items-center border-b-2 font-mono text-xs whitespace-nowrap transition-colors"
-                  :class="client === key ? 'border-primary text-default' : 'border-transparent text-muted hover:text-default'"
-                >
-                  {{ item.label }}
-                </NuxtLink>
-              </nav>
-            </div>
+                {{ item.label }}
+              </NuxtLink>
+            </nav>
 
             <div class="mt-5 text-sm leading-relaxed text-muted">
-              <template v-if="client === 'chatgpt'">
-                <ol class="setup-substeps">
-                  <li>Open <strong class="setup-ui">Settings &gt; Security and login</strong>, then turn on <strong class="setup-ui">Developer mode</strong>.</li>
-                  <li>Open <strong class="setup-ui">ChatGPT Plugins</strong> and select <strong class="setup-ui">+</strong>. Name the app skilld, paste the server URL, and choose <strong class="setup-ui">No Authentication</strong>.</li>
-                  <li>In a chat, open the <strong class="setup-ui">+</strong> menu, choose <strong class="setup-ui">Developer mode</strong>, and select skilld.</li>
+              <template v-if="app === 'chatgpt'">
+                <ol class="list-decimal space-y-2 pl-5">
+                  <li>Open <strong :class="uiClass">Settings &gt; Security and login</strong>, then turn on <strong :class="uiClass">Developer mode</strong>.</li>
+                  <li>Open <strong :class="uiClass">ChatGPT Plugins</strong> and select <strong :class="uiClass">+</strong>. Name the app skilld, paste the server URL, and choose <strong :class="uiClass">No Authentication</strong>.</li>
+                  <li>In a chat, open the <strong :class="uiClass">+</strong> menu, choose <strong :class="uiClass">Developer mode</strong>, and select skilld.</li>
                 </ol>
                 <p class="mt-4">
                   Developer mode needs a Plus, Pro, Business, Enterprise, or Education plan, on the web.
@@ -179,11 +190,11 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
                 </p>
               </template>
 
-              <template v-else-if="client === 'claude'">
-                <ol class="setup-substeps">
-                  <li>Open <a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener" class="setup-ui underline underline-offset-2">Customize &gt; Connectors</a> in claude.ai or the Claude desktop app.</li>
-                  <li>Select <strong class="setup-ui">Add custom connector</strong>. Name it skilld and paste the server URL. If Claude asks about authentication, choose <strong class="setup-ui">No sign-in</strong>.</li>
-                  <li>In a chat, open the <strong class="setup-ui">+</strong> menu, select <strong class="setup-ui">Connectors</strong>, and check that skilld is on.</li>
+              <template v-else-if="app === 'claude'">
+                <ol class="list-decimal space-y-2 pl-5">
+                  <li>Open <a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener" :class="uiClass" class="underline underline-offset-2">Customize &gt; Connectors</a> in claude.ai or the Claude desktop app.</li>
+                  <li>Select <strong :class="uiClass">Add custom connector</strong>. Name it skilld and paste the server URL. If Claude asks about authentication, choose <strong :class="uiClass">No sign-in</strong>.</li>
+                  <li>In a chat, open the <strong :class="uiClass">+</strong> menu, select <strong :class="uiClass">Connectors</strong>, and check that skilld is on.</li>
                 </ol>
                 <p class="mt-4">
                   Every plan can add a custom connector. The Free plan allows one. On a Team or Enterprise plan, an Owner adds it for the organization first.
@@ -191,28 +202,28 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
                 </p>
               </template>
 
-              <template v-else-if="client === 'claude-code'">
+              <template v-else-if="app === 'claude-code'">
                 <p>The skilld plugin adds the MCP server and the skilld Skill together. Run these in Claude Code:</p>
                 <SetupSnippet class="mt-3" :code="setupSnippets.claudeCodePlugin" label="plugin commands" />
                 <p class="mt-5">
                   To add only the MCP server, run this in your terminal. Add <code class="font-mono text-xs text-default">--scope project</code> to share it with your team through <code class="font-mono text-xs text-default">.mcp.json</code>.
                 </p>
-                <SetupSnippet class="mt-3" :code="setupSnippets.claudeCodeMcp" label="Claude Code command" lang="sh" />
+                <SetupSnippet class="mt-3" :code="setupSnippets.claudeCodeMcp" label="Claude Code command" />
               </template>
 
-              <template v-else-if="client === 'codex'">
+              <template v-else-if="app === 'codex'">
                 <p>Run this in your terminal:</p>
-                <SetupSnippet class="mt-3" :code="setupSnippets.codexMcp" label="Codex command" lang="sh" />
+                <SetupSnippet class="mt-3" :code="setupSnippets.codexMcp" label="Codex command" />
                 <p class="mt-5">
                   Or add it to <code class="font-mono text-xs text-default">~/.codex/config.toml</code>:
                 </p>
-                <SetupSnippet class="mt-3" :code="setupSnippets.codexToml" label="Codex config" lang="toml" />
+                <SetupSnippet class="mt-3" :code="setupSnippets.codexToml" label="Codex config" format="toml" />
                 <p class="mt-4">
                   Run <code class="font-mono text-xs text-default">/mcp</code> in Codex to check the connection.
                 </p>
               </template>
 
-              <template v-else-if="client === 'cursor'">
+              <template v-else-if="app === 'cursor'">
                 <UButton
                   :to="cursorInstallUrl()"
                   external
@@ -223,10 +234,10 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
                 <p class="mt-5">
                   Or add it to <code class="font-mono text-xs text-default">~/.cursor/mcp.json</code>, or to <code class="font-mono text-xs text-default">.cursor/mcp.json</code> in your project:
                 </p>
-                <SetupSnippet class="mt-3" :code="setupSnippets.cursorJson" label="Cursor config" lang="json" />
+                <SetupSnippet class="mt-3" :code="setupSnippets.cursorJson" label="Cursor config" format="json" />
               </template>
 
-              <template v-else-if="client === 'vscode'">
+              <template v-else-if="app === 'vscode'">
                 <UButton
                   :to="vscodeInstallUrl()"
                   external
@@ -237,26 +248,26 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
                 <p class="mt-5">
                   Or run this in your terminal:
                 </p>
-                <SetupSnippet class="mt-3" :code="setupSnippets.vscodeCli" label="VS Code command" lang="sh" />
+                <SetupSnippet class="mt-3" :code="setupSnippets.vscodeCli" label="VS Code command" />
               </template>
 
               <template v-else>
-                <p>Most MCP clients take an entry like this one. If your client asks for a transport, choose streamable HTTP.</p>
-                <SetupSnippet class="mt-3" :code="setupSnippets.genericJson" label="MCP config" lang="json" />
+                <p>Most apps that speak MCP take an entry like this one. If your app asks for a transport, choose streamable HTTP.</p>
+                <SetupSnippet class="mt-3" :code="setupSnippets.genericJson" label="MCP config" format="json" />
               </template>
             </div>
           </div>
         </li>
-        <li class="setup-step">
-          <span class="setup-step__index" aria-hidden="true">03</span>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">03</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
-              Ask your Agent
+              Ask your agent
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
               The server returns the run command and the install command for each Skill. It never runs or installs a Skill. You choose what runs.
             </p>
-            <SetupSnippet class="mt-3" :code="setupSnippets.mcpPrompt" label="example prompt" wrap />
+            <SetupSnippet class="mt-3" :code="setupSnippets.mcpPrompt" label="example prompt" />
           </div>
         </li>
       </ol>
@@ -282,32 +293,3 @@ defineOgImage('Page.takumi', { title, description }, { alt: title })
     </section>
   </div>
 </template>
-
-<style scoped>
-.setup-step {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
-  column-gap: 0.75rem;
-}
-
-.setup-step__index {
-  padding-top: 0.125rem;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  color: var(--ui-text-muted);
-}
-
-.setup-substeps {
-  list-style: decimal;
-  padding-left: 1.25rem;
-}
-
-.setup-substeps > li + li {
-  margin-top: 0.5rem;
-}
-
-.setup-ui {
-  font-weight: 500;
-  color: var(--ui-text);
-}
-</style>

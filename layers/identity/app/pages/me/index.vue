@@ -10,6 +10,7 @@ import type {
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { accountDeletionConfirmed } from '../../../shared/contracts/account'
+import AgentSetupCard from '../../components/_AgentSetupCard.vue'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 

@@ -619,7 +619,7 @@ function selectOwner(next: string) {
       </nav>
 
       <p class="mt-10 border-t border-default pt-6 text-sm text-muted">
-        Search from your Agent instead.
+        Search from your agent instead.
         <NuxtLink to="/developers?setup=mcp" class="text-default underline underline-offset-2 hover:text-primary">
           Add the skilld MCP server
         </NuxtLink>

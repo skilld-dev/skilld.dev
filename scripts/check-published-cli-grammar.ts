@@ -22,6 +22,7 @@ import {
   collectionInstallCmd,
   curatorInstallCmd,
   gitInstallCmd,
+  skilldSelfInstallCmd,
   skillInstallCmd,
   skillRunCmd,
 } from '../shared/skill-commands'
@@ -114,6 +115,7 @@ export function cliRequirement(): CliRequirement {
     collectionInstallCmd('login', 'slug'),
     skillRunCmd('owner', 'repo', 'skill'),
     skillInstallCmd('owner', 'repo', 'skill'),
+    skilldSelfInstallCmd(),
     ...copyCommands(readFileSync(BRAND_GUIDELINES_URL, 'utf8')),
   ])
 }

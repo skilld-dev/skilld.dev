@@ -62,3 +62,8 @@ export function skillRunCmd(owner: string, repo: string, skill: string): string 
 export function skillInstallCmd(owner: string, repo: string, skill: string): string {
   return `${CLI_PREFIX} install ${skillRef(owner, repo, skill)}`
 }
+
+/** Installs the skilld-maintained skilld Skill, which teaches an Agent to drive the CLI. */
+export function skilldSelfInstallCmd(): string {
+  return `${CLI_PREFIX} install skilld --global`
+}

@@ -1,6 +1,6 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { beforeEach, describe, expect, it } from 'vitest'
-import AgentSetupCard from '../../layers/identity/app/components/AgentSetupCard.vue'
+import AgentSetupCard from '../../layers/identity/app/components/_AgentSetupCard.vue'
 
 describe('agentSetupCard', () => {
   beforeEach(() => {
@@ -12,7 +12,7 @@ describe('agentSetupCard', () => {
     const wrapper = await mountSuspended(AgentSetupCard)
     expect(wrapper.find('a[href="/developers"]').exists()).toBe(true)
 
-    await wrapper.get('button[aria-label="Close Agent setup"]').trigger('click')
+    await wrapper.get('button[aria-label="Close agent setup"]').trigger('click')
 
     expect(wrapper.find('[data-testid="agent-setup-card"]').exists()).toBe(false)
     expect(document.cookie).toContain('agent_setup_dismissed=true')

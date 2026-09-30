@@ -1,9 +1,10 @@
 import { z } from 'zod'
+import { skilldSelfInstallCmd } from '#shared/skill-commands'
 
 /** The discovery MCP server. `nuxt.config.ts` mounts it at `mcp.route`. */
 export const REGISTRY_MCP_URL = 'https://skilld.dev/api/mcp'
 
-/** The key every client config files the server under. */
+/** The key every app's config files the server under. */
 const SERVER_NAME = 'skilld'
 
 /** The skilld-maintained Skill that `npx skilld install skilld` writes. */
@@ -13,31 +14,29 @@ export const setupModes = {
   cli: {
     label: 'CLI',
     hint: 'Recommended',
-    detail: 'For coding Agents with a terminal.',
+    detail: 'For coding agents with a terminal.',
   },
   mcp: {
     label: 'MCP server',
     hint: 'No terminal',
-    detail: 'For ChatGPT, Claude, and other MCP clients.',
+    detail: 'For ChatGPT, Claude, and any app that speaks MCP.',
   },
 } as const
 
 export const setupModeSchema = z.enum(['cli', 'mcp'])
-export type SetupMode = z.infer<typeof setupModeSchema>
 
 /** Alphabetical, so no vendor leads (VISION principle 6). */
-export const mcpClients = {
+export const mcpApps = {
   'chatgpt': { label: 'ChatGPT' },
   'claude': { label: 'Claude' },
   'claude-code': { label: 'Claude Code' },
   'codex': { label: 'Codex' },
   'cursor': { label: 'Cursor' },
   'vscode': { label: 'VS Code' },
-  'other': { label: 'Other clients' },
+  'other': { label: 'Other apps' },
 } as const
 
-export const mcpClientSchema = z.enum(['chatgpt', 'claude', 'claude-code', 'codex', 'cursor', 'vscode', 'other'])
-export type McpClient = z.infer<typeof mcpClientSchema>
+export const mcpAppSchema = z.enum(['chatgpt', 'claude', 'claude-code', 'codex', 'cursor', 'vscode', 'other'])
 
 /** Cursor's install link carries the server config as base64 JSON, without the name. */
 export function cursorInstallUrl(url: string = REGISTRY_MCP_URL): string {
@@ -50,12 +49,12 @@ export function vscodeInstallUrl(url: string = REGISTRY_MCP_URL): string {
   return `vscode:mcp/install?${encodeURIComponent(vscodeServerJson(url))}`
 }
 
-export function vscodeServerJson(url: string = REGISTRY_MCP_URL): string {
+function vscodeServerJson(url: string = REGISTRY_MCP_URL): string {
   return JSON.stringify({ name: SERVER_NAME, type: 'http', url })
 }
 
 export const setupSnippets = {
-  skilldSkill: 'npx skilld install skilld --global',
+  skilldSkill: skilldSelfInstallCmd(),
   cliPrompt: 'Use skilld to find a Skill for Tailwind CSS, then run it.',
   mcpPrompt: 'Search skilld for a Skill for Tailwind CSS and give me the run command.',
   claudeCodePlugin: '/plugin marketplace add skilld-dev/skilld\n/plugin install skilld@skilld',

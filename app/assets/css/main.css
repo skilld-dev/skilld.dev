@@ -132,6 +132,11 @@
   overflow-wrap: anywhere;
 }
 
+/* Browsers may break after a hyphen, which split `--global` into `--` and `global`. */
+.install-command--wrap .install-command__flag {
+  white-space: nowrap;
+}
+
 .install-command__runner,
 .install-command__sub,
 .install-command__flag {

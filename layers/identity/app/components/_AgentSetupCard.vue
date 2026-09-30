@@ -17,14 +17,14 @@ const dismissed = useCookie<boolean>('agent_setup_dismissed', {
   >
     <div class="flex items-start justify-between gap-3">
       <h2 id="agent-setup-heading" class="text-lg font-semibold">
-        Search from your Agent
+        Search from your agent
       </h2>
       <UButton
         icon="i-lucide-x"
         color="neutral"
         variant="ghost"
         class="-mt-2 -mr-2 min-h-11 min-w-11 shrink-0"
-        aria-label="Close Agent setup"
+        aria-label="Close agent setup"
         @click="dismissed = true"
       />
     </div>
@@ -33,7 +33,7 @@ const dismissed = useCookie<boolean>('agent_setup_dismissed', {
     </p>
     <UButton
       to="/developers"
-      label="Set up your Agent"
+      label="Set up your agent"
       trailing-icon="i-lucide-arrow-right"
       color="neutral"
       variant="outline"
