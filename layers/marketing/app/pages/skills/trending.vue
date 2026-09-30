@@ -3,6 +3,7 @@ import type { TrendingFeedResponse, TrendingSkillFeedItem } from '~~/server/api/
 import type { AdmittedSkillsResponse } from '#layers/registry/server/api/skills/admitted.get'
 import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skills/leaderboard.get'
 import type { TrendingBoardRow } from '#shared/trending-range'
+import { setResponseHeaders } from 'h3'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { relativeDay, trendingBasis, trendingOtherPosters } from '#shared/trending-basis'
 import {
@@ -77,6 +78,13 @@ const { data, error, refresh } = await useAsyncData<BoardSource>(
   },
   { watch: [range] },
 )
+
+// A failed board must not enter the edge cache, which would keep serving it.
+if (import.meta.server && error.value) {
+  const event = useRequestEvent()
+  if (event)
+    setResponseHeaders(event, { 'cloudflare-cdn-cache-control': 'no-store', 'cache-control': 'private, no-store' })
+}
 
 const feed = computed(() => (data.value?._tag === 'feed' ? data.value.feed : null))
 const leaderboard = computed(() => (data.value?._tag === 'all' ? data.value.leaderboard : null))
