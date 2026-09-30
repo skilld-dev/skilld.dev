@@ -235,6 +235,12 @@ watch(() => route.fullPath, () => {
 
         <template #right>
           <NuxtLink
+            to="/developers"
+            class="font-mono text-xs text-muted underline-offset-2 hover:underline hover:text-default"
+          >
+            Developers
+          </NuxtLink>
+          <NuxtLink
             to="/skills/stats"
             class="font-mono text-xs text-muted underline-offset-2 hover:underline hover:text-default"
           >
