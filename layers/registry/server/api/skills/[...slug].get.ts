@@ -283,6 +283,12 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
       status: 'ok',
     }
   }
+  else if (row.source_resolved === 0) {
+    // The sync says the SKILL.md is gone upstream, so a live render can only
+    // fail. Skills with no stored render were all in this state on 2026-09-30,
+    // and each page view cost up to seven failed GitHub reads (about 1,750).
+    rendered = { skillPath: null, raw: null, frontmatter: null, body: null, html: null, dependencies: [], status: 'path_missing' }
+  }
   else {
     rendered = await renderLive(event, {
       sourceOwner: source.owner,

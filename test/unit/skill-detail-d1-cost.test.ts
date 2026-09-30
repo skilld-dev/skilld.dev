@@ -42,7 +42,7 @@ beforeEach(() => {
   slug = `${OWNER}/${REPO}/alpha`
 })
 
-function seed(options: { maximumQueries?: number, renderedAt?: number | null, renderedStatus?: string | null } = {}) {
+function seed(options: { maximumQueries?: number, renderedAt?: number | null, renderedStatus?: string | null, sourceResolved?: number } = {}) {
   harness = createSqliteD1(allMigrations(), { maximumQueries: options.maximumQueries })
   const { raw } = harness
   raw.prepare(`INSERT INTO repos (owner, repo, stars) VALUES (?, ?, 42)`).run(OWNER, REPO)
@@ -53,13 +53,14 @@ function seed(options: { maximumQueries?: number, renderedAt?: number | null, re
     raw.prepare(
       `INSERT INTO skills (owner, repo, name, slug, display_name, source_resolved,
          rendered_skill_path, rendered_status, rendered_raw, rendered_html, rendered_at)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       OWNER,
       REPO,
       name,
       `${OWNER}/${name}`,
       name,
+      options.sourceResolved ?? 1,
       status ? `skills/${name}/SKILL.md` : null,
       status,
       status ? RAW : null,
@@ -137,6 +138,16 @@ describe('uncached skill detail render', () => {
 
     expect(body.contentHtml).toContain('Upstream body')
     expect(storedRender()).toEqual({ rendered_html: null, rendered_at: null })
+  })
+
+  it('never reads GitHub for a Skill whose source is gone upstream', async () => {
+    seed({ renderedStatus: null, sourceResolved: 0 })
+
+    const body = await render()
+
+    expect(rawFetch).not.toHaveBeenCalled()
+    expect(upstreamFetch).not.toHaveBeenCalled()
+    expect(body).toMatchObject({ sourceGone: true, contentHtml: null })
   })
 
   it('gives every live GitHub read a timeout', async () => {
