@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import type { TrendingFeedResponse, TrendingSkillFeedItem } from '~~/server/api/feed/trending.get'
+import type { TrendingFeedResponse, TrendingPostFeedItem } from '~~/server/api/feed/trending.get'
 import type { AdmittedSkillsResponse } from '#layers/registry/server/api/skills/admitted.get'
 import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skills/leaderboard.get'
-import type { TrendingBoardRow } from '#shared/trending-range'
+import type { TrendingBoardRow, TrendingPost } from '#shared/trending-range'
 import { setResponseHeaders } from 'h3'
-import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
-import { relativeDay, trendingBasis, trendingOtherPosters } from '#shared/trending-basis'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
+import { relativeDay } from '#shared/trending-post'
 import {
+  isEvidenced,
   leaderboardBoardRows,
   MIN_INDEXABLE_ROWS,
   monthStamp,
@@ -19,6 +20,7 @@ import {
   trendingRangeMeta,
   trendingRangeTitle,
 } from '#shared/trending-range'
+import TrendingBoardItem from '../../components/TrendingBoardItem.vue'
 import TrendingWeeklyCta from '../../components/TrendingWeeklyCta.vue'
 
 /**
@@ -172,7 +174,7 @@ const board = computed<TrendingBoardRow[]>(() => {
   const rows = leaderboard.value
     ? leaderboardBoardRows(leaderboard.value.items)
     : [
-        ...namedSkills.value.map(s => ({
+        ...namedSkills.value.map((s): TrendingBoardRow => ({
           key: s.registryPath,
           owner: s.owner,
           title: s.canonicalName,
@@ -180,18 +182,19 @@ const board = computed<TrendingBoardRow[]>(() => {
           subtitle: `${s.owner}/${s.repo}`,
           description: s.description,
           stars: s.stars,
-          basis: skillBasis(s),
-          when: s.evidence ? relativeDay(s.evidence.postedAt, clock.value) : null,
-          evidenceUrl: s.evidence?.url ?? null,
-          quote: s.evidence?.text ?? null,
-          platform: s.evidence?.platform ?? null,
-          handle: s.evidence?.authorHandle ?? null,
-          authorAvatar: s.evidence?.authorAvatar ?? null,
-          engagement: s.evidence?.favouriteCount ?? null,
-          otherPosters: trendingOtherPosters(s.authorCount, s.evidence !== null),
-          evidenced: true,
+          // `?? []` covers an edge-cached feed from before these fields
+          // existed, for the five minutes one can outlive a deploy.
+          starSeries: s.starSeries ?? [],
+          names: [s.name, s.canonicalName],
+          reason: s.evidence
+            ? { _tag: 'posts', posts: [s.evidence, ...(s.morePosts ?? [])].map(toPost) }
+            : s.starGain !== null
+              ? { _tag: 'surge', gain: s.starGain, when: s.starGainDay ? relativeDay(s.starGainDay, clock.value) : null }
+              : { _tag: 'filler' },
         })),
-        ...fallback.value.map(s => ({
+        // Filler says so. A popular repository shown because the socials were
+        // quiet must never pass for one that people posted about.
+        ...fallback.value.map((s): TrendingBoardRow => ({
           key: s.registryPath,
           owner: s.owner,
           title: s.canonicalName,
@@ -199,28 +202,28 @@ const board = computed<TrendingBoardRow[]>(() => {
           subtitle: `${s.owner}/${s.repo}`,
           description: s.description,
           stars: s.stars,
-          // Star growth where we measured it, which is the only "recently"
-          // claim a fallback entry can make. Absent, the row falls back to the
-          // weaker claim that put it here at all, rather than rendering an
-          // empty meta line that makes a filler row look like an evidenced one
-          // that lost its evidence.
-          basis: s.starsGained
-            ? `+${s.starsGained.toLocaleString()} stars this week`
-            : 'Popular on GitHub',
-          when: null,
-          evidenceUrl: null,
-          quote: null,
-          platform: null,
-          handle: null,
-          authorAvatar: null,
-          engagement: null,
-          otherPosters: null,
-          evidenced: false,
+          starSeries: s.starSeries ?? [],
+          names: [s.name, s.canonicalName],
+          reason: { _tag: 'filler' },
         })),
       ].slice(0, BOARD_LIMIT)
 
   return rows.filter(row => !missingAvatars.value.has(row.owner))
 })
+
+function toPost(post: TrendingPostFeedItem): TrendingPost {
+  return {
+    url: post.url,
+    text: post.text,
+    platform: post.platform,
+    handle: post.authorHandle,
+    // Optional until every cached feed response carries it.
+    authorName: post.authorName ?? null,
+    authorAvatar: post.authorAvatar,
+    likes: post.favouriteCount,
+    when: relativeDay(post.postedAt, clock.value),
+  }
+}
 
 const earlierRows = computed(() => {
   const onBoard = new Set(board.value.map(row => row.to))
@@ -248,7 +251,7 @@ const earlierPages = computed(() =>
  * available on any listing page, and letting filler earn indexability is
  * exactly how the catalog got suppressed in June.
  */
-const evidencedTotal = computed(() => board.value.filter(row => row.evidenced).length)
+const evidencedTotal = computed(() => board.value.filter(isEvidenced).length)
 const fillerTotal = computed(() => board.value.length - evidencedTotal.value)
 const isEmpty = computed(() => board.value.length === 0)
 const showWeeklyCta = computed(() => !receivingWeekly.value && !isEmpty.value && !error.value)
@@ -289,10 +292,9 @@ const boardMeta = computed(() => {
       parts.push(`stars checked ${starsSyncedOn.value}`)
     return parts.join(' · ')
   }
-  const parts = [`${board.value.length} skills`]
-  if (rangeWindow.value)
-    parts.push(rangeWindow.value)
-  return parts.join(' · ')
+  // No row count here. The feed board almost always holds its full thirty, and
+  // a number that never changes tells a reader nothing; the ranks count.
+  return rangeWindow.value
 })
 
 /**
@@ -358,19 +360,6 @@ defineOgImage('Page.takumi', {
     : 'What developers are actually posting about right now.'),
 }, { alt: () => `${meta.value.heading} on skilld` })
 
-function skillBasis(skill: TrendingSkillFeedItem): string | null {
-  return trendingBasis({
-    authorCount: skill.authorCount,
-    starGain: skill.starGain,
-    starGainDay: skill.starGainDay,
-    hasEvidence: skill.evidence !== null,
-  }, clock.value)
-}
-
-function likesLabel(count: number): string {
-  return `${count.toLocaleString()} ${count === 1 ? 'like' : 'likes'}`
-}
-
 function formatDay(timestamp: number | null): string | null {
   if (!timestamp)
     return null
@@ -383,20 +372,24 @@ function formatDay(timestamp: number | null): string | null {
 }
 
 /**
- * Quiet emphasis for the head of the board.
+ * Rows above the weekly invitation on narrow screens.
  *
- * A leaderboard wants its top entries to read first. Type scale is not
- * available for that here: `DESIGN.md` reserves large type for page
- * headings and lists "large font sizes in UI chrome" under Avoid. Contrast is,
- * so the top three ranks step up and nothing moves.
- *
- * 2026-09-04: the step is opacity rather than a text colour, because the rank
- * now carries the brand's rose ink and its dot-grid print, the same numerals
- * the homepage uses. The mechanism is unchanged: three entries read first.
+ * Wide screens carry the invitation beside the page heading. Narrow ones have
+ * no beside, and above the board it pushed the first Skill below the fold, so
+ * it waits until a reader has seen the head of the board.
  */
-function rankClass(index: number): string {
-  return index < 3 ? 'ledger-rank--lead' : ''
+const HEAD_ROWS = 5
+
+interface BoardChunk {
+  /** One-based rank of the chunk's first row, for the `<ol start>`. */
+  start: number
+  rows: TrendingBoardRow[]
 }
+
+const boardChunks = computed<BoardChunk[]>(() => [
+  { start: 1, rows: board.value.slice(0, HEAD_ROWS) },
+  { start: HEAD_ROWS + 1, rows: board.value.slice(HEAD_ROWS) },
+].filter(chunk => chunk.rows.length > 0))
 </script>
 
 <template>
@@ -405,195 +398,114 @@ function rankClass(index: number): string {
       :title="heading"
       :description="headerDescription"
       heading-id="trending-heading"
-    />
+    >
+      <!--
+        Beside the heading on wide screens, where the masthead had a blank
+        right half and the board lost a quarter of its width to a sidebar.
+        The server renders this page signed out for every visitor, so the
+        invitation keeps its space but stays invisible until the browser
+        knows who is looking; a weekly reader never sees it first.
+        `invisible` already hides it from assistive tech and the tab order, so
+        it carries no `aria-hidden`, which HTML validation rejects over a link.
+      -->
+      <template v-if="showWeeklyCta" #aside>
+        <div
+          class="trending-cta trending-cta--aside"
+          :class="{ invisible: auth._tag === 'pending' }"
+        >
+          <TrendingWeeklyCta layout="row" />
+        </div>
+      </template>
+    </CompactPageHeader>
 
     <section
-      class="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-16"
-      aria-labelledby="trending-list-heading"
+      class="mx-auto max-w-5xl px-4 py-8 sm:px-6 md:py-10"
+      aria-labelledby="trending-heading"
     >
-      <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <!--
-          The visible label is the heading, per DESIGN.md, rather
-          than a label stacked under a screen-reader-only one. The sr-only h2
-          here repeated the h1 word for word once the h1 took the category
-          noun, and on the all-time range it called a list of repositories
-          "Trending agent skills".
-        -->
-        <h2 id="trending-list-heading" class="section-label">
-          {{ meta.sectionLabel }}
-        </h2>
-        <p v-if="!isEmpty && !error" class="data-label">
-          {{ boardMeta }}
-        </p>
-      </div>
-
       <!--
         Real links, not a JS toggle. Each range is its own indexable document
         with its own canonical, so a crawler has to be able to follow one.
         Rendered above every state so a reader who lands on an empty range can
-        switch away from it.
+        switch away from it. No heading above it: the h1 already names the
+        board, and "Top skills" restated it with a word the glossary bans.
       -->
-      <nav class="range-switcher mt-4" aria-label="Time range">
-        <NuxtLink
-          v-for="option in TRENDING_RANGES"
-          :key="option.id"
-          :to="option.path"
-          class="range-link"
-          :class="{ 'range-link--current': option.id === range }"
-          :aria-current="option.id === range ? 'page' : undefined"
-        >
-          {{ option.label }}
-        </NuxtLink>
-      </nav>
+      <div class="board-toolbar">
+        <nav class="range-switcher" aria-label="Time range">
+          <NuxtLink
+            v-for="option in TRENDING_RANGES"
+            :key="option.id"
+            :to="option.path"
+            class="range-link"
+            :class="{ 'range-link--current': option.id === range }"
+            :aria-current="option.id === range ? 'page' : undefined"
+          >
+            {{ option.label }}
+          </NuxtLink>
+        </nav>
+        <p v-if="!isEmpty && !error && boardMeta" class="data-label">
+          {{ boardMeta }}
+        </p>
+      </div>
 
-      <div
-        class="trending-board-layout"
-        :class="{ 'trending-board-layout--with-cta': showWeeklyCta }"
-      >
-        <!--
-          The server renders this page signed out for every visitor. The
-          invitation keeps its column but stays invisible until the browser
-          knows who is looking, so a weekly reader never sees it first.
-        -->
-        <div
-          v-if="showWeeklyCta"
-          class="trending-board-cta"
-          :class="{ invisible: auth._tag === 'pending' }"
-          :aria-hidden="auth._tag === 'pending' ? 'true' : undefined"
-        >
-          <TrendingWeeklyCta />
-        </div>
+      <div v-if="error" class="editorial-state mt-6" role="alert">
+        <p class="font-medium">
+          Couldn't load the board.
+        </p>
+        <p class="mt-1 max-w-lg text-base leading-relaxed text-muted">
+          The ranking is unavailable right now. Check your connection and try again.
+        </p>
+        <UButton
+          label="Retry"
+          color="neutral"
+          variant="outline"
+          class="mt-4 min-h-11"
+          @click="() => refresh()"
+        />
+      </div>
 
-        <div class="trending-board-main">
-          <div v-if="error" class="editorial-state" role="alert">
-            <p class="font-medium">
-              Couldn't load the board.
-            </p>
-            <p class="mt-1 max-w-lg text-base leading-relaxed text-muted">
-              The ranking is unavailable right now. Check your connection and try again.
-            </p>
-            <UButton
-              label="Retry"
-              color="neutral"
-              variant="outline"
-              class="mt-4 min-h-11"
-              @click="() => refresh()"
-            />
-          </div>
-
-          <div v-else-if="isEmpty" class="editorial-state flex flex-col justify-center" role="status">
-            <template v-if="range === 'all'">
-              <p class="text-sm text-default">
-                No repositories have qualified yet.
-              </p>
-              <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
-                A repository appears here after a reviewer confirms its purpose and its skill inventory.
-              </p>
-            </template>
-            <template v-else>
-              <p class="text-sm text-default">
-                Nothing is trending yet.
-              </p>
-              <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
-                Skilld watches X and Bluesky for posts mentioning a skill, and GitHub for repositories
-                holding a single skill whose stars surge. Neither has anything to report in this range.
-              </p>
-            </template>
-            <div class="mt-4">
-              <UButton to="/skills" label="Browse the directory" color="neutral" variant="outline" class="min-h-11" />
-            </div>
-          </div>
-
-          <ol v-else class="editorial-ledger list-none p-0">
-            <li v-for="(row, index) in board" :key="row.key">
-              <div class="ledger-row">
-                <span class="ledger-rank" :class="rankClass(index)">{{ String(index + 1).padStart(2, '0') }}</span>
-                <img
-                  :src="githubAvatarProxyUrl(row.owner, 80)"
-                  alt=""
-                  width="40"
-                  height="40"
-                  class="size-10 shrink-0 rounded-full border border-default bg-muted"
-                  loading="lazy"
-                  decoding="async"
-                  @error="onAvatarError(row.owner)"
-                >
-                <div class="min-w-0 flex-1">
-                  <span class="flex flex-wrap items-baseline gap-x-2">
-                    <NuxtLink
-                      :to="row.to"
-                      class="font-medium text-default transition-opacity [overflow-wrap:anywhere] hover:opacity-70"
-                    >
-                      {{ row.title }}
-                    </NuxtLink>
-                    <span v-if="row.subtitle" class="font-mono text-xs text-muted">{{ row.subtitle }}</span>
-                    <span v-if="row.stars" class="font-mono text-xs text-muted tabular-nums">
-                      {{ `${row.stars.toLocaleString()} ★` }}
-                    </span>
-                  </span>
-                  <span v-if="row.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
-                    {{ row.description }}
-                  </span>
-                  <!--
-                    Rendered alongside the quote, never instead of it. A `both`
-                    row has to state its stars as well as its post. Other people
-                    who named it are counted in the post footer below.
-
-                    Above the quote, so everything the row itself asserts sits
-                    flush in one block and the one indented element is the thing
-                    somebody else said.
-                  -->
-                  <!--
-                    `when` rides here only when no quote follows. An evidenced row
-                    dates the post inside the quote, next to the handle that wrote
-                    it, because the date belongs to what that person said. An
-                    all-time row has no post, so its date is the repository's last
-                    push and belongs to the row itself.
-                  -->
-                  <span v-if="row.basis || (!row.evidenceUrl && row.when)" class="data-label mt-2 block">
-                    {{ row.basis }}<template v-if="row.basis && !row.evidenceUrl && row.when"> · </template><template v-if="!row.evidenceUrl && row.when">{{ row.when }}</template>
-                  </span>
-                  <a
-                    v-if="row.evidenceUrl"
-                    :href="row.evidenceUrl"
-                    rel="nofollow noopener"
-                    target="_blank"
-                    class="mt-2 block border-l border-default pl-3 hover:border-inverted"
-                  >
-                    <span class="line-clamp-2 text-sm leading-relaxed text-default">{{ row.quote }}</span>
-                    <span class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted">
-                      <svg
-                        class="size-3 shrink-0"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path v-if="row.platform === 'bsky'" d="M12 10.8C10.913 8.686 7.954 4.747 5.202 2.805 2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8" />
-                        <path v-else d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932zM17.61 20.644h2.039L6.486 3.24H4.298z" />
-                      </svg>
-                      <span v-if="row.authorAvatar" class="flex shrink-0">
-                        <img
-                          :src="avatarProxyUrl(row.authorAvatar)"
-                          alt=""
-                          width="16"
-                          height="16"
-                          class="size-4 rounded-full bg-muted object-cover"
-                          loading="lazy"
-                          decoding="async"
-                        >
-                      </span>
-                      <span>@{{ row.handle }}</span>
-                      <span v-if="row.when">{{ row.when }}</span>
-                      <span v-if="row.engagement" class="tabular-nums">{{ likesLabel(row.engagement) }}</span>
-                      <span v-if="row.otherPosters">{{ row.otherPosters }}</span>
-                    </span>
-                  </a>
-                </div>
-              </div>
-            </li>
-          </ol>
+      <div v-else-if="isEmpty" class="editorial-state mt-6 flex flex-col justify-center" role="status">
+        <template v-if="range === 'all'">
+          <p class="text-sm text-default">
+            No repositories have qualified yet.
+          </p>
+          <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
+            A repository appears here after a reviewer confirms its purpose and its skill inventory.
+          </p>
+        </template>
+        <template v-else>
+          <p class="text-sm text-default">
+            Nothing is trending yet.
+          </p>
+          <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
+            Skilld watches X and Bluesky for posts mentioning a skill, and GitHub for repositories
+            holding a single skill whose stars surge. Neither has anything to report in this range.
+          </p>
+        </template>
+        <div class="mt-4">
+          <UButton to="/skills" label="Browse the directory" color="neutral" variant="outline" class="min-h-11" />
         </div>
       </div>
+
+      <template v-else>
+        <template v-for="(chunk, chunkIndex) in boardChunks" :key="chunk.start">
+          <div
+            v-if="chunkIndex === 1 && showWeeklyCta"
+            class="trending-cta trending-cta--inline"
+            :class="{ invisible: auth._tag === 'pending' }"
+          >
+            <TrendingWeeklyCta />
+          </div>
+          <ol class="board-list editorial-ledger list-none p-0" :start="chunk.start">
+            <li v-for="(row, offset) in chunk.rows" :key="row.key">
+              <TrendingBoardItem
+                :row="row"
+                :rank="chunk.start + offset"
+                @avatar-error="onAvatarError"
+              />
+            </li>
+          </ol>
+        </template>
+      </template>
     </section>
 
     <section
@@ -602,21 +514,39 @@ function rankClass(index: number): string {
       aria-labelledby="earlier-heading"
     >
       <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6">
-        <h2 id="earlier-heading" class="text-2xl font-semibold tracking-tight">
+        <!--
+          An index, not a second board. These Skills already left the ranking,
+          so they sit smaller than it: three columns, one line of description,
+          no rank. Every entry is still a plain link, which is the list's job:
+          a crawler reaches each Skill the sitemap lists from here.
+        -->
+        <h2 id="earlier-heading" class="text-xl font-semibold tracking-tight">
           Earlier on this board
         </h2>
-        <ul class="editorial-ledger mt-6 list-none p-0">
-          <li v-for="item in earlierRows" :key="item.registryPath" class="py-3">
-            <NuxtLink
-              :to="item.registryPath"
-              class="font-medium text-default transition-opacity [overflow-wrap:anywhere] hover:opacity-70"
-            >
-              {{ item.name }}
+        <p class="data-label mt-1">
+          {{ `${admitted?.total ?? earlierRows.length} skills` }}
+        </p>
+        <ul class="earlier-index mt-6 list-none p-0">
+          <li v-for="item in earlierRows" :key="item.registryPath">
+            <NuxtLink :to="item.registryPath" class="earlier-entry">
+              <span class="earlier-entry__name">
+                <img
+                  :src="githubAvatarProxyUrl(item.owner, 32)"
+                  alt=""
+                  width="16"
+                  height="16"
+                  class="size-4 shrink-0 rounded-full bg-muted"
+                  loading="lazy"
+                  decoding="async"
+                >
+                <span class="truncate">{{ item.name }}</span>
+              </span>
+              <span class="earlier-entry__meta">
+                <span class="truncate">{{ item.owner }}/{{ item.repo }}</span>
+                <span v-if="item.stars" class="shrink-0 tabular-nums">{{ `${item.stars.toLocaleString()} ★` }}</span>
+              </span>
+              <span v-if="item.description" class="earlier-entry__description">{{ item.description }}</span>
             </NuxtLink>
-            <span class="ml-2 font-mono text-xs text-muted">{{ item.owner }}/{{ item.repo }}</span>
-            <span v-if="item.description" class="mt-1 line-clamp-2 block text-sm leading-relaxed text-muted">
-              {{ item.description }}
-            </span>
           </li>
         </ul>
         <nav
@@ -628,8 +558,8 @@ function rankClass(index: number): string {
             v-for="number in earlierPages"
             :key="number"
             :to="earlierPagePath(number)"
-            class="range-link"
-            :class="{ 'range-link--current': number === listPage }"
+            class="page-link"
+            :class="{ 'page-link--current': number === listPage }"
             :aria-current="number === listPage ? 'page' : undefined"
           >
             {{ number }}
@@ -668,117 +598,177 @@ function rankClass(index: number): string {
 </template>
 
 <style scoped>
-/*
- * Row separators come from `.editorial-ledger` alone.
- *
- * Both row classes used to carry their own `border-bottom` while sitting
- * inside `.editorial-ledger`, which already draws `border-block` on itself and
- * a `border-top` between children. Every row rendered two rules, and the last
- * row rendered a doubled bottom edge.
- */
-.ledger-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 1.25rem 0;
-}
-
-/*
- * No row-level hover here, unlike `/skills/best`.
- *
- * There the whole row is one link, so dimming the row states where a click
- * goes. Here the row holds two destinations, the skill and the post that named
- * it, and neither covers the row. A row-wide dim promised a click target that
- * does not exist, and it multiplied with the name link's own 0.7 whenever the
- * pointer was over the name, dropping it to 0.49 and reading as disabled.
- * Each target now dims only itself.
- */
-
-.ledger-rank {
-  font-family: var(--font-mono, monospace);
-  font-size: 1.125rem;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-primary);
-  opacity: 0.5;
-  padding-top: 0.7rem;
-  mask-image: radial-gradient(circle, #000 1.1px, transparent 1.4px);
-  mask-size: 3px 3px;
-}
-
-.ledger-rank--lead {
-  opacity: 0.9;
-}
-
-.range-switcher {
+.board-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 /*
- * Border-driven, mono, small: the same chrome vocabulary as every other
- * control on the site. The current range is marked by contrast alone, so
- * nothing moves and no accent is spent on navigation.
+ * One control with three positions, rather than three buttons. Mono and
+ * border-driven, like every other control on the site; the current range is
+ * marked by a raised surface, so nothing moves and no accent is spent on
+ * navigation.
  */
+.range-switcher {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--ui-border);
+  border-radius: calc(var(--ui-radius) + 0.25rem);
+}
+
 .range-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding-inline: 1rem;
+  border-radius: var(--ui-radius);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+  transition: color 200ms, background-color 200ms;
+}
+
+@media (hover: hover) {
+  .range-link:hover {
+    color: var(--ui-text);
+  }
+}
+
+.range-link--current {
+  background: var(--ui-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--ui-border);
+  color: var(--ui-text-highlighted);
+}
+
+/*
+ * Columns of hairline-divided entries rather than cards: more than six items
+ * read better as rows, and these are an index beside the board, not picks.
+ */
+.earlier-index {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  column-gap: 2rem;
+  margin: 0;
+}
+
+.earlier-index > li {
+  min-inline-size: 0;
+  border-top: 1px solid var(--ui-border);
+}
+
+.earlier-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-block-size: 2.75rem;
+  padding-block: 0.75rem;
+}
+
+.earlier-entry__name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  font-weight: 500;
+  color: var(--ui-text-highlighted);
+  transition: opacity 200ms;
+}
+
+@media (hover: hover) {
+  .earlier-entry:hover .earlier-entry__name {
+    opacity: 0.7;
+  }
+}
+
+.earlier-entry__meta {
+  display: flex;
+  gap: 0.625rem;
+  min-inline-size: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+
+.earlier-entry__description {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ui-text-muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.page-link {
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
   padding-inline: 0.875rem;
   border: 1px solid var(--ui-border);
-  border-radius: 0.5rem;
-  font-family: var(--font-mono, monospace);
+  border-radius: var(--ui-radius);
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--ui-text-muted);
   transition: color 200ms, border-color 200ms;
 }
 
 @media (hover: hover) {
-  .range-link:hover {
+  .page-link:hover {
     color: var(--ui-text);
     border-color: var(--ui-text-muted);
   }
 }
 
-.range-link--current {
+.page-link--current {
   color: var(--ui-text);
   border-color: var(--ui-text);
 }
 
-.trending-board-layout {
-  display: grid;
-  min-inline-size: 0;
-  gap: 2rem;
-  margin-top: 1.5rem;
-  align-items: start;
+.board-list {
+  margin: 0;
 }
 
-.trending-board-main {
-  min-inline-size: 0;
-}
-
-.trending-board-cta {
-  max-inline-size: 20rem;
+/*
+ * The two halves of one board. Where nothing shows between them, the second
+ * drops its top rule rather than doubling the first one's bottom: always when
+ * no invitation renders, and on wide screens, where it moves to the heading.
+ */
+.board-list + .board-list {
+  border-top: 0;
 }
 
 @media (min-width: 64rem) {
-  .trending-board-layout--with-cta {
-    grid-template-areas: "board cta";
-    grid-template-columns: minmax(0, 3fr) minmax(14rem, 1fr);
+  .board-list ~ .board-list {
+    border-top: 0;
+  }
+}
+
+.trending-cta--inline {
+  margin-block: 1.5rem;
+}
+
+/*
+ * Narrow screens carry the invitation between the board's halves; wide ones
+ * carry it beside the heading. Exactly one shows at any width.
+ */
+.trending-cta--aside {
+  display: none;
+}
+
+@media (min-width: 64rem) {
+  .trending-cta--aside {
+    display: block;
+    inline-size: 26rem;
   }
 
-  .trending-board-main {
-    grid-area: board;
-  }
-
-  .trending-board-cta {
-    position: sticky;
-    top: 5.5rem;
-    grid-area: cta;
-    max-inline-size: none;
+  .trending-cta--inline {
+    display: none;
   }
 }
 </style>

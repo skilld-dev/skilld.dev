@@ -9,8 +9,10 @@
 
 import type { FallbackSkill } from '#shared/server/trending-fallback'
 import type { TrendingRepo } from '#shared/server/trending-repos'
-import type { TrendingSkill } from '#shared/server/trending-skills'
+import type { TrendingSkill, TrendingSkillEvidence } from '#shared/server/trending-skills'
+import type { StarPoint } from '#shared/trending-range'
 import { getDB } from '#server/utils/db'
+import { loadStarSeries, starSeriesKey } from '#shared/server/star-series'
 import { loadTrendingBoard } from '#shared/server/trending-board'
 import { DEFAULT_WINDOW_HOURS } from '#shared/server/trending-skills'
 
@@ -57,6 +59,8 @@ export interface FallbackFeedItem {
   description: string | null
   stars: number
   starsGained: number | null
+  /** Daily star totals across the window, oldest first, for the sparkline. */
+  starSeries: StarPoint[]
 }
 
 /**
@@ -112,23 +116,34 @@ export interface TrendingSkillFeedItem {
    * all, which reads as missing data rather than as a different kind of claim.
    */
   starGainDay: number | null
-  evidence: {
-    url: string
-    authorHandle: string
-    /** Author profile image, stored at ingest. Null before the first read that carried one. */
-    authorAvatar: string | null
-    text: string
-    postedAt: number
-    platform: 'x' | 'bsky'
-    /**
-     * Engagement on this specific post, not the skill's aggregate.
-     *
-     * A reader weighing a quote wants to know whether it landed. The
-     * skill-level `favouriteCount` sums every qualifying post and cannot
-     * answer that for the one being shown.
-     */
-    favouriteCount: number
-  } | null
+  evidence: TrendingPostFeedItem | null
+  /**
+   * Posts by other authors, one each, beyond `evidence`. Dedicated posts
+   * first. The board scrolls through them after the quoted one.
+   */
+  morePosts: TrendingPostFeedItem[]
+  /** Daily star totals across the window, oldest first, for the sparkline. */
+  starSeries: StarPoint[]
+}
+
+export interface TrendingPostFeedItem {
+  url: string
+  authorHandle: string
+  /** Display name, stored at ingest. Null when the network sent none. */
+  authorName: string | null
+  /** Author profile image, stored at ingest. Null before the first read that carried one. */
+  authorAvatar: string | null
+  text: string
+  postedAt: number
+  platform: 'x' | 'bsky'
+  /**
+   * Engagement on this specific post, not the skill's aggregate.
+   *
+   * A reader weighing a quote wants to know whether it landed. The
+   * skill-level `favouriteCount` sums every qualifying post and cannot
+   * answer that for the one being shown.
+   */
+  favouriteCount: number
 }
 
 export interface TrendingFeedResponse {
@@ -141,7 +156,7 @@ export interface TrendingFeedResponse {
   computedAt: number
 }
 
-function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
+function toSkillItem(entry: TrendingSkill, starSeries: StarPoint[]): TrendingSkillFeedItem {
   return {
     owner: entry.owner,
     repo: entry.repo,
@@ -156,21 +171,35 @@ function toSkillItem(entry: TrendingSkill): TrendingSkillFeedItem {
     description: entry.description,
     starGain: entry.github?.latestGain ?? null,
     starGainDay: entry.github?.observedDay ?? null,
-    evidence: entry.evidence
-      ? {
-          url: entry.evidence.url,
-          authorHandle: entry.evidence.authorHandle,
-          authorAvatar: entry.evidence.authorAvatar,
-          text: entry.evidence.text,
-          postedAt: entry.evidence.postedAt,
-          platform: entry.evidence.platform,
-          favouriteCount: entry.evidence.favouriteCount,
-        }
-      : null,
+    evidence: entry.evidence ? toPostItem(entry.evidence) : null,
+    morePosts: entry.morePosts.map(toPostItem),
+    starSeries,
   }
 }
 
-function toFallbackItem(entry: FallbackSkill): FallbackFeedItem {
+/**
+ * Longest post text the feed ships.
+ *
+ * X stores up to a thousand characters. A card shows four lines, about two
+ * hundred, and a board of thirty Skills with six posts each pays for every
+ * character in its payload twice: once in the HTML, once for hydration.
+ */
+const MAX_POST_TEXT = 480
+
+function toPostItem(post: TrendingSkillEvidence): TrendingPostFeedItem {
+  return {
+    url: post.url,
+    authorHandle: post.authorHandle,
+    authorName: post.authorName,
+    authorAvatar: post.authorAvatar,
+    text: post.text.length > MAX_POST_TEXT ? `${post.text.slice(0, MAX_POST_TEXT - 1)}…` : post.text,
+    postedAt: post.postedAt,
+    platform: post.platform,
+    favouriteCount: post.favouriteCount,
+  }
+}
+
+function toFallbackItem(entry: FallbackSkill, starSeries: StarPoint[]): FallbackFeedItem {
   return {
     owner: entry.owner,
     repo: entry.repo,
@@ -180,6 +209,7 @@ function toFallbackItem(entry: FallbackSkill): FallbackFeedItem {
     description: entry.description,
     stars: entry.stars,
     starsGained: entry.starsGained,
+    starSeries,
   }
 }
 
@@ -232,13 +262,20 @@ export default defineCachedEventHandler(
 
     const { entries, namedSkills, fallback: fallbackSkills } = await loadTrendingBoard({ db, now, limit, windowHours })
 
+    // The sparkline covers the same window the ranking read, from its first
+    // whole UTC day, so a line never starts before the board does.
+    const sinceDay = Math.floor((now - windowHours * 3600) / 86_400) * 86_400
+    const series = await loadStarSeries(db, [...namedSkills, ...fallbackSkills], sinceDay)
+    const seriesOf = (entry: { owner: string, repo: string }) => series.get(starSeriesKey(entry.owner, entry.repo)) ?? []
+
     const items = entries.map(toItem)
-    const skillItems = namedSkills.map(toSkillItem)
-    const fallback = fallbackSkills.map(toFallbackItem)
+    const skillItems = namedSkills.map(entry => toSkillItem(entry, seriesOf(entry)))
+    const fallback = fallbackSkills.map(entry => toFallbackItem(entry, seriesOf(entry)))
 
     return { items, namedSkills: skillItems, fallback, computedAt: now }
   },
   // Engagement is re-read hourly at most, so a shorter cache would spend D1
   // reads to serve a ranking that cannot have changed.
-  { maxAge: 300, swr: false, name: 'feed-trending-origin-v3' },
+  // v4: named skills carry `morePosts` and `starSeries`; a v3 entry has neither.
+  { maxAge: 300, swr: false, name: 'feed-trending-origin-v4' },
 )

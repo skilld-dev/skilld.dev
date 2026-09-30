@@ -1,6 +1,7 @@
 import type { LeaderboardRowInput } from '#shared/trending-range'
 import { describe, expect, it } from 'vitest'
 import {
+  isEvidenced,
   leaderboardBoardRows,
   resolveTrendingPage,
   resolveTrendingRange,
@@ -65,7 +66,7 @@ describe('all-time rows are skill first, like every other range', () => {
 
     expect(row?.subtitle).toBe('anthropics/skills')
     expect(row?.stars).toBe(12_400)
-    expect(row?.basis).toBe('9 skills · reviewed for eligibility')
+    expect(row?.reason).toMatchObject({ _tag: 'reviewed', skillCount: 9 })
   })
 
   it('describes the skill rather than its container', () => {
@@ -85,14 +86,14 @@ describe('all-time rows are skill first, like every other range', () => {
   it('dates the row from the repository\'s last push', () => {
     const [row] = leaderboardBoardRows([leaderboardRow()])
 
-    expect(row?.when).toBe('Updated 25 July 2026')
+    expect(row?.reason).toMatchObject({ updated: '25 July 2026' })
   })
 
   it('states no date when GitHub reported no push', () => {
     const [row] = leaderboardBoardRows([leaderboardRow({ pushedAt: null })])
 
     // Absent, never guessed. A repo with no push date is not a repo pushed today.
-    expect(row?.when).toBeNull()
+    expect(row?.reason).toMatchObject({ updated: null })
   })
 
   it('keys on the skill so two repos cannot collide', () => {
@@ -169,30 +170,20 @@ describe('leaderboard rows on the trending board', () => {
     })
   })
 
-  it('states the skill count and the eligibility review as the row basis', () => {
-    expect(leaderboardBoardRows([leaderboardRow()])[0]!.basis)
-      .toBe('9 skills · reviewed for eligibility')
-    expect(leaderboardBoardRows([leaderboardRow({ skillCount: 1 })])[0]!.basis)
-      .toBe('1 skill · reviewed for eligibility')
+  it('states the skill count as the reason the row is here', () => {
+    expect(leaderboardBoardRows([leaderboardRow({ skillCount: 1 })])[0]!.reason)
+      .toMatchObject({ _tag: 'reviewed', skillCount: 1 })
   })
 
   it('counts every row as evidenced, because each passed a human review', () => {
     const rows = leaderboardBoardRows([leaderboardRow(), leaderboardRow({ repo: 'other' })])
 
-    expect(rows.every(row => row.evidenced)).toBe(true)
+    expect(rows.every(isEvidenced)).toBe(true)
     expect(rows.map(row => row.key)).toEqual(['anthropics/skills/pdf-processing', 'anthropics/other/pdf-processing'])
   })
 
-  it('carries no social evidence, since a star ranking has none to show', () => {
-    // `when` is excluded: it dates the repository's last push, which is the
-    // row's own fact rather than something a person said about it.
-    expect(leaderboardBoardRows([leaderboardRow()])[0]).toMatchObject({
-      evidenceUrl: null,
-      quote: null,
-      platform: null,
-      handle: null,
-      engagement: null,
-    })
+  it('carries no posts, since a star ranking has none to show', () => {
+    expect(leaderboardBoardRows([leaderboardRow()])[0]!.reason._tag).toBe('reviewed')
   })
 })
 
