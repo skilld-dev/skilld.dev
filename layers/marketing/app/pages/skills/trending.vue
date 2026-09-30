@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { TrendingFeedResponse, TrendingSkillFeedItem } from '~~/server/api/feed/trending.get'
+import type { AdmittedSkillsResponse } from '#layers/registry/server/api/skills/admitted.get'
 import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skills/leaderboard.get'
 import type { TrendingBoardRow } from '#shared/trending-range'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { relativeDay, trendingBasis, trendingOtherPosters } from '#shared/trending-basis'
 import {
   leaderboardBoardRows,
+  MIN_INDEXABLE_ROWS,
   monthStamp,
   resolveTrendingRange,
   TRENDING_BOARD_LIMIT,
@@ -27,9 +29,6 @@ import TrendingWeeklyCta from '../../components/TrendingWeeklyCta.vue'
  * would drop twenty rows for no reason.
  */
 const BOARD_LIMIT = TRENDING_BOARD_LIMIT
-
-/** Evidenced rows a board needs before it asks to be indexed. */
-const MIN_INDEXABLE_ROWS = 8
 
 const { isAuthenticated, user } = useAuth()
 /** Someone already getting the weekly is never shown an invitation to get it. */
@@ -80,6 +79,29 @@ const { data, error, refresh } = await useAsyncData<BoardSource>(
 
 const feed = computed(() => (data.value?._tag === 'feed' ? data.value.feed : null))
 const leaderboard = computed(() => (data.value?._tag === 'all' ? data.value.leaderboard : null))
+
+/**
+ * The page of "earlier on this board" links. A real `?page=` query, so each
+ * page of the list is a URL a crawler can follow.
+ */
+const listPage = computed(() => {
+  const value = Number(Array.isArray(route.query.page) ? route.query.page[0] : route.query.page)
+  return Number.isInteger(value) && value >= 1 ? value : 1
+})
+
+/**
+ * Skills that first reached this range's board and have since left it.
+ *
+ * Rendered as plain links so a crawler can reach every Skill the sitemap
+ * lists, not just the thirty on today's board. See `trending-admission.ts`.
+ */
+const { data: admitted } = await useAsyncData<AdmittedSkillsResponse>(
+  'skills-trending-admitted',
+  () => $fetch<AdmittedSkillsResponse>('/api/skills/admitted', {
+    query: { board: range.value, page: listPage.value },
+  }),
+  { watch: [range, listPage] },
+)
 
 /**
  * The one clock every date on this page is measured against.
@@ -191,6 +213,22 @@ const board = computed<TrendingBoardRow[]>(() => {
   return rows.filter(row => !missingAvatars.value.has(row.owner))
 })
 
+const earlierRows = computed(() => {
+  const onBoard = new Set(board.value.map(row => row.to))
+  return (admitted.value?.items ?? []).filter(item => !onBoard.has(item.registryPath))
+})
+
+/** URL of one page of the earlier list. Page 1 is the range's own URL. */
+function earlierPagePath(page: number): string {
+  if (page <= 1)
+    return meta.value.path
+  return `${meta.value.path}${meta.value.path.includes('?') ? '&' : '?'}page=${page}`
+}
+
+const earlierPages = computed(() =>
+  Array.from({ length: admitted.value?.pageCount ?? 1 }, (_, index) => index + 1),
+)
+
 /**
  * Rows that earned the page its place in the index.
  *
@@ -287,7 +325,12 @@ useSeoMeta({
 // Google to drop the board it just crawled, which is how the `all` cluster
 // would lose the ranking it inherited from /skills/leaderboard.
 useHead({
-  link: [{ rel: 'canonical', href: computed(() => meta.value.canonical) }],
+  link: [{
+    rel: 'canonical',
+    href: computed(() => listPage.value > 1
+      ? `${meta.value.canonical}${meta.value.canonical.includes('?') ? '&' : '?'}page=${listPage.value}`
+      : meta.value.canonical),
+  }],
 })
 
 defineOgImage('Page.takumi', {
@@ -526,6 +569,48 @@ function rankClass(index: number): string {
             </li>
           </ol>
         </div>
+      </div>
+    </section>
+
+    <section
+      v-if="earlierRows.length"
+      class="border-t border-default"
+      aria-labelledby="earlier-heading"
+    >
+      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+        <h2 id="earlier-heading" class="text-2xl font-semibold tracking-tight">
+          Earlier on this board
+        </h2>
+        <ul class="editorial-ledger mt-6 list-none p-0">
+          <li v-for="item in earlierRows" :key="item.registryPath" class="py-3">
+            <NuxtLink
+              :to="item.registryPath"
+              class="font-medium text-default transition-opacity [overflow-wrap:anywhere] hover:opacity-70"
+            >
+              {{ item.name }}
+            </NuxtLink>
+            <span class="ml-2 font-mono text-xs text-muted">{{ item.owner }}/{{ item.repo }}</span>
+            <span v-if="item.description" class="mt-1 line-clamp-2 block text-sm leading-relaxed text-muted">
+              {{ item.description }}
+            </span>
+          </li>
+        </ul>
+        <nav
+          v-if="earlierPages.length > 1"
+          class="mt-6 flex flex-wrap gap-2"
+          aria-label="Earlier on this board, pages"
+        >
+          <NuxtLink
+            v-for="number in earlierPages"
+            :key="number"
+            :to="earlierPagePath(number)"
+            class="range-link"
+            :class="{ 'range-link--current': number === listPage }"
+            :aria-current="number === listPage ? 'page' : undefined"
+          >
+            {{ number }}
+          </NuxtLink>
+        </nav>
       </div>
     </section>
 

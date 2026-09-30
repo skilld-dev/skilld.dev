@@ -14,7 +14,7 @@ import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 describe('skill detail SWR cache', () => {
   const NOW_SEC = Math.floor(Date.now() / 1000)
   const slug = 'ericzakariasson/scandinavian-design/alpha'
-  const cacheKey = `skills:detail:v2:${slug}`
+  const cacheKey = `skills:detail:v3:${slug}`
   let harness: SqliteD1
   let handler: (event: H3Event) => Promise<Record<string, unknown>>
   let prepareCalls: number

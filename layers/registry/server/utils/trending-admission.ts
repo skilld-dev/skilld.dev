@@ -167,3 +167,47 @@ export async function admitTrendingSkills(db: D1Database, now: number): Promise<
   await db.batch(statements)
   return admissions
 }
+
+export interface AdmittedSkillRow {
+  owner: string
+  repo: string
+  name: string
+  description: string | null
+  stars: number | null
+  admitted_at: number
+  repo_skill_count: number
+}
+
+export const ADMITTED_PAGE_SIZE = 50
+
+/**
+ * One page of admitted Skills whose first board is `board`, newest first.
+ *
+ * Only Skills whose page is `index,follow` appear, so every link here points at
+ * an indexable page. The trending pages render these as plain links, which is
+ * how a crawler finds an admitted Skill that has left the live board.
+ */
+export async function listAdmittedSkills(
+  db: D1Database,
+  opts: { board: TrendingBoardName, page: number },
+): Promise<{ rows: AdmittedSkillRow[], total: number }> {
+  const filter = `a.first_board = ?1
+    AND s.seo_indexable = 1
+    AND s.source_resolved = 1
+    AND r.repo_kind != 'aggregator'`
+  const from = `FROM skill_trending_admissions a
+    JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
+    JOIN repos r ON r.owner = s.owner AND r.repo = s.repo`
+  const [page, count] = await Promise.all([
+    db.prepare(`
+      SELECT s.owner, s.repo, s.name, s.description, r.stars, a.admitted_at,
+        (SELECT COUNT(*) FROM skills c WHERE c.owner = s.owner AND c.repo = s.repo AND c.source_resolved = 1) AS repo_skill_count
+      ${from}
+      WHERE ${filter}
+      ORDER BY a.admitted_at DESC, s.owner, s.repo, s.name
+      LIMIT ?2 OFFSET ?3
+    `).bind(opts.board, ADMITTED_PAGE_SIZE, (opts.page - 1) * ADMITTED_PAGE_SIZE).all<AdmittedSkillRow>(),
+    db.prepare(`SELECT COUNT(*) AS total ${from} WHERE ${filter}`).bind(opts.board).first<{ total: number }>(),
+  ])
+  return { rows: page.results ?? [], total: count?.total ?? 0 }
+}

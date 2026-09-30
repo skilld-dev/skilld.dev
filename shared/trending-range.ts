@@ -30,6 +30,12 @@ export type TrendingRange = 'week' | 'month' | 'all'
  */
 export const TRENDING_BOARD_LIMIT = 30
 
+/**
+ * Evidenced rows a board needs before it asks to be indexed. Below this the
+ * page is noindex, and the sitemap must not list it. Shared for that reason.
+ */
+export const MIN_INDEXABLE_ROWS = 8
+
 export const DEFAULT_TRENDING_RANGE: TrendingRange = 'month'
 
 const SITE_ORIGIN = 'https://skilld.dev'

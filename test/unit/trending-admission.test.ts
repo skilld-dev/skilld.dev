@@ -5,9 +5,11 @@ import { queryAllSkillsForSitemap } from '../../layers/registry/server/utils/ski
 import {
   admitTrendingSkills,
   isSkillIndexable,
+  listAdmittedSkills,
   planAdmissions,
   SKILL_INDEX_INPUT_COLUMNS_SQL,
 } from '../../layers/registry/server/utils/trending-admission'
+import { listTrendingSitemapEntries } from '../../layers/registry/server/utils/trending-sitemap'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_760_000_000
@@ -131,5 +133,36 @@ describe('sitemap equals the indexable set', () => {
 
     expect(inSitemap).toEqual(indexable)
     expect(inSitemap).toEqual(new Set(['o1/r1/admitted-ok', 'o5/r5/other-ok']))
+  })
+})
+
+describe('listAdmittedSkills', () => {
+  it('lists only indexable admitted Skills, by first board', async () => {
+    addSkill({ owner: 'a', repo: 'one', name: 'week-skill' })
+    addSkill({ owner: 'a', repo: 'two', name: 'month-skill' })
+    addSkill({ owner: 'a', repo: 'three', name: 'low-score', indexable: false })
+    const admit = db().raw.prepare(`INSERT INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board) VALUES (?, ?, ?, ?, ?)`)
+    admit.run('a', 'one', 'week-skill', NOW, 'week')
+    admit.run('a', 'two', 'month-skill', NOW, 'month')
+    admit.run('a', 'three', 'low-score', NOW, 'week')
+
+    const week = await listAdmittedSkills(db().db, { board: 'week', page: 1 })
+    expect(week.rows.map(r => r.name)).toEqual(['week-skill'])
+    expect(week.total).toBe(1)
+    const none = await listAdmittedSkills(db().db, { board: 'all', page: 1 })
+    expect(none.rows).toEqual([])
+  })
+})
+
+describe('listTrendingSitemapEntries', () => {
+  it('lists a board only once it holds enough named Skills to be indexable', async () => {
+    expect(await listTrendingSitemapEntries(db().db, NOW)).toEqual([])
+
+    for (let i = 0; i < 8; i++) {
+      addSkill({ owner: `o${i}`, repo: `r${i}`, name: `s${i}` })
+      mention({ owner: `o${i}`, repo: `r${i}`, name: `s${i}`, handle: `h${i}`, at: NOW - 3600 })
+    }
+    const locs = (await listTrendingSitemapEntries(db().db, NOW)).map(e => e.loc)
+    expect(locs).toEqual(['/skills/trending?range=week', '/skills/trending'])
   })
 })

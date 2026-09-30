@@ -67,7 +67,6 @@ async function derivedTagCount(event: H3Event, db: D1Database, slug: string): Pr
   return Object.hasOwn(counts, slug) ? counts[slug]! : 0
 }
 
-
 export interface TagOwner {
   owner: string
   count: number
@@ -100,7 +99,6 @@ const TAG_PROFILE_SERVE_WINDOW_MS = (TAG_PROFILE_FRESH_SECONDS + TAG_PROFILE_STA
 
 async function buildTagProfile(event: H3Event, slug: string): Promise<TagProfile> {
   const db = getDB(event)
-  const isControlledVocab = TAG_BY_SLUG.has(slug)
   let tag = TAG_BY_SLUG.get(slug)
   if (!tag) {
     // Long-tail: AI-derived tag must pass the quality gate before earning

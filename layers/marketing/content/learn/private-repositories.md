@@ -17,7 +17,7 @@ Private Repository delivery requires both of these:
 - `skilld auth login` for a skilld.dev account
 - Access through the skilld GitHub App installation
 
-GitHub remains the source of truth. skilld.dev reads the Repository through the App and builds an Artifact from one exact commit.
+[GitHub](https://github.com) remains the source of truth. skilld.dev reads the Repository through the App and builds an Artifact from one exact commit.
 
 ## Log in
 
