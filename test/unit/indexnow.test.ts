@@ -9,6 +9,7 @@ import {
   INDEXNOW_INITIAL_STATE,
   INDEXNOW_KEY,
   INDEXNOW_KEY_LOCATION,
+  INDEXNOW_MAX_RETRY_AFTER_SECONDS,
   INDEXNOW_MAX_URLS_PER_REQUEST,
   INDEXNOW_RUN_CAP,
   parseRetryAfter,
@@ -175,7 +176,13 @@ describe('runIndexNow', () => {
     return `<urlset>${entries.map(([path, lastmod]) => `<url><loc>https://skilld.dev${path}</loc><lastmod>${lastmod}</lastmod></url>`).join('')}</urlset>`
   }
 
-  function harness(options: { skills: Array<[string, string]>, status?: number, keyBody?: string, retryAfter?: string }) {
+  function harness(options: {
+    skills: Array<[string, string]>
+    status?: number
+    keyBody?: string
+    retryAfter?: string
+    respond?: (body: { urlList: string[] }) => { status: number, body?: string } | Error
+  }) {
     const sqlite = createSqliteD1(allMigrations())
     const sent: Array<{ urlList: string[], key: string, keyLocation: string }> = []
     const fetched: string[] = []
@@ -194,7 +201,13 @@ describe('runIndexNow', () => {
         return new Response('unexpected', { status: 500 })
       },
       send: (async (_url: string, init: RequestInit) => {
-        sent.push(JSON.parse(init.body as string))
+        const payload = JSON.parse(init.body as string)
+        sent.push(payload)
+        const custom = options.respond?.(payload)
+        if (custom instanceof Error)
+          throw custom
+        if (custom)
+          return new Response(custom.body ?? '', { status: custom.status })
         return new Response('', {
           status: options.status ?? 200,
           headers: options.retryAfter ? { 'retry-after': options.retryAfter } : {},
@@ -288,5 +301,165 @@ describe('runIndexNow', () => {
   it('submits nothing when the key file holds another key', async () => {
     const h = harness({ skills: [['/a', 'v1']], keyBody: 'not-the-key' })
     expect(await runIndexNow(h.deps)).toMatchObject({ _tag: 'key-unreachable' })
+  })
+
+  describe('every attempt is counted before it is sent', () => {
+    function ledgerTotal(h: ReturnType<typeof harness>): number {
+      return (h.sqlite.raw.prepare('SELECT COALESCE(SUM(url_count), 0) AS n FROM indexnow_batches').get() as { n: number }).n
+    }
+
+    it('counts a batch and halts when D1 fails after IndexNow accepted it, hour after hour', async () => {
+      const skills = Array.from({ length: 500 }, (_, index) => [`/s/${index}`, 'v1'] as [string, string])
+      const h = harness({ skills })
+      // The first D1 write after each POST fails once, so the accept is never recorded.
+      let armed = false
+      const realDb = h.deps.db
+      const flaky = new Proxy(realDb, {
+        get(target, key) {
+          if (key === 'batch') {
+            return async (statements: never[]) => {
+              if (armed) {
+                armed = false
+                throw new Error('D1 is unavailable')
+              }
+              return target.batch(statements)
+            }
+          }
+          const value = Reflect.get(target, key)
+          return typeof value === 'function' ? value.bind(target) : value
+        },
+      })
+      const send = h.deps.send
+      const deps = {
+        ...h.deps,
+        db: flaky,
+        send: (async (...args: Parameters<typeof fetch>) => {
+          const response = await send(...args)
+          armed = true
+          return response
+        }) as typeof fetch,
+      }
+      for (let hour = 0; hour < 24; hour++) {
+        // The armed D1 failure makes each run reject on purpose; only the ledger matters.
+        await runIndexNow(deps).catch(() => undefined) // eslint-disable-line harlanzw/no-silent-catch
+        h.advance(3600)
+      }
+      expect(h.sent.length).toBeLessThanOrEqual(3)
+      expect(ledgerTotal(h)).toBe(h.sent.length * INDEXNOW_RUN_CAP)
+      const state = h.sqlite.raw.prepare('SELECT strikes, halt_reason FROM indexnow_state').get() as { strikes: number, halt_reason: string | null }
+      expect(state.strikes).toBe(3)
+      expect(state.halt_reason).toContain('halted')
+    })
+
+    it('treats a thrown send as a strike and halts after three', async () => {
+      const h = harness({ skills: [['/a', 'v1']], respond: () => new Error('connect ECONNRESET') })
+      const runs = []
+      for (let hour = 0; hour < 24; hour++) {
+        runs.push(await runIndexNow(h.deps))
+        h.advance(3600)
+      }
+      expect(h.sent).toHaveLength(3)
+      expect(runs[0]).toMatchObject({ _tag: 'failed', outcome: { _tag: 'error' } })
+      expect(runs[2]).toMatchObject({ _tag: 'failed', state: { strikes: 3 } })
+      expect(runs[2]!._tag === 'failed' && runs[2]!.state.haltReason).toContain('connect ECONNRESET')
+      expect(runs[5]!._tag).toBe('closed')
+      expect(ledgerTotal(h)).toBe(3)
+    })
+
+    it('records a failed attempt in the ledger', async () => {
+      const h = harness({ skills: [['/a', 'v1'], ['/b', 'v1']], status: 503 })
+      await runIndexNow(h.deps)
+      expect(ledgerTotal(h)).toBe(2)
+      expect(h.sqlite.raw.prepare('SELECT http_status FROM indexnow_batches').get()).toEqual({ http_status: 503 })
+    })
+
+    it('records an accepted batch with its status and clears the strikes', async () => {
+      const h = harness({ skills: [['/a', 'v1']] })
+      await runIndexNow(h.deps)
+      expect(h.sqlite.raw.prepare('SELECT http_status FROM indexnow_batches').get()).toEqual({ http_status: 200 })
+      expect(h.sqlite.raw.prepare('SELECT strikes FROM indexnow_state').get()).toEqual({ strikes: 0 })
+    })
+  })
+
+  describe('a rejected request', () => {
+    it('keeps a truncated response body in the halt reason', async () => {
+      const body = `key invalid ${'x'.repeat(2000)}`
+      const h = harness({ skills: [['/a', 'v1']], respond: () => ({ status: 403, body }) })
+      const run = await runIndexNow(h.deps)
+      const reason = run._tag === 'failed' ? run.state.haltReason ?? '' : ''
+      expect(reason).toContain('HTTP 403')
+      expect(reason).toContain('key invalid')
+      expect(reason.length).toBeLessThan(400)
+    })
+
+    it('isolates one bad URL so the rest of the queue still goes out', async () => {
+      const skills = Array.from({ length: 9 }, (_, index) => [`/s/${index}`, 'v1'] as [string, string])
+      const h = harness({
+        skills,
+        respond: ({ urlList }) => urlList.includes('https://skilld.dev/s/4')
+          ? { status: 422, body: 'invalid url https://skilld.dev/s/4' }
+          : { status: 200 },
+      })
+      const tags: string[] = []
+      for (let hour = 0; hour < 12; hour++) {
+        tags.push((await runIndexNow(h.deps))._tag)
+        h.advance(3600)
+      }
+      expect(tags).toContain('skipped')
+      expect(tags.at(-1)).toBe('idle')
+      const stored = h.sqlite.raw.prepare('SELECT url FROM indexnow_urls').all().map(row => (row as { url: string }).url)
+      expect(stored).toHaveLength(9)
+      const state = h.sqlite.raw.prepare('SELECT strikes, halt_reason FROM indexnow_state').get()
+      expect(state).toMatchObject({ halt_reason: null })
+      // The bad URL is sent alone once, never again.
+      expect(h.sent.filter(payload => payload.urlList.length === 1 && payload.urlList[0]!.endsWith('/s/4'))).toHaveLength(1)
+    })
+
+    it('narrows the next request after a 400 instead of repeating it', async () => {
+      const skills = Array.from({ length: 40 }, (_, index) => [`/s/${index}`, 'v1'] as [string, string])
+      const h = harness({ skills, respond: ({ urlList }) => urlList.length > 10 ? { status: 400, body: 'bad' } : { status: 200 } })
+      await runIndexNow(h.deps)
+      h.advance(3600)
+      await runIndexNow(h.deps)
+      expect(h.sent.map(payload => payload.urlList.length)).toEqual([40, 20])
+    })
+
+    it('halts when every URL is rejected, without an endless split', async () => {
+      const skills = Array.from({ length: 40 }, (_, index) => [`/s/${index}`, 'v1'] as [string, string])
+      const h = harness({ skills, respond: () => ({ status: 400, body: 'bad' }) })
+      const tags: string[] = []
+      for (let hour = 0; hour < 24; hour++) {
+        tags.push((await runIndexNow(h.deps))._tag)
+        h.advance(3600)
+      }
+      expect(h.sent.length).toBeLessThanOrEqual(10)
+      expect(tags.slice(-3)).toEqual(['closed', 'closed', 'closed'])
+    })
+  })
+
+  describe('retry-After', () => {
+    const DAY = 24 * 60 * 60
+
+    it('honours a Retry-After longer than a day on a backoff', async () => {
+      const h = harness({ skills: [['/a', 'v1']], status: 429, retryAfter: String(3 * DAY) })
+      await runIndexNow(h.deps)
+      expect(h.sqlite.raw.prepare('SELECT not_before FROM indexnow_state').get()).toEqual({ not_before: NOW + 3 * DAY })
+    })
+
+    it('caps Retry-After at the sane maximum', async () => {
+      const h = harness({ skills: [['/a', 'v1']], status: 429, retryAfter: String(90 * DAY) })
+      await runIndexNow(h.deps)
+      expect(h.sqlite.raw.prepare('SELECT not_before FROM indexnow_state').get()).toEqual({ not_before: NOW + INDEXNOW_MAX_RETRY_AFTER_SECONDS })
+      expect(INDEXNOW_MAX_RETRY_AFTER_SECONDS).toBe(7 * DAY)
+    })
+
+    it('makes a halt last as long as Retry-After and says so', () => {
+      let state = INDEXNOW_INITIAL_STATE
+      const outcome = { _tag: 'backoff', status: 429, retryAfterSeconds: 3 * DAY, detail: '' } as const
+      for (let index = 0; index < 3; index++)
+        state = applyOutcome(state, outcome, NOW)
+      expect(state.notBefore).toBe(NOW + 3 * DAY)
+      expect(state.haltReason).toContain('Retry-After')
+    })
   })
 })

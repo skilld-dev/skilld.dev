@@ -9,9 +9,16 @@
  * - The candidate list is the curated sitemap set, never a table scan.
  * - A URL is a candidate only if it is new or its fingerprint (sitemap
  *   `lastmod`) moved since the last accepted submission.
- * - One run submits at most `INDEXNOW_RUN_CAP` URLs, and the last 24 hours at
- *   most `INDEXNOW_DAY_CAP`, so a bulk `lastmod` bump drains over days.
- * - A 429 stores a retry time. Repeated failures halt the task with a reason.
+ * - One run sends one request of at most `INDEXNOW_RUN_CAP` URLs. It starts
+ *   only if the last 24 hours hold fewer than `INDEXNOW_DAY_CAP` URLs.
+ * - The ledger row and a pending strike are written BEFORE the POST, then
+ *   settled after it. A network error, a D1 failure after an accepted POST, or
+ *   a crash therefore still counts against the caps and still adds a strike.
+ *   If the pre-write fails, nothing is sent.
+ * - A 429 or 5xx stores a retry time. Three strikes halt the task with a
+ *   reason. `Retry-After` is honoured up to `INDEXNOW_MAX_RETRY_AFTER_SECONDS`.
+ * - A 400 or 422 halves the next request, so one bad URL is isolated and
+ *   skipped instead of blocking the queue.
  */
 
 export const INDEXNOW_KEY = '6b32d2ab96625fcba8a5535e84c72ba3'
@@ -26,6 +33,10 @@ export const INDEXNOW_DAY_CAP = 1000
 /** Consecutive failures before the task halts. */
 export const INDEXNOW_MAX_STRIKES = 3
 export const INDEXNOW_HALT_SECONDS = 24 * 60 * 60
+/** The longest wait a `Retry-After` header can impose, on a backoff or a halt. */
+export const INDEXNOW_MAX_RETRY_AFTER_SECONDS = 7 * 24 * 60 * 60
+/** Response bodies are kept in logs and halt reasons only up to this length. */
+export const INDEXNOW_BODY_LOG_LENGTH = 200
 /** Backoff when the response carries no usable Retry-After, by strike count. */
 export const INDEXNOW_BACKOFF_SECONDS = [15 * 60, 30 * 60, 60 * 60] as const
 export const INDEXNOW_BATCH_RETENTION_SECONDS = 7 * 24 * 60 * 60
@@ -174,8 +185,11 @@ export function gateFor(state: IndexNowState, now: number): IndexNowGate {
 
 export type IndexNowOutcome
   = | { _tag: 'accepted', status: number }
-    | { _tag: 'backoff', status: number, retryAfterSeconds: number | null }
-    | { _tag: 'rejected', status: number, detail: string }
+    | { _tag: 'backoff', status: number, retryAfterSeconds: number | null, detail?: string }
+    /** The request threw: network error, timeout, DNS. */
+    | { _tag: 'error', detail: string }
+    /** `splittable` marks 400 and 422, where one bad URL can cause the answer. */
+    | { _tag: 'rejected', status: number, detail: string, splittable?: boolean }
 
 /** Read a Retry-After header: delta seconds or an HTTP date. */
 export function parseRetryAfter(header: string | null, now: number): number | null {
@@ -190,21 +204,50 @@ export function parseRetryAfter(header: string | null, now: number): number | nu
   return Math.max(0, Math.ceil(date / 1000) - now)
 }
 
+export function truncateBody(body: string, length = INDEXNOW_BODY_LOG_LENGTH): string {
+  const flat = body.replace(/\s+/g, ' ').trim()
+  return flat.length > length ? `${flat.slice(0, length)}...` : flat
+}
+
 /**
  * 200 and 202 are success. 429 and 5xx are transient. Any other status means
  * the request itself is wrong (bad key, key file missing, invalid URLs), and
- * repeating it cannot help.
+ * repeating it cannot help. `body` is the response text, kept short for logs.
  */
 export function classifyResponse(
   status: number,
   retryAfterHeader: string | null,
   now: number,
+  body = '',
 ): IndexNowOutcome {
   if (status === 200 || status === 202)
     return { _tag: 'accepted', status }
-  if (status === 429 || status >= 500)
-    return { _tag: 'backoff', status, retryAfterSeconds: parseRetryAfter(retryAfterHeader, now) }
-  return { _tag: 'rejected', status, detail: `IndexNow rejected the request with HTTP ${status}` }
+  const excerpt = truncateBody(body)
+  if (status === 429 || status >= 500) {
+    return {
+      _tag: 'backoff',
+      status,
+      retryAfterSeconds: parseRetryAfter(retryAfterHeader, now),
+      ...(excerpt ? { detail: excerpt } : {}),
+    }
+  }
+  return {
+    _tag: 'rejected',
+    status,
+    detail: `IndexNow rejected the request with HTTP ${status}${excerpt ? `: ${excerpt}` : ''}`,
+    splittable: status === 400 || status === 422,
+  }
+}
+
+function formatDuration(seconds: number): string {
+  const hours = Math.ceil(seconds / 3600)
+  return hours <= 48 ? `${hours} hours` : `${Math.ceil(hours / 24)} days`
+}
+
+function failureLabel(outcome: Extract<IndexNowOutcome, { _tag: 'backoff' | 'error' }>): string {
+  if (outcome._tag === 'error')
+    return `request failed: ${outcome.detail}`
+  return `HTTP ${outcome.status}${outcome.detail ? `: ${outcome.detail}` : ''}`
 }
 
 /** The next stored state after one request. Pure, so the schedule is testable. */
@@ -219,16 +262,19 @@ export function applyOutcome(state: IndexNowState, outcome: IndexNowOutcome, now
     }
   }
   const strikes = state.strikes + 1
+  const retryAfter = outcome._tag === 'backoff' ? outcome.retryAfterSeconds : null
+  const advised = Math.min(INDEXNOW_MAX_RETRY_AFTER_SECONDS, retryAfter ?? 0)
   if (strikes >= INDEXNOW_MAX_STRIKES) {
+    const wait = Math.max(INDEXNOW_HALT_SECONDS, advised)
+    const honoured = advised > INDEXNOW_HALT_SECONDS ? `, honouring Retry-After of ${retryAfter} seconds${retryAfter! > advised ? ` (capped at ${formatDuration(advised)})` : ''}` : ''
     return {
       strikes,
-      notBefore: now + INDEXNOW_HALT_SECONDS,
-      haltReason: `HTTP ${outcome.status} on ${strikes} requests in a row; halted for 24 hours`,
+      notBefore: now + wait,
+      haltReason: `${failureLabel(outcome)} on ${strikes} requests in a row; halted for ${formatDuration(wait)}${honoured}`,
     }
   }
   const scheduled = INDEXNOW_BACKOFF_SECONDS[Math.min(strikes, INDEXNOW_BACKOFF_SECONDS.length) - 1]!
-  const wait = Math.min(INDEXNOW_HALT_SECONDS, Math.max(scheduled, outcome.retryAfterSeconds ?? 0))
-  return { strikes, notBefore: now + wait, haltReason: null }
+  return { strikes, notBefore: now + Math.max(scheduled, advised), haltReason: null }
 }
 
 // Effects
@@ -249,6 +295,8 @@ export type IndexNowRun
     | { _tag: 'idle', candidates: number }
     | { _tag: 'over-budget', deferred: number }
     | { _tag: 'submitted', submitted: number, deferred: number }
+    /** One URL alone drew a 400 or 422. It is skipped until its fingerprint moves. */
+    | { _tag: 'skipped', url: string, detail: string, state: IndexNowState }
     | { _tag: 'failed', submitted: number, outcome: Exclude<IndexNowOutcome, { _tag: 'accepted' }>, state: IndexNowState }
 
 /** Whether a run needs an operator's attention in the job report. */
@@ -259,8 +307,14 @@ export function runNeedsAttention(run: IndexNowRun): string | null {
     case 'key-unreachable':
     case 'sitemap-failed':
       return run.reason
+    case 'skipped':
+      return `${run.state.haltReason ?? run.detail}; skipped ${run.url}`
     case 'failed':
-      return run.state.haltReason ?? `IndexNow answered HTTP ${run.outcome.status}; backing off`
+      if (run.state.haltReason !== null)
+        return run.state.haltReason
+      if (run.outcome._tag === 'rejected')
+        return `${run.outcome.detail}; the next request sends half the batch`
+      return run.outcome._tag === 'error' ? `request failed: ${run.outcome.detail}; backing off` : `IndexNow answered HTTP ${run.outcome.status}; backing off`
     default:
       return null
   }
@@ -273,15 +327,6 @@ async function readState(db: D1Database): Promise<IndexNowState> {
   if (!row)
     return INDEXNOW_INITIAL_STATE
   return { strikes: row.strikes, notBefore: row.not_before, haltReason: row.halt_reason }
-}
-
-async function writeState(db: D1Database, state: IndexNowState, now: number): Promise<void> {
-  await db
-    .prepare(`INSERT INTO indexnow_state (id, strikes, not_before, halt_reason, updated_at)
-      VALUES (1, ?1, ?2, ?3, ?4)
-      ON CONFLICT(id) DO UPDATE SET strikes = ?1, not_before = ?2, halt_reason = ?3, updated_at = ?4`)
-    .bind(state.strikes, state.notBefore, state.haltReason, now)
-    .run()
 }
 
 async function loadCandidates(deps: IndexNowDeps): Promise<{ _tag: 'ok', candidates: IndexNowCandidate[] } | { _tag: 'err', reason: string }> {
@@ -314,22 +359,84 @@ async function loadAccepted(db: D1Database): Promise<Map<string, string>> {
   return new Map((results ?? []).map(row => [row.url, row.fingerprint]))
 }
 
-async function recordAccepted(db: D1Database, urls: readonly IndexNowCandidate[], status: number, now: number): Promise<void> {
-  const statements = urls.map(candidate => db
+function upsertUrl(db: D1Database, candidate: IndexNowCandidate, now: number) {
+  return db
     .prepare(`INSERT INTO indexnow_urls (url, fingerprint, submitted_at) VALUES (?1, ?2, ?3)
       ON CONFLICT(url) DO UPDATE SET fingerprint = ?2, submitted_at = ?3`)
-    .bind(candidate.url, candidate.fingerprint, now))
-  statements.push(db
-    .prepare('INSERT INTO indexnow_batches (submitted_at, url_count, http_status) VALUES (?1, ?2, ?3)')
-    .bind(now, urls.length, status))
+    .bind(candidate.url, candidate.fingerprint, now)
+}
+
+function stateStatement(db: D1Database, state: IndexNowState, now: number) {
+  return db
+    .prepare(`INSERT INTO indexnow_state (id, strikes, not_before, halt_reason, updated_at)
+      VALUES (1, ?1, ?2, ?3, ?4)
+      ON CONFLICT(id) DO UPDATE SET strikes = ?1, not_before = ?2, halt_reason = ?3, updated_at = ?4`)
+    .bind(state.strikes, state.notBefore, state.haltReason, now)
+}
+
+/**
+ * Write the ledger row and the pending state in one transaction, before the
+ * POST. The row starts with status 0 ("sent, no answer recorded"). If nothing
+ * settles it, the URLs still count against the caps and the strike stays.
+ */
+async function recordAttempt(db: D1Database, urlCount: number, pending: IndexNowState, now: number): Promise<number> {
+  const [ledger] = await db.batch([
+    db.prepare('INSERT INTO indexnow_batches (submitted_at, url_count, http_status) VALUES (?1, ?2, 0)').bind(now, urlCount),
+    stateStatement(db, pending, now),
+  ])
+  return ledger!.meta.last_row_id
+}
+
+/** Settle one attempt: its status, the URLs it moved, and the state to store. */
+async function settleAttempt(
+  db: D1Database,
+  attempt: { id: number, status: number, urls: readonly IndexNowCandidate[], state: IndexNowState },
+  now: number,
+): Promise<void> {
+  const statements = attempt.urls.map(candidate => upsertUrl(db, candidate, now))
   // D1 runs one batch as one transaction; 50 statements stays well under its limits.
-  for (const group of chunkUrls(statements, 50))
+  const groups = chunkUrls(statements, 50)
+  for (const group of groups)
     await db.batch(group)
+  await db.batch([
+    db.prepare('UPDATE indexnow_batches SET http_status = ?1 WHERE id = ?2').bind(attempt.status, attempt.id),
+    stateStatement(db, attempt.state, now),
+  ])
+}
+
+async function readProbeLimit(db: D1Database): Promise<number | null> {
+  const last = await db
+    .prepare('SELECT url_count, http_status FROM indexnow_batches ORDER BY id DESC LIMIT 1')
+    .first<{ url_count: number, http_status: number }>()
+  if (last && (last.http_status === 400 || last.http_status === 422))
+    return Math.max(1, Math.floor(last.url_count / 2))
+  return null
+}
+
+async function post(deps: IndexNowDeps, batch: readonly IndexNowCandidate[], now: number): Promise<IndexNowOutcome> {
+  try {
+    const response = await deps.send(INDEXNOW_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        host: INDEXNOW_HOST,
+        key: INDEXNOW_KEY,
+        keyLocation: INDEXNOW_KEY_LOCATION,
+        urlList: batch.map(candidate => candidate.url),
+      }),
+    })
+    // A body that cannot be read only loses the log excerpt; the status decides.
+    const body = await response.text().catch(() => '')
+    return classifyResponse(response.status, response.headers.get('retry-after'), now, body)
+  }
+  catch (error) {
+    return { _tag: 'error', detail: truncateBody(error instanceof Error ? error.message : String(error)) }
+  }
 }
 
 /**
  * One scheduled run. Order matters: the stored gate is checked before any
- * network call, and nothing is marked submitted before IndexNow accepts it.
+ * network call, and the attempt is recorded before the POST.
  */
 export async function runIndexNow(deps: IndexNowDeps): Promise<IndexNowRun> {
   const now = deps.now()
@@ -346,13 +453,18 @@ export async function runIndexNow(deps: IndexNowDeps): Promise<IndexNowRun> {
   if (loaded._tag === 'err')
     return { _tag: 'sitemap-failed', reason: loaded.reason }
 
+  await deps.db
+    .prepare('DELETE FROM indexnow_batches WHERE submitted_at < ?1')
+    .bind(now - INDEXNOW_BATCH_RETENTION_SECONDS)
+    .run()
   const dayStart = now - 24 * 60 * 60
   const submittedRow = await deps.db
     .prepare('SELECT COALESCE(SUM(url_count), 0) AS total FROM indexnow_batches WHERE submitted_at >= ?1')
     .bind(dayStart)
     .first<{ total: number }>()
+  const probeLimit = await readProbeLimit(deps.db)
   const budget = submissionBudget({
-    runCap: INDEXNOW_RUN_CAP,
+    runCap: Math.min(INDEXNOW_RUN_CAP, probeLimit ?? INDEXNOW_RUN_CAP),
     dayCap: INDEXNOW_DAY_CAP,
     submittedLastDay: submittedRow?.total ?? 0,
   })
@@ -363,28 +475,38 @@ export async function runIndexNow(deps: IndexNowDeps): Promise<IndexNowRun> {
   let submitted = 0
   let current = state
   for (const batch of chunkUrls(plan.selected)) {
-    const response = await deps.send(INDEXNOW_ENDPOINT, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({
-        host: INDEXNOW_HOST,
-        key: INDEXNOW_KEY,
-        keyLocation: INDEXNOW_KEY_LOCATION,
-        urlList: batch.map(candidate => candidate.url),
-      }),
-    })
-    const outcome = classifyResponse(response.status, response.headers.get('retry-after'), now)
+    const pending = applyOutcome(current, { _tag: 'error', detail: 'the attempt never settled' }, now)
+    const id = await recordAttempt(deps.db, batch.length, pending, now)
+    const outcome = await post(deps, batch, now)
+
+    if (outcome._tag === 'accepted') {
+      current = INDEXNOW_INITIAL_STATE
+      await settleAttempt(deps.db, { id, status: outcome.status, urls: batch, state: current }, now)
+      submitted += batch.length
+      continue
+    }
+
+    const status = 'status' in outcome ? outcome.status : 0
+    if (outcome._tag === 'rejected' && outcome.splittable === true) {
+      // A 400 or 422 may name one bad URL. Halve the next request until one
+      // URL stands alone, then skip it, so it cannot block the queue.
+      if (batch.length > 1) {
+        current = { ...current, notBefore: 0, haltReason: null }
+        await settleAttempt(deps.db, { id, status, urls: [], state: current }, now)
+        return { _tag: 'failed', submitted, outcome, state: current }
+      }
+      const strikes = current.strikes + 1
+      current = strikes >= INDEXNOW_MAX_STRIKES
+        ? applyOutcome(current, outcome, now)
+        : { strikes, notBefore: 0, haltReason: null }
+      await settleAttempt(deps.db, { id, status, urls: batch, state: current }, now)
+      return { _tag: 'skipped', url: batch[0]!.url, detail: outcome.detail, state: current }
+    }
+
     current = applyOutcome(current, outcome, now)
-    await writeState(deps.db, current, now)
-    if (outcome._tag !== 'accepted')
-      return { _tag: 'failed', submitted, outcome, state: current }
-    await recordAccepted(deps.db, batch, outcome.status, now)
-    submitted += batch.length
+    await settleAttempt(deps.db, { id, status, urls: [], state: current }, now)
+    return { _tag: 'failed', submitted, outcome, state: current }
   }
 
-  await deps.db
-    .prepare('DELETE FROM indexnow_batches WHERE submitted_at < ?1')
-    .bind(now - INDEXNOW_BATCH_RETENTION_SECONDS)
-    .run()
   return { _tag: 'submitted', submitted, deferred: plan.deferred }
 }
