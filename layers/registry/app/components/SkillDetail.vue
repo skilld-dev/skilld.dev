@@ -652,7 +652,8 @@ watch(
 // Programmatic open from the file tree. Markdown sub-docs reuse the server's
 // `marked` render via /api/skill-asset so every previewed document goes
 // through the same renderer as the SSR'd root SKILL.md.
-// Full width on desktop, capped so ultra-wide screens keep a readable page.
+// The body goes full width on desktop, capped so ultra-wide screens keep a
+// readable page. The header keeps its 1024px column.
 const SKILL_CONTAINER = 'mx-auto w-full max-w-[105rem] px-4 sm:px-6 lg:px-8 xl:px-10'
 
 const viewerSection = useTemplateRef<HTMLElement>('viewerSection')
@@ -994,8 +995,7 @@ useHead(computed(() => ({
 <template>
   <div>
     <section
-      class="pt-10 pb-6 md:pt-14"
-      :class="data && !error ? SKILL_CONTAINER : 'mx-auto max-w-5xl px-4 sm:px-6'"
+      class="mx-auto max-w-5xl px-4 sm:px-6 pt-10 pb-6 md:pt-14"
       :aria-labelledby="data && !error ? 'skill-heading' : undefined"
       :aria-label="!data || error ? 'Skill details' : undefined"
     >
@@ -1294,7 +1294,7 @@ useHead(computed(() => ({
           </div>
           <p
             v-if="data.description"
-            class="mt-3 max-w-3xl text-sm text-muted leading-relaxed line-clamp-3"
+            class="mt-3 text-sm text-muted leading-relaxed line-clamp-3"
           >
             {{ data.description }}
           </p>
