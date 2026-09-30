@@ -664,6 +664,14 @@ export default defineNuxtConfig({
         includeAppSources: false,
         chunks: 10000,
       },
+      // Experiment E, remove 2026-11-11: retired URLs (301, 404, 410) with a
+      // fresh lastmod, so Google recrawls and drops them sooner. Not submitted.
+      // Steps: `layers/registry/server/utils/retired-sitemap.ts`.
+      retired: {
+        sources: ['/api/__sitemap__/retired'],
+        includeAppSources: false,
+        chunks: 10000,
+      },
       authors: {
         sources: ['/api/__sitemap__/authors'],
         includeAppSources: false,
