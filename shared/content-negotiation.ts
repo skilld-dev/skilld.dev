@@ -33,7 +33,7 @@ export interface NegotiationRequest {
 }
 
 export type NegotiationDecision
-  = | { _tag: 'skip', reason: 'method' | 'internal' | 'not-a-page' | 'data-request' }
+  = | { _tag: 'skip', reason: 'method' | 'internal' | 'not-a-page' }
     | { _tag: 'html' }
     | { _tag: 'markdown', location: string }
     | { _tag: 'not-acceptable' }
@@ -58,8 +58,9 @@ export function decideNegotiation(request: NegotiationRequest): NegotiationDecis
     return { _tag: 'skip', reason: 'not-a-page' }
 
   const accept = request.accept ?? ''
+  // A data client keeps the page it always got, never a 406 or a redirect.
   if (DATA_ACCEPT_RE.test(accept) && !DOCUMENT_ACCEPT_RE.test(accept))
-    return { _tag: 'skip', reason: 'data-request' }
+    return { _tag: 'html' }
 
   const representation = representationFor(accept, request.secFetchDest)
   if (representation === 'markdown')
