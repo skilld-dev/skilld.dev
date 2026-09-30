@@ -70,6 +70,23 @@ describe('findSkillPagePath', () => {
     expect(await findSkillPagePath(db().db, { owner: 'nuxt', repository: 'scripts', skillPath: '.claude/skills/old' }))
       .toBeNull()
   })
+
+  it('matches the owner and repository whatever their case, and keeps the registry case', async () => {
+    addSkill('agricidaniel', 'claude-seo', 'seo-audit', 'skills/seo-audit/SKILL.md')
+    addSkill('agricidaniel', 'claude-seo', 'seo-schema', 'skills/seo-schema/SKILL.md')
+    addSkill('agricidaniel', 'claude-seo', 'seo-content', 'skills/seo-content/SKILL.md')
+    expect(await findSkillPagePath(db().db, { owner: 'AgriciDaniel', repository: 'Claude-SEO', skillPath: 'skills/seo-schema' }))
+      .toBe('/gh/agricidaniel/claude-seo/seo-schema')
+  })
+
+  it('prefers the row whose case matches exactly when both case variants exist', async () => {
+    addSkill('Acme', 'Pair', 'a', 'a/SKILL.md')
+    addSkill('Acme', 'Pair', 'b', 'b/SKILL.md')
+    addSkill('acme', 'pair', 'a', 'a/SKILL.md')
+    addSkill('acme', 'pair', 'c', 'c/SKILL.md')
+    expect(await findSkillPagePath(db().db, { owner: 'Acme', repository: 'Pair', skillPath: 'a' })).toBe('/gh/Acme/Pair/a')
+    expect(await findSkillPagePath(db().db, { owner: 'acme', repository: 'pair', skillPath: 'a' })).toBe('/gh/acme/pair/a')
+  })
 })
 
 const readyRow = {

@@ -24,9 +24,13 @@ interface PageRow {
  * `canonicalRepoSkillPath`, so a single-Skill repository answers with its hub
  * instead of the route that 301s there.
  *
- * One indexed read: the `(owner, repo, name)` primary key prefix bounds it to
- * one repository. `rendered_skill_path` is null on rows that never rendered,
- * so the directory name stands in for those.
+ * Owner and repository match without case, because delivery reports GitHub's
+ * canonical case while the registry keeps the case it first admitted. A row
+ * whose case matches exactly wins, and the path keeps the registry case.
+ *
+ * One indexed read: `idx_skills_owner_nocase` bounds it to one owner's rows.
+ * `rendered_skill_path` is null on rows that never rendered, so the directory
+ * name stands in for those.
  */
 export async function findSkillPagePath(
   db: D1Database,
@@ -41,9 +45,9 @@ export async function findSkillPagePath(
         (SELECT COUNT(*) FROM skills c
           WHERE c.owner = s.owner AND c.repo = s.repo AND c.source_resolved = 1) AS repo_skill_count
       FROM skills s
-      WHERE s.owner = ? AND s.repo = ? AND s.source_resolved = 1
-        AND (s.rendered_skill_path = ? OR (s.rendered_skill_path IS NULL AND s.name = ?))
-      ORDER BY s.rendered_skill_path IS NULL
+      WHERE s.owner = ?1 COLLATE NOCASE AND s.repo = ?2 COLLATE NOCASE AND s.source_resolved = 1
+        AND (s.rendered_skill_path = ?3 OR (s.rendered_skill_path IS NULL AND s.name = ?4))
+      ORDER BY s.rendered_skill_path IS NULL, (s.owner = ?1 AND s.repo = ?2) DESC
       LIMIT 1`)
     .bind(source.owner, source.repository, renderedPath, directoryName)
     .first<PageRow>()
