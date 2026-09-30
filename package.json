@@ -33,6 +33,7 @@
     "embeddings:parity": "tsx scripts/check-embedding-parity.ts",
     "production:deploy": "tsx scripts/deploy-production.ts",
     "production:smoke": "tsx scripts/check-production-smoke.ts",
+    "production:edge-cache": "tsx scripts/check-edge-cache.ts",
     "registry:convergence": "tsx scripts/check-registry-convergence.ts",
     "crawl:skills-sh": "tsx scripts/crawl-skills-sh.ts",
     "db:schema:verify": "tsx scripts/verify-d1-schema.ts",

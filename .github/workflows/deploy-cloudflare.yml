@@ -92,6 +92,15 @@ jobs:
       - name: Smoke an Artifact build
         run: node scripts/smoke-artifact-resolution.mjs --timeout-ms 120000
 
+      # Workers Cache stores `/skills/trending` (see routeRules in
+      # nuxt.config.ts). This proves a repeat visit is a hit, and that no stored
+      # response sets a cookie, hides Markdown from an agent, or carries a
+      # session. It fails the job without a rollback: the rollback smoke
+      # re-checks the previous version, and a version from before the rule
+      # could never pass these checks.
+      - name: Check the trending edge cache
+        run: pnpm production:edge-cache
+
       # Reuse the deploy build. Reporting errors must not change deployment status.
       - name: Report Nuxt DX budget
         id: dx_budget
