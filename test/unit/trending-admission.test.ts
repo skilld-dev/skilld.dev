@@ -74,7 +74,7 @@ describe('planAdmissions', () => {
 })
 
 describe('isSkillIndexable', () => {
-  const base = { seo_indexable: 1, trending_admitted: 1, probe_exception: 0, repo_kind: 'creator' }
+  const base = { seo_indexable: 1, trending_admitted: 1, probe_exception: 0, admissions_populated: 1, repo_kind: 'creator' }
 
   it('needs the quality score and an admission', () => {
     expect(isSkillIndexable(base)).toBe(true)
@@ -85,6 +85,12 @@ describe('isSkillIndexable', () => {
   it('waives the quality score for a probe exception, never the admission', () => {
     expect(isSkillIndexable({ ...base, seo_indexable: 0, probe_exception: 1 })).toBe(true)
     expect(isSkillIndexable({ ...base, seo_indexable: 0, trending_admitted: 0, probe_exception: 1 })).toBe(false)
+  })
+
+  it('falls back to the old decision while the admitted set is empty', () => {
+    expect(isSkillIndexable({ ...base, trending_admitted: 0, admissions_populated: 0 })).toBe(true)
+    expect(isSkillIndexable({ ...base, seo_indexable: 0, trending_admitted: 0, admissions_populated: 0 })).toBe(false)
+    expect(isSkillIndexable({ ...base, repo_kind: 'aggregator', admissions_populated: 0 })).toBe(false)
   })
 
   it('keeps aggregator repositories out', () => {
@@ -141,6 +147,22 @@ describe('sitemap equals the indexable set', () => {
   })
 })
 
+describe('empty admitted set', () => {
+  it('lists the sitemap by the old decision, and the page agrees', async () => {
+    addSkill({ owner: 'o1', repo: 'r1', name: 'scored' })
+    addSkill({ owner: 'o2', repo: 'r2', name: 'unscored', indexable: false })
+    db().raw.prepare('DELETE FROM skill_trending_admissions').run()
+
+    const inSitemap = (await queryAllSkillsForSitemap(db().db)).map(e => `${e.owner}/${e.repo}/${e.name}`)
+    expect(inSitemap).toEqual(['o1/r1/scored'])
+    const rows = db().raw.prepare(
+      `SELECT s.owner, s.repo, s.name, s.seo_indexable, ${SKILL_INDEX_INPUT_COLUMNS_SQL}
+       FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo`,
+    ).all() as Array<{ owner: string, repo: string, name: string, seo_indexable: number, trending_admitted: number, probe_exception: number, admissions_populated: number, repo_kind: string }>
+    expect(rows.filter(isSkillIndexable).map(r => r.name)).toEqual(['scored'])
+  })
+})
+
 describe('probe exceptions', () => {
   it('admits a low-score probe Skill and lists it in the sitemap', async () => {
     addSkill({ owner: 'harlan-zw', repo: 'gscdump', name: 'gscdump', indexable: false })
@@ -152,7 +174,7 @@ describe('probe exceptions', () => {
 
   it('upgrades a Skill already admitted from a board', async () => {
     addSkill({ owner: 'harlan-zw', repo: 'gscdump', name: 'gscdump', indexable: false })
-    db().raw.prepare(`INSERT INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board) VALUES ('harlan-zw', 'gscdump', 'gscdump', ?, 'week')`).run(NOW)
+    db().raw.prepare(`INSERT OR REPLACE INTO skill_trending_admissions (owner, repo, name, admitted_at, first_board) VALUES ('harlan-zw', 'gscdump', 'gscdump', ?, 'week')`).run(NOW)
     await admitTrendingSkills(db().db, NOW)
     const row = db().raw.prepare(`SELECT first_board FROM skill_trending_admissions WHERE name = 'gscdump'`).get() as { first_board: string }
     expect(row.first_board).toBe('probe')

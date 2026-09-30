@@ -15,7 +15,7 @@ import {
 import { canonicalRepoSkillPath } from './skill-routes'
 import { collapseSearchDuplicates, hybridSkillSearch, rankSearchResults } from './skill-search'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
-import { SKILL_INDEXABLE_SQL } from './trending-admission'
+import { noteAdmissionFallback, SKILL_ADMISSIONS_POPULATED_SQL, SKILL_INDEXABLE_SQL } from './trending-admission'
 
 const NOT_BROKEN_SQL = notBrokenSql('r')
 const NOT_AGGREGATOR_SQL = notAggregatorSql('r')
@@ -856,6 +856,9 @@ export async function queryAllSkillsForSitemap(db: D1Database): Promise<SkillSit
     `)
     .all<SkillDuplicateRow>()
   const rows = res.results ?? []
+  const populated = await db.prepare(`SELECT ${SKILL_ADMISSIONS_POPULATED_SQL} AS populated`).first<{ populated: number }>()
+  if (populated?.populated !== 1)
+    noteAdmissionFallback()
   const weakerSlugs = duplicateWeakerSlugSet(rows)
   const entries = rows
     .filter(row => !weakerSlugs.has(skillSlug(row)))

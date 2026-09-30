@@ -18,7 +18,7 @@ import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 import { tagLinkPath } from '../../utils/tag-quality'
-import { isSkillIndexable, SKILL_INDEX_INPUT_COLUMNS_SQL } from '../../utils/trending-admission'
+import { isSkillIndexable, noteAdmissionFallback, SKILL_INDEX_INPUT_COLUMNS_SQL } from '../../utils/trending-admission'
 
 interface FaqPayload { faqs: { question: string, answer: string }[] }
 interface SummaryPayload { text: string }
@@ -173,6 +173,7 @@ interface SkillDetailRow {
   seo_indexable: number | null
   trending_admitted: number | null
   probe_exception: number | null
+  admissions_populated: number | null
   repo_kind: string | null
   seo_index_reasons: string | null
   seo_index_synced_at: number | null
@@ -219,6 +220,12 @@ const skillDetailHandler = defineApiHandler({
     })
   },
 })
+
+function indexableWithFallbackNote(row: Parameters<typeof isSkillIndexable>[0]): boolean {
+  if (row.admissions_populated !== 1)
+    noteAdmissionFallback()
+  return isSkillIndexable(row)
+}
 
 async function loadSkillDetail(event: H3Event, platform: Platform, slug: string): Promise<SkillDetailPayload> {
   const found = await findSkillWithRow<SkillDetailRow>(event, slug, DETAIL_COLUMNS_SQL)
@@ -434,7 +441,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     },
     seo: {
       indexScore: row.seo_index_score ?? 0,
-      indexable: isSkillIndexable(row),
+      indexable: indexableWithFallbackNote(row),
       reasons: row.seo_index_reasons ? JSON.parse(row.seo_index_reasons) as string[] : [],
       syncedAt: row.seo_index_synced_at ?? null,
       curatorCount: row.curator_count ?? 0,

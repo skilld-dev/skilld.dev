@@ -98,6 +98,14 @@ export const SKILL_ADMITTED_SQL = `EXISTS (
   WHERE adm.owner = s.owner AND adm.repo = s.repo AND adm.name = s.name
 )`
 
+/**
+ * True once the admitted set holds any row. While it holds none, the rule falls
+ * back to the pre-experiment decision (`seo_indexable`), because an empty set
+ * would `noindex` every Skill page: a state Googlebot could fetch after a
+ * deploy, an emptied table, or a task that has failed for days.
+ */
+export const SKILL_ADMISSIONS_POPULATED_SQL = 'EXISTS (SELECT 1 FROM skill_trending_admissions)'
+
 const SKILL_PROBE_SQL = `EXISTS (
   SELECT 1 FROM skill_trending_admissions adm
   WHERE adm.owner = s.owner AND adm.repo = s.repo AND adm.name = s.name AND adm.first_board = 'probe'
@@ -108,7 +116,10 @@ const SKILL_PROBE_SQL = `EXISTS (
  * either past the quality score or a probe exception. Queries that list
  * indexable Skills use this one clause.
  */
-export const SKILL_INDEXABLE_SQL = `((s.seo_indexable = 1 OR ${SKILL_PROBE_SQL}) AND ${SKILL_ADMITTED_SQL})`
+export const SKILL_INDEXABLE_SQL = `(
+  (s.seo_indexable = 1 AND NOT ${SKILL_ADMISSIONS_POPULATED_SQL})
+  OR ((s.seo_indexable = 1 OR ${SKILL_PROBE_SQL}) AND ${SKILL_ADMITTED_SQL})
+)`
 
 /**
  * Columns a `skills s JOIN repos r` read adds to call `isSkillIndexable`.
@@ -116,12 +127,14 @@ export const SKILL_INDEXABLE_SQL = `((s.seo_indexable = 1 OR ${SKILL_PROBE_SQL})
  */
 export const SKILL_INDEX_INPUT_COLUMNS_SQL = `${SKILL_ADMITTED_SQL} AS trending_admitted,
   ${SKILL_PROBE_SQL} AS probe_exception,
+  ${SKILL_ADMISSIONS_POPULATED_SQL} AS admissions_populated,
   r.repo_kind`
 
 export interface SkillIndexInput {
   seo_indexable: number | null
   trending_admitted: number | null
   probe_exception: number | null
+  admissions_populated: number | null
   repo_kind: string | null
 }
 
@@ -132,9 +145,27 @@ export interface SkillIndexInput {
  * them. The page now says the same.
  */
 export function isSkillIndexable(input: SkillIndexInput): boolean {
+  if (input.repo_kind === 'aggregator')
+    return false
+  // Never populated: the pre-experiment decision, not noindex for everyone.
+  if (input.admissions_populated !== 1)
+    return input.seo_indexable === 1
   return (input.seo_indexable === 1 || input.probe_exception === 1)
     && input.trending_admitted === 1
-    && input.repo_kind !== 'aggregator'
+}
+
+let fallbackLogged = false
+
+/** Log once per isolate that the rule is running on its fallback. */
+export function noteAdmissionFallback(): void {
+  if (fallbackLogged)
+    return
+  fallbackLogged = true
+  emitOperationalEvent(createWideEvent({
+    operation: 'trending-admission',
+    outcome: 'fallback-empty-set',
+    reason: 'skill_trending_admissions is empty; using the pre-experiment indexability rule',
+  }))
 }
 
 /**
