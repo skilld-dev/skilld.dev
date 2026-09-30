@@ -299,11 +299,10 @@ const skillDescription = computed(() => {
 useSeoMeta({
   title: () => skillTitle.value,
   description: () => skillDescription.value,
-  // The API decides `seoIndexable` from the route identity. `repoSource` is null
-  // for a renamed repository, whose GitHub identity differs from the registry
-  // route, so reading it here made `/gh/hyf0/vue-skills` noindex while the
-  // sitemap listed it. Read the fetched value directly.
-  robots: () => fetchedRepoSource.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
+  // Indexable only when the hub renders its source. A renamed repository comes
+  // back under a new identity, `repoSource` is null, and the page shows
+  // "Source not found", so it is noindex. The API applies the same rule.
+  robots: () => repoSource.value?.seoIndexable ? 'index,follow' : 'noindex,follow',
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
