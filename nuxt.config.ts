@@ -322,6 +322,14 @@ export default defineNuxtConfig({
     fallback: 'dark',
   },
 
+  // The server renders every public page signed out, so one stored copy can
+  // serve every visitor. The browser loads the session after hydration, and a
+  // page that needs it on the server says so with the `session` or `auth`
+  // route middleware.
+  auth: {
+    loadStrategy: 'client-only',
+  },
+
   runtimeConfig: {
     // nuxt-auth-utils names its cookie from here; `readUserSession` looks for
     // the same name before it opens a session.

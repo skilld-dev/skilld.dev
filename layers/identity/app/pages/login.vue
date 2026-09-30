@@ -1,4 +1,6 @@
 <script setup lang="ts">
+definePageMeta({ middleware: ['session'] })
+
 const route = useRoute()
 const { loginUrl } = useAuth()
 const { loggedIn } = useUserSession()
