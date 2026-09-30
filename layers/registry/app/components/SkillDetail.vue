@@ -21,6 +21,8 @@ const props = defineProps<{
   owner: string
   repo: string
   name: string
+  /** A `/-/<file>` deep link: the file opens in the viewer on first paint. */
+  file?: string
 }>()
 
 const owner = computed(() => props.owner)
@@ -297,8 +299,20 @@ const liveSkillFetch = useAsyncData<LiveSkill | null>(
 
 // Keep complete SSR for search and link previews. Client navigation renders
 // the loading state immediately while these independent requests run together.
+// A deep link renders its file on the server, so the link shows that file
+// without waiting for a client fetch.
+interface SkillAssetResponse {
+  status: 'ok'
+  raw: string
+  html: string | null
+  type: 'markdown' | 'code' | 'image' | 'data' | 'other'
+}
+const initialFileFetch = props.file
+  ? useFetch<SkillAssetResponse>(() => `/api/skill-asset/${slug.value}/${props.file}`, { watch: false })
+  : null
+
 if (import.meta.server)
-  await Promise.all([skillFetch, liveSkillFetch])
+  await Promise.all([skillFetch, liveSkillFetch, ...(initialFileFetch ? [initialFileFetch] : [])])
 
 const { data, status, error, refresh } = skillFetch
 
@@ -670,7 +684,9 @@ const skillModel = computed(() => {
   return data.value?.sourceFacts.frontmatter.model ?? null
 })
 
-const contentView = ref<'preview' | 'markdown'>('preview')
+const initialFile = initialFileFetch?.data.value?.raw ? initialFileFetch.data.value : null
+const initialFileIsMarkdown = /\.(?:md|markdown)$/i.test(props.file ?? '')
+const contentView = ref<'preview' | 'markdown'>(initialFile && !initialFileIsMarkdown ? 'markdown' : 'preview')
 const rawHtml = ref<string | null>(null)
 // Set when the file's language has no bundled grammar; rendered as plain text
 // so an unsupported extension doesn't leave the viewer stuck on the skeleton.
@@ -681,12 +697,12 @@ import { fileIcon, highlightLangFromPath } from '../utils/skill-file-tree'
 
 // Path of the doc currently active in the viewer, relative to the skill folder.
 // Empty string === SKILL.md. Used to highlight the file tree.
-const activeDocPath = ref<string>('')
+const activeDocPath = ref<string>(initialFile ? props.file! : '')
 // Sub-doc state. When the user navigates to a non-root markdown file via the
 // file tree, we store its server-rendered HTML + raw source here. Null means
 // "show the root SKILL.md" (data.value.contentHtml / data.value.raw).
-const subDocHtml = ref<string | null>(null)
-const subDocRaw = ref<string | null>(null)
+const subDocHtml = ref<string | null>(initialFile && initialFileIsMarkdown ? initialFile.html : null)
+const subDocRaw = ref<string | null>(initialFile?.raw ?? null)
 const currentDocLabel = computed(() => activeDocPath.value || 'SKILL.md')
 const currentRaw = computed(() => subDocRaw.value ?? data.value?.raw ?? null)
 const rawSourceUrl = computed(() => resolveSkillRawUrl({
@@ -699,7 +715,9 @@ const rawSourceUrl = computed(() => resolveSkillRawUrl({
 const currentContentHtml = computed(() => subDocHtml.value ?? data.value?.contentHtml ?? null)
 // Surfaced when a sub-doc fetch fails so the user gets feedback instead of a
 // silent no-op. Cleared on every successful navigation and on raw refresh.
-const docLoadError = ref<{ path: string, message: string } | null>(null)
+const docLoadError = ref<{ path: string, message: string } | null>(
+  props.file && !initialFile ? { path: props.file, message: 'This file is not in the Skill folder.' } : null,
+)
 // True while a tree click is fetching a sub-doc; drives the skeleton overlay
 // so the user doesn't stare at the previous doc.
 const docLoading = ref<string | null>(null)
@@ -740,6 +758,19 @@ function revealViewerTop() {
     section.scrollIntoView({ block: 'start' })
 }
 
+// The address bar follows the open file, so a copied URL opens that file.
+// replaceState keeps the router state, so no navigation or remount happens.
+function syncViewerUrl(path: string) {
+  if (!import.meta.client || !data.value)
+    return
+  const base = data.value.registryPath
+  const next = path && path !== 'SKILL.md'
+    ? `${base}/-/${path.split('/').map(encodeURIComponent).join('/')}`
+    : base
+  if (window.location.pathname !== next)
+    window.history.replaceState(window.history.state, '', next)
+}
+
 async function resolveAndOpen(path: string) {
   if (!data.value)
     return
@@ -751,6 +782,7 @@ async function resolveAndOpen(path: string) {
       activeDocPath.value = ''
       subDocHtml.value = null
       subDocRaw.value = null
+      syncViewerUrl('')
       revealViewerTop()
       return
     }
@@ -766,6 +798,7 @@ async function resolveAndOpen(path: string) {
       return
     activeDocPath.value = path
     subDocRaw.value = asset.raw
+    syncViewerUrl(path)
     revealViewerTop()
     const isMd = path.toLowerCase().endsWith('.md') || path.toLowerCase().endsWith('.markdown')
     subDocHtml.value = isMd ? asset.html : null
@@ -811,8 +844,8 @@ async function renderRaw(raw: string) {
   }
 }
 
-watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
-  if (raw !== prevRaw) {
+watch([contentView, currentRaw], ([view, raw], previous) => {
+  if (raw !== previous?.[1]) {
     rawHtml.value = null
     rawPlain.value = null
     rawError.value = null
@@ -820,7 +853,7 @@ watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
   if (!import.meta.client || view !== 'markdown' || !raw || rawHtml.value || rawPlain.value)
     return
   renderRaw(raw)
-})
+}, { immediate: true })
 
 const skillMdBytes = computed(() => data.value?.raw ? new TextEncoder().encode(data.value.raw).byteLength : 0)
 const viewerCrumbs = computed(() => currentDocLabel.value.split('/'))
@@ -1043,10 +1076,16 @@ const skillDescription = computed(() => {
   return withSeoContext(base, data.value.owner, data.value.repo)
 })
 
+// A deep link is a view of the Skill page, so it stays out of the index and
+// points its canonical at the Skill.
+const deepLinkTitle = computed(() => props.file
+  ? `${props.file.split('/').pop()} · ${data.value?.name ?? props.name}`
+  : null)
+
 useSeoMeta({
-  title: () => skillTitle.value,
+  title: () => deepLinkTitle.value ?? skillTitle.value,
   description: () => skillDescription.value,
-  robots: () => pageState.value.robots ?? undefined,
+  robots: () => props.file ? 'noindex,follow' : pageState.value.robots ?? undefined,
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
