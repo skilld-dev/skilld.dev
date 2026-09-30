@@ -26,7 +26,7 @@ interface Answer {
 function response(answer: Answer, path = '/skills/trending'): Response {
   const headers = new Headers({
     'content-type': 'text/html;charset=utf-8',
-    'vary': 'Accept, Sec-Fetch-Dest',
+    'vary': 'Accept, Sec-Fetch-Dest, Host',
     ...answer.headers,
   })
   for (const cookie of answer.cookies ?? [])
@@ -38,12 +38,19 @@ function response(answer: Answer, path = '/skills/trending'): Response {
  * A fake edge. Every anonymous request after the first to a path is a hit,
  * unless a test overrides one kind of request.
  */
-function edge(overrides: Partial<Record<'anonymous' | 'markdown' | 'session', (path: string, seen: number) => Answer>> = {}): EdgeCacheFetch {
+function edge(overrides: Partial<Record<'anonymous' | 'markdown' | 'session' | 'www', (path: string, seen: number) => Answer>> = {}): EdgeCacheFetch {
   const seen = new Map<string, number>()
   return async (url, init) => {
     const { pathname, search } = new URL(url)
     const path = pathname + search
     const headers = new Headers(init.headers)
+    if (new URL(url).hostname.startsWith('www.')) {
+      return response(overrides.www?.(path, 0) ?? {
+        status: 301,
+        headers: { 'location': `${BASE}${path}`, 'cache-control': 'private, no-store', 'vary': '' },
+        body: '',
+      }, path)
+    }
     if (headers.get('accept') === 'text/markdown') {
       return response(overrides.markdown?.(path, 0) ?? {
         status: 307,
@@ -165,7 +172,8 @@ describe('checkEdgeCache', () => {
   })
 
   it.each([
-    'Accept, Sec-Fetch-Dest, User-Agent',
+    'Accept, Sec-Fetch-Dest, Host, User-Agent',
+    'Accept, Sec-Fetch-Dest',
     'Accept',
     '',
   ])('fails when an anonymous page varies on %j', async (vary) => {
@@ -175,6 +183,47 @@ describe('checkEdgeCache', () => {
       _tag: 'failed',
       failures: [{ _tag: 'vary', path: '/skills/trending', request: 'anonymous' }],
     })
+  })
+
+  it('passes when www answers a 301 to the apex after the apex entry is warm', async () => {
+    const result = await run(edge())
+
+    expect(result._tag).toBe('passed')
+  })
+
+  it('fails when www is served the stored apex page', async () => {
+    const result = await run(edge({ www: () => ({ status: 200, headers: { 'cf-cache-status': 'HIT' } }) }))
+
+    expect(result).toMatchObject({
+      _tag: 'failed',
+      failures: [{ _tag: 'www-redirect', path: '/skills/trending', status: 200, location: null }],
+    })
+  })
+
+  it('fails when www redirects somewhere other than the apex path', async () => {
+    const result = await run(edge({ www: () => ({ status: 301, headers: { location: 'https://www.skilld.dev/skills/trending' }, body: '' }) }))
+
+    expect(result).toMatchObject({
+      _tag: 'failed',
+      failures: [{ _tag: 'www-redirect', status: 301, location: 'https://www.skilld.dev/skills/trending' }],
+    })
+  })
+
+  it('checks www only against a real apex', async () => {
+    const seen: string[] = []
+    const inner = edge()
+    await checkEdgeCache({
+      baseUrl: 'http://localhost:5678',
+      paths: ['/skills/trending'],
+      fetch: async (url, init) => {
+        seen.push(new URL(url).hostname)
+        return inner(url, init)
+      },
+      wait: async () => {},
+      hitAttempts: 3,
+    })
+
+    expect(seen.some(host => host.startsWith('www.'))).toBe(false)
   })
 
   it('fails when an agent asking for Markdown gets HTML', async () => {
@@ -228,6 +277,7 @@ describe('checkEdgeCache', () => {
         { _tag: 'network-error', path: '/skills/trending', request: 'anonymous', message: 'connect ECONNREFUSED' },
         { _tag: 'network-error', path: '/skills/trending', request: 'markdown', message: 'connect ECONNREFUSED' },
         { _tag: 'network-error', path: '/skills/trending', request: 'session-cookie', message: 'connect ECONNREFUSED' },
+        { _tag: 'www-redirect', path: '/skills/trending', status: null, message: 'connect ECONNREFUSED' },
       ],
     })
   })

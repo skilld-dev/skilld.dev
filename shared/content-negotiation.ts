@@ -16,8 +16,24 @@
  * every HTML page still carries.
  */
 
-/** The request headers a negotiated page response depends on. */
-export const NEGOTIATION_VARY = 'Accept, Sec-Fetch-Dest'
+/**
+ * The request headers that select a stored page response. The one place the
+ * `Vary` value is composed.
+ *
+ * `Host` keeps www apart from the apex. Workers Cache keys on the path, not
+ * the hostname, so without it a stored apex page answers a www request and the
+ * canonical-host redirect never runs.
+ */
+const NEGOTIATION_VARY_FIELDS = ['Accept', 'Sec-Fetch-Dest', 'Host']
+
+export const NEGOTIATION_VARY = NEGOTIATION_VARY_FIELDS.join(', ')
+
+/** True when `vary` names exactly the negotiation fields, in any order or case. */
+export function varyKeysEdgeCache(vary: string | null | undefined): boolean {
+  const fields = new Set((vary ?? '').split(',').map(field => field.trim().toLowerCase()).filter(Boolean))
+  return fields.size === NEGOTIATION_VARY_FIELDS.length
+    && NEGOTIATION_VARY_FIELDS.every(field => fields.has(field.toLowerCase()))
+}
 
 /** Set by nuxt-ai-ready when it fetches a page's HTML to convert it. */
 export const AI_READY_INTERNAL_HEADER = 'x-ai-ready-internal'

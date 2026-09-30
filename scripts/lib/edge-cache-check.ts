@@ -11,11 +11,14 @@
  * 3. An agent that asks for Markdown still gets the 307 to the `.md` URL.
  * 4. A request that carries a session cookie gets the anonymous render, and
  *    the page tells the browser to load the session itself.
- * 5. Every board is stored under its own key: boards that differ only by query
+ * 5. www answers a 301 to the apex, also once the apex entry is warm: the
+ *    cache key has no hostname, so `Vary: Host` must keep the variants apart.
+ * 6. Every board is stored under its own key: boards that differ only by query
  *    string render a different title or canonical URL. The bare path and the
  *    default range are one board, so they may share both.
  */
 
+import { varyKeysEdgeCache } from '../../shared/content-negotiation'
 import { DEFAULT_TRENDING_RANGE } from '../../shared/trending-range'
 
 /** The pages `nuxt.config.ts` gives an `edgeCache` rule. Each query is its own cache key. */
@@ -49,6 +52,7 @@ export type EdgeCacheFailure
     | { _tag: 'never-served-from-cache', path: string, cacheStatuses: string[] }
     | { _tag: 'markdown-location', path: string, actual: string | null }
     | { _tag: 'rendered-for-session', path: string, reason: string }
+    | { _tag: 'www-redirect', path: string, status: number | null, location: string | null, message?: string }
     | { _tag: 'shared-cache-entry', paths: string[], identity: string | null }
 
 export type EdgeCacheCheckResult
@@ -59,6 +63,8 @@ export interface EdgeCacheCheckDependencies {
   baseUrl: string
   paths?: string[]
   fetch?: EdgeCacheFetch
+  /** Where www lives. Defaults to `www.` on the apex when `baseUrl` is `skilld.dev`; null skips the check. */
+  wwwBaseUrl?: string | null
   wait?: (milliseconds: number) => Promise<void>
   /**
    * Repeat requests allowed after the first before the path fails. A deploy
@@ -85,12 +91,6 @@ async function request(fetch: EdgeCacheFetch, url: string, headers: Record<strin
 
 function cookieNames(response: Response): string[] {
   return response.headers.getSetCookie().map(cookie => cookie.split('=')[0]!.trim())
-}
-
-/** Vary must name exactly the two headers the negotiation reads. */
-function varyIsNegotiation(vary: string | null): boolean {
-  const fields = new Set((vary ?? '').split(',').map(field => field.trim().toLowerCase()).filter(Boolean))
-  return fields.size === 2 && fields.has('accept') && fields.has('sec-fetch-dest')
 }
 
 function markdownPath(path: string): string {
@@ -171,7 +171,7 @@ async function checkAnonymous(
     if (cookies.length)
       return { _tag: 'failed', failure: { _tag: 'sets-cookie', path, request: 'anonymous', cookies } }
     const vary = response.headers.get('vary')
-    if (!varyIsNegotiation(vary))
+    if (!varyKeysEdgeCache(vary))
       return { _tag: 'failed', failure: { _tag: 'vary', path, request: 'anonymous', actual: vary } }
 
     const status = (response.headers.get('cf-cache-status') ?? 'NONE').toUpperCase()
@@ -195,7 +195,7 @@ async function checkMarkdown(path: string, url: string, fetch: EdgeCacheFetch): 
   if (!location || new URL(location, url).pathname !== markdownPath(path))
     return { _tag: 'markdown-location', path, actual: location }
   const vary = response.headers.get('vary')
-  if (!varyIsNegotiation(vary))
+  if (!varyKeysEdgeCache(vary))
     return { _tag: 'vary', path, request: 'markdown', actual: vary }
   return null
 }
@@ -219,12 +219,30 @@ async function checkSessionCookie(path: string, url: string, fetch: EdgeCacheFet
   return null
 }
 
+function defaultWwwBaseUrl(baseUrl: string): string | null {
+  const { protocol, hostname } = new URL(baseUrl)
+  return hostname === 'skilld.dev' ? `${protocol}//www.${hostname}` : null
+}
+
+/** www must 301 to the same path and query on the apex, whatever the edge holds for the apex. */
+async function checkWww(path: string, wwwBaseUrl: string, baseUrl: string, fetch: EdgeCacheFetch): Promise<EdgeCacheFailure | null> {
+  const fetched = await request(fetch, new URL(path, wwwBaseUrl).href, BROWSER_HEADERS)
+  if (fetched._tag === 'error')
+    return { _tag: 'www-redirect', path, status: null, location: null, message: fetched.message }
+  const { response } = fetched
+  const location = response.headers.get('location')
+  if (response.status === 301 && location === new URL(path, baseUrl).href)
+    return null
+  return { _tag: 'www-redirect', path, status: response.status, location }
+}
+
 export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): Promise<EdgeCacheCheckResult> {
   const fetch = dependencies.fetch ?? globalThis.fetch
   const wait = dependencies.wait ?? (milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)))
   const hitAttempts = Math.max(1, Math.floor(dependencies.hitAttempts ?? 12))
   const retryDelayMs = Math.max(0, Math.floor(dependencies.retryDelayMs ?? 5_000))
   const paths = dependencies.paths ?? EDGE_CACHED_PATHS
+  const wwwBaseUrl = dependencies.wwwBaseUrl === undefined ? defaultWwwBaseUrl(dependencies.baseUrl) : dependencies.wwwBaseUrl
 
   const failures: EdgeCacheFailure[] = []
   const checks: Array<{ path: string, cacheStatuses: string[] }> = []
@@ -240,7 +258,9 @@ export async function checkEdgeCache(dependencies: EdgeCacheCheckDependencies): 
       identities.set(anonymous.identity, [...identities.get(anonymous.identity) ?? [], path])
     }
 
-    for (const failure of [await checkMarkdown(path, url, fetch), await checkSessionCookie(path, url, fetch)]) {
+    // After the anonymous loop, so the apex entry is warm.
+    const www = wwwBaseUrl ? await checkWww(path, wwwBaseUrl, dependencies.baseUrl, fetch) : null
+    for (const failure of [await checkMarkdown(path, url, fetch), await checkSessionCookie(path, url, fetch), www]) {
       if (failure)
         failures.push(failure)
     }
