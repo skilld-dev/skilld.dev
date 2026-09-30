@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SkillFileTreeNode as TreeNode } from '../utils/skill-file-tree'
+import { formatByteSize } from '../utils/skill-context-cost'
 import { fileIcon, isInlineRenderable, shouldAutoExpandFolder } from '../utils/skill-file-tree'
 
 const props = defineProps<{
@@ -117,6 +118,10 @@ function onInlineClick(event: MouseEvent) {
           aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
+        <span
+          v-if="node.asset?.size"
+          class="tree-size"
+        >{{ formatByteSize(node.asset.size) }}</span>
       </NuxtLink>
       <button
         v-else-if="inlineRenderable"
@@ -133,6 +138,10 @@ function onInlineClick(event: MouseEvent) {
           aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
+        <span
+          v-if="node.asset?.size"
+          class="tree-size"
+        >{{ formatByteSize(node.asset.size) }}</span>
       </button>
       <a
         v-else
@@ -149,6 +158,10 @@ function onInlineClick(event: MouseEvent) {
           aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
+        <span
+          v-if="node.asset?.size"
+          class="tree-size"
+        >{{ formatByteSize(node.asset.size) }}</span>
         <UIcon
           name="i-lucide-external-link"
           class="size-3 shrink-0 text-muted/60"
@@ -198,6 +211,12 @@ function onInlineClick(event: MouseEvent) {
 .tree-spacer {
   width: 0.75rem;
   flex-shrink: 0;
+}
+.tree-size {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-dimmed);
 }
 .tree-label {
   min-width: 0;

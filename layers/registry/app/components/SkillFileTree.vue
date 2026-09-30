@@ -20,6 +20,8 @@ const props = defineProps<{
   // Path of the source SKILL.md inside the repo, used to build GitHub URLs
   // for non-markdown leaves.
   skillPath?: string | null
+  // Byte size of SKILL.md, which `assets` never carries.
+  skillMdSize?: number
 }>()
 
 const emit = defineEmits<{
@@ -28,11 +30,11 @@ const emit = defineEmits<{
 
 // SKILL.md sits implicitly at the root and is never present in `assets`.
 // We surface it as a synthetic file so the tree mirrors what's on disk.
-const skillMdAsset: SkillAsset = { path: 'SKILL.md', size: 0, type: 'markdown' }
+const skillMdAsset = computed<SkillAsset>(() => ({ path: 'SKILL.md', size: props.skillMdSize ?? 0, type: 'markdown' }))
 
 const nodes = computed<SkillFileTreeNode[]>(() => {
   const root: SkillFileTreeNode = { kind: 'dir', path: '', name: '', children: [] }
-  const all: SkillAsset[] = [skillMdAsset, ...props.assets]
+  const all: SkillAsset[] = [skillMdAsset.value, ...props.assets]
   for (const asset of all) {
     const parts = asset.path.split('/').filter(Boolean)
     let cur = root
