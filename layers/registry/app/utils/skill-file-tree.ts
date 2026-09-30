@@ -4,18 +4,63 @@ interface SkillAsset {
   type: 'markdown' | 'code' | 'image' | 'data' | 'other'
 }
 
-export interface SkillFileTreeNode {
-  kind: 'file' | 'dir'
-  path: string
-  name: string
-  children?: SkillFileTreeNode[]
-  asset?: SkillAsset
+export type SkillFileTreeNode
+  = | { kind: 'dir', path: string, name: string, children: SkillFileTreeNode[], initiallyOpen: boolean }
+    | { kind: 'file', path: string, name: string, asset: SkillAsset }
+
+// A lone folder this small opens on load. More folders, or a bigger one, start
+// closed, so SKILL.md stays near the top of the tree.
+const AUTO_EXPAND_MAX_CHILDREN = 5
+const LICENSE_NAME = /^licen[cs]e(?:\.\w+)?$/i
+
+function rank(node: SkillFileTreeNode): number {
+  if (node.kind === 'dir')
+    return 0
+  if (node.path === 'SKILL.md')
+    return 1
+  return LICENSE_NAME.test(node.name) ? 3 : 2
 }
 
-const AUTO_EXPAND_MAX_CHILDREN = 5
+function sortNodes(nodes: SkillFileTreeNode[]): SkillFileTreeNode[] {
+  return nodes
+    .map(node => node.kind === 'dir' ? { ...node, children: sortNodes(node.children) } : node)
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+}
 
-export function shouldAutoExpandFolder(node: SkillFileTreeNode): boolean {
-  return node.kind === 'dir' && (node.children?.length ?? 0) <= AUTO_EXPAND_MAX_CHILDREN
+function withInitialOpen(nodes: SkillFileTreeNode[], parentOpen: boolean): SkillFileTreeNode[] {
+  const folders = nodes.filter(node => node.kind === 'dir')
+  return nodes.map((node) => {
+    if (node.kind !== 'dir')
+      return node
+    const initiallyOpen = parentOpen && folders.length === 1 && node.children.length <= AUTO_EXPAND_MAX_CHILDREN
+    return { ...node, initiallyOpen, children: withInitialOpen(node.children, initiallyOpen) }
+  })
+}
+
+/**
+ * The Skill folder as a tree: folders first, then SKILL.md, then the other
+ * files, with LICENSE last. The API never lists SKILL.md, so it is added here.
+ */
+export function buildSkillFileTree(assets: SkillAsset[], skillMdSize: number): SkillFileTreeNode[] {
+  const root: SkillFileTreeNode[] = []
+  for (const asset of [{ path: 'SKILL.md', size: skillMdSize, type: 'markdown' as const }, ...assets]) {
+    const parts = asset.path.split('/').filter(Boolean)
+    let level = root
+    parts.forEach((segment, index) => {
+      const path = parts.slice(0, index + 1).join('/')
+      if (index === parts.length - 1) {
+        level.push({ kind: 'file', path, name: segment, asset })
+        return
+      }
+      let dir = level.find((node): node is Extract<SkillFileTreeNode, { kind: 'dir' }> => node.kind === 'dir' && node.name === segment)
+      if (!dir) {
+        dir = { kind: 'dir', path, name: segment, children: [], initiallyOpen: false }
+        level.push(dir)
+      }
+      level = dir.children
+    })
+  }
+  return withInitialOpen(sortNodes(root), true)
 }
 
 const FILENAME_ICONS: Record<string, string> = {

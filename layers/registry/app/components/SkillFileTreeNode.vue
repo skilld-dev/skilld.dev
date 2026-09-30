@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SkillFileTreeNode as TreeNode } from '../utils/skill-file-tree'
-import { fileIcon, isInlineRenderable, shouldAutoExpandFolder } from '../utils/skill-file-tree'
+import { formatByteSize } from '../utils/skill-context-cost'
+import { fileIcon, isInlineRenderable } from '../utils/skill-file-tree'
 
 const props = defineProps<{
   node: TreeNode
@@ -19,7 +20,18 @@ const emit = defineEmits<{
   select: [path: string]
 }>()
 
-const open = ref(shouldAutoExpandFolder(props.node))
+const open = ref(props.node.kind === 'dir' && props.node.initiallyOpen)
+
+// Opening a file from a link or the breadcrumb reveals it in the tree.
+watch(() => props.activePath, (active) => {
+  if (props.node.kind === 'dir' && active.startsWith(`${props.node.path}/`))
+    open.value = true
+}, { immediate: true })
+
+function countFiles(node: TreeNode): number {
+  return node.kind === 'file' ? 1 : node.children.reduce((sum, child) => sum + countFiles(child), 0)
+}
+const folderFileCount = computed(() => props.node.kind === 'dir' ? countFiles(props.node) : 0)
 
 const isActive = computed(() => {
   if (props.node.kind !== 'file')
@@ -34,7 +46,9 @@ const githubUrl = computed(() => {
   return `https://github.com/${props.owner}/${props.repo}/blob/${props.branch}/${props.skillDir}/${props.node.path}`
 })
 
-function onMarkdownClick(event: MouseEvent) {
+// A plain click opens the file in the viewer. Modified clicks keep the
+// browser default, so cmd-click still opens the file link in a new tab.
+function onFileClick(event: MouseEvent) {
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
     return
   event.preventDefault()
@@ -44,24 +58,15 @@ function onMarkdownClick(event: MouseEvent) {
 const inlineRenderable = computed(() =>
   props.node.kind === 'file' && !!props.node.asset && isInlineRenderable(props.node.asset.type),
 )
-
-function onInlineClick(event: MouseEvent) {
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
-    return
-  event.preventDefault()
-  emit('select', props.node.path)
-}
 </script>
 
 <template>
-  <li
-    role="treeitem"
-    :aria-expanded="node.kind === 'dir' ? open : undefined"
-  >
+  <li>
     <template v-if="node.kind === 'dir'">
       <button
         type="button"
         class="tree-row"
+        :aria-expanded="open"
         :aria-controls="`${idPrefix}-${node.path}`"
         @click="open = !open"
       >
@@ -77,11 +82,13 @@ function onInlineClick(event: MouseEvent) {
           aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
+        <span
+          class="tree-size"
+        >{{ folderFileCount }} {{ folderFileCount === 1 ? 'file' : 'files' }}</span>
       </button>
       <ul
         v-show="open"
         :id="`${idPrefix}-${node.path}`"
-        role="group"
         class="tree-children"
       >
         <SkillFileTreeNode
@@ -112,8 +119,9 @@ function onInlineClick(event: MouseEvent) {
         rel="nofollow"
         class="tree-row file"
         :class="{ active: isActive }"
+        :aria-current="isActive ? 'true' : undefined"
         :title="node.path"
-        @click="onMarkdownClick"
+        @click="onFileClick"
       >
         <span class="tree-spacer" aria-hidden="true" />
         <UIcon
@@ -122,14 +130,19 @@ function onInlineClick(event: MouseEvent) {
           aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
+        <span
+          v-if="node.asset?.size"
+          class="tree-size"
+        >{{ formatByteSize(node.asset.size) }}</span>
       </a>
       <button
         v-else-if="inlineRenderable"
         type="button"
         class="tree-row file"
         :class="{ active: isActive }"
+        :aria-current="isActive ? 'true' : undefined"
         :title="node.path"
-        @click="onInlineClick"
+        @click="onFileClick"
       >
         <span class="tree-spacer" aria-hidden="true" />
         <UIcon
@@ -138,6 +151,10 @@ function onInlineClick(event: MouseEvent) {
           aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
+        <span
+          v-if="node.asset?.size"
+          class="tree-size"
+        >{{ formatByteSize(node.asset.size) }}</span>
       </button>
       <a
         v-else
@@ -154,6 +171,10 @@ function onInlineClick(event: MouseEvent) {
           aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
+        <span
+          v-if="node.asset?.size"
+          class="tree-size"
+        >{{ formatByteSize(node.asset.size) }}</span>
         <UIcon
           name="i-lucide-external-link"
           class="size-3 shrink-0 text-muted/60"
@@ -174,7 +195,7 @@ function onInlineClick(event: MouseEvent) {
 }
 .tree-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.375rem;
   width: 100%;
   padding: 0.25rem 0.5rem;
@@ -204,11 +225,17 @@ function onInlineClick(event: MouseEvent) {
   width: 0.75rem;
   flex-shrink: 0;
 }
+.tree-size {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-muted);
+}
+/* The explorer column is narrow, so long names wrap instead of hiding the
+   part that tells two files apart. */
 .tree-label {
   min-width: 0;
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 </style>

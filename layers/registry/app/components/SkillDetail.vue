@@ -1,21 +1,29 @@
 <script setup lang="ts">
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
+import type { ZipState } from '../utils/skill-zip'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
+import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../utils/skill-context-cost'
+import { fileIcon, highlightLangFromPath } from '../utils/skill-file-tree'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
 import { resolveSkillPageState } from '../utils/skill-page-state'
 import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
+import { resolveViewerLink } from '../utils/skill-viewer-link'
+import { resolveSkillZipEntries } from '../utils/skill-zip'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
+import SkillStarTrend from './_SkillStarTrend.vue'
 import SkillThirdPartyChecks from './_SkillThirdPartyChecks.vue'
 
 const props = defineProps<{
   owner: string
   repo: string
   name: string
+  /** A `/-/<file>` deep link: the file opens in the viewer on first paint. */
+  file?: string
 }>()
 
 const owner = computed(() => props.owner)
@@ -292,10 +300,44 @@ const liveSkillFetch = useAsyncData<LiveSkill | null>(
 
 // Keep complete SSR for search and link previews. Client navigation renders
 // the loading state immediately while these independent requests run together.
+// A deep link renders its file on the server, so the link shows that file
+// without waiting for a client fetch.
+interface SkillAssetResponse {
+  status: 'ok'
+  raw: string
+  html: string | null
+  type: 'markdown' | 'code' | 'image' | 'data' | 'other'
+}
+const initialFileFetch = props.file
+  ? useFetch<SkillAssetResponse>(() => `/api/skill-asset/${slug.value}/${props.file}`, { watch: false })
+  : null
+
 if (import.meta.server)
-  await Promise.all([skillFetch, liveSkillFetch])
+  await Promise.all([skillFetch, liveSkillFetch, ...(initialFileFetch ? [initialFileFetch] : [])])
 
 const { data, status, error, refresh } = skillFetch
+
+interface StarHistoryResponse {
+  starHistory: { _tag: 'ready', approximate: boolean, points: { at: number, value: number }[] } | { _tag: string }
+}
+// Browser only: the trend is decoration, so crawlers never pay a D1 read for it.
+// The trend shows from lg up. Below that it would wrap the byline when it
+// arrives, so smaller screens never fetch it.
+const showStarTrend = useMediaQuery('(min-width: 1024px)')
+const { data: starHistoryData, execute: loadStarHistory } = useLazyFetch<StarHistoryResponse>(
+  () => `/api/repos/${owner.value}/${repo.value}/history`,
+  { server: false, immediate: false, watch: false },
+)
+watch([showStarTrend, owner, repo], ([show]) => {
+  if (show)
+    void loadStarHistory()
+}, { immediate: true })
+const starTrend = computed(() => {
+  const history = starHistoryData.value?.starHistory
+  if (!history || history._tag !== 'ready' || !('points' in history) || history.points.length < 2)
+    return null
+  return history
+})
 const { data: liveSkill } = liveSkillFetch
 
 const isMissingSkill = computed(() => error.value?.statusCode === 404)
@@ -379,18 +421,101 @@ const treeAssets = computed(() => {
 })
 const treeAssetCount = computed(() => skillFiles.value?.total ?? data.value?.assetCount ?? treeAssets.value.length)
 
+// A Skill that is only SKILL.md has nothing to browse, so it gets no explorer
+// and the Skill takes the width.
+const hasExplorer = computed(() => treeAssets.value.length > 0)
+
+// Claude and ChatGPT take a Skill as an uploaded ZIP. The browser builds it
+// from GitHub at the pinned commit, so skilld serves no bytes.
+const zipState = ref<ZipState>({ _tag: 'idle' })
+const ZIP_FETCH_BATCH = 6
+
+// Each click starts a numbered build. Progress from an older build that is
+// still in flight must not overwrite the state of the current one.
+let zipBuildId = 0
+
+async function buildSkillZip(buildId: number, signal: AbortSignal): Promise<{ name: string, bytes: Uint8Array }> {
+  const skill = data.value
+  if (!skill?.skillPath)
+    throw new Error('skilld has no path for this SKILL.md. Download it from GitHub.')
+  if (treeAssetCount.value > treeAssets.value.length)
+    throw new Error('This Skill has more files than skilld lists. Download it from GitHub.')
+  // The live file list walks the branch head, so the files come from there too.
+  // The recorded commit is the fallback when only the synced list exists.
+  const ref = skillFiles.value?.files.length ? skillFiles.value.branch : (skill.provenance?.sourceCommitSha ?? skill.branch)
+  const entries = resolveSkillZipEntries({
+    owner: skill.owner,
+    repo: skill.repo,
+    ref,
+    skillPath: skill.skillPath,
+    name: skill.name,
+    files: treeAssets.value,
+  })
+  // Loaded on click, so the ZIP code never ships in the page bundle.
+  const { zipSync } = await import('fflate')
+  const files: Record<string, Uint8Array> = {}
+  let done = 0
+  zipState.value = { _tag: 'building', done, total: entries.length }
+  for (let start = 0; start < entries.length; start += ZIP_FETCH_BATCH) {
+    await Promise.all(entries.slice(start, start + ZIP_FETCH_BATCH).map(async (entry) => {
+      const response = await fetch(entry.url, { signal })
+      if (!response.ok)
+        throw new Error(`GitHub answered ${response.status} for ${entry.zipPath}.`)
+      files[entry.zipPath] = new Uint8Array(await response.arrayBuffer())
+      done += 1
+      if (buildId === zipBuildId)
+        zipState.value = { _tag: 'building', done, total: entries.length }
+    }))
+  }
+  return { name: `${skill.name}.zip`, bytes: zipSync(files) }
+}
+
+function downloadSkillZip() {
+  if (zipState.value._tag === 'building')
+    return
+  const buildId = ++zipBuildId
+  const controller = new AbortController()
+  buildSkillZip(buildId, controller.signal)
+    .then(({ name, bytes }) => {
+      // A copy backed by a plain ArrayBuffer, which is what Blob accepts.
+      const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/zip' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = name
+      link.click()
+      // Safari and Firefox read the URL after the click returns.
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      zipState.value = { _tag: 'idle' }
+    })
+    .catch((error: unknown) => {
+      // Stop the files still downloading, so none of them reports progress.
+      controller.abort()
+      if (buildId === zipBuildId)
+        zipState.value = { _tag: 'error', message: error instanceof Error ? error.message : 'The ZIP could not be built.' }
+    })
+}
+
+const contextCost = computed(() => data.value
+  ? resolveSkillContextCost({
+      raw: data.value.raw,
+      name: data.value.name,
+      description: data.value.description,
+      files: treeAssets.value,
+    })
+  : null)
+
 const audits = computed<SkillAudit[]>(() => liveSkill.value?.audits ?? [])
 const auditOverview = computed(() => resolveSkillAuditOverview(audits.value))
 
+// The base tones are for dark surfaces. Light mode needs a darker shade to
+// reach 4.5:1 against the warm background.
 const AUDIT_TONE_CLASS = {
-  success: 'text-success',
-  warning: 'text-warning',
-  error: 'text-error',
+  success: 'text-success-700 dark:text-success',
+  warning: 'text-warning-800 dark:text-warning',
+  error: 'text-error-700 dark:text-error',
 } as const
 
 const { copy: copyMarkdown, copied: markdownCopied } = useClipboard()
-
-// An agent with no terminal cannot run a command, so it needs the raw URL.
 
 const badgeInput = computed(() => data.value
   ? {
@@ -517,8 +642,37 @@ const frontmatterEntries = computed(() => {
 })
 
 const pushedAtDate = computed(() => new Date(data.value?.pushedAt || 0))
-const pushedAtAgo = useTimeAgo(pushedAtDate)
 const maturity = computed(() => data.value?.maturity ?? null)
+
+// The SKILL.md commit date, which is what the Agent reads. The repository push
+// date moves on any unrelated commit, so the header used to contradict History.
+const skillUpdatedDate = computed(() => {
+  const modifiedAt = data.value?.provenance?.modifiedAt
+  return modifiedAt ? new Date(modifiedAt * 1000) : pushedAtDate.value
+})
+const skillUpdatedAgo = useTimeAgo(skillUpdatedDate)
+// Descriptions double as trigger text and run long. Two lines, then "more".
+const descriptionEl = useTemplateRef<HTMLElement>('descriptionEl')
+const descriptionExpanded = ref(false)
+const descriptionClamped = ref(false)
+useResizeObserver(descriptionEl, () => {
+  const el = descriptionEl.value
+  if (el && !descriptionExpanded.value)
+    descriptionClamped.value = el.scrollHeight > el.clientHeight + 1
+})
+const shortSha = computed(() => data.value?.provenance?.sourceCommitSha?.slice(0, 7) ?? null)
+
+// Frontmatter licences are free text ("Proprietary. LICENSE.txt has complete
+// terms"). The chip keeps the first clause; the title carries the rest.
+const licenseLabel = computed(() => {
+  const license = data.value?.license?.trim()
+  if (!license)
+    return null
+  // "MIT", "Apache-2.0", "Proprietary" read as names. A sentence such as
+  // "Complete terms in LICENSE.txt" does not, so the chip says "License".
+  const first = license.split(/[.;(]/)[0]!.trim()
+  return first.length <= 20 && first.split(/\s+/).length <= 2 ? first : 'License'
+})
 
 const verifiedSummary = computed<{ verified: number, total: number } | null>(() => {
   const list = relatedData.value?.commits ?? []
@@ -545,23 +699,23 @@ const skillModel = computed(() => {
   return data.value?.sourceFacts.frontmatter.model ?? null
 })
 
-const contentView = ref<'preview' | 'markdown'>('preview')
+const initialFile = initialFileFetch?.data.value?.raw ? initialFileFetch.data.value : null
+const initialFileIsMarkdown = /\.(?:md|markdown)$/i.test(props.file ?? '')
+const contentView = ref<'preview' | 'markdown'>(initialFile && !initialFileIsMarkdown ? 'markdown' : 'preview')
 const rawHtml = ref<string | null>(null)
 // Set when the file's language has no bundled grammar; rendered as plain text
 // so an unsupported extension doesn't leave the viewer stuck on the skeleton.
 const rawPlain = ref<string | null>(null)
 const rawError = ref<string | null>(null)
 
-import { highlightLangFromPath } from '../utils/skill-file-tree'
-
 // Path of the doc currently active in the viewer, relative to the skill folder.
 // Empty string === SKILL.md. Used to highlight the file tree.
-const activeDocPath = ref<string>('')
+const activeDocPath = ref<string>(initialFile ? props.file! : '')
 // Sub-doc state. When the user navigates to a non-root markdown file via the
 // file tree, we store its server-rendered HTML + raw source here. Null means
 // "show the root SKILL.md" (data.value.contentHtml / data.value.raw).
-const subDocHtml = ref<string | null>(null)
-const subDocRaw = ref<string | null>(null)
+const subDocHtml = ref<string | null>(initialFile && initialFileIsMarkdown ? initialFile.html : null)
+const subDocRaw = ref<string | null>(initialFile?.raw ?? null)
 const currentDocLabel = computed(() => activeDocPath.value || 'SKILL.md')
 const currentRaw = computed(() => subDocRaw.value ?? data.value?.raw ?? null)
 const rawSourceUrl = computed(() => resolveSkillRawUrl({
@@ -574,22 +728,57 @@ const rawSourceUrl = computed(() => resolveSkillRawUrl({
 const currentContentHtml = computed(() => subDocHtml.value ?? data.value?.contentHtml ?? null)
 // Surfaced when a sub-doc fetch fails so the user gets feedback instead of a
 // silent no-op. Cleared on every successful navigation and on raw refresh.
-const docLoadError = ref<{ path: string, message: string } | null>(null)
+const MISSING_FILE_MESSAGE = 'This file is not in the Skill folder.'
+// Only a finished fetch can say the file is missing. On a client navigation
+// the fetch is still running here, and the watcher below applies its result.
+const docLoadError = ref<{ path: string, message: string } | null>(
+  props.file && !initialFile && initialFileFetch?.error.value ? { path: props.file, message: MISSING_FILE_MESSAGE } : null,
+)
 // True while a tree click is fetching a sub-doc; drives the skeleton overlay
 // so the user doesn't stare at the previous doc.
 const docLoading = ref<string | null>(null)
 
-// Reset sub-doc state whenever the loaded skill changes so navigating between
-// skills always lands on the root SKILL.md.
-watch(
-  () => data.value,
-  () => {
-    activeDocPath.value = ''
-    subDocHtml.value = null
-    subDocRaw.value = null
-    docLoadError.value = null
-  },
-)
+// The body goes full width on desktop, capped so ultra-wide screens keep a
+// readable page. The header keeps its 1024px column.
+const SKILL_CONTAINER = 'mx-auto w-full max-w-[105rem] px-4 sm:px-6 lg:px-8 xl:px-10'
+
+const viewerSection = useTemplateRef<HTMLElement>('viewerSection')
+// The header checks chip jumps to the checks and opens their detail.
+const checksOpen = ref(useRoute().hash === '#third-party-checks')
+const filesPopoverOpen = ref(false)
+
+// The site header and the sticky viewer bar cover the top 108px, so focus and
+// anchor jumps would land underneath them.
+useHead({ htmlAttrs: { style: 'scroll-padding-top: 7rem' } })
+
+// A file opened from deep inside a long document would otherwise start
+// mid-page. Only jump when the viewer top has scrolled out of view.
+function revealViewerTop() {
+  const section = viewerSection.value
+  if (section && section.getBoundingClientRect().top < 0)
+    section.scrollIntoView({ block: 'start' })
+}
+
+// The address bar follows the open file, so a copied URL opens that file.
+// replaceState keeps the router state, so no navigation or remount happens.
+function syncViewerUrl(path: string) {
+  if (!import.meta.client || !data.value)
+    return
+  const base = data.value.registryPath
+  const next = path && path !== 'SKILL.md'
+    ? `${base}/-/${path.split('/').map(encodeURIComponent).join('/')}`
+    : base
+  if (window.location.pathname !== next)
+    window.history.replaceState({ ...window.history.state, current: next }, '', next)
+}
+
+function showAsset(path: string, asset: { raw: string, html: string | null }) {
+  activeDocPath.value = path
+  subDocRaw.value = asset.raw
+  subDocHtml.value = /\.(?:md|markdown)$/i.test(path) ? asset.html : null
+  syncViewerUrl(path)
+  revealViewerTop()
+}
 
 // Programmatic open from the file tree. Markdown sub-docs reuse the server's
 // `marked` render via /api/skill-asset so every previewed document goes
@@ -605,6 +794,8 @@ async function resolveAndOpen(path: string) {
       activeDocPath.value = ''
       subDocHtml.value = null
       subDocRaw.value = null
+      syncViewerUrl('')
+      revealViewerTop()
       return
     }
     const asset = await $fetch<{ status: 'ok', raw: string, html: string | null, type: 'markdown' | 'code' | 'image' | 'data' | 'other' }>(
@@ -617,54 +808,52 @@ async function resolveAndOpen(path: string) {
     })
     if (!asset?.raw)
       return
-    activeDocPath.value = path
-    subDocRaw.value = asset.raw
-    const isMd = path.toLowerCase().endsWith('.md') || path.toLowerCase().endsWith('.markdown')
-    subDocHtml.value = isMd ? asset.html : null
+    showAsset(path, asset)
   }
   finally {
     docLoading.value = null
   }
 }
 
-function resolveRelativePath(baseDir: string, href: string): string | null {
-  let target = href.replace(/^\.\//, '')
-  if (target.startsWith('/')) {
-    target = target.slice(1)
-    return target.includes('..') ? null : target
-  }
-  const segments = baseDir ? baseDir.split('/').filter(Boolean) : []
-  for (const part of target.split('/')) {
-    if (part === '..') {
-      if (!segments.length)
-        return null
-      segments.pop()
+// Navigating to another Skill lands on its SKILL.md.
+watch(() => data.value?.registryPath, (registryPath, previous) => {
+  if (!previous || registryPath === previous)
+    return
+  activeDocPath.value = ''
+  subDocHtml.value = null
+  subDocRaw.value = null
+  docLoadError.value = null
+})
+
+// A deep link reached by client navigation, or by Back, was not rendered on
+// the server. Its file fetch finishes after setup, so apply it here.
+if (initialFileFetch) {
+  watch([initialFileFetch.data, initialFileFetch.error], ([asset, error]) => {
+    if (!props.file)
+      return
+    if (asset?.raw) {
+      if (activeDocPath.value !== props.file)
+        showAsset(props.file, asset)
+      return
     }
-    else if (part && part !== '.') {
-      segments.push(part)
-    }
-  }
-  return segments.join('/')
+    if (error)
+      docLoadError.value = { path: props.file, message: MISSING_FILE_MESSAGE }
+  })
 }
 
-// Intercept clicks on relative `.md` links inside the rendered preview so we
-// can swap the doc in place instead of leaving the page.
+// Intercept clicks on Markdown links inside the rendered preview so we can
+// swap the doc in place instead of leaving the page.
 function onPreviewClick(e: MouseEvent) {
-  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+  if (!data.value || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
     return
   const anchor = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
   if (!anchor)
     return
-  const href = anchor.getAttribute('href') ?? ''
-  if (!href || href.startsWith('#') || /^[a-z][a-z0-9+.-]*:\/\//i.test(href))
-    return
-  const cleanHref = href.split('#')[0]?.split('?')[0] ?? ''
-  if (!cleanHref.toLowerCase().endsWith('.md') && !cleanHref.toLowerCase().endsWith('.markdown'))
-    return
-  const baseDir = activeDocPath.value.includes('/')
-    ? activeDocPath.value.slice(0, activeDocPath.value.lastIndexOf('/'))
-    : ''
-  const resolved = resolveRelativePath(baseDir, cleanHref)
+  const resolved = resolveViewerLink({
+    href: anchor.getAttribute('href') ?? '',
+    activeDocPath: activeDocPath.value,
+    fileRoutePrefix: `${repoSkillPath(data.value.owner, data.value.repo, data.value.name)}/-/`,
+  })
   if (!resolved)
     return
   e.preventDefault()
@@ -688,8 +877,8 @@ async function renderRaw(raw: string) {
   }
 }
 
-watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
-  if (raw !== prevRaw) {
+watch([contentView, currentRaw], ([view, raw], previous) => {
+  if (raw !== previous?.[1]) {
     rawHtml.value = null
     rawPlain.value = null
     rawError.value = null
@@ -697,6 +886,28 @@ watch([contentView, currentRaw], ([view, raw], [, prevRaw]) => {
   if (!import.meta.client || view !== 'markdown' || !raw || rawHtml.value || rawPlain.value)
     return
   renderRaw(raw)
+}, { immediate: true })
+
+const skillMdBytes = computed(() => data.value?.raw ? new TextEncoder().encode(data.value.raw).byteLength : 0)
+const viewerCrumbs = computed(() => currentDocLabel.value.split('/'))
+
+// What the open file costs the Agent's context, shown beside the file itself.
+const viewerContext = computed(() => {
+  const cost = contextCost.value
+  if (!cost)
+    return null
+  if (!activeDocPath.value)
+    return { _tag: 'skill' as const, cost }
+  const file = treeAssets.value.find(asset => asset.path === activeDocPath.value)
+  return file ? resolveSkillFileContext(file) : null
+})
+// A LICENSE file at the Skill root, which the license chip opens in the viewer.
+const licenseFile = computed(() => treeAssets.value.find(asset => /^licen[cs]e(?:\.(?:md|txt))?$/i.test(asset.path))?.path ?? null)
+
+const viewerFileSize = computed(() => {
+  if (!activeDocPath.value)
+    return skillMdBytes.value || null
+  return treeAssets.value.find(asset => asset.path === activeDocPath.value)?.size ?? null
 })
 
 const isNonMarkdownDoc = computed(() => {
@@ -707,17 +918,8 @@ const isNonMarkdownDoc = computed(() => {
   return !lower.endsWith('.md') && !lower.endsWith('.markdown')
 })
 
-const contentTabs = computed(() => {
-  if (isNonMarkdownDoc.value)
-    return [{ label: 'Raw', value: 'markdown', icon: 'i-lucide-file-text' }]
-  return [
-    { label: 'Preview', value: 'preview', icon: 'i-lucide-eye' },
-    { label: 'Raw', value: 'markdown', icon: 'i-lucide-file-text' },
-  ]
-})
-
-// Non-md files have no Preview tab — pin to Raw whenever the active doc is
-// not markdown, and snap back to Preview when returning to a markdown doc.
+// Non-Markdown files have no rendered view, so they always show source. Going
+// back to a Markdown file shows it rendered again.
 watch(isNonMarkdownDoc, (nonMd) => {
   contentView.value = nonMd ? 'markdown' : 'preview'
 })
@@ -812,6 +1014,11 @@ const pageState = computed(() => {
 // Set the status while rendering on the server. A missing Skill keeps its
 // helpful page, but the response says 404 so Google drops the URL instead of
 // filing it as a soft 404.
+// A deep link to a file the Skill does not have answers 404 and shows the
+// Skill with a notice, like a missing page with a way back.
+if (import.meta.server && props.file && !initialFile && data.value)
+  setResponseStatus(useRequestEvent()!, 404)
+
 if (import.meta.server && pageState.value.status) {
   const event = useRequestEvent()!
   setResponseStatus(event, pageState.value.status)
@@ -907,10 +1114,17 @@ const skillDescription = computed(() => {
   return withSeoContext(base, data.value.owner, data.value.repo)
 })
 
+// A deep link is a view of the Skill page, so it stays out of the index and
+// points its canonical at the Skill.
+const deepLinkTitle = computed(() => activeDocPath.value
+  ? `${activeDocPath.value.split('/').pop()} · ${data.value?.name ?? props.name}`
+  : null)
+
 useSeoMeta({
-  title: () => skillTitle.value,
+  title: () => deepLinkTitle.value ?? skillTitle.value,
   description: () => skillDescription.value,
-  robots: () => pageState.value.robots ?? undefined,
+  robots: () => props.file ? 'noindex,follow' : pageState.value.robots ?? undefined,
+  ogUrl: () => pageState.value.canonicalPath ? `${siteOrigin}${pageState.value.canonicalPath}` : undefined,
   ogTitle: () => skillTitle.value,
   ogDescription: () => skillDescription.value,
   twitterTitle: () => skillTitle.value,
@@ -1155,14 +1369,26 @@ useHead(computed(() => ({
                 >
                   /{{ data.name }}
                 </h1>
-                <UBadge
+                <a
+                  v-if="shortSha && data.provenance?.sourceCommitUrl"
+                  :href="data.provenance.sourceCommitUrl"
+                  target="_blank"
+                  rel="noopener"
+                  class="skill-sha font-mono text-sm tabular-nums hover:underline underline-offset-2"
+                  :title="`Your agent reads SKILL.md at commit ${shortSha}`"
+                >@{{ shortSha }}</a>
+                <span
                   v-if="data.tier !== 'community'"
-                  label="official"
-                  variant="solid"
-                  color="primary"
-                  size="xs"
+                  class="skill-official"
                   :title="data.tier === 'official-org' ? 'Published by the organization that maintains this project' : 'Published by the maintainer of this project'"
-                />
+                >
+                  <UIcon
+                    name="i-lucide-badge-check"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  official
+                </span>
               </div>
               <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                 <span>
@@ -1209,13 +1435,36 @@ useHead(computed(() => ({
                 </span>
               </div>
             </div>
+            <SkillStarTrend
+              v-if="showStarTrend && starTrend"
+              :points="starTrend.points"
+              :approximate="starTrend.approximate"
+              class="ml-auto hidden shrink-0 lg:flex"
+            />
           </div>
-          <p
+          <div
             v-if="data.description"
-            class="mt-3 text-sm text-muted leading-relaxed line-clamp-3"
+            class="mt-3"
           >
-            {{ data.description }}
-          </p>
+            <p
+              id="skill-description"
+              ref="descriptionEl"
+              class="text-sm text-muted leading-relaxed"
+              :class="{ 'line-clamp-2': !descriptionExpanded }"
+            >
+              {{ data.description }}
+            </p>
+            <button
+              v-if="descriptionClamped || descriptionExpanded"
+              type="button"
+              class="data-label mt-1 inline-flex min-h-6 items-center transition-colors hover:text-default"
+              :aria-expanded="descriptionExpanded"
+              aria-controls="skill-description"
+              @click="descriptionExpanded = !descriptionExpanded"
+            >
+              {{ descriptionExpanded ? 'less' : 'more' }}
+            </button>
+          </div>
 
           <div
             v-if="data.dependencies?.length"
@@ -1278,47 +1527,79 @@ useHead(computed(() => ({
           </div>
         </div>
 
-        <div class="mt-6 space-y-3">
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <a
-              v-if="skillFileUrl"
-              :href="skillFileUrl"
-              target="_blank"
-              rel="noopener"
-              class="data-label inline-flex min-h-11 items-center gap-1 transition-colors hover:text-default"
-              title="View SKILL.md on GitHub"
-            >
-              <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
-              GitHub
-            </a>
-            <span
-              v-if="data.pushedAt"
-              class="data-label inline-flex items-center gap-1"
-              :title="formatDateTitle(data.pushedAt)"
-              data-allow-mismatch="text"
-            >
-              <UIcon
-                name="i-lucide-clock"
-                class="size-3.5"
-                aria-hidden="true"
-              />
-              Updated {{ pushedAtAgo }}
-            </span>
-            <a
-              v-if="auditOverview"
-              href="#third-party-checks"
-              class="inline-flex min-h-11 items-center gap-1 font-mono text-xs transition-colors hover:brightness-110"
-              :class="AUDIT_TONE_CLASS[auditOverview.tone]"
-              :title="`Third-party checks: ${auditOverview.label} · ${auditOverview.detail}. Reports from outside skilld.`"
-            >
-              <UIcon
-                :name="auditOverview.icon"
-                class="size-3.5"
-                aria-hidden="true"
-              />
-              {{ auditOverview.label }}
-            </a>
-          </div>
+        <div class="mt-5 space-y-2">
+          <ul
+            role="list"
+            class="flex flex-wrap items-center gap-1.5"
+            aria-label="Skill facts"
+          >
+            <li v-if="contextCost">
+              <span class="skill-chip">
+                <UIcon name="i-lucide-files" class="size-3.5" aria-hidden="true" />
+                {{ contextCost.fileCount }} {{ contextCost.fileCount === 1 ? 'file' : 'files' }}
+              </span>
+            </li>
+            <li v-if="contextCost">
+              <span class="skill-chip" title="Total size of every file in the Skill folder">
+                <UIcon name="i-lucide-package" class="size-3.5" aria-hidden="true" />
+                {{ formatByteSize(contextCost.totalBytes) }}
+              </span>
+            </li>
+            <li v-if="licenseLabel">
+              <button
+                v-if="licenseFile"
+                type="button"
+                class="skill-chip skill-chip-link"
+                :title="`License: ${data.license}. Opens ${licenseFile}.`"
+                @click="() => { void resolveAndOpen(licenseFile!) }"
+              >
+                <UIcon name="i-lucide-scale" class="size-3.5" aria-hidden="true" />
+                {{ licenseLabel }}
+              </button>
+              <span
+                v-else
+                class="skill-chip"
+                :title="`License: ${data.license}`"
+              >
+                <UIcon name="i-lucide-scale" class="size-3.5" aria-hidden="true" />
+                {{ licenseLabel }}
+              </span>
+            </li>
+            <li v-if="data.provenance?.modifiedAt || data.pushedAt">
+              <span
+                class="skill-chip"
+                :title="formatDateTitle(skillUpdatedDate)"
+                data-allow-mismatch="text"
+              >
+                <UIcon name="i-lucide-clock" class="size-3.5" aria-hidden="true" />
+                Updated {{ skillUpdatedAgo }}
+              </span>
+            </li>
+            <li v-if="skillFileUrl">
+              <a
+                :href="skillFileUrl"
+                target="_blank"
+                rel="noopener"
+                class="skill-chip skill-chip-link"
+                title="View SKILL.md on GitHub"
+              >
+                <UIcon name="i-lucide-github" class="size-3.5" aria-hidden="true" />
+                GitHub
+              </a>
+            </li>
+            <li v-if="auditOverview">
+              <a
+                href="#third-party-checks"
+                class="skill-chip skill-chip-link"
+                :class="AUDIT_TONE_CLASS[auditOverview.tone]"
+                :title="`Third-party checks: ${auditOverview.label} · ${auditOverview.detail}`"
+                @click="checksOpen = true"
+              >
+                <UIcon :name="auditOverview.icon" class="size-3.5" aria-hidden="true" />
+                {{ auditOverview.label }}
+              </a>
+            </li>
+          </ul>
         </div>
       </template>
     </section>
@@ -1328,10 +1609,10 @@ useHead(computed(() => ({
 
       <!-- The two command blocks are breakpoint twins, so neither can hold the anchor. -->
       <div id="run" class="scroll-mt-24" />
-      <div class="mx-auto max-w-5xl px-4 sm:px-6 pt-6 lg:hidden">
-        <h2 class="section-label mb-2">
-          Use it
-        </h2>
+      <div
+        class="pt-6 lg:hidden"
+        :class="SKILL_CONTAINER"
+      >
         <SkillCommandPanel
           v-model="commandMode"
           :run-url="runUrl"
@@ -1343,454 +1624,48 @@ useHead(computed(() => ({
         />
       </div>
 
-      <div class="mx-auto max-w-5xl px-4 sm:px-6 py-8 md:py-10 lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start">
-        <div class="lg:col-span-8 space-y-10 md:space-y-12">
-          <section
-            v-if="data.contentHtml"
-            class="skill-content-section"
-            aria-labelledby="content-heading"
-          >
-            <aside
-              class="skill-files-float hidden 2xl:block"
-              aria-labelledby="files-float-heading"
-            >
-              <div class="skill-files-float-inner">
-                <h2
-                  id="files-float-heading"
-                  class="section-label mb-3"
-                >
-                  Files
-                </h2>
-                <div class="rounded-lg border border-default p-2 bg-default">
-                  <SkillFileTree
-                    :assets="treeAssets"
-                    :owner="data.owner"
-                    :repo="data.repo"
-                    :name="data.name"
-                    :registry-path="data.registryPath"
-                    :branch="data.branch"
-                    :skill-path="data.skillPath"
-                    :active-path="activeDocPath"
-                    @select="(p) => { void resolveAndOpen(p) }"
-                  />
-                  <p v-if="treeAssetCount > treeAssets.length" class="px-2 pt-2 font-mono text-[10px] text-muted">
-                    Showing {{ treeAssets.length.toLocaleString() }} of {{ treeAssetCount.toLocaleString() }} files.
-                  </p>
-                </div>
-              </div>
-            </aside>
-            <div class="mb-3 flex items-start justify-between gap-3">
-              <h2
-                id="content-heading"
-                class="section-label flex min-w-0 flex-1 items-baseline gap-2"
-              >
-                <span class="shrink-0">Skill content</span>
-                <span
-                  v-if="activeDocPath"
-                  class="min-w-0 truncate font-mono text-[10px] tracking-normal normal-case text-muted"
-                  :title="currentDocLabel"
-                >
-                  / {{ currentDocLabel }}
-                </span>
-              </h2>
-              <div
-                v-if="currentRaw"
-                class="flex shrink-0 items-center gap-1"
-              >
-                <UButton
-                  :icon="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  class="min-h-11"
-                  :aria-label="markdownCopied ? `${currentDocLabel} copied` : `Copy ${currentDocLabel}`"
-                  @click="copyMarkdown(currentRaw)"
-                >
-                  {{ markdownCopied ? 'Copied' : 'Copy markdown' }}
-                </UButton>
-                <UButton
-                  :href="rawSourceUrl"
-                  target="_blank"
-                  rel="noopener"
-                  label="Raw"
-                  icon="i-lucide-file-text"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  class="min-h-11"
-                />
-              </div>
-            </div>
-
-            <UTabs
-              v-if="!isNonMarkdownDoc"
-              v-model="contentView"
-              :items="contentTabs"
-              :content="false"
-              color="neutral"
-              variant="link"
-              size="xs"
-              class="mb-3"
-            />
-
-            <div class="rounded-lg border border-default overflow-hidden">
-              <section
-                v-show="contentView === 'preview'"
-                class="skill-mdxg p-4 sm:p-6 relative"
-                :data-loading="docLoading || undefined"
-                aria-label="Skill content viewer"
-                :aria-busy="docLoading ? 'true' : undefined"
-              >
-                <div
-                  v-if="docLoading"
-                  class="skill-mdxg-loading"
-                  role="status"
-                  :aria-label="`Loading ${docLoading}`"
-                >
-                  <UIcon
-                    name="i-lucide-loader-circle"
-                    class="size-4 shrink-0 animate-spin text-muted"
-                    aria-hidden="true"
-                  />
-                  <span class="font-mono text-xs text-muted">
-                    Loading {{ docLoading }}…
-                  </span>
-                </div>
-                <div
-                  v-if="docLoadError"
-                  role="alert"
-                  class="mb-3 flex items-start gap-2 rounded-md border border-default bg-muted/30 px-3 py-2 text-sm"
-                >
-                  <UIcon
-                    name="i-lucide-alert-circle"
-                    class="size-4 shrink-0 mt-0.5 text-muted"
-                    aria-hidden="true"
-                  />
-                  <div class="min-w-0 flex-1">
-                    <p>
-                      Couldn't open <code class="font-mono">{{ docLoadError.path }}</code>.
-                    </p>
-                    <p class="mt-1 font-mono text-xs text-muted break-words">
-                      {{ docLoadError.message }}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="shrink-0 px-2 py-0.5 font-mono text-xs text-muted hover:text-default"
-                    @click="docLoadError = null"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-                <article
-                  class="skill-prose"
-                  @click="onPreviewClick"
-                  v-html="currentContentHtml || ''"
-                />
-              </section>
-            </div>
-            <div
-              v-show="contentView === 'markdown'"
-              class="skill-markdown"
-            >
-              <div
-                v-if="rawHtml"
-                v-html="rawHtml"
-              />
-              <pre
-                v-else-if="rawPlain"
-                class="p-4 sm:p-6 overflow-auto text-xs whitespace-pre-wrap"
-              >{{ rawPlain }}</pre>
-              <div
-                v-else-if="rawError"
-                class="flex items-start gap-3 p-4 sm:p-6 text-sm"
-                role="alert"
-              >
-                <UIcon
-                  name="i-lucide-alert-circle"
-                  class="size-4 shrink-0 mt-0.5 text-muted"
-                  aria-hidden="true"
-                />
-                <div class="min-w-0 flex-1">
-                  <p class="text-default">
-                    Couldn't render markdown source.
-                  </p>
-                  <p class="mt-1 font-mono text-xs text-muted break-words">
-                    {{ rawError }}
-                  </p>
-                  <UButton
-                    label="Retry"
-                    size="xs"
-                    color="neutral"
-                    variant="outline"
-                    class="mt-3"
-                    @click="() => { if (currentRaw) renderRaw(currentRaw) }"
-                  />
-                </div>
-              </div>
-              <div
-                v-else
-                class="p-4 sm:p-6"
-              >
-                <USkeleton class="h-4 w-3/4" />
-                <USkeleton class="mt-2 h-4 w-1/2" />
-                <USkeleton class="mt-2 h-4 w-2/3" />
-              </div>
-            </div>
-
-            <p class="mt-3 text-xs text-muted">
-              Source:
-              <a
-                :href="data.provenance?.skillFileUrl || githubUrl"
-                target="_blank"
-                rel="noopener"
-                class="font-mono hover:text-default transition-colors"
-              >
-                SKILL.md on GitHub
-              </a>
-            </p>
-          </section>
-
-          <section
-            v-if="(data.resolutionStatus && data.resolutionStatus !== 'ok') || data.sourceGone"
-            aria-labelledby="broken-heading"
-          >
-            <h2
-              id="broken-heading"
-              class="sr-only"
-            >
-              Source unavailable
-            </h2>
-            <div
-              class="flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
-              role="status"
-            >
-              <UIcon
-                name="i-lucide-alert-triangle"
-                class="size-5 shrink-0 mt-0.5 text-muted"
-                aria-hidden="true"
-              />
-              <div class="flex-1">
-                <p class="font-medium">
-                  {{ sourceUnavailableTitle }}
-                </p>
-                <p class="mt-1 text-muted">
-                  {{ sourceUnavailableDetail }}
-                </p>
-                <div class="mt-3 flex flex-wrap gap-2">
-                  <UButton
-                    v-if="data.sourceGone"
-                    :to="repoHubPath(data.owner, data.repo)"
-                    :label="`Skills still live in ${data.owner}/${data.repo}`"
-                    icon="i-lucide-arrow-right"
-                    trailing
-                    size="xs"
-                    color="neutral"
-                  />
-                  <UButton
-                    :href="data.githubUrl"
-                    target="_blank"
-                    rel="noopener"
-                    label="Browse repository"
-                    icon="i-simple-icons-github"
-                    size="xs"
-                    color="neutral"
-                    variant="outline"
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section
-            v-if="data.summary"
-            aria-labelledby="summary-heading"
-          >
-            <h2
-              id="summary-heading"
-              class="section-label mb-3"
-            >
-              What it does
-            </h2>
-            <p class="text-sm leading-relaxed">
-              {{ data.summary.text }}
-            </p>
-            <p class="mt-4 font-mono text-xs text-muted">
-              Generated from the current SKILL.md.
-            </p>
-          </section>
-
-          <section
-            v-if="data.faqs.length"
-            aria-labelledby="faq-heading"
-          >
-            <h2
-              id="faq-heading"
-              class="section-label mb-4"
-            >
-              Frequently asked
-            </h2>
-            <div class="divide-y divide-default rounded-lg border border-default">
-              <details
-                v-for="(faq, idx) in data.faqs"
-                :key="idx"
-                class="group"
-              >
-                <summary class="flex cursor-pointer items-start gap-3 px-4 py-3 text-sm hover:bg-muted/30 transition-colors">
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="size-4 shrink-0 mt-0.5 text-muted transition-transform group-open:rotate-90"
-                    aria-hidden="true"
-                  />
-                  <span class="flex-1">{{ faq.question }}</span>
-                </summary>
-                <div class="px-4 pb-4 pl-11 text-sm text-muted leading-relaxed">
-                  {{ faq.answer }}
-                </div>
-              </details>
-            </div>
-            <p class="mt-3 font-mono text-xs text-muted">
-              Generated from the current SKILL.md. These answers refresh after source changes.
-            </p>
-          </section>
-        </div>
-
+      <div
+        class="skill-layout py-8 md:py-10"
+        :class="hasExplorer ? SKILL_CONTAINER : ['mx-auto max-w-5xl px-4 sm:px-6', 'skill-layout--solo']"
+      >
         <aside
-          class="mt-10 lg:mt-0 lg:col-span-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1 scroll-fancy space-y-6"
-          aria-label="Run, install and metadata"
+          class="skill-rail scroll-fancy hidden space-y-8 lg:block"
+          aria-label="Run and install"
         >
-          <section
-            class="hidden lg:block"
-            aria-labelledby="rail-run-heading"
-          >
-            <h2
-              id="rail-run-heading"
-              class="section-label mb-2"
-            >
-              Use it
-            </h2>
+          <section aria-label="Run or install">
             <SkillCommandPanel
               v-model="commandMode"
+              layout="stacked"
+              :zip-name="data.skillPath ? `${data.name}.zip` : undefined"
+              :zip-state="zipState"
               :run-url="runUrl"
               :install-command="installCmd"
               :run-copied="copied"
               :install-copied="installCopied"
               :copy-error="commandCopyError"
+              @download="downloadSkillZip"
               @copy="copySkillCommand"
             />
           </section>
 
           <section
-            v-if="duplicateGroup?.siblings.length"
-            aria-labelledby="duplicate-siblings-heading"
-          >
-            <h2
-              id="duplicate-siblings-heading"
-              class="section-label mb-3"
-            >
-              Also available from
-            </h2>
-            <div class="divide-y divide-default rounded-lg border border-default overflow-hidden">
-              <NuxtLink
-                v-for="sibling in duplicateGroup.siblings"
-                :key="sibling.slug"
-                :to="sibling.registryPath"
-                class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
-                :title="`${sibling.owner}/${sibling.repo} · ${sibling.stars.toLocaleString()} GitHub stars`"
-              >
-                <UIcon
-                  name="i-lucide-git-branch"
-                  class="size-3.5 shrink-0 text-muted"
-                  aria-hidden="true"
-                />
-                <span class="min-w-0 flex-1 truncate font-mono text-xs text-muted">
-                  {{ sibling.owner }}/{{ sibling.repo }}
-                </span>
-                <span
-                  v-if="sibling.slug === duplicateGroup.canonical.slug"
-                  class="shrink-0 font-mono text-[11px] text-muted/70"
-                >
-                  canonical
-                </span>
-              </NuxtLink>
-            </div>
-          </section>
-
-          <section
-            v-if="data.license"
-            aria-labelledby="license-heading"
-          >
-            <h2
-              id="license-heading"
-              class="section-label mb-3"
-            >
-              License
-            </h2>
-            <p class="rounded-lg border border-default px-3 py-2.5 font-mono text-sm text-muted">
-              {{ data.license }}
-            </p>
-          </section>
-
-          <section
-            v-if="data.tags.length || data.keywords?.length"
-            aria-labelledby="topics-heading"
-          >
-            <h2
-              id="topics-heading"
-              class="section-label mb-3"
-            >
-              Topics
-            </h2>
-            <ul
-              role="list"
-              class="flex flex-wrap gap-1.5"
-            >
-              <li
-                v-for="tag in data.tags"
-                :key="tag.slug"
-              >
-                <NuxtLink
-                  :to="tag.path"
-                  class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
-                  :title="tag.description"
-                >
-                  <UIcon
-                    name="i-lucide-tag"
-                    class="size-3"
-                    aria-hidden="true"
-                  />
-                  {{ tag.label }}
-                </NuxtLink>
-              </li>
-              <li
-                v-for="kw in data.keywords"
-                :key="`kw-${kw}`"
-              >
-                <span
-                  class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted"
-                >
-                  <UIcon
-                    name="i-lucide-hash"
-                    class="size-3"
-                    aria-hidden="true"
-                  />
-                  {{ kw }}
-                </span>
-              </li>
-            </ul>
-          </section>
-
-          <section
-            class="2xl:hidden"
+            v-if="hasExplorer"
+            class="hidden lg:block xl:hidden"
             aria-labelledby="files-heading"
           >
-            <h2
-              id="files-heading"
-              class="section-label mb-3"
-            >
-              Files
-            </h2>
-            <div class="rounded-lg border border-default p-2" style="min-height:8rem">
+            <div class="mb-2 flex items-baseline justify-between gap-2">
+              <h2
+                id="files-heading"
+                class="section-label"
+              >
+                Files
+              </h2>
+              <span
+                v-if="contextCost"
+                class="data-label"
+              >{{ contextCost.fileCount }} {{ contextCost.fileCount === 1 ? 'file' : 'files' }} · {{ formatByteSize(contextCost.totalBytes) }}</span>
+            </div>
+            <div class="rounded-lg border border-default p-1.5">
               <SkillFileTree
                 :assets="treeAssets"
                 :owner="data.owner"
@@ -1799,6 +1674,7 @@ useHead(computed(() => ({
                 :registry-path="data.registryPath"
                 :branch="data.branch"
                 :skill-path="data.skillPath"
+                :skill-md-size="skillMdBytes"
                 :active-path="activeDocPath"
                 @select="(p) => { void resolveAndOpen(p) }"
               />
@@ -1809,164 +1685,87 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="capabilitySummary || skillModel || frontmatterEntries.visible.length || frontmatterEntries.other.length"
-            aria-labelledby="capability-heading"
+            v-if="capabilitySummary?.scopes.length"
+            class="hidden lg:block"
+            aria-labelledby="rail-scopes-heading"
           >
             <h2
-              id="capability-heading"
-              class="section-label mb-3"
+              id="rail-scopes-heading"
+              class="section-label mb-2"
             >
-              Capability
+              What it can do
             </h2>
-            <div class="rounded-lg border border-default p-4 space-y-3">
-              <div
-                v-if="capabilitySummary && capabilitySummary.scopes.length"
-                class="space-y-1.5"
+            <ul
+              role="list"
+              class="flex flex-wrap gap-1.5"
+            >
+              <li
+                v-for="scope in capabilitySummary.scopes"
+                :key="scope"
+                class="skill-chip"
+                :title="SCOPE_META[scope].hint"
               >
-                <span class="data-label block">What it can do</span>
-                <div class="flex flex-wrap gap-1.5">
-                  <span
-                    v-for="scope in capabilitySummary.scopes"
-                    :key="scope"
-                    class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
-                    :title="SCOPE_META[scope].hint"
-                  >
-                    <UIcon
-                      :name="SCOPE_META[scope].icon"
-                      class="size-3.5"
-                      aria-hidden="true"
-                    />
-                    {{ SCOPE_META[scope].label }}
-                  </span>
-                </div>
-              </div>
-
-              <div
-                v-if="capabilitySummary && capabilitySummary.mcp.length"
-                class="space-y-1.5"
-              >
-                <span class="data-label block">MCP servers</span>
-                <div class="flex flex-wrap gap-1">
-                  <UBadge
-                    v-for="server in capabilitySummary.mcp"
-                    :key="server"
-                    :label="server"
-                    variant="subtle"
-                    color="neutral"
-                    size="xs"
-                    class="font-mono"
-                  />
-                </div>
-              </div>
-
-              <div
-                v-if="skillModel"
-                class="space-y-1.5"
-              >
-                <span class="data-label block">Model</span>
-                <UBadge
-                  :label="skillModel"
-                  variant="subtle"
-                  color="neutral"
-                  size="xs"
-                  class="font-mono"
+                <UIcon
+                  :name="SCOPE_META[scope].icon"
+                  class="size-3.5"
+                  aria-hidden="true"
                 />
-              </div>
+                {{ SCOPE_META[scope].label }}
+              </li>
+            </ul>
+            <a
+              href="#capability-heading"
+              class="data-label mt-2 inline-flex min-h-6 items-center gap-1 transition-colors hover:text-default"
+            >
+              Allowed tools and settings
+              <UIcon
+                name="i-lucide-arrow-down"
+                class="size-3"
+                aria-hidden="true"
+              />
+            </a>
+          </section>
+        </aside>
 
-              <dl
-                v-if="frontmatterEntries.visible.length"
-                class="divide-y divide-default"
+        <aside
+          class="skill-explorer scroll-fancy space-y-8"
+          aria-label="Files and history"
+        >
+          <section
+            v-if="hasExplorer"
+            class="hidden xl:block"
+            aria-labelledby="explorer-heading"
+          >
+            <div class="mb-2 flex items-baseline justify-between gap-2">
+              <h2
+                id="explorer-heading"
+                class="section-label"
               >
-                <div
-                  v-for="entry in frontmatterEntries.visible"
-                  :key="entry.key"
-                  class="flex flex-col gap-1 py-2 first:pt-0 last:pb-0"
-                >
-                  <dt class="data-label">
-                    {{ entry.key }}
-                  </dt>
-                  <dd class="min-w-0 font-mono text-xs text-muted">
-                    <pre
-                      v-if="entry.complex"
-                      class="whitespace-pre-wrap break-all"
-                    >{{ entry.value }}</pre>
-                    <span
-                      v-else
-                      class="break-all"
-                    >{{ entry.value }}</span>
-                  </dd>
-                </div>
-              </dl>
-
-              <details
-                v-if="allowedTools.length"
-                class="group"
-              >
-                <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="size-3.5 transition-transform group-open:rotate-90"
-                    aria-hidden="true"
-                  />
-                  All {{ allowedTools.length }} allowed tools
-                </summary>
-                <div class="mt-3 flex flex-wrap gap-1 pl-5">
-                  <UBadge
-                    v-for="tool in allowedTools"
-                    :key="tool"
-                    :label="tool"
-                    variant="subtle"
-                    color="neutral"
-                    size="xs"
-                    class="font-mono"
-                  />
-                </div>
-              </details>
-
-              <details
-                v-if="frontmatterEntries.other.length"
-                class="group"
-              >
-                <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="size-3.5 transition-transform group-open:rotate-90"
-                    aria-hidden="true"
-                  />
-                  Other metadata
-                </summary>
-                <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-xs">
-                  <div
-                    v-for="entry in frontmatterEntries.other"
-                    :key="entry.key"
-                    class="flex flex-col gap-1 px-3 py-2"
-                  >
-                    <dt class="data-label">
-                      {{ entry.key }}
-                    </dt>
-                    <dd class="min-w-0 font-mono text-muted">
-                      <pre
-                        v-if="entry.complex"
-                        class="whitespace-pre-wrap break-all"
-                      >{{ entry.value }}</pre>
-                      <span
-                        v-else
-                        class="break-all"
-                      >{{ entry.value }}</span>
-                    </dd>
-                  </div>
-                </dl>
-              </details>
+                Files
+              </h2>
+              <span
+                v-if="contextCost"
+                class="data-label"
+              >{{ contextCost.fileCount }} {{ contextCost.fileCount === 1 ? 'file' : 'files' }} · {{ formatByteSize(contextCost.totalBytes) }}</span>
+            </div>
+            <div class="rounded-lg border border-default p-1.5">
+              <SkillFileTree
+                :assets="treeAssets"
+                :owner="data.owner"
+                :repo="data.repo"
+                :name="data.name"
+                :registry-path="data.registryPath"
+                :branch="data.branch"
+                :skill-path="data.skillPath"
+                :skill-md-size="skillMdBytes"
+                :active-path="activeDocPath"
+                @select="(p) => { void resolveAndOpen(p) }"
+              />
+              <p v-if="treeAssetCount > treeAssets.length" class="px-2 pt-2 font-mono text-[10px] text-muted">
+                Showing {{ treeAssets.length.toLocaleString() }} of {{ treeAssetCount.toLocaleString() }} files.
+              </p>
             </div>
           </section>
-
-          <SkillReceiptsPanel
-            v-if="data.provenance"
-            :provenance="data.provenance"
-            :verified-summary="verifiedSummary"
-            :maturity="maturity"
-          />
-
           <section
             ref="historySlot"
             aria-labelledby="history-heading"
@@ -2080,20 +1879,642 @@ useHead(computed(() => ({
               </a>
             </p>
           </section>
+        </aside>
 
-          <SkillThirdPartyChecks :audits="audits" />
+        <div class="skill-main min-w-0 space-y-10 md:space-y-12">
+          <section
+            v-if="data.contentHtml"
+            ref="viewerSection"
+            class="scroll-mt-20"
+            aria-labelledby="content-heading"
+          >
+            <div class="skill-viewer-bar">
+              <UIcon
+                :name="fileIcon(viewerCrumbs.at(-1) ?? 'SKILL.md')"
+                class="size-4 shrink-0"
+                aria-hidden="true"
+              />
+              <h2
+                id="content-heading"
+                class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden font-mono text-xs"
+              >
+                <button
+                  type="button"
+                  class="skill-crumb-root inline-flex min-h-6 min-w-0 items-center text-muted transition-colors hover:text-default"
+                  :aria-label="`Open SKILL.md of ${data.name}`"
+                  @click="() => { void resolveAndOpen('SKILL.md') }"
+                >
+                  {{ data.name }}
+                </button>
+                <template
+                  v-for="(crumb, index) in viewerCrumbs"
+                  :key="index"
+                >
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="size-3 shrink-0 text-dimmed"
+                    aria-hidden="true"
+                  />
+                  <span
+                    class="min-w-0 truncate"
+                    :class="index === viewerCrumbs.length - 1 ? 'skill-crumb-file text-default' : 'text-muted'"
+                  >{{ crumb }}</span>
+                </template>
+              </h2>
+              <span
+                v-if="viewerFileSize !== null"
+                class="hidden shrink-0 font-mono text-xs text-muted tabular-nums sm:inline"
+              >
+                {{ formatByteSize(viewerFileSize) }}
+              </span>
+              <button
+                v-if="!isNonMarkdownDoc"
+                type="button"
+                class="skill-viewer-action inline-flex"
+                :aria-pressed="contentView === 'markdown'"
+                @click="contentView = contentView === 'preview' ? 'markdown' : 'preview'"
+              >
+                <UIcon
+                  name="i-lucide-code"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                <span class="sr-only sm:not-sr-only">source</span>
+              </button>
+              <button
+                v-if="currentRaw"
+                type="button"
+                class="skill-viewer-action inline-flex"
+                :aria-label="markdownCopied ? `${currentDocLabel} copied` : `Copy ${currentDocLabel}`"
+                @click="copyMarkdown(currentRaw)"
+              >
+                <UIcon
+                  :name="markdownCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                <span class="hidden sm:inline">{{ markdownCopied ? 'copied' : 'copy' }}</span>
+              </button>
+              <a
+                v-if="currentRaw"
+                :href="rawSourceUrl"
+                target="_blank"
+                rel="noopener"
+                class="skill-viewer-action hidden sm:inline-flex"
+              >
+                <UIcon
+                  name="i-lucide-file-text"
+                  class="size-3.5"
+                  aria-hidden="true"
+                />
+                raw
+              </a>
+              <UPopover
+                v-if="hasExplorer"
+                v-model:open="filesPopoverOpen"
+                :content="{ align: 'end', sideOffset: 6 }"
+              >
+                <button
+                  type="button"
+                  class="skill-viewer-action inline-flex lg:hidden"
+                  :aria-label="`Browse ${treeAssets.length + 1} files`"
+                >
+                  <UIcon
+                    name="i-lucide-folder-tree"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ treeAssets.length + 1 }}
+                </button>
+                <template #content>
+                  <div class="max-h-[60vh] w-72 overflow-y-auto p-2">
+                    <SkillFileTree
+                      :assets="treeAssets"
+                      :owner="data.owner"
+                      :repo="data.repo"
+                      :name="data.name"
+                      :registry-path="data.registryPath"
+                      :branch="data.branch"
+                      :skill-path="data.skillPath"
+                      :skill-md-size="skillMdBytes"
+                      :active-path="activeDocPath"
+                      @select="(p) => { filesPopoverOpen = false; void resolveAndOpen(p) }"
+                    />
+                  </div>
+                </template>
+              </UPopover>
+            </div>
+
+            <div class="skill-viewer-body">
+              <p
+                v-if="viewerContext"
+                class="skill-context-strip"
+              >
+                <UIcon
+                  name="i-lucide-layers"
+                  class="size-3.5 shrink-0 text-[var(--syntax-arg)]"
+                  aria-hidden="true"
+                />
+                <span v-if="viewerContext._tag === 'skill'">
+                  <strong>{{ formatTokenCount(viewerContext.cost.tokens.metadata) }}</strong> tokens always: the name and description.
+                  <strong>{{ formatTokenCount(viewerContext.cost.tokens.instructions) }}</strong> when used: this file.
+                  <template v-if="viewerContext.cost.resourceFileCount">
+                    <strong>{{ formatTokenCount(viewerContext.cost.tokens.resources) }}</strong> more on demand in {{ viewerContext.cost.resourceFileCount }} {{ viewerContext.cost.resourceFileCount === 1 ? 'file' : 'files' }}.
+                  </template>
+                </span>
+                <span v-else-if="viewerContext._tag === 'resource'">
+                  <strong>{{ formatTokenCount(viewerContext.tokens) }}</strong> tokens on demand. Your agent reads this file only when SKILL.md points to it.
+                </span>
+                <span v-else-if="viewerContext._tag === 'script'">
+                  Your agent runs this script. Only its output enters context.
+                </span>
+                <span v-else>
+                  Your agent does not load this file into context unless it opens it.
+                </span>
+              </p>
+              <section
+                v-show="contentView === 'preview'"
+                class="skill-mdxg p-4 sm:p-6 relative"
+                :data-loading="docLoading || undefined"
+                aria-label="Skill content viewer"
+                :aria-busy="docLoading ? 'true' : undefined"
+              >
+                <div
+                  v-if="docLoading"
+                  class="skill-mdxg-loading"
+                  role="status"
+                  :aria-label="`Loading ${docLoading}`"
+                >
+                  <UIcon
+                    name="i-lucide-loader-circle"
+                    class="size-4 shrink-0 animate-spin text-muted"
+                    aria-hidden="true"
+                  />
+                  <span class="font-mono text-xs text-muted">
+                    Loading {{ docLoading }}…
+                  </span>
+                </div>
+                <div
+                  v-if="docLoadError"
+                  role="alert"
+                  class="mb-3 flex items-start gap-2 rounded-md border border-default bg-muted/30 px-3 py-2 text-sm"
+                >
+                  <UIcon
+                    name="i-lucide-alert-circle"
+                    class="size-4 shrink-0 mt-0.5 text-muted"
+                    aria-hidden="true"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p>
+                      Couldn't open <code class="font-mono">{{ docLoadError.path }}</code>.
+                    </p>
+                    <p class="mt-1 font-mono text-xs text-muted break-words">
+                      {{ docLoadError.message }}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="shrink-0 px-2 py-0.5 font-mono text-xs text-muted hover:text-default"
+                    @click="docLoadError = null"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <article
+                  class="skill-prose"
+                  @click="onPreviewClick"
+                  v-html="currentContentHtml || ''"
+                />
+              </section>
+              <div
+                v-show="contentView === 'markdown'"
+                class="skill-markdown"
+                :class="{ 'skill-markdown-wrap': !isNonMarkdownDoc }"
+              >
+                <div
+                  v-if="rawHtml"
+                  v-html="rawHtml"
+                />
+                <pre
+                  v-else-if="rawPlain"
+                  class="p-4 sm:p-6 overflow-auto text-xs whitespace-pre-wrap"
+                >{{ rawPlain }}</pre>
+                <div
+                  v-else-if="rawError"
+                  class="flex items-start gap-3 p-4 sm:p-6 text-sm"
+                  role="alert"
+                >
+                  <UIcon
+                    name="i-lucide-alert-circle"
+                    class="size-4 shrink-0 mt-0.5 text-muted"
+                    aria-hidden="true"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <p class="text-default">
+                      Couldn't render markdown source.
+                    </p>
+                    <p class="mt-1 font-mono text-xs text-muted break-words">
+                      {{ rawError }}
+                    </p>
+                    <UButton
+                      label="Retry"
+                      size="xs"
+                      color="neutral"
+                      variant="outline"
+                      class="mt-3"
+                      @click="() => { if (currentRaw) renderRaw(currentRaw) }"
+                    />
+                  </div>
+                </div>
+                <div
+                  v-else
+                  class="p-4 sm:p-6"
+                >
+                  <USkeleton class="h-4 w-3/4" />
+                  <USkeleton class="mt-2 h-4 w-1/2" />
+                  <USkeleton class="mt-2 h-4 w-2/3" />
+                </div>
+              </div>
+            </div>
+
+            <p class="mt-3 text-xs text-muted">
+              Source:
+              <a
+                :href="data.provenance?.skillFileUrl || githubUrl"
+                target="_blank"
+                rel="noopener"
+                class="font-mono hover:text-default transition-colors"
+              >
+                SKILL.md on GitHub
+              </a>
+            </p>
+          </section>
 
           <section
-            v-if="badgeInput"
-            class="border-t border-default pt-4 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100"
-            aria-labelledby="readme-badge-heading"
+            v-if="(data.resolutionStatus && data.resolutionStatus !== 'ok') || data.sourceGone"
+            aria-labelledby="broken-heading"
           >
-            <h2 id="readme-badge-heading" class="sr-only">
-              README badge
+            <h2
+              id="broken-heading"
+              class="sr-only"
+            >
+              Source unavailable
             </h2>
-            <BadgeEmbedControl v-bind="badgeInput" />
+            <div
+              class="flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
+              role="status"
+            >
+              <UIcon
+                name="i-lucide-alert-triangle"
+                class="size-5 shrink-0 mt-0.5 text-muted"
+                aria-hidden="true"
+              />
+              <div class="flex-1">
+                <p class="font-medium">
+                  {{ sourceUnavailableTitle }}
+                </p>
+                <p class="mt-1 text-muted">
+                  {{ sourceUnavailableDetail }}
+                </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <UButton
+                    v-if="data.sourceGone"
+                    :to="repoHubPath(data.owner, data.repo)"
+                    :label="`Skills still live in ${data.owner}/${data.repo}`"
+                    icon="i-lucide-arrow-right"
+                    trailing
+                    size="xs"
+                    color="neutral"
+                  />
+                  <UButton
+                    :href="data.githubUrl"
+                    target="_blank"
+                    rel="noopener"
+                    label="Browse repository"
+                    icon="i-simple-icons-github"
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                  />
+                </div>
+              </div>
+            </div>
           </section>
-        </aside>
+
+          <div
+            class="grid gap-x-10 gap-y-10 border-t border-default pt-10 md:grid-cols-2"
+            aria-label="About this Skill"
+            role="region"
+          >
+            <SkillThirdPartyChecks
+              v-model:open="checksOpen"
+              :audits="audits"
+            />
+            <SkillReceiptsPanel
+              v-if="data.provenance"
+              :provenance="data.provenance"
+              :verified-summary="verifiedSummary"
+              :maturity="maturity"
+            />
+            <section
+              v-if="capabilitySummary || skillModel || frontmatterEntries.visible.length || frontmatterEntries.other.length"
+              class="md:col-span-2"
+              aria-labelledby="capability-heading"
+            >
+              <h2
+                id="capability-heading"
+                class="section-label mb-3"
+              >
+                Capability
+              </h2>
+              <div class="rounded-lg border border-default p-4 space-y-3">
+                <div
+                  v-if="capabilitySummary && capabilitySummary.scopes.length"
+                  class="space-y-1.5"
+                >
+                  <span class="data-label block">What it can do</span>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="scope in capabilitySummary.scopes"
+                      :key="scope"
+                      class="inline-flex items-center gap-1.5 rounded-md border border-default px-2 py-1 font-mono text-xs"
+                      :title="SCOPE_META[scope].hint"
+                    >
+                      <UIcon
+                        :name="SCOPE_META[scope].icon"
+                        class="size-3.5"
+                        aria-hidden="true"
+                      />
+                      {{ SCOPE_META[scope].label }}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  v-if="capabilitySummary && capabilitySummary.mcp.length"
+                  class="space-y-1.5"
+                >
+                  <span class="data-label block">MCP servers</span>
+                  <div class="flex flex-wrap gap-1">
+                    <UBadge
+                      v-for="server in capabilitySummary.mcp"
+                      :key="server"
+                      :label="server"
+                      variant="subtle"
+                      color="neutral"
+                      size="xs"
+                      class="font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  v-if="skillModel"
+                  class="space-y-1.5"
+                >
+                  <span class="data-label block">Model</span>
+                  <UBadge
+                    :label="skillModel"
+                    variant="subtle"
+                    color="neutral"
+                    size="xs"
+                    class="font-mono"
+                  />
+                </div>
+
+                <dl
+                  v-if="frontmatterEntries.visible.length"
+                  class="divide-y divide-default"
+                >
+                  <div
+                    v-for="entry in frontmatterEntries.visible"
+                    :key="entry.key"
+                    class="flex flex-col gap-1 py-2 first:pt-0 last:pb-0"
+                  >
+                    <dt class="data-label">
+                      {{ entry.key }}
+                    </dt>
+                    <dd class="min-w-0 font-mono text-xs text-muted">
+                      <pre
+                        v-if="entry.complex"
+                        class="whitespace-pre-wrap break-all"
+                      >{{ entry.value }}</pre>
+                      <span
+                        v-else
+                        class="break-all"
+                      >{{ entry.value }}</span>
+                    </dd>
+                  </div>
+                </dl>
+
+                <details
+                  v-if="allowedTools.length"
+                  class="group"
+                >
+                  <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                    <UIcon
+                      name="i-lucide-chevron-right"
+                      class="size-3.5 transition-transform group-open:rotate-90"
+                      aria-hidden="true"
+                    />
+                    All {{ allowedTools.length }} allowed tools
+                  </summary>
+                  <div class="mt-3 flex flex-wrap gap-1 pl-5">
+                    <UBadge
+                      v-for="tool in allowedTools"
+                      :key="tool"
+                      :label="tool"
+                      variant="subtle"
+                      color="neutral"
+                      size="xs"
+                      class="font-mono"
+                    />
+                  </div>
+                </details>
+
+                <details
+                  v-if="frontmatterEntries.other.length"
+                  class="group"
+                >
+                  <summary class="flex cursor-pointer items-center gap-2 text-xs text-muted font-mono hover:text-default transition-colors">
+                    <UIcon
+                      name="i-lucide-chevron-right"
+                      class="size-3.5 transition-transform group-open:rotate-90"
+                      aria-hidden="true"
+                    />
+                    Other metadata
+                  </summary>
+                  <dl class="mt-3 divide-y divide-default rounded-md border border-default bg-muted/30 text-xs">
+                    <div
+                      v-for="entry in frontmatterEntries.other"
+                      :key="entry.key"
+                      class="flex flex-col gap-1 px-3 py-2"
+                    >
+                      <dt class="data-label">
+                        {{ entry.key }}
+                      </dt>
+                      <dd class="min-w-0 font-mono text-muted">
+                        <pre
+                          v-if="entry.complex"
+                          class="whitespace-pre-wrap break-all"
+                        >{{ entry.value }}</pre>
+                        <span
+                          v-else
+                          class="break-all"
+                        >{{ entry.value }}</span>
+                      </dd>
+                    </div>
+                  </dl>
+                </details>
+              </div>
+            </section>
+            <section
+              v-if="data.tags.length || data.keywords?.length"
+              aria-labelledby="topics-heading"
+            >
+              <h2
+                id="topics-heading"
+                class="section-label mb-3"
+              >
+                Topics
+              </h2>
+              <ul
+                role="list"
+                class="flex flex-wrap gap-1.5"
+              >
+                <li
+                  v-for="tag in data.tags"
+                  :key="tag.slug"
+                >
+                  <NuxtLink
+                    :to="tag.path"
+                    class="inline-flex items-center gap-1 rounded-md border border-default bg-muted/40 px-2 py-1 font-mono text-xs text-muted hover:text-default hover:border-inverted/30 transition-colors"
+                    :title="tag.description"
+                  >
+                    <UIcon
+                      name="i-lucide-tag"
+                      class="size-3"
+                      aria-hidden="true"
+                    />
+                    {{ tag.label }}
+                  </NuxtLink>
+                </li>
+                <li
+                  v-for="kw in data.keywords"
+                  :key="`kw-${kw}`"
+                >
+                  <span
+                    class="inline-flex items-center gap-1 rounded-md border border-dashed border-default px-2 py-1 font-mono text-xs text-muted"
+                  >
+                    <UIcon
+                      name="i-lucide-hash"
+                      class="size-3"
+                      aria-hidden="true"
+                    />
+                    {{ kw }}
+                  </span>
+                </li>
+              </ul>
+            </section>
+            <section
+              v-if="duplicateGroup?.siblings.length"
+              aria-labelledby="duplicate-siblings-heading"
+            >
+              <h2
+                id="duplicate-siblings-heading"
+                class="section-label mb-3"
+              >
+                Also available from
+              </h2>
+              <div class="divide-y divide-default rounded-lg border border-default overflow-hidden">
+                <NuxtLink
+                  v-for="sibling in duplicateGroup.siblings"
+                  :key="sibling.slug"
+                  :to="sibling.registryPath"
+                  class="flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/30 transition-colors"
+                  :title="`${sibling.owner}/${sibling.repo} · ${sibling.stars.toLocaleString()} GitHub stars`"
+                >
+                  <UIcon
+                    name="i-lucide-git-branch"
+                    class="size-3.5 shrink-0 text-muted"
+                    aria-hidden="true"
+                  />
+                  <span class="min-w-0 flex-1 truncate font-mono text-xs text-muted">
+                    {{ sibling.owner }}/{{ sibling.repo }}
+                  </span>
+                  <span
+                    v-if="sibling.slug === duplicateGroup.canonical.slug"
+                    class="shrink-0 font-mono text-[11px] text-muted/70"
+                  >
+                    canonical
+                  </span>
+                </NuxtLink>
+              </div>
+            </section>
+            <section
+              v-if="badgeInput"
+              class="md:col-span-2 border-t border-default pt-4 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100"
+              aria-labelledby="readme-badge-heading"
+            >
+              <h2 id="readme-badge-heading" class="sr-only">
+                README badge
+              </h2>
+              <BadgeEmbedControl v-bind="badgeInput" />
+            </section>
+          </div>
+
+          <section
+            v-if="data.summary"
+            aria-labelledby="summary-heading"
+          >
+            <h2
+              id="summary-heading"
+              class="section-label mb-3"
+            >
+              What it does
+            </h2>
+            <p class="text-sm leading-relaxed">
+              {{ data.summary.text }}
+            </p>
+            <p class="mt-4 font-mono text-xs text-muted">
+              Generated from the current SKILL.md.
+            </p>
+          </section>
+
+          <section
+            v-if="data.faqs.length"
+            aria-labelledby="faq-heading"
+          >
+            <h2
+              id="faq-heading"
+              class="section-label mb-4"
+            >
+              Frequently asked
+            </h2>
+            <div class="divide-y divide-default rounded-lg border border-default">
+              <details
+                v-for="(faq, idx) in data.faqs"
+                :key="idx"
+                class="group"
+              >
+                <summary class="flex cursor-pointer items-start gap-3 px-4 py-3 text-sm hover:bg-muted/30 transition-colors">
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="size-4 shrink-0 mt-0.5 text-muted transition-transform group-open:rotate-90"
+                    aria-hidden="true"
+                  />
+                  <span class="flex-1">{{ faq.question }}</span>
+                </summary>
+                <div class="px-4 pb-4 pl-11 text-sm text-muted leading-relaxed">
+                  {{ faq.answer }}
+                </div>
+              </details>
+            </div>
+            <p class="mt-3 font-mono text-xs text-muted">
+              Generated from the current SKILL.md. These answers refresh after source changes.
+            </p>
+          </section>
+        </div>
       </div>
     </template>
   </div>
@@ -2197,58 +2618,199 @@ useHead(computed(() => ({
 </template>
 
 <style scoped>
-/* tick-1778739986023 */
-/* Floating file-tree panel — visible at 2xl+ only. Pinned to the viewport
-   left of the centered max-w-5xl content column. Half-page = 32rem
-   (max-w-5xl / 2), tree column ~14rem, gap 1.5rem; max-aligned to a 1rem
-   safety margin so very wide viewports keep the panel near the content. */
-/* The content section becomes the positioning anchor at 2xl+ so the floating
-   panel can sit aligned with the section's top edge ("Skill content"
-   heading) and extend down with it. */
-@media (min-width: 1536px) {
-  .skill-content-section {
-    position: relative;
+/* Components layer, so Tailwind utilities on the same element (a tone colour,
+   `hidden`) still win. Unlayered scoped CSS would beat every utility. */
+@layer components {
+  .skill-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 1.5rem;
+    padding: 0.125rem 0.375rem;
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    background: color-mix(in oklch, var(--ui-bg-muted) 50%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--ui-text-muted);
+    white-space: nowrap;
   }
-}
+  .skill-chip-link {
+    transition: color 200ms, border-color 200ms;
+  }
+  .skill-chip-link:hover {
+    color: var(--ui-text);
+    border-color: var(--ui-border-accented);
+  }
+  /* The solid xs badge set 10px text on rose. This keeps the accent and reads
+     at chip size. */
+  .skill-official {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid color-mix(in oklch, var(--syntax-arg) 35%, transparent);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    color: var(--syntax-arg);
+  }
+  .skill-sha {
+    color: var(--syntax-arg);
+  }
+  .skill-context-strip {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--ui-border);
+    background: color-mix(in oklch, var(--ui-bg-muted) 40%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: var(--ui-text-muted);
+  }
+  .skill-context-strip strong {
+    font-weight: 500;
+    color: var(--ui-text);
+  }
+  .skill-context-strip > .iconify,
+  .skill-context-strip > svg {
+    transform: translateY(0.125rem);
+  }
 
-.skill-files-float {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  /* Offset left of the column (14rem panel + 1.5rem gap). */
-  left: -15.5rem;
-  width: 14rem;
-}
+  .skill-viewer-bar {
+    position: sticky;
+    top: 4rem;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+    border: 1px solid var(--ui-border);
+    border-radius: 8px 8px 0 0;
+    background: var(--ui-bg);
+  }
+  /* Desktop puts the Skill in the middle: files and history on the left from
+     xl, and a slim rail on the right with only what a visitor acts on.
+     History is one element, placed per breakpoint: after the Skill on small
+     screens, under it from lg, and under the files from xl. */
+  .skill-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .skill-main {
+    order: 1;
+  }
+  .skill-explorer {
+    order: 2;
+    margin-top: 2.5rem;
+  }
+  @media (min-width: 1024px) {
+    .skill-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      column-gap: 2.5rem;
+      align-items: start;
+    }
+    .skill-main {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .skill-explorer {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    .skill-rail {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      position: sticky;
+      top: 5rem;
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+    }
+  }
+  @media (min-width: 1280px) {
+    .skill-layout {
+      grid-template-columns: 16rem minmax(0, 56rem) 20rem;
+      justify-content: space-between;
+      column-gap: 3rem;
+    }
+    .skill-layout--solo {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+    }
+    .skill-layout:not(.skill-layout--solo) .skill-explorer {
+      grid-column: 1;
+      grid-row: 1;
+      margin-top: 0;
+      position: sticky;
+      top: 5rem;
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+    }
+    .skill-layout:not(.skill-layout--solo) .skill-main {
+      grid-column: 2;
+    }
+    .skill-layout:not(.skill-layout--solo) .skill-rail {
+      grid-column: 3;
+      grid-row: 1;
+    }
+  }
 
-.skill-files-float-inner {
-  position: sticky;
-  top: 6rem;
-  max-height: calc(100vh - 8rem);
-  overflow-y: auto;
-  padding-right: 0.25rem;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--ui-border) 80%, transparent) transparent;
-}
-.skill-files-float-inner:hover {
-  scrollbar-color: color-mix(in oklch, var(--ui-text-muted) 60%, transparent) transparent;
-}
-.skill-files-float-inner::-webkit-scrollbar {
-  width: 8px;
-}
-.skill-files-float-inner::-webkit-scrollbar-track {
-  background: transparent;
-}
-.skill-files-float-inner::-webkit-scrollbar-thumb {
-  background: color-mix(in oklch, var(--ui-border) 80%, transparent);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  transition: background-color 200ms;
-}
-.skill-files-float-inner:hover::-webkit-scrollbar-thumb {
-  background: color-mix(in oklch, var(--ui-text-muted) 60%, transparent);
-  background-clip: padding-box;
+  /* Folders give up their width first; the file name truncates last. */
+  .skill-crumb-file {
+    flex-shrink: 0.05;
+  }
+  .skill-crumb-root {
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.5rem;
+  }
+  @media (pointer: coarse) {
+    .skill-viewer-action {
+      min-height: 2.75rem;
+    }
+  }
+  .skill-viewer-action {
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 2rem;
+    padding: 0 0.5rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--ui-text-muted);
+    transition: color 200ms, background-color 200ms;
+  }
+  .skill-viewer-action:hover,
+  .skill-viewer-action[aria-pressed='true'] {
+    color: var(--ui-text);
+    background: var(--ui-bg-muted);
+  }
+  .skill-viewer-body {
+    border: 1px solid var(--ui-border);
+    border-top: 0;
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+  }
+  /* Prose source reads top to bottom; a sideways scrollbar at the end of a long
+     file is out of reach. Code keeps its line breaks and scrolls instead. */
+  .skill-markdown-wrap :deep(pre) {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .skill-viewer-body > .skill-markdown :deep(.shiki),
+  .skill-viewer-body > .skill-markdown :deep(pre) {
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+  }
 }
 
 .skill-mdxg {

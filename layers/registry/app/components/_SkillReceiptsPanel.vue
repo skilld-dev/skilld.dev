@@ -118,7 +118,7 @@ const hasStatus = computed(() => Boolean(maturity || verifiedSummary || modified
         <p
           v-if="lastSyncedDate"
           class="mt-2 font-mono text-[10px] uppercase tracking-widest"
-          :class="stale ? 'text-amber-500' : 'text-muted'"
+          :class="stale ? 'text-amber-700 dark:text-amber-500' : 'text-muted'"
           :title="formatDateTitle(lastSyncedDate)"
         >
           Last checked against GitHub {{ lastSyncedAgo }}.

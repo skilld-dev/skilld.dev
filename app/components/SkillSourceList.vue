@@ -181,7 +181,7 @@ function sourcePath(item: SkillSourceItem): string {
           </span>
           <span
             v-if="item.description"
-            class="mt-2 line-clamp-2 block text-sm text-muted"
+            class="mt-2 line-clamp-2 text-sm text-muted"
           >
             {{ item.description }}
           </span>
@@ -275,6 +275,9 @@ function sourcePath(item: SkillSourceItem): string {
 
 .skill-source-grid {
   display: grid;
+  /* minmax(0) stops the truncated names from sizing the track to their full
+     length, which pushed cards past the edge of a phone screen. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
 }
 
