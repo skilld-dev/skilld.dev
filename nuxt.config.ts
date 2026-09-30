@@ -6,6 +6,7 @@ import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
 import { externalCheckin } from './shared/checkin-external'
 import { iconifyCollections } from './shared/icon-collections'
+import { retiredCollectionRedirectRules } from './shared/retired-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
 
 const iconCollections = iconifyCollections(pkg)
@@ -554,7 +555,8 @@ export default defineNuxtConfig({
     // Harlan's curated collections merged into the category pages, so each
     // retired collection URL points at the page that absorbed it rather than
     // 404ing. `vue-nuxt` and `react` went to the framework pages that already
-    // own those queries; `apple-apps` and `knowledge-workspace` were culled.
+    // own those queries. The 2026-09-30 retirements (`apple-apps`, `knowledge-workspace`,
+    // the `-stack` trio) live in shared/retired-collections.ts.
     '/@harlan-zw/design-engineering-essentials': { redirect: { to: '/skills/design', statusCode: 301 } } as any,
     '/@harlan-zw/frontend-design': { redirect: { to: '/skills/design', statusCode: 301 } } as any,
     '/@harlan-zw/essentials': { redirect: { to: '/skills/coding', statusCode: 301 } } as any,
@@ -567,6 +569,7 @@ export default defineNuxtConfig({
     '/@harlan-zw/browser-automation': { redirect: { to: '/skills/context-engineering', statusCode: 301 } } as any,
     '/@harlan-zw/vue-nuxt': { redirect: { to: '/frameworks/vue', statusCode: 301 } } as any,
     '/@harlan-zw/react': { redirect: { to: '/frameworks/react', statusCode: 301 } } as any,
+    ...(retiredCollectionRedirectRules() as any),
     // `/alt` was the noindex prototype of the homepage it became on
     // 2026-09-04. Anyone holding the link lands on the real page.
     '/alt': { redirect: { to: '/', statusCode: 301 } } as any,

@@ -1,4 +1,5 @@
 import { getDB } from '#server/utils/db'
+import { withoutRetiredCollections } from '#shared/retired-collections'
 
 interface CollectionRow {
   author_login: string
@@ -18,7 +19,7 @@ export default defineSitemapEventHandler(async (event) => {
     )
     .all<CollectionRow>()
 
-  const rows = res.results ?? []
+  const rows = withoutRetiredCollections(res.results ?? [])
   const authors = new Map<string, number>()
   const collectionUrls = rows.map((row) => {
     const prev = authors.get(row.author_login) ?? 0

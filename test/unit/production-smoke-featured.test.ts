@@ -5,10 +5,10 @@ describe('featuredCollectionPaths', () => {
   it('builds the path the homepage links for each collection', () => {
     expect(featuredCollectionPaths({
       items: [
-        { authorLogin: 'harlan-zw', slug: 'agent-building-stack' },
-        { authorLogin: 'harlan-zw', slug: 'agent-workflow-stack' },
+        { authorLogin: 'harlan-zw', slug: 'essentials' },
+        { authorLogin: 'harlan-zw', slug: 'vue-nuxt' },
       ],
-    })).toEqual(['/@harlan-zw/agent-building-stack', '/@harlan-zw/agent-workflow-stack'])
+    })).toEqual(['/@harlan-zw/essentials', '/@harlan-zw/vue-nuxt'])
   })
 
   it('drops rows with no login or slug rather than building a broken path', () => {
