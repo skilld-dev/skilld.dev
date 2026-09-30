@@ -2,6 +2,7 @@ import type { EventHandler, H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
+import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const OWNER = { id: 9001, login: 'privacy-owner' }
 const VISITOR = { id: 9002, login: 'privacy-visitor' }
@@ -114,7 +115,7 @@ describe('liked list privacy', () => {
     return {
       method: input.method ?? 'GET',
       context: { platform: { db: d1.db }, params: { login: input.login } },
-      node: { req: { headers: {} } },
+      node: { req: { headers: input.viewer ? { ...SIGNED_IN_HEADERS } : {} } },
     } as unknown as H3Event
   }
 })

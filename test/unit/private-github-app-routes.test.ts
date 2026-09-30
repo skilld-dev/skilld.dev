@@ -4,6 +4,7 @@ import { bytesToBase64Url } from '../../layers/artifact-delivery/server/utils/en
 import { githubConnectionReturnTo } from '../../layers/artifact-delivery/server/utils/github-connection-flow'
 import { decryptToken, encryptToken } from '../../layers/identity/server/utils/crypto'
 import { createSqliteD1 } from './helpers/d1-sqlite'
+import { SIGNED_IN_HEADERS } from './helpers/session'
 
 const NOW = 1_787_227_200
 const TOKEN_KEY = btoa(String.fromCharCode(...new Uint8Array(32).fill(6)))
@@ -19,6 +20,8 @@ describe('opt-in GitHub App connection routes', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(NOW * 1000)
     cookies.clear()
+    // The browser arrives signed in; the routes add their state cookies to it.
+    rememberCookies(SIGNED_IN_HEADERS.cookie!)
     responseHeaders.clear()
     fixture = createSqliteD1([
       'migrations/0017_users.sql',
@@ -42,7 +45,7 @@ describe('opt-in GitHub App connection routes', () => {
         },
       },
       node: {
-        req: { headers: {} },
+        req: { headers: { ...SIGNED_IN_HEADERS } },
         res: {
           end: () => undefined,
           statusCode: 200,

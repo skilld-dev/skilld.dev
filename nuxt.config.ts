@@ -7,6 +7,7 @@ import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallth
 import { externalCheckin } from './shared/checkin-external'
 import { iconifyCollections } from './shared/icon-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
+import { SESSION_NAME } from './shared/server/session-access'
 
 const iconCollections = iconifyCollections(pkg)
 
@@ -317,6 +318,9 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    // nuxt-auth-utils names its cookie from here; `readUserSession` looks for
+    // the same name before it opens a session.
+    session: { name: SESSION_NAME, password: '' },
     sessionPassword: '',
     adminSecret: '',
     tokenKey: '',
