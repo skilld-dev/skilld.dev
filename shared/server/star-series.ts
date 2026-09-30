@@ -11,6 +11,7 @@ import type { StarPoint } from '#shared/trending-range'
 /** Two bound parameters per repository, plus the cutoff, under D1's ceiling of 100. */
 const REPOS_PER_QUERY = 49
 
+/** Lookup key for a series. Case-insensitive, so a caller need not match the stored case. */
 export function starSeriesKey(owner: string, repo: string): string {
   return `${owner.toLowerCase()}/${repo.toLowerCase()}`
 }
@@ -34,7 +35,9 @@ export async function loadStarSeries(
            AND (owner, repo) IN (VALUES ${placeholders})
          ORDER BY owner, repo, observed_day`,
       )
-      .bind(sinceDay, ...chunk.flatMap(entry => [entry.owner.toLowerCase(), entry.repo.toLowerCase()]))
+      // The stored case, as given. Observations keep GitHub's case from `repos`,
+      // and lowercasing here dropped every mixed-case repository's sparkline.
+      .bind(sinceDay, ...chunk.flatMap(entry => [entry.owner, entry.repo]))
       .all<{ owner: string, repo: string, observed_day: number, stars: number }>()).results ?? []
 
     for (const row of rows) {

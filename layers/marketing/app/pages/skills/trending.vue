@@ -761,6 +761,16 @@ const boardChunks = computed<BoardChunk[]>(() => [
   display: none;
 }
 
+/*
+ * Below 64rem the invitation sits after row five, so the header's aside is
+ * empty. Its wrapper still took a grid gap, 24px of nothing above the fold.
+ */
+@media (max-width: 63.999rem) {
+  .compact-page-header :deep(.compact-page-header__aside) {
+    display: none;
+  }
+}
+
 @media (min-width: 64rem) {
   .trending-cta--aside {
     display: block;

@@ -42,8 +42,9 @@ describe('loadStarSeries', () => {
     expect(series.get('b/two')).toEqual([{ day: START, stars: 7 }])
   })
 
-  it('finds a repository asked for in mixed case', async () => {
-    observe('typesafe-ai', 'skills', START, 2475)
+  it('finds a repository stored in mixed case', async () => {
+    // Observations share their case with `repos`, which keeps GitHub's.
+    observe('TypeSafe-AI', 'Skills', START, 2475)
 
     const series = await loadStarSeries(db().db, [{ owner: 'TypeSafe-AI', repo: 'Skills' }], START)
     expect(series.get(starSeriesKey('TypeSafe-AI', 'Skills'))).toEqual([{ day: START, stars: 2475 }])
