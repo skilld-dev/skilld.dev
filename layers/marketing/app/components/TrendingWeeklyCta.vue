@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { WeeklyDemoResponse } from '~~/server/api/weekly/demo.get'
+import { useElementVisibility } from '@vueuse/core'
 
 /**
  * A compact rendering of the real weekly email.
@@ -16,11 +17,32 @@ const { layout = 'stacked' } = defineProps<{
   layout?: 'stacked' | 'row'
 }>()
 
-const { data: demo } = await useFetch<WeeklyDemoResponse>('/api/weekly/demo', {
+/**
+ * The email loads in the browser, and only for the copy a reader can see.
+ *
+ * The frame only ever drew in the browser, yet the server fetched the email on
+ * every render: a cold board waited on the email renderer, and both themes rode
+ * in the payload. A `display: none` copy never intersects, so the hidden one of
+ * the two never builds a frame, and neither asks until it nears the viewport.
+ * Both share one request key, so the email is fetched once.
+ */
+const preview = useTemplateRef<HTMLElement>('preview')
+const previewInView = useElementVisibility(preview, { rootMargin: '200px', once: true })
+
+const { data: demo, status, execute } = useLazyFetch<WeeklyDemoResponse>('/api/weekly/demo', {
   key: 'trending-weekly-demo-v1',
+  server: false,
+  immediate: false,
+})
+
+watch(previewInView, (inView) => {
+  if (inView && status.value === 'idle')
+    void execute()
 })
 
 const hasDemo = computed(() => !!demo.value?.card && (demo.value?.rowCount ?? 0) > 0)
+/** The box holds its space until the email arrives; only a week with no email drops it. */
+const keepPreviewBox = computed(() => status.value !== 'error' && (status.value !== 'success' || hasDemo.value))
 const colorMode = useColorMode()
 const card = computed(() =>
   colorMode.value === 'dark' ? demo.value?.card.dark : demo.value?.card.light,
@@ -34,7 +56,8 @@ const previewDocument = computed(() => card.value
 <template>
   <div class="trending-weekly-cta" :class="`trending-weekly-cta--${layout}`">
     <div
-      v-if="hasDemo"
+      v-if="keepPreviewBox"
+      ref="preview"
       class="trending-weekly-preview"
       inert
       aria-hidden="true"
@@ -46,6 +69,7 @@ const previewDocument = computed(() => card.value
       -->
       <ClientOnly>
         <iframe
+          v-if="hasDemo && previewInView"
           class="trending-weekly-frame"
           :srcdoc="previewDocument"
           title=""

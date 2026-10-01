@@ -144,13 +144,17 @@ function pageIdentity(html: string): string | null {
   return title || canonical ? `${title ?? ''} | ${canonical ?? ''}` : null
 }
 
-/** One retry after a delay: a deploy or an origin restart can answer a 5xx once. */
+/**
+ * One retry after a delay: a deploy or an origin restart can answer a 5xx once,
+ * and the first render on a fresh Worker version can outlast the timeout. On
+ * 2026-10-01 a cold `/skills/trending` did, and failed a deploy that was fine.
+ */
 async function requestAnonymous(
   url: string,
   input: { fetch: EdgeCacheFetch, wait: (milliseconds: number) => Promise<void>, retryDelayMs: number },
 ): Promise<Fetched> {
   const first = await request(input.fetch, url, BROWSER_HEADERS)
-  if (first._tag === 'error' || first.response.status === 200)
+  if (first._tag === 'ok' && first.response.status === 200)
     return first
   await input.wait(input.retryDelayMs)
   return request(input.fetch, url, BROWSER_HEADERS)
