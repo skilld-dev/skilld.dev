@@ -137,6 +137,21 @@ describe('checkEdgeCache', () => {
     expect(result._tag).toBe('passed')
   })
 
+  it('retries a first anonymous request that times out, as a cold render after a deploy can', async () => {
+    const inner = edge()
+    let timedOutOnce = false
+    const result = await run(async (url, init) => {
+      const headers = new Headers(init.headers)
+      if (!timedOutOnce && !headers.get('cookie') && headers.get('accept') !== 'text/markdown') {
+        timedOutOnce = true
+        throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+      }
+      return inner(url, init)
+    })
+
+    expect(result._tag).toBe('passed')
+  })
+
   it('fails a board that answers non-200 twice', async () => {
     const result = await run(edge({ anonymous: () => ({ status: 503 }) }))
 
