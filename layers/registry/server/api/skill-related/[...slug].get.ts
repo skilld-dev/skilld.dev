@@ -6,6 +6,7 @@ import type { CachedRelated } from '../../utils/skill-related'
 import { readCache, readThroughCache, writeCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { getEmbeddingNeighbors } from '../../jobs/generate-embeddings'
+import { GITHUB_PAGE_READ_TIMEOUT_MS } from '../../utils/github-client'
 import { getCoOccurrenceNeighbors } from '../../utils/skill-co-occurrence'
 import { skillCommitSourceFromRow } from '../../utils/skill-commit-source'
 import {
@@ -174,6 +175,10 @@ async function getSkillCommits(owner: string, repo: string, path: string): Promi
   const data = await $fetch<GhCommitResponse[]>(`https://api.github.com/repos/${owner}/${repo}/commits`, {
     query: { path, per_page: 5 },
     headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'skilld.dev' },
+    // ofetch retries a GET once on its own. The commit list is optional
+    // decoration, so a slow GitHub costs the list, never the page.
+    retry: 0,
+    timeout: GITHUB_PAGE_READ_TIMEOUT_MS,
   }).catch(() => {
     emitOperationalEvent(createWideEvent({ operation: 'skill-related-commits-fetch', outcome: 'failed' }))
     return null

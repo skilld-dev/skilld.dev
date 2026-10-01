@@ -138,4 +138,13 @@ describe('fetchUpstreamTree', () => {
 
     expect(result).toEqual({ _tag: 'available', files: [] })
   })
+
+  it('gives each ungh read a timeout so a hung host cannot hold the page', async () => {
+    const $fetch = vi.fn().mockResolvedValue(TREE)
+    vi.stubGlobal('$fetch', $fetch)
+
+    await (await load())(SOURCE, 'main', { operation: 'test', sleep: async () => {}, timeoutMs: 1234 })
+
+    expect($fetch).toHaveBeenCalledWith(TREE_URL, expect.objectContaining({ timeout: 1234 }))
+  })
 })

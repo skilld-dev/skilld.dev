@@ -11,7 +11,7 @@ import { isSourceResolved } from '#shared/skill-source-resolution'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { SkillDetailResponseSchema } from '../../schemas/skill-responses'
-import { getTree, resolveGithubBindings } from '../../utils/github-client'
+import { getTree, GITHUB_PAGE_READ_TIMEOUT_MS, resolveGithubBindings } from '../../utils/github-client'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
 import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
@@ -19,6 +19,7 @@ import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 import { tagLinkPath } from '../../utils/tag-quality'
 import { isSkillIndexable, noteAdmissionFallback, SKILL_INDEX_INPUT_COLUMNS_SQL } from '../../utils/trending-admission'
+import { fetchUpstreamText } from '../../utils/upstream-text'
 
 interface FaqPayload { faqs: { question: string, answer: string }[] }
 interface SummaryPayload { text: string }
@@ -282,6 +283,12 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
       status: 'ok',
     }
   }
+  else if (row.source_resolved === 0) {
+    // The sync says the SKILL.md is gone upstream, so a live render can only
+    // fail. Skills with no stored render were all in this state on 2026-09-30,
+    // and each page view cost up to seven failed GitHub reads (about 1,750).
+    rendered = { skillPath: null, raw: null, frontmatter: null, body: null, html: null, dependencies: [], status: 'path_missing' }
+  }
   else {
     rendered = await renderLive(event, {
       sourceOwner: source.owner,
@@ -512,6 +519,9 @@ function stripFrontmatter(raw: string): string {
   return m ? m[1]! : raw
 }
 
+/** The most a cold live render waits on GitHub, across every read it makes. */
+const LIVE_RENDER_BUDGET_MS = 8_000
+
 // Live render fallback for rows that pre-date the rendered_* columns or had
 // a previous fetch_failed. Tries the common layouts via raw.githubusercontent
 // first (cheap, no API quota), then falls back to the authenticated GitHub
@@ -529,12 +539,33 @@ async function renderLive(
     `.agents/skills/${name}/SKILL.md`,
     `plugin/skills/${name}/SKILL.md`,
   ]
-  for (const path of candidates) {
-    const url = `https://raw.githubusercontent.com/${sourceOwner}/${sourceRepo}/${branch}/${path}`
-    const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-detail-candidate-fetch', outcome: 'failed' }))
+  // One budget for the whole render. Seven sequential reads at the per read
+  // timeout would still hold a request for tens of seconds while GitHub is
+  // down (2026-09-30). When the budget is spent, or a read failed for a
+  // reason other than "not there", the page answers `fetch_failed` so it does
+  // not claim the SKILL.md was deleted.
+  const deadline = Date.now() + LIVE_RENDER_BUDGET_MS
+  const remainingMs = () => deadline - Date.now()
+  let upstreamFailed = false
+  const readRaw = async (path: string, operation: string): Promise<string | null> => {
+    if (remainingMs() <= 0) {
+      upstreamFailed = true
       return null
-    })
+    }
+    const raw = await fetchUpstreamText(
+      `https://raw.githubusercontent.com/${sourceOwner}/${sourceRepo}/${branch}/${path}`,
+      { maxAttempts: 1, timeoutMs: Math.min(GITHUB_PAGE_READ_TIMEOUT_MS, remainingMs()) },
+    )
+    if (raw._tag === 'ok')
+      return raw.body || null
+    if (raw._tag === 'unavailable') {
+      upstreamFailed = true
+      emitOperationalEvent(createWideEvent({ 'operation': operation, 'outcome': 'failed', 'upstream.status': raw.status ?? 0 }))
+    }
+    return null
+  }
+  for (const path of candidates) {
+    const raw = await readRaw(path, 'skill-detail-candidate-fetch')
     if (raw) {
       const skillDir = path.replace(/\/SKILL\.md$/, '')
       const parsed = await parseSkillMd(raw, {
@@ -563,10 +594,16 @@ async function renderLive(
   // Authenticated GitHub trees API (matches sync-repo.ts). Recursive listing
   // surfaces nested or dotfile-mirrored layouts the candidates above miss.
   const bindings = resolveGithubBindings(event.context.platform?.env)
-  const treeRes = await getTree(sourceOwner, sourceRepo, branch, bindings).catch(() => {
-    emitOperationalEvent(createWideEvent({ operation: 'skill-detail-tree-fetch', outcome: 'failed' }))
-    return null
-  })
+  const treeRes = remainingMs() <= 0
+    ? null
+    : await getTree(sourceOwner, sourceRepo, branch, bindings, { timeoutMs: Math.min(GITHUB_PAGE_READ_TIMEOUT_MS, remainingMs()) }).catch((error: unknown) => {
+        emitOperationalEvent(createWideEvent({ operation: 'skill-detail-tree-fetch', outcome: 'failed', reason: error instanceof Error ? error.message : String(error) }))
+        return null
+      })
+  // No answer at all, or an answer that says GitHub is unwell, is not "the
+  // SKILL.md is missing". Only a 404 or a real tree is a verdict.
+  if (!treeRes || (!treeRes.data && treeRes.status !== 404))
+    upstreamFailed = true
   // A root `SKILL.md` is a skill named after its repository, so it has no
   // `/<name>/` segment to match on and would fall through to no content.
   const match = treeRes?.data?.tree.find(
@@ -574,11 +611,7 @@ async function renderLive(
       && (e.path.endsWith(`/${name}/SKILL.md`) || (e.path === 'SKILL.md' && name === sourceRepo)),
   )
   if (match) {
-    const url = `https://raw.githubusercontent.com/${sourceOwner}/${sourceRepo}/${branch}/${match.path}`
-    const raw = await $fetch<string>(url, { responseType: 'text' }).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'skill-detail-matched-fetch', outcome: 'failed' }))
-      return null
-    })
+    const raw = await readRaw(match.path, 'skill-detail-matched-fetch')
     if (raw) {
       const skillDir = match.path.replace(/\/SKILL\.md$/, '')
       const parsed = await parseSkillMd(raw, {
@@ -604,7 +637,15 @@ async function renderLive(
     }
   }
 
-  return { skillPath: null, raw: null, frontmatter: null, body: null, html: null, dependencies: [], status: 'path_missing' }
+  return {
+    skillPath: null,
+    raw: null,
+    frontmatter: null,
+    body: null,
+    html: null,
+    dependencies: [],
+    status: upstreamFailed ? 'fetch_failed' : 'path_missing',
+  }
 }
 
 function runAfterResponse(event: H3Event, promise: Promise<unknown>): void {

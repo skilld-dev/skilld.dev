@@ -57,3 +57,47 @@ describe('fetchUpstreamText', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('fetchUpstreamText timeouts', () => {
+  it('aborts a hung read at the timeout and reports it as unavailable', async () => {
+    const hung = vi.fn((_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal!.reason))
+    }))
+    vi.stubGlobal('fetch', hung)
+    try {
+      const started = Date.now()
+      const result = await fetchUpstreamText(RAW_URL, { timeoutMs: 20, maxAttempts: 2, sleep: async () => {} })
+
+      expect(result).toEqual({ _tag: 'unavailable', status: null, attempts: 2 })
+      expect(Date.now() - started).toBeLessThan(2000)
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('retries a body that drops part way through', async () => {
+    const cut = {
+      ok: true,
+      status: 200,
+      text: async () => {
+        throw new TypeError('Network connection lost.')
+      },
+    } as unknown as Response
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(cut)
+      .mockResolvedValueOnce(response(200, '# Whole'))
+
+    const result = await fetchUpstreamText(RAW_URL, { fetch, sleep: async () => {} })
+
+    expect(result).toEqual({ _tag: 'ok', body: '# Whole' })
+  })
+
+  it('retries a Cloudflare 522', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response(522))
+      .mockResolvedValueOnce(response(200, 'ok'))
+
+    expect(await fetchUpstreamText(RAW_URL, { fetch, sleep: async () => {} })).toEqual({ _tag: 'ok', body: 'ok' })
+  })
+})

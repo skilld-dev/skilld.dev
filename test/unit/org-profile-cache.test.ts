@@ -132,6 +132,28 @@ describe('org profile SWR cache', () => {
     expect(profileWrites - writesBeforeBurst).toBe(1)
   })
 
+  it('gives the ungh read a timeout and caches nothing when it fails', async () => {
+    const cacheMap = new Map<string, unknown>()
+    vi.stubGlobal('useStorage', () => ({
+      getItem: async (key: string) => cacheMap.get(key) ?? null,
+      setItem: async (key: string, value: unknown) => {
+        cacheMap.set(key, value)
+      },
+    }))
+    const ungh = vi.fn(async (..._args: unknown[]): Promise<unknown> => {
+      throw new Error('The operation was aborted due to timeout')
+    })
+    vi.stubGlobal('$fetch', ungh)
+    vi.resetModules()
+    handler = (await import('../../layers/registry/server/api/orgs/[owner].get')).default
+
+    const body = await handler(event()) as { repos: Array<{ description: string | null }> }
+
+    expect(ungh).toHaveBeenCalledWith('https://ungh.cc/repos/acme/skills', expect.objectContaining({ timeout: 4000, retry: 0 }))
+    expect(body.repos[0]!.description).toBeNull()
+    expect([...cacheMap.keys()].some(key => key.includes('github:repo-desc'))).toBe(false)
+  })
+
   function event(): H3Event {
     return {
       context: {

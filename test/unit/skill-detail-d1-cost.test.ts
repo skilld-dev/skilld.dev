@@ -24,8 +24,11 @@ vi.stubGlobal('useStorage', () => ({
   getItem: async () => null,
   setItem: async () => {},
 }))
-const upstreamFetch = vi.fn(async () => UPSTREAM_RAW)
+const upstreamFetch = vi.fn(async (..._args: unknown[]): Promise<unknown> => UPSTREAM_RAW)
 vi.stubGlobal('$fetch', upstreamFetch)
+// Live renders read raw.githubusercontent.com and the GitHub API with fetch.
+const rawFetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => new Response(UPSTREAM_RAW))
+vi.stubGlobal('fetch', rawFetch)
 
 let harness: SqliteD1
 let background: Promise<unknown>[]
@@ -33,11 +36,13 @@ let background: Promise<unknown>[]
 beforeEach(() => {
   vi.resetModules()
   upstreamFetch.mockClear()
+  rawFetch.mockReset()
+  rawFetch.mockImplementation(async () => new Response(UPSTREAM_RAW))
   background = []
   slug = `${OWNER}/${REPO}/alpha`
 })
 
-function seed(options: { maximumQueries?: number, renderedAt?: number | null, renderedStatus?: string | null } = {}) {
+function seed(options: { maximumQueries?: number, renderedAt?: number | null, renderedStatus?: string | null, sourceResolved?: number } = {}) {
   harness = createSqliteD1(allMigrations(), { maximumQueries: options.maximumQueries })
   const { raw } = harness
   raw.prepare(`INSERT INTO repos (owner, repo, stars) VALUES (?, ?, 42)`).run(OWNER, REPO)
@@ -48,13 +53,14 @@ function seed(options: { maximumQueries?: number, renderedAt?: number | null, re
     raw.prepare(
       `INSERT INTO skills (owner, repo, name, slug, display_name, source_resolved,
          rendered_skill_path, rendered_status, rendered_raw, rendered_html, rendered_at)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       OWNER,
       REPO,
       name,
       `${OWNER}/${name}`,
       name,
+      options.sourceResolved ?? 1,
       status ? `skills/${name}/SKILL.md` : null,
       status,
       status ? RAW : null,
@@ -132,6 +138,44 @@ describe('uncached skill detail render', () => {
 
     expect(body.contentHtml).toContain('Upstream body')
     expect(storedRender()).toEqual({ rendered_html: null, rendered_at: null })
+  })
+
+  it('never reads GitHub for a Skill whose source is gone upstream', async () => {
+    seed({ renderedStatus: null, sourceResolved: 0 })
+
+    const body = await render()
+
+    expect(rawFetch).not.toHaveBeenCalled()
+    expect(upstreamFetch).not.toHaveBeenCalled()
+    expect(body).toMatchObject({ sourceGone: true, contentHtml: null })
+  })
+
+  it('gives every live GitHub read a timeout', async () => {
+    seed({ renderedStatus: null })
+
+    await render()
+
+    expect(rawFetch.mock.calls.length).toBeGreaterThan(0)
+    for (const [, init] of rawFetch.mock.calls)
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('answers fetch_failed, not path_missing, when GitHub cannot be read', async () => {
+    seed({ renderedStatus: null })
+    rawFetch.mockRejectedValue(new DOMException('The operation was aborted due to timeout', 'TimeoutError'))
+
+    const body = await render()
+
+    expect(body).toMatchObject({ resolutionStatus: 'fetch_failed', contentHtml: null })
+  })
+
+  it('answers path_missing when GitHub says the SKILL.md is not there', async () => {
+    seed({ renderedStatus: null })
+    rawFetch.mockImplementation(async () => new Response('not found', { status: 404 }))
+
+    const body = await render()
+
+    expect(body).toMatchObject({ resolutionStatus: 'path_missing' })
   })
 
   it('still resolves a two-part slug through the slug column', async () => {

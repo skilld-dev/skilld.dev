@@ -5,6 +5,7 @@ import { getDB } from '#server/utils/db'
 import { cached, readCache, writeCache } from '#shared/server/cache'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
+import { GITHUB_PAGE_READ_TIMEOUT_MS } from '../../utils/github-client'
 import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { querySkills } from '../../utils/skills-registry'
@@ -69,6 +70,7 @@ const kindByOwner = new Map(officialRepos.map(r => [r.owner, r.kind]))
 
 async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerRow | null> {
   const res = await fetch(`https://api.github.com/users/${owner}`, {
+    signal: AbortSignal.timeout(GITHUB_PAGE_READ_TIMEOUT_MS),
     headers: {
       'User-Agent': 'skilld.dev',
       'Accept': 'application/vnd.github+json',
@@ -211,11 +213,18 @@ async function loadOrgProfile(event: H3Event, owner: string): Promise<OrgProfile
       r.description = cached
       return
     }
-    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${source.owner}/${source.repo}`).catch(() => {
+    // ofetch retries a GET once on its own; `retry: 0` keeps the wait to one
+    // page budget. A failed read is not a verdict, so it is never cached.
+    const data = await $fetch<{ repo?: { description: string | null } }>(`https://ungh.cc/repos/${source.owner}/${source.repo}`, {
+      retry: 0,
+      timeout: GITHUB_PAGE_READ_TIMEOUT_MS,
+    }).catch(() => {
       emitOperationalEvent(createWideEvent({ operation: 'org-repo-description-fetch', outcome: 'failed' }))
       return null
     })
-    const desc = data?.repo?.description?.trim() || null
+    if (!data)
+      return
+    const desc = data.repo?.description?.trim() || null
     await writeCache(useStorage('edge-cache'), cacheKey, desc, { ttl: 60 * 60 * 6 })
     r.description = desc
   }))

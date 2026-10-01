@@ -34,7 +34,7 @@ export async function fetchUpstreamText(
   options: UpstreamTextOptions = {},
 ): Promise<UpstreamText> {
   const policy = resolveUpstreamRetryPolicy(options)
-  const request = options.fetch ?? ((target: string) => globalThis.fetch(target))
+  const request = options.fetch ?? ((target: string) => globalThis.fetch(target, { signal: AbortSignal.timeout(policy.timeoutMs) }))
 
   let status: number | null = null
   for (let attempt = 1; ; attempt++) {
@@ -46,13 +46,21 @@ export async function fetchUpstreamText(
       )
 
     if (outcome._tag === 'response') {
-      if (outcome.response.ok)
-        return { _tag: 'ok', body: await outcome.response.text() }
-      status = outcome.response.status
-      if (MISSING_UPSTREAM_STATUS.has(status))
-        return { _tag: 'missing', status }
-      if (!isTransientUpstreamStatus(status))
-        return { _tag: 'unavailable', status, attempts: attempt }
+      if (outcome.response.ok) {
+        // A connection that drops mid body is an outage, like one that never
+        // answered. It used to throw out of the handler as a 500.
+        const body = await outcome.response.text().then(text => ({ _tag: 'read' as const, text }), () => ({ _tag: 'cut' as const }))
+        if (body._tag === 'read')
+          return { _tag: 'ok', body: body.text }
+        status = null
+      }
+      else {
+        status = outcome.response.status
+        if (MISSING_UPSTREAM_STATUS.has(status))
+          return { _tag: 'missing', status }
+        if (!isTransientUpstreamStatus(status))
+          return { _tag: 'unavailable', status, attempts: attempt }
+      }
     }
     else {
       status = null

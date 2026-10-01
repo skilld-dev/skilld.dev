@@ -1,6 +1,7 @@
+import type { FetchOutcome } from '../../../utils/github-client'
 import { getDB } from '#server/utils/db'
 import { isRegistrySkillPath } from '#shared/skill-path'
-import { getRepo, getTree, resolveGithubBindings } from '../../../utils/github-client'
+import { getRepo, getTree, GITHUB_PAGE_READ_TIMEOUT_MS, resolveGithubBindings } from '../../../utils/github-client'
 import { resolveRepoSourceIdentity } from '../../../utils/repo-source-identity'
 import { buildUnavailableRepoSourceProfile } from '../../../utils/repo-source-profile'
 
@@ -21,6 +22,15 @@ export interface RepoSourceProfile {
   skillFiles: string[]
 }
 
+function githubReadFailed(operation: string, error: unknown): FetchOutcome<never> {
+  emitOperationalEvent(createWideEvent({
+    operation,
+    outcome: 'failed',
+    reason: error instanceof Error ? error.message : String(error),
+  }))
+  return { status: 0, data: null, rateLimit: null, notModified: false }
+}
+
 export default defineCachedEventHandler(async (event) => {
   const ownerParam = getRouterParam(event, 'owner')
   const repoParam = getRouterParam(event, 'repo')
@@ -33,7 +43,9 @@ export default defineCachedEventHandler(async (event) => {
   const source = await resolveRepoSourceIdentity(db, { owner, repo })
   const bindings = resolveGithubBindings(event.context.platform.env)
 
-  const repoRes = await getRepo(source.owner, source.repo, bindings)
+  // A read that timed out or dropped is an outage, not a missing repository.
+  const repoRes = await getRepo(source.owner, source.repo, bindings, { timeoutMs: GITHUB_PAGE_READ_TIMEOUT_MS })
+    .catch((error: unknown) => githubReadFailed('repo-source-profile-repo', error))
   if (repoRes.status === 404)
     throw createError({ statusCode: 404, message: 'Repository not found' })
   if (!repoRes.data) {
@@ -48,7 +60,8 @@ export default defineCachedEventHandler(async (event) => {
   const meta = repoRes.data
   const repoOwner = meta.owner.login
   const repoName = meta.name
-  const treeRes = await getTree(repoOwner, repoName, meta.default_branch, bindings)
+  const treeRes = await getTree(repoOwner, repoName, meta.default_branch, bindings, { timeoutMs: GITHUB_PAGE_READ_TIMEOUT_MS })
+    .catch((error: unknown) => githubReadFailed('repo-source-profile-tree', error))
   const skillFiles = (treeRes.data?.tree ?? [])
     .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
     .map(entry => entry.path)
