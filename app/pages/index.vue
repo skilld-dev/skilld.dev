@@ -90,6 +90,9 @@ const [
     // The hero rail shows one skill per author, so it needs more repos than
     // the six-card section below it.
     query: { limit: 24 },
+    // Repositories only. The named Skills, with their posts and star series,
+    // serve `/skills/trending` and would ride in this page's payload unread.
+    pick: ['items'],
   })),
 ])
 

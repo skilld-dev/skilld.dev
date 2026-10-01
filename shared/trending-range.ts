@@ -250,6 +250,51 @@ export function trendingRangeDescription(range: TrendingRange, evidencedCount: n
   return 'Agent skills devs are talking about, ranked by how many separate devs share them rather than by how loud any one post was.'
 }
 
+/** One repository's exact star total on one UTC day. */
+export interface StarPoint {
+  /** UTC midnight, unix seconds. */
+  day: number
+  stars: number
+}
+
+/**
+ * The post that put a row on the board, in the author's own words.
+ *
+ * One value rather than seven nullable fields on the row. A row either shows
+ * a post, with every part of it, or shows none; half a post is not a state
+ * the template has to handle.
+ */
+export interface TrendingPost {
+  url: string
+  /** What the person actually said. The claim in their words, not ours. */
+  text: string
+  /** Which network carried it, so the card can show that network's mark. */
+  platform: 'x' | 'bsky'
+  handle: string
+  /** Display name, when the read that captured the post carried one. */
+  authorName: string | null
+  /** The speaker's profile image, when the read that captured the post carried one. */
+  authorAvatar: string | null
+  /** Likes on this post. Zero means it landed quietly, not unknown. */
+  likes: number
+  /** Age against the board's clock, never the browser's. */
+  when: string
+}
+
+/**
+ * Why a row is on the board. Exactly one reason per row.
+ *
+ * A tagged value rather than a basis string, because each reason renders
+ * differently and one of them, `filler`, must never pass for the others. The
+ * star gain is not a reason of its own on a social row: the sparkline beside
+ * the star count carries it.
+ */
+export type TrendingReason
+  = | { _tag: 'posts', posts: readonly TrendingPost[] }
+    | { _tag: 'surge', gain: number, when: string | null }
+    | { _tag: 'filler' }
+    | { _tag: 'reviewed', skillCount: number, updated: string | null }
+
 /**
  * A board row, in the one shape the template renders.
  *
@@ -269,24 +314,22 @@ export interface TrendingBoardRow {
   subtitle: string | null
   description: string | null
   stars: number | null
-  /** Why it is on the board. Null when only its star count speaks for it. */
-  basis: string | null
-  when: string | null
-  evidenceUrl: string | null
-  /** What the person actually said. The claim in their words, not ours. */
-  quote: string | null
-  /** Which network carried it, so the row can show that network's mark. */
-  platform: 'x' | 'bsky' | null
-  /** Who said it. */
-  handle: string | null
-  /** The speaker's profile image, when the read that captured the post carried one. */
-  authorAvatar: string | null
-  /** Likes on that specific post. Zero means it landed quietly, not unknown. */
-  engagement: number | null
-  /** Separate people who posted about it besides the displayed post author. */
-  otherPosters: string | null
-  /** True when a person or a surge put it here, false when it is filling space. */
-  evidenced: boolean
+  /** Daily star totals across the board's window, oldest first. Empty when unmeasured. */
+  starSeries: readonly StarPoint[]
+  /** Names the Skill answers to, so a post can mark where it names it. */
+  names: readonly string[]
+  reason: TrendingReason
+}
+
+/**
+ * Rows that earned the page its place in the index.
+ *
+ * A post, a surge, or a human review each count. Filler does not: it is
+ * generic popularity available on any listing page, and letting it earn
+ * indexability is how the catalog got suppressed in June.
+ */
+export function isEvidenced(row: TrendingBoardRow): boolean {
+  return row.reason._tag !== 'filler'
 }
 
 /**
@@ -340,7 +383,7 @@ export function formatBoardDay(timestamp: number | null): string | null {
  *
  * Stars still order the range, and stars belong to the repository rather than
  * to any one skill inside it. That is why `owner/repo` stays on the row as the
- * subtitle and the basis line states the repository's skill count: the star
+ * subtitle and the reason states the repository's skill count: the star
  * number sits beside the thing that earned it, exactly as it does on the feed
  * ranges, which have shown repository stars against a skill name all along.
  *
@@ -348,7 +391,7 @@ export function formatBoardDay(timestamp: number | null): string | null {
  * the ranking `/api/skills/leaderboard` already applies and documents. It is a
  * property of the repository, not a claim that this skill is its best.
  *
- * `evidenced` is true for every row: each passed a human eligibility review,
+ * Every row's reason is `reviewed`: each passed a human eligibility review,
  * which is a stronger claim than the star-fallback rows the feed ranges pad
  * with. It is what keeps the range indexable.
  */
@@ -367,16 +410,9 @@ export function leaderboardBoardRows(
       // container, and on a row named for the skill that reads as a mismatch.
       description: item.topSkill.description ?? item.description,
       stars: item.stars,
-      basis: `${item.skillCount.toLocaleString()} ${item.skillCount === 1 ? 'skill' : 'skills'} · reviewed for eligibility`,
-      when: day ? `Updated ${day}` : null,
-      evidenceUrl: null,
-      quote: null,
-      platform: null,
-      handle: null,
-      authorAvatar: null,
-      engagement: null,
-      otherPosters: null,
-      evidenced: true,
+      starSeries: [],
+      names: [item.topSkill.name],
+      reason: { _tag: 'reviewed', skillCount: item.skillCount, updated: day },
     }
   })
 }

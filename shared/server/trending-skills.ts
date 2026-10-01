@@ -26,6 +26,11 @@ import { rankSkillTrends } from '#shared/trending-skill-score'
 
 export interface TrendingSkill extends SkillTrendScore {
   evidence: TrendingSkillEvidence | null
+  /**
+   * Posts about the skill by other authors, one each, beyond `evidence`.
+   * Dedicated posts first, then by likes, at most {@link MAX_MORE_POSTS}.
+   */
+  morePosts: TrendingSkillEvidence[]
   /** Current stars on the skill's repository. Display only, never ranked. */
   stars: number | null
   /** The skill's own description, from its SKILL.md frontmatter. */
@@ -40,6 +45,8 @@ export interface TrendingSkillEvidence {
   postId: string
   url: string
   authorHandle: string
+  /** Display name, stored at ingest. Null when the network sent none. */
+  authorName: string | null
   /** Author profile image, stored at ingest. Null before the first read that carried one. */
   authorAvatar: string | null
   text: string
@@ -63,6 +70,15 @@ export interface LoadTrendingSkillsOptions {
 }
 
 export const DEFAULT_WINDOW_HOURS = 24 * 7
+
+/**
+ * Posts a skill carries beyond its quoted one.
+ *
+ * The board shows them in a carousel, so every one costs payload on a page
+ * that already ships thirty rows. Five more is enough to show a conversation
+ * rather than one voice.
+ */
+export const MAX_MORE_POSTS = 5
 /**
  * Deliberately low, and the reason has changed, so the number is worth
  * re-reading rather than inheriting.
@@ -95,6 +111,7 @@ interface MentionRow {
   post_id: string
   platform: 'x' | 'bsky'
   author_handle: string
+  author_name: string | null
   author_avatar: string | null
   author_id: string
   text_extract: string
@@ -135,6 +152,29 @@ function postUrl(row: MentionRow): string {
   return `https://x.com/${row.author_handle}/status/${row.post_id}`
 }
 
+function toEvidence(row: MentionRow): TrendingSkillEvidence {
+  return {
+    postId: row.post_id,
+    url: postUrl(row),
+    authorHandle: row.author_handle,
+    authorName: row.author_name ?? null,
+    authorAvatar: row.author_avatar ?? null,
+    text: row.text_extract,
+    postedAt: row.posted_at,
+    favouriteCount: row.favourite_count,
+    platform: row.platform,
+  }
+}
+
+/**
+ * Deduplicated per network: the same handle on X and Bluesky is two people as
+ * far as this can tell, and treating them as one would punish an author for
+ * cross-posting more than it would catch a manipulator.
+ */
+function authorKeyOf(row: MentionRow): string {
+  return `${row.platform}:${row.author_handle.toLowerCase()}`
+}
+
 /**
  * Engagement on a scale that survives being compared across networks.
  *
@@ -162,15 +202,21 @@ function engagementOf(row: MentionRow): number {
  * skills, then one primary-key check each. With a plain JOIN the planner
  * scanned all of `skills` first, about 18K rows per call against 1.2K.
  */
+interface SocialEntry {
+  input: SkillTrendInput
+  evidence: TrendingSkillEvidence
+  morePosts: TrendingSkillEvidence[]
+}
+
 async function loadSocialEvidence(
   options: LoadTrendingSkillsOptions,
   cutoff: number,
   minLikes: number,
-): Promise<Map<string, { input: SkillTrendInput, evidence: TrendingSkillEvidence }>> {
+): Promise<Map<string, SocialEntry>> {
   const rows = (await options.db
     .prepare(
       `SELECT s.owner, s.repo, s.slug, s.canonical_name,
-              p.post_id, p.platform, p.author_handle, p.author_avatar, p.author_id, p.text_extract,
+              p.post_id, p.platform, p.author_handle, p.author_name, p.author_avatar, p.author_id, p.text_extract,
               p.posted_at, p.favourite_count, p.repost_count, p.reply_count,
               p.quote_count, p.bookmark_count
        FROM x_posts p
@@ -204,6 +250,8 @@ async function loadSocialEvidence(
     evidenceBreadth: number
     authors: Map<string, number>
     countedPosts: Set<string>
+    /** Each author's narrowest post about the skill, for the posts beyond the quote. */
+    postsByAuthor: Map<string, { post: TrendingSkillEvidence, breadth: number }>
   }>()
 
   for (const row of rows) {
@@ -224,19 +272,11 @@ async function loadSocialEvidence(
           social: { authorCount: 0, authorWeight: 0, mentionCount: 0, engagement: 0, latestMentionAt: 0 },
           github: null,
         },
-        evidence: {
-          postId: row.post_id,
-          url: postUrl(row),
-          authorHandle: row.author_handle,
-          authorAvatar: row.author_avatar ?? null,
-          text: row.text_extract,
-          postedAt: row.posted_at,
-          favouriteCount: row.favourite_count,
-          platform: row.platform,
-        },
+        evidence: toEvidence(row),
         evidenceBreadth: breadthOf(row.post_id),
         authors: new Map(),
         countedPosts: new Set(),
+        postsByAuthor: new Map(),
       }
       grouped.set(key, entry)
     }
@@ -247,17 +287,15 @@ async function loadSocialEvidence(
     const breadth = breadthOf(row.post_id)
     if (breadth < entry.evidenceBreadth) {
       entry.evidenceBreadth = breadth
-      entry.evidence = {
-        postId: row.post_id,
-        url: postUrl(row),
-        authorHandle: row.author_handle,
-        authorAvatar: row.author_avatar ?? null,
-        text: row.text_extract,
-        postedAt: row.posted_at,
-        favouriteCount: row.favourite_count,
-        platform: row.platform,
-      }
+      entry.evidence = toEvidence(row)
     }
+
+    // Same rule per author: their narrowest post, and on a tie the one that
+    // arrived first, which is the more liked.
+    const authorKey = authorKeyOf(row)
+    const held = entry.postsByAuthor.get(authorKey)
+    if (!held || breadth < held.breadth)
+      entry.postsByAuthor.set(authorKey, { post: toEvidence(row), breadth })
 
     if (entry.countedPosts.has(row.post_id))
       continue
@@ -267,22 +305,26 @@ async function loadSocialEvidence(
     social.mentionCount += 1
     social.engagement += engagementOf(row)
     social.latestMentionAt = Math.max(social.latestMentionAt, row.posted_at)
-    // Deduplicated per network: the same handle on X and Bluesky is two
-    // people as far as this can tell, and treating them as one would punish
-    // an author for cross-posting more than it would catch a manipulator.
-    //
     // An author keeps their strongest contribution, so posting a listicle and
     // then a dedicated post counts as the dedicated one rather than summing.
-    const authorKey = `${row.platform}:${row.author_handle.toLowerCase()}`
     const contribution = 1 / breadth
     entry.authors.set(authorKey, Math.max(entry.authors.get(authorKey) ?? 0, contribution))
   }
 
-  const out = new Map<string, { input: SkillTrendInput, evidence: TrendingSkillEvidence }>()
+  const out = new Map<string, SocialEntry>()
   for (const [key, entry] of grouped) {
     entry.input.social!.authorCount = entry.authors.size
     entry.input.social!.authorWeight = [...entry.authors.values()].reduce((a, b) => a + b, 0)
-    out.set(key, { input: entry.input, evidence: entry.evidence })
+    // Everyone else who posted, dedicated posts before listicles. The sort is
+    // stable, so equal breadths keep their arrival order, which is by likes.
+    const quotedAuthor = `${entry.evidence.platform}:${entry.evidence.authorHandle.toLowerCase()}`
+    const morePosts = [...entry.postsByAuthor]
+      .filter(([author]) => author !== quotedAuthor)
+      .map(([, held]) => held)
+      .sort((a, b) => a.breadth - b.breadth)
+      .slice(0, MAX_MORE_POSTS)
+      .map(held => held.post)
+    out.set(key, { input: entry.input, evidence: entry.evidence, morePosts })
   }
   return out
 }
@@ -365,17 +407,21 @@ export async function loadTrendingSkills(
     loadGithubEvidence(options, cutoff),
   ])
 
-  const merged = new Map<string, { input: SkillTrendInput, evidence: TrendingSkillEvidence | null }>()
+  const merged = new Map<string, {
+    input: SkillTrendInput
+    evidence: TrendingSkillEvidence | null
+    morePosts: TrendingSkillEvidence[]
+  }>()
 
   for (const [key, entry] of social)
-    merged.set(key, { input: entry.input, evidence: entry.evidence })
+    merged.set(key, entry)
 
   for (const [key, input] of github) {
     const held = merged.get(key)
     if (held)
       held.input.github = input.github
     else
-      merged.set(key, { input, evidence: null })
+      merged.set(key, { input, evidence: null, morePosts: [] })
   }
 
   const deprioritized = options.deprioritizeRepositories ?? new Set<string>()
@@ -394,6 +440,7 @@ export async function loadTrendingSkills(
     return {
       ...scored,
       evidence: merged.get(skillKey(scored))?.evidence ?? null,
+      morePosts: merged.get(skillKey(scored))?.morePosts ?? [],
       stars: stars.get(`${scored.owner}/${scored.repo}`) ?? null,
       description: descriptions.get(skillKey(scored)) ?? null,
       repoSkillCount,

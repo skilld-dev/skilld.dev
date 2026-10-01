@@ -1,7 +1,7 @@
 // @vitest-environment node
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { loadTrendingSkills } from '../../shared/server/trending-skills'
+import { loadTrendingSkills, MAX_MORE_POSTS } from '../../shared/server/trending-skills'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 // The GitHub half of this ranking joins `skills` and `repo_star_surges`, which
@@ -31,7 +31,8 @@ function mention(input: {
   postedAt?: number
   canonical?: string
   avatar?: string
-}) {
+  name?: string
+}): string {
   db().raw.prepare(
     `INSERT OR IGNORE INTO repos (owner, repo) VALUES (?, ?)`,
   ).run(input.owner, input.repo)
@@ -50,11 +51,12 @@ function mention(input: {
        favourite_count, repost_count, reply_count, quote_count,
        bookmark_count, impression_count, metrics_updated_at,
        refresh_tier, next_refresh_at, author_avatar
-     ) VALUES (?, ?, ?, NULL, 0, ?, 'en', ?, ?, ?, 0, 0, 0, ?, 0, ?, 'hot', ?, ?)`,
+     ) VALUES (?, ?, ?, ?, 0, ?, 'en', ?, ?, ?, 0, 0, 0, ?, 0, ?, 'hot', ?, ?)`,
   ).run(
     id,
     `a-${input.handle}`,
     input.handle,
+    input.name ?? null,
     `post about /${input.slug}`,
     postedAt,
     postedAt,
@@ -68,6 +70,21 @@ function mention(input: {
     `INSERT INTO x_post_skills (post_id, owner, repo, slug, canonical_name, skill_path, detection, matched_on, verified_at)
      VALUES (?, ?, ?, ?, ?, 'SKILL.md', 'slash', 'directory', ?)`,
   ).run(id, input.owner, input.repo, input.slug, input.canonical ?? input.slug, NOW)
+  return id
+}
+
+/** Make an existing post name a second skill too, which is what a listicle does. */
+function nameAlso(postId: string, skill: { owner: string, repo: string, slug: string }) {
+  db().raw.prepare(`INSERT OR IGNORE INTO repos (owner, repo) VALUES (?, ?)`).run(skill.owner, skill.repo)
+  db().raw.prepare(
+    `INSERT OR IGNORE INTO skills
+       (owner, repo, name, slug, display_name, source_resolved, rendered_skill_path)
+     VALUES (?, ?, ?, ?, ?, 1, ?)`,
+  ).run(skill.owner, skill.repo, skill.slug, skill.slug, skill.slug, `${skill.slug}/SKILL.md`)
+  db().raw.prepare(
+    `INSERT INTO x_post_skills (post_id, owner, repo, slug, canonical_name, skill_path, detection, matched_on, verified_at)
+     VALUES (?, ?, ?, ?, ?, 'SKILL.md', 'slash', 'directory', ?)`,
+  ).run(postId, skill.owner, skill.repo, skill.slug, skill.slug, NOW)
 }
 
 describe('loadTrendingSkills ranking', () => {
@@ -227,5 +244,39 @@ describe('loadTrendingSkills presentation', () => {
     const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
     expect(skill?.evidence?.authorHandle).toBe('faced')
     expect(skill?.evidence?.authorAvatar).toBe('https://pbs.twimg.com/profile_images/1/faced_normal.jpg')
+  })
+})
+
+describe('loadTrendingSkills posts beyond the quote', () => {
+  it('carries one post per other author and never repeats the quoted one', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'quoted', likes: 90, name: 'Quoted Dev' })
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'quoted', likes: 5 })
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'second', likes: 40 })
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'third', likes: 10 })
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.evidence?.authorHandle).toBe('quoted')
+    expect(skill?.evidence?.authorName).toBe('Quoted Dev')
+    expect(skill?.morePosts.map(post => post.authorHandle)).toEqual(['second', 'third'])
+  })
+
+  it('puts a dedicated post before a listicle that outscored it', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'quoted', likes: 90 })
+    const listicle = mention({ owner: 'a', repo: 'r', slug: 's', handle: 'lister', likes: 500 })
+    nameAlso(listicle, { owner: 'b', repo: 'r', slug: 'other' })
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'fan', likes: 3 })
+
+    const skill = (await loadTrendingSkills({ db: db().db, now: NOW })).find(entry => entry.slug === 's')
+    expect(skill?.evidence?.authorHandle).toBe('quoted')
+    expect(skill?.morePosts.map(post => post.authorHandle)).toEqual(['fan', 'lister'])
+  })
+
+  it('stops at the cap however many devs posted', async () => {
+    for (let i = 0; i < MAX_MORE_POSTS + 3; i++)
+      mention({ owner: 'a', repo: 'r', slug: 's', handle: `dev${i}`, likes: 100 - i })
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.morePosts).toHaveLength(MAX_MORE_POSTS)
+    expect(skill?.social?.authorCount).toBe(MAX_MORE_POSTS + 3)
   })
 })
