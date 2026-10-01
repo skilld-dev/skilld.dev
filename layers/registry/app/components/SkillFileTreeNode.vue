@@ -76,10 +76,9 @@ const inlineRenderable = computed(() =>
           :class="{ 'rotate-90': open }"
           aria-hidden="true"
         />
-        <UIcon
-          :name="open ? 'i-vscode-icons-default-folder-opened' : 'i-vscode-icons-default-folder'"
+        <SkillFileIcon
+          :name="open ? 'default-folder-opened' : 'default-folder'"
           class="size-4 shrink-0"
-          aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
         <span
@@ -124,10 +123,9 @@ const inlineRenderable = computed(() =>
         @click="onFileClick"
       >
         <span class="tree-spacer" aria-hidden="true" />
-        <UIcon
+        <SkillFileIcon
           :name="fileIcon(node.name)"
           class="size-4 shrink-0"
-          aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
         <span
@@ -145,10 +143,9 @@ const inlineRenderable = computed(() =>
         @click="onFileClick"
       >
         <span class="tree-spacer" aria-hidden="true" />
-        <UIcon
+        <SkillFileIcon
           :name="fileIcon(node.name)"
           class="size-4 shrink-0"
-          aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
         <span
@@ -165,10 +162,9 @@ const inlineRenderable = computed(() =>
         :title="node.path"
       >
         <span class="tree-spacer" aria-hidden="true" />
-        <UIcon
+        <SkillFileIcon
           :name="fileIcon(node.name)"
           class="size-4 shrink-0"
-          aria-hidden="true"
         />
         <span class="tree-label">{{ node.name }}</span>
         <span

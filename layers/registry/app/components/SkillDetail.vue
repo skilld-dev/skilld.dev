@@ -1893,10 +1893,9 @@ useHead(computed(() => ({
             aria-labelledby="content-heading"
           >
             <div class="skill-viewer-bar">
-              <UIcon
+              <SkillFileIcon
                 :name="fileIcon(viewerCrumbs.at(-1) ?? 'SKILL.md')"
                 class="size-4 shrink-0"
-                aria-hidden="true"
               />
               <h2
                 id="content-heading"
