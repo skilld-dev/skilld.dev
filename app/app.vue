@@ -100,118 +100,127 @@ watch(() => route.fullPath, () => {
     </NuxtLayout>
 
     <template v-else>
-      <UHeader :toggle="false">
-        <template #left>
-          <NuxtLink
-            to="/"
-            class="flex min-h-11 items-center gap-2"
-            aria-label="skilld, home"
-          >
-            <AppLogo />
-          </NuxtLink>
-        </template>
+      <!--
+        UHeader's markup and theme classes, minus its menu. With `toggle` off
+        the menu never opened, but UHeader still imported Modal, Slideover and
+        Drawer (vaul) into every page's first load and mounted a closed Modal.
+        The mobile menu below is our own.
+      -->
+      <header class="sticky top-0 z-50 h-(--ui-header-height) border-b border-default bg-default/75 backdrop-blur-sm">
+        <UContainer class="flex h-full items-center justify-between gap-3">
+          <div class="flex items-center gap-1.5 lg:flex-1">
+            <NuxtLink
+              to="/"
+              class="flex min-h-11 items-center gap-2"
+              aria-label="skilld, home"
+            >
+              <AppLogo />
+            </NuxtLink>
+          </div>
 
-        <template #right>
-          <SkillSearchTrigger v-if="$route.path !== '/'" />
-          <!--
+          <!-- UHeader's empty centre column, kept so the gaps match. -->
+          <div class="hidden lg:flex" />
+
+          <div class="flex items-center justify-end gap-1.5 lg:flex-1">
+            <SkillSearchTrigger v-if="$route.path !== '/'" />
+            <!--
             The flame is a deliberate exception to the "no emoji" rule in
             DESIGN.md, asked for so Trending outweighs its siblings.
             It is decorative and hidden from screen readers; the label carries
             the meaning. `gap-1.5` because the button's own layout does not
             space sibling spans, which rendered "🔥Trending" run together.
           -->
-          <UButton
-            to="/skills/trending"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            class="hidden gap-1.5 whitespace-nowrap lg:inline-flex"
-          >
-            <span class="trending-fire" aria-hidden="true">🔥</span>
-            <span>Trending Skills</span>
-          </UButton>
-          <UButton
-            to="/skills"
-            label="Find Skills"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            class="hidden lg:inline-flex"
-          />
-          <UButton
-            to="/make-skill"
-            label="Make a skill"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            class="hidden lg:inline-flex"
-          />
-          <UColorModeButton
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            class="min-h-11 min-w-11"
-          />
-
-          <HeaderAccount />
-
-          <UButton
-            id="mobile-navigation-toggle"
-            ref="mobileNavigationToggle"
-            :icon="mobileNavigationOpen ? 'i-lucide-x' : 'i-lucide-menu'"
-            color="neutral"
-            variant="ghost"
-            class="-me-1.5 min-h-11 min-w-11 lg:hidden"
-            :aria-label="mobileNavigationOpen ? 'Close menu' : 'Open menu'"
-            aria-controls="mobile-navigation"
-            :aria-expanded="mobileNavigationOpen"
-            @click="mobileNavigationOpen = !mobileNavigationOpen"
-          />
-        </template>
-
-        <template #bottom>
-          <div
-            v-show="mobileNavigationOpen"
-            id="mobile-navigation"
-            ref="mobileNavigation"
-            class="absolute inset-x-0 top-full border-b border-default bg-default shadow-lg lg:hidden"
-          >
-            <nav
-              class="flex flex-col gap-1 p-4 sm:px-6"
-              aria-label="Mobile navigation"
+            <UButton
+              to="/skills/trending"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="hidden gap-1.5 whitespace-nowrap lg:inline-flex"
             >
-              <UButton
-                to="/skills/trending"
-                color="neutral"
-                variant="ghost"
-                block
-                class="min-h-11 justify-start gap-1.5 whitespace-nowrap"
-              >
-                <span class="trending-fire" aria-hidden="true">🔥</span>
-                <span>Trending Skills</span>
-              </UButton>
-              <UButton
-                to="/skills"
-                label="Find Skills"
-                color="neutral"
-                variant="ghost"
-                block
-                class="min-h-11 justify-start"
-              />
-              <UButton
-                to="/make-skill"
-                label="Make a skill"
-                color="neutral"
-                variant="ghost"
-                block
-                class="min-h-11 justify-start"
-              />
-              <USeparator class="my-1" />
-              <HeaderAccount variant="menu" />
-            </nav>
+              <span class="trending-fire" aria-hidden="true">🔥</span>
+              <span>Trending Skills</span>
+            </UButton>
+            <UButton
+              to="/skills"
+              label="Find Skills"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="hidden lg:inline-flex"
+            />
+            <UButton
+              to="/make-skill"
+              label="Make a skill"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="hidden lg:inline-flex"
+            />
+            <UColorModeButton
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="min-h-11 min-w-11"
+            />
+
+            <HeaderAccount />
+
+            <UButton
+              id="mobile-navigation-toggle"
+              ref="mobileNavigationToggle"
+              :icon="mobileNavigationOpen ? 'i-lucide-x' : 'i-lucide-menu'"
+              color="neutral"
+              variant="ghost"
+              class="-me-1.5 min-h-11 min-w-11 lg:hidden"
+              :aria-label="mobileNavigationOpen ? 'Close menu' : 'Open menu'"
+              aria-controls="mobile-navigation"
+              :aria-expanded="mobileNavigationOpen"
+              @click="mobileNavigationOpen = !mobileNavigationOpen"
+            />
           </div>
-        </template>
-      </UHeader>
+        </UContainer>
+
+        <div
+          v-show="mobileNavigationOpen"
+          id="mobile-navigation"
+          ref="mobileNavigation"
+          class="absolute inset-x-0 top-full border-b border-default bg-default shadow-lg lg:hidden"
+        >
+          <nav
+            class="flex flex-col gap-1 p-4 sm:px-6"
+            aria-label="Mobile navigation"
+          >
+            <UButton
+              to="/skills/trending"
+              color="neutral"
+              variant="ghost"
+              block
+              class="min-h-11 justify-start gap-1.5 whitespace-nowrap"
+            >
+              <span class="trending-fire" aria-hidden="true">🔥</span>
+              <span>Trending Skills</span>
+            </UButton>
+            <UButton
+              to="/skills"
+              label="Find Skills"
+              color="neutral"
+              variant="ghost"
+              block
+              class="min-h-11 justify-start"
+            />
+            <UButton
+              to="/make-skill"
+              label="Make a skill"
+              color="neutral"
+              variant="ghost"
+              block
+              class="min-h-11 justify-start"
+            />
+            <USeparator class="my-1" />
+            <HeaderAccount variant="menu" />
+          </nav>
+        </div>
+      </header>
 
       <UMain
         id="main-content"

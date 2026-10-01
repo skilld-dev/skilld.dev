@@ -36,10 +36,8 @@ describe('header color mode button', () => {
       },
     )
 
-    const header = wrapper.getComponent({ name: 'UHeader' })
     const toggle = wrapper.get('button[aria-controls="mobile-navigation"]')
 
-    expect(header.props('toggle')).toBe(false)
     expect(toggle.attributes('aria-expanded')).toBe('false')
 
     await toggle.trigger('click')
