@@ -1,54 +1,27 @@
-import { readCache, writeCache } from '#shared/server/cache'
+import type { ReadThroughCache } from '#shared/server/cache'
+import { readThroughCache } from '#shared/server/cache'
 import { defineApiHandler } from '#shared/server/handler'
 import { normalizeSkillAssetFilePath } from '#shared/skill-asset-path'
-import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
+import { loadStoredSkillRow, readReferencedFile, readStoredSkillMd, resolveReferencedFileTarget } from '../../utils/skill-stored-source'
 import { findSkill } from '../../utils/skills-registry'
 import { fetchUpstreamText } from '../../utils/upstream-text'
-import { fetchUpstreamTree } from '../../utils/upstream-tree'
 
-const RAW_CACHE_TTL = 60 * 5
-// The cache entry outlives the fresh window by this much, so a blip after
-// expiry still has a last-good body to fall back to instead of a 503.
-const RAW_STALE_TTL = 60 * 60
-const RAW_MISSING_TTL = 60
+// SKILL.md comes from D1, so this only bounds browser and edge copies. The
+// referenced-file path reads GitHub once per cache miss and keeps a last good
+// body for an hour, so a blip after expiry does not surface as a 503.
+const REFERENCED_FILE_TTL = 60 * 5
+const REFERENCED_FILE_STALE_TTL = 60 * 60
 const RAW_RETRY_AFTER = 30
 
-interface RawCache {
-  status: 'ok' | 'missing'
-  body: string | null
-  branch: string | null
-  path: string | null
+interface ReferencedFile {
+  body: string
+  source: string
 }
 
-/**
- * The freshness envelope `readThroughCache` stores, read here by hand rather
- * than through the helper: 404 and 410 must propagate even in the stale
- * window, so only an upstream outage may fall back to the stale value.
- */
-interface RawCacheEnvelope {
-  storedAt: number
-  value: RawCache
-}
-
-function parseLastGood(raw: unknown): { value: RawCache, ageSeconds: number } | null {
-  if (typeof raw !== 'object' || raw === null || !('storedAt' in raw) || !('value' in raw))
-    return null
-  const { storedAt, value } = raw as Record<string, unknown>
-  if (typeof storedAt !== 'number' || !Number.isFinite(storedAt))
-    return null
-  if (typeof value !== 'object' || value === null)
-    return null
-  const entry = value as RawCache
-  if (entry.status !== 'ok' || typeof entry.body !== 'string')
-    return null
-  return { value: entry, ageSeconds: (Date.now() - storedAt) / 1000 }
-}
-
-interface SkillSourceRow {
-  default_branch: string | null
-  source_owner: string | null
-  source_repo: string | null
-  source_resolved: number | null
+function isReferencedFile(value: unknown): value is ReferencedFile {
+  return typeof value === 'object' && value !== null
+    && typeof (value as ReferencedFile).body === 'string'
+    && typeof (value as ReferencedFile).source === 'string'
 }
 
 export default defineApiHandler({
@@ -79,123 +52,59 @@ export default defineApiHandler({
     if (!skill)
       throw createError({ statusCode: 404, message: 'Skill not found' })
 
-    const sourceRow = await platform.db
-      .prepare(`
-        SELECT r.default_branch, r.source_owner, r.source_repo, s.source_resolved
-        FROM skills s JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-        WHERE s.owner = ? AND s.repo = ? AND s.name = ?
-      `)
-      .bind(skill.owner, skill.repo, skill.name)
-      .first<SkillSourceRow>()
+    const row = await loadStoredSkillRow(platform.db, skill)
+    if (!row)
+      throw createError({ statusCode: 404, message: 'Skill not found' })
 
     // The sync's verdict that this SKILL.md is gone upstream. The page serves
-    // a 410 tombstone on the same verdict, and this endpoint must agree. A
-    // gone source is permanent, so it must not read as an outage. Answer
-    // before any upstream call: the registry already knows (SKILLD-11).
-    if (sourceRow?.source_resolved === 0)
+    // a 410 tombstone on the same verdict, and this endpoint must agree.
+    if (row.source_resolved === 0)
       throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
 
-    const source = resolveRepoSourceIdentityFromRow(skill, sourceRow ?? undefined)
-    const branch = sourceRow?.default_branch || 'main'
-    const cacheKey = filePath
-      ? `skills:raw:v3:${source.owner}/${source.repo}/${skill.name}:${filePath}`
-      : `skills:raw:v3:${source.owner}/${source.repo}/${skill.name}`
-    const lastGood = parseLastGood(await readCache<unknown>(useStorage('edge-cache'), cacheKey))
-    if (lastGood && lastGood.ageSeconds < RAW_CACHE_TTL) {
+    if (!filePath) {
+      const stored = readStoredSkillMd(skill, row)
+      if (stored._tag === 'gone')
+        throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
+      if (stored._tag === 'missing')
+        throw createError({ statusCode: 404, message: 'SKILL.md not found in repository' })
       setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
       setHeader(event, 'cache-control', 'public, max-age=300')
-      setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${lastGood.value.branch}/${lastGood.value.path}`)
-      return lastGood.value.body
+      setHeader(event, 'x-skilld-source', stored.source)
+      return stored.body
     }
 
-    // An upstream outage must not reach the run surface while a last-good
-    // copy is still readable. A gone or missing verdict still propagates:
-    // those are facts about the source, not about its availability.
-    const serveStale = (stage: string) => {
-      if (!lastGood || lastGood.ageSeconds >= RAW_CACHE_TTL + RAW_STALE_TTL)
-        return null
-      emitOperationalEvent(createWideEvent({
-        'operation': 'skill-raw-stale-fallback',
-        'outcome': 'degraded',
-        'cache.servedStale': true,
-        'cache.ageSeconds': Math.round(lastGood.ageSeconds),
-        'reason': stage,
-      }))
+    // A file beside SKILL.md (e.g. `references/foo.md`) is not stored, so it
+    // is the one read that still reaches GitHub. Its directory comes from D1.
+    const target = resolveReferencedFileTarget(skill, row, filePath)
+    if (target._tag === 'missing')
+      throw createError({ statusCode: 404, message: 'Referenced file not found in repository' })
+
+    const cacheKey = `skills:raw:v4:${target.url}`
+    try {
+      const file = await readThroughCache<ReferencedFile>(
+        useStorage('edge-cache') as ReadThroughCache,
+        cacheKey,
+        async () => {
+          const raw = await readReferencedFile(target, fetchUpstreamText)
+          if (raw._tag === 'missing')
+            throw createError({ statusCode: 404, message: 'Referenced file not found in repository' })
+          if (raw._tag === 'unavailable') {
+            emitOperationalEvent(createWideEvent({ 'operation': 'skill-raw-content-fetch', 'outcome': 'failed', 'upstream.status': raw.status ?? 0, 'attempt': raw.attempts }))
+            throw createError({ statusCode: 503, message: 'Referenced file source is unavailable upstream' })
+          }
+          return { body: raw.body, source: target.source } satisfies ReferencedFile
+        },
+        { ttl: REFERENCED_FILE_TTL, staleTtl: REFERENCED_FILE_STALE_TTL, validate: isReferencedFile },
+      )
       setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
-      setHeader(event, 'cache-control', 'public, max-age=30')
-      setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${lastGood.value.branch}/${lastGood.value.path}`)
-      return lastGood.value.body
+      setHeader(event, 'cache-control', 'public, max-age=300')
+      setHeader(event, 'x-skilld-source', file.source)
+      return file.body
     }
-
-    const treeResult = await fetchUpstreamTree(source, branch, { operation: 'skill-raw-tree-fetch' })
-
-    if (treeResult._tag === 'gone') {
-      // The registry has not recorded this deletion yet. The next sync flips
-      // `source_resolved` and short-circuits earlier. Until then, the missing
-      // marker keeps repeat callers off the upstream 404.
-      await writeCache(useStorage('edge-cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
-      throw createError({ statusCode: 410, message: 'Skill source is gone upstream' })
+    catch (error) {
+      if ((error as { statusCode?: number } | null)?.statusCode === 503)
+        setHeader(event, 'retry-after', RAW_RETRY_AFTER)
+      throw error
     }
-
-    if (treeResult._tag === 'unavailable') {
-      const staleBody = serveStale('tree')
-      if (staleBody !== null)
-        return staleBody
-      setHeader(event, 'retry-after', RAW_RETRY_AFTER)
-      throw createError({ statusCode: 503, message: 'Skill source is unavailable upstream' })
-    }
-
-    const files = treeResult.files
-    const slugifiedName = skill.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    const skillPath = files.find(f =>
-      f.path.toLowerCase().endsWith(`/${slugifiedName}/skill.md`)
-      || f.path.toLowerCase() === `${slugifiedName}/skill.md`
-      || f.path.toLowerCase().endsWith(`/${skill.name.toLowerCase()}/skill.md`),
-    )?.path
-
-    if (!skillPath) {
-      await writeCache(useStorage('edge-cache'), cacheKey, { status: 'missing', body: null, branch, path: null } satisfies RawCache, { ttl: RAW_MISSING_TTL })
-      throw createError({ statusCode: 404, message: 'SKILL.md not found in repository' })
-    }
-
-    // A bare skill slug serves SKILL.md itself; a trailing path serves a file
-    // beside it (e.g. `references/foo.md`), resolved relative to SKILL.md's
-    // own directory rather than the repo root.
-    const skillDir = skillPath.replace(/\/SKILL\.md$/, '')
-    const targetPath = filePath ? `${skillDir}/${filePath}` : skillPath
-    const notFoundMessage = filePath ? 'Referenced file not found in repository' : 'SKILL.md not found in repository'
-
-    const rawUrl = `https://raw.githubusercontent.com/${source.owner}/${source.repo}/${branch}/${targetPath}`
-    const raw = await fetchUpstreamText(rawUrl)
-
-    if (raw._tag === 'missing') {
-      emitOperationalEvent(createWideEvent({ 'operation': 'skill-raw-content-fetch', 'outcome': 'missing', 'upstream.status': raw.status }))
-      await writeCache(useStorage('edge-cache'), cacheKey, { status: 'missing', body: null, branch, path: targetPath } satisfies RawCache, { ttl: RAW_MISSING_TTL })
-      throw createError({ statusCode: 404, message: notFoundMessage })
-    }
-
-    if (raw._tag === 'unavailable') {
-      // A GitHub outage must not leave a "missing" marker behind, or the
-      // document reads as deleted for the rest of the cache window.
-      emitOperationalEvent(createWideEvent({ 'operation': 'skill-raw-content-fetch', 'outcome': 'failed', 'upstream.status': raw.status ?? 0, 'attempt': raw.attempts }))
-      const staleBody = serveStale('content')
-      if (staleBody !== null)
-        return staleBody
-      setHeader(event, 'retry-after', RAW_RETRY_AFTER)
-      throw createError({ statusCode: 503, message: 'SKILL.md source is unavailable upstream' })
-    }
-
-    const body = raw.body
-    await writeCache(
-      useStorage('edge-cache'),
-      cacheKey,
-      { storedAt: Date.now(), value: { status: 'ok', body, branch, path: targetPath } } satisfies RawCacheEnvelope,
-      { ttl: RAW_CACHE_TTL + RAW_STALE_TTL },
-    )
-
-    setHeader(event, 'content-type', 'text/markdown; charset=utf-8')
-    setHeader(event, 'cache-control', 'public, max-age=300')
-    setHeader(event, 'x-skilld-source', `${source.owner}/${source.repo}@${branch}/${targetPath}`)
-    return body
   },
 })
