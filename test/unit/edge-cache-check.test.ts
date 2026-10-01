@@ -88,6 +88,16 @@ describe('checkEdgeCache', () => {
     })
   })
 
+  it('expects the homepage to send Markdown readers to /index.md', async () => {
+    const homeEdge = (location: string) => edge({ markdown: () => ({ status: 307, headers: { location }, body: '' }) })
+
+    expect(await run(homeEdge('/index.md'), ['/'])).toMatchObject({ _tag: 'passed' })
+    expect(await run(homeEdge('/.md'), ['/'])).toMatchObject({
+      _tag: 'failed',
+      failures: [{ _tag: 'markdown-location', path: '/', actual: '/.md' }],
+    })
+  })
+
   it('fails when two boards render one page, as a cache key that ignores the query string would', async () => {
     const paths = ['/skills/trending', '/skills/trending?range=month', '/skills/trending?range=all']
     const result = await run(edge({

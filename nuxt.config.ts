@@ -511,6 +511,10 @@ export default defineNuxtConfig({
     // inside the 36000s nuxt-skew-protection keeps old chunks for.
     // `scripts/check-edge-cache.ts` proves it after each deploy.
     '/skills/trending': edgeCache({ maxAge: 60, staleWhileRevalidate: 3600 }),
+    // The homepage is the same shape as the board: rendered signed out, no
+    // cookie read, and fed by the same feeds, so the same lifetimes hold. A
+    // render measured 300 to 480 ms to first byte from Sydney on 2026-10-01.
+    '/': edgeCache({ maxAge: 60, staleWhileRevalidate: 3600 }),
     // Raw markdown and the typeahead index deliberately keep browser caching
     // too: both are large, identical for everyone, and only change when the
     // registry does.
@@ -694,6 +698,14 @@ export default defineNuxtConfig({
         braceStyle: '1tbs',
       },
     },
+  },
+
+  ui: {
+    // Nuxt UI otherwise writes a theme file for every component it ships, and
+    // Tailwind emits their variant classes into the render-blocking entry
+    // stylesheet. Detection keeps the components this app renders. Every
+    // component here is named statically, so nothing needs listing.
+    experimental: { componentDetection: true },
   },
 
   fonts: {

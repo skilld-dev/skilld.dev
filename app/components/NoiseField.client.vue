@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useDocumentVisibility, useElementSize, useMouseInElement, useRafFn } from '@vueuse/core'
-import { isUsableWebGL2Context } from '../utils/webgl-context'
+import { isSoftwareRenderer, isUsableWebGL2Context, webglRendererName } from '../utils/webgl-context'
 
 const props = withDefaults(defineProps<{
   opacity?: number
@@ -212,24 +212,61 @@ const uniforms = {
 let startTime = 0
 let intersectionObserver: IntersectionObserver | null = null
 
-function initGL() {
+// The rings have faded by now and only the ambient shimmer moves. Its jitter
+// steps at 4 Hz, so a capped frame rate keeps it smooth for a fraction of the
+// GPU and main thread work. The cursor glow still runs at the display rate.
+const INTRO_SECONDS = 8
+const AMBIENT_FPS = 15
+
+const CONTEXT_ATTRIBUTES: WebGLContextAttributes = {
+  alpha: true,
+  premultipliedAlpha: false,
+  antialias: false,
+  powerPreference: 'low-power',
+}
+
+/**
+ * A browser without GPU acceleration (no GPU, a blocklisted driver, most
+ * headless browsers) runs WebGL on the CPU, and each frame of a full-bleed
+ * shader becomes a long task on the main thread. Some browsers refuse that
+ * context under `failIfMajorPerformanceCaveat`; Chrome hands out SwiftShader
+ * anyway, so the renderer name decides too. Either way the field draws one
+ * static frame.
+ */
+type FieldContext
+  = | { _tag: 'accelerated', gl: WebGL2RenderingContext }
+    | { _tag: 'software', gl: WebGL2RenderingContext }
+
+function createContext(canvas: HTMLCanvasElement): FieldContext | null {
+  const accelerated = canvas.getContext('webgl2', { ...CONTEXT_ATTRIBUTES, failIfMajorPerformanceCaveat: true })
+  if (isUsableWebGL2Context(accelerated))
+    return { _tag: isSoftwareRenderer(webglRendererName(accelerated)) ? 'software' : 'accelerated', gl: accelerated }
+  const software = canvas.getContext('webgl2', CONTEXT_ATTRIBUTES)
+  return isUsableWebGL2Context(software) ? { _tag: 'software', gl: software } : null
+}
+
+const isStatic = ref(false)
+const introDone = ref(false)
+// Software rendering pays per pixel on the CPU, so it draws at 1x.
+let maxDpr = 2
+
+function canvasDpr(): number {
+  return Math.min(window.devicePixelRatio || 1, maxDpr)
+}
+
+function initGL(): FieldContext['_tag'] | null {
   const canvas = canvasRef.value
   if (!canvas)
-    return false
+    return null
 
-  const context = canvas.getContext('webgl2', {
-    alpha: true,
-    premultipliedAlpha: false,
-    antialias: false,
-    powerPreference: 'low-power',
-  })
-  if (!isUsableWebGL2Context(context))
-    return false
-  gl = context
+  const context = createContext(canvas)
+  if (!context)
+    return null
+  gl = context.gl
 
   program = createProgram(gl, VERT, FRAG)
   if (!program)
-    return false
+    return null
 
   vao = gl.createVertexArray()
 
@@ -243,14 +280,14 @@ function initGL() {
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
   gl.clearColor(0, 0, 0, 0)
 
-  return true
+  return context._tag
 }
 
 function resizeCanvas() {
   const canvas = canvasRef.value
   if (!canvas || !gl)
     return
-  const dpr = window.devicePixelRatio || 1
+  const dpr = canvasDpr()
   const w = Math.round(width.value * dpr)
   const h = Math.round(height.value * dpr)
   if (canvas.width !== w || canvas.height !== h) {
@@ -266,8 +303,10 @@ function drawFrame() {
 
   resizeCanvas()
 
-  const dpr = window.devicePixelRatio || 1
-  const t = prefersReducedMotion.value ? 3.0 : (Date.now() - startTime) / 1000
+  const dpr = canvasDpr()
+  const t = isStatic.value ? 3.0 : (Date.now() - startTime) / 1000
+  if (t > INTRO_SECONDS)
+    introDone.value = true
 
   gl.clear(gl.COLOR_BUFFER_BIT)
   gl.useProgram(program)
@@ -280,7 +319,7 @@ function drawFrame() {
   gl.uniform1f(uniforms.u_dpr, dpr)
   gl.uniform1f(uniforms.u_dark, isDark.value ? 1.0 : 0.0)
 
-  if (isOutside.value || prefersReducedMotion.value) {
+  if (isOutside.value || isStatic.value) {
     gl.uniform2f(uniforms.u_mouse, -1, -1)
   }
   else {
@@ -296,17 +335,33 @@ const { pause, resume } = useRafFn(() => {
   if (visibility.value === 'hidden' || !isVisible.value)
     return
   drawFrame()
-}, { immediate: false })
+}, {
+  immediate: false,
+  fpsLimit: () => introDone.value && isOutside.value ? AMBIENT_FPS : null,
+})
 
-// Wait for canvas ref (client component timing)
-watch(canvasRef, (canvas) => {
-  if (!canvas || gl)
+// A static frame has no loop, so it redraws when its box or theme changes.
+watch([width, height, isDark], () => {
+  if (isStatic.value)
+    drawFrame()
+})
+
+let disposed = false
+
+// The field is decoration. It starts once the page has hydrated and the main
+// thread is idle, so it never competes with the first paint or hydration.
+onNuxtReady(() => {
+  if (disposed || gl)
     return
 
-  if (!initGL())
+  const mode = initGL()
+  if (!mode)
     return
 
-  if (prefersReducedMotion.value) {
+  if (mode === 'software')
+    maxDpr = 1
+  if (mode === 'software' || prefersReducedMotion.value) {
+    isStatic.value = true
     drawFrame()
     return
   }
@@ -323,6 +378,7 @@ watch(canvasRef, (canvas) => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   pause()
   intersectionObserver?.disconnect()
   if (gl) {
