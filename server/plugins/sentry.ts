@@ -1,10 +1,10 @@
 import { createSentryInitOptions } from '@harlan-zw/nuxt-sentry/server'
 import { SDK_VERSION } from '@sentry/cloudflare'
 import { sentryCloudflareNitroPlugin } from '@sentry/nuxt/module/plugins'
-import { isBestEffortCacheWriteError, isExpectedUpstreamOutageError, scrubSentryBreadcrumb, scrubSentryEvent } from '../../shared/sentry'
+import { isBestEffortCacheWriteError, isExpectedUpstreamOutageError, isMcpAcceptProbeError, scrubSentryBreadcrumb, scrubSentryEvent } from '../../shared/sentry'
 
 function isDroppedSignature(error: unknown): boolean {
-  return isBestEffortCacheWriteError(error) || isExpectedUpstreamOutageError(error)
+  return isBestEffortCacheWriteError(error) || isExpectedUpstreamOutageError(error) || isMcpAcceptProbeError(error)
 }
 
 export default defineNitroPlugin((nitroApp) => {
@@ -28,8 +28,9 @@ export default defineNitroPlugin((nitroApp) => {
     // Nitro's route cache catches its own KV write failures and forwards the
     // caught error here as unhandled (SKILLD-17). The registry handlers'
     // intended upstream-outage 503s land here the same way (SKILLD-11,
-    // SKILLD-1E). Both are failure classes already recorded as wide events,
-    // so drop the duplicates and keep the wide events as the visibility path.
+    // SKILLD-1E), as does the MCP transport's intended probe 406 (SKILLD-35).
+    // All are failure classes already answered or recorded, so drop the
+    // duplicates and keep the wide events as the visibility path.
     beforeSend(event, hint) {
       const values = event.exception?.values ?? []
       if (isDroppedSignature(hint.originalException) || values.some(isDroppedSignature))
