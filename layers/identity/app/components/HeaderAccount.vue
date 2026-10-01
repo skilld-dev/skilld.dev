@@ -46,7 +46,8 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
       variant="ghost"
       size="sm"
     />
-    <UDropdownMenu
+    <!-- Lazy: only a signed-in visitor sees the menu, and the session loads after hydration. -->
+    <LazyUDropdownMenu
       v-else
       :items="accountItems"
       :content="{ align: 'end' }"
@@ -67,7 +68,7 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
           class="size-7 rounded-full"
         >
       </UButton>
-    </UDropdownMenu>
+    </LazyUDropdownMenu>
   </div>
 
   <div

@@ -169,12 +169,14 @@ const activeDescendant = computed(() =>
           @keydown.up="onArrow($event, -1)"
           @keydown.enter="onEnter"
         />
-        <SkillSearchPanel @select="(row) => { void select(row) }" />
+        <!-- Lazy: it renders only once search opens, so it stays out of every page's first load. -->
+        <LazySkillSearchPanel @select="(row) => { void select(row) }" />
       </div>
     </Transition>
 
+    <!-- Lazy: still mounted after hydration so it can toast a finished index, but from its own chunk. -->
     <ClientOnly>
-      <SkillSearchRepositoryModal />
+      <LazySkillSearchRepositoryModal />
     </ClientOnly>
   </div>
 </template>

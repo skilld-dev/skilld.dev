@@ -168,11 +168,12 @@ const activeDescendant = computed(() =>
     </form>
 
     <div v-if="open" class="mt-2">
-      <SkillSearchPanel :show-preview="false" @select="(row) => { void select(row) }" />
+      <!-- Lazy, as in SkillSearchTrigger: nothing renders it until search opens. -->
+      <LazySkillSearchPanel :show-preview="false" @select="(row) => { void select(row) }" />
     </div>
 
     <ClientOnly>
-      <SkillSearchRepositoryModal />
+      <LazySkillSearchRepositoryModal />
     </ClientOnly>
   </div>
 </template>
