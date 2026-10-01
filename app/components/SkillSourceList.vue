@@ -3,6 +3,7 @@ import type { SkillSourceItem } from '../types/skill-source'
 import {
   useActiveElement,
   useElementHover,
+  useElementVisibility,
   useFocusWithin,
   usePreferredReducedMotion,
   useRafFn,
@@ -64,19 +65,28 @@ watch(hasFocusedItem, (focused) => {
   pendingItems.value = null
 })
 
-useRafFn(({ delta }) => {
+const isOnScreen = useElementVisibility(viewport)
+// The scroll writes layout on every frame, so it waits until the page has
+// hydrated and idles, and stops whenever nobody can see it.
+const pageReady = ref(false)
+onNuxtReady(() => {
+  pageReady.value = true
+})
+const scrolling = computed(() =>
+  variant === 'stream'
+  && autoScroll
+  && pageReady.value
+  && isOnScreen.value
+  && !isHovered.value
+  && !hasFocusedItem.value
+  && !manuallyPaused.value
+  && reducedMotion.value !== 'reduce',
+)
+
+const { pause, resume } = useRafFn(({ delta }) => {
   const element = viewport.value
-  if (
-    !element
-    || variant !== 'stream'
-    || !autoScroll
-    || isHovered.value
-    || hasFocusedItem.value
-    || manuallyPaused.value
-    || reducedMotion.value === 'reduce'
-  ) {
+  if (!element)
     return
-  }
 
   const maxScroll = element.scrollHeight - element.clientHeight
   if (maxScroll <= 0)
@@ -89,7 +99,9 @@ useRafFn(({ delta }) => {
 
   const distance = Math.min(delta, 64) * 0.018 * scrollDirection.value
   element.scrollTop = Math.min(maxScroll, Math.max(0, element.scrollTop + distance))
-}, { fpsLimit: 30, immediate: autoScroll })
+}, { fpsLimit: 30, immediate: false })
+
+watch(scrolling, run => run ? resume() : pause(), { immediate: true })
 
 function itemKey(item: SkillSourceItem): string {
   return `${item.owner}/${item.repo}/${item.name}`
