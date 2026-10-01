@@ -20,6 +20,9 @@ function discoveredAgentRoutes(): string[] {
 
 const iconCollections = iconifyCollections(pkg)
 
+/** Vendor packages only lazy chunks import; see `vendor-shared` below. */
+const LAZY_ONLY_VENDOR = /[\\/]node_modules[\\/](?:zod|rangi)[\\/]/
+
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN)
   || existsSync('.env.sentry-build-plugin')
 
@@ -685,6 +688,15 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [dependencyPluginCompat()],
+    $client: {
+      // The browser reports errors only (`tracesSampleRate: 0` in
+      // sentry.client.config.ts), yet the client plugin still added
+      // browserTracingIntegration, so router and web-vitals instrumentation
+      // shipped and ran on every page. Client build only: the Worker keeps its
+      // sampled traces. Vitest runs server code through this config too, so
+      // tests keep tracing.
+      define: process.env.NODE_ENV === 'test' ? {} : { __SENTRY_TRACING__: false },
+    },
     build: {
       rolldownOptions: {
         output: {
@@ -701,8 +713,17 @@ export default defineNuxtConfig({
             // becomes a hub every importer names by hash, so one edit rehashed
             // 44 chunks in a measured build. The vendor chunk only changes
             // when a dependency does. Numbers: docs/ops/crawl-efficiency-2026-09-30.md.
+            //
+            // zod and rangi stay out. Only lazy pages use them (WebMCP, make-skill,
+            // developers, /me, admin; mdxg docs), but grouped they rode in the one
+            // vendor chunk every page preloads.
             groups: [
-              { name: 'vendor-shared', test: /node_modules/, minShareCount: 2, maxModuleSize: 8 * 1024 },
+              {
+                name: 'vendor-shared',
+                test: (id: string) => id.includes('node_modules') && !LAZY_ONLY_VENDOR.test(id),
+                minShareCount: 2,
+                maxModuleSize: 8 * 1024,
+              },
             ],
           },
         },
@@ -812,6 +833,7 @@ export default defineNuxtConfig({
       filesToDeleteAfterUpload: ['**/*.map'],
     },
     bundleSizeOptimizations: {
+      excludeDebugStatements: true,
       excludeReplayShadowDom: true,
       excludeReplayIframe: true,
       excludeReplayWorker: true,
