@@ -685,6 +685,15 @@ export default defineNuxtConfig({
 
   vite: {
     plugins: [dependencyPluginCompat()],
+    $client: {
+      // The browser reports errors only (`tracesSampleRate: 0` in
+      // sentry.client.config.ts), yet the client plugin still added
+      // browserTracingIntegration, so router and web-vitals instrumentation
+      // shipped and ran on every page. Client build only: the Worker keeps its
+      // sampled traces. Vitest runs server code through this config too, so
+      // tests keep tracing.
+      define: process.env.NODE_ENV === 'test' ? {} : { __SENTRY_TRACING__: false },
+    },
     build: {
       rolldownOptions: {
         output: {
@@ -812,6 +821,7 @@ export default defineNuxtConfig({
       filesToDeleteAfterUpload: ['**/*.map'],
     },
     bundleSizeOptimizations: {
+      excludeDebugStatements: true,
       excludeReplayShadowDom: true,
       excludeReplayIframe: true,
       excludeReplayWorker: true,
