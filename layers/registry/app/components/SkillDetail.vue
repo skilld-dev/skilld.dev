@@ -1442,9 +1442,12 @@ useHead(computed(() => ({
               class="ml-auto hidden shrink-0 lg:flex"
             />
           </div>
+          <!-- Only the browser can tell whether two lines clamp the text, so
+               "more" appears after hydration. It sits over the end of the
+               second line instead of below it, so nothing under it moves. -->
           <div
             v-if="data.description"
-            class="mt-3"
+            class="skill-description mt-3"
           >
             <p
               id="skill-description"
@@ -1457,7 +1460,8 @@ useHead(computed(() => ({
             <button
               v-if="descriptionClamped || descriptionExpanded"
               type="button"
-              class="data-label mt-1 inline-flex min-h-6 items-center transition-colors hover:text-default"
+              class="data-label inline-flex min-h-6 items-center transition-colors hover:text-default"
+              :class="descriptionExpanded ? 'mt-1' : 'skill-description__more'"
               :aria-expanded="descriptionExpanded"
               aria-controls="skill-description"
               @click="descriptionExpanded = !descriptionExpanded"
@@ -2621,6 +2625,20 @@ useHead(computed(() => ({
 /* Components layer, so Tailwind utilities on the same element (a tone colour,
    `hidden`) still win. Unlayered scoped CSS would beat every utility. */
 @layer components {
+  .skill-description {
+    position: relative;
+  }
+
+  /* Fades the clamped line out under the toggle, so the ellipsis and the
+     label never overlap. */
+  .skill-description__more {
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline-end: 0;
+    padding-inline-start: 2.5rem;
+    background: linear-gradient(to right, transparent, var(--ui-bg) 2rem);
+  }
+
   .skill-chip {
     display: inline-flex;
     align-items: center;
