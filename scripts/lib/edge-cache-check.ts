@@ -21,8 +21,12 @@
 import { varyKeysEdgeCache } from '../../shared/content-negotiation'
 import { DEFAULT_TRENDING_RANGE } from '../../shared/trending-range'
 
-/** The pages `nuxt.config.ts` gives an `edgeCache` rule. Each query is its own cache key. */
-export const EDGE_CACHED_PATHS = ['/', '/skills/trending', '/skills/trending?range=month', '/skills/trending?range=all']
+/**
+ * The pages `nuxt.config.ts` gives an `edgeCache` rule. Each query is its own
+ * cache key. One long-lived Skill, its repo hub and its owner hub stand for
+ * every page under the `/gh/:owner/:repo/:name` rule.
+ */
+export const EDGE_CACHED_PATHS = ['/', '/gh/anthropics/skills/skill-creator', '/gh/anthropics/skills', '/gh/anthropics', '/skills/trending', '/skills/trending?range=month', '/skills/trending?range=all']
 
 const BROWSER_HEADERS = {
   'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',

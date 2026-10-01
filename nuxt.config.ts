@@ -525,6 +525,17 @@ export default defineNuxtConfig({
     // cookie read, and fed by the same feeds, so the same lifetimes hold. A
     // render measured 300 to 480 ms to first byte from Sydney on 2026-10-01.
     '/': edgeCache({ maxAge: 60, staleWhileRevalidate: 3600 }),
+    // Skill pages, rendered signed out like the board; likes and the session
+    // load in the browser. A Skill only changes when a sync lands, so 300s
+    // fresh. A render measured 0.3 to 2.7 s to first byte from Sydney on
+    // 2026-10-01. nuxt-cloudflare refuses to store any non-200, so a 404 or a
+    // 503 from a D1 blip never reaches the cache.
+    //
+    // Nitro matches route rules with radix3, which treats trailing params as
+    // optional, so this rule also covers the owner and repo hubs. They render
+    // signed out too, and the post-deploy proof checks one of each. File deep
+    // links (`/gh/o/r/s/-/...`) have more segments and stay uncached.
+    '/gh/:owner/:repo/:name': edgeCache({ maxAge: 300, staleWhileRevalidate: 3600 }),
     // Raw markdown and the typeahead index deliberately keep browser caching
     // too: both are large, identical for everyone, and only change when the
     // registry does.
