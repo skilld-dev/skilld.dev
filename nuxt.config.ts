@@ -333,6 +333,16 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg', sizes: 'any' },
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico', sizes: '16x16 32x32 48x48' },
       ],
+      style: [
+        // A browser orders cascade layers by where each name first appears.
+        // Nuxt inlines component styles above `entry.css`, so a scoped
+        // `@layer components` block used to name that layer before Tailwind's
+        // `base`, and the preflight reset (`* { padding: 0; border: 0 }`) beat
+        // every component rule until hydration added a style that fixed the
+        // order. Skill chips rendered without padding or border, then grew.
+        // Naming the order first makes the server render match the hydrated one.
+        { innerHTML: '@layer theme, base, components, utilities;', tagPriority: -20 },
+      ],
     },
   },
 
