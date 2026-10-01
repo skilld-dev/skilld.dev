@@ -105,6 +105,13 @@ useSchemaOrg(computed(() => skills.value.length
           All {{ cluster.total }} Skills in {{ cluster.cluster.label }}
         </NuxtLink>
       </p>
+
+      <p class="mt-6 text-base leading-relaxed text-muted">
+        {{ page.label }} can also search the registry itself, with the skilld Skill or the skilld MCP server.
+        <NuxtLink to="/developers" class="text-default underline">
+          See the setup
+        </NuxtLink>
+      </p>
     </section>
 
     <p class="not-prose mt-10 border-t border-default pt-6 text-base leading-relaxed">
