@@ -106,6 +106,11 @@ export default defineNuxtConfig({
     request: true,
     service: 'skilld',
     fields: [
+      // `artifact-build-reuse`: which Resolution, which lookup matched, and
+      // the ready Resolution it reused. The daily check-in counts the hits.
+      'artifact.resolutionId',
+      'artifact.reuseLookup',
+      'artifact.reusedFrom',
       'attempt',
       'batch.count',
       'cache.ageSeconds',
