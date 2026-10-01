@@ -54,42 +54,15 @@ const meta = computed(() => trendingRangeMeta(range.value))
  * them; see `leaderboardBoardRows`.
  */
 type BoardSource
-  = | { _tag: 'feed', feed: TrendingFeedResponse }
+  = | { _tag: 'feed', feed: BoardFeed }
     | { _tag: 'all', leaderboard: SkillsLeaderboardResponse }
 
-// `await`, for the reason documented in [cluster].vue: without it the server
-// renders before the request settles and ships an empty shell to the crawler.
-const { data, error, refresh } = await useAsyncData<BoardSource>(
-  'skills-trending-board',
-  async () => {
-    const active = trendingRangeMeta(range.value)
-    if (active.windowHours === null) {
-      return {
-        _tag: 'all',
-        leaderboard: await $fetch<SkillsLeaderboardResponse>('/api/skills/leaderboard', {
-          query: { page: 1 },
-        }),
-      }
-    }
-    return {
-      _tag: 'feed',
-      feed: await $fetch<TrendingFeedResponse>('/api/feed/trending', {
-        query: { limit: BOARD_LIMIT, window: active.windowHours },
-      }),
-    }
-  },
-  { watch: [range] },
-)
-
-// A failed board must not enter the edge cache, which would keep serving it.
-if (import.meta.server && error.value) {
-  const event = useRequestEvent()
-  if (event)
-    setResponseHeaders(event, { 'cloudflare-cdn-cache-control': 'no-store', 'cache-control': 'private, no-store' })
-}
-
-const feed = computed(() => (data.value?._tag === 'feed' ? data.value.feed : null))
-const leaderboard = computed(() => (data.value?._tag === 'all' ? data.value.leaderboard : null))
+/**
+ * The part of the feed this board reads. The feed also carries `items`, the
+ * repository cards the homepage renders, and the payload used to ship every
+ * one of them to a page that never shows one: half the board's weight.
+ */
+type BoardFeed = Pick<TrendingFeedResponse, 'namedSkills' | 'fallback' | 'computedAt'>
 
 /**
  * The page of "earlier on this board" links. A real `?page=` query, so each
@@ -100,19 +73,57 @@ const listPage = computed(() => {
   return Number.isInteger(value) && value >= 1 ? value : 1
 })
 
-/**
- * Skills that first reached this range's board and have since left it.
- *
- * Rendered as plain links so a crawler can reach every Skill the sitemap
- * lists, not just the thirty on today's board. See `trending-admission.ts`.
- */
-const { data: admitted } = await useAsyncData<AdmittedSkillsResponse>(
-  'skills-trending-admitted',
-  () => $fetch<AdmittedSkillsResponse>('/api/skills/admitted', {
-    query: { board: range.value, page: listPage.value },
-  }),
-  { watch: [range, listPage] },
-)
+// `await`, for the reason documented in [cluster].vue: without it the server
+// renders before the request settles and ships an empty shell to the crawler.
+// Both at once: neither reads the other, and a cold render waited on each in
+// turn.
+const [
+  { data, error, refresh },
+  { data: admitted },
+] = await Promise.all([
+  useAsyncData<BoardSource>(
+    'skills-trending-board',
+    async () => {
+      const active = trendingRangeMeta(range.value)
+      if (active.windowHours === null) {
+        return {
+          _tag: 'all',
+          leaderboard: await $fetch<SkillsLeaderboardResponse>('/api/skills/leaderboard', {
+            query: { page: 1 },
+          }),
+        }
+      }
+      const { namedSkills, fallback, computedAt } = await $fetch<TrendingFeedResponse>('/api/feed/trending', {
+        query: { limit: BOARD_LIMIT, window: active.windowHours },
+      })
+      return { _tag: 'feed', feed: { namedSkills, fallback, computedAt } }
+    },
+    { watch: [range] },
+  ),
+  /**
+   * Skills that first reached this range's board and have since left it.
+   *
+   * Rendered as plain links so a crawler can reach every Skill the sitemap
+   * lists, not just the thirty on today's board. See `trending-admission.ts`.
+   */
+  useAsyncData<AdmittedSkillsResponse>(
+    'skills-trending-admitted',
+    () => $fetch<AdmittedSkillsResponse>('/api/skills/admitted', {
+      query: { board: range.value, page: listPage.value },
+    }),
+    { watch: [range, listPage] },
+  ),
+])
+
+// A failed board must not enter the edge cache, which would keep serving it.
+if (import.meta.server && error.value) {
+  const event = useRequestEvent()
+  if (event)
+    setResponseHeaders(event, { 'cloudflare-cdn-cache-control': 'no-store', 'cache-control': 'private, no-store' })
+}
+
+const feed = computed(() => (data.value?._tag === 'feed' ? data.value.feed : null))
+const leaderboard = computed(() => (data.value?._tag === 'all' ? data.value.leaderboard : null))
 
 /**
  * The one clock every date on this page is measured against.
