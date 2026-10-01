@@ -325,7 +325,7 @@ The noise field renders thousands of dots with per-frame brightness calculations
 | **Base opacity** | 0.35 (hero), 0.5 (loading states) | Visible but subordinate to content |
 | **Bloom** | Gaussian glow (sigma 6px) on all visible dots, intensity scales with brightness | Soft halos create overlapping luminous field |
 | **Color** | HSL with hue from `djb2(route.path) % 360 / 360`, saturation 0.35 + brightness x 0.15, lightness 0.4 + brightness x 0.3 | Slightly warmer and brighter than original CLI spec for screen visibility |
-| **Frame rate** | Capped at display refresh via `requestAnimationFrame` | No `setInterval`; GPU-synced |
+| **Frame rate** | Display refresh via `requestAnimationFrame` for the 8s intro and while the cursor is over the field; 15 fps for the ambient shimmer after that | No `setInterval`; GPU-synced. The shimmer steps at 4 Hz, so 15 fps reads the same |
 | **Canvas sizing** | `devicePixelRatio`-aware, resize via `ResizeObserver` | Crisp on retina, no layout thrash |
 
 ### Interactivity
@@ -338,8 +338,9 @@ The noise field renders thousands of dots with per-frame brightness calculations
 
 - **GPU memory**: one framebuffer (bloom pass) + dot instance buffer. Under 2MB total
 - **CPU per frame**: uniform update only (~0.01ms). All computation in shaders
-- **Startup**: shader compilation happens once on mount; first frame within 16ms on modern GPUs
+- **Startup**: the field starts after hydration, once the main thread is idle (`onNuxtReady`). It is decoration and never competes with first paint. Shader compilation happens once
 - **Fallback**: if `WebGL2` is unavailable (rare), render a static SVG dot pattern at ambient shimmer brightness. No animation, no glow. Still warm, still branded
+- **Software renderer**: if WebGL runs on the CPU (SwiftShader, llvmpipe, no GPU driver), every frame is main-thread work. Draw one static frame at ambient shimmer state, at 1x, like reduced motion
 - **Visibility**: pause the animation loop when the canvas is offscreen (`IntersectionObserver`) or the tab is hidden (`document.visibilityState`). Zero GPU cost when not visible
 
 ### Reduced motion
