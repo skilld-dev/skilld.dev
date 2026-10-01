@@ -10,6 +10,7 @@ import type {
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { accountDeletionConfirmed } from '../../../shared/contracts/account'
+import AgentSetupCard from '../../components/_AgentSetupCard.vue'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
@@ -371,6 +372,8 @@ async function deleteAccount() {
       </div>
 
       <aside class="min-w-0 space-y-10 lg:border-l lg:border-default lg:pl-8" aria-label="Skill delivery settings">
+        <AgentSetupCard />
+
         <section>
           <h2 class="text-lg font-semibold">
             Email updates
@@ -569,6 +572,14 @@ async function deleteAccount() {
             variant="ghost"
             icon="i-lucide-terminal"
             label="CLI devices"
+            class="min-h-11"
+          />
+          <UButton
+            to="/developers"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-code-xml"
+            label="Developers"
             class="min-h-11"
           />
         </nav>

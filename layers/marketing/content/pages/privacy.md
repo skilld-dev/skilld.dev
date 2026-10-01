@@ -1,8 +1,8 @@
 ---
 title: Privacy
 description: What skilld.dev stores, why it needs the data, how long it keeps it, and how you delete your account.
-label: Last updated 22 September 2026
-updatedAt: 2026-09-22
+label: Last updated 1 October 2026
+updatedAt: 2026-10-01
 ---
 
 ## In short
@@ -55,6 +55,7 @@ skilld.dev sets these cookies and no others:
 - `__nkpv` records which version of the site your browser loaded, so an update does not break an open page. It lasts 7 days.
 - `nuxt-auth-state` protects the GitHub sign-in step against forged requests. It lasts 10 minutes.
 - `cli_return_to` returns you to the CLI sign-in page after you sign in with GitHub. It lasts 10 minutes.
+- `agent_setup_dismissed` remembers that you closed the Agent setup card on your account page. It lasts 180 days.
 
 ### Your browser
 
