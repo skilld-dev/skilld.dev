@@ -700,6 +700,14 @@ export default defineNuxtConfig({
     },
   },
 
+  ui: {
+    // Nuxt UI otherwise writes a theme file for every component it ships, and
+    // Tailwind emits their variant classes into the render-blocking entry
+    // stylesheet. Detection keeps the components this app renders. Every
+    // component here is named statically, so nothing needs listing.
+    experimental: { componentDetection: true },
+  },
+
   fonts: {
     defaults: {
       subsets: ['latin'],
