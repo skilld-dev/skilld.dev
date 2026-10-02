@@ -15,7 +15,8 @@ SKILLD_SOCIAL_OUTPUT_DIR="$HOME/scratch" pnpm exec tsx scripts/weekly-social.ts 
 ```
 
 Manual workflow runs preview by default. Preview requests only the public skilld APIs.
-The workflow keeps feed order, excludes fallback rows, and includes only Skills with social mentions.
+The workflow keeps feed order and includes only Skills with linked social mentions.
+It excludes fallback rows and links each Skill's source and mention evidence.
 Empty weeks send nothing. X includes up to three Skills. Discord includes up to five.
 
 ## Configure X

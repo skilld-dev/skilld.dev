@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { assertWeeklyClaim, buildWeeklySocial, loadWeeklySocial, oauthHeader, publishWeeklySocial, verifySocialDestination } from '../../scripts/lib/weekly-social'
 
 const now = new Date('2026-10-02T05:00:00Z')
-const row = { owner: 'author', repo: 'skills', name: 'design', registryPath: '/gh/author/skills/design', authorCount: 3, attribution: 'social' }
-const detail = { owner: 'author', repository: 'skills', name: 'design', sourceUrl: 'https://github.com/author/skills/blob/main/design/SKILL.md', sourceGone: false, runCommand: 'npx skilld run author/skills/design' }
+const row = { owner: 'author', repo: 'skills', name: 'design', registryPath: '/gh/author/skills/design', authorCount: 3, attribution: 'social', evidence: { url: 'https://x.com/dev/status/123', platform: 'x' } }
+const detail = { owner: 'author', repository: 'skills', name: 'design', repositoryUrl: 'https://github.com/author/skills', sourceUrl: 'https://github.com/author/skills/blob/main/design/SKILL.md', sourceGone: false, runCommand: 'npx skilld run author/skills/design' }
 const skill = { ...row, sourceUrl: detail.sourceUrl, runCommand: detail.runCommand }
 
 describe('weekly social posts', () => {
@@ -40,6 +40,14 @@ describe('weekly social posts', () => {
     expect((await loadWeeklySocial({ now, fetchImpl })).skills[0]?.sourceUrl).toContain('/Author/Skills/')
   })
 
+  it('keeps frozen Skill identity after a repository rename or transfer', async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ computedAt: now.getTime() / 1000, namedSkills: [row] }))
+      .mockResolvedValueOnce(Response.json({ ...detail, repositoryUrl: 'https://github.com/new-owner/new-repo', sourceUrl: 'https://github.com/new-owner/new-repo/blob/main/design/SKILL.md' }))
+    const result = await loadWeeklySocial({ now, fetchImpl })
+    expect(result.skills[0]).toMatchObject({ owner: 'author', repo: 'skills', sourceUrl: 'https://github.com/new-owner/new-repo/blob/main/design/SKILL.md' })
+  })
+
   it('sends nothing for an empty week', () => {
     expect(buildWeeklySocial([], now)).toEqual({ _tag: 'empty', week: '2026-09-28' })
   })
@@ -50,8 +58,10 @@ describe('weekly social posts', () => {
     if (result._tag !== 'ready')
       return
     expect(result.x.text).toContain(detail.sourceUrl)
+    expect(result.x.text).toContain(row.evidence.url)
     expect(result.discord.embeds[0]?.description).toContain(detail.runCommand)
     expect(result.discord.embeds[0]?.description).toContain('3 devs mentioned it.')
+    expect(result.discord.embeds[0]?.description).toContain(row.evidence.url)
     expect(result.discord.allowed_mentions).toEqual({ parse: [] })
   })
 

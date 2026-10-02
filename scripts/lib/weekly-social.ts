@@ -2,6 +2,10 @@ import { createHmac, randomBytes } from 'node:crypto'
 import { z } from 'zod'
 
 const identifier = z.string().min(1).max(100).regex(/^[\w.-]+$/)
+const evidenceSchema = z.object({
+  url: z.url().max(2000).refine(value => ['https://x.com', 'https://twitter.com', 'https://bsky.app', 'https://news.ycombinator.com'].includes(new URL(value).origin)),
+  platform: z.enum(['x', 'bsky', 'hn']),
+})
 const feedRow = z.object({
   owner: identifier,
   repo: identifier,
@@ -9,6 +13,7 @@ const feedRow = z.object({
   registryPath: z.string().regex(/^\/gh\/[\w./-]+$/),
   authorCount: z.number().int().nonnegative(),
   attribution: z.enum(['social', 'github', 'both']),
+  evidence: evidenceSchema.nullable(),
 })
 const feedSchema = z.object({ computedAt: z.number().int(), namedSkills: z.array(feedRow) })
 const detailSchema = z.object({
@@ -16,10 +21,11 @@ const detailSchema = z.object({
   repository: identifier,
   name: identifier,
   sourceUrl: z.url().max(2000),
+  repositoryUrl: z.url(),
   sourceGone: z.boolean(),
   runCommand: z.string().max(300).regex(/^npx skilld run [\w./-]+$/),
 })
-export const socialSkillSchema = feedRow.extend({ sourceUrl: detailSchema.shape.sourceUrl, runCommand: detailSchema.shape.runCommand })
+export const socialSkillSchema = feedRow.extend({ evidence: evidenceSchema, sourceUrl: detailSchema.shape.sourceUrl, runCommand: detailSchema.shape.runCommand })
 export type SocialSkill = z.infer<typeof socialSkillSchema>
 
 export function assertWeeklyClaim(value: unknown, runId: string): void {
@@ -53,25 +59,30 @@ export async function loadWeeklySocial({ now, fetchImpl = fetch }: { now: Date, 
   const seen = new Set<string>()
   const rows = feed.namedSkills.filter((row) => {
     const key = `${row.owner}/${row.repo}/${row.name}`.toLowerCase()
-    if (row.attribution === 'github' || row.authorCount === 0 || seen.has(key))
+    if (row.attribution === 'github' || row.authorCount === 0 || row.evidence === null || seen.has(key))
       return false
     seen.add(key)
     return true
   }).slice(0, 5)
   const skills: SocialSkill[] = []
   for (const row of rows) {
+    if (row.evidence === null)
+      continue
     const path = [row.owner, row.repo, row.name].map(encodeURIComponent).join('/')
     const detail = detailSchema.parse(await readJson(`https://skilld.dev/api/v1/skills/${path}`, fetchImpl))
     const source = new URL(detail.sourceUrl)
+    const repository = new URL(detail.repositoryUrl)
     if (source.origin !== 'https://github.com'
-      || !source.pathname.toLowerCase().startsWith(`/${row.owner}/${row.repo}/blob/`.toLowerCase())
+      || repository.origin !== 'https://github.com'
+      || !/^\/[\w.-]+\/[\w.-]+$/.test(repository.pathname)
+      || !source.pathname.toLowerCase().startsWith(`${repository.pathname}/blob/`.toLowerCase())
       || detail.owner.toLowerCase() !== row.owner.toLowerCase()
       || detail.repository.toLowerCase() !== row.repo.toLowerCase()
       || detail.name !== row.name) {
       throw new Error('Skill source does not match its repository')
     }
     if (!detail.sourceGone)
-      skills.push({ ...row, sourceUrl: detail.sourceUrl, runCommand: detail.runCommand })
+      skills.push({ ...row, evidence: row.evidence, sourceUrl: detail.sourceUrl, runCommand: detail.runCommand })
   }
   return { skills, computedAt: feed.computedAt }
 }
@@ -84,7 +95,7 @@ export function buildWeeklySocial(skills: SocialSkill[], now: Date) {
   const renderX = () => [
     'Trending agent skills this week:',
     '',
-    ...selected.map((skill, index) => `${index + 1}. ${skill.owner}/${skill.name}\n${skill.sourceUrl}`),
+    ...selected.map((skill, index) => `${index + 1}. ${skill.owner}/${skill.name}\n${skill.sourceUrl}\n${skill.evidence.url}`),
     '',
     'Read and run: https://skilld.dev/skills/trending',
   ].join('\n')
@@ -106,6 +117,7 @@ export function buildWeeklySocial(skills: SocialSkill[], now: Date) {
         url: `https://skilld.dev${skill.registryPath}`,
         description: [
           `${skill.authorCount} ${skill.authorCount === 1 ? 'dev mentioned' : 'devs mentioned'} it.`,
+          `[See the mention](${skill.evidence.url})`,
           `[Read the source](${skill.sourceUrl})`,
           `\`${skill.runCommand}\``,
         ].join('\n\n'),
