@@ -26,12 +26,8 @@ const inputSchema = z.object({
 }).strict()
 
 const reportSchema = z.object({
-  usage: z.object({
-    inputTokens: z.number().int().nonnegative().optional(),
-    cachedInputTokens: z.number().int().nonnegative().optional(),
-    outputTokens: z.number().int().nonnegative().optional(),
-  }),
-  steps: z.number().int().nonnegative(),
+  _tag: z.literal('Unavailable'),
+  reason: z.string().max(2000),
   warnings: z.array(z.string().max(2000)).max(512),
 })
 

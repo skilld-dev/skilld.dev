@@ -2,7 +2,7 @@
 
 This proof runs `skilld-harness` against an exact public npm package version.
 It uses an existing Skill as the update baseline.
-The result includes generated files, output checks, review findings, source attempts, and token usage.
+The result includes generated files, output checks, review findings, source attempts, and model call counts.
 
 The proof produces a file bundle. GitHub tag handling and pull request publication follow this runtime proof.
 
@@ -46,6 +46,7 @@ Durable Object alarms check progress and enforce the fifteen minute deadline.
 
 The proof allows one active job, 64 model calls, and 4,096 output tokens per call.
 It limits each request to 512 KiB and each result to 1 MiB.
+The published harness does not expose token usage. Reports mark that data as `Unavailable`.
 These bounds constrain usage. They do not constitute a measured dollar budget.
 
 The outbound gateway allows HTTPS npm retrieval, GitHub source archives, and the configured model provider.

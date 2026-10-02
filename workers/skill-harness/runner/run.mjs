@@ -5,6 +5,7 @@ import { createOpenCode } from '@ai-sdk/harness-opencode'
 import { createSkillHarness } from 'skilld-harness'
 import { createLocalSandbox } from 'skilld-harness/sandbox-local'
 
+const unavailableReport = { _tag: 'Unavailable', reason: 'skilld-harness@3.2.0 does not return usage reports.', warnings: [] }
 const startedAt = Date.now()
 const signal = AbortSignal.timeout(14 * 60 * 1000)
 
@@ -43,14 +44,14 @@ async function execute() {
   })
   const generation = await harness.run({ _tag: 'PackageSkill', source: { _tag: 'NpmPackage', spec: input.spec }, destination }, { signal })
   if (generation._tag === 'Err') {
-    return { _tag: 'Err', code: 'GENERATION_FAILED', detail: JSON.stringify(generation.error), generation: generation.report }
+    return { _tag: 'Err', code: 'GENERATION_FAILED', detail: JSON.stringify(generation.error), generation: { ...unavailableReport, warnings: generation._tag === 'Ok' ? generation.value.warnings : [] } }
   }
   const review = await harness.run({ _tag: 'ReviewSkill', skillDir: generation.value.outputDir }, { signal })
   if (review._tag === 'Err') {
-    return { _tag: 'Err', code: 'REVIEW_FAILED', detail: JSON.stringify(review.error), generation: generation.report, reviewReport: review.report }
+    return { _tag: 'Err', code: 'REVIEW_FAILED', detail: JSON.stringify(review.error), generation: { ...unavailableReport, warnings: generation._tag === 'Ok' ? generation.value.warnings : [] }, reviewReport: unavailableReport }
   }
   if (review.value.findings.some(finding => finding.level === 'error')) {
-    return { _tag: 'Err', code: 'REVIEW_REJECTED', detail: JSON.stringify(review.value), generation: generation.report, reviewReport: review.report }
+    return { _tag: 'Err', code: 'REVIEW_REJECTED', detail: JSON.stringify(review.value), generation: { ...unavailableReport, warnings: generation._tag === 'Ok' ? generation.value.warnings : [] }, reviewReport: unavailableReport }
   }
   const files = await Promise.all(generation.value.files.map(async file => ({
     path: file.path,
@@ -59,8 +60,8 @@ async function execute() {
   return {
     _tag: 'Ok',
     files,
-    generation: generation.report,
-    reviewReport: review.report,
+    generation: { ...unavailableReport, warnings: generation._tag === 'Ok' ? generation.value.warnings : [] },
+    reviewReport: unavailableReport,
     review: review.value,
     sourceAttempts: generation.value.sourceAttempts,
   }

@@ -29,14 +29,23 @@ describe('hosted proof input', () => {
   })
 })
 
+const report = { _tag: 'Unavailable', reason: 'The published harness does not return usage reports.', warnings: [] }
+const output = {
+  _tag: 'Ok',
+  files: input.currentSkill,
+  generation: report,
+  reviewReport: report,
+  review: { summary: 'Fine', findings: [] },
+  sourceAttempts: [],
+  elapsedMs: 100,
+}
+
 describe('untrusted sandbox output', () => {
+  it('preserves explicitly unavailable usage instead of inventing zero counts', () => {
+    expect(parseProofResult(output)).toEqual({ _tag: 'Ok', value: output })
+  })
+
   it('rejects output paths outside the Skill', () => {
-    expect(parseProofResult({
-      _tag: 'Ok',
-      files: [{ path: '../README.md', content: 'overwrite' }],
-      generation: { usage: {}, steps: 1, warnings: [] },
-      review: { summary: 'Fine', findings: [] },
-      elapsedMs: 100,
-    })._tag).toBe('Err')
+    expect(parseProofResult({ ...output, files: [{ path: '../README.md', content: 'overwrite' }] })._tag).toBe('Err')
   })
 })
