@@ -46,7 +46,9 @@ Durable Object alarms check progress and enforce the fifteen minute deadline.
 
 ## Limits and failures
 
-The proof allows one active job and 64 model calls.
+The proof allows one active job and 96 model calls.
+Generation targets 35 turns. Independent review targets 20 turns.
+These turn targets guide the model. The gateway enforces the total call limit.
 Anthropic calls allow 8,192 output tokens, including a 2,048-token thinking budget.
 Google calls allow 4,096 output tokens.
 It limits each request to 512 KiB and each result to 1 MiB.
