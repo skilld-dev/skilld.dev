@@ -92,22 +92,6 @@ export async function loadWeeklyRecipients(db: D1Database): Promise<WeeklyRecipi
   return (res.results ?? []).filter(weeklyDeliveryActive)
 }
 
-function sourceUrl(row: {
-  owner: string
-  repo: string
-  name: string
-  current_sha: string
-  rendered_skill_path: string
-}): string {
-  return githubSkillSourceUrl({
-    owner: row.owner,
-    repo: row.repo,
-    name: row.name,
-    currentSha: row.current_sha,
-    path: row.rendered_skill_path,
-  })
-}
-
 /**
  * The trending half, identical for every recipient.
  *
@@ -189,19 +173,31 @@ async function hydrateSourceUrls(
   if (!skills.length)
     return []
   const statements = skills.map(skill => db.prepare(
-    `SELECT current_sha, rendered_skill_path
-     FROM skills
-     WHERE owner = ?1 AND repo = ?2 AND name = ?3
-       AND current_sha IS NOT NULL
-       AND TRIM(current_sha) != ''
-       AND rendered_skill_path IS NOT NULL
-       AND TRIM(rendered_skill_path) != ''`,
+    `SELECT s.rendered_skill_path, r.default_branch
+     FROM skills s
+     LEFT JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
+     WHERE s.owner = ?1 AND s.repo = ?2 AND s.name = ?3
+       AND s.current_sha IS NOT NULL
+       AND TRIM(s.current_sha) != ''
+       AND s.rendered_skill_path IS NOT NULL
+       AND TRIM(s.rendered_skill_path) != ''`,
   ).bind(skill.owner, skill.repo, skill.slug))
-  const results = await db.batch<{ current_sha: string, rendered_skill_path: string }>(statements)
+  const results = await db.batch<{
+    rendered_skill_path: string
+    default_branch: string | null
+  }>(statements)
   return skills.flatMap((skill, index) => {
     const row = results[index]?.results?.[0]
     return row
-      ? [{ ...skill, sourceUrl: sourceUrl({ ...skill, name: skill.slug, ...row }) }]
+      ? [{
+          ...skill,
+          sourceUrl: githubSkillSourceUrl({
+            owner: skill.owner,
+            repo: skill.repo,
+            path: row.rendered_skill_path,
+            branch: row.default_branch,
+          }),
+        }]
       : []
   })
 }
