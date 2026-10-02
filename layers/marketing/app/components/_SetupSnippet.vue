@@ -6,19 +6,19 @@ const { code, label, format = 'text' } = defineProps<{
   /** What the copy button copies, read by screen readers. */
   label: string
   /**
-   * `skilld` renders with the site's install command roles. `json` and `toml`
-   * are highlighted. Other shell commands stay plain: the light highlight theme
-   * fails contrast on the muted surface.
+   * `skilld` renders with the site's install command roles. `json`, `toml`,
+   * and `typescript` are highlighted. Other shell commands stay plain: the
+   * light highlight theme fails contrast on the muted surface.
    */
-  format?: 'text' | 'skilld' | 'json' | 'toml'
+  format?: 'text' | 'skilld' | 'json' | 'toml' | 'typescript'
 }>()
 
 const { copy, copied } = useClipboard({ copiedDuring: 2000, legacy: true })
 const copyError = ref('')
 
-const html = computed(() => format === 'json' || format === 'toml'
-  ? highlightCodeBody(code, format)
-  : escapeHtml(code))
+const html = computed(() => format === 'text' || format === 'skilld'
+  ? escapeHtml(code)
+  : highlightCodeBody(code, format))
 
 async function copyCode(): Promise<void> {
   copyError.value = ''

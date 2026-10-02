@@ -3,7 +3,7 @@ import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate
 import type { AlternateSource, HybridSearchResult, SearchMode } from './skill-search'
 import { getDB } from '#server/utils/db'
 import { cached } from '#shared/server/cache'
-import { githubSkillFileUrl } from '#shared/skill-file-url'
+import { skillCardLinks } from '#shared/server/skill-cards'
 import { runAfterResponse } from './after-response'
 import { JOIN_REPOS_SQL, notAggregatorSql, notBrokenSql } from './broken'
 import { buildSkillDependencyMap, skillDependencyKey } from './skill-dependencies'
@@ -127,16 +127,14 @@ interface SkillRow {
 }
 
 function rowToSkill(row: SkillRow): RegistrySkill {
+  // The public API card reads the same two links from its own rows, so both
+  // come from one function.
+  const { registryPath, skillFileUrl } = skillCardLinks(row)
   return {
     name: row.name,
     owner: row.owner,
     repo: row.repo,
-    registryPath: canonicalRepoSkillPath({
-      owner: row.owner,
-      repo: row.repo,
-      name: row.name,
-      repoSkillCount: row.repo_skill_count,
-    }),
+    registryPath,
     displayName: row.display_name,
     slug: row.slug,
     stars: row.stars ?? 0,
@@ -151,12 +149,7 @@ function rowToSkill(row: SkillRow): RegistrySkill {
     modifiedAt: row.modified_at ?? null,
     firstSeenAt: row.first_seen_at ?? null,
     authorName: row.author_name ?? null,
-    skillFileUrl: githubSkillFileUrl({
-      owner: row.source_owner || row.owner,
-      repo: row.source_repo || row.repo,
-      skillPath: row.rendered_skill_path,
-      branch: row.default_branch,
-    }),
+    skillFileUrl,
   }
 }
 
@@ -185,10 +178,12 @@ export interface SkillsQuery {
   category?: string
   tags?: string[]
   tagMode?: 'and' | 'or'
-  sort?: 'stars' | 'name' | 'owner' | 'likes'
+  sort?: 'stars' | 'name' | 'owner' | 'likes' | 'updated'
   uniqueOwners?: boolean
   page?: number
   limit?: number
+  /** Rows to skip. Overrides the skip that `page` implies, for callers that page by offset. */
+  offset?: number
   officialOwners?: Set<string>
   includeDependencies?: boolean
 }
@@ -237,6 +232,7 @@ function firstSkillPerOwner<T extends { skill: { owner: string } }>(groups: T[])
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
   const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', uniqueOwners = false, page = 1, limit = 60, officialOwners, includeDependencies = false } = opts
+  const offset = opts.offset ?? (page - 1) * limit
   const selectSkillRow = includeDependencies ? SELECT_SKILL_ROW_WITH_BODY : SELECT_SKILL_ROW
 
   // Listings exclude skills whose source is unresolved or deleted upstream
@@ -337,7 +333,6 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
 
     const scoped = uniqueOwners ? firstSkillPerOwner(collapsed) : collapsed
     const total = scoped.length
-    const start = (page - 1) * limit
     const facetCounts = new Map<string, number>()
     for (const group of scoped)
       facetCounts.set(group.skill.owner, (facetCounts.get(group.skill.owner) ?? 0) + 1)
@@ -347,7 +342,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
       .slice(0, 20)
 
     return {
-      items: scoped.slice(start, start + limit).map(group => ({
+      items: scoped.slice(offset, offset + limit).map(group => ({
         ...group.skill,
         sourceCount: group.sourceCount,
         alternateSources: group.alternateSources,
@@ -377,6 +372,14 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
       'like_count DESC, stars DESC, owner ASC, repo ASC, name ASC',
     ]
   }
+  // The last SKILL.md change first. A Skill the sync has not dated yet sorts
+  // last rather than first.
+  else if (sort === 'updated') {
+    [orderBy, rankedOrderBy] = [
+      's.modified_at IS NULL, s.modified_at DESC, r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC',
+      'modified_at IS NULL, modified_at DESC, stars DESC, owner ASC, repo ASC, name ASC',
+    ]
+  }
   else {
     [orderBy, rankedOrderBy] = [
       'r.stars DESC, s.owner ASC, s.repo ASC, s.name ASC',
@@ -390,7 +393,6 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     .prepare(`SELECT ${countExpression} as total ${FROM_SKILLS_JOIN_REPOS} ${where}`)
     .bind(...params)
 
-  const offset = (page - 1) * limit
   // The repo Skill count is added after the page cut, so it runs once per row
   // on the page instead of once per match. The outer query sorts the page
   // again by the same key, which names result columns and binds nothing.
@@ -441,6 +443,42 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
     pages: Math.ceil((countRes?.total ?? 0) / limit),
     facets,
   }
+}
+
+type RegistrySkillKey = Pick<RegistrySkill, 'owner' | 'repo' | 'name'>
+
+/** `owner/repo/name`, the key {@link findSkillsByKeys} answers by. */
+export function registrySkillKey(skill: RegistrySkillKey): string {
+  return `${skill.owner}/${skill.repo}/${skill.name}`
+}
+
+/** Three bound parameters per key, against D1's ceiling of 100. */
+const SKILL_KEYS_PER_STATEMENT = 30
+
+/**
+ * Registry rows for exact Skill keys, keyed by {@link registrySkillKey}.
+ *
+ * The trending board and the track pages rank Skills and carry only the
+ * fields their own cards show. A public API card also needs the likes, the
+ * SKILL.md link, and the last change, so it reads those rows here by primary
+ * key after the ranking is done. The cost is one statement per thirty keys.
+ */
+export async function findSkillsByKeys(event: H3Event, keys: readonly RegistrySkillKey[]): Promise<Map<string, RegistrySkill>> {
+  const unique = [...new Map(keys.map(key => [registrySkillKey(key), key])).values()]
+  if (!unique.length)
+    return new Map()
+  const db = getDB(event)
+  const statements: D1PreparedStatement[] = []
+  for (let i = 0; i < unique.length; i += SKILL_KEYS_PER_STATEMENT) {
+    const chunk = unique.slice(i, i + SKILL_KEYS_PER_STATEMENT)
+    const placeholders = chunk.map(() => '(?, ?, ?)').join(', ')
+    statements.push(db
+      .prepare(`SELECT ${SELECT_SKILL_ROW} ${FROM_SKILLS_JOIN_REPOS} WHERE (s.owner, s.repo, s.name) IN (VALUES ${placeholders})`)
+      .bind(...chunk.flatMap(key => [key.owner, key.repo, key.name])))
+  }
+  const results = await db.batch<SkillRow>(statements)
+  const rows = results.flatMap(result => result.results ?? [])
+  return new Map(rows.map(row => [registrySkillKey(row), rowToSkill(row)]))
 }
 
 export interface SkillLookup {

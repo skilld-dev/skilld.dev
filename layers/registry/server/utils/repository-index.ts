@@ -1,5 +1,12 @@
 import type { GitHubRepository } from '~~/shared/github-repository'
-import type { IndexedRepositorySkill, RepositoryIndexProgress } from '~~/shared/repository-index'
+import type {
+  IndexedRepositorySkill,
+  RepositoryIndexProgress,
+  RepositoryIndexStatusResponse,
+  SubmitRepositoryIndexResponse,
+} from '~~/shared/repository-index'
+import type { Platform } from '#shared/server/platform'
+import { enqueueRegistryRepoJob } from '~~/server/utils/registry-jobs-runtime'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 
 interface RepositoryJobRow {
@@ -44,6 +51,58 @@ export async function findIndexedRepositorySkills(
       repoSkillCount: skills.length,
     }),
   }))
+}
+
+/**
+ * Ask the registry to index one Repository. If it already holds Skills from
+ * the Repository, the answer lists them. If not, the answer is the queued job
+ * to poll. The skilld.dev search box and the public API both send requests
+ * through here, so the two cannot disagree on when a Repository counts as in.
+ */
+export async function submitRepositoryIndex(
+  platform: Pick<Platform, 'db' | 'env'>,
+  repository: GitHubRepository,
+): Promise<SubmitRepositoryIndexResponse> {
+  const skills = await findIndexedRepositorySkills(platform.db, repository)
+  if (skills.length)
+    return { _tag: 'indexed', repository, skills }
+
+  const queued = await enqueueRegistryRepoJob(
+    platform.env as Cloudflare.Env & Record<string, unknown>,
+    {
+      operation: 'submit',
+      owner: repository.owner,
+      repo: repository.repo,
+    },
+  )
+  return {
+    _tag: 'queued',
+    repository,
+    jobId: queued.jobId,
+    progress: { _tag: 'queued' },
+  }
+}
+
+/**
+ * The state of one index job. A job that completed but left no Skill behind
+ * failed, from the requester's side, whatever the queue recorded.
+ */
+export async function readRepositoryIndexStatus(
+  db: D1Database,
+  jobId: string,
+): Promise<RepositoryIndexStatusResponse | { _tag: 'missing' }> {
+  const state = await readRepositoryJobState(db, jobId)
+  if (state._tag === 'missing' || state._tag === 'queued' || state._tag === 'failed')
+    return state
+
+  const skills = await findIndexedRepositorySkills(db, state.repository)
+  return skills.length
+    ? { _tag: 'indexed', repository: state.repository, skills }
+    : {
+        _tag: 'failed',
+        repository: state.repository,
+        reason: 'No supported SKILL.md files were found.',
+      }
 }
 
 export type RepositoryJobState

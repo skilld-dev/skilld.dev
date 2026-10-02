@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import SetupSnippet from '../components/_SetupSnippet.vue'
 import {
+  API_OPENAPI_PATH,
+  API_TOKEN_PAGE,
+  apiSamples,
+  apiSampleSchema,
+  apiSnippets,
   cursorInstallUrl,
   mcpApps,
   mcpAppSchema,
@@ -22,9 +27,13 @@ const app = computed(() => {
   const parsed = mcpAppSchema.safeParse(route.query.app)
   return parsed.success ? parsed.data : 'chatgpt'
 })
+const sample = computed(() => {
+  const parsed = apiSampleSchema.safeParse(route.query.sample)
+  return parsed.success ? parsed.data : 'typescript'
+})
 
 const title = 'Developers'
-const description = 'Search the skilld registry from your Agent. Install the skilld Skill for the CLI, or add the MCP server to ChatGPT, Claude, Codex, Cursor, or VS Code.'
+const description = 'Search the skilld registry from your Agent or your own code. Install the skilld Skill for the CLI, add the MCP server to ChatGPT, Claude, Codex, Cursor, or VS Code, or call the skilld API.'
 const canonicalUrl = 'https://skilld.dev/developers'
 
 useSeoMeta({
@@ -50,7 +59,7 @@ const uiClass = 'font-medium text-default'
         Developers
       </h1>
       <p class="mt-4 max-w-xl text-base leading-relaxed text-muted">
-        Search the registry from your Agent. The skilld CLI and the MCP server read the same curated Skills.
+        Search the registry from your Agent or your own code. The skilld CLI, the MCP server, and the skilld API read the same curated Skills.
       </p>
     </header>
 
@@ -58,7 +67,7 @@ const uiClass = 'font-medium text-default'
       <h2 id="setup-mode-heading" class="text-xl font-semibold">
         Choose how to connect
       </h2>
-      <nav aria-label="Setup" class="mt-4 grid gap-3 sm:grid-cols-2">
+      <nav aria-label="Setup" class="mt-4 grid gap-3 sm:grid-cols-3">
         <NuxtLink
           v-for="(item, key) in setupModes"
           :key="key"
@@ -68,7 +77,8 @@ const uiClass = 'font-medium text-default'
           class="flex min-h-20 flex-col gap-1 rounded-lg border p-4 transition-colors"
           :class="mode === key ? 'border-primary bg-elevated' : 'border-default hover:border-[var(--ui-text-muted)]'"
         >
-          <span class="flex items-center justify-between gap-3">
+          <!-- Three cards share a row from sm up, so the hint drops under the label there. -->
+          <span class="flex items-center justify-between gap-3 sm:flex-col sm:items-start sm:justify-start sm:gap-1">
             <span class="flex items-center gap-2 text-base font-medium">
               <UIcon
                 :name="mode === key ? 'i-lucide-circle-check' : 'i-lucide-circle'"
@@ -136,7 +146,7 @@ const uiClass = 'font-medium text-default'
       </ol>
     </section>
 
-    <section v-else aria-labelledby="mcp-heading" class="mt-12">
+    <section v-else-if="mode === 'mcp'" aria-labelledby="mcp-heading" class="mt-12">
       <h2 id="mcp-heading" class="text-xl font-semibold">
         Add the MCP server
       </h2>
@@ -273,6 +283,121 @@ const uiClass = 'font-medium text-default'
       </ol>
     </section>
 
+    <section v-else aria-labelledby="api-heading" class="mt-12">
+      <h2 id="api-heading" class="text-xl font-semibold">
+        Call the skilld API
+      </h2>
+      <ol class="mt-6 list-none space-y-10 p-0">
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">01</span>
+          <div class="min-w-0">
+            <h3 class="text-base font-medium">
+              Create a token
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">
+              Search and every other public operation need no token. Account operations, such as watching a Repository, need a skilld token. <code class="font-mono text-xs text-default">skilld auth login</code> stores one for the CLI. For a script, create a token, then keep it out of your source code.
+            </p>
+            <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+              <UButton
+                :to="API_TOKEN_PAGE"
+                label="New token"
+                icon="i-lucide-key-round"
+                color="neutral"
+                variant="outline"
+                class="min-h-11"
+              />
+              <UButton
+                to="/me/devices"
+                label="Revoke a token"
+                color="neutral"
+                variant="link"
+                class="min-h-11 px-0 text-sm"
+              />
+            </div>
+            <SetupSnippet class="mt-4" :code="apiSnippets.tokenEnv" label="environment variable" />
+          </div>
+        </li>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">02</span>
+          <div class="min-w-0">
+            <h3 id="api-sample-heading" class="text-base font-medium">
+              Call your first operation
+            </h3>
+            <!-- Same tab pattern as the MCP apps: a query link, so the server renders the chosen sample. -->
+            <nav
+              aria-labelledby="api-sample-heading"
+              class="mt-3 flex flex-wrap gap-x-4 border-b border-default"
+            >
+              <NuxtLink
+                v-for="(item, key) in apiSamples"
+                :key="key"
+                :to="{ query: { setup: 'api', sample: key } }"
+                replace
+                :aria-current="sample === key ? 'true' : undefined"
+                class="-mb-px flex min-h-11 items-center border-b-2 font-mono text-xs whitespace-nowrap transition-colors"
+                :class="sample === key ? 'border-primary text-default' : 'border-transparent text-muted hover:text-default'"
+              >
+                {{ item.label }}
+              </NuxtLink>
+            </nav>
+
+            <div class="mt-5 text-sm leading-relaxed text-muted">
+              <template v-if="sample === 'typescript'">
+                <p>Install the SDK, then search the registry. Every call returns a result: check <code class="font-mono text-xs text-default">_tag</code> before you read <code class="font-mono text-xs text-default">value</code>. Nothing throws for an expected failure.</p>
+                <SetupSnippet class="mt-3" :code="apiSnippets.sdkInstall" label="install command" />
+                <SetupSnippet class="mt-3" :code="apiSnippets.sdkQuickStart" label="TypeScript example" format="typescript" />
+              </template>
+
+              <template v-else>
+                <p>Search needs no token. The answer is plain JSON: the matching Skills in <code class="font-mono text-xs text-default">items</code>, and their count in <code class="font-mono text-xs text-default">total</code>.</p>
+                <SetupSnippet class="mt-3" :code="apiSnippets.curlQuickStart" label="cURL command" />
+              </template>
+            </div>
+          </div>
+        </li>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">03</span>
+          <div class="min-w-0">
+            <h3 class="text-base font-medium">
+              Browse every operation
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">
+              The OpenAPI document lists every operation with its input, its answer, its errors, and an example.
+            </p>
+            <UButton
+              :to="API_OPENAPI_PATH"
+              external
+              target="_blank"
+              label="Read the OpenAPI document"
+              color="neutral"
+              variant="link"
+              class="mt-2 min-h-11 px-0 text-sm"
+            />
+          </div>
+        </li>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">04</span>
+          <div class="min-w-0">
+            <h3 class="text-base font-medium">
+              Code samples
+            </h3>
+            <template v-if="sample === 'typescript'">
+              <p class="mt-2 text-sm leading-relaxed text-muted">
+                Reuse <code class="font-mono text-xs text-default">skilld</code> from step 02. The watch is an account operation, so it needs the token from step 01.
+              </p>
+              <SetupSnippet class="mt-3" :code="apiSnippets.sdkSamples" label="TypeScript samples" format="typescript" />
+            </template>
+            <template v-else>
+              <p class="mt-2 text-sm leading-relaxed text-muted">
+                The watch is an account operation, so it sends the token from step 01.
+              </p>
+              <SetupSnippet class="mt-3" :code="apiSnippets.curlSamples" label="cURL samples" />
+            </template>
+          </div>
+        </li>
+      </ol>
+    </section>
+
     <section aria-labelledby="discovery-heading" class="mt-16 border-t border-default pt-8">
       <h2 id="discovery-heading" class="text-xl font-semibold">
         Where Agents look on their own
@@ -285,6 +410,10 @@ const uiClass = 'font-medium text-default'
         <li>
           <a href="/llms.txt" class="font-mono text-xs text-default underline underline-offset-2">/llms.txt</a>
           links every page on skilld.dev as Markdown.
+        </li>
+        <li>
+          <a :href="API_OPENAPI_PATH" class="font-mono text-xs text-default underline underline-offset-2">{{ API_OPENAPI_PATH }}</a>
+          describes every operation of the skilld API.
         </li>
         <li>
           Every Skill page returns its SKILL.md when an Agent asks for <code class="font-mono text-xs text-default">text/markdown</code>.

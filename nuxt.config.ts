@@ -110,6 +110,9 @@ export default defineNuxtConfig({
     request: true,
     service: 'skilld',
     fields: [
+      // `api-v1-contract` and `api-v1-handler`: the public API operation that
+      // broke its contract or threw, so Sentry groups failures per operation.
+      'api.operation',
       // `artifact-build-reuse`: which Resolution, which lookup matched, and
       // the ready Resolution it reused. The daily check-in counts the hits.
       'artifact.resolutionId',
@@ -296,6 +299,15 @@ export default defineNuxtConfig({
     mcp: {
       tools: false,
       resources: false,
+    },
+    // RFC 9727: Agents find the skilld API from /.well-known/api-catalog. The
+    // module appends the MCP server entry it generates from mcpServerCard.
+    apiCatalog: {
+      entries: [{
+        anchor: 'https://skilld.dev/api/v1',
+        serviceDesc: { href: 'https://skilld.dev/api/v1/openapi.json', type: 'application/vnd.oai.openapi+json;version=3.1' },
+        serviceDoc: { href: 'https://skilld.dev/developers?setup=api', type: 'text/html' },
+      }],
     },
     mcpServerCard: {
       name: 'dev.skilld/registry',

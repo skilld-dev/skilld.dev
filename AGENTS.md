@@ -37,9 +37,14 @@ New Markdown at the repository root is an error. Identity and filters only.
 - **Handlers read bindings from `event.context.platform`, never from
   `event.context.cloudflare.env`.** `server/plugins/platform.ts` mounts it with `db`, `ai`,
   `github`, and `requestId`.
-- **An API route is `defineApiHandler({ schema, policy, handler, presenter })`.** Response shape
-  belongs in a presenter, input in a zod schema, authorization in policy atoms. Never inline in
-  the handler.
+- **An internal API route is `defineApiHandler({ schema, policy, handler, presenter })`.**
+  Response shape belongs in a presenter, input in a zod schema, authorization in policy atoms.
+  Never inline in the handler.
+- **A `/api/v1` route in the contract is `defineApiOperation({ operation, handler })`** from
+  `#shared/server/operation`. Its descriptor lives in `packages/sdk/src/contract`, and its file
+  sits at the operation's own path. After a contract change, run
+  `pnpm --filter skilld-sdk generate` and commit the OpenAPI file, or its drift test fails.
+  Answers only gain fields. ADR-0006.
 - **An indexable surface names its target query, its admission bar, and its cull path.** Roughly
   50k auto-generated pages got this site suppressed once. `VISION.md` principle 2 is the rule and
   [EXECUTE-seo-keyword-rework](docs/work/EXECUTE-seo-keyword-rework.md) is the live work.
@@ -54,6 +59,9 @@ New Markdown at the repository root is an error. Identity and filters only.
 - **Digest email is the Cloudflare `send_email` binding, not a provider API.** Until the account
   has Send Email enabled for arbitrary destinations, every recipient must be a Verified
   Destination Address in the dashboard. A digest to anyone else fails silently in testing.
+- **`skills.search` answers are frozen for skilld 3.2.0.** The CLI parses them with
+  `deny_unknown_fields`, so one new field breaks every released `skilld search`. Add the field to
+  `skills.get`.
 - **`GOOGLE_RECOVERY.md` is in `.gitignore`.** Around ten source comments cite it as the reason a
   surface is `noindex` or absent from the sitemap, and nobody cloning this repository can read it.
   Treat those comments as pointing at nothing until the file is either committed or the comments
@@ -61,6 +69,8 @@ New Markdown at the repository root is an error. Identity and filters only.
 
 ## Consumers
 
+- `packages/sdk` publishes to npm as `skilld-sdk`. Under ADR-0006 the Rust CLI vendors its
+  generated OpenAPI file and decodes every example in a test.
 - The skilld CLI and `@skilld/harness` are separate repositories. `skilld-dev/skilld/GLOSSARY.md`
   wins for CLI commands, protocol types, and source status values.
 - The push-only grammar check (`pnpm cli:grammar`) blocks deployment until the npm `latest`

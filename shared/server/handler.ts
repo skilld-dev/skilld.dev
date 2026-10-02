@@ -79,12 +79,8 @@ export function defineApiHandler<
       body = parsed.data as z.infer<S>
     }
 
-    const session = await readUserSession(event).catch(() => {
-      emitOperationalEvent(createWideEvent({ operation: 'api-session', outcome: 'failed' }))
-      return null
-    })
-    const bearerUser = session?.user ? null : await resolveBearerUser(event)
-    const user = session?.user ?? bearerUser
+    const session = await readSession(event)
+    const user = session?.user ?? await resolveBearerUser(event)
 
     if (opts.requireAuth && !user) {
       throw createError({ statusCode: 401, message: 'Not signed in' })
@@ -119,6 +115,19 @@ export function defineApiHandler<
   })
 }
 
+async function readSession(event: H3Event): Promise<UserSession | null> {
+  return await readUserSession(event).catch(() => {
+    emitOperationalEvent(createWideEvent({ operation: 'api-session', outcome: 'failed' }))
+    return null
+  })
+}
+
+/** The signed-in user: the skilld.dev session cookie first, then a skilld token sent as a Bearer credential. */
+export async function resolveRequestUser(event: H3Event): Promise<UserSession['user'] | null> {
+  const session = await readSession(event)
+  return session?.user ?? await resolveBearerUser(event)
+}
+
 async function resolveBearerUser(event: H3Event): Promise<UserSession['user'] | null> {
   const { resolveBearerSession } = await import('#layers/identity/server/utils/bearer')
   return await resolveBearerSession(event)
@@ -129,7 +138,7 @@ function isMethodWithBody(event: H3Event): boolean {
   return m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE'
 }
 
-async function readApiBody(event: H3Event): Promise<unknown> {
+export async function readApiBody(event: H3Event): Promise<unknown> {
   const contentLength = Number(getHeader(event, 'content-length'))
   if (Number.isFinite(contentLength) && contentLength > MAX_API_BODY_BYTES) {
     throw createError({
