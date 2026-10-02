@@ -2,6 +2,9 @@ import { z } from 'zod'
 
 const name = z.string().regex(/^[\w.-]+$/).max(100)
 const repository = z.object({ id: z.number().int().positive(), name, private: z.boolean(), owner: z.object({ login: name }) })
+const installationRepository = z.object({ id: z.number().int().positive(), name, private: z.boolean(), full_name: z.string().regex(/^[\w.-]+\/[\w.-]+$/).max(201) })
+  .refine(value => value.full_name.split('/')[1] === value.name)
+  .transform(value => ({ id: value.id, name: value.name, private: value.private, owner: { login: value.full_name.split('/')[0]! } }))
 const installation = z.object({ id: z.number().int().positive() })
 const tag = z.string().min(1).max(200).refine(value => [...value].every(char => char.charCodeAt(0) > 32))
 export interface TagRequest { owner: string, name: string, repositoryId: number, installationId: number, tag: string }
@@ -17,7 +20,7 @@ export function parseGithubEvent(event: string, payload: unknown): { _tag: 'Tags
     return { _tag: 'Tags', tags: [{ owner: data.repository.owner.login, name: data.repository.name, repositoryId: data.repository.id, installationId: data.installation.id, tag: data.ref }] }
   }
   if (event === 'installation' || event === 'installation_repositories') {
-    const parsed = z.object({ action: z.string(), installation, repositories: z.array(repository).optional(), repositories_added: z.array(repository).optional() }).safeParse(payload)
+    const parsed = z.object({ action: z.string(), installation, repositories: z.array(installationRepository).optional(), repositories_added: z.array(installationRepository).optional() }).safeParse(payload)
     if (!parsed.success)
       return { _tag: 'Invalid' }
     if (!['created', 'added'].includes(parsed.data.action))

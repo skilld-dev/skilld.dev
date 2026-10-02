@@ -38,6 +38,15 @@ it('signs the App token and limits the installation token to one repository', as
 })
 
 describe('gitHub tag events', () => {
+  it.each(['installation', 'installation_repositories'])('queues compact repositories from %s events', (event) => {
+    const compact = { id: repository.id, node_id: 'R_example', name: repository.name, full_name: 'harlan-zw/package', private: false }
+    const payload = event === 'installation' ? { action: 'created', installation, repositories: [compact] } : { action: 'added', installation, repositories_added: [compact] }
+    expect(parseGithubEvent(event, payload)).toEqual({ _tag: 'Tags', tags: [{ owner: 'harlan-zw', name: 'package', repositoryId: 10, installationId: 20, tag: '@latest' }] })
+  })
+  it.each(['other/package', 'harlan-zw/other', 'harlan-zw/package/extra'])('checks installation repository identity %s', (fullName) => {
+    const parsed = parseGithubEvent('installation', { action: 'created', installation, repositories: [{ id: 10, name: 'package', full_name: fullName, private: false }] })
+    expect(parsed._tag).toBe(fullName === 'other/package' ? 'Tags' : 'Invalid')
+  })
   it('accepts tag creation on an installed public repository', () => {
     expect(parseGithubEvent('create', { ref_type: 'tag', ref: 'v1.0.0', repository, installation })).toMatchObject({ _tag: 'Tags', tags: [{ tag: 'v1.0.0', repositoryId: 10, installationId: 20 }] })
   })
