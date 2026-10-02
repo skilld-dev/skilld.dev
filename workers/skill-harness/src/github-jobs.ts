@@ -29,8 +29,11 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
       await storage.setAlarm(Date.now() + 1000)
       return { _tag: 'Accepted' as const, id }
     })
-    if (result._tag === 'Accepted')
+    if (result._tag === 'Accepted') {
+      // Operators use this event to locate installation jobs in Worker logs.
+      // eslint-disable-next-line no-console
       console.info('github-app-job-accepted', { id: result.id, repository: `${request.owner}/${request.name}`, tag: request.tag })
+    }
     return result
   }
 
