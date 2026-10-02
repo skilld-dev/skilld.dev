@@ -66,7 +66,7 @@ Search for Skills
 Usage: skilld search [OPTIONS] [QUERY]...
 
 Arguments:
-  [QUERY]...  
+  [QUERY]...
 
 Options:
       --json   Output stable JSON for Agents and automation
@@ -335,7 +335,7 @@ Remove an installed Skill
 Usage: skilld remove [OPTIONS] <SKILL>
 
 Arguments:
-  <SKILL>  
+  <SKILL>
 
 Options:
   -g, --global  Remove a Skill from the global scope
@@ -354,7 +354,7 @@ Update installed Skills to their current source commit
 Usage: skilld update [OPTIONS] [SKILL]
 
 Arguments:
-  [SKILL]  
+  [SKILL]
 
 Options:
       --check        Check update relations without changing files
@@ -375,7 +375,7 @@ Verify a Skill source and report its source status
 Usage: skilld verify [OPTIONS] [SKILL]
 
 Arguments:
-  [SKILL]  
+  [SKILL]
 
 Options:
       --json   Output stable JSON for Agents and automation
@@ -427,7 +427,7 @@ Options:
 
       --sort <ORDER>
           Order by stars, likes, or the last SKILL.md change. The default is stars
-          
+
           [possible values: stars, likes, updated]
 
       --limit <N>
@@ -497,7 +497,7 @@ Usage: skilld index [OPTIONS] <REPOSITORY>
 
 Arguments:
   <REPOSITORY>
-          
+
 
 Options:
       --json
@@ -590,10 +590,10 @@ Usage: skilld account set [OPTIONS] <KEY> <VALUE>
 
 Arguments:
   <KEY>
-          
+
 
   <VALUE>
-          
+
 
 Options:
       --json
@@ -946,9 +946,9 @@ Log in, check, or log out of your account
 Usage: skilld auth [OPTIONS] <COMMAND>
 
 Commands:
-  login   
-  status  
-  logout  
+  login
+  status
+  logout
 
 Options:
       --json   Output stable JSON for Agents and automation
@@ -999,9 +999,9 @@ Read, set, or list configuration values
 Usage: skilld config [OPTIONS] <COMMAND>
 
 Commands:
-  get   
-  set   
-  list  
+  get
+  set
+  list
 
 Options:
       --json   Output stable JSON for Agents and automation
@@ -1015,7 +1015,7 @@ Options:
 Usage: skilld config get [OPTIONS] <KEY>
 
 Arguments:
-  <KEY>  
+  <KEY>
 
 Options:
       --json   Output stable JSON for Agents and automation
@@ -1029,8 +1029,8 @@ Options:
 Usage: skilld config set [OPTIONS] <KEY> <VALUE>
 
 Arguments:
-  <KEY>    
-  <VALUE>  
+  <KEY>
+  <VALUE>
 
 Options:
       --json   Output stable JSON for Agents and automation

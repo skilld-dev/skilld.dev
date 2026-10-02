@@ -40,7 +40,7 @@ async function helpFor(version: string, path: readonly string[]): Promise<string
     env: { ...process.env, NO_COLOR: '1', SKILLD_NO_UPGRADE: '1', SKILLD_NO_WEEKLY: '1' },
     maxBuffer: 4 * 1024 * 1024,
   })
-  return stdout.trimEnd()
+  return stdout.split('\n').map(line => line.trimEnd()).join('\n').trimEnd()
 }
 
 /** The `Commands:` block of one help text, without clap's own `help` entry. */
