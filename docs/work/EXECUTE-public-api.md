@@ -1,8 +1,8 @@
 # Public API v1
 
-Status: open · 2026-10-02 · branch `feat/public-api`
+Date: 2026-10-02
 
-**Next move:** Harlan reviews the `feat/public-api` pull request. Publish `skilld-sdk` to [npm](https://npmjs.com) by hand before it deploys, because the developers page prints `npm install skilld-sdk`.
+**Next move:** Review the CLI documentation follow-up and move the contract package to the public CLI repository.
 
 Done means: the skilld CLI release on npm `latest` reaches likes, watches, collections, and changes through `/api/v1`, and `skilld-sdk` installs from npm.
 
@@ -10,10 +10,10 @@ Decisions: [ADR-0006](../adr/0006-public-api-contract.md). Shape: [docs/arch/REA
 
 ## Ledger
 
-- [ ] **Site API.** The contract in `packages/sdk`, a `defineApiOperation` route per operation, the generated OpenAPI document, the SDK, and the API tab on `/developers?setup=api`. Branch `feat/public-api`.
-- [ ] **CLI parity in `~/pkg/skilld`.** The next pull request. Vendor `generated/openapi.v1.json`, decode every example in a test, and add the account commands on top of the v1 operations.
-- [ ] **Developers page CLI tab.** List the new commands only after the CLI release that has them reaches npm `latest`. `pnpm cli:grammar` blocks the deploy before that.
-- [ ] **Publish `skilld-sdk`.** Harlan publishes the first version by hand. Then add `.github/workflows/publish-sdk.yml` as the npm trusted publisher, so a `sdk-v<version>` tag publishes the next one.
+- [x] **Site API.** #362 added the contract, routes, OpenAPI document, SDK, and API tab.
+- [x] **CLI parity in `~/pkg/skilld`.** skilld-dev/skilld#180 added account commands and contract example checks. Release 3.3.0 reached npm `latest`.
+- [ ] **Developers page CLI tab.** Branch `feat/developers-cli-commands` adds account commands and generates `/docs/cli` from release 3.3.0. `pnpm cli:grammar` checks the printed commands.
+- [x] **Publish `skilld-sdk`.** Harlan published 0.1.0. Move the publishing workflow with the contract to `skilld-dev/skilld`.
 - [ ] **Fold Artifact delivery into the contract.** Then retire the hand-written OpenAPI YAML in `skilld-protocol`, and drop the parity test's exemption for `layers/artifact-delivery`.
 - [ ] **Rate limit `/api/v1`** with a Workers rate-limit binding. The contract already declares `RATE_LIMITED` and `Retry-After`.
 - [ ] **MCP tools call v1 through the SDK,** so the MCP server and the API answer the same shapes.
@@ -25,3 +25,4 @@ Decisions: [ADR-0006](../adr/0006-public-api-contract.md). Shape: [docs/arch/REA
 ## Log
 
 - 2026-10-02 Contract, server binding, and SDK written on `feat/public-api`. ADR-0006 records the wire format, the auth model, and the money posture.
+- 2026-10-02 Release run 36964676286 completed successfully. GitHub published v3.3.0, and npm `latest` resolved to 3.3.0. The CLI follow-up adds account commands and generates the reference from release help.

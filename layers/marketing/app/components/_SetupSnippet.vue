@@ -33,12 +33,12 @@ async function copyCode(): Promise<void> {
   <div>
     <div class="flex items-start gap-2">
       <!-- Wraps instead of scrolling, so no snippet hides its end on a phone. -->
-      <InstallCommand
+      <div
         v-if="format === 'skilld'"
-        :command="code"
-        wrap
-        class="block min-w-0 flex-1 rounded-md border border-default bg-muted px-3 py-2.5 text-xs leading-relaxed"
-      />
+        class="min-w-0 flex-1 rounded-md border border-default bg-muted px-3 py-2.5 text-xs leading-relaxed"
+      >
+        <InstallCommand v-for="(line, index) in code.split('\n')" :key="index" :command="line" wrap class="block" />
+      </div>
       <code
         v-else
         class="shiki min-w-0 flex-1 rounded-md border border-default bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed whitespace-pre-wrap text-default [overflow-wrap:anywhere]"

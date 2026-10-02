@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { compareCliVersions, publishedAgentPages } from '../layers/marketing/app/utils/agent-pages'
 import {
+  accountCmds,
   collectionInstallCmd,
   curatorInstallCmd,
   gitInstallCmd,
@@ -116,6 +117,7 @@ export function cliRequirement(): CliRequirement {
     skillRunCmd('owner', 'repo', 'skill'),
     skillInstallCmd('owner', 'repo', 'skill'),
     skilldSelfInstallCmd(),
+    ...accountCmds,
     ...copyCommands(readFileSync(BRAND_GUIDELINES_URL, 'utf8')),
   ])
 }

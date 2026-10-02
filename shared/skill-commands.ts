@@ -67,3 +67,15 @@ export function skillInstallCmd(owner: string, repo: string, skill: string): str
 export function skilldSelfInstallCmd(): string {
   return `${CLI_PREFIX} install skilld --global`
 }
+
+/**
+ * The account commands `/developers` teaches. Signing in once lets an Agent
+ * like, watch, and read the digest for the user. They live here, beside every
+ * other printed command, so the deploy gate checks them against npm `latest`.
+ */
+export const accountCmds = [
+  `${CLI_PREFIX} auth login`,
+  `${CLI_PREFIX} watch vercel-labs/agent-skills`,
+  `${CLI_PREFIX} like vercel-labs/agent-skills/web-design-guidelines`,
+  `${CLI_PREFIX} changes`,
+] as const

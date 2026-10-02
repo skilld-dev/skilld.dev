@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { skilldSelfInstallCmd } from '#shared/skill-commands'
+import { accountCmds, skilldSelfInstallCmd } from '#shared/skill-commands'
 
 /** The discovery MCP server. `nuxt.config.ts` mounts it at `mcp.route`. */
 export const REGISTRY_MCP_URL = 'https://skilld.dev/api/mcp'
@@ -60,6 +60,7 @@ function vscodeServerJson(url: string = REGISTRY_MCP_URL): string {
 
 export const setupSnippets = {
   skilldSkill: skilldSelfInstallCmd(),
+  cliAccount: accountCmds.join('\n'),
   cliPrompt: 'Use skilld to find a Skill for Tailwind CSS, then run it.',
   mcpPrompt: 'Search skilld for a Skill for Tailwind CSS and give me the run command.',
   claudeCodePlugin: '/plugin marketplace add skilld-dev/skilld\n/plugin install skilld@skilld',
