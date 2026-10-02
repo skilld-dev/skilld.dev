@@ -629,6 +629,7 @@ const TEST_SCHEMA = `
     owner TEXT NOT NULL,
     repo TEXT NOT NULL,
     repo_kind TEXT NOT NULL,
+    default_branch TEXT,
     PRIMARY KEY (owner, repo)
   );
   CREATE TABLE skill_subscriptions (

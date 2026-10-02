@@ -62,7 +62,7 @@ export function parseTagSkillRow(row: TagSkillRow): ParsedTagSkillRow {
         owner: row.source_owner || owner,
         repo: row.source_repo || repo,
         skillPath: row.rendered_skill_path,
-        ref: row.current_sha || row.default_branch,
+        branch: row.default_branch,
       }),
       seoIndexScore: 0,
       seoIndexable: false,

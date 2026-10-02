@@ -149,7 +149,7 @@ describe('likes', () => {
         likes: 4,
         updatedAt: '2026-09-21T14:13:20.000Z',
         pageUrl: 'https://skilld.dev/gh/vercel-labs/agent-skills/web-design-guidelines',
-        sourceUrl: 'https://github.com/vercel-labs/agent-skills/blob/abc123/skills/web-design-guidelines/SKILL.md',
+        sourceUrl: 'https://github.com/vercel-labs/agent-skills/blob/HEAD/skills/web-design-guidelines/SKILL.md',
         runCommand: 'npx skilld run vercel-labs/agent-skills/web-design-guidelines',
         installCommand: 'npx skilld install vercel-labs/agent-skills/web-design-guidelines',
         likedAt: NOW.toISOString(),

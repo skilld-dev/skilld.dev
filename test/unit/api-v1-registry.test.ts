@@ -405,7 +405,7 @@ describe('registry v1 routes', () => {
     expect(server.fetched).toEqual(['/api/clusters/design', '/api/clusters/design?page=2'])
     expect(body.items.map((item: { name: string }) => item.name)).toEqual(['s58', 's60'])
     expect(body).toMatchObject({ slug: 'design', total: 130 })
-    expect(body.items[0]).toMatchObject({ likes: 2, sourceUrl: 'https://github.com/acme/kit/blob/abc/skills/s58/SKILL.md' })
+    expect(body.items[0]).toMatchObject({ likes: 2, sourceUrl: 'https://github.com/acme/kit/blob/main/skills/s58/SKILL.md' })
   })
 
   it('answers NOT_FOUND for a track the site does not have', async () => {
@@ -502,7 +502,7 @@ describe('registry loaders behind v1', () => {
         likeCount: 0,
         modifiedAt: 200,
         registryPath: '/gh/zed/tools',
-        skillFileUrl: 'https://github.com/zed/tools/blob/def/skills/fresh/SKILL.md',
+        skillFileUrl: 'https://github.com/zed/tools/blob/main/skills/fresh/SKILL.md',
       })
     }
     finally {

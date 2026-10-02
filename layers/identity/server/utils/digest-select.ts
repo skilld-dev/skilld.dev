@@ -67,7 +67,7 @@ export async function selectDigestForUser(
   )`
 
   const rows = await db.prepare(
-    `SELECT s.owner, s.repo, sub.source AS source, COUNT(*) AS change_count
+    `SELECT s.owner, s.repo, r.default_branch, sub.source AS source, COUNT(*) AS change_count
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
@@ -86,6 +86,7 @@ export async function selectDigestForUser(
   ).bind(user.id, cursorStart, cursorEnd, windowEnd).all<{
     owner: string
     repo: string
+    default_branch: string | null
     source: string
     change_count: number
   }>()
@@ -97,8 +98,7 @@ export async function selectDigestForUser(
 
   const detailStatements = groups.map(group => group.source === 'like'
     ? db.prepare(
-        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at, a.sha,
-                s.current_sha, s.rendered_skill_path
+        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at, s.rendered_skill_path
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      WHERE a.owner = ?2
@@ -113,8 +113,7 @@ export async function selectDigestForUser(
      ORDER BY a.id DESC`,
       ).bind(user.id, group.owner, group.repo, cursorStart, cursorEnd)
     : db.prepare(
-        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at, a.sha,
-                s.current_sha, s.rendered_skill_path
+        `SELECT a.id, a.name AS skill_name, s.description, a.occurred_at, s.rendered_skill_path
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      WHERE a.owner = ?1
@@ -132,8 +131,6 @@ export async function selectDigestForUser(
     skill_name: string
     description: string | null
     occurred_at: number
-    sha: string
-    current_sha: string
     rendered_skill_path: string
   }>(detailStatements)
 
@@ -143,6 +140,8 @@ export async function selectDigestForUser(
     owner: string
     repo: string
     name: string
+    path: string
+    branch: string | null
     sourceStart: number
     sourceEnd: number
   }> = []
@@ -155,8 +154,6 @@ export async function selectDigestForUser(
       commitMessages: string[]
       sourceStart: number
       sourceEnd: number
-      latestSha: string
-      currentSha: string
       path: string
     }>()
     for (const row of rows) {
@@ -167,8 +164,6 @@ export async function selectDigestForUser(
         commitMessages: [],
         sourceStart: row.occurred_at,
         sourceEnd: row.occurred_at,
-        latestSha: row.sha,
-        currentSha: row.current_sha,
         path: row.rendered_skill_path,
       }
       skill.changeCount += 1
@@ -179,27 +174,28 @@ export async function selectDigestForUser(
     if (rows.length !== group.change_count)
       throw new Error(`Digest activity count changed during selection for ${group.owner}/${group.repo}`)
     const selected = [...bySkill.values()].sort((a, b) => a.name.localeCompare(b.name))
-    const skills = selected.map(skill => ({
-      name: skill.name,
-      description: skill.description,
-      changeCount: skill.changeCount,
-      commitMessages: skill.commitMessages,
-      changedAt: skill.sourceEnd,
-      sourceUrl: githubSkillSourceUrl({
-        owner: group.owner,
-        repo: group.repo,
+    // `changeUrl` starts at the file history. The revision batch below points
+    // it at the change commit, because `activity.sha` is a blob sha.
+    const skills = selected.map((skill) => {
+      const file = { owner: group.owner, repo: group.repo, path: skill.path, branch: group.default_branch }
+      return {
         name: skill.name,
-        currentSha: skill.currentSha,
-        path: skill.path,
-      }),
-      changeUrl: githubSkillChangeUrl({ owner: group.owner, repo: group.repo, sha: skill.latestSha }),
-    }))
+        description: skill.description,
+        changeCount: skill.changeCount,
+        commitMessages: skill.commitMessages,
+        changedAt: skill.sourceEnd,
+        sourceUrl: githubSkillSourceUrl(file),
+        changeUrl: githubSkillChangeUrl({ ...file, commitSha: null }),
+      }
+    })
     selected.forEach((skill, skillIndex) => selectedSkills.push({
       entryIndex,
       skillIndex,
       owner: group.owner,
       repo: group.repo,
       name: skill.name,
+      path: skill.path,
+      branch: group.default_branch,
       sourceStart: skill.sourceStart,
       sourceEnd: skill.sourceEnd,
     }))
@@ -212,16 +208,14 @@ export async function selectDigestForUser(
     }
   })
 
-  const messageStatements = selectedSkills.map(skill => db.prepare(
-    `SELECT message
+  const revisionStatements = selectedSkills.map(skill => db.prepare(
+    `SELECT sha, message
      FROM skill_revisions
      WHERE owner = ?1
        AND repo = ?2
        AND name = ?3
        AND modified_at >= ?4
        AND modified_at <= ?5
-       AND message IS NOT NULL
-       AND trim(message) != ''
      ORDER BY modified_at DESC
      LIMIT 20`,
   ).bind(
@@ -231,12 +225,23 @@ export async function selectDigestForUser(
     skill.sourceStart,
     skill.sourceEnd,
   ))
-  const messages = messageStatements.length
-    ? await db.batch<{ message: string }>(messageStatements)
+  const revisions = revisionStatements.length
+    ? await db.batch<{ sha: string, message: string | null }>(revisionStatements)
     : []
   selectedSkills.forEach((selected, index) => {
-    entries[selected.entryIndex]!.skills[selected.skillIndex]!.commitMessages
-      = (messages[index]?.results ?? []).map(row => row.message)
+    const rows = revisions[index]?.results ?? []
+    const skill = entries[selected.entryIndex]!.skills[selected.skillIndex]!
+    skill.commitMessages = rows.flatMap(row => row.message?.trim() ? [row.message] : [])
+    const latest = rows[0]
+    if (latest) {
+      skill.changeUrl = githubSkillChangeUrl({
+        owner: selected.owner,
+        repo: selected.repo,
+        path: selected.path,
+        branch: selected.branch,
+        commitSha: latest.sha,
+      })
+    }
   })
 
   return { user, windowStart, windowEnd, cursorStart, cursorEnd, entries }

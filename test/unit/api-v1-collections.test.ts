@@ -92,7 +92,7 @@ describe('presentCollection', () => {
   it('links each Skill to its canonical page and its SKILL.md', () => {
     const [named, single] = answer.skills.items
     expect(named!.pageUrl).toBe('https://skilld.dev/gh/vercel-labs/agent-skills/web-design-guidelines')
-    expect(named!.sourceUrl).toBe('https://github.com/vercel-labs/agent-skills/blob/abc123/skills/web-design-guidelines/SKILL.md')
+    expect(named!.sourceUrl).toBe('https://github.com/vercel-labs/agent-skills/blob/main/skills/web-design-guidelines/SKILL.md')
     expect(single!.pageUrl).toBe('https://skilld.dev/gh/solo/hub')
     expect(single!.sourceUrl).toBe('https://github.com/mirror/hub-src/blob/main/skills/web-design-guidelines/SKILL.md')
     expect(named!.runCommand).toBe('npx skilld run vercel-labs/agent-skills/web-design-guidelines')

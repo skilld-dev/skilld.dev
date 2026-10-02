@@ -77,7 +77,7 @@ export function skillCardLinks(row: SkillLinkColumns): { registryPath: string, s
       owner: row.source_owner || row.owner,
       repo: row.source_repo || row.repo,
       skillPath: row.rendered_skill_path,
-      ref: row.current_sha || row.default_branch,
+      branch: row.default_branch,
     }),
   }
 }

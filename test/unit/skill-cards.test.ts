@@ -37,7 +37,7 @@ describe('skill cards', () => {
     expect(fromLoader).toEqual(fromRegistry)
     expect(fromLoader.map(card => [card.pageUrl, card.sourceUrl])).toEqual([
       // A renamed Repository keeps its registry route and links GitHub's current name.
-      ['https://skilld.dev/gh/acme/old-name/lint', 'https://github.com/acme-org/new-name/blob/abc123/skills/lint/SKILL.md'],
+      ['https://skilld.dev/gh/acme/old-name/lint', 'https://github.com/acme-org/new-name/blob/main/skills/lint/SKILL.md'],
       // One resolved Skill routes to the Repository hub. No synced commit falls back to the default branch.
       ['https://skilld.dev/gh/solo/hub', 'https://github.com/solo/hub/blob/trunk/SKILL.md'],
     ])

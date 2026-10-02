@@ -29,7 +29,8 @@ describe('digest selection', () => {
       CREATE TABLE repos (
         owner TEXT,
         repo TEXT,
-        repo_kind TEXT
+        repo_kind TEXT,
+        default_branch TEXT
       );
       CREATE TABLE skill_subscriptions (
         user_id INTEGER,
@@ -57,7 +58,7 @@ describe('digest selection', () => {
       );
 
       INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'Nuxt framework', 'blob-new', 'skills/nuxt/SKILL.md');
-      INSERT INTO repos VALUES ('nuxt', 'nuxt', 'source');
+      INSERT INTO repos VALUES ('nuxt', 'nuxt', 'source', 'main');
       INSERT INTO skill_subscriptions VALUES (1, 'nuxt', 'nuxt', 'manual', NULL);
       INSERT INTO activity VALUES (1, 'nuxt', 'nuxt', 'nuxt', 500, 1500, 'blob-old');
       INSERT INTO activity VALUES (2, 'nuxt', 'nuxt', 'nuxt', 1500, 1600, 'blob-new');
@@ -128,7 +129,7 @@ describe('digest selection', () => {
     sqlite.exec(`
       INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
       INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
-      INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
+      INSERT INTO repos VALUES ('nuxt', 'ui', 'source', 'main');
       INSERT INTO skill_subscriptions VALUES (2, 'nuxt', 'ui', 'like', NULL);
       INSERT INTO skill_likes VALUES (2, 'nuxt', 'ui', 'design-tokens', 1);
       INSERT INTO activity VALUES (10, 'nuxt', 'ui', 'design-tokens', 1500, 1600, 'a');
@@ -154,7 +155,7 @@ describe('digest selection', () => {
     sqlite.exec(`
       INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
       INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
-      INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
+      INSERT INTO repos VALUES ('nuxt', 'ui', 'source', 'main');
       INSERT INTO skill_subscriptions VALUES (3, 'nuxt', 'ui', 'manual', NULL);
       INSERT INTO skill_likes VALUES (3, 'nuxt', 'ui', 'design-tokens', 1);
       INSERT INTO activity VALUES (10, 'nuxt', 'ui', 'design-tokens', 1500, 1600, 'a');
@@ -177,7 +178,7 @@ describe('digest selection', () => {
     sqlite.exec(`
       INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
       INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
-      INSERT INTO repos VALUES ('nuxt', 'ui', 'source');
+      INSERT INTO repos VALUES ('nuxt', 'ui', 'source', 'main');
       INSERT INTO skill_subscriptions VALUES (4, 'nuxt', 'ui', 'like', NULL);
       INSERT INTO skill_likes VALUES (4, 'nuxt', 'ui', 'design-tokens', 1);
       INSERT INTO activity VALUES (11, 'nuxt', 'ui', 'motion', 1500, 1600, 'b');
@@ -190,6 +191,27 @@ describe('digest selection', () => {
     })
 
     expect(selection?.entries).toEqual([])
+  })
+
+  it('links the SKILL.md at the branch and the change at its commit, never a blob sha', async () => {
+    const selection = await selectDigestForUser(db, digestUser(), 2000, { windowStart: 0 })
+
+    expect(selection?.entries[0]?.skills[0]).toMatchObject({
+      sourceUrl: 'https://github.com/nuxt/nuxt/blob/main/skills/nuxt/SKILL.md',
+      changeUrl: 'https://github.com/nuxt/nuxt/commit/commit-new',
+    })
+  })
+
+  it('links the branch and the file history when no commit is recorded', async () => {
+    sqlite.exec(`DELETE FROM skill_revisions`)
+
+    const selection = await selectDigestForUser(db, digestUser(), 2000, { windowStart: 0 })
+
+    expect(selection?.entries[0]?.skills[0]).toMatchObject({
+      commitMessages: [],
+      sourceUrl: 'https://github.com/nuxt/nuxt/blob/main/skills/nuxt/SKILL.md',
+      changeUrl: 'https://github.com/nuxt/nuxt/commits/main/skills/nuxt/SKILL.md',
+    })
   })
 
   it('omits a Skill when its exact source cannot be resolved', async () => {
