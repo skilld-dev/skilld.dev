@@ -15,7 +15,7 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
   async enqueue(request: TagRequest): Promise<{ _tag: 'Accepted', id: string } | { _tag: 'Busy' }> {
     const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([request.installationId, request.repositoryId, request.tag])))
     const key = `event-${Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')}`
-    return this.ctx.storage.transaction(async (storage) => {
+    const result = await this.ctx.storage.transaction(async (storage) => {
       const previous = await storage.get<string>(key)
       if (previous)
         return { _tag: 'Accepted' as const, id: previous }
@@ -29,6 +29,9 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
       await storage.setAlarm(Date.now() + 1000)
       return { _tag: 'Accepted' as const, id }
     })
+    if (result._tag === 'Accepted')
+      console.info('github-app-job-accepted', { id: result.id, repository: `${request.owner}/${request.name}`, tag: request.tag })
+    return result
   }
 
   async status(id: string): Promise<unknown> {

@@ -1,9 +1,41 @@
 import { describe, expect, it } from 'vitest'
-import { prepareTag, publishSkill } from '../src/github-client'
+import { githubInstallationClient, prepareTag, publishSkill } from '../src/github-client'
 import { parseGithubEvent, verifyGithubSignature } from '../src/github-events'
 
 const repository = { id: 10, name: 'package', private: false, owner: { login: 'harlan-zw' } }
 const installation = { id: 20 }
+
+it('signs the App token and limits the installation token to one repository', async () => {
+  const keys = await crypto.subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify'])
+  if (!('privateKey' in keys))
+    throw new Error('Expected an RSA key pair')
+  const { privateKey, publicKey } = keys
+  const exportedKey = await crypto.subtle.exportKey('pkcs8', privateKey)
+  if (!(exportedKey instanceof ArrayBuffer))
+    throw new Error('Expected a PKCS8 key')
+  const exported = new Uint8Array(exportedKey)
+  const pem = `-----BEGIN PRIVATE KEY-----\n${btoa(String.fromCharCode(...exported))}\n-----END PRIVATE KEY-----`
+  const decode = (value: string) => Uint8Array.from(atob(value.replaceAll('-', '+').replaceAll('_', '/')), character => character.charCodeAt(0))
+  const calls: { url: string, init?: RequestInit }[] = []
+  const client = await githubInstallationClient({
+    appId: '123',
+    privateKey: pem,
+    installationId: 20,
+    repositoryId: 10,
+    now: () => 1700000000000,
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), init })
+      return calls.length === 1 ? Response.json({ token: 'installation-only-token', expires_at: '2026-10-02T06:00:00Z' }) : Response.json({ sha: 'a'.repeat(40) })
+    },
+  })
+  expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ repository_ids: [10], permissions: { contents: 'write', pull_requests: 'write' } })
+  const jwt = new Headers(calls[0]?.init?.headers).get('authorization')!.slice(7)
+  const [header, payload, signature] = jwt.split('.')
+  expect(await crypto.subtle.verify('RSASSA-PKCS1-v1_5', publicKey, decode(signature!), new TextEncoder().encode(`${header}.${payload}`))).toBe(true)
+  expect(JSON.parse(new TextDecoder().decode(decode(payload!)))).toMatchObject({ iss: '123', iat: 1699999940, exp: 1700000540 })
+  await client('/repos/harlan-zw/package/commits/main')
+  expect(new Headers(calls[1]?.init?.headers).get('authorization')).toBe('Bearer installation-only-token')
+})
 
 describe('gitHub tag events', () => {
   it('accepts tag creation on an installed public repository', () => {
