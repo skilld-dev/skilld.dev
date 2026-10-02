@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isBestEffortCacheWriteError, isClosedBroadcastChannelError, isExpectedUpstreamOutageError } from '../../shared/sentry'
+import { isBestEffortCacheWriteError, isClosedBroadcastChannelError, isExpectedUpstreamOutageError, isMcpAcceptProbeError } from '../../shared/sentry'
 
 describe('isClosedBroadcastChannelError', () => {
   const closed = 'Failed to execute \'postMessage\' on \'BroadcastChannel\': Channel is closed'
@@ -82,6 +82,34 @@ describe('isExpectedUpstreamOutageError', () => {
   })
 })
 
+describe('isMcpAcceptProbeError', () => {
+  it('matches the SKILLD-35 Accept-less GET probe the transport rejects', () => {
+    expect(isMcpAcceptProbeError(new Error('Not Acceptable: Client must accept text/event-stream'))).toBe(true)
+  })
+
+  it('matches the POST probe that misses one of the two accepted types', () => {
+    expect(isMcpAcceptProbeError(new Error('Not Acceptable: Client must accept both application/json and text/event-stream'))).toBe(true)
+  })
+
+  it('matches the Sentry-serialized exception, whose message arrives as value', () => {
+    expect(isMcpAcceptProbeError({
+      type: 'Error',
+      value: 'Not Acceptable: Client must accept text/event-stream',
+      mechanism: { handled: false, type: 'auto.function.nuxt.nitro' },
+    })).toBe(true)
+  })
+
+  it('ignores the page 406, whose message names the page content types instead', () => {
+    expect(isMcpAcceptProbeError(new Error('Supported types: text/html, text/markdown, text/plain'))).toBe(false)
+  })
+
+  it('ignores unrelated errors and values that are not errors', () => {
+    expect(isMcpAcceptProbeError(new Error('KV PUT failed: 429 Too Many Requests'))).toBe(false)
+    expect(isMcpAcceptProbeError('Not Acceptable: Client must accept text/event-stream')).toBe(false)
+    expect(isMcpAcceptProbeError(undefined)).toBe(false)
+  })
+})
+
 const { sentryCloudflareNitroPlugin } = vi.hoisted(() => ({
   sentryCloudflareNitroPlugin: vi.fn(),
 }))
@@ -138,6 +166,21 @@ describe('sentry beforeSend cache-write filter', () => {
     expect(beforeSend(event, {})).toBeNull()
   })
 
+  it('drops the intended MCP 406 the transport already answered to the probe', () => {
+    const event: SentryEventFixture = {
+      exception: { values: [{ type: 'Error', value: 'Not Acceptable: Client must accept text/event-stream' }] },
+    }
+    expect(beforeSend(event, { originalException: new Error('Not Acceptable: Client must accept text/event-stream') }))
+      .toBeNull()
+  })
+
+  it('drops the MCP probe on the serialized exception alone, when the original error is absent', () => {
+    const event: SentryEventFixture = {
+      exception: { values: [{ type: 'Error', value: 'Not Acceptable: Client must accept text/event-stream' }] },
+    }
+    expect(beforeSend(event, {})).toBeNull()
+  })
+
   it('keeps every other event', () => {
     const event: SentryEventFixture = {
       exception: { values: [{ type: 'Error', value: 'D1_ERROR: D1 DB is overloaded.' }] },
@@ -148,5 +191,9 @@ describe('sentry beforeSend cache-write filter', () => {
       exception: { values: [{ type: 'Error', value: 'Skill source is gone upstream' }] },
     }
     expect(beforeSend(goneEvent, {})).toBe(goneEvent)
+    const page406Event: SentryEventFixture = {
+      exception: { values: [{ type: 'Error', value: 'Supported types: text/html, text/markdown, text/plain' }] },
+    }
+    expect(beforeSend(page406Event, {})).toBe(page406Event)
   })
 })

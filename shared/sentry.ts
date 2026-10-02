@@ -109,6 +109,21 @@ export function isClosedBroadcastChannelError(error: unknown): boolean {
 }
 
 /**
+ * The message prefix the MCP streamable transport rejects a probe with
+ * ('Not Acceptable: Client must accept text/event-stream' for an Accept-less
+ * GET, and the same prefix for a POST that misses one of the two accepted
+ * types, Sentry SKILLD-35). The transport answers the probe with an intended
+ * 406, then Nitro forwards its thrown error to Sentry as unhandled, so every
+ * bot probe would archive a duplicate of a response the client already got.
+ * The server Sentry config drops exactly that prefix in `beforeSend`; every
+ * other error still reaches Sentry.
+ */
+export function isMcpAcceptProbeError(error: unknown): boolean {
+  const message = sentryExceptionMessage(error)
+  return typeof message === 'string' && message.startsWith('Not Acceptable: Client must accept')
+}
+
+/**
  * A URL without its query string or fragment. Query strings carry OAuth codes,
  * signed tokens, and search terms, so no URL reaches Sentry with one.
  */
