@@ -48,7 +48,7 @@ export function listedCommands(help: string): Array<{ name: string, summary: str
   const block = help.split(/\n(?=\S)/).find(section => section.startsWith('Commands:'))
   if (!block)
     return []
-  return block.split('\n').slice(1).map(line => line.match(/^ {2}(\S+) +(\S.*)$/)).filter((match): match is RegExpMatchArray => match !== null).map(match => ({ name: match[1]!, summary: match[2]!.trim() })).filter(command => command.name !== 'help')
+  return block.split('\n').slice(1).map(line => line.trimEnd().match(/^ {2}(\S+)(?: +(\S.*))?$/)).filter((match): match is RegExpMatchArray => match !== null).map(match => ({ name: match[1]!, summary: match[2]?.trim() ?? '' })).filter(command => command.name !== 'help')
 }
 
 async function collect(version: string, path: string[], summary: string): Promise<CommandHelp[]> {
@@ -63,8 +63,7 @@ export function renderCliDocs(version: string, root: string, commands: readonly 
   const sections = commands.map(command => [
     `${'#'.repeat(Math.min(command.path.length + 1, 4))} skilld ${command.path.join(' ')}`,
     '',
-    command.summary.endsWith('.') ? command.summary : `${command.summary}.`,
-    '',
+    ...(command.summary ? [command.summary.endsWith('.') ? command.summary : `${command.summary}.`, ''] : []),
     '```text',
     command.help,
     '```',

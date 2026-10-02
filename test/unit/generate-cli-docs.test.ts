@@ -29,3 +29,13 @@ describe('listedCommands', () => {
     expect(listedCommands('Usage: skilld changes [OPTIONS]\n\nOptions:\n      --since <DATE>  Start')).toEqual([])
   })
 })
+
+describe('commands without summaries', () => {
+  it('keeps auth commands when clap leaves their summaries empty', () => {
+    expect(listedCommands('Commands:\n  login   \n  status  \n  logout  \n\nOptions:\n  -h, --help  Print help')).toEqual([
+      { name: 'login', summary: '' },
+      { name: 'status', summary: '' },
+      { name: 'logout', summary: '' },
+    ])
+  })
+})
