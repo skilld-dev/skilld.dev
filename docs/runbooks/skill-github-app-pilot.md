@@ -1,5 +1,7 @@
 # GitHub App pilot
 
+<!-- eslint-disable harlanzw/ai-deslop-buzzwords -- GLOSSARY.md defines Harness as a product noun. -->
+
 The pilot maintains an existing package skill through draft pull requests.
 It accepts public repositories listed in `GITHUB_PILOT_REPOSITORIES`.
 The first repository is `harlan-zw/nuxt-skew-protection`.
