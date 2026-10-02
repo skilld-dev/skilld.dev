@@ -1,0 +1,73 @@
+name: Weekly social
+
+on:
+  schedule:
+    - cron: '0 9 * * MON'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish through enabled destinations
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  weekly:
+    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        destination: [x, discord]
+    concurrency:
+      group: skilld-weekly-${{ matrix.destination }}
+      cancel-in-progress: false
+    env:
+      SKILLD_WEEKLY_PUBLISH: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.publish) && ((matrix.destination == 'x' && vars.SKILLD_WEEKLY_X_ENABLED == 'true') || (matrix.destination == 'discord' && vars.SKILLD_WEEKLY_DISCORD_ENABLED == 'true')) }}
+      SKILLD_WEEKLY_X_USERNAME: ${{ vars.SKILLD_WEEKLY_X_USERNAME }}
+      SKILLD_WEEKLY_DISCORD_CHANNEL_ID: ${{ vars.SKILLD_WEEKLY_DISCORD_CHANNEL_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+      - name: Prepare post and verify destination
+        id: prepare
+        run: pnpm exec tsx scripts/weekly-social.ts prepare ${{ matrix.destination }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKILLD_WEEKLY_X_API_KEY: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_API_KEY || '' }}
+          SKILLD_WEEKLY_X_API_SECRET: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_API_SECRET || '' }}
+          SKILLD_WEEKLY_X_ACCESS_TOKEN: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_ACCESS_TOKEN || '' }}
+          SKILLD_WEEKLY_X_ACCESS_SECRET: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_ACCESS_SECRET || '' }}
+          SKILLD_WEEKLY_DISCORD_WEBHOOK: ${{ matrix.destination == 'discord' && secrets.SKILLD_WEEKLY_DISCORD_WEBHOOK || '' }}
+      # Persist before sending. An uncertain send keeps its claim and cannot
+      # be retried automatically, including after a cancelled runner.
+      - name: Claim destination and week
+        if: steps.prepare.outputs.eligible == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.prepare.outputs.claim }}
+          path: ${{ steps.prepare.outputs.directory }}/post.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish
+        if: steps.prepare.outputs.eligible == 'true'
+        run: pnpm exec tsx scripts/weekly-social.ts publish ${{ matrix.destination }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKILLD_WEEKLY_X_API_KEY: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_API_KEY || '' }}
+          SKILLD_WEEKLY_X_API_SECRET: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_API_SECRET || '' }}
+          SKILLD_WEEKLY_X_ACCESS_TOKEN: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_ACCESS_TOKEN || '' }}
+          SKILLD_WEEKLY_X_ACCESS_SECRET: ${{ matrix.destination == 'x' && secrets.SKILLD_WEEKLY_X_ACCESS_SECRET || '' }}
+          SKILLD_WEEKLY_DISCORD_WEBHOOK: ${{ matrix.destination == 'discord' && secrets.SKILLD_WEEKLY_DISCORD_WEBHOOK || '' }}
+      - name: Save receipt and preview
+        if: always() && steps.prepare.outputs.directory != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: weekly-social-${{ matrix.destination }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.prepare.outputs.directory }}
+          retention-days: 90
