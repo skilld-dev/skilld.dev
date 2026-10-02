@@ -87,9 +87,11 @@ describe('published CLI grammar', () => {
 
 describe('printed CLI commands', () => {
   it('blocks the bare Skill refs the site prints while latest predates 3.1.0', async () => {
+    // Every printed command exists in both versions, so only the version floor differs.
+    const listing = cliRequirement().commands.map(command => `  ${command}  Help`).join('\n')
     const help = async (_version: string, subcommand?: string) => subcommand === 'install'
       ? `--agent <AGENT>\n  Values: ${agents.join(', ')}.\n`
-      : 'Commands:\n  add      Add Skills\n  install  Install a Skill\n  run      Run a Skill\n\n'
+      : `Commands:\n${listing}\n\n`
 
     const old = await runPublishedCliGrammar({ readVersion: async () => '3.0.2', readHelp: help })
     const current = await runPublishedCliGrammar({ readVersion: async () => '3.1.0', readHelp: help })
@@ -131,6 +133,9 @@ describe('printed CLI commands', () => {
 
   it('prints every site command as npx skilld', () => {
     expect(cliRequirement().misprinted).toEqual([])
-    expect(cliRequirement().commands).toEqual(['add', 'install', 'run'])
+  })
+
+  it('gates the account commands the developers page prints', () => {
+    expect(cliRequirement().commands).toEqual(['add', 'auth', 'changes', 'install', 'like', 'run', 'watch'])
   })
 })

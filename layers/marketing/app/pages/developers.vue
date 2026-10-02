@@ -139,8 +139,27 @@ const uiClass = 'font-medium text-default'
               Keep the Skills you use
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
-              If a Skill earns a place in every session, ask your Agent to install it. Run <code class="font-mono text-xs text-default">npx skilld --help</code> for every command.
+              If a Skill earns a place in every session, ask your Agent to install it.
             </p>
+          </div>
+        </li>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">04</span>
+          <div class="min-w-0">
+            <h3 class="text-base font-medium">
+              Act for your account
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">
+              Sign in once, and your Agent can like and watch Skills for you. The digest then reports what changed in the Repositories you watch. A script or a CI job has no browser, so set <code class="font-mono text-xs text-default">SKILLD_TOKEN</code> to a token instead.
+            </p>
+            <SetupSnippet class="mt-3" :code="setupSnippets.cliAccount" label="account commands" format="skilld" />
+            <UButton
+              to="/docs/cli"
+              label="Every command"
+              color="neutral"
+              variant="link"
+              class="mt-2 min-h-11 px-0 text-sm"
+            />
           </div>
         </li>
       </ol>
