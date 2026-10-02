@@ -34,8 +34,7 @@ export default defineVitestConfig({
     // `.claude/worktrees/**` holds checkouts belonging to background agents.
     // Without this they are collected as a second copy of the whole suite,
     // which fails on their own resolution roots and buries real results.
-    // `packages/*` run their own suites under Node through `pnpm pipeline test`.
-    exclude: [...configDefaults.exclude, 'test/e2e/**', '.claude/worktrees/**', 'packages/**'],
+    exclude: [...configDefaults.exclude, 'test/e2e/**', '.claude/worktrees/**'],
     server: {
       deps: {
         inline: ['axe-core', 'nitropack'],

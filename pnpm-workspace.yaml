@@ -29,6 +29,7 @@ minimumReleaseAgeExclude:
   - nuxt-skew-protection@1.5.2
   - '@nuxtjs/seo@5.3.14'
   - skilld-protocol@2.4.0
+  - skilld-sdk@0.1.1
   - skilld
   - skilld-cli-darwin-arm64
   - skilld-cli-darwin-x64
@@ -92,7 +93,6 @@ autoInstallPeers: false
 trustPolicy: no-downgrade
 
 packages:
-  - packages/*
   - workers/*
 
 # The site root is a workspace project too, so `pnpm pipeline` can run its
@@ -131,7 +131,6 @@ tasks:
     dependsOn: [dev:prepare]
     inputs:
       - app/**
-      - packages/**
       - server/**
       - shared/**
       - workers/**
@@ -155,7 +154,6 @@ tasks:
     env: [NODE_OPTIONS]
     inputs:
       - app/**
-      - packages/**
       - server/**
       - shared/**
       - workers/**
@@ -239,8 +237,8 @@ catalog:
   nuxt-skew-protection: ^1.5.4
   rangi: ^2.2.0
   skilld-protocol: ^2.4.0
+  skilld-sdk: 0.1.1
   tailwindcss: ^4.3.3
-  tsdown: ^0.22.14
   tsx: ^4.23.13
   typescript: 6.0.3
   unstorage: 1.17.5

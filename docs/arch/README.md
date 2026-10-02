@@ -34,10 +34,11 @@ Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilit
 
 `/api/v1` is the only API surface with a promise: an answer may gain a field and never loses one.
 Internal routes may change on any deploy. One descriptor per operation, in
-`packages/sdk/src/contract`, drives four things:
+`skilld-dev/skilld` at `packages/sdk/src/contract`, drives four things.
+This site consumes an exact npm version of `skilld-sdk`, following ADR-0007:
 
 ```text
-descriptor (packages/sdk/src/contract)
+descriptor (skilld-dev/skilld: packages/sdk/src/contract)
   ├─ OpenAPI document   generated/openapi.v1.json, served at /api/v1/openapi.json, drift test
   ├─ route checks       defineApiOperation in shared/server/operation.ts
   ├─ SDK                createSkilldClient, published as skilld-sdk
@@ -52,7 +53,10 @@ descriptor (packages/sdk/src/contract)
 - **Frozen**: the `skills.search` answer never gains a field while skilld 3.2.0 is in use.
 - **Outside the contract**: Artifact delivery keeps its own schemas until it folds in.
 
-After a contract change, run `pnpm --filter skilld-sdk generate` and commit the document.
+After a contract change in the `skilld-dev/skilld` repository, run `pnpm --filter skilld-sdk generate` and commit the document.
+Publish the new SDK version from that repository's `release.yml`. Then update this site's exact catalog pin.
+The route parity test checks the site against the published contract.
+See [ADR-0007](../adr/0007-contract-in-the-cli-repository.md).
 
 ## App-side architecture
 

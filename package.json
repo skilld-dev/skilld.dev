@@ -85,7 +85,7 @@
     "nuxt-og-image": "catalog:",
     "rangi": "catalog:",
     "skilld-protocol": "catalog:",
-    "skilld-sdk": "workspace:*",
+    "skilld-sdk": "catalog:",
     "tailwindcss": "catalog:",
     "unstorage": "catalog:",
     "vue": "catalog:",

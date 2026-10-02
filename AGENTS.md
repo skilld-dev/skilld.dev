@@ -41,10 +41,10 @@ New Markdown at the repository root is an error. Identity and filters only.
   Response shape belongs in a presenter, input in a zod schema, authorization in policy atoms.
   Never inline in the handler.
 - **A `/api/v1` route in the contract is `defineApiOperation({ operation, handler })`** from
-  `#shared/server/operation`. Its descriptor lives in `packages/sdk/src/contract`, and its file
-  sits at the operation's own path. After a contract change, run
-  `pnpm --filter skilld-sdk generate` and commit the OpenAPI file, or its drift test fails.
-  Answers only gain fields. ADR-0006.
+  `#shared/server/operation`. Its descriptor lives in the public CLI repository at
+  `packages/sdk/src/contract`. Its route file sits at the operation's own path.
+  In the `skilld-dev/skilld` repository, run `pnpm --filter skilld-sdk generate` and commit the OpenAPI file.
+  Publish the SDK, then update this site's exact catalog pin. Answers only gain fields. ADR-0006 and ADR-0007.
 - **An indexable surface names its target query, its admission bar, and its cull path.** Roughly
   50k auto-generated pages got this site suppressed once. `VISION.md` principle 2 is the rule and
   [EXECUTE-seo-keyword-rework](docs/work/EXECUTE-seo-keyword-rework.md) is the live work.
@@ -69,8 +69,8 @@ New Markdown at the repository root is an error. Identity and filters only.
 
 ## Consumers
 
-- `packages/sdk` publishes to npm as `skilld-sdk`. Under ADR-0006 the Rust CLI vendors its
-  generated OpenAPI file and decodes every example in a test.
+- The public CLI repository owns `packages/sdk`, published as `skilld-sdk`. This site pins its exact npm version.
+  Under ADR-0007, Rust tests read its generated OpenAPI file and decode every example.
 - The skilld CLI and `@skilld/harness` are separate repositories. `skilld-dev/skilld/GLOSSARY.md`
   wins for CLI commands, protocol types, and source status values.
 - The push-only grammar check (`pnpm cli:grammar`) blocks deployment until the npm `latest`
