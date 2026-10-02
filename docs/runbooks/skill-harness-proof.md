@@ -46,9 +46,15 @@ Durable Object alarms check progress and enforce the fifteen minute deadline.
 
 ## Limits and failures
 
-The proof allows one active job, 64 model calls, and 4,096 output tokens per call.
+The proof allows one active job and 64 model calls.
+Anthropic calls allow 8,192 output tokens, including a 2,048-token thinking budget.
+Google calls allow 4,096 output tokens.
 It limits each request to 512 KiB and each result to 1 MiB.
-The published `skilld-harness` package does not expose token usage. Reports mark that data as `Unavailable`.
+The runner uses `skilld-harness@3.3.0` and returns its usage reports.
+Reports sum generation, repair, and review attempts separately.
+If a token count is missing, the total stays unknown.
+Failed runs retain bounded tool traces and any earlier valid candidate.
+These candidates never pass publication without an accepted review.
 These bounds constrain usage. They do not constitute a measured dollar budget.
 
 The outbound gateway allows HTTPS npm retrieval, GitHub source archives, and the configured model provider.

@@ -41,6 +41,12 @@ const output = {
   elapsedMs: 100,
 }
 
+it('accepts measured usage and bounded tool diagnostics in an operator result', () => {
+  const generation = { _tag: 'Available', usage: { inputTokens: 100, outputTokens: 20 }, steps: 2, warnings: [] }
+  const trace = [{ _tag: 'ToolCall', phase: 'generation', step: 1, toolName: 'bash', input: 'npm view package' }]
+  expect(parseProofResult({ ...output, generation, trace })).toEqual({ _tag: 'Ok', value: { ...output, generation, trace } })
+})
+
 describe('untrusted sandbox output', () => {
   it('preserves explicitly unavailable usage instead of inventing zero counts', () => {
     expect(parseProofResult(output)).toEqual({ _tag: 'Ok', value: output })

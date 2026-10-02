@@ -5,9 +5,11 @@ import { createOpenCode } from '@ai-sdk/harness-opencode'
 import { createSkillHarness } from 'skilld-harness'
 import { createLocalSandbox } from 'skilld-harness/sandbox-local'
 import { runGeneration } from './orchestrate.ts'
+import { createRunTrace } from './trace.ts'
 
 const startedAt = Date.now()
 const signal = AbortSignal.timeout(14 * 60 * 1000)
+const trace = createRunTrace()
 
 async function execute() {
   const input = JSON.parse(await readFile('/job/input.json', 'utf8'))
@@ -37,9 +39,13 @@ async function execute() {
       '# Package evidence for this task',
       `The original Skill name is ${input.name}. Its directory is ${join(destination.rootDir, input.name)}.`,
       `The exact package is ${input.spec}. Prepared package source is available at ${sourceEvidence}.`,
-      'For review, input/source is a transport copy of the Skill. Its folder name does not identify the original Skill.',
+      'The review source copy retains the original Skill directory name.',
       'Read the package source before reporting errors about API names, imports, or endpoint paths.',
       'Do not infer endpoint punctuation or auto-import behavior from other examples.',
+      'The network gateway allows npm registry and GitHub codeload only. Other destinations are unavailable.',
+      'Do not retry a denied destination. Use prepared source and installed package types as evidence.',
+      'If an example cannot run here, record it as untested. Never claim it passed.',
+      'This task updates an existing Skill. Keep unsupported claims out and avoid unrelated framework tutorials.',
       ...(findings.length ? ['Correct these review findings against the exact package source. Preserve other supported guidance.', JSON.stringify(findings)] : []),
     ].join('\n\n'))
     return createSkillHarness({
@@ -67,11 +73,11 @@ async function execute() {
   return runGeneration({
     generate: async (findings) => {
       const harness = await taskHarness('generation', findings)
-      return harness.run({ _tag: 'PackageSkill', source: { _tag: 'NpmPackage', spec: input.spec }, destination }, { signal })
+      return harness.run({ _tag: 'PackageSkill', source: { _tag: 'NpmPackage', spec: input.spec }, destination }, { signal, onEvent: event => trace.record(findings.length ? 'repair' : 'generation', event) })
     },
     review: async (candidate) => {
       const harness = await taskHarness('review')
-      return harness.run({ _tag: 'ReviewSkill', skillDir: candidate.outputDir }, { signal })
+      return harness.run({ _tag: 'ReviewSkill', skillDir: candidate.outputDir }, { signal, onEvent: event => trace.record('review', event) })
     },
     readFiles: candidate => Promise.all(candidate.files.map(async file => ({
       path: file.path,
@@ -86,7 +92,7 @@ async function main() {
     code: 'RUNNER_FAILED',
     detail: cause instanceof Error ? cause.message : String(cause),
   }))
-  await writeFile('/job/result.partial', JSON.stringify({ ...result, elapsedMs: Date.now() - startedAt }))
+  await writeFile('/job/result.partial', JSON.stringify({ ...result, trace: trace.snapshot(), elapsedMs: Date.now() - startedAt }))
   await rename('/job/result.partial', '/job/result.json')
 }
 
