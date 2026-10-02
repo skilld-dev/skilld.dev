@@ -25,11 +25,22 @@ const inputSchema = z.object({
   currentSkill: filesSchema,
 }).strict()
 
-const reportSchema = z.object({
+const reportSchema = z.union([z.object({
   _tag: z.literal('Unavailable'),
   reason: z.string().max(2000),
   warnings: z.array(z.string().max(2000)).max(512),
-})
+}), z.object({
+  _tag: z.literal('Available'),
+  usage: z.object({ inputTokens: z.number().int().nonnegative().optional(), cachedInputTokens: z.number().int().nonnegative().optional(), outputTokens: z.number().int().nonnegative().optional() }),
+  steps: z.number().int().nonnegative(),
+  warnings: z.array(z.string().max(2000)).max(512),
+})])
+
+const phase = z.enum(['generation', 'review', 'repair'])
+const traceSchema = z.array(z.discriminatedUnion('_tag', [
+  z.object({ _tag: z.literal('ToolCall'), phase, step: z.number().int().nonnegative(), toolName: z.string().max(100), input: z.string().max(350) }),
+  z.object({ _tag: z.literal('StepFinish'), phase, step: z.number().int().nonnegative(), finishReason: z.string().max(100) }),
+])).max(128)
 
 const resultSchema = z.union([
   z.object({
@@ -76,9 +87,10 @@ const resultSchema = z.union([
     detail: z.string().max(8000),
     generation: reportSchema.optional(),
     reviewReport: reportSchema.optional(),
+    candidateFiles: filesSchema.optional(),
     elapsedMs: z.number().nonnegative(),
   }),
-])
+]).and(z.object({ trace: traceSchema.optional() }))
 
 export type ProofInput = z.infer<typeof inputSchema>
 export type ProofResult = z.infer<typeof resultSchema>
