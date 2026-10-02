@@ -1,3 +1,5 @@
+import type { FileIconName } from '#shared/file-icons'
+
 interface SkillAsset {
   path: string
   size: number
@@ -63,60 +65,60 @@ export function buildSkillFileTree(assets: SkillAsset[], skillMdSize: number): S
   return withInitialOpen(sortNodes(root), true)
 }
 
-const FILENAME_ICONS: Record<string, string> = {
-  'skill.md': 'i-vscode-icons-file-type-markdown',
-  'readme.md': 'i-vscode-icons-file-type-markdown',
-  'license': 'i-vscode-icons-file-type-license',
-  'license.md': 'i-vscode-icons-file-type-license',
-  'package.json': 'i-vscode-icons-file-type-node',
-  'tsconfig.json': 'i-vscode-icons-file-type-tsconfig',
-  '.gitignore': 'i-vscode-icons-file-type-git',
-  'dockerfile': 'i-vscode-icons-file-type-docker',
-  'makefile': 'i-vscode-icons-file-type-makefile',
+const FILENAME_ICONS: Record<string, FileIconName> = {
+  'skill.md': 'file-type-markdown',
+  'readme.md': 'file-type-markdown',
+  'license': 'file-type-license',
+  'license.md': 'file-type-license',
+  'package.json': 'file-type-node',
+  'tsconfig.json': 'file-type-tsconfig',
+  '.gitignore': 'file-type-git',
+  'dockerfile': 'file-type-docker',
+  'makefile': 'file-type-makefile',
 }
 
-const EXT_ICONS: Record<string, string> = {
-  md: 'i-vscode-icons-file-type-markdown',
-  markdown: 'i-vscode-icons-file-type-markdown',
-  ts: 'i-vscode-icons-file-type-typescript',
-  tsx: 'i-vscode-icons-file-type-reactts',
-  js: 'i-vscode-icons-file-type-js',
-  jsx: 'i-vscode-icons-file-type-reactjs',
-  mjs: 'i-vscode-icons-file-type-js',
-  cjs: 'i-vscode-icons-file-type-js',
-  vue: 'i-vscode-icons-file-type-vue',
-  json: 'i-vscode-icons-file-type-json',
-  yaml: 'i-vscode-icons-file-type-yaml',
-  yml: 'i-vscode-icons-file-type-yaml',
-  toml: 'i-vscode-icons-file-type-toml',
-  py: 'i-vscode-icons-file-type-python',
-  rb: 'i-vscode-icons-file-type-ruby',
-  rs: 'i-vscode-icons-file-type-rust',
-  go: 'i-vscode-icons-file-type-go',
-  sh: 'i-vscode-icons-file-type-shell',
-  bash: 'i-vscode-icons-file-type-shell',
-  zsh: 'i-vscode-icons-file-type-shell',
-  fish: 'i-vscode-icons-file-type-shell',
-  sql: 'i-vscode-icons-file-type-sql',
-  html: 'i-vscode-icons-file-type-html',
-  css: 'i-vscode-icons-file-type-css',
-  scss: 'i-vscode-icons-file-type-scss',
-  png: 'i-vscode-icons-file-type-image',
-  jpg: 'i-vscode-icons-file-type-image',
-  jpeg: 'i-vscode-icons-file-type-image',
-  gif: 'i-vscode-icons-file-type-image',
-  webp: 'i-vscode-icons-file-type-image',
-  svg: 'i-vscode-icons-file-type-svg',
-  csv: 'i-vscode-icons-file-type-excel',
-  txt: 'i-vscode-icons-file-type-text',
+const EXT_ICONS: Record<string, FileIconName> = {
+  md: 'file-type-markdown',
+  markdown: 'file-type-markdown',
+  ts: 'file-type-typescript',
+  tsx: 'file-type-reactts',
+  js: 'file-type-js',
+  jsx: 'file-type-reactjs',
+  mjs: 'file-type-js',
+  cjs: 'file-type-js',
+  vue: 'file-type-vue',
+  json: 'file-type-json',
+  yaml: 'file-type-yaml',
+  yml: 'file-type-yaml',
+  toml: 'file-type-toml',
+  py: 'file-type-python',
+  rb: 'file-type-ruby',
+  rs: 'file-type-rust',
+  go: 'file-type-go',
+  sh: 'file-type-shell',
+  bash: 'file-type-shell',
+  zsh: 'file-type-shell',
+  fish: 'file-type-shell',
+  sql: 'file-type-sql',
+  html: 'file-type-html',
+  css: 'file-type-css',
+  scss: 'file-type-scss',
+  png: 'file-type-image',
+  jpg: 'file-type-image',
+  jpeg: 'file-type-image',
+  gif: 'file-type-image',
+  webp: 'file-type-image',
+  svg: 'file-type-svg',
+  csv: 'file-type-excel',
+  txt: 'file-type-text',
 }
 
-export function fileIcon(name: string): string {
+export function fileIcon(name: string): FileIconName {
   const lower = name.toLowerCase()
   if (FILENAME_ICONS[lower])
     return FILENAME_ICONS[lower]!
   const ext = lower.split('.').pop() ?? ''
-  return EXT_ICONS[ext] ?? 'i-vscode-icons-default-file'
+  return EXT_ICONS[ext] ?? 'default-file'
 }
 
 const LANG_BY_EXT: Record<string, string> = {
