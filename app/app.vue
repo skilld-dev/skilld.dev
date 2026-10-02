@@ -83,6 +83,13 @@ watch(() => route.fullPath, () => {
 
 <template>
   <UApp>
+    <NuxtLoadingIndicator
+      color="var(--ui-primary)"
+      error-color="var(--ui-error)"
+      :throttle="100"
+      aria-hidden="true"
+    />
+
     <!-- Skip link for keyboard users -->
     <NuxtLink
       to="#main-content"
