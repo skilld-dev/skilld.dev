@@ -72,6 +72,11 @@ Read `/github/jobs/<id>` with `Authorization: Bearer <PROOF_TOKEN>`.
 The response includes the phase or final outcome.
 Read `/proofs/<id>` with the same token for the Harness result.
 
+If a job failed, POST `/github/jobs/<id>/retry` with the same operator token.
+Retry waits until the previous Harness job finishes.
+It creates a new job and preserves the failed job.
+Repeated retry requests reuse the new job.
+
 Duplicate deliveries reuse a job.
 Different tags resolving to the same commit reuse the recorded target.
 Generation failures persist as job outcomes. They produce no pull request.

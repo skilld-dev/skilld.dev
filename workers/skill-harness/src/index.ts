@@ -4,6 +4,7 @@ import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers'
 import { JOB_TIMEOUT_MS, MAX_MODEL_CALLS, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, parseJson, parseProofInput, parseProofResult, readBoundedBody } from './contracts'
 import { forwardSandboxRequest } from './gateway'
 import { githubWebhook } from './github-routes'
+import { startOutsideLock } from './startup'
 
 export { GithubJobs } from './github-jobs'
 
@@ -40,13 +41,15 @@ export class SkillSandbox extends DurableObject<HarnessEnv> {
   }
 
   async start(input: ProofInput, jobId: string): Promise<void> {
-    await this.ctx.blockConcurrencyWhile(async () => {
+    await startOutsideLock(callback => this.ctx.blockConcurrencyWhile(callback), async () => {
       if (await this.ctx.storage.get('state'))
         throw new Error('JOB_ALREADY_STARTED')
       const state: ProofState = { _tag: 'Running', startedAt: Date.now(), modelCalls: 0 }
       await this.ctx.storage.put('state', state)
       await this.ctx.storage.put('jobId', jobId)
       await this.ctx.storage.setAlarm(Date.now() + JOB_TIMEOUT_MS)
+      return state
+    }, async (state) => {
       const container = this.ctx.container
       if (!container)
         throw new Error('CONTAINER_UNCONFIGURED')
@@ -189,6 +192,11 @@ export default {
     if (supplied.byteLength !== expected.byteLength || !crypto.subtle.timingSafeEqual(supplied, expected))
       return Response.json({ code: 'UNAUTHORIZED' }, { status: 401 })
     const job = /^\/github\/jobs\/([a-f0-9-]{36})$/.exec(url.pathname)
+    const retry = /^\/github\/jobs\/([a-f0-9-]{36})\/retry$/.exec(url.pathname)
+    if (retry?.[1] && request.method === 'POST') {
+      const result = await env.GITHUB_JOBS.getByName('github-app').retry(retry[1])
+      return Response.json(result, { status: result._tag === 'Accepted' ? 202 : 409, headers: { 'cache-control': 'no-store' } })
+    }
     if (job?.[1] && request.method === 'GET') {
       const state = await env.GITHUB_JOBS.getByName('github-app').status(job[1])
       return Response.json(state ?? { code: 'NOT_FOUND' }, { status: state ? 200 : 404, headers: { 'cache-control': 'no-store' } })

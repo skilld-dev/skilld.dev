@@ -2,6 +2,7 @@ import type { PreparedTag } from './github-client'
 import type { TagRequest } from './github-events'
 import { DurableObject } from 'cloudflare:workers'
 import { githubInstallationClient, prepareTag, publishSkill } from './github-client'
+import { followsRetryChain } from './job-retry'
 
 type Outcome = Awaited<ReturnType<typeof publishSkill>> | { _tag: 'Skipped', reason: string } | { _tag: 'Failed', code: string, detail: string }
 interface Job { id: string, request: TagRequest, receivedAt: number }
@@ -12,9 +13,9 @@ type State = Job & (
 )
 
 export class GithubJobs extends DurableObject<HarnessEnv> {
-  async enqueue(request: TagRequest): Promise<{ _tag: 'Accepted', id: string } | { _tag: 'Busy' }> {
+  async enqueue(request: TagRequest, retryOf?: string): Promise<{ _tag: 'Accepted', id: string } | { _tag: 'Busy' }> {
     const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([request.installationId, request.repositoryId, request.tag])))
-    const key = `event-${Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')}`
+    const key = retryOf ? `retry-${retryOf}` : `event-${Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')}`
     const result = await this.ctx.storage.transaction(async (storage) => {
       const previous = await storage.get<string>(key)
       if (previous)
@@ -35,6 +36,15 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
       console.info('github-app-job-accepted', { id: result.id, repository: `${request.owner}/${request.name}`, tag: request.tag })
     }
     return result
+  }
+
+  async retry(id: string): Promise<{ _tag: 'Accepted', id: string } | { _tag: 'Busy' } | { _tag: 'Rejected' }> {
+    const job = await this.ctx.storage.get<State>(`job-${id}`)
+    if (job?._tag !== 'Finished' || job.outcome._tag !== 'Failed')
+      return { _tag: 'Rejected' }
+    if ((await this.env.SANDBOX.getByName(id).status())?._tag === 'Running')
+      return { _tag: 'Busy' }
+    return this.enqueue(job.request, id)
   }
 
   async status(id: string): Promise<unknown> {
@@ -87,7 +97,7 @@ export class GithubJobs extends DurableObject<HarnessEnv> {
       }
       const key = `target-${state.request.repositoryId}-${prepared.value.targetSha}`
       const previous = await this.ctx.storage.get<string>(key)
-      if (previous && previous !== state.id) {
+      if (previous && !await followsRetryChain(previous, state.id, id => this.ctx.storage.get<string>(`retry-${id}`))) {
         await this.finish(state, { _tag: 'Skipped', reason: 'TARGET_ALREADY_PROCESSED' })
         return
       }
