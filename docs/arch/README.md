@@ -45,7 +45,7 @@ descriptor (skilld-dev/skilld: packages/sdk/src/contract)
   └─ parity test        test/unit/api-v1-parity.test.ts: one route file per operation
 ```
 
-- **Operation**: one `namespace.verb` entry in the contract, such as `skills.get`. Its ID never changes. `public` operations never read the session and are edge cacheable; `account` operations take the sign-in cookie or a skilld token as a Bearer credential.
+- **Operation**: one `namespace.verb` entry in the contract, such as `skills.get`. Its ID never changes. Public handlers never receive caller identity. Rate-limit middleware verifies credentials only to select an allowance. Account operations reuse that identity. V1 responses bypass Workers Cache so every network request reaches the limiter. See [ADR-0008](../adr/0008-api-rate-limits.md).
 - **defineApiOperation**: the shape of a `/api/v1` route: `{ operation, handler }`. The descriptor parses the input, checks the credential, and sets the status and cache headers. The handler only loads data. The answer passes the strict producer schema, so an unnamed field fails closed with a 500.
 - **Route file**: lives in the layer that owns the data, at the operation's own path: `GET /api/v1/skills/{owner}/{repository}/{name}` is `layers/registry/server/api/v1/skills/[owner]/[repository]/[name].get.ts`. It calls that layer's utilities, or reads the internal route in process. It never duplicates SQL.
 - **v1 presenter**: a pure function in `layers/<layer>/server/presenters/<thing>-v1.ts`, typed `OperationResult<typeof op>`.

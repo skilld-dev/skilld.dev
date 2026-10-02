@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import type { ApiV1Identity } from '../../shared/server/api-rate-limit'
 import { createApp, createError, createRouter, eventHandler, toWebHandler } from 'h3'
 import { defineOperation, defineResponseObject } from 'skilld-sdk/contract'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,10 +48,11 @@ const deleteThing = defineOperation({
   docs: { summary: 'Delete a thing', description: 'Removes one thing.', tag: 'Things', examples: [{ request: { params: { id: 'a' } }, response: null }] },
 })
 
-function serve(handlers: { get?: (event: H3Event) => unknown, delete?: (event: H3Event) => unknown }) {
+function serve(handlers: { get?: (event: H3Event) => unknown, delete?: (event: H3Event) => unknown, identity?: ApiV1Identity }) {
   const app = createApp()
   app.use(eventHandler((event) => {
     event.context.platform = { requestId: 'req_test' } as never
+    event.context.apiV1Identity = handlers.identity
   }))
   const router = createRouter()
   if (handlers.get)
@@ -161,6 +163,25 @@ describe('defineApiOperation', () => {
     expect(await response.text()).toBe('')
     expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(handler).toHaveBeenCalledWith(expect.objectContaining({ user: { id: 7, login: 'octo' } }))
+  })
+
+  it('reuses the account verified by rate-limit middleware', async () => {
+    const handler = vi.fn(() => null)
+    const fetch = serve({
+      identity: { _tag: 'account', user: { id: 7, login: 'octo' } },
+      delete: defineApiOperation({ operation: deleteThing, handler }),
+    })
+    expect((await fetch('/api/v1/things/abc', { method: 'DELETE' })).status).toBe(204)
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ user: { id: 7, login: 'octo' } }))
+    expect(resolveRequestUser).not.toHaveBeenCalled()
+  })
+
+  it('refuses an account operation when middleware resolved a guest', async () => {
+    const handler = vi.fn()
+    const fetch = serve({ identity: { _tag: 'guest' }, delete: defineApiOperation({ operation: deleteThing, handler }) })
+    expect((await fetch('/api/v1/things/abc', { method: 'DELETE' })).status).toBe(401)
+    expect(handler).not.toHaveBeenCalled()
+    expect(resolveRequestUser).not.toHaveBeenCalled()
   })
 
   it('turns an undeclared failure code into INTERNAL_ERROR', async () => {

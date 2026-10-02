@@ -19,6 +19,10 @@ const expires = computed(() => state.value._tag === 'created'
       Public operations need no token. Create one for account operations, such as watching a Repository.
       The same skilld token works in scripts and the CLI.
     </p>
+    <p class="mt-2 text-sm leading-relaxed text-muted">
+      Guests get 60 requests per minute per IP. Sign in or send a skilld token for 600 per account.
+      These limits apply per Cloudflare location. If you reach a limit, wait 60 seconds, then retry.
+    </p>
     <template v-if="state._tag !== 'created'">
       <p class="mt-2 text-sm text-muted">
         Label: API script. Expires in 90 days.

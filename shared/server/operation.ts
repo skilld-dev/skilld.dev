@@ -38,7 +38,7 @@ export interface OperationCtx<TOperation extends SkilldV1OperationDefinition> {
   event: H3Event
   platform: Platform
   input: OperationParsedInput<TOperation>
-  /** Always set on an `account` operation. Never read on a `public` one, so a shared cache can hold its answer. */
+  /** Always set on an account operation. Public handlers never receive caller identity. */
   user: TOperation['access'] extends 'account' ? AccountUser : null
 }
 
@@ -123,7 +123,8 @@ async function runOperation<TOperation extends SkilldV1OperationDefinition>(
 
   let user: AccountUser | null = null
   if (operation.access === 'account') {
-    user = await resolveRequestUser(event)
+    const identity = event.context.apiV1Identity
+    user = identity ? (identity._tag === 'account' ? identity.user : null) : await resolveRequestUser(event)
     if (!user)
       return operationFailure('AUTH_REQUIRED', 'Sign in with `skilld auth login`, or send a skilld token as a Bearer credential.')
   }
