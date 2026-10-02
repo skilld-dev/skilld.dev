@@ -3,6 +3,9 @@ import { Files, SandboxFileError } from '@cloudflare/sandbox'
 import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers'
 import { JOB_TIMEOUT_MS, MAX_MODEL_CALLS, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, parseJson, parseProofInput, parseProofResult, readBoundedBody } from './contracts'
 import { forwardSandboxRequest } from './gateway'
+import { githubWebhook } from './github-routes'
+
+export { GithubJobs } from './github-jobs'
 
 function credentials(env: { PROVIDER: string, ANTHROPIC_API_KEY?: string, GOOGLE_GENERATIVE_AI_API_KEY?: string }): { provider: 'google' | 'anthropic', apiKey: string } | undefined {
   if (env.PROVIDER === 'anthropic' && env.ANTHROPIC_API_KEY)
@@ -176,13 +179,20 @@ export class SkillSandbox extends DurableObject<HarnessEnv> {
 
 export default {
   async fetch(request: Request, env: HarnessEnv): Promise<Response> {
+    const url = new URL(request.url)
+    if (url.pathname === '/github/webhook' && request.method === 'POST')
+      return githubWebhook(request, env)
     if (!env.PROOF_TOKEN || !credentials(env))
       return Response.json({ code: 'PROOF_UNCONFIGURED' }, { status: 503 })
     const supplied = new TextEncoder().encode(request.headers.get('authorization') ?? '')
     const expected = new TextEncoder().encode(`Bearer ${env.PROOF_TOKEN}`)
     if (supplied.byteLength !== expected.byteLength || !crypto.subtle.timingSafeEqual(supplied, expected))
       return Response.json({ code: 'UNAUTHORIZED' }, { status: 401 })
-    const url = new URL(request.url)
+    const job = /^\/github\/jobs\/([a-f0-9-]{36})$/.exec(url.pathname)
+    if (job?.[1] && request.method === 'GET') {
+      const state = await env.GITHUB_JOBS.getByName('github-app').status(job[1])
+      return Response.json(state ?? { code: 'NOT_FOUND' }, { status: state ? 200 : 404, headers: { 'cache-control': 'no-store' } })
+    }
     if (url.pathname === '/proofs' && request.method === 'POST') {
       const body = await readBoundedBody(request, MAX_REQUEST_BYTES)
       if (body === undefined)

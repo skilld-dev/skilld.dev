@@ -6,12 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  "vars": { "PROVIDER": "anthropic", "MODEL": "claude-sonnet-4-6" },
+  "vars": { "PROVIDER": "anthropic", "MODEL": "claude-sonnet-4-6", "GITHUB_PILOT_REPOSITORIES": "harlan-zw/nuxt-skew-protection" },
   "containers": [{
     "class_name": "SkillSandbox",
     "scheduling_policy": "durable_object",
     "images": { "runner": { "dockerfile": "./Dockerfile" } }
   }],
-  "durable_objects": { "bindings": [{ "class_name": "SkillSandbox", "name": "SANDBOX" }] },
-  "exports": { "SkillSandbox": { "type": "durable-object", "storage": "sqlite" } }
+  "durable_objects": { "bindings": [{ "class_name": "SkillSandbox", "name": "SANDBOX" }, { "class_name": "GithubJobs", "name": "GITHUB_JOBS" }] },
+  "exports": { "SkillSandbox": { "type": "durable-object", "storage": "sqlite" }, "GithubJobs": { "type": "durable-object", "storage": "sqlite" } }
 }
