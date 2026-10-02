@@ -10,3 +10,13 @@ it('shows each command on its own line', async () => {
   expect(wrapper.findAll('code').map(line => line.text())).toEqual(commands)
   wrapper.unmount()
 })
+
+it('highlights shell snippets without changing their text', async () => {
+  const code = 'SKILLD_TOKEN="example-token"'
+  const wrapper = await mountSuspended(SetupSnippet, {
+    props: { code, label: '.env example', format: 'bash' },
+  })
+  expect(wrapper.find('code').text()).toBe(code)
+  expect(wrapper.find('code .shj-str').exists()).toBe(true)
+  wrapper.unmount()
+})

@@ -24,9 +24,9 @@ describe('developers page API setup', () => {
     expect(sdk.findAll('code').map(code => code.text())).toContain(apiSnippets.sdkInstall)
   })
 
-  it('links the token page and the OpenAPI document', async () => {
+  it('offers sign-in returning to API setup and links token management and OpenAPI', async () => {
     const page = await mountAt('/developers?setup=api')
     const hrefs = page.findAll('a').map(a => a.attributes('href'))
-    expect(hrefs).toEqual(expect.arrayContaining(['/me/cli-tokens/new', '/me/devices', '/api/v1/openapi.json']))
+    expect(hrefs).toEqual(expect.arrayContaining(['/auth/github?return_to=%2Fdevelopers%3Fsetup%3Dapi', '/me/devices', '/api/v1/openapi.json']))
   })
 })

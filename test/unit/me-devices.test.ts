@@ -76,7 +76,7 @@ describe('devices page behavior', () => {
 
     const wrapper = await mountPage()
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('Could not load CLI devices')
+    expect(wrapper.get('[role="alert"]').text()).toContain('Could not load devices and tokens')
     await wrapper.get('button').trigger('click')
     expect(refresh).toHaveBeenCalledOnce()
   })
@@ -125,6 +125,6 @@ describe('devices page behavior', () => {
 
     const wrapper = await mountPage()
 
-    expect(wrapper.get('[role="status"]').text()).toContain('Loading CLI devices')
+    expect(wrapper.get('[role="status"]').text()).toContain('Loading devices and tokens')
   })
 })

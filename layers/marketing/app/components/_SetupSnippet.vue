@@ -6,11 +6,10 @@ const { code, label, format = 'text' } = defineProps<{
   /** What the copy button copies, read by screen readers. */
   label: string
   /**
-   * `skilld` renders with the site's install command roles. `json`, `toml`,
-   * and `typescript` are highlighted. Other shell commands stay plain: the
-   * light highlight theme fails contrast on the muted surface.
+   * `skilld` uses the site's install command roles. Code formats use the
+   * matching light or dark syntax theme on the default surface.
    */
-  format?: 'text' | 'skilld' | 'json' | 'toml' | 'typescript'
+  format?: 'text' | 'skilld' | 'json' | 'toml' | 'typescript' | 'bash'
 }>()
 
 const { copy, copied } = useClipboard({ copiedDuring: 2000, legacy: true })
@@ -41,7 +40,7 @@ async function copyCode(): Promise<void> {
       </div>
       <code
         v-else
-        class="shiki min-w-0 flex-1 rounded-md border border-default bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed whitespace-pre-wrap text-default [overflow-wrap:anywhere]"
+        class="shiki min-w-0 flex-1 rounded-md border border-default bg-default px-3 py-2.5 font-mono text-sm leading-relaxed whitespace-pre-wrap text-default [overflow-wrap:anywhere]"
         v-html="html"
       />
       <UButton

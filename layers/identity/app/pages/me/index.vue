@@ -571,7 +571,7 @@ async function deleteAccount() {
             color="neutral"
             variant="ghost"
             icon="i-lucide-terminal"
-            label="CLI devices"
+            label="Devices and tokens"
             class="min-h-11"
           />
           <UButton
@@ -589,7 +589,7 @@ async function deleteAccount() {
             Delete account
           </h2>
           <p class="mt-2 text-sm leading-relaxed text-muted">
-            Deleting your account removes your profile, likes, watched Repositories, collections, email settings, and CLI devices.
+            Deleting your account removes your profile, likes, watched Repositories, collections, email settings, devices, and skilld tokens.
             <NuxtLink to="/privacy" class="text-default underline underline-offset-2 hover:text-primary">
               See what skilld stores
             </NuxtLink>
@@ -632,7 +632,7 @@ async function deleteAccount() {
               <li>Email settings and email history</li>
               <li>Liked Skills, watched Repositories, and imported stars</li>
               <li>Your collections</li>
-              <li>CLI devices and tokens</li>
+              <li>Devices and skilld tokens</li>
             </ul>
           </div>
           <p class="text-sm leading-relaxed text-muted">
