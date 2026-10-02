@@ -1264,7 +1264,7 @@ useHead(computed(() => ({
                     </span>
                     <span
                       v-if="match.description"
-                      class="mt-2 block text-sm text-muted line-clamp-2"
+                      class="mt-2 text-sm text-muted line-clamp-2"
                     >
                       {{ match.description }}
                     </span>

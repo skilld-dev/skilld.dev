@@ -283,7 +283,7 @@ defineOgImage('Page.takumi', {
                 <span class="min-w-0">
                   <span class="block font-mono text-base font-medium">/{{ skill.name }}</span>
                   <span class="mt-1 block text-sm text-muted">{{ skill.owner }}/{{ skill.repo }}</span>
-                  <span v-if="skill.description" class="mt-2 block text-base leading-relaxed text-muted text-pretty">
+                  <span v-if="skill.description" class="mt-2 line-clamp-2 text-base leading-relaxed text-muted text-pretty">
                     {{ skill.description }}
                   </span>
                 </span>

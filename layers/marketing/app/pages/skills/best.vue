@@ -134,7 +134,7 @@ function trustLabel(tier: string): string {
                 <span class="font-medium text-default">{{ skill.displayName || skill.name }}</span>
                 <span class="font-mono text-xs text-muted">{{ skill.owner }}/{{ skill.repo }}</span>
               </span>
-              <span v-if="skill.description" class="mt-1 block text-sm leading-relaxed text-muted">
+              <span v-if="skill.description" class="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
                 {{ skill.description }}
               </span>
               <span class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">

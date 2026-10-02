@@ -337,7 +337,7 @@ async function deleteAccount() {
                   </span>
                   <span class="data-label">{{ skill.owner }}/{{ skill.repo }}</span>
                 </span>
-                <span v-if="skill.description" class="mt-2 block max-w-3xl line-clamp-3 text-sm leading-relaxed text-muted text-pretty">
+                <span v-if="skill.description" class="mt-2 max-w-3xl line-clamp-2 text-sm leading-relaxed text-muted text-pretty">
                   {{ skill.description }}
                 </span>
                 <span class="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-muted">
