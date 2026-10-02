@@ -1,11 +1,11 @@
-import { cp, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { harnessStateDirectoryPath } from '@ai-sdk/harness'
 import { createOpenCode } from '@ai-sdk/harness-opencode'
 import { createSkillHarness } from 'skilld-harness'
 import { createLocalSandbox } from 'skilld-harness/sandbox-local'
+import { runGeneration } from './orchestrate.ts'
 
-const unavailableReport = { _tag: 'Unavailable', reason: 'skilld-harness@3.2.0 does not return usage reports.', warnings: [] }
 const startedAt = Date.now()
 const signal = AbortSignal.timeout(14 * 60 * 1000)
 
@@ -30,41 +30,54 @@ async function execute() {
       return session
     },
   }
-  const harness = createSkillHarness({
-    harness: createOpenCode({
-      provider: process.env.PROVIDER,
-      openCodeConfig: {
-        model: `${process.env.PROVIDER}/${process.env.MODEL}`,
-        enabled_providers: [process.env.PROVIDER],
-        autoupdate: false,
-        share: 'disabled',
+  const sourceEvidence = '/job/package-source'
+  const contextPath = '/job/task-context.md'
+  async function taskHarness(stage, findings = []) {
+    await writeFile(contextPath, [
+      '# Package evidence for this task',
+      `The original Skill name is ${input.name}. Its directory is ${join(destination.rootDir, input.name)}.`,
+      `The exact package is ${input.spec}. Prepared package source is available at ${sourceEvidence}.`,
+      'For review, input/source is a transport copy of the Skill. Its folder name does not identify the original Skill.',
+      'Read the package source before reporting errors about API names, imports, or endpoint paths.',
+      'Do not infer endpoint punctuation or auto-import behavior from other examples.',
+      ...(findings.length ? ['Correct these review findings against the exact package source. Preserve other supported guidance.', JSON.stringify(findings)] : []),
+    ].join('\n\n'))
+    return createSkillHarness({
+      harness: createOpenCode({
+        provider: process.env.PROVIDER,
+        openCodeConfig: {
+          model: `${process.env.PROVIDER}/${process.env.MODEL}`,
+          enabled_providers: [process.env.PROVIDER],
+          autoupdate: false,
+          share: 'disabled',
+          instructions: [contextPath],
+        },
+      }),
+      sandbox,
+      sandboxConfig: {
+        async onSession({ sessionWorkDir }) {
+          if (stage === 'generation') {
+            await rm(sourceEvidence, { recursive: true, force: true })
+            await cp(join(sessionWorkDir, 'input/source'), sourceEvidence, { recursive: true })
+          }
+        },
       },
-    }),
-    sandbox,
+    })
+  }
+  return runGeneration({
+    generate: async (findings) => {
+      const harness = await taskHarness('generation', findings)
+      return harness.run({ _tag: 'PackageSkill', source: { _tag: 'NpmPackage', spec: input.spec }, destination }, { signal })
+    },
+    review: async (candidate) => {
+      const harness = await taskHarness('review')
+      return harness.run({ _tag: 'ReviewSkill', skillDir: candidate.outputDir }, { signal })
+    },
+    readFiles: candidate => Promise.all(candidate.files.map(async file => ({
+      path: file.path,
+      content: await readFile(join(candidate.outputDir, file.path), 'utf8'),
+    }))),
   })
-  const generation = await harness.run({ _tag: 'PackageSkill', source: { _tag: 'NpmPackage', spec: input.spec }, destination }, { signal })
-  if (generation._tag === 'Err') {
-    return { _tag: 'Err', code: 'GENERATION_FAILED', detail: JSON.stringify(generation.error), generation: { ...unavailableReport, warnings: generation._tag === 'Ok' ? generation.value.warnings : [] } }
-  }
-  const review = await harness.run({ _tag: 'ReviewSkill', skillDir: generation.value.outputDir }, { signal })
-  if (review._tag === 'Err') {
-    return { _tag: 'Err', code: 'REVIEW_FAILED', detail: JSON.stringify(review.error), generation: { ...unavailableReport, warnings: generation._tag === 'Ok' ? generation.value.warnings : [] }, reviewReport: unavailableReport }
-  }
-  if (review.value.findings.some(finding => finding.level === 'error')) {
-    return { _tag: 'Err', code: 'REVIEW_REJECTED', detail: JSON.stringify(review.value), generation: { ...unavailableReport, warnings: generation._tag === 'Ok' ? generation.value.warnings : [] }, reviewReport: unavailableReport }
-  }
-  const files = await Promise.all(generation.value.files.map(async file => ({
-    path: file.path,
-    content: await readFile(join(generation.value.outputDir, file.path), 'utf8'),
-  })))
-  return {
-    _tag: 'Ok',
-    files,
-    generation: { ...unavailableReport, warnings: generation._tag === 'Ok' ? generation.value.warnings : [] },
-    reviewReport: unavailableReport,
-    review: review.value,
-    sourceAttempts: generation.value.sourceAttempts,
-  }
 }
 
 async function main() {

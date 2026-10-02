@@ -37,6 +37,7 @@ const output = {
   reviewReport: report,
   review: { summary: 'Fine', findings: [] },
   sourceAttempts: [],
+  repairAttempts: 0,
   elapsedMs: 100,
 }
 
@@ -47,5 +48,12 @@ describe('untrusted sandbox output', () => {
 
   it('rejects output paths outside the Skill', () => {
     expect(parseProofResult({ ...output, files: [{ path: '../README.md', content: 'overwrite' }] })._tag).toBe('Err')
+  })
+
+  it('keeps rejected candidates inside the Skill boundary', () => {
+    const { files, ...result } = output
+    const rejected = { ...result, _tag: 'Err', code: 'REVIEW_REJECTED', detail: 'Review found an error.', candidateFiles: files, repairAttempts: 1 }
+    expect(parseProofResult(rejected)).toEqual({ _tag: 'Ok', value: rejected })
+    expect(parseProofResult({ ...rejected, candidateFiles: [{ path: '../README.md', content: 'overwrite' }] })._tag).toBe('Err')
   })
 })
