@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  "vars": { "MODEL": "gemini-2.5-flash" },
+  "vars": { "MODEL": "gemini-3.8-flash" },
   "containers": [{
     "class_name": "SkillSandbox",
     "scheduling_policy": "durable_object",

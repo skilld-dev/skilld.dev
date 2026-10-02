@@ -3,14 +3,14 @@ import { forwardSandboxRequest } from '../src/gateway'
 
 function fixture() {
   return {
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.8-flash',
     apiKey: 'worker-only-secret',
     consumeModelCall: vi.fn(async () => true),
     fetch: vi.fn<typeof fetch>(async () => new Response('model output')),
   }
 }
 
-function modelRequest(body: unknown, model = 'gemini-2.5-flash') {
+function modelRequest(body: unknown, model = 'gemini-3.8-flash') {
   return new Request(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=untrusted`, {
     method: 'POST',
     headers: { 'x-goog-api-key': 'sandbox-placeholder', 'cookie': 'private=cookie' },
@@ -41,7 +41,7 @@ describe('sandbox credential gateway', () => {
     expect(JSON.parse(String(forwarded?.body))).toMatchObject({ generationConfig: { maxOutputTokens: 4096, temperature: 0.5 } })
   })
 
-  it.each(['http://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent', 'https://example.com/collect', 'https://generativelanguage.googleapis.com/v1beta/files', 'https://registry.npmjs.org:8443/package'])('denies destination %s', async (url) => {
+  it.each(['http://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent', 'https://example.com/collect', 'https://generativelanguage.googleapis.com/v1beta/files', 'https://registry.npmjs.org:8443/package'])('denies destination %s', async (url) => {
     const options = fixture()
     const result = await forwardSandboxRequest(new Request(url), options)
     expect(result.status).toBe(403)
@@ -71,7 +71,7 @@ describe('sandbox credential gateway', () => {
 
   it('rejects invalid model JSON without forwarding it', async () => {
     const options = fixture()
-    const result = await forwardSandboxRequest(new Request('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent', { method: 'POST', body: '{' }), options)
+    const result = await forwardSandboxRequest(new Request('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent', { method: 'POST', body: '{' }), options)
     expect(result.status).toBe(400)
     expect(options.fetch).not.toHaveBeenCalled()
   })
