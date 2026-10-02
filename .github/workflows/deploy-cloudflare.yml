@@ -5,13 +5,19 @@ on:
     workflows: [Test]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        type: choice
+        options: [site, harness-proof]
+        default: site
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: deploy-cloudflare-production
+  group: deploy-cloudflare-${{ inputs.target || 'site' }}
   # A deploy in flight must finish. This workflow applies D1 migrations and then
   # deploys the signer and public Worker, then runs smoke and rollback. Cancelling
   # between those steps leaves migrated data against the previous Worker.
@@ -26,7 +32,7 @@ jobs:
     # otherwise. `head_sha` alone is the commit that was tested, and it is what
     # the checkout below already uses.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && inputs.target != 'harness-proof') ||
       (github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main')
     runs-on: [self-hosted, linux, x64, harlan-desktop-deploy]
@@ -119,3 +125,21 @@ jobs:
       # could never pass these checks.
       - name: Check the trending edge cache
         run: pnpm production:edge-cache
+
+  harness-proof:
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'harness-proof'
+    runs-on: [self-hosted, linux, x64, harlan-desktop-deploy]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+      - name: Check the Harness Worker
+        run: |
+          pnpm --filter @skilld/skill-harness-worker types:check
+          pnpm --filter @skilld/skill-harness-worker typecheck
+          pnpm --filter @skilld/skill-harness-worker test:run
+      - name: Deploy the Harness proof
+        run: pnpm --filter @skilld/skill-harness-worker deploy:proof
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -19,6 +19,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  harness-proof:
+    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+      - run: |
+          pnpm --filter @skilld/skill-harness-worker types:check
+          pnpm --filter @skilld/skill-harness-worker typecheck
+          pnpm --filter @skilld/skill-harness-worker test:run
+
   harlan-desktop:
     uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@main
     with:

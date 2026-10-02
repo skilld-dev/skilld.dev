@@ -8,6 +8,12 @@ export default antfu({
     'ts/no-redeclare': 'off',
   },
 }, ...harlanzw({ base: { type: 'app' } }), {
+  // The isolated proof needs Container 1.0 tooling. The site keeps its version.
+  files: ['pnpm-workspace.yaml'],
+  rules: {
+    'pnpm/yaml-no-duplicate-catalog-item': ['error', { checkDuplicates: 'exact-version' }],
+  },
+}, {
   // Server code runs on workerd, which accepts only the `follow` and `manual`
   // redirect modes. Node's undici also accepts `error`, so the unit suite
   // cannot catch it: every hosted Artifact build failed from 2026-08-21 to

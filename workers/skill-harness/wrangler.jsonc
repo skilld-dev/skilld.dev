@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "skilld-harness-proof",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "vars": { "MODEL": "gemini-2.5-flash" },
+  "containers": [{
+    "class_name": "SkillSandbox",
+    "scheduling_policy": "durable_object",
+    "images": { "runner": { "dockerfile": "./Dockerfile" } }
+  }],
+  "durable_objects": { "bindings": [{ "class_name": "SkillSandbox", "name": "SANDBOX" }] },
+  "exports": { "SkillSandbox": { "type": "durable-object", "storage": "sqlite" } }
+}

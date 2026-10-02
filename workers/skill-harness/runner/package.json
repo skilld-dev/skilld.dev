@@ -1,0 +1,12 @@
+{
+  "name": "skilld-harness-container-runner",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@ai-sdk/harness": "1.0.138",
+    "@ai-sdk/harness-opencode": "1.0.140",
+    "skilld-harness": "3.2.0",
+    "ws": "8.21.0",
+    "zod": "4.5.4"
+  }
+}
