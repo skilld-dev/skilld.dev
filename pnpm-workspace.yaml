@@ -89,6 +89,7 @@ autoInstallPeers: false
 trustPolicy: no-downgrade
 
 packages:
+  - packages/*
   - workers/*
 
 # The site root is a workspace project too, so `pnpm pipeline` can run its
@@ -233,6 +234,7 @@ catalog:
   rangi: ^2.2.0
   skilld-protocol: ^2.4.0
   tailwindcss: ^4.3.3
+  tsdown: ^0.22.14
   tsx: ^4.23.13
   typescript: 6.0.3
   unstorage: 1.17.5
