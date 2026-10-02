@@ -46,6 +46,12 @@ async function execute() {
       'Do not retry a denied destination. Use prepared source and installed package types as evidence.',
       'If an example cannot run here, record it as untested. Never claim it passed.',
       'This task updates an existing Skill. Keep unsupported claims out and avoid unrelated framework tutorials.',
+      'Batch related source reads into one tool call. Read each source file once unless evidence requires another read.',
+      'Use one final command to check frontmatter, paths, and examples. Do not repeat counts, greps, or confirmation reads.',
+      'After writing and checking the output, finish immediately. A separate independent review follows generation.',
+      stage === 'generation'
+        ? 'Aim to finish within 35 model turns. Reserve the remaining run budget for independent review and any repair.'
+        : 'Review source claims in batches. Aim to finish within 20 model turns. Return concrete findings when checks finish.',
       ...(findings.length ? ['Correct these review findings against the exact package source. Preserve other supported guidance.', JSON.stringify(findings)] : []),
     ].join('\n\n'))
     return createSkillHarness({
