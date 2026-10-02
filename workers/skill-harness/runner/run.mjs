@@ -4,6 +4,7 @@ import { harnessStateDirectoryPath } from '@ai-sdk/harness'
 import { createOpenCode } from '@ai-sdk/harness-opencode'
 import { createSkillHarness } from 'skilld-harness'
 import { createLocalSandbox } from 'skilld-harness/sandbox-local'
+import { createSourceEvidence } from './evidence.ts'
 import { runGeneration } from './orchestrate.ts'
 import { createRunTrace } from './trace.ts'
 
@@ -33,6 +34,7 @@ async function execute() {
     },
   }
   const sourceEvidence = '/job/package-source'
+  const evidencePath = '/job/package-evidence.md'
   const contextPath = '/job/task-context.md'
   async function taskHarness(stage, findings = []) {
     await writeFile(contextPath, [
@@ -41,6 +43,8 @@ async function execute() {
       `The exact package is ${input.spec}. Prepared package source is available at ${sourceEvidence}.`,
       'The review source copy retains the original Skill directory name.',
       'Read the package source before reporting errors about API names, imports, or endpoint paths.',
+      `First read ${evidencePath}. It bundles package metadata, public types, and implementation from the exact package.`,
+      'Use that bundle to check claims together. Open individual source files only when the bundle omits required evidence.',
       'Do not infer endpoint punctuation or auto-import behavior from other examples.',
       'The network gateway allows npm registry and GitHub codeload only. Other destinations are unavailable.',
       'Do not retry a denied destination. Use prepared source and installed package types as evidence.',
@@ -62,7 +66,7 @@ async function execute() {
           enabled_providers: [process.env.PROVIDER],
           autoupdate: false,
           share: 'disabled',
-          instructions: [contextPath],
+          instructions: [contextPath, evidencePath],
         },
       }),
       sandbox,
@@ -71,6 +75,7 @@ async function execute() {
           if (stage === 'generation') {
             await rm(sourceEvidence, { recursive: true, force: true })
             await cp(join(sessionWorkDir, 'input/source'), sourceEvidence, { recursive: true })
+            await writeFile(evidencePath, await createSourceEvidence(sourceEvidence))
           }
         },
       },
