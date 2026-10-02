@@ -223,6 +223,9 @@ function sendProblem(event: H3Event, operation: SkilldV1OperationDefinition, fai
   setResponseStatus(event, status)
   setHeader(event, 'content-type', 'application/problem+json')
   setHeader(event, 'cache-control', 'private, no-store')
+  // A browser on another origin must read the problem, or it sees a network error.
+  if (operation.access === 'public')
+    setHeader(event, 'access-control-allow-origin', '*')
   return problem
 }
 

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineApiHandler } from '#shared/server/handler'
 import { authenticated } from '../../../../policies/authenticated'
+import { revokeCliToken } from '../../../../utils/cli-tokens'
 
 const Params = z.object({})
 
@@ -12,11 +13,7 @@ export default defineApiHandler({
     if (!Number.isInteger(id))
       throw createError({ statusCode: 400, message: 'Invalid token id' })
 
-    await event.context.platform.db.prepare(
-      `UPDATE cli_tokens SET revoked_at = ?1
-       WHERE id = ?2 AND user_id = ?3 AND revoked_at IS NULL`,
-    ).bind(Math.floor(Date.now() / 1000), id, user!.id).run()
-
+    await revokeCliToken(event.context.platform.db, user!.id, id)
     return { ok: true as const }
   },
 })

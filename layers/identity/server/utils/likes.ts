@@ -96,3 +96,38 @@ function readLiveLikeCount(db: D1Database, ref: SkillLikeRef): Promise<number> {
      FROM skill_likes
      WHERE owner = ?1 AND repo = ?2 AND name = ?3`).bind(ref.owner, ref.repo, ref.name).first<{ count: number }>().then(row => row?.count ?? 0)
 }
+
+/** True when the registry holds the Skill. A like on anything else is refused. */
+export async function skillExists(db: D1Database, ref: SkillLikeRef): Promise<boolean> {
+  const row = await db.prepare(
+    `SELECT 1 AS found FROM skills WHERE owner = ?1 AND repo = ?2 AND name = ?3`,
+  ).bind(ref.owner, ref.repo, ref.name).first<{ found: number }>()
+  return row !== null
+}
+
+export interface LikedSkillRef extends SkillLikeRef {
+  /** Epoch seconds. */
+  likedAt: number
+}
+
+/** One page of a person's likes, newest first, and the count of all of them. */
+export async function listLikedSkillRefs(
+  db: D1Database,
+  userId: number,
+  page: { limit: number, offset: number },
+): Promise<{ refs: LikedSkillRef[], total: number }> {
+  const [rows, count] = await db.batch([
+    db.prepare(
+      `SELECT owner, repo, name, created_at AS likedAt
+       FROM skill_likes
+       WHERE user_id = ?1
+       ORDER BY created_at DESC, owner, repo, name
+       LIMIT ?2 OFFSET ?3`,
+    ).bind(userId, page.limit, page.offset),
+    db.prepare(`SELECT COUNT(*) AS total FROM skill_likes WHERE user_id = ?1`).bind(userId),
+  ])
+  return {
+    refs: (rows?.results ?? []) as LikedSkillRef[],
+    total: ((count?.results ?? [])[0] as { total: number } | undefined)?.total ?? 0,
+  }
+}

@@ -1,13 +1,7 @@
+import { RESERVED_COLLECTION_SLUGS } from 'skilld-sdk/contract'
 import { z } from 'zod'
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
-
-/**
- * Slugs that already name a static route under /@<login>/. A collection using
- * one would be created successfully and then be permanently unreachable,
- * because the static route wins.
- */
-export const RESERVED_COLLECTION_SLUGS = new Set(['liked'])
 
 export const SkillEntry = z.object({
   owner: z.string().min(1),

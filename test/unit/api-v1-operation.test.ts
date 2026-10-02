@@ -87,6 +87,7 @@ describe('defineApiOperation', () => {
     const response = await fetch('/api/v1/things/abc?count=9')
     expect(response.status).toBe(400)
     expect(response.headers.get('content-type')).toBe('application/problem+json')
+    expect(response.headers.get('access-control-allow-origin')).toBe('*')
     expect(await response.json()).toEqual({
       type: 'https://skilld.dev/problems/invalid-request',
       title: 'Invalid request',

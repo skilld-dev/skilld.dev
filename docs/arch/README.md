@@ -25,10 +25,34 @@ Cross-layer reads go via HTTP (`$fetch('/api/...')`), never shared server utilit
 ## Server-side architecture
 
 - **Platform**: request-scoped object on `event.context.platform` carrying every infrastructure binding a handler needs: `db` (D1), `ai` (Workers AI), `github` (resolved client), `requestId`. Mounted by `server/plugins/platform.ts`. Handlers must read bindings from here, never directly from `event.context.cloudflare.env`. `db` is one D1 session per request: a safe method starts on any read replica, a mutating method starts on the primary, and a write's bookmark rides a `d1-bookmark` cookie so the next request reads it. Cron tasks and queue consumers use the raw binding, which always reaches the primary.
-- **defineApiHandler**: the single Nitro entrypoint shape: `{ schema, policy, handler, presenter }`. Schema is a zod input, policy is an array of atomic predicates AND-ed, handler receives `{ body, platform, user, event }`, presenter shapes the response. Defined in `shared/server/handler.ts`.
+- **defineApiHandler**: the shape of every internal API route: `{ schema, policy, handler, presenter }`. Schema is a zod input, policy is an array of atomic predicates AND-ed, handler receives `{ body, platform, user, event }`, presenter shapes the response. Defined in `shared/server/handler.ts`.
 - **Policy**: a `(ctx) => boolean | Promise<boolean>` atom in `layers/<layer>/server/policies/`. Composes by array.
 - **Presenter**: a `(row) => dto` in `layers/<layer>/server/presenters/`. Response shape lives here, never inline in handlers.
 - **Schema**: a zod input schema in `layers/<layer>/server/schemas/`. Auto-validated by `defineApiHandler`.
+
+## Public API (ADR-0006)
+
+`/api/v1` is the only API surface with a promise: an answer may gain a field and never loses one.
+Internal routes may change on any deploy. One descriptor per operation, in
+`packages/sdk/src/contract`, drives four things:
+
+```text
+descriptor (packages/sdk/src/contract)
+  ├─ OpenAPI document   generated/openapi.v1.json, served at /api/v1/openapi.json, drift test
+  ├─ route checks       defineApiOperation in shared/server/operation.ts
+  ├─ SDK                createSkilldClient, published as skilld-sdk
+  └─ parity test        test/unit/api-v1-parity.test.ts: one route file per operation
+```
+
+- **Operation**: one `namespace.verb` entry in the contract, such as `skills.get`. Its ID never changes. `public` operations never read the session and are edge cacheable; `account` operations take the sign-in cookie or a skilld token as a Bearer credential.
+- **defineApiOperation**: the shape of a `/api/v1` route: `{ operation, handler }`. The descriptor parses the input, checks the credential, and sets the status and cache headers. The handler only loads data. The answer passes the strict producer schema, so an unnamed field fails closed with a 500.
+- **Route file**: lives in the layer that owns the data, at the operation's own path: `GET /api/v1/skills/{owner}/{repository}/{name}` is `layers/registry/server/api/v1/skills/[owner]/[repository]/[name].get.ts`. It calls that layer's utilities, or reads the internal route in process. It never duplicates SQL.
+- **v1 presenter**: a pure function in `layers/<layer>/server/presenters/<thing>-v1.ts`, typed `OperationResult<typeof op>`.
+- **Failures**: `operationFailure(code, detail)` returns an expected failure as a value. Every failure answers RFC 9457 `application/problem+json` with six fields, because the skilld CLI rejects any other.
+- **Frozen**: the `skills.search` answer never gains a field while skilld 3.2.0 is in use.
+- **Outside the contract**: Artifact delivery keeps its own schemas until it folds in.
+
+After a contract change, run `pnpm --filter skilld-sdk generate` and commit the document.
 
 ## App-side architecture
 

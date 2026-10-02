@@ -13,6 +13,8 @@ export interface IssueSessionOptions {
 }
 
 export interface IssuedCliSession {
+  /** The `cli_tokens` row. Revoking it ends the session. */
+  tokenId: number
   accessToken: string
   refreshToken?: string
   expiresAt: number
@@ -96,12 +98,28 @@ export async function issueSession(
     throw createError({ statusCode: 500, message: 'CLI session issue failed' })
 
   return {
+    tokenId: row.id,
     accessToken: await signAccessToken(event, row.id, userId, scopes, accessExpiresAt),
     refreshToken: hasRefresh ? refreshToken : undefined,
     expiresAt: accessExpiresAt,
     scopes,
     userId,
   }
+}
+
+/** A token a person creates by hand: no refresh token, and no set end unless `ttlDays` names one. */
+export function issuePersonalToken(
+  event: H3Event,
+  userId: number,
+  input: { label: string, ttlDays?: number },
+): Promise<IssuedCliSession> {
+  return issueSession(event, userId, {
+    kind: 'pat',
+    scopes: 'cli',
+    deviceLabel: input.label,
+    ttlSec: input.ttlDays ? input.ttlDays * 86400 : undefined,
+    refresh: false,
+  })
 }
 
 export async function rotateSession(event: H3Event, refreshToken: string): Promise<IssuedCliSession | null> {
@@ -148,6 +166,7 @@ export async function rotateSession(event: H3Event, refreshToken: string): Promi
     ).run()
 
     return {
+      tokenId: row.id,
       accessToken: await signAccessToken(event, row.id, row.user_id, row.scopes, accessExpiresAt),
       refreshToken: nextRefreshToken,
       expiresAt: accessExpiresAt,
@@ -162,6 +181,7 @@ export async function rotateSession(event: H3Event, refreshToken: string): Promi
       `UPDATE cli_tokens SET last_used_at = ?1 WHERE id = ?2 AND revoked_at IS NULL`,
     ).bind(now, row.id).run()
     return {
+      tokenId: row.id,
       accessToken: await signAccessToken(event, row.id, row.user_id, row.scopes, accessExpiresAt),
       refreshToken: await decryptRefresh(event, row.refresh_token_encrypted),
       expiresAt: accessExpiresAt,
@@ -187,6 +207,54 @@ export async function revokeSession(event: H3Event, refreshTokenOrTokenId: strin
     `UPDATE cli_tokens SET revoked_at = ?1
      WHERE (refresh_hash = ?2 OR prev_refresh_hash = ?2) AND revoked_at IS NULL`,
   ).bind(now, hash).run()
+}
+
+/** One `cli_tokens` row as the dashboard and the public API list it. Never the hashes. */
+export interface CliTokenListRow {
+  id: number
+  kind: CliTokenKind
+  device_label: string | null
+  cli_version: string | null
+  scopes: string
+  created_at: number
+  last_used_at: number
+  expires_at: number | null
+  revoked_at: number | null
+}
+
+/** Every token of one account, revoked ones last, then most recently used first. */
+export async function loadCliTokens(db: D1Database, userId: number): Promise<CliTokenListRow[]> {
+  const res = await db.prepare(
+    `SELECT id, kind, device_label, cli_version, scopes, created_at, last_used_at, expires_at, revoked_at
+     FROM cli_tokens
+     WHERE user_id = ?1
+     ORDER BY revoked_at IS NOT NULL ASC, last_used_at DESC`,
+  ).bind(userId).all<CliTokenListRow>()
+  return res.results ?? []
+}
+
+/** The kind of one token of one account, or null when the account holds no such token. */
+export async function loadCliTokenKind(db: D1Database, userId: number, tokenId: number): Promise<CliTokenKind | null> {
+  const row = await db.prepare(`SELECT kind FROM cli_tokens WHERE id = ?1 AND user_id = ?2`)
+    .bind(tokenId, userId)
+    .first<{ kind: CliTokenKind }>()
+  return row?.kind ?? null
+}
+
+/**
+ * Revoke one token of one account.
+ *
+ * Answers whether the account owns the token, so a caller can tell another
+ * account's token from its own. A token revoked earlier keeps its first
+ * revocation time, so sending this twice changes nothing.
+ */
+export async function revokeCliToken(db: D1Database, userId: number, tokenId: number): Promise<'revoked' | 'not_found'> {
+  const row = await db.prepare(
+    `UPDATE cli_tokens SET revoked_at = COALESCE(revoked_at, ?1)
+     WHERE id = ?2 AND user_id = ?3
+     RETURNING id`,
+  ).bind(nowSec(), tokenId, userId).first<{ id: number }>()
+  return row ? 'revoked' : 'not_found'
 }
 
 export async function verifyAccessToken(event: H3Event, jwt: string): Promise<{ tokenId: number, userId: number, scopes: string } | null> {

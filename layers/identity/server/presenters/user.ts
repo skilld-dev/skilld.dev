@@ -1,16 +1,6 @@
+import type { StarredRow } from '../utils/starred-repos'
 import type { UserRow } from '../utils/users'
 import { weeklyDeliveryActive } from '../utils/weekly-select'
-
-interface StarredRow {
-  owner: string
-  repo: string
-  starred_at: number
-  has_skill: number
-  watching: number
-  skill_name: string | null
-  skill_display: string | null
-  skill_slug: string | null
-}
 
 export interface StarredRepoEntry {
   owner: string

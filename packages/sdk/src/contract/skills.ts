@@ -1,10 +1,12 @@
 import { z } from 'zod'
-import { defineOperation, defineRegistry, defineResponseObject } from './core'
+import { defineListResponse, defineOperation, defineRegistry, defineResponseObject, pageQueryShape } from './core'
 import {
   countSchema,
   exampleSkillSummary,
   isoDateTimeSchema,
+  ownerSchema,
   skillParams,
+  skillSummarySchema,
   skillSummaryShape,
   urlSchema,
 } from './schemas'
@@ -75,6 +77,18 @@ export const skillDetailSchema = defineResponseObject({
   generatedSummary: z.string().nullable(),
   /** The SKILL.md text the registry last read, frontmatter included. */
   markdown: z.string().nullable(),
+})
+
+/**
+ * The skilld.dev/skills listing. Stars order it by default. Likes order it
+ * only when the caller asks (ADR-0003), and install counts never do.
+ */
+export const skillBrowseQuery = z.object({
+  q: z.string().trim().min(1).max(200).optional(),
+  owner: ownerSchema.optional(),
+  tag: z.string().trim().toLowerCase().min(1).max(64).regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'must be a tag slug').optional(),
+  sort: z.enum(['stars', 'likes', 'updated']).default('stars'),
+  ...pageQueryShape({ defaultLimit: 20, maxLimit: 100 }),
 })
 
 export const skillsV1 = defineRegistry({
@@ -149,6 +163,27 @@ export const skillsV1 = defineRegistry({
             generatedSummary: 'Checks interface code against a published list of web design rules.',
             markdown: '---\nname: web-design-guidelines\ndescription: Review UI code for compliance with web interface guidelines.\n---\n\n# Web Design Guidelines\n',
           },
+        }],
+      },
+    }),
+    browse: defineOperation({
+      id: 'skills.browse',
+      method: 'GET',
+      path: '/api/v1/browse',
+      access: 'public',
+      semantics: { kind: 'query' },
+      cache: { _tag: 'public', maxAgeSeconds: 60, staleWhileRevalidateSeconds: 300 },
+      request: { params: null, query: skillBrowseQuery, body: null },
+      response: { status: 200, body: defineListResponse(skillSummarySchema) },
+      errors: ['INVALID_REQUEST'],
+      lifecycle: { introduced: '1.0.0' },
+      docs: {
+        summary: 'Browse Skills',
+        description: 'The listing behind skilld.dev/skills, filtered by `owner` and `tag`. `sort` orders it by stars, likes, or the last SKILL.md change. With `q`, Skills rank by relevance to the query and `sort` does not apply. Use `tracks.get` for the Skills of one track.',
+        tag: 'Skills',
+        examples: [{
+          request: { query: { owner: 'vercel-labs', sort: 'stars', limit: 1 } },
+          response: { items: [exampleSkillSummary], total: 6 },
         }],
       },
     }),

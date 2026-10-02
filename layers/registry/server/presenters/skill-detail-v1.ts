@@ -1,4 +1,5 @@
 import type { OperationResult, skillsV1 } from 'skilld-sdk/contract'
+import { epochSecondsToIso, presentCount } from '#shared/server/skill-cards'
 import { skillInstallCmd, skillRunCmd } from '#shared/skill-commands'
 
 /** The fields of the `/api/skills/<owner>/<repo>/<name>` answer that the v1 detail reads. */
@@ -32,10 +33,6 @@ export interface LegacySkillDetail {
 
 const SITE_ORIGIN = 'https://skilld.dev'
 
-function epochSecondsToIso(seconds: number | null): string | null {
-  return seconds ? new Date(seconds * 1000).toISOString() : null
-}
-
 export function presentSkillDetail(detail: LegacySkillDetail): OperationResult<typeof skillsV1.operations.get> {
   return {
     owner: detail.owner,
@@ -43,8 +40,8 @@ export function presentSkillDetail(detail: LegacySkillDetail): OperationResult<t
     name: detail.name,
     displayName: detail.displayName,
     description: detail.description,
-    stars: Math.max(0, Math.trunc(detail.stars)),
-    likes: Math.max(0, Math.trunc(detail.likeCount)),
+    stars: presentCount(detail.stars),
+    likes: presentCount(detail.likeCount),
     updatedAt: epochSecondsToIso(detail.provenance.modifiedAt),
     pageUrl: `${SITE_ORIGIN}${detail.registryPath}`,
     sourceUrl: detail.provenance.skillFileUrl,
