@@ -72,7 +72,7 @@ export const setupSnippets = {
   genericJson: JSON.stringify({ mcpServers: { [SERVER_NAME]: { type: 'http', url: REGISTRY_MCP_URL } } }, null, 2),
 } as const
 
-/** The skilld API. Its OpenAPI document is generated from the contract in `packages/sdk`. */
+/** The skilld API. Its OpenAPI document comes from the pinned `skilld-sdk` npm package. */
 const API_ORIGIN = 'https://skilld.dev'
 export const API_OPENAPI_PATH = '/api/v1/openapi.json'
 
