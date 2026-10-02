@@ -60,7 +60,7 @@ export async function forwardSandboxRequest(
     return fetchClient('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': options.apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ ...input, model: options.model, max_tokens: 4096, service_tier: 'standard', thinking }),
+      body: JSON.stringify({ ...input, model: options.model, max_tokens: 4096, service_tier: 'standard_only', speed: 'standard', thinking }),
       redirect: 'manual',
     })
   }

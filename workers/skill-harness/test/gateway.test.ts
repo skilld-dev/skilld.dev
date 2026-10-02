@@ -25,13 +25,13 @@ describe('sandbox credential gateway', () => {
     const response = await forwardSandboxRequest(new Request('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': 'container-key', 'anthropic-beta': 'untrusted-beta' },
-      body: JSON.stringify({ model: 'expensive-model', max_tokens: 32000, service_tier: 'priority', messages: [], thinking: { type: 'enabled', budget_tokens: 16000 } }),
+      body: JSON.stringify({ model: 'expensive-model', max_tokens: 32000, service_tier: 'priority', speed: 'fast', messages: [], thinking: { type: 'enabled', budget_tokens: 16000 } }),
     }), options)
     expect(response.status).toBe(200)
     const [, forwarded] = options.fetch.mock.calls[0]!
     expect(new Headers(forwarded?.headers).get('x-api-key')).toBe('worker-only-secret')
     expect(new Headers(forwarded?.headers).get('anthropic-beta')).toBeNull()
-    expect(JSON.parse(String(forwarded?.body))).toMatchObject({ model: 'claude-sonnet-4-6', max_tokens: 4096, service_tier: 'standard', thinking: { type: 'enabled', budget_tokens: 2048 } })
+    expect(JSON.parse(String(forwarded?.body))).toMatchObject({ model: 'claude-sonnet-4-6', max_tokens: 4096, service_tier: 'standard_only', speed: 'standard', thinking: { type: 'enabled', budget_tokens: 2048 } })
   })
 
   it.each([{ tools: [{ type: 'web_search_20250305' }] }, { mcp_servers: [{ url: 'https://external.example' }] }])('blocks Anthropic hosted execution %j', async (body) => {

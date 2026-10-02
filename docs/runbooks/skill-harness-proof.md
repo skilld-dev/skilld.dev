@@ -35,7 +35,7 @@ node scripts/skill-harness-proof.mjs \
 
 Generation and a separate review use the same published authoring Skills as local runs.
 An error finding stops the successful result.
-Existing deterministic checks inspect paths, file limits, frontmatter, and reference links.
+Existing deterministic checks inspect paths, file limits, and frontmatter.
 They do not prove every example works. Inspect source attempts and review findings before using the bundle.
 
 The container image includes the pinned Agent bootstrap. Each session receives its own copy.
