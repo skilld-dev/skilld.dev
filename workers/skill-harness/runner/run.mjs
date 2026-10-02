@@ -31,10 +31,10 @@ async function execute() {
   }
   const harness = createSkillHarness({
     harness: createOpenCode({
-      provider: 'google',
+      provider: process.env.PROVIDER,
       openCodeConfig: {
-        model: `google/${process.env.MODEL}`,
-        enabled_providers: ['google'],
+        model: `${process.env.PROVIDER}/${process.env.MODEL}`,
+        enabled_providers: [process.env.PROVIDER],
         autoupdate: false,
         share: 'disabled',
       },

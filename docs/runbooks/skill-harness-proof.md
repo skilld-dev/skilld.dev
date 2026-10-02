@@ -15,7 +15,8 @@ That target deploys only the separate `skilld-harness-proof` Worker and its cont
 gh workflow run deploy-cloudflare.yml --ref BRANCH --field target=harness-proof
 ```
 
-Configure `GOOGLE_GENERATIVE_AI_API_KEY` and `PROOF_TOKEN` as Worker secrets.
+Configure `ANTHROPIC_API_KEY` and `PROOF_TOKEN` as Worker secrets.
+For Google, set `PROVIDER=google`, a supported model, and `GOOGLE_GENERATIVE_AI_API_KEY`.
 Use a temporary proof token. Do not put either secret in a repository file or container environment.
 The container receives a placeholder. Its outbound gateway adds the model credential inside the Worker.
 
@@ -47,7 +48,7 @@ The proof allows one active job, 64 model calls, and 4,096 output tokens per cal
 It limits each request to 512 KiB and each result to 1 MiB.
 These bounds constrain usage. They do not constitute a measured dollar budget.
 
-The outbound gateway allows HTTPS npm retrieval, GitHub source archives, and the configured Gemini model.
+The outbound gateway allows HTTPS npm retrieval, GitHub source archives, and the configured model provider.
 It blocks other destinations, hosted model tools, credential overrides, and model conversation reuse.
 External documentation requests are blocked. Source files must carry the evidence for this proof.
 

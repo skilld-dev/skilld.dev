@@ -4,6 +4,13 @@ import { DurableObject, WorkerEntrypoint } from 'cloudflare:workers'
 import { JOB_TIMEOUT_MS, MAX_MODEL_CALLS, MAX_REQUEST_BYTES, MAX_RESULT_BYTES, parseJson, parseProofInput, parseProofResult, readBoundedBody } from './contracts'
 import { forwardSandboxRequest } from './gateway'
 
+function credentials(env: { PROVIDER: string, ANTHROPIC_API_KEY?: string, GOOGLE_GENERATIVE_AI_API_KEY?: string }): { provider: 'google' | 'anthropic', apiKey: string } | undefined {
+  if (env.PROVIDER === 'anthropic' && env.ANTHROPIC_API_KEY)
+    return { provider: 'anthropic', apiKey: env.ANTHROPIC_API_KEY }
+  if (env.PROVIDER === 'google' && env.GOOGLE_GENERATIVE_AI_API_KEY)
+    return { provider: 'google', apiKey: env.GOOGLE_GENERATIVE_AI_API_KEY }
+}
+
 export class Outbound extends WorkerEntrypoint<HarnessEnv, { jobId: string }> {
   fetch(request: Request): Promise<Response> {
     return this.env.SANDBOX.getByName(this.ctx.props.jobId).broker(request)
@@ -54,6 +61,8 @@ export class SkillSandbox extends DurableObject<HarnessEnv> {
           stderr: 'ignore',
           env: {
             MODEL: this.env.MODEL,
+            PROVIDER: this.env.PROVIDER,
+            ANTHROPIC_API_KEY: 'sandbox-placeholder',
             GOOGLE_GENERATIVE_AI_API_KEY: 'sandbox-placeholder',
             NODE_EXTRA_CA_CERTS: '/etc/cloudflare/certs/cloudflare-containers-ca.crt',
             SSL_CERT_FILE: '/etc/cloudflare/certs/cloudflare-containers-ca.crt',
@@ -87,9 +96,12 @@ export class SkillSandbox extends DurableObject<HarnessEnv> {
   }
 
   async broker(request: Request): Promise<Response> {
+    const credential = credentials(this.env)
+    if (!credential)
+      return Response.json({ code: 'PROOF_UNCONFIGURED' }, { status: 503 })
     return forwardSandboxRequest(request, {
+      ...credential,
       model: this.env.MODEL,
-      apiKey: this.env.GOOGLE_GENERATIVE_AI_API_KEY,
       fetch,
       consumeModelCall: () => this.ctx.blockConcurrencyWhile(async () => {
         const state = await this.status()
@@ -164,7 +176,7 @@ export class SkillSandbox extends DurableObject<HarnessEnv> {
 
 export default {
   async fetch(request: Request, env: HarnessEnv): Promise<Response> {
-    if (!env.PROOF_TOKEN || !env.GOOGLE_GENERATIVE_AI_API_KEY)
+    if (!env.PROOF_TOKEN || !credentials(env))
       return Response.json({ code: 'PROOF_UNCONFIGURED' }, { status: 503 })
     const supplied = new TextEncoder().encode(request.headers.get('authorization') ?? '')
     const expected = new TextEncoder().encode(`Bearer ${env.PROOF_TOKEN}`)
