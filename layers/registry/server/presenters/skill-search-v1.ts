@@ -1,4 +1,4 @@
-import { isSkillName } from '../schemas/skill-search-v1'
+import { isSpecSkillName } from 'skilld-sdk/contract'
 
 interface SearchSkill {
   name: string
@@ -33,7 +33,7 @@ function truncateUtf8Bytes(value: string, maxBytes: number): string {
 export function presentSkillSearch(result: SearchResult) {
   return {
     items: result.items
-      .filter(skill => isSkillName(skill.name))
+      .filter(skill => isSpecSkillName(skill.name))
       .map(skill => ({
         name: skill.name,
         description: skill.description

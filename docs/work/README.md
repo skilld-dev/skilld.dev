@@ -14,6 +14,7 @@ progress to the `## Log`. Never open a separate progress file.
 - [EXECUTE-homepage-rebuild.md](EXECUTE-homepage-rebuild.md): the cluster grid, and the classifier that has to become a job.
 - [EXECUTE-cost-followup.md](EXECUTE-cost-followup.md): the week-later check on the 2026-09-29 cost and D1 overload fixes.
 - [EXECUTE-seo-recovery.md](EXECUTE-seo-recovery.md): the sitewide quality verdict, five experiments, and the 2026-11-11 gate.
+- [EXECUTE-public-api.md](EXECUTE-public-api.md): the public API v1 contract, the `skilld-sdk` package, and CLI parity.
 
 The roadmap below sequences them.
 

@@ -59,6 +59,20 @@ describe('findEyebrows', () => {
   </div>`))).toEqual([])
   })
 
+  it('forgets a label once its parent closes, before a heading at the same depth elsewhere', () => {
+    expect(findEyebrows(sfc(`  <nav>
+    <span>
+      <span>CLI</span>
+      <span class="data-label">Recommended</span>
+    </span>
+  </nav>
+  <section>
+    <div>
+      <h3>Install the skilld Skill</h3>
+    </div>
+  </section>`))).toEqual([])
+  })
+
   it('ignores markup that only appears inside script and style blocks', () => {
     expect(findEyebrows(`<script setup lang="ts">
 const markup = '<p class="section-label">Label</p><h2>Heading</h2>'

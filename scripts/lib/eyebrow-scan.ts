@@ -92,6 +92,9 @@ export function findEyebrows(source: string): EyebrowFinding[] {
 
     if (closing) {
       depth--
+      // The label's parent closed with no sibling after it, so nothing follows it.
+      if (pending && depth < pending.depth)
+        pending = null
       continue
     }
 

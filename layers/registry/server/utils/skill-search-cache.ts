@@ -33,13 +33,21 @@ const SEARCH_CACHE_STALE_TTL = 60 * 5
  * is a dropped cache entry, neither reaches the request, and both report as
  * wide events.
  */
-export async function cachedSkillsSearch<T>(event: H3Event, compute: () => Promise<T>): Promise<T> {
+export async function cachedSkillsSearch<T>(
+  event: H3Event,
+  compute: () => Promise<T>,
+  /**
+   * The key hashes the query string only, not the path. Two routes that answer
+   * one query string in different shapes need their own namespace.
+   */
+  namespace = 'skills-list:v2',
+): Promise<T> {
   // Without a deployment identity, shared storage cannot separate releases.
   if (deploymentId(event) === null)
     return compute()
   return cached({
     storage: useStorage('edge-cache'),
-    key: `skills-list:v2:${await skillSearchCacheKey(event)}`,
+    key: `${namespace}:${await skillSearchCacheKey(event)}`,
     ttlSeconds: SEARCH_CACHE_TTL,
     staleSeconds: SEARCH_CACHE_STALE_TTL,
     compute,

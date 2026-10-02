@@ -1,6 +1,7 @@
 import { defineApiHandler } from '#shared/server/handler'
 import { identityMutationResponseSchema, identityPrivacyPatchBodySchema } from '../../../shared/contracts/account'
 import { authenticated } from '../../policies/authenticated'
+import { updateAccountSettings } from '../../utils/account-settings'
 import { requireUserRow } from '../../utils/users'
 
 /**
@@ -15,20 +16,10 @@ export default defineApiHandler({
   response: identityMutationResponseSchema,
   handler: async ({ event, body, platform }) => {
     const u = await requireUserRow(event)
-    const updates: string[] = []
-    const values: (number | string)[] = []
-    if (body.likes_public !== undefined) {
-      updates.push(`likes_public = ?${updates.length + 1}`)
-      values.push(body.likes_public ? 1 : 0)
-    }
-    if (body.repo_indexing !== undefined) {
-      updates.push(`repo_indexing = ?${updates.length + 1}`)
-      values.push(body.repo_indexing ? 1 : 0)
-    }
-
-    await platform.db.prepare(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = ?${updates.length + 1}`,
-    ).bind(...values, u.id).run()
+    await updateAccountSettings(platform.db, u.id, {
+      likes_public: body.likes_public === undefined ? undefined : body.likes_public ? 1 : 0,
+      repo_indexing: body.repo_indexing === undefined ? undefined : body.repo_indexing ? 1 : 0,
+    })
     return { ok: true as const }
   },
 })

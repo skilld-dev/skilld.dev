@@ -1,6 +1,9 @@
+import { skillsV1 } from 'skilld-sdk/contract'
 import { describe, expect, it } from 'vitest'
 import { presentSkillSearch } from '../../layers/registry/server/presenters/skill-search-v1'
-import { SkillSearchQuery, SkillSearchResponse } from '../../layers/registry/server/schemas/skill-search-v1'
+
+const SkillSearchQuery = skillsV1.operations.search.request.query
+const SkillSearchResponse = skillsV1.operations.search.response.body.producer
 
 describe('v1 Skill search contract', () => {
   it('presents a stable Repository selector for the CLI', () => {
