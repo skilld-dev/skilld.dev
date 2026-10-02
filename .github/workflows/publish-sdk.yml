@@ -2,9 +2,9 @@ name: Publish skilld-sdk
 
 # Push a `sdk-v<version>` tag on main to publish packages/sdk to npm.
 #
-# The first publish is manual: npm sets up a trusted publisher only for a
-# package that already exists. After it, add this repository and this workflow
-# file as the trusted publisher of `skilld-sdk` on npmjs.com.
+# npm trusts this workflow file in the `npm-production` environment as the
+# publisher of `skilld-sdk` (`npm trust list skilld-sdk`). No npm token exists.
+# The repository is private, so npm records no provenance for these releases.
 
 on:
   push:
@@ -71,7 +71,8 @@ jobs:
 
   publish:
     needs: verify
-    runs-on: [self-hosted, linux, x64, harlan-desktop-deploy]
+    # npm trusted publishing accepts OIDC tokens from GitHub-hosted runners only.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: npm-production
     permissions:
@@ -89,6 +90,8 @@ jobs:
         with:
           name: skilld-sdk-${{ github.ref_name }}
           path: release-artifacts
+      - name: Require npm 11.5.1 or newer, the first with trusted publishing
+        run: node -e "const [a, b, c] = process.argv[1].split('.').map(Number); process.exit(a > 11 || (a === 11 && (b > 5 || (b === 5 && c >= 1))) ? 0 : 1)" "$(npm --version)"
       - name: Publish
         run: |
           version="${GITHUB_REF_NAME#sdk-v}"
