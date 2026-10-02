@@ -22,12 +22,12 @@ const manifest = {
   url: 'https://skilld.dev',
   hook_attributes: { url: new URL('/github/webhook', origin).href, active: true },
   redirect_url: callback,
-  public: false,
+  public: true,
   default_permissions: { contents: 'write', pull_requests: 'write', metadata: 'read' },
   default_events: ['create'],
 }
 
-const appSchema = z.object({ id: z.number().int().positive(), owner: z.object({ login: z.literal('harlan-zw') }), pem: z.string().min(1), webhook_secret: z.string().min(1), html_url: z.string().url() })
+const appSchema = z.object({ id: z.number().int().positive(), owner: z.object({ login: z.literal('skilld-dev') }), pem: z.string().min(1), webhook_secret: z.string().min(1), html_url: z.string().url() })
 function html(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 }
@@ -44,7 +44,7 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
   }
   if (url.pathname === `/setup/${state}`) {
     response.setHeader('Set-Cookie', `skilld_app_setup=${state}; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600`)
-    response.end(`<h1>Register skilld</h1><p>This private pilot reads package source and proposes draft Skill pull requests.</p><p>It requests Contents write and Pull requests write. Select one repository during installation.</p><form method="post" action="https://github.com/settings/apps/new?state=${state}"><input type="hidden" name="manifest" value="${html(JSON.stringify(manifest))}"><button>Register GitHub App</button></form>`)
+    response.end(`<h1>Register skilld under skilld-dev</h1><p>This App reads package source and proposes draft Skill pull requests.</p><p>Other accounts can install it. The pilot processes only its configured repositories.</p><p>It requests Contents write and Pull requests write. Select one repository during installation.</p><form method="post" action="https://github.com/organizations/skilld-dev/settings/apps/new?state=${state}"><input type="hidden" name="manifest" value="${html(JSON.stringify(manifest))}"><button>Register GitHub App</button></form>`)
     return
   }
   const supplied = Buffer.from(url.searchParams.get('state') ?? '')
