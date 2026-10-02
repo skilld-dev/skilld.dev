@@ -60,7 +60,7 @@ describe('weekly social posts', () => {
     expect(result.x.text).toContain(detail.sourceUrl)
     expect(result.x.text).toContain(row.evidence.url)
     expect(result.discord.embeds[0]?.description).toContain(detail.runCommand)
-    expect(result.discord.embeds[0]?.description).toContain('3 devs mentioned it.')
+    expect(result.discord.embeds[0]?.description).toContain('[3 devs]')
     expect(result.discord.embeds[0]?.description).toContain(row.evidence.url)
     expect(result.discord.allowed_mentions).toEqual({ parse: [] })
   })
@@ -71,7 +71,32 @@ describe('weekly social posts', () => {
     if (result._tag !== 'ready')
       return
     expect(result.x.text.replace(/https:\/\/\S+/g, 'x'.repeat(23)).length).toBeLessThanOrEqual(280)
-    expect(result.discord.embeds).toHaveLength(5)
+    expect(result.discord.embeds[0]?.description).toContain('5 · ')
+  })
+
+  it('shows five ranked Skills in one compact branded digest', () => {
+    const result = buildWeeklySocial(Array.from({ length: 5 }, (_, index) => ({ ...skill, name: `design-${index}` })), now)
+    if (result._tag !== 'ready')
+      throw new Error('Expected a weekly post')
+    expect(result.discord.embeds).toHaveLength(1)
+    const embed = result.discord.embeds[0]!
+    expect(embed.title).toBe('Trending skills this week')
+    expect(embed.description.split('\n')).toHaveLength(14)
+    expect(embed.description).toContain(`**5 · [author/design-4](https://skilld.dev${row.registryPath})**`)
+    expect(embed.description).toContain(`[Source](${detail.sourceUrl})`)
+    expect(embed.footer.text).toBe('7-day social mentions · 2 Oct 2026')
+    expect(result.discord.avatar_url).toBe('https://skilld.dev/logo-icon.png')
+  })
+
+  it('keeps complete ranked rows within Discord’s description limit', () => {
+    const result = buildWeeklySocial(Array.from({ length: 5 }, (_, index) => ({ ...skill, name: `design-${index}`, sourceUrl: `https://github.com/author/skills/blob/main/${'a'.repeat(900)}/SKILL.md` })), now)
+    if (result._tag !== 'ready')
+      throw new Error('Expected a weekly post')
+    const description = result.discord.embeds[0]!.description
+    expect(description.length).toBeLessThanOrEqual(4096)
+    expect(description).toContain('author/design-0')
+    expect(description).not.toContain('author/design-4')
+    expect(description.endsWith(`\`${detail.runCommand}\``)).toBe(true)
   })
 })
 

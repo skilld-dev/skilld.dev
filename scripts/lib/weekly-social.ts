@@ -104,24 +104,36 @@ export function buildWeeklySocial(skills: SocialSkill[], now: Date) {
     if (selected.length === 0)
       throw new Error('Skill identity exceeds the X post limit')
   }
+  const discordRows: string[] = []
+  for (const [index, skill] of skills.slice(0, 5).entries()) {
+    const row = [
+      `**${index + 1} · [${skill.owner}/${skill.name}](https://skilld.dev${skill.registryPath})** · [${skill.authorCount} ${skill.authorCount === 1 ? 'dev' : 'devs'}](${skill.evidence.url})`,
+      `[Source](${skill.sourceUrl}) · \`${skill.runCommand}\``,
+    ].join('\n')
+    if ([...discordRows, row].join('\n\n').length > 4096) {
+      if (discordRows.length === 0)
+        throw new Error('Skill provenance exceeds the Discord message limit')
+      break
+    }
+    discordRows.push(row)
+  }
+  const date = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(now)
   return {
     _tag: 'ready' as const,
     week,
     x: { text: renderX() },
     discord: {
       username: 'skilld',
-      content: 'Trending skills this week: https://skilld.dev/skills/trending',
+      avatar_url: 'https://skilld.dev/logo-icon.png',
+      content: '',
       allowed_mentions: { parse: [] as string[] },
-      embeds: skills.slice(0, 5).map((skill, index) => ({
-        title: `${index + 1}. ${skill.owner}/${skill.name}`,
-        url: `https://skilld.dev${skill.registryPath}`,
-        description: [
-          `${skill.authorCount} ${skill.authorCount === 1 ? 'dev mentioned' : 'devs mentioned'} it.`,
-          `[See the mention](${skill.evidence.url})`,
-          `[Read the source](${skill.sourceUrl})`,
-          `\`${skill.runCommand}\``,
-        ].join('\n\n'),
-      })),
+      embeds: [{
+        title: 'Trending skills this week',
+        url: 'https://skilld.dev/skills/trending',
+        color: 0xE11D48,
+        description: discordRows.join('\n\n'),
+        footer: { text: `7-day social mentions · ${date}` },
+      }],
     },
   }
 }

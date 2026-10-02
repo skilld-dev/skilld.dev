@@ -18,6 +18,7 @@ Manual workflow runs preview by default. Preview requests only the public skilld
 The workflow keeps feed order and includes only Skills with linked social mentions.
 It excludes fallback rows and links each Skill's source and mention evidence.
 Empty weeks send nothing. X includes up to three Skills. Discord includes up to five.
+Discord groups complete rows into one card and uses the skilld logo and rose accent.
 
 ## Configure X
 
@@ -44,7 +45,7 @@ X charges for API writes. Check [current pricing](https://docs.x.com/x-api/getti
 ## Configure Discord
 
 Open [Harlan's Open Source](https://discord.com/invite/5jDAMswWwX) with the server owner account.
-Create the text channel `skilld.dev` and an incoming webhook named `skilld`.
+Create the text channel `skilld-dev` and an incoming webhook named `skilld`.
 Save its URL as the GitHub Actions secret `SKILLD_WEEKLY_DISCORD_WEBHOOK`.
 Set the Actions variable `SKILLD_WEEKLY_DISCORD_CHANNEL_ID` to that channel's ID.
 Enable Discord Developer Mode to copy the channel ID.
