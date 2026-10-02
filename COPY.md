@@ -38,6 +38,12 @@ These exact strings. Do not paraphrase them per page.
 | Developers staying current | Watch the repos you depend on, get a weekly digest when their skills change |
 | Teams standardizing | Hand-picked collections install a stack in one command |
 
+## Discord digest
+
+The weekly card uses `Trending skills this week` as its title and links to the trending page.
+Each row links the Skill, the dev count, and `Source`. Keep the run command beside the source link.
+Use `7-day social mentions · {date}` as the footer. Format the UTC date as `2 Oct 2026`.
+
 ## Register by context
 
 | Context | Register | Example |
