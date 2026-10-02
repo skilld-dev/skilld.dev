@@ -46,7 +46,7 @@ Durable Object alarms check progress and enforce the fifteen minute deadline.
 
 The proof allows one active job, 64 model calls, and 4,096 output tokens per call.
 It limits each request to 512 KiB and each result to 1 MiB.
-The published harness does not expose token usage. Reports mark that data as `Unavailable`.
+The published `skilld-harness` package does not expose token usage. Reports mark that data as `Unavailable`.
 These bounds constrain usage. They do not constitute a measured dollar budget.
 
 The outbound gateway allows HTTPS npm retrieval, GitHub source archives, and the configured model provider.
