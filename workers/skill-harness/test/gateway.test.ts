@@ -19,6 +19,17 @@ function modelRequest(body: unknown, model = 'gemini-2.5-flash') {
 }
 
 describe('sandbox credential gateway', () => {
+  it('calls the platform fetch without attaching the options object', async () => {
+    const options = fixture()
+    options.fetch.mockImplementation(async function (this: unknown) {
+      if (this !== undefined)
+        throw new TypeError('Illegal invocation')
+      return new Response('package source')
+    })
+    const response = await forwardSandboxRequest(new Request('https://registry.npmjs.org/package'), options)
+    expect(await response.text()).toBe('package source')
+  })
+
   it('keeps real credentials in the Worker and bounds model output', async () => {
     const options = fixture()
     const result = await forwardSandboxRequest(modelRequest({ contents: [], generationConfig: { maxOutputTokens: 100000, temperature: 0.5 } }), options)

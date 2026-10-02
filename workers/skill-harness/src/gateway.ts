@@ -5,6 +5,7 @@ export async function forwardSandboxRequest(
   request: Request,
   options: { model: string, apiKey: string, consumeModelCall: () => Promise<boolean>, fetch: typeof fetch },
 ): Promise<Response> {
+  const fetchClient = options.fetch
   const url = new URL(request.url)
   if (url.protocol !== 'https:' || (url.port !== '' && url.port !== '443'))
     return Response.json({ code: 'DESTINATION_DENIED' }, { status: 403 })
@@ -29,7 +30,7 @@ export async function forwardSandboxRequest(
     if (!await options.consumeModelCall())
       return Response.json({ code: 'MODEL_CALL_LIMIT' }, { status: 429 })
     // Fresh headers keep sandbox credentials, cookies, and project overrides out.
-    return options.fetch(`https://generativelanguage.googleapis.com${modelPath}?alt=sse`, {
+    return fetchClient(`https://generativelanguage.googleapis.com${modelPath}?alt=sse`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': options.apiKey },
       body: JSON.stringify({ ...input, generationConfig: { ...input.generationConfig as object, maxOutputTokens: 4096 } }),
@@ -39,7 +40,7 @@ export async function forwardSandboxRequest(
 
   const sourceHost = url.hostname === 'registry.npmjs.org' || url.hostname === 'codeload.github.com'
   if (sourceHost && request.method === 'GET') {
-    return options.fetch(url, {
+    return fetchClient(url, {
       headers: { 'user-agent': 'skilld-harness-proof' },
       redirect: 'manual',
     })
