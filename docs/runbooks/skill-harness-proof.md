@@ -34,7 +34,9 @@ node scripts/skill-harness-proof.mjs \
 ```
 
 Generation and a separate review use the same published authoring Skills as local runs.
-An error finding stops the successful result.
+Review receives the original Skill name and the prepared package source.
+One repair attempt can address error findings. A fresh review checks the repaired output.
+Remaining error findings stop the successful result. Rejected candidates remain available for inspection.
 Existing deterministic checks inspect paths, file limits, and frontmatter.
 They do not prove every example works. Inspect source attempts and review findings before using the bundle.
 

@@ -31,7 +31,7 @@ const reportSchema = z.object({
   warnings: z.array(z.string().max(2000)).max(512),
 })
 
-const resultSchema = z.discriminatedUnion('_tag', [
+const resultSchema = z.union([
   z.object({
     _tag: z.literal('Ok'),
     files: filesSchema,
@@ -47,11 +47,32 @@ const resultSchema = z.discriminatedUnion('_tag', [
       })).max(128),
     }),
     sourceAttempts: z.array(z.object({ source: z.string(), status: z.enum(['used', 'skipped']), reason: z.string().optional() })).max(128),
+    repairAttempts: z.number().int().min(0).max(1),
     elapsedMs: z.number().nonnegative(),
   }),
   z.object({
     _tag: z.literal('Err'),
-    code: z.enum(['GENERATION_FAILED', 'REVIEW_FAILED', 'REVIEW_REJECTED', 'RUNNER_FAILED', 'DEADLINE_EXCEEDED', 'CONTAINER_LOST', 'INVALID_OUTPUT']),
+    code: z.literal('REVIEW_REJECTED'),
+    detail: z.string().max(8000),
+    candidateFiles: filesSchema,
+    generation: reportSchema,
+    reviewReport: reportSchema,
+    review: z.object({
+      summary: z.string().max(4000),
+      findings: z.array(z.object({
+        level: z.enum(['error', 'warning', 'note']),
+        path: z.string().max(200),
+        message: z.string().max(4000),
+        fix: z.string().max(4000),
+      })).max(128),
+    }),
+    sourceAttempts: z.array(z.object({ source: z.string(), status: z.enum(['used', 'skipped']), reason: z.string().optional() })).max(128),
+    repairAttempts: z.literal(1),
+    elapsedMs: z.number().nonnegative(),
+  }),
+  z.object({
+    _tag: z.literal('Err'),
+    code: z.enum(['GENERATION_FAILED', 'REVIEW_FAILED', 'RUNNER_FAILED', 'DEADLINE_EXCEEDED', 'CONTAINER_LOST', 'INVALID_OUTPUT']),
     detail: z.string().max(8000),
     generation: reportSchema.optional(),
     reviewReport: reportSchema.optional(),
