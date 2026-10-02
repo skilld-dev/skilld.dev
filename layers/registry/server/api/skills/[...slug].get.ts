@@ -339,7 +339,8 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     raw: rendered.raw,
   })
   const sourceGone = !sourceResolved && row.source_resolved === 0
-  const sourceCommitSha = row.latest_revision_sha ?? row.current_sha ?? null
+  // `current_sha` is the blob sha of SKILL.md, not a commit, so it cannot pin a link.
+  const sourceCommitSha = row.latest_revision_sha ?? null
   const pushedAtIso = epochToIso(row.pushed_at)
   const createdAtIso = epochToIso(row.repo_created_at)
   const repoSkillCount = row.repo_skill_count ?? 0
@@ -436,7 +437,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
         owner: source.owner,
         repo: source.repo,
         skillPath: rendered.skillPath,
-        ref: sourceCommitSha ?? branch,
+        branch,
       }),
       historyUrl: rendered.skillPath
         ? `${githubUrl}/commits/${branch}/${rendered.skillPath}`
