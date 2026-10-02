@@ -17,7 +17,10 @@ pnpm exec tsx scripts/skill-github-app-register.ts \
 ```
 
 Open the printed local URL in your personal GitHub browser.
-The helper creates a private App owned by `harlan-zw`.
+The helper creates a public App owned by `skilld-dev`.
+Use a GitHub account allowed to register Apps for that organization.
+Other accounts can install the App on selected repositories.
+The Worker still processes only its configured pilot repositories.
 It saves the converted App secrets with mode `600`.
 It converts the signing key to PKCS8 before saving it.
 It rejects a callback with invalid state or a missing registration cookie.
