@@ -39,11 +39,11 @@ They do not prove every example works. Inspect source attempts and review findin
 
 The container image includes the pinned Agent bootstrap. Each session receives its own copy.
 Every job gets a fresh container. The Worker destroys it after saving the result.
-Durable Object alarms check progress and enforce the ten minute deadline.
+Durable Object alarms check progress and enforce the fifteen minute deadline.
 
 ## Limits and failures
 
-The proof allows one active job, 24 model calls, and 4,096 output tokens per call.
+The proof allows one active job, 64 model calls, and 4,096 output tokens per call.
 It limits each request to 512 KiB and each result to 1 MiB.
 These bounds constrain usage. They do not constitute a measured dollar budget.
 

@@ -65,7 +65,7 @@ describe('sandbox credential gateway', () => {
   it('stops model calls after the job allowance', async () => {
     const options = { ...fixture(), consumeModelCall: async () => false }
     const result = await forwardSandboxRequest(modelRequest({ contents: [] }), options)
-    expect(result.status).toBe(429)
+    expect(result.status).toBe(403)
     expect(options.fetch).not.toHaveBeenCalled()
   })
 

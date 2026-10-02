@@ -6,7 +6,7 @@ import { createSkillHarness } from 'skilld-harness'
 import { createLocalSandbox } from 'skilld-harness/sandbox-local'
 
 const startedAt = Date.now()
-const signal = AbortSignal.timeout(9 * 60 * 1000)
+const signal = AbortSignal.timeout(14 * 60 * 1000)
 
 async function execute() {
   const input = JSON.parse(await readFile('/job/input.json', 'utf8'))

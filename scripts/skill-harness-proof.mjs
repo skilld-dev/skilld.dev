@@ -21,7 +21,7 @@ async function main() {
     throw new Error(`Proof start returned ${started.status}: ${await started.text()}`)
   const { id } = await started.json()
   console.log(`Proof ${id} started.`)
-  const deadline = Date.now() + 12 * 60 * 1000
+  const deadline = Date.now() + 17 * 60 * 1000
   while (Date.now() < deadline) {
     const response = await fetch(new URL(`/proofs/${id}`, endpoint), { headers })
     if (!response.ok)

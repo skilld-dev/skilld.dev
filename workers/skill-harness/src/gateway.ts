@@ -28,7 +28,7 @@ export async function forwardSandboxRequest(
       return Response.json({ code: 'MODEL_TOOLS_DENIED' }, { status: 403 })
     }
     if (!await options.consumeModelCall())
-      return Response.json({ code: 'MODEL_CALL_LIMIT' }, { status: 429 })
+      return Response.json({ code: 'MODEL_CALL_LIMIT' }, { status: 403 })
     // Fresh headers keep sandbox credentials, cookies, and project overrides out.
     return fetchClient(`https://generativelanguage.googleapis.com${modelPath}?alt=sse`, {
       method: 'POST',
