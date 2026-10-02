@@ -302,7 +302,9 @@ const uiClass = 'font-medium text-default'
                 :to="API_TOKEN_PAGE"
                 label="New token"
                 icon="i-lucide-key-round"
-                class="min-h-11 hover:bg-primary-600 active:bg-primary-700"
+                color="neutral"
+                variant="outline"
+                class="min-h-11"
               />
               <UButton
                 to="/me/devices"
