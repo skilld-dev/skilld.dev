@@ -54,13 +54,15 @@ export async function forwardSandboxRequest(
     }
     if (!await options.consumeModelCall())
       return Response.json({ code: 'MODEL_CALL_LIMIT' }, { status: 403 })
+    const standardInput = { ...input }
+    delete standardInput.speed
     const thinking = input.thinking && typeof input.thinking === 'object' && 'type' in input.thinking && input.thinking.type === 'enabled'
       ? { type: 'enabled', budget_tokens: 2048 }
       : input.thinking
     return fetchClient('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': options.apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ ...input, model: options.model, max_tokens: 4096, service_tier: 'standard_only', speed: 'standard', thinking }),
+      body: JSON.stringify({ ...standardInput, model: options.model, max_tokens: 4096, service_tier: 'standard_only', thinking }),
       redirect: 'manual',
     })
   }
