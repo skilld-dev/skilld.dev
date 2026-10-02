@@ -76,9 +76,6 @@ export const setupSnippets = {
 const API_ORIGIN = 'https://skilld.dev'
 export const API_OPENAPI_PATH = '/api/v1/openapi.json'
 
-/** Creates a skilld token. The page asks for sign-in first, then returns here. */
-export const API_TOKEN_PAGE = '/me/cli-tokens/new'
-
 export const apiSamples = {
   typescript: { label: 'TypeScript SDK' },
   curl: { label: 'cURL' },
@@ -101,7 +98,7 @@ export interface ApiSampleCall {
   /** The operation's path template, as the contract declares it. */
   path: `/api/v1/${string}`
   params?: Readonly<Record<string, string>>
-  query?: Readonly<Record<string, string>>
+  query?: Readonly<Record<string, string | number>>
   /** An account operation sends the token. A public one sends nothing. */
   account: boolean
 }
@@ -110,6 +107,15 @@ export interface ApiSampleCall {
 const SAMPLE_SKILL = { owner: 'vercel-labs', repository: 'agent-skills', name: 'web-design-guidelines' } as const
 
 export const apiSampleCalls = {
+  trending: {
+    note: 'Read trending Skills from the past week',
+    namespace: 'trending',
+    key: 'list',
+    method: 'GET',
+    path: '/api/v1/trending',
+    query: { window: 'week', limit: 10 },
+    account: false,
+  },
   search: {
     note: 'Search the registry',
     namespace: 'skills',
@@ -139,8 +145,8 @@ export const apiSampleCalls = {
   },
 } as const satisfies Record<string, ApiSampleCall>
 
-function objectLiteral(record: Readonly<Record<string, string>>): string {
-  return `{ ${Object.entries(record).map(([key, value]) => `${key}: '${value}'`).join(', ')} }`
+function objectLiteral(record: Readonly<Record<string, string | number>>): string {
+  return `{ ${Object.entries(record).map(([key, value]) => `${key}: ${typeof value === 'number' ? value : `'${value}'`}`).join(', ')} }`
 }
 
 /** `const <name> = await skilld.<namespace>.<key>({ ... })` */
@@ -158,14 +164,14 @@ export function sdkCall(call: ApiSampleCall, name: string): string {
  */
 export function curlCall(call: ApiSampleCall): string {
   const path = call.path.replace(/\{([^{}]+)\}/g, (_match, name: string) => encodeURIComponent(call.params?.[name] ?? ''))
-  const search = call.query ? `?${new URLSearchParams(call.query)}` : ''
+  const search = call.query ? `?${new URLSearchParams(Object.entries(call.query).map(([key, value]) => [key, String(value)]))}` : ''
   const method = call.method === 'GET' ? '' : `-X ${call.method} `
   const url = `curl ${method}'${API_ORIGIN}${path}${search}'`
   return call.account ? `${url} \\\n  -H "Authorization: Bearer $SKILLD_TOKEN"` : url
 }
 
 export const apiSnippets = {
-  tokenEnv: 'export SKILLD_TOKEN="paste-your-token-here"',
+  tokenEnv: 'SKILLD_TOKEN="paste-your-token-here"',
   sdkInstall: 'npm install skilld-sdk',
   sdkQuickStart: [
     `import { createSkilldClient } from 'skilld-sdk'`,
@@ -180,6 +186,14 @@ export const apiSnippets = {
     'console.log(found.value.items)',
   ].join('\n'),
   curlQuickStart: curlCall(apiSampleCalls.search),
+  sdkTrending: [
+    sdkCall(apiSampleCalls.trending, 'trending'),
+    `if (trending._tag === 'Err')`,
+    '  throw new Error(trending.error._tag)',
+    '',
+    'console.log(trending.value.items)',
+  ].join('\n'),
+  curlTrending: curlCall(apiSampleCalls.trending),
   sdkSamples: [
     `// ${apiSampleCalls.get.note}`,
     sdkCall(apiSampleCalls.get, 'skill'),

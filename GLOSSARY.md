@@ -23,6 +23,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | track | `/skills/<slug>`, `layers/registry` | track 1—N Skill | "track" |
 | trending | `/skills/trending`, ADR-0004 | Repository 1—N social mention | "trending" |
 | registry | skilld.dev | one | "skilld" |
+| skilld token | `cli_tokens`, `layers/identity` | Author 1—N token | "skilld token" |
 | provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
 
 Collisions
@@ -131,6 +132,16 @@ Collisions
 **Is:** skilld.dev, the curated index of Skills and the discovery MCP server.
 
 **Never:** marketplace, store, hub, catalog (in UI).
+
+### skilld token
+
+**Is:** a credential for account operations, used by the skilld CLI or a script.
+Created through sign-in or the token form. Public operations need no token.
+
+**Never:** CLI token, API token, API key (for this credential).
+Existing route paths, table names, and protocol fields keep their identifiers.
+
+**Casing:** lowercase in prose.
 
 ### provenance
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import ApiTokenSetup from '../components/_ApiTokenSetup.vue'
 import SetupSnippet from '../components/_SetupSnippet.vue'
 import {
   API_OPENAPI_PATH,
-  API_TOKEN_PAGE,
   apiSamples,
   apiSampleSchema,
   apiSnippets,
@@ -311,29 +311,9 @@ const uiClass = 'font-medium text-default'
           <span :class="indexClass" aria-hidden="true">01</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
-              Create a token
+              Create a skilld token
             </h3>
-            <p class="mt-2 text-sm leading-relaxed text-muted">
-              Search and every other public operation need no token. Account operations, such as watching a Repository, need a skilld token. <code class="font-mono text-xs text-default">skilld auth login</code> stores one for the CLI. For a script, create a token, then keep it out of your source code.
-            </p>
-            <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-              <UButton
-                :to="API_TOKEN_PAGE"
-                label="New token"
-                icon="i-lucide-key-round"
-                color="neutral"
-                variant="outline"
-                class="min-h-11"
-              />
-              <UButton
-                to="/me/devices"
-                label="Revoke a token"
-                color="neutral"
-                variant="link"
-                class="min-h-11 px-0 text-sm"
-              />
-            </div>
-            <SetupSnippet class="mt-4" :code="apiSnippets.tokenEnv" label="environment variable" />
+            <ApiTokenSetup />
           </div>
         </li>
         <li :class="stepClass">
@@ -363,19 +343,36 @@ const uiClass = 'font-medium text-default'
             <div class="mt-5 text-sm leading-relaxed text-muted">
               <template v-if="sample === 'typescript'">
                 <p>Install the SDK, then search the registry. Every call returns a result: check <code class="font-mono text-xs text-default">_tag</code> before you read <code class="font-mono text-xs text-default">value</code>. Nothing throws for an expected failure.</p>
-                <SetupSnippet class="mt-3" :code="apiSnippets.sdkInstall" label="install command" />
+                <SetupSnippet class="mt-3" :code="apiSnippets.sdkInstall" label="install command" format="bash" />
                 <SetupSnippet class="mt-3" :code="apiSnippets.sdkQuickStart" label="TypeScript example" format="typescript" />
+                <p class="mt-3">
+                  Save it as script.ts. Load your .env file when you run it:
+                </p>
+                <SetupSnippet class="mt-3" code="node --env-file=.env script.ts" label="script command" format="bash" />
               </template>
 
               <template v-else>
                 <p>Search needs no token. The answer is plain JSON: the matching Skills in <code class="font-mono text-xs text-default">items</code>, and their count in <code class="font-mono text-xs text-default">total</code>.</p>
-                <SetupSnippet class="mt-3" :code="apiSnippets.curlQuickStart" label="cURL command" />
+                <SetupSnippet class="mt-3" :code="apiSnippets.curlQuickStart" label="cURL command" format="bash" />
               </template>
             </div>
           </div>
         </li>
         <li :class="stepClass">
           <span :class="indexClass" aria-hidden="true">03</span>
+          <div class="min-w-0">
+            <h3 class="text-base font-medium">
+              Query trending Skills
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">
+              Read the weekly board without a token. Use <code class="font-mono text-default">{{ sample === 'typescript' ? "window: 'month'" : 'window=month' }}</code> for the monthly board.
+            </p>
+            <SetupSnippet v-if="sample === 'typescript'" class="mt-3" :code="apiSnippets.sdkTrending" label="trending TypeScript example" format="typescript" />
+            <SetupSnippet v-else class="mt-3" :code="apiSnippets.curlTrending" label="trending cURL command" format="bash" />
+          </div>
+        </li>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">04</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
               Browse every operation
@@ -395,7 +392,7 @@ const uiClass = 'font-medium text-default'
           </div>
         </li>
         <li :class="stepClass">
-          <span :class="indexClass" aria-hidden="true">04</span>
+          <span :class="indexClass" aria-hidden="true">05</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
               Code samples
@@ -408,9 +405,10 @@ const uiClass = 'font-medium text-default'
             </template>
             <template v-else>
               <p class="mt-2 text-sm leading-relaxed text-muted">
-                The watch is an account operation, so it sends the token from step 01.
+                The watch sends the token from step 01. Load your .env file into your shell first.
               </p>
-              <SetupSnippet class="mt-3" :code="apiSnippets.curlSamples" label="cURL samples" />
+              <SetupSnippet class="mt-3" :code="'set -a\n. ./.env\nset +a'" label="load environment command" format="bash" />
+              <SetupSnippet class="mt-3" :code="apiSnippets.curlSamples" label="cURL samples" format="bash" />
             </template>
           </div>
         </li>

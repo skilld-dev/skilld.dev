@@ -1,59 +1,80 @@
 <script setup lang="ts">
+import type { FormSubmitEvent } from '@nuxt/ui'
+import { z } from 'zod'
+import { useTokenCreation } from '#layers/identity/app/composables/useTokenCreation'
+import SetupSnippet from '#layers/marketing/app/components/_SetupSnippet.vue'
+
 definePageMeta({ middleware: ['auth'] })
 
-const label = ref('')
-const ttl = ref('90')
-const issued = ref<{ accessToken: string, expiresAt: number } | null>(null)
-const apiFetch = $fetch as any
+const schema = z.object({
+  label: z.string().trim().min(1, 'Enter a token label.').max(80, 'Use 80 characters or fewer.'),
+  ttl: z.enum(['30', '90', '365']),
+})
+const form = reactive<z.input<typeof schema>>({ label: '', ttl: '90' })
+const { state, create } = useTokenCreation(input => $fetch('/api/me/cli-tokens', { method: 'POST', body: input }))
+const tokenEnv = computed(() => state.value._tag === 'created' ? `SKILLD_TOKEN="${state.value.token.accessToken}"` : '')
+const expires = computed(() => state.value._tag === 'created'
+  ? new Date(state.value.token.expiresAt * 1000).toLocaleDateString(undefined, { dateStyle: 'medium' })
+  : '')
 
-async function createToken() {
-  issued.value = await apiFetch('/api/me/cli-tokens', {
-    method: 'POST',
-    body: {
-      label: label.value,
-      ttl_days: ttl.value === 'never' ? undefined : Number(ttl.value),
-    },
-  })
+async function createToken(event: FormSubmitEvent<z.output<typeof schema>>): Promise<void> {
+  await create({ label: event.data.label, ttl_days: Number(event.data.ttl) })
 }
 
-useSeoMeta({ title: 'New CLI token', robots: 'noindex' })
+useSeoMeta({ title: 'New token', robots: 'noindex' })
 </script>
 
 <template>
-  <section class="mx-auto max-w-xl px-4 sm:px-6 pt-12 pb-16 md:pt-16">
-    <h1 class="font-mono text-2xl font-medium">
-      New CLI token
-    </h1>
+  <section class="mx-auto max-w-xl px-4 pt-12 pb-16 sm:px-6 md:pt-16">
+    <header class="border-b border-default pb-6">
+      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
+        New token
+      </h1>
+      <p class="mt-3 text-base leading-relaxed text-muted">
+        Use a token for the skilld API or CLI.
+      </p>
+    </header>
 
-    <form v-if="!issued" class="mt-8 space-y-5" @submit.prevent="createToken">
-      <UFormField label="Label">
-        <UInput v-model="label" required placeholder="CI deploy" />
+    <UForm v-if="state._tag !== 'created'" :schema="schema" :state="form" class="mt-6 space-y-5" @submit="createToken">
+      <UFormField label="Label" name="label" description="Choose a name you can recognise when you revoke it." required>
+        <UInput v-model="form.label" placeholder="API script" maxlength="80" autocomplete="off" :disabled="state._tag === 'creating'" class="w-full" />
       </UFormField>
-      <UFormField label="Expiry">
+      <UFormField label="Expiry" name="ttl">
         <USelect
-          v-model="ttl"
+          v-model="form.ttl"
           :items="[
             { label: '30 days', value: '30' },
             { label: '90 days', value: '90' },
             { label: '365 days', value: '365' },
-            { label: 'Never', value: 'never' },
           ]"
+          :disabled="state._tag === 'creating'"
+          class="w-full"
         />
       </UFormField>
-      <UButton type="submit" label="Issue token" icon="i-lucide-key-round" />
-    </form>
+      <p v-if="state._tag === 'failed'" role="alert" class="text-sm text-error">
+        Could not create the token. Try again.
+      </p>
+      <div class="flex flex-wrap items-center gap-3">
+        <UButton type="submit" label="Create token" icon="i-lucide-key-round" :loading="state._tag === 'creating'" :disabled="state._tag === 'creating'" class="min-h-11" />
+        <UButton to="/me/devices" label="Cancel" color="neutral" variant="link" class="min-h-11" />
+      </div>
+    </UForm>
 
-    <div v-else class="mt-8 rounded-lg border border-default p-4">
-      <h2 class="section-label">
-        Token
+    <div v-else class="mt-6" role="status" aria-live="polite">
+      <h2 class="text-lg font-semibold">
+        Token created
       </h2>
-      <p class="mt-2 text-xs text-muted">
-        Shown once.
+      <p class="mt-2 text-sm leading-relaxed text-muted">
+        Copy it now. This token is shown once and expires {{ expires }}.
       </p>
-      <pre class="mt-4 overflow-x-auto rounded border border-default bg-muted p-3 text-xs"><code>{{ issued.accessToken }}</code></pre>
-      <p class="mt-3 text-xs text-muted">
-        Expires {{ new Date(issued.expiresAt * 1000).toLocaleString() }}.
+      <p class="mt-3 text-sm text-muted">
+        Save this in your .env file. Keep that file out of source control.
       </p>
+      <SetupSnippet class="mt-3" :code="tokenEnv" label=".env example" format="bash" />
+      <div class="mt-4 flex flex-wrap gap-3">
+        <UButton to="/developers?setup=api" label="View API examples" class="min-h-11" />
+        <UButton to="/me/devices" label="Manage tokens" color="neutral" variant="outline" class="min-h-11" />
+      </div>
     </div>
   </section>
 </template>

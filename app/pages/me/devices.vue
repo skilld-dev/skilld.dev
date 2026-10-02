@@ -66,7 +66,7 @@ function fmt(ts: number | null): string {
   return new Date(ts * 1000).toLocaleString()
 }
 
-useSeoMeta({ title: 'CLI devices', robots: 'noindex' })
+useSeoMeta({ title: 'Devices and tokens', robots: 'noindex' })
 </script>
 
 <template>
@@ -74,10 +74,10 @@ useSeoMeta({ title: 'CLI devices', robots: 'noindex' })
     <header class="flex flex-col gap-5 border-b border-default pb-7 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          CLI devices
+          Devices and tokens
         </h1>
         <p class="mt-3 max-w-xl text-base leading-relaxed text-muted text-pretty">
-          Review and revoke command-line sessions.
+          Review and revoke CLI sessions and script tokens.
         </p>
       </div>
       <UButton
@@ -96,7 +96,7 @@ useSeoMeta({ title: 'CLI devices', robots: 'noindex' })
     >
       <UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-muted" aria-hidden="true" />
       <h2 class="mt-4 text-lg font-semibold">
-        Loading CLI devices
+        Loading devices and tokens
       </h2>
     </div>
 
@@ -107,7 +107,7 @@ useSeoMeta({ title: 'CLI devices', robots: 'noindex' })
     >
       <UIcon name="i-lucide-circle-alert" class="size-5 text-error" aria-hidden="true" />
       <h2 class="mt-4 text-lg font-semibold">
-        Could not load CLI devices
+        Could not load devices and tokens
       </h2>
       <p class="mt-2 max-w-xl text-sm leading-relaxed text-muted">
         Your sessions are unchanged. Try loading them again.
@@ -201,10 +201,10 @@ useSeoMeta({ title: 'CLI devices', robots: 'noindex' })
     <div v-else class="editorial-state mt-8 flex flex-col items-start justify-center">
       <UIcon name="i-lucide-terminal" class="size-5 text-muted" aria-hidden="true" />
       <h2 class="mt-4 text-lg font-semibold">
-        No CLI sessions yet
+        No devices or tokens yet
       </h2>
       <p class="mt-2 max-w-xl text-sm leading-relaxed text-muted">
-        Create a token when you are ready to connect the CLI.
+        Create a skilld token for the CLI or your own script.
       </p>
     </div>
   </section>

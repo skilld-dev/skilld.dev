@@ -135,7 +135,7 @@ skilld uses [Sentry](https://sentry.io) to find and fix errors.
 
 - Your account data stays until you delete your account.
 - Signing out deletes your stored GitHub tokens.
-- CLI tokens stay for 7 days after they expire or you revoke them.
+- Skilld tokens stay for 7 days after they expire or you revoke them.
 - CLI sign-in codes and device sign-in requests stay for 1 day.
 - Email send records and unsubscribe history stay for 90 days.
 - Usage counts and request logs stay for 90 days. Email click counts are kept as daily totals with no account in them.
@@ -152,7 +152,7 @@ Open your [dashboard](/me) and select the Delete account button. Type your GitHu
 - Your likes, watched Repositories, and imported stars.
 - Your collections.
 - Your email settings and email history.
-- Your CLI tokens and device sign-ins.
+- Your skilld tokens and device sign-ins.
 
 After that, skilld asks GitHub to revoke its access to your GitHub account. If GitHub does not confirm, your dashboard tells you. You can then revoke skilld in your [GitHub settings](https://github.com/settings/applications).
 
