@@ -12,10 +12,6 @@ importers:
 
 packages:
 
-  '@harlan-zw/jev@0.2.4':
-    resolution: {integrity: sha512-67/8sxVDzxT+dbxuqI+dm8HQ8GqQ46sc3HAW+GRv+gJd5JN31P8MvKisMCwiz+fcx7owBH+pkINzd/9Afw/tNQ==}
-    engines: {node: '>=20'}
-
   '@pnpm/exe.android-arm64@12.4.2':
     resolution: {integrity: sha512-E255MbcQ0V1577M2BV0ajWuP7KmTPYA0jqZnk3rK6Lq3kTvZWulMMb7iqRmnLsQbyWTkMEB2CfyM70loVDA8xg==}
     cpu: [arm64]
@@ -100,10 +96,6 @@ packages:
 
 snapshots:
 
-  '@harlan-zw/jev@0.2.4':
-    dependencies:
-      ohash: 2.0.12
-
   '@pnpm/exe.android-arm64@12.4.2':
     optional: true
 
@@ -187,6 +179,9 @@ catalogs:
     '@harlan-zw/comark-content':
       specifier: 0.1.5
       version: 0.1.5
+    '@harlan-zw/jev':
+      specifier: 0.2.4
+      version: 0.2.4
     '@harlan-zw/nuxt-cf-jobs':
       specifier: 0.2.6
       version: 0.2.6
@@ -529,7 +524,7 @@ importers:
         specifier: 'catalog:'
         version: 5.20260901.1
       '@harlan-zw/jev':
-        specifier: 0.2.4
+        specifier: 'catalog:'
         version: 0.2.4
       '@harlan-zw/nuxt-cloudflare':
         specifier: 'catalog:'
@@ -1725,6 +1720,10 @@ packages:
     peerDependencies:
       nuxt: '>=4.5.0 <6.0.0'
       vue: '>=3.5.0 <4.0.0'
+
+  '@harlan-zw/jev@0.2.4':
+    resolution: {integrity: sha512-67/8sxVDzxT+dbxuqI+dm8HQ8GqQ46sc3HAW+GRv+gJd5JN31P8MvKisMCwiz+fcx7owBH+pkINzd/9Afw/tNQ==}
+    engines: {node: '>=20'}
 
   '@harlan-zw/nuxt-cf-jobs@0.2.6':
     resolution: {integrity: sha512-om/uZz4fumQT3Z67DguZmSrSKZD1HZtgMkwNe2sVLgKt4LEoVlj/kbsit1c+jRLKhUnUO6XzO91ME6pN2uxo+w==}
@@ -10560,6 +10559,10 @@ snapshots:
       - rolldown
       - shiki
       - unplugin
+
+  '@harlan-zw/jev@0.2.4':
+    dependencies:
+      ohash: 2.0.12
 
   '@harlan-zw/nuxt-cf-jobs@0.2.6(7f54906f0710c77ba2d3c48d3e46df9c)':
     dependencies:

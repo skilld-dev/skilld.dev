@@ -6,7 +6,7 @@
  */
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
-import { setTimeout } from 'node:timers/promises'
+import { setTimeout as pauseBeforeRequest } from 'node:timers/promises'
 import { createJevHttpClient, noul } from '@harlan-zw/jev'
 import { z } from 'zod'
 
@@ -57,13 +57,7 @@ for (const row of input) {
   let probability = 0
   let model = 'owner-kind'
   if (row.kind === 'user') {
-    onMounted(() => {
-      const timer = setTimeout(500)
-
-      onUnmounted(() => {
-        clearTimeout(timer)
-      })
-    })
+    await pauseBeforeRequest(500)
     const result = await client.systemOne({ state: { owner: row.owner, repo: row.repo, ...evidence }, questions })
     if (result._tag === 'Err')
       throw new Error(`Classification failed for ${row.owner}/${row.repo}: ${result.failure._tag} ${result.failure._tag === 'Http' ? result.failure.status : ' '}`)

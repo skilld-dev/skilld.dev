@@ -184,6 +184,7 @@ catalog:
   '@cloudflare/workers-types': ^5.20260901.1
   '@comark/nuxt': 0.7.0
   '@harlan-zw/comark-content': 0.1.5
+  '@harlan-zw/jev': 0.2.4
   '@harlan-zw/nuxt-cf-jobs': 0.2.6
   '@harlan-zw/nuxt-checkin': 0.3.0
   '@harlan-zw/nuxt-cloudflare': 0.4.3
