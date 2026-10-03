@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
-import { trendingSkillKey, trendingSkillKeySet } from '#shared/trending-keys'
-import DirectorySkill from '../../components/skills/_DirectorySkill.vue'
+import { trendingSkillKeySet } from '#shared/trending-keys'
 import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
 // "Find skills for your AI agent" matched no query anyone types. The demand is
@@ -250,7 +249,7 @@ function selectOwner(next: string) {
     />
 
     <section
-      class="mx-auto max-w-5xl px-4 py-8 sm:px-6 md:py-10"
+      class="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-10"
       aria-labelledby="results-heading"
     >
       <!-- Search sits with the results it filters, not in the page header -->
@@ -539,18 +538,15 @@ function selectOwner(next: string) {
 
           <div
             v-if="isLoading"
-            class="editorial-ledger flex flex-col"
+            class="flex flex-col gap-px rounded-lg border border-default p-2"
             aria-busy="true"
             aria-label="Loading skills"
           >
-            <div v-for="i in 8" :key="i" data-loading-skill class="flex items-start gap-4 py-5">
-              <USkeleton class="size-8 shrink-0 rounded-full" />
-              <div class="flex-1 space-y-3">
-                <USkeleton class="h-5 w-40" />
-                <USkeleton class="h-4 w-48" />
-                <USkeleton class="h-12 w-full" />
-                <USkeleton class="h-11 w-40" />
-              </div>
+            <div v-for="i in 20" :key="i" data-loading-skill class="flex items-center gap-3 px-1 py-2">
+              <USkeleton class="size-4 shrink-0 rounded-full" />
+              <USkeleton class="h-3 w-40" />
+              <USkeleton class="h-3 w-32" />
+              <USkeleton class="hidden h-3 flex-1 md:block" />
             </div>
           </div>
 
@@ -590,19 +586,13 @@ function selectOwner(next: string) {
             />
           </div>
 
-          <ul
+          <SkillTable
             v-else-if="registryView._tag === 'ready'"
-            class="editorial-ledger list-none p-0"
+            :skills="registryView.data.items"
+            :metric="sort"
+            :trending-keys="trendingKeys"
             :aria-label="isFiltering ? 'Matching skills' : 'Top skill from each author'"
-          >
-            <DirectorySkill
-              v-for="skill in registryView.data.items"
-              :key="skill.slug"
-              :skill="skill"
-              :metric="sort"
-              :trending="trendingKeys.has(trendingSkillKey(skill.owner, skill.repo, skill.name))"
-            />
-          </ul>
+          />
 
           <nav
             v-if="totalPages > 1"
