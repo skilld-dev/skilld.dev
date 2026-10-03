@@ -2,36 +2,38 @@ import { mockNuxtImport, mountSuspended } from '@nuxt/test-utils/runtime'
 import { ref } from 'vue'
 import DirectoryCta from '../../layers/marketing/app/components/skills/_DirectoryCta.vue'
 
-const auth = vi.hoisted(() => ({ signedIn: false, onboarded: false }))
+const visit = vi.hoisted(() => ({ signedIn: false, onboarded: false }))
 mockNuxtImport('useAuth', () => () => ({
-  state: ref(auth.signedIn
-    ? { _tag: 'signed-in', user: { onboarded: auth.onboarded } }
+  state: ref(visit.signedIn
+    ? { _tag: 'signed-in', user: { onboarded: visit.onboarded } }
     : { _tag: 'signed-out' }),
 }))
 
 beforeEach(() => {
-  auth.signedIn = false
-  auth.onboarded = false
+  visit.signedIn = false
+  visit.onboarded = false
+  useState('skills-directory-promotion', () => 0).value = 0
 })
 
-it('cycles through sign-in, weekly preview, and MCP setup', async () => {
+it.each([
+  [0, 'Watch for changes', '/login'],
+  [0.5, 'Trending skills this week', '/login'],
+  [0.9, 'Add the MCP server', '/developers?setup=mcp'],
+])('offers a relevant action for visit %s', async (selection, title, href) => {
+  useState('skills-directory-promotion', () => 0).value = selection
   const wrapper = await mountSuspended(DirectoryCta)
-  expect(wrapper.get('a').attributes('href')).toBe('/login')
-  await wrapper.get('[aria-label="Next suggestion"]').trigger('click')
-  expect(wrapper.get('h2').text()).toBe('Trending skills this week')
-  expect(wrapper.findAll('a').map(link => link.attributes('href'))).toContain('/weekly/preview')
-  await wrapper.get('[aria-label="Next suggestion"]').trigger('click')
-  expect(wrapper.get('a').attributes('href')).toBe('/developers?setup=mcp')
-  expect(wrapper.find('[aria-label="Resume suggestions"]').exists()).toBe(true)
+  expect(wrapper.get('h2').text()).toBe(title)
+  expect(wrapper.get('a').attributes('href')).toBe(href)
+  if (title === 'Trending skills this week')
+    expect(wrapper.findAll('a').map(link => link.attributes('href'))).toContain('/weekly/preview')
   wrapper.unmount()
 })
 
 it('offers MCP setup without sign-up prompts to a weekly subscriber', async () => {
-  auth.signedIn = true
-  auth.onboarded = true
+  visit.signedIn = true
+  visit.onboarded = true
   const wrapper = await mountSuspended(DirectoryCta)
   expect(wrapper.get('h2').text()).toBe('Add the MCP server')
   expect(wrapper.get('a').attributes('href')).toBe('/developers?setup=mcp')
-  expect(wrapper.find('[aria-label="Next suggestion"]').exists()).toBe(false)
   wrapper.unmount()
 })
