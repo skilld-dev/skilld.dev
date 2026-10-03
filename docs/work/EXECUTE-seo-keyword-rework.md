@@ -2,7 +2,7 @@
 
 Status: open · 2026-10-03 · title experiment ended 2026-08-26; measurement delegated to SEO recovery
 
-**Next move:** Ready. Review the production `marketing` and `research` pins. Follow SEO recovery for measurements and indexing decisions.
+**Next move:** Ready. Review the production `research` pins. Follow SEO recovery for measurements and indexing decisions.
 
 Done means: every indexable surface names its target query, its admission bar and its cull path, and the measurement window in this document has been read against Search Console rather than projected.
 
@@ -13,7 +13,7 @@ Measurement plan superseded by [EXECUTE-seo-recovery.md](EXECUTE-seo-recovery.md
 - [x] Baseline recorded 2026-08-12
 - [x] The surfaces listed under Shipped, below
 - [x] Close the original head-term title experiment under the recorded 2026-08-26 title pivot
-- [ ] `marketing` and `research` pins read by a human against the production rows
+- [ ] `research` pins read by a human against the production rows
 - [x] Delegate the remaining measurement window to SEO recovery, with its first read on 2026-10-12
 
 ## Log
@@ -21,6 +21,7 @@ Measurement plan superseded by [EXECUTE-seo-recovery.md](EXECUTE-seo-recovery.md
 - 2026-10-03 Reconciled the initial title blocker with this brief's August 26 decision.
   The original head-term proposal is historical. Further title changes require a new decision under COPY and VISION.
   No fresh Search Console results were read during this check-in.
+  Marketing was culled. Its redirect and absence from `CLUSTERS` retire the original marketing pin review.
 
 - 2026-09-22 moved out of the repository root as `SEO.md`. The ledger above is read off this document's own Open section; nothing was re-measured. The absolute keyword volumes in here are not a traffic forecast, as its own caveat says.
 
@@ -101,7 +102,7 @@ four-row delete.
 - **Codex research** (`task-msq8bfh8-wob26q`, spawned 2026-08-12) never
   reported. `/skills/best` was built without it. If its findings contradict the
   structure, that is rework already in production.
-- **`marketing` and `research` pin quality.** Both were repinned against
+- **`research` pin quality.** Marketing was culled. Both were originally repinned against
   production after the first pass turned out to reference skills that are not in
   the registry. Worth a human read of the actual rows.
 
