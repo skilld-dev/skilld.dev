@@ -62,14 +62,13 @@ describe('skills registry loading state', () => {
     route.query = { q: 'nuxt' }
   })
 
-  it('reserves the table region while a filtered request is in flight', async () => {
+  it('announces loading while a filtered request is in flight', async () => {
     const wrapper = await mountSkillsPage()
 
     expect(wrapper.get('[aria-label="Loading skills"]').attributes('aria-busy')).toBe('true')
-    expect(wrapper.findAll('[data-loading-skill]')).toHaveLength(20)
   })
 
-  it('reserves the same region for the unfiltered browse table', async () => {
+  it('announces loading for the unfiltered directory', async () => {
     route.query = {}
 
     const wrapper = await mountSkillsPage()

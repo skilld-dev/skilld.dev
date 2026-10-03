@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
-import { trendingSkillKeySet } from '#shared/trending-keys'
+import { trendingSkillKey, trendingSkillKeySet } from '#shared/trending-keys'
+import DirectorySkill from '../../components/skills/_DirectorySkill.vue'
 import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
 // "Find skills for your AI agent" matched no query anyone types. The demand is
@@ -64,8 +65,7 @@ watch([debouncedSearch, tags, owner, tagMode, sort], () => {
   page.value = 1
 }, { deep: true })
 
-// The table is dense enough to carry a full screen of skills, so the page size
-// is sized to the surface rather than to a card grid.
+// Keep the existing pagination contract for the directory.
 const PAGE_SIZE = 60
 const { isBot } = useBotDetection()
 
@@ -250,12 +250,12 @@ function selectOwner(next: string) {
     />
 
     <section
-      class="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-10"
+      class="mx-auto max-w-5xl px-4 py-8 sm:px-6 md:py-10"
       aria-labelledby="results-heading"
     >
       <!-- Search sits with the results it filters, not in the page header -->
       <div class="flex flex-wrap items-center gap-2">
-        <div class="relative min-w-0 flex-1">
+        <div class="relative min-w-0 flex-1 basis-48">
           <label for="skill-search" class="sr-only">Search skills</label>
           <UInput
             id="skill-search"
@@ -263,9 +263,9 @@ function selectOwner(next: string) {
             v-model="search"
             placeholder="Search a skill, owner, repo, or task…"
             icon="i-lucide-search"
-            variant="none"
-            size="lg"
-            class="font-mono w-full border-b border-default [&_input]:min-h-11"
+            variant="outline"
+            size="xl"
+            class="font-mono w-full [&_input]:min-h-12"
             :loading="isLoading"
           >
             <template #trailing>
@@ -280,6 +280,7 @@ function selectOwner(next: string) {
                 color="neutral"
                 variant="link"
                 size="xs"
+                class="size-11 justify-center"
                 aria-label="Clear search"
                 @click="() => { search = '' }"
               />
@@ -287,7 +288,7 @@ function selectOwner(next: string) {
           </UInput>
         </div>
 
-        <UPopover v-model:open="tagPopoverOpen" :ui="{ content: 'w-80 p-0' }">
+        <UPopover v-model:open="tagPopoverOpen" :ui="{ content: 'w-80 max-w-[calc(100vw-2rem)] p-0' }">
           <UButton
             icon="i-lucide-tags"
             color="neutral"
@@ -314,7 +315,7 @@ function selectOwner(next: string) {
                 aria-label="Filter tags"
                 icon="i-lucide-search"
                 size="sm"
-                class="font-mono w-full"
+                class="font-mono w-full [&_input]:min-h-11"
               />
             </div>
             <div class="max-h-72 overflow-y-auto py-1">
@@ -324,6 +325,7 @@ function selectOwner(next: string) {
                 type="button"
                 class="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-elevated"
                 :class="tags.includes(t.slug) ? 'text-highlighted' : 'text-default'"
+                :aria-pressed="tags.includes(t.slug)"
                 :disabled="t.count === 0 && !tags.includes(t.slug)"
                 @click="toggleTag(t.slug)"
               >
@@ -339,7 +341,7 @@ function selectOwner(next: string) {
               </button>
               <p
                 v-if="filteredTagList.length === 0"
-                class="px-3 py-4 text-center text-xs text-muted"
+                class="px-3 py-4 text-center text-sm text-muted"
               >
                 No tags match.
               </p>
@@ -358,11 +360,10 @@ function selectOwner(next: string) {
           v-for="t in popularTags"
           :key="t.slug"
           type="button"
-          class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-default px-3 py-2 font-mono text-xs text-muted transition-colors hover:border-[var(--ui-text-muted)] hover:text-default"
+          class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border border-default px-3 py-2 font-mono text-sm text-muted transition-colors hover:border-[var(--ui-text-muted)] hover:text-default"
           @click="toggleTag(t.slug)"
         >
           {{ t.label }}
-          <span class="text-xs tabular-nums">{{ t.count }}</span>
         </button>
       </div>
 
@@ -379,7 +380,7 @@ function selectOwner(next: string) {
           <button
             type="button"
             aria-label="Clear owner"
-            class="grid size-10 place-items-center opacity-70 transition-opacity hover:opacity-100"
+            class="grid size-11 place-items-center opacity-70 transition-opacity hover:opacity-100"
             @click="clearOwner"
           >
             <UIcon name="i-lucide-x" class="size-3" />
@@ -407,6 +408,7 @@ function selectOwner(next: string) {
             type="button"
             class="min-h-11 px-3 py-2 font-mono text-xs transition-colors"
             :class="tagMode === 'and' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+            :aria-pressed="tagMode === 'and'"
             @click="tagMode = 'and'"
           >
             AND
@@ -415,6 +417,7 @@ function selectOwner(next: string) {
             type="button"
             class="min-h-11 px-3 py-2 font-mono text-xs transition-colors"
             :class="tagMode === 'or' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+            :aria-pressed="tagMode === 'or'"
             @click="tagMode = 'or'"
           >
             OR
@@ -432,191 +435,206 @@ function selectOwner(next: string) {
         />
       </div>
 
-      <!-- Publishers and maintainers: a one-line jump into a single owner -->
-      <div v-if="!isFiltering" class="mt-6">
-        <p id="publishers-label" class="section-label">
-          Publishers and maintainers
-        </p>
-        <div
-          v-if="featuredStatus === 'pending' && !featuredData"
-          class="mt-3 flex flex-wrap gap-2"
-          aria-busy="true"
-        >
-          <USkeleton v-for="i in 8" :key="i" class="h-11 w-32 rounded-lg" />
-        </div>
-        <div
-          v-else-if="publishers.length"
-          class="mt-3 flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
-          role="group"
-          aria-labelledby="publishers-label"
-        >
-          <button
-            v-for="publisher in publishers"
-            :key="publisher.owner"
-            type="button"
-            class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-default px-3 font-mono text-xs transition-colors hover:border-[var(--ui-text-muted)]"
-            :aria-pressed="owner === publisher.owner"
-            @click="selectOwner(publisher.owner)"
+      <div class="mt-6 grid gap-6 lg:gap-8" :class="!isFiltering ? 'lg:grid-cols-[minmax(0,1fr)_13rem]' : 'grid-cols-1'">
+        <!-- Publishers and maintainers: a one-line jump into a single owner -->
+        <aside v-if="!isFiltering" class="min-w-0 lg:order-last lg:border-l lg:border-default lg:pl-6">
+          <p id="publishers-label" class="text-sm font-medium text-toned">
+            Publishers and maintainers
+          </p>
+          <div
+            v-if="featuredStatus === 'pending' && !featuredData"
+            class="mt-3 flex flex-wrap gap-2"
+            aria-busy="true"
           >
-            <img
-              :src="githubAvatarProxyUrl(publisher.owner, 32)"
-              alt=""
-              width="16"
-              height="16"
-              class="size-4 rounded-full bg-muted"
-              loading="lazy"
-              decoding="async"
+            <USkeleton v-for="i in 8" :key="i" class="h-11 w-32 rounded-lg" />
+          </div>
+          <div
+            v-else-if="publishers.length"
+            class="mt-3 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0"
+            role="group"
+            aria-labelledby="publishers-label"
+          >
+            <button
+              v-for="publisher in publishers"
+              :key="publisher.owner"
+              type="button"
+              class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-2 font-mono text-sm transition-colors hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary lg:w-full"
+              :aria-pressed="owner === publisher.owner"
+              @click="selectOwner(publisher.owner)"
             >
-            <span class="truncate">{{ publisher.owner }}</span>
-            <UIcon
-              v-if="publisher.official"
-              name="i-lucide-badge-check"
-              class="size-3 shrink-0 text-muted"
-              aria-hidden="true"
+              <img
+                :src="githubAvatarProxyUrl(publisher.owner, 32)"
+                alt=""
+                width="24"
+                height="24"
+                class="size-6 rounded-full bg-muted"
+                loading="lazy"
+                decoding="async"
+              >
+              <span class="truncate">{{ publisher.owner }}</span>
+              <UIcon
+                v-if="publisher.official"
+                name="i-lucide-badge-check"
+                class="size-3 shrink-0 text-muted"
+                aria-hidden="true"
+              />
+              <span class="ml-auto text-sm tabular-nums text-muted">{{ publisher.totalSkills }}</span>
+            </button>
+          </div>
+        </aside>
+
+        <div class="min-w-0">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 id="results-heading" class="text-lg font-semibold tracking-tight">
+              <template v-if="isFiltering">
+                Matching skills
+              </template>
+              <template v-else>
+                Top skill from each author
+              </template>
+              <span v-if="registryView._tag === 'ready'" class="data-label ml-2">
+                {{ registryView.data.total.toLocaleString() }}
+                <template v-if="showTopSkillPerOwner">
+                  {{ registryView.data.total === 1 ? 'author' : 'authors' }}
+                </template>
+                <template v-else>
+                  {{ registryView.data.total === 1 ? 'skill' : 'skills' }}
+                </template>
+              </span>
+            </h2>
+
+            <div class="inline-flex min-h-11 items-center overflow-hidden rounded-lg border border-default">
+              <button
+                type="button"
+                class="min-h-11 px-3 font-mono text-xs transition-colors"
+                :class="sort === 'stars' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+                :aria-pressed="sort === 'stars'"
+                @click="sort = 'stars'"
+              >
+                Stars
+              </button>
+              <button
+                type="button"
+                class="min-h-11 px-3 font-mono text-xs transition-colors"
+                :class="sort === 'likes' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
+                :aria-pressed="sort === 'likes'"
+                @click="sort = 'likes'"
+              >
+                Likes
+              </button>
+            </div>
+          </div>
+
+          <div aria-live="polite" aria-atomic="true" class="sr-only">
+            <template v-if="isLoading">
+              Loading skills…
+            </template>
+            <template v-else-if="registryView._tag === 'ready' && registryView.data.items.length === 0">
+              No skills found.
+            </template>
+            <template v-else-if="registryView._tag === 'ready'">
+              {{ registryView.data.total }} skills.
+            </template>
+          </div>
+
+          <div
+            v-if="isLoading"
+            class="editorial-ledger flex flex-col"
+            aria-busy="true"
+            aria-label="Loading skills"
+          >
+            <div v-for="i in 8" :key="i" data-loading-skill class="flex items-start gap-4 py-5">
+              <USkeleton class="size-8 shrink-0 rounded-full" />
+              <div class="flex-1 space-y-3">
+                <USkeleton class="h-5 w-40" />
+                <USkeleton class="h-4 w-48" />
+                <USkeleton class="h-12 w-full" />
+                <USkeleton class="h-11 w-40" />
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="registryView._tag === 'error'" role="alert" class="editorial-state">
+            <p class="font-medium">
+              Couldn't load skills.
+            </p>
+            <p class="mt-1 text-base text-muted">
+              Check your connection and try again.
+            </p>
+            <UButton
+              label="Retry"
+              color="neutral"
+              variant="outline"
+              class="mt-4 min-h-11"
+              @click="() => refreshRegistry()"
             />
-            <span class="tabular-nums text-muted">{{ publisher.totalSkills }}</span>
-          </button>
-        </div>
-      </div>
+          </div>
 
-      <div class="mb-3 mt-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 id="results-heading" class="text-base font-semibold tracking-tight">
-          <template v-if="isFiltering">
-            Matching skills
-          </template>
-          <template v-else>
-            Top skill from each author
-          </template>
-          <span v-if="registryView._tag === 'ready'" class="data-label ml-2">
-            {{ registryView.data.total.toLocaleString() }}
-            <template v-if="showTopSkillPerOwner">
-              {{ registryView.data.total === 1 ? 'author' : 'authors' }}
-            </template>
-            <template v-else>
-              {{ registryView.data.total === 1 ? 'skill' : 'skills' }}
-            </template>
-          </span>
-        </h2>
-
-        <div class="inline-flex min-h-11 items-center overflow-hidden rounded-lg border border-default">
-          <button
-            type="button"
-            class="min-h-11 px-3 font-mono text-xs transition-colors"
-            :class="sort === 'stars' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
-            :aria-pressed="sort === 'stars'"
-            @click="sort = 'stars'"
+          <div
+            v-else-if="registryView._tag === 'ready' && registryView.data.items.length === 0"
+            class="editorial-state"
           >
-            Stars
-          </button>
-          <button
-            type="button"
-            class="min-h-11 px-3 font-mono text-xs transition-colors"
-            :class="sort === 'likes' ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'"
-            :aria-pressed="sort === 'likes'"
-            @click="sort = 'likes'"
+            <p class="font-medium">
+              Nothing matched.
+            </p>
+            <p class="mt-1 text-base text-muted">
+              Remove a tag or try a broader search.
+            </p>
+            <UButton
+              class="mt-4 min-h-11"
+              size="sm"
+              color="neutral"
+              variant="outline"
+              label="Clear filters"
+              @click="clearAll"
+            />
+          </div>
+
+          <ul
+            v-else-if="registryView._tag === 'ready'"
+            class="editorial-ledger list-none p-0"
+            :aria-label="isFiltering ? 'Matching skills' : 'Top skill from each author'"
           >
-            Likes
-          </button>
+            <DirectorySkill
+              v-for="skill in registryView.data.items"
+              :key="skill.slug"
+              :skill="skill"
+              :metric="sort"
+              :trending="trendingKeys.has(trendingSkillKey(skill.owner, skill.repo, skill.name))"
+            />
+          </ul>
+
+          <nav
+            v-if="totalPages > 1"
+            aria-label="Pagination"
+            class="mt-6 flex items-center justify-center gap-2"
+          >
+            <UButton
+              icon="i-lucide-chevron-left"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="size-11 justify-center"
+              aria-label="Previous page"
+              :disabled="page <= 1"
+              @click="() => { page-- }"
+            />
+            <span class="data-label">
+              Page {{ page }} of {{ totalPages }}
+            </span>
+            <UButton
+              icon="i-lucide-chevron-right"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="size-11 justify-center"
+              aria-label="Next page"
+              :disabled="page >= totalPages"
+              @click="() => { page++ }"
+            />
+          </nav>
         </div>
       </div>
-
-      <div aria-live="polite" aria-atomic="true" class="sr-only">
-        <template v-if="isLoading">
-          Loading skills…
-        </template>
-        <template v-else-if="registryView._tag === 'ready' && registryView.data.items.length === 0">
-          No skills found.
-        </template>
-        <template v-else-if="registryView._tag === 'ready'">
-          {{ registryView.data.total }} skills.
-        </template>
-      </div>
-
-      <div
-        v-if="isLoading"
-        class="flex flex-col gap-px rounded-lg border border-default p-2"
-        aria-busy="true"
-        aria-label="Loading skills"
-      >
-        <div v-for="i in 20" :key="i" data-loading-skill class="flex items-center gap-3 px-1 py-2">
-          <USkeleton class="size-4 shrink-0 rounded-full" />
-          <USkeleton class="h-3 w-40" />
-          <USkeleton class="h-3 w-32" />
-          <USkeleton class="hidden h-3 flex-1 md:block" />
-        </div>
-      </div>
-
-      <div v-else-if="registryView._tag === 'error'" role="alert" class="editorial-state">
-        <p class="font-medium">
-          Couldn't load skills.
-        </p>
-        <p class="mt-1 text-base text-muted">
-          Check your connection and try again.
-        </p>
-        <UButton
-          label="Retry"
-          color="neutral"
-          variant="outline"
-          class="mt-4 min-h-11"
-          @click="() => refreshRegistry()"
-        />
-      </div>
-
-      <div
-        v-else-if="registryView._tag === 'ready' && registryView.data.items.length === 0"
-        class="editorial-state"
-      >
-        <p class="font-medium">
-          Nothing matched.
-        </p>
-        <p class="mt-1 text-base text-muted">
-          Remove a tag or try a broader search.
-        </p>
-        <UButton
-          class="mt-4 min-h-11"
-          size="sm"
-          color="neutral"
-          variant="outline"
-          label="Clear filters"
-          @click="clearAll"
-        />
-      </div>
-
-      <SkillTable
-        v-else-if="registryView._tag === 'ready'"
-        :skills="registryView.data.items"
-        :metric="sort"
-        :trending-keys="trendingKeys"
-        :aria-label="isFiltering ? 'Matching skills' : 'Top skill from each author'"
-      />
-
-      <nav
-        v-if="totalPages > 1"
-        aria-label="Pagination"
-        class="mt-6 flex items-center justify-center gap-2"
-      >
-        <UButton
-          icon="i-lucide-chevron-left"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          aria-label="Previous page"
-          :disabled="page <= 1"
-          @click="() => { page-- }"
-        />
-        <span class="data-label">
-          Page {{ page }} of {{ totalPages }}
-        </span>
-        <UButton
-          icon="i-lucide-chevron-right"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          aria-label="Next page"
-          :disabled="page >= totalPages"
-          @click="() => { page++ }"
-        />
-      </nav>
 
       <p class="mt-10 border-t border-default pt-6 text-sm text-muted">
         Search from your agent instead.
