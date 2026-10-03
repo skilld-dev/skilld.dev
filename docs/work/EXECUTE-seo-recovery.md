@@ -1,8 +1,8 @@
 # SEO recovery
 
-Status: open · 2026-09-30 · PRs skilld.dev #316 to #329; gate 2026-11-11
+Status: open · 2026-10-03 · recovery implementation included in deployed `1ccf98ec`; gate 2026-11-11
 
-**Next move:** Harlan. Submit `sitemap_index.xml` in Bing Webmaster Tools. After the retired sitemap PR ships, submit `retired.xml` in Search Console. Then run the first weekly measurement on 2026-10-12.
+**Next move:** Ready. Verify panel loading and sitemap submission evidence. Harlan submits any missing sitemaps. Run the first weekly measurement on 2026-10-12.
 
 Done means: the gate table below has a decision for 2026-11-11, and every panel URL in [seo-recovery-panel.json](seo-recovery-panel.json) has a coverage state read on that date.
 
@@ -10,7 +10,8 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 
 ## Ledger
 
-- [ ] Sprint 0 items 1 to 7 below are in production
+- [x] Sprint 0 implementation and the fixed panel included in deployed `1ccf98ec`
+- [ ] Verify Bing submission of `sitemap_index.xml` and Search Console submission of `retired.xml`
 - [ ] Load the panel with `gscdump indexing watch add`
 - [ ] Add a `b_linked` group of 10 Skill URLs to the panel before experiment B starts
 - [ ] Add a NuxtSEO annotation on the day gscdump.com #557 goes live
@@ -23,6 +24,11 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 - [ ] Move this brief to `shipped/` once the gate decision is recorded
 
 ## Log
+
+- 2026-10-03 Deployment [37038090688](https://github.com/skilld-dev/skilld.dev/actions/runs/37038090688) passed on `1ccf98ec`.
+  Its history includes Sprint 0, #325, #332, #333, and #334. No fresh crawl or indexing results were read.
+  Panel loading, sitemap submissions, and the cross-repository gscdump release sequence need separate evidence.
+  Drafts #318, #320, and #321 remain deferred under the October 1 decisions.
 
 - 2026-09-30 Brief written from the 2026-09-30 NuxtSEO and Search Console reads. Panel of 40 URLs fixed.
 - 2026-10-01 Owner deferred experiment C. Template changes wait. #318 stays in draft. The panel keeps 40 URLs; the C groups became one `trending_sample` of 20.
@@ -168,13 +174,13 @@ Checks:
 - `curl -sI https://skilld.dev/gh/harlan-zw/gscdump | rg -i 'cache-control|cf-cache-status'` shows the HTML cache headers.
 - `curl -s -o /dev/null -w '%{http_code}\n' https://skilld.dev/gh/nobody/nothing/nothing` shows the missing Skill status.
 
-Merge order:
+Historical merge order, recorded before the October 3 check-in:
 
 Check a PR with `gh pr view <n> --repo skilld-dev/skilld.dev`.
 
-1. [#332](https://github.com/skilld-dev/skilld.dev/pull/332), the `return_to` fix. It is a security fix, so it goes first.
-2. [#334](https://github.com/skilld-dev/skilld.dev/pull/334), the edge cache check. Each deploy reports a failure until it merges.
-3. This brief, then [#333](https://github.com/skilld-dev/skilld.dev/pull/333), the Monday check-in. The check-in reads this brief.
+1. [#332](https://github.com/skilld-dev/skilld.dev/pull/332), the `return_to` fix, merged before deployed `1ccf98ec`.
+2. [#334](https://github.com/skilld-dev/skilld.dev/pull/334), the edge cache check, merged before deployed `1ccf98ec`.
+3. [#331](https://github.com/skilld-dev/skilld.dev/pull/331), this brief, and [#333](https://github.com/skilld-dev/skilld.dev/pull/333), the Monday check-in, merged before deployed `1ccf98ec`.
 4. Keep in draft, do not merge:
    - [#318](https://github.com/skilld-dev/skilld.dev/pull/318), experiment C, deferred on 2026-10-01.
    - [#320](https://github.com/skilld-dev/skilld.dev/pull/320), IndexNow. On 2026-10-01 the owner moved IndexNow submission to another service.
