@@ -14,6 +14,7 @@ export default defineApiHandler({
   handler: ({ event, body }) => cachedSkillsSearch(event, async () => {
     const result = await querySkills(event, {
       search: body.q || undefined,
+      retrieval: body.retrieval,
       owner: body.owner || undefined,
       official: body.official,
       excludeOfficial: body.excludeOfficial,

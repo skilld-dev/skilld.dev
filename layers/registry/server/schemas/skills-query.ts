@@ -4,6 +4,7 @@ const flag = z.string().optional().transform(v => v === 'true' || v === '1')
 
 export const SkillsListQuery = z.object({
   q: z.string().trim().toLowerCase().default(''),
+  retrieval: z.enum(['hybrid', 'lexical']).default('hybrid'),
   page: z.coerce.number().int().min(1).catch(1),
   limit: z.coerce.number().int().min(1).max(200).catch(60),
   // 'stars' stays the default: likes may order this surface only when the user

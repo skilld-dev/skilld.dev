@@ -170,6 +170,7 @@ function rowsToSkills(rows: SkillRow[], includeDependencies: boolean): RegistryS
 
 export interface SkillsQuery {
   search?: string
+  retrieval?: 'hybrid' | 'lexical'
   owner?: string
   official?: boolean
   excludeOfficial?: boolean
@@ -255,7 +256,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   // used to describe a 60-row sample instead of the real match set.
   let searchHits: HybridSearchResult | null = null
   if (search) {
-    searchHits = await hybridSkillSearch(event, search)
+    searchHits = await hybridSkillSearch(event, search, opts.retrieval)
     if (!searchHits.keys.length)
       return { items: [], total: 0, page, pages: 0, facets: [], mode: searchHits.mode }
     conditions.push(`(s.owner || '/' || s.repo || '/' || s.name) IN (SELECT value FROM json_each(?))`)
