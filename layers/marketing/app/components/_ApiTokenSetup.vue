@@ -4,7 +4,8 @@ import { apiSnippets } from '../utils/developer-setup'
 import SetupSnippet from './_SetupSnippet.vue'
 
 const { state: auth, loginUrl } = useAuth()
-const { state, create } = useTokenCreation(input => $fetch('/api/me/cli-tokens', { method: 'POST', body: input }))
+// useTokenCreation parses the answer. Avoid inferring Nitro's route union here.
+const { state, create } = useTokenCreation(input => $fetch<Record<string, unknown>, string>('/api/me/cli-tokens', { method: 'POST', body: input }))
 const tokenEnv = computed(() => state.value._tag === 'created'
   ? `SKILLD_TOKEN="${state.value.token.accessToken}"`
   : apiSnippets.tokenEnv)
