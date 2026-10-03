@@ -29,7 +29,7 @@ minimumReleaseAgeExclude:
   - nuxt-skew-protection@1.5.2
   - '@nuxtjs/seo@5.3.14'
   - skilld-protocol@2.4.0
-  - skilld-sdk@0.1.1
+  - skilld-sdk@0.1.2
   - skilld
   - skilld-cli-darwin-arm64
   - skilld-cli-darwin-x64
@@ -237,7 +237,7 @@ catalog:
   nuxt-skew-protection: ^1.5.4
   rangi: ^2.2.0
   skilld-protocol: ^2.4.0
-  skilld-sdk: 0.1.1
+  skilld-sdk: 0.1.2
   tailwindcss: ^4.3.3
   tsx: ^4.23.13
   typescript: 6.0.3

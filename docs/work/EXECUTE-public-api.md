@@ -1,8 +1,8 @@
 # Public API v1
 
-Status: open · 2026-10-03 · SDK 0.1.1 consumed; rate-limit implementation merged in #374
+Status: open · 2026-10-03 · fix/consume-sdk-rate-limits
 
-**Next move:** Ready. Fold Artifact delivery into the contract. Declare public `RATE_LIMITED` answers in the SDK contract.
+**Next move:** Ready. Fold Artifact delivery into the contract.
 
 **Delivery order:** Publish the public SDK, then update the site’s exact npm pin through a pull request.
 
@@ -16,11 +16,11 @@ Decisions: [ADR-0006](../adr/0006-public-api-contract.md) and [ADR-0007](../adr/
 - [x] **CLI parity in `~/pkg/skilld`.** skilld-dev/skilld#180 added account commands and contract example checks. Release 3.3.0 reached npm `latest`.
 - [x] **Developers page CLI tab.** #364 added account commands and generated `/docs/cli` from release 3.3.0. `pnpm cli:grammar` checks the printed commands.
 - [x] **Publish `skilld-sdk`.** skilld-dev/skilld#182 moved the contract and publisher to the public CLI repository. Release run 36970062302 published 0.1.1 with provenance.
-- [x] **Consume the published contract.** The site pins 0.1.1 and removes its local package and publisher. ADR-0007 records the release order.
+- [x] **Consume the published contract.** The site pins 0.1.2 and removes its local package and publisher. ADR-0007 records the release order.
 - [ ] **Fold Artifact delivery into the contract.** Then retire the hand-written OpenAPI YAML in `skilld-protocol`, and drop the parity test's exemption for `layers/artifact-delivery`.
 - [x] **Rate limit `/api/v1`** with guest and account Workers rate-limit bindings in #374.
 - [x] **MCP tools call v1 through the SDK,** so MCP and WebMCP return the public operation shapes.
-- [ ] **Declare `RATE_LIMITED` for public operations in the SDK contract.** SDK 0.1.1 reports public 429 answers as contract failures.
+- [x] **Declare `RATE_LIMITED` for public operations in the SDK contract.** skilld-dev/skilld#183 makes it an implicit failure for every operation.
 - [x] **Define skilld token and replace the old token labels.** #372 added the term and inline token creation.
 - [ ] **Decide the remaining API terms in `GLOSSARY.md`:** skilld API, operation, and SDK.
 - [x] **List the OpenAPI document in `/.well-known/api-catalog`.** `aiReady.apiCatalog` in `nuxt.config.ts`.
@@ -28,6 +28,11 @@ Decisions: [ADR-0006](../adr/0006-public-api-contract.md) and [ADR-0007](../adr/
 - [ ] **Correct the `digest` entry in `GLOSSARY.md`.** Migration 0117 moved the digest to one fixed schedule, so "weekly by default; daily and off are options" is out of date. `account.update` takes `digest` as on or off.
 
 ## Log
+
+- 2026-10-03 skilld-dev/skilld#183 merged as `a281d4ba`.
+  Release [37109193172](https://github.com/skilld-dev/skilld/actions/runs/37109193172) published SDK 0.1.2 with npm provenance.
+  The site pin and lockfile move to that exact release. MCP removes the SDK 0.1.1 workaround.
+  Valid public 429 answers return the rate-limit message without infrastructure telemetry or automatic retries.
 
 - 2026-10-03 #374 merged on October 2 with passing tests, lint, typecheck, and build.
   Deployment [37038090688](https://github.com/skilld-dev/skilld.dev/actions/runs/37038090688) passed on `1ccf98ec`, which includes #374.
