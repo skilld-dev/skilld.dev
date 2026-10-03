@@ -51,7 +51,7 @@ async function copyCommand() {
           <NuxtLink
             :to="skill.registryPath"
             :aria-label="`/${skill.name} by ${author ?? skill.owner}`"
-            class="inline-flex min-h-11 min-w-0 items-center gap-2 font-mono text-base font-medium text-highlighted hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+            class="inline-flex min-h-11 min-w-0 items-center gap-2 font-mono text-sm font-medium text-highlighted hover:text-primary focus-visible:outline-2 focus-visible:outline-primary sm:text-base"
           >
             <span class="break-all">/{{ skill.name }}</span>
             <UIcon v-if="skill.official" name="i-lucide-badge-check" class="size-4 shrink-0 text-muted" aria-label="Official publisher" />
