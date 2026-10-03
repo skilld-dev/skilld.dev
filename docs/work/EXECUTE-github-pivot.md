@@ -1,22 +1,29 @@
 # GitHub pivot
 
-Status: open · 2026-05-08 · Phases 1, 2 and 3 shipped on `main`; Phase 4 cleanup and the deploy prerequisites are not done
+Status: open · 2026-10-03 · legacy table removal verified in production; mail completion needs evidence
 
-**Next move:** Harlan. Phase 4 drops the atproto and old collections tables, which is destructive and needs your go-ahead that v2 is verified. The deploy prerequisites below need account access nobody else has: `mail.skilld.dev` DNS, a verified sender domain, and Verified Destination Addresses until Cloudflare Send Email goes unrestricted.
+**Next move:** Ready. Inspect sender DNS, sender registration, and recipient restrictions without sending mail. Harlan approves any test send.
 
 Done means: the atproto and legacy `collections` / `collection_skills` tables are dropped in prod, `mail.skilld.dev` passes SPF, DKIM and DMARC, and a digest reaches an address that was never added to the Verified Destination list.
 
 ## Ledger
 
 - [x] Phase 1, 2 and 3 shipped on `main` 2026-05-08, with the deviations inlined below
-- [ ] Remote D1 migrations applied with `CLOUDFLARE_API_TOKEN`
+- [x] Pivot D1 migrations, including legacy removal, verified through production schema and the deploy migration step
 - [ ] `mail.skilld.dev` DNS plus verified sender domain registration
 - [ ] Verified Destination Addresses, or Cloudflare Send Email unrestricted
-- [ ] `NUXT_ANTHROPIC_API_KEY` set, so the digest stops falling back to the commits bullet
-- [ ] Phase 4: drop the atproto tables
-- [ ] Phase 4: drop the old `collections` and `collection_skills` tables, once v2 is verified
+- [ ] Review current digest summary configuration before applying the original Anthropic prerequisite
+- [x] Phase 4: drop the atproto tables
+- [x] Phase 4: drop the old `collections` and `collection_skills` tables
 
 ## Log
+
+- 2026-10-03 A production `sqlite_master` query found none of `curators`, `follows_cache`, `follows_refresh_state`, `collections`, or `collection_skills`.
+  The query wrote zero rows. Migrations 0051 and 0052 contain the removals.
+  Deployment [37038090688](https://github.com/skilld-dev/skilld.dev/actions/runs/37038090688) passed its D1 migration step.
+  Sender DNS, sender registration, recipient restrictions, and digest delivery were not checked.
+
+The specification below records the original May pivot. Current VISION, COPY, GLOSSARY, and migrations supersede conflicting details.
 
 - 2026-09-22 moved out of the repository root as `PIVOT_PLAN.md`. The ledger above is read off this document's own Phase 4 list and its outstanding deploy prerequisites; nothing was re-verified against production.
 

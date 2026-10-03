@@ -2,7 +2,7 @@
 
 Status: open · 2026-09-29 · fixes shipped in #295 to #307; re-measure due 2026-10-06
 
-**Next move:** Blocked until 2026-10-06. The check needs one full week of data after the fixes: 2026-09-30 to 2026-10-06. After that, run the checklist below and compare against the baseline table.
+**Next move:** Ready. Reproduce the pnpm exemption rewrite independently. The full-week comparison waits until 2026-10-06, covering 2026-09-30 to 2026-10-06.
 
 Done means: every metric in the baseline table meets its target for the week 2026-09-30 to 2026-10-06, or the miss has its own ledger item.
 
@@ -55,6 +55,8 @@ The `.env` `CLOUDFLARE_API_TOKEN` reads GraphQL Analytics and Workers Observabil
 To roll back replication, send `PUT /accounts/<id>/d1/database/<id>`{lang="html"} with `{"read_replication":{"mode":"disabled"}}`. It can take up to 24 hours.
 
 ## Log
+
+- 2026-10-03 Separated the independent pnpm reproduction from the dated cost measurement. No cost measurements were read.
 
 - 2026-09-29 Audit found skilld at ~$70/month gross. Workers Logs was the largest line, and ~87% of it was SSR icon warnings. Crawler bursts (09-22, 09-24, 09-29) overloaded the single D1 primary.
 - 2026-09-29 One hour after replication: 90% of reads on replicas, and 0 Sentry events at 3.5 times normal traffic. Rows read per request fell from ~820 to ~340.

@@ -9,9 +9,9 @@ pull request; `**Next move:**` starting with `Harlan`, `Blocked`, or `Ready`; `D
 one checkable sentence; `## Ledger` as a checkbox list; `## Log` for dated entries. Append
 progress to the `## Log`. Never open a separate progress file.
 
-- [EXECUTE-github-pivot.md](EXECUTE-github-pivot.md): Phase 4 cleanup and the mail deploy prerequisites.
+- [EXECUTE-github-pivot.md](EXECUTE-github-pivot.md): mail prerequisites and delivery verification after legacy table removal.
 - [EXECUTE-seo-keyword-rework.md](EXECUTE-seo-keyword-rework.md): the keyword-led rework of categories, collections and editorial pages.
-- [EXECUTE-homepage-rebuild.md](EXECUTE-homepage-rebuild.md): the cluster grid, and the classifier that has to become a job.
+- [EXECUTE-homepage-rebuild.md](EXECUTE-homepage-rebuild.md): visual review, classification accuracy, and new-Skill verification.
 - [EXECUTE-cost-followup.md](EXECUTE-cost-followup.md): the week-later check on the 2026-09-29 cost and D1 overload fixes.
 - [EXECUTE-seo-recovery.md](EXECUTE-seo-recovery.md): the sitewide quality verdict, five experiments, and the 2026-11-11 gate.
 - [EXECUTE-public-api.md](EXECUTE-public-api.md): the public API v1 contract, the `skilld-sdk` package, and CLI parity.

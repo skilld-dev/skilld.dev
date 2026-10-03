@@ -1,71 +1,40 @@
 # Homepage rebuild
 
-Status: open · 2026-09-22 · Phase 1 shipped; visual review and four follow-ups open
+Status: open · 2026-10-03 · classifier and recent-updates implementation verified against `1ccf98ec`
 
-**Next move:** Ready. Item 3 in the ledger is the one that matters: until the abstractness classifier runs as a job, only the seeded top 1200 Skills are classified and every newer Skill surfaces as `is_abstract=NULL`, so the cluster pages quietly go stale.
+**Next move:** Ready. Review the current homepage and category pages on desktop and mobile. Sample 30 classified Skills for accuracy.
 
-Done means: the 6-card grid and each `/skills/<slug>` page render correctly on desktop and mobile, the six cluster URLs are in the sitemap, and a Skill added today is classified without a manual pass.
+Done means: the current homepage and category pages pass desktop and mobile review, classification accuracy passes the sample, and new eligible Skills receive automatic classification.
 
 ## Ledger
 
-- [x] Phase 1: the 6-card grid and the six `/skills/<slug>` cluster routes
-- [ ] Visual review of `/` and `/skills/<slug>` on desktop and mobile
-- [ ] Recently Updated: apply the `is_abstract=1 AND is_official=1` filter and add the "what changed" snippet from `skill_revisions`
-- [ ] Promote the classifier to a job, keyed on the real `SKILL.md` SHA, wired into the nightly generator pass
-- [ ] Add the six `/skills/<slug>` URLs to the sitemap
+- [x] Initial cluster grid and category routes implemented
+- [ ] Visual review of `/` and the current `/skills/<slug>` category pages on desktop and mobile
+- [x] Recently Updated requires `is_abstract=1 AND is_official=1` and reads change summaries from `skill_revisions`
+- [x] Automatic classification uses the real `SKILL.md` SHA and prompt version in the hourly generator
+- [x] Retire the original six-cluster sitemap requirement under the SEO recovery freeze
 - [ ] Spot-check 30 random `is_abstract=1` rows for false positives
+- [ ] Observe one newly admitted eligible Skill receiving automatic classification
 
 ## Log
 
-- 2026-09-22 moved out of `docs/homepage-rebuild-todo.md`. The ledger above is this document's own Remaining list; nothing was re-verified.
+- 2026-09-22 Moved from `docs/homepage-rebuild-todo.md`. The initial ledger was copied without fresh verification.
+- 2026-10-03 Read `ai-generate-submit.ts`, `ai-generation-work.ts`, and the hourly schedule in `docs/arch/cron.md`.
+  Classification freshness compares the source SHA and prompt version. The generator reserves classification capacity beside embeddings.
+- 2026-10-03 `pnpm registry:convergence` read production D1. All 5,887 eligible Skills had current classifications, with zero remaining.
+  Eligibility requires an indexable Skill, rendered source, a source SHA, and a Repository without a broken marker.
+  This proves current coverage, not classification accuracy or the arrival of a new Skill.
+- 2026-10-03 Read `server/utils/recent-updates-query.ts`. It applies both required filters and joins revision messages.
+- 2026-10-03 Replaced the original six-cluster completion criteria with the current category surface.
+  The later keyword rework changed the categories. SEO recovery freezes sitemap expansion until its gate decision.
 
-Phase 1 shipped. Visual review on `/` and `/skills/<slug>`{lang="html"} pending; remaining items below.
+## Current implementation
 
-## Decisions locked
-1. Cluster destination → **new `/skills/<slug>`{lang="html"} routes** (not query param, not anchors).
-2. 6 clusters: `plan`, `master-agent`, `docs`, `review`, `debug`, `ship`. URL-stable forever.
-3. Cluster B labelled **"Master your agent"**.
-4. Demand badge = skill count + total installs (e.g. `49 skills · ~270k installs`).
-5. Hero CTA stays `gh:obra/superpowers` (biggest demand signal, signals 3rd-party curation).
+- Classification: `layers/registry/server/tasks/ai-generate-submit.ts` and `layers/registry/server/utils/ai-generation-work.ts`.
+- Category membership: `layers/registry/server/utils/cluster-membership.ts` and `layers/registry/server/data/clusters.ts`.
+- Recent updates: `server/utils/recent-updates-query.ts` and `server/api/feed/recent-updates.get.ts`.
+- Production coverage check: `pnpm registry:convergence`.
 
-Open: package surface for P5 ("Stack Sam") ; deferred, not blocking.
-
-## Done
-- ✅ Classifier ran 1200/1200 (237 abstract / 963 package-specific) → `/tmp/skilld-ux/classifications.jsonl`.
-- ✅ `scripts/backfill-abstractness.ts` populates `skill_generated(kind='abstractness')`{lang="ts"}.
-- ✅ Migration `migrations/0023_skill_abstractness.sql` adds `is_abstract`, `target_package`, `abstractness_category` columns + indexes; backfills from `skill_generated`.
-- ✅ Local D1 + Remote D1 both backfilled and migrated.
-- ✅ `layers/registry/server/data/clusters.ts` ; 6-cluster config with pinned examples.
-- ✅ `/api/clusters` (grid data) + `/api/clusters/[slug]` (paginated cluster detail), both using denormalised columns.
-- ✅ `app/components/HomepageClusterGrid.vue` + new "What are you trying to do?" section in `app/pages/index.vue`. Hero subhead rewritten.
-- ✅ `layers/marketing/app/pages/skills/[cluster].vue` ; cluster detail page.
-- ✅ `skills-to-gh-redirect` middleware allowlists cluster slugs.
-- ✅ `GeneratedKind` union extended with `'abstractness'`.
-
-## Remaining
-1. **Visual review** ; confirm the 6-card grid + cluster page render correctly on desktop and mobile. Dev server: `pnpm dev`.
-2. **Recently Updated tweaks** ; apply `is_abstract=1 AND is_official=1` filter; add "what changed" snippet from `skill_revisions` (docs/work/EXECUTE-github-pivot.md line 268 spec'd, not built).
-3. **Promote classifier to a job** ; `layers/registry/server/jobs/generate-abstractness.ts` mirroring `generate-tags.ts`; key on real SKILL.md SHA so it regenerates on drift. Wire into the nightly generator pass so new skills get classified automatically. Until this lands, only the seeded top 1200 skills have classification ; newer skills surface as `is_abstract=NULL`.
-4. **Sitemap entry** ; add the 6 `/skills/<slug>`{lang="html"} URLs to the sitemap (the sitemap currently emits only `/skills/{guide,official,stats,index}`).
-5. **Spot-check classifier output** ; sample 30 random `is_abstract=1` rows; flag false positives (e.g. `seo` was a borderline call).
-
-## Inputs (kept for reference)
-- `/tmp/skilld-ux/homepage-spec.md` ; full spec: personas, 6-cluster taxonomy, wireframes, copy, data deps.
-- `/tmp/skilld-ux/ux-research.md` ; persona + pattern-survey detail.
-- `/tmp/skilld-ux/classifications.jsonl` ; raw classifier output (1200 records, resume-safe).
-- `/tmp/skilld-ux/backfill.sql` ; generated SQL, idempotent, safe to re-run.
-- `scripts/classify-skill-abstractness.ts` ; Haiku-backed classifier (resume-safe).
-- `scripts/backfill-abstractness.ts` ; emits backfill SQL from the JSONL.
-
-## Re-running anything
-```bash
-# Regenerate backfill SQL from JSONL
-npx tsx scripts/backfill-abstractness.ts > /tmp/skilld-ux/backfill.sql
-
-# Apply locally
-npx wrangler d1 execute skilld-db --local --file=/tmp/skilld-ux/backfill.sql
-
-# Apply remotely (needs CLOUDFLARE_ACCOUNT_ID for the Harlan account)
-export CLOUDFLARE_ACCOUNT_ID=5904138d55ca25d5670dca6adf99894e
-npx wrangler d1 execute skilld-db --remote --file=/tmp/skilld-ux/backfill.sql
-```
+The classifier uses Workers AI. The initial manual pass classified 1,200 Skills with Haiku.
+The original taxonomy, install-count badges, and `gh:` hero reference are historical inputs, not current requirements.
+Current sitemap decisions belong to [SEO recovery](EXECUTE-seo-recovery.md).
