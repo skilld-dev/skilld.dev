@@ -1,8 +1,8 @@
 # SEO keyword rework
 
-Status: open · 2026-08-12 · last reviewed 2026-08-13, title pivot 2026-08-26
+Status: open · 2026-10-03 · title experiment ended 2026-08-26; measurement delegated to SEO recovery
 
-**Next move:** Harlan. The homepage title is the one blocker an agent cannot clear: the head terms want "Claude Skills" in it, `COPY.md` fixes it as the tagline, and the homepage earns nearly all the traffic. That is a brand call. The two smaller items below are readable work once it lands.
+**Next move:** Ready. Review the production `marketing` and `research` pins. Follow SEO recovery for measurements and indexing decisions.
 
 Done means: every indexable surface names its target query, its admission bar and its cull path, and the measurement window in this document has been read against Search Console rather than projected.
 
@@ -12,11 +12,15 @@ Measurement plan superseded by [EXECUTE-seo-recovery.md](EXECUTE-seo-recovery.md
 
 - [x] Baseline recorded 2026-08-12
 - [x] The surfaces listed under Shipped, below
-- [ ] Homepage title decided, brand against head term
+- [x] Close the original head-term title experiment under the recorded 2026-08-26 title pivot
 - [ ] `marketing` and `research` pins read by a human against the production rows
-- [ ] The measurement window in this document read against Search Console
+- [x] Delegate the remaining measurement window to SEO recovery, with its first read on 2026-10-12
 
 ## Log
+
+- 2026-10-03 Reconciled the initial title blocker with this brief's August 26 decision.
+  The original head-term proposal is historical. Further title changes require a new decision under COPY and VISION.
+  No fresh Search Console results were read during this check-in.
 
 - 2026-09-22 moved out of the repository root as `SEO.md`. The ledger above is read off this document's own Open section; nothing was re-measured. The absolute keyword volumes in here are not a traffic forecast, as its own caveat says.
 
