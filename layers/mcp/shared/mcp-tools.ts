@@ -56,9 +56,11 @@ export interface McpTool {
   run: (deps: McpToolDeps, args: unknown, signal?: AbortSignal) => Promise<McpToolResult>
 }
 
-function ok(data: Record<string, unknown>): McpToolResult {
+type OutputPolicy = 'paginated' | 'complete'
+
+function ok(data: Record<string, unknown>, policy: OutputPolicy = 'paginated'): McpToolResult {
   const text = JSON.stringify(data, null, 2)
-  if (text.length > MAX_RESULT_CHARS)
+  if (policy === 'paginated' && text.length > MAX_RESULT_CHARS)
     return fail('Result exceeded the MCP output limit. Request fewer items.')
   return {
     content: [{ type: 'text', text }],
@@ -75,9 +77,10 @@ function presentResult(
   operation: string,
   result: Result<Record<string, unknown>, SkilldFailure>,
   notFoundMessage?: string,
+  outputPolicy: OutputPolicy = 'paginated',
 ): McpToolResult {
   if (result._tag === 'Ok')
-    return ok(result.value)
+    return ok(result.value, outputPolicy)
 
   const error = result.error
   if (error._tag === 'ApiFailure') {
@@ -85,6 +88,8 @@ function presentResult(
       return fail(notFoundMessage)
     if (error.code === 'RATE_LIMITED')
       return fail('Too many requests. Try again later.')
+    if (error.status >= 500)
+      deps.reportError(operation, error)
     return fail(`${operation} failed. Try again later.`)
   }
   if (error._tag === 'RequestFailure')
@@ -93,6 +98,10 @@ function presentResult(
     return fail('Request cancelled.')
 
   deps.reportError(operation, error)
+  // SDK 0.1.1 omits RATE_LIMITED from public operation declarations.
+  // Keep reporting the contract gap, but HTTP 429 still has a useful message.
+  if (error._tag === 'ContractFailure' && error.status === 429)
+    return fail('Too many requests. Try again later.')
   return fail(`${operation} failed. Try again later.`)
 }
 
@@ -152,6 +161,8 @@ const getSkill: McpTool = {
       'Skill lookup',
       result,
       `Skill not found: ${owner}/${repo}/${name}. Try search_skills to find the right ref.`,
+      // A single Skill cannot be paginated. Preserve its complete SDK answer.
+      'complete',
     )
   },
 }

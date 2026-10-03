@@ -15,7 +15,7 @@ async function runTool(toolName: string, args: unknown, toolDeps = deps(), signa
   return tool.run(toolDeps, args, signal)
 }
 
-function problem(code: 'NOT_FOUND' | 'RATE_LIMITED', status: number): Response {
+function problem(code: 'NOT_FOUND' | 'RATE_LIMITED' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE', status: number): Response {
   return Response.json({
     type: problemType(code),
     title: code === 'NOT_FOUND' ? 'Not found' : 'Rate limited',
@@ -59,6 +59,31 @@ describe('mCP public SDK discovery', () => {
     )
   })
 
+  it('returns complete large Skills without losing provenance or commands', async () => {
+    const response = {
+      ...skillsV1.operations.get.docs.examples[0]!.response,
+      markdown: '\n"\\'.repeat(20_000),
+    }
+    const toolDeps = deps(vi.fn().mockResolvedValue(Response.json(response)))
+    const result = await runTool('get_skill', { owner: 'a', repo: 'b', name: 'c' }, toolDeps)
+    expect(result.isError).not.toBe(true)
+    expect(result.structuredContent).toEqual(response)
+    expect(JSON.parse(result.content[0]!.text)).toEqual(response)
+    expect(toolDeps.reportError).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['INTERNAL_ERROR', 500],
+    ['SERVICE_UNAVAILABLE', 503],
+  ] as const)('reports and redacts upstream %s answers', async (code, status) => {
+    const toolDeps = deps(vi.fn().mockResolvedValue(problem(code, status)))
+    const result = await runTool('search_skills', { query: 'seo' }, toolDeps)
+    expect(result.content[0]!.text).toBe('Search failed. Try again later.')
+    expect(toolDeps.reportError).toHaveBeenCalledWith('Search', expect.objectContaining({ _tag: 'ApiFailure', code }))
+    expect(toolDeps.reportError).toHaveBeenCalledOnce()
+    expect(toolDeps.fetchApi).toHaveBeenCalledOnce()
+  })
+
   it('uses server collection pagination and returns the collection contract', async () => {
     const response = collectionsV1.operations.get.docs.examples[0]!.response
     const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
@@ -99,7 +124,7 @@ describe('mCP public SDK discovery', () => {
     const toolDeps = deps(vi.fn().mockResolvedValue(problem('RATE_LIMITED', 429)))
     const result = await runTool('search_skills', { query: 'seo' }, toolDeps)
     expect(result.isError).toBe(true)
-    expect(result.content[0]!.text).toBe('Search failed. Try again later.')
+    expect(result.content[0]!.text).toBe('Too many requests. Try again later.')
     expect(toolDeps.fetchApi).toHaveBeenCalledOnce()
     expect(toolDeps.reportError).toHaveBeenCalledWith('Search', expect.objectContaining({ _tag: 'ContractFailure', status: 429 }))
   })
