@@ -22,13 +22,8 @@ export default defineNuxtPlugin(async () => {
   }
 
   const tools = loaded.module.createWebMcpTools({
-    fetchApi: <T>(path: string, options?: {
-      query?: Record<string, string | number>
-      signal?: AbortSignal
-    }): Promise<T> => $fetch<T>(path, {
-      query: options?.query,
-      signal: options?.signal,
-    }),
+    fetchApi: (input, options) => fetch(input, options),
+    baseUrl: window.location.origin,
     reportError: (operation, error) => console.error(`[webmcp:${operation}]`, error),
   }, controller.signal)
 

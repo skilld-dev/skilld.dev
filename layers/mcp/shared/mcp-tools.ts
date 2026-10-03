@@ -1,14 +1,12 @@
+import type { FetchImplementation, Result, SkilldFailure } from 'skilld-sdk'
+import { createSkilldClient } from 'skilld-sdk'
 import { z } from 'zod'
 import {
-  collectionInstallCommand,
   installCommandFor,
   parseInstallRef,
-  repoInstallCommand,
-  skillInstallCommand,
   skillRunCommand,
 } from './mcp-install-command'
 
-const SITE = 'https://skilld.dev'
 const MAX_RESULT_CHARS = 48_000
 /**
  * One spelling for every place an agent reads the accepted refs: the tool
@@ -16,17 +14,20 @@ const MAX_RESULT_CHARS = 48_000
  */
 const ACCEPTED_REFS = ['"owner/repo"', '"owner/repo/skill-name"', '"@login"', '"@login/collection-slug"'].join(', ')
 
-/**
- * Tools read the registry and app layers over their public HTTP APIs only
- * (ADR-0001: cross-layer data via `$fetch('/api/...')`, never imported server
- * utils). The fetcher is injected so handlers stay pure and unit-testable.
- */
+/** Raw HTTP transport is injected. The SDK owns request and response parsing. */
 export interface McpToolDeps {
-  fetchApi: <T>(path: string, opts?: {
-    query?: Record<string, string | number>
-    signal?: AbortSignal
-  }) => Promise<T>
+  fetchApi: FetchImplementation
+  baseUrl?: string
   reportError: (operation: string, error: unknown) => void
+}
+
+function clientFor(deps: McpToolDeps) {
+  return createSkilldClient({
+    fetch: deps.fetchApi,
+    baseUrl: deps.baseUrl,
+    // Each tool call is one request. Let the caller retry after a rate limit.
+    retry: { maxAttempts: 1 },
+  })
 }
 
 interface TextContent {
@@ -55,9 +56,11 @@ export interface McpTool {
   run: (deps: McpToolDeps, args: unknown, signal?: AbortSignal) => Promise<McpToolResult>
 }
 
-function ok(data: Record<string, unknown>): McpToolResult {
+type OutputPolicy = 'paginated' | 'complete'
+
+function ok(data: Record<string, unknown>, policy: OutputPolicy = 'paginated'): McpToolResult {
   const text = JSON.stringify(data, null, 2)
-  if (text.length > MAX_RESULT_CHARS)
+  if (policy === 'paginated' && text.length > MAX_RESULT_CHARS)
     return fail('Result exceeded the MCP output limit. Request fewer items.')
   return {
     content: [{ type: 'text', text }],
@@ -69,96 +72,37 @@ function fail(message: string): McpToolResult {
   return { content: [{ type: 'text', text: message }], isError: true }
 }
 
-function isNotFound(error: unknown): boolean {
-  const e = error as { statusCode?: number, status?: number, response?: { status?: number } } | null
-  return e?.statusCode === 404 || e?.status === 404 || e?.response?.status === 404
-}
+function presentResult(
+  deps: McpToolDeps,
+  operation: string,
+  result: Result<Record<string, unknown>, SkilldFailure>,
+  notFoundMessage?: string,
+  outputPolicy: OutputPolicy = 'paginated',
+): McpToolResult {
+  if (result._tag === 'Ok')
+    return ok(result.value, outputPolicy)
 
-function failUnexpected(deps: McpToolDeps, operation: string, error: unknown): McpToolResult {
-  deps.reportError(operation, error)
-  return fail(`${operation} failed. Try again later.`)
-}
-
-function truncate(value: string | null, maxLength: number): string | null {
-  if (!value || value.length <= maxLength)
-    return value
-  return `${value.slice(0, maxLength - 1)}…`
-}
-
-function epochToIso(sec: number | null | undefined): string | null {
-  return sec ? new Date(sec * 1000).toISOString() : null
-}
-
-// --- wire shapes consumed from the public APIs (subset of each response) ---
-
-interface SkillListItem {
-  owner: string
-  repo: string
-  name: string
-  displayName: string
-  description: string | null
-  installs: number
-  stars: number
-  trustTier: string
-  official: boolean
-  pushedAt: number | null
-  modifiedAt: number | null
-  registryPath: string
-}
-
-interface SkillListResponse {
-  items: SkillListItem[]
-  total: number
-}
-
-interface SkillDetailResponse {
-  owner: string
-  repo: string
-  name: string
-  registryPath: string
-  displayName: string
-  description: string | null
-  installs: number
-  stars: number
-  forks: number
-  tier: string
-  githubUrl: string
-  pushedAt: string | null
-  createdAt: string | null
-  maturity: { ageDays: number, sinceUpdateDays: number, cadence: string } | null
-  trust: { tier: string, score: number, reasons: string[] }
-  provenance: {
-    owner: string
-    repo: string
-    branch: string
-    skillPath: string | null
-    sourceCommitSha: string | null
-    sourceCommitUrl: string | null
-    skillFileUrl: string | null
-    historyUrl: string | null
-    modifiedAt: number | null
-    lastSyncedAt: number | null
-    syncStatus: string | null
+  const error = result.error
+  if (error._tag === 'ApiFailure') {
+    if (error.code === 'NOT_FOUND' && notFoundMessage)
+      return fail(notFoundMessage)
+    if (error.code === 'RATE_LIMITED')
+      return fail('Too many requests. Try again later.')
+    if (error.status >= 500)
+      deps.reportError(operation, error)
+    return fail(`${operation} failed. Try again later.`)
   }
-}
+  if (error._tag === 'RequestFailure')
+    return fail('Invalid arguments. Check the tool input.')
+  if (error._tag === 'TransportFailure' && error.reason === 'aborted')
+    return fail('Request cancelled.')
 
-interface CollectionDetailResponse {
-  authorLogin: string
-  slug: string
-  name: string
-  preamble: string | null
-  featured: boolean
-  createdAt: number
-  updatedAt: number
-  skills: {
-    position: number
-    owner: string
-    repo: string
-    name: string | null
-    displayName: string | null
-    reason: string | null
-    registryPath: string
-  }[]
+  deps.reportError(operation, error)
+  // SDK 0.1.1 omits RATE_LIMITED from public operation declarations.
+  // Keep reporting the contract gap, but HTTP 429 still has a useful message.
+  if (error._tag === 'ContractFailure' && error.status === 429)
+    return fail('Too many requests. Try again later.')
+  return fail(`${operation} failed. Try again later.`)
 }
 
 // --- tools ---
@@ -170,7 +114,7 @@ const SearchArgs = z.object({
 
 const searchSkills: McpTool = {
   name: 'search_skills',
-  description: 'Search the skilld.dev registry for agent skills (semantic + lexical ranking). Skills are markdown instructions published by maintainers in their own GitHub repos; results work with any coding agent. Returns ranked matches with source repo, trust tier, runCommand and installCommand. Prefer runCommand: skilld run gives the user the skill now and writes nothing. Use installCommand when the user wants the skill in every session.',
+  description: 'Search the skilld.dev registry for agent skills (semantic + lexical ranking). Skills are markdown instructions published by maintainers in their own GitHub repos; results work with any coding agent. Returns the public API search answer with source references and GitHub star counts. Call get_skill for provenance, runCommand and installCommand. Prefer runCommand for this session.',
   inputSchema: SearchArgs.shape,
   annotations: {
     readOnlyHint: true,
@@ -183,33 +127,8 @@ const searchSkills: McpTool = {
     if (!parsed.success)
       return fail(`Invalid arguments: ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`)
     const { query, limit } = parsed.data
-    try {
-      const res = await deps.fetchApi<SkillListResponse>('/api/skills', {
-        query: { q: query, limit },
-        signal,
-      })
-      return ok({
-        query,
-        total: res.total,
-        results: res.items.slice(0, limit).map(s => ({
-          owner: s.owner,
-          repo: s.repo,
-          name: s.name,
-          displayName: s.displayName,
-          description: truncate(s.description, 500),
-          installs: s.installs,
-          stars: s.stars,
-          trustTier: s.trustTier,
-          official: s.official,
-          url: `${SITE}${s.registryPath}`,
-          runCommand: skillRunCommand(s.owner, s.repo, s.name),
-          installCommand: skillInstallCommand(s.owner, s.repo, s.name),
-        })),
-      })
-    }
-    catch (error) {
-      return failUnexpected(deps, 'Search', error)
-    }
+    const result = await clientFor(deps).skills.search({ query: { q: query, limit } }, { signal })
+    return presentResult(deps, 'Search', result)
   },
 }
 
@@ -221,7 +140,7 @@ const GetSkillArgs = z.object({
 
 const getSkill: McpTool = {
   name: 'get_skill',
-  description: 'Look up one skill by owner/repo/name. Returns detail plus provenance: who publishes it, the exact SKILL.md source file and commit on GitHub, and freshness (last repo push, last content change, last registry sync). Also returns runCommand and installCommand. Prefer runCommand: skilld run gives the user the skill now and writes nothing. Use installCommand when the user wants the skill in every session.',
+  description: 'Look up one skill by owner/repo/name. Returns detail plus provenance: who publishes it, the exact SKILL.md source file and commit on GitHub, and freshness (last Repository push and last Skill change). Also returns runCommand and installCommand. Prefer runCommand: skilld run gives the user the skill now and writes nothing. Use installCommand when the user wants the skill in every session.',
   inputSchema: GetSkillArgs.shape,
   annotations: {
     readOnlyHint: true,
@@ -234,51 +153,17 @@ const getSkill: McpTool = {
     if (!parsed.success)
       return fail('Invalid arguments: owner, repo and name are required strings')
     const { owner, repo, name } = parsed.data
-    try {
-      const s = await deps.fetchApi<SkillDetailResponse>(
-        `/api/skills/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(name)}`,
-        { signal },
-      )
-      return ok({
-        owner: s.owner,
-        repo: s.repo,
-        name: s.name,
-        displayName: s.displayName,
-        description: truncate(s.description, 1_000),
-        installs: s.installs,
-        stars: s.stars,
-        forks: s.forks,
-        tier: s.tier,
-        trust: {
-          tier: s.trust.tier,
-          score: s.trust.score,
-          reasons: s.trust.reasons.slice(0, 10).map(reason => truncate(reason, 500)),
-        },
-        url: `${SITE}${s.registryPath}`,
-        runCommand: skillRunCommand(s.owner, s.repo, s.name),
-        installCommand: skillInstallCommand(s.owner, s.repo, s.name),
-        provenance: {
-          author: s.provenance.owner,
-          sourceRepoUrl: s.githubUrl,
-          skillFileUrl: s.provenance.skillFileUrl,
-          sourceCommitUrl: s.provenance.sourceCommitUrl,
-          historyUrl: s.provenance.historyUrl,
-          branch: s.provenance.branch,
-          skillPath: s.provenance.skillPath,
-          freshness: {
-            repoPushedAt: s.pushedAt,
-            contentModifiedAt: epochToIso(s.provenance.modifiedAt),
-            lastSyncedAt: epochToIso(s.provenance.lastSyncedAt),
-            cadence: s.maturity?.cadence ?? null,
-          },
-        },
-      })
-    }
-    catch (error) {
-      if (isNotFound(error))
-        return fail(`Skill not found: ${owner}/${repo}/${name}. Try search_skills to find the right ref.`)
-      return failUnexpected(deps, 'Skill lookup', error)
-    }
+    const result = await clientFor(deps).skills.get({
+      params: { owner, repository: repo, name },
+    }, { signal })
+    return presentResult(
+      deps,
+      'Skill lookup',
+      result,
+      `Skill not found: ${owner}/${repo}/${name}. Try search_skills to find the right ref.`,
+      // A single Skill cannot be paginated. Preserve its complete SDK answer.
+      'complete',
+    )
   },
 }
 
@@ -304,43 +189,11 @@ const getCollection: McpTool = {
     if (!parsed.success)
       return fail('Invalid arguments: login and slug are required strings')
     const { login, slug, limit, offset } = parsed.data
-    try {
-      const c = await deps.fetchApi<CollectionDetailResponse>(
-        `/api/collections/by-author/${encodeURIComponent(login)}/${encodeURIComponent(slug)}`,
-        { signal },
-      )
-      const skills = c.skills.slice(offset, offset + limit)
-      return ok({
-        author: c.authorLogin,
-        slug: c.slug,
-        name: c.name,
-        preamble: truncate(c.preamble, 2_000),
-        featured: c.featured,
-        updatedAt: epochToIso(c.updatedAt),
-        url: `${SITE}/@${c.authorLogin}/${c.slug}`,
-        installCommand: collectionInstallCommand(c.authorLogin, c.slug),
-        totalSkills: c.skills.length,
-        offset,
-        limit,
-        hasMore: offset + skills.length < c.skills.length,
-        skills: skills.map(s => ({
-          position: s.position,
-          owner: s.owner,
-          repo: s.repo,
-          name: s.name,
-          displayName: s.displayName,
-          reason: truncate(s.reason, 1_000),
-          url: `${SITE}${s.registryPath}`,
-          runCommand: s.name ? skillRunCommand(s.owner, s.repo, s.name) : null,
-          installCommand: s.name ? skillInstallCommand(s.owner, s.repo, s.name) : repoInstallCommand(s.owner, s.repo),
-        })),
-      })
-    }
-    catch (error) {
-      if (isNotFound(error))
-        return fail(`Collection not found: @${login}/${slug}`)
-      return failUnexpected(deps, 'Collection lookup', error)
-    }
+    const result = await clientFor(deps).collections.get({
+      params: { login, slug },
+      query: { limit, offset },
+    }, { signal })
+    return presentResult(deps, 'Collection lookup', result, `Collection not found: @${login}/${slug}`)
   },
 }
 

@@ -1,231 +1,153 @@
 import type { McpToolDeps, McpToolResult } from '../../layers/mcp/shared/mcp-tools'
+import { collectionsV1, problemType, skillsV1 } from 'skilld-sdk/contract'
 import { describe, expect, it, vi } from 'vitest'
 import { installCommandFor, parseInstallRef } from '../../layers/mcp/shared/mcp-install-command'
 import { mcpTools } from '../../layers/mcp/shared/mcp-tools'
 
-const unexpectedFetch = vi.fn(() => {
-  throw new Error('unexpected fetch')
-})
-
-function deps(fetchApi: McpToolDeps['fetchApi'] = unexpectedFetch): McpToolDeps {
-  return {
-    fetchApi,
-    reportError: vi.fn(),
-  }
+function deps(fetchApi: McpToolDeps['fetchApi'] = vi.fn()): McpToolDeps {
+  return { fetchApi, reportError: vi.fn() }
 }
 
-async function runTool(toolName: string, args: unknown, toolDeps = deps()): Promise<McpToolResult> {
+async function runTool(toolName: string, args: unknown, toolDeps = deps(), signal?: AbortSignal): Promise<McpToolResult> {
   const tool = mcpTools.find(candidate => candidate.name === toolName)
   if (!tool)
     throw new Error(`Missing tool: ${toolName}`)
-  return await tool.run(toolDeps, args)
+  return tool.run(toolDeps, args, signal)
 }
 
-const notFound = Object.assign(new Error('Not Found'), { statusCode: 404 })
+function problem(code: 'NOT_FOUND' | 'RATE_LIMITED' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE', status: number): Response {
+  return Response.json({
+    type: problemType(code),
+    title: code === 'NOT_FOUND' ? 'Not found' : 'Rate limited',
+    status,
+    detail: 'Private upstream information',
+    instance: '/api/v1/skills/missing/missing/missing',
+    code,
+  }, { status })
+}
 
-describe('mcp toolkit definitions', () => {
-  it('exposes four bounded, read-only discovery tools', () => {
-    expect(mcpTools.map(tool => tool.name)).toEqual([
-      'search_skills',
-      'get_skill',
-      'get_collection',
-      'install_command',
-    ])
-
-    for (const tool of mcpTools) {
-      expect(tool.description?.length).toBeGreaterThan(20)
-      expect(tool.annotations).toMatchObject({
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-      })
-    }
-    expect(JSON.stringify(mcpTools.map(tool => tool.description))).not.toMatch(/claude|cursor|codex|copilot/i)
-  })
-
-  it('passes the MCP cancellation signal into API calls', async () => {
-    const fetchApi = vi.fn().mockResolvedValue({ total: 0, items: [] })
-    const search = mcpTools[0]!
+describe('mCP public SDK discovery', () => {
+  it('returns the search contract and forwards cancellation', async () => {
+    const response = skillsV1.operations.search.docs.examples[0]!.response
+    const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
     const signal = new AbortController().signal
 
-    await search.run(deps(fetchApi), { query: 'seo', limit: 1 }, signal)
+    const result = await runTool('search_skills', { query: 'tailwind', limit: 1 }, deps(fetchApi), signal)
 
-    expect(fetchApi).toHaveBeenCalledWith('/api/skills', {
-      query: { q: 'seo', limit: 1 },
-      signal,
-    })
-  })
-})
-
-describe('search_skills', () => {
-  it('returns ranked results with bounded descriptions and install commands', async () => {
-    const fetchApi = vi.fn().mockResolvedValue({
-      total: 2,
-      items: [
-        {
-          owner: 'nuxt',
-          repo: 'nuxt',
-          name: 'nuxt-seo',
-          displayName: 'Nuxt SEO',
-          description: 'x'.repeat(700),
-          installs: 120,
-          stars: 999,
-          trustTier: 'trusted',
-          official: true,
-          registryPath: '/gh/nuxt/nuxt',
-        },
-      ],
-    })
-    const result = await runTool('search_skills', { query: 'seo', limit: 5 }, deps(fetchApi))
-    const data = result.structuredContent as any
-
-    expect(fetchApi).toHaveBeenCalledWith('/api/skills', {
-      query: { q: 'seo', limit: 5 },
-      signal: undefined,
-    })
-    expect(data.results[0]).toMatchObject({
-      owner: 'nuxt',
-      repo: 'nuxt',
-      name: 'nuxt-seo',
-      official: true,
-      url: 'https://skilld.dev/gh/nuxt/nuxt',
-      installCommand: 'npx skilld install nuxt/nuxt/nuxt-seo',
-    })
-    expect(data.results[0].description.length).toBe(500)
+    expect(result.structuredContent).toEqual(response)
+    expect(JSON.parse(result.content[0]!.text)).toEqual(response)
+    const [input, options] = fetchApi.mock.calls[0]!
+    const url = new URL(input)
+    expect(url.pathname).toBe('/api/v1/skills')
+    expect(Object.fromEntries(url.searchParams)).toEqual({ q: 'tailwind', limit: '1' })
+    expect(options.signal).toBe(signal)
   })
 
-  it('bounds search input', async () => {
-    expect((await runTool('search_skills', { query: 'x'.repeat(201) })).isError).toBe(true)
-    expect((await runTool('search_skills', { query: 'seo', limit: 21 })).isError).toBe(true)
-  })
-
-  it('redacts infrastructure errors and reports them', async () => {
-    const toolDeps = deps(vi.fn().mockRejectedValue(new Error('secret upstream detail')))
-    const result = await runTool('search_skills', { query: 'seo' }, toolDeps)
-
-    expect(result).toMatchObject({ isError: true })
-    expect(result.content[0]!.text).toBe('Search failed. Try again later.')
-    expect(result.content[0]!.text).not.toContain('secret upstream detail')
-    expect(toolDeps.reportError).toHaveBeenCalledOnce()
-  })
-})
-
-describe('get_skill', () => {
-  const detail = {
-    owner: 'nuxt',
-    repo: 'nuxt',
-    name: 'nuxt-seo',
-    registryPath: '/gh/nuxt/nuxt',
-    displayName: 'Nuxt SEO',
-    description: 'SEO for Nuxt',
-    installs: 120,
-    stars: 999,
-    forks: 50,
-    tier: 'official-org',
-    githubUrl: 'https://github.com/nuxt/nuxt',
-    pushedAt: '2026-08-01T00:00:00.000Z',
-    createdAt: '2020-01-01T00:00:00.000Z',
-    maturity: { ageDays: 2000, sinceUpdateDays: 3, cadence: 'active' },
-    trust: { tier: 'trusted', score: 90, reasons: ['official repo'] },
-    provenance: {
-      owner: 'nuxt',
-      repo: 'nuxt',
-      branch: 'main',
-      skillPath: 'skills/nuxt-seo/SKILL.md',
-      sourceCommitSha: 'abc123',
-      sourceCommitUrl: 'https://github.com/nuxt/nuxt/commit/abc123',
-      skillFileUrl: 'https://github.com/nuxt/nuxt/blob/abc123/skills/nuxt-seo/SKILL.md',
-      historyUrl: 'https://github.com/nuxt/nuxt/commits/main/skills/nuxt-seo/SKILL.md',
-      modifiedAt: 1754179200,
-      lastSyncedAt: 1754265600,
-      syncStatus: 'ok',
-    },
-  }
-
-  it('returns provenance, freshness, and an install command', async () => {
-    const fetchApi = vi.fn().mockResolvedValue(detail)
+  it('returns the Skill contract with provenance and run handoff', async () => {
+    const response = skillsV1.operations.get.docs.examples[0]!.response
+    const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
     const result = await runTool('get_skill', {
-      owner: 'nuxt',
-      repo: 'nuxt',
-      name: 'nuxt-seo',
+      owner: 'vercel-labs',
+      repo: 'agent-skills',
+      name: 'web-design-guidelines',
     }, deps(fetchApi))
-    const data = result.structuredContent as any
 
-    expect(fetchApi).toHaveBeenCalledWith('/api/skills/nuxt/nuxt/nuxt-seo', { signal: undefined })
-    expect(data.runCommand).toBe('npx skilld run nuxt/nuxt/nuxt-seo')
-    expect(data.installCommand).toBe('npx skilld install nuxt/nuxt/nuxt-seo')
-    expect(data.provenance).toMatchObject({
-      author: 'nuxt',
-      sourceRepoUrl: 'https://github.com/nuxt/nuxt',
-      sourceCommitUrl: detail.provenance.sourceCommitUrl,
-      branch: 'main',
-      freshness: {
-        repoPushedAt: '2026-08-01T00:00:00.000Z',
-        cadence: 'active',
-      },
-    })
+    expect(result.structuredContent).toEqual(response)
+    expect(fetchApi).toHaveBeenCalledWith(
+      'https://skilld.dev/api/v1/skills/vercel-labs/agent-skills/web-design-guidelines',
+      expect.objectContaining({ method: 'GET' }),
+    )
   })
 
-  it('maps not found without logging infrastructure errors', async () => {
-    const toolDeps = deps(vi.fn().mockRejectedValue(notFound))
-    const result = await runTool('get_skill', { owner: 'nope', repo: 'nope', name: 'nope' }, toolDeps)
-
-    expect(result).toMatchObject({ isError: true })
-    expect(result.content[0]!.text).toContain('Skill not found: nope/nope/nope')
+  it('returns complete large Skills without losing provenance or commands', async () => {
+    const response = {
+      ...skillsV1.operations.get.docs.examples[0]!.response,
+      markdown: '\n"\\'.repeat(20_000),
+    }
+    const toolDeps = deps(vi.fn().mockResolvedValue(Response.json(response)))
+    const result = await runTool('get_skill', { owner: 'a', repo: 'b', name: 'c' }, toolDeps)
+    expect(result.isError).not.toBe(true)
+    expect(result.structuredContent).toEqual(response)
+    expect(JSON.parse(result.content[0]!.text)).toEqual(response)
     expect(toolDeps.reportError).not.toHaveBeenCalled()
   })
-})
 
-describe('get_collection', () => {
-  it('paginates skills and bounds curator prose', async () => {
-    const fetchApi = vi.fn().mockResolvedValue({
-      authorLogin: 'harlan-zw',
-      slug: 'nuxt-stack',
-      name: 'Nuxt Stack',
-      preamble: 'p'.repeat(2500),
-      featured: true,
-      createdAt: 1754000000,
-      updatedAt: 1754265600,
-      skills: Array.from({ length: 30 }, (_, index) => ({
-        position: index + 1,
-        owner: 'nuxt',
-        repo: 'nuxt',
-        name: `skill-${index + 1}`,
-        registryPath: `/gh/nuxt/nuxt/skill-${index + 1}`,
-        displayName: `Skill ${index + 1}`,
-        reason: 'r'.repeat(1200),
-      })),
-    })
-    const result = await runTool('get_collection', {
-      login: 'harlan-zw',
-      slug: 'nuxt-stack',
-      limit: 10,
-      offset: 10,
-    }, deps(fetchApi))
-    const data = result.structuredContent as any
-
-    expect(data).toMatchObject({
-      author: 'harlan-zw',
-      totalSkills: 30,
-      offset: 10,
-      limit: 10,
-      hasMore: true,
-      installCommand: 'npx skilld add @harlan-zw/nuxt-stack',
-    })
-    expect(data.preamble.length).toBe(2000)
-    expect(data.skills).toHaveLength(10)
-    expect(data.skills[0].position).toBe(11)
-    expect(data.skills[0].reason.length).toBe(1000)
+  it.each([
+    ['INTERNAL_ERROR', 500],
+    ['SERVICE_UNAVAILABLE', 503],
+  ] as const)('reports and redacts upstream %s answers', async (code, status) => {
+    const toolDeps = deps(vi.fn().mockResolvedValue(problem(code, status)))
+    const result = await runTool('search_skills', { query: 'seo' }, toolDeps)
+    expect(result.content[0]!.text).toBe('Search failed. Try again later.')
+    expect(toolDeps.reportError).toHaveBeenCalledWith('Search', expect.objectContaining({ _tag: 'ApiFailure', code }))
+    expect(toolDeps.reportError).toHaveBeenCalledOnce()
+    expect(toolDeps.fetchApi).toHaveBeenCalledOnce()
   })
 
-  it('maps a missing collection to an in-band error', async () => {
+  it('uses server collection pagination and returns the collection contract', async () => {
+    const response = collectionsV1.operations.get.docs.examples[0]!.response
+    const fetchApi = vi.fn().mockResolvedValue(Response.json(response))
     const result = await runTool('get_collection', {
-      login: 'ghost',
-      slug: 'nothing',
-    }, deps(vi.fn().mockRejectedValue(notFound)))
+      login: 'harlan-zw',
+      slug: 'design-engineering-essentials',
+      limit: 10,
+      offset: 20,
+    }, deps(fetchApi))
 
-    expect(result).toMatchObject({ isError: true })
-    expect(result.content[0]!.text).toContain('@ghost/nothing')
+    expect(result.structuredContent).toEqual(response)
+    expect(fetchApi).toHaveBeenCalledWith(
+      'https://skilld.dev/api/v1/collections/harlan-zw/design-engineering-essentials?limit=10&offset=20',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
+
+  it('bounds inputs before fetching', async () => {
+    const toolDeps = deps()
+    expect((await runTool('search_skills', { query: 'x'.repeat(201) }, toolDeps)).isError).toBe(true)
+    expect((await runTool('search_skills', { query: 'seo', limit: 21 }, toolDeps)).isError).toBe(true)
+    expect((await runTool('get_collection', { login: 'harlan-zw', slug: 'x', limit: 51 }, toolDeps)).isError).toBe(true)
+    expect(toolDeps.fetchApi).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['get_skill', { owner: 'ghost', repo: 'nothing', name: 'missing' }, 'Skill not found: ghost/nothing/missing'],
+    ['get_collection', { login: 'ghost', slug: 'nothing' }, 'Collection not found: @ghost/nothing'],
+  ])('maps %s NOT_FOUND without logging infrastructure errors', async (name, args, message) => {
+    const toolDeps = deps(vi.fn().mockResolvedValue(problem('NOT_FOUND', 404)))
+    const result = await runTool(name, args, toolDeps)
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toContain(message)
+    expect(toolDeps.reportError).not.toHaveBeenCalled()
+  })
+
+  it('reports the published contract gap for public rate limits without retrying', async () => {
+    const toolDeps = deps(vi.fn().mockResolvedValue(problem('RATE_LIMITED', 429)))
+    const result = await runTool('search_skills', { query: 'seo' }, toolDeps)
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toBe('Too many requests. Try again later.')
+    expect(toolDeps.fetchApi).toHaveBeenCalledOnce()
+    expect(toolDeps.reportError).toHaveBeenCalledWith('Search', expect.objectContaining({ _tag: 'ContractFailure', status: 429 }))
+  })
+
+  it.each([
+    ['malformed answer', () => Promise.resolve(Response.json({ items: [], total: 'wrong' }))],
+    ['network failure', () => Promise.reject(new Error('secret upstream detail'))],
+  ])('reports and redacts %s', async (_name, fetchApi) => {
+    const toolDeps = deps(vi.fn(fetchApi))
+    const result = await runTool('search_skills', { query: 'seo' }, toolDeps)
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toBe('Search failed. Try again later.')
+    expect(toolDeps.reportError).toHaveBeenCalledOnce()
+  })
+
+  it('returns cancellation without logging an infrastructure error', async () => {
+    const toolDeps = deps(vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')))
+    const controller = new AbortController()
+    controller.abort()
+    const result = await runTool('search_skills', { query: 'seo' }, toolDeps, controller.signal)
+    expect(result.isError).toBe(true)
+    expect(result.content[0]!.text).toBe('Request cancelled.')
+    expect(toolDeps.reportError).not.toHaveBeenCalled()
   })
 })
 

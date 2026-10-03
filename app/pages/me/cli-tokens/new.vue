@@ -11,7 +11,8 @@ const schema = z.object({
   ttl: z.enum(['30', '90', '365']),
 })
 const form = reactive<z.input<typeof schema>>({ label: '', ttl: '90' })
-const { state, create } = useTokenCreation(input => $fetch('/api/me/cli-tokens', { method: 'POST', body: input }))
+// The composable parses the answer, so do not infer Nitro's full route union.
+const { state, create } = useTokenCreation(input => $fetch<Record<string, unknown>, string>('/api/me/cli-tokens', { method: 'POST', body: input }))
 const tokenEnv = computed(() => state.value._tag === 'created' ? `SKILLD_TOKEN="${state.value.token.accessToken}"` : '')
 const expires = computed(() => state.value._tag === 'created'
   ? new Date(state.value.token.expiresAt * 1000).toLocaleDateString(undefined, { dateStyle: 'medium' })

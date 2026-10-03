@@ -22,7 +22,9 @@ function statusOf(error: unknown): number | null {
  * propagates, and the operation adapter maps it to a problem.
  */
 export function readOwnRoute<T>(event: H3Event, path: string): Promise<OwnRouteRead<T>> {
-  return event.$fetch<T>(path).then(
+  // This dynamic path has an explicit answer type. Avoid Nitro's route union.
+  const fetchAnswer = event.$fetch as <TAnswer>(path: string) => Promise<TAnswer>
+  return fetchAnswer<T>(path).then(
     (value): OwnRouteRead<T> => ({ _tag: 'found', value: value as T }),
     (error: unknown): OwnRouteRead<T> => {
       if (statusOf(error) === 404)

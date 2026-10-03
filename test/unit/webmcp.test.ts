@@ -54,7 +54,7 @@ describe('webmcp discovery tools', () => {
   })
 
   it('returns tagged data and preserves cancellation', async () => {
-    const fetchApi = vi.fn().mockResolvedValue({ total: 0, items: [] })
+    const fetchApi = vi.fn().mockResolvedValue(Response.json({ total: 0, items: [] }))
     const controller = new AbortController()
     const search = createWebMcpTools(deps(fetchApi), controller.signal)[0]!
 
@@ -62,12 +62,13 @@ describe('webmcp discovery tools', () => {
 
     expect(result).toEqual({
       _tag: 'ok',
-      data: { query: 'nuxt seo', total: 0, results: [] },
+      data: { total: 0, items: [] },
     })
-    expect(fetchApi).toHaveBeenCalledWith('/api/skills', {
-      query: { q: 'nuxt seo', limit: 10 },
-      signal: controller.signal,
-    })
+    const [input, options] = fetchApi.mock.calls[0]!
+    const url = new URL(input)
+    expect(url.pathname).toBe('/api/v1/skills')
+    expect(Object.fromEntries(url.searchParams)).toEqual({ q: 'nuxt seo', limit: '10' })
+    expect(options.signal).toBe(controller.signal)
   })
 
   it('returns expected validation failures as tagged values', async () => {

@@ -1,3 +1,4 @@
+import type { McpToolDeps } from '../../shared/mcp-tools'
 import { defineMcpHandler, defineMcpTool } from '@nuxtjs/mcp-toolkit/server'
 import { createError, getHeader } from 'h3'
 import { mcpTools } from '../../shared/mcp-tools'
@@ -8,8 +9,11 @@ export default defineMcpHandler({
   description: 'Search skilld.dev for agent skills and curated collections.',
   instructions: 'Start with search_skills, inspect provenance with get_skill, then return an install command for the user to approve and run.',
   tools: (event) => {
-    const deps = {
-      fetchApi: (path: string, options?: Parameters<typeof event.$fetch>[1]) => event.$fetch(path, options),
+    const deps: McpToolDeps = {
+      fetchApi: (input: string, options: RequestInit) => {
+        const url = new URL(input)
+        return event.fetch(`${url.pathname}${url.search}`, options)
+      },
       reportError: () => emitOperationalEvent(createWideEvent({ operation: 'mcp-tool', outcome: 'failed' }), 'error'),
     }
     return mcpTools.map(tool => defineMcpTool({
