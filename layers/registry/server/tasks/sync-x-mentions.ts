@@ -115,6 +115,7 @@ export default defineScheduledTask({
         ledgerInserted: ingest.ledgerInserted,
         ledgerUpdated: ingest.ledgerUpdated,
         truncated: ingest.truncated,
+        cursorReset: ingest.cursorReset,
         submitQueued: submitted.queued,
         submitDuplicate: submitted.duplicate,
         submitFailed: submitted.failed,

@@ -66,6 +66,21 @@ export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR "SKILL.md" OR "npx skills
 export const X_DISCOVERY_CURSOR_KEY = 'discovery-v1'
 
 /**
+ * How far back X's recent-search endpoint can look. A `since_id` older than
+ * this is below the retention floor, and every search carrying it answers
+ * HTTP 400.
+ */
+export const X_SEARCH_RETENTION_SECONDS = 7 * 24 * 60 * 60
+
+/**
+ * Headroom before a cursor is treated as expired. `last_run_at` only dates the
+ * run, and the cursor post was written up to a poll interval before it, so the
+ * drop fires a little early on purpose: re-reading a few in-window posts costs
+ * cap units, while a dead cursor costs discovery itself.
+ */
+export const CURSOR_STALE_MARGIN_SECONDS = 24 * 60 * 60
+
+/**
  * Ceiling on pages per run. At observed volume (~250 matching posts/day) a
  * single 100-result page covers a 15-minute window many times over, so this
  * only ever binds on a cold start. When it does bind the summary says so
@@ -142,6 +157,12 @@ export interface XIngestSummary {
   /** Charged reads spent today after this run, against DAILY_DISCOVERY_READ_BUDGET. */
   budgetSpentToday: number
   cursorAdvancedTo: string | null
+  /**
+   * True when the stored cursor had gone stale past X's retention window and
+   * was dropped, so this run cold-started instead of answering HTTP 400 until
+   * someone advanced the cursor by hand.
+   */
+  cursorReset: boolean
   error: XError | null
   elapsedMs: number
 }
@@ -164,12 +185,40 @@ function postUrl(post: XPost): string {
   return `https://x.com/${post.authorHandle}/status/${post.id}`
 }
 
-async function readCursor(db: D1Database, key: string): Promise<string | null> {
+interface StoredCursor {
+  /** The id to search from, or null for a cold start. */
+  sinceId: string | null
+  /** True when a stored cursor was dropped for predating the retention window. */
+  staleReset: boolean
+}
+
+async function readCursor(db: D1Database, key: string, now: number): Promise<StoredCursor> {
   const row = await db
-    .prepare(`SELECT since_id FROM x_ingest_cursor WHERE query_key = ?1`)
+    .prepare(`SELECT since_id, last_run_at FROM x_ingest_cursor WHERE query_key = ?1`)
     .bind(key)
-    .first<{ since_id: string | null }>()
-  return row?.since_id ?? null
+    .first<{ since_id: string | null, last_run_at: number | null }>()
+  const sinceId = row?.since_id ?? null
+  const lastRunAt = row?.last_run_at ?? null
+  if (!sinceId)
+    return { sinceId: null, staleReset: false }
+
+  // `last_run_at` dates the cursor: it held the newest id seen at that moment,
+  // so its age now is `now - last_run_at` give or take a poll interval. A
+  // cursor with no timestamp cannot be dated and is dropped with the rest.
+  const fresh = lastRunAt !== null
+    && now - lastRunAt <= X_SEARCH_RETENTION_SECONDS - CURSOR_STALE_MARGIN_SECONDS
+  if (fresh)
+    return { sinceId, staleReset: false }
+
+  // Cleared here, not only in the end-of-run upsert: that upsert COALESCEs a
+  // held (null) advance into the stored value, so a run that later fails or
+  // truncates would otherwise hand the same dead cursor to the next run and
+  // the 400s would never stop.
+  await db
+    .prepare(`UPDATE x_ingest_cursor SET since_id = NULL WHERE query_key = ?1`)
+    .bind(key)
+    .run()
+  return { sinceId: null, staleReset: true }
 }
 
 /**
@@ -334,11 +383,14 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
     budgetExhausted: false,
     budgetSpentToday: 0,
     cursorAdvancedTo: null,
+    cursorReset: false,
     error: null,
     elapsedMs: 0,
   }
 
-  const sinceId = await readCursor(db, X_DISCOVERY_CURSOR_KEY)
+  const cursor = await readCursor(db, X_DISCOVERY_CURSOR_KEY, now)
+  const sinceId = cursor.sinceId
+  summary.cursorReset = cursor.staleReset
 
   const today = utcDayKey(now)
   const spentBefore = await readBudgetSpent(db, X_DISCOVERY_CURSOR_KEY, today)
