@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
+import { createReusableTemplate, useMediaQuery } from '@vueuse/core'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { trendingSkillKeySet } from '#shared/trending-keys'
 import DirectoryCta from '../../components/skills/_DirectoryCta.vue'
@@ -153,7 +154,7 @@ const registryQuery = computed(() => ({
   limit: PAGE_SIZE,
   sort: sort.value,
   retrieval: searchIntent.value._tag === 'ai' ? 'hybrid' : 'lexical',
-  ...(showTopSkillPerOwner.value ? { uniqueOwners: true } : {}),
+  ...(showTopSkillPerOwner.value ? { uniqueOwners: true, maintainerRepos: true } : {}),
   ...(searchQuery.value ? { q: searchQuery.value } : {}),
   ...(owner.value ? { owner: owner.value } : {}),
   ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
@@ -215,7 +216,14 @@ function clearAll() {
   owner.value = ''
 }
 
+const [DefineFilters, ReuseFilters] = createReusableTemplate<{ idPrefix: string }>()
 const filtersOpen = ref(true)
+const mobileFiltersOpen = ref(false)
+const isDesktop = useMediaQuery('(min-width: 1024px)')
+watch(isDesktop, (desktop) => {
+  if (desktop)
+    mobileFiltersOpen.value = false
+})
 const activeFilterCount = computed(() => tags.value.length + Number(!!owner.value))
 const tagSearch = ref('')
 const filteredTagList = computed<TagFacet[]>(() => {
@@ -238,9 +246,66 @@ function selectOwner(next: string) {
 </script>
 
 <template>
+  <DefineFilters v-slot="{ idPrefix }">
+    <div class="grid grid-cols-1 gap-6">
+      <div class="min-w-0">
+        <h2 :id="`${idPrefix}-tags-label`" class="mb-3 flex min-h-7 items-center text-sm font-semibold leading-5 text-default">
+          Tags
+        </h2>
+        <UInput v-model="tagSearch" placeholder="Filter tags…" aria-label="Filter tags" icon="i-lucide-search" size="sm" class="w-full font-mono [&_input]:min-h-11 lg:[&_input]:min-h-9" :ui="{ base: 'font-light text-muted placeholder:font-light placeholder:text-muted', leadingIcon: 'text-muted' }" />
+        <div v-if="tags.length > 1" class="mt-2 flex items-center gap-1 font-mono text-xs" role="group" aria-label="Tag matching">
+          <button v-for="mode in (['and', 'or'] as const)" :key="mode" type="button" class="min-h-11 rounded px-3 lg:min-h-7" :class="tagMode === mode ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'" :aria-pressed="tagMode === mode" @click="tagMode = mode">
+            {{ mode.toUpperCase() }}
+          </button>
+        </div>
+        <div class="mt-2 max-h-64 lg:max-h-48 overflow-y-auto" role="group" :aria-labelledby="`${idPrefix}-tags-label`">
+          <button v-for="t in filteredTagList" :key="t.slug" type="button" class="flex min-h-11 w-full items-center gap-2 rounded px-1 text-left font-mono text-xs hover:bg-elevated lg:min-h-8" :aria-pressed="tags.includes(t.slug)" :disabled="t.count === 0 && !tags.includes(t.slug)" @click="toggleTag(t.slug)">
+            <UIcon :name="tags.includes(t.slug) ? 'i-lucide-check-square' : 'i-lucide-square'" class="size-3.5 shrink-0" :class="tags.includes(t.slug) ? 'text-primary' : 'text-dimmed'" />
+            <span class="truncate">{{ t.label }}</span>
+            <span class="ml-auto text-dimmed tabular-nums">{{ t.count }}</span>
+          </button>
+          <p v-if="!filteredTagList.length" class="py-3 text-xs text-muted">
+            No tags match.
+          </p>
+        </div>
+      </div>
+      <div class="min-w-0">
+        <h2 :id="`${idPrefix}-maintainers-label`" class="mb-2 flex min-h-7 items-center text-sm font-semibold leading-5 text-default">
+          Maintainers
+        </h2>
+        <div v-if="featuredStatus === 'pending' && !featuredData" aria-busy="true" class="space-y-2">
+          <USkeleton v-for="i in 8" :key="i" class="h-8 w-full rounded" />
+        </div>
+        <div v-else-if="maintainers.length" role="group" :aria-labelledby="`${idPrefix}-maintainers-label`">
+          <button
+            v-for="maintainer in maintainers"
+            :key="maintainer.owner"
+            type="button"
+            class="flex min-h-11 w-full items-center gap-2 rounded px-1 py-1.5 text-left transition-colors hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary"
+            :class="owner === maintainer.owner ? 'bg-elevated text-highlighted' : 'text-toned'"
+            :aria-pressed="owner === maintainer.owner"
+            @click="selectOwner(maintainer.owner)"
+          >
+            <img :src="githubAvatarProxyUrl(maintainer.owner, 48)" alt="" width="24" height="24" class="size-6 shrink-0 rounded-full bg-muted" loading="lazy" decoding="async">
+            <span class="min-w-0">
+              <span class="block truncate text-[13px] font-medium leading-5">{{ maintainer.displayName }}</span>
+              <span v-if="maintainer.displayName !== maintainer.owner" class="block truncate font-mono text-[11px] leading-4 text-muted">@{{ maintainer.owner }}</span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </DefineFilters>
+  <USlideover v-model:open="mobileFiltersOpen" title="Filters" :ui="{ close: 'size-11 justify-center' }">
+    <template #body>
+      <div id="skills-mobile-filters">
+        <ReuseFilters id-prefix="mobile" />
+      </div>
+    </template>
+  </USlideover>
   <div class="overflow-clip">
-    <div class="w-full px-4 pb-8 pt-8 sm:px-6 lg:px-8">
-      <header aria-labelledby="skills-heading" class="mx-auto mb-6 max-w-7xl">
+    <div class="w-full px-4 pb-10 pt-10 sm:px-6 lg:px-8 xl:px-10">
+      <header aria-labelledby="skills-heading" class="mx-auto mb-7 max-w-7xl lg:ml-56 lg:mr-0">
         <h1 id="skills-heading" class="text-3xl font-semibold tracking-tight">
           Find Skills
         </h1>
@@ -250,7 +315,7 @@ function selectOwner(next: string) {
       </header>
 
       <section aria-labelledby="results-heading">
-        <div class="mx-auto max-w-7xl">
+        <div class="mx-auto max-w-7xl lg:ml-56 lg:mr-0">
           <div class="flex items-center gap-2">
             <div class="min-w-0 flex-1 sm:max-w-lg">
               <label for="skill-search" class="sr-only">Search skills</label>
@@ -263,6 +328,7 @@ function selectOwner(next: string) {
                 variant="outline"
                 size="md"
                 class="w-full font-mono [&_input]:min-h-11 sm:[&_input]:min-h-9"
+                :ui="{ base: 'font-light text-muted placeholder:font-light placeholder:text-muted', leadingIcon: 'text-muted' }"
                 :loading="isLoading"
               >
                 <template #trailing>
@@ -285,11 +351,14 @@ function selectOwner(next: string) {
               color="neutral"
               :variant="filtersOpen ? 'subtle' : 'ghost'"
               size="sm"
-              class="min-h-11 shrink-0 font-mono sm:min-h-9"
+              class="hidden min-h-9 shrink-0 font-mono lg:inline-flex"
               :aria-expanded="filtersOpen"
               aria-controls="skills-filters"
               @click="filtersOpen = !filtersOpen"
             >
+              Filters<span v-if="activeFilterCount" class="text-muted">({{ activeFilterCount }})</span>
+            </UButton>
+            <UButton icon="i-lucide-sliders-horizontal" color="neutral" :variant="activeFilterCount ? 'subtle' : 'ghost'" size="sm" class="min-h-11 shrink-0 font-mono lg:hidden" :aria-expanded="mobileFiltersOpen" aria-haspopup="dialog" aria-controls="skills-mobile-filters" @click="mobileFiltersOpen = true">
               Filters<span v-if="activeFilterCount" class="text-muted">({{ activeFilterCount }})</span>
             </UButton>
           </div>
@@ -327,61 +396,14 @@ function selectOwner(next: string) {
           </div>
         </div>
 
-        <div class="mt-5 grid items-start gap-6" :class="filtersOpen ? 'lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_15rem]' : 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_15rem]'">
-          <aside v-show="filtersOpen" id="skills-filters" aria-label="Filters" class="min-w-0 border-b border-default pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
-            <div class="grid grid-cols-2 gap-4 lg:grid-cols-1 lg:gap-6">
-              <div class="min-w-0">
-                <h2 id="tags-label" class="mb-3 flex min-h-7 items-center text-sm font-semibold text-default">
-                  Tags
-                </h2>
-                <UInput v-model="tagSearch" placeholder="Filter tags…" aria-label="Filter tags" icon="i-lucide-search" size="sm" class="w-full font-mono [&_input]:min-h-11 sm:[&_input]:min-h-8" />
-                <div v-if="tags.length > 1" class="mt-2 flex items-center gap-1 font-mono text-xs" role="group" aria-label="Tag matching">
-                  <button v-for="mode in (['and', 'or'] as const)" :key="mode" type="button" class="min-h-11 rounded px-3 sm:min-h-7" :class="tagMode === mode ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'" :aria-pressed="tagMode === mode" @click="tagMode = mode">
-                    {{ mode.toUpperCase() }}
-                  </button>
-                </div>
-                <div class="mt-2 max-h-44 sm:max-h-48 overflow-y-auto" role="group" aria-labelledby="tags-label">
-                  <button v-for="t in filteredTagList" :key="t.slug" type="button" class="flex min-h-11 w-full items-center gap-2 rounded px-1 text-left font-mono text-xs hover:bg-elevated sm:min-h-8" :aria-pressed="tags.includes(t.slug)" :disabled="t.count === 0 && !tags.includes(t.slug)" @click="toggleTag(t.slug)">
-                    <UIcon :name="tags.includes(t.slug) ? 'i-lucide-check-square' : 'i-lucide-square'" class="size-3.5 shrink-0" :class="tags.includes(t.slug) ? 'text-primary' : 'text-dimmed'" />
-                    <span class="truncate">{{ t.label }}</span>
-                    <span class="ml-auto text-dimmed tabular-nums">{{ t.count }}</span>
-                  </button>
-                  <p v-if="!filteredTagList.length" class="py-3 text-xs text-muted">
-                    No tags match.
-                  </p>
-                </div>
-              </div>
-              <div class="min-w-0">
-                <h2 id="maintainers-label" class="mb-2 flex min-h-7 items-center text-sm font-semibold text-default">
-                  Maintainers
-                </h2>
-                <div v-if="featuredStatus === 'pending' && !featuredData" aria-busy="true" class="space-y-2">
-                  <USkeleton v-for="i in 8" :key="i" class="h-8 w-full rounded" />
-                </div>
-                <div v-else-if="maintainers.length" class="max-h-60 overflow-y-auto lg:max-h-none lg:overflow-visible" role="group" aria-labelledby="maintainers-label">
-                  <button
-                    v-for="maintainer in maintainers"
-                    :key="maintainer.owner"
-                    type="button"
-                    class="flex min-h-11 w-full items-center gap-2 rounded px-1 py-1.5 text-left transition-colors hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary"
-                    :class="owner === maintainer.owner ? 'bg-elevated text-highlighted' : 'text-toned'"
-                    :aria-pressed="owner === maintainer.owner"
-                    @click="selectOwner(maintainer.owner)"
-                  >
-                    <img :src="githubAvatarProxyUrl(maintainer.owner, 48)" alt="" width="24" height="24" class="size-6 shrink-0 rounded-full bg-muted" loading="lazy" decoding="async">
-                    <span class="min-w-0">
-                      <span class="block truncate text-[13px] font-medium leading-5">{{ maintainer.displayName }}</span>
-                      <span v-if="maintainer.displayName !== maintainer.owner" class="block truncate font-mono text-[11px] leading-4 text-muted">@{{ maintainer.owner }}</span>
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
+        <div class="skills-layout relative mt-7 grid items-start gap-6 lg:gap-8" :class="filtersOpen ? 'lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_16rem]' : 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_16rem]'">
+          <aside v-show="filtersOpen" id="skills-filters" aria-label="Filters" class="sticky top-16 hidden h-[calc(100dvh-4rem)] min-w-0 overflow-y-auto border-r border-default pb-6 pr-6 pt-6 lg:block">
+            <ReuseFilters id-prefix="desktop" />
           </aside>
 
-          <div class="min-w-0">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h2 id="results-heading" class="min-w-0 text-sm font-semibold text-default">
+          <div class="min-w-0 pt-6">
+            <div class="mb-3 flex min-h-7 items-center justify-between gap-3">
+              <h2 id="results-heading" class="min-w-0 text-sm font-semibold leading-5 text-default">
                 <template v-if="isFiltering">
                   Matching skills
                 </template>
@@ -522,7 +544,7 @@ function selectOwner(next: string) {
               />
             </nav>
           </div>
-          <aside class="min-w-0 xl:sticky xl:top-24" aria-label="More from skilld">
+          <aside class="min-w-0 xl:sticky xl:top-24 xl:pt-6" aria-label="More from skilld">
             <DirectoryCta />
           </aside>
         </div>
@@ -532,6 +554,21 @@ function selectOwner(next: string) {
 </template>
 
 <style scoped>
+.skills-layout::before {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  inline-size: 100vw;
+  transform: translateX(-50%);
+  border-block-start: 1px solid var(--ui-border);
+  content: '';
+  pointer-events: none;
+}
+
+.directory-table :deep(.skill-table__col-description) {
+  font-weight: 300;
+}
+
 /* Give identity more room than the summary in this directory's wide layout. */
 @media (min-width: 64rem) {
   .directory-table :deep(.skill-table__head),

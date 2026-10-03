@@ -26,7 +26,7 @@ const current = computed(() => cards.value[Math.floor(selection.value * cards.va
     <p class="mt-2 text-sm leading-relaxed text-muted">
       {{ current.description }}
     </p>
-    <UButton :to="current.to" :label="current.label" trailing-icon="i-lucide-arrow-up-right" class="mt-6 min-h-11 w-full justify-center" size="sm" />
+    <UButton :to="current.to" :label="current.label" :ui="{ label: '!whitespace-normal text-center' }" trailing-icon="i-lucide-arrow-up-right" class="mt-6 min-h-11 w-full justify-center" size="sm" />
     <NuxtLink v-if="current.id === 'weekly'" to="/weekly/preview" external class="mt-2 flex min-h-11 items-center justify-center text-center font-mono text-xs text-muted underline underline-offset-2 hover:text-default">
       See this week's digest
     </NuxtLink>

@@ -14,6 +14,7 @@ import {
 } from './skill-duplicate-canonical'
 import { canonicalRepoSkillPath } from './skill-routes'
 import { collapseSearchDuplicates, hybridSkillSearch, rankSearchResults } from './skill-search'
+import { SKILLS_DIRECTORY_FOCUS_SQL } from './skills-directory-focus'
 import { SUPPORTED_SKILL_SQL } from './supported-sources'
 import { noteAdmissionFallback, SKILL_ADMISSIONS_POPULATED_SQL, SKILL_INDEXABLE_SQL } from './trending-admission'
 
@@ -181,6 +182,7 @@ export interface SkillsQuery {
   tagMode?: 'and' | 'or'
   sort?: 'stars' | 'name' | 'owner' | 'likes' | 'updated'
   uniqueOwners?: boolean
+  maintainerRepos?: boolean
   page?: number
   limit?: number
   /** Rows to skip. Overrides the skip that `page` implies, for callers that page by offset. */
@@ -232,7 +234,7 @@ function firstSkillPerOwner<T extends { skill: { owner: string } }>(groups: T[])
 
 export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<SkillsQueryResult> {
   const db = getDB(event)
-  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', uniqueOwners = false, page = 1, limit = 60, officialOwners, includeDependencies = false } = opts
+  const { search, owner, official, excludeOfficial, supportedOnly, trustTier, category, tags, tagMode = 'and', sort = 'stars', uniqueOwners = false, maintainerRepos = false, page = 1, limit = 60, officialOwners, includeDependencies = false } = opts
   const offset = opts.offset ?? (page - 1) * limit
   const selectSkillRow = includeDependencies ? SELECT_SKILL_ROW_WITH_BODY : SELECT_SKILL_ROW
 
@@ -244,6 +246,9 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   // not through this query.
   const conditions: string[] = [NOT_BROKEN_SQL, 's.source_resolved = 1']
   const params: (string | number)[] = []
+
+  if (maintainerRepos && !search && !owner && !tags?.length && !official && !supportedOnly && !category && !trustTier)
+    conditions.push(SKILLS_DIRECTORY_FOCUS_SQL)
 
   // Search: lexical (FTS5/BM25) and semantic (Vectorize) retrieval run in
   // parallel and are fused by reciprocal rank. Both lanes matter — skills

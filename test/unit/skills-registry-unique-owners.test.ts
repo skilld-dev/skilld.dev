@@ -14,6 +14,7 @@ describe('skills registry unique owner browse', () => {
     sqlite.exec(`
       CREATE TABLE owners (
         owner TEXT PRIMARY KEY,
+        kind TEXT DEFAULT 'user',
         name TEXT
       );
       CREATE TABLE repos (
@@ -49,6 +50,9 @@ describe('skills registry unique owner browse', () => {
         source_resolved INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY (owner, repo, name)
       );
+      CREATE TABLE skill_repo_eligibility (owner TEXT, repo TEXT, status TEXT);
+    CREATE TABLE skill_repo_focus (owner TEXT, repo TEXT, probability REAL);
+      INSERT INTO skill_repo_focus VALUES ('antfu','top-repo',0.95);
       INSERT INTO owners (owner, name) VALUES ('antfu', 'Anthony Fu');
       INSERT INTO repos (owner, repo, stars) VALUES
         ('antfu', 'small-repo', 10),
@@ -77,6 +81,11 @@ describe('skills registry unique owner browse', () => {
         ['antfu', 'vite', 9],
         ['vuejs', 'vue', 5],
       ])
+      const focused = await querySkills(eventFor(sqlite), { uniqueOwners: true, maintainerRepos: true } as Parameters<typeof querySkills>[1])
+      expect(focused.items.map(skill => [skill.owner, skill.repo])).toEqual([['antfu', 'top-repo']])
+      expect(focused.total).toBe(1)
+      const scoped = await querySkills(eventFor(sqlite), { maintainerRepos: true, owner: 'antfu' })
+      expect(scoped.total).toBe(2)
       // The byline reads the synced profile name; an unsynced owner has none.
       expect(result.items.map(skill => skill.authorName)).toEqual(['Anthony Fu', null])
     }
