@@ -120,13 +120,13 @@ describe('mCP public SDK discovery', () => {
     expect(toolDeps.reportError).not.toHaveBeenCalled()
   })
 
-  it('reports the published contract gap for public rate limits without retrying', async () => {
+  it('returns a rate limit without retrying or reporting an infrastructure failure', async () => {
     const toolDeps = deps(vi.fn().mockResolvedValue(problem('RATE_LIMITED', 429)))
     const result = await runTool('search_skills', { query: 'seo' }, toolDeps)
     expect(result.isError).toBe(true)
     expect(result.content[0]!.text).toBe('Too many requests. Try again later.')
     expect(toolDeps.fetchApi).toHaveBeenCalledOnce()
-    expect(toolDeps.reportError).toHaveBeenCalledWith('Search', expect.objectContaining({ _tag: 'ContractFailure', status: 429 }))
+    expect(toolDeps.reportError).not.toHaveBeenCalled()
   })
 
   it.each([

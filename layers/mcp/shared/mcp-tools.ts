@@ -98,10 +98,6 @@ function presentResult(
     return fail('Request cancelled.')
 
   deps.reportError(operation, error)
-  // SDK 0.1.1 omits RATE_LIMITED from public operation declarations.
-  // Keep reporting the contract gap, but HTTP 429 still has a useful message.
-  if (error._tag === 'ContractFailure' && error.status === 429)
-    return fail('Too many requests. Try again later.')
   return fail(`${operation} failed. Try again later.`)
 }
 
