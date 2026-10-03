@@ -109,38 +109,22 @@ const trendingKeys = computed(
   () => trendingSkillKeySet(trendingFeed.value?.namedSkills ?? []),
 )
 
-// Publisher shortcuts in the optional filter panel
+// Maintainer names come from the featured endpoint's GitHub profiles.
 const {
   data: featuredData,
   status: featuredStatus,
 } = useFetch('/api/skills/featured', {
-  key: 'skills-publisher-strip',
-  query: { orgs: 6, perOrg: 1, devs: 8, perDev: 1 },
+  key: 'skills-maintainers',
+  query: { orgs: 0, devs: 8, perDev: 1 },
   lazy: !isBot.value,
 })
 
-interface PublisherChip {
-  owner: string
-  totalSkills: number
-  official: boolean
-}
-
-const publishers = computed<PublisherChip[]>(() => {
-  const orgs = (featuredData.value?.sections ?? []).map(section => ({
-    owner: section.owner,
-    totalSkills: section.totalSkills,
-    official: true,
-  }))
-  const devs = (featuredData.value?.devSections ?? []).map(section => ({
-    owner: section.owner,
-    totalSkills: section.totalSkills,
-    official: false,
-  }))
+const maintainers = computed(() => {
   const seen = new Set<string>()
-  return [...orgs, ...devs].filter((entry) => {
-    if (seen.has(entry.owner))
+  return (featuredData.value?.devSections ?? []).filter((section) => {
+    if (seen.has(section.owner))
       return false
-    seen.add(entry.owner)
+    seen.add(section.owner)
     return true
   })
 })
@@ -211,7 +195,7 @@ function clearAll() {
   owner.value = ''
 }
 
-const filtersOpen = ref(false)
+const filtersOpen = ref(true)
 const activeFilterCount = computed(() => tags.value.length + Number(!!owner.value))
 const tagSearch = ref('')
 const filteredTagList = computed<TagFacet[]>(() => {
@@ -247,7 +231,7 @@ function selectOwner(next: string) {
 
       <section aria-labelledby="results-heading">
         <div class="flex items-center gap-2">
-          <div class="min-w-0 flex-1 sm:max-w-md">
+          <div class="min-w-0 flex-1 sm:max-w-lg">
             <label for="skill-search" class="sr-only">Search skills</label>
             <UInput
               id="skill-search"
@@ -301,11 +285,11 @@ function selectOwner(next: string) {
           </button>
         </div>
 
-        <div class="mt-5 grid items-start gap-6 lg:gap-8" :class="filtersOpen ? 'lg:grid-cols-[14rem_minmax(0,1fr)]' : 'grid-cols-1'">
-          <aside v-show="filtersOpen" id="skills-filters" aria-label="Filters" class="min-w-0 border-b border-default pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6">
-            <div class="grid max-h-[60vh] gap-6 overflow-y-auto sm:grid-cols-2 lg:max-h-none lg:grid-cols-1 lg:overflow-visible">
-              <div>
-                <h2 id="tags-label" class="mb-3 font-mono text-xs font-medium text-toned">
+        <div class="mt-5 grid items-start gap-6" :class="filtersOpen ? 'lg:grid-cols-[13rem_minmax(0,1fr)]' : 'grid-cols-1'">
+          <aside v-show="filtersOpen" id="skills-filters" aria-label="Filters" class="min-w-0 border-b border-default pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
+            <div class="grid grid-cols-2 gap-4 lg:grid-cols-1 lg:gap-6">
+              <div class="min-w-0">
+                <h2 id="tags-label" class="mb-3 flex min-h-7 items-center text-sm font-semibold text-default">
                   Tags
                 </h2>
                 <UInput v-model="tagSearch" placeholder="Filter tags…" aria-label="Filter tags" icon="i-lucide-search" size="sm" class="w-full font-mono [&_input]:min-h-11 sm:[&_input]:min-h-8" />
@@ -314,7 +298,7 @@ function selectOwner(next: string) {
                     {{ mode.toUpperCase() }}
                   </button>
                 </div>
-                <div class="mt-2 max-h-64 overflow-y-auto" role="group" aria-labelledby="tags-label">
+                <div class="mt-2 max-h-44 sm:max-h-48 overflow-y-auto" role="group" aria-labelledby="tags-label">
                   <button v-for="t in filteredTagList" :key="t.slug" type="button" class="flex min-h-11 w-full items-center gap-2 rounded px-1 text-left font-mono text-xs hover:bg-elevated sm:min-h-8" :aria-pressed="tags.includes(t.slug)" :disabled="t.count === 0 && !tags.includes(t.slug)" @click="toggleTag(t.slug)">
                     <UIcon :name="tags.includes(t.slug) ? 'i-lucide-check-square' : 'i-lucide-square'" class="size-3.5 shrink-0" :class="tags.includes(t.slug) ? 'text-primary' : 'text-dimmed'" />
                     <span class="truncate">{{ t.label }}</span>
@@ -325,19 +309,28 @@ function selectOwner(next: string) {
                   </p>
                 </div>
               </div>
-              <div>
-                <h2 id="publishers-label" class="mb-2 font-mono text-xs font-medium text-toned">
-                  Publishers and maintainers
+              <div class="min-w-0">
+                <h2 id="maintainers-label" class="mb-2 flex min-h-7 items-center text-sm font-semibold text-default">
+                  Maintainers
                 </h2>
                 <div v-if="featuredStatus === 'pending' && !featuredData" aria-busy="true" class="space-y-2">
                   <USkeleton v-for="i in 8" :key="i" class="h-8 w-full rounded" />
                 </div>
-                <div v-else-if="publishers.length" role="group" aria-labelledby="publishers-label">
-                  <button v-for="publisher in publishers" :key="publisher.owner" type="button" class="flex min-h-11 w-full items-center gap-2 rounded px-1 text-left font-mono text-xs hover:bg-elevated sm:min-h-8" :class="owner === publisher.owner ? 'bg-elevated text-highlighted' : 'text-muted'" :aria-pressed="owner === publisher.owner" @click="selectOwner(publisher.owner)">
-                    <img :src="githubAvatarProxyUrl(publisher.owner, 32)" alt="" width="16" height="16" class="size-4 rounded-full bg-muted" loading="lazy" decoding="async">
-                    <span class="truncate">{{ publisher.owner }}</span>
-                    <UIcon v-if="publisher.official" name="i-lucide-badge-check" class="size-3 shrink-0 text-dimmed" aria-hidden="true" />
-                    <span class="ml-auto tabular-nums text-dimmed">{{ publisher.totalSkills }}</span>
+                <div v-else-if="maintainers.length" class="max-h-60 overflow-y-auto lg:max-h-none lg:overflow-visible" role="group" aria-labelledby="maintainers-label">
+                  <button
+                    v-for="maintainer in maintainers"
+                    :key="maintainer.owner"
+                    type="button"
+                    class="flex min-h-11 w-full items-center gap-2 rounded px-1 py-1.5 text-left transition-colors hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary"
+                    :class="owner === maintainer.owner ? 'bg-elevated text-highlighted' : 'text-toned'"
+                    :aria-pressed="owner === maintainer.owner"
+                    @click="selectOwner(maintainer.owner)"
+                  >
+                    <img :src="githubAvatarProxyUrl(maintainer.owner, 48)" alt="" width="24" height="24" class="size-6 shrink-0 rounded-full bg-muted" loading="lazy" decoding="async">
+                    <span class="min-w-0">
+                      <span class="block truncate text-[13px] font-medium leading-5">{{ maintainer.displayName }}</span>
+                      <span v-if="maintainer.displayName !== maintainer.owner" class="block truncate font-mono text-[11px] leading-4 text-muted">@{{ maintainer.owner }}</span>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -345,15 +338,15 @@ function selectOwner(next: string) {
           </aside>
 
           <div class="min-w-0">
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 id="results-heading" class="text-sm font-medium text-toned">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h2 id="results-heading" class="min-w-0 text-sm font-semibold text-default">
                 <template v-if="isFiltering">
                   Matching skills
                 </template>
                 <template v-else>
                   Top skill from each author
                 </template>
-                <span v-if="registryView._tag === 'ready'" class="data-label ml-2">
+                <span v-if="registryView._tag === 'ready'" class="data-label mt-1 block font-normal sm:ml-2 sm:mt-0 sm:inline">
                   {{ registryView.data.total.toLocaleString() }}
                   <template v-if="showTopSkillPerOwner">
                     {{ registryView.data.total === 1 ? 'author' : 'authors' }}
@@ -364,7 +357,7 @@ function selectOwner(next: string) {
                 </span>
               </h2>
 
-              <div class="inline-flex items-center gap-1 font-mono text-xs">
+              <div class="inline-flex shrink-0 items-center gap-1 font-mono text-xs">
                 <button
                   type="button"
                   class="min-h-11 rounded px-2 font-mono text-xs transition-colors sm:min-h-7"
@@ -453,6 +446,7 @@ function selectOwner(next: string) {
               :skills="registryView.data.items"
               :metric="sort"
               :trending-keys="trendingKeys"
+              class="directory-table"
               :aria-label="isFiltering ? 'Matching skills' : 'Top skill from each author'"
             />
 
@@ -498,3 +492,14 @@ function selectOwner(next: string) {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Give identity more room than the summary in this directory's wide layout. */
+@media (min-width: 64rem) {
+  .directory-table :deep(.skill-table__head),
+  .directory-table :deep(.skill-table__row) {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1.6fr) 3.5rem 3.5rem;
+    gap: 0.75rem;
+  }
+}
+</style>
