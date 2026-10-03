@@ -294,10 +294,10 @@ async function lexicalSkillSearch(event: H3Event, search: string): Promise<strin
  * them. Lexical retrieval keeps Skills awaiting an embedding reachable.
  * Semantic retrieval finds relevant Skills without matching query words.
  */
-export async function hybridSkillSearch(event: H3Event, search: string): Promise<HybridSearchResult> {
+export async function hybridSkillSearch(event: H3Event, search: string, retrieval: 'hybrid' | 'lexical' = 'hybrid'): Promise<HybridSearchResult> {
   const [lexicalKeys, semanticHits] = await Promise.all([
     lexicalSkillSearch(event, search),
-    semanticSkillSearch(event, search, SEMANTIC_TOP_K),
+    retrieval === 'hybrid' ? semanticSkillSearch(event, search, SEMANTIC_TOP_K) : Promise.resolve(null),
   ])
 
   if (lexicalKeys === null && semanticHits === null)

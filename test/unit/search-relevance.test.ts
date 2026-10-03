@@ -30,10 +30,13 @@ import {
 
 // Boundary stub only: these are declared retrieval orders, not measured embeddings.
 // Real SQLite retrieval and the production fusion/ranking remain under test.
-const semantic = vi.hoisted(() => ({ hits: [] as Array<{ owner: string, repo: string, name: string, score: number }> | null }))
+const semantic = vi.hoisted(() => ({ calls: 0, hits: [] as Array<{ owner: string, repo: string, name: string, score: number }> | null }))
 vi.mock('../../layers/registry/server/utils/skill-semantic-search', async importOriginal => ({
   ...await importOriginal<typeof import('../../layers/registry/server/utils/skill-semantic-search')>(),
-  semanticSkillSearch: async () => semantic.hits,
+  semanticSkillSearch: async () => {
+    semantic.calls++
+    return semantic.hits
+  },
 }))
 
 interface Fixture {
@@ -177,6 +180,26 @@ describe('search relevance: lexical lane', () => {
     finally {
       sqlite.exec('ROLLBACK TO exact_candidate; RELEASE exact_candidate')
     }
+  })
+
+  it('keyword search skips AI retrieval and returns lexical matches', async () => {
+    semantic.calls = 0
+    semantic.hits = [{ owner: 'elsewhere', repo: 'skills', name: 'semantic-only', score: 0.9 }]
+    const result = await hybridSkillSearch(event(), 'pdf', 'lexical')
+    expect(result.keys).toContain('anthropics/skills/pdf')
+    expect(result.keys).not.toContain('elsewhere/skills/semantic-only')
+    expect(result.mode).toBe('lexical')
+    expect(semantic.calls).toBe(0)
+  })
+
+  it('aI search includes semantic matches beyond the query words', async () => {
+    semantic.calls = 0
+    semantic.hits = [{ owner: 'elsewhere', repo: 'skills', name: 'semantic-only', score: 0.9 }]
+    const result = await hybridSkillSearch(event(), 'pdf', 'hybrid')
+    expect(result.keys).toContain('anthropics/skills/pdf')
+    expect(result.keys).toContain('elsewhere/skills/semantic-only')
+    expect(result.mode).toBe('hybrid')
+    expect(semantic.calls).toBe(1)
   })
 
   it('reports unavailable search when both retrieval lanes fail', async () => {

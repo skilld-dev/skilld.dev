@@ -16,7 +16,6 @@ interface SkillRow {
   description?: string | null
   stars?: number
   likeCount?: number
-  official?: boolean
   pushedAt?: number | null
   modifiedAt?: number | null
   /** GitHub profile name of the owner, when the owner has been synced. */
@@ -93,11 +92,13 @@ function updatedLabel(skill: SkillRow): string {
 
     <ul class="skill-table__body list-none p-0" :aria-label="ariaLabel">
       <li v-for="skill in skills" :key="skill.slug" class="relative">
-        <NuxtLink
-          :to="skill.registryPath"
-          class="skill-table__row group"
-          :aria-label="`/${skill.name} by ${authorName(skill) ?? skill.owner}`"
-        >
+        <div class="skill-table__row">
+          <NuxtLink
+            :to="skill.registryPath"
+            class="skill-table__link"
+          >
+            <span class="sr-only">/{{ skill.name }} by {{ authorName(skill) ?? skill.owner }}</span>
+          </NuxtLink>
           <span class="skill-table__skill">
             <span class="truncate font-mono text-sm">/{{ skill.name }}</span>
             <!--
@@ -109,16 +110,16 @@ function updatedLabel(skill: SkillRow): string {
               <span class="trending-fire" aria-hidden="true">🔥</span>
               <span class="sr-only">Trending</span>
             </span>
-            <UIcon
-              v-if="skill.official"
-              name="i-lucide-badge-check"
-              class="size-3.5 shrink-0 text-muted"
-              title="Official publisher"
-              aria-hidden="true"
-            />
           </span>
 
-          <span class="skill-table__source">
+          <component
+            :is="skill.skillFileUrl ? 'a' : 'span'"
+            :href="skill.skillFileUrl ?? undefined"
+            :target="skill.skillFileUrl ? '_blank' : undefined"
+            :rel="skill.skillFileUrl ? 'noopener' : undefined"
+            :aria-label="skill.skillFileUrl ? 'Read SKILL.md on GitHub' : undefined"
+            class="skill-table__source"
+          >
             <img
               :src="githubAvatarProxyUrl(skill.owner, 40)"
               alt=""
@@ -135,7 +136,7 @@ function updatedLabel(skill: SkillRow): string {
               >{{ authorName(skill) }}</span>
               <span class="truncate font-mono text-[11px] leading-4 text-muted">{{ repoSlug(skill) }}</span>
             </span>
-          </span>
+          </component>
 
           <span class="skill-table__col-description text-xs leading-4 text-muted">
             {{ skill.description || '—' }}
@@ -158,18 +159,7 @@ function updatedLabel(skill: SkillRow): string {
           <span class="skill-table__col-updated data-label justify-end">
             {{ updatedLabel(skill) }}
           </span>
-        </NuxtLink>
-        <!-- Sibling of the row link: anchors cannot nest. -->
-        <a
-          v-if="skill.skillFileUrl"
-          :href="skill.skillFileUrl"
-          target="_blank"
-          rel="noopener"
-          aria-label="Read SKILL.md on GitHub"
-          class="skill-table__file text-muted transition-colors duration-200 hover:text-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          <UIcon name="i-lucide-file-text" class="size-3.5" aria-hidden="true" />
-        </a>
+        </div>
       </li>
     </ul>
   </div>
@@ -189,7 +179,7 @@ function updatedLabel(skill: SkillRow): string {
   align-items: center;
   gap: 1rem;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
-  padding-inline: 0.75rem 2.75rem;
+  padding-inline: 0.75rem;
 }
 
 .skill-table__head {
@@ -208,7 +198,7 @@ function updatedLabel(skill: SkillRow): string {
 }
 
 .skill-table__row {
-  min-block-size: 2.5rem;
+  min-block-size: 2.75rem;
   padding-block: 0.4375rem;
   transition: background-color 200ms ease-out;
 }
@@ -227,17 +217,34 @@ function updatedLabel(skill: SkillRow): string {
   flex-direction: column;
 }
 
-.skill-table__file {
+.skill-table__link {
   position: absolute;
-  inset-block-start: 50%;
-  inset-inline-end: 0.25rem;
-  display: inline-flex;
-  inline-size: 2.25rem;
-  block-size: 2.25rem;
-  align-items: center;
-  justify-content: center;
+  inset: 0;
+  z-index: 1;
+}
+
+/* The source is a separate link above the row's Skill detail link. */
+a.skill-table__source {
+  position: relative;
+  min-block-size: 2.75rem;
+  margin-block: -0.4375rem;
+  padding-block: 0.4375rem;
+  z-index: 2;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms ease-out;
+}
+
+a.skill-table__source:hover {
+  text-decoration-color: currentColor;
+}
+
+.skill-table__link:focus-visible,
+a.skill-table__source:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: -2px;
   border-radius: var(--ui-radius);
-  translate: 0 -50%;
 }
 
 .skill-table__col-description,

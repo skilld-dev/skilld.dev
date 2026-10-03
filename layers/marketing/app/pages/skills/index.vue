@@ -2,6 +2,7 @@
 import type { TagFacet } from '#layers/registry/server/api/skills/tags.get'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { trendingSkillKeySet } from '#shared/trending-keys'
+import DirectoryCta from '../../components/skills/_DirectoryCta.vue'
 import { isInputFocused, resolveRegistryViewState } from '../../utils/registry-view-state'
 
 // "Find skills for your AI agent" matched no query anyone types. The demand is
@@ -42,11 +43,29 @@ const tagMode = ref<'and' | 'or'>(((route.query.mode as 'and' | 'or') === 'or' ?
 // visitor asks for them in the URL (ADR-0003).
 const sort = ref<'stars' | 'likes'>((route.query.sort as string) === 'likes' ? 'likes' : 'stars')
 const debouncedSearch = refDebounced(search, 300)
+// AI runs only for an explicitly submitted query, not on every keystroke.
+const searchIntent = ref<{ _tag: 'keywords' } | { _tag: 'ai', query: string }>(
+  route.query.ai === '1' && search.value.trim()
+    ? { _tag: 'ai', query: search.value.trim() }
+    : { _tag: 'keywords' },
+)
+const searchQuery = computed(() => searchIntent.value._tag === 'ai' ? searchIntent.value.query : debouncedSearch.value)
+watch(search, (value) => {
+  if (searchIntent.value._tag === 'ai' && value.trim() !== searchIntent.value.query)
+    searchIntent.value = { _tag: 'keywords' }
+})
+function askAi() {
+  const query = search.value.trim()
+  if (query)
+    searchIntent.value = { _tag: 'ai', query }
+}
 
-watch([debouncedSearch, page, owner, tags, tagMode, sort], async () => {
+watch([searchQuery, searchIntent, page, owner, tags, tagMode, sort], async () => {
   const query: Record<string, string> = {}
-  if (debouncedSearch.value)
-    query.q = debouncedSearch.value
+  if (searchQuery.value)
+    query.q = searchQuery.value
+  if (searchIntent.value._tag === 'ai')
+    query.ai = '1'
   if (page.value > 1)
     query.page = String(page.value)
   if (owner.value)
@@ -60,7 +79,7 @@ watch([debouncedSearch, page, owner, tags, tagMode, sort], async () => {
   await navigateTo({ query }, { replace: true })
 }, { deep: true })
 
-watch([debouncedSearch, tags, owner, tagMode, sort], () => {
+watch([searchQuery, searchIntent, tags, owner, tagMode, sort], () => {
   page.value = 1
 }, { deep: true })
 
@@ -69,7 +88,7 @@ const PAGE_SIZE = 60
 const { isBot } = useBotDetection()
 
 const isFiltering = computed(() =>
-  !!debouncedSearch.value || tags.value.length > 0 || !!owner.value,
+  !!searchQuery.value || tags.value.length > 0 || !!owner.value,
 )
 const showTopSkillPerOwner = computed(() => !isFiltering.value)
 
@@ -133,8 +152,9 @@ const registryQuery = computed(() => ({
   page: page.value,
   limit: PAGE_SIZE,
   sort: sort.value,
+  retrieval: searchIntent.value._tag === 'ai' ? 'hybrid' : 'lexical',
   ...(showTopSkillPerOwner.value ? { uniqueOwners: true } : {}),
-  ...(debouncedSearch.value ? { q: debouncedSearch.value } : {}),
+  ...(searchQuery.value ? { q: searchQuery.value } : {}),
   ...(owner.value ? { owner: owner.value } : {}),
   ...(tags.value.length ? { tags: tags.value.join(','), tagMode: tagMode.value } : {}),
 }))
@@ -219,10 +239,10 @@ function selectOwner(next: string) {
 
 <template>
   <div class="overflow-clip">
-    <div class="mx-auto max-w-7xl px-4 pb-8 pt-8 sm:px-6 lg:px-8">
-      <header aria-labelledby="skills-heading" class="mb-6">
+    <div class="w-full px-4 pb-8 pt-8 sm:px-6 lg:px-8">
+      <header aria-labelledby="skills-heading" class="mx-auto mb-6 max-w-7xl">
         <h1 id="skills-heading" class="text-3xl font-semibold tracking-tight">
-          Skills
+          Find Skills
         </h1>
         <p class="mt-2 text-sm text-muted">
           Search by task, maintainer, package, or tag. Every result opens to the original SKILL.md.
@@ -230,62 +250,84 @@ function selectOwner(next: string) {
       </header>
 
       <section aria-labelledby="results-heading">
-        <div class="flex items-center gap-2">
-          <div class="min-w-0 flex-1 sm:max-w-lg">
-            <label for="skill-search" class="sr-only">Search skills</label>
-            <UInput
-              id="skill-search"
-              ref="searchInput"
-              v-model="search"
-              placeholder="Search a skill, owner, repo, or task…"
-              icon="i-lucide-search"
-              variant="outline"
-              size="md"
-              class="w-full font-mono [&_input]:min-h-11 sm:[&_input]:min-h-9"
-              :loading="isLoading"
+        <div class="mx-auto max-w-7xl">
+          <div class="flex items-center gap-2">
+            <div class="min-w-0 flex-1 sm:max-w-lg">
+              <label for="skill-search" class="sr-only">Search skills</label>
+              <UInput
+                id="skill-search"
+                ref="searchInput"
+                v-model="search"
+                placeholder="Search a skill, owner, repo, or task…"
+                icon="i-lucide-search"
+                variant="outline"
+                size="md"
+                class="w-full font-mono [&_input]:min-h-11 sm:[&_input]:min-h-9"
+                :loading="isLoading"
+              >
+                <template #trailing>
+                  <UKbd v-if="!search && !searchFocused" value="/" size="sm" />
+                  <UButton
+                    v-else-if="search"
+                    icon="i-lucide-x"
+                    color="neutral"
+                    variant="link"
+                    size="xs"
+                    class="size-11 justify-center sm:size-8"
+                    aria-label="Clear search"
+                    @click="search = ''"
+                  />
+                </template>
+              </UInput>
+            </div>
+            <UButton
+              icon="i-lucide-sliders-horizontal"
+              color="neutral"
+              :variant="filtersOpen ? 'subtle' : 'ghost'"
+              size="sm"
+              class="min-h-11 shrink-0 font-mono sm:min-h-9"
+              :aria-expanded="filtersOpen"
+              aria-controls="skills-filters"
+              @click="filtersOpen = !filtersOpen"
             >
-              <template #trailing>
-                <UKbd v-if="!search && !searchFocused" value="/" size="sm" />
-                <UButton
-                  v-else-if="search"
-                  icon="i-lucide-x"
-                  color="neutral"
-                  variant="link"
-                  size="xs"
-                  class="size-11 justify-center sm:size-8"
-                  aria-label="Clear search"
-                  @click="search = ''"
-                />
-              </template>
-            </UInput>
+              Filters<span v-if="activeFilterCount" class="text-muted">({{ activeFilterCount }})</span>
+            </UButton>
           </div>
-          <UButton
-            icon="i-lucide-sliders-horizontal"
-            color="neutral"
-            :variant="filtersOpen ? 'subtle' : 'ghost'"
-            size="sm"
-            class="min-h-11 shrink-0 font-mono sm:min-h-9"
-            :aria-expanded="filtersOpen"
-            aria-controls="skills-filters"
-            @click="filtersOpen = !filtersOpen"
-          >
-            Filters<span v-if="activeFilterCount" class="text-muted">({{ activeFilterCount }})</span>
-          </UButton>
+
+          <div v-if="search.trim()" class="mt-1">
+            <UButton
+              v-if="searchIntent._tag === 'keywords'"
+              icon="i-lucide-sparkles"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              class="min-h-11 max-w-full justify-start font-mono sm:min-h-8"
+              @click="askAi"
+            >
+              <span class="truncate">Ask AI: “{{ search.trim() }}”</span>
+            </UButton>
+            <div v-else class="flex items-center gap-3 font-mono text-xs text-muted">
+              <span class="inline-flex items-center gap-1.5"><UIcon name="i-lucide-sparkles" class="size-3.5" />AI search</span>
+              <button type="button" class="min-h-11 underline underline-offset-2 hover:text-default sm:min-h-8" @click="searchIntent = { _tag: 'keywords' }">
+                Search by keywords
+              </button>
+            </div>
+          </div>
+
+          <div v-if="isFiltering" class="mt-2 flex flex-wrap items-center gap-x-3 font-mono text-xs text-muted">
+            <button v-if="owner" type="button" class="inline-flex min-h-11 items-center gap-1 hover:text-default sm:min-h-7" aria-label="Clear owner" @click="clearOwner">
+              {{ owner }} <UIcon name="i-lucide-x" class="size-3" />
+            </button>
+            <button v-for="slug in tags" :key="slug" type="button" class="inline-flex min-h-11 items-center gap-1 hover:text-default sm:min-h-7" :aria-label="`Remove ${slug} filter`" @click="removeTag(slug)">
+              {{ tagBySlug.get(slug)?.label ?? slug }} <UIcon name="i-lucide-x" class="size-3" />
+            </button>
+            <button type="button" class="min-h-11 underline underline-offset-2 hover:text-default sm:min-h-7" @click="clearAll">
+              Clear all
+            </button>
+          </div>
         </div>
 
-        <div v-if="isFiltering" class="mt-2 flex flex-wrap items-center gap-x-3 font-mono text-xs text-muted">
-          <button v-if="owner" type="button" class="inline-flex min-h-11 items-center gap-1 hover:text-default sm:min-h-7" aria-label="Clear owner" @click="clearOwner">
-            {{ owner }} <UIcon name="i-lucide-x" class="size-3" />
-          </button>
-          <button v-for="slug in tags" :key="slug" type="button" class="inline-flex min-h-11 items-center gap-1 hover:text-default sm:min-h-7" :aria-label="`Remove ${slug} filter`" @click="removeTag(slug)">
-            {{ tagBySlug.get(slug)?.label ?? slug }} <UIcon name="i-lucide-x" class="size-3" />
-          </button>
-          <button type="button" class="min-h-11 underline underline-offset-2 hover:text-default sm:min-h-7" @click="clearAll">
-            Clear all
-          </button>
-        </div>
-
-        <div class="mt-5 grid items-start gap-6" :class="filtersOpen ? 'lg:grid-cols-[13rem_minmax(0,1fr)]' : 'grid-cols-1'">
+        <div class="mt-5 grid items-start gap-6" :class="filtersOpen ? 'lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_15rem]' : 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_15rem]'">
           <aside v-show="filtersOpen" id="skills-filters" aria-label="Filters" class="min-w-0 border-b border-default pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
             <div class="grid grid-cols-2 gap-4 lg:grid-cols-1 lg:gap-6">
               <div class="min-w-0">
@@ -480,14 +522,10 @@ function selectOwner(next: string) {
               />
             </nav>
           </div>
+          <aside class="min-w-0 xl:sticky xl:top-24" aria-label="More from skilld">
+            <DirectoryCta />
+          </aside>
         </div>
-
-        <p class="mt-10 border-t border-default pt-6 text-sm text-muted">
-          Search from your agent instead.
-          <NuxtLink to="/developers?setup=mcp" class="text-default underline underline-offset-2 hover:text-primary">
-            Add the skilld MCP server
-          </NuxtLink>
-        </p>
       </section>
     </div>
   </div>
