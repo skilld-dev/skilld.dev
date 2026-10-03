@@ -11,6 +11,7 @@ export const SkillsListQuery = z.object({
   // asks for it (ADR-0003).
   sort: z.enum(['stars', 'name', 'owner', 'likes']).catch('stars'),
   uniqueOwners: flag,
+  maintainerRepos: flag,
   official: flag,
   excludeOfficial: flag,
   supported: flag,

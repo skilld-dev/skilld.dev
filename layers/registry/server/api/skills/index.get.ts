@@ -25,6 +25,7 @@ export default defineApiHandler({
       tagMode: body.tagMode,
       sort: body.sort,
       uniqueOwners: body.uniqueOwners,
+      maintainerRepos: body.maintainerRepos,
       page: body.page,
       limit: body.limit,
       officialOwners,

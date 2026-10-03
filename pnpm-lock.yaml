@@ -12,6 +12,10 @@ importers:
 
 packages:
 
+  '@harlan-zw/jev@0.2.4':
+    resolution: {integrity: sha512-67/8sxVDzxT+dbxuqI+dm8HQ8GqQ46sc3HAW+GRv+gJd5JN31P8MvKisMCwiz+fcx7owBH+pkINzd/9Afw/tNQ==}
+    engines: {node: '>=20'}
+
   '@pnpm/exe.android-arm64@12.4.2':
     resolution: {integrity: sha512-E255MbcQ0V1577M2BV0ajWuP7KmTPYA0jqZnk3rK6Lq3kTvZWulMMb7iqRmnLsQbyWTkMEB2CfyM70loVDA8xg==}
     cpu: [arm64]
@@ -95,6 +99,10 @@ packages:
     hasBin: true
 
 snapshots:
+
+  '@harlan-zw/jev@0.2.4':
+    dependencies:
+      ohash: 2.0.12
 
   '@pnpm/exe.android-arm64@12.4.2':
     optional: true
@@ -520,6 +528,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 5.20260901.1
+      '@harlan-zw/jev':
+        specifier: 0.2.4
+        version: 0.2.4
       '@harlan-zw/nuxt-cloudflare':
         specifier: 'catalog:'
         version: 0.4.3(5c82fe480a8d150aef31490e86954adf)
