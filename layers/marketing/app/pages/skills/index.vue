@@ -263,6 +263,7 @@ function selectOwner(next: string) {
                 variant="outline"
                 size="md"
                 class="w-full font-mono [&_input]:min-h-11 sm:[&_input]:min-h-9"
+                :ui="{ base: 'font-light text-muted placeholder:font-light placeholder:text-muted', leadingIcon: 'text-muted' }"
                 :loading="isLoading"
               >
                 <template #trailing>
@@ -327,14 +328,14 @@ function selectOwner(next: string) {
           </div>
         </div>
 
-        <div class="mt-5 grid items-start gap-6" :class="filtersOpen ? 'lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_15rem]' : 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_15rem]'">
-          <aside v-show="filtersOpen" id="skills-filters" aria-label="Filters" class="min-w-0 border-b border-default pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
+        <div class="mt-6 grid items-start gap-6 border-t border-default" :class="filtersOpen ? 'lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_15rem]' : 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_15rem]'">
+          <aside v-show="filtersOpen" id="skills-filters" aria-label="Filters" class="min-w-0 border-b border-default pb-5 pt-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
             <div class="grid grid-cols-2 gap-4 lg:grid-cols-1 lg:gap-6">
               <div class="min-w-0">
-                <h2 id="tags-label" class="mb-3 flex min-h-7 items-center text-sm font-semibold text-default">
+                <h2 id="tags-label" class="mb-3 flex min-h-7 items-center text-sm font-semibold leading-5 text-default">
                   Tags
                 </h2>
-                <UInput v-model="tagSearch" placeholder="Filter tags…" aria-label="Filter tags" icon="i-lucide-search" size="sm" class="w-full font-mono [&_input]:min-h-11 sm:[&_input]:min-h-8" />
+                <UInput v-model="tagSearch" placeholder="Filter tags…" aria-label="Filter tags" icon="i-lucide-search" size="sm" class="w-full font-mono [&_input]:min-h-11 sm:[&_input]:min-h-9" :ui="{ base: 'font-light text-muted placeholder:font-light placeholder:text-muted', leadingIcon: 'text-muted' }" />
                 <div v-if="tags.length > 1" class="mt-2 flex items-center gap-1 font-mono text-xs" role="group" aria-label="Tag matching">
                   <button v-for="mode in (['and', 'or'] as const)" :key="mode" type="button" class="min-h-11 rounded px-3 sm:min-h-7" :class="tagMode === mode ? 'bg-elevated text-highlighted' : 'text-muted hover:text-default'" :aria-pressed="tagMode === mode" @click="tagMode = mode">
                     {{ mode.toUpperCase() }}
@@ -352,7 +353,7 @@ function selectOwner(next: string) {
                 </div>
               </div>
               <div class="min-w-0">
-                <h2 id="maintainers-label" class="mb-2 flex min-h-7 items-center text-sm font-semibold text-default">
+                <h2 id="maintainers-label" class="mb-2 flex min-h-7 items-center text-sm font-semibold leading-5 text-default">
                   Maintainers
                 </h2>
                 <div v-if="featuredStatus === 'pending' && !featuredData" aria-busy="true" class="space-y-2">
@@ -379,9 +380,9 @@ function selectOwner(next: string) {
             </div>
           </aside>
 
-          <div class="min-w-0">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h2 id="results-heading" class="min-w-0 text-sm font-semibold text-default">
+          <div class="min-w-0" :class="filtersOpen ? 'lg:pt-5' : 'pt-5'">
+            <div class="mb-3 flex min-h-7 items-center justify-between gap-3">
+              <h2 id="results-heading" class="min-w-0 text-sm font-semibold leading-5 text-default">
                 <template v-if="isFiltering">
                   Matching skills
                 </template>
@@ -522,7 +523,7 @@ function selectOwner(next: string) {
               />
             </nav>
           </div>
-          <aside class="min-w-0 xl:sticky xl:top-24" aria-label="More from skilld">
+          <aside class="min-w-0 xl:sticky xl:top-24 xl:pt-5" aria-label="More from skilld">
             <DirectoryCta />
           </aside>
         </div>
