@@ -22,6 +22,9 @@ const MIGRATIONS = [
   'migrations/0105_install_match_kind.sql',
   // Adds `author_avatar`, which the ingest now stores.
   'migrations/0116_x_posts_author_avatar.sql',
+  // Dates `since_id` by the run that wrote it, so the retention drop fires
+  // even when later runs keep finishing.
+  'migrations/0134_x_cursor_written_at.sql',
 ]
 const NOW = 1_760_000_000
 
@@ -463,12 +466,12 @@ describe('ingestXMentions cursor safety', () => {
 })
 
 describe('ingestXMentions retention-stale cursor', () => {
-  /** X's retention floor is measured from the last run, so seed one directly. */
-  function seedCursor(sinceId: string, lastRunAt: number) {
+  /** X's retention floor dates the id from when it was written, so seed that. */
+  function seedCursor(sinceId: string, writtenAt: number) {
     db().raw.prepare(
-      `INSERT INTO x_ingest_cursor (query_key, since_id, last_run_at, last_result_count, posts_read_total, budget_day, budget_spent)
-       VALUES ('discovery-v1', ?, ?, 0, 0, NULL, 0)`,
-    ).run(sinceId, lastRunAt)
+      `INSERT INTO x_ingest_cursor (query_key, since_id, since_id_written_at, last_run_at, last_result_count, posts_read_total, budget_day, budget_spent)
+       VALUES ('discovery-v1', ?, ?, ?, 0, 0, NULL, 0)`,
+    ).run(sinceId, writtenAt, writtenAt)
   }
 
   it('passes a stored cursor whose last run is inside the retention window', async () => {
@@ -494,6 +497,39 @@ describe('ingestXMentions retention-stale cursor', () => {
 
     expect(db().raw.prepare('SELECT since_id FROM x_ingest_cursor').get())
       .toEqual({ since_id: '7000' })
+  })
+
+  it('drops a cursor that failing runs kept alive past the retention window', async () => {
+    // Written the way writeCursor writes it: a working run advances to '5000'.
+    const setup = stubClient([{ _tag: 'ok', value: page([post({ id: '5000' })]) }])
+    await ingestXMentions({ db: db().db, client: setup.client, now: NOW })
+
+    // X then fails every 15-minute run for the next seven days. Each failing
+    // run still reaches the end-of-run cursor write, so a timestamp that
+    // moves on every run never lets the dead id age out.
+    const failing = stubClient([{ _tag: 'err', error: { _tag: 'cap-exceeded' } }])
+    let resetSeen = false
+    for (let t = NOW + 900; t < NOW + X_SEARCH_RETENTION_SECONDS; t += 900) {
+      const run = await ingestXMentions({ db: db().db, client: failing.client, now: t })
+      resetSeen ||= run.cursorReset
+    }
+
+    // The drop fires inside the failing window, at the 6-day margin, and the
+    // dead id never comes back after it.
+    expect(resetSeen).toBe(true)
+    const lastSent = failing.sinceIds.lastIndexOf('5000')
+    expect(failing.sinceIds.slice(lastSent + 1)).toEqual(Array.from({ length: failing.sinceIds.length - lastSent - 1 }).fill(null))
+
+    // The next working run cold-starts instead of answering HTTP 400 forever.
+    const working = stubClient([{ _tag: 'ok', value: page([post({ id: '7000' })]) }])
+    const summary = await ingestXMentions({
+      db: db().db,
+      client: working.client,
+      now: NOW + X_SEARCH_RETENTION_SECONDS,
+    })
+
+    expect(working.sinceIds).toEqual([null])
+    expect(summary.cursorAdvancedTo).toBe('7000')
   })
 
   it('never hands the dropped cursor back after a run that could not exhaust the window', async () => {
