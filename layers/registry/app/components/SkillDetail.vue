@@ -1581,7 +1581,7 @@ useHead(computed(() => ({
                 Updated {{ skillUpdatedAgo }}
               </span>
             </li>
-            <li v-if="skillFileUrl">
+            <li v-if="skillFileUrl && !data.sourceGone">
               <a
                 :href="skillFileUrl"
                 target="_blank"
@@ -1616,6 +1616,7 @@ useHead(computed(() => ({
       <!-- The two command blocks are breakpoint twins, so neither can hold the anchor. -->
       <div id="run" class="scroll-mt-24" />
       <div
+        v-if="!data.sourceGone"
         class="pt-6 lg:hidden"
         :class="SKILL_CONTAINER"
       >
@@ -1638,7 +1639,7 @@ useHead(computed(() => ({
           class="skill-rail scroll-fancy hidden space-y-8 lg:block"
           aria-label="Run and install"
         >
-          <section aria-label="Run or install">
+          <section v-if="!data.sourceGone" aria-label="Run or install">
             <SkillCommandPanel
               v-model="commandMode"
               layout="stacked"
@@ -2142,7 +2143,7 @@ useHead(computed(() => ({
               </div>
             </div>
 
-            <p class="mt-3 text-xs text-muted">
+            <p v-if="!data.sourceGone" class="mt-3 text-xs text-muted">
               Source:
               <a
                 :href="data.provenance?.skillFileUrl || githubUrl"
