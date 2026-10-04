@@ -1,7 +1,7 @@
 import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { flushPromises } from '@vue/test-utils'
 import { readBody } from 'h3'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive, ref, toValue } from 'vue'
 
 const route = reactive({
@@ -142,6 +142,22 @@ function howToNode(): HowToNode {
 }
 
 describe('skillDetail HowTo structured data', () => {
+  beforeEach(() => {
+    payload.sourceGone = false
+  })
+
+  it('omits run instructions when the source is unavailable', async () => {
+    payload.sourceGone = true
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'antfu', repo: 'skills', name: 'vite' } },
+    )
+    const nodes = toValue(schemaNodes.current) as { '@id'?: string }[]
+    expect(nodes.find(node => node['@id']?.endsWith('#run'))).toBeUndefined()
+    wrapper.unmount()
+    payload.sourceGone = false
+  })
+
   it('publishes the run command the page leads with', async () => {
     const wrapper = await mountSuspended(
       await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
