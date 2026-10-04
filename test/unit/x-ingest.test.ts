@@ -257,6 +257,44 @@ describe('ingestXMentions persistence', () => {
     expect(row.first_seen_at).toBe(NOW)
     expect(row.favourite_count).toBe(75)
   })
+
+  it('counts each post once when a stale cursor replays stored mentions', async () => {
+    const first = stubClient([{ _tag: 'ok', value: page([post()]) }])
+    await ingestXMentions({ db: db().db, client: first.client, now: NOW })
+
+    const replay = stubClient([{
+      _tag: 'ok',
+      value: page([post({ metrics: { ...ZERO_METRICS, favouriteCount: 75 } })]),
+    }])
+    const summary = await ingestXMentions({
+      db: db().db,
+      client: replay.client,
+      now: NOW + X_SEARCH_RETENTION_SECONDS,
+    })
+
+    expect(summary.cursorReset).toBe(true)
+    expect(db().raw.prepare('SELECT mention_count, evidence_score FROM discovery_ledger').get())
+      .toEqual({ mention_count: 1, evidence_score: 75 })
+  })
+
+  it('counts distinct posts across pages and ignores repeated posts on a held cursor', async () => {
+    const partial = stubClient([
+      { _tag: 'ok', value: page([post({ id: '1002' })], 'next') },
+      { _tag: 'ok', value: page([post({ id: '1001' })], 'next') },
+      { _tag: 'err', error: { _tag: 'http-error', status: 500, body: 'upstream failure' } },
+    ])
+    await ingestXMentions({ db: db().db, client: partial.client, now: NOW })
+    expect(db().raw.prepare('SELECT mention_count FROM discovery_ledger').get())
+      .toEqual({ mention_count: 2 })
+
+    const resumed = stubClient([{
+      _tag: 'ok',
+      value: page([post({ id: '1003' }), post({ id: '1002' }), post({ id: '1001' })]),
+    }])
+    await ingestXMentions({ db: db().db, client: resumed.client, now: NOW + 60 })
+    expect(db().raw.prepare('SELECT mention_count FROM discovery_ledger').get())
+      .toEqual({ mention_count: 3 })
+  })
 })
 
 describe('ingestXMentions cursor', () => {
