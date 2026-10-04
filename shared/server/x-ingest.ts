@@ -66,6 +66,22 @@ export const X_DISCOVERY_QUERY = '(url:"skilld.dev" OR "SKILL.md" OR "npx skills
 export const X_DISCOVERY_CURSOR_KEY = 'discovery-v1'
 
 /**
+ * How far back X's recent-search endpoint can look. A `since_id` older than
+ * this is below the retention floor, and every search carrying it answers
+ * HTTP 400.
+ */
+export const X_SEARCH_RETENTION_SECONDS = 7 * 24 * 60 * 60
+
+/**
+ * Headroom before a cursor is treated as expired. `since_id_written_at` dates
+ * the id by the run that wrote it, and the newest post seen that run was
+ * published up to a poll interval before it, so the drop fires a little early
+ * on purpose: re-reading a few in-window posts costs cap units, while a dead
+ * cursor costs discovery itself.
+ */
+export const CURSOR_STALE_MARGIN_SECONDS = 24 * 60 * 60
+
+/**
  * Ceiling on pages per run. At observed volume (~250 matching posts/day) a
  * single 100-result page covers a 15-minute window many times over, so this
  * only ever binds on a cold start. When it does bind the summary says so
@@ -142,6 +158,12 @@ export interface XIngestSummary {
   /** Charged reads spent today after this run, against DAILY_DISCOVERY_READ_BUDGET. */
   budgetSpentToday: number
   cursorAdvancedTo: string | null
+  /**
+   * True when the stored cursor had gone stale past X's retention window and
+   * was dropped, so this run cold-started instead of answering HTTP 400 until
+   * someone advanced the cursor by hand.
+   */
+  cursorReset: boolean
   error: XError | null
   elapsedMs: number
 }
@@ -164,12 +186,42 @@ function postUrl(post: XPost): string {
   return `https://x.com/${post.authorHandle}/status/${post.id}`
 }
 
-async function readCursor(db: D1Database, key: string): Promise<string | null> {
+interface StoredCursor {
+  /** The id to search from, or null for a cold start. */
+  sinceId: string | null
+  /** True when a stored cursor was dropped for predating the retention window. */
+  staleReset: boolean
+}
+
+async function readCursor(db: D1Database, key: string, now: number): Promise<StoredCursor> {
   const row = await db
-    .prepare(`SELECT since_id FROM x_ingest_cursor WHERE query_key = ?1`)
+    .prepare(`SELECT since_id, since_id_written_at FROM x_ingest_cursor WHERE query_key = ?1`)
     .bind(key)
-    .first<{ since_id: string | null }>()
-  return row?.since_id ?? null
+    .first<{ since_id: string | null, since_id_written_at: number | null }>()
+  const sinceId = row?.since_id ?? null
+  const writtenAt = row?.since_id_written_at ?? null
+  if (!sinceId)
+    return { sinceId: null, staleReset: false }
+
+  // `since_id_written_at` dates the cursor by the run that wrote it. Dating it
+  // by `last_run_at` instead was the bug this column fixed: held and failing
+  // runs refresh `last_run_at` while the COALESCE keeps the old id, so a dead
+  // id read as fresh forever on the 15-minute schedule. A cursor with no
+  // timestamp cannot be dated and is dropped with the rest.
+  const fresh = writtenAt !== null
+    && now - writtenAt <= X_SEARCH_RETENTION_SECONDS - CURSOR_STALE_MARGIN_SECONDS
+  if (fresh)
+    return { sinceId, staleReset: false }
+
+  // Cleared here, not only in the end-of-run upsert: that upsert COALESCEs a
+  // held (null) advance into the stored value, so a run that later fails or
+  // truncates would otherwise hand the same dead cursor to the next run and
+  // the 400s would never stop.
+  await db
+    .prepare(`UPDATE x_ingest_cursor SET since_id = NULL, since_id_written_at = NULL WHERE query_key = ?1`)
+    .bind(key)
+    .run()
+  return { sinceId: null, staleReset: true }
 }
 
 /**
@@ -202,12 +254,19 @@ async function writeCursor(
   await db
     .prepare(
       `INSERT INTO x_ingest_cursor (
-         query_key, since_id, last_run_at, last_result_count, posts_read_total,
-         budget_day, budget_spent
+         query_key, since_id, since_id_written_at, last_run_at, last_result_count,
+         posts_read_total, budget_day, budget_spent
        )
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
        ON CONFLICT (query_key) DO UPDATE SET
          since_id = COALESCE(excluded.since_id, x_ingest_cursor.since_id),
+         -- The timestamp must move only when the id does: a held advance keeps
+         -- the prior write time, so the stored id keeps aging while runs fail
+         -- or hold, and the retention drop still fires.
+         since_id_written_at = CASE
+           WHEN excluded.since_id IS NOT NULL THEN excluded.since_id_written_at
+           ELSE x_ingest_cursor.since_id_written_at
+         END,
          last_run_at = excluded.last_run_at,
          last_result_count = excluded.last_result_count,
          posts_read_total = x_ingest_cursor.posts_read_total + excluded.posts_read_total,
@@ -219,6 +278,7 @@ async function writeCursor(
     .bind(
       key,
       input.sinceId,
+      input.sinceId === null ? null : input.now,
       input.now,
       input.resultCount,
       input.postsRead,
@@ -334,11 +394,14 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
     budgetExhausted: false,
     budgetSpentToday: 0,
     cursorAdvancedTo: null,
+    cursorReset: false,
     error: null,
     elapsedMs: 0,
   }
 
-  const sinceId = await readCursor(db, X_DISCOVERY_CURSOR_KEY)
+  const cursor = await readCursor(db, X_DISCOVERY_CURSOR_KEY, now)
+  const sinceId = cursor.sinceId
+  summary.cursorReset = cursor.staleReset
 
   const today = utcDayKey(now)
   const spentBefore = await readBudgetSpent(db, X_DISCOVERY_CURSOR_KEY, today)

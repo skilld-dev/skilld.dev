@@ -1,0 +1,13 @@
+-- Date the stored `since_id` by the run that wrote it, not by the run that
+-- last finished.
+--
+-- `last_run_at` moves on every run, including runs that hold the cursor
+-- (advanceTo null) and runs that end in an X error: both still reach the
+-- end-of-run cursor write. Dating the id by it meant a dead id read as fresh
+-- forever on a 15-minute schedule, so the retention drop never fired and the
+-- HTTP 400 loop ran until someone reset the row by hand.
+--
+-- NULL on existing rows. A cursor with no timestamp cannot be dated, and
+-- readCursor drops undatable cursors, so the first run after this migration
+-- re-dates any legacy cursor instead of trusting it.
+ALTER TABLE x_ingest_cursor ADD COLUMN since_id_written_at INTEGER;

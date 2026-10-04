@@ -218,6 +218,7 @@ function truncate(value: string, max: number): string {
  * kept at its high-water mark rather than its latest value: a repo that
  * trended once and later got a quiet mention should still present its best
  * case to a reviewer.
+ * X counts stored post references, so cursor replays cannot add mentions.
  *
  * Returns whether this was the first sighting, which callers use to decide
  * whether to announce it. Existence is read before the write because D1
@@ -243,10 +244,15 @@ export async function upsertLedgerEntry(input: {
       `INSERT INTO discovery_ledger (
          source, owner, repo, evidence_url, evidence_text, evidence_score,
          first_seen_at, last_seen_at, mention_count, status
-       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, 1, 'pending')
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7,
+         CASE WHEN ?1 = 'x' THEN (
+           SELECT COUNT(*) FROM x_post_repos WHERE owner = ?2 AND repo = ?3
+         ) ELSE 1 END, 'pending')
        ON CONFLICT (source, owner, repo) DO UPDATE SET
          last_seen_at = excluded.last_seen_at,
-         mention_count = discovery_ledger.mention_count + 1,
+         mention_count = CASE WHEN excluded.source = 'x'
+           THEN excluded.mention_count
+           ELSE discovery_ledger.mention_count + 1 END,
          evidence_url = CASE
            WHEN excluded.evidence_score > discovery_ledger.evidence_score
              THEN excluded.evidence_url ELSE discovery_ledger.evidence_url END,

@@ -3,7 +3,13 @@ import type { XClient, XPage, XPost, XResult } from '../../shared/server/x-clien
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { X_SEARCH_PAGE_SIZE, ZERO_METRICS } from '../../shared/server/x-client'
-import { DAILY_DISCOVERY_READ_BUDGET, ingestXMentions, utcDayKey } from '../../shared/server/x-ingest'
+import {
+  CURSOR_STALE_MARGIN_SECONDS,
+  DAILY_DISCOVERY_READ_BUDGET,
+  ingestXMentions,
+  utcDayKey,
+  X_SEARCH_RETENTION_SECONDS,
+} from '../../shared/server/x-ingest'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const MIGRATIONS = [
@@ -16,6 +22,9 @@ const MIGRATIONS = [
   'migrations/0105_install_match_kind.sql',
   // Adds `author_avatar`, which the ingest now stores.
   'migrations/0116_x_posts_author_avatar.sql',
+  // Dates `since_id` by the run that wrote it, so the retention drop fires
+  // even when later runs keep finishing.
+  'migrations/0134_x_cursor_written_at.sql',
 ]
 const NOW = 1_760_000_000
 
@@ -248,6 +257,44 @@ describe('ingestXMentions persistence', () => {
     expect(row.first_seen_at).toBe(NOW)
     expect(row.favourite_count).toBe(75)
   })
+
+  it('counts each post once when a stale cursor replays stored mentions', async () => {
+    const first = stubClient([{ _tag: 'ok', value: page([post()]) }])
+    await ingestXMentions({ db: db().db, client: first.client, now: NOW })
+
+    const replay = stubClient([{
+      _tag: 'ok',
+      value: page([post({ metrics: { ...ZERO_METRICS, favouriteCount: 75 } })]),
+    }])
+    const summary = await ingestXMentions({
+      db: db().db,
+      client: replay.client,
+      now: NOW + X_SEARCH_RETENTION_SECONDS,
+    })
+
+    expect(summary.cursorReset).toBe(true)
+    expect(db().raw.prepare('SELECT mention_count, evidence_score FROM discovery_ledger').get())
+      .toEqual({ mention_count: 1, evidence_score: 75 })
+  })
+
+  it('counts distinct posts across pages and ignores repeated posts on a held cursor', async () => {
+    const partial = stubClient([
+      { _tag: 'ok', value: page([post({ id: '1002' })], 'next') },
+      { _tag: 'ok', value: page([post({ id: '1001' })], 'next') },
+      { _tag: 'err', error: { _tag: 'http-error', status: 500, body: 'upstream failure' } },
+    ])
+    await ingestXMentions({ db: db().db, client: partial.client, now: NOW })
+    expect(db().raw.prepare('SELECT mention_count FROM discovery_ledger').get())
+      .toEqual({ mention_count: 2 })
+
+    const resumed = stubClient([{
+      _tag: 'ok',
+      value: page([post({ id: '1003' }), post({ id: '1002' }), post({ id: '1001' })]),
+    }])
+    await ingestXMentions({ db: db().db, client: resumed.client, now: NOW + 60 })
+    expect(db().raw.prepare('SELECT mention_count FROM discovery_ledger').get())
+      .toEqual({ mention_count: 3 })
+  })
 })
 
 describe('ingestXMentions cursor', () => {
@@ -453,5 +500,89 @@ describe('ingestXMentions cursor safety', () => {
     // COALESCE keeps the old cursor; the next run resumes from the same point.
     expect(db().raw.prepare('SELECT since_id FROM x_ingest_cursor').get())
       .toEqual({ since_id: '5000' })
+  })
+})
+
+describe('ingestXMentions retention-stale cursor', () => {
+  /** X's retention floor dates the id from when it was written, so seed that. */
+  function seedCursor(sinceId: string, writtenAt: number) {
+    db().raw.prepare(
+      `INSERT INTO x_ingest_cursor (query_key, since_id, since_id_written_at, last_run_at, last_result_count, posts_read_total, budget_day, budget_spent)
+       VALUES ('discovery-v1', ?, ?, ?, 0, 0, NULL, 0)`,
+    ).run(sinceId, writtenAt, writtenAt)
+  }
+
+  it('passes a stored cursor whose last run is inside the retention window', async () => {
+    seedCursor('5000', NOW - X_SEARCH_RETENTION_SECONDS + CURSOR_STALE_MARGIN_SECONDS + 60)
+    const { client, sinceIds } = stubClient([{ _tag: 'ok', value: page([post({ id: '7000' })]) }])
+    const summary = await ingestXMentions({ db: db().db, client, now: NOW })
+
+    expect(sinceIds).toEqual(['5000'])
+    expect(summary.cursorReset).toBe(false)
+  })
+
+  it('drops a cursor past the retention window, cold-starts, and re-advances it', async () => {
+    seedCursor('5000', NOW - X_SEARCH_RETENTION_SECONDS)
+    const { client, sinceIds } = stubClient([{ _tag: 'ok', value: page([post({ id: '7000' })]) }])
+    const summary = await ingestXMentions({ db: db().db, client, now: NOW })
+
+    // A since_id below the retention floor makes every search answer HTTP 400,
+    // so the run must not send it and must say it recovered instead of failing.
+    expect(sinceIds).toEqual([null])
+    expect(summary.cursorReset).toBe(true)
+    expect(summary.postsStored).toBe(1)
+    expect(summary.cursorAdvancedTo).toBe('7000')
+
+    expect(db().raw.prepare('SELECT since_id FROM x_ingest_cursor').get())
+      .toEqual({ since_id: '7000' })
+  })
+
+  it('drops a cursor that failing runs kept alive past the retention window', async () => {
+    // Written the way writeCursor writes it: a working run advances to '5000'.
+    const setup = stubClient([{ _tag: 'ok', value: page([post({ id: '5000' })]) }])
+    await ingestXMentions({ db: db().db, client: setup.client, now: NOW })
+
+    // X then fails every 15-minute run for the next seven days. Each failing
+    // run still reaches the end-of-run cursor write, so a timestamp that
+    // moves on every run never lets the dead id age out.
+    const failing = stubClient([{ _tag: 'err', error: { _tag: 'cap-exceeded' } }])
+    let resetSeen = false
+    for (let t = NOW + 900; t < NOW + X_SEARCH_RETENTION_SECONDS; t += 900) {
+      const run = await ingestXMentions({ db: db().db, client: failing.client, now: t })
+      resetSeen ||= run.cursorReset
+    }
+
+    // The drop fires inside the failing window, at the 6-day margin, and the
+    // dead id never comes back after it.
+    expect(resetSeen).toBe(true)
+    const lastSent = failing.sinceIds.lastIndexOf('5000')
+    expect(failing.sinceIds.slice(lastSent + 1)).toEqual(Array.from({ length: failing.sinceIds.length - lastSent - 1 }).fill(null))
+
+    // The next working run cold-starts instead of answering HTTP 400 forever.
+    const working = stubClient([{ _tag: 'ok', value: page([post({ id: '7000' })]) }])
+    const summary = await ingestXMentions({
+      db: db().db,
+      client: working.client,
+      now: NOW + X_SEARCH_RETENTION_SECONDS,
+    })
+
+    expect(working.sinceIds).toEqual([null])
+    expect(summary.cursorAdvancedTo).toBe('7000')
+  })
+
+  it('never hands the dropped cursor back after a run that could not exhaust the window', async () => {
+    seedCursor('5000', NOW - X_SEARCH_RETENTION_SECONDS)
+    const truncated = stubClient(Array.from({ length: 6 }, (_, i) => ({
+      _tag: 'ok' as const,
+      value: page([post({ id: String(8000 - i), authorId: `a${i}` })], `t-${i}`),
+    })))
+    await ingestXMentions({ db: db().db, client: truncated.client, now: NOW })
+
+    // The end-of-run upsert COALESCEs a held cursor into the stored value, so
+    // without an explicit clear the dead id would come back here and 400 forever.
+    const second = stubClient([{ _tag: 'ok', value: page([]) }])
+    await ingestXMentions({ db: db().db, client: second.client, now: NOW + 900 })
+
+    expect(second.sinceIds).toEqual([null])
   })
 })
