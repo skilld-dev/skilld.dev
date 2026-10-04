@@ -414,6 +414,8 @@ const { data: skillFiles } = useFetch(
 // Prefer the live ungh-walked file list when available (catches markdown
 // siblings the sync job hasn't registered yet); fall back to data.assets.
 const treeAssets = computed(() => {
+  if (data.value?.sourceGone)
+    return []
   const live = skillFiles.value?.files
   if (live && live.length)
     return live
@@ -1959,7 +1961,7 @@ useHead(computed(() => ({
                 <span class="hidden sm:inline">{{ markdownCopied ? 'copied' : 'copy' }}</span>
               </button>
               <a
-                v-if="currentRaw"
+                v-if="currentRaw && !data.sourceGone"
                 :href="rawSourceUrl"
                 target="_blank"
                 rel="noopener"

@@ -238,9 +238,9 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   const [duplicateGroup, generated, repoSkillRows] = await Promise.all([
     findDuplicateGroupForSkill(event, `${skill.owner}/${skill.repo}/${skill.name}`),
     getGeneratedKinds(platform.db, { owner: skill.owner, repo: skill.repo, name: skill.name }, ['faq', 'tags', 'summary']),
-    // Unfiltered on purpose: it feeds dependency parsing, not routing.
+    // Dependency links must only target Skills whose source still exists.
     platform.db
-      .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? ORDER BY name`)
+      .prepare(`SELECT name FROM skills WHERE owner = ? AND repo = ? AND source_resolved = 1 ORDER BY name`)
       .bind(skill.owner, skill.repo)
       .all<RepoSkillNameRow>(),
   ])
@@ -271,6 +271,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
           skillNames: repoSkillNames,
           registryOwner: skill.owner,
           registryRepo: skill.repo,
+          sourceGone: row.source_resolved === 0,
         }, await skillImagePolicyForEvent(event))
       : null
     rendered = {

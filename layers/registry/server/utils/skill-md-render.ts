@@ -26,6 +26,7 @@ export interface SkillRenderContext {
   skillNames?: string[]
   registryOwner?: string
   registryRepo?: string
+  sourceGone?: boolean
 }
 
 /**
@@ -132,6 +133,9 @@ function createSkillMd(
         linkDepth++
         const text = (this as { parser: { parseInline: (t: unknown[]) => string } }).parser.parseInline(tokens)
         linkDepth--
+        // The saved copy survives source deletion, but its files do not.
+        if (ctx?.sourceGone && href && !isAbsoluteUrl(href))
+          return text
         const t = title ? ` title="${escapeHtml(title)}"` : ''
         const external = /^https?:\/\//i.test(safe)
         const extra = external ? ' target="_blank" rel="noopener noreferrer"' : ''
