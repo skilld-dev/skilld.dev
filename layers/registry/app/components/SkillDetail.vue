@@ -391,15 +391,21 @@ watch(data, async (skill) => {
 // ever describes the cache.
 const sourceUnavailableTitle = computed(() => {
   if (data.value?.sourceGone)
-    return 'Removed from the source repository'
+    return 'Source unavailable on GitHub'
   return data.value?.resolutionStatus === 'path_missing'
     ? 'SKILL.md not found in source repository'
     : 'Could not load SKILL.md'
 })
 
-const sourceUnavailableDetail = computed(() => data.value?.sourceGone
-  ? 'This skill no longer exists upstream, so running or installing it will fail. What you see below is the last copy skilld indexed.'
-  : 'The source file moved or was removed. Browse the repository to find its current location.')
+const sourceUnavailableDetail = computed(() => {
+  if (data.value?.sourceGone) {
+    const message = 'This Skill may have been removed or moved.'
+    return data.value.raw || data.value.contentHtml
+      ? `${message} Below is the last saved copy.`
+      : message
+  }
+  return 'The source file moved or was removed. Browse the repository to find its current location.'
+})
 
 const { data: skillFiles } = useFetch(
   () => `/api/skill-files/${slug.value}`,
@@ -1066,26 +1072,28 @@ useSchemaOrg(computed(() => {
       },
       'offers': { '@type': 'Offer', 'price': '0', 'priceCurrency': 'USD' },
     }),
-    defineHowTo({
-      '@id': `${skillPageUrl.value}#run`,
-      'name': `Run ${d.name} with skilld`,
-      'description': `Run the ${d.name} Claude Code skill in Cursor, Codex, and other agents. Installing is the opt-in second step.`,
-      'totalTime': 'PT1M',
-      'step': [
-        {
-          '@type': 'HowToStep',
-          'name': 'Run the skill',
-          'text': runPrompt.value,
-          'url': `${skillPageUrl.value}#run`,
-        },
-        {
-          '@type': 'HowToStep',
-          'name': 'Keep the skill in every session',
-          'text': installCmd.value,
-          'url': `${skillPageUrl.value}#run`,
-        },
-      ],
-    }),
+    ...(!d.sourceGone
+      ? [defineHowTo({
+          '@id': `${skillPageUrl.value}#run`,
+          'name': `Run ${d.name} with skilld`,
+          'description': `Run the ${d.name} Claude Code skill in Cursor, Codex, and other agents. Installing is the opt-in second step.`,
+          'totalTime': 'PT1M',
+          'step': [
+            {
+              '@type': 'HowToStep',
+              'name': 'Run the skill',
+              'text': runPrompt.value,
+              'url': `${skillPageUrl.value}#run`,
+            },
+            {
+              '@type': 'HowToStep',
+              'name': 'Keep the skill in every session',
+              'text': installCmd.value,
+              'url': `${skillPageUrl.value}#run`,
+            },
+          ],
+        })]
+      : []),
     ...(d.faqs.length
       ? [{
           '@type': 'FAQPage' as const,
@@ -1606,6 +1614,58 @@ useHead(computed(() => ({
               </a>
             </li>
           </ul>
+
+          <section
+            v-if="(data.resolutionStatus && data.resolutionStatus !== 'ok') || data.sourceGone"
+            class="mt-6"
+            aria-labelledby="broken-heading"
+          >
+            <h2
+              id="broken-heading"
+              class="sr-only"
+            >
+              Source unavailable
+            </h2>
+            <div
+              class="flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
+              role="status"
+            >
+              <UIcon
+                name="i-lucide-alert-triangle"
+                class="size-5 shrink-0 mt-0.5 text-muted"
+                aria-hidden="true"
+              />
+              <div class="flex-1">
+                <p class="font-medium">
+                  {{ sourceUnavailableTitle }}
+                </p>
+                <p class="mt-1 text-muted">
+                  {{ sourceUnavailableDetail }}
+                </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <UButton
+                    v-if="data.sourceGone"
+                    :to="repoHubPath(data.owner, data.repo)"
+                    :label="`Skills still live in ${data.owner}/${data.repo}`"
+                    icon="i-lucide-arrow-right"
+                    trailing
+                    size="xs"
+                    color="neutral"
+                  />
+                  <UButton
+                    :href="data.githubUrl"
+                    target="_blank"
+                    rel="noopener"
+                    label="Browse repository"
+                    icon="i-simple-icons-github"
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </template>
     </section>
@@ -2154,57 +2214,6 @@ useHead(computed(() => ({
                 SKILL.md on GitHub
               </a>
             </p>
-          </section>
-
-          <section
-            v-if="(data.resolutionStatus && data.resolutionStatus !== 'ok') || data.sourceGone"
-            aria-labelledby="broken-heading"
-          >
-            <h2
-              id="broken-heading"
-              class="sr-only"
-            >
-              Source unavailable
-            </h2>
-            <div
-              class="flex items-start gap-3 rounded-lg border border-default bg-muted/30 p-4 text-sm"
-              role="status"
-            >
-              <UIcon
-                name="i-lucide-alert-triangle"
-                class="size-5 shrink-0 mt-0.5 text-muted"
-                aria-hidden="true"
-              />
-              <div class="flex-1">
-                <p class="font-medium">
-                  {{ sourceUnavailableTitle }}
-                </p>
-                <p class="mt-1 text-muted">
-                  {{ sourceUnavailableDetail }}
-                </p>
-                <div class="mt-3 flex flex-wrap gap-2">
-                  <UButton
-                    v-if="data.sourceGone"
-                    :to="repoHubPath(data.owner, data.repo)"
-                    :label="`Skills still live in ${data.owner}/${data.repo}`"
-                    icon="i-lucide-arrow-right"
-                    trailing
-                    size="xs"
-                    color="neutral"
-                  />
-                  <UButton
-                    :href="data.githubUrl"
-                    target="_blank"
-                    rel="noopener"
-                    label="Browse repository"
-                    icon="i-simple-icons-github"
-                    size="xs"
-                    color="neutral"
-                    variant="outline"
-                  />
-                </div>
-              </div>
-            </div>
           </section>
 
           <div

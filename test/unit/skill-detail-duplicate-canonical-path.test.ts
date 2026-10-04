@@ -42,7 +42,7 @@ const payload = {
   resolutionStatus: 'ok',
   sourceGone: false,
   tier: 'community',
-  contentHtml: '<p>body</p>',
+  contentHtml: '<h2>Saved Skill content</h2><p>body</p>',
   raw: null,
   frontmatter: null,
   assets: [],
@@ -132,12 +132,14 @@ const payload = {
 }
 
 let sourceGone = false
+let savedCopy = true
 
 function skillPayload() {
   return {
     ...payload,
     sourceGone,
-    raw: '# Saved copy',
+    raw: savedCopy ? '# Saved copy' : null,
+    contentHtml: savedCopy ? payload.contentHtml : null,
     assets: [{ path: 'references/guide.md', size: 100, type: 'markdown' }],
     assetCount: 1,
   }
@@ -146,9 +148,39 @@ function skillPayload() {
 beforeEach(() => {
   navigateToMock.mockClear()
   sourceGone = false
+  savedCopy = true
 })
 
 describe('skillDetail duplicate-group canonical URL', () => {
+  it('does not promise a saved copy when none exists', async () => {
+    sourceGone = true
+    savedCopy = false
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'mirror', repo: 'multi', name: 'shared-skill' } },
+    )
+    const notice = wrapper.get('section[aria-labelledby="broken-heading"]')
+    expect(notice.text()).toContain('This Skill may have been removed or moved.')
+    expect(notice.text()).not.toContain('Below is the last saved copy.')
+    wrapper.unmount()
+  })
+
+  it('explains an unavailable GitHub source before the saved content', async () => {
+    sourceGone = true
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'mirror', repo: 'multi', name: 'shared-skill' } },
+    )
+
+    const notice = wrapper.get('section[aria-labelledby="broken-heading"]')
+    expect.soft(notice.text()).toContain('Source unavailable on GitHub')
+    expect.soft(notice.text()).toContain('This Skill may have been removed or moved. Below is the last saved copy.')
+    expect(notice.get('a[href="https://github.com/mirror/multi"]').text()).toBe('Browse repository')
+    const savedContent = wrapper.findAll('h2').find(heading => heading.text() === 'Saved Skill content')!
+    expect(notice.element.compareDocumentPosition(savedContent.element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    wrapper.unmount()
+  })
+
   it.each([false, true])('offers file links only when the source exists, gone: %s', async (gone) => {
     sourceGone = gone
     const wrapper = await mountSuspended(
