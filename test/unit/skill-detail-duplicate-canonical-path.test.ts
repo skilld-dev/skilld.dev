@@ -94,7 +94,7 @@ const payload = {
     skillPath: 'skills/shared-skill/SKILL.md',
     sourceCommitSha: 'abc',
     sourceCommitUrl: 'https://github.com/mirror/multi/commit/abc',
-    skillFileUrl: null,
+    skillFileUrl: 'https://github.com/mirror/multi/blob/main/skills/shared-skill/SKILL.md',
     historyUrl: null,
     modifiedAt: null,
     referencesCount: 0,
@@ -158,6 +158,13 @@ describe('skillDetail duplicate-group canonical URL', () => {
 
     expect(wrapper.find('a[href="/api/skills-raw/mirror/multi/shared-skill"]').exists()).toBe(!gone)
     expect(wrapper.find('a[href$="/-/references/guide.md"]').exists()).toBe(!gone)
+    expect.soft(wrapper.find('a[href="https://github.com/mirror/multi/blob/main/skills/shared-skill/SKILL.md"]').exists()).toBe(!gone)
+    expect(wrapper.find('button[aria-label="Copy install command"]').exists()).toBe(!gone)
+    const claude = wrapper.findAll('button').find(button => button.text() === 'Claude')
+    expect(Boolean(claude)).toBe(!gone)
+    if (claude)
+      await claude.trigger('click')
+    expect(wrapper.findAll('button').some(button => button.text() === 'Download shared-skill.zip')).toBe(!gone)
     expect(wrapper.text()).toContain('copy')
     wrapper.unmount()
   })
