@@ -150,6 +150,33 @@ describe('uncached skill detail render', () => {
     expect(body).toMatchObject({ sourceGone: true, contentHtml: null })
   })
 
+  it('keeps the saved copy without linking its removed files', async () => {
+    seed({ sourceResolved: 0 })
+    harness.raw.prepare('UPDATE skills SET rendered_raw = ? WHERE name = ?')
+      .run('[Guide](references/guide.md) and [site](https://example.com).', 'alpha')
+
+    const body = await render()
+    const doc = new DOMParser().parseFromString(body.contentHtml, 'text/html')
+
+    expect(body.sourceGone).toBe(true)
+    expect(doc.body.textContent).toBe('Guide and site.\n')
+    expect([...doc.querySelectorAll('a')].map(link => link.getAttribute('href'))).toEqual(['https://example.com'])
+    expect(rawFetch).not.toHaveBeenCalled()
+  })
+
+  it('keeps references to removed Skills as text', async () => {
+    seed()
+    harness.raw.prepare('UPDATE skills SET source_resolved = 0 WHERE name = ?').run('beta')
+    harness.raw.prepare('UPDATE skills SET rendered_raw = ? WHERE name = ?').run('Use `/beta` first.', 'alpha')
+
+    const body = await render()
+    const doc = new DOMParser().parseFromString(body.contentHtml, 'text/html')
+
+    expect(doc.body.textContent).toBe('Use /beta first.\n')
+    expect(doc.querySelector('a')).toBeNull()
+    expect(body.dependencies).toEqual([])
+  })
+
   it('gives every live GitHub read a timeout', async () => {
     seed({ renderedStatus: null })
 

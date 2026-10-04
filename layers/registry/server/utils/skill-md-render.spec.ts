@@ -4,6 +4,23 @@ import { importImageProxyKey, signImageProxyUrl } from '#server/utils/image-prox
 import { parseSkillMd } from './skill-md-render'
 
 describe('parseSkillMd', () => {
+  it('keeps archived text without links to removed supporting files', async () => {
+    const parsed = await parseSkillMd('[**Guide**](references/guide.md) and [site](https://example.com).', {
+      owner: 'acme',
+      repo: 'skills',
+      name: 'removed',
+      branch: 'main',
+      skillDir: 'skills/removed',
+      filePath: '',
+      sourceGone: true,
+    })
+    const doc = new DOMParser().parseFromString(parsed.html, 'text/html')
+
+    expect(doc.body.textContent).toBe('Guide and site.\n')
+    expect(doc.querySelector('strong')?.textContent).toBe('Guide')
+    expect([...doc.querySelectorAll('a')].map(link => link.getAttribute('href'))).toEqual(['https://example.com'])
+  })
+
   it('parses block descriptions and adjacent top-level fields', async () => {
     const parsed = await parseSkillMd(`---
 description: >-

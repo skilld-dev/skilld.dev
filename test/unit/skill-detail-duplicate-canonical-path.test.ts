@@ -131,15 +131,37 @@ const payload = {
   },
 }
 
+let sourceGone = false
+
 function skillPayload() {
-  return payload
+  return {
+    ...payload,
+    sourceGone,
+    raw: '# Saved copy',
+    assets: [{ path: 'references/guide.md', size: 100, type: 'markdown' }],
+    assetCount: 1,
+  }
 }
 
 beforeEach(() => {
   navigateToMock.mockClear()
+  sourceGone = false
 })
 
 describe('skillDetail duplicate-group canonical URL', () => {
+  it.each([false, true])('offers file links only when the source exists, gone: %s', async (gone) => {
+    sourceGone = gone
+    const wrapper = await mountSuspended(
+      await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
+      { props: { owner: 'mirror', repo: 'multi', name: 'shared-skill' } },
+    )
+
+    expect(wrapper.find('a[href="/api/skills-raw/mirror/multi/shared-skill"]').exists()).toBe(!gone)
+    expect(wrapper.find('a[href$="/-/references/guide.md"]').exists()).toBe(!gone)
+    expect(wrapper.text()).toContain('copy')
+    wrapper.unmount()
+  })
+
   it('points the weaker-duplicate canonical link at the twin repo hub when that repo has one Skill', async () => {
     const wrapper = await mountSuspended(
       await import('../../layers/registry/app/components/SkillDetail.vue').then(module => module.default),
