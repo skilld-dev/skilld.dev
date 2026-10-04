@@ -1651,6 +1651,7 @@ useHead(computed(() => ({
                     trailing
                     size="xs"
                     color="neutral"
+                    variant="outline"
                   />
                   <UButton
                     :href="data.githubUrl"
