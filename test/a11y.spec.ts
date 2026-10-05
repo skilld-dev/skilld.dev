@@ -522,6 +522,32 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('homeLifecycle has no violations and links the six steps in order', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('HomeLifecycle'),
+      { attachTo: container },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+
+    const links = [...container.querySelectorAll('ol > li > a')]
+    expect(links.map(link => link.getAttribute('href'))).toEqual([
+      '/skills/trending',
+      '/cli#run',
+      '/cli#install',
+      '/cli#update',
+      '/make-skill',
+      '/developers',
+    ])
+    // Run is the default, so it alone carries the rose dot.
+    const picked = container.querySelectorAll('.home-lifecycle__node--picked')
+    expect(picked).toHaveLength(1)
+    expect(picked[0]!.closest('a')?.getAttribute('href')).toBe('/cli#run')
+    expect(container.querySelector('code')?.textContent).toBe('npx skilld outdated')
+    wrapper.unmount()
+  })
+
   it('runChip compact has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(

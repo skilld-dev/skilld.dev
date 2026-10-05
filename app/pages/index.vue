@@ -173,13 +173,6 @@ const authoringEcosystems = [
   { id: 'rubygems', label: 'RubyGems', icon: 'i-simple-icons-rubygems' },
 ] as const
 
-/**
- * The trending band hides itself below MIN_TRENDING_TO_SHOW, so the door has
- * to fall back to the page that always exists. An anchor to a section that did
- * not render is a link that does nothing.
- */
-const trendingDoorTarget = computed(() => (showTrending.value ? '#trending' : '/skills/trending'))
-
 const renderNow = useState('render:now', () => Number(new Date()))
 
 function formatRelative(ts: number): string {
@@ -293,30 +286,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       </div>
     </section>
 
-    <nav class="home-doors" aria-label="What you can do here">
-      <div class="mx-auto grid max-w-6xl gap-px px-4 sm:px-6 md:grid-cols-4">
-        <NuxtLink to="/docs/cli#skilld-run" class="home-door">
-          <UIcon name="i-lucide-terminal" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">No more skill bloat<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
-          <span class="home-door-text">Run skills once off, fork, or install.</span>
-        </NuxtLink>
-        <NuxtLink :to="trendingDoorTarget" class="home-door">
-          <UIcon name="i-lucide-trending-up" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Stay hyped<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
-          <span class="home-door-text">What devs talk about on X and Bluesky, weekly and monthly.</span>
-        </NuxtLink>
-        <NuxtLink to="#freshness" class="home-door">
-          <UIcon name="i-lucide-eye" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Keep updated<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
-          <span class="home-door-text">Watch repos and get a digest when their skills change.</span>
-        </NuxtLink>
-        <NuxtLink to="/developers" class="home-door">
-          <UIcon name="i-lucide-blocks" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Built to be built on<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
-          <span class="home-door-text">CLI, API, SDK and MCP.</span>
-        </NuxtLink>
-      </div>
-    </nav>
+    <HomeLifecycle />
 
     <section
       v-if="showTrending || trendingStatus === 'pending'"
@@ -709,7 +679,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 </template>
 
 <style scoped>
-/* Above the doors, so the search panel overlays them instead of sliding under. */
+/* Above the lifecycle band, so the search panel overlays it instead of sliding under. */
 .home-hero {
   position: relative;
   z-index: 10;
