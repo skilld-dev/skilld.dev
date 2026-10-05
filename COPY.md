@@ -28,10 +28,12 @@ These exact strings. Do not paraphrase them per page.
 | Home caption | skilld.dev finds and tracks skills. The CLI runs or installs them in 19 agents. | guidance only: the homepage caption under the verb line. 19 is `AGENT_TARGETS` in the CLI's `crates/skilld-core/src/target.rs`. If that count changes, change this string |
 | Home claims line | Open-source CLI · Analytics without cookies or IPs · A skills.sh alternative | guidance only: the homepage claims line under the search. The third item links to `/vs/skills-sh`, and the promo label closes the line |
 | Promo label | Teach your agent skilld | guidance only: the last item of the homepage claims line. It opens a popover with `npx skilld install skilld --global` |
-| Tile: run | No more skill bloat: Run skills once off, fork, or install. | guidance only: a homepage tile, with the title before the colon. The run chip motif pairs with it |
-| Tile: trending | Stay hyped: What devs talk about on X and Bluesky, weekly and monthly. | guidance only: a homepage tile. The braille spark motif pairs with it |
-| Tile: changes | Keep updated: Watch repos and get a digest when their skills change. | guidance only: a homepage tile. The change grid motif pairs with it |
-| Tile: platform | Built to be built on: CLI, API, SDK and MCP. | guidance only: a homepage tile |
+| Step 01: find | Find · Stay hyped. A curated registry, plus what devs talk about on X and Bluesky. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then the pitch line, then the description. Links `/skills/trending`. The braille spark motif pairs with the pitch line |
+| Step 02: run | Run · No more skill bloat. Your Agent reads the Skill now. Nothing lands on disk. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default. The run chip motif pairs with the pitch line |
+| Step 03: install | Install or fork · One install writes to 19 Agents, pinned to a commit and checked before files land. Fork for an editable copy. | guidance only: a homepage lifecycle step. Links `/cli#install`. 19 is `AGENT_TARGETS` in the CLI's `crates/skilld-core/src/target.rs`. If that count changes, change this string |
+| Step 04: update | Keep current · Keep updated. Watch repos and get a digest when their Skills change, or run `npx skilld outdated`. | guidance only: a homepage lifecycle step. Links `/cli#update`. The page prints the command through `skillOutdatedCmd`. The change grid motif pairs with the pitch line |
+| Step 05: make | Make · Guides and three authoring Skills to write and review your own. | guidance only: a homepage lifecycle step. Links `/make-skill`. The three are `generate-package-skill`, `generate-project-skill` and `review-skill` |
+| Step 06: build | Build on · Built to be built on. CLI, API, SDK, MCP and the Claude Code plugin. | guidance only: a homepage lifecycle step. Links `/developers` |
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
 | Home section: authoring | Write a skill for your project. | guidance only: the homepage section heading for making a Skill |
@@ -172,8 +174,8 @@ technical sense: npm, PyPI, crates, RubyGems. That names a category, not a commu
 the scoped ban above does not cover it.
 
 **Exception, "hyped".** Harlan approved "hyped" for the homepage H1 and "Stay hyped" for the
-trending tile. Both name what devs talk about on X and Bluesky, which we measure and show. Use
-them only for social trending. "Hot", "popular" and "top" stay banned.
+find step of the homepage lifecycle band. Both name what devs talk about on X and Bluesky,
+which we measure and show. Use them only for social trending. "Hot", "popular" and "top" stay banned.
 
 ## Open questions
 
