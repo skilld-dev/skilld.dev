@@ -86,12 +86,12 @@ export async function loadSkillBadgeAward(db: D1Database, target: SkillBadgeTarg
 }
 
 /**
- * The trending mark (`⣤⣶⣿`, see `TrendingMark.vue`) drawn as dots. A badge
+ * The trending mark (`⣀⣤⣶⣿`, see `TrendingMark.vue`) drawn as dots. A badge
  * renders in GitHub's image proxy, where no font is sure to carry braille.
  */
 function trendingMarkDots(x: number): string {
   const dots: string[] = []
-  for (const [cell, level] of [2, 3, 4].entries()) {
+  for (const [cell, level] of [1, 2, 3, 4].entries()) {
     for (let row = 0; row < level; row++) {
       for (const column of [0, 2.2])
         dots.push(`<circle cx="${Math.round((x + cell * 5.6 + column) * 10) / 10}" cy="${Math.round((15.4 - row * 2.2) * 10) / 10}" r="0.85"/>`)
@@ -155,7 +155,7 @@ function skillBadgeSvg(input: SkillBadgeResponseInput): string {
   const awardContent = award
     ? `
   <g fill="#ffffff" aria-hidden="true">${trendingMarkDots(awardX + 7)}</g>
-  <text x="${awardX + 24}" y="15" fill="#ffffff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" textLength="${skillBadgeAwardTextWidth(awardLabel)}" lengthAdjust="spacingAndGlyphs">${awardLabel}</text>`
+  <text x="${awardX + 30}" y="15" fill="#ffffff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" textLength="${skillBadgeAwardTextWidth(awardLabel)}" lengthAdjust="spacingAndGlyphs">${awardLabel}</text>`
     : ''
   const likesContent = showLikes
     ? `
