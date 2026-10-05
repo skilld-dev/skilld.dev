@@ -44,6 +44,7 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
   '/developers',
   '/privacy',
   '/learn/private-repositories',
+  '/learn/create-agent-skills',
   '/learn/author-project-skills',
   '/learn/author-npm-package-skills',
   '/learn/author-pypi-package-skills',
@@ -53,6 +54,10 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
 ]
 
 export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
+  '/learn/create-agent-skills': {
+    targetQuery: 'how to create claude skills',
+    admissionBar: '390 US searches a month, KD 30. NuxtSEO research keywords, 2026-10-05. One cross-Agent authoring pilot; review at the 2026-11-11 gate.',
+  },
   '/agents/codex': {
     targetQuery: 'codex skills',
     admissionBar: '4,400 searches a month, KD 4. No directory ranks; forums and Reddit hold the results.',

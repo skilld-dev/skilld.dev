@@ -4,6 +4,8 @@ description: Practical guides for finding, authoring, and shipping agent skills.
 ---
 
 ::card-grid
+- [Create Skills for Claude Code, Codex and Gemini CLI](/learn/create-agent-skills)
+  Write one SKILL.md, check discovery paths, and test the same task across Agents.
 - [Browse skills](/skills)
   Skills written by maintainers in their own repositories, with the source one click away.
 - [Skills worth installing](/skills/best)

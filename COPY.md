@@ -74,6 +74,15 @@ These are the visual layer's half of the voice. `DESIGN.md` defers to them.
 
 ## Copy principles
 
+### Authoring articles
+
+Lead with one complete example and the common path.
+Keep runtime requirements beside the affected step.
+Explain Agent differences without promising identical behavior.
+Link authoring Skills when they help the next task. Avoid repeated product pitches.
+Attribute technical claims to current primary documentation.
+Keep editorial evidence under `docs/editorial/`, outside published content.
+
 **Personality.** Confident, warm, editorial. Think independent technical magazine, not startup landing page. We sound like a developer sharing their honest opinion over coffee, not a company selling a product.
 
 1. **Human first.** Write for developers, about developers. The technology (AI, agents, protocols) is infrastructure; the people and their expertise are the story.
