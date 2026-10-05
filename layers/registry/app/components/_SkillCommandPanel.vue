@@ -212,6 +212,18 @@ function copyFrom(next: CommandMode) {
       </div>
     </div>
 
+    <div class="space-y-1 border-t border-default pt-6">
+      <NuxtLink
+        :to="`${runUrl}.md`"
+        class="inline-flex min-h-11 items-center font-mono text-sm text-default underline underline-offset-2 hover:text-primary"
+      >
+        Fork this Skill
+      </NuxtLink>
+      <p class="text-sm leading-relaxed text-muted">
+        A fork creates an editable local Skill with its original author and licence.
+      </p>
+    </div>
+
     <p
       v-if="copyError"
       :id="copyErrorId"
@@ -274,6 +286,18 @@ function copyFrom(next: CommandMode) {
     >
       <strong class="font-medium text-default">This session only.</strong> Nothing lands on disk.
     </p>
+
+    <div class="space-y-1">
+      <NuxtLink
+        :to="`${runUrl}.md`"
+        class="inline-flex min-h-11 items-center font-mono text-sm text-default underline underline-offset-2 hover:text-primary"
+      >
+        Fork this Skill
+      </NuxtLink>
+      <p class="text-sm leading-relaxed text-muted">
+        A fork creates an editable local Skill with its original author and licence.
+      </p>
+    </div>
 
     <p
       v-if="copyError"

@@ -46,6 +46,8 @@ These exact strings. Do not paraphrase them per page.
 The Agent request uses `Fork this Skill: <Skill page URL>`.
 The Skill page's Markdown explains how to copy the source and install the local path.
 Keep run as the default. Fork is the opt-in for an editable local copy.
+The HTML page links to that Markdown with `Fork this Skill`.
+Its description uses `A fork creates an editable local Skill with its original author and licence.`
 
 ### Watch and weekly promotions
 
