@@ -121,7 +121,7 @@ Loop 1 admits no gate, and the first command costs the user nothing. Anonymous v
 
 Loop 2 lives or dies on one email being worth opening. A digest says what changed and why it matters: the diff that affects usage, not commit noise. The revision and diff pipeline behind it is the deep asset; digest quality is the proof that watching skilld beats watching GitHub notifications.
 
-**How to apply:** digest content is curated by the same bar as the site: material changes summarized, noise dropped, silence when nothing meaningful happened. An empty week sends nothing. Frequency is the user's (weekly default, daily, off), never ours to escalate. The bet is instrumented, not assumed: digest opens, clicks, and forwards are the evidence that decides further Loop 2 investment (bar lives in docs/work/README.md).
+**How to apply:** digest content is curated by the same bar as the site: material changes summarized, noise dropped, silence when nothing meaningful happened. An empty month sends nothing. Watched changes arrive monthly; the user can turn the digest off. The separate weekly email covers trending Skills. Never increase digest frequency without the user's choice. The bet is instrumented, not assumed: digest opens, clicks, and forwards are the evidence that decides further Loop 2 investment (bar lives in docs/work/README.md).
 
 **Test:** would a developer forward this digest to a teammate? Does it link back to a page that shows the change? A digest that exists to remind users we exist fails.
 

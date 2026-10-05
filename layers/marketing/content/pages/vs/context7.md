@@ -19,7 +19,7 @@ Context7 is Upstash's documentation service for Agents. It indexes the docs of t
 | Organizing unit | Libraries | Repositories and curated collections |
 | Discovery | Search by library name | Recently updated Skills, featured collections, watch |
 | Quality signal | None, raw docs | Human authorship, editorial curation, official Repository signal |
-| Change tracking | None | Watch for changes, weekly digest |
+| Change tracking | None | Watch for changes, monthly digest |
 | Offline | No | Yes, Skills are local files |
 
 Context7 answers "what does this API look like right now". skilld answers "how does the maintainer want you to use it". You can run both.

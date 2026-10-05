@@ -31,15 +31,21 @@ These exact strings. Do not paraphrase them per page.
 
 **2 sentences:** Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes.
 
-**1 paragraph:** Skilld is a curated registry of agent skills written by real people in the GitHub repos developers already depend on. Every skill stays in its author's repo with a link back to the source, so you can see who wrote it and read it before you run it. The platform tracks those skill files, surfaces what changed, and ships them through one install command that works across every agent. Sign in with GitHub to watch the repos you depend on; we send a weekly digest when their skills change so your agent stays current as the underlying packages evolve.
+**1 paragraph:** Skilld is a curated registry of agent skills written by real people in the GitHub repos developers already depend on. Every skill stays in its author's repo with a link back to the source, so you can see who wrote it and read it before you run it. The platform tracks those skill files, surfaces what changed, and ships them through one install command that works across every agent. Sign in with GitHub to watch the repos you depend on; we send a monthly digest when their skills change so your agent stays current as the underlying packages evolve.
 
 ### Value propositions
 
 | For... | Value |
 |--------|-------|
 | Developers picking skills | Skills written by people who know the tool, with the source one click away, and one install command across every agent |
-| Developers staying current | Watch the repos you depend on, get a weekly digest when their skills change |
+| Developers staying current | Watch the repos you depend on, get a monthly digest when their skills change |
 | Teams standardizing | Hand-picked collections install a stack in one command |
+
+### Watch and weekly promotions
+
+The watch promotion says: `Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.`
+The link to `/weekly/preview` says: `Preview the weekly`.
+The comparison table says: `Watch for changes, monthly digest`.
 
 ## Discord digest
 

@@ -27,9 +27,10 @@ Interpret this site evidence:
      - \`x_over_budget\` true is AMBER: discovery exceeded its returned-read ceiling. Null means the ceiling evidence is unavailable.
      - \`x_projected_monthly_usd\` above 40 is AMBER; above 60 is RED. Report it as a conservative Post-only estimate. Actual billing and User expansion charges are unavailable.
      - \`x_falling_behind\` warns that fewer reads remain than X's minimum request size. Exhaustion alone does not prove unread results remain.
+     - If \`x_budget_used_pct\` reaches 100 on consecutive days, check continuation, cursor progress, and repeated pages. A catch-up burst does not establish the steady rate.
      - \`x_discovery_reads_today\` counts returned Posts, including repeated IDs. It is not billed usage.
      - \`x_observed_posts_today\` counts distinct X Posts observed by discovery or refresh within the current UTC day. It is not billed usage.
-     - \`x_posts_24h\` counts newly stored Posts over a rolling 24 hours, including Posts without Repository links. These windows differ. Never infer discarded Posts or invoice charges from their gap.`,
+     - \`x_posts_24h\` counts newly stored Posts over a rolling 24 hours, including Posts without Repository links. These windows differ. Never infer discarded Posts or invoice charges from their gap. Check continuation and cursor progress before proposing query tuning.`,
     },
     {
       id: 'skilld.pulse',

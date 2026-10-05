@@ -90,26 +90,13 @@ export const CURSOR_STALE_MARGIN_SECONDS = 24 * 60 * 60
 const MAX_PAGES_PER_RUN = 5
 
 /**
- * Charged post reads discovery may spend per UTC day.
+ * Returned post reads discovery may consume per UTC day.
  *
- * A CEILING, NOT A SPEND. Only posts the query actually matches are charged,
- * so raising this does not raise the bill on a quiet day; it only stops a
- * runaway.
- *
- * RAISED FROM 400 BECAUSE 400 WAS THE BINDING CONSTRAINT, NOT THE COST.
- * Measured against the live project on 2026-08-14: `project_cap` is 3,000,000
- * posts/month and `project_usage` was 798. The old ceiling allowed 12,000 a
- * month, which is 0.4% of a cap that was already bought, while the corpus it
- * produced held 69 posts and topped out at 31 likes. 2,000/day is 60,000 a
- * month, still only 2% of the cap, and leaves room for the broadened query to
- * find the posts the old one could not see.
- *
- * IT MUST EXCEED THE STREAM RATE. The cursor now holds position when a run is
- * cut short, so a small budget no longer discards posts, but it does make the
- * ingest fall behind by the shortfall every day, and that lag never recovers.
- * At the previous 22/day against a ~250/day stream the backlog grew by more
- * than 200 posts daily and the feed was permanently a week stale. 400 leaves
- * roughly 60% headroom over the observed rate for spikes.
+ * This is a request ceiling, not a prepaid allowance or billed usage.
+ * X normally deduplicates resource charges within each UTC day. Returned
+ * reads still consume our ceiling, including repeats after cursor recovery.
+ * Bounded runs retain their continuation so the ceiling pays for the unread
+ * tail before discovery polls for newer posts.
  */
 export const DAILY_DISCOVERY_READ_BUDGET = 2000
 
@@ -186,42 +173,51 @@ function postUrl(post: XPost): string {
   return `https://x.com/${post.authorHandle}/status/${post.id}`
 }
 
+type SearchWindow = { _tag: 'idle' } | { _tag: 'paused', nextToken: string, newestId: string | null, startedAt: number }
+
 interface StoredCursor {
   /** The id to search from, or null for a cold start. */
   sinceId: string | null
   /** True when a stored cursor was dropped for predating the retention window. */
   staleReset: boolean
+  window: SearchWindow
 }
 
 async function readCursor(db: D1Database, key: string, now: number): Promise<StoredCursor> {
   const row = await db
-    .prepare(`SELECT since_id, since_id_written_at FROM x_ingest_cursor WHERE query_key = ?1`)
+    .prepare(`SELECT since_id, since_id_written_at, next_token, pending_newest_id, pending_started_at FROM x_ingest_cursor WHERE query_key = ?1`)
     .bind(key)
-    .first<{ since_id: string | null, since_id_written_at: number | null }>()
+    .first<{ since_id: string | null, since_id_written_at: number | null, next_token: string | null, pending_newest_id: string | null, pending_started_at: number | null }>()
   const sinceId = row?.since_id ?? null
   const writtenAt = row?.since_id_written_at ?? null
-  if (!sinceId)
-    return { sinceId: null, staleReset: false }
+  const window: SearchWindow = row?.next_token && row.pending_started_at !== null
+    ? { _tag: 'paused', nextToken: row.next_token, newestId: row.pending_newest_id, startedAt: row.pending_started_at }
+    : { _tag: 'idle' }
+  if (!sinceId && window._tag === 'idle')
+    return { sinceId: null, staleReset: false, window }
 
   // `since_id_written_at` dates the cursor by the run that wrote it. Dating it
   // by `last_run_at` instead was the bug this column fixed: held and failing
   // runs refresh `last_run_at` while the COALESCE keeps the old id, so a dead
   // id read as fresh forever on the 15-minute schedule. A cursor with no
   // timestamp cannot be dated and is dropped with the rest.
-  const fresh = writtenAt !== null
-    && now - writtenAt <= X_SEARCH_RETENTION_SECONDS - CURSOR_STALE_MARGIN_SECONDS
+  const datedAt = window._tag === 'paused'
+    ? (writtenAt === null ? window.startedAt : Math.min(writtenAt, window.startedAt))
+    : writtenAt
+  const fresh = datedAt !== null
+    && now - datedAt <= X_SEARCH_RETENTION_SECONDS - CURSOR_STALE_MARGIN_SECONDS
   if (fresh)
-    return { sinceId, staleReset: false }
+    return { sinceId, staleReset: false, window }
 
   // Cleared here, not only in the end-of-run upsert: that upsert COALESCEs a
   // held (null) advance into the stored value, so a run that later fails or
   // truncates would otherwise hand the same dead cursor to the next run and
   // the 400s would never stop.
   await db
-    .prepare(`UPDATE x_ingest_cursor SET since_id = NULL, since_id_written_at = NULL WHERE query_key = ?1`)
+    .prepare(`UPDATE x_ingest_cursor SET since_id = NULL, since_id_written_at = NULL, next_token = NULL, pending_newest_id = NULL, pending_started_at = NULL WHERE query_key = ?1`)
     .bind(key)
     .run()
-  return { sinceId: null, staleReset: true }
+  return { sinceId: null, staleReset: true, window: { _tag: 'idle' } }
 }
 
 /**
@@ -244,6 +240,8 @@ async function writeCursor(
   key: string,
   input: {
     sinceId: string | null
+    cursorWrittenAt: number
+    window: SearchWindow
     now: number
     resultCount: number
     postsRead: number
@@ -255,9 +253,10 @@ async function writeCursor(
     .prepare(
       `INSERT INTO x_ingest_cursor (
          query_key, since_id, since_id_written_at, last_run_at, last_result_count,
-         posts_read_total, budget_day, budget_spent
+         posts_read_total, budget_day, budget_spent,
+         next_token, pending_newest_id, pending_started_at
        )
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
        ON CONFLICT (query_key) DO UPDATE SET
          since_id = COALESCE(excluded.since_id, x_ingest_cursor.since_id),
          -- The timestamp must move only when the id does: a held advance keeps
@@ -273,17 +272,23 @@ async function writeCursor(
          -- Absolute, not additive: the caller already folded in what today had
          -- spent before this run, and rolled it to 0 on a new UTC day.
          budget_day = excluded.budget_day,
-         budget_spent = excluded.budget_spent`,
+         budget_spent = excluded.budget_spent,
+         next_token = excluded.next_token,
+         pending_newest_id = excluded.pending_newest_id,
+         pending_started_at = excluded.pending_started_at`,
     )
     .bind(
       key,
       input.sinceId,
-      input.sinceId === null ? null : input.now,
+      input.sinceId === null ? null : input.cursorWrittenAt,
       input.now,
       input.resultCount,
       input.postsRead,
       input.budgetDay,
       input.budgetSpent,
+      input.window._tag === 'paused' ? input.window.nextToken : null,
+      input.window._tag === 'paused' ? input.window.newestId : null,
+      input.window._tag === 'paused' ? input.window.startedAt : null,
     )
     .run()
 }
@@ -408,8 +413,9 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
   let spent = spentBefore
 
   const collected: XPost[] = []
-  let nextToken: string | null = null
-  let newestId: string | null = null
+  let nextToken = cursor.window._tag === 'paused' ? cursor.window.nextToken : null
+  let newestId = cursor.window._tag === 'paused' ? cursor.window.newestId : null
+  const windowStartedAt = cursor.window._tag === 'paused' ? cursor.window.startedAt : now
   // Only true once pagination reached the end of the window, meaning every
   // post newer than the cursor has been seen.
   let windowExhausted = false
@@ -525,12 +531,16 @@ export async function ingestXMentions(deps: XIngestDeps): Promise<XIngestSummary
   // the first run after UTC midnight, that discarded almost a full day of the
   // stream, every day, and biased what survived towards the youngest posts.
   //
-  // Holding the cursor makes the next run re-paginate from the same point.
-  // Same-day re-reads are deduplicated by X, so resuming is free until
-  // midnight; only a window still unfinished at the rollover costs anything.
+  // Keep the unread page and the first page's newest id together. The next
+  // run resumes the tail, then advances to that original id. Restarting page
+  // one on every run exhausted the budget without ever reaching the tail.
   const advanceTo = windowExhausted ? newestId : null
   await writeCursor(db, X_DISCOVERY_CURSOR_KEY, {
     sinceId: advanceTo,
+    cursorWrittenAt: windowStartedAt,
+    window: nextToken === null
+      ? { _tag: 'idle' }
+      : { _tag: 'paused', nextToken, newestId, startedAt: windowStartedAt },
     now,
     resultCount: collected.length,
     postsRead: summary.postsRead,

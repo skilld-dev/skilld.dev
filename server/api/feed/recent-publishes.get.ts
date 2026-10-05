@@ -7,6 +7,7 @@
 
 import { officialRepos } from '#layers/registry/server/data/official-repos'
 import { getDB } from '#server/utils/db'
+import { cachedFeed } from '#server/utils/feed-cache'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { buildOfficialOwnerFilter } from '../../utils/recent-publishes-query'
 
@@ -42,8 +43,8 @@ export interface RecentPublishesResponse {
   }>
 }
 
-export default defineCachedEventHandler(
-  async (event): Promise<RecentPublishesResponse> => {
+export default defineEventHandler(
+  async (event): Promise<RecentPublishesResponse> => cachedFeed(event, 'recent-publishes', async () => {
     const db = getDB(event)
     const res = await db
       .prepare(
@@ -87,9 +88,5 @@ export default defineCachedEventHandler(
       }),
     }))
     return { items }
-  },
-  // Publish rows only change when a sync runs. Each recompute scans about 26K
-  // activity index rows to find 12 official publishes, so five minutes of
-  // staleness on a homepage feed is the cheaper trade.
-  { maxAge: 300, swr: false, name: 'feed-recent-publishes-origin-v1' },
+  }),
 )

@@ -2,7 +2,7 @@
 const { state: auth } = useAuth()
 const cards = computed(() => [
   ...(auth.value._tag !== 'signed-in'
-    ? [{ id: 'signup', icon: 'i-lucide-eye', title: 'Watch for changes', description: 'Watch a repo. Every Monday the digest lists what changed. If nothing changed, we send nothing.', label: 'Sign in with GitHub', to: '/login' }]
+    ? [{ id: 'signup', icon: 'i-lucide-eye', title: 'Watch for changes', description: 'Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.', label: 'Sign in with GitHub', to: '/login' }]
     : []),
   ...(auth.value._tag !== 'signed-in' || !auth.value.user.onboarded
     ? [{ id: 'weekly', icon: 'i-lucide-mail', title: 'Trending skills this week', description: 'Get the latest skills devs are talking about in your inbox.', label: 'Sign in with GitHub', to: '/login' }]
@@ -28,7 +28,7 @@ const current = computed(() => cards.value[Math.floor(selection.value * cards.va
     </p>
     <UButton :to="current.to" :label="current.label" :ui="{ label: '!whitespace-normal text-center' }" trailing-icon="i-lucide-arrow-up-right" class="mt-6 min-h-11 w-full justify-center" size="sm" />
     <NuxtLink v-if="current.id === 'weekly'" to="/weekly/preview" external class="mt-2 flex min-h-11 items-center justify-center text-center font-mono text-xs text-muted underline underline-offset-2 hover:text-default">
-      See this week's digest
+      Preview the weekly
     </NuxtLink>
   </div>
 </template>

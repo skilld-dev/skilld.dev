@@ -577,7 +577,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               Your skills <span class="home-ink">changed</span>. Did anyone tell you?
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
-              Watch a repo. Every Monday the digest lists what changed. If nothing changed, we send nothing.
+              Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.
             </p>
             <div class="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
               <UButton
