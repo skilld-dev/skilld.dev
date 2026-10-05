@@ -623,6 +623,7 @@ const TEST_SCHEMA = `
     description TEXT,
     current_sha TEXT,
     rendered_skill_path TEXT,
+    source_resolved INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (owner, repo, name)
   );
   CREATE TABLE repos (
