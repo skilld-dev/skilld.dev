@@ -76,10 +76,10 @@ const mentions = computed(() => {
             <span v-if="row.reason.updated" class="shrink-0">Updated {{ row.reason.updated }}</span>
           </template>
           <!--
-          The two reasons with no post say why the row is here in words, since
-          nothing beside them does. A surge has only its stars; filler has to
-          say it is filler, or a popular repository passes for a trending one.
-        -->
+            The two reasons with no post say why the row is here in words, since
+            nothing beside them does. A surge has only its stars; filler has to
+            say it is filler, or a popular repository passes for a trending one.
+          -->
           <span v-else-if="row.reason._tag === 'surge'" class="shrink-0 text-default">
             {{ `Star surge: +${row.reason.gain.toLocaleString()} stars in a day` }}<template v-if="row.reason.when">, {{ row.reason.when }}</template>
           </span>
