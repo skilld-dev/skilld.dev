@@ -94,6 +94,12 @@ export interface Cluster {
   icon: string
   /** Second person, so the grid reads as "pick yourself", not "pick a task". */
   userVoice: string
+  /**
+   * How the track reads before "skills" in a board heading: "Design skills devs
+   * talked about this week". Lowercase unless it is an acronym. The label is
+   * written to stand alone, and "Design and interface work skills" does not.
+   */
+  noun: string
   /** Keyword-shaped <title>. Editorial voice stays in `label`. */
   seoTitle: string
   seoDescription: string
@@ -119,6 +125,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'design',
     label: 'Design and interface work',
+    noun: 'design',
     icon: 'i-lucide-palette',
     userVoice: 'You care how the interface looks, moves, and reads.',
     seoTitle: 'Agent Skills for UI and Design',
@@ -148,6 +155,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'coding',
     label: 'Everyday coding',
+    noun: 'coding',
     icon: 'i-lucide-code',
     userVoice: 'You want the handful of skills that earn their context on every project.',
     seoTitle: 'Agent Skills for Coding',
@@ -173,6 +181,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'anti-slop-coding',
     label: 'Anti-slop coding',
+    noun: 'anti-slop coding',
     icon: 'i-lucide-eraser',
     userVoice: 'You want agent-written code cleaned before it reaches review.',
     seoTitle: 'Agent Skills for Anti-Slop Coding',
@@ -199,6 +208,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'context-engineering',
     label: 'Agent workflows',
+    noun: 'agent workflow',
     icon: 'i-lucide-zap',
     userVoice: 'You run agents in parallel, drive a browser, and verify what they hand back.',
     seoTitle: 'Agent Skills for Context Engineering',
@@ -234,6 +244,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'code-review',
     label: 'Review and refactoring',
+    noun: 'review and refactoring',
     icon: 'i-lucide-eye',
     userVoice: 'You read other devs\' code and reshape it without breaking it.',
     seoTitle: 'Agent Skills for Code Review',
@@ -257,6 +268,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'testing',
     label: 'Testing and debugging',
+    noun: 'testing and debugging',
     icon: 'i-lucide-flask-conical',
     userVoice: 'You want tests that prove the change, and a cause when it breaks.',
     seoTitle: 'Agent Skills for Testing and Debugging',
@@ -284,6 +296,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'performance',
     label: 'Performance and web quality',
+    noun: 'performance',
     icon: 'i-lucide-gauge',
     userVoice: 'You profile the slow path before you ship it.',
     seoTitle: 'Agent Skills for Web Performance',
@@ -308,6 +321,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'backend-data',
     label: 'Backend, data, and security',
+    noun: 'backend and security',
     icon: 'i-lucide-database',
     userVoice: 'You wire up databases, auth, security, and realtime systems.',
     seoTitle: 'Agent Skills for Backend, Databases, and Security',
@@ -335,6 +349,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'devops',
     label: 'Shipping and release',
+    noun: 'shipping and release',
     icon: 'i-lucide-git-branch',
     userVoice: 'You own the commits, branches, and deploys at the end of the work.',
     seoTitle: 'Agent Skills for Git and DevOps',
@@ -356,6 +371,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'planning',
     label: 'Planning and specs',
+    noun: 'planning',
     icon: 'i-lucide-list-checks',
     userVoice: 'You turn rough ideas into plans, specs, and scoped work.',
     seoTitle: 'Agent Skills for Planning and Specs',
@@ -379,6 +395,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'anti-slop',
     label: 'Anti-slop writing',
+    noun: 'anti-slop writing',
     icon: 'i-lucide-eraser',
     userVoice: 'You want prose that reads like a person wrote it, with the AI tells gone.',
     seoTitle: 'Agent Skills for Anti-Slop Writing',
@@ -411,6 +428,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'diagrams',
     label: 'Diagrams and codebase maps',
+    noun: 'diagram',
     icon: 'i-lucide-workflow',
     userVoice: 'You need the system drawn before you can change it.',
     seoTitle: 'Agent Skills for Diagrams and Architecture Maps',
@@ -441,6 +459,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'research',
     label: 'Research and web content',
+    noun: 'research',
     icon: 'i-lucide-telescope',
     userVoice: 'You send the agent out to read the web and bring back sources.',
     seoTitle: 'Agent Skills for Research and Web Scraping',
@@ -471,6 +490,7 @@ export const CLUSTERS: Cluster[] = [
   {
     slug: 'seo',
     label: 'SEO',
+    noun: 'SEO',
     icon: 'i-lucide-search',
     userVoice: 'You want the crawler and the model to read the page the same way you do.',
     seoTitle: 'Agent Skills for SEO',

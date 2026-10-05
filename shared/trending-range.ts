@@ -13,6 +13,8 @@
  * defect, and a defect wants a test.
  */
 
+import { relativeDay } from './trending-post'
+
 export type TrendingRange = 'week' | 'month' | 'all'
 
 /**
@@ -287,6 +289,39 @@ export interface TrendingPost {
 }
 
 /**
+ * The fields a board card reads off one stored post.
+ *
+ * Structural, like {@link LeaderboardRowInput}, so the trending feed and a
+ * track board map their posts through one function without this module
+ * importing either server route.
+ */
+export interface BoardPostInput {
+  url: string
+  text: string
+  platform: 'x' | 'bsky'
+  authorHandle: string
+  /** Optional until every cached feed response carries it. */
+  authorName?: string | null
+  authorAvatar: string | null
+  favouriteCount: number
+  postedAt: number
+}
+
+/** One stored post, dated against the board's clock rather than the browser's. */
+export function boardPost(post: BoardPostInput, clockSeconds: number): TrendingPost {
+  return {
+    url: post.url,
+    text: post.text,
+    platform: post.platform,
+    handle: post.authorHandle,
+    authorName: post.authorName ?? null,
+    authorAvatar: post.authorAvatar,
+    likes: post.favouriteCount,
+    when: relativeDay(post.postedAt, clockSeconds),
+  }
+}
+
+/**
  * Why a row is on the board. Exactly one reason per row.
  *
  * A tagged value rather than a basis string, because each reason renders
@@ -307,6 +342,11 @@ export type TrendingReason
   | { _tag: 'surge', gain: number, when: string | null }
   | { _tag: 'filler' }
   | { _tag: 'reviewed', skillCount: number, updated: string | null }
+  /**
+   * A track member, in a section whose heading states the order. The row
+   * repeats nothing the heading already says.
+   */
+  | { _tag: 'member' }
 
 /**
  * A board row, in the one shape the template renders.
@@ -366,7 +406,7 @@ export function singleSkill(owner: string, repo: string, name: string, repoSkill
  * indexability is how the catalog got suppressed in June.
  */
 export function isEvidenced(row: TrendingBoardRow): boolean {
-  return row.reason._tag !== 'filler'
+  return row.reason._tag !== 'filler' && row.reason._tag !== 'member'
 }
 
 /**

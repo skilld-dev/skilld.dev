@@ -84,6 +84,24 @@ The watch promotion says: `Watch a repo. Each month the digest lists what change
 The link to `/weekly/preview` says: `Preview the weekly`.
 The comparison table says: `Watch for changes, monthly digest`.
 
+### Ranked boards
+
+Every ranked section says what orders it. ADR-0004 and ADR-0010 set the rules.
+
+| Surface | String |
+| --- | --- |
+| Trending header | `Ranked by how many separate devs talked about each one.` |
+| Trending header, with star rows | `Ranked by how many separate devs talked about each one. GitHub stars rank the rest of the board.` |
+| Trending star row label | `Ranked by GitHub stars` |
+| Track talked heading | `{Noun} skills devs talked about this week`, or `this month` on the month board |
+| Track talked line | The trending header string, unchanged |
+| Track pinned heading | `Hand-picked {noun} skills` |
+| Track stars heading | `More {noun} skills, ranked by GitHub stars`, or `{Noun} skills, ranked by GitHub stars` when no section comes before it |
+| Track quiet line | `Devs talked about {n} of these skills this week. A list ranked by devs starts at 5.` |
+
+`{noun}` is the track's `noun` field in `clusters.ts`, such as `design` or `SEO`.
+Never call a ranked section top, popular, hot, best, or a leaderboard.
+
 ## Discord digest
 
 The weekly card uses `Trending skills this week` as its title and links to the trending page.

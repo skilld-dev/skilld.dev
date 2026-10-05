@@ -12,10 +12,12 @@ import TrendingStarSpark from './TrendingStarSpark.vue'
  * Skill carries the weight, larger and first, and the posts sit beside it as
  * testimony, one card at a time.
  */
-const { row, rank } = defineProps<{
+const { row, rank, surface = 'trending-row' } = defineProps<{
   row: TrendingBoardRow
   /** One-based position on the board. */
   rank: number
+  /** Analytics surface for the run chip. */
+  surface?: string
 }>()
 
 const emit = defineEmits<{
@@ -40,8 +42,15 @@ const mentions = computed(() => {
   const days = row.reason._tag === 'posts' ? row.reason.mentionsByDay : null
   return days?.some(count => count > 0) ? days : null
 })
-/** Whether the last slot of the metadata line has anything to say. */
-const hasSignal = computed(() => !isSocial.value || mentions.value !== null)
+/**
+ * Whether the last slot of the metadata line has anything to say. A track
+ * member says nothing there: its section heading already states the order.
+ */
+const hasSignal = computed(() => {
+  if (row.reason._tag === 'member')
+    return false
+  return !isSocial.value || mentions.value !== null
+})
 </script>
 
 <template>
@@ -91,12 +100,12 @@ const hasSignal = computed(() => !isSocial.value || mentions.value !== null)
             <!--
               The two reasons with no post say why the row is here in words, since
               nothing beside them does. A surge has only its stars; filler has to
-              say it is filler, or a popular repository passes for a trending one.
+              say what ranked it, or a starred repository passes for a trending one.
             -->
             <span v-else-if="row.reason._tag === 'surge'" class="board-row__surge">
               {{ `Star surge: +${row.reason.gain.toLocaleString()} stars in a day` }}<template v-if="row.reason.when">, {{ row.reason.when }}</template>
             </span>
-            <span v-else-if="row.reason._tag === 'filler'">Popular on GitHub</span>
+            <span v-else-if="row.reason._tag === 'filler'">Ranked by GitHub stars</span>
           </span>
         </p>
         <p v-if="row.description" class="board-row__description">
@@ -109,7 +118,7 @@ const hasSignal = computed(() => !isSocial.value || mentions.value !== null)
           :owner="row.skill.owner"
           :repo="row.skill.repo"
           :skill="row.skill.name"
-          surface="trending-row"
+          :surface="surface"
           variant="compact"
         />
       </div>

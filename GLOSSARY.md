@@ -114,6 +114,8 @@ Collisions
 
 **Is:** a page of Skills for one kind of work, at `/skills/<slug>`. A person writes its label, its second-person line and its pinned Skills; a classifier category fills in the depth beneath them.
 
+**Use for:** "hand-picked" names a track's pinned Skills in UI copy. "Pinned" stays in the code.
+
 **Never:** cluster, category, outcome, topic, use case (in UI). `CLUSTERS` and `abstractness_category` are the internal names and stay in the code.
 
 **Collides with:** collection. A track is ours, permanent, and one per kind of work. A collection belongs to a curator, at `/@login/slug`, and any number can exist.
