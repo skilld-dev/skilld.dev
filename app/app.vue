@@ -237,7 +237,7 @@ watch(() => route.fullPath, () => {
         <NuxtPage />
       </UMain>
 
-      <UFooter>
+      <UFooter :ui="{ right: 'flex-wrap justify-center' }">
         <template #left>
           <p class="font-mono text-xs text-muted">
             Built by <a

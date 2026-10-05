@@ -132,13 +132,13 @@ const activeDescendant = computed(() =>
 
 <template>
   <div ref="container" @focusout="onFocusOut">
-    <form role="search" class="flex items-stretch gap-2" @submit.prevent="submitQuery">
+    <form role="search" class="flex flex-col items-stretch gap-2 sm:flex-row" @submit.prevent="submitQuery">
       <UInput
         id="home-skill-search"
         ref="input"
         v-model="query"
         icon="i-lucide-search"
-        placeholder="What should your agent learn today?"
+        placeholder="Search skills or repos"
         name="q"
         enterkeyhint="search"
         size="xl"
