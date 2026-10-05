@@ -25,7 +25,7 @@ const { data: trending } = await useFetch('/api/feed/trending', {
   query: { limit: 12 },
   transform: (feed: TrendingFeedResponse): SkillRef[] => {
     const named = feed.namedSkills.map(skill => ({ owner: skill.owner, repo: skill.repo, name: skill.name }))
-    const fromRepos = feed.items.flatMap(item => item.skills.map(skill => ({ owner: item.owner, repo: item.repo, name: skill.slug })))
+    const fromRepos = feed.items.flatMap(item => item.skills.map(skill => ({ owner: item.owner, repo: item.repo, name: skill.name })))
     const seen = new Set<string>()
     return [...named, ...fromRepos].filter((skill) => {
       const key = `${skill.owner}/${skill.repo}/${skill.name}`

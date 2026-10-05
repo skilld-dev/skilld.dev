@@ -13,6 +13,7 @@ import { TAG_BY_SLUG } from '../../jobs/taxonomy'
 import { SkillDetailResponseSchema } from '../../schemas/skill-responses'
 import { getTree, GITHUB_PAGE_READ_TIMEOUT_MS, resolveGithubBindings } from '../../utils/github-client'
 import { resolveRepoSourceIdentityFromRow } from '../../utils/repo-source-identity'
+import { skillPageBehaviors } from '../../utils/skill-behaviors'
 import { getGeneratedKinds } from '../../utils/skill-generated'
 import { skillImagePolicyForEvent } from '../../utils/skill-image-policy'
 import { parseSkillMd } from '../../utils/skill-md-render'
@@ -330,6 +331,11 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   }
   const allowedTools = parseAllowedTools(rendered.frontmatter)
   const capability = classifyAllowedTools(allowedTools)
+  const behaviors = skillPageBehaviors({
+    raw: rendered.raw,
+    assetPaths: assets.map(asset => asset.path),
+    source: { owner: source.owner, repo: source.repo, branch, skillPath: rendered.skillPath },
+  })
   const selectedAssets = selectSkillFiles(assets)
   // `rendered.*` describes the cached copy, which survives the file being
   // deleted upstream, so it can only ever say "we can still render this". The
@@ -418,6 +424,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
         capabilityScopes: capability.scopes,
         mcpServers: capability.mcpServers,
       },
+      behaviors,
     },
     tags,
     keywords,

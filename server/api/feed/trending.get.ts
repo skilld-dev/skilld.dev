@@ -60,6 +60,8 @@ export interface FallbackFeedItem {
   description: string | null
   stars: number
   starsGained: number | null
+  /** Skills in the repository. The board prints a run command only when it is 1, because the pick is arbitrary otherwise. */
+  repoSkillCount: number
   /** Daily star totals across the window, oldest first, for the sparkline. */
   starSeries: StarPoint[]
 }
@@ -123,6 +125,12 @@ export interface TrendingSkillFeedItem {
    * first. The board scrolls through them after the quoted one.
    */
   morePosts: TrendingPostFeedItem[]
+  /**
+   * Counted mentions per rolling 24-hour day across the last seven, oldest
+   * first, for the braille spark. Null on a star-only skill, which has no
+   * mentions to draw.
+   */
+  mentionsByDay: number[] | null
   /** Daily star totals across the window, oldest first, for the sparkline. */
   starSeries: StarPoint[]
 }
@@ -174,6 +182,7 @@ function toSkillItem(entry: TrendingSkill, starSeries: StarPoint[]): TrendingSki
     starGainDay: entry.github?.observedDay ?? null,
     evidence: entry.evidence ? toPostItem(entry.evidence) : null,
     morePosts: entry.morePosts.map(toPostItem),
+    mentionsByDay: entry.mentionsByDay,
     starSeries,
   }
 }
@@ -210,6 +219,7 @@ function toFallbackItem(entry: FallbackSkill, starSeries: StarPoint[]): Fallback
     description: entry.description,
     stars: entry.stars,
     starsGained: entry.starsGained,
+    repoSkillCount: entry.repoSkillCount,
     starSeries,
   }
 }

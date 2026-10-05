@@ -24,65 +24,103 @@ const emit = defineEmits<{
 }>()
 
 const posts = computed(() => (row.reason._tag === 'posts' ? row.reason.posts : []))
+
+/**
+ * Each row draws the signal that ranked it, and only that one. Mentions ranked
+ * a row with posts, so it gets the braille spark. Stars ranked a surge or a
+ * filler row, so those keep the star line. Two charts on one line would ask the
+ * reader which one put the row here.
+ *
+ * A month board ranks posts older than the spark's seven days. A week of
+ * blank cells draws nothing beside a bare zero, so that row shows no spark and
+ * its posts carry their own dates.
+ */
+const isSocial = computed(() => row.reason._tag === 'posts')
+const mentions = computed(() => {
+  const days = row.reason._tag === 'posts' ? row.reason.mentionsByDay : null
+  return days?.some(count => count > 0) ? days : null
+})
 </script>
 
 <template>
-  <div class="board-row" :class="{ 'board-row--with-posts': posts.length > 0 }">
-    <!-- The list is an `<ol>`, so a screen reader already announces the position. -->
-    <span
-      class="board-row__rank"
-      :class="{ 'board-row__rank--lead': rank <= 3 }"
-      aria-hidden="true"
-    >{{ String(rank).padStart(2, '0') }}</span>
+  <div class="board-item">
+    <div class="board-row" :class="{ 'board-row--with-posts': posts.length > 0 }">
+      <!-- The list is an `<ol>`, so a screen reader already announces the position. -->
+      <span
+        class="board-row__rank"
+        :class="{ 'board-row__rank--lead': rank <= 3 }"
+        aria-hidden="true"
+      >{{ String(rank).padStart(2, '0') }}</span>
 
-    <div class="board-row__skill">
-      <NuxtLink :to="row.to" class="board-row__name">
-        {{ row.title }}
-      </NuxtLink>
-      <p class="board-row__meta">
-        <img
-          :src="githubAvatarProxyUrl(row.owner, 40)"
-          alt=""
-          width="18"
-          height="18"
-          class="size-[1.125rem] shrink-0 rounded-full border border-default bg-muted"
-          loading="lazy"
-          decoding="async"
-          @error="emit('avatarError', row.owner)"
-        >
-        <span v-if="row.subtitle" class="truncate">{{ row.subtitle }}</span>
-        <span v-if="row.stars" class="shrink-0 tabular-nums">{{ `${row.stars.toLocaleString()} ★` }}</span>
-        <TrendingStarSpark :points="row.starSeries" />
-        <template v-if="row.reason._tag === 'reviewed'">
-          <span class="shrink-0">{{ `${row.reason.skillCount.toLocaleString()} ${row.reason.skillCount === 1 ? 'skill' : 'skills'}` }}</span>
-          <span v-if="row.reason.updated" class="shrink-0">Updated {{ row.reason.updated }}</span>
-        </template>
-        <!--
-          The two reasons with no post say why the row is here in words, since
-          nothing beside them does. A surge has only its stars; filler has to
-          say it is filler, or a popular repository passes for a trending one.
-        -->
-        <span v-else-if="row.reason._tag === 'surge'" class="shrink-0 text-default">
-          {{ `+${row.reason.gain.toLocaleString()} stars this week` }}<template v-if="row.reason.when">, {{ row.reason.when }}</template>
-        </span>
-        <span v-else-if="row.reason._tag === 'filler'" class="shrink-0">Popular on GitHub</span>
-      </p>
-      <p v-if="row.description" class="board-row__description">
-        {{ row.description }}
-      </p>
+      <div class="board-row__skill">
+        <NuxtLink :to="row.to" class="board-row__name">
+          {{ row.title }}
+        </NuxtLink>
+        <p class="board-row__meta">
+          <img
+            :src="githubAvatarProxyUrl(row.owner, 40)"
+            alt=""
+            width="18"
+            height="18"
+            class="size-[1.125rem] shrink-0 rounded-full border border-default bg-muted"
+            loading="lazy"
+            decoding="async"
+            @error="emit('avatarError', row.owner)"
+          >
+          <span v-if="row.subtitle" class="truncate">{{ row.subtitle }}</span>
+          <span v-if="row.stars" class="shrink-0 tabular-nums">{{ `${row.stars.toLocaleString()} ★` }}</span>
+          <BrailleSpark v-if="mentions" :counts="mentions" unit="mentions in 7 days" />
+          <TrendingStarSpark v-else-if="!isSocial" :points="row.starSeries" />
+          <template v-if="row.reason._tag === 'reviewed'">
+            <span class="shrink-0">{{ `${row.reason.skillCount.toLocaleString()} ${row.reason.skillCount === 1 ? 'skill' : 'skills'}` }}</span>
+            <span v-if="row.reason.updated" class="shrink-0">Updated {{ row.reason.updated }}</span>
+          </template>
+          <!--
+            The two reasons with no post say why the row is here in words, since
+            nothing beside them does. A surge has only its stars; filler has to
+            say it is filler, or a popular repository passes for a trending one.
+          -->
+          <span v-else-if="row.reason._tag === 'surge'" class="shrink-0 text-default">
+            {{ `Star surge: +${row.reason.gain.toLocaleString()} stars in a day` }}<template v-if="row.reason.when">, {{ row.reason.when }}</template>
+          </span>
+          <span v-else-if="row.reason._tag === 'filler'" class="shrink-0">Popular on GitHub</span>
+        </p>
+        <p v-if="row.description" class="board-row__description">
+          {{ row.description }}
+        </p>
+        <!-- Only where the row stands for exactly one Skill; see `singleSkill`. -->
+        <RunChip
+          v-if="row.skill"
+          class="board-row__run"
+          :owner="row.skill.owner"
+          :repo="row.skill.repo"
+          :skill="row.skill.name"
+          surface="trending-row"
+          variant="compact"
+        />
+      </div>
+
+      <TrendingPostCarousel
+        v-if="posts.length"
+        class="board-row__posts"
+        :posts="posts"
+        :names="row.names"
+        :label="`Posts about ${row.title}`"
+      />
     </div>
-
-    <TrendingPostCarousel
-      v-if="posts.length"
-      class="board-row__posts"
-      :posts="posts"
-      :names="row.names"
-      :label="`Posts about ${row.title}`"
-    />
   </div>
 </template>
 
 <style scoped>
+/*
+ * The row answers to the width it gets, not the viewport's. The board shares
+ * the page with a sidebar on wide screens, so a viewport breakpoint put the
+ * posts beside the Skill in a column too narrow for either.
+ */
+.board-item {
+  container: board-item / inline-size;
+}
+
 /*
  * Narrow first: the rank sits in a gutter and the posts stack under the
  * Skill, so the Skill name, never a post, is the first thing under each rank.
@@ -103,9 +141,9 @@ const posts = computed(() => (row.reason._tag === 'posts' ? row.reason.posts : [
 }
 
 /*
- * Printed in the dot grid and inked rose, the brand numerals, at a size where
- * the dots read as a number. At 18px and half opacity the old rank read as
- * texture, on a page whose whole structure is an order.
+ * Printed in the dot grid, at a size where the dots read as a number. Stone,
+ * not rose: stone dots are the noise, and the rose belongs to the motifs
+ * beside it, one dot each.
  */
 .board-row__rank {
   grid-row: 1 / span 2;
@@ -116,8 +154,8 @@ const posts = computed(() => (row.reason._tag === 'posts' ? row.reason.posts : [
   line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  color: var(--ui-primary);
-  opacity: 0.55;
+  color: var(--ui-text);
+  opacity: 0.45;
   mask-image: radial-gradient(circle, #000 1.1px, transparent 1.4px);
   mask-size: 3px 3px;
 }
@@ -154,8 +192,15 @@ const posts = computed(() => (row.reason._tag === 'posts' ? row.reason.posts : [
   color: var(--ui-text-muted);
 }
 
+.board-row__run {
+  max-inline-size: 30rem;
+  margin-top: 0.875rem;
+}
+
+/* Capped for rows with no posts, which otherwise run the whole board wide. */
 .board-row__description {
   display: -webkit-box;
+  max-inline-size: 75ch;
   margin-top: 0.625rem;
   overflow: hidden;
   font-size: 0.9375rem;
@@ -166,14 +211,18 @@ const posts = computed(() => (row.reason._tag === 'posts' ? row.reason.posts : [
   line-clamp: 2;
 }
 
-@media (min-width: 64rem) {
+/*
+ * Beside the Skill once the row is wide enough for both. The posts take what
+ * the board has to spare, and the Skill column stays the wider one.
+ */
+@container board-item (min-width: 52rem) {
   .board-row {
     grid-template-columns: 3rem minmax(0, 1fr);
     column-gap: 2rem;
   }
 
   .board-row--with-posts {
-    grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 21rem);
+    grid-template-columns: 3rem minmax(0, 1.25fr) minmax(21rem, 1fr);
   }
 
   .board-row__rank {

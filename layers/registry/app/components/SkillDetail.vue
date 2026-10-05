@@ -2,12 +2,14 @@
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import type { TrendingAward } from '#shared/trending-award'
 import type { ZipState } from '../utils/skill-zip'
+import type { SkillBehavior } from './_SkillBehaviors.vue'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { comparisonLinkForSkill } from '#shared/comparison-navigation'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { headlineTrendingAward, trendingAwardBadgeLabel, trendingAwardLabel, trendingAwardPath } from '#shared/trending-award'
+import { behaviorIcon } from '../utils/skill-behaviors'
 import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../utils/skill-context-cost'
 import { fileIcon, highlightLangFromPath } from '../utils/skill-file-tree'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
@@ -16,6 +18,7 @@ import { resolveSkillRawUrl } from '../utils/skill-raw-url'
 import { resolveSkillTitle } from '../utils/skill-title'
 import { resolveViewerLink } from '../utils/skill-viewer-link'
 import { resolveSkillZipEntries } from '../utils/skill-zip'
+import SkillBehaviors from './_SkillBehaviors.vue'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 import SkillStarTrend from './_SkillStarTrend.vue'
@@ -112,6 +115,7 @@ interface SourceFacts {
     capabilityScopes: ('read' | 'write' | 'exec' | 'net')[]
     mcpServers: string[]
   }
+  behaviors: SkillBehavior[]
 }
 
 interface NeighborSkill {
@@ -695,6 +699,8 @@ const verifiedSummary = computed<{ verified: number, total: number } | null>(() 
     return null
   return { verified: list.filter(c => c.verified).length, total: list.length }
 })
+
+const behaviors = computed(() => data.value?.sourceFacts.behaviors ?? [])
 
 const capabilitySummary = computed<{ scopes: ('read' | 'write' | 'exec' | 'net')[], mcp: string[] } | null>(() => {
   const facts = data.value?.sourceFacts.frontmatter
@@ -1783,39 +1789,43 @@ useHead(computed(() => ({
           </section>
 
           <section
-            v-if="capabilitySummary?.scopes.length"
+            v-if="behaviors.length"
             class="hidden lg:block"
-            aria-labelledby="rail-scopes-heading"
+            aria-labelledby="rail-behaviors-heading"
           >
             <h2
-              id="rail-scopes-heading"
+              id="rail-behaviors-heading"
               class="section-label mb-2"
             >
-              What it can do
+              Skill behaviors
             </h2>
             <ul
               role="list"
               class="flex flex-wrap gap-1.5"
             >
               <li
-                v-for="scope in capabilitySummary.scopes"
-                :key="scope"
+                v-for="behavior in behaviors"
+                :key="behavior.id"
                 class="skill-chip"
-                :title="SCOPE_META[scope].hint"
               >
                 <UIcon
-                  :name="SCOPE_META[scope].icon"
+                  :name="behaviorIcon(behavior)"
+                  :class="behavior.tier === 'ask' ? 'text-warning' : undefined"
                   class="size-3.5"
                   aria-hidden="true"
                 />
-                {{ SCOPE_META[scope].label }}
+                {{ behavior.label }}
+                <span
+                  v-if="behavior.tier === 'ask'"
+                  class="sr-only"
+                >, needs approval</span>
               </li>
             </ul>
             <a
-              href="#capability-heading"
+              href="#skill-behaviors"
               class="data-label mt-2 inline-flex min-h-6 items-center gap-1 transition-colors hover:text-default"
             >
-              Allowed tools and settings
+              Where each one appears
               <UIcon
                 name="i-lucide-arrow-down"
                 class="size-3"
@@ -2252,6 +2262,10 @@ useHead(computed(() => ({
             aria-label="About this Skill"
             role="region"
           >
+            <SkillBehaviors
+              v-if="data.raw"
+              :behaviors="behaviors"
+            />
             <SkillThirdPartyChecks
               v-model:open="checksOpen"
               :audits="audits"

@@ -43,11 +43,11 @@ const SITE_ORIGIN = 'https://skilld.dev'
 /**
  * The category noun, held on one line.
  *
- * The space is U+00A0. `.compact-page-header__title` caps at 15ch and sets
- * `text-wrap: balance`, which balances line lengths without regard for where
- * a phrase ends: it broke "Trending agent / skills, August 2026" across the
- * noun itself. The non-breaking space moves the break to the comma. Measured
- * against the rendered heading, not assumed.
+ * The space is U+00A0. The heading sets `text-wrap: balance`, which balances
+ * line lengths without regard for where a phrase ends: at phone width it broke
+ * "Trending agent / skills, August 2026" across the noun itself. The
+ * non-breaking space moves the break to the comma. Measured against the
+ * rendered heading, not assumed.
  */
 export const SKILLS_NOUN = 'agent\u00A0skills'
 
@@ -55,6 +55,8 @@ export interface TrendingRangeMeta {
   readonly id: TrendingRange
   /** Switcher label. Short verb-free noun, per the UI chrome register. */
   readonly label: string
+  /** The line under the label in the sidebar: what the range covers. */
+  readonly hint: string
   /**
    * Hours of history the feed endpoint is asked for, or null for `all`, which
    * reads a different endpoint and has no window at all.
@@ -90,6 +92,7 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
   {
     id: 'week',
     label: 'Week',
+    hint: 'Last 7 days',
     windowHours: 24 * 7,
     windowDays: 7,
     path: '/skills/trending?range=week',
@@ -101,6 +104,7 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
   {
     id: 'month',
     label: 'Month',
+    hint: 'Last 30 days',
     windowHours: 24 * 30,
     windowDays: 30,
     path: '/skills/trending',
@@ -116,6 +120,7 @@ export const TRENDING_RANGES: readonly TrendingRangeMeta[] = [
     // noun is now "Agent Skill", matching the heading and the rest of the site.
     id: 'all',
     label: 'All time',
+    hint: 'By GitHub stars',
     windowHours: null,
     windowDays: null,
     path: '/skills/trending?range=all',
@@ -290,10 +295,18 @@ export interface TrendingPost {
  * the star count carries it.
  */
 export type TrendingReason
-  = | { _tag: 'posts', posts: readonly TrendingPost[] }
-    | { _tag: 'surge', gain: number, when: string | null }
-    | { _tag: 'filler' }
-    | { _tag: 'reviewed', skillCount: number, updated: string | null }
+  = | {
+    _tag: 'posts'
+    posts: readonly TrendingPost[]
+    /**
+     * Counted mentions per rolling day across the last seven, oldest first,
+     * for the braille spark. Null when the feed did not carry them.
+     */
+    mentionsByDay: readonly number[] | null
+  }
+  | { _tag: 'surge', gain: number, when: string | null }
+  | { _tag: 'filler' }
+  | { _tag: 'reviewed', skillCount: number, updated: string | null }
 
 /**
  * A board row, in the one shape the template renders.
@@ -318,7 +331,31 @@ export interface TrendingBoardRow {
   starSeries: readonly StarPoint[]
   /** Names the Skill answers to, so a post can mark where it names it. */
   names: readonly string[]
+  /**
+   * The one Skill the row stands for, which the run command targets. Null when
+   * the row picked a Skill out of a repository that holds several.
+   */
+  skill: BoardSkill | null
   reason: TrendingReason
+}
+
+/** One Skill, as the run command addresses it. */
+export interface BoardSkill {
+  owner: string
+  repo: string
+  /** The Skill directory name, the last segment of `owner/repo/name`. */
+  name: string
+}
+
+/**
+ * The Skill a row may print a run command for.
+ *
+ * Only a repository that holds exactly one Skill counts. Filler and the
+ * `all` range pick one Skill out of a repository by a fixed rule, and a run
+ * command would present that pick as the thing the stars belong to.
+ */
+export function singleSkill(owner: string, repo: string, name: string, repoSkillCount: number): BoardSkill | null {
+  return repoSkillCount === 1 ? { owner, repo, name } : null
 }
 
 /**
@@ -412,6 +449,7 @@ export function leaderboardBoardRows(
       stars: item.stars,
       starSeries: [],
       names: [item.topSkill.name],
+      skill: singleSkill(item.owner, item.repo, item.topSkill.name, item.skillCount),
       reason: { _tag: 'reviewed', skillCount: item.skillCount, updated: day },
     }
   })

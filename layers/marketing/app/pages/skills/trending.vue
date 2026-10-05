@@ -13,6 +13,7 @@ import {
   monthStamp,
   resolveTrendingPage,
   resolveTrendingRange,
+  singleSkill,
   TRENDING_BOARD_LIMIT,
   TRENDING_RANGES,
   trendingRangeDescription,
@@ -197,8 +198,11 @@ const board = computed<TrendingBoardRow[]>(() => {
           // existed, for the five minutes one can outlive a deploy.
           starSeries: s.starSeries ?? [],
           names: [s.name, s.canonicalName],
+          // A post or a single-Skill surge put this exact Skill here, so the
+          // run command never guesses.
+          skill: { owner: s.owner, repo: s.repo, name: s.name },
           reason: s.evidence
-            ? { _tag: 'posts', posts: [s.evidence, ...(s.morePosts ?? [])].map(toPost) }
+            ? { _tag: 'posts', posts: [s.evidence, ...(s.morePosts ?? [])].map(toPost), mentionsByDay: s.mentionsByDay ?? null }
             : s.starGain !== null
               ? { _tag: 'surge', gain: s.starGain, when: s.starGainDay ? relativeDay(s.starGainDay, clock.value) : null }
               : { _tag: 'filler' },
@@ -215,6 +219,7 @@ const board = computed<TrendingBoardRow[]>(() => {
           stars: s.stars,
           starSeries: s.starSeries ?? [],
           names: [s.name, s.canonicalName],
+          skill: singleSkill(s.owner, s.repo, s.name, s.repoSkillCount ?? 0),
           reason: { _tag: 'filler' },
         })),
       ].slice(0, BOARD_LIMIT)
@@ -385,8 +390,8 @@ function formatDay(timestamp: number | null): string | null {
 /**
  * Rows above the weekly invitation on narrow screens.
  *
- * Wide screens carry the invitation beside the page heading. Narrow ones have
- * no beside, and above the board it pushed the first Skill below the fold, so
+ * Wide screens carry the invitation in the sidebar. Narrow ones have no
+ * sidebar, and above the board it pushed the first Skill below the fold, so
  * it waits until a reader has seen the head of the board.
  */
 const HEAD_ROWS = 5
@@ -404,218 +409,263 @@ const boardChunks = computed<BoardChunk[]>(() => [
 </script>
 
 <template>
-  <div>
-    <CompactPageHeader
-      :title="heading"
-      :description="headerDescription"
-      heading-id="trending-heading"
-    >
-      <!--
-        Beside the heading on wide screens, where the masthead had a blank
-        right half and the board lost a quarter of its width to a sidebar.
-        The server renders this page signed out for every visitor, so the
-        invitation keeps its space but stays invisible until the browser
-        knows who is looking; a weekly reader never sees it first.
-        `invisible` already hides it from assistive tech and the tab order, so
-        it carries no `aria-hidden`, which HTML validation rejects over a link.
-      -->
-      <template v-if="showWeeklyCta" #aside>
-        <div
-          class="trending-cta trending-cta--aside"
-          :class="{ invisible: auth._tag === 'pending' }"
-        >
-          <TrendingWeeklyCta layout="row" />
-        </div>
-      </template>
-    </CompactPageHeader>
-
-    <section
-      class="mx-auto max-w-5xl px-4 py-8 sm:px-6 md:py-10"
-      aria-labelledby="trending-heading"
-    >
-      <!--
-        Real links, not a JS toggle. Each range is its own indexable document
-        with its own canonical, so a crawler has to be able to follow one.
-        Rendered above every state so a reader who lands on an empty range can
-        switch away from it. No heading above it: the h1 already names the
-        board, and "Top skills" restated it with a word the glossary bans.
-      -->
-      <div class="board-toolbar">
-        <nav class="range-switcher" aria-label="Time range">
-          <NuxtLink
-            v-for="option in TRENDING_RANGES"
-            :key="option.id"
-            :to="option.path"
-            class="range-link"
-            :class="{ 'range-link--current': option.id === range }"
-            :aria-current="option.id === range ? 'page' : undefined"
-          >
-            {{ option.label }}
-          </NuxtLink>
-        </nav>
-        <p v-if="!isEmpty && !error && boardMeta" class="data-label">
-          {{ boardMeta }}
+  <!--
+    The same shell as /skills: the heading lines up with the results column,
+    a sticky sidebar sits left of the board, and nothing sits right of it, so
+    the board takes every column the sidebar leaves.
+  -->
+  <div class="overflow-clip">
+    <div class="w-full px-4 pb-10 pt-10 sm:px-6 lg:px-8 xl:px-10">
+      <header aria-labelledby="trending-heading" class="mx-auto mb-7 max-w-7xl lg:ml-56 lg:mr-0">
+        <h1 id="trending-heading" class="text-3xl font-semibold tracking-tight text-balance">
+          {{ heading }}
+        </h1>
+        <p class="mt-2 text-sm text-muted">
+          {{ headerDescription }}
         </p>
-      </div>
-
-      <div v-if="error" class="editorial-state mt-6" role="alert">
-        <p class="font-medium">
-          Couldn't load the board.
-        </p>
-        <p class="mt-1 max-w-lg text-base leading-relaxed text-muted">
-          The ranking is unavailable right now. Check your connection and try again.
-        </p>
-        <UButton
-          label="Retry"
-          color="neutral"
-          variant="outline"
-          class="mt-4 min-h-11"
-          @click="() => refresh()"
-        />
-      </div>
-
-      <div v-else-if="isEmpty" class="editorial-state mt-6 flex flex-col justify-center" role="status">
-        <template v-if="range === 'all'">
-          <p class="text-sm text-default">
-            No repositories have qualified yet.
-          </p>
-          <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
-            A repository appears here after a reviewer confirms its purpose and its skill inventory.
-          </p>
-        </template>
-        <template v-else>
-          <p class="text-sm text-default">
-            Nothing is trending yet.
-          </p>
-          <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
-            Skilld watches X and Bluesky for posts mentioning a skill, and GitHub for repositories
-            holding a single skill whose stars surge. Neither has anything to report in this range.
-          </p>
-        </template>
-        <div class="mt-4">
-          <UButton to="/skills" label="Browse the directory" color="neutral" variant="outline" class="min-h-11" />
-        </div>
-      </div>
-
-      <template v-else>
-        <template v-for="(chunk, chunkIndex) in boardChunks" :key="chunk.start">
-          <div
-            v-if="chunkIndex === 1 && showWeeklyCta"
-            class="trending-cta trending-cta--inline"
-            :class="{ invisible: auth._tag === 'pending' }"
-          >
-            <TrendingWeeklyCta />
+        <!-- Narrow screens have no sidebar, so the install sits under the heading. -->
+        <div class="mt-5 lg:hidden">
+          <div class="trending-teach">
+            <p class="font-mono text-xs text-muted">
+              Teach your agent skilld
+            </p>
+            <SkilldInstallChip surface="trending-header" />
           </div>
-          <ol class="board-list editorial-ledger list-none p-0" :start="chunk.start">
-            <li v-for="(row, offset) in chunk.rows" :key="row.key">
-              <TrendingBoardItem
-                :row="row"
-                :rank="chunk.start + offset"
-                @avatar-error="onAvatarError"
-              />
-            </li>
-          </ol>
-        </template>
-      </template>
-    </section>
+        </div>
+      </header>
 
-    <section
-      v-if="earlierRows.length"
-      class="border-t border-default"
-      aria-labelledby="earlier-heading"
-    >
-      <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6">
-        <!--
-          An index, not a second board. These Skills already left the ranking,
-          so they sit smaller than it: three columns, one line of description,
-          no rank. Every entry is still a plain link, which is the list's job:
-          a crawler reaches each Skill the sitemap lists from here.
-        -->
-        <h2 id="earlier-heading" class="text-xl font-semibold tracking-tight">
-          Earlier on this board
-        </h2>
-        <p class="data-label mt-1">
-          {{ `${admitted?.total ?? earlierRows.length} skills` }}
-        </p>
-        <ul class="earlier-index mt-6 list-none p-0">
-          <li v-for="item in earlierRows" :key="item.registryPath">
-            <NuxtLink :to="item.registryPath" class="earlier-entry">
-              <span class="earlier-entry__name">
-                <img
-                  :src="githubAvatarProxyUrl(item.owner, 32)"
-                  alt=""
-                  width="16"
-                  height="16"
-                  class="size-4 shrink-0 rounded-full bg-muted"
-                  loading="lazy"
-                  decoding="async"
-                >
-                <span class="truncate">{{ item.name }}</span>
-              </span>
-              <span class="earlier-entry__meta">
-                <span class="truncate">{{ item.owner }}/{{ item.repo }}</span>
-                <span v-if="item.stars" class="shrink-0 tabular-nums">{{ `${item.stars.toLocaleString()} ★` }}</span>
-              </span>
-              <span v-if="item.description" class="earlier-entry__description">{{ item.description }}</span>
-            </NuxtLink>
-          </li>
-        </ul>
-        <nav
-          v-if="earlierPages.length > 1"
-          class="mt-6 flex flex-wrap gap-2"
-          aria-label="Earlier on this board, pages"
-        >
-          <NuxtLink
-            v-for="number in earlierPages"
-            :key="number"
-            :to="earlierPagePath(number)"
-            class="page-link"
-            :class="{ 'page-link--current': number === listPage }"
-            :aria-current="number === listPage ? 'page' : undefined"
-          >
-            {{ number }}
-          </NuxtLink>
-        </nav>
-      </div>
-    </section>
-
-    <!--
-      The eligibility rule, carried over with the `all` range from
-      /skills/leaderboard. The range claims its rows were reviewed, and a
-      reader has no way to check that claim unless the page states the rule.
-    -->
-    <section
-      v-if="range === 'all'"
-      class="border-t border-default bg-muted"
-      aria-labelledby="method-heading"
-    >
-      <div class="mx-auto grid max-w-5xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] md:py-16">
-        <div>
-          <h2 id="method-heading" class="text-2xl font-semibold tracking-tight sm:text-3xl">
-            A deliberately narrow list.
+      <div class="trending-layout relative grid items-start gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
+        <div class="trending-sidebar">
+          <!--
+            Real links, not a JS toggle. Each range is its own indexable
+            document with its own canonical, so a crawler has to be able to
+            follow one. Rendered above every state so a reader who lands on an
+            empty range can switch away from it. A column in the sidebar on
+            wide screens, a compact row above the board on narrow ones.
+          -->
+          <h2 id="range-heading" class="range-heading">
+            Time range
           </h2>
+          <nav class="range-switcher" aria-labelledby="range-heading">
+            <NuxtLink
+              v-for="option in TRENDING_RANGES"
+              :key="option.id"
+              :to="option.path"
+              class="range-link"
+              :class="{ 'range-link--current': option.id === range }"
+              :aria-current="option.id === range ? 'page' : undefined"
+            >
+              <span>{{ option.label }}</span>
+              <span class="range-link__hint">{{ option.hint }}</span>
+            </NuxtLink>
+          </nav>
+
+          <!--
+            The server renders this page signed out for every visitor, so the
+            invitation keeps its space but stays invisible until the browser
+            knows who is looking; a weekly reader never sees it first.
+            `invisible` already hides it from assistive tech and the tab order,
+            so it carries no `aria-hidden`, which HTML validation rejects over
+            a link.
+          -->
+          <div class="trending-sidebar__foot">
+            <div
+              v-if="showWeeklyCta"
+              :class="{ invisible: auth._tag === 'pending' }"
+            >
+              <TrendingWeeklyCta />
+            </div>
+            <div class="trending-teach">
+              <p class="font-mono text-xs text-muted">
+                Teach your agent skilld
+              </p>
+              <SkilldInstallChip surface="trending-sidebar" />
+            </div>
+          </div>
         </div>
-        <div class="max-w-2xl space-y-4 text-base leading-relaxed text-muted">
-          <p>
-            A reviewer must confirm that the owner is an individual GitHub user and the repository primarily publishes reusable, generic agent skills. Documentation, assets, scripts, and tests are allowed.
+
+        <section class="min-w-0 lg:pt-6" aria-labelledby="trending-heading">
+          <!-- No heading above the board: the h1 already names it. -->
+          <p v-if="!isEmpty && !error && boardMeta" class="data-label mb-3 flex min-h-7 items-center">
+            {{ boardMeta }}
           </p>
-          <p>
-            Organizations, vendor catalogs, app-specific collections, prompts, bookmarks, and general applications are excluded. Repositories rank by current GitHub stars.
-          </p>
-        </div>
+
+          <div v-if="error" class="editorial-state" role="alert">
+            <p class="font-medium">
+              Couldn't load the board.
+            </p>
+            <p class="mt-1 max-w-lg text-base leading-relaxed text-muted">
+              The ranking is unavailable right now. Check your connection and try again.
+            </p>
+            <UButton
+              label="Retry"
+              color="neutral"
+              variant="outline"
+              class="mt-4 min-h-11"
+              @click="() => refresh()"
+            />
+          </div>
+
+          <div v-else-if="isEmpty" class="editorial-state flex flex-col justify-center" role="status">
+            <!-- Scattered dots that settle on one rose dot: the board is waiting for its first Skill. -->
+            <div class="relative mb-4 h-10">
+              <TextureConverge />
+            </div>
+            <template v-if="range === 'all'">
+              <p class="text-sm text-default">
+                No repositories have qualified yet.
+              </p>
+              <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
+                A repository appears here after a reviewer confirms its purpose and its skill inventory.
+              </p>
+            </template>
+            <template v-else>
+              <p class="text-sm text-default">
+                Nothing is trending yet.
+              </p>
+              <p class="mt-2 max-w-prose text-sm leading-relaxed text-muted">
+                Skilld watches X and Bluesky for posts mentioning a skill, and GitHub for repositories
+                holding a single skill whose stars surge. Neither has anything to report in this range.
+              </p>
+            </template>
+            <div class="mt-4">
+              <UButton to="/skills" label="Browse the directory" color="neutral" variant="outline" class="min-h-11" />
+            </div>
+          </div>
+
+          <template v-else>
+            <template v-for="(chunk, chunkIndex) in boardChunks" :key="chunk.start">
+              <div
+                v-if="chunkIndex === 1 && showWeeklyCta"
+                class="trending-cta--inline"
+                :class="{ invisible: auth._tag === 'pending' }"
+              >
+                <TrendingWeeklyCta />
+              </div>
+              <ol class="board-list editorial-ledger list-none p-0" :start="chunk.start">
+                <li v-for="(row, offset) in chunk.rows" :key="row.key">
+                  <TrendingBoardItem
+                    :row="row"
+                    :rank="chunk.start + offset"
+                    @avatar-error="onAvatarError"
+                  />
+                </li>
+              </ol>
+            </template>
+          </template>
+
+          <!--
+            An index, not a second board. These Skills already left the
+            ranking, so they sit smaller than it: one line of description, no
+            rank. Every entry is still a plain link, which is the list's job: a
+            crawler reaches each Skill the sitemap lists from here.
+          -->
+          <section
+            v-if="earlierRows.length"
+            class="mt-12 border-t border-default pt-10"
+            aria-labelledby="earlier-heading"
+          >
+            <h2 id="earlier-heading" class="text-xl font-semibold tracking-tight">
+              Earlier on this board
+            </h2>
+            <p class="data-label mt-1">
+              {{ `${admitted?.total ?? earlierRows.length} skills` }}
+            </p>
+            <ul class="earlier-index mt-6 list-none p-0">
+              <li v-for="item in earlierRows" :key="item.registryPath">
+                <NuxtLink :to="item.registryPath" class="earlier-entry">
+                  <span class="earlier-entry__name">
+                    <img
+                      :src="githubAvatarProxyUrl(item.owner, 32)"
+                      alt=""
+                      width="16"
+                      height="16"
+                      class="size-4 shrink-0 rounded-full bg-muted"
+                      loading="lazy"
+                      decoding="async"
+                    >
+                    <span class="truncate">{{ item.name }}</span>
+                  </span>
+                  <span class="earlier-entry__meta">
+                    <span class="truncate">{{ item.owner }}/{{ item.repo }}</span>
+                    <span v-if="item.stars" class="shrink-0 tabular-nums">{{ `${item.stars.toLocaleString()} ★` }}</span>
+                  </span>
+                  <span v-if="item.description" class="earlier-entry__description">{{ item.description }}</span>
+                </NuxtLink>
+              </li>
+            </ul>
+            <nav
+              v-if="earlierPages.length > 1"
+              class="mt-6 flex flex-wrap gap-2"
+              aria-label="Earlier on this board, pages"
+            >
+              <NuxtLink
+                v-for="number in earlierPages"
+                :key="number"
+                :to="earlierPagePath(number)"
+                class="page-link"
+                :class="{ 'page-link--current': number === listPage }"
+                :aria-current="number === listPage ? 'page' : undefined"
+              >
+                {{ number }}
+              </NuxtLink>
+            </nav>
+          </section>
+
+          <!--
+            The eligibility rule, carried over with the `all` range from
+            /skills/leaderboard. The range claims its rows were reviewed, and a
+            reader has no way to check that claim unless the page states the rule.
+          -->
+          <section
+            v-if="range === 'all'"
+            class="mt-12 grid gap-6 border-t border-default pt-10 md:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] md:gap-8"
+            aria-labelledby="method-heading"
+          >
+            <h2 id="method-heading" class="text-2xl font-semibold tracking-tight sm:text-3xl">
+              A deliberately narrow list.
+            </h2>
+            <div class="max-w-2xl space-y-4 text-base leading-relaxed text-muted">
+              <p>
+                A reviewer must confirm that the owner is an individual GitHub user and the repository primarily publishes reusable, generic agent skills. Documentation, assets, scripts, and tests are allowed.
+              </p>
+              <p>
+                Organizations, vendor catalogs, app-specific collections, prompts, bookmarks, and general applications are excluded. Repositories rank by current GitHub stars.
+              </p>
+            </div>
+          </section>
+        </section>
       </div>
-    </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.board-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem 1.5rem;
-  margin-bottom: 0.5rem;
+/* The full-bleed rule above the sidebar and the board, as on /skills. */
+.trending-layout::before {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  inline-size: 100vw;
+  transform: translateX(-50%);
+  border-block-start: 1px solid var(--ui-border);
+  content: '';
+  pointer-events: none;
+}
+
+.trending-sidebar {
+  min-inline-size: 0;
+  padding-top: 1.5rem;
+}
+
+/* Narrow screens show the range row alone; the heading names it for assistive tech. */
+.range-heading {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /*
@@ -656,9 +706,116 @@ const boardChunks = computed<BoardChunk[]>(() => [
   color: var(--ui-text-highlighted);
 }
 
+.range-link__hint {
+  display: none;
+}
+
+.trending-sidebar__foot {
+  display: none;
+}
+
+.trending-teach {
+  display: grid;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.trending-cta--inline {
+  margin-block: 1.5rem;
+}
+
+/*
+ * Wide screens: the sidebar column from /skills, sticky under the site header.
+ * The ranges become a list with the window each covers, and the invitation
+ * and the install sit under them, where the board's right edge used to be
+ * spent on them.
+ */
+@media (min-width: 64rem) {
+  .trending-sidebar {
+    position: sticky;
+    inset-block-start: 4rem;
+    display: flex;
+    flex-direction: column;
+    block-size: calc(100dvh - 4rem);
+    overflow-y: auto;
+    padding-block-end: 1.5rem;
+    padding-inline-end: 1.5rem;
+    border-inline-end: 1px solid var(--ui-border);
+  }
+
+  .range-heading {
+    position: static;
+    display: flex;
+    align-items: center;
+    inline-size: auto;
+    block-size: auto;
+    min-block-size: 1.75rem;
+    margin-block-end: 0.5rem;
+    overflow: visible;
+    clip-path: none;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+    color: var(--ui-text);
+  }
+
+  .range-switcher {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* Set like the maintainer rows in the /skills sidebar: the name, then a mono line. */
+  .range-link {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.375rem 0.5rem;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    color: var(--ui-text-toned);
+  }
+
+  .range-link--current {
+    box-shadow: none;
+  }
+
+  @media (hover: hover) {
+    .range-link:hover {
+      background: var(--ui-bg-elevated);
+    }
+  }
+
+  .range-link__hint {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 400;
+    line-height: 1rem;
+    color: var(--ui-text-muted);
+  }
+
+  .trending-sidebar__foot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    margin-block-start: 2rem;
+  }
+
+  .trending-cta--inline {
+    display: none;
+  }
+}
+
 /*
  * Columns of hairline-divided entries rather than cards: more than six items
- * read better as rows, and these are an index beside the board, not picks.
+ * read better as rows, and these are an index under the board, not picks.
  */
 .earlier-index {
   display: grid;
@@ -748,7 +905,7 @@ const boardChunks = computed<BoardChunk[]>(() => [
 /*
  * The two halves of one board. Where nothing shows between them, the second
  * drops its top rule rather than doubling the first one's bottom: always when
- * no invitation renders, and on wide screens, where it moves to the heading.
+ * no invitation renders, and on wide screens, where it moves to the sidebar.
  */
 .board-list + .board-list {
   border-top: 0;
@@ -757,39 +914,6 @@ const boardChunks = computed<BoardChunk[]>(() => [
 @media (min-width: 64rem) {
   .board-list ~ .board-list {
     border-top: 0;
-  }
-}
-
-.trending-cta--inline {
-  margin-block: 1.5rem;
-}
-
-/*
- * Narrow screens carry the invitation between the board's halves; wide ones
- * carry it beside the heading. Exactly one shows at any width.
- */
-.trending-cta--aside {
-  display: none;
-}
-
-/*
- * Below 64rem the invitation sits after row five, so the header's aside is
- * empty. Its wrapper still took a grid gap, 24px of nothing above the fold.
- */
-@media (max-width: 63.999rem) {
-  .compact-page-header :deep(.compact-page-header__aside) {
-    display: none;
-  }
-}
-
-@media (min-width: 64rem) {
-  .trending-cta--aside {
-    display: block;
-    inline-size: 26rem;
-  }
-
-  .trending-cta--inline {
-    display: none;
   }
 }
 </style>

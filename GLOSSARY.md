@@ -28,6 +28,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | registry | skilld.dev | one | "skilld" |
 | skilld token | `cli_tokens`, `layers/identity` | Author 1—N token | "skilld token" |
 | provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
+| behavior | `skilld-protocol/behaviors`, Skill page | Skill 1—N behavior | "Skill behaviors" |
 
 Collisions
 
@@ -185,6 +186,14 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 **Use for:** "written by {user}" on user pages, "published by {org}" on organization pages, source links.
 
 **Never:** trust score, verification tier, "curated by" for an author.
+
+### behavior
+
+**Is:** one thing a Skill's files ask an Agent to do, found by a fixed text pattern from `skilld-protocol/behaviors`. The skilld CLI applies the same rules.
+
+**Use for:** the "Skill behaviors" panel and rail. A behavior marked "Needs approval" stops `skilld run` until the user approves it. The Skill page reads only SKILL.md and file names.
+
+**Never:** permission, capability, risk, threat, scan result, "safe", "secure". No match never means the Skill does nothing.
 
 ### Owner
 
