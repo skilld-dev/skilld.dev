@@ -21,6 +21,7 @@
  */
 
 import type { SkillTrendInput, SkillTrendScore } from '#shared/trending-skill-score'
+import { mentionsByDay } from '#shared/mention-days'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { rankSkillTrends } from '#shared/trending-skill-score'
 
@@ -31,6 +32,12 @@ export interface TrendingSkill extends SkillTrendScore {
    * Dedicated posts first, then by likes, at most {@link MAX_MORE_POSTS}.
    */
   morePosts: TrendingSkillEvidence[]
+  /**
+   * Counted mentions per rolling day across the last seven, oldest first, for
+   * the braille spark. Null when no post put the skill here: a star surge has
+   * no mentions to draw.
+   */
+  mentionsByDay: number[] | null
   /** Current stars on the skill's repository. Display only, never ranked. */
   stars: number | null
   /** The skill's own description, from its SKILL.md frontmatter. */
@@ -206,6 +213,7 @@ interface SocialEntry {
   input: SkillTrendInput
   evidence: TrendingSkillEvidence
   morePosts: TrendingSkillEvidence[]
+  mentionsByDay: number[]
 }
 
 async function loadSocialEvidence(
@@ -250,6 +258,8 @@ async function loadSocialEvidence(
     evidenceBreadth: number
     authors: Map<string, number>
     countedPosts: Set<string>
+    /** When each counted post went out, for the per-day spark. */
+    countedAt: number[]
     /** Each author's narrowest post about the skill, for the posts beyond the quote. */
     postsByAuthor: Map<string, { post: TrendingSkillEvidence, breadth: number }>
   }>()
@@ -276,6 +286,7 @@ async function loadSocialEvidence(
         evidenceBreadth: breadthOf(row.post_id),
         authors: new Map(),
         countedPosts: new Set(),
+        countedAt: [],
         postsByAuthor: new Map(),
       }
       grouped.set(key, entry)
@@ -300,6 +311,7 @@ async function loadSocialEvidence(
     if (entry.countedPosts.has(row.post_id))
       continue
     entry.countedPosts.add(row.post_id)
+    entry.countedAt.push(row.posted_at)
 
     const social = entry.input.social!
     social.mentionCount += 1
@@ -324,7 +336,7 @@ async function loadSocialEvidence(
       .sort((a, b) => a.breadth - b.breadth)
       .slice(0, MAX_MORE_POSTS)
       .map(held => held.post)
-    out.set(key, { input: entry.input, evidence: entry.evidence, morePosts })
+    out.set(key, { input: entry.input, evidence: entry.evidence, morePosts, mentionsByDay: mentionsByDay(entry.countedAt, options.now) })
   }
   return out
 }
@@ -411,6 +423,7 @@ export async function loadTrendingSkills(
     input: SkillTrendInput
     evidence: TrendingSkillEvidence | null
     morePosts: TrendingSkillEvidence[]
+    mentionsByDay: number[] | null
   }>()
 
   for (const [key, entry] of social)
@@ -421,7 +434,7 @@ export async function loadTrendingSkills(
     if (held)
       held.input.github = input.github
     else
-      merged.set(key, { input, evidence: null, morePosts: [] })
+      merged.set(key, { input, evidence: null, morePosts: [], mentionsByDay: null })
   }
 
   const deprioritized = options.deprioritizeRepositories ?? new Set<string>()
@@ -441,6 +454,7 @@ export async function loadTrendingSkills(
       ...scored,
       evidence: merged.get(skillKey(scored))?.evidence ?? null,
       morePosts: merged.get(skillKey(scored))?.morePosts ?? [],
+      mentionsByDay: merged.get(skillKey(scored))?.mentionsByDay ?? null,
       stars: stars.get(`${scored.owner}/${scored.repo}`) ?? null,
       description: descriptions.get(skillKey(scored)) ?? null,
       repoSkillCount,

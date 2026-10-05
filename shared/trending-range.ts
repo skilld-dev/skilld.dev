@@ -290,10 +290,18 @@ export interface TrendingPost {
  * the star count carries it.
  */
 export type TrendingReason
-  = | { _tag: 'posts', posts: readonly TrendingPost[] }
-    | { _tag: 'surge', gain: number, when: string | null }
-    | { _tag: 'filler' }
-    | { _tag: 'reviewed', skillCount: number, updated: string | null }
+  = | {
+    _tag: 'posts'
+    posts: readonly TrendingPost[]
+    /**
+     * Counted mentions per rolling day across the last seven, oldest first,
+     * for the braille spark. Null when the feed did not carry them.
+     */
+    mentionsByDay: readonly number[] | null
+  }
+  | { _tag: 'surge', gain: number, when: string | null }
+  | { _tag: 'filler' }
+  | { _tag: 'reviewed', skillCount: number, updated: string | null }
 
 /**
  * A board row, in the one shape the template renders.
@@ -318,7 +326,31 @@ export interface TrendingBoardRow {
   starSeries: readonly StarPoint[]
   /** Names the Skill answers to, so a post can mark where it names it. */
   names: readonly string[]
+  /**
+   * The one Skill the row stands for, which the run command targets. Null when
+   * the row picked a Skill out of a repository that holds several.
+   */
+  skill: BoardSkill | null
   reason: TrendingReason
+}
+
+/** One Skill, as the run command addresses it. */
+export interface BoardSkill {
+  owner: string
+  repo: string
+  /** The Skill directory name, the last segment of `owner/repo/name`. */
+  name: string
+}
+
+/**
+ * The Skill a row may print a run command for.
+ *
+ * Only a repository that holds exactly one Skill counts. Filler and the
+ * `all` range pick one Skill out of a repository by a fixed rule, and a run
+ * command would present that pick as the thing the stars belong to.
+ */
+export function singleSkill(owner: string, repo: string, name: string, repoSkillCount: number): BoardSkill | null {
+  return repoSkillCount === 1 ? { owner, repo, name } : null
 }
 
 /**
@@ -412,6 +444,7 @@ export function leaderboardBoardRows(
       stars: item.stars,
       starSeries: [],
       names: [item.topSkill.name],
+      skill: singleSkill(item.owner, item.repo, item.topSkill.name, item.skillCount),
       reason: { _tag: 'reviewed', skillCount: item.skillCount, updated: day },
     }
   })

@@ -465,6 +465,18 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('trendingMark has no violations and stays out of the accessibility tree', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('TrendingMark'),
+      { attachTo: container },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('.trending-mark')?.getAttribute('aria-hidden')).toBe('true')
+    wrapper.unmount()
+  })
+
   it('commandChip has no violations and keeps the command copyable as one string', async () => {
     const container = createIsolatedContainer()
     const command = 'npx skilld run mattpocock/skills/tdd'

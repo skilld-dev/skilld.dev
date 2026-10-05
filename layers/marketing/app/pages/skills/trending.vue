@@ -13,6 +13,7 @@ import {
   monthStamp,
   resolveTrendingPage,
   resolveTrendingRange,
+  singleSkill,
   TRENDING_BOARD_LIMIT,
   TRENDING_RANGES,
   trendingRangeDescription,
@@ -197,8 +198,11 @@ const board = computed<TrendingBoardRow[]>(() => {
           // existed, for the five minutes one can outlive a deploy.
           starSeries: s.starSeries ?? [],
           names: [s.name, s.canonicalName],
+          // A post or a single-Skill surge put this exact Skill here, so the
+          // run command never guesses.
+          skill: { owner: s.owner, repo: s.repo, name: s.name },
           reason: s.evidence
-            ? { _tag: 'posts', posts: [s.evidence, ...(s.morePosts ?? [])].map(toPost) }
+            ? { _tag: 'posts', posts: [s.evidence, ...(s.morePosts ?? [])].map(toPost), mentionsByDay: s.mentionsByDay ?? null }
             : s.starGain !== null
               ? { _tag: 'surge', gain: s.starGain, when: s.starGainDay ? relativeDay(s.starGainDay, clock.value) : null }
               : { _tag: 'filler' },
@@ -215,6 +219,7 @@ const board = computed<TrendingBoardRow[]>(() => {
           stars: s.stars,
           starSeries: s.starSeries ?? [],
           names: [s.name, s.canonicalName],
+          skill: singleSkill(s.owner, s.repo, s.name, s.repoSkillCount ?? 0),
           reason: { _tag: 'filler' },
         })),
       ].slice(0, BOARD_LIMIT)
@@ -419,12 +424,21 @@ const boardChunks = computed<BoardChunk[]>(() => [
         `invisible` already hides it from assistive tech and the tab order, so
         it carries no `aria-hidden`, which HTML validation rejects over a link.
       -->
-      <template v-if="showWeeklyCta" #aside>
-        <div
-          class="trending-cta trending-cta--aside"
-          :class="{ invisible: auth._tag === 'pending' }"
-        >
-          <TrendingWeeklyCta layout="row" />
+      <template #aside>
+        <div class="trending-aside">
+          <div
+            v-if="showWeeklyCta"
+            class="trending-cta trending-cta--aside"
+            :class="{ invisible: auth._tag === 'pending' }"
+          >
+            <TrendingWeeklyCta layout="row" />
+          </div>
+          <div class="trending-teach">
+            <p class="font-mono text-xs text-muted">
+              Teach your agent skilld
+            </p>
+            <SkilldInstallChip surface="trending-header" />
+          </div>
         </div>
       </template>
     </CompactPageHeader>
@@ -475,6 +489,10 @@ const boardChunks = computed<BoardChunk[]>(() => [
       </div>
 
       <div v-else-if="isEmpty" class="editorial-state mt-6 flex flex-col justify-center" role="status">
+        <!-- Scattered dots that settle on one rose dot: the board is waiting for its first Skill. -->
+        <div class="relative mb-4 h-10">
+          <TextureConverge />
+        </div>
         <template v-if="range === 'all'">
           <p class="text-sm text-default">
             No repositories have qualified yet.
@@ -773,18 +791,26 @@ const boardChunks = computed<BoardChunk[]>(() => [
 }
 
 /*
- * Below 64rem the invitation sits after row five, so the header's aside is
- * empty. Its wrapper still took a grid gap, 24px of nothing above the fold.
+ * The skilld install sits under the invitation on wide screens and alone under
+ * the heading on narrow ones, where the invitation waits until row five.
  */
-@media (max-width: 63.999rem) {
-  .compact-page-header :deep(.compact-page-header__aside) {
-    display: none;
-  }
+.trending-aside {
+  display: grid;
+  gap: 1rem;
+}
+
+.trending-teach {
+  display: grid;
+  gap: 0.5rem;
+  min-inline-size: 0;
 }
 
 @media (min-width: 64rem) {
   .trending-cta--aside {
     display: block;
+  }
+
+  .trending-aside {
     inline-size: 26rem;
   }
 
