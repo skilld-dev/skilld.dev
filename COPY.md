@@ -23,9 +23,11 @@ These exact strings. Do not paraphrase them per page.
 | Site description | Curated agent skills by humans, written by real maintainers in their own GitHub repos | `nuxt.config.ts` site description (feeds every page's meta description) |
 | Elevator pitch | Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes. | guidance only: no page ships it yet (use it where two sentences fit) |
 | Home H1 | Hyped agent skills, no bloat | guidance only: the homepage H1. The page draws the rose brand dot as its full stop, so never type a period |
-| Home intro | Run a skill once and nothing lands on disk. Fork or install the ones you keep. Every skill comes from its maintainer's repo, and a person reads it before it's listed. | guidance only: the homepage intro under the H1 |
-| Home claims line | Open-source CLI · Analytics without cookies or IPs · A skills.sh alternative | guidance only: the homepage claims line. The last item links to `/vs/skills-sh` |
-| Promo label | Teach your agent skilld | guidance only: the homepage promo chip beside `npx skilld install skilld --global` |
+| Home verb line | search · run · install · keep current | guidance only: the homepage line under the H1. Each verb links to its `/cli` section: `#search`, `#run`, `#install`, `#update` |
+| Home CLI link | The skilld CLI → | guidance only: the homepage link to `/cli` at the end of the verb line. The arrow is an icon |
+| Home caption | skilld.dev finds and tracks skills. The CLI runs or installs them in 19 agents. | guidance only: the homepage caption under the verb line. 19 is `AGENT_TARGETS` in the CLI's `crates/skilld-core/src/target.rs`. If that count changes, change this string |
+| Home claims line | Open-source CLI · Analytics without cookies or IPs · A skills.sh alternative | guidance only: the homepage claims line under the search. The third item links to `/vs/skills-sh`, and the promo label closes the line |
+| Promo label | Teach your agent skilld | guidance only: the last item of the homepage claims line. It opens a popover with `npx skilld install skilld --global` |
 | Tile: run | No more skill bloat: Run skills once off, fork, or install. | guidance only: a homepage tile, with the title before the colon. The run chip motif pairs with it |
 | Tile: trending | Stay hyped: What devs talk about on X and Bluesky, weekly and monthly. | guidance only: a homepage tile. The braille spark motif pairs with it |
 | Tile: changes | Keep updated: Watch repos and get a digest when their skills change. | guidance only: a homepage tile. The change grid motif pairs with it |

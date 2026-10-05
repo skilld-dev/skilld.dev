@@ -87,14 +87,18 @@ describe('homepage search interactions', () => {
     expect(navigate).toHaveBeenCalledWith(path)
   })
 
-  it('uses the Search button for the full result page even after arrow selection', async () => {
+  it('uses the submit control for the full result page even after arrow selection', async () => {
     const wrapper = await mountSearch()
     await wrapper.get('input').trigger('keydown', { key: 'ArrowDown' })
-    const button = wrapper.findAll('button').find(button => button.text().trim() === 'Search')
-    expect(button, 'Search button must submit the full query').toBeDefined()
-    await button!.trigger('click')
+    await wrapper.get('button[aria-label="Search"]').trigger('click')
     await flushPromises()
     expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue testing' } })
+  })
+
+  it('offers no submit control until there is a query', async () => {
+    query.value = '   '
+    const wrapper = await mountSearch()
+    expect(wrapper.get('button[type="submit"]').isVisible()).toBe(false)
   })
 
   it('reopens the panel when the already focused input is clicked', async () => {
@@ -166,9 +170,7 @@ describe('homepage search interactions', () => {
       await wrapper.get('input').trigger('keydown', { key: 'Enter' })
     }
     else {
-      const button = wrapper.findAll('button').find(button => button.text().trim() === 'Index repository')
-      expect(button).toBeDefined()
-      await button!.trigger('click')
+      await wrapper.get('button[aria-label="Index repository"]').trigger('click')
     }
     await flushPromises()
     expect(submitRepository).toHaveBeenCalledExactlyOnceWith(repository)
@@ -181,10 +183,9 @@ describe('homepage search interactions', () => {
     rows.value = [{ _tag: 'repository', repository }]
     stateOverride.value = { _tag: 'repository', repository, status: { _tag: 'pending', progress: { _tag: 'queued' } }, rows: rows.value }
     const wrapper = await mountSearch()
-    const button = wrapper.findAll('button').find(button => button.text().trim() === 'Index repository')
-    expect(button).toBeDefined()
-    expect(button!.attributes('disabled')).toBeDefined()
-    await button!.trigger('click')
+    const button = wrapper.get('button[aria-label="Index repository"]')
+    expect(button.attributes('disabled')).toBeDefined()
+    await button.trigger('click')
     await wrapper.get('input').trigger('keydown', { key: 'Enter' })
     await flushPromises()
     expect(submitRepository).not.toHaveBeenCalled()
