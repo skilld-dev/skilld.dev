@@ -23,13 +23,18 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-it('shares deployment and database evidence without blocking nested collectors', async () => {
+it.each([
+  [10, false],
+  [390, false],
+  [391, true],
+  [400, true],
+])('reports discovery exhaustion after %i returned reads', async (readsToday, exhausted) => {
   const now = new Date('2026-09-14T00:00:00Z')
   const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-'))
   roots.push(root)
   await mkdir(join(root, 'shared/server'), { recursive: true })
   await mkdir(join(root, 'migrations'))
-  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400')
+  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400\nconst MIN_SEARCH_PAGE_SIZE = 10')
   await writeFile(join(root, 'migrations/001.sql'), '')
   boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
     let output: unknown = ''
@@ -56,15 +61,16 @@ it('shares deployment and database evidence without blocking nested collectors',
       else if (sql.includes('AS newly_broken_repos_total'))
         rows = [{ newly_broken_repos_total: 0, stale_reserved_jobs: 0 }]
       else if (sql.includes('AS ai_cost_usd'))
-        rows = [{ x_discovery_reads_today: 10, x_hot_posts: 0 }]
+        rows = [{ x_discovery_reads_today: readsToday, x_hot_posts: 0 }]
       output = [{ success: true, results: rows }]
     }
     return { _tag: 'Ok', stdout: JSON.stringify(output), stderr: '' }
   })
   const checks = [gitCheck, deployCheck, databaseCheck]
   const result = await runExternalChecks(checks, { required: checks.map(check => check.id), timeoutMs: 1000, totalTimeoutMs: 1500 }, { rootDir: root, env: {}, clock: () => now })
-  expect(result.report).toMatchObject({ severity: 'pass', coverage: 'complete' })
+  expect(result.report.coverage).toBe('complete')
   expect(result.report.results.find(check => check.id === 'skilld.database')?.result).toMatchObject({ evidence: { inventory: { skills: 23 } } })
+  expect(result.report.results.find(check => check.id === 'skilld.database')?.result).toMatchObject({ evidence: { cost: { x_falling_behind: exhausted } } })
   expect(boundary.command.mock.calls.filter(([, command, args]) => command === 'git' && args[0] === 'fetch')).toHaveLength(1)
   expect(boundary.command.mock.calls.filter(([, , args]) => args.includes('SELECT name FROM sqlite_master WHERE type = \'table\' ORDER BY name'))).toHaveLength(1)
 })

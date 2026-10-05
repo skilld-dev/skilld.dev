@@ -91,7 +91,11 @@ function readDailyBudget(root) {
   try {
     const src = readFileSync(join(root, 'shared/server/x-ingest.ts'), 'utf8')
     const match = src.match(/DAILY_DISCOVERY_READ_BUDGET\s*=\s*(\d+)/)
-    return match ? Number(match[1]) : null
+    const minimum = src.match(/MIN_SEARCH_PAGE_SIZE\s*=\s*(\d+)/)
+    return {
+      target: match ? Number(match[1]) : null,
+      minimum: minimum ? Number(minimum[1]) : null,
+    }
   }
   catch (error) {
     throw new Error('X discovery budget source is unavailable.', { cause: error })
@@ -171,8 +175,10 @@ export function collectD1(context) {
       has('jobs') ? `(SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ${Math.floor(now.getTime() / 1000) - 900} AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs` : 'NULL AS stale_reserved_jobs',
     ]
     /**
-     * Turn raw X read counts into the number that matters: dollars, and whether
-     * the month is on track. Reads are $0.005 each with no included allowance.
+     * Project an upper bound from returned post reads, not an invoice.
+     * X usually charges repeated resources once per UTC day. The request
+     * ceiling includes repeats, while stored observations show distinct posts.
+     * User expansions and billing receipts are not recorded here.
      *
      * The budget is read out of shared/server/x-ingest.ts rather than copied.
      * This script is plain node and cannot import the app's module graph, and a
@@ -181,12 +187,13 @@ export function collectD1(context) {
      */
     function withXSpend(costRow) {
       const USD_PER_READ = 0.005
-      const budgetTarget = readDailyBudget(root)
+      const budget = readDailyBudget(root)
+      const budgetTarget = budget.minimum === null ? null : budget.target
       const row = costRow ?? {}
       const discoveryToday = Number(row.x_discovery_reads_today ?? 0)
       const hot = Number(row.x_hot_posts ?? 0)
-      // Refresh only pays for a hot post again when its window crosses midnight.
-      // Treating every hot post as one more charge is the pessimistic bound.
+      // Treat every returned post and remaining hot post as another charge.
+      // This conservative post-only projection does not prove actual spend.
       const projectedDaily = discoveryToday + hot
       return {
         ...row,
@@ -200,19 +207,21 @@ export function collectD1(context) {
         x_reads_per_verified_skill: Number(row.x_verified_skills ?? 0) > 0
           ? Math.round(Number(row.x_discovery_reads_total ?? 0) / Number(row.x_verified_skills))
           : null,
-        // Budget spent without finishing the window means the stream is
-        // outrunning the ingest and the backlog grows daily.
-        x_falling_behind: discoveryToday >= budgetTarget,
+        // Exhaustion can leave unread results. This historical field is a
+        // warning heuristic; returned reads alone cannot prove a backlog.
+        x_falling_behind: budgetTarget === null ? null : budgetTarget - discoveryToday < budget.minimum,
       }
     }
     const costParts = [
       has('ai_batch_costs') ? `(SELECT COALESCE(SUM(est_cost_usd), 0) FROM ai_batch_costs WHERE submitted_at >= ${sinceSec}) AS ai_cost_usd` : 'NULL AS ai_cost_usd',
-      // X is pay-per-use with no included allowance: every post read is a real
-      // $0.005 invoice line, so it belongs in the health report rather than only
-      // in task logs. `budget_spent` counts today only when `budget_day` matches;
-      // a stale day reads as 0, matching how the ingest resets it.
+      // Returned reads consume the local ceiling. They can include repeat IDs
+      // that X normally deduplicates for billing within the UTC day.
+      // A stale budget day reads as 0, matching the ingest's reset.
       has('x_ingest_cursor') ? `(SELECT COALESCE(SUM(CASE WHEN budget_day = '${utcDay}' THEN budget_spent ELSE 0 END), 0) FROM x_ingest_cursor) AS x_discovery_reads_today` : 'NULL AS x_discovery_reads_today',
       has('x_ingest_cursor') ? `(SELECT COALESCE(SUM(posts_read_total), 0) FROM x_ingest_cursor) AS x_discovery_reads_total` : 'NULL AS x_discovery_reads_total',
+      // Discovery and refresh share snapshots. Count their distinct observed
+      // post IDs separately from returned reads. This is not billed usage.
+      has('x_post_metrics') ? `(SELECT COUNT(DISTINCT post_id) FROM x_post_metrics WHERE observed_at >= strftime('%s', '${utcDay}')) AS x_observed_posts_today` : 'NULL AS x_observed_posts_today',
       // Hot posts are refresh's remaining exposure: each can cost at most one
       // more read, when its window crosses midnight UTC.
       has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE refresh_tier = 'hot') AS x_hot_posts` : 'NULL AS x_hot_posts',

@@ -37,7 +37,7 @@ it('archives the identities behind the skill sync failure count', async () => {
   roots.push(root)
   await mkdir(join(root, 'shared/server'), { recursive: true })
   await mkdir(join(root, 'migrations'))
-  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400')
+  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400\nconst MIN_SEARCH_PAGE_SIZE = 10')
   await writeFile(join(root, 'migrations/001.sql'), '')
   const skills = [
     { owner: 'anthu', repo: 'vite', name: 'env', sync_status: 'error', last_synced_at: Math.floor(since.getTime() / 1000) + 3600 },
