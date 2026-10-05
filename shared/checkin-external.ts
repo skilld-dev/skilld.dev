@@ -22,15 +22,16 @@ Interpret this site evidence:
     },
     {
       id: 'skilld.spend',
-      prompt: `- X API is pay-per-use at $0.005 per post read, with no included allowance and a $20/month target. Accepted 2026-08-31 at a projected $18.15/month, which raised the target from $10. Gate on \`d1.cost\`:
-     - \`x_over_budget\` true is AMBER. The daily discovery budget failed to hold and the month will overrun.
+      prompt: `- X API is pay-per-use at $0.005 per post read, with no included allowance and a $40/month accepted line. Gate on \`d1.cost\`:
+     - \`x_over_budget\` true is AMBER. The daily discovery read ceiling failed to hold. Investigate before inferring billed spend.
      - \`x_projected_monthly_usd\` above 40 is AMBER, above 60 is RED, even when \`x_over_budget\` is false. Harlan raised the accepted line from $30 to $40 on 2026-09-07 (issue #160). Report the figure every run, not only when it breaches.
-     - \`x_budget_used_pct\` at 100 on consecutive days means discovery is truncating. That is the designed steady state, not a fault. Say so rather than reporting it as a failure.
-     - \`x_discovery_reads_today\` is the billed number. \`x_posts_24h\` counts only posts that survived repo extraction, so a large gap between them means the search query is paying for posts it discards. Flag a gap above 50% as a query-tuning action.`,
+     - \`x_budget_used_pct\` at 100 on consecutive days means discovery is truncating. Check cursor progress and repeated pages before calling it steady state.
+     - \`x_discovery_reads_today\` counts returned posts, including repeats. X normally charges once per resource per UTC day. The monthly projection extrapolates today's returns plus hot posts for 30 days. Report it as an upper-bound estimate, never billed spend. A catch-up burst does not establish the steady rate.
+     - \`x_posts_24h\` counts newly stored posts, including posts without repo references. A large gap from returned reads can indicate replay. Check continuation and cursor progress before proposing query tuning.`,
     },
     {
       id: 'skilld.pulse',
-      prompt: `Include a Pulse section with users, skills, repo changes, command copies split as run and install, digests, known AI cost, and X spend as "$X.XX/mo projected (N/<x_budget_target> reads today)". Read these values from collected evidence. Include deploy and CI changes in Overnight. Include migration, schema, deploy SHA, stale task, and observability gaps in Drift.`,
+      prompt: `Include a Pulse section with users, skills, repo changes, command copies split as run and install, digests, known AI cost, and X as "$X.XX/mo upper-bound estimate (N/<x_budget_target> returned reads today)". Read these values from collected evidence. Include deploy and CI changes in Overnight. Include migration, schema, deploy SHA, stale task, and observability gaps in Drift.`,
     },
     {
       id: 'skilld.seo-recovery',
