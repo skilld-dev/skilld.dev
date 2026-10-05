@@ -2,7 +2,7 @@
 
 Status: 2026-10-05 · feat/writing-comparisons
 
-**Next move:** Harlan. Review the source comparison and ADR-0009 before merging the pillar.
+**Next move:** Ready. Source refresh is due on 5 January 2027.
 
 Done means: the comparison renders in production with pinned sources, a working run action, and matching robots and sitemap admission.
 
@@ -14,7 +14,7 @@ Done means: the comparison renders in production with pinned sources, a working 
 - [x] Define comparison ownership, source evidence, refresh, admission, and cull requirements
 - [x] Add schema and noindex regression coverage
 - [x] Verify the built page in both themes and at mobile widths
-- [ ] Confirm the production route, run action, canonical, robots, and sitemap after merge
+- [x] Confirm the production route, run action, canonical, robots, and sitemap after merge
 
 ## Log
 
@@ -33,5 +33,9 @@ Done means: the comparison renders in production with pinned sources, a working 
 
 - 2026-10-05 Harlan requested a focused comparison using the three candidates with the widest reach.
   GitHub star counts selected Humanizer, Stop Slop, and No AI Slop from the reviewed sample.
-  The public page keeps two distinct alternatives. [The source ledger](comparison-research.md) retains all 18 sources and exclusion reasons.
+  The public page keeps two distinct alternatives. [The source ledger](../comparison-research.md) retains all 18 sources and exclusion reasons.
   NuxtSEO measured the comparison target at 30 estimated US monthly searches, below the admission bar.
+- 2026-10-05 Harlan merged PR #399. Deploy run 37263094761 delivered merge commit 9ecc052a.
+  The live route returned the focused comparison and its public canonical.
+  Robots remained noindex,follow. The pages sitemap excluded the comparison.
+  The browser copied the published No AI Slop run command.

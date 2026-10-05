@@ -3,6 +3,11 @@
   "gate": "2026-11-11",
   "baseline": "Pages report 2026-09-30: curated set in 'Discovered, currently not indexed'; retired URLs in 'Crawled, currently not indexed'. First per-URL reading comes from gscdump Watched URLs after @gscdump 4.6.0 and gscdump.com#557 deploy.",
   "groups": {
+    "f_comparison": {
+      "pr": "owner-approved 2026-10-05",
+      "expect": "indexed with relevant prose editing or comparison query impressions at the 2026-11-11 gate; otherwise remove its admission",
+      "urls": ["https://skilld.dev/compare/humanize-writing-skills"]
+    },
     "trending_sample": {
       "pr": "skilld.dev#322",
       "expect": "baseline for admitted trending pages; no template change",

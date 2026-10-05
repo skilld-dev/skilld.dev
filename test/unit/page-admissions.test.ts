@@ -42,3 +42,10 @@ it('keeps new comparison pages out of search and the sitemap', () => {
   expect(pageRobots(path)).toBe('noindex,follow')
   expect(frozenNoindexPaths([path])).toContain(path)
 })
+
+it('admits only the named writing comparison experiment', () => {
+  const path = '/compare/humanize-writing-skills'
+  expect(pageRobots(path)).toBe('index,follow')
+  expect(frozenNoindexPaths([path, '/compare/new-writing-skills'])).not.toContain(path)
+  expect(pageRobots('/compare/new-writing-skills')).toBe('noindex,follow')
+})

@@ -20,10 +20,16 @@ This brief supersedes the measurement plan in [EXECUTE-seo-keyword-rework.md](EX
 - [ ] Experiment B read
 - [ ] Experiment D read
 - [ ] Experiment E read
+- [ ] Experiment F read, including coverage and relevant query impressions for the writing comparison
 - [ ] Gate decision recorded on 2026-11-11
 - [ ] Move this brief to `shipped/` once the gate decision is recorded
 
 ## Log
+
+- 2026-10-05 Harlan approved experiment F for `/compare/humanize-writing-skills` at the existing 11 November gate.
+  One comparison joins the panel, taking it from 40 to 41 URLs. Existing groups remain unchanged.
+  The target query estimate is 30 US searches per month. This is a named experiment exception to the volume bar.
+  Harlan also requested author credit. The article retains its agent research and drafting disclosure.
 
 - 2026-10-03 Deployment [37038090688](https://github.com/skilld-dev/skilld.dev/actions/runs/37038090688) passed on `1ccf98ec`.
   Its history includes Sprint 0, #325, #332, #333, and #334. No fresh crawl or indexing results were read.
@@ -207,6 +213,7 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 | `demand` | 3 | High search demand, in the trending set | First to earn impressions if indexed |
 | `admitted_other` | 10 | Trending set only | Trending-only baseline |
 | `retired` | 5 | Retired URLs in the retired sitemap (experiment E) | Move out of "Crawled, currently not indexed" |
+| `f_comparison` | 1 | Original source comparison with contextual internal links | Indexed with impressions for relevant prose editing or comparison queries |
 | `b_linked` | 10, to fill | Outside links from README badges (experiment B) | Crawled or indexed within 14 days of the link |
 
 The `b_linked` group is not in the panel yet. Its 10 URLs are the Skill pages that receive outside links. When the first badge links land, pick them from the top 50 Skills whose maintainers got a badge request. Then move `b_linked` from `pending_groups` to `groups` in the JSON.
@@ -283,6 +290,17 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 - Confidence: medium. Mueller has said a temporary sitemap with changed URLs and fresh `lastmod` can speed up recrawling. This is practitioner advice, not documented policy.
 - Read at 4 weeks.
 - Scale rule: "Crawled, currently not indexed" falls by 10k or more in 4 weeks. The Soft 404 and 404 counts rise, then clear.
+
+### F. Editorial comparison and internal links
+
+- Measures: `f_comparison`, the single writing comparison approved by Harlan on 5 October 2026.
+- Setup: admit the comparison; link from the homepage work section, canonical anti-slop track, and three featured Skills.
+- The comparison links back to those Skill pages and the track. Supporting source links remain pinned to reviewed commits.
+- This combines editorial content and links. It cannot isolate either effect or prove an improvement in rankings.
+- Read coverage, relevant query impressions, clicks, and crawl dates during weekly measurements and at the gate.
+- Retain the admission if the page is indexed and receives relevant prose editing or comparison query impressions.
+- Otherwise remove its `PAGE_ADMISSIONS` entry, returning the page to noindex and excluding it from the sitemap.
+- New comparison pages remain gated. Any expansion needs a separate admission decision.
 
 ## Gate table, 2026-11-11
 

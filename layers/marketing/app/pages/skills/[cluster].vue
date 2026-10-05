@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { comparisonLinkForTrack } from '#shared/comparison-navigation'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { resolveClusterViewState } from '../../utils/cluster-view-state'
 
@@ -34,6 +35,7 @@ interface ClusterDetailResponse {
 
 const route = useRoute()
 const clusterSlug = computed(() => route.params.cluster as string)
+const comparisonLink = computed(() => comparisonLinkForTrack(clusterSlug.value))
 
 // Blocking, not lazy. `useLazyFetch` does not hold SSR, so the server rendered
 // this page with `data === null`: every category served the fallback title
@@ -225,9 +227,9 @@ defineOgImage('Page.takumi', {
 
       <div class="flex flex-wrap gap-3">
         <UButton
-          v-if="clusterSlug === 'writing'"
-          to="/compare/humanize-writing-skills"
-          label="Compare prose editing Skills"
+          v-if="comparisonLink"
+          :to="comparisonLink.to"
+          :label="comparisonLink.label"
           color="neutral"
           variant="outline"
           class="min-h-11"

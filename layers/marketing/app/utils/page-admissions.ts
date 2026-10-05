@@ -53,6 +53,10 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
 ]
 
 export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
+  '/compare/humanize-writing-skills': {
+    targetQuery: 'best humanizer skill for claude',
+    admissionBar: 'Experiment F, owner-approved 2026-10-05: one original source comparison with contextual internal links. Query estimate: 30 US searches a month, below the volume bar. Retain admission at the 2026-11-11 gate only if indexed with relevant query impressions.',
+  },
   '/agents/codex': {
     targetQuery: 'codex skills',
     admissionBar: '4,400 searches a month, KD 4. No directory ranks; forums and Reddit hold the results.',

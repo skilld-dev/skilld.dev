@@ -6,6 +6,7 @@ import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
 import type { InstallTarget } from '../composables/useInstallCopy'
 import type { SkillSourceItem } from '../types/skill-source'
 import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
+import { WRITING_COMPARISON_LINK } from '#shared/comparison-navigation'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { TRENDING_RANGES } from '#shared/trending-range'
 import { AGENT_LOGOS } from '~/utils/agent-logos'
@@ -535,15 +536,23 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
           </p>
         </div>
         <OutcomeClusterGrid class="mt-8 md:mt-10" aria-describedby="outcomes-description" :limit="12" :rows="3" :order="TRACK_DEMAND_ORDER" />
-        <UButton
-          to="/skills"
-          label="All tracks"
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          trailing-icon="i-lucide-arrow-right"
-          class="mt-4 min-h-11"
-        />
+        <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <UButton
+            to="/skills"
+            label="All tracks"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            trailing-icon="i-lucide-arrow-right"
+            class="min-h-11"
+          />
+          <NuxtLink
+            :to="WRITING_COMPARISON_LINK.to"
+            class="inline-flex min-h-11 items-center text-sm text-default underline underline-offset-4 hover:text-primary"
+          >
+            {{ WRITING_COMPARISON_LINK.label }}
+          </NuxtLink>
+        </div>
       </div>
     </section>
 
