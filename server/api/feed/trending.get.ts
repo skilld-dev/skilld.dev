@@ -12,6 +12,7 @@ import type { TrendingRepo } from '#shared/server/trending-repos'
 import type { TrendingSkill, TrendingSkillEvidence } from '#shared/server/trending-skills'
 import type { StarPoint } from '#shared/trending-range'
 import { getDB } from '#server/utils/db'
+import { cachedFeed } from '#server/utils/feed-cache'
 import { loadStarSeries, starSeriesKey } from '#shared/server/star-series'
 import { loadTrendingBoard } from '#shared/server/trending-board'
 import { DEFAULT_WINDOW_HOURS } from '#shared/server/trending-skills'
@@ -244,10 +245,8 @@ function toItem(entry: TrendingRepo): TrendingFeedItem {
   }
 }
 
-export default defineCachedEventHandler(
+export default defineEventHandler(
   async (event): Promise<TrendingFeedResponse> => {
-    const db = getDB(event)
-    const now = Math.floor(Date.now() / 1000)
     const limit = Math.min(Number(getQuery(event).limit) || 24, 50)
 
     // Star growth is no longer part of trending. It measures a repo, not the
@@ -260,22 +259,22 @@ export default defineCachedEventHandler(
       24 * 30,
     )
 
-    const { entries, namedSkills, fallback: fallbackSkills } = await loadTrendingBoard({ db, now, limit, windowHours })
+    return cachedFeed(event, 'trending', async () => {
+      const db = getDB(event)
+      const now = Math.floor(Date.now() / 1000)
+      const { entries, namedSkills, fallback: fallbackSkills } = await loadTrendingBoard({ db, now, limit, windowHours })
 
-    // The sparkline covers the same window the ranking read, from its first
-    // whole UTC day, so a line never starts before the board does.
-    const sinceDay = Math.floor((now - windowHours * 3600) / 86_400) * 86_400
-    const series = await loadStarSeries(db, [...namedSkills, ...fallbackSkills], sinceDay)
-    const seriesOf = (entry: { owner: string, repo: string }) => series.get(starSeriesKey(entry.owner, entry.repo)) ?? []
+      // The sparkline covers the same window the ranking read, from its first
+      // whole UTC day, so a line never starts before the board does.
+      const sinceDay = Math.floor((now - windowHours * 3600) / 86_400) * 86_400
+      const series = await loadStarSeries(db, [...namedSkills, ...fallbackSkills], sinceDay)
+      const seriesOf = (entry: { owner: string, repo: string }) => series.get(starSeriesKey(entry.owner, entry.repo)) ?? []
 
-    const items = entries.map(toItem)
-    const skillItems = namedSkills.map(entry => toSkillItem(entry, seriesOf(entry)))
-    const fallback = fallbackSkills.map(entry => toFallbackItem(entry, seriesOf(entry)))
+      const items = entries.map(toItem)
+      const skillItems = namedSkills.map(entry => toSkillItem(entry, seriesOf(entry)))
+      const fallback = fallbackSkills.map(entry => toFallbackItem(entry, seriesOf(entry)))
 
-    return { items, namedSkills: skillItems, fallback, computedAt: now }
+      return { items, namedSkills: skillItems, fallback, computedAt: now }
+    }, [limit, windowHours])
   },
-  // Engagement is re-read hourly at most, so a shorter cache would spend D1
-  // reads to serve a ranking that cannot have changed.
-  // v4: named skills carry `morePosts` and `starSeries`; a v3 entry has neither.
-  { maxAge: 300, swr: false, name: 'feed-trending-origin-v4' },
 )
