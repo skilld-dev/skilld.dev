@@ -1,86 +1,31 @@
 <script setup lang="ts">
-import type { SearchRow } from '../composables/useSkillSearch'
 import { onClickOutside, onKeyStroke } from '@vueuse/core'
 
 const route = useRoute()
-const {
-  query,
-  trimmedQuery,
-  state,
-  open,
-  rows,
-  activeIndex,
-  activeRow,
-  move,
-  close,
-  reset,
-  rememberQuery,
-  loadTypeaheadIndex,
-  submitRepository,
-} = useSkillSearch()
-
 const container = useTemplateRef<HTMLElement>('container')
 const desktopInput = useTemplateRef<{ inputRef?: HTMLInputElement }>('desktopInput')
 const mobileInput = useTemplateRef<{ inputRef?: HTMLInputElement }>('mobileInput')
 
-function openPanel(): void {
-  open.value = true
-  void loadTypeaheadIndex()
-}
+// The same box behaviour as the homepage hero: one keyboard model, one
+// selection rule, one set of destinations.
+const {
+  query,
+  open,
+  close,
+  openPanel,
+  dismiss,
+  select,
+  onEnter,
+  onArrow,
+  onColumn,
+  gridId,
+  activeDescendant,
+} = useSkillSearchBox({ inputs: () => [desktopInput.value?.inputRef, mobileInput.value?.inputRef] })
 
 async function openMobile(): Promise<void> {
   openPanel()
   await nextTick()
   mobileInput.value?.inputRef?.focus()
-}
-
-function dismiss(): void {
-  close()
-  desktopInput.value?.inputRef?.blur()
-  mobileInput.value?.inputRef?.blur()
-}
-
-async function goToResults(): Promise<void> {
-  const term = trimmedQuery.value
-  rememberQuery(term)
-  dismiss()
-  await navigateTo(term ? { path: '/skills', query: { q: term } } : '/skills')
-}
-
-async function select(row: SearchRow): Promise<void> {
-  if (row._tag === 'repository') {
-    await submitRepository(row.repository)
-    return
-  }
-  if (row._tag === 'all') {
-    await goToResults()
-    return
-  }
-  if (state.value._tag !== 'repository')
-    rememberQuery(trimmedQuery.value)
-  dismiss()
-  reset()
-  await navigateTo(row.skill.registryPath)
-}
-
-function onEnter(event: KeyboardEvent): void {
-  event.preventDefault()
-  const row = activeRow.value
-  if (row) {
-    void select(row)
-    return
-  }
-  if (state.value._tag !== 'repository')
-    void goToResults()
-}
-
-function onArrow(event: KeyboardEvent, delta: number): void {
-  if (!open.value) {
-    openPanel()
-    return
-  }
-  event.preventDefault()
-  move(delta)
 }
 
 onClickOutside(container, () => {
@@ -97,13 +42,6 @@ onKeyStroke('Escape', () => {
 watch(() => route.fullPath, () => {
   close()
 })
-
-// Both must be absent while the panel is closed: the listbox is not in the
-// DOM then, and ARIA references to missing ids are themselves a violation.
-const listboxId = computed(() => (open.value && rows.value.length ? 'skill-search-listbox' : undefined))
-const activeDescendant = computed(() =>
-  open.value && rows.value.length ? `skill-search-row-${activeIndex.value}` : undefined,
-)
 </script>
 
 <template>
@@ -121,14 +59,19 @@ const activeDescendant = computed(() =>
       autocomplete="off"
       role="combobox"
       aria-label="Search skills or index a GitHub repository"
+      aria-haspopup="grid"
       :aria-expanded="open"
-      :aria-controls="listboxId"
+      :aria-controls="gridId"
       :aria-activedescendant="activeDescendant"
-      class="hidden md:block md:w-44 lg:w-52"
+      class="hidden transition-[width] duration-200 ease-out motion-reduce:transition-none md:block"
+      :class="open ? 'md:w-72 lg:w-80' : 'md:w-44 lg:w-52'"
       :ui="{ base: 'font-mono' }"
       @focus="openPanel"
+      @click="openPanel"
       @keydown.down="onArrow($event, 1)"
       @keydown.up="onArrow($event, -1)"
+      @keydown.left="onColumn($event, 0)"
+      @keydown.right="onColumn($event, 1)"
       @keydown.enter="onEnter"
     >
       <template v-if="!query" #trailing>
@@ -151,22 +94,29 @@ const activeDescendant = computed(() =>
     <Transition name="search-panel">
       <div
         v-if="open"
-        class="fixed inset-x-2 top-16 z-50 md:absolute md:inset-x-auto md:top-full md:end-0 md:mt-2 md:w-[min(46rem,calc(100vw-3rem))]"
+        class="fixed inset-x-2 top-16 z-50 md:absolute md:inset-x-auto md:top-full md:end-0 md:mt-2 md:w-[min(40rem,calc(100vw-3rem))]"
       >
         <UInput
           ref="mobileInput"
           v-model="query"
           icon="i-lucide-search"
-          placeholder="Search skills or paste GitHub URL…"
+          placeholder="Search skills or repos"
           name="skill-search-mobile"
           enterkeyhint="search"
           size="lg"
           autocomplete="off"
+          role="combobox"
           aria-label="Search skills or index a GitHub repository"
+          aria-haspopup="grid"
+          :aria-expanded="open"
+          :aria-controls="gridId"
+          :aria-activedescendant="activeDescendant"
           class="mb-2 w-full md:hidden"
           :ui="{ base: 'font-mono' }"
           @keydown.down="onArrow($event, 1)"
           @keydown.up="onArrow($event, -1)"
+          @keydown.left="onColumn($event, 0)"
+          @keydown.right="onColumn($event, 1)"
           @keydown.enter="onEnter"
         />
         <!-- Lazy: it renders only once search opens, so it stays out of every page's first load. -->

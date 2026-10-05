@@ -68,3 +68,73 @@ export function matchTypeahead(
     .slice(0, limit)
     .map(entry => entry.hit)
 }
+
+/** A Repository the local index holds, with how many of its Skills it lists. */
+export interface TypeaheadRepository {
+  owner: string
+  repo: string
+  stars: number
+  skillCount: number
+  registryPath: string
+}
+
+const REPOSITORY_EXACT = 0
+const REPOSITORY_PREFIX = 1
+const REPOSITORY_OWNER_EXACT = 2
+const REPOSITORY_OWNER_PREFIX = 3
+
+function repositoryTier(owner: string, repo: string, query: string): number | null {
+  if (repo === query)
+    return REPOSITORY_EXACT
+  if (repo.startsWith(query))
+    return REPOSITORY_PREFIX
+  if (owner === query)
+    return REPOSITORY_OWNER_EXACT
+  if (owner.startsWith(query))
+    return REPOSITORY_OWNER_PREFIX
+  return null
+}
+
+/**
+ * Repositories whose name or owner starts with the query, from the same local
+ * index. This is how "nuxt" or "antfu" finds a Repository with no network
+ * call: the index already lists every discoverable Skill with its repo.
+ *
+ * Prefix only, and at least two characters, because a Repository row outranks
+ * the Skills under it and a loose match there would bury them.
+ */
+export function matchTypeaheadRepositories(
+  index: readonly TypeaheadTuple[],
+  rawQuery: string,
+  limit = 2,
+): TypeaheadRepository[] {
+  const query = rawQuery.trim().toLowerCase()
+  if (query.length < 2)
+    return []
+
+  const byRepository = new Map<string, { repository: TypeaheadRepository, tier: number }>()
+  for (const [, owner, repo, stars] of index) {
+    const key = `${owner}/${repo}`
+    const known = byRepository.get(key)
+    if (known) {
+      known.repository.skillCount++
+      continue
+    }
+    const tier = repositoryTier(owner.toLowerCase(), repo.toLowerCase(), query)
+    if (tier === null)
+      continue
+    byRepository.set(key, {
+      tier,
+      repository: { owner, repo, stars, skillCount: 1, registryPath: `/gh/${owner}/${repo}` },
+    })
+  }
+
+  return [...byRepository.values()]
+    .sort((a, b) =>
+      a.tier - b.tier
+      || b.repository.stars - a.repository.stars
+      || b.repository.skillCount - a.repository.skillCount
+      || `${a.repository.owner}/${a.repository.repo}`.localeCompare(`${b.repository.owner}/${b.repository.repo}`))
+    .slice(0, limit)
+    .map(entry => entry.repository)
+}

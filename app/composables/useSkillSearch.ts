@@ -1,3 +1,4 @@
+import type { SkillBoxSearchAnswer } from '#layers/registry/server/presenters/skill-box-search'
 import type { GitHubRepository } from '#shared/github-repository'
 import type {
   IndexedRepositorySkill,
@@ -5,17 +6,24 @@ import type {
   RepositoryIndexStatusResponse,
   SubmitRepositoryIndexResponse,
 } from '#shared/repository-index'
+import type { SkillSearchQuery } from '#shared/skill-search-query'
 import type { IndexedSkillsLikeResult } from '../utils/repository-index-likes'
-import type { TypeaheadHit, TypeaheadTuple } from '../utils/skill-typeahead'
+import type { TypeaheadHit, TypeaheadRepository, TypeaheadTuple } from '../utils/skill-typeahead'
 import { createSharedComposable, promiseTimeout, useLocalStorage, watchDebounced } from '@vueuse/core'
-import { parseGitHubRepositoryUrl } from '#shared/github-repository'
+import { classifySearchQuery } from '#shared/skill-search-query'
 import { indexGitHubRepository } from '../utils/repository-index'
 import { likeIndexedSkills } from '../utils/repository-index-likes'
-import { matchTypeahead } from '../utils/skill-typeahead'
+import { matchTypeahead, matchTypeaheadRepositories } from '../utils/skill-typeahead'
 
 /** Debounce before hitting the network. Local hits render with no delay. */
 const QUERY_DEBOUNCE_MS = 180
-const RESULT_LIMIT = 7
+/**
+ * A sentence waits a little longer. Each pause mid-sentence would otherwise
+ * ask the server to understand a half-typed request.
+ */
+const INTENT_DEBOUNCE_MS = 350
+const RESULT_LIMIT = 6
+const REPOSITORY_LIMIT = 2
 const RECENT_LIMIT = 5
 
 export interface SearchAlternateSource {
@@ -41,14 +49,21 @@ export interface SearchSkill {
   alternateSources?: SearchAlternateSource[]
 }
 
+/** A Repository in the registry. Its row opens the Repository page. */
+export type SearchRepository = TypeaheadRepository
+
 /**
  * A row the user can move focus onto. Keeping the trailing "see everything"
  * action in the same list as the results means one arrow-key model covers the
  * whole panel instead of two.
+ *
+ * `repository` is a Repository the registry holds. `index` is the action for
+ * one it does not hold yet.
  */
 export type SearchRow
   = | { _tag: 'skill', skill: SearchSkill, provisional: boolean }
-    | { _tag: 'repository', repository: GitHubRepository }
+    | { _tag: 'repository', repository: SearchRepository }
+    | { _tag: 'index', repository: GitHubRepository }
     | { _tag: 'all', query: string }
 
 /**
@@ -80,10 +95,14 @@ export type RepositoryIndexTask
     }
     | { _tag: 'failed', repository: GitHubRepository, reason: string }
 
+/**
+ * `ready.repository` is set when the query named a Repository the registry
+ * holds. `repository` is the index flow for one it does not hold yet.
+ */
 export type SearchState
   = | { _tag: 'empty' }
     | { _tag: 'loading', rows: SearchRow[] }
-    | { _tag: 'ready', rows: SearchRow[], total: number, mode?: SearchMode }
+    | { _tag: 'ready', rows: SearchRow[], total: number, mode?: SearchMode, repository: SearchRepository | null }
     | { _tag: 'error', error: unknown }
     | {
       _tag: 'repository'
@@ -91,12 +110,6 @@ export type SearchState
       status: RepositorySearchStatus
       rows: SearchRow[]
     }
-
-interface SkillsResponse {
-  items: SearchSkill[]
-  total: number
-  mode?: SearchMode
-}
 
 function hitToSkill(hit: TypeaheadHit): SearchSkill {
   return {
@@ -113,12 +126,44 @@ function skillKey(skill: Pick<SearchSkill, 'owner' | 'repo' | 'name'>): string {
   return `${skill.owner}/${skill.repo}/${skill.name}`
 }
 
+/** The text the local Repository index matches: a name, or a login without its `@`. */
+function repositoryMatchText(query: SkillSearchQuery): string {
+  if (query._tag === 'name')
+    return query.text
+  if (query._tag === 'owner')
+    return query.login
+  return ''
+}
+
+/**
+ * Where "See all results" goes. A sentence keeps the semantic lane on
+ * `/skills`, so the full list answers the way the panel did.
+ */
+export function searchResultsRoute(term: string): { path: '/skills', query?: Record<string, string> } {
+  const query = classifySearchQuery(term)
+  if (query._tag === 'empty')
+    return { path: '/skills' }
+  if (query._tag === 'owner')
+    return { path: '/skills', query: { owner: query.login } }
+  if (query._tag === 'intent')
+    return { path: '/skills', query: { q: term, ai: '1' } }
+  return { path: '/skills', query: { q: term } }
+}
+
+/** The DOM id of one grid cell, shared by the panel and the combobox. */
+export function searchCellId(index: number, column: 0 | 1): string {
+  return column === 0 ? `skill-search-row-${index}` : `skill-search-row-${index}-run`
+}
+
 function useSkillSearchInternal() {
   const { isAuthenticated } = useAuth()
   const { ensureLiked } = useLikes()
   const query = ref('')
   const open = ref(false)
-  const activeIndex = ref(0)
+  /** The highlighted row, or -1 for none. Set by the arrow keys or the pointer. */
+  const activeIndex = ref(-1)
+  /** 0 is the row itself, 1 its run chip. Only Skill rows have a run chip. */
+  const activeColumn = ref<0 | 1>(0)
 
   const recentSearches = useLocalStorage<string[]>('skilld:recent-searches', [])
 
@@ -143,10 +188,10 @@ function useSkillSearchInternal() {
   }
 
   const trimmedQuery = computed(() => query.value.trim())
-  const repository = computed<GitHubRepository | null>(() => {
-    const parsed = parseGitHubRepositoryUrl(trimmedQuery.value)
-    return parsed._tag === 'repository' ? parsed : null
-  })
+  const classified = computed(() => classifySearchQuery(trimmedQuery.value))
+  const repository = computed<GitHubRepository | null>(() =>
+    classified.value._tag === 'repository' ? classified.value.repository : null,
+  )
   const repositoryTask = shallowRef<RepositoryIndexTask>({ _tag: 'idle' })
   const repositoryModalOpen = ref(false)
   let repositoryAttempt = 0
@@ -162,20 +207,30 @@ function useSkillSearchInternal() {
     return { _tag: 'error', reason: task.reason }
   }
 
-  /** Instant, network-free matches for the query as currently typed. */
-  const localRows = computed<SearchRow[]>(() =>
-    matchTypeahead(typeaheadIndex.value, repository.value ? '' : trimmedQuery.value, RESULT_LIMIT)
-      .map(hit => ({ _tag: 'skill', skill: hitToSkill(hit), provisional: true })),
+  /** Repositories the local index matches, for a name or a login. */
+  const localRepositoryRows = computed<SearchRow[]>(() =>
+    matchTypeaheadRepositories(typeaheadIndex.value, repositoryMatchText(classified.value), REPOSITORY_LIMIT)
+      .map(match => ({ _tag: 'repository', repository: match })),
   )
 
-  const serverResults = shallowRef<SkillsResponse | null>(null)
+  /** Instant, network-free matches for the query as currently typed. */
+  const localRows = computed<SearchRow[]>(() => {
+    const kind = classified.value._tag
+    if (kind === 'repository' || kind === 'empty')
+      return []
+    const skills = matchTypeahead(typeaheadIndex.value, kind === 'owner' ? '' : trimmedQuery.value, RESULT_LIMIT)
+      .map(hit => ({ _tag: 'skill' as const, skill: hitToSkill(hit), provisional: true }))
+    return [...localRepositoryRows.value, ...skills]
+  })
+
+  const serverResults = shallowRef<SkillBoxSearchAnswer | null>(null)
   const serverError = shallowRef<unknown>(null)
   const pending = ref(false)
   let inFlight: AbortController | null = null
 
   async function runSearch(term: string): Promise<void> {
     inFlight?.abort()
-    if (!term || parseGitHubRepositoryUrl(term)._tag === 'repository') {
+    if (!term) {
       serverResults.value = null
       serverError.value = null
       pending.value = false
@@ -188,7 +243,7 @@ function useSkillSearchInternal() {
     serverError.value = null
 
     try {
-      const res = await $fetch<SkillsResponse>('/api/skills', {
+      const res = await $fetch<SkillBoxSearchAnswer>('/api/skills/search', {
         query: { q: term, limit: RESULT_LIMIT },
         signal: controller.signal,
       })
@@ -213,11 +268,15 @@ function useSkillSearchInternal() {
 
   watchDebounced(trimmedQuery, (term) => {
     void runSearch(term)
-  }, { debounce: QUERY_DEBOUNCE_MS, flush: 'sync' })
+  }, {
+    debounce: () => classified.value._tag === 'intent' ? INTENT_DEBOUNCE_MS : QUERY_DEBOUNCE_MS,
+    flush: 'sync',
+  })
 
   // Invalidate on input, before debounce. Old results must never remain selectable.
   watch(trimmedQuery, () => {
-    activeIndex.value = 0
+    activeIndex.value = -1
+    activeColumn.value = 0
     inFlight?.abort()
     inFlight = null
     serverResults.value = null
@@ -230,12 +289,16 @@ function useSkillSearchInternal() {
     if (!term)
       return { _tag: 'empty' }
 
+    // A Repository being indexed from this box shows its progress, whatever
+    // the server said about it before the index started.
     const repositoryValue = repository.value
-    if (repositoryValue) {
-      const status = statusForRepository(repositoryValue)
-      const repositoryRows: SearchRow[] = status._tag === 'idle'
-        ? [{ _tag: 'repository', repository: repositoryValue }]
-        : status._tag === 'indexed'
+    const status = repositoryValue ? statusForRepository(repositoryValue) : null
+    if (repositoryValue && status && status._tag !== 'idle') {
+      return {
+        _tag: 'repository',
+        repository: repositoryValue,
+        status,
+        rows: status._tag === 'indexed'
           ? status.skills.map(skill => ({
               _tag: 'skill' as const,
               provisional: false,
@@ -247,12 +310,7 @@ function useSkillSearchInternal() {
                 registryPath: skill.registryPath,
               },
             }))
-          : []
-      return {
-        _tag: 'repository',
-        repository: repositoryValue,
-        status,
-        rows: repositoryRows,
+          : [],
       }
     }
 
@@ -266,11 +324,35 @@ function useSkillSearchInternal() {
       return { _tag: 'loading', rows: localRows.value }
     }
 
-    const rows: SearchRow[] = server.items
+    const skillRows: SearchRow[] = server.items
       .map(skill => ({ _tag: 'skill' as const, skill, provisional: false }))
-    if (rows.length)
+
+    if (server.repository?._tag === 'not-indexed') {
+      const { owner, repo, url } = server.repository
+      const target: GitHubRepository = repositoryValue ?? { _tag: 'repository', owner, repo, url }
+      return {
+        _tag: 'repository',
+        repository: target,
+        status: { _tag: 'idle' },
+        rows: [{ _tag: 'index', repository: target }, ...skillRows],
+      }
+    }
+
+    if (server.repository?._tag === 'indexed') {
+      const { owner, repo, stars, skillCount, registryPath } = server.repository
+      const repositoryRow: SearchRepository = { owner, repo, stars, skillCount, registryPath }
+      return {
+        _tag: 'ready',
+        rows: [{ _tag: 'repository', repository: repositoryRow }, ...skillRows],
+        total: skillCount,
+        repository: repositoryRow,
+      }
+    }
+
+    const rows: SearchRow[] = [...localRepositoryRows.value, ...skillRows]
+    if (skillRows.length)
       rows.push({ _tag: 'all', query: term })
-    return { _tag: 'ready', rows, total: server.total, mode: server.mode }
+    return { _tag: 'ready', rows, total: server.total, mode: server.mode ?? undefined, repository: null }
   })
 
   const rows = computed<SearchRow[]>(() =>
@@ -283,7 +365,7 @@ function useSkillSearchInternal() {
 
   watch(rows, (next) => {
     if (activeIndex.value > next.length - 1)
-      activeIndex.value = Math.max(0, next.length - 1)
+      activeIndex.value = next.length - 1
   })
 
   const activeRow = computed<SearchRow | null>(() => rows.value[activeIndex.value] ?? null)
@@ -292,7 +374,11 @@ function useSkillSearchInternal() {
     const count = rows.value.length
     if (!count)
       return
-    activeIndex.value = (activeIndex.value + delta + count) % count
+    activeIndex.value = activeIndex.value < 0
+      ? (delta > 0 ? 0 : count - 1)
+      : (activeIndex.value + delta + count) % count
+    if (rows.value[activeIndex.value]?._tag !== 'skill')
+      activeColumn.value = 0
   }
 
   function rememberQuery(term: string): void {
@@ -308,7 +394,8 @@ function useSkillSearchInternal() {
 
   function reset(): void {
     query.value = ''
-    activeIndex.value = 0
+    activeIndex.value = -1
+    activeColumn.value = 0
   }
 
   async function submitRepository(repositoryValue: GitHubRepository): Promise<void> {
@@ -389,9 +476,11 @@ function useSkillSearchInternal() {
     open,
     repositoryModalOpen,
     repositoryTask,
+    classified,
     state,
     rows,
     activeIndex,
+    activeColumn,
     activeRow,
     recentSearches,
     move,
