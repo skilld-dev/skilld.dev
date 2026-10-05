@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runExternalChecks } from '@harlan-zw/nuxt-checkin/external'
+import Database from 'better-sqlite3'
 import { afterEach, expect, it, vi } from 'vitest'
 import analyticsCheck from '../../checks/external/analytics'
 import ciCheck from '../../checks/external/ci'
@@ -23,13 +24,19 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-it('shares deployment and database evidence without blocking nested collectors', async () => {
+it.each([
+  [10, false, true],
+  [390, false, true],
+  [391, true, true],
+  [400, true, true],
+  [10, null, false],
+])('reports discovery exhaustion after %i returned reads', async (readsToday, exhausted, hasMinimum) => {
   const now = new Date('2026-09-14T00:00:00Z')
   const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-'))
   roots.push(root)
   await mkdir(join(root, 'shared/server'), { recursive: true })
   await mkdir(join(root, 'migrations'))
-  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400')
+  await writeFile(join(root, 'shared/server/x-ingest.ts'), `export const DAILY_DISCOVERY_READ_BUDGET = 400${hasMinimum ? '\nconst MIN_SEARCH_PAGE_SIZE = 10' : ''}`)
   await writeFile(join(root, 'migrations/001.sql'), '')
   boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
     let output: unknown = ''
@@ -56,17 +63,51 @@ it('shares deployment and database evidence without blocking nested collectors',
       else if (sql.includes('AS newly_broken_repos_total'))
         rows = [{ newly_broken_repos_total: 0, stale_reserved_jobs: 0 }]
       else if (sql.includes('AS ai_cost_usd'))
-        rows = [{ x_discovery_reads_today: 10, x_hot_posts: 0 }]
+        rows = [{ x_discovery_reads_today: readsToday, x_hot_posts: 0 }]
       output = [{ success: true, results: rows }]
     }
     return { _tag: 'Ok', stdout: JSON.stringify(output), stderr: '' }
   })
   const checks = [gitCheck, deployCheck, databaseCheck]
   const result = await runExternalChecks(checks, { required: checks.map(check => check.id), timeoutMs: 1000, totalTimeoutMs: 1500 }, { rootDir: root, env: {}, clock: () => now })
-  expect(result.report).toMatchObject({ severity: 'pass', coverage: 'complete' })
+  expect(result.report.coverage).toBe(hasMinimum ? 'complete' : 'incomplete')
   expect(result.report.results.find(check => check.id === 'skilld.database')?.result).toMatchObject({ evidence: { inventory: { skills: 23 } } })
+  expect(result.report.results.find(check => check.id === 'skilld.database')?.result).toMatchObject({ evidence: { cost: { x_falling_behind: exhausted } } })
+  if (!hasMinimum)
+    expect(result.report.results.find(check => check.id === 'skilld.database')?.result).toMatchObject({ evidence: { cost: { x_over_budget: null, x_budget_target: null } } })
   expect(boundary.command.mock.calls.filter(([, command, args]) => command === 'git' && args[0] === 'fetch')).toHaveLength(1)
   expect(boundary.command.mock.calls.filter(([, , args]) => args.includes('SELECT name FROM sqlite_master WHERE type = \'table\' ORDER BY name'))).toHaveLength(1)
+})
+
+it('counts only X Posts observed within the UTC day at the check time', async () => {
+  const now = new Date('2026-10-05T10:00:00Z')
+  const root = await mkdtemp(join(tmpdir(), 'skilld-checkin-x-observed-'))
+  roots.push(root)
+  await mkdir(join(root, 'shared/server'), { recursive: true })
+  await mkdir(join(root, 'migrations'))
+  await writeFile(join(root, 'shared/server/x-ingest.ts'), 'export const DAILY_DISCOVERY_READ_BUDGET = 400\nconst MIN_SEARCH_PAGE_SIZE = 10')
+  const db = new Database(':memory:')
+  db.exec(`
+    CREATE TABLE x_posts (post_id TEXT, platform TEXT, refresh_tier TEXT, first_seen_at INTEGER, posted_at INTEGER);
+    CREATE TABLE x_post_metrics (post_id TEXT, observed_at INTEGER);
+    INSERT INTO x_posts VALUES ('x-one', 'x', 'frozen', 0, 0), ('bsky-one', 'bsky', 'frozen', 0, 0), ('x-future', 'x', 'frozen', 0, 0), ('x-old', 'x', 'frozen', 0, 0);
+    INSERT INTO x_post_metrics VALUES
+      ('x-one', unixepoch('2026-10-05T08:00:00Z')),
+      ('x-one', unixepoch('2026-10-05T09:00:00Z')),
+      ('bsky-one', unixepoch('2026-10-05T09:00:00Z')),
+      ('x-future', unixepoch('2026-10-05T11:00:00Z')),
+      ('x-old', unixepoch('2026-10-04T23:59:59Z'));
+  `)
+  boundary.command.mockImplementation(async (_context, command: string, args: string[]) => {
+    if (command === 'git')
+      return { _tag: 'Ok', stdout: args[0] === 'rev-parse' ? 'abc' : '', stderr: '' }
+    const sql = args[args.indexOf('--command') + 1]!
+    const rows = db.prepare(sql).all()
+    return { _tag: 'Ok', stdout: JSON.stringify([{ success: true, results: rows }]), stderr: '' }
+  })
+  const { report } = await runExternalChecks([databaseCheck], { required: [databaseCheck.id] }, { rootDir: root, env: {}, clock: () => now })
+  db.close()
+  expect(report.results[0]?.result).toMatchObject({ evidence: { cost: { x_observed_posts_today: 1 } } })
 })
 
 it('rejects oversized Worker analytics evidence', async () => {

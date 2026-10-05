@@ -22,16 +22,19 @@ Interpret this site evidence:
     },
     {
       id: 'skilld.spend',
-      prompt: `- X API is pay-per-use at $0.005 per post read, with no included allowance and a $40/month accepted line. Gate on \`d1.cost\`:
-     - \`x_over_budget\` true is AMBER. The daily discovery read ceiling failed to hold. Investigate before inferring billed spend.
-     - \`x_projected_monthly_usd\` above 40 is AMBER, above 60 is RED, even when \`x_over_budget\` is false. Harlan raised the accepted line from $30 to $40 on 2026-09-07 (issue #160). Report the figure every run, not only when it breaches.
-     - \`x_budget_used_pct\` at 100 on consecutive days means discovery is truncating. Check cursor progress and repeated pages before calling it steady state.
-     - \`x_discovery_reads_today\` counts returned posts, including repeats. X normally charges once per resource per UTC day. The monthly projection extrapolates today's returns plus hot posts for 30 days. Report it as an upper-bound estimate, never billed spend. A catch-up burst does not establish the steady rate.
-     - \`x_posts_24h\` counts newly stored posts, including posts without repo references. A large gap from returned reads can indicate replay. Check continuation and cursor progress before proposing query tuning.`,
+      prompt: `- X API lists $0.005 per Post and $0.010 per User. The accepted monthly line is $40, recorded in #160.
+     - X usually deduplicates resource charges within each UTC day. This guarantee has exceptions: https://docs.x.com/x-api/getting-started/pricing.
+     - \`x_over_budget\` true is AMBER: discovery exceeded its returned-read ceiling. Null means the ceiling evidence is unavailable.
+     - \`x_projected_monthly_usd\` above 40 is AMBER; above 60 is RED. Report it as a conservative Post-only estimate. Actual billing and User expansion charges are unavailable.
+     - \`x_falling_behind\` warns that fewer reads remain than X's minimum request size. Exhaustion alone does not prove unread results remain.
+     - If \`x_budget_used_pct\` reaches 100 on consecutive days, check continuation, cursor progress, and repeated pages. A catch-up burst does not establish the steady rate.
+     - \`x_discovery_reads_today\` counts returned Posts, including repeated IDs. It is not billed usage.
+     - \`x_observed_posts_today\` counts distinct X Posts observed by discovery or refresh within the current UTC day. It is not billed usage.
+     - \`x_posts_24h\` counts newly stored Posts over a rolling 24 hours, including Posts without Repository links. These windows differ. Never infer discarded Posts or invoice charges from their gap. Check continuation and cursor progress before proposing query tuning.`,
     },
     {
       id: 'skilld.pulse',
-      prompt: `Include a Pulse section with users, skills, repo changes, command copies split as run and install, digests, known AI cost, and X as "$X.XX/mo upper-bound estimate (N/<x_budget_target> returned reads today)". Read these values from collected evidence. Include deploy and CI changes in Overnight. Include migration, schema, deploy SHA, stale task, and observability gaps in Drift.`,
+      prompt: `Include a Pulse section with users, skills, repo changes, command copies split as run and install, digests, known AI cost, and X spend as "$X.XX/mo Post-only estimate (N/<x_budget_target> returned reads today)". State that actual billing is unavailable. Read these values from collected evidence. Include deploy and CI changes in Overnight. Include migration, schema, deploy SHA, stale task, and observability gaps in Drift.`,
     },
     {
       id: 'skilld.seo-recovery',
