@@ -133,7 +133,9 @@ const codeClass = 'font-mono text-xs text-default'
 <template>
   <div class="cli-page">
     <section class="editorial-band cli-hero" aria-labelledby="cli-heading">
-      <!-- The band's one texture. The mask keeps the names clear of the copy. -->
+      <!-- The band's one texture, in stone only: the "Teach your agent skilld"
+           chip's dot is the band's one rose element (DESIGN.md "Brand
+           System"). The mask keeps the names clear of the copy. -->
       <div class="cli-hero__texture" aria-hidden="true">
         <TextureBrailleNames />
       </div>
@@ -164,7 +166,7 @@ const codeClass = 'font-mono text-xs text-default'
             </div>
             <div class="cli-hero__action">
               <span class="cli-hero__label">Install the CLI</span>
-              <CliInstallChip surface="cli-hero" />
+              <CliInstallChip surface="cli-hero" quiet />
             </div>
           </div>
         </div>
@@ -418,7 +420,9 @@ const codeClass = 'font-mono text-xs text-default'
 
 /* Below 64rem the names run as a strip under the chips. The band's bottom
    padding keeps that strip clear of text. */
+/* Stone only, as on the home hero: the pick draws in muted ink, not rose. */
 .cli-hero__texture {
+  --brand-dot: var(--ui-text-muted);
   position: absolute;
   inset-inline: 0;
   bottom: 0;
