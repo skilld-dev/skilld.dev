@@ -74,7 +74,7 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
       </p>
       <UButton v-if="accountError" label="Retry" color="neutral" variant="outline" class="mt-4 min-h-11" :loading="accountStatus === 'pending'" @click="retryAccount()" />
     </div>
-    <form v-else id="email-onboarding-form" class="mt-6 space-y-4" @submit.prevent="finish">
+    <form v-else id="email-onboarding-form" novalidate class="mt-6 space-y-4" @submit.prevent="finish">
       <div>
         <label for="email" class="font-mono text-sm text-muted">Email address</label>
         <input
