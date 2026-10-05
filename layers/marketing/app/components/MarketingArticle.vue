@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { PageCollectionItemBase } from '@harlan-zw/comark-content'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 
 /** Front matter fields the marketing article schema adds to the base page. */
 type MarketingArticlePage = PageCollectionItemBase & {
   heading?: string
   label?: string
   author?: string
+  authorGithub?: string
   command?: string
   cta?: { label: string, to: string }
 }
@@ -38,9 +40,19 @@ function copyCommand(): void {
       <p class="mt-5 max-w-2xl text-base leading-relaxed text-muted text-pretty">
         {{ page.description }}
       </p>
-      <p v-if="dataLine" class="data-label mt-4">
-        {{ dataLine }}
-      </p>
+      <div v-if="dataLine" class="mt-4 flex items-center gap-3">
+        <img
+          v-if="page.author && page.authorGithub"
+          :src="githubAvatarProxyUrl(page.authorGithub, 80)"
+          alt=""
+          width="40"
+          height="40"
+          class="size-10 shrink-0 rounded-full"
+        >
+        <p class="data-label">
+          {{ dataLine }}
+        </p>
+      </div>
 
       <div
         v-if="page.command"
@@ -81,13 +93,22 @@ function copyCommand(): void {
   background: var(--ui-bg);
 }
 
-.learn-article :deep(a) {
+.learn-article :deep(a:not(:where(.not-prose, .not-prose *))) {
   color: var(--ui-text);
+  text-decoration-line: underline;
   text-decoration-color: var(--ui-color-primary-500);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
 }
 
-.learn-article :deep(a:hover) {
+.learn-article :deep(a:not(:where(.not-prose, .not-prose *)):hover) {
   color: var(--ui-text-muted);
+  text-decoration-thickness: 2px;
+}
+
+.learn-article :deep(a:not(:where(.not-prose, .not-prose *)):focus-visible) {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 3px;
 }
 
 /* Native article diagrams retain readable, server-rendered text in both themes. */

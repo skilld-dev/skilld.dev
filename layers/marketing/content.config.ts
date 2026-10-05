@@ -14,6 +14,7 @@ const articleSchema = z.object({
   heading: z.string().optional(),
   label: z.string().optional(),
   author: z.string().optional(),
+  authorGithub: z.string().optional(),
   command: z.string().optional(),
   cta: z.object({ label: z.string(), to: z.string() }).optional(),
   publishedAt: z.string().optional(),

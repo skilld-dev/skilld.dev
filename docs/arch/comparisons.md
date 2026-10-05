@@ -29,6 +29,9 @@ flowchart LR
 No live registry join is needed to render an article.
 If future articles need registry data, read it over HTTP.
 Keep prose, evidence, and selection reasons in the article, outside registry rows.
+`ComparisonSkillCard` renders the shared `SkillCard` from the article's editorial snapshot.
+Keep its exact Skill route and pinned source beside the overview. Omit live counts and freshness.
+Article `authorGithub` supplies an optional avatar through the existing same-origin image proxy.
 
 ## Authoring contract
 
@@ -39,7 +42,7 @@ Keep prose, evidence, and selection reasons in the article, outside registry row
 5. If delivery fails, inspect pinned public source independently. Describe the method without claiming a successful run.
 6. If checks block delivery, keep that constraint beside the candidate. Do not suggest bypassing checks.
 7. Filter candidates before writing. Keep meaningful choices; retain the wider source ledger in the work brief.
-8. Write the decision table, meaningful tradeoffs, and conditional recommendations before background material.
+8. Introduce the choice, then describe each featured Skill with its card before the decision table and supporting sections.
 9. Review material claims against the sources, then review voice against COPY and GLOSSARY.
 
 Frontmatter requires `targetQuery`, `reviewedAt`, `reviewDueAt`, `scope`, `methodology`, `disclosure`, and `sources`.
