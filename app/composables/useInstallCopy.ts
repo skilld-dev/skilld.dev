@@ -38,7 +38,8 @@ export type InstallCopyMode = 'run' | 'install'
 export function useInstallCopy(
   source: MaybeRefOrGetter<string>,
   surface: string,
-  mode: InstallCopyMode,
+  /** A getter lets one control copy either grammar, as the run chip switch does. */
+  mode: MaybeRefOrGetter<InstallCopyMode>,
   target: MaybeRefOrGetter<InstallTarget | null>,
 ) {
   const { copy: rawCopy, copied, isSupported } = useClipboard({
@@ -49,6 +50,8 @@ export function useInstallCopy(
 
   async function copy(value?: string): Promise<InstallCopyResult> {
     const t = toValue(target)
+    // Read before the await, so a switch flipped mid-copy cannot relabel it.
+    const copiedMode = toValue(mode)
     if (!t)
       return { _tag: 'error', message: 'Install target unavailable.' }
 
@@ -69,7 +72,7 @@ export function useInstallCopy(
       method: 'POST',
       body: {
         surface,
-        mode,
+        mode: copiedMode,
         kind: t.kind,
         ...(t.kind === 'skill'
           ? { owner: t.owner, name: t.name }
