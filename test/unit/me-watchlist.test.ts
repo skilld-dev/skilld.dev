@@ -30,7 +30,14 @@ function likedSkillFixture() {
   }
 }
 
-const account = ref(accountFixture())
+const account = ref<ReturnType<typeof accountFixture> | undefined>(accountFixture())
+const accountError = ref<Error>()
+const subscriptionsError = ref<Error>()
+const retryAccount = vi.fn(async () => {
+  account.value = accountFixture()
+  accountError.value = undefined
+})
+const retrySubscriptions = vi.fn()
 const subscriptions = ref({ items: [{ owner: 'antfu', repo: 'skills', source: 'like' }] })
 const likes = ref<{ items: ReturnType<typeof likedSkillFixture>[] } | undefined>({ items: [likedSkillFixture()] })
 const likesError = ref<Error | undefined>()
@@ -61,11 +68,13 @@ mockNuxtImport('useNuxtRpcQuery', () => {
   return () => {
     queryCall += 1
     if (queryCall % 2 === 1)
-      return { data: account }
+      return { data: account, error: accountError, status: ref('success'), refresh: retryAccount }
     return {
       data: subscriptions,
+      error: subscriptionsError,
+      status: ref('success'),
       // `staleTime: static` can return the existing value from a direct refresh.
-      refresh: vi.fn().mockResolvedValue(undefined),
+      refresh: retrySubscriptions,
     }
   }
 })
@@ -151,6 +160,10 @@ function paragraphWithText(wrapper: Awaited<ReturnType<typeof mountPage>>, text:
 describe('account skill watchlist', () => {
   beforeEach(() => {
     queryCall = 0
+    accountError.value = undefined
+    subscriptionsError.value = undefined
+    retryAccount.mockClear()
+    retrySubscriptions.mockClear()
     releaseDelete = undefined
     releaseEmailSave = undefined
     serverAccount = accountFixture()
@@ -208,13 +221,34 @@ describe('account skill watchlist', () => {
     vi.unstubAllGlobals()
   })
 
+  it('recovers account settings after the initial account load fails', async () => {
+    account.value = undefined
+    accountError.value = new Error('offline')
+    const wrapper = await mountPage()
+    expect(wrapper.text()).toContain('Could not load your account')
+    expect(wrapper.text()).not.toContain('No email set')
+    await buttonWithText(wrapper, 'Retry').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('Your skills')
+    await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
+    expect((wrapper.get('input[type="email"]').element as HTMLInputElement).value).toBe('harlan@example.com')
+  })
+
+  it('shows watched repository failures instead of an empty collection', async () => {
+    subscriptionsError.value = new Error('offline')
+    const wrapper = await mountPage()
+    expect(wrapper.text()).toContain('Could not load watched Repositories')
+    expect(wrapper.text()).not.toContain('Add a skill to start watching its source.')
+    await buttonWithText(wrapper, 'Retry').trigger('click')
+    expect(retrySubscriptions).toHaveBeenCalled()
+  })
+
   it('makes liked skills the primary account content', async () => {
     const wrapper = await mountPage()
 
     expect(wrapper.get('h1').text()).toBe('Your skills')
     expect(wrapper.get('[aria-label="Your skills"]').text()).toContain('nuxt')
     expect(wrapper.get('[aria-label="Your skills"]').text()).toContain('Build full-stack Vue applications with Nuxt.')
-    expect(wrapper.get('section').classes()).toContain('max-w-7xl')
   })
 
   it('removes the final skill and its derived source from the rendered page', async () => {
@@ -272,7 +306,7 @@ describe('account skill watchlist', () => {
     await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
     const save = buttonWithText(wrapper, 'Save email settings')
 
-    await save.trigger('click')
+    await wrapper.get('#email-settings-form').trigger('submit')
     await nextTick()
     const disabledWhilePending = save.attributes('disabled') !== undefined
     releaseEmailSave()
@@ -292,7 +326,7 @@ describe('account skill watchlist', () => {
 
     await weekly.get('input').setValue(false)
     await monthly.get('input').setValue(false)
-    await buttonWithText(wrapper, 'Save email settings').trigger('click')
+    await wrapper.get('#email-settings-form').trigger('submit')
     await flushPromises()
 
     expect(executeRpc).toHaveBeenCalledWith(

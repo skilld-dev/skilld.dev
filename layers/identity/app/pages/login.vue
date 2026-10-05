@@ -26,10 +26,9 @@ useSeoMeta({
 </script>
 
 <template>
-  <section class="mx-auto max-w-md px-4 sm:px-6 pt-16 pb-12 md:pt-24">
-    <div class="rounded-lg border border-default p-6 sm:p-8 text-center">
-      <UIcon name="i-lucide-github" class="mx-auto size-8 text-muted" aria-hidden="true" />
-      <h1 class="mt-3 font-mono text-lg font-medium">
+  <section class="mx-auto max-w-md px-4 sm:px-6 pt-10 pb-12 md:pt-16">
+    <div class="rounded-lg border border-default p-4 sm:p-5">
+      <h1 class="text-2xl font-semibold tracking-tight">
         Sign in to skilld
       </h1>
       <p class="mt-2 text-sm text-muted leading-relaxed">
@@ -42,13 +41,15 @@ useSeoMeta({
           label="Continue with GitHub"
           icon="i-lucide-github"
           trailing-icon="i-lucide-arrow-right"
-          size="sm"
+          size="md"
+          class="min-h-11"
           block
         />
       </div>
       <p
         v-if="error"
-        class="mt-3 text-xs text-error"
+        class="mt-4 text-sm text-error"
+        role="alert"
       >
         Couldn't complete sign-in. Try again.
       </p>

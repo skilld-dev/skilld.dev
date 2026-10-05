@@ -66,7 +66,7 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
   >
     <h1
       id="new-collection-heading"
-      class="font-mono text-2xl font-medium tracking-tight"
+      class="text-2xl font-semibold tracking-tight"
     >
       Publish a collection
     </h1>
@@ -76,16 +76,15 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
 
     <div
       v-if="!isAuthenticated"
-      class="mt-6 rounded-lg border border-default p-6 text-center"
+      class="mt-6 rounded-lg border border-default p-4"
     >
-      <UIcon name="i-lucide-github" class="mx-auto size-6 text-muted" aria-hidden="true" />
-      <p class="mt-3 text-sm">
+      <p class="text-sm">
         Sign in with GitHub to publish.
       </p>
       <UButton
         :to="githubLoginHref"
         external
-        class="mt-4"
+        class="mt-4 min-h-11"
         size="sm"
         label="Continue with GitHub"
         icon="i-lucide-github"
@@ -98,19 +97,19 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
       @submit.prevent="submit"
     >
       <div>
-        <label for="name" class="text-xs uppercase tracking-wide text-muted">Name</label>
+        <label for="name" class="font-mono text-sm text-muted">Name</label>
         <input
           id="name"
           v-model="name"
           required
           maxlength="120"
-          class="mt-1 w-full rounded border border-default bg-default px-3 py-2 font-mono text-sm"
+          class="mt-2 min-h-11 w-full rounded-lg border border-default bg-default px-3 py-2 font-mono text-sm"
           placeholder="My Stack"
         >
       </div>
 
       <div>
-        <label for="slug" class="text-xs uppercase tracking-wide text-muted">Slug</label>
+        <label for="slug" class="font-mono text-sm text-muted">Slug</label>
         <div class="mt-1 flex items-center gap-2">
           <span class="font-mono text-xs text-muted">/@{{ user?.login }}/</span>
           <input
@@ -118,33 +117,34 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
             v-model="slug"
             required
             pattern="[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?"
-            class="flex-1 rounded border border-default bg-default px-3 py-2 font-mono text-sm"
+            class="min-h-11 min-w-0 flex-1 rounded-lg border border-default bg-default px-3 py-2 font-mono text-sm"
             placeholder="my-stack"
           >
         </div>
       </div>
 
       <div>
-        <label for="preamble" class="text-xs uppercase tracking-wide text-muted">Preamble (optional)</label>
+        <label for="preamble" class="font-mono text-sm text-muted">Preamble (optional)</label>
         <textarea
           id="preamble"
           v-model="preamble"
           rows="4"
           maxlength="4000"
-          class="mt-1 w-full rounded border border-default bg-default px-3 py-2 text-sm"
+          class="mt-2 w-full rounded-lg border border-default bg-default px-3 py-2 text-sm"
           placeholder="A few sentences on what this collection is for."
         />
       </div>
 
       <div>
         <div class="flex items-center justify-between">
-          <span class="text-xs uppercase tracking-wide text-muted">Skills</span>
+          <span class="font-mono text-sm text-muted">Skills</span>
           <UButton
             size="xs"
             color="neutral"
             variant="outline"
             icon="i-lucide-plus"
             label="Add"
+            class="min-h-11"
             @click="addSkill"
           />
         </div>
@@ -152,23 +152,25 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
           <li
             v-for="(s, i) in skills"
             :key="i"
-            class="flex items-center gap-2"
+            class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.5fr)_auto]"
           >
             <input
               v-model="s.owner"
               placeholder="owner"
-              class="w-32 rounded border border-default bg-default px-2 py-1 font-mono text-xs"
+              aria-label="Owner"
+              class="min-h-11 min-w-0 rounded-lg border border-default bg-default px-3 py-2 font-mono text-sm"
             >
-            <span class="font-mono text-xs text-muted">/</span>
             <input
               v-model="s.repo"
               placeholder="repo"
-              class="w-40 rounded border border-default bg-default px-2 py-1 font-mono text-xs"
+              aria-label="Repository"
+              class="min-h-11 min-w-0 rounded-lg border border-default bg-default px-3 py-2 font-mono text-sm"
             >
             <input
               v-model="s.reason"
               placeholder="Why this skill? (optional)"
-              class="flex-1 rounded border border-default bg-default px-2 py-1 text-xs"
+              aria-label="Reason (optional)"
+              class="col-span-3 row-start-2 min-h-11 min-w-0 rounded-lg border border-default bg-default px-3 py-2 text-sm sm:col-span-1 sm:row-auto"
             >
             <UButton
               size="xs"
@@ -176,6 +178,7 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
               variant="ghost"
               icon="i-lucide-x"
               aria-label="Remove skill"
+              class="min-h-11 min-w-11 justify-center"
               @click="removeSkill(i)"
             />
           </li>
@@ -197,12 +200,14 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
           variant="ghost"
           size="sm"
           label="Cancel"
+          class="min-h-11"
         />
         <UButton
           :loading="submitting"
           type="submit"
           size="sm"
           label="Publish"
+          class="min-h-11"
           trailing-icon="i-lucide-arrow-right"
         />
       </div>

@@ -15,14 +15,17 @@ const { variant = 'bar' } = defineProps<{
   variant?: 'bar' | 'menu'
 }>()
 
-const { state, logout } = useAuth()
+const { state, logout, isLoading } = useAuth()
+
+const route = useRoute()
+const signInTo = computed(() => route.path === '/login' ? route.fullPath : { path: '/login', query: { return_to: route.fullPath } })
 
 const accountItems = computed<DropdownMenuItem[]>(() => {
   if (state.value._tag !== 'signed-in')
     return []
   return [
     { label: `@${state.value.user.login}`, icon: 'i-lucide-user', to: '/me' },
-    { label: 'Sign out', icon: 'i-lucide-log-out', onSelect: () => { void logout() } },
+    { label: 'Sign out', disabled: isLoading.value, icon: 'i-lucide-log-out', onSelect: () => { void logout() } },
   ]
 })
 </script>
@@ -39,7 +42,7 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
     />
     <UButton
       v-else-if="state._tag === 'anonymous'"
-      to="/login"
+      :to="signInTo"
       label="Sign in"
       icon="i-lucide-github"
       color="neutral"
@@ -60,13 +63,12 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
         class="size-11 justify-center p-0"
         :aria-label="`Signed in as @${state.user.login}`"
       >
-        <img
+        <UAvatar
           :src="githubAvatarProxyUrl(state.user.login, 64)"
-          alt=""
-          width="28"
-          height="28"
-          class="size-7 rounded-full"
-        >
+          :alt="state.user.login"
+          size="xs"
+          class="size-7"
+        />
       </UButton>
     </LazyUDropdownMenu>
   </div>
@@ -82,7 +84,7 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
     />
     <UButton
       v-else-if="state._tag === 'anonymous'"
-      to="/login"
+      :to="signInTo"
       label="Sign in"
       icon="i-lucide-github"
       color="neutral"
@@ -107,6 +109,7 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
         variant="ghost"
         block
         class="min-h-11 justify-start"
+        :loading="isLoading"
         @click="() => { void logout() }"
       />
     </template>

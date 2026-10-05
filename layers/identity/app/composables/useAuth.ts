@@ -17,18 +17,31 @@ export type AuthState
 
 // Backed by nuxt-auth-utils useUserSession().
 export function useAuth() {
-  const { ready, loggedIn, user, clear, fetch: fetchSession } = useUserSession()
+  const { ready, loggedIn, user, session, fetch: fetchSession } = useUserSession()
   const state = computed<AuthState>(() => {
     if (!ready.value)
       return { _tag: 'pending' }
     return user.value ? { _tag: 'signed-in', user: user.value } : { _tag: 'anonymous' }
   })
   const isAuthenticated = computed(() => loggedIn.value)
-  const isLoading = ref(false)
+  const isLoading = useState('auth:logging-out', () => false)
+  const toast = useToast()
   async function logout() {
-    await $fetch('/api/auth/logout', { method: 'POST' })
-    await clear()
-    await navigateTo('/')
+    if (isLoading.value)
+      return
+    isLoading.value = true
+    const result = await $fetch('/api/auth/logout', { method: 'POST', retry: false })
+      .then(() => ({ _tag: 'ok' as const }))
+      .catch((cause: unknown) => ({ _tag: 'err' as const, cause }))
+    isLoading.value = false
+    if (result._tag === 'err') {
+      console.warn('[logout]', result.cause)
+      toast.add({ title: 'Could not sign out', description: 'Check your connection and try again.', color: 'error' })
+      return
+    }
+    session.value = null
+    removeNuxtQueries()
+    await navigateTo('/', { external: true })
   }
   function loginUrl(opts: { returnTo?: string, action?: string } = {}): string {
     const params = new URLSearchParams()
