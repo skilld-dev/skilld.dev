@@ -637,7 +637,8 @@ const TEST_SCHEMA = `
     owner TEXT NOT NULL,
     repo TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'manual',
-    muted_until INTEGER
+    muted_until INTEGER,
+    created_at INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE skill_likes (
     user_id INTEGER NOT NULL,

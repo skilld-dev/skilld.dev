@@ -86,6 +86,7 @@ const submitting = ref(false)
 async function watchSelected() {
   if (submitting.value || syncing.value)
     return
+  actionFailed.clear('start watching those repos')
   if (!selected.value.size) {
     await navigateTo('/onboarding/email')
     return
@@ -137,7 +138,8 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         Page {{ syncProgress.page || '…' }} · {{ syncProgress.total }} repos cached · {{ syncProgress.matched }} match the registry
       </span>
       <span v-else-if="data?.syncedAt" class="text-xs text-muted">
-        Last GitHub import {{ new Date(data.syncedAt * 1000).toLocaleString() }}
+        Last GitHub import
+        <NuxtTime :datetime="data.syncedAt * 1000" locale="en-AU" time-zone="UTC" date-style="medium" time-style="short" /> UTC
       </span>
     </div>
 

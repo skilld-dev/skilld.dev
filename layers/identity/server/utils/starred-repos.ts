@@ -20,14 +20,16 @@ export interface StarredRow {
 
 export async function loadStarredRows(db: D1Database, userId: number): Promise<StarredRow[]> {
   const res = await db.prepare(
-    `SELECT s.owner, s.repo, s.starred_at, s.has_skill,
-            CASE WHEN sub.user_id IS NULL THEN 0 ELSE 1 END as watching,
+    `SELECT COALESCE(r.owner, s.owner) AS owner, COALESCE(r.repo, s.repo) AS repo, s.starred_at,
+            CASE WHEN sk.name IS NULL THEN 0 ELSE 1 END AS has_skill,
+            EXISTS (SELECT 1 FROM skill_subscriptions sub WHERE sub.user_id = s.user_id
+              AND sub.owner = s.owner COLLATE NOCASE AND sub.repo = s.repo COLLATE NOCASE) AS watching,
             sk.name as skill_name, sk.display_name as skill_display, sk.slug as skill_slug
      FROM user_starred_repos s
-     LEFT JOIN skills sk ON sk.owner = s.owner AND sk.repo = s.repo
-     LEFT JOIN skill_subscriptions sub ON sub.user_id = s.user_id AND sub.owner = s.owner AND sub.repo = s.repo
+     LEFT JOIN repos r ON r.owner = s.owner COLLATE NOCASE AND r.repo = s.repo COLLATE NOCASE
+     LEFT JOIN skills sk ON sk.owner = r.owner AND sk.repo = r.repo
      WHERE s.user_id = ?1
-     ORDER BY s.has_skill DESC, s.starred_at DESC, sk.name
+     ORDER BY has_skill DESC, s.starred_at DESC, sk.name
      LIMIT 1000`,
   ).bind(userId).all<StarredRow>()
   return res.results ?? []
@@ -99,9 +101,11 @@ export async function importStarredPage(input: {
       const starredAt = Math.floor(new Date(it.starred_at).getTime() / 1000)
       return db.prepare(
         `INSERT OR REPLACE INTO user_starred_repos (user_id, owner, repo, starred_at, has_skill)
-         VALUES (?1, ?2, ?3, ?4,
+         VALUES (?1,
+           COALESCE((SELECT owner FROM repos WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE), ?2),
+           COALESCE((SELECT repo FROM repos WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE), ?3), ?4,
            (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
-            FROM skills WHERE owner = ?2 AND repo = ?3))`,
+            FROM skills WHERE owner = ?2 COLLATE NOCASE AND repo = ?3 COLLATE NOCASE))`,
       ).bind(userId, owner, repo, starredAt)
     })
     const chunk = 50

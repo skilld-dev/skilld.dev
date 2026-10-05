@@ -53,6 +53,7 @@ const removeSubscriptionMutation = useNuxtMutation<IdentitySubscriptionRef, Iden
     return result
   },
   onError: actionFailed('stop watching that repo'),
+  onMutate: () => actionFailed.clear('stop watching that repo'),
 })
 
 const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutationResponse>({
@@ -62,6 +63,7 @@ const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutati
     return result
   },
   onError: actionFailed('save your email settings'),
+  onMutate: () => actionFailed.clear('save your email settings'),
 })
 
 const savePrivacyMutation = useNuxtMutation<IdentityPrivacyPatchBody, IdentityMutationResponse>({
@@ -71,6 +73,7 @@ const savePrivacyMutation = useNuxtMutation<IdentityPrivacyPatchBody, IdentityMu
     return result
   },
   onError: actionFailed('save your privacy settings'),
+  onMutate: () => actionFailed.clear('save your privacy settings'),
 })
 async function setLikesPublic(likesPublic: boolean) {
   await savePrivacyMutation.mutateSafe({ likes_public: likesPublic })
@@ -87,6 +90,7 @@ const removeLikeMutation = useNuxtMutation<LikedSkill, { ok: true }>({
     return result
   },
   onError: actionFailed('remove that skill'),
+  onMutate: () => actionFailed.clear('remove that skill'),
 })
 const removingSkill = ref<string>()
 async function unlike(skill: LikedSkill) {
@@ -104,6 +108,7 @@ const syncMutation = useNuxtMutation<void, StarsSyncResponse>({
     return result
   },
   onError: actionFailed('sync your starred repos'),
+  onMutate: () => actionFailed.clear('sync your starred repos'),
 })
 async function sync() {
   await syncMutation.mutateSafe()

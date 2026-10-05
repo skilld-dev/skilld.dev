@@ -38,6 +38,8 @@ describe('post-OAuth like replay', () => {
       CREATE TABLE collection_skills_v2 (collection_id INTEGER, owner TEXT, repo TEXT, name TEXT);
       CREATE TABLE collections_v2 (id INTEGER PRIMARY KEY, slug TEXT, author_user_id INTEGER, deleted_at INTEGER);
       CREATE TABLE users (id INTEGER PRIMARY KEY, login TEXT);
+      CREATE TABLE repos (owner TEXT, repo TEXT, PRIMARY KEY (owner, repo));
+      INSERT INTO repos VALUES ('nuxt', 'ui');
     `)
 
     handleWatchAction = (await import('../../layers/identity/server/utils/watch-actions')).handleWatchAction
@@ -96,7 +98,9 @@ function wrapSqlite(sqlite: Database.Database) {
         bind(...params: unknown[]) {
           const prepared = expandNumberedPlaceholders(sql, params)
           return {
-            _run: () => sqlite.prepare(prepared.sql).run(...prepared.params),
+            _run: () => /^\s*SELECT/i.test(prepared.sql)
+              ? { results: sqlite.prepare(prepared.sql).all(...prepared.params) }
+              : { meta: { changes: sqlite.prepare(prepared.sql).run(...prepared.params).changes } },
             async run() {
               return sqlite.prepare(prepared.sql).run(...prepared.params)
             },

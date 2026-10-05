@@ -37,7 +37,8 @@ describe('digest selection', () => {
         owner TEXT,
         repo TEXT,
         source TEXT NOT NULL DEFAULT 'manual',
-        muted_until INTEGER
+        muted_until INTEGER,
+        created_at INTEGER NOT NULL DEFAULT 0
       );
       CREATE TABLE skill_likes (
         user_id INTEGER NOT NULL,
@@ -59,7 +60,7 @@ describe('digest selection', () => {
 
       INSERT INTO skills VALUES ('nuxt', 'nuxt', 'nuxt', 'Nuxt framework', 'blob-new', 'skills/nuxt/SKILL.md');
       INSERT INTO repos VALUES ('nuxt', 'nuxt', 'source', 'main');
-      INSERT INTO skill_subscriptions VALUES (1, 'nuxt', 'nuxt', 'manual', NULL);
+      INSERT INTO skill_subscriptions (user_id, owner, repo, source, muted_until) VALUES (1, 'nuxt', 'nuxt', 'manual', NULL);
       INSERT INTO activity VALUES (1, 'nuxt', 'nuxt', 'nuxt', 500, 1500, 'blob-old');
       INSERT INTO activity VALUES (2, 'nuxt', 'nuxt', 'nuxt', 1500, 1600, 'blob-new');
       INSERT INTO skill_revisions VALUES ('nuxt', 'nuxt', 'nuxt', 'commit-old', 500, 'old change');
@@ -130,7 +131,7 @@ describe('digest selection', () => {
       INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
       INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
       INSERT INTO repos VALUES ('nuxt', 'ui', 'source', 'main');
-      INSERT INTO skill_subscriptions VALUES (2, 'nuxt', 'ui', 'like', NULL);
+      INSERT INTO skill_subscriptions (user_id, owner, repo, source, muted_until) VALUES (2, 'nuxt', 'ui', 'like', NULL);
       INSERT INTO skill_likes VALUES (2, 'nuxt', 'ui', 'design-tokens', 1);
       INSERT INTO activity VALUES (10, 'nuxt', 'ui', 'design-tokens', 1500, 1600, 'a');
       INSERT INTO activity VALUES (11, 'nuxt', 'ui', 'motion', 1500, 1600, 'b');
@@ -156,7 +157,7 @@ describe('digest selection', () => {
       INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
       INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
       INSERT INTO repos VALUES ('nuxt', 'ui', 'source', 'main');
-      INSERT INTO skill_subscriptions VALUES (3, 'nuxt', 'ui', 'manual', NULL);
+      INSERT INTO skill_subscriptions (user_id, owner, repo, source, muted_until) VALUES (3, 'nuxt', 'ui', 'manual', NULL);
       INSERT INTO skill_likes VALUES (3, 'nuxt', 'ui', 'design-tokens', 1);
       INSERT INTO activity VALUES (10, 'nuxt', 'ui', 'design-tokens', 1500, 1600, 'a');
       INSERT INTO activity VALUES (11, 'nuxt', 'ui', 'motion', 1500, 1600, 'b');
@@ -179,7 +180,7 @@ describe('digest selection', () => {
       INSERT INTO skills VALUES ('nuxt', 'ui', 'design-tokens', 'Tokens', 'a', 'design-tokens/SKILL.md');
       INSERT INTO skills VALUES ('nuxt', 'ui', 'motion', 'Motion', 'b', 'motion/SKILL.md');
       INSERT INTO repos VALUES ('nuxt', 'ui', 'source', 'main');
-      INSERT INTO skill_subscriptions VALUES (4, 'nuxt', 'ui', 'like', NULL);
+      INSERT INTO skill_subscriptions (user_id, owner, repo, source, muted_until) VALUES (4, 'nuxt', 'ui', 'like', NULL);
       INSERT INTO skill_likes VALUES (4, 'nuxt', 'ui', 'design-tokens', 1);
       INSERT INTO activity VALUES (11, 'nuxt', 'ui', 'motion', 1500, 1600, 'b');
     `)

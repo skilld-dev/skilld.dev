@@ -30,7 +30,7 @@ mockNuxtImport('useFetch', () => () => ({ data: ref({ items: [] }), status: ref(
 mockNuxtImport('useNuxtRpc', () => () => ({ execute: mocks.execute, query: mocks.query }))
 mockNuxtImport('useAuth', () => () => ({ fetchSession: mocks.session }))
 mockNuxtImport('navigateTo', () => mocks.navigate)
-mockNuxtImport('useActionFailure', () => () => () => vi.fn())
+mockNuxtImport('useActionFailure', () => () => Object.assign(() => vi.fn(), { clear: vi.fn() }))
 mockNuxtImport('useNuxtMutation', () => (options: { mutation: (body?: unknown) => Promise<unknown> }) => ({
   pending: ref(false),
   mutateSafe: async (body?: unknown) => ({ _tag: 'ok', data: await options.mutation(body) }),
