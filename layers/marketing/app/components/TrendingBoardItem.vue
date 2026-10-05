@@ -69,7 +69,7 @@ const mentions = computed(() => {
           >
           <span v-if="row.subtitle" class="truncate">{{ row.subtitle }}</span>
           <span v-if="row.stars" class="shrink-0 tabular-nums">{{ `${row.stars.toLocaleString()} ★` }}</span>
-          <BrailleSpark v-if="mentions" :counts="mentions" unit="mentions in 7 days" />
+          <BrailleSpark v-if="mentions" :counts="mentions" period="in 7 days" />
           <TrendingStarSpark v-else-if="!isSocial" :points="row.starSeries" />
           <template v-if="row.reason._tag === 'reviewed'">
             <span class="shrink-0">{{ `${row.reason.skillCount.toLocaleString()} ${row.reason.skillCount === 1 ? 'skill' : 'skills'}` }}</span>
