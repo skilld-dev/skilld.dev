@@ -83,6 +83,7 @@ export async function selectDigestForUser(
      WHERE a.id > ?2 AND a.id <= ?3
        AND (sub.muted_until IS NULL OR sub.muted_until <= ?4)
        AND r.repo_kind != 'aggregator'
+       AND s.source_resolved = 1
        AND s.current_sha IS NOT NULL
        AND TRIM(s.current_sha) != ''
        AND s.rendered_skill_path IS NOT NULL
@@ -113,6 +114,7 @@ export async function selectDigestForUser(
        AND a.repo = ?3
        AND a.id > ?4
        AND a.id <= ?5
+       AND s.source_resolved = 1
        AND s.current_sha IS NOT NULL
        AND TRIM(s.current_sha) != ''
        AND s.rendered_skill_path IS NOT NULL
@@ -128,6 +130,7 @@ export async function selectDigestForUser(
        AND a.repo = ?2
        AND a.id > ?3
        AND a.id <= ?4
+       AND s.source_resolved = 1
        AND s.current_sha IS NOT NULL
        AND TRIM(s.current_sha) != ''
        AND s.rendered_skill_path IS NOT NULL
