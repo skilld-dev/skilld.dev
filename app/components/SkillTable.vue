@@ -102,12 +102,12 @@ function updatedLabel(skill: SkillRow): string {
           <span class="skill-table__skill">
             <span class="truncate font-mono text-sm">/{{ skill.name }}</span>
             <!--
-              The flame is decorative, so the meaning goes in text a screen
+              The spark is decorative, so the meaning goes in text a screen
               reader can reach. Without it the row says nothing about why this
               skill differs from the one above it.
             -->
             <span v-if="isTrending(skill)" class="shrink-0">
-              <span class="trending-fire" aria-hidden="true">🔥</span>
+              <TrendingMark />
               <span class="sr-only">Trending</span>
             </span>
           </span>

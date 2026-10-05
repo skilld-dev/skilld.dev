@@ -87,6 +87,35 @@ function nameAlso(postId: string, skill: { owner: string, repo: string, slug: st
   ).run(postId, skill.owner, skill.repo, skill.slug, skill.slug, NOW)
 }
 
+describe('mentions per day on a trending skill', () => {
+  it('counts each counted post on the rolling day it went out', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 'tdd', handle: 'p1', postedAt: NOW - HOUR })
+    mention({ owner: 'a', repo: 'r', slug: 'tdd', handle: 'p2', postedAt: NOW - 2 * HOUR })
+    mention({ owner: 'a', repo: 'r', slug: 'tdd', handle: 'p3', postedAt: NOW - 50 * HOUR })
+    // Below the likes floor, so it is not a counted mention and draws no bar.
+    mention({ owner: 'a', repo: 'r', slug: 'tdd', handle: 'p4', postedAt: NOW - 3 * HOUR, likes: 0 })
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.mentionsByDay).toEqual([0, 0, 0, 0, 1, 0, 2])
+  })
+
+  it('draws no mentions for a skill only a star surge put on the board', async () => {
+    db().raw.prepare(`INSERT INTO repos (owner, repo, stars) VALUES ('solo', 'one', 500)`).run()
+    db().raw.prepare(
+      `INSERT INTO skills (owner, repo, name, slug, display_name, source_resolved, rendered_skill_path)
+       VALUES ('solo', 'one', 'one', 'one', 'one', 1, 'SKILL.md')`,
+    ).run()
+    db().raw.prepare(
+      `INSERT INTO repo_star_surges (owner, repo, observed_day, latest_gain, baseline_gain, stars, detected_at)
+       VALUES ('solo', 'one', ${Math.floor((NOW - 86400) / 86400) * 86400}, 400, 5, 500, ${NOW - HOUR})`,
+    ).run()
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.slug).toBe('one')
+    expect(skill?.mentionsByDay).toBeNull()
+  })
+})
+
 describe('loadTrendingSkills ranking', () => {
   it('does not publish verified mentions before the Skill is indexed', async () => {
     mention({ owner: 'pending', repo: 'repo', slug: 'not-indexed', handle: 'p1', likes: 50 })

@@ -5,6 +5,7 @@ import {
   leaderboardBoardRows,
   resolveTrendingPage,
   resolveTrendingRange,
+  singleSkill,
   SKILLS_NOUN,
   TRENDING_RANGES,
   trendingRangeDescription,
@@ -184,6 +185,26 @@ describe('leaderboard rows on the trending board', () => {
 
   it('carries no posts, since a star ranking has none to show', () => {
     expect(leaderboardBoardRows([leaderboardRow()])[0]!.reason._tag).toBe('reviewed')
+  })
+
+  it('gives a run command target to a repository with one skill', () => {
+    expect(leaderboardBoardRows([leaderboardRow({ skillCount: 1 })])[0]!.skill)
+      .toEqual({ owner: 'anthropics', repo: 'skills', name: 'pdf-processing' })
+  })
+
+  it('gives no run command target when the skill was picked from several', () => {
+    expect(leaderboardBoardRows([leaderboardRow({ skillCount: 9 })])[0]!.skill).toBeNull()
+  })
+})
+
+describe('the skill a row may print a run command for', () => {
+  it('is the skill when its repository holds only that one', () => {
+    expect(singleSkill('pbakaus', 'impeccable', 'impeccable', 1))
+      .toEqual({ owner: 'pbakaus', repo: 'impeccable', name: 'impeccable' })
+  })
+
+  it.each([0, 2, 40])('is none when the repository holds %i skills', (count) => {
+    expect(singleSkill('mattpocock', 'skills', 'tdd', count)).toBeNull()
   })
 })
 

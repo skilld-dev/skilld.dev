@@ -131,11 +131,10 @@ watch(() => route.fullPath, () => {
           <div class="flex items-center justify-end gap-1.5 lg:flex-1">
             <SkillSearchTrigger v-if="$route.path !== '/'" />
             <!--
-            The flame is a deliberate exception to the "no emoji" rule in
-            DESIGN.md, asked for so Trending outweighs its siblings.
-            It is decorative and hidden from screen readers; the label carries
-            the meaning. `gap-1.5` because the button's own layout does not
-            space sibling spans, which rendered "🔥Trending" run together.
+            The braille spark makes Trending outweigh its siblings without an
+            emoji. It is decorative and hidden from screen readers; the label
+            carries the meaning. `gap-1.5` because the button's own layout
+            does not space sibling spans.
           -->
             <UButton
               to="/skills/trending"
@@ -144,7 +143,7 @@ watch(() => route.fullPath, () => {
               size="sm"
               class="hidden gap-1.5 whitespace-nowrap lg:inline-flex"
             >
-              <span class="trending-fire" aria-hidden="true">🔥</span>
+              <TrendingMark />
               <span>Trending Skills</span>
             </UButton>
             <UButton
@@ -204,7 +203,7 @@ watch(() => route.fullPath, () => {
               block
               class="min-h-11 justify-start gap-1.5 whitespace-nowrap"
             >
-              <span class="trending-fire" aria-hidden="true">🔥</span>
+              <TrendingMark />
               <span>Trending Skills</span>
             </UButton>
             <UButton

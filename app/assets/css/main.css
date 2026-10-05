@@ -217,43 +217,6 @@
   );
 }
 
-/* Keep the trending signal lively without competing with surrounding chrome. */
-.trending-fire {
-  display: inline-block;
-  transform-origin: center 70%;
-  animation: trending-fire-alive 1.8s ease-in-out infinite;
-}
-
-@keyframes trending-fire-alive {
-  0%, 100% {
-    opacity: 0.72;
-    transform: translateY(1px) rotate(-2deg) scale(0.96);
-  }
-
-  24% {
-    opacity: 1;
-    transform: translateY(-1px) rotate(1deg) scale(1.06);
-  }
-
-  48% {
-    opacity: 0.82;
-    transform: translateY(0) rotate(-1deg) scale(1);
-  }
-
-  72% {
-    opacity: 0.96;
-    transform: translateY(-1px) rotate(2deg) scale(1.04);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .trending-fire {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-}
-
 /* Editorial atmosphere: low-chroma light at section edges, quiet at the center.
    Each band selects palette, geometry, and intensity. The gradients are static,
    paint-contained, and never use filter blur. */
