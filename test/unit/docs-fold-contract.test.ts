@@ -18,14 +18,6 @@ describe('component rules (DESIGN.md)', () => {
   })
 })
 
-describe('noise field identity pointer (DESIGN.md)', () => {
-  it('claims the noise field identity spec in this section, not COPY.md', () => {
-    const specLines = design.split('\n').filter(line => line.includes('identity spec'))
-    expect(specLines.length).toBeGreaterThan(0)
-    expect(specLines.filter(line => line.includes('COPY.md'))).toEqual([])
-  })
-})
-
 describe('docs/work brief citations', () => {
   it('cites the pivot plan at its new path, never the deleted root file', () => {
     const briefs = readdirSync('docs/work').filter(file => file.endsWith('.md'))

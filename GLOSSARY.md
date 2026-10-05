@@ -75,6 +75,8 @@ Collisions
 
 **Is:** `skilld run`. The Agent reads the Skill for the current session and nothing lands on disk. The default command on every Skill surface.
 
+**Marketing phrase:** "run once off", in pitch copy such as "No more skill bloat: run once off, fork, or install". It names the same path. UI labels and commands keep "run".
+
 **Never:** try, preview, use once, ephemeral.
 
 ### install
@@ -245,7 +247,7 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 
 **Is:** installing into the Agent's home directory, so every project sees the Skill.
 
-**Use for:** the UI label `Global`.
+**Use for:** the UI label `Global`. "Teach your agent skilld" is the promo label for `npx skilld install skilld --global`, which installs the skilld Skill globally. "Teach" appears only in that label and never replaces "install".
 
 **Never:** system-wide.
 
@@ -269,7 +271,7 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 | --- | --- | --- |
 | follow | watch | One Loop 2 verb |
 | sync (user-facing) | import (stars), "Checked GitHub {ago}" (freshness) | Internal jargon; say what happened |
-| use once, try, preview | run | One name for the transient path |
+| use once, try, preview | run ("run once off" in pitch copy) | One name for the transient path |
 | add (CLI verb) | run or install | v2 grammar |
 | popular, install count | starred, stars | Installs never rank or trust |
 | verified safe, secure, scanned | name the exact check | An attestation cannot guarantee safety |
