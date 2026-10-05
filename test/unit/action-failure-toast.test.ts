@@ -53,8 +53,11 @@ describe('action failure toast recovery', () => {
     first('save your like', 'other-like')(new Error('offline'))
     first('save your email settings')(new Error('offline'))
     await flushPromises()
+    const [recoveredId, otherSkillId, emailId] = toast.toasts.value.map(item => item.id)
     second.clear('save your like', 'recovered-like')
     await settleRemoval()
+    expect(toast.toasts.value.map(item => item.id)).toEqual([otherSkillId, emailId])
+    expect(toast.toasts.value.map(item => item.id)).not.toContain(recoveredId)
     expect(toast.toasts.value.filter(item => item.open).map(item => item.title)).toEqual([
       'Could not save your like',
       'Could not save your email settings',
