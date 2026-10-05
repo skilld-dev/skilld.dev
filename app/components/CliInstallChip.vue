@@ -8,9 +8,11 @@ import CommandChip from './_CommandChip.vue'
  * beside `SkilldInstallChip` on the `/cli` page, which teaches the Agent to
  * drive what this one installs.
  */
-const { surface } = defineProps<{
+const { surface, quiet = false } = defineProps<{
   /** The analytics surface, such as `cli-hero`. */
   surface: string
+  /** Ink the dot instead of rose, where another element already spends the band's rose. */
+  quiet?: boolean
 }>()
 
 const command = cliGlobalInstallCmd()
@@ -25,6 +27,7 @@ const consequenceId = useId()
       :command="command"
       mode="install"
       size="sm"
+      :quiet="quiet"
       :surface="surface"
       :target="target"
       copy-label="Copy CLI install command"

@@ -165,7 +165,7 @@ function computeFromRow(row: ScoreRow, now: number): {
     trustTier: trust.tier,
     curatorCount: row.curator_count,
     curatorReasonCount: row.curator_reason_count,
-    categoryPinned: isCategoryPinned(row.owner, row.name),
+    categoryPinned: isCategoryPinned(row.owner, row.repo, row.name),
     approvedSocialCount: row.approved_social_count,
     authorSocialCount: row.author_social_count,
     stars: row.stars,

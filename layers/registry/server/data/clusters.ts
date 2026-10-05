@@ -111,7 +111,11 @@ export interface Cluster {
   audience: 'dev' | 'test'
   /** Must be values ABSTRACTNESS_CATEGORIES actually emits. No repeats. */
   categories: string[]
-  /** Hand-picked `owner/name` keys that lead cards and detail pages. */
+  /**
+   * Hand-picked `owner/repo/name` keys that lead cards and detail pages. The
+   * repository is part of the key because one owner can ship a Skill of the
+   * same name in two repositories, and an `owner/name` pin matched both.
+   */
   pinnedExamples: string[]
   /**
    * ISO date the track was admitted, or null for the rows that predate the
@@ -141,15 +145,15 @@ export const CLUSTERS: Cluster[] = [
     categories: ['interface-design'],
     addedAt: null,
     pinnedExamples: [
-      'emilkowalski/emil-design-eng',
-      'jakubkrehel/make-interfaces-feel-better',
-      'pbakaus/impeccable',
-      'vercel-labs/web-design-guidelines',
-      'ibelick/fixing-motion-performance',
-      'ibelick/fixing-accessibility',
-      'ibelick/baseline-ui',
-      'nutlope/hallmark',
-      'shadcn/shadcn',
+      'emilkowalski/skills/emil-design-eng',
+      'jakubkrehel/make-interfaces-feel-better/make-interfaces-feel-better',
+      'pbakaus/impeccable/impeccable',
+      'vercel-labs/agent-skills/web-design-guidelines',
+      'ibelick/ui-skills/fixing-motion-performance',
+      'ibelick/ui-skills/fixing-accessibility',
+      'ibelick/ui-skills/baseline-ui',
+      'nutlope/hallmark/hallmark',
+      'shadcn/ui/shadcn',
     ],
   },
   {
@@ -168,14 +172,14 @@ export const CLUSTERS: Cluster[] = [
     categories: ['framework', 'rendering'],
     addedAt: null,
     pinnedExamples: [
-      'vercel-labs/find-skills',
-      'othmanadi/planning-with-files',
-      'mattpocock/grill-me',
-      'obra/systematic-debugging',
-      'mattpocock/tdd',
-      'mattpocock/improve-codebase-architecture',
-      'mattpocock/domain-modeling',
-      'anthropics/frontend-design',
+      'vercel-labs/skills/find-skills',
+      'othmanadi/planning-with-files/planning-with-files',
+      'mattpocock/skills/grill-me',
+      'obra/superpowers/systematic-debugging',
+      'mattpocock/skills/tdd',
+      'mattpocock/skills/improve-codebase-architecture',
+      'mattpocock/skills/domain-modeling',
+      'anthropics/skills/frontend-design',
     ],
   },
   {
@@ -194,15 +198,15 @@ export const CLUSTERS: Cluster[] = [
     categories: [],
     addedAt: null,
     pinnedExamples: [
-      'dmmulroy/install-anti-slop',
-      'cursor/thermo-nuclear-code-quality-review',
-      'brianlovin/deslop',
-      'cursor/deslop',
-      'davila7/deslop',
+      'dmmulroy/anti-slop/install-anti-slop',
+      'cursor/plugins/thermo-nuclear-code-quality-review',
+      'brianlovin/claude-config/deslop',
+      'cursor/plugins/deslop',
+      'davila7/claude-code-templates/deslop',
       // Registry identity follows `docs/SKILL.md`; its frontmatter name
       // (`desloppify`) renders as the display name.
-      'peteromallet/docs',
-      'asyrafhussin/code-slop',
+      'peteromallet/desloppify/docs',
+      'asyrafhussin/agent-skills/code-slop',
     ],
   },
   {
@@ -222,23 +226,23 @@ export const CLUSTERS: Cluster[] = [
     categories: ['automation'],
     addedAt: null,
     pinnedExamples: [
-      'obra/subagent-driven-development',
-      'obra/dispatching-parallel-agents',
-      'obra/verification-before-completion',
-      'mattpocock/handoff',
-      'obra/executing-plans',
-      'anthropics/skill-creator',
-      'obra/writing-skills',
-      'openai/skill-installer',
-      'callstackincubator/validate-skills',
-      'anthropics/mcp-builder',
+      'obra/superpowers/subagent-driven-development',
+      'obra/superpowers/dispatching-parallel-agents',
+      'obra/superpowers/verification-before-completion',
+      'mattpocock/skills/handoff',
+      'obra/superpowers/executing-plans',
+      'anthropics/skills/skill-creator',
+      'obra/superpowers/writing-skills',
+      'openai/skills/skill-installer',
+      'callstackincubator/agent-skills/validate-skills',
+      'anthropics/skills/mcp-builder',
       // Browser control retired into this category on 2026-08-13: driving a
       // browser is what an agent does inside a workflow, not a track someone
       // picks. `/skills/browser-automation` 301s here.
-      'microsoft/playwright-cli',
-      'vercel-labs/agent-browser',
-      'browser-use/browser-use',
-      'firecrawl/firecrawl-cli',
+      'microsoft/playwright-cli/playwright-cli',
+      'vercel-labs/agent-browser/agent-browser',
+      'browser-use/browser-use/browser-use',
+      'firecrawl/cli/firecrawl-cli',
     ],
   },
   {
@@ -257,12 +261,12 @@ export const CLUSTERS: Cluster[] = [
     categories: ['code-review', 'refactoring'],
     addedAt: null,
     pinnedExamples: [
-      'pbakaus/resolve-agent-reviews',
-      'obra/requesting-code-review',
-      'obra/receiving-code-review',
-      'brianlovin/fix-sentry-issues',
-      'dimillian/review-and-simplify-changes',
-      'github/refactor',
+      'pbakaus/agent-reviews/resolve-agent-reviews',
+      'obra/superpowers/requesting-code-review',
+      'obra/superpowers/receiving-code-review',
+      'brianlovin/claude-config/fix-sentry-issues',
+      'dimillian/skills/review-and-simplify-changes',
+      'github/awesome-copilot/refactor',
     ],
   },
   {
@@ -283,14 +287,14 @@ export const CLUSTERS: Cluster[] = [
     categories: ['testing', 'incident-response', 'observability'],
     addedAt: null,
     pinnedExamples: [
-      'mattpocock/tdd',
-      'obra/test-driven-development',
-      'obra/systematic-debugging',
-      'bitwarden/assessing-test-coverage',
-      'wdm0006/verifying-external-behavior',
-      'anthropics/webapp-testing',
-      'deanpeters/autonomous-investigation',
-      'boshu2/post-mortem',
+      'mattpocock/skills/tdd',
+      'obra/superpowers/test-driven-development',
+      'obra/superpowers/systematic-debugging',
+      'bitwarden/ai-plugins/assessing-test-coverage',
+      'wdm0006/python-skills/verifying-external-behavior',
+      'anthropics/skills/webapp-testing',
+      'deanpeters/product-manager-skills/autonomous-investigation',
+      'boshu2/agentops/post-mortem',
     ],
   },
   {
@@ -309,13 +313,13 @@ export const CLUSTERS: Cluster[] = [
     categories: ['performance'],
     addedAt: null,
     pinnedExamples: [
-      'addyosmani/web-quality-audit',
-      'addyosmani/core-web-vitals',
-      'addyosmani/performance',
-      'addyosmani/accessibility',
-      'addyosmani/seo',
-      'addyosmani/best-practices',
-      'millionco/react-doctor',
+      'addyosmani/web-quality-skills/web-quality-audit',
+      'addyosmani/web-quality-skills/core-web-vitals',
+      'addyosmani/web-quality-skills/performance',
+      'addyosmani/web-quality-skills/accessibility',
+      'addyosmani/web-quality-skills/seo',
+      'addyosmani/web-quality-skills/best-practices',
+      'millionco/react-doctor/react-doctor',
     ],
   },
   {
@@ -334,16 +338,16 @@ export const CLUSTERS: Cluster[] = [
     categories: ['data-modeling', 'security', 'auth'],
     addedAt: null,
     pinnedExamples: [
-      'supabase/supabase-postgres-best-practices',
-      'stripe/stripe-best-practices',
-      'get-convex/convex-quickstart',
-      'firebase/firebase-basics',
-      'resend/resend',
-      'wshobson/stride-analysis-patterns',
-      'github/audit-integrity',
-      'bitwarden/bitwarden-security-context',
-      'wshobson/auth-implementation-patterns',
-      'better-auth/best-practices',
+      'supabase/agent-skills/supabase-postgres-best-practices',
+      'stripe/ai/stripe-best-practices',
+      'get-convex/agent-skills/convex-quickstart',
+      'firebase/agent-skills/firebase-basics',
+      'resend/resend-skills/resend',
+      'wshobson/agents/stride-analysis-patterns',
+      'github/awesome-copilot/audit-integrity',
+      'bitwarden/ai-plugins/bitwarden-security-context',
+      'wshobson/agents/auth-implementation-patterns',
+      'better-auth/skills/best-practices',
     ],
   },
   {
@@ -361,11 +365,11 @@ export const CLUSTERS: Cluster[] = [
     categories: ['ci-cd', 'deployment', 'release-management', 'migrations'],
     addedAt: null,
     pinnedExamples: [
-      'obra/using-git-worktrees',
-      'github/git-commit',
-      'jimliu/release-skills',
-      'obra/finishing-a-development-branch',
-      'github/conventional-commit',
+      'obra/superpowers/using-git-worktrees',
+      'github/awesome-copilot/git-commit',
+      'jimliu/baoyu-skills/release-skills',
+      'obra/superpowers/finishing-a-development-branch',
+      'github/awesome-copilot/conventional-commit',
     ],
   },
   {
@@ -384,11 +388,11 @@ export const CLUSTERS: Cluster[] = [
     categories: ['planning', 'project-management', 'software-design'],
     addedAt: null,
     pinnedExamples: [
-      'obra/brainstorming',
-      'n8n-io/spec-driven-development',
-      'vercel/adr-skill',
-      'obra/writing-plans',
-      'obra/executing-plans',
+      'obra/superpowers/brainstorming',
+      'n8n-io/n8n/spec-driven-development',
+      'vercel/ai/adr-skill',
+      'obra/superpowers/writing-plans',
+      'obra/superpowers/executing-plans',
     ],
   },
 
@@ -410,18 +414,18 @@ export const CLUSTERS: Cluster[] = [
     categories: ['documentation'],
     addedAt: null,
     pinnedExamples: [
-      'hardikpandya/stop-slop',
-      'petergyang/no-ai-slop',
-      'blader/humanizer',
-      'cursor/unslop',
-      'ehmo/slopbeth',
-      'Aboudjem/humanizer',
-      'stephenturner/deslop',
-      'elithrar/anti-slop',
+      'hardikpandya/stop-slop/stop-slop',
+      'petergyang/no-ai-slop/no-ai-slop',
+      'blader/humanizer/humanizer',
+      'cursor/plugins/unslop',
+      'ehmo/slopkit/slopbeth',
+      'Aboudjem/humanizer-skill/humanizer',
+      'stephenturner/skill-deslop/deslop',
+      'elithrar/dotfiles/anti-slop',
       // Registry name is the repo slug; the skill's frontmatter name
       // (`humanize`) renders as its display name.
-      'aashaexo/soundshuman',
-      'jalaalrd/anti-ai-slop-writing',
+      'aashaexo/soundshuman/soundshuman',
+      'jalaalrd/anti-ai-slop-writing/anti-ai-slop-writing',
     ],
   },
 
@@ -445,15 +449,15 @@ export const CLUSTERS: Cluster[] = [
     categories: ['diagramming'],
     addedAt: '2026-09-04',
     pinnedExamples: [
-      'tt-a1i/archify',
-      'garrytan/diagram',
-      'kingbootoshi/cartographer',
-      'coldteadotai/pr-lens',
-      'github/architecture-blueprint-generator',
-      'github/excalidraw-diagram-generator',
-      'cathrynlavery/diagram-design',
-      'humanlayer/show-me',
-      'kepano/json-canvas',
+      'tt-a1i/archify/archify',
+      'garrytan/gstack/diagram',
+      'kingbootoshi/cartographer/cartographer',
+      'coldteadotai/pr-lens/pr-lens',
+      'github/awesome-copilot/architecture-blueprint-generator',
+      'github/awesome-copilot/excalidraw-diagram-generator',
+      'cathrynlavery/diagram-design/diagram-design',
+      'humanlayer/skills/show-me',
+      'kepano/obsidian-skills/json-canvas',
     ],
   },
   {
@@ -472,14 +476,14 @@ export const CLUSTERS: Cluster[] = [
     categories: ['scraping'],
     addedAt: '2026-09-04',
     pinnedExamples: [
-      'browser-use/browser-use',
-      'mattpocock/research',
-      'mvanhorn/last30days',
-      'kepano/defuddle',
-      'firecrawl/convert-documents-to-markdown',
-      'garrytan/scrape',
-      'bytedance/github-deep-research',
-      'imbad0202/deep-research',
+      'browser-use/browser-use/browser-use',
+      'mattpocock/skills/research',
+      'mvanhorn/last30days-skill/last30days',
+      'kepano/obsidian-skills/defuddle',
+      'firecrawl/anydoc/convert-documents-to-markdown',
+      'garrytan/gstack/scrape',
+      'bytedance/deer-flow/github-deep-research',
+      'imbad0202/academic-research-skills/deep-research',
     ],
   },
 
@@ -505,16 +509,16 @@ export const CLUSTERS: Cluster[] = [
     pinnedExamples: [
       // Addy Osmani's, already the anchor of /skills/performance. Pinned in
       // both because it genuinely answers both questions.
-      'addyosmani/seo',
-      'onmax/nuxt-seo',
-      'agricidaniel/seo-technical',
-      'agricidaniel/seo-schema',
-      'agricidaniel/seo-programmatic',
-      'agricidaniel/seo-sitemap',
-      'coreyhaines31/seo-audit',
-      'coreyhaines31/programmatic-seo',
-      'coreyhaines31/ai-seo',
-      'coreyhaines31/schema-markup',
+      'addyosmani/web-quality-skills/seo',
+      'onmax/nuxt-skills/nuxt-seo',
+      'agricidaniel/claude-seo/seo-technical',
+      'agricidaniel/claude-seo/seo-schema',
+      'agricidaniel/claude-seo/seo-programmatic',
+      'agricidaniel/claude-seo/seo-sitemap',
+      'coreyhaines31/marketingskills/seo-audit',
+      'coreyhaines31/marketingskills/programmatic-seo',
+      'coreyhaines31/marketingskills/ai-seo',
+      'coreyhaines31/marketingskills/schema-markup',
     ],
     // `aaron-he-zhu/seo-geo-claude-skills` looked like the strongest technical
     // match and even has its own search demand, but both of its skills return
@@ -559,7 +563,7 @@ export const MERGED_COLLECTIONS: Record<string, string> = Object.fromEntries(
  * Keep the redirects in nuxt.config.ts in step with this map.
  */
 /**
- * Every pinned `owner/name` key across all categories.
+ * Every pinned `owner/repo/name` key across all categories.
  *
  * One definition, because three things read it: the cluster queries, the
  * indexability recompute (a pin is a primary trust signal), and the skills
@@ -578,21 +582,21 @@ export const MERGED_COLLECTIONS: Record<string, string> = Object.fromEntries(
  */
 export const FRAMEWORK_PINNED_SKILLS: string[] = [
   // /frameworks/vue and /frameworks/nuxt
-  'vuejs-ai/vue-best-practices',
-  'vuejs-ai/vue-testing-best-practices',
-  'onmax/nuxt',
-  'antfu/vue',
-  'antfu/pinia',
-  'nuxt/nuxt-ui',
-  'vueuse/vueuse-functions',
-  'harlan-zw/nuxt-frontend-design',
-  'harlan-zw/nuxt-frontend-review',
+  'vuejs-ai/skills/vue-best-practices',
+  'vuejs-ai/skills/vue-testing-best-practices',
+  'onmax/nuxt-skills/nuxt',
+  'antfu/skills/vue',
+  'antfu/skills/pinia',
+  'nuxt/ui/nuxt-ui',
+  'vueuse/skills/vueuse-functions',
+  'harlan-zw/harlan-agent-kit/nuxt-frontend-design',
+  'harlan-zw/harlan-agent-kit/nuxt-frontend-review',
   // /frameworks/react and /frameworks/nextjs
-  'vercel-labs/react-best-practices',
-  'vercel-labs/composition-patterns',
-  'vercel-labs/nextjs',
-  'deckardger/tanstack-query',
-  'vercel/next-cache-components-optimizer',
+  'vercel-labs/agent-skills/react-best-practices',
+  'vercel-labs/agent-skills/composition-patterns',
+  'vercel-labs/vercel-plugin/nextjs',
+  'deckardger/tanstack-agent-skills/tanstack-query',
+  'vercel/next.js/next-cache-components-optimizer',
 ]
 
 export const PINNED_SKILL_KEYS: Set<string> = new Set([
@@ -600,8 +604,8 @@ export const PINNED_SKILL_KEYS: Set<string> = new Set([
   ...FRAMEWORK_PINNED_SKILLS,
 ])
 
-export function isCategoryPinned(owner: string, name: string): boolean {
-  return PINNED_SKILL_KEYS.has(`${owner}/${name}`)
+export function isCategoryPinned(owner: string, repo: string, name: string): boolean {
+  return PINNED_SKILL_KEYS.has(`${owner}/${repo}/${name}`)
 }
 
 export const RENAMED_CLUSTER_SLUGS: Record<string, string> = {

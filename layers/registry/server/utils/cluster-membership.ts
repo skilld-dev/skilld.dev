@@ -59,7 +59,7 @@ function membershipArms(categories: string[], pinnedKeys: string[]): { arms: str
     params.push(...categories)
   }
   if (pinnedKeys.length) {
-    arms.push(`(s.owner || '/' || s.name IN (${placeholders(pinnedKeys.length)}))`)
+    arms.push(`(s.owner || '/' || s.repo || '/' || s.name IN (${placeholders(pinnedKeys.length)}))`)
     params.push(...pinnedKeys)
   }
   return { arms, params }
@@ -86,7 +86,7 @@ export function clusterMembersSql(
   // twice: D1 caps one statement at 100 bound parameters.
   const needsPinnedCase = Boolean(pinnedKeys.length && categories.length)
   const pinnedArm = needsPinnedCase
-    ? `CASE WHEN s.owner || '/' || s.name IN (${placeholders(pinnedKeys.length)}) THEN 1 ELSE 0 END`
+    ? `CASE WHEN s.owner || '/' || s.repo || '/' || s.name IN (${placeholders(pinnedKeys.length)}) THEN 1 ELSE 0 END`
     : (pinnedKeys.length ? '1' : '0')
   // D1 binds by position in the statement text, and the pinned CASE sits in the
   // SELECT list, ahead of the WHERE arms.
@@ -144,8 +144,8 @@ export interface ClusterPageSql {
  *
  * They live here rather than in the route because the membership fragment is
  * not what D1 counts. A pinned key is bound once in the SELECT `CASE`, once in
- * the WHERE arm, and twice more in the ORDER BY `CASE`, so a guard on the
- * fragment reads a quarter of the real parameter count.
+ * the WHERE arm, and three more times in the ORDER BY `CASE`, as owner, repo
+ * and name. A guard on the fragment reads a fifth of the real parameter count.
  */
 export function clusterPageSql(
   columns: string,
@@ -159,7 +159,7 @@ export function clusterPageSql(
   // stars drops the pinned-order arm rather than emitting an empty CASE.
   const pinnedOrderSql = pinnedSkills.length
     ? `CASE
-      ${pinnedSkills.map((_, index) => `WHEN owner = ? AND name = ? THEN ${index}`).join('\n')}
+      ${pinnedSkills.map((_, index) => `WHEN owner = ? AND repo = ? AND name = ? THEN ${index}`).join('\n')}
       ELSE ${pinnedSkills.length}
     END,`
     : ''
@@ -192,7 +192,7 @@ export function clusterPageSql(
     // The ORDER BY `CASE` sits in the window, which comes before the
     // membership fragment in the statement text, so its keys bind first.
     listParams: [
-      ...pinnedSkills.flatMap(skill => [skill.owner, skill.name]),
+      ...pinnedSkills.flatMap(skill => [skill.owner, skill.repo, skill.name]),
       ...members.params,
       pageWindow.limit,
       pageWindow.offset,

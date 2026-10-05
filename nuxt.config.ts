@@ -67,7 +67,12 @@ export default defineNuxtConfig({
   nuxtDx: {
     report: true,
     sizeBudget: {
-      overridesKb: { 'server/plugins/sentry.ts': 328 },
+      overridesKb: {
+        'server/plugins/sentry.ts': 328,
+        // The middleware reads track slugs from `clusters.ts`, which also holds
+        // every pin. Pins became `owner/repo/name` keys, about 1.3 kB more.
+        'layers/registry/server/middleware/skills-to-gh-redirect.ts': 22,
+      },
     },
   },
 

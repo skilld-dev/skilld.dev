@@ -18,6 +18,7 @@ import {
   loadTrendingRepos,
 } from '#shared/server/trending-repos'
 import { loadTrendingSkills } from '#shared/server/trending-skills'
+import { DEMOTED_STARRED_REPOSITORIES } from '#shared/trending-range'
 
 /**
  * Top up from GitHub stars when the socials have been quiet. Below this many
@@ -46,7 +47,8 @@ export interface LoadTrendingBoardOptions {
 
 export async function loadTrendingBoard(options: LoadTrendingBoardOptions): Promise<TrendingBoard> {
   const { db, now, limit, windowHours } = options
-  const deprioritizeRepositories = await loadTopStarredRepositories(db, 20)
+  // The page header states this demotion, so it reads the same constant.
+  const deprioritizeRepositories = await loadTopStarredRepositories(db, DEMOTED_STARRED_REPOSITORIES)
   const [entries, namedSkills] = await Promise.all([
     loadTrendingRepos({
       db,

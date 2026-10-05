@@ -32,6 +32,16 @@ export const TRENDING_BOARD_LIMIT = 30
 export const MIN_INDEXABLE_ROWS = 8
 
 /**
+ * Repositories the `week` and `month` boards move below every other row, the
+ * most-starred first. They stay eligible, so new finds lead the board.
+ *
+ * Shared because the board header states this rule, and the number in the
+ * header must be the number the ranking reads. Track pages skip the demotion
+ * (ADR-0010), so their header never states it.
+ */
+export const DEMOTED_STARRED_REPOSITORIES = 20
+
+/**
  * The range a bare `/skills/trending` serves.
  *
  * A month, not a week. A week of social evidence routinely returns fewer than

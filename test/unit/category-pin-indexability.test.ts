@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { CLUSTERS, isCategoryPinned, PINNED_SKILL_KEYS } from '../../layers/registry/server/data/clusters'
+import { CLUSTERS, FRAMEWORK_PINNED_SKILLS, isCategoryPinned } from '../../layers/registry/server/data/clusters'
+import { parseClusterSkillKeys } from '../../layers/registry/server/utils/cluster-skill-curation'
 import { scoreSkillIndexability, SEO_INDEXABLE_MIN_SCORE } from '../../layers/registry/server/utils/skill-indexability'
 
 /**
@@ -82,13 +83,16 @@ describe('category pin indexability', () => {
   })
 
   it('exposes every pin through one lookup the recompute and sitemap share', () => {
-    const fromClusters = CLUSTERS.flatMap(cluster => cluster.pinnedExamples)
+    const pins = parseClusterSkillKeys([...CLUSTERS.flatMap(cluster => cluster.pinnedExamples), ...FRAMEWORK_PINNED_SKILLS])
+    for (const { key, owner, repo, name } of pins)
+      expect(isCategoryPinned(owner, repo, name), key).toBe(true)
+    expect(isCategoryPinned('nobody', 'skills', 'not-a-skill')).toBe(false)
+  })
 
-    expect(PINNED_SKILL_KEYS.size).toBeGreaterThan(0)
-    for (const key of fromClusters) {
-      const slash = key.indexOf('/')
-      expect(isCategoryPinned(key.slice(0, slash), key.slice(slash + 1)), key).toBe(true)
-    }
-    expect(isCategoryPinned('nobody', 'not-a-skill')).toBe(false)
+  it('gives the pin to one Skill, not a namesake in another repository', () => {
+    // `emilkowalski/skill` is the registry identity of `emilkowalski/skills`
+    // before a rename. The pin names the canonical one.
+    expect(isCategoryPinned('emilkowalski', 'skills', 'emil-design-eng')).toBe(true)
+    expect(isCategoryPinned('emilkowalski', 'skill', 'emil-design-eng')).toBe(false)
   })
 })
