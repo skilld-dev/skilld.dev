@@ -217,11 +217,12 @@ describe('weekly template', () => {
     expect(text).not.toContain('t.co/abc')
   })
 
-  it('keeps descriptions out of compact HTML rows but retains them in text', () => {
+  it('shortens long descriptions in HTML and text on a word boundary', () => {
     const long = 'Forces the laziest solution that actually works, simplest, shortest, most minimal. Channels a senior dev who has seen everything: question whether the task needs to exist at all.'
     const { html, text } = renderWeekly(input({ trending: [trending({ description: long })] }))
 
-    expect(html).not.toContain('Forces the laziest solution')
+    expect(html).toContain('Forces the laziest solution')
+    expect(html).not.toContain('needs to exist at all')
     expect(text).toContain('Forces the laziest solution')
     expect(text).not.toContain('needs to exist at all')
     // Cut on a word boundary: the last word before the ellipsis is a whole
@@ -230,11 +231,28 @@ describe('weekly template', () => {
     expect(long).toContain(` ${tail} `)
   })
 
-  it('leaves a short description in the plain-text alternative', () => {
+  it('shows a short description in HTML and text', () => {
     const { html, text } = renderWeekly(input({ trending: [trending({ description: 'Testing conventions.' })] }))
 
-    expect(html).not.toContain('Testing conventions.')
+    expect(html).toContain('Testing conventions.')
     expect(text).toContain('Testing conventions.')
+  })
+
+  it('escapes description markup in HTML and preserves it in text', () => {
+    const description = 'Use <script>alert("skill")</script> & test.'
+    const { html, text } = renderWeekly(input({ trending: [trending({ description })] }))
+
+    expect(html).toContain('Use &lt;script&gt;alert(&quot;skill&quot;)&lt;/script&gt; &amp; test.')
+    expect(html).not.toContain('<script>')
+    expect(text).toContain(description)
+  })
+
+  it.each([null, '', ' \n '])('omits an empty description: %j', (description) => {
+    const { html, text } = renderWeekly(input({ trending: [trending({ description })] }))
+    const absent = renderWeekly(input({ trending: [trending({ description: null })] }))
+
+    expect(html).toBe(absent.html)
+    expect(text).toBe(absent.text)
   })
 
   it('shows the top seven trending Skills', () => {
