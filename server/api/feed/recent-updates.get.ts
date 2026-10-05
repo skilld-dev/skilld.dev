@@ -1,4 +1,5 @@
 import { getDB } from '#server/utils/db'
+import { cachedFeed } from '#server/utils/feed-cache'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { RECENT_UPDATES_SQL } from '../../utils/recent-updates-query'
 
@@ -78,8 +79,8 @@ function summarizeChange(message: string | null): string | null {
   return firstLine.length > 180 ? `${firstLine.slice(0, 177)}…` : firstLine
 }
 
-export default defineCachedEventHandler(
-  async (event): Promise<RecentUpdatesResponse> => {
+export default defineEventHandler(
+  async (event): Promise<RecentUpdatesResponse> => cachedFeed(event, 'recent-updates', async () => {
     const db = getDB(event)
     const res = await db
       .prepare(RECENT_UPDATES_SQL)
@@ -151,8 +152,5 @@ export default defineCachedEventHandler(
     }
 
     return { items: cards }
-  },
-  // Activity rows only change when a sync runs. Five minutes of staleness on a
-  // homepage feed is invisible, and each recompute is a D1 read.
-  { maxAge: 300, swr: false, name: 'feed-recent-updates-origin-v2' },
+  }),
 )
