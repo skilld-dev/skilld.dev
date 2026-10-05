@@ -1,5 +1,5 @@
 import type { ReadThroughCache } from '#shared/server/cache'
-import type { CachedIntent, IntentOutcome } from './search-intent'
+import type { CachedIntent, IntentOutcome, IntentReport } from './search-intent'
 import { readCache, writeCache } from '#shared/server/cache'
 import {
   decideIntent,
@@ -24,6 +24,11 @@ export interface SearchIntentAi {
 
 export interface SearchIntentDeps {
   ai: SearchIntentAi | undefined
+  /**
+   * Must be a store every colo reads, such as the KV-backed `cache` mount.
+   * The per-colo `edge-cache` mount made an answer understood in one data
+   * center a miss in the next, so the model ran, and timed out, again.
+   */
   storage: ReadThroughCache
   /** One model call against the visitor's allowance. False means over it. */
   allow: () => Promise<boolean>
@@ -31,8 +36,10 @@ export interface SearchIntentDeps {
   schedule: (promise: Promise<unknown>) => void
   digest: (text: string) => Promise<string>
   sleep: (ms: number) => Promise<void>
-  /** Aggregate outcome reporting. Receives no query text. */
-  report: (outcome: IntentOutcome) => void
+  /** Milliseconds clock, for timing the model call. */
+  now: () => number
+  /** Aggregate reporting. Receives no query text. */
+  report: (report: IntentReport) => void
   budgetMs?: number
 }
 
@@ -58,11 +65,16 @@ export async function understandSearchQuery(deps: SearchIntentDeps, query: strin
   if (cachedEntry?._tag === 'none')
     return { _tag: 'skipped', reason: 'cached-miss' }
 
-  if (!deps.ai)
+  if (!deps.ai) {
+    deps.report({ _tag: 'skipped', reason: 'binding-missing' })
     return { _tag: 'skipped', reason: 'binding-missing' }
-  if (!(await deps.allow()))
+  }
+  if (!(await deps.allow())) {
+    deps.report({ _tag: 'skipped', reason: 'rate-limited' })
     return { _tag: 'skipped', reason: 'rate-limited' }
+  }
 
+  const startedAt = deps.now()
   const model = deps.ai.run(SEARCH_INTENT_MODEL, {
     messages: [
       { role: 'system', content: searchIntentSystemPrompt() },
@@ -78,17 +90,23 @@ export async function understandSearchQuery(deps: SearchIntentDeps, query: strin
     deps.schedule(model.then(
       (response) => {
         const late = decideIntent({ _tag: 'answered', response }, query)
+        deps.report({ _tag: 'late', result: late.outcome._tag === 'understood' ? 'understood' : 'invalid-response', modelMs: deps.now() - startedAt })
         return late.cache ? store(deps, key, late.cache) : undefined
       },
       // The visitor already has the plain results. A model that fails after
-      // the budget leaves nothing to cache, and its timeout is reported below.
-      () => undefined,
+      // the budget leaves nothing to cache; the report records that it failed.
+      () => deps.report({ _tag: 'late', result: 'model-error', modelMs: deps.now() - startedAt }),
     ))
   }
 
   const { outcome, cache } = decideIntent(race, query)
+  deps.report({ _tag: 'model', result: reportResult(outcome), modelMs: deps.now() - startedAt })
   if (cache)
     await store(deps, key, cache)
-  deps.report(outcome)
   return outcome
+}
+
+/** The model's result as the report names it. A model call never skips. */
+function reportResult(outcome: IntentOutcome): 'understood' | 'timeout' | 'model-error' | 'invalid-response' {
+  return outcome._tag === 'understood' ? 'understood' : outcome._tag === 'fallback' ? outcome.reason : 'model-error'
 }

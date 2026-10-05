@@ -1,8 +1,9 @@
-import type { IntentOutcome } from '../../layers/registry/server/utils/search-intent'
+import type { IntentReport } from '../../layers/registry/server/utils/search-intent'
 import type { SearchIntentDeps } from '../../layers/registry/server/utils/search-intent-run'
 import type { ReadThroughCache } from '../../shared/server/cache'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  answerCacheIdentity,
   decideIntent,
   groundedTerms,
   parseQueryUnderstanding,
@@ -114,6 +115,21 @@ describe('decideIntent', () => {
   })
 })
 
+describe('answerCacheIdentity', () => {
+  const understanding = { terms: 'vue testing', track: 'testing', framework: 'vue', author: null }
+
+  it('gives an understood answer its own entry, apart from the fallback', () => {
+    const fallback = answerCacheIdentity('test a vue app', 6, { _tag: 'fallback', reason: 'timeout' })
+    const understood = answerCacheIdentity('test a vue app', 6, { _tag: 'understood', understanding, source: 'cache' })
+    expect(understood).not.toBe(fallback)
+  })
+
+  it('shares one entry between a model answer and the same cached answer', () => {
+    expect(answerCacheIdentity('test a vue app', 6, { _tag: 'understood', understanding, source: 'model' }))
+      .toBe(answerCacheIdentity('test a vue app', 6, { _tag: 'understood', understanding, source: 'cache' }))
+  })
+})
+
 describe('raceBudget', () => {
   const never = () => new Promise<void>(() => {})
 
@@ -146,7 +162,8 @@ const VALID = reply({ terms: 'vue testing', track: 'testing', framework: 'vue', 
 function deps(overrides: Partial<SearchIntentDeps> = {}) {
   const { items, storage } = memoryStorage()
   const scheduled: Promise<unknown>[] = []
-  const reported: IntentOutcome[] = []
+  const reported: IntentReport[] = []
+  let clock = 0
   const run = vi.fn(async () => VALID)
   const value: SearchIntentDeps = {
     ai: { run },
@@ -157,7 +174,9 @@ function deps(overrides: Partial<SearchIntentDeps> = {}) {
     },
     digest: async text => `digest(${text.length})`,
     sleep: () => new Promise<void>(() => {}),
-    report: outcome => reported.push(outcome),
+    // Each read advances 100ms, so a model call reports a duration.
+    now: () => (clock += 100),
+    report: report => reported.push(report),
     ...overrides,
   }
   return { deps: value, items, scheduled, reported, run }
@@ -177,6 +196,7 @@ describe('understandSearchQuery', () => {
     const harness = deps({ allow: async () => false })
     expect(await understandSearchQuery(harness.deps, 'test a vue app')).toEqual({ _tag: 'skipped', reason: 'rate-limited' })
     expect(harness.run).not.toHaveBeenCalled()
+    expect(harness.reported).toEqual([{ _tag: 'skipped', reason: 'rate-limited' }])
   })
 
   it('skips the model when the binding is missing', async () => {
@@ -191,11 +211,32 @@ describe('understandSearchQuery', () => {
     })
     const harness = deps({ ai: { run: () => late }, sleep: () => Promise.resolve() })
     expect(await understandSearchQuery(harness.deps, 'test a vue app')).toEqual({ _tag: 'fallback', reason: 'timeout' })
-    expect(harness.reported).toEqual([{ _tag: 'fallback', reason: 'timeout' }])
+    expect(harness.reported).toEqual([{ _tag: 'model', result: 'timeout', modelMs: 100 }])
 
     resolve(VALID)
     await Promise.all(harness.scheduled)
+    expect(harness.reported.at(-1)).toEqual({ _tag: 'late', result: 'understood', modelMs: 200 })
     expect(await understandSearchQuery(harness.deps, 'test a vue app')).toMatchObject({ _tag: 'understood', source: 'cache' })
+  })
+
+  // Production, 2026-10-06: llama-3.1-8b-instruct-fast took p50 614ms and
+  // p90 815ms of inference alone, so an 800ms budget dropped most first
+  // answers and the box looked as if the model never ran.
+  it('uses a reply that lands at the measured production latency', async () => {
+    vi.useFakeTimers()
+    try {
+      const reply = new Promise(done => setTimeout(done, 1000, VALID))
+      const harness = deps({
+        ai: { run: () => reply },
+        sleep: ms => new Promise(done => setTimeout(done, ms)),
+      })
+      const outcome = understandSearchQuery(harness.deps, 'test a vue app')
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(await outcome).toMatchObject({ _tag: 'understood', source: 'model' })
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not ask the model again for a query it could not parse', async () => {

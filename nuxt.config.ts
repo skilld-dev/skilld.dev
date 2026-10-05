@@ -139,6 +139,9 @@ export default defineNuxtConfig({
       'github.endpoint',
       'github.step',
       'item.count',
+      // `search-intent`: how long the query model took, so the latency
+      // budget can be checked against production instead of guessed.
+      'model.durationMs',
       'operation',
       'outcome',
       'processed.count',
