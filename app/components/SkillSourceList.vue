@@ -218,6 +218,16 @@ function sourcePath(item: SkillSourceItem): string {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%);
 }
 
+/* A swipe that starts on the stream must scroll the page. Touch scrolled the
+   stream instead, and `contain` kept the page still. `hidden` still lets the
+   auto scroll set `scrollTop`. */
+@media (pointer: coarse) {
+  .skill-source-stream {
+    overflow-y: hidden;
+    overscroll-behavior-block: auto;
+  }
+}
+
 .skill-source-stream:focus-visible {
   outline: 2px solid var(--ui-primary);
   outline-offset: 2px;
