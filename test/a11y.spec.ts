@@ -465,6 +465,17 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('brailleSpark says one mention in the singular, on the page and to a screen reader', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('BrailleSpark'),
+      { attachTo: container, props: { counts: [0, 0, 0, 1, 0, 0, 0], period: 'in 7 days' } },
+    )
+    expect(container.querySelector('.braille-spark__total')?.textContent).toBe('1 mention in 7 days')
+    expect(container.querySelector('[role="img"]')?.getAttribute('aria-label')).toMatch(/^1 mention in 7 days\. /)
+    wrapper.unmount()
+  })
+
   it('trendingMark has no violations and stays out of the accessibility tree', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { brailleSpark, sparkLevels, sparkWeek } from '../../shared/braille-spark'
+import { brailleSpark, sparkCount, sparkLevels, sparkWeek } from '../../shared/braille-spark'
 
 const BLANK = '⠀'
 
@@ -35,5 +35,21 @@ describe('braille spark', () => {
 
   it('always returns seven characters, so rows of sparks stay aligned', () => {
     expect([...brailleSpark([5])]).toHaveLength(7)
+  })
+})
+
+describe('spark count', () => {
+  it.each([
+    { count: 1, text: '1 mention' },
+    { count: 0, text: '0 mentions' },
+    { count: 2, text: '2 mentions' },
+    { count: 1204, text: '1,204 mentions' },
+  ])('labels $count as "$text"', ({ count, text }) => {
+    expect(sparkCount(count)).toBe(text)
+  })
+
+  it('agrees with the count for any other unit', () => {
+    const posts = { one: 'post', other: 'posts' }
+    expect([sparkCount(1, posts), sparkCount(3, posts)]).toEqual(['1 post', '3 posts'])
   })
 })

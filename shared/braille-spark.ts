@@ -47,3 +47,23 @@ export function sparkLevels(counts: readonly number[]): number[] {
 export function brailleSpark(counts: readonly number[]): string {
   return sparkLevels(counts).map(level => SPARK_BARS[level]).join('')
 }
+
+/** What a spark counts, in both forms, because English plurals are not always `+s`. */
+export interface SparkUnit {
+  /** The noun after a count of exactly one, such as `mention`. */
+  one: string
+  /** The noun after every other count, zero included, such as `mentions`. */
+  other: string
+}
+
+/** Social mentions, the unit a spark counts unless told otherwise. */
+export const SPARK_MENTIONS: SparkUnit = { one: 'mention', other: 'mentions' }
+
+/**
+ * The count beside the bars, with the noun in agreement: `1 mention`,
+ * `2 mentions`, `1,204 mentions`. The trending board once printed
+ * "1 mentions", because its unit was one fixed plural string.
+ */
+export function sparkCount(count: number, unit: SparkUnit = SPARK_MENTIONS): string {
+  return `${count.toLocaleString('en-US')} ${count === 1 ? unit.one : unit.other}`
+}

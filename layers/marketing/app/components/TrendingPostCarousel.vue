@@ -12,8 +12,9 @@ import TrendingPostCard from './TrendingPostCard.vue'
  * does the work, so every post is in the server HTML, a touch screen swipes
  * it, and focus on a card scrolls that card into view.
  *
- * The next card peeks in from the edge, which is what says there is more.
- * Where the carousel is wide enough, two cards show at once.
+ * Only whole cards show: one, or two where the carousel is wide enough. A
+ * second card cut off at the board's edge read as a broken layout, not as
+ * more to come, so the count under the cards says how many there are.
  */
 const { posts, names, label } = defineProps<{
   posts: readonly TrendingPost[]
@@ -112,25 +113,23 @@ function move(by: number) {
 
 .post-carousel__slide {
   display: flex;
-  flex: 0 0 88%;
+  flex: 0 0 100%;
   min-inline-size: 0;
   scroll-snap-align: start;
-}
-
-.post-carousel__slide--only {
-  flex-basis: 100%;
 }
 
 .post-carousel__slide > * {
   flex: 1;
 }
 
+/* Under the cards, ending on their right edge. The negative margin takes back the chevron's padding. */
 .post-carousel__nav {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0.125rem;
   margin-top: 0.375rem;
+  margin-inline-end: -0.25rem;
 }
 
 .post-carousel__count {
@@ -143,13 +142,17 @@ function move(by: number) {
 
 /*
  * Two cards at a time once a card would otherwise stretch past a readable
- * line. They grow to fill the track when only one or two exist, and a third
- * still peeks in from the edge. Two posts side by side leave nothing to step
- * through, so they show no controls.
+ * line, each exactly half the track less the gap, so the second ends on the
+ * track's edge. A lone post takes the whole track. Two posts side by side
+ * leave nothing to step through, so they show no controls.
  */
 @container (min-width: 36rem) {
   .post-carousel__slide {
-    flex: 1 0 46%;
+    flex-basis: calc((100% - 0.5rem) / 2);
+  }
+
+  .post-carousel__slide--only {
+    flex-basis: 100%;
   }
 
   .post-carousel:has(.post-carousel__slide:nth-child(2):last-child) .post-carousel__nav {
