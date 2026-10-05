@@ -63,12 +63,20 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
         class="size-11 justify-center p-0"
         :aria-label="`Signed in as @${state.user.login}`"
       >
-        <UAvatar
-          :src="githubAvatarProxyUrl(state.user.login, 64)"
-          :alt="state.user.login"
-          size="xs"
-          class="size-7"
-        />
+        <!-- Mount after hydration so an early image failure reaches the fallback. -->
+        <ClientOnly>
+          <UAvatar
+            :src="githubAvatarProxyUrl(state.user.login, 64)"
+            :alt="state.user.login"
+            size="xs"
+            class="size-7"
+          />
+          <template #fallback>
+            <span class="inline-flex size-7 items-center justify-center rounded-full bg-elevated text-xs">
+              {{ state.user.login.charAt(0) }}
+            </span>
+          </template>
+        </ClientOnly>
       </UButton>
     </LazyUDropdownMenu>
   </div>
