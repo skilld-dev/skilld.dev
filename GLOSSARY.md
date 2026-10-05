@@ -24,6 +24,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | track | `/skills/<slug>`, `layers/registry` | track 1—N Skill | "track" |
 | comparison | `/compare/<slug>`, `layers/marketing` | comparison N—N Skill | "comparison" |
 | trending | `/skills/trending`, ADR-0004 | Repository 1—N social mention | "trending" |
+| trending award | `skill_trending_awards`, ADR-0010 | Skill 1—N trending award | "#3 trending" |
 | registry | skilld.dev | one | "skilld" |
 | skilld token | `cli_tokens`, `layers/identity` | Author 1—N token | "skilld token" |
 | provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
@@ -152,6 +153,14 @@ Collisions
 **Marketing phrase:** "hyped", as in the homepage H1 and the "Stay hyped" tile. It names the same social signal.
 
 **Never:** popular, hot, top, leaderboard.
+
+### trending award
+
+**Is:** the best rank a Skill reached on the `week` or `month` trending board in one calendar period (ADR-0010). It stays after the Skill leaves the board. Only a row with a post or a star surge earns one.
+
+**Format:** `#3 trending · Sep 2026` on a chip or a README badge. `#3 trending, week of 29 Sep 2026` in full.
+
+**Never:** trophy, medal, achievement, honor, top pick.
 
 ### registry
 

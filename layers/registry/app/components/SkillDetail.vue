@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
+import type { TrendingAward } from '#shared/trending-award'
 import type { ZipState } from '../utils/skill-zip'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
 import { comparisonLinkForSkill } from '#shared/comparison-navigation'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
+import { headlineTrendingAward, trendingAwardBadgeLabel, trendingAwardLabel, trendingAwardPath } from '#shared/trending-award'
 import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../utils/skill-context-cost'
 import { fileIcon, highlightLangFromPath } from '../utils/skill-file-tree'
 import { partitionMetadataEntries } from '../utils/skill-metadata'
@@ -197,6 +199,8 @@ const skillFetch = useFetch(
   tags: SkillTag[]
   keywords: string[]
   likeCount: number
+  /** Best rank first. Optional while an edge-cached payload predates it. */
+  trendingAwards?: TrendingAward[]
   faqs: FaqItem[]
   summary: SkillSummary | null
   dependencies: string[]
@@ -671,6 +675,7 @@ useResizeObserver(descriptionEl, () => {
     descriptionClamped.value = el.scrollHeight > el.clientHeight + 1
 })
 const shortSha = computed(() => data.value?.provenance?.sourceCommitSha?.slice(0, 7) ?? null)
+const trendingAward = computed(() => headlineTrendingAward(data.value?.trendingAwards ?? []))
 
 // Frontmatter licences are free text ("Proprietary. LICENSE.txt has complete
 // terms"). The chip keeps the first clause; the title carries the rest.
@@ -1401,6 +1406,20 @@ useHead(computed(() => ({
                   />
                   official
                 </span>
+                <NuxtLink
+                  v-if="trendingAward"
+                  :to="trendingAwardPath(trendingAward)"
+                  class="skill-award"
+                  :aria-label="trendingAwardLabel(trendingAward)"
+                  :title="trendingAwardLabel(trendingAward)"
+                >
+                  <UIcon
+                    name="i-lucide-award"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ trendingAwardBadgeLabel(trendingAward) }}
+                </NuxtLink>
               </div>
               <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                 <span>
@@ -2486,7 +2505,10 @@ useHead(computed(() => ({
               <h2 id="readme-badge-heading" class="sr-only">
                 README badge
               </h2>
-              <BadgeEmbedControl v-bind="badgeInput" />
+              <BadgeEmbedControl
+                v-bind="badgeInput"
+                :trending-award="trendingAward"
+              />
             </section>
           </div>
 
@@ -2686,7 +2708,8 @@ useHead(computed(() => ({
   }
   /* The solid xs badge set 10px text on rose. This keeps the accent and reads
      at chip size. */
-  .skill-official {
+  .skill-official,
+  .skill-award {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
@@ -2697,6 +2720,13 @@ useHead(computed(() => ({
     font-size: 0.75rem;
     line-height: 1.25rem;
     color: var(--syntax-arg);
+  }
+  .skill-award {
+    font-variant-numeric: tabular-nums;
+    transition: border-color 150ms ease;
+  }
+  .skill-award:hover {
+    border-color: var(--syntax-arg);
   }
   .skill-sha {
     color: var(--syntax-arg);

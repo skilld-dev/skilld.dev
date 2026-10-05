@@ -19,6 +19,7 @@ import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 import { tagLinkPath } from '../../utils/tag-quality'
 import { isSkillIndexable, noteAdmissionFallback, SKILL_INDEX_INPUT_COLUMNS_SQL } from '../../utils/trending-admission'
+import { parseSkillTrendingAwards, SKILL_TRENDING_AWARDS_SQL } from '../../utils/trending-awards'
 import { fetchUpstreamText } from '../../utils/upstream-text'
 
 interface FaqPayload { faqs: { question: string, answer: string }[] }
@@ -145,7 +146,8 @@ const DETAIL_COLUMNS_SQL = `r.forks, r.repo_created_at,
   s.rendered_status, s.rendered_raw, s.rendered_frontmatter, s.rendered_html,
   (SELECT sr.sha FROM skill_revisions sr
     WHERE sr.owner = s.owner AND sr.repo = s.repo AND sr.name = s.name
-    ORDER BY sr.modified_at DESC LIMIT 1) AS latest_revision_sha`
+    ORDER BY sr.modified_at DESC LIMIT 1) AS latest_revision_sha,
+  ${SKILL_TRENDING_AWARDS_SQL}`
 
 interface SkillDetailRow {
   // repo meta
@@ -176,6 +178,7 @@ interface SkillDetailRow {
   probe_exception: number | null
   admissions_populated: number | null
   repo_kind: string | null
+  trending_awards: string | null
   seo_index_reasons: string | null
   seo_index_synced_at: number | null
   curator_count: number | null
@@ -421,6 +424,8 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     // Deliberately top-level, not under `seo`: likes are displayed and back
     // ?sort=likes, but never feed indexability or trust (ADR-0003).
     likeCount: row.like_count ?? 0,
+    // Best rank first. Display only, like likes: never trust or indexability (ADR-0010).
+    trendingAwards: parseSkillTrendingAwards(row.trending_awards),
     faqs: faqRow?.payload.faqs ?? [],
     summary: summaryRow?.payload?.text
       ? { text: summaryRow.payload.text }
