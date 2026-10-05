@@ -16,8 +16,8 @@ describe('starred repository identity', () => {
     d1.raw.exec(`
       INSERT OR REPLACE INTO users (id, github_id, login, created_at, last_login_at, onboarded_at) VALUES (1, 11, 'test-user', 1, 1, 1);
       INSERT INTO repos (owner, repo, repo_kind, default_branch) VALUES ('leonxlnx', 'taste-skill', 'catalog', 'main');
-      INSERT INTO skills (owner, repo, name, slug, display_name, current_sha, rendered_skill_path)
-        VALUES ('leonxlnx', 'taste-skill', 'brandkit', 'leonxlnx/taste-skill/brandkit', 'Brandkit', 'blob', 'skills/brandkit/SKILL.md');
+      INSERT INTO skills (owner, repo, name, slug, display_name, current_sha, rendered_skill_path, source_resolved)
+        VALUES ('leonxlnx', 'taste-skill', 'brandkit', 'leonxlnx/taste-skill/brandkit', 'Brandkit', 'blob', 'skills/brandkit/SKILL.md', 1);
       INSERT INTO activity (id, owner, repo, name, type, occurred_at, ingested_at, sha) VALUES (1, 'leonxlnx', 'taste-skill', 'brandkit', 'skill_updated', 10, 10, 'blob');
     `)
     vi.stubGlobal('defineEventHandler', (handler: EventHandler) => handler)
