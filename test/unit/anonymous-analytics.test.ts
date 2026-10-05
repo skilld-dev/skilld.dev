@@ -1,6 +1,6 @@
 import type { EventHandler } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { analyticsCountry, analyticsIndex, cliDataPoint, copyDataPoint } from '../../shared/analytics'
+import { analyticsCountry, analyticsIndex, copyDataPoint } from '../../shared/analytics'
 
 describe('anonymous analytics data points', () => {
   it('writes a copy as surface, mode, kind, slug, and country', () => {
@@ -15,23 +15,6 @@ describe('anonymous analytics data points', () => {
       doubles: [1],
       indexes: ['antfu/vite'],
     })
-  })
-
-  it('keeps no account id on a CLI run from a signed-in person', () => {
-    const point = cliDataPoint({
-      event: 'run',
-      surface: 'cli:run',
-      sourceKind: 'gh',
-      slug: 'obra/superpowers',
-      cliVersion: '3.1.0',
-      agent: 'claude-code',
-      country: 'US',
-      durationMs: 420,
-    })
-
-    expect(point.blobs).toEqual(['run', 'cli:run', 'gh', 'obra/superpowers', '3.1.0', 'claude-code', 'US'])
-    expect(point.doubles).toEqual([1, 420])
-    expect(point.indexes).toEqual(['obra/superpowers'])
   })
 
   it('cuts an index that would breach the 96-byte Analytics Engine limit', () => {

@@ -339,8 +339,8 @@ catalogs:
       specifier: ^2.2.0
       version: 2.2.0
     skilld-protocol:
-      specifier: ^2.4.0
-      version: 2.4.0
+      specifier: ^2.5.0
+      version: 2.5.0
     skilld-sdk:
       specifier: 0.1.2
       version: 0.1.2
@@ -497,7 +497,7 @@ importers:
         version: 2.2.0
       skilld-protocol:
         specifier: 'catalog:'
-        version: 2.4.0
+        version: 2.5.0
       skilld-sdk:
         specifier: 'catalog:'
         version: 0.1.2
@@ -8447,9 +8447,9 @@ packages:
     resolution: {integrity: sha512-XAuW9x2cI3B757A/h2sFYfye5kBUHM8Gr6Muzwtve1oYRCv3BntoKMcgNu+GNF/LKIvUD1fQpBTVUCoHlzMihg==}
     engines: {node: '>=18.0.0'}
 
-  skilld-protocol@2.4.0:
-    resolution: {integrity: sha512-a0wOcj3Wx1E0tO48flN2zMeaBDKB8GSNyv/TjeOArBYWB4Lzgmt3fyti/qIb11zvJmbpGNaS+Hy4Lh7D1I+2jg==}
-    engines: {node: '>=18'}
+  skilld-protocol@2.5.0:
+    resolution: {integrity: sha512-l17WT+Y2nXt/X0rMNOAWTjcDBgUG76a929k9DpJKJQMFhxqNSeA4HFTdUsBm9cpNp9gYO5FX6n7jHF10dSvDQw==}
+    engines: {node: '>=22.0.0'}
 
   skilld-sdk@0.1.2:
     resolution: {integrity: sha512-nFo5TfDcMn8dRAM700L0nF3vwm5r/EENHBRNcNty2+OMXATNQTKU6VWOCkb3xIP2BGRtvbCI9maoV4vhgQKMYw==}
@@ -18738,7 +18738,7 @@ snapshots:
     dependencies:
       fast-xml-parser: 5.10.1
 
-  skilld-protocol@2.4.0:
+  skilld-protocol@2.5.0:
     dependencies:
       zod: 4.5.4
 

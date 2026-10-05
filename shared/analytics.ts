@@ -30,17 +30,6 @@ export interface CopyEvent {
   country: string
 }
 
-export interface CliEvent {
-  event: string
-  surface: string
-  sourceKind: string
-  slug: string
-  cliVersion: string
-  agent: string
-  country: string
-  durationMs: number
-}
-
 export interface AnalyticsDataPoint {
   blobs: string[]
   doubles: number[]
@@ -72,28 +61,5 @@ export function copyDataPoint(event: CopyEvent): AnalyticsDataPoint {
     blobs: [event.surface, event.mode, event.kind, event.slug, event.country],
     doubles: [1],
     indexes: [analyticsIndex(event.slug)],
-  }
-}
-
-/**
- * Blobs: event, surface, sourceKind, slug, cliVersion, agent, country.
- *
- * The CLI may send a `userId`, because the same endpoint serves signed-in
- * runs. It is dropped here. The index is the Skill, never the account, so an
- * account cannot be followed across runs.
- */
-export function cliDataPoint(event: CliEvent): AnalyticsDataPoint {
-  return {
-    blobs: [
-      event.event,
-      event.surface,
-      event.sourceKind,
-      event.slug,
-      event.cliVersion,
-      event.agent,
-      event.country,
-    ],
-    doubles: [1, event.durationMs],
-    indexes: [analyticsIndex(event.slug || event.event)],
   }
 }
