@@ -13,6 +13,7 @@ import TrendingPostCard from './TrendingPostCard.vue'
  * it, and focus on a card scrolls that card into view.
  *
  * The next card peeks in from the edge, which is what says there is more.
+ * Where the carousel is wide enough, two cards show at once.
  */
 const { posts, names, label } = defineProps<{
   posts: readonly TrendingPost[]
@@ -23,7 +24,7 @@ const { posts, names, label } = defineProps<{
 }>()
 
 const track = useTemplateRef<HTMLElement>('track')
-const { x } = useScroll(track)
+const { x, arrivedState } = useScroll(track)
 const motion = usePreferredReducedMotion()
 
 /** Distance from one card to the next: its width plus the gap. */
@@ -80,7 +81,7 @@ function move(by: number) {
         square
         aria-label="Next post"
         class="post-carousel__button"
-        :disabled="current >= posts.length - 1"
+        :disabled="current >= posts.length - 1 || arrivedState.right"
         @click="() => move(1)"
       />
     </div>
@@ -89,6 +90,7 @@ function move(by: number) {
 
 <style scoped>
 .post-carousel {
+  container-type: inline-size;
   min-inline-size: 0;
 }
 
@@ -137,6 +139,22 @@ function move(by: number) {
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   color: var(--ui-text-muted);
+}
+
+/*
+ * Two cards at a time once a card would otherwise stretch past a readable
+ * line. They grow to fill the track when only one or two exist, and a third
+ * still peeks in from the edge. Two posts side by side leave nothing to step
+ * through, so they show no controls.
+ */
+@container (min-width: 36rem) {
+  .post-carousel__slide {
+    flex: 1 0 46%;
+  }
+
+  .post-carousel:has(.post-carousel__slide:nth-child(2):last-child) .post-carousel__nav {
+    display: none;
+  }
 }
 
 /* A touch screen swipes the track, so only a pointer gets the buttons. */
