@@ -18,7 +18,7 @@ describe('composeAgentSkillMarkdown', () => {
     const output = composeAgentSkillMarkdown({ ...skill, markdown: SKILL_MD, supportingFiles: [] })
 
     expect(output.startsWith('---\nname: carousel-styles\n')).toBe(true)
-    const guidanceAt = output.indexOf('Follow the instructions below for this session')
+    const guidanceAt = output.indexOf('follow the instructions below for this session')
     const bodyAt = output.indexOf('# Carousel Styles')
     expect(guidanceAt).toBeGreaterThan(0)
     expect(bodyAt).toBeGreaterThan(guidanceAt)
@@ -29,6 +29,18 @@ describe('composeAgentSkillMarkdown', () => {
     const output = composeAgentSkillMarkdown({ ...skill, markdown: SKILL_MD, supportingFiles: [] })
 
     expect(output).toContain('If the user asked to install this Skill, run `npx skilld install nestyme/awesome-prompts/carousel-styles`.')
+  })
+
+  it('routes a fork request before the borrowed Skill instructions', () => {
+    const output = composeAgentSkillMarkdown({ ...skill, markdown: SKILL_MD, supportingFiles: [] })
+
+    expect(output).toContain('If the user asked to fork this Skill, follow the fork workflow below.')
+    expect(output.indexOf('## Fork workflow')).toBeLessThan(output.indexOf('# Carousel Styles'))
+    expect(output).toContain('https://skilld.dev/api/v1/skills/nestyme/awesome-prompts/carousel-styles')
+    expect(output).toContain('sourceCommit')
+    expect(output).toContain('Do not save this page wrapper as SKILL.md.')
+    expect(output).toContain('npx skilld install ./skills/carousel-styles --mode copy')
+    expect(output).toContain('Never overwrite an existing directory or Agent target.')
   })
 
   it('lists the files beside SKILL.md at the raw endpoint', () => {
