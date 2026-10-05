@@ -452,6 +452,116 @@ describe('accessibility: components', () => {
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     wrapper.unmount()
   })
+
+  it('brailleSpark has no violations and names every count for a screen reader', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('BrailleSpark'),
+      { attachTo: container, props: { counts: [3, 5, 4, 8, 12, 19, 31] } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('[role="img"]')?.getAttribute('aria-label')).toContain('3, 5, 4, 8, 12, 19, 31')
+    wrapper.unmount()
+  })
+
+  it('commandChip has no violations and keeps the command copyable as one string', async () => {
+    const container = createIsolatedContainer()
+    const command = 'npx skilld run mattpocock/skills/tdd'
+    const wrapper = await mountSuspended(
+      await loadComponent('_CommandChip'),
+      {
+        attachTo: container,
+        props: { command, mode: 'run', surface: 'test', target: { kind: 'skill', owner: 'mattpocock', name: 'tdd' } },
+      },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('code')?.textContent).toBe(command)
+    wrapper.unmount()
+  })
+
+  it('runChip has no violations and its switch swaps the command and the consequence', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('RunChip'),
+      { attachTo: container, props: { owner: 'mattpocock', repo: 'skills', skill: 'tdd', surface: 'test' } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('code')?.textContent).toBe('npx skilld run mattpocock/skills/tdd')
+
+    await wrapper.get('button[aria-pressed="false"]').trigger('click')
+    await nextTick()
+
+    expect(container.querySelector('code')?.textContent).toBe('npx skilld install mattpocock/skills/tdd')
+    expect(container.textContent).toContain('Adds the Skill files and a lockfile entry.')
+    wrapper.unmount()
+  })
+
+  it('runChip compact has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('RunChip'),
+      { attachTo: container, props: { owner: 'mattpocock', repo: 'skills', skill: 'tdd', surface: 'test', variant: 'compact' } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('skilldInstallChip has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('SkilldInstallChip'),
+      { attachTo: container, props: { surface: 'test' } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('code')?.textContent).toBe('npx skilld install skilld --global')
+    wrapper.unmount()
+  })
+
+  it('changeGrid has no violations and steps to an older change from the keyboard', async () => {
+    const container = createIsolatedContainer()
+    const day = 86_400
+    const now = 20_000 * day
+    const wrapper = await mountSuspended(
+      await loadComponent('ChangeGrid'),
+      {
+        attachTo: container,
+        props: {
+          name: 'tdd',
+          now,
+          fromFirst: true,
+          changes: [
+            { at: now - 2 * day, version: '2.1.0', note: 'Added a refactor checklist' },
+            { at: now - 33 * day, version: '2.0.0', note: 'Split the red and green steps' },
+          ],
+        },
+      },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('[aria-live]')?.textContent).toContain('Added a refactor checklist')
+
+    await wrapper.get('button').trigger('keydown', { key: 'ArrowLeft' })
+    await nextTick()
+
+    expect(container.querySelector('[aria-live]')?.textContent).toContain('Split the red and green steps')
+    wrapper.unmount()
+  })
+
+  it('changeGrid with no changes has no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('ChangeGrid'),
+      { attachTo: container, props: { name: 'tdd', now: 20_000 * 86_400, changes: [] } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
 })
 
 describe('accessibility: component coverage', () => {
@@ -460,6 +570,9 @@ describe('accessibility: component coverage', () => {
     'OutcomeClusterGrid', // Content section (fetches /api/clusters), tested at page level
     'KeyboardShortcutsModal.client', // Client-only modal requires full app context
     'NoiseField.client', // Decorative client-only canvas
+    'TextureBrailleNames.client', // Decorative client-only canvas, hidden from screen readers
+    'TextureConverge.client', // Client-only canvas; its loading state is one role="status" with a text label
+    'TextureFileMinimap.client', // Decorative client-only canvas, hidden from screen readers
     'OgBrand', // OG image component, rendered server-side only
     'OgLayout', // OG image layout component, rendered server-side only
     'SkillCard', // Tested at page level

@@ -811,7 +811,7 @@ export default defineNuxtConfig({
       pages: {
         includeAppSources: true,
         // An /agents page waits on a CLI release; it answers 404 until then.
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/make-skill', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths(), ...frozenNoindexPaths([...discoveredAgentRoutes(), ...discoveredComparisonRoutes()])],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/make-skill', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit', '/brand-kit/_**', ...unpublishedAgentPaths(), ...frozenNoindexPaths([...discoveredAgentRoutes(), ...discoveredComparisonRoutes()])],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],

@@ -26,6 +26,9 @@
   --syntax-dim: var(--ui-text-muted);
   --syntax-bin: var(--ui-text);
   --syntax-arg: oklch(0.44 0.17 17.32);
+  /* The one rose dot in a brand motif: the Skill you picked. A graphic, never
+     text, so it keeps the brighter mark rose instead of the button rose. */
+  --brand-dot: oklch(0.645 0.246 16.44);
 }
 
 .dark {
@@ -41,6 +44,7 @@
   --ui-color-primary-400: oklch(0.555 0.225 17.32);
   --ui-color-primary-500: oklch(0.555 0.225 17.32);
   --syntax-arg: oklch(0.8 0.12 17.32);
+  --brand-dot: oklch(0.712 0.194 13.43);
 }
 
 /* High contrast mode */
@@ -152,6 +156,12 @@
 .install-command__value {
   color: var(--syntax-arg);
   font-weight: 500;
+}
+
+/* The Skill name, when `split-name` separates it from its owner and repo. */
+.install-command__name {
+  color: var(--syntax-arg);
+  font-weight: 600;
 }
 
 /* Lead emphasis — the one place a page may spend the accent on a whole surface.
