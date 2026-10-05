@@ -38,8 +38,9 @@ Keep prose, evidence, and selection reasons in the article, outside registry row
 4. Record the exact source commit and SKILL.md link. Preserve failures and private research in scratch.
 5. If delivery fails, inspect pinned public source independently. Describe the method without claiming a successful run.
 6. If checks block delivery, keep that constraint beside the candidate. Do not suggest bypassing checks.
-7. Write the decision table, meaningful tradeoffs, and conditional recommendations before background material.
-8. Review material claims against the sources, then review voice against COPY and GLOSSARY.
+7. Filter candidates before writing. Keep meaningful choices; retain the wider source ledger in the work brief.
+8. Write the decision table, meaningful tradeoffs, and conditional recommendations before background material.
+9. Review material claims against the sources, then review voice against COPY and GLOSSARY.
 
 Frontmatter requires `targetQuery`, `reviewedAt`, `reviewDueAt`, `scope`, `methodology`, `disclosure`, and `sources`.
 Each source records `selector`, `revision`, and `url`. The URL names the same repository and commit.
@@ -75,7 +76,9 @@ These are quality principles, not a promise of ranking.
 Default every new comparison to noindex. Add no admission based on estimated demand.
 To admit it, record measured demand or its named experiment role in `PAGE_ADMISSIONS`.
 Use the existing bar in that file, plus the editorial contract above.
-The initial query is `humanize writing skills comparison`. No volume measurement is claimed.
+The initial query is `best humanizer skill for claude`, estimated at 30 US monthly searches on 5 October 2026.
+It misses the existing 100-search bar. [The source ledger](../work/comparison-research.md) records keyword and selection evidence.
+A higher-volume repository-name query does not override the competitor-brand exclusion.
 
 Review sources at least quarterly, and sooner after a material source change or correction.
 Update `reviewedAt` only after reading the relevant sources again.

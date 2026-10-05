@@ -30,3 +30,8 @@ Done means: the comparison renders in production with pinned sources, a working 
   The primary command now uses eyriecommander's subdirectory Skill, verified with published skilld 3.3.0.
   Tables name Repositories. The mgonto source receives its declared biostartechnology credit.
   Repository-root candidates retain source links without run commands.
+
+- 2026-10-05 Harlan requested a focused comparison using the three candidates with the widest reach.
+  GitHub star counts selected Humanizer, Stop Slop, and No AI Slop from the reviewed sample.
+  The public page keeps two distinct alternatives. [The source ledger](comparison-research.md) retains all 18 sources and exclusion reasons.
+  NuxtSEO measured the comparison target at 30 estimated US monthly searches, below the admission bar.
