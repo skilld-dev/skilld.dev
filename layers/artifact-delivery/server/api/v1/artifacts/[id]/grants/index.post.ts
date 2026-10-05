@@ -1,6 +1,6 @@
 import { getHeader, getRouterParam, setHeader } from 'h3'
 import { defineApiHandler } from '#shared/server/handler'
-import { artifactGrantSchema, artifactIdSchema } from '../../../../../schemas/contracts'
+import { artifactGrantSchema, artifactIdSchema, resolutionIdSchema } from '../../../../../schemas/contracts'
 import { withArtifactProblems } from '../../../../../utils/artifact-problem'
 import {
   createGithubAppClientFromEnv,
@@ -18,6 +18,9 @@ export default withArtifactProblems(defineApiHandler({
     const artifactId = artifactIdSchema.safeParse(getRouterParam(event, 'id'))
     if (!artifactId.success)
       throw createError({ statusCode: 404, message: 'Artifact not found' })
+    const requestedResolutionId = resolutionIdSchema.optional().safeParse(getHeader(event, 'x-skilld-resolution-id'))
+    if (!requestedResolutionId.success)
+      throw createError({ statusCode: 404, message: 'Artifact not found' })
     const idempotencyKey = getHeader(event, 'idempotency-key')
     if (!idempotencyKey || idempotencyKey.length < 16 || idempotencyKey.length > 200) {
       throw createError({
@@ -33,7 +36,7 @@ export default withArtifactProblems(defineApiHandler({
       trustedRoot,
       publicBaseUrl: platform.env.ARTIFACT_PUBLIC_BASE_URL,
       now,
-    }, artifactId.data)
+    }, artifactId.data, requestedResolutionId.data)
     if (publicResult._tag === 'granted') {
       setHeader(event, 'cache-control', 'private, no-store')
       return publicResult.grant
@@ -69,7 +72,7 @@ export default withArtifactProblems(defineApiHandler({
         access.repositoryId,
       ),
       idempotencySecret: platform.env.ARTIFACT_GRANT_IDEMPOTENCY_KEY,
-    }, user.id, artifactId.data, idempotencyKey)
+    }, user.id, artifactId.data, idempotencyKey, requestedResolutionId.data)
     if (privateResult._tag === 'not-found')
       throw createError({ statusCode: 404, message: 'Artifact not found' })
     if (privateResult._tag === 'denied') {

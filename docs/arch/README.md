@@ -53,6 +53,11 @@ descriptor (skilld-dev/skilld: packages/sdk/src/contract)
 - **Frozen**: the `skills.search` answer never gains a field while skilld 3.2.0 is in use.
 - **Outside the contract**: Artifact delivery keeps its own schemas until it folds in.
 
+Artifact grants accept `x-skilld-resolution-id` to select the exact Resolution attestation.
+One content hash can have several attestations with different sources or signing times.
+The grant must return the requested Resolution's attestation, or deny delivery.
+Public grants without the header select the newest attestation. Private grants retain Account access checks.
+
 After a contract change in the `skilld-dev/skilld` repository, run `pnpm --filter skilld-sdk generate` and commit the document.
 Publish the new SDK version from that repository's `release.yml`. Then update this site's exact catalog pin.
 The route parity test checks the site against the published contract.

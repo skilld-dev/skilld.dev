@@ -166,6 +166,19 @@ describe('private Artifact delivery', () => {
     fixture.close()
   })
 
+  it('does not substitute a private Resolution when the requested Resolution is missing', async () => {
+    const fixture = await createReadyFixture()
+    const result = await createPrivateArtifactGrant(
+      fixture.grantDependencies,
+      ACCOUNT_ONE,
+      fixture.artifactId,
+      grantKey('missing-resolution'),
+      crypto.randomUUID(),
+    )
+    expect(result).toEqual({ _tag: 'not-found' })
+    fixture.close()
+  })
+
   it('accepts one download within 60 seconds, then denies replay', async () => {
     const fixture = await createReadyFixture()
     const grant = await createPrivateArtifactGrant(fixture.grantDependencies, ACCOUNT_ONE, fixture.artifactId, grantKey('download'))
