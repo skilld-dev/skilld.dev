@@ -2,7 +2,7 @@
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
-definePageMeta({ middleware: ['auth'] })
+definePageMeta({ layout: 'auth', middleware: ['auth'] })
 
 const { user } = useUserSession()
 
@@ -109,7 +109,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
 </script>
 
 <template>
-  <section class="mx-auto max-w-2xl px-4 sm:px-6 pt-8 pb-12 md:pt-12">
+  <section class="mx-auto w-full max-w-2xl">
     <OnboardingSteps :step="1" />
     <h1 class="mt-6 text-2xl font-semibold tracking-tight">
       Watch what you've already starred

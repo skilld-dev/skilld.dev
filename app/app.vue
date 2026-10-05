@@ -10,7 +10,7 @@ const mobileNavigationOpen = ref(false)
 const mobileNavigation = useTemplateRef('mobileNavigation')
 const mobileNavigationToggle = useTemplateRef('mobileNavigationToggle')
 const route = useRoute()
-const isAdminLayout = computed(() => route.meta.layout === 'admin')
+const hasAppLayout = computed(() => !!route.meta.layout)
 
 const { enabled: kbdEnabled } = useKeyboardShortcuts()
 const skillSearch = useSkillSearch()
@@ -102,7 +102,7 @@ watch(() => route.fullPath, () => {
     <!-- Route change announcements for screen readers -->
     <NuxtRouteAnnouncer />
 
-    <NuxtLayout v-if="isAdminLayout">
+    <NuxtLayout v-if="hasAppLayout">
       <NuxtPage />
     </NuxtLayout>
 
@@ -294,10 +294,10 @@ watch(() => route.fullPath, () => {
           />
         </template>
       </UFooter>
-
-      <ClientOnly>
-        <KeyboardShortcutsModal v-model:open="shortcutsModalOpen" />
-      </ClientOnly>
     </template>
+
+    <ClientOnly>
+      <KeyboardShortcutsModal v-model:open="shortcutsModalOpen" />
+    </ClientOnly>
   </UApp>
 </template>

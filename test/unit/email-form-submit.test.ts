@@ -49,7 +49,7 @@ beforeEach(() => {
 
 describe.each(screens)('$name email submission', ({ component, form: selector }) => {
   async function mountForm() {
-    const wrapper = await mountSuspended(component, { attachTo: document.body })
+    const wrapper = await mountSuspended(component, { attachTo: document.body, route: component === Account ? '/me?view=email' : '/onboarding/email' })
     if (component === Account)
       await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
     return { wrapper, form: wrapper.get(selector) }

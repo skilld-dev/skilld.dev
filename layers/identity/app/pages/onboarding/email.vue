@@ -2,7 +2,7 @@
 import type { IdentityEmailPatchBody, IdentityMutationResponse } from '../../../shared/contracts/account'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 
-definePageMeta({ middleware: ['auth'] })
+definePageMeta({ layout: 'auth', middleware: ['auth'] })
 
 const { data: me, error: accountError, status: accountStatus, refresh: retryAccount } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
 const { fetchSession } = useAuth()
@@ -61,7 +61,7 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
 </script>
 
 <template>
-  <section class="mx-auto max-w-md px-4 sm:px-6 pt-8 pb-12 md:pt-12">
+  <section class="mx-auto w-full max-w-md">
     <OnboardingSteps :step="2" />
     <h1 class="mt-6 text-2xl font-semibold tracking-tight">
       Email

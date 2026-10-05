@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: ['session'] })
+definePageMeta({ layout: 'auth', middleware: ['session'] })
 
 const route = useRoute()
 const { loggedIn } = useUserSession()
@@ -98,7 +98,7 @@ useSeoMeta({
 </script>
 
 <template>
-  <section class="mx-auto max-w-lg px-4 sm:px-6 pt-16 pb-12 md:pt-24">
+  <section class="mx-auto w-full max-w-lg">
     <div class="rounded-lg border border-default p-6 sm:p-8">
       <div class="flex items-start gap-3">
         <UIcon name="i-lucide-terminal" class="mt-1 size-6 text-primary" aria-hidden="true" />

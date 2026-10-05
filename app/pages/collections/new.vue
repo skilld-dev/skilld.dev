@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: ['session'] })
+definePageMeta({ layout: 'account', middleware: ['session'] })
 
 const route = useRoute()
 const { isAuthenticated, user, loginUrl } = useAuth()
@@ -61,7 +61,7 @@ const githubLoginHref = computed(() => loginUrl({ returnTo: route.fullPath }))
 
 <template>
   <section
-    class="mx-auto max-w-2xl px-4 sm:px-6 pt-12 pb-16"
+    class="mx-auto max-w-2xl py-6 sm:py-8"
     aria-labelledby="new-collection-heading"
   >
     <h1

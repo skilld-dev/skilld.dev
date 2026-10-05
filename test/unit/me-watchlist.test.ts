@@ -137,9 +137,10 @@ mockNuxtImport('useActionFailure', () => {
   return () => Object.assign(() => vi.fn(), { clear: vi.fn() })
 })
 
-async function mountPage() {
+async function mountPage(view: 'skills' | 'email' | 'repositories' | 'account' = 'skills') {
   return await mountSuspended(
     await import('../../layers/identity/app/pages/me/index.vue').then(module => module.default),
+    { route: view === 'skills' ? '/' : `/?view=${view}` },
   )
 }
 
@@ -224,19 +225,19 @@ describe('account skill watchlist', () => {
   it('recovers account settings after the initial account load fails', async () => {
     account.value = undefined
     accountError.value = new Error('offline')
-    const wrapper = await mountPage()
+    const wrapper = await mountPage('email')
     expect(wrapper.text()).toContain('Could not load your account')
     expect(wrapper.text()).not.toContain('No email set')
     await buttonWithText(wrapper, 'Retry').trigger('click')
     await flushPromises()
-    expect(wrapper.get('h1').text()).toBe('Your skills')
+    expect(wrapper.get('h1').text()).toBe('Email updates')
     await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
     expect((wrapper.get('input[type="email"]').element as HTMLInputElement).value).toBe('harlan@example.com')
   })
 
   it('shows watched repository failures instead of an empty collection', async () => {
     subscriptionsError.value = new Error('offline')
-    const wrapper = await mountPage()
+    const wrapper = await mountPage('repositories')
     expect(wrapper.text()).toContain('Could not load watched Repositories')
     expect(wrapper.text()).not.toContain('Add a skill to start watching its source.')
     await buttonWithText(wrapper, 'Retry').trigger('click')
@@ -249,17 +250,47 @@ describe('account skill watchlist', () => {
     expect(wrapper.get('h1').text()).toBe('Your skills')
     expect(wrapper.get('[aria-label="Your skills"]').text()).toContain('nuxt')
     expect(wrapper.get('[aria-label="Your skills"]').text()).toContain('Build full-stack Vue applications with Nuxt.')
+    expect(wrapper.text()).not.toContain('Weekly email')
+    expect(wrapper.text()).not.toContain('Delete account')
   })
 
-  it('removes the final skill and its derived source from the rendered page', async () => {
+  it('switches account views without mixing their controls', async () => {
+    const wrapper = await mountPage()
+    const router = wrapper.vm.$router
+
+    await router.push('/?view=account')
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('Account')
+    expect(wrapper.text()).toContain('Privacy')
+    expect(wrapper.text()).toContain('Delete account')
+    expect(wrapper.text()).not.toContain('Weekly email')
+    expect(wrapper.text()).not.toContain('Build full-stack Vue applications with Nuxt.')
+
+    await router.push('/?view=email')
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('Email updates')
+    expect(wrapper.text()).toContain('Weekly email')
+    expect(wrapper.text()).not.toContain('Delete account')
+
+    await router.push('/?view=unknown')
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe('Your skills')
+    expect(wrapper.text()).not.toContain('Privacy')
+    wrapper.unmount()
+  })
+
+  it('removes the final skill and updates repository coverage', async () => {
     const wrapper = await mountPage()
 
     await wrapper.get('button[aria-label="Remove nuxt from your skills"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('Add your first skill')
+    const router = wrapper.vm.$router
+    await router.push('/?view=repositories')
+    await flushPromises()
     expect(wrapper.text()).toContain('Add a skill to start watching its source.')
-    expect(wrapper.text()).not.toContain('View repositories')
+    expect(wrapper.text()).not.toContain('antfu/skills')
   })
 
   it('disables skill removal while the request is pending', async () => {
@@ -277,7 +308,7 @@ describe('account skill watchlist', () => {
   })
 
   it('refreshes the visible account timestamp after syncing GitHub stars', async () => {
-    const wrapper = await mountPage()
+    const wrapper = await mountPage('repositories')
     const before = paragraphWithText(wrapper, 'Last GitHub import:').text()
 
     await buttonWithText(wrapper, 'Import stars again').trigger('click')
@@ -300,7 +331,7 @@ describe('account skill watchlist', () => {
 
   it('shows separate email choices and disables saving while pending', async () => {
     releaseEmailSave = () => {}
-    const wrapper = await mountPage()
+    const wrapper = await mountPage('email')
     expect(wrapper.text()).toContain('Weekly email')
     expect(wrapper.text()).toContain('Monthly digest')
     await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
@@ -316,7 +347,7 @@ describe('account skill watchlist', () => {
   })
 
   it('connects the email address label to its textbox', async () => {
-    const wrapper = await mountPage()
+    const wrapper = await mountPage('email')
     document.body.append(wrapper.element)
     await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
     const input = wrapper.get('input[type="email"]').element as HTMLInputElement
@@ -327,7 +358,7 @@ describe('account skill watchlist', () => {
   })
 
   it('saves the weekly email and monthly digest as separate choices', async () => {
-    const wrapper = await mountPage()
+    const wrapper = await mountPage('email')
     await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
     const labels = wrapper.findAll('label')
     const weekly = labels.find(label => label.text().includes('weekly email'))

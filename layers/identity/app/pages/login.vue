@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { parseReturnTo } from '#shared/return-to'
 
-definePageMeta({ middleware: ['session'] })
+definePageMeta({ layout: 'auth', middleware: ['session'] })
 
 const route = useRoute()
 const { loginUrl } = useAuth()
@@ -26,12 +26,12 @@ useSeoMeta({
 </script>
 
 <template>
-  <section class="mx-auto max-w-md px-4 sm:px-6 pt-10 pb-12 md:pt-16">
-    <div class="rounded-lg border border-default p-4 sm:p-5">
+  <section class="mx-auto w-full max-w-md">
+    <div class="rounded-lg border border-default bg-default p-6 sm:p-8">
       <h1 class="text-2xl font-semibold tracking-tight">
         Sign in to skilld
       </h1>
-      <p class="mt-2 text-sm text-muted leading-relaxed">
+      <p class="mt-3 text-base text-muted leading-relaxed">
         Like skills, build collections, and get the weekly: changes to your skills, plus what devs are talking about. We ask for your public profile and email address.
       </p>
       <div class="mt-5">
