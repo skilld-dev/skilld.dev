@@ -22,6 +22,18 @@ Running is the default. `skilld run` hands you the skill for this session and wr
 
 Every tool is read only. Running and installing both stay separate actions in the user's own environment.
 
+## Fork a Skill
+
+If the user says `fork this Skill <skilld.dev URL>`, fetch that page with `Accept: text/markdown`.
+Follow its fork workflow before the borrowed Skill instructions.
+If Markdown negotiation is unavailable, fetch the page's `.md` URL.
+
+Use `get_skill` for the source URL, source commit, Skill path, and licence.
+Copy the complete source directory at one commit, then install that local path.
+Preserve author credit, licence files, scripts, binary assets, and executable modes.
+Never save the page wrapper as SKILL.md or install the upstream selector for a fork.
+Never overwrite existing files or publish the local copy without the user's request.
+
 ## Fallback
 
 When MCP is unavailable, search `https://skilld.dev/skills` and inspect the linked GitHub source before suggesting a run.

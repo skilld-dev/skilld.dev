@@ -41,6 +41,12 @@ These exact strings. Do not paraphrase them per page.
 | Developers staying current | Watch the repos you depend on, get a monthly digest when their skills change |
 | Teams standardizing | Hand-picked collections install a stack in one command |
 
+### Skill fork requests
+
+The Agent request uses `Fork this Skill: <Skill page URL>`.
+The Skill page's Markdown explains how to copy the source and install the local path.
+Keep run as the default. Fork is the opt-in for an editable local copy.
+
 ### Watch and weekly promotions
 
 The watch promotion says: `Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.`

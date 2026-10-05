@@ -15,6 +15,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | source status | lockfile, skilld.dev API | Artifact 1—1 source status | "Verified", "Unverified", "Local" |
 | run | skilld CLI | Skill 1—1 run command | "run" |
 | install | skilld CLI | Skill 1—1 install command | "install" |
+| fork | Agent, Skill page | Skill 1—N local copy | "fork" |
 | lockfile | skilld CLI | project 1—1 lockfile | "lockfile" |
 | curator | `layers/collections`, `/@login` | curator 1—N collection | "curator" |
 | collection | `layers/collections`, `/@login/slug` | collection N—N Skill | "collection" |
@@ -81,6 +82,16 @@ Collisions
 **Is:** `skilld install`. Skill files land in the project and the lockfile records them. The opt-in second step.
 
 **Never:** add, download.
+
+### fork
+
+**Is:** copying a Skill at one source commit into editable local files, with author credit and licence preserved.
+
+**Use for:** an Agent request followed by a local Skill install. Upstream updates do not replace the local copy.
+
+**Never:** run, remote install, GitHub repository fork unless explicitly requested.
+
+**Casing:** `fork` in prose. It is an Agent workflow, not a CLI command.
 
 ### lockfile
 
