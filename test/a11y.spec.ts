@@ -569,7 +569,6 @@ describe('accessibility: component coverage', () => {
   const SKIPPED_COMPONENTS = [
     'OutcomeClusterGrid', // Content section (fetches /api/clusters), tested at page level
     'KeyboardShortcutsModal.client', // Client-only modal requires full app context
-    'NoiseField.client', // Decorative client-only canvas
     'TextureBrailleNames.client', // Decorative client-only canvas, hidden from screen readers
     'TextureConverge.client', // Client-only canvas; its loading state is one role="status" with a text label
     'TextureFileMinimap.client', // Decorative client-only canvas, hidden from screen readers

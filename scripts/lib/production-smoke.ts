@@ -94,7 +94,7 @@ export const ASSET_COHERENCE_PATH = '/skills/trending'
 export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   // The hero words are asserted, not just an h1: the error branch renders an
   // h1 too, so a homepage that lost its data would otherwise pass.
-  { path: '/', status: 200, bodyContains: ['<h1', 'Taste-tested'] },
+  { path: '/', status: 200, bodyContains: ['<h1', 'Hyped agent skills'] },
   { path: '/alt', status: 301, location: '/' },
   { path: '/skills', status: 200, bodyContains: ['<h1'] },
   { path: '/community', status: 200, bodyContains: ['<h1'] },
