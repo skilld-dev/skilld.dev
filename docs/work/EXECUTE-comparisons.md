@@ -26,3 +26,7 @@ Done means: the comparison renders in production with pinned sources, a working 
 - 2026-10-05 The built local page passed SSR, canonical, noindex, sitemap, and clipboard checks.
   Mobile and tablet views retained page width. Keyboard arrows scrolled labelled table regions.
   Encoded source-link traversal failed before the parser fix and passed afterward.
+- 2026-10-05 Independent review found a release-dependent primary command and inferred authorship.
+  The primary command now uses eyriecommander's subdirectory Skill, verified with published skilld 3.3.0.
+  Tables name Repositories. The mgonto source receives its declared biostartechnology credit.
+  Repository-root candidates retain source links without run commands.
