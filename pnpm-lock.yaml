@@ -385,6 +385,7 @@ catalogs:
 patchedDependencies:
   hookable@5.5.3: 3b44da13a743bfa2eab02aef7246065e4dfd56e9878c206f34b51322832cfb2c
   hookable@6.1.1: 7530364d493fa95257cb863d105ed55a1bb4b46d5c9a178a6d64cb73028ed344
+  skilld-protocol@2.5.0: 40578b24b5375959d96e2286d7fdcf6424e9827d7c72c7705df3352dce1c2aac
 
 importers:
 
@@ -497,7 +498,7 @@ importers:
         version: 2.2.0
       skilld-protocol:
         specifier: 'catalog:'
-        version: 2.5.0
+        version: 2.5.0(patch_hash=40578b24b5375959d96e2286d7fdcf6424e9827d7c72c7705df3352dce1c2aac)
       skilld-sdk:
         specifier: 'catalog:'
         version: 0.1.2
@@ -18738,7 +18739,7 @@ snapshots:
     dependencies:
       fast-xml-parser: 5.10.1
 
-  skilld-protocol@2.5.0:
+  skilld-protocol@2.5.0(patch_hash=40578b24b5375959d96e2286d7fdcf6424e9827d7c72c7705df3352dce1c2aac):
     dependencies:
       zod: 4.5.4
 

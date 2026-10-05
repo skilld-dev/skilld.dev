@@ -12,12 +12,16 @@ export type SkillPageBehavior = Omit<Behavior, 'locations'> & {
  * The page holds SKILL.md and the file names the sync stored, never supporting
  * file content, so only those inputs reach the shared rules. `skilld run`
  * applies the same rules to every file.
+ *
+ * The panel is optional, so a rules failure returns no behaviors and reports
+ * itself. On 2026-10-05 the bundled rules failed their own parse, and the
+ * throw took every Skill page down with a 503.
  */
 export function skillPageBehaviors(input: {
   raw: string | null
   assetPaths: readonly string[]
   source: { owner: string, repo: string, branch: string | null, skillPath: string | null }
-}): SkillPageBehavior[] {
+}, detect: typeof detectBehaviors = detectBehaviors): SkillPageBehavior[] {
   const files = [
     ...(input.raw === null ? [] : [{ path: 'SKILL.md', text: input.raw }]),
     ...input.assetPaths.map(path => ({ path })),
@@ -34,7 +38,19 @@ export function skillPageBehaviors(input: {
     })
     return file && location.line !== null ? `${file}#L${location.line}` : file
   }
-  return detectBehaviors(files).map(behavior => ({
+  let detected: Behavior[]
+  try {
+    detected = detect(files)
+  }
+  catch (error) {
+    emitOperationalEvent(createWideEvent({
+      operation: 'skill-behaviors',
+      outcome: 'failed',
+      reason: error instanceof Error ? error.message : String(error),
+    }))
+    return []
+  }
+  return detected.map(behavior => ({
     ...behavior,
     locations: behavior.locations.map(location => ({ ...location, url: url(location) })),
   }))
