@@ -4,7 +4,7 @@ import WeeklyEmailPreview from '../../app/components/WeeklyEmailPreview.vue'
 
 const CARD = '<table><tr><td><a href="https://skilld.dev/me">Settings</a></td></tr></table>'
 
-registerEndpoint('/api/weekly/demo', () => ({
+registerEndpoint('/api/digest/demo', () => ({
   card: { light: CARD, dark: CARD },
   rowCount: 3,
 }))
