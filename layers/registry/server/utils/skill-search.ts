@@ -9,7 +9,7 @@ import {
   findDuplicateCanonicalGroups,
   skillSlug,
 } from './skill-duplicate-canonical'
-import { searchPhraseBoost } from './skill-search-phrase'
+import { searchNameMatch, searchPhraseBoost } from './skill-search-phrase'
 import { nameMatchBoost, semanticSkillSearch } from './skill-semantic-search'
 
 /**
@@ -124,7 +124,7 @@ function trustRank(skill: RegistrySkill): number {
   return duplicateRankingSignals(toDuplicateCandidate(skill)).trustTierRank
 }
 
-/** Order by exact identity, relevance, then source provenance. */
+/** Order by exact identity, complete name words, relevance, then provenance. */
 export function rankSearchResults(
   skills: RegistrySkill[],
   scoreByKey: Map<string, number>,
@@ -134,6 +134,7 @@ export function rankSearchResults(
     .map(skill => ({
       skill,
       exact: Number(isExactIdentity(skill, search)),
+      nameMatch: Number(searchNameMatch(skill, search)),
       trust: trustRank(skill),
       score: (scoreByKey.get(skillKey(skill)) ?? 0)
         + nameMatchBoost(skill, search) * NAME_BOOST_SCALE
@@ -142,6 +143,7 @@ export function rankSearchResults(
     .sort((a, b) =>
       b.exact - a.exact
       || (a.exact && b.exact ? b.trust - a.trust : 0)
+      || b.nameMatch - a.nameMatch
       || b.score - a.score
       || b.trust - a.trust
       || b.skill.stars - a.skill.stars

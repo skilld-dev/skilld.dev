@@ -1,6 +1,6 @@
 import type { RegistrySkill } from '../../layers/registry/server/utils/skills-registry'
 import { describe, expect, it } from 'vitest'
-import { rankSearchResults, skillKey } from '../../layers/registry/server/utils/skill-search'
+import { fuseRankings, rankSearchResults, skillKey } from '../../layers/registry/server/utils/skill-search'
 
 function skill(name: string, description: string): RegistrySkill {
   return {
@@ -32,6 +32,46 @@ function rank(query: string, entries: Array<[RegistrySkill, number]>): string[] 
 }
 
 describe('search phrase relevance', () => {
+  it.each(['writing deslop', 'please find WRITING, DESLOP'])('finds a complete compound name with reordered words: %s', (query) => {
+    expect(rank(query, [
+      [skill('deslop', 'Remove AI-generated code slop. Use after writing code.'), 0.031],
+      [skill('writing-fragments', 'Mine raw fragments before shaping an article.'), 0.026],
+      [skill('deslop-writing', 'Remove clichéd patterns from AI-generated prose.'), 0.019],
+    ])[0]).toBe('deslop-writing')
+  })
+
+  it('does not join isolated description words into compound-name evidence', () => {
+    expect(rank('writing deslop', [
+      [skill('editor', 'Rewrite formulaic prose.'), 0.028],
+      [skill('deslop', 'Remove AI-generated code slop. Use after writing code.'), 0.020],
+    ])[0]).toBe('editor')
+  })
+
+  it('keeps an exact full identity ahead of a reordered compound name', () => {
+    expect(rank('example/skills/writing/deslop', [
+      [skill('deslop-writing', 'Remove formulaic prose.'), 0.032],
+      [skill('writing/deslop', 'Edit supplied prose.'), 0.019],
+    ])[0]).toBe('writing/deslop')
+  })
+
+  it('does not turn repeated query words into compound-name evidence', () => {
+    expect(rank('writing writing', [
+      [skill('editor', 'Rewrite prose.'), 0.025],
+      [skill('writing', 'Create prose.'), 0.020],
+    ])[0]).toBe('editor')
+  })
+
+  it('keeps complete name words above partial names that top both retrieval lanes', () => {
+    const code = skill('deslop', 'Remove AI-generated code slop. Use after writing code.')
+    const prose = skill('deslop-writing', 'Remove clichéd patterns from AI-generated prose.')
+    const lexical = [skillKey(code), ...Array.from({ length: 198 }, (_, i) => `other/skills/${i}`), skillKey(prose)]
+    const scores = fuseRankings([
+      { keys: lexical, weight: 1.2 },
+      { keys: [skillKey(code)], weight: 1 },
+    ])
+    expect(rankSearchResults([code, prose], scores, 'writing deslop')[0]).toBe(prose)
+  })
+
   it('places a complete memory leaks description above isolated stop and memory matches', () => {
     expect(rank('stop memory leaks', [
       [skill('stop-slop', 'Remove repetitive prose.'), 0.025],

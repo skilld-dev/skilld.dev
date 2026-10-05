@@ -4,6 +4,18 @@ function words(text: string): string[] {
   return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
 }
 
+/** Match complete query words in one name, regardless of their order. */
+export function searchNameMatch(
+  skill: { name: string, displayName: string },
+  query: string,
+): boolean {
+  const queryWords = new Set(words(query).filter(word => !REQUEST_WORDS.has(word)))
+  return queryWords.size >= 2 && [skill.name, skill.displayName].some((field) => {
+    const nameWords = new Set(words(field))
+    return [...queryWords].every(word => nameWords.has(word))
+  })
+}
+
 /** Reward a complete task phrase without changing the semantic query. */
 export function searchPhraseBoost(
   skill: { name: string, displayName: string, description: string | null },
