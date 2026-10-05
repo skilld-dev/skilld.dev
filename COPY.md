@@ -90,16 +90,17 @@ Every ranked section says what orders it. ADR-0004 and ADR-0010 set the rules.
 
 | Surface | String |
 | --- | --- |
-| Trending header | `Ranked by how many separate devs talked about each one.` |
-| Trending header, with star rows | `Ranked by how many separate devs talked about each one. GitHub stars rank the rest of the board.` |
+| Trending header | `Ranked by how many separate devs talked about each one. Skills from the 20 most-starred repositories rank lower, so lesser-known skills lead.` |
+| Trending header, with star rows | `Ranked by how many separate devs talked about each one. GitHub stars rank the rest of the board. Skills from the 20 most-starred repositories rank lower, so lesser-known skills lead.` |
 | Trending star row label | `Ranked by GitHub stars` |
 | Track talked heading | `{Noun} skills devs talked about this week`, or `this month` on the month board |
-| Track talked line | The trending header string, unchanged |
+| Track talked line | `Ranked by how many separate devs talked about each one.` Track pages skip the demotion (ADR-0010), so the line never states it |
 | Track pinned heading | `Hand-picked {noun} skills` |
 | Track stars heading | `More {noun} skills, ranked by GitHub stars`, or `{Noun} skills, ranked by GitHub stars` when no section comes before it |
 | Track quiet line | `Devs talked about {n} of these skills this week. A list ranked by devs starts at 5.` |
 
 `{noun}` is the track's `noun` field in `clusters.ts`, such as `design` or `SEO`.
+The 20 in the trending header is `DEMOTED_STARRED_REPOSITORIES` in `shared/trending-range.ts`. The page and the ranking read that one constant.
 Never call a ranked section top, popular, hot, best, or a leaderboard.
 
 ## Discord digest
