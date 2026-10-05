@@ -75,3 +75,14 @@ Both independent reviewers accepted that exact digest on 2026-10-05 after checki
 Coordinator acceptance: Codex inspected the final article, source checks and revised records.
 Remaining limit: Claude and Gemini task completion, plus production delivery, require separate observation.
 Collection pass: formatted the Learn introduction's `SKILL.md` as code after the renderer autolinked the bare filename.
+
+## Internal linking follow-up, 2026-10-05
+
+User requested a linking strategy for the article.
+See [link map and evidence limits](LINKING.md).
+Add contextual entry points from the homepage, the three covered Agent pages and package-review steps.
+Only homepage, Claude Code and Codex are indexable donors under the existing admission rules.
+The final article and its accepted digest are unchanged.
+Independent linking review: article_review accepted the placements and donor eligibility.
+Resolved findings: qualify donor compatibility claims, correct Claude's loaded-context claim,
+and require dated equal-length Search Console windows without causal attribution.

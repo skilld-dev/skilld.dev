@@ -3,7 +3,7 @@
 | ID | Status | Evidence kind | Claim and scope | Supporting source | Checked |
 | --- | --- | --- | --- | --- | --- |
 | P01 | Documented | Official documentation | SKILL.md requires name and description. Name matches the directory. Description is non-empty and at most 1024 characters. | https://agentskills.io/specification | 2026-10-05 |
-| P02 | Documented | Official documentation | Claude Code discovers .claude/skills and adds invocation and dynamic-context features. | https://code.claude.com/docs/en/skills | 2026-10-05 |
+| P02 | Documented | Official documentation | Claude Code discovers .claude/skills and adds invocation and dynamic-context features. Invoked Skill instructions persist across later conversation turns. | https://code.claude.com/docs/en/skills#skill-content-lifecycle | 2026-10-05 |
 | P03 | Documented | Official documentation | Codex discovers .agents/skills and follows symlinked Skill folders. | https://learn.chatgpt.com/docs/build-skills | 2026-10-05 |
 | P04 | Documented | Official documentation | Gemini CLI discovers .gemini/skills and .agents/skills. The alias takes precedence within a tier. Consent precedes injection of the full Skill body. | https://geminicli.com/docs/cli/skills/ | 2026-10-05 |
 | P05 | Documented | Official documentation | allowed-tools is experimental and implementation support varies. | https://agentskills.io/specification | 2026-10-05 |

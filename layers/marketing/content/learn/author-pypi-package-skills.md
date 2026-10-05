@@ -7,7 +7,7 @@ relatedPages:
   - path: /skills
     title: Browse skills
 createdAt: 2026-09-07
-updatedAt: 2026-09-07
+updatedAt: 2026-10-05
 ---
 
 ## 1. Draft your Skill
@@ -26,6 +26,7 @@ Describe public imports, supported Python versions, optional dependencies, and c
 ## 2. Review the draft
 
 Run the examples in an environment with your package's declared dependencies.
+Use [the cross-Agent selection and task checks](/learn/create-agent-skills#check-selection-and-task-completion-separately) before publishing the Skill.
 Check that imports use the public API and work on supported Python versions.
 Remove generic advice and link version limits to your documentation.
 Review the files before committing them.

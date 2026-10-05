@@ -1046,6 +1046,12 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               Choose a package you publish or a project you maintain. Get the steps to draft a Skill, review it, and ship it in your repository.
             </p>
+            <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted">
+              Start with a
+              <NuxtLink to="/learn/create-agent-skills" class="text-default underline">
+                complete portable Skill example
+              </NuxtLink>.
+            </p>
             <ul class="home-eco-logos mt-5 list-none p-0" aria-label="Package ecosystems">
               <li
                 v-for="ecosystem in authoringEcosystems"

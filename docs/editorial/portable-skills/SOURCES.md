@@ -11,6 +11,7 @@ Search results discover sources; they do not verify claims.
 | [OpenAI](https://openai.com) | https://learn.chatgpt.com/docs/build-skills | Codex local discovery. Not every [ChatGPT](https://chatgpt.com) surface. |
 | Google | https://geminicli.com/docs/cli/skills/ | Gemini CLI discovery aliases and management. |
 | skilld | https://github.com/skilld-dev/skilld/tree/main/skills | Authoring Skills. Inspection does not prove an Agent run. |
+| Google Search Central | https://developers.google.com/search/docs/crawling-indexing/links-crawlable | Crawlable anchors, descriptive text and contextual internal links. No promised ranking gain. |
 
 Discovery: follow documentation links. Reopen changeable claims before publication.
 NuxtSEO 0.5.3, Site `s_08aae654`, US locale `2840`, research date 2026-10-05.
