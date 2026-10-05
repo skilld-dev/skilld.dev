@@ -1,7 +1,7 @@
 import type { H3Event } from 'h3'
 import type { Platform } from '#shared/server/platform'
 import type { SkillSearchQuery } from '#shared/skill-search-query'
-import type { IntentOutcome } from './search-intent'
+import type { IntentOutcome, IntentReport } from './search-intent'
 import type { SearchIntentDeps } from './search-intent-run'
 import type { SearchMode } from './skill-search'
 import type { RegistrySkill } from './skills-registry'
@@ -10,7 +10,6 @@ import { classifySearchQuery } from '#shared/skill-search-query'
 import { runAfterResponse } from './after-response'
 import { notBrokenSql } from './broken'
 import { planIntentSearch } from './search-intent'
-import { understandSearchQuery } from './search-intent-run'
 import { querySkills } from './skills-registry'
 
 /**
@@ -88,7 +87,8 @@ export function searchIntentDeps(event: H3Event, platform: Platform): SearchInte
   const limiter = platform.env.API_GUEST_RATE_LIMIT
   return {
     ai: platform.ai as unknown as SearchIntentDeps['ai'],
-    storage: useStorage('edge-cache'),
+    // Global KV, not the per-colo Cache API: see SearchIntentDeps.storage.
+    storage: useStorage('cache'),
     allow: async () => {
       if (!limiter)
         return true
@@ -99,15 +99,29 @@ export function searchIntentDeps(event: H3Event, platform: Platform): SearchInte
     schedule: promise => runAfterResponse(event, promise),
     digest: sha256Hex,
     sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
-    report: (outcome) => {
-      if (outcome._tag !== 'fallback')
+    now: () => Date.now(),
+    // One event per model call or skip, never with the query. The field
+    // validator needs each event as an object literal.
+    report: (report) => {
+      if (report._tag === 'skipped') {
+        emitOperationalEvent(createWideEvent({ operation: 'search-intent', outcome: 'skipped', reason: report.reason }), intentReportLevel(report))
         return
-      emitOperationalEvent(
-        createWideEvent({ operation: 'search-intent', outcome: 'failed', reason: outcome.reason }),
-        outcome.reason === 'timeout' ? 'info' : 'warn',
-      )
+      }
+      emitOperationalEvent(createWideEvent({
+        'operation': 'search-intent',
+        'outcome': report.result,
+        'reason': report._tag === 'late' ? 'late-reply' : 'model-call',
+        'model.durationMs': report.modelMs,
+      }), intentReportLevel(report))
     },
   }
+}
+
+/** A missing binding or a failing model is a fault. Everything else is information. */
+export function intentReportLevel(report: IntentReport): 'info' | 'warn' {
+  if (report._tag === 'skipped')
+    return report.reason === 'binding-missing' ? 'warn' : 'info'
+  return report.result === 'model-error' || report.result === 'invalid-response' ? 'warn' : 'info'
 }
 
 interface BoxSearchInput {
@@ -120,11 +134,16 @@ function empty(): { items: RegistrySkill[], total: number } {
   return { items: [], total: 0 }
 }
 
+/**
+ * Answer one search box query. `intent` is what query understanding made of
+ * an intent query, read before the answer cache so the cache key can name it.
+ * It is null for every other kind.
+ */
 export async function searchSkillBox(
   event: H3Event,
   platform: Platform,
   input: BoxSearchInput,
-  intentDeps: SearchIntentDeps = searchIntentDeps(event, platform),
+  intent: IntentOutcome | null,
 ): Promise<SkillBoxSearchResult> {
   const query = classifySearchQuery(input.q)
   const { limit, officialOwners } = input
@@ -168,8 +187,7 @@ export async function searchSkillBox(
       return { ...base, ...(await search(query.text)) }
 
     case 'intent': {
-      const intent = await understandSearchQuery(intentDeps, query.text)
-      const plan = planIntentSearch(query.text, intent._tag === 'understood' ? intent.understanding : null)
+      const plan = planIntentSearch(query.text, intent?._tag === 'understood' ? intent.understanding : null)
       const owner = await verifiedOwner(platform.db, plan.owner)
       const run = (ownerFilter: string | null) => querySkills(event, {
         search: plan.search,

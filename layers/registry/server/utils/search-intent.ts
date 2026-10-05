@@ -23,8 +23,13 @@ export const SEARCH_INTENT_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast'
 /** Bump when the prompt or the parser changes, so cached answers expire. */
 export const SEARCH_INTENT_PROMPT_VERSION = 1
 
-/** After this, search runs on the typed words. The model call is abandoned. */
-export const SEARCH_INTENT_BUDGET_MS = 800
+/**
+ * After this, search runs on the typed words and the model reply is cached
+ * when it lands. Measured in production on 2026-10-06 over 24 calls: this
+ * model's inference alone took p50 614ms, p90 815ms, max 1256ms. The first
+ * budget, 800ms, sat under the p90, so most first answers were dropped.
+ */
+export const SEARCH_INTENT_BUDGET_MS = 1200
 
 export const SEARCH_INTENT_MAX_TOKENS = 96
 
@@ -277,6 +282,15 @@ export type IntentOutcome
     | { _tag: 'skipped', reason: 'binding-missing' | 'rate-limited' | 'cached-miss' }
     | { _tag: 'fallback', reason: 'timeout' | 'model-error' | 'invalid-response' }
 
+/**
+ * One aggregate record per model call or skip, for the operations log. It
+ * carries how long the model took and never the query.
+ */
+export type IntentReport
+  = | { _tag: 'model', result: 'understood' | 'timeout' | 'model-error' | 'invalid-response', modelMs: number }
+    | { _tag: 'late', result: 'understood' | 'model-error' | 'invalid-response', modelMs: number }
+    | { _tag: 'skipped', reason: 'binding-missing' | 'rate-limited' }
+
 /** What a cache entry holds: an answer, or the record that there was none. */
 export type CachedIntent
   = | { _tag: 'understood', understanding: QueryUnderstanding }
@@ -331,4 +345,14 @@ export function raceBudget(model: Promise<unknown>, budgetMs: number, sleep: (ms
     model.then(response => ({ _tag: 'answered', response }) as const, () => ({ _tag: 'failed' }) as const),
     sleep(budgetMs).then(() => ({ _tag: 'timeout' }) as const),
   ])
+}
+
+/**
+ * The answer cache identity for one search box request. It names the
+ * understanding the answer used, so the answer computed from a cached
+ * understanding never shares an entry with the one that fell back.
+ */
+export function answerCacheIdentity(normalizedQuery: string, limit: number, intent: IntentOutcome | null): string {
+  const understanding = intent?._tag === 'understood' ? intent.understanding : null
+  return JSON.stringify([normalizedQuery, limit, understanding])
 }
