@@ -53,7 +53,7 @@ async function openGuide() {
     await navigateTo(packageSkillGuide(parsed.value).to)
   }
   catch {
-    submission.value = { _tag: 'Failed', message: 'The guide could not open. Submit the form again.' }
+    submission.value = { _tag: 'Failed', message: 'Couldn\'t open the guide. Check your connection and try again.' }
   }
   if (submission.value._tag === 'Navigating')
     submission.value = { _tag: 'Idle' }
@@ -73,11 +73,15 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
 
 <template>
   <div class="mx-auto max-w-2xl px-4 py-12 sm:px-6 md:py-16">
-    <header>
-      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
+    <header class="relative isolate">
+      <!-- The File minimap: SKILL.md files as dot rows, beside the heading so no dot sits behind text. -->
+      <div class="make-skill-minimap absolute -top-10 right-0 -z-10 h-24 w-2/5 sm:top-0 sm:h-full sm:w-40 md:-top-4 md:h-[calc(100%+2rem)]">
+        <TextureFileMinimap />
+      </div>
+      <h1 class="text-3xl font-semibold tracking-tight sm:pr-44 sm:text-4xl">
         Make a skill
       </h1>
-      <p class="mt-4 max-w-xl text-base leading-relaxed text-muted">
+      <p class="mt-4 text-base leading-relaxed text-muted sm:pr-44">
         Help agents use your package or work in your project. Get the steps to write a Skill and ship it from your repository.
       </p>
     </header>
@@ -99,9 +103,6 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
       <h2 id="kind-heading" class="text-xl font-semibold">
         What is your Skill for?
       </h2>
-      <p class="mt-2 text-base text-muted">
-        Choose what the Skill helps agents with.
-      </p>
       <div class="mt-6 divide-y divide-default rounded-lg border border-default">
         <UButton
           v-for="(item, key) in skillKinds"
@@ -134,9 +135,6 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
       <h2 id="ecosystem-heading" class="text-xl font-semibold">
         Where do you publish your package?
       </h2>
-      <p class="mt-2 text-base text-muted">
-        Choose where developers get your package.
-      </p>
       <div class="mt-6 divide-y divide-default rounded-lg border border-default">
         <UButton
           v-for="(item, key) in packageEcosystems"
@@ -231,3 +229,11 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
     </section>
   </div>
 </template>
+
+<style scoped>
+/* Fade the minimap in from the left and out at the top and bottom, so it has no hard edge. */
+.make-skill-minimap {
+  mask-image: radial-gradient(closest-side, #000 45%, transparent);
+  -webkit-mask-image: radial-gradient(closest-side, #000 45%, transparent);
+}
+</style>
