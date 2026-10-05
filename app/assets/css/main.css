@@ -1833,6 +1833,13 @@
   display: none;
 }
 
+/* Keep the provenance preview short on phones so discovery follows sooner. */
+@media (max-width: 39.999rem) {
+  .home-page .home-hero-rail .skill-source-stream {
+    block-size: 18rem;
+  }
+}
+
 /* Tiles recede on their border, not on opacity. Dimmed text read as disabled. */
 .home-hero-agent,
 .home-eco-logo,

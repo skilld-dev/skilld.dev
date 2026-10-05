@@ -383,7 +383,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <!-- The hero runs wider than the editorial bands below it so the proof
            rail sits beside the headline instead of compressing it. -->
       <div class="editorial-band__content mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-14">
-        <div class="home-hero-grid home-hero-grid">
+        <div class="home-hero-grid">
           <div class="home-hero-copy min-w-0">
             <h1 id="hero-heading" class="home-hero-title font-semibold tracking-[-0.045em]">
               <span class="home-hero-taste">Taste-tested<span class="home-hero-emoji" aria-hidden="true">😋</span></span><br>
@@ -391,8 +391,12 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
               <span class="home-hero-eco">ecosystem.</span>
             </h1>
             <p class="mt-6 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Skills written by the maintainers themselves, read by a person before they're listed. Find what your agent needs today, then keep up when it changes.
+              Run a skill for one session without adding files. Fork it when you want an editable copy.
+              Skills written by their maintainers, read by a person before they're listed.
             </p>
+            <NuxtLink to="/developers" class="mt-3 inline-flex min-h-11 items-center font-mono text-sm text-muted underline underline-offset-4 hover:text-default">
+              Use the CLI, API, SDK, or MCP
+            </NuxtLink>
 
             <div class="home-hero-slots mt-10">
               <div class="home-hero-slot">
@@ -455,7 +459,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <header class="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 id="trending-heading" class="home-h2 text-balance">
-              <span class="home-ink">Trending</span> this week.
+              <span class="home-ink">Trending skills</span> this week.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               Devs are posting about these skill repos. We count how many separate devs shared each one. Every card links the author's source.
@@ -487,12 +491,12 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         </div>
 
         <ol v-else class="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2">
-          <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`">
+          <li v-for="repo in trendingSectionRepos" :key="`${repo.owner}/${repo.repo}`" class="min-w-0">
             <NuxtLink
               :to="repoHubPath(repo.owner, repo.repo)"
-              class="group flex h-full flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
+              class="group flex h-full min-w-0 flex-col rounded-lg border border-default p-4 transition-colors hover:border-inverted"
             >
-              <span class="flex items-center gap-2">
+              <span class="flex min-w-0 items-center gap-2">
                 <img
                   :src="githubAvatarProxyUrl(repo.owner, 64)"
                   alt=""
@@ -529,7 +533,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="editorial-band__content mx-auto max-w-6xl px-4 py-12 sm:px-6 md:py-16">
         <div class="home-outcomes-intro">
           <h2 id="outcomes-heading" class="home-h2 max-w-[16ch] text-balance">
-            Skills for the <span class="home-ink">work you do</span>.
+            Skills for <span class="home-ink">your work</span>.
           </h2>
           <p id="outcomes-description" class="mt-4 max-w-md text-base leading-relaxed text-muted text-pretty">
             Pick a track. Busiest first, measured from what devs shared this week.
@@ -574,7 +578,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <header class="home-freshness-header">
           <div class="min-w-0">
             <h2 id="freshness-heading" class="home-h2 max-w-[15ch] text-balance">
-              Your skills <span class="home-ink">changed</span>. Did anyone tell you?
+              Keep up with <span class="home-ink">skill changes</span>.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.
@@ -785,7 +789,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-featured-heading">
           <div class="min-w-0">
             <h2 id="featured-focus-heading" class="home-h2 text-balance">
-              A whole collection, <span class="home-ink">one command</span>.
+              Install a collection in <span class="home-ink">one command</span>.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               A collection gathers the skills one project needs. A curator picked every one. Install the set, then watch it.
@@ -1049,7 +1053,7 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
         <div class="home-make-strip">
           <div class="min-w-0">
             <h2 id="publish-heading" class="home-h2 text-balance">
-              Maintain something? <span class="home-ink">Write the skill</span> for it.
+              <span class="home-ink">Write a skill</span> for your project.
             </h2>
             <p class="mt-4 max-w-2xl text-base leading-relaxed text-muted text-pretty">
               Choose a package you publish or a project you maintain. Get the steps to draft a Skill, review it, and ship it in your repository.
