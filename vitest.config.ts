@@ -16,17 +16,7 @@ import { configDefaults } from 'vitest/config'
 const MAX_WORKERS = Math.max(2, Math.min(6, availableParallelism() - 2))
 
 export default defineVitestConfig({
-  resolve: {
-    alias: {
-      '#checkin/checks': fileURLToPath(new URL('./test/fixtures/checkin-registry.ts', import.meta.url)),
-      // The nuxt-ai-ready module injects these virtuals at build time; tests
-      // that load its runtime dist files directly need them to resolve.
-      '#nuxtseo/nitro': fileURLToPath(new URL('./test/fixtures/ai-ready-nitro-shim.ts', import.meta.url)),
-      '#nuxtseo/h3': fileURLToPath(new URL('./test/fixtures/ai-ready-h3-shim.ts', import.meta.url)),
-      '#ai-ready-virtual/read-page-data.mjs': fileURLToPath(new URL('./test/fixtures/ai-ready-read-page-data-stub.ts', import.meta.url)),
-      '#ai-ready-virtual/i18n-runtime.mjs': fileURLToPath(new URL('./test/fixtures/ai-ready-i18n-runtime-stub.ts', import.meta.url)),
-    },
-  },
+  resolve: { alias: { '#checkin/checks': fileURLToPath(new URL('./test/fixtures/checkin-registry.ts', import.meta.url)) } },
   test: {
     globals: true,
     environment: 'nuxt',
