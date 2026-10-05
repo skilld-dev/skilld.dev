@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
-describe('AI Ready route listing cost', () => {
+describe('ai-ready route listing cost', () => {
   it('returns ordered eligible pages without scanning and sorting every eligible route', () => {
     const db = new Database(':memory:')
     db.exec(`
