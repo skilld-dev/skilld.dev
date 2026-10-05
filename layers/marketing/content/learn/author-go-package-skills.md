@@ -7,7 +7,7 @@ relatedPages:
   - path: /skills
     title: Browse skills
 createdAt: 2026-09-07
-updatedAt: 2026-09-07
+updatedAt: 2026-10-05
 ---
 
 ## 1. Draft your Skill
@@ -25,6 +25,7 @@ Use complete import paths in examples.
 ## 2. Review the draft
 
 Run the examples against the module version you plan to release.
+Use [the cross-Agent selection and task checks](/learn/create-agent-skills#check-selection-and-task-completion-separately) before publishing the Skill.
 Check that they import public packages and handle returned errors.
 Describe required setup and cleanup for resources.
 Remove generic Go advice and review the draft before committing it.

@@ -44,6 +44,7 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
   '/developers',
   '/privacy',
   '/learn/private-repositories',
+  '/learn/create-agent-skills',
   '/learn/author-project-skills',
   '/learn/author-npm-package-skills',
   '/learn/author-pypi-package-skills',
@@ -56,6 +57,10 @@ export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
   '/compare/humanize-writing-skills': {
     targetQuery: 'best humanizer skill for claude',
     admissionBar: 'Experiment F, owner-approved 2026-10-05: one original source comparison with contextual internal links. Query estimate: 30 US searches a month, below the volume bar. Retain admission at the 2026-11-11 gate only if indexed with relevant query impressions.',
+  },
+  '/learn/create-agent-skills': {
+    targetQuery: 'how to create claude skills',
+    admissionBar: '390 US searches a month, KD 30. NuxtSEO research keywords, 2026-10-05. One cross-Agent authoring pilot; review at the 2026-11-11 gate.',
   },
   '/agents/codex': {
     targetQuery: 'codex skills',

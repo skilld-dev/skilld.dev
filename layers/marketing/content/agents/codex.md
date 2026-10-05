@@ -1,11 +1,11 @@
 ---
 title: 'Codex skills: run curated Agent Skills in Codex CLI'
-description: "How to use Skills in Codex: where Codex reads them, how skilld installs them, and a curated list with authors. The same Skill runs in Claude Code, Codex, Cursor, and every other Agent skilld targets."
+description: "Find curated Codex Skills with readable sources. Learn where Skills load, how to run or install them, and how to check your own Skill across Agents."
 heading: Codex skills
 label: Agents
 command: npx skilld run owner/repo/skill
 publishedAt: 2026-09-01
-updatedAt: 2026-09-01
+updatedAt: 2026-10-05
 ---
 
 Codex is OpenAI's coding Agent for the terminal and the editor. It reads Agent Skills from a directory in your project or your home directory. skilld gives you a curated set of those Skills, each written by a person in their own repository, and one command that puts a Skill in front of Codex.
@@ -20,6 +20,9 @@ Codex loads a Skill from a `SKILL.md` file. Each Skill sits in its own directory
 Amp and Zed read the same two directories. One install serves all three Agents.
 
 Codex discovers Skills at startup. It keeps each name and description in context. When a task matches a description, Codex loads the full file and follows it.
+
+To write your own, follow [Write a Skill that works across Agents](/learn/create-agent-skills).
+Start with a complete `SKILL.md`, then check discovery and task completion in Codex.
 
 ### Install a Skill for Codex
 

@@ -171,7 +171,7 @@ Check each PR with `gh pr view <n> --repo skilld-dev/skilld.dev`.
 | 4 | No zone rate limit on `/gh/*` exists, so nothing to exempt. 60 parallel requests to one `/gh/` page all returned 200 on 2026-09-30 | [#324](https://github.com/skilld-dev/skilld.dev/pull/324) |
 | 5 | Crawl waste: `www` 301; 75 to 19 JS preloads; HTML edge cache | [#316](https://github.com/skilld-dev/skilld.dev/pull/316), [#323](https://github.com/skilld-dev/skilld.dev/pull/323), [#328](https://github.com/skilld-dev/skilld.dev/pull/328), [#329](https://github.com/skilld-dev/skilld.dev/pull/329) |
 | 6 | Real 404 and 410 for missing Skills; 503 with `Retry-After` when the lookup fails | [#317](https://github.com/skilld-dev/skilld.dev/pull/317) |
-| 7 | 40 URL panel | [seo-recovery-panel.json](seo-recovery-panel.json) |
+| 7 | Recovery URL panel | [seo-recovery-panel.json](seo-recovery-panel.json) |
 | 8 | Author profiles, collections, owner hubs and multi-Skill repository hubs render `noindex,follow`. The `authors` and `sources` sitemaps are gone (owner decision, 2026-10-01). A single-Skill repository hub is the Skill's page and stays in the skills sitemap when the trending admission rule admits it | this change |
 
 Checks:
@@ -204,7 +204,7 @@ After #557 is live, the counts behind each coverage bucket change meaning. Triag
 
 ## The panel
 
-[seo-recovery-panel.json](seo-recovery-panel.json) holds 40 URLs. Every URL resolves to its canonical.
+[seo-recovery-panel.json](seo-recovery-panel.json) defines the measurement groups and their URLs.
 
 | Group | URLs | Treatment | Expect |
 | --- | ---: | --- | --- |
@@ -249,7 +249,7 @@ Sprint 0 item 1 is the base for every experiment. Only Skills admitted from the 
 
 ### A. Bing as a control
 
-- Measures: Bing's per-URL index status for all 40 panel URLs. Day 0 is 2026-09-30.
+- Measures: Bing's per-URL index status for the panel. The original 40-URL baseline is 2026-09-30.
 - Setup: skilld.dev was connected to Bing in gscdump on 2026-09-30 and held no data. Harlan submits `https://skilld.dev/sitemap_index.xml` in Bing Webmaster Tools. IndexNow submission moves to another service (owner decision, 2026-10-01). [#320](https://github.com/skilld-dev/skilld.dev/pull/320) stays in draft.
 - Limit: since 2026-09-09, gscdump reads of Bing traffic and crawl data fail for every site. Only Bing's per-URL index status works.
 - Read on 2026-10-12, after the spam update ends.

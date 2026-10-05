@@ -1,0 +1,128 @@
+{
+  "checkedAt": "2026-10-05",
+  "cliVersion": "0.5.3",
+  "site": "s_08aae654",
+  "locationCode": 2840,
+  "keywordCommand": "research keywords claude skills --no-related --min-volume 0 --max-volume 1000000 --max-difficulty 100 --limit 100",
+  "keyword": {
+    "keyword": "how to create claude skills",
+    "volume": 390,
+    "difficulty": 30,
+    "intent": "informational",
+    "secondaryIntents": null,
+    "cpc": 5.88,
+    "competition": 0.05,
+    "competitionLevel": "LOW",
+    "lowBid": 0.9,
+    "highBid": 6.08,
+    "trend": [
+      {
+        "year": 2026,
+        "month": 8,
+        "volume": 480
+      },
+      {
+        "year": 2026,
+        "month": 7,
+        "volume": 480
+      },
+      {
+        "year": 2026,
+        "month": 6,
+        "volume": 590
+      },
+      {
+        "year": 2026,
+        "month": 5,
+        "volume": 720
+      },
+      {
+        "year": 2026,
+        "month": 4,
+        "volume": 880
+      },
+      {
+        "year": 2026,
+        "month": 3,
+        "volume": 880
+      },
+      {
+        "year": 2026,
+        "month": 2,
+        "volume": 480
+      },
+      {
+        "year": 2026,
+        "month": 1,
+        "volume": 320
+      },
+      {
+        "year": 2025,
+        "month": 12,
+        "volume": 140
+      },
+      {
+        "year": 2025,
+        "month": 11,
+        "volume": 90
+      },
+      {
+        "year": 2025,
+        "month": 10,
+        "volume": 70
+      },
+      {
+        "year": 2025,
+        "month": 9,
+        "volume": 0
+      }
+    ],
+    "serpFeatures": null,
+    "backlinks": 21190.9,
+    "referringDomains": 222.8
+  },
+  "evidence": {
+    "_tag": "live",
+    "provider": "dataforseo",
+    "spend": {
+      "key": "dataforseo",
+      "units": 1
+    }
+  },
+  "requestId": "3ebe25ae-fdcd-4d57-921c-350aa7e7abf3",
+  "serp": {
+    "query": "how to create agent skills",
+    "cached": false,
+    "results": [
+      {
+        "position": 1,
+        "url": "https://agentskills.io/skill-creation/quickstart",
+        "title": "Quickstart",
+        "domain": "agentskills.io",
+        "description": "Open your project in VS Code. · Open the Copilot Chat panel. · Select Agent mode from the mode dropdown at the bottom of the chat panel. · Type /skills to confirm ... Read more"
+      },
+      {
+        "position": 2,
+        "url": "https://code.visualstudio.com/docs/agent-customization/agent-skills",
+        "title": "Use Agent Skills in VS Code",
+        "domain": "code.visualstudio.com",
+        "description": "To create a skill: In the Chat view, select Configure Chat (gear icon) to open the Agent Customizations editor and then select the Skills tab. Select New Skill"
+      },
+      {
+        "position": 3,
+        "url": "https://blogs.cisco.com/learning/make-ai-agent-skills-that-work-the-way-you-do",
+        "title": "Make AI Agent Skills that Work the Way You Do",
+        "domain": "blogs.cisco.com",
+        "description": "Jul 21, 2026 — How do I create an agent skill? A skill is a directory, and SKILL.md does the work. Start with YAML frontmatter—a name and a description ... Read more"
+      },
+      {
+        "position": 4,
+        "url": "https://medium.com/google-cloud/building-agent-skills-with-skill-creator-855f18e785cf",
+        "title": "Building Agent Skills with skill-creator | by Daniela Petruzalek",
+        "domain": "medium.com",
+        "description": "Agent Skills are an open standard designed to give coding agents “just in time” specialist knowledge. They are designed so that specialist ... Read more"
+      }
+    ],
+    "requestId": "9baf133e-fe3f-4274-88dd-7c9e52926b33"
+  }
+}
