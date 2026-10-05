@@ -169,7 +169,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         <button
           v-if="selectableItems.length"
           type="button"
-          class="text-xs text-muted hover:text-default underline"
+          class="min-h-11 text-xs text-muted hover:text-default underline"
           @click="toggleAll"
         >
           {{ allSelected ? 'Deselect all' : 'Select all' }}
