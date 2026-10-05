@@ -41,6 +41,7 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
   '/vs/skills-sh',
   '/verify',
   '/docs/cli',
+  '/cli',
   '/developers',
   '/privacy',
   '/learn/private-repositories',

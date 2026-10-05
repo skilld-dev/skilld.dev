@@ -68,6 +68,39 @@ export function skilldSelfInstallCmd(): string {
   return `${CLI_PREFIX} install skilld --global`
 }
 
+/** Prints the matching Skills, each with the selector `run` and `install` take. */
+export function skillSearchCmd(query: string): string {
+  return `${CLI_PREFIX} search ${query}`
+}
+
+/** Reports the installed Skills whose source moved. */
+export function skillOutdatedCmd(): string {
+  return `${CLI_PREFIX} outdated`
+}
+
+/** Moves one installed Skill to its current source commit. Takes the installed name. */
+export function skillUpdateCmd(name: string): string {
+  return `${CLI_PREFIX} update ${name}`
+}
+
+/** Removes one installed Skill. Takes the installed name. */
+export function skillRemoveCmd(name: string): string {
+  return `${CLI_PREFIX} remove ${name}`
+}
+
+/**
+ * Installs the CLI itself. npm runs it, so it is no skilld subcommand and the
+ * grammar gate does not check it. The package selects a native executable.
+ */
+export function cliGlobalInstallCmd(): string {
+  return 'npm install --global skilld'
+}
+
+/** Installs the CLI as one native binary in `~/.skilld/bin`, with no Node.js. macOS and Linux. */
+export function cliNativeInstallCmd(): string {
+  return 'curl -fsSL https://github.com/skilld-dev/skilld/releases/latest/download/install.sh | sh'
+}
+
 /**
  * The account commands `/developers` teaches. Signing in once lets an Agent
  * like, watch, and read the digest for the user. They live here, beside every

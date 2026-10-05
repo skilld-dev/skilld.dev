@@ -25,7 +25,11 @@ import {
   gitInstallCmd,
   skilldSelfInstallCmd,
   skillInstallCmd,
+  skillOutdatedCmd,
+  skillRemoveCmd,
   skillRunCmd,
+  skillSearchCmd,
+  skillUpdateCmd,
 } from '../shared/skill-commands'
 
 const run = promisify(execFile)
@@ -117,6 +121,10 @@ export function cliRequirement(): CliRequirement {
     skillRunCmd('owner', 'repo', 'skill'),
     skillInstallCmd('owner', 'repo', 'skill'),
     skilldSelfInstallCmd(),
+    skillSearchCmd('query'),
+    skillOutdatedCmd(),
+    skillUpdateCmd('skill'),
+    skillRemoveCmd('skill'),
     ...accountCmds,
     ...copyCommands(readFileSync(BRAND_GUIDELINES_URL, 'utf8')),
   ])

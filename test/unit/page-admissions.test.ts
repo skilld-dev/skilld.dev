@@ -49,3 +49,8 @@ it('admits only the named writing comparison experiment', () => {
   expect(frozenNoindexPaths([path, '/compare/new-writing-skills'])).not.toContain(path)
   expect(pageRobots('/compare/new-writing-skills')).toBe('noindex,follow')
 })
+
+it('keeps the CLI page out of search and the sitemap until a measured query admits it', () => {
+  expect(pageRobots('/cli')).toBe('noindex,follow')
+  expect(frozenNoindexPaths()).toContain('/cli')
+})

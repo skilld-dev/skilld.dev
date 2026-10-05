@@ -33,6 +33,12 @@ These exact strings. Do not paraphrase them per page.
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
 | Home section: authoring | Write a skill for your project. | guidance only: the homepage section heading for making a Skill |
+| Nav: CLI | CLI | guidance only: the header nav and the mobile menu item that link `/cli` |
+| CLI H1 | The skilld CLI | guidance only: the `/cli` H1 and its OG title |
+| CLI line | Search, run, install, and keep Skills current. | guidance only: the `/cli` line under the H1. It is the CLI's own `--help` line, so change it in the CLI first |
+| CLI intro | Give your Agent Skills that real maintainers write. A run reads the current source every time, and one command updates the Skills you install. Install the skilld Skill once, and your Agent searches and loads Skills on its own. | guidance only: the `/cli` intro under the line |
+| CLI claims line | Open-source CLI · No telemetry · 19 Agent targets | guidance only: the `/cli` claims line. The page counts the `--agent` values of `skilld install --help` |
+| CLI install label | Install the CLI | guidance only: the label beside `npm install --global skilld` on `/cli` |
 | Claim: open source | open-source CLI | guidance only: the CLI. Never call skilld.dev or its site open source |
 | Claim: privacy | analytics without cookies or IPs | guidance only: analytics and privacy copy. Never the bare "privacy-friendly" |
 | Claim: comparison | skills.sh alternative | guidance only: always a link to `/vs/skills-sh` |

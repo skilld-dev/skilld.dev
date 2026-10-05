@@ -17,7 +17,7 @@ export interface InstallToken {
 }
 
 const RUNNERS = new Set(['npx', 'pnpx', 'bunx', 'npm', 'pnpm', 'yarn', 'bun', 'deno'])
-const SUBCOMMANDS = new Set(['add', 'remove', 'update', 'list', 'install', 'run', 'dlx', 'exec'])
+const SUBCOMMANDS = new Set(['add', 'remove', 'update', 'list', 'install', 'run', 'search', 'outdated', 'dlx', 'exec'])
 
 /**
  * Colours an install command by role so the eye lands on the part that changes.
