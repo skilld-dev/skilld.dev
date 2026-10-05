@@ -8,14 +8,10 @@ import { useElementVisibility } from '@vueuse/core'
  * The preview stays inert because it is supporting artwork. The CTA beside it
  * is the only promised action.
  *
- * A plain block, not an `<aside>`: the board renders it twice, beside the page
- * heading and between the board's halves, and one of them is always hidden.
- * Two complementary landmarks with the same name failed HTML validation.
+ * A plain block, not an `<aside>`: the board renders it twice, in the sidebar
+ * and between the board's halves, and one of them is always hidden. Two
+ * complementary landmarks with the same name failed HTML validation.
  */
-const { layout = 'stacked' } = defineProps<{
-  /** `row` sets the preview beside the copy, for the page heading. */
-  layout?: 'stacked' | 'row'
-}>()
 
 /**
  * The email loads in the browser, and only for the copy a reader can see.
@@ -54,7 +50,7 @@ const previewDocument = computed(() => card.value
 </script>
 
 <template>
-  <div class="trending-weekly-cta" :class="`trending-weekly-cta--${layout}`">
+  <div class="trending-weekly-cta">
     <div
       v-if="keepPreviewBox"
       ref="preview"
@@ -94,6 +90,7 @@ const previewDocument = computed(() => card.value
 
 <style scoped>
 .trending-weekly-cta {
+  container-type: inline-size;
   min-inline-size: 0;
   overflow: clip;
   border: 1px solid var(--ui-border);
@@ -133,44 +130,28 @@ const previewDocument = computed(() => card.value
 }
 
 /*
- * Beside the page heading: the email as a thumbnail, the copy beside it, and
- * no taller than the heading it sits next to. Rendered at full email width and
- * scaled to a quarter, since the picture only has to read as an inbox.
+ * The sidebar column is narrower than any phone. The copy tightens there so
+ * the button keeps its whole label on one line rather than truncating it.
  */
-.trending-weekly-cta--row {
-  display: grid;
-  grid-template-columns: 8.5rem minmax(0, 1fr);
-}
+@container (max-width: 16rem) {
+  .trending-weekly-copy {
+    padding: 0.75rem;
+  }
 
-/* Out of flow, so the copy alone sets the height; a transform never shrinks layout. */
-.trending-weekly-cta--row .trending-weekly-preview {
-  position: relative;
-  block-size: auto;
-  border-block-end: 0;
-  border-inline-end: 1px solid var(--ui-border);
-}
+  .trending-weekly-heading {
+    font-size: 0.9375rem;
+  }
 
-.trending-weekly-cta--row .trending-weekly-frame {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-start: 0;
-  inline-size: 400%;
-  block-size: 44rem;
-  transform: scale(0.25);
-}
+  .trending-weekly-action {
+    gap: 0.375rem;
+    padding-inline: 0.5rem;
+    font-size: 0.75rem;
+  }
 
-.trending-weekly-cta--row .trending-weekly-copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.trending-weekly-cta--row .trending-weekly-heading {
-  font-size: 0.9375rem;
-}
-
-.trending-weekly-cta--row .trending-weekly-action {
-  margin-top: 0.75rem;
+  .trending-weekly-action :deep(.iconify) {
+    inline-size: 1rem;
+    block-size: 1rem;
+  }
 }
 
 @media (forced-colors: active) {
