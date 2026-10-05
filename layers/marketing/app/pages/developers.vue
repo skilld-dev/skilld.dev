@@ -18,6 +18,8 @@ import {
 } from '../utils/developer-setup'
 import { pageRobots } from '../utils/page-admissions'
 
+definePageMeta({ layout: 'account' })
+
 const route = useRoute()
 const mode = computed(() => {
   const parsed = setupModeSchema.safeParse(route.query.setup)
@@ -53,7 +55,7 @@ const uiClass = 'font-medium text-default'
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl px-4 py-12 sm:px-6 md:py-16">
+  <div class="mx-auto w-full max-w-3xl py-6 sm:py-8">
     <header>
       <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
         Developers

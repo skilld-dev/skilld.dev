@@ -8,13 +8,11 @@ import type {
   IdentitySubscriptionRef,
 } from '../../../shared/contracts/account'
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
-import { avatarProxyUrl } from '#shared/image-proxy'
 import { accountDeletionConfirmed } from '../../../shared/contracts/account'
-import AgentSetupCard from '../../components/_AgentSetupCard.vue'
 import { identityAccountQueries, identityAccountQueryOptions } from '../../queries/account'
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
-definePageMeta({ middleware: ['auth'] })
+definePageMeta({ layout: 'account', middleware: ['auth'] })
 
 interface LikedSkill {
   owner: string
@@ -160,12 +158,16 @@ function sourceDescription(source: string): string {
   return 'Added to your digest'
 }
 
-useSeoMeta({ title: 'Your dashboard', robots: 'noindex' })
-
 const route = useRoute()
+const view = computed(() => {
+  const value = route.query.view
+  return value === 'email' || value === 'repositories' || value === 'account' ? value : 'skills'
+})
+const viewTitle = computed(() => ({ skills: 'Your skills', email: 'Email updates', repositories: 'Repository coverage', account: 'Account' })[view.value])
+useSeoMeta({ title: viewTitle, robots: 'noindex' })
 const toast = useToast()
 async function clearWelcomeQuery() {
-  await navigateTo({ path: route.path, query: {} }, { replace: true })
+  await navigateTo({ path: route.path, query: { ...route.query, welcome: undefined } }, { replace: true })
 }
 onMounted(() => {
   if (route.query.welcome === '1') {
@@ -243,7 +245,7 @@ async function deleteAccount() {
 </script>
 
 <template>
-  <section v-if="!me" class="mx-auto max-w-5xl px-4 pt-8 pb-16 sm:px-6 md:pt-12 md:pb-20">
+  <section v-if="!me" class="mx-auto w-full max-w-4xl py-6 sm:py-8">
     <div class="editorial-state" :role="accountError ? 'alert' : 'status'">
       <h1 class="text-2xl font-semibold">
         {{ accountError ? 'Could not load your account' : 'Loading your account' }}
@@ -251,47 +253,13 @@ async function deleteAccount() {
       <UButton v-if="accountError" label="Retry" color="neutral" variant="outline" class="mt-4 min-h-11" :loading="accountStatus === 'pending'" @click="retryAccount()" />
     </div>
   </section>
-  <section v-else class="mx-auto max-w-5xl px-4 pt-8 pb-16 sm:px-6 md:pt-12 md:pb-20">
-    <header class="flex flex-col gap-5 border-b border-default pb-5 sm:flex-row sm:items-center sm:justify-between">
-      <div class="flex min-w-0 items-center gap-4">
-        <img
-          v-if="me?.avatar"
-          :src="avatarProxyUrl(me.avatar)"
-          alt=""
-          width="56"
-          height="56"
-          class="size-14 shrink-0 rounded-full border border-default bg-muted"
-          fetchpriority="high"
-        >
-        <div class="min-w-0">
-          <p class="truncate text-lg font-semibold">
-            {{ me?.name || `@${me?.login}` }}
-          </p>
-          <p v-if="me?.name" class="truncate font-mono text-xs text-muted">
-            @{{ me.login }}
-          </p>
-        </div>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <UButton
-          :to="`/@${me?.login}`"
-          class="min-h-11"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-user-round"
-          label="View profile"
-        />
-        <UButton
-          to="/skills"
-          class="min-h-11"
-          icon="i-lucide-search"
-          label="Find skills"
-        />
-      </div>
-    </header>
+  <section v-else class="mx-auto w-full max-w-4xl py-6 sm:py-8">
+    <h1 v-if="view !== 'skills'" class="mb-8 text-2xl font-semibold tracking-tight sm:text-3xl">
+      {{ viewTitle }}
+    </h1>
 
-    <div class="mt-6 grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
-      <div class="min-w-0">
+    <div class="min-w-0 space-y-8">
+      <div v-if="view === 'skills'" class="min-w-0">
         <section aria-label="Your skills">
           <div class="flex flex-col gap-5 border-b border-default pb-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -302,9 +270,12 @@ async function deleteAccount() {
                 Like a skill to keep it here. We track meaningful changes and include them in your digest.
               </p>
             </div>
-            <p class="shrink-0 font-mono text-sm tabular-nums text-muted">
-              {{ likedSkills.length }} {{ likedSkills.length === 1 ? 'skill' : 'skills' }}
-            </p>
+            <div class="flex shrink-0 flex-wrap items-center gap-4">
+              <p class="font-mono text-sm tabular-nums text-muted">
+                {{ likedSkills.length }} {{ likedSkills.length === 1 ? 'skill' : 'skills' }}
+              </p>
+              <UButton to="/skills" label="Find skills" icon="i-lucide-search" class="min-h-11" />
+            </div>
           </div>
 
           <div v-if="likesLoading" class="editorial-state mt-6 flex flex-col items-start justify-center" role="status">
@@ -352,7 +323,7 @@ async function deleteAccount() {
                 <span v-if="skill.description" class="mt-2 max-w-3xl line-clamp-2 text-sm leading-relaxed text-muted text-pretty">
                   {{ skill.description }}
                 </span>
-                <span class="mt-3 inline-flex items-center gap-1.5 font-mono text-xs text-muted">
+                <span class="mt-3 inline-flex items-center gap-1.5 font-mono text-sm text-muted">
                   <UIcon name="i-lucide-activity" class="size-3.5 text-primary" aria-hidden="true" />
                   Watching for changes
                 </span>
@@ -383,21 +354,15 @@ async function deleteAccount() {
         </section>
       </div>
 
-      <aside class="min-w-0 space-y-6 lg:border-l lg:border-default lg:pl-6" aria-label="Skill delivery settings">
-        <AgentSetupCard />
-
-        <section>
-          <h2 class="text-lg font-semibold">
-            Email updates
-          </h2>
-
+      <div class="min-w-0 space-y-8">
+        <section v-if="view === 'email'">
           <div class="mt-5 border-y border-default">
             <div class="flex items-start justify-between gap-4 py-4">
               <div>
                 <p class="text-sm font-medium">
                   Weekly email
                 </p>
-                <p class="mt-1 text-xs leading-relaxed text-muted">
+                <p class="mt-1 text-sm leading-relaxed text-muted">
                   New trending Skills every Monday. A Skill can return after 60 days.
                 </p>
               </div>
@@ -409,7 +374,7 @@ async function deleteAccount() {
                 <p class="text-sm font-medium">
                   Monthly digest
                 </p>
-                <p class="mt-1 text-xs leading-relaxed text-muted">
+                <p class="mt-1 text-sm leading-relaxed text-muted">
                   Changes to liked Skills and watched Repositories on the first day of each month.
                 </p>
               </div>
@@ -453,7 +418,7 @@ async function deleteAccount() {
                   >
                   <span>
                     Send me the weekly email
-                    <span class="mt-0.5 block text-xs text-muted">Distinct trending Skills each Monday.</span>
+                    <span class="mt-0.5 block text-sm text-muted">Distinct trending Skills each Monday.</span>
                   </span>
                 </label>
                 <label class="flex min-h-11 items-start gap-3 text-sm">
@@ -464,7 +429,7 @@ async function deleteAccount() {
                   >
                   <span>
                     Send me the monthly digest
-                    <span class="mt-0.5 block text-xs text-muted">Liked Skills and watched Repositories that changed.</span>
+                    <span class="mt-0.5 block text-sm text-muted">Liked Skills and watched Repositories that changed.</span>
                   </span>
                 </label>
                 <UButton
@@ -479,7 +444,7 @@ async function deleteAccount() {
           </div>
         </section>
 
-        <section aria-labelledby="privacy-heading">
+        <section v-if="view === 'account'" aria-labelledby="privacy-heading">
           <h2 id="privacy-heading" class="text-lg font-semibold">
             Privacy
           </h2>
@@ -517,14 +482,11 @@ async function deleteAccount() {
           </div>
         </section>
 
-        <section>
-          <h2 class="text-lg font-semibold">
-            Repository coverage
-          </h2>
+        <section v-if="view === 'repositories'">
           <p class="mt-2 text-sm leading-relaxed text-muted">
             {{ watchedRepositoryCount }} {{ watchedRepositoryCount === 1 ? 'repository supports' : 'repositories support' }} your skill updates.
           </p>
-          <p class="mt-2 text-xs leading-relaxed text-muted">
+          <p class="mt-2 text-sm leading-relaxed text-muted">
             Last GitHub import: {{ fmtDate(me?.stars_synced_at) }}
           </p>
           <UButton
@@ -546,11 +508,7 @@ async function deleteAccount() {
           <p v-else-if="subscriptionsStatus === 'pending' && !subs" class="mt-4 text-sm text-muted" role="status">
             Loading watched Repositories
           </p>
-          <details v-else-if="subs?.items.length" class="mt-5 border-y border-default">
-            <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 font-mono text-xs">
-              View repositories
-              <UIcon name="i-lucide-chevron-down" class="size-4 text-muted" aria-hidden="true" />
-            </summary>
+          <div v-else-if="subs?.items.length" class="mt-5 border-y border-default">
             <ul class="list-none border-t border-default p-0">
               <li
                 v-for="source in subs.items"
@@ -558,10 +516,10 @@ async function deleteAccount() {
                 class="flex min-w-0 items-center gap-2 border-b border-default py-3 last:border-b-0"
               >
                 <div class="min-w-0 flex-1">
-                  <NuxtLink :to="repoHubPath(source.owner, source.repo)" class="flex min-h-11 items-center truncate font-mono text-xs hover:text-primary">
+                  <NuxtLink :to="repoHubPath(source.owner, source.repo)" class="flex min-h-11 items-center truncate font-mono text-sm hover:text-primary">
                     {{ source.owner }}/{{ source.repo }}
                   </NuxtLink>
-                  <p class="mt-1 text-xs text-muted">
+                  <p class="mt-1 text-sm text-muted">
                     {{ sourceDescription(source.source) }}
                   </p>
                 </div>
@@ -578,35 +536,13 @@ async function deleteAccount() {
                 />
               </li>
             </ul>
-          </details>
+          </div>
           <div v-else class="mt-5 border-y border-default py-4 text-sm text-muted">
             Add a skill to start watching its source.
           </div>
         </section>
 
-        <nav class="border-t border-default pt-6" aria-label="Account tools">
-          <h2 class="mb-3 text-lg font-semibold">
-            Account
-          </h2>
-          <UButton
-            to="/me/devices"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-terminal"
-            label="Devices and tokens"
-            class="min-h-11"
-          />
-          <UButton
-            to="/developers"
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-code-xml"
-            label="Developers"
-            class="min-h-11"
-          />
-        </nav>
-
-        <section class="border-t border-default pt-6" aria-labelledby="delete-account-heading">
+        <section v-if="view === 'account'" class="border-t border-default pt-6" aria-labelledby="delete-account-heading">
           <h2 id="delete-account-heading" class="text-lg font-semibold">
             Delete account
           </h2>
@@ -625,7 +561,7 @@ async function deleteAccount() {
             @click="deleteDialogOpen = true"
           />
         </section>
-      </aside>
+      </div>
     </div>
 
     <UModal

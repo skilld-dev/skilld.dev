@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { useTokenCreation } from '#layers/identity/app/composables/useTokenCreation'
 import SetupSnippet from '#layers/marketing/app/components/_SetupSnippet.vue'
 
-definePageMeta({ middleware: ['auth'] })
+definePageMeta({ layout: 'account', middleware: ['auth'] })
 
 const schema = z.object({
   label: z.string().trim().min(1, 'Enter a token label.').max(80, 'Use 80 characters or fewer.'),
@@ -26,7 +26,7 @@ useSeoMeta({ title: 'New token', robots: 'noindex' })
 </script>
 
 <template>
-  <section class="mx-auto max-w-xl px-4 pt-12 pb-16 sm:px-6 md:pt-16">
+  <section class="mx-auto max-w-xl py-6 sm:py-8">
     <UButton to="/me/devices" label="Devices and tokens" icon="i-lucide-arrow-left" color="neutral" variant="link" class="mb-4 min-h-11 px-0" />
     <header class="border-b border-default pb-6">
       <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
