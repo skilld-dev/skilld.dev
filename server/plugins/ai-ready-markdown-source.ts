@@ -1,4 +1,5 @@
-import { composeAgentSkillMarkdown } from '#layers/registry/server/utils/skill-agent-markdown'
+import { getQuery } from 'h3'
+import { composeAgentSkillMarkdown, composeSkillForkMarkdown } from '#layers/registry/server/utils/skill-agent-markdown'
 import { repositoryIdentityFromGhPath, skillIdentityFromGhPath } from '#shared/skill-markdown-route'
 
 interface RenderedSkillRow {
@@ -63,12 +64,14 @@ export default defineNitroPlugin((nitroApp) => {
       return
 
     context.source = {
-      markdown: composeAgentSkillMarkdown({
-        ...target,
-        name: row.name,
-        markdown: row.rendered_raw,
-        supportingFiles: parseSupportingFiles(row.assets),
-      }),
+      markdown: getQuery(context.event).action === 'fork'
+        ? composeSkillForkMarkdown({ ...target, name: row.name })
+        : composeAgentSkillMarkdown({
+            ...target,
+            name: row.name,
+            markdown: row.rendered_raw,
+            supportingFiles: parseSupportingFiles(row.assets),
+          }),
       title: row.display_name ?? row.name,
       description: row.description ?? undefined,
       updatedAt: row.rendered_at ? new Date(row.rendered_at * 1000).toISOString() : undefined,

@@ -48,6 +48,9 @@ The Skill page's Markdown explains how to copy the source and install the local 
 Keep run as the default. Fork is the opt-in for an editable local copy.
 The HTML page links to that Markdown with `Fork this Skill`.
 Its description uses `A fork creates an editable local Skill with its original author and licence.`
+The fork link adds `?action=fork` to request only the fork workflow.
+That workflow uses a shallow fetch at one commit and plain installation output.
+Check existing files before fetching. Keep licence and provenance checks.
 
 ### Watch and weekly promotions
 

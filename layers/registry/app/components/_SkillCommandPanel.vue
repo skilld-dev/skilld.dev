@@ -214,7 +214,7 @@ function copyFrom(next: CommandMode) {
 
     <div class="space-y-1 border-t border-default pt-6">
       <NuxtLink
-        :to="`${runUrl}.md`"
+        :to="`${runUrl}.md?action=fork`"
         class="inline-flex min-h-11 items-center font-mono text-sm text-default underline underline-offset-2 hover:text-primary"
       >
         Fork this Skill
@@ -289,7 +289,7 @@ function copyFrom(next: CommandMode) {
 
     <div class="space-y-1">
       <NuxtLink
-        :to="`${runUrl}.md`"
+        :to="`${runUrl}.md?action=fork`"
         class="inline-flex min-h-11 items-center font-mono text-sm text-default underline underline-offset-2 hover:text-primary"
       >
         Fork this Skill

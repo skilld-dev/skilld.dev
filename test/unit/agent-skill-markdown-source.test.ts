@@ -8,7 +8,7 @@ vi.hoisted(() => {
 
 interface MarkdownContext {
   route: string
-  event: { context: { platform: { db: unknown } } }
+  event: { path: string, context: { platform: { db: unknown } } }
   source?: { markdown: string, title: string }
 }
 
@@ -18,7 +18,7 @@ afterEach(() => {
     db.close()
 })
 
-async function requestMarkdown(route: string, skills: { name: string, resolved?: number, status?: string }[]) {
+async function requestMarkdown(route: string, skills: { name: string, resolved?: number, status?: string }[], action?: string) {
   const db = new Database(':memory:')
   databases.push(db)
   db.exec(`CREATE TABLE skills (
@@ -52,12 +52,23 @@ async function requestMarkdown(route: string, skills: { name: string, resolved?:
   registerPlugin(app as unknown as Parameters<typeof registerPlugin>[0])
   if (!handler)
     throw new Error('The Markdown source hook was not registered')
-  const context: MarkdownContext = { route, event: { context: { platform: { db: binding } } } }
+  const context: MarkdownContext = { route, event: { path: `${route}.md${action ? `?action=${action}` : ''}`, context: { platform: { db: binding } } } }
   await handler(context)
   return context.source
 }
 
 describe('agent Skill page Markdown source', () => {
+  it.each(['/gh/author/repository', '/gh/author/repository/writing'])('serves only the fork workflow for %s?action=fork', async (route) => {
+    const source = await requestMarkdown(route, [{ name: 'writing' }], 'fork')
+
+    expect(source?.markdown).toContain('## Fork workflow')
+    expect(source?.markdown).toContain('/api/v1/skills/author/repository/writing')
+    expect(source?.markdown).toContain('--depth=1')
+    expect(source?.markdown).toContain('--mode copy --plain')
+    expect(source?.markdown).not.toContain('Original source.')
+    expect(source?.markdown).not.toContain('follow the instructions below for this session')
+  })
+
   it('gives a canonical repository URL the fork workflow for its sole resolved Skill', async () => {
     const source = await requestMarkdown('/gh/author/repository', [{ name: 'writing' }, { name: 'removed', resolved: 0 }])
 
