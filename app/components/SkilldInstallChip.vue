@@ -8,9 +8,11 @@ import CommandChip from './_CommandChip.vue'
  * installs the skilld-maintained skilld Skill globally, so the Agent can
  * drive the CLI in every project.
  */
-const { surface } = defineProps<{
+const { surface, quiet = false } = defineProps<{
   /** The analytics surface, such as `nav-promo`. */
   surface: string
+  /** Ink the dot instead of rose, where a solid rose button shares the band. */
+  quiet?: boolean
 }>()
 
 const command = skilldSelfInstallCmd()
@@ -25,6 +27,7 @@ const consequenceId = useId()
       :command="command"
       mode="install"
       size="sm"
+      :quiet="quiet"
       :surface="surface"
       :target="target"
       :described-by="consequenceId"

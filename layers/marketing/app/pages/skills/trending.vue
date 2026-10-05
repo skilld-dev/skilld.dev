@@ -473,13 +473,14 @@ const boardChunks = computed<BoardChunk[]>(() => [
               v-if="showWeeklyCta"
               :class="{ invisible: auth._tag === 'pending' }"
             >
-              <TrendingWeeklyCta />
+              <TrendingWeeklyCta variant="rail" />
             </div>
+            <!-- The weekly button is the rail's one solid rose element, so the install inks its dot while it shows. -->
             <div class="trending-teach">
               <p class="font-mono text-xs text-muted">
                 Teach your agent skilld
               </p>
-              <SkilldInstallChip surface="trending-sidebar" />
+              <SkilldInstallChip surface="trending-sidebar" :quiet="showWeeklyCta" />
             </div>
           </div>
         </div>
