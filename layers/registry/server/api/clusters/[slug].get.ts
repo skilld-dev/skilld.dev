@@ -3,7 +3,7 @@ import { getDB } from '#server/utils/db'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { CLUSTER_BY_SLUG } from '../../data/clusters'
 import { clusterPageSql } from '../../utils/cluster-membership'
-import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
+import { clusterSkillKey, curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
 
 function clusterMeta(cluster: Cluster) {
   return {
@@ -95,7 +95,7 @@ export default defineCachedEventHandler(async (event) => {
     /** Skills in the repository. The board prints a run command only at 1. */
     repoSkillCount: s.repo_skill_count,
     /** A person pinned it to this track, so the board lists it under the hand-picked heading. */
-    pinned: pinnedKeys.has(`${s.owner}/${s.name}`),
+    pinned: pinnedKeys.has(clusterSkillKey(s)),
   }))
   const items = page === 1
     ? curateClusterSkills(rankedItems, cluster.pinnedExamples)
@@ -115,6 +115,7 @@ export default defineCachedEventHandler(async (event) => {
   maxAge: 60 * 10,
   staleMaxAge: 60 * 60,
   swr: true,
-  // v5: items carry `repoSkillCount` and `pinned` for the track board.
-  name: 'clusters-detail-origin-v5',
+  // v6: a pin matches `owner/repo/name`, so a namesake in another repository
+  // is no longer listed as pinned.
+  name: 'clusters-detail-origin-v6',
 })

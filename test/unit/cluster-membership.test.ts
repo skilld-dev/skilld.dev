@@ -9,17 +9,17 @@ import { clusterMembersSql } from '../../layers/registry/server/utils/cluster-me
  */
 describe('cluster membership sql', () => {
   it('binds one param per placeholder, in statement order', () => {
-    const { sql, params } = clusterMembersSql('owner, name', ['testing', 'observability'], ['obra/tdd'])
+    const { sql, params } = clusterMembersSql('owner, name', ['testing', 'observability'], ['obra/skills/tdd'])
 
     expect(sql.match(/\?/g)).toHaveLength(params.length)
     // The pinned CASE sits in the SELECT list, ahead of both WHERE arms.
-    expect(params).toEqual(['obra/tdd', 'testing', 'observability', 'obra/tdd'])
+    expect(params).toEqual(['obra/skills/tdd', 'testing', 'observability', 'obra/skills/tdd'])
   })
 
   it('skips the pinned CASE when nothing else can match', () => {
-    const { sql, params } = clusterMembersSql('owner, name', [], ['obra/tdd', 'mattpocock/tdd'])
+    const { sql, params } = clusterMembersSql('owner, name', [], ['obra/skills/tdd', 'mattpocock/skills/tdd'])
 
-    expect(params).toEqual(['obra/tdd', 'mattpocock/tdd'])
+    expect(params).toEqual(['obra/skills/tdd', 'mattpocock/skills/tdd'])
     expect(sql).not.toContain('CASE')
     expect(sql.match(/\?/g)).toHaveLength(2)
   })

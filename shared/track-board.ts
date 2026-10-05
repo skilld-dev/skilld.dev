@@ -185,25 +185,42 @@ function memberRow(member: TrackMemberInput): TrendingBoardRow {
  * page never prints two numbers against one Skill. Under the minimum the
  * talked Skills stay where the lists put them, and draw no posts: a row only
  * draws the signal that ranked it.
+ *
+ * One owner's Skill of one name is one Skill to a reader, even when two
+ * repositories ship it: a renamed repository keeps its old registry identity
+ * (ADR-0002), and a plugin bundle copies a Skill under the same name. The
+ * first list to claim it keeps it: the talked section, then the pins, then
+ * the most-starred copy.
  */
 export function trackBoard(input: TrackBoardInput): TrackBoard {
   const { noun, clockSeconds } = input
   const period = trackRangeMeta(input.range).period
   const talked = input.talked.filter(skill => skill.posts.length > 0)
+  const leading = talked.length >= MIN_TALKED_SKILLS ? talked.slice(0, MAX_TALKED_ROWS) : []
   const sections: TrackBoardSection[] = []
 
-  if (talked.length >= MIN_TALKED_SKILLS) {
+  const shownPaths = new Set<string>()
+  const shownNames = new Set<string>()
+  const claim = (skill: { owner: string, name: string, registryPath: string }): boolean => {
+    const name = `${skill.owner}/${skill.name}`
+    if (shownPaths.has(skill.registryPath) || shownNames.has(name))
+      return false
+    shownPaths.add(skill.registryPath)
+    shownNames.add(name)
+    return true
+  }
+
+  if (leading.length) {
+    leading.forEach(claim)
     sections.push({
       _tag: 'talked',
       id: 'track-talked-heading',
       heading: `${capitalise(noun)} skills devs talked about ${period}`,
-      rows: talked.slice(0, MAX_TALKED_ROWS).map(skill => talkedRow(skill, clockSeconds)),
+      rows: leading.map(skill => talkedRow(skill, clockSeconds)),
     })
   }
 
-  const shown = new Set(sections.flatMap(section => section.rows.map(row => row.key)))
-  const rest = input.members.filter(member => !shown.has(member.registryPath))
-  const picked = rest.filter(member => member.pinned)
+  const picked = input.members.filter(member => member.pinned).filter(claim)
   if (picked.length) {
     sections.push({
       _tag: 'picked',
@@ -213,9 +230,10 @@ export function trackBoard(input: TrackBoardInput): TrackBoard {
     })
   }
 
-  const byStars = rest
+  const byStars = input.members
     .filter(member => !member.pinned)
     .sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name))
+    .filter(claim)
   if (byStars.length) {
     sections.push({
       _tag: 'stars',

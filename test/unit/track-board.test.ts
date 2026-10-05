@@ -118,6 +118,47 @@ describe('the lists under the talked section', () => {
     expect(board.sections.at(-1)?.rows.map(row => row.title)).toEqual(['kept'])
   })
 
+  it('lists a Skill once when the members repeat it', () => {
+    const pick = member('emil-design-eng', 43_570, { pinned: true })
+    const board = trackBoard({
+      noun: 'design',
+      range: 'week',
+      talked: [],
+      members: [pick, member('impeccable', 9000, { pinned: true }), pick, member('starred', 100), member('starred', 100)],
+      clockSeconds: NOW,
+    })
+
+    expect(board.sections.map(section => [section.heading, section.rows.map(row => row.title)])).toEqual([
+      ['Hand-picked design skills', ['emil-design-eng', 'impeccable']],
+      ['More design skills, ranked by GitHub stars', ['starred']],
+    ])
+  })
+
+  it('lists one copy of an owner\'s Skill shipped from two repositories, the pick first', () => {
+    // `emilkowalski/skill` is the registry identity `emilkowalski/skills` had
+    // before a rename, and Anthropic ships `frontend-design` from three repositories.
+    const inRepo = (name: string, owner: string, repo: string, stars: number, pinned = false) =>
+      member(name, stars, { owner, repo, registryPath: `/gh/${owner}/${repo}/${name}`, pinned })
+    const board = trackBoard({
+      noun: 'design',
+      range: 'week',
+      talked: [],
+      members: [
+        inRepo('emil-design-eng', 'emilkowalski', 'skills', 43_570, true),
+        inRepo('frontend-design', 'anthropics', 'claude-code', 149_278),
+        inRepo('emil-design-eng', 'emilkowalski', 'skill', 43_570),
+        inRepo('frontend-design', 'anthropics', 'skills', 179_743),
+        inRepo('animate', 'emilkowalski', 'skills', 43_570),
+      ],
+      clockSeconds: NOW,
+    })
+
+    expect(board.sections.map(section => [section.heading, section.rows.map(row => row.subtitle)])).toEqual([
+      ['Hand-picked design skills', ['emilkowalski/skills']],
+      ['More design skills, ranked by GitHub stars', ['anthropics/skills', 'emilkowalski/skills']],
+    ])
+  })
+
   it('keeps the pin order a person set, and orders the rest by stars', () => {
     const board = trackBoard({
       noun: 'coding',

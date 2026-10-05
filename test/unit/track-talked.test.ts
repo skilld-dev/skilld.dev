@@ -81,7 +81,7 @@ describe('a track ranks only its own Skills', () => {
     for (const [i, skill] of [abstract, indexable, ungated, pinned, elsewhere].entries())
       post(`dev${i}`, [skill])
 
-    const ranked = await loadTrendingSkills({ db: db().db, now: NOW, scope: designScope(['d/picked']) })
+    const ranked = await loadTrendingSkills({ db: db().db, now: NOW, scope: designScope(['d/skills/picked']) })
 
     expect(ranked.map(skill => skill.slug).sort()).toEqual(['a11y', 'motion', 'picked'])
   })

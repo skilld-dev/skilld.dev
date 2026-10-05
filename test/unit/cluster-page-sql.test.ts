@@ -9,22 +9,23 @@ const COLUMNS = 'owner, name, repo, display_name, description, stars, modified_a
 /**
  * `/api/clusters/<slug>` sends two statements built from the membership
  * fragment, and the fragment is not what D1 counts. The list statement binds
- * every pinned key three times: once for the SELECT `CASE`, once for the WHERE
- * arm, and twice more for the ORDER BY `CASE`, plus limit and offset. Guarding
- * only the fragment let SKILLD-X reach production at 173 events.
+ * every pinned key five times: once for the SELECT `CASE`, once for the WHERE
+ * arm, and as owner, repo and name in the ORDER BY `CASE`, plus limit and
+ * offset. Guarding only the fragment let SKILLD-X reach production at 173
+ * events.
  */
 describe('cluster page sql', () => {
   it('binds one param per placeholder in both statements', () => {
-    const page = clusterPageSql(COLUMNS, ['testing'], parseClusterSkillKeys(['obra/tdd']), { limit: 60, offset: 0 })
+    const page = clusterPageSql(COLUMNS, ['testing'], parseClusterSkillKeys(['obra/skills/tdd']), { limit: 60, offset: 0 })
 
     expect(page.countSql.match(/\?/g)).toHaveLength(page.countParams.length)
     expect(page.listSql.match(/\?/g)).toHaveLength(page.listParams.length)
   })
 
   it('orders pinned skills ahead of the star ranking', () => {
-    const page = clusterPageSql(COLUMNS, [], parseClusterSkillKeys(['obra/tdd', 'shadcn/shadcn']), { limit: 10, offset: 20 })
+    const page = clusterPageSql(COLUMNS, [], parseClusterSkillKeys(['obra/skills/tdd', 'shadcn/ui/shadcn']), { limit: 10, offset: 20 })
 
-    expect(page.listParams.slice(0, 4)).toEqual(['obra', 'tdd', 'shadcn', 'shadcn'])
+    expect(page.listParams.slice(0, 6)).toEqual(['obra', 'skills', 'tdd', 'shadcn', 'ui', 'shadcn'])
     expect(page.listParams.slice(-2)).toEqual([10, 20])
   })
 
@@ -54,7 +55,7 @@ describe('cluster page sql', () => {
           ('obra', 'skills', 'tdd', 'TDD', NULL, 1, 'other', 0, 0, 1),
           ('solo', 'one', 'c', 'C', NULL, 1, 'testing', 1, 0, 1);
       `)
-      const page = clusterPageSql(COLUMNS, ['testing'], parseClusterSkillKeys(['obra/tdd']), { limit: 3, offset: 0 })
+      const page = clusterPageSql(COLUMNS, ['testing'], parseClusterSkillKeys(['obra/skills/tdd']), { limit: 3, offset: 0 })
       const rows = sqlite.prepare(page.listSql).all(...page.listParams) as { owner: string, name: string, repo_skill_count: number }[]
 
       expect(rows.map(row => [`${row.owner}/${row.name}`, row.repo_skill_count])).toEqual([
@@ -63,6 +64,44 @@ describe('cluster page sql', () => {
         ['big/a', 2],
       ])
       expect(sqlite.prepare(page.countSql).get(...page.countParams)).toEqual({ n: 4 })
+    }
+    finally {
+      sqlite.close()
+    }
+  })
+
+  it('pins one design Skill when another repository ships one of the same name', () => {
+    // Production on 2026-10-06: `emilkowalski/skill` is the pre-rename identity
+    // of `emilkowalski/skills`, and `vercel-labs/openreview` ships its own
+    // `web-design-guidelines`. An `owner/name` pin matched both of each, so the
+    // hand-picked section listed two Skills twice.
+    const sqlite = new Database(':memory:')
+    try {
+      sqlite.exec(`
+        CREATE TABLE repos (owner TEXT, repo TEXT, stars INTEGER, PRIMARY KEY (owner, repo));
+        CREATE TABLE skills (
+          owner TEXT, repo TEXT, name TEXT, display_name TEXT, description TEXT,
+          modified_at INTEGER, abstractness_category TEXT, is_abstract INTEGER,
+          seo_indexable INTEGER, source_resolved INTEGER,
+          PRIMARY KEY (owner, repo, name)
+        );
+        INSERT INTO repos VALUES
+          ('emilkowalski', 'skill', 43570), ('emilkowalski', 'skills', 43570),
+          ('vercel-labs', 'agent-skills', 31954), ('vercel-labs', 'openreview', 1697);
+        INSERT INTO skills VALUES
+          ('emilkowalski', 'skill', 'emil-design-eng', 'emil-design-eng', NULL, 1, 'other', 0, 0, 1),
+          ('emilkowalski', 'skills', 'emil-design-eng', 'emil-design-eng', NULL, 1, 'other', 0, 0, 1),
+          ('vercel-labs', 'agent-skills', 'web-design-guidelines', 'web-design-guidelines', NULL, 1, 'other', 0, 0, 1),
+          ('vercel-labs', 'openreview', 'web-design-guidelines', 'web-design-guidelines', NULL, 1, 'other', 0, 0, 1);
+      `)
+      const design = CLUSTERS.find(cluster => cluster.slug === 'design')!
+      const page = clusterPageSql(COLUMNS, design.categories, parseClusterSkillKeys(design.pinnedExamples), { limit: 60, offset: 0 })
+      const rows = sqlite.prepare(page.listSql).all(...page.listParams) as { owner: string, repo: string, name: string }[]
+
+      expect(rows.map(row => `${row.owner}/${row.repo}/${row.name}`)).toEqual([
+        'emilkowalski/skills/emil-design-eng',
+        'vercel-labs/agent-skills/web-design-guidelines',
+      ])
     }
     finally {
       sqlite.close()
