@@ -21,6 +21,14 @@ export type SendEmailResult
     | { _tag: 'rejected', error: string }
     | { _tag: 'uncertain', error: string }
 
+export function digestEmailHeaders(unsubscribeUrl: string, campaignId: string): Record<string, string> {
+  return {
+    'List-Unsubscribe': `<${unsubscribeUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    'X-Campaign-ID': campaignId,
+  }
+}
+
 export async function sendEmailWithEnv(
   env: Pick<Cloudflare.Env, 'EMAIL'> | undefined,
   input: SendEmailInput,

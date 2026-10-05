@@ -18,6 +18,7 @@ import type {
   SendEmailInput,
   SendEmailResult,
 } from './email'
+import { digestEmailHeaders } from './email'
 
 const CLAIM_TTL_SECONDS = 5 * 60
 
@@ -645,11 +646,7 @@ export async function runDigestDeliveryForUser(
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
-    headers: {
-      'List-Unsubscribe': `<${unsubscribeUrl}>`,
-      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      'X-Campaign-ID': run.delivery_key,
-    },
+    headers: digestEmailHeaders(unsubscribeUrl, run.delivery_key),
   }
   const attemptSend = () => deps.send(emailInput).then(
     result => ({ _tag: 'result' as const, result }),
