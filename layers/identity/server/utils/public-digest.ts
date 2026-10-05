@@ -8,7 +8,6 @@ const updateSchema = z.discriminatedUnion('kind', [
     repo: z.string(),
     name: z.string(),
     occurredAt: z.number(),
-    sha: z.string(),
     changeSummary: z.string().nullable(),
   }),
   z.object({ kind: z.literal('repo') }),
@@ -19,6 +18,7 @@ export const publicDigestSkillSchema = z.object({
   description: z.string().nullable(),
   sourceUrl: z.string().url(),
   sourceGone: z.boolean(),
+  sourceCommit: z.string().nullable(),
 })
 
 type PublicDigestUpdate = Extract<z.infer<typeof updateSchema>, { kind: 'skill' }>
@@ -52,7 +52,10 @@ export async function loadPublicDigestChanges(deps: PublicDigestDependencies): P
       changedAt: item.occurredAt,
       commitMessages: item.changeSummary ? [item.changeSummary] : [],
       sourceUrl: skill.sourceUrl,
-      changeUrl: `https://github.com/${item.owner}/${item.repo}/commit/${item.sha}`,
+      // Feed hashes identify blobs. The detail API identifies revision commits.
+      changeUrl: skill.sourceCommit
+        ? `https://github.com/${encodeURIComponent(item.owner)}/${encodeURIComponent(item.repo)}/commit/${encodeURIComponent(skill.sourceCommit)}`
+        : skill.sourceUrl.replace('/blob/', '/commits/'),
     }
   }))
   return changes.filter((item): item is WeeklyLikedChange => item !== null)
