@@ -128,7 +128,7 @@ Collisions
 
 ### digest
 
-**Is:** the email that summarises changes to watched Repositories. Weekly by default; daily and off are options.
+**Is:** the monthly email that summarises changes to watched Repositories. The user can turn it off.
 
 **Never:** newsletter, notification, alert. "the weekly" is the separate opt-out email.
 
