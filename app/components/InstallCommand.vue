@@ -46,7 +46,7 @@ const parts = computed<Part[]>(() => {
 </script>
 
 <template>
-  <code class="install-command" :class="wrap && 'install-command--wrap'"><template
+  <code class="install-command" :class="[wrap && 'install-command--wrap', splitName && 'install-command--split']"><template
     v-for="(part, index) in parts"
     :key="index"
   ><span :class="`install-command__${part.role}`">{{ part.text }}</span><wbr v-if="part.breakAfter"></template></code>

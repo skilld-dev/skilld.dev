@@ -164,6 +164,13 @@
   font-weight: 600;
 }
 
+/* Each segment is one unit, so a wrapped command breaks after a slash, never
+   after a hyphen inside a name. A segment wider than the line still wraps. */
+.install-command--split .install-command__target,
+.install-command--split .install-command__name {
+  display: inline-block;
+}
+
 /* Lead emphasis — the one place a page may spend the accent on a whole surface.
    Light, not a bar: a masked corner wash plus a hairline that ignites at the
    leading top corner and dies inside a third of the width. Replaced a 2px rose

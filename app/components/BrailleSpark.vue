@@ -25,13 +25,14 @@ const {
 const week = computed(() => sparkWeek(counts))
 const bars = computed(() => [...brailleSpark(counts)])
 const shown = computed(() => total ?? week.value.reduce((sum, count) => sum + count, 0))
+const totalText = computed(() => showUnit ? `${shown.value.toLocaleString('en-US')} ${unit}` : shown.value.toLocaleString('en-US'))
 const label = computed(() => `${shown.value.toLocaleString('en-US')} ${unit}. Per day, oldest first: ${week.value.join(', ')}. Today: ${week.value.at(-1)}.`)
 </script>
 
 <template>
   <span class="braille-spark" role="img" :aria-label="label">
     <span class="braille-spark__bars" aria-hidden="true">{{ bars.slice(0, -1).join('') }}<span class="braille-spark__today">{{ bars.at(-1) }}</span></span>
-    <span class="braille-spark__total" aria-hidden="true">{{ shown.toLocaleString('en-US') }}<template v-if="showUnit"> {{ unit }}</template></span>
+    <span class="braille-spark__total" aria-hidden="true">{{ totalText }}</span>
   </span>
 </template>
 
@@ -53,7 +54,8 @@ const label = computed(() => `${shown.value.toLocaleString('en-US')} ${unit}. Pe
   font-size: 0.875rem;
   line-height: 1;
   letter-spacing: 0.04em;
-  color: var(--ui-text-dimmed);
+  /* Muted, not dimmed: the bars are a graphic and need 3:1 against the surface. */
+  color: var(--ui-text-muted);
 }
 
 .braille-spark__today {

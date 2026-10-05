@@ -171,10 +171,11 @@ const legend = [
       </p>
       <div class="mt-6 grid gap-6 md:grid-cols-2">
         <div>
-          <h3 class="section-label">
+          <!-- `.editorial-ledger` resets its own margin, so the heading carries the gap. -->
+          <h3 class="section-label mb-3">
             On the site
           </h3>
-          <ol class="editorial-ledger mt-3">
+          <ol class="editorial-ledger">
             <li
               v-for="(row, index) in sparkRows"
               :key="row.name"
@@ -227,10 +228,10 @@ const legend = [
           </div>
         </div>
         <div class="min-w-0">
-          <h3 class="section-label">
+          <h3 class="section-label mb-3">
             List row
           </h3>
-          <ul class="editorial-ledger mt-3">
+          <ul class="editorial-ledger">
             <li
               v-for="skill in listRows"
               :key="`${skill.owner}/${skill.repo}/${skill.name}`"
@@ -267,10 +268,10 @@ const legend = [
       <h2 id="change-heading" class="text-xl font-semibold text-highlighted">
         Change grid
       </h2>
-      <p class="data-label mt-2">
+      <p class="data-label mb-6 mt-2">
         13 weeks of changes. Today is bottom right. The newest change is rose.
       </p>
-      <ul class="editorial-ledger mt-6">
+      <ul class="editorial-ledger">
         <li
           v-for="row in changeRows"
           :key="row.name"

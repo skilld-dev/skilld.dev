@@ -207,8 +207,9 @@ const summary = computed(() => count.value === 0
     </component>
     <p class="change-grid__note" aria-live="polite">
       <template v-if="shownEntry">
-        <span class="change-grid__when">{{ when(shownEntry.change) }}</span>
-        <span v-if="versionText(shownEntry.change)" class="change-grid__version">{{ versionText(shownEntry.change) }}</span>
+        <!-- The spaces are for screen readers; the flex gap does the visual spacing. -->
+        <span class="change-grid__when">{{ when(shownEntry.change) }}</span>{{ ' ' }}
+        <span v-if="versionText(shownEntry.change)" class="change-grid__version">{{ versionText(shownEntry.change) }}</span>{{ ' ' }}
         <span v-if="shownEntry.change.note">{{ shownEntry.change.note }}</span>
       </template>
       <template v-else>
