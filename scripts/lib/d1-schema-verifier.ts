@@ -249,8 +249,6 @@ export const APPLIED_DUPLICATE_MIGRATION_NUMBERS: Readonly<Record<string, readon
  * pull request merges.
  */
 export const RESERVED_MIGRATION_NUMBERS = {
-  '0128': '#320 feat(indexnow-curated) claims 0128_indexnow.sql',
-  '0129': '#322 feat(seo-trending-indexable) claims 0129_skill_trending_admissions.sql',
 } satisfies Readonly<Record<string, string>>
 
 /**
@@ -262,7 +260,10 @@ export const RESERVED_MIGRATION_NUMBERS = {
  * reserved for an open pull request. A malformed name never sorts where
  * its author expected.
  */
-export function verifyMigrationNaming(names: readonly string[]): MigrationNamingResult {
+export function verifyMigrationNaming(
+  names: readonly string[],
+  reserved: Readonly<Record<string, string>> = RESERVED_MIGRATION_NUMBERS,
+): MigrationNamingResult {
   const issues: MigrationNamingIssue[] = []
   const numbered = new Map<string, string[]>()
   for (const name of [...names].sort()) {
@@ -296,7 +297,7 @@ export function verifyMigrationNaming(names: readonly string[]): MigrationNaming
     const missing: string[] = []
     for (let value = lowest; value < highest; value++) {
       const padded = String(value).padStart(4, '0')
-      if (numbered.has(padded) || padded in RESERVED_MIGRATION_NUMBERS)
+      if (numbered.has(padded) || padded in reserved)
         continue
       missing.push(padded)
     }

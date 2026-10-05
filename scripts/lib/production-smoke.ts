@@ -1,4 +1,5 @@
 import { CLUSTER_BY_SLUG } from '../../layers/registry/server/data/clusters'
+import { INDEXNOW_KEY } from '../../server/utils/indexnow'
 
 export interface SmokeExpectation {
   path: string
@@ -96,6 +97,8 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   // h1 too, so a homepage that lost its data would otherwise pass.
   { path: '/', status: 200, bodyContains: ['<h1', 'Taste-tested'] },
   { path: '/alt', status: 301, location: '/' },
+  // IndexNow fetches this file to verify ownership. Without it every submission answers 403.
+  { path: `/${INDEXNOW_KEY}.txt`, status: 200, bodyContains: [INDEXNOW_KEY] },
   { path: '/skills', status: 200, bodyContains: ['<h1'] },
   { path: '/community', status: 200, bodyContains: ['<h1'] },
   { path: '/collections', status: 301, location: '/community' },

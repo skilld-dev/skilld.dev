@@ -6,6 +6,7 @@ import { frozenNoindexPaths } from './layers/marketing/app/utils/page-admissions
 import pkg from './package.json'
 import { dependencyPluginCompat } from './scripts/lib/dependency-plugin-compat'
 import { withBuildAssetMissFallthrough } from './scripts/lib/static-asset-fallthrough'
+import { INDEXNOW_KEY } from './server/utils/indexnow'
 import { externalCheckin } from './shared/checkin-external'
 import { iconifyCollections } from './shared/icon-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
@@ -418,6 +419,8 @@ export default defineNuxtConfig({
       { middleware: true, handler: '~~/server/handlers/skill-file-page.ts' },
       { middleware: true, handler: '~~/server/handlers/skill-md-probe.ts' },
       { middleware: true, handler: '~~/server/handlers/content-negotiation.ts' },
+      // The IndexNow key file, answered by the Worker, not by the assets router.
+      { route: `/${INDEXNOW_KEY}.txt`, method: 'get', handler: '~~/server/handlers/indexnow-key.ts' },
     ],
     alias: {
       // Cloudflare's ASSETS binding is authoritative in production and local

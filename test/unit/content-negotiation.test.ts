@@ -46,6 +46,7 @@ describe('decideNegotiation: which requests negotiate', () => {
     { name: 'an API route', request: page({ path: '/api/skills', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'a build asset', request: page({ path: '/_nuxt/v2/entry.js', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'a file', request: page({ path: '/robots.txt', accept: 'text/markdown' }), reason: 'not-a-page' },
+    { name: 'the IndexNow key file', request: page({ path: '/6b32d2ab96625fcba8a5535e84c72ba3.txt', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'an explicit Markdown URL', request: page({ path: '/gh/a/b/c.md', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'a well-known URL', request: page({ path: '/.well-known/mcp', accept: 'text/markdown' }), reason: 'not-a-page' },
     { name: 'a README badge image', request: page({ path: '/b/antfu/skills', accept: 'image/*' }), reason: 'not-a-page' },
