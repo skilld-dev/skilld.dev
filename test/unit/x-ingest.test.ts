@@ -25,6 +25,7 @@ const MIGRATIONS = [
   // Dates `since_id` by the run that wrote it, so the retention drop fires
   // even when later runs keep finishing.
   'migrations/0134_x_cursor_written_at.sql',
+  'migrations/0137_x_discovery_continuation.sql',
 ]
 const NOW = 1_760_000_000
 
@@ -58,10 +59,12 @@ function page(posts: XPost[], nextToken: string | null = null): XPage {
 function stubClient(pages: Array<XResult<XPage>>) {
   const sinceIds: Array<string | null> = []
   const maxResults: Array<number | undefined> = []
+  const nextTokens: Array<string | null | undefined> = []
   let call = 0
   const client: XClient = {
-    async searchRecent({ sinceId, maxResults: max }) {
+    async searchRecent({ sinceId, nextToken, maxResults: max }) {
       sinceIds.push(sinceId)
+      nextTokens.push(nextToken)
       maxResults.push(max)
       return pages[call++] ?? { _tag: 'ok', value: page([]) }
     },
@@ -72,7 +75,7 @@ function stubClient(pages: Array<XResult<XPage>>) {
       throw new Error('usage is not part of discovery')
     },
   }
-  return { client, sinceIds, maxResults, callCount: () => call }
+  return { client, sinceIds, nextTokens, maxResults, callCount: () => call }
 }
 
 let harness: SqliteD1 | null = null
@@ -462,6 +465,63 @@ describe('ingestXMentions failure handling', () => {
 })
 
 describe('ingestXMentions cursor safety', () => {
+  it('resumes a truncated window without rereading its first pages', async () => {
+    const first = stubClient(Array.from({ length: 5 }, (_, i) => ({
+      _tag: 'ok' as const,
+      value: page([post({ id: String(9000 - i) })], `token-${i + 1}`),
+    })))
+    await ingestXMentions({ db: db().db, client: first.client, now: NOW })
+
+    const resumed = stubClient([{ _tag: 'ok', value: page([post({ id: '8000' })]) }])
+    const summary = await ingestXMentions({ db: db().db, client: resumed.client, now: NOW + 900 })
+    expect(resumed.nextTokens).toEqual(['token-5'])
+    expect(resumed.sinceIds).toEqual([null])
+    expect(summary.cursorAdvancedTo).toBe('9000')
+
+    const polling = stubClient([{ _tag: 'ok', value: page([]) }])
+    await ingestXMentions({ db: db().db, client: polling.client, now: NOW + 1800 })
+    expect(polling.sinceIds).toEqual(['9000'])
+    expect(polling.nextTokens).toEqual([null])
+  })
+
+  it('keeps its next page through a failed request and a UTC budget rollover', async () => {
+    const first = stubClient([{
+      _tag: 'ok',
+      value: { ...page([post({ id: '9000' })], 'remaining'), postsRead: DAILY_DISCOVERY_READ_BUDGET },
+    }])
+    await ingestXMentions({ db: db().db, client: first.client, now: NOW })
+    const blocked = stubClient([])
+    await ingestXMentions({ db: db().db, client: blocked.client, now: NOW + 60 })
+    expect(blocked.callCount()).toBe(0)
+
+    const failing = stubClient([{ _tag: 'err', error: { _tag: 'rate-limited', resetAt: NOW + 86460 } }])
+    await ingestXMentions({ db: db().db, client: failing.client, now: NOW + 86400 })
+    expect(failing.nextTokens).toEqual(['remaining'])
+
+    const resumed = stubClient([{ _tag: 'ok', value: page([post({ id: '8000' })]) }])
+    const summary = await ingestXMentions({ db: db().db, client: resumed.client, now: NOW + 87300 })
+    expect(resumed.nextTokens).toEqual(['remaining'])
+    expect(summary.cursorAdvancedTo).toBe('9000')
+    expect(summary.budgetSpentToday).toBe(1)
+  })
+
+  it('expires a paused cold start before its search window leaves retention', async () => {
+    const first = stubClient(Array.from({ length: 5 }, (_, i) => ({
+      _tag: 'ok' as const,
+      value: page([post({ id: String(9000 - i) })], `token-${i + 1}`),
+    })))
+    await ingestXMentions({ db: db().db, client: first.client, now: NOW })
+    const next = stubClient([{ _tag: 'ok', value: page([post({ id: '10000' })]) }])
+    const summary = await ingestXMentions({
+      db: db().db,
+      client: next.client,
+      now: NOW + X_SEARCH_RETENTION_SECONDS - CURSOR_STALE_MARGIN_SECONDS + 1,
+    })
+    expect(summary.cursorReset).toBe(true)
+    expect(next.nextTokens).toEqual([null])
+    expect(summary.cursorAdvancedTo).toBe('10000')
+  })
+
   it('holds the cursor when the budget stops a run mid-window', async () => {
     // Advancing to the newest id here jumped past every post the run could not
     // afford, losing them permanently. Because the daily budget is spent by the
