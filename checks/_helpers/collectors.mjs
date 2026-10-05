@@ -175,7 +175,7 @@ export function collectD1(context) {
       has('jobs') ? `(SELECT COUNT(*) FROM jobs WHERE reserved_at IS NOT NULL AND reserved_at < ${Math.floor(now.getTime() / 1000) - 900} AND completed_at IS NULL AND failed_at IS NULL) AS stale_reserved_jobs` : 'NULL AS stale_reserved_jobs',
     ]
     /**
-     * Project an upper bound from returned post reads, not an invoice.
+     * Estimate Post-only spend from returned reads, not an invoice.
      * X usually charges repeated resources once per UTC day. The request
      * ceiling includes repeats, while stored observations show distinct posts.
      * User expansions and billing receipts are not recorded here.
@@ -201,7 +201,7 @@ export function collectD1(context) {
         x_budget_used_pct: budgetTarget > 0 ? Math.round((discoveryToday / budgetTarget) * 100) : null,
         x_projected_daily_reads: projectedDaily,
         x_projected_monthly_usd: Math.round(projectedDaily * 30 * USD_PER_READ * 100) / 100,
-        x_over_budget: discoveryToday > budgetTarget,
+        x_over_budget: budgetTarget === null ? null : discoveryToday > budgetTarget,
         // The value question: reads bought per skill actually verified. Rising
         // means the query is getting less precise or the stream is noisier.
         x_reads_per_verified_skill: Number(row.x_verified_skills ?? 0) > 0
@@ -221,7 +221,7 @@ export function collectD1(context) {
       has('x_ingest_cursor') ? `(SELECT COALESCE(SUM(posts_read_total), 0) FROM x_ingest_cursor) AS x_discovery_reads_total` : 'NULL AS x_discovery_reads_total',
       // Discovery and refresh share snapshots. Count their distinct observed
       // post IDs separately from returned reads. This is not billed usage.
-      has('x_post_metrics') ? `(SELECT COUNT(DISTINCT post_id) FROM x_post_metrics WHERE observed_at >= strftime('%s', '${utcDay}')) AS x_observed_posts_today` : 'NULL AS x_observed_posts_today',
+      has('x_post_metrics') && has('x_posts') ? `(SELECT COUNT(DISTINCT m.post_id) FROM x_post_metrics m JOIN x_posts p ON p.post_id = m.post_id WHERE p.platform = 'x' AND m.observed_at >= strftime('%s', '${utcDay}') AND m.observed_at <= ${Math.floor(now.getTime() / 1000)}) AS x_observed_posts_today` : 'NULL AS x_observed_posts_today',
       // Hot posts are refresh's remaining exposure: each can cost at most one
       // more read, when its window crosses midnight UTC.
       has('x_posts') ? `(SELECT COUNT(*) FROM x_posts WHERE refresh_tier = 'hot') AS x_hot_posts` : 'NULL AS x_hot_posts',
