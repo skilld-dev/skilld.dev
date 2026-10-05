@@ -16,13 +16,14 @@ SEO: `how to create claude skills`, US 2840, 390/month estimate, KD 30.
 Contribution: complete Skill, discovery table, portable replacements and concrete test inputs.
 Outline: shared format, example, discovery, runtime limits, checks, authoring links.
 Example: `review-release-notes/SKILL.md`, reviews supplied release notes against a supplied diff.
-Replay: supply a diff adding `timeoutMs` with default 5000 and notes claiming a default of 10000.
-Expect a finding citing the supplied diff, then corrected notes stating 5000.
+Replay: supply a diff exporting `timeoutMs = 5000` and notes claiming a default of 10 seconds.
+Expect a finding citing the supplied diff, then corrected notes stating 5 seconds.
+The export does not prove a runtime default. Flag that unsupported inference too.
 Negative input: ask for CSS colors. Expect no activation through task matching.
 Missing input: supply notes without a diff. Expect a request for release evidence before review.
 No runtime or credentials required for the example.
 Checks: parser, links, H1, metadata, canonical, robots, desktop/mobile, client navigation and record exclusion.
-Real Agent execution remains unverified until recorded sessions exist.
+Use [replay evidence](REPLAY.md) for observed sessions and remaining execution limits.
 Admission: add this route to the freeze audit and admit it using P06.
 Cull: remove admission to emit noindex and exclude from the sitemap.
 Review at the existing 2026-11-11 SEO gate.
@@ -55,8 +56,21 @@ Added the specification's leading and trailing hyphen constraint.
 - `skilld-harness` lint, typecheck, build and all 102 tests passed.
 
 The first concurrent check run failed because generated Nuxt files moved during the build.
-The sequential rerun passed. No authenticated or real model execution path was tested.
+The sequential rerun passed. These initial checks did not exercise authenticated or real model execution paths.
 No article screenshots ship. Private layout captures remain in `~/scratch/portable-skills/`.
 
 Humanize pass: kept the concrete procedure; removed any claim that format proves runtime completion.
 Final factual review preserved model limits, dates, source links and replay expectations.
+
+## Content-refresh re-review, 2026-10-05
+
+Parent revision: `b2ad27337190367aaefe18d0c1169af948fa8b4e`.
+Independent reviewers: article_review and brief_review. Coordinator: Codex.
+Findings: isolate the missing-input session, qualify the exported value, explain Gemini consent,
+and preserve dated trial evidence with complete replay instructions.
+Humanize pass: clarified permission configuration while retaining shared authorization rules.
+Added [replay evidence](REPLAY.md). Cross-Agent completion stays unresolved.
+Final article SHA-256: `10c533da43a4196e022b2dfe174344088e713213ca1d0237ed300880d17ddd62`.
+Both independent reviewers accepted that exact digest on 2026-10-05 after checking the corrections and replay evidence.
+Coordinator acceptance: Codex inspected the final article, source checks and revised records.
+Remaining limit: Claude and Gemini task completion, plus production delivery, require separate observation.

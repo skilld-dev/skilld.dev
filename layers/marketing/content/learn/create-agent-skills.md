@@ -52,6 +52,7 @@ The [Agent Skills specification](https://agentskills.io/specification) requires 
 The name must match the directory, use lowercase letters, numbers and single hyphens, and fit within 64 characters.
 It cannot start or end with a hyphen.
 The description says what the Skill does and when to use it.
+It must be non-empty and at most 1024 characters.
 For an initial portable version, keep only these two fields.
 
 ## Put the same Skill where each Agent finds it
@@ -79,7 +80,7 @@ If an Agent misses an update, follow its documented reload or restart procedure.
 
 Write the portable procedure around capabilities: read a file, search source, run a command, or ask for missing input.
 Use explicit inputs instead of relying on a provider's argument substitution.
-Keep permission rules and Agent-specific configuration outside the shared procedure.
+Keep Agent-specific permission configuration outside the shared procedure.
 
 [Claude Code](https://code.claude.com/docs/en/skills) adds features such as `$ARGUMENTS`, dynamic context injection and subagent execution.
 A Skill that requires those features needs a separate supported path for other Agents.
@@ -102,6 +103,8 @@ Use a fresh local session for each Agent you support.
 Give the same Skill and inputs to each session.
 First, check the Agent's Skill list or selector for `review-release-notes`.
 When running a request, inspect its activation message or trace to confirm it loaded this Skill.
+[Gemini CLI](https://geminicli.com/docs/cli/skills/#how-it-works) requests consent before loading the Skill's full instructions.
+Approve that request only after reviewing the Skill. A pending or denied request does not prove activation.
 A correct answer alone does not prove activation.
 Start with this explicit request:
 
@@ -117,13 +120,15 @@ The new timeout defaults to 10 seconds.
 
 Expect a finding that the notes contradict `config.ts`.
 Corrected notes should state 5 seconds, or 5000 milliseconds.
+The exported value does not establish a runtime default. The Agent should flag that unsupported claim too.
 This checks a small supplied diff, not a complete repository review.
 
 In another fresh session, supply the same inputs with “Check these release notes against this diff.”
 Leave out the Skill name and check the activation trace again.
 This checks whether the description selects the Skill for a matching task.
 
-Next, supply the notes without the diff.
+Next, start another fresh session and explicitly ask the Agent to use `review-release-notes`.
+Supply the notes without the diff.
 Expect the Agent to ask for release evidence before reviewing.
 Then start another session and ask it to choose CSS colors without naming this Skill.
 Check that task matching does not select the release-note procedure.
