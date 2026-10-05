@@ -38,6 +38,7 @@ describe('composeAgentSkillMarkdown', () => {
     expect(output.indexOf('## Fork workflow')).toBeLessThan(output.indexOf('# Carousel Styles'))
     expect(output).toContain('https://skilld.dev/api/v1/skills/nestyme/awesome-prompts/carousel-styles')
     expect(output).toContain('sourceCommit')
+    expect(output).toContain('If license is null, read licence files at the source commit.')
     expect(output).toContain('Do not save this page wrapper as SKILL.md.')
     expect(output).toContain('npx skilld install ./skills/carousel-styles --mode copy')
     expect(output).toContain('Never overwrite an existing directory or Agent target.')
