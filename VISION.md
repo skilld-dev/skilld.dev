@@ -143,9 +143,9 @@ Skills install as plain files in the user's repository. They work offline, survi
 
 ### 7. Quiet craft
 
-The interface recedes; the content speaks. Warm stone, rare rose, mono chrome, borders not shadows, the noise field in exactly three contexts. The voice is editorial: confident, warm, grounded, no hype words, every claim concrete. Craft is scope, not afterthought; a feature that works but reads loud or generic is not done. Full systems live in DESIGN.md and COPY.md; this principle makes them vetoes.
+The interface recedes; the content speaks. Warm stone, rare rose, mono chrome, borders not shadows, three brand textures with one job each. The voice is editorial: confident, warm, grounded, no hype words, every claim concrete. "Hyped" is the one approved exception, and it names social trending only (COPY.md). Craft is scope, not afterthought; a feature that works but reads loud or generic is not done. Full systems live in DESIGN.md and COPY.md; this principle makes them vetoes.
 
-**How to apply:** polish PRs are first-class. New surfaces ship with empty states, motion within the 400ms budget, and copy that passes the banned-language list. The noise field never escapes its three contexts.
+**How to apply:** polish PRs are first-class. New surfaces ship with empty states, motion within the 400ms budget, and copy that passes the banned-language list. A brand texture never leaves its job.
 
 **Test:** would this screen pass as a page of a well-edited technical magazine? If it reads like a startup landing page, fail.
 

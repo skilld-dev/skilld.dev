@@ -304,7 +304,7 @@ The mark is a prompt caret with one rose dot after it. The caret is a terminal p
 | `logo.svg`, `logo-light.svg` | The lockup, outlined, for dark and light backgrounds. READMEs and other repositories link these names |
 | `logo-mark.svg`, `logo-mark-light.svg` | The mark alone, for dark and light backgrounds |
 
-**Placement.** The lockup is the site header, the account and auth layouts, and every OG card. The mark alone goes where a square fits and a wordmark does not: favicons, avatars, app icons.
+**Placement.** The lockup is the site header, the account and auth layouts, and every OG card. The mark alone goes where a square fits and a wordmark does not: favicons, avatars, app icons. The homepage H1 ends on the rose dot in place of a typed full stop. The page draws that dot, and it counts as the hero's rose element.
 
 **Never:**
 
