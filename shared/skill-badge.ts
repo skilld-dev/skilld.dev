@@ -35,9 +35,9 @@ export function skillBadgeAwardTextWidth(label: string): number {
   return Math.round(width * 10) / 10
 }
 
-/** Width of the award segment: icon, gap, text, end padding. */
+/** Width of the award segment: spark, gap, text, end padding. */
 export function skillBadgeAwardWidth(label: string): number {
-  return Math.ceil(21 + skillBadgeAwardTextWidth(label) + 7)
+  return Math.ceil(24 + skillBadgeAwardTextWidth(label) + 7)
 }
 
 export function skillBadgeImagePath(input: SkillBadgeEmbedInput, theme?: SkillBadgeTheme): string {

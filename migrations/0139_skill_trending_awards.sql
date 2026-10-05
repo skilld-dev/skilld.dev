@@ -19,3 +19,8 @@ CREATE TABLE IF NOT EXISTS skill_trending_awards (
   ranked_at INTEGER NOT NULL,
   PRIMARY KEY (owner, repo, name, board, period)
 ) WITHOUT ROWID;
+
+-- The README badge matches owner and repo case-insensitively, as GitHub does.
+-- The primary key is binary, so that lookup needs its own index.
+CREATE INDEX IF NOT EXISTS idx_skill_trending_awards_repo_nocase
+  ON skill_trending_awards (owner COLLATE NOCASE, repo COLLATE NOCASE);

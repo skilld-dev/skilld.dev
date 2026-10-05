@@ -1419,11 +1419,7 @@ useHead(computed(() => ({
                   :aria-label="trendingAwardLabel(trendingAward)"
                   :title="trendingAwardLabel(trendingAward)"
                 >
-                  <UIcon
-                    name="i-lucide-award"
-                    class="size-3.5"
-                    aria-hidden="true"
-                  />
+                  <TrendingMark />
                   {{ trendingAwardBadgeLabel(trendingAward) }}
                 </NuxtLink>
               </div>

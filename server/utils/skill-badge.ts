@@ -85,6 +85,21 @@ export async function loadSkillBadgeAward(db: D1Database, target: SkillBadgeTarg
   return headlineTrendingAward(rows)
 }
 
+/**
+ * The trending mark (`⣤⣶⣿`, see `TrendingMark.vue`) drawn as dots. A badge
+ * renders in GitHub's image proxy, where no font is sure to carry braille.
+ */
+function trendingMarkDots(x: number): string {
+  const dots: string[] = []
+  for (const [cell, level] of [2, 3, 4].entries()) {
+    for (let row = 0; row < level; row++) {
+      for (const column of [0, 2.2])
+        dots.push(`<circle cx="${Math.round((x + cell * 5.6 + column) * 10) / 10}" cy="${Math.round((15.4 - row * 2.2) * 10) / 10}" r="0.85"/>`)
+    }
+  }
+  return dots.join('')
+}
+
 function badgeLikeLabel(likeCount: number): string {
   return new Intl.NumberFormat('en-US', {
     notation: 'compact',
@@ -136,14 +151,11 @@ function skillBadgeSvg(input: SkillBadgeResponseInput): string {
     ? `
     <rect x="${awardX}" width="${awardWidth}" height="22" fill="${AWARD_FILL}"/>`
     : ''
-  // Lucide "award", stroked white so it reads on the rose fill in both themes.
+  // White on the rose fill, so the newest bar spends no second rose.
   const awardContent = award
     ? `
-  <g fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" transform="translate(${awardX + 5} 4.4) scale(.55)">
-    <path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/>
-    <circle cx="12" cy="8" r="6"/>
-  </g>
-  <text x="${awardX + 21}" y="15" fill="#ffffff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" textLength="${skillBadgeAwardTextWidth(awardLabel)}" lengthAdjust="spacingAndGlyphs">${awardLabel}</text>`
+  <g fill="#ffffff" aria-hidden="true">${trendingMarkDots(awardX + 7)}</g>
+  <text x="${awardX + 24}" y="15" fill="#ffffff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" textLength="${skillBadgeAwardTextWidth(awardLabel)}" lengthAdjust="spacingAndGlyphs">${awardLabel}</text>`
     : ''
   const likesContent = showLikes
     ? `
