@@ -256,7 +256,8 @@ describe('counted email links', () => {
     expect(links.length).toBeGreaterThan(0)
     expect(links.map(String)).toEqual(counted(digest('bo').html).map(String))
     expect(new Set(links.map(url => url.pathname))).toEqual(new Set(['/api/e/digest']))
-    expect(links.map(url => url.searchParams.get('to'))).toContain('/me/likes')
+    expect(links.map(url => url.searchParams.get('to'))).toContain('/me')
+    expect(links.map(url => url.searchParams.get('to'))).not.toContain('/me/likes')
   })
 
   it('leaves previews uncounted', () => {

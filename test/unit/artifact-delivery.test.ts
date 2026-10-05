@@ -490,6 +490,37 @@ describe('public Artifact delivery', () => {
     harness.close()
   })
 
+  it('returns the requested Resolution attestation when identical bytes have a newer attestation', async () => {
+    const harness = await createBuildHarness(validFiles)
+    await processArtifactBuild(harness.dependencies, harness.resolutionId)
+    const first = await getResolution(harness.dependencies.db, harness.resolutionId)
+    const identity = await resolutionRequestIdentity(sourceRequest, 'second-idempotency-key')
+    const second = await createResolution(harness.dependencies.db, sourceRequest, identity, NOW + 1, { visibility: 'public' })
+    if (second._tag === 'idempotency-conflict' || !first?.artifact_id)
+      throw new Error('Fixture did not create Resolutions')
+    harness.dependencies.now = () => NOW + 1
+    await processArtifactBuild(harness.dependencies, second.row.id)
+    const result = await createPublicArtifactGrant({
+      db: harness.dependencies.db,
+      trustedRoot: harness.dependencies.trustedRoot,
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: NOW,
+    }, first.artifact_id, first.id)
+
+    expect(result).toMatchObject({
+      _tag: 'granted',
+      grant: { attestation: JSON.parse(first.attestation_json!) },
+    })
+    const missing = await createPublicArtifactGrant({
+      db: harness.dependencies.db,
+      trustedRoot: harness.dependencies.trustedRoot,
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: NOW,
+    }, first.artifact_id, crypto.randomUUID())
+    expect(missing).toEqual({ _tag: 'not-found' })
+    harness.close()
+  })
+
   it('fails closed when a current required check is missing', async () => {
     const harness = await createBuildHarness(validFiles)
     await processArtifactBuild(harness.dependencies, harness.resolutionId)

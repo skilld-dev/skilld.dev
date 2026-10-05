@@ -70,10 +70,11 @@ useSeoMeta({ title: 'Devices and tokens', robots: 'noindex' })
 </script>
 
 <template>
-  <section class="mx-auto max-w-3xl px-4 pt-10 pb-16 sm:px-6 md:pt-14">
+  <section class="mx-auto max-w-5xl px-4 pt-10 pb-16 sm:px-6 md:pt-14">
+    <UButton to="/me" label="Your skills" icon="i-lucide-arrow-left" color="neutral" variant="link" class="mb-4 min-h-11 px-0" />
     <header class="flex flex-col gap-5 border-b border-default pb-7 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
           Devices and tokens
         </h1>
         <p class="mt-3 max-w-xl text-base leading-relaxed text-muted text-pretty">

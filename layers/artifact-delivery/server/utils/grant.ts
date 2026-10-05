@@ -46,6 +46,7 @@ export interface PublicGrantDependencies {
 export async function createPublicArtifactGrant(
   dependencies: PublicGrantDependencies,
   artifactId: string,
+  resolutionId?: string,
 ): Promise<PublicGrantResult> {
   const row = await dependencies.db.prepare(
     `SELECT
@@ -56,9 +57,10 @@ export async function createPublicArtifactGrant(
      JOIN artifact_attestations aa ON aa.artifact_id = a.id
      JOIN artifact_resolutions r ON r.id = aa.resolution_id
      WHERE a.id = ?1
+       AND (?2 IS NULL OR aa.resolution_id = ?2)
      ORDER BY aa.created_at DESC, aa.resolution_id DESC
      LIMIT 1`,
-  ).bind(artifactId).first<ArtifactGrantRow>()
+  ).bind(artifactId, resolutionId ?? null).first<ArtifactGrantRow>()
   if (!row)
     return { _tag: 'not-found' }
   if (row.delivery_status === 'revoked' || row.resolution_state === 'revoked')

@@ -19,7 +19,7 @@ interface StarredRepo {
   watching: boolean
   skills: Skill[]
 }
-const { data, refresh, status } = await useFetch<{ items: StarredRepo[], syncedAt: number | null }>('/api/me/starred')
+const { data, refresh, status, error } = await useFetch<{ items: StarredRepo[], syncedAt: number | null }>('/api/me/starred')
 
 const skillItems = computed(() => (data.value?.items ?? []).filter(r => r.hasSkill))
 const totalSkills = computed(() => skillItems.value.reduce((n, r) => n + r.skills.length, 0))
@@ -84,6 +84,8 @@ const actionFailed = useActionFailure()
 
 const submitting = ref(false)
 async function watchSelected() {
+  if (submitting.value || syncing.value)
+    return
   if (!selected.value.size) {
     await navigateTo('/onboarding/email')
     return
@@ -93,12 +95,13 @@ async function watchSelected() {
     const [owner, repo] = k.split('/')
     return { owner, repo }
   })
-  await $fetch('/api/me/subscriptions', {
+  const saved = await $fetch('/api/me/subscriptions', {
     method: 'POST',
     body: { source: 'star-import', repos },
   }).catch(actionFailed('start watching those repos'))
   submitting.value = false
-  await navigateTo('/onboarding/email')
+  if (saved)
+    await navigateTo('/onboarding/email')
 }
 
 useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
@@ -107,7 +110,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
 <template>
   <section class="mx-auto max-w-2xl px-4 sm:px-6 pt-8 pb-12 md:pt-12">
     <OnboardingSteps :step="1" />
-    <h1 class="mt-6 font-mono text-2xl font-medium">
+    <h1 class="mt-6 text-2xl font-semibold tracking-tight">
       Watch what you've already starred
     </h1>
     <p class="mt-2 text-sm text-muted">
@@ -145,7 +148,13 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
     <div v-if="status === 'pending' || (syncing && !skillItems.length)" class="mt-6 text-sm text-muted">
       Loading your stars...
     </div>
-    <div v-else-if="!skillItems.length" class="mt-6 rounded-lg border border-default p-6 text-sm text-muted">
+    <div v-else-if="error" class="editorial-state mt-6" role="alert">
+      <p class="text-sm text-error">
+        Could not load your stars. Check your connection and try again.
+      </p>
+      <UButton label="Retry" color="neutral" variant="outline" class="mt-4 min-h-11" @click="refresh()" />
+    </div>
+    <div v-else-if="!skillItems.length" class="mt-6 rounded-lg border border-default p-4 text-sm text-muted">
       <template v-if="!data?.syncedAt">
         No star import yet. Click <strong>Import stars</strong> above, or
       </template>
@@ -164,7 +173,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         <button
           v-if="selectableItems.length"
           type="button"
-          class="text-xs text-muted hover:text-default underline"
+          class="min-h-11 font-mono text-sm text-muted hover:text-default underline"
           @click="toggleAll"
         >
           {{ allSelected ? 'Deselect all' : 'Select all' }}
@@ -216,6 +225,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
       </NuxtLink>
       <UButton
         :loading="submitting"
+        :disabled="syncing"
         :label="selected.size ? `Watch ${selected.size}` : 'Continue'"
         trailing-icon="i-lucide-arrow-right"
         size="sm"

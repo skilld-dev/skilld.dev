@@ -52,6 +52,7 @@ export async function createPrivateArtifactGrant(
   accountId: number,
   artifactId: string,
   idempotencyKey: string,
+  resolutionId?: string,
 ): Promise<PrivateGrantResult> {
   const row = await dependencies.db.prepare(
     `SELECT
@@ -71,6 +72,7 @@ export async function createPrivateArtifactGrant(
        AND gr.repository_id = ar.repository_id
      WHERE pa.account_id = ?1
        AND pa.artifact_id = ?2
+       AND (?3 IS NULL OR pa.resolution_id = ?3)
        AND ar.account_id = ?1
        AND ar.visibility = 'private'
        AND i.state = 'active'
@@ -78,7 +80,7 @@ export async function createPrivateArtifactGrant(
        AND gr.state = 'selected'
        AND gr.revoked_at IS NULL
      LIMIT 1`,
-  ).bind(accountId, artifactId).first<PrivateGrantRow>()
+  ).bind(accountId, artifactId, resolutionId ?? null).first<PrivateGrantRow>()
   if (!row)
     return { _tag: 'not-found' }
   if (row.delivery_status !== 'available' || row.resolution_state !== 'ready')

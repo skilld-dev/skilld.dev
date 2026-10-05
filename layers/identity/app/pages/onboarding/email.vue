@@ -4,10 +4,14 @@ import { identityAccountQueries, identityAccountQueryOptions } from '../../queri
 
 definePageMeta({ middleware: ['auth'] })
 
-const { data: me } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
+const { data: me, error: accountError, status: accountStatus, refresh: retryAccount } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
 const { fetchSession } = useAuth()
 
 const email = ref(me.value?.digest_email || me.value?.email || '')
+watch(me, (account, previous) => {
+  if (account && !previous)
+    email.value = account.digest_email || account.email || ''
+})
 const optIn = ref(true)
 const weeklyOptIn = ref(true)
 
@@ -33,7 +37,7 @@ const missingAddress = computed(() => (optIn.value || weeklyOptIn.value)
 
 const submitting = computed(() => saveEmailMutation.pending.value || finishOnboardingMutation.pending.value)
 async function finish() {
-  if (missingAddress.value)
+  if (!me.value || missingAddress.value || submitting.value)
     return
   const saved = await saveEmailMutation.mutateSafe({
     digest_email: email.value,
@@ -57,23 +61,31 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
 <template>
   <section class="mx-auto max-w-md px-4 sm:px-6 pt-8 pb-12 md:pt-12">
     <OnboardingSteps :step="2" />
-    <h1 class="mt-6 font-mono text-2xl font-medium">
+    <h1 class="mt-6 text-2xl font-semibold tracking-tight">
       Email
     </h1>
     <p class="mt-2 text-sm text-muted">
       Choose which useful updates reach your inbox. You can change this later.
     </p>
 
-    <div class="mt-6 space-y-4">
+    <div v-if="!me" class="editorial-state mt-6" :role="accountError ? 'alert' : 'status'">
+      <p class="text-sm" :class="accountError ? 'text-error' : 'text-muted'">
+        {{ accountError ? 'Could not load your account. Try again.' : 'Loading your account' }}
+      </p>
+      <UButton v-if="accountError" label="Retry" color="neutral" variant="outline" class="mt-4 min-h-11" :loading="accountStatus === 'pending'" @click="retryAccount()" />
+    </div>
+    <form v-else id="email-onboarding-form" class="mt-6 space-y-4" @submit.prevent="finish">
       <div>
-        <label for="email" class="text-xs uppercase tracking-wide text-muted">Email address</label>
+        <label for="email" class="font-mono text-sm text-muted">Email address</label>
         <input
           id="email"
           v-model="email"
           type="email"
           :aria-invalid="missingAddress"
           :aria-describedby="missingAddress ? 'email-error' : undefined"
-          class="mt-1 w-full rounded border border-default bg-default px-2 py-1 font-mono text-sm"
+          autocomplete="email"
+          :disabled="submitting"
+          class="mt-2 min-h-11 w-full rounded-lg border border-default bg-default px-3 py-2 font-mono text-sm focus-visible:outline-2 focus-visible:outline-primary"
         >
         <p v-if="missingAddress" id="email-error" class="mt-1 text-xs text-error">
           Add an email address, or turn off both emails.
@@ -97,7 +109,7 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
       <p v-if="!optIn && !weeklyOptIn" class="rounded-lg border border-default bg-elevated/50 p-3 text-xs text-muted">
         You won't receive any emails. You can opt in later from your dashboard.
       </p>
-    </div>
+    </form>
 
     <div class="mt-8 flex items-center justify-between">
       <UButton
@@ -105,16 +117,19 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
         label="Back"
         leading-icon="i-lucide-arrow-left"
         size="sm"
+        class="min-h-11"
         color="neutral"
         variant="ghost"
       />
       <UButton
         :loading="submitting"
-        :disabled="missingAddress"
+        :disabled="!me || missingAddress"
         label="Finish"
         trailing-icon="i-lucide-check"
         size="sm"
-        @click="finish"
+        class="min-h-11"
+        type="submit"
+        form="email-onboarding-form"
       />
     </div>
   </section>

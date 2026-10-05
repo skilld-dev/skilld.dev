@@ -151,6 +151,8 @@ export interface WeeklyLikedChange {
 export interface WeeklyRenderInput {
   /** Product label. The default keeps the public weekly preview unchanged. */
   edition?: 'weekly' | 'digest'
+  /** Watched Repositories are separate from liked Skills. */
+  changeSource?: 'likes' | 'watches'
   /**
    * Who it is addressed to, or null when nobody.
    *
@@ -578,6 +580,8 @@ function subjectFor(input: WeeklyRenderInput): string {
  * subject did not.
  */
 function preheader(input: WeeklyRenderInput): string {
+  if (input.changeSource === 'watches')
+    return 'Source changes from the repos you watch.'
   const trendingNames = nameList(input.trending.map(skill => skill.canonicalName), 0)
   if ((input.edition ?? 'weekly') === 'weekly') {
     return input.trending.length
@@ -598,6 +602,8 @@ function preheader(input: WeeklyRenderInput): string {
 }
 
 function greeting(input: WeeklyRenderInput): string {
+  if (input.changeSource === 'watches')
+    return input.likedChanges.length ? 'Source files changed in the repos you watch.' : 'No source changes this week.'
   if ((input.edition ?? 'weekly') === 'weekly')
     return 'Here are this week’s trending Skills.'
   const liked = input.likedChanges.length + input.likedOverflow
@@ -638,6 +644,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
   const subject = subjectFor(input)
   const edition = input.edition ?? 'weekly'
   const trendsOnly = edition === 'weekly'
+  const changeLabel = input.changeSource === 'watches' ? 'Repos you watch' : 'Skills you like'
   const empty = !input.likedChanges.length && !input.trackedCount && !input.trending.length
 
   // Only the HTML is counted. Plain-text clients show the raw URL and often
@@ -675,7 +682,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 
   const overflowRow = input.likedOverflow
     ? `<tr><td class="weekly-border" style="padding:12px 0 0;border-top:1px solid ${t.border};font-family:${MONO};font-size:14px;line-height:20px;color:${t.muted};">
-         <a href="${esc(track(`${input.siteUrl}/me/likes`, 'overflow'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'Skill', 'Skills')} you like were updated</a>
+         <a href="${esc(track(input.changeSource === 'watches' ? input.settingsUrl : `${input.siteUrl}/me/likes`, 'overflow'))}" style="display:inline-block;padding:12px 0;color:${t.muted};text-decoration:underline;text-underline-offset:3px;">+${input.likedOverflow} more ${plural(input.likedOverflow, 'Skill', 'Skills')} ${input.changeSource === 'watches' ? 'from repos you watch' : 'you like'} were updated</a>
        </td></tr>`
     : ''
 
@@ -713,11 +720,11 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
       : `<tr><td class="weekly-border" style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">No new trending Skills this week.</td></tr>`
     : empty
       ? `<tr><td class="weekly-border" style="padding:22px 0 4px;margin-top:16px;border-top:1px solid ${t.border};font-family:${SANS};font-size:14px;line-height:1.6;color:${t.body};">
-         Like a few Skills and they will show up here the week they change.
+         ${input.changeSource === 'watches' ? 'Watch a repo to see its Skill changes here.' : 'Like a few Skills and they will show up here the week they change.'}
          <a href="${esc(track(`${input.siteUrl}/skills`, 'cta'))}" style="display:inline-block;padding:12px 0;line-height:20px;color:${t.accent};text-decoration:underline;text-underline-offset:3px;">Browse the registry</a>.
        </td></tr>`
       : `${input.likedChanges.length || input.trackedCount
-        ? `${sectionLabel(t, 'Skills you like')}${likedRows}${overflowRow}${quietRow}`
+        ? `${sectionLabel(t, changeLabel)}${likedRows}${overflowRow}${quietRow}`
         : ''}${input.trending.length
         ? `${sectionLabel(t, 'Trending this week')}${trendingRows}${likePrompt}`
         : ''}`
@@ -792,6 +799,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
 export function renderWeeklyText(input: WeeklyRenderInput): string {
   const now = input.windowEnd
   const trendsOnly = (input.edition ?? 'weekly') === 'weekly'
+  const changeLabel = input.changeSource === 'watches' ? 'REPOS YOU WATCH' : 'SKILLS YOU LIKE'
   const lines: string[] = [
     `skilld ${input.edition ?? 'weekly'}  ${formatWindow(input.windowStart, input.windowEnd)}`,
     '',
@@ -800,10 +808,10 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
   ]
 
   if (!trendsOnly && !input.likedChanges.length && input.trackedCount)
-    lines.push('', 'SKILLS YOU LIKE', '', trackedLine(input.trackedCount))
+    lines.push('', changeLabel, '', trackedLine(input.trackedCount))
 
   if (!trendsOnly && input.likedChanges.length) {
-    lines.push('', 'SKILLS YOU LIKE', '')
+    lines.push('', changeLabel, '')
     for (const change of input.likedChanges) {
       lines.push(`- ${change.owner}/${change.repo} ${change.name}`)
       const subjects = commitSubjects(change.commitMessages)
@@ -821,8 +829,11 @@ export function renderWeeklyText(input: WeeklyRenderInput): string {
       lines.push(`  Source: ${change.sourceUrl ?? skillUrl(input.siteUrl, change)}`)
       lines.push('')
     }
-    if (input.likedOverflow)
-      lines.push(`+${input.likedOverflow} more you like were updated: ${input.siteUrl}/me/likes`, '')
+    if (input.likedOverflow) {
+      lines.push(input.changeSource === 'watches'
+        ? `+${input.likedOverflow} more from repos you watch were updated: ${input.settingsUrl}`
+        : `+${input.likedOverflow} more you like were updated: ${input.siteUrl}/me/likes`, '')
+    }
   }
 
   if (input.trending.length) {

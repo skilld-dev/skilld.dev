@@ -1,3 +1,5 @@
+import type { H3Event } from 'h3'
+import { useSession } from 'h3'
 import { z } from 'zod'
 import { parseReturnTo } from '#shared/return-to'
 import { fetchVerifiedPrimaryEmail } from '../../utils/github-emails'
@@ -25,7 +27,7 @@ const githubTokensSchema = z.object({
   }
 })
 
-export default defineOAuthGitHubEventHandler({
+const githubHandler = defineOAuthGitHubEventHandler({
   config: {
     emailRequired: false,
   },
@@ -84,6 +86,13 @@ export default defineOAuthGitHubEventHandler({
         void scanPromise
     }
 
+    const intent = await loginIntentSession(event)
+    const action = typeof intent.data.action === 'string' ? intent.data.action : ''
+    const returnTo = parseReturnTo(intent.data.returnTo, '')
+
+    if (action.startsWith('watch-') || action.startsWith('like-'))
+      await handleWatchAction(event, row.id, action, returnTo)
+
     await setUserSession(event, {
       user: {
         id: row.id,
@@ -96,20 +105,7 @@ export default defineOAuthGitHubEventHandler({
       loggedInAt: Math.floor(Date.now() / 1000),
     })
 
-    const query = getQuery(event)
-    const action = typeof query.action === 'string' ? query.action : ''
-    const queryReturnTo = typeof query.return_to === 'string' ? parseReturnTo(query.return_to, '') : ''
-
-    // CLI flow stashes the (longer) return_to in a cookie because OAuth round-
-    // trips drop query params. Cookie takes priority over the query string.
-    const cookieReturnTo = getCookie(event, 'cli_return_to')
-    const returnTo = cookieReturnTo ? parseReturnTo(cookieReturnTo, queryReturnTo) : queryReturnTo
-
-    if (cookieReturnTo)
-      deleteCookie(event, 'cli_return_to', { path: '/' })
-
-    if (action.startsWith('watch-') || action.startsWith('like-'))
-      await handleWatchAction(event, row.id, action, returnTo)
+    await intent.clear()
 
     if (returnTo)
       return sendRedirect(event, returnTo)
@@ -119,8 +115,42 @@ export default defineOAuthGitHubEventHandler({
 
     return sendRedirect(event, '/me')
   },
-  onError(event) {
-    emitOperationalEvent(createWideEvent({ operation: 'github-oauth', outcome: 'failed' }), 'error')
-    return sendRedirect(event, '/login?error=oauth')
-  },
+  onError: loginFailed,
+})
+
+async function loginFailed(event: H3Event) {
+  emitOperationalEvent(createWideEvent({ operation: 'github-oauth', outcome: 'failed' }), 'error')
+  const intent = await loginIntentSession(event)
+  const params = new URLSearchParams({ error: 'oauth' })
+  const returnTo = parseReturnTo(intent.data.returnTo, '')
+  if (returnTo)
+    params.set('return_to', returnTo)
+  if (typeof intent.data.action === 'string' && intent.data.action)
+    params.set('action', intent.data.action)
+  await intent.clear()
+  return sendRedirect(event, `/login?${params}`)
+}
+
+// Seal browser intent separately from identity. GitHub returns only code and state.
+function loginIntentSession(event: H3Event) {
+  const config = useRuntimeConfig(event)
+  return useSession<{ returnTo: string, action: string }>(event, {
+    name: 'skilld-login-intent',
+    password: process.env.NUXT_SESSION_PASSWORD || config.session.password,
+    maxAge: 600,
+    cookie: { httpOnly: true, sameSite: 'lax', secure: !import.meta.dev, path: '/' },
+  })
+}
+
+export default defineEventHandler(async (event) => {
+  const query = getQuery(event)
+  if (!query.code && !query.error && !query.state) {
+    const intent = await loginIntentSession(event)
+    const action = ['like-skill', 'watch-skill', 'watch-collection'].includes(String(query.action))
+      ? String(query.action)
+      : ''
+    await intent.update({ returnTo: parseReturnTo(query.return_to, ''), action })
+  }
+  // Provider network failures can throw before the OAuth error callback runs.
+  return githubHandler(event).catch(() => loginFailed(event))
 })

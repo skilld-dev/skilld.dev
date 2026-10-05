@@ -26,8 +26,8 @@ interface LikedSkill {
   registryPath: string
 }
 
-const { data: me } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
-const { data: subs } = await useNuxtRpcQuery(identityAccountQueries.subscriptions(), identityAccountQueryOptions)
+const { data: me, error: accountError, status: accountStatus, refresh: retryAccount } = await useNuxtRpcQuery(identityAccountQueries.me(), identityAccountQueryOptions)
+const { data: subs, error: subscriptionsError, status: subscriptionsStatus, refresh: retrySubscriptions } = await useNuxtRpcQuery(identityAccountQueries.subscriptions(), identityAccountQueryOptions)
 const {
   data: likes,
   error: likesError,
@@ -124,12 +124,19 @@ const emailForm = reactive({
   email_opt_in: !!me.value?.email_opt_in,
   weekly_opt_in: me.value?.weekly_opt_in ?? true,
 })
+watch(showEmail, (open) => {
+  if (open && me.value) {
+    emailForm.digest_email = me.value.digest_email ?? me.value.email ?? ''
+    emailForm.email_opt_in = me.value.email_opt_in
+    emailForm.weekly_opt_in = me.value.weekly_opt_in
+  }
+})
 const emailMissingAddress = computed(() =>
   (emailForm.email_opt_in || emailForm.weekly_opt_in)
   && !/^[^\s@]+@[^\s@][^\s.@]*\.[^\s@]+$/.test(emailForm.digest_email.trim()),
 )
 async function saveEmail() {
-  if (emailMissingAddress.value)
+  if (emailMissingAddress.value || saveEmailMutation.pending.value)
     return
   const saved = await saveEmailMutation.mutateSafe({ ...emailForm })
   if (saved._tag === 'ok')
@@ -236,8 +243,16 @@ async function deleteAccount() {
 </script>
 
 <template>
-  <section class="mx-auto max-w-7xl px-4 pt-8 pb-16 sm:px-6 md:pt-12 md:pb-20">
-    <header class="flex flex-col gap-5 border-b border-default pb-8 sm:flex-row sm:items-center sm:justify-between">
+  <section v-if="!me" class="mx-auto max-w-5xl px-4 pt-8 pb-16 sm:px-6 md:pt-12 md:pb-20">
+    <div class="editorial-state" :role="accountError ? 'alert' : 'status'">
+      <h1 class="text-2xl font-semibold">
+        {{ accountError ? 'Could not load your account' : 'Loading your account' }}
+      </h1>
+      <UButton v-if="accountError" label="Retry" color="neutral" variant="outline" class="mt-4 min-h-11" :loading="accountStatus === 'pending'" @click="retryAccount()" />
+    </div>
+  </section>
+  <section v-else class="mx-auto max-w-5xl px-4 pt-8 pb-16 sm:px-6 md:pt-12 md:pb-20">
+    <header class="flex flex-col gap-5 border-b border-default pb-5 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex min-w-0 items-center gap-4">
         <img
           v-if="me?.avatar"
@@ -249,10 +264,7 @@ async function deleteAccount() {
           fetchpriority="high"
         >
         <div class="min-w-0">
-          <p class="section-label">
-            Your skilld
-          </p>
-          <p class="mt-1 truncate text-lg font-semibold">
+          <p class="truncate text-lg font-semibold">
             {{ me?.name || `@${me?.login}` }}
           </p>
           <p v-if="me?.name" class="truncate font-mono text-xs text-muted">
@@ -278,12 +290,12 @@ async function deleteAccount() {
       </div>
     </header>
 
-    <div class="mt-10 grid min-w-0 gap-12 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-16">
+    <div class="mt-6 grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
       <div class="min-w-0">
         <section aria-label="Your skills">
           <div class="flex flex-col gap-5 border-b border-default pb-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 class="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              <h1 class="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
                 Your skills
               </h1>
               <p class="mt-3 max-w-2xl text-base leading-relaxed text-muted text-pretty">
@@ -295,7 +307,7 @@ async function deleteAccount() {
             </p>
           </div>
 
-          <div v-if="likesLoading" class="editorial-state mt-6 flex flex-col items-start justify-center">
+          <div v-if="likesLoading" class="editorial-state mt-6 flex flex-col items-start justify-center" role="status">
             <UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-muted" aria-hidden="true" />
             <h2 class="mt-4 text-lg font-semibold">
               Loading your skills
@@ -371,7 +383,7 @@ async function deleteAccount() {
         </section>
       </div>
 
-      <aside class="min-w-0 space-y-10 lg:border-l lg:border-default lg:pl-8" aria-label="Skill delivery settings">
+      <aside class="min-w-0 space-y-6 lg:border-l lg:border-default lg:pl-6" aria-label="Skill delivery settings">
         <AgentSetupCard />
 
         <section>
@@ -421,7 +433,7 @@ async function deleteAccount() {
                 aria-controls="email-settings-form"
                 @click="showEmail = !showEmail"
               />
-              <div v-show="showEmail" id="email-settings-form" class="mt-4 space-y-4">
+              <form v-show="showEmail" id="email-settings-form" class="mt-4 space-y-4" @submit.prevent="saveEmail">
                 <UFormField label="Email address" name="email" :error="emailMissingAddress ? 'Add a valid email address, or turn off both emails.' : undefined">
                   <UInput
                     id="account-digest-email"
@@ -460,9 +472,9 @@ async function deleteAccount() {
                   label="Save email settings"
                   :disabled="emailMissingAddress"
                   :loading="saveEmailMutation.pending.value"
-                  @click="saveEmail"
+                  type="submit"
                 />
-              </div>
+              </form>
             </div>
           </div>
         </section>
@@ -525,7 +537,16 @@ async function deleteAccount() {
             @click="sync"
           />
 
-          <details v-if="subs?.items.length" class="mt-5 border-y border-default">
+          <div v-if="subscriptionsError" class="mt-4" role="alert">
+            <p class="text-sm text-error">
+              Could not load watched Repositories. Try again.
+            </p>
+            <UButton label="Retry" color="neutral" variant="outline" class="mt-3 min-h-11" :loading="subscriptionsStatus === 'pending'" @click="retrySubscriptions()" />
+          </div>
+          <p v-else-if="subscriptionsStatus === 'pending' && !subs" class="mt-4 text-sm text-muted" role="status">
+            Loading watched Repositories
+          </p>
+          <details v-else-if="subs?.items.length" class="mt-5 border-y border-default">
             <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 font-mono text-xs">
               View repositories
               <UIcon name="i-lucide-chevron-down" class="size-4 text-muted" aria-hidden="true" />
@@ -564,9 +585,9 @@ async function deleteAccount() {
         </section>
 
         <nav class="border-t border-default pt-6" aria-label="Account tools">
-          <p class="section-label mb-3">
+          <h2 class="mb-3 text-lg font-semibold">
             Account
-          </p>
+          </h2>
           <UButton
             to="/me/devices"
             color="neutral"

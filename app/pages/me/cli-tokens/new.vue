@@ -27,8 +27,9 @@ useSeoMeta({ title: 'New token', robots: 'noindex' })
 
 <template>
   <section class="mx-auto max-w-xl px-4 pt-12 pb-16 sm:px-6 md:pt-16">
+    <UButton to="/me/devices" label="Devices and tokens" icon="i-lucide-arrow-left" color="neutral" variant="link" class="mb-4 min-h-11 px-0" />
     <header class="border-b border-default pb-6">
-      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
+      <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
         New token
       </h1>
       <p class="mt-3 text-base leading-relaxed text-muted">
@@ -38,7 +39,7 @@ useSeoMeta({ title: 'New token', robots: 'noindex' })
 
     <UForm v-if="state._tag !== 'created'" :schema="schema" :state="form" class="mt-6 space-y-5" @submit="createToken">
       <UFormField label="Label" name="label" description="Choose a name you can recognise when you revoke it." required>
-        <UInput v-model="form.label" placeholder="API script" maxlength="80" autocomplete="off" :disabled="state._tag === 'creating'" class="w-full" />
+        <UInput v-model="form.label" placeholder="API script" maxlength="80" autocomplete="off" :disabled="state._tag === 'creating'" :ui="{ base: 'min-h-11' }" class="w-full" />
       </UFormField>
       <UFormField label="Expiry" name="ttl">
         <USelect
@@ -49,6 +50,7 @@ useSeoMeta({ title: 'New token', robots: 'noindex' })
             { label: '365 days', value: '365' },
           ]"
           :disabled="state._tag === 'creating'"
+          :ui="{ base: 'min-h-11' }"
           class="w-full"
         />
       </UFormField>
