@@ -68,6 +68,13 @@ components:
 
 ## Design Principles
 
+### Brand kit experiments
+
+`/brand-kit/experiments` explores five product constraints through isolated visual specimens.
+New shapes and motion there are exploratory exceptions, not adopted brand assets.
+Keep warm stone, rose, readable labels, keyboard controls, and reduced-motion alternatives.
+The homepage and shared components retain the existing identity rules.
+
 ### 1. Quiet
 
 **"Confidence is quiet. The interface recedes; the content speaks."**

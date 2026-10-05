@@ -57,7 +57,7 @@ const fragments = Array.from({ length: 25 }, (_, index) => ({
 .bloat-specimen__ribbon { position: relative; width: 100%; height: 60px; padding-inline: 20px; display: flex; align-items: center; gap: 8px; background: var(--ui-primary); color: var(--color-white); transform: rotate(-9deg) translateY(-30px); transition: transform 700ms; }
 .bloat-specimen__ribbon span { font: 500 20px var(--font-mono); padding-right: 12px; }
 .bloat-specimen__ribbon i { width: 1px; height: 24px; flex: 1; border-block: 1px solid currentColor; opacity: .6; }
-.bloat-specimen__annotation { position: absolute; bottom: 24px; left: 24px; right: 24px; font: 12px var(--font-mono); color: var(--ui-text-muted); }
+.bloat-specimen__annotation { position: absolute; bottom: 24px; left: 24px; right: 24px; font: 14px var(--font-mono); color: var(--ui-text-muted); }
 .is-focused .bloat-specimen__fragment { opacity: .08; transform: translateY(20px) rotate(0deg); }
 .is-focused .bloat-specimen__number { opacity: 1; transform: translateY(0); }
 .is-focused .bloat-specimen__ribbon { transform: rotate(0) translateY(14px); }
@@ -65,7 +65,7 @@ const fragments = Array.from({ length: 25 }, (_, index) => ({
 .bloat-specimen__caption > div { flex: 1; }
 .bloat-specimen h3 { margin: 0; font: 600 clamp(23px, 4vw, 30px)/1.2 var(--font-sans); letter-spacing: -.04em; }
 .bloat-specimen p { font-size: 14px; line-height: 1.6; margin: 12px 0 0; color: var(--ui-text-muted); }
-.bloat-specimen button { flex-shrink: 0; min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border: 1px solid var(--ui-border); font: 12px var(--font-mono); color: var(--ui-text); background: var(--ui-bg); cursor: pointer; }
+.bloat-specimen button { flex-shrink: 0; min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border: 1px solid var(--ui-border); font: 14px var(--font-mono); color: var(--ui-text); background: var(--ui-bg); cursor: pointer; }
 .bloat-specimen button:hover { border-color: var(--ui-text-muted); }
 .bloat-specimen button:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 4px; }
 @media (max-width: 450px) {

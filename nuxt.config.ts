@@ -604,6 +604,8 @@ export default defineNuxtConfig({
     // kit page and Nuxt made it a route. The page went indexable today, so the
     // empty sibling redirects instead of shipping next to it.
     '/brand-kit/_GithubBadgePreview': { redirect: { to: '/brand-kit/github-badge', statusCode: 301 } } as any,
+    '/brand-kit': { headers: { 'x-robots-tag': 'noindex, nofollow' } },
+    '/brand-kit/experiments': { headers: { 'x-robots-tag': 'noindex, nofollow' } },
     // 2026-08-22: llms-full.txt inlined every page's markdown into one 28.5 MB
     // file; agents truncate or time out on it. llms.txt now links each page's
     // .md (aiReady.llmsTxt.markdownLinks), so the dump redirects there. 302 so
@@ -806,7 +808,7 @@ export default defineNuxtConfig({
     // `/learn` index is a 55-word card list, noindex since 2026-08-22
     // (GOOGLE_RECOVERY.md). Articles stay indexable and sitemap-listed; only
     // the bare index leaves. Global so no child sitemap can re-adopt it.
-    exclude: ['/learn'],
+    exclude: ['/learn', '/brand-kit', '/brand-kit/experiments'],
     sitemaps: {
       pages: {
         includeAppSources: true,

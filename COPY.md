@@ -9,6 +9,42 @@ The canonical source for skilld's verbal identity. Pages, meta tags and registry
 from here; when a canonical string changes, change it here first, then propagate. A string that
 contradicts this file is a bug.
 
+## Brand kit experiment register
+
+`/brand-kit/experiments` uses exploratory copy. It does not replace the approved tagline or homepage hero.
+Use existing product nouns. Label illustrative states without implying measured results or automatic updates.
+
+- Brand kit: `Explore the visual stories behind skilld.`
+- Experiment link: `Five brand experiments`.
+- Experiment summary: `Session, bloat, freshness, provenance, and portability.`
+- Badge summary: `A small mark that links a README to its Skill or Repository.`
+- Experiment title: `Five ways to show what skilld solves.`
+- Experiment description: `Each experiment starts with a product limit. These are exploratory visuals, not adopted brand assets.`
+- Selectors: `Session`, `Bloat`, `Freshness`, `Provenance`, `Portability`.
+- Theme controls: `Light mode`, `Dark mode`.
+
+| Experiment | Product limit | Review question |
+| --- | --- | --- |
+| Session | Run a Skill without keeping it. | Can the session boundary become a recognisable brand shape? |
+| Bloat | Keep only the Skills you need. | Can a dense weave resolving into one thread show the cost of Skill bloat? |
+| Freshness | The source can change while your copy stays still. | Can a visible change seam give watch its own visual language? |
+| Provenance | Knowledge has a human source. | Can a continuous thread make source ownership visible? |
+| Portability | The Skill stays the same when you change Agents. | Can one stable shape moving across contexts express independence? |
+
+Specimen strings:
+
+| Specimen | Heading and explanation | Controls and labels |
+| --- | --- | --- |
+| Session | `Knowledge for this session.` · `Run a Skill for the current session. Nothing lands in your repository.` | `End session`, `Run again`, `source`, `session`, `no files written`, `SKILL.md` |
+| Bloat | `One task. One Skill.` · `Give this task one Skill. Install only what earns a place.` | `Focus one Skill`, `Show all Skills`, `one task · one Skill`, `what does this task need?`, `SKILL.md` |
+| Freshness | `See when knowledge moves.` · `The source changes. Your local copy stays still. Watch makes the difference visible.` | `Hide differences`, `Show differences`, `Replay`, `Local copy`, `Illustrative source`, `Kept in your project`, `Changed at the source`, `Watch for changes` |
+| Provenance | `Knowledge has an author.` · `A Skill reaches your Agent. The thread leads back to the person who wrote it.` | `Hide source thread`, `Trace the source`, `Replay`, `Your Agent`, `Read the Skill`, `Illustrative source`, `Written by a human.`, `The author keeps the source.`, `Source stays attached.`, `SKILL.md` |
+| Portability | `Same Skill. Your Agent.` · `The Agent changes. The knowledge stays yours.` | `Change Agent`, `Claude Code`, `Codex`, `Cursor`, `One Skill`, `SKILL.md`, `skilld`, `{Agent} selected. Same SKILL.md.` |
+
+Freshness footnote: `Illustration only. Watching reports changes. It does not update your local copy.`
+Provenance footnote: `Illustrative source. The thread represents authorship, not a safety claim.`
+Accessible state descriptions name the same illustrated transition. They make no additional product claim.
+
 ## Canonical assets
 
 Comparison navigation uses “Compare Humanizer, Stop Slop, and No AI Slop” on the homepage, writing track, and featured Skill pages.

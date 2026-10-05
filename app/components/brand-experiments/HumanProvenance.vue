@@ -58,7 +58,7 @@ const revision = ref(0)
 .experiment-heading p { max-width: 40ch; font-size: 16px; line-height: 1.6; color: var(--ui-text-muted); margin: 0; }
 .provenance-stage { position: relative; height: 330px; overflow: hidden; border-block: 1px solid var(--ui-border); margin: 24px 0 16px; }
 .skill-leaf { position: absolute; left: 8%; top: 28px; width: 49%; padding: 16px; border: 1px solid var(--ui-border-accented); background: var(--ui-bg); transform: rotate(-3deg); }
-.leaf-label, .leaf-end, .trace-label { font-family: var(--font-mono); font-size: 12px; line-height: 1.5; }
+.leaf-label, .leaf-end, .trace-label { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
 .leaf-label { display: block; color: var(--ui-text-muted); margin-bottom: 8px; }
 .skill-leaf strong { font-family: var(--font-mono); font-size: 22px; font-weight: 500; }
 .written-lines { display: flex; gap: 7px; flex-direction: column; padding: 16px 0; }
@@ -83,6 +83,6 @@ const revision = ref(0)
 .experiment-controls :deep(button) { min-height: 44px; }
 .experiment-footnote { font-size: 14px; line-height: 1.6; color: var(--ui-text-muted); max-width: 58ch; margin: 12px 0 0; }
 @keyframes thread-reveal { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0); } }
-@container (max-width: 400px) { .skill-leaf { left: 5%; width: 62%; padding: 12px; } .source-leaf { left: 23%; right: 4%; padding-left: 24px; } .trace-label { top: 208px; left: 4%; font-size: 11px; } .thread-turn { right: 10%; } .thread-top { width: 48%; } }
+@container (max-width: 400px) { .skill-leaf { left: 5%; width: 62%; padding: 12px; } .source-leaf { left: 23%; right: 4%; padding-left: 24px; } .trace-label { top: auto; bottom: 0; left: 4%; font-size: 14px; } .thread-turn { right: 10%; } .thread-top { width: 48%; } }
 @media (prefers-reduced-motion: reduce) { .thread-path, .trace-label { animation: none !important; transition: none; } }
 </style>

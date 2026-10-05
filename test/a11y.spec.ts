@@ -85,6 +85,23 @@ afterEach(() => {
 })
 
 describe('accessibility: components', () => {
+  it.each([
+    'SessionBoundary',
+    'SkillBloat',
+    'KnowledgeFreshness',
+    'HumanProvenance',
+    'PortableKnowledge',
+  ])('brand experiment %s has no accessibility violations', async (name) => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent(`brand-experiments/${name}`),
+      { attachTo: container },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('appLogo has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(

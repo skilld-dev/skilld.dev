@@ -51,7 +51,7 @@ const sessionOpen = ref(true)
 .session-specimen__ribbon { position: absolute; left: 8%; top: 121px; width: 55%; height: 76px; display: flex; align-items: center; gap: 18px; padding: 0 24px; background: var(--ui-primary); color: var(--color-white); clip-path: polygon(0 0, 94% 0, 100% 50%, 94% 100%, 0 100%, 5% 50%); transform: rotate(-11deg); transition: transform 900ms cubic-bezier(.22,.8,.22,1), opacity 300ms 450ms; }
 .session-specimen__ribbon > span:first-child { font-family: var(--font-mono); font-size: clamp(18px, 3vw, 25px); font-weight: 500; white-space: nowrap; }
 .session-specimen__ribbon-lines { width: 100%; height: 24px; background: repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 7px); opacity: .55; }
-.session-specimen__source, .session-specimen__trace { position: absolute; font: 12px var(--font-mono); }
+.session-specimen__source, .session-specimen__trace { position: absolute; font: 14px var(--font-mono); }
 .session-specimen__source { left: 5%; top: 40px; color: var(--ui-text-muted); }
 .session-specimen__trace { right: 5%; bottom: 26px; color: var(--ui-text-muted); }
 .is-ended .session-specimen__ribbon { transform: translateX(190%) rotate(-11deg); opacity: 0; }
@@ -59,7 +59,7 @@ const sessionOpen = ref(true)
 .session-specimen__caption > div { flex: 1; }
 .session-specimen h3 { margin: 0; font-family: var(--font-sans); font-size: clamp(23px, 4vw, 30px); font-weight: 600; letter-spacing: -.04em; line-height: 1.2; }
 .session-specimen p { font-size: 14px; line-height: 1.6; margin: 12px 0 0; color: var(--ui-text-muted); }
-.session-specimen button { flex-shrink: 0; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: 1px solid var(--ui-border); font: 12px var(--font-mono); color: var(--ui-text); background: var(--ui-bg); cursor: pointer; }
+.session-specimen button { flex-shrink: 0; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border: 1px solid var(--ui-border); font: 14px var(--font-mono); color: var(--ui-text); background: var(--ui-bg); cursor: pointer; }
 .session-specimen button:hover { border-color: var(--ui-text-muted); }
 .session-specimen button:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 4px; }
 @media (max-width: 450px) {

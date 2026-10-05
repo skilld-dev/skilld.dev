@@ -53,7 +53,7 @@ const revision = ref(0)
 .sheet { position: absolute; width: 48%; height: 226px; border: 1px solid var(--ui-border-accented); background: var(--ui-bg); padding: 16px; display: flex; flex-direction: column; justify-content: space-between; }
 .sheet-local { left: 8%; top: 68px; transform: rotate(-7deg); }
 .sheet-source { left: 44%; top: 27px; transform: rotate(7deg); animation: source-moves 360ms ease-out both; }
-.sheet-caption, .sheet-foot, .change-seam { font-family: var(--font-mono); font-size: 12px; line-height: 1.5; }
+.sheet-caption, .sheet-foot, .change-seam { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
 .sheet-caption { color: var(--ui-text); }
 .sheet-foot { color: var(--ui-text-muted); }
 .dot-matrix { display: grid; grid-template-columns: repeat(12, 1fr); gap: 7px; padding-block: 16px; }
@@ -69,6 +69,6 @@ const revision = ref(0)
 .experiment-controls :deep(button) { min-height: 44px; }
 .experiment-footnote { font-size: 14px; line-height: 1.6; color: var(--ui-text-muted); max-width: 58ch; margin: 12px 0 0; }
 @keyframes source-moves { from { transform: rotate(-7deg) translate(-16px, 16px); } to { transform: rotate(7deg); } }
-@container (max-width: 400px) { .sheet { padding: 12px; width: 54%; } .sheet-local { left: 3%; } .sheet-source { left: 41%; } .dot-matrix { gap: 6px; } .sheet-foot { font-size: 11px; } }
+@container (max-width: 400px) { .sheet { padding: 12px; width: 54%; } .sheet-local { left: 3%; } .sheet-source { left: 41%; } .dot-matrix { gap: 6px; } .sheet-foot { font-size: 14px; } }
 @media (prefers-reduced-motion: reduce) { .sheet-source { animation: none; } .change-seam { transition: none; } }
 </style>
