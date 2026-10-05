@@ -64,6 +64,10 @@ useSeoMeta({
   description: 'Choose what your Skill is for. Get a guide to writing it and shipping it from your repository.',
   robots: 'noindex,follow',
 })
+defineOgImage('MakeSkill.takumi', {
+  title: 'Make a skill',
+  description: 'Write a Skill for your package or project, and ship it from your repository.',
+}, { alt: 'Make a skill on skilld' })
 useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
 </script>
 

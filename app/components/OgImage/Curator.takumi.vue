@@ -34,28 +34,17 @@ const stats = computed(() => {
 
 <template>
   <OgLayout>
-    <!-- Rose accent bar -->
-    <div
-      :style="{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '4px',
-        background: 'oklch(0.555 0.225 17.32)',
-      }"
-    />
     <div class="px-15 py-14 flex flex-col justify-center gap-8 h-full">
       <OgBrand :size="36" />
 
       <div class="flex items-center gap-6">
-        <!-- Avatar with rose ring -->
+        <!-- Avatar with a stone ring: the lockup dot is the card's one rose element -->
         <span
           class="flex items-center justify-center rounded-full overflow-hidden shrink-0"
           :style="{
             width: '100px',
             height: '100px',
-            border: '3px solid oklch(0.555 0.225 17.32)',
+            border: '3px solid oklch(0.36 0.012 60)',
             background: 'oklch(0.22 0.012 60)',
           }"
         >

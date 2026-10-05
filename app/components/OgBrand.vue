@@ -1,23 +1,20 @@
 <script setup lang="ts">
+import { BRAND_DARK, lockupGeometry, lockupSvg, svgDataUri } from '#shared/brand-mark'
+
+// `size` is the wordmark's font size in px. OG cards are dark, so the lockup takes the dark colours.
 const { size = 32 } = defineProps<{
   size?: number
 }>()
+
+const { box } = lockupGeometry()
+const src = svgDataUri(lockupSvg({ colors: BRAND_DARK }))
 </script>
 
 <template>
-  <div class="flex items-center" :style="{ gap: `${size * 0.12}px` }">
-    <svg
-      :width="size"
-      :height="size"
-      viewBox="0 0 160 160"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M80 34 L135 104 L121 104 L80 52 L39 104 L25 104 Z" fill="#fb7185" />
-    </svg>
-    <span
-      class="font-mono font-semibold tracking-tight"
-      :style="{ fontSize: `${size}px`, lineHeight: 1 }"
-    >skilld</span>
-  </div>
+  <img
+    :src="src"
+    alt="skilld"
+    :width="Math.round(box.width * size) / 100"
+    :height="Math.round(box.height * size) / 100"
+  >
 </template>
