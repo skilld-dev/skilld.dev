@@ -424,6 +424,7 @@ async function deleteAccount() {
               <div v-show="showEmail" id="email-settings-form" class="mt-4 space-y-4">
                 <UFormField label="Email address" name="email" :error="emailMissingAddress ? 'Add a valid email address, or turn off both emails.' : undefined">
                   <UInput
+                    id="account-digest-email"
                     v-model="emailForm.digest_email"
                     type="email"
                     autocomplete="email"
@@ -641,6 +642,7 @@ async function deleteAccount() {
           </p>
           <UFormField :label="`Type ${me?.login} to confirm`" name="confirm_login">
             <UInput
+              id="account-confirm-login"
               v-model="deleteConfirmation"
               autocomplete="off"
               autocapitalize="off"

@@ -193,7 +193,6 @@ const homepageTrendingSelection = computed(() => selectHomepageTrendingSkills(
       name: skill.name,
       displayName: skill.displayName,
       registryPath: skill.registryPath,
-      maintainerName: repo.evidence?.authorName ?? null,
       description: skill.description,
       context: trendingShareLabel(repo.authorCount),
     })),

@@ -95,6 +95,25 @@ describe('skill source list', () => {
     expect(selectHomepageTrendingSkills(items, homepagePersonSkillFallbacks)).toEqual({ _tag: 'fallback' })
   })
 
+  it('attributes trending skills to repository maintainers', () => {
+    const items = Array.from({ length: HOMEPAGE_TRENDING_MINIMUM }, (_, index) => ({
+      owner: index === 0 ? 'addyosmani' : `author-${index}`,
+      repo: 'skills',
+      name: 'api-and-interface-design',
+      displayName: 'API and interface design',
+      registryPath: `/gh/${index === 0 ? 'addyosmani' : `author-${index}`}/skills/api-and-interface-design`,
+      maintainerName: 'Yarchi',
+    }))
+
+    const selection = selectHomepageTrendingSkills(items, homepagePersonSkillFallbacks)
+    expect(selection._tag).toBe('trending')
+    if (selection._tag !== 'trending')
+      return
+
+    expect(selection.items[0]?.maintainerName).toBe('Addy Osmani')
+    expect(selection.items[1]?.maintainerName).toBe('author-1')
+  })
+
   it('preserves a focused item until live data can replace it safely', async () => {
     const container = document.createElement('div')
     const outsideButton = document.createElement('button')

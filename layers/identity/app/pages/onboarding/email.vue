@@ -73,7 +73,8 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
           type="email"
           :aria-invalid="missingAddress"
           :aria-describedby="missingAddress ? 'email-error' : undefined"
-          class="mt-1 w-full rounded border border-default bg-default px-2 py-1 font-mono text-sm"
+          autocomplete="email"
+          class="mt-1 min-h-11 w-full rounded border border-default bg-default px-3 py-2 font-mono text-sm"
         >
         <p v-if="missingAddress" id="email-error" class="mt-1 text-xs text-error">
           Add an email address, or turn off both emails.
@@ -81,14 +82,14 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
       </div>
 
       <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="weeklyOptIn" type="checkbox" class="mt-0.5">
+        <input v-model="weeklyOptIn" type="checkbox" class="mt-0.5 size-4 accent-primary">
         <span class="text-sm text-muted leading-relaxed">
           Send me distinct trending Skills each Monday.
         </span>
       </label>
 
       <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="optIn" type="checkbox" class="mt-0.5">
+        <input v-model="optIn" type="checkbox" class="mt-0.5 size-4 accent-primary">
         <span class="text-sm text-muted leading-relaxed">
           Send me watched changes once a month.
         </span>
@@ -105,6 +106,7 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
         label="Back"
         leading-icon="i-lucide-arrow-left"
         size="sm"
+        class="min-h-11"
         color="neutral"
         variant="ghost"
       />
@@ -114,6 +116,7 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
         label="Finish"
         trailing-icon="i-lucide-check"
         size="sm"
+        class="min-h-11"
         @click="finish"
       />
     </div>

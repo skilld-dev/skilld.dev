@@ -43,6 +43,7 @@ useSeoMeta({
           icon="i-lucide-github"
           trailing-icon="i-lucide-arrow-right"
           size="sm"
+          class="min-h-11"
           block
         />
       </div>
