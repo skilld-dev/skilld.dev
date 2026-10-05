@@ -433,7 +433,7 @@ async function deleteAccount() {
                 aria-controls="email-settings-form"
                 @click="showEmail = !showEmail"
               />
-              <form v-show="showEmail" id="email-settings-form" class="mt-4 space-y-4" @submit.prevent="saveEmail">
+              <form v-show="showEmail" id="email-settings-form" novalidate class="mt-4 space-y-4" @submit.prevent="saveEmail">
                 <UFormField label="Email address" name="email" :error="emailMissingAddress ? 'Add a valid email address, or turn off both emails.' : undefined">
                   <UInput
                     id="account-digest-email"
