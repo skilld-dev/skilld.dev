@@ -48,6 +48,24 @@ function placeholders(count: number): string {
 }
 
 /**
+ * The two ways into a track, as WHERE arms over `skills s`: the classifier
+ * category, under the abstract-or-indexable gate, or a pin. ORed by the caller.
+ */
+function membershipArms(categories: string[], pinnedKeys: string[]): { arms: string[], params: string[] } {
+  const arms: string[] = []
+  const params: string[] = []
+  if (categories.length) {
+    arms.push(`(s.abstractness_category IN (${placeholders(categories.length)}) AND (s.is_abstract = 1 OR s.seo_indexable = 1))`)
+    params.push(...categories)
+  }
+  if (pinnedKeys.length) {
+    arms.push(`(s.owner || '/' || s.name IN (${placeholders(pinnedKeys.length)}))`)
+    params.push(...pinnedKeys)
+  }
+  return { arms, params }
+}
+
+/**
  * Rows for one or more classifier categories, plus any pinned skill, already
  * filtered to members. Ordering is left to the caller.
  *
@@ -59,17 +77,7 @@ export function clusterMembersSql(
   categories: string[],
   pinnedKeys: string[],
 ): ClusterMemberSql {
-  const arms: string[] = []
-  const whereParams: string[] = []
-
-  if (categories.length) {
-    arms.push(`(s.abstractness_category IN (${placeholders(categories.length)}) AND (s.is_abstract = 1 OR s.seo_indexable = 1))`)
-    whereParams.push(...categories)
-  }
-  if (pinnedKeys.length) {
-    arms.push(`(s.owner || '/' || s.name IN (${placeholders(pinnedKeys.length)}))`)
-    whereParams.push(...pinnedKeys)
-  }
+  const { arms, params: whereParams } = membershipArms(categories, pinnedKeys)
   if (!arms.length)
     throw new Error('clusterMembersSql needs at least one category or pinned key')
 
@@ -190,4 +198,75 @@ export function clusterPageSql(
       pageWindow.offset,
     ],
   }
+}
+
+/** One Skill a track board asks about, keyed as the social half keys it. */
+export interface ClusterCandidate {
+  owner: string
+  repo: string
+  slug: string
+}
+
+export interface ClusterCandidateSql {
+  sql: string
+  params: string[]
+}
+
+/**
+ * Statements that answer which candidates belong to a track, with no rank caps.
+ *
+ * The caps above bound a list that stars would otherwise run to a thousand
+ * rows. A track board's talked section is already bounded by the posts in the
+ * window, so it admits every Skill the membership arms admit. The caps would
+ * only drop a Skill devs posted about for having too few stars, which is the
+ * order this section exists to replace.
+ *
+ * Chunked so each statement stays inside D1's bound parameter limit. A track
+ * with no category and no pin admits nothing, so it sends nothing.
+ */
+export function clusterCandidateStatements(
+  categories: string[],
+  pinnedKeys: string[],
+  candidates: readonly ClusterCandidate[],
+): ClusterCandidateSql[] {
+  const { arms, params } = membershipArms(categories, pinnedKeys)
+  if (!arms.length || !candidates.length)
+    return []
+
+  const perStatement = Math.floor((D1_BOUND_PARAMETER_LIMIT - params.length) / 3)
+  if (perStatement < 1)
+    throw new Error('Track membership terms leave no room for a candidate under the D1 parameter limit')
+
+  const statements: ClusterCandidateSql[] = []
+  for (let i = 0; i < candidates.length; i += perStatement) {
+    const chunk = candidates.slice(i, i + perStatement)
+    // The VALUES list comes first in the statement text, so its keys bind first.
+    statements.push({
+      sql: `SELECT s.owner, s.repo, s.name
+        FROM skills s
+        WHERE (s.owner, s.repo, s.name) IN (VALUES ${chunk.map(() => '(?, ?, ?)').join(', ')})
+          AND s.source_resolved = 1
+          AND (${arms.join(' OR ')})`,
+      params: [...chunk.flatMap(candidate => [candidate.owner, candidate.repo, candidate.slug]), ...params],
+    })
+  }
+  return statements
+}
+
+/**
+ * The candidates that belong to a track, as `owner/repo/slug` keys.
+ *
+ * The shape `TrendingScope.keep` asks for, so a track board can narrow the
+ * social ranking to its own Skills.
+ */
+export async function findClusterCandidates(
+  db: D1Database,
+  categories: string[],
+  pinnedKeys: string[],
+  candidates: readonly ClusterCandidate[],
+): Promise<ReadonlySet<string>> {
+  const statements = clusterCandidateStatements(categories, pinnedKeys, candidates)
+  const results = await Promise.all(statements.map(statement =>
+    db.prepare(statement.sql).bind(...statement.params).all<{ owner: string, repo: string, name: string }>()))
+  return new Set(results.flatMap(result => (result.results ?? []).map(row => `${row.owner}/${row.repo}/${row.name}`)))
 }

@@ -9,6 +9,7 @@ function clusterMeta(cluster: Cluster) {
   return {
     slug: cluster.slug,
     label: cluster.label,
+    noun: cluster.noun,
     icon: cluster.icon,
     userVoice: cluster.userVoice,
     seoTitle: cluster.seoTitle,
@@ -75,6 +76,7 @@ export default defineCachedEventHandler(async (event) => {
     .bind(...statements.listParams)
     .all<SkillRow>()
 
+  const pinnedKeys = new Set(cluster.pinnedExamples)
   const rankedItems = (res.results ?? []).map(s => ({
     owner: s.owner,
     name: s.name,
@@ -90,6 +92,10 @@ export default defineCachedEventHandler(async (event) => {
       name: s.name,
       repoSkillCount: s.repo_skill_count,
     }),
+    /** Skills in the repository. The board prints a run command only at 1. */
+    repoSkillCount: s.repo_skill_count,
+    /** A person pinned it to this track, so the board lists it under the hand-picked heading. */
+    pinned: pinnedKeys.has(`${s.owner}/${s.name}`),
   }))
   const items = page === 1
     ? curateClusterSkills(rankedItems, cluster.pinnedExamples)
@@ -109,5 +115,6 @@ export default defineCachedEventHandler(async (event) => {
   maxAge: 60 * 10,
   staleMaxAge: 60 * 60,
   swr: true,
-  name: 'clusters-detail-origin-v4',
+  // v5: items carry `repoSkillCount` and `pinned` for the track board.
+  name: 'clusters-detail-origin-v5',
 })
