@@ -52,7 +52,7 @@ Added the specification's leading and trailing hyphen constraint.
 - Both modified authoring Skills parsed and ran through local `skilld run`.
 - The article's remote run command resolved `generate-project-skill` through skilld.dev.
 - Site lint passed with existing warnings. Typecheck, production build and all 2,867 tests passed.
-- Harness lint, typecheck, build and all 102 tests passed.
+- `skilld-harness` lint, typecheck, build and all 102 tests passed.
 
 The first concurrent check run failed because generated Nuxt files moved during the build.
 The sequential rerun passed. No authenticated or real model execution path was tested.
