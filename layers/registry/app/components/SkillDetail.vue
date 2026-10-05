@@ -3,6 +3,7 @@ import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import type { ZipState } from '../utils/skill-zip'
 import { formatTimeAgo } from '@vueuse/core'
 import { resolveSkillAuditOverview } from '~~/app/utils/skill-audit-overview'
+import { comparisonLinkForSkill } from '#shared/comparison-navigation'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { skillPageUrl as exactSkillPageUrl, skillInstallCmd, skillRunCmd, skillRunPrompt } from '#shared/skill-commands'
 import { formatByteSize, formatTokenCount, resolveSkillContextCost, resolveSkillFileContext } from '../utils/skill-context-cost'
@@ -30,6 +31,7 @@ const owner = computed(() => props.owner)
 const repo = computed(() => props.repo)
 const name = computed(() => props.name)
 const slug = computed(() => `${owner.value}/${repo.value}/${name.value}`)
+const comparisonLink = computed(() => comparisonLinkForSkill(props))
 
 interface RelatedSkill {
   name: string
@@ -1479,6 +1481,15 @@ useHead(computed(() => ({
               {{ descriptionExpanded ? 'less' : 'more' }}
             </button>
           </div>
+
+          <p v-if="comparisonLink" class="mt-3 text-sm">
+            <NuxtLink
+              :to="comparisonLink.to"
+              class="inline-flex min-h-11 items-center text-default underline underline-offset-4 hover:text-primary"
+            >
+              {{ comparisonLink.label }}
+            </NuxtLink>
+          </p>
 
           <div
             v-if="data.dependencies?.length"

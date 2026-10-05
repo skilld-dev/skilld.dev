@@ -1,6 +1,6 @@
 # Writing comparison source ledger
 
-Evidence captured on 5 October 2026 for [the comparison brief](EXECUTE-comparisons.md).
+Evidence captured on 5 October 2026 for [the comparison brief](shipped/EXECUTE-comparisons.md).
 This ledger retains the wider review. It does not admit another public page.
 
 ## Selection
@@ -59,7 +59,9 @@ The H1 names Humanizer, Stop Slop, and No AI Slop, rather than claiming a univer
 The target query is best humanizer skill for claude, measured at 30 estimated monthly searches.
 It misses the existing 100-search admission bar.
 Higher-volume repository-name queries do not override the competitor-brand exclusion.
-Keep the comparison under the default noindex gate until it meets an admission rule.
+Harlan approved this one page as experiment F on 5 October 2026, with contextual internal links.
+The exception uses the named experiment admission rule, without changing the volume bar or admitting future comparisons.
+Retain admission at the 11 November gate only if indexed with relevant query impressions.
 Do not create three adjacent brand pages from this research.
 
 Search Console's returned three-month human/slop rows had no current impressions.

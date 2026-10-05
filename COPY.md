@@ -11,6 +11,9 @@ contradicts this file is a bug.
 
 ## Canonical assets
 
+Comparison navigation uses “Compare Humanizer, Stop Slop, and No AI Slop” on the homepage, writing track, and featured Skill pages.
+The writing comparison credits “Harlan Wilton” as its author, with an agent research and drafting disclosure.
+
 These exact strings. Do not paraphrase them per page.
 
 | Asset | String | Where it goes |

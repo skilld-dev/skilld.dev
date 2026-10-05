@@ -52,6 +52,18 @@ Source links remain one click away. Link the writing track for broader discovery
 Wrap each table in a focusable `.comparison-table` region with a specific accessible label.
 Keep horizontal scrolling inside that region. Preserve native table semantics.
 
+## Internal links
+
+Link a comparison from the relevant track, its featured Skill pages, and one relevant homepage section.
+Use descriptive anchors that name the choice. Avoid a global footer link or links on unrelated Skills.
+Link back to the compared Skill pages and the broader track, beside the relevant choice.
+Keep pinned GitHub sources linked alongside the source review.
+
+`shared/comparison-navigation.ts` owns the static public link and exact featured Skill identities.
+It contains navigation metadata only, with no collection reads or server utilities.
+Registry and app consumers import no marketing code. Any future live article reads must use HTTP.
+When retiring a comparison, remove its navigation declaration and all referring links with the route.
+
 ## Comparison conventions
 
 Lead with conditional choices. Compare the same decision dimensions across candidates.
@@ -79,6 +91,10 @@ Use the existing bar in that file, plus the editorial contract above.
 The initial query is `best humanizer skill for claude`, estimated at 30 US monthly searches on 5 October 2026.
 It misses the existing 100-search bar. [The source ledger](../work/comparison-research.md) records keyword and selection evidence.
 A higher-volume repository-name query does not override the competitor-brand exclusion.
+Harlan admitted this one page as experiment F on 5 October 2026.
+Its original source review and contextual links share the 11 November recovery gate.
+Read coverage and relevant query impressions. Retain it only if indexed with relevant search impressions.
+Otherwise remove the admission. Future comparison pages keep the default gate.
 
 Review sources at least quarterly, and sooner after a material source change or correction.
 Update `reviewedAt` only after reading the relevant sources again.

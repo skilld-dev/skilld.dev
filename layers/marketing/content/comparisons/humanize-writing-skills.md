@@ -2,13 +2,14 @@
 title: "Humanizer vs Stop Slop vs No AI Slop: writing Skills compared"
 description: "Compare Humanizer, Stop Slop, and No AI Slop by editing workflow, voice preservation, fact checks, and required files."
 label: "Source review · 5 October 2026"
+author: "Harlan Wilton"
 command: "npx skilld run petergyang/no-ai-slop/no-ai-slop"
 targetQuery: "best humanizer skill for claude"
 reviewedAt: "2026-10-05"
 reviewDueAt: "2027-01-05"
 scope: "Three English prose editors lead an 18-Skill discovery sample by GitHub Repository stars. Two alternatives add distinct workflows."
 methodology: "source-review"
-disclosure: "An agent prepared this comparison for skilld. Brundlefly shares a maintainer with skilld and informed the review method. It receives no placement."
+disclosure: "Harlan Wilton is the author. An agent assisted with research and drafting. Brundlefly shares a maintainer with skilld and informed the review method. It receives no placement."
 sources:
   - selector: blader/humanizer/humanizer
     revision: 225a6f39ac85f76ee48dbad772ea4abe4ed6c9d8
@@ -27,9 +28,9 @@ sources:
     url: https://github.com/kmaida/deslop-skills/blob/70237e1ae0dfbf7bc9ab5e6e3de52c092586ca9b/deslop-writing/SKILL.md
 ---
 
-Choose **Humanizer** for a full rewrite with a final check for added or lost claims.
-Choose **Stop Slop** for strict style rules you want applied across drafts.
-Choose **No AI Slop** for a light edit, or a findings report without a rewrite.
+Choose **[Humanizer](/gh/blader/humanizer)** for a full rewrite with a final check for added or lost claims.
+Choose **[Stop Slop](/gh/hardikpandya/stop-slop)** for strict style rules you want applied across drafts.
+Choose **[No AI Slop](/gh/petergyang/no-ai-slop)** for a light edit, or a findings report without a rewrite.
 
 These three lead the 18 public prose editing Skills we reviewed by GitHub Repository stars.
 That gives us a focused shortlist. It does not establish which one writes better.
@@ -101,7 +102,7 @@ These two address a narrower editing requirement:
 - [anti-slop, elithrar/dotfiles](https://github.com/elithrar/dotfiles/blob/4b38887ec969bbc1c97c1434732fac97ea7ff0dd/.agents/skills/anti-slop/SKILL.md) explicitly preserves paragraph structure unless you request a broader rewrite.
 - [deslop-writing, kmaida/deslop-skills](https://github.com/kmaida/deslop-skills/blob/70237e1ae0dfbf7bc9ab5e6e3de52c092586ca9b/deslop-writing/SKILL.md) includes technical documentation guidance and a required banned-word reference.
 
-For other workflows and language-specific choices, browse [writing Skills](/skills/writing).
+For other workflows and language-specific choices, browse [writing Skills](/skills/anti-slop).
 
 ## Check each candidate on the same draft
 
@@ -131,8 +132,8 @@ We left out redundant checklist variants, identity mismatches, and examples that
 Code cleanup, translation, and broad writing Skills fall outside this comparison.
 The discovery sample is not an exhaustive census.
 
-An agent prepared this comparison for skilld.
+Harlan Wilton is the author. An agent assisted with research and drafting.
 Brundlefly shares a maintainer with skilld and informed the review method, without receiving placement.
-Repository ownership does not establish authorship.
+Repository ownership does not establish Skill authorship.
 The review covers instructions and required files, without establishing detector evasion, authorship, safety, or measured editing quality.
 The next source review is due on 5 January 2027.

@@ -27,11 +27,13 @@ export async function useMarketingArticle(input: MarketingArticleInput) {
   const canonicalUrl = `https://skilld.dev${input.canonicalPath}`
   const title = data.value.title ?? ''
   const description = data.value.description ?? ''
+  const author = typeof data.value.author === 'string' ? data.value.author : undefined
 
   nuxtApp.runWithContext(() => {
     useSeoMeta({
       title,
       description,
+      author,
       ogTitle: title,
       ogDescription: description,
       ogUrl: canonicalUrl,
