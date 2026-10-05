@@ -20,30 +20,40 @@ vi.stubGlobal('useStorage', () => ({
 
 let harness: SqliteD1
 
-beforeEach(() => {
-  vi.resetModules()
-  cacheMap.clear()
-  harness = createSqliteD1(allMigrations())
+function seed(sourceResolved: number) {
   harness.raw.prepare(`INSERT INTO repos (owner, repo, default_branch) VALUES ('acme', 'skills', 'main')`).run()
   const raw = '---\nname: setup\ndescription: Set up the project.\n---\n\n```sh\nsudo apt-get install jq\n```\n'
   harness.raw.prepare(
     `INSERT INTO skills (owner, repo, name, slug, display_name, source_resolved,
        rendered_skill_path, rendered_status, rendered_raw, rendered_html, rendered_at, assets)
-     VALUES ('acme', 'skills', 'setup', 'acme/skills/setup', 'setup', 1,
+     VALUES ('acme', 'skills', 'setup', 'acme/skills/setup', 'setup', ?,
        'skills/setup/SKILL.md', 'ok', ?, '<p>ok</p>', ?, ?)`,
-  ).run(raw, NOW_SEC, JSON.stringify([{ path: 'scripts/install.sh', size: 12, type: 'code' }]))
+  ).run(sourceResolved, raw, NOW_SEC, JSON.stringify([{ path: 'scripts/install.sh', size: 12, type: 'code' }]))
+}
+
+interface Body {
+  sourceFacts: { behaviors: Array<{ id: string, tier: string, locations: Array<{ path: string, line: number | null, url: string | null }> }> }
+}
+
+async function detail(): Promise<Body> {
+  const handler = (await import('../../layers/registry/server/api/skills/[...slug].get')).default as (event: H3Event) => Promise<Body>
+  return handler({
+    context: { platform: { db: harness.db } },
+    node: { req: { headers: {} } },
+  } as unknown as H3Event)
+}
+
+beforeEach(() => {
+  vi.resetModules()
+  cacheMap.clear()
+  harness = createSqliteD1(allMigrations())
 })
 
 describe('skill detail behaviors', () => {
   it('names each behavior in SKILL.md and the stored file names, with a link to where it appears', async () => {
-    const handler = (await import('../../layers/registry/server/api/skills/[...slug].get')).default as (event: H3Event) => Promise<{
-      sourceFacts: { behaviors: Array<{ id: string, tier: string, locations: Array<{ path: string, line: number | null, url: string | null }> }> }
-    }>
+    seed(1)
 
-    const body = await handler({
-      context: { platform: { db: harness.db } },
-      node: { req: { headers: {} } },
-    } as unknown as H3Event)
+    const body = await detail()
 
     expect(body.sourceFacts.behaviors.map(behavior => [behavior.id, behavior.tier])).toEqual([
       ['privilege', 'ask'],
@@ -54,8 +64,19 @@ describe('skill detail behaviors', () => {
     expect(body.sourceFacts.behaviors[0]?.locations).toEqual([{
       path: 'SKILL.md',
       line: 7,
-      url: expect.stringMatching(/^https:\/\/github\.com\/acme\/skills\/blob\/[^/]+\/skills\/setup\/SKILL\.md#L7$/),
+      url: expect.stringMatching(/^https:\/\/github\.com\/acme\/skills\/blob\/[^/]+\/skills\/setup\/SKILL\.md\?plain=1#L7$/),
     }])
     expect(body.sourceFacts.behaviors[2]?.locations[0]?.url).toMatch(/\/skills\/setup\/scripts\/install\.sh$/)
+  })
+
+  it('links nothing once the upstream SKILL.md is gone', async () => {
+    seed(0)
+
+    const body = await detail()
+
+    expect(body.sourceFacts.behaviors.length).toBeGreaterThan(0)
+    expect(body.sourceFacts.behaviors.flatMap(behavior => behavior.locations.map(location => location.url))).toEqual(
+      body.sourceFacts.behaviors.flatMap(behavior => behavior.locations.map(() => null)),
+    )
   })
 })

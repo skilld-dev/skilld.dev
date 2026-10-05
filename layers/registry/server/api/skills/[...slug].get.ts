@@ -214,7 +214,7 @@ const skillDetailHandler = defineApiHandler({
 
     return cached({
       storage: useStorage('edge-cache'),
-      key: `skills:detail:v3:${slug.toLowerCase()}`,
+      key: `skills:detail:v4:${slug.toLowerCase()}`,
       ttlSeconds: DETAIL_CACHE_TTL,
       staleSeconds: DETAIL_CACHE_STALE_TTL,
       compute: () => loadSkillDetail(event, platform, slug),
@@ -328,11 +328,6 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   }
   const allowedTools = parseAllowedTools(rendered.frontmatter)
   const capability = classifyAllowedTools(allowedTools)
-  const behaviors = skillPageBehaviors({
-    raw: rendered.raw,
-    assetPaths: assets.map(asset => asset.path),
-    source: { owner: source.owner, repo: source.repo, branch, skillPath: rendered.skillPath },
-  })
   const selectedAssets = selectSkillFiles(assets)
   // `rendered.*` describes the cached copy, which survives the file being
   // deleted upstream, so it can only ever say "we can still render this". The
@@ -346,6 +341,12 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     raw: rendered.raw,
   })
   const sourceGone = !sourceResolved && row.source_resolved === 0
+  const behaviors = skillPageBehaviors({
+    raw: rendered.raw,
+    assetPaths: assets.map(asset => asset.path),
+    // A deleted upstream file has nothing to link to.
+    source: { owner: source.owner, repo: source.repo, branch, skillPath: sourceGone ? null : rendered.skillPath },
+  })
   // `current_sha` is the blob sha of SKILL.md, not a commit, so it cannot pin a link.
   const sourceCommitSha = row.latest_revision_sha ?? null
   const pushedAtIso = epochToIso(row.pushed_at)
