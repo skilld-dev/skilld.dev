@@ -74,3 +74,4 @@ Final article SHA-256: `10c533da43a4196e022b2dfe174344088e713213ca1d0237ed300880
 Both independent reviewers accepted that exact digest on 2026-10-05 after checking the corrections and replay evidence.
 Coordinator acceptance: Codex inspected the final article, source checks and revised records.
 Remaining limit: Claude and Gemini task completion, plus production delivery, require separate observation.
+Collection pass: formatted the Learn introduction's `SKILL.md` as code after the renderer autolinked the bare filename.
