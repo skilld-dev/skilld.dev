@@ -156,6 +156,14 @@ watch(() => route.fullPath, () => {
               class="hidden lg:inline-flex"
             />
             <UButton
+              to="/cli"
+              label="CLI"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="hidden lg:inline-flex"
+            />
+            <UButton
               to="/make-skill"
               label="Make a skill"
               color="neutral"
@@ -210,6 +218,14 @@ watch(() => route.fullPath, () => {
             <UButton
               to="/skills"
               label="Find Skills"
+              color="neutral"
+              variant="ghost"
+              block
+              class="min-h-11 justify-start"
+            />
+            <UButton
+              to="/cli"
+              label="CLI"
               color="neutral"
               variant="ghost"
               block

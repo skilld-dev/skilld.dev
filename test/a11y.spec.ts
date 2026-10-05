@@ -534,6 +534,19 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('cliInstallChip has no violations and names what its copy button copies', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('CliInstallChip'),
+      { attachTo: container, props: { surface: 'test' } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('code')?.textContent).toBe('npm install --global skilld')
+    expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Copy CLI install command')
+    wrapper.unmount()
+  })
+
   it('changeGrid has no violations and steps to an older change from the keyboard', async () => {
     const container = createIsolatedContainer()
     const day = 86_400
