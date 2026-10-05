@@ -225,6 +225,14 @@ defineOgImage('Page.takumi', {
 
       <div class="flex flex-wrap gap-3">
         <UButton
+          v-if="clusterSlug === 'writing'"
+          to="/compare/humanize-writing-skills"
+          label="Compare prose editing Skills"
+          color="neutral"
+          variant="outline"
+          class="min-h-11"
+        />
+        <UButton
           to="/skills"
           label="Browse tracks"
           color="neutral"

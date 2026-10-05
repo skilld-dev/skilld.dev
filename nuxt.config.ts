@@ -18,6 +18,13 @@ function discoveredAgentRoutes(): string[] {
     .map(file => `/agents/${file.slice(0, -'.vue'.length)}`)
 }
 
+/** Static comparison routes share the page admission gate. */
+function discoveredComparisonRoutes(): string[] {
+  return readdirSync(fileURLToPath(new URL('./layers/marketing/app/pages/compare', import.meta.url)))
+    .filter(file => file.endsWith('.vue'))
+    .map(file => `/compare/${file.slice(0, -'.vue'.length)}`)
+}
+
 const iconCollections = iconifyCollections(pkg)
 
 /** Vendor packages only lazy chunks import; see `vendor-shared` below. */
@@ -804,7 +811,7 @@ export default defineNuxtConfig({
       pages: {
         includeAppSources: true,
         // An /agents page waits on a CLI release; it answers 404 until then.
-        exclude: ['/skills/**', '/gh/**', '/people/**', '/make-skill', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths(), ...frozenNoindexPaths(discoveredAgentRoutes())],
+        exclude: ['/skills/**', '/gh/**', '/people/**', '/make-skill', '/@**', '/admin/**', '/me/**', '/login', '/onboarding/**', '/collections/new', '/cli/**', '/brand-kit/_**', ...unpublishedAgentPaths(), ...frozenNoindexPaths([...discoveredAgentRoutes(), ...discoveredComparisonRoutes()])],
       },
       skills: {
         sources: ['/api/__sitemap__/skills'],

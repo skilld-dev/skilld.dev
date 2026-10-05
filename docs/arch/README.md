@@ -16,7 +16,7 @@ Use the names exactly. Drift breeds shallow modules.
 - **registry**: `/gh/*` and `api/orgs|repos|skills|*`. Owns GitHub proxying.
 - **identity** (Phase 2): GitHub OAuth, sessions, `users` table, subscriptions, digests.
 - **app**: `/`, `/community`, `/@<login>/*`, `/collections/new`, `api/community|collections|feed|*`. Owns native data.
-- **marketing**: `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`. Comark renders its Markdown. Owns SEO content.
+- **marketing**: `/skills`, `/skills/*`, `/frameworks/*`, `/learn/*`, `/compare/*`. Comark renders its Markdown. Owns SEO content. [Comparison requirements](comparisons.md) cover editorial evidence and admission.
 - **admin**: existing.
 - **artifact delivery:** `/api/v1/resolutions|artifacts|trusted-root|github/connections`. Owns exact source resolution, checks, signing, grants, and transient delivery.
 
@@ -76,5 +76,6 @@ See [ADR-0007](../adr/0007-contract-in-the-cli-repository.md).
 | Collection | `/@<github-login>/<slug>` |
 | Marketing index | `/skills` |
 | Framework page | `/frameworks/[name]` |
+| Comparison | `/compare/<slug>` |
 
 The legacy `/people/[handle]` and `/people/[handle]/collections/[slug]` URLs are 410 Gone (with a 301 special-case for `/people/harlanzw.com → /@harlanzw`).

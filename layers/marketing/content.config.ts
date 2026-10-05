@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { defineCollection, defineContentConfig } from '@harlan-zw/comark-content'
 import { z } from 'zod'
+import { comparisonSchema } from './shared/comparison.ts'
 
 const marketingContentRoot = fileURLToPath(new URL('./content', import.meta.url))
 
@@ -23,6 +24,15 @@ const articleSchema = z.object({
 // See docs/adr/0001-url-pillars-and-layers.md
 export default defineContentConfig({
   collections: {
+    comparisons: defineCollection({
+      type: 'page',
+      source: {
+        cwd: marketingContentRoot,
+        include: 'comparisons/*.md',
+        prefix: '/compare',
+      },
+      schema: comparisonSchema.safeExtend(articleSchema.shape),
+    }),
     learn: defineCollection({
       type: 'page',
       source: {

@@ -51,6 +51,7 @@ Use `7-day social mentions · {date}` as the footer. Format the UTC date as `2 O
 | Marketing (hero, landing) | Editorial, declarative | "Curated agent skills by humans." |
 | UI chrome (buttons, labels) | Short verb phrases, mono font | "Browse", "Install", "View skills" |
 | Descriptions (cards, meta) | Informative, concise | "Full Nuxt setup for production apps. Vue 3, Nuxt modules, Tailwind, and TypeScript conventions." |
+| Comparisons | Source-backed, conditional, candid | "Choose this Skill when you want small phrasing changes." |
 | Errors | Direct, helpful, no fluff | "Couldn't load curators. Check your connection and try again." |
 | Empty states | Acknowledge, explain value, provide action | "No collections yet. Curators bundle their favorite skills into collections you can install with one command." |
 | Data labels | Always labeled with context | "12 skills" not "12". "Updated 3d ago" not "Mar 25" |

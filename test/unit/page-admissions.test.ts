@@ -36,3 +36,9 @@ describe('freeze audit', () => {
     expect(pageRobots('/agents/newcomer')).toBe('noindex,follow')
   })
 })
+
+it('keeps new comparison pages out of search and the sitemap', () => {
+  const path = '/compare/new-writing-skills'
+  expect(pageRobots(path)).toBe('noindex,follow')
+  expect(frozenNoindexPaths([path])).toContain(path)
+})

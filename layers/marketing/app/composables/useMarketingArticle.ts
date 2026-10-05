@@ -1,7 +1,7 @@
 import { pageRobots } from '../utils/page-admissions'
 
 export interface MarketingArticleInput {
-  collection: 'learn' | 'pages' | 'agents'
+  collection: 'learn' | 'pages' | 'agents' | 'comparisons'
   /** Content path inside the collection, for example `/learn/private-repositories`. */
   path: string
   /** Public route the page canonicalises to. */

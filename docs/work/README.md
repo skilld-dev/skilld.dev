@@ -16,6 +16,8 @@ progress to the `## Log`. Never open a separate progress file.
 - [EXECUTE-seo-recovery.md](EXECUTE-seo-recovery.md): the sitewide quality verdict, five experiments, and the 2026-11-11 gate.
 - [EXECUTE-public-api.md](EXECUTE-public-api.md): the public API v1 contract, the `skilld-sdk` package, and CLI parity.
 
+- [EXECUTE-comparisons.md](EXECUTE-comparisons.md): the comparison pillar, source evidence, and first prose editing comparison.
+
 The roadmap below sequences them.
 
 ## Roadmap
