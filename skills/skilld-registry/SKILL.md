@@ -24,9 +24,11 @@ Every tool is read only. Running and installing both stay separate actions in th
 
 ## Fork a Skill
 
-If the user says `fork this Skill <skilld.dev URL>`, fetch that page with `Accept: text/markdown`.
+If the user says `fork this Skill <skilld.dev URL>`, follow its `Fork this Skill` link.
+The link requests only the fork workflow with `?action=fork`.
+Without that link, fetch the page with `Accept: text/markdown` and add `?action=fork`.
 Follow its fork workflow before the borrowed Skill instructions.
-If Markdown negotiation is unavailable, fetch the page's `.md` URL.
+If Markdown negotiation is unavailable, fetch the page's `.md?action=fork` URL.
 
 Use `get_skill` for the source URL, source commit, Skill path, and licence.
 Copy the complete source directory at one commit, then install that local path.

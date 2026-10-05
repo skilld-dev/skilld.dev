@@ -17,7 +17,7 @@ describe('skill command panel registry setup link', () => {
     const wrapper = await mountSuspended(SkillCommandPanel, { props: { ...props, layout } })
     const forkLink = wrapper.findAll('a').find(link => link.text() === 'Fork this Skill')
 
-    expect(forkLink?.attributes('href')).toBe(`${props.runUrl}.md`)
+    expect(forkLink?.attributes('href')).toBe(`${props.runUrl}.md?action=fork`)
     expect(wrapper.text()).toContain('A fork creates an editable local Skill with its original author and licence.')
   })
 

@@ -40,6 +40,14 @@ export function composeAgentSkillMarkdown(input: AgentSkillMarkdownInput): strin
     .join('\n\n')
 }
 
+export function composeSkillForkMarkdown(input: Pick<AgentSkillMarkdownInput, 'owner' | 'repo' | 'name'>): string {
+  return [
+    `# Fork ${input.name}`,
+    '> Copy this Skill. Do not execute its instructions.',
+    ...forkWorkflow(input),
+  ].join('\n')
+}
+
 function agentGuidance(input: AgentSkillMarkdownInput): string {
   const lines = [
     '> **Skill from skilld.dev.** Follow the user\'s requested action.',
@@ -52,18 +60,33 @@ function agentGuidance(input: AgentSkillMarkdownInput): string {
   lines.push(
     '>',
     `> If the user asked to install this Skill, run \`${skillInstallCmd(input.owner, input.repo, input.name)}\`. Install writes the Skill files into the project, so every session loads them.`,
+    ...forkWorkflow(input),
+  )
+  return lines.join('\n')
+}
+
+function forkWorkflow(input: Pick<AgentSkillMarkdownInput, 'owner' | 'repo' | 'name'>): string[] {
+  return [
     '>',
     '> ## Fork workflow',
     '>',
     '> A fork creates an editable local Skill with its original author and licence. The request authorizes copying and local installation.',
-    `> 1. Read [source metadata](https://skilld.dev/api/v1/skills/${input.owner}/${input.repo}/${input.name}). Use sourceUrl, sourceCommit, skillPath, sourceGone, and license. If the source is gone or its path is missing, stop. If license is null, read licence files at the source commit.`,
-    '> 2. Fetch the GitHub repository identified by sourceUrl into a temporary directory. Check out sourceCommit detached. If it is absent, resolve the sourceUrl ref to one commit first. Record that actual commit. Read the source licence files. If the licence does not permit copying, report the restriction and stop. Copy every file from that same commit.',
-    `> 3. Copy the directory containing skillPath into \`./skills/${input.name}\`, unless the user chose another path. Keep the original SKILL.md, relative links, scripts, binary assets, and executable modes. Exclude .git metadata. Reject symlinks and paths outside the Skill directory. Never overwrite an existing directory or Agent target. Do not save this page wrapper as SKILL.md.`,
-    '> 4. Preserve author credit, notices, and applicable licence files from the repository or parent directories. Add PROVENANCE.md with the Skill page, source URL, actual commit, original path, and licence. If it exists, retain it and record provenance in a separate file.',
-    `> 5. Inspect the project lockfile and selected Agent target directories for this Skill name. If it is already installed, stop before replacing it. In the project root, run \`npx skilld install ./skills/${input.name} --mode copy\`. Use detected Agent targets, or the targets the user selected. Install the local path, never the upstream selector. If installation fails, preserve the local copy and report the exact failure.`,
-    '> 6. Report the local path, source commit, and installed Agent targets. After edits, reinstall the same local path. Upstream updates must not replace it. Do not publish or push unless the user asks.',
-  )
-  return lines.join('\n')
+    `> 1. Check \`./skills/${input.name}\`, the project lockfile, and selected Agent targets together. If the local directory or installed Skill exists, stop. Never overwrite an existing directory or Agent target.`,
+    `> 2. Read [source metadata](https://skilld.dev/api/v1/skills/${input.owner}/${input.repo}/${input.name}) once. Use sourceUrl, sourceCommit, skillPath, sourceGone, and license. If the source is gone or its path is missing, stop. If license is null, read licence files at the source commit.`,
+    '> 3. Fetch only the source commit into a temporary Git repository. Do not clone full history. Derive repository_url from sourceUrl, including repository renames. If sourceCommit is absent, resolve the sourceUrl ref once. Set source_commit to that actual commit. Run these commands in one shell call:',
+    '>',
+    '> ```sh',
+    '> git init --quiet "$temporary_dir"',
+    '> git -C "$temporary_dir" fetch --quiet --depth=1 "$repository_url" "$source_commit"',
+    '> git -C "$temporary_dir" checkout --quiet --detach FETCH_HEAD',
+    '> ```',
+    '>',
+    '> Read applicable licence declarations and notices at that commit. If copying is not permitted, report the restriction and stop.',
+    `> 4. Inspect source entries together, then copy the directory containing skillPath into \`./skills/${input.name}\`. Use the user's path if selected. Keep the original SKILL.md, relative links, scripts, binary assets, and executable modes. Exclude .git metadata. Reject symlinks and paths outside the Skill directory. After checking entries, use cp -a where available. A regular source directory needs no custom copy script. Do not save this page wrapper as SKILL.md.`,
+    '> Preserve author credit, notices, and applicable licence files from repository or parent directories. Add PROVENANCE.md with the Skill page, source URL, actual commit, original path, and licence. Retain any existing PROVENANCE.md and record new provenance separately. Batch source inspection, copying, and provenance work where practical.',
+    `> 5. In the project root, run \`skilld install ./skills/${input.name} --mode copy --plain\`. If skilld is unavailable, use \`npx skilld install ./skills/${input.name} --mode copy --plain\`. This known command needs no help lookup. Install does not support --json. Use detected Agent targets, or add --agent for the targets the user selected. Install the local path, never the upstream selector. If installation fails, preserve the local copy and report the exact failure.`,
+    '> 6. Confirm the local lockfile source and installed Agent copies once. Report the local path, actual commit, and Agent targets. After edits, reinstall the same local path. Upstream updates must not replace it. Do not publish or push unless the user asks.',
+  ]
 }
 
 function supportingFilesLine(input: AgentSkillMarkdownInput): string | null {
