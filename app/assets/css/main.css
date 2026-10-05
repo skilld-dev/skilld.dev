@@ -1481,6 +1481,37 @@
   text-wrap: pretty;
 }
 
+/* Phones get three one-line jump links. Each section intro below repeats the door text,
+   and the full doors cost a screen of scroll before the first section. Touch has no
+   hover, so the arrow stays visible. */
+@media (max-width: 47.999rem) {
+  .home-door {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 0;
+  }
+
+  .home-door-mark {
+    margin-bottom: 0;
+  }
+
+  .home-door-title {
+    flex: 1;
+    justify-content: space-between;
+    font-size: 1rem;
+  }
+
+  .home-door-arrow {
+    opacity: 1;
+    transform: none;
+  }
+
+  .home-door-text {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-door::before,
   .home-door-arrow {
