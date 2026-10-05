@@ -5,10 +5,10 @@
 // so callers keep their existing "did it work?" checks.
 export function useActionFailure() {
   const toast = useToast()
-  const failureIds = useState<Record<string, string>>('action-failure-toasts', () => ({}))
+  const failureIds = useState<Record<string, string | number>>('action-failure-toasts', () => ({}))
   const clear = (action: string, scope = action) => {
     const id = failureIds.value[scope]
-    if (!id)
+    if (id === undefined)
       return
     const { [scope]: _removed, ...remaining } = failureIds.value
     failureIds.value = remaining
