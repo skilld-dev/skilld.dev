@@ -5,12 +5,11 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * The pinned nuxt-ai-ready (2.4.1, patched in patches/) must treat a 410
+ * The released nuxt-ai-ready runtime must treat a 410
  * route as terminal: the page row is pruned and the cron index result stays
  * error-free, instead of the seed re-arming the failed row every crawl.
  *
- * Regression net for the patch: a catalog pin bump without a matching patch
- * would silently restore the re-arm and fail these tests.
+ * Keep this regression coverage when updating the package catalog pin.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -40,6 +39,11 @@ vi.mock('../../node_modules/nuxt-ai-ready/dist/runtime/server/db/drizzle/raw.js'
   useRawDb: mocks.useRawDb,
 }))
 
+// Build dump restoration is a separate boundary from route indexing.
+vi.mock('../../node_modules/nuxt-ai-ready/dist/runtime/server/utils/checkStale.js', () => ({
+  checkAndHandleStale: async () => ({ action: 'none' }),
+}))
+
 vi.mock('../../node_modules/nuxt-ai-ready/dist/runtime/server/logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
@@ -55,6 +59,7 @@ vi.mock('../../node_modules/nuxt-ai-ready/dist/runtime/server/utils.js', () => (
 
 const { seedRoutes } = await import('../../node_modules/nuxt-ai-ready/dist/runtime/server/db/queries.js')
 const { batchIndexPages } = await import('../../node_modules/nuxt-ai-ready/dist/runtime/server/utils/batchIndex.js')
+const { indexPageByRoute } = await import('../../node_modules/nuxt-ai-ready/dist/runtime/server/utils/indexPage.js')
 
 const HOUR = 60 * 60 * 1000
 const T0 = Date.UTC(2026, 9, 1)
@@ -95,7 +100,7 @@ function goneFetchError(status: number): Error {
   })
 }
 
-describe('ai-ready gone route (patched nuxt-ai-ready)', () => {
+describe('ai-ready gone route', () => {
   let sqlite: DatabaseSync
 
   beforeEach(() => {
@@ -119,7 +124,7 @@ describe('ai-ready gone route (patched nuxt-ai-ready)', () => {
     mocks.fetchWithEvent.mockReset()
     mocks.runtimeConfig['nuxt-ai-ready'] = {
       debug: false,
-      database: { type: 'd1' },
+      database: { _tag: 'Enabled', type: 'd1' },
       runtimeSync: { enabled: true, ttl: 3600, batchSize: 10 },
     }
   })
@@ -136,6 +141,21 @@ describe('ai-ready gone route (patched nuxt-ai-ready)', () => {
   function row(route: string): { is_error: number, indexed: number } | undefined {
     return sqlite.prepare('SELECT is_error, indexed FROM ai_ready_pages WHERE route = ?').get(route) as { is_error: number, indexed: number } | undefined
   }
+
+  it.each([
+    { status: 410 },
+    { statusCode: 410 },
+    { response: { status: 410 } },
+  ])('reports a gone route without an indexing error for %j', async (status) => {
+    await seedRoutes(event, ['/gone'])
+    mocks.fetchWithEvent.mockRejectedValue(Object.assign(new Error('Gone'), status))
+
+    expect(await indexPageByRoute('/gone', event, { markFailedAsError: true })).toEqual({
+      success: false,
+      gone: true,
+    })
+    expect(rowCount()).toBe(0)
+  })
 
   it('does not re-arm a failed row inside the seed refresh window', async () => {
     await seedRoutes(event, ['/failed'])
