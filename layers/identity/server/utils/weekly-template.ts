@@ -437,18 +437,20 @@ function row(t: Tokens, options: {
 /**
  * A dense trending row.
  *
- * Seven full editorial rows turned the email into a feed. The Skill name,
- * exact source, ranking reason, and evidence account stay. Descriptions,
- * quotes, and the duplicate source action remain in the plain-text version.
+ * Show a short description below the Skill name.
+ * Keep the source, ranking reason, and evidence account compact.
+ * Quotes and the duplicate source action remain in the plain-text version.
  */
 function trendingRow(t: Tokens, options: {
   siteUrl: string
   owner: string
   title: string
   href: string
+  description: string | null
   meta: string
   evidence: WeeklyEvidence | null
 }): string {
+  const description = trimDescription(options.description)
   const evidence = options.evidence
     ? ` · <a href="${esc(options.evidence.url)}" style="color:${t.muted};text-decoration:underline;text-underline-offset:3px;">@${esc(options.evidence.authorHandle)} ${options.evidence.platform === 'x' ? 'on X' : 'on Bluesky'}</a>`
     : ''
@@ -462,6 +464,7 @@ function trendingRow(t: Tokens, options: {
       </td>
       <td valign="top">
         <a href="${esc(options.href)}" style="display:inline-block;padding:0 0 3px;font-family:${MONO};font-size:14px;line-height:1.45;font-weight:600;color:${t.text};text-decoration:underline;text-decoration-color:${t.borderStrong};text-underline-offset:3px;">${esc(options.title)}</a>
+        ${description ? `<div style="margin-top:3px;font-family:${SANS};font-size:14px;line-height:1.55;color:${t.body};">${esc(description)}</div>` : ''}
         <div style="margin-top:3px;font-family:${MONO};font-size:14px;line-height:1.45;color:${t.muted};font-variant-numeric:tabular-nums;">${esc(options.meta)}${evidence}</div>
       </td>
     </tr>
@@ -709,6 +712,7 @@ export function renderWeekly(input: WeeklyRenderInput): WeeklyRender {
       owner: skill.owner,
       title: skill.canonicalName,
       href: sourceUrl,
+      description: skill.description,
       meta: trendingMeta(skill, now),
       evidence: skill.evidence,
     })
