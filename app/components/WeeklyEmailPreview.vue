@@ -1,20 +1,15 @@
 <script setup lang="ts">
 /**
- * The digest, shown rather than described.
- *
- * The card is the real email, server-rendered through the same `renderWeekly`
- * the Monday send uses, so the homepage cannot claim something the email does
- * not do. It carries the current week's trending rows and no watched section,
- * because an anonymous visitor watches nothing and inventing one would put
- * fabricated commits against real people's repositories.
+ * A digest example rendered from real public source changes.
+ * Personal subscriptions never enter the anonymous preview.
  */
 
-import type { WeeklyDemoResponse } from '~~/server/api/weekly/demo.get'
+import type { DigestDemoResponse } from '#layers/identity/server/api/digest/demo.get'
 
 // A failed demo costs the section its picture, never its copy or its CTA:
 // `data` stays null on error and `hasDemo` gates the whole frame.
-const { data: demo } = await useFetch<WeeklyDemoResponse>('/api/weekly/demo', {
-  key: 'home-weekly-demo-v1',
+const { data: demo } = await useFetch<DigestDemoResponse>('/api/digest/demo', {
+  key: 'home-digest-demo-v1',
 })
 
 const hasDemo = computed(() => !!demo.value?.card && (demo.value?.rowCount ?? 0) > 0)
@@ -38,7 +33,7 @@ const card = computed(() =>
   -->
   <div v-if="hasDemo" class="home-weekly-demo">
     <p class="data-label">
-      In your inbox
+      Example digest · real source changes
     </p>
     <div class="home-weekly-frame" aria-hidden="true" inert>
       <!-- eslint-disable-next-line vue/no-v-html -->

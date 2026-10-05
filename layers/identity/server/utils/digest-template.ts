@@ -57,6 +57,7 @@ export function renderDigest(input: DigestRenderInput): DigestRender {
 
   return renderWeekly({
     edition: 'digest',
+    changeSource: 'watches',
     recipientName: input.recipientName ?? null,
     countClicks: input.countClicks ?? false,
     windowStart: input.windowStart,

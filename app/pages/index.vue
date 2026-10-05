@@ -580,9 +580,9 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                 class="min-h-11 justify-center"
               />
               <UButton
-                to="/weekly/preview"
+                to="/digest/preview"
                 external
-                label="See this week's digest"
+                label="See an example digest"
                 color="neutral"
                 variant="outline"
                 trailing-icon="i-lucide-arrow-up-right"
