@@ -1,6 +1,6 @@
 import type { TypeaheadTuple } from '../../app/utils/skill-typeahead'
 import { describe, expect, it } from 'vitest'
-import { matchTypeahead } from '../../app/utils/skill-typeahead'
+import { matchTypeahead, matchTypeaheadRepositories } from '../../app/utils/skill-typeahead'
 
 // Trailing value is canonical GitHub stars, the ranking evidence.
 const INDEX: TypeaheadTuple[] = [
@@ -69,5 +69,21 @@ describe('matchTypeahead', () => {
       ['vue-router', 'someone', 'skills', 1, '/gh/someone/skills/vue-router'],
     ], 'vue')
     expect(hits[0]!.name).toBe('vue-router')
+  })
+})
+
+describe('matchTypeaheadRepositories', () => {
+  it('finds a Repository by its name before one by its owner', () => {
+    expect(matchTypeaheadRepositories(INDEX, 'nuxt')).toEqual([
+      { owner: 'onmax', repo: 'nuxt-skills', stars: 1774, skillCount: 2, registryPath: '/gh/onmax/nuxt-skills' },
+    ])
+  })
+
+  it('finds every Repository of an owner, best starred first', () => {
+    expect(matchTypeaheadRepositories(INDEX, 'antfu').map(r => `${r.owner}/${r.repo}:${r.skillCount}`)).toEqual(['antfu/skills:3'])
+  })
+
+  it.each(['', 'a', 'vue-testing'])('returns nothing for %j', (query) => {
+    expect(matchTypeaheadRepositories(INDEX, query)).toEqual([])
   })
 })

@@ -242,3 +242,38 @@ it('prefers provenance among equally exact Skill names', () => {
   const scores = new Map([[skillKey(candidate), 0.03], [skillKey(official), 0.01]])
   expect(rankSearchResults([candidate, official], scores, 'pdf')[0]).toEqual(official)
 })
+
+describe('query understanding signals', () => {
+  const generic = skill({ owner: 'a', repo: 'skills', name: 'testing-guide', description: 'Write tests for any app.' })
+  const vue = skill({ owner: 'b', repo: 'skills', name: 'component-tests', description: 'Test Vue 3 components with Vitest.' })
+  const tied = new Map([[skillKey(generic), 0.03], [skillKey(vue), 0.0299]])
+
+  it('lifts a Skill that mentions the framework the query named over a near tie', () => {
+    expect(rankSearchResults([generic, vue], tied, 'test a vue app')).toEqual([generic, vue])
+    expect(rankSearchResults([generic, vue], tied, 'test a vue app', { boostTerm: 'vue' })).toEqual([vue, generic])
+  })
+
+  it('lifts a Skill in the track the query asked for', () => {
+    const categoryByKey = new Map([[skillKey(vue), 'testing'], [skillKey(generic), null]])
+    expect(rankSearchResults([generic, vue], tied, 'q', { boostCategories: ['testing'], categoryByKey })).toEqual([vue, generic])
+  })
+
+  it('never lifts a signal match over a clearly better retrieval score', () => {
+    const scores = new Map([[skillKey(generic), 0.033], [skillKey(vue), 0.016]])
+    expect(rankSearchResults([vue, generic], scores, 'q', { boostTerm: 'vue', boostCategories: ['testing'], categoryByKey: new Map([[skillKey(vue), 'testing']]) })).toEqual([generic, vue])
+  })
+
+  it('puts a Skill named by the grounded terms in the name tier, so a typo still finds it', () => {
+    const hooks = skill({ owner: 'c', repo: 'skills', name: 'react-hooks' })
+    const other = skill({ owner: 'd', repo: 'skills', name: 'hook-creator' })
+    const scores = new Map([[skillKey(other), 0.05], [skillKey(hooks), 0.01]])
+    expect(rankSearchResults([other, hooks], scores, 'reacct hooks', { expansion: 'react hooks', nameTerms: 'react hooks' })[0]).toEqual(hooks)
+  })
+
+  it('keeps a Skill named only by the paraphrase out of the name tier', () => {
+    const generic = skill({ owner: 'e', repo: 'skills', name: 'ui-design' })
+    const asked = skill({ owner: 'f', repo: 'skills', name: 'make-interfaces-feel-better' })
+    const scores = new Map([[skillKey(asked), 0.05], [skillKey(generic), 0.01]])
+    expect(rankSearchResults([generic, asked], scores, 'make my ui less generic', { expansion: 'ui design distinctive', nameTerms: 'ui' })[0]).toEqual(asked)
+  })
+})

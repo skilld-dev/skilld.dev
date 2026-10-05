@@ -364,19 +364,20 @@ function selectOwner(next: string) {
           </div>
 
           <div v-if="search.trim()" class="mt-1">
+            <!-- COPY.md bans "AI" as a modifier on skilld: name the mechanism instead. -->
             <UButton
               v-if="searchIntent._tag === 'keywords'"
-              icon="i-lucide-sparkles"
+              icon="i-lucide-text-search"
               color="neutral"
               variant="ghost"
               size="xs"
               class="min-h-11 max-w-full justify-start font-mono sm:min-h-8"
               @click="askAi"
             >
-              <span class="truncate">Ask AI: “{{ search.trim() }}”</span>
+              <span class="truncate">Search by meaning: “{{ search.trim() }}”</span>
             </UButton>
             <div v-else class="flex items-center gap-3 font-mono text-xs text-muted">
-              <span class="inline-flex items-center gap-1.5"><UIcon name="i-lucide-sparkles" class="size-3.5" />AI search</span>
+              <span class="inline-flex items-center gap-1.5"><UIcon name="i-lucide-text-search" class="size-3.5" />Results by meaning</span>
               <button type="button" class="min-h-11 underline underline-offset-2 hover:text-default sm:min-h-8" @click="searchIntent = { _tag: 'keywords' }">
                 Search by keywords
               </button>

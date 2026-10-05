@@ -51,10 +51,10 @@ describe('search results belong to the current query', () => {
     fetchMock.mockResolvedValue(response('vue'))
     await type('vue')
     await debounce()
-    expect(search.activeRow.value).toMatchObject({ skill: { name: 'vue' } })
+    expect((search.rows.value[0] ?? null)).toMatchObject({ skill: { name: 'vue' } })
     await type('pdf')
     expect(search.state.value._tag).toBe('loading')
-    expect(search.activeRow.value).toBeNull()
+    expect((search.rows.value[0] ?? null)).toBeNull()
   })
 
   it('ignores an old response arriving during the new query debounce', async () => {
@@ -67,7 +67,7 @@ describe('search results belong to the current query', () => {
     await nextTick()
     await nextTick()
     expect(search.state.value._tag).toBe('loading')
-    expect(search.activeRow.value).toBeNull()
+    expect((search.rows.value[0] ?? null)).toBeNull()
   })
 
   it('restarts a query when typing away and back before debounce completes', async () => {
@@ -79,7 +79,7 @@ describe('search results belong to the current query', () => {
     search.query.value = 'vue'
     await debounce()
     expect(search.state.value._tag).toBe('ready')
-    expect(search.activeRow.value).toMatchObject({ skill: { name: 'vue' } })
+    expect((search.rows.value[0] ?? null)).toMatchObject({ skill: { name: 'vue' } })
   })
 
   it('clears old failures on input and retries the current query', async () => {
@@ -90,6 +90,47 @@ describe('search results belong to the current query', () => {
     await type('pdf')
     expect(search.state.value._tag).toBe('loading')
     await search.retry()
-    expect(search.activeRow.value).toMatchObject({ skill: { name: 'pdf' } })
+    expect((search.rows.value[0] ?? null)).toMatchObject({ skill: { name: 'pdf' } })
+  })
+
+  it('leads an indexed Repository answer with its Repository row', async () => {
+    fetchMock.mockResolvedValue({
+      kind: 'repository',
+      repository: { _tag: 'indexed', owner: 'vercel-labs', repo: 'agent-skills', stars: 32000, skillCount: 7, registryPath: '/gh/vercel-labs/agent-skills' },
+      owner: 'vercel-labs',
+      understood: null,
+      items: response('react-best-practices').items,
+      total: 7,
+      mode: null,
+    })
+    await type('vercel-labs/agent-skills')
+    await debounce()
+    expect(search.state.value).toMatchObject({ _tag: 'ready', total: 7, repository: { owner: 'vercel-labs', repo: 'agent-skills' } })
+    expect(search.rows.value.map(row => row._tag)).toEqual(['repository', 'skill'])
+  })
+
+  it('offers the index action for a Repository the registry does not hold', async () => {
+    fetchMock.mockResolvedValue({
+      kind: 'repository',
+      repository: { _tag: 'not-indexed', owner: 'someone', repo: 'new-skills', url: 'https://github.com/someone/new-skills' },
+      owner: null,
+      understood: null,
+      items: [],
+      total: 0,
+      mode: null,
+    })
+    await type('https://github.com/someone/new-skills')
+    await debounce()
+    expect(search.state.value).toMatchObject({ _tag: 'repository', status: { _tag: 'idle' } })
+    expect(search.rows.value).toEqual([{ _tag: 'index', repository: { _tag: 'repository', owner: 'someone', repo: 'new-skills', url: 'https://github.com/someone/new-skills' } }])
+  })
+
+  it('waits longer before asking the server about a sentence', async () => {
+    fetchMock.mockResolvedValue(response('vue-testing'))
+    await type('test a vue app')
+    await vi.advanceTimersByTimeAsync(200)
+    expect(fetchMock).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(fetchMock).toHaveBeenCalledWith('/api/skills/search', expect.objectContaining({ query: { q: 'test a vue app', limit: 6 } }))
   })
 })

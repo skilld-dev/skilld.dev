@@ -28,9 +28,10 @@ registerEndpoint('/api/events/install', {
 
 mockNuxtImport('useSkillSearch', () => () => ({
   query: ref('vite'),
-  state: computed(() => ({ _tag: 'ready' as const, rows: rows.value, total: 1, mode: 'hybrid' as const })),
+  state: computed(() => ({ _tag: 'ready' as const, rows: rows.value, total: 1, mode: 'hybrid' as const, repository: null })),
   rows,
   activeIndex: ref(0),
+  activeColumn: ref(0),
   activeRow: computed(() => rows.value[0] ?? null),
   recentSearches: ref([]),
   retry: vi.fn(),
@@ -47,7 +48,7 @@ describe('search panel command grammar', () => {
     vi.unstubAllGlobals()
   })
 
-  it('copies the run command for the previewed skill', async () => {
+  it('copies the run command from a Skill row', async () => {
     // vueuse falls back to execCommand here, so capture whichever path runs.
     const copied: string[] = []
     const writeText = vi.fn((text: string) => {
@@ -70,7 +71,7 @@ describe('search panel command grammar', () => {
 
     const copyButton = wrapper.findAll('button')
       .find(button => button.attributes('aria-label')?.includes('run command'))
-    expect(copyButton, 'preview copy button missing its run-command label').toBeTruthy()
+    expect(copyButton, 'row run chip missing its run-command label').toBeTruthy()
 
     await copyButton!.trigger('click')
     await flushPromises()

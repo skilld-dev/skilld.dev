@@ -8,12 +8,17 @@ function deploymentId(event: H3Event): string | null {
   return typeof id === 'string' && id.trim() ? id : null
 }
 
-export async function skillSearchCacheKey(event: H3Event): Promise<string> {
+/**
+ * The storage key for one search. A `requestIdentity` replaces the raw query
+ * string: the search box passes its normalised query, so "Review my PRs?" and
+ * "review my prs" share one entry.
+ */
+export async function skillSearchCacheKey(event: H3Event, requestIdentity?: string): Promise<string> {
   const query = getRequestURL(event).searchParams
   query.sort()
   // Hash the complete identity so distinct queries cannot collapse into the
   // same storage key and the key stays a bounded, opaque string.
-  const identity = JSON.stringify([deploymentId(event), query.toString()])
+  const identity = JSON.stringify([deploymentId(event), requestIdentity ?? query.toString()])
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(identity))
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
@@ -41,13 +46,15 @@ export async function cachedSkillsSearch<T>(
    * one query string in different shapes need their own namespace.
    */
   namespace = 'skills-list:v2',
+  /** A normalised identity in place of the raw query string. */
+  requestIdentity?: string,
 ): Promise<T> {
   // Without a deployment identity, shared storage cannot separate releases.
   if (deploymentId(event) === null)
     return compute()
   return cached({
     storage: useStorage('edge-cache'),
-    key: `${namespace}:${await skillSearchCacheKey(event)}`,
+    key: `${namespace}:${await skillSearchCacheKey(event, requestIdentity)}`,
     ttlSeconds: SEARCH_CACHE_TTL,
     staleSeconds: SEARCH_CACHE_STALE_TTL,
     compute,

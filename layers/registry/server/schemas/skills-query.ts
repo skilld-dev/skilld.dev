@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_SEARCH_QUERY_LENGTH } from '#shared/skill-search-query'
 
 const flag = z.string().optional().transform(v => v === 'true' || v === '1')
 
@@ -39,3 +40,11 @@ export const OfficialReposQuery = z.object({
 })
 
 export type SkillsListQuery = z.infer<typeof SkillsListQuery>
+
+/** The search box. `q` is cut to the box's limit rather than rejected. */
+export const SkillBoxSearchQuery = z.object({
+  q: z.string().default('').transform(value => value.slice(0, MAX_SEARCH_QUERY_LENGTH)),
+  limit: z.coerce.number().int().min(1).max(20).catch(7),
+})
+
+export type SkillBoxSearchQuery = z.infer<typeof SkillBoxSearchQuery>
