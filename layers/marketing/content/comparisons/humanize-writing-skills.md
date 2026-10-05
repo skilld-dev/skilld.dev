@@ -4,7 +4,6 @@ description: "Compare Humanizer, Stop Slop, and No AI Slop by editing workflow, 
 label: "Source review · 5 October 2026"
 author: "Harlan Wilton"
 authorGithub: "harlan-zw"
-command: "npx skilld run petergyang/no-ai-slop/no-ai-slop"
 targetQuery: "best humanizer skill for claude"
 reviewedAt: "2026-10-05"
 reviewDueAt: "2027-01-05"
