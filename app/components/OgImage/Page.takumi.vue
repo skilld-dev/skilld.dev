@@ -14,17 +14,6 @@ const safeDescription = computed(() => ogText(props.description))
 
 <template>
   <OgLayout>
-    <!-- Subtle rose accent bar at top -->
-    <div
-      :style="{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '4px',
-        background: 'oklch(0.555 0.225 17.32)',
-      }"
-    />
     <div class="px-15 py-14 flex flex-col justify-center gap-10 h-full">
       <OgBrand :size="36" />
 

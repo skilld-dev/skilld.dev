@@ -35,17 +35,6 @@ const truncatedReason = computed(() => {
 
 <template>
   <OgLayout>
-    <!-- Rose accent bar -->
-    <div
-      :style="{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '4px',
-        background: 'oklch(0.555 0.225 17.32)',
-      }"
-    />
     <div class="px-15 py-14 flex flex-col justify-center gap-8 h-full">
       <OgBrand :size="36" />
 
@@ -101,7 +90,7 @@ const truncatedReason = computed(() => {
         v-if="truncatedReason"
         class="flex flex-col gap-2"
         :style="{
-          borderLeft: '3px solid oklch(0.555 0.225 17.32)',
+          borderLeft: '3px solid oklch(0.36 0.012 60)',
           paddingLeft: '16px',
         }"
       >

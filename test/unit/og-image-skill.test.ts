@@ -22,7 +22,7 @@ describe('skill OG image', () => {
 
     expect(component.text()).toContain('Vue Best Practices')
     expect(component.text()).not.toContain('skilld add')
-    expect(component.get('img').attributes()).toMatchObject({
+    expect(component.get('img[alt="hyf0"]').attributes()).toMatchObject({
       src: 'https://github.com/hyf0.png?size=128',
       alt: 'hyf0',
     })

@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { BRAND_DARK, svgDataUri } from '#shared/brand-mark'
 import { ogCount, ogInitials, ogText } from '../../utils/og-props'
+import { fileMinimap, textureSeed, textureSvg } from '../../utils/og-texture'
 
 // Declared as the wire types the OG image URL can deliver, not as the types the
 // template wants. An owner such as `24601` arrives as a number.
@@ -23,21 +25,22 @@ const safeRepo = computed(() => ogText(props.repo) || 'skills')
 const safeReason = computed(() => ogText(props.reason))
 const safeReasonHandle = computed(() => ogText(props.reasonHandle))
 const safeCuratorCount = computed(() => ogCount(props.curatorCount))
+
+// The File minimap texture. Each Skill seeds its own files from its owner,
+// repository and name, so a card keeps its texture between renders.
+const texture = computed(() => svgDataUri(textureSvg(
+  fileMinimap({
+    region: { x: 780, y: 0, width: 420, height: 600 },
+    seed: textureSeed(`${safeOwner.value}/${safeRepo.value}/${safeName.value}`),
+    fade: 300,
+  }),
+  { width: 1200, height: 600, ink: BRAND_DARK.ink, radius: 1.6 },
+)))
 </script>
 
 <template>
   <OgLayout>
-    <!-- Rose accent bar -->
-    <div
-      :style="{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '4px',
-        background: 'oklch(0.555 0.225 17.32)',
-      }"
-    />
+    <img :src="texture" alt="" width="1200" height="600" :style="{ position: 'absolute', top: 0, left: 0 }">
     <div class="px-15 py-14 flex flex-col justify-center gap-10 h-full">
       <OgBrand :size="36" />
 
@@ -79,8 +82,9 @@ const safeCuratorCount = computed(() => ogCount(props.curatorCount))
         v-if="safeReason"
         class="flex flex-col gap-2"
         :style="{
-          borderLeft: '3px solid oklch(0.555 0.225 17.32)',
+          borderLeft: '3px solid oklch(0.36 0.012 60)',
           paddingLeft: '16px',
+          maxWidth: '860px',
         }"
       >
         <span
