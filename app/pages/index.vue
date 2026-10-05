@@ -432,17 +432,17 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
       <div class="mx-auto grid max-w-6xl gap-px px-4 sm:px-6 md:grid-cols-3">
         <NuxtLink :to="trendingDoorTarget" class="home-door">
           <UIcon name="i-lucide-flame" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Trending this week<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
+          <span class="home-door-title">Trending skills this week<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
           <span class="home-door-text">The skills devs are posting about right now. Every card names the author and links the source.</span>
         </NuxtLink>
         <NuxtLink to="#outcomes" class="home-door">
           <UIcon name="i-lucide-route" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Skills for your kind of work<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
+          <span class="home-door-title">Skills for your work<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
           <span class="home-door-text">Tracks for review, testing, design, SEO and shipping. A person picked each list.</span>
         </NuxtLink>
         <NuxtLink to="#freshness" class="home-door">
           <UIcon name="i-lucide-eye" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Watch it change<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
+          <span class="home-door-title">Keep up with skill changes<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
           <span class="home-door-text">Maintainers ship often. Watch the repos you rely on. One digest lists what changed.</span>
         </NuxtLink>
       </div>
