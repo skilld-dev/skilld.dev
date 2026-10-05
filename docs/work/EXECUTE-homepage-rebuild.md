@@ -9,15 +9,23 @@ Done means: the current homepage and category pages pass desktop and mobile revi
 ## Ledger
 
 - [x] Initial cluster grid and category routes implemented
-- [ ] Visual review of `/` and the current `/skills/<slug>` category pages on desktop and mobile
+- [x] Visual review of `/` and the current `/skills/<slug>` category pages on desktop and mobile
 - [x] Recently Updated requires `is_abstract=1 AND is_official=1` and reads change summaries from `skill_revisions`
 - [x] Automatic classification uses the real `SKILL.md` SHA and prompt version in the hourly generator
 - [x] Retire the original six-cluster sitemap requirement under the SEO recovery freeze
 - [ ] Spot-check 30 random `is_abstract=1` rows for false positives
-- [ ] Observe one newly admitted eligible Skill receiving automatic classification
+- [x] Observe one newly admitted eligible Skill receiving automatic classification
 
 ## Log
 
+- 2026-10-05 Reviewed the homepage and all 14 tracks at 390px and 1440px. No document-level horizontal overflow appeared.
+  Observed `imbad0202/academic-research-skills/sr-screener` arriving at 00:03 UTC and receiving classification at 00:15 UTC.
+  Its classification SHA matched its rendered source SHA.
+  The random sample found eight clear false positives in 30 visible Skills.
+  Replayed those sources through the revised classifier. It rejected all eight from abstract tracks and found one additional GSD dependency.
+  The revised classifier reads bounded source sections and stops after finding a required package.
+  Migration 0135 carries nine source-guarded corrections. The hourly generator refreshes other rows under prompt version `2026-10-05-v6`.
+  The production acceptance check requires a fresh 30-Skill sample after that refresh.
 - 2026-09-22 Moved from `docs/homepage-rebuild-todo.md`. The initial ledger was copied without fresh verification.
 - 2026-10-03 Read `ai-generate-submit.ts`, `ai-generation-work.ts`, and the hourly schedule in `docs/arch/cron.md`.
   Classification freshness compares the source SHA and prompt version. The generator reserves classification capacity beside embeddings.

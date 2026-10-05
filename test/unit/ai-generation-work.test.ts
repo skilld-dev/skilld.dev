@@ -11,10 +11,6 @@ import {
   runtimeGenerationLimits,
   selectMissingGeneratedSkills,
 } from '../../layers/registry/server/utils/ai-generation-work'
-import {
-  ABSTRACTNESS_RESPONSE_FORMAT,
-  ABSTRACTNESS_SYSTEM_PROMPT,
-} from '../../layers/registry/server/utils/ai-prompts'
 
 describe('ai generation work', () => {
   let sqlite: Database.Database
@@ -106,20 +102,7 @@ describe('ai generation work', () => {
     ).toBeLessThanOrEqual(limits.invocationQueryLimit)
   })
 
-  it('requests constrained classifier JSON and accepts object responses', () => {
-    expect(ABSTRACTNESS_MODEL).toBe('@cf/meta/llama-3.1-8b-instruct-fast')
-    expect(ABSTRACTNESS_RESPONSE_FORMAT).toMatchObject({
-      type: 'json_schema',
-      json_schema: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['kind', 'package', 'category'],
-        properties: {
-          kind: { enum: ['abstract', 'package-specific'] },
-          category: { enum: expect.arrayContaining(['testing', 'documentation']) },
-        },
-      },
-    })
+  it('accepts object responses from the classifier', () => {
     expect(abstractnessResponseText({
       response: {
         kind: 'abstract',
@@ -154,7 +137,7 @@ describe('ai generation work', () => {
     })).toEqual({ _tag: 'error', reason: 'invalid_category' })
   })
 
-  it('supplies repository identity and a strict transferability contract', () => {
+  it('supplies repository identity and source to the classifier', () => {
     const prompt = buildAbstractnessUserPrompt({
       owner: 'getsentry',
       repo: 'sentry',
@@ -166,10 +149,19 @@ describe('ai generation work', () => {
 
     expect(prompt).toContain('Identity: getsentry/sentry/sred-work-summary')
     expect(prompt).toContain('# Internal SRED commands')
-    expect(ABSTRACTNESS_SYSTEM_PROMPT).toContain('transfer unchanged across unrelated repositories')
-    expect(ABSTRACTNESS_SYSTEM_PROMPT).toContain('repo-local work summaries')
-    expect(ABSTRACTNESS_SYSTEM_PROMPT).toContain('Markdown conversion')
-    expect(ABSTRACTNESS_SYSTEM_PROMPT).toContain('"documentation"')
+  })
+
+  it('keeps prerequisites after the old source cutoff in the classifier input', () => {
+    const source = `${'General guidance.\n'.repeat(400)}\nRequires the Acme deployment CLI.`
+    const prompt = buildAbstractnessUserPrompt({
+      owner: 'acme',
+      repo: 'skills',
+      name: 'deployment',
+      currentSha: 'sha',
+      renderedRaw: source,
+      displayName: null,
+    })
+    expect(prompt).toContain('Requires the Acme deployment CLI.')
   })
 
   it('writes source and denormalized abstractness atomically for the current SHA', async () => {

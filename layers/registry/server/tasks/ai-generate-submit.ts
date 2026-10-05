@@ -9,22 +9,16 @@ import { resolveCloudflareBindings } from '@harlan-zw/nuxt-cloudflare/bindings'
 import { runObservedScheduledTask } from '~~/server/utils/scheduled-run'
 import { reportJobRun } from '~~/server/utils/sync-job-reporter'
 import { observedSchedulePolicy } from '#shared/schedule-policy'
-import { extractJson } from '#shared/server/anthropic'
 import { pAll } from '#shared/server/p-all'
+import { classifyAbstractness } from '../utils/abstractness-effect'
 import {
-  ABSTRACTNESS_MODEL,
-  abstractnessResponseText,
-  buildAbstractnessUserPrompt,
   countMissingEmbeddings,
-  parseAbstractnessPayload,
   persistAbstractness,
   runtimeGenerationLimits,
   selectMissingBatchSkills,
   selectMissingGeneratedSkills,
 } from '../utils/ai-generation-work'
 import {
-  ABSTRACTNESS_RESPONSE_FORMAT,
-  ABSTRACTNESS_SYSTEM_PROMPT,
   BATCH_KINDS,
   SHARED_SYSTEM_PROMPT,
 } from '../utils/ai-prompts'
@@ -215,31 +209,13 @@ async function runSubmit(db: D1Database, ai: AiBinding | undefined, vectorize: V
 
   if (ai) {
     const results = await pAll(abstractnessSkills, AI_CONCURRENCY, async (skill) => {
-      const provider = await ai.run(ABSTRACTNESS_MODEL, {
-        messages: [
-          { role: 'system', content: ABSTRACTNESS_SYSTEM_PROMPT },
-          { role: 'user', content: buildAbstractnessUserPrompt(skill) },
-        ],
-        max_tokens: 128,
-        temperature: 0,
-        response_format: ABSTRACTNESS_RESPONSE_FORMAT,
-      }).then(
-        response => ({ _tag: 'response' as const, response }),
-        error => ({
-          _tag: 'provider_failed' as const,
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      )
-      if (provider._tag === 'provider_failed')
-        return provider
-
-      const parsed = parseAbstractnessPayload(extractJson<unknown>(abstractnessResponseText(provider.response)))
-      if (parsed._tag === 'error')
-        return { _tag: 'rejected' as const, reason: parsed.reason }
+      const result = await classifyAbstractness(ai, skill)
+      if (result._tag !== 'classified')
+        return result
       const persisted = await persistAbstractness(
         db,
         skill,
-        parsed.value,
+        result.value,
         Math.floor(Date.now() / 1_000),
       )
       return persisted
