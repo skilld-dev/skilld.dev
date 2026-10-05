@@ -35,7 +35,11 @@ Every change in this plan must serve one of two loops. If a feature doesn't, cut
   Lands on skilld.dev → sees curated/official skills + recent updates → opens skill detail → copies `npx skilld add gh:owner/repo` → runs it. No auth, no email, no friction. SEO-bearing surface. Top of funnel.
 
 - **Loop 2, Retention (authenticated watching → digest).**
-  Returning user signs in with GitHub → bulk-imports starred repos that have skills → optionally watches collections → receives weekly (or daily) digest email when watched repos change. The CLI doesn't yet auto-update or report installs, so the digest is the *only* way users learn what changed and why. Lifecycle hook + moat.
+  Returning user signs in with GitHub → bulk-imports starred repos that have skills → optionally watches collections → receives a monthly digest email when watched repos change. The CLI doesn't yet auto-update or report installs, so the digest is the *only* way users learn what changed and why. Lifecycle hook + moat.
+
+PR [#106](https://github.com/skilld-dev/skilld.dev/pull/106) superseded this brief's cadence design on 31 August 2026.
+Watched changes use the monthly digest, with an off option. Trending Skills use the separate weekly email.
+The daily and weekly cadence sketches below record the earlier design.
 
 These loops live on the same site but are sold separately. Loop 1 is the headline. Loop 2 is a small CTA strip on the homepage and a "Watch for changes" affordance on skill/collection pages. Loop 2 only fires when explicitly requested.
 
