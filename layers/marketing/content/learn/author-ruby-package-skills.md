@@ -7,7 +7,7 @@ relatedPages:
   - path: /skills
     title: Browse skills
 createdAt: 2026-09-07
-updatedAt: 2026-09-07
+updatedAt: 2026-10-05
 ---
 
 ## 1. Draft your Skill
@@ -24,6 +24,7 @@ If the gem integrates with Rails, state supported Rails versions and initializat
 ## 2. Review the draft
 
 Run the examples using your gem's supported Ruby versions.
+Use [the cross-Agent selection and task checks](/learn/create-agent-skills#check-selection-and-task-completion-separately) before publishing the Skill.
 Check require paths and public method names against the release you plan to publish.
 Remove generic Ruby advice and cite package documentation for version limits.
 Review the draft before committing it.

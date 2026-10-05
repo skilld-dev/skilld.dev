@@ -7,7 +7,7 @@ relatedPages:
   - path: /skills
     title: Browse skills
 createdAt: 2026-05-13
-updatedAt: 2026-09-07
+updatedAt: 2026-10-05
 ---
 
 ## 1. Draft your Skill
@@ -26,6 +26,7 @@ Use current examples from your own documentation.
 ## 2. Review the draft
 
 Run each example against the package version you plan to release.
+Use [the cross-Agent selection and task checks](/learn/create-agent-skills#check-selection-and-task-completion-separately) before publishing the Skill.
 Remove generic advice and unsupported claims.
 Keep detailed material in `references/` and link it from `SKILL.md`.
 Use the [authoring Skill's quality checks](https://github.com/skilld-dev/skilld/tree/main/skills/generate-package-skill) before committing.

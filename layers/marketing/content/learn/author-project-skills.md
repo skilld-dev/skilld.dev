@@ -2,7 +2,7 @@
 title: Author a Skill for your project
 description: Draft a Skill from your repository's commands, conventions, and workflows. Review it, then keep it in the repository so any agent can run it.
 publishedAt: 2026-09-08
-updatedAt: 2026-09-08
+updatedAt: 2026-10-05
 ---
 
 ## 1. Draft your Skill
@@ -20,8 +20,7 @@ Name the directories an agent must not edit.
 ## 2. Review the draft
 
 Run each command the Skill lists and check the outcome it records.
-Remove generic advice and rules the repository does not enforce.
-Keep detailed material in `references/` and link it from `SKILL.md`.
+Use [the cross-Agent checks](/learn/create-agent-skills#check-selection-and-task-completion-separately) to test selection, missing inputs and task completion.
 Use the [authoring Skill's quality checks](https://github.com/skilld-dev/skilld/tree/main/skills/generate-project-skill) before committing.
 
 ## 3. Keep the Skill in the repository

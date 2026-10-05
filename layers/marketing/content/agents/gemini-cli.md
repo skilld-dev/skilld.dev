@@ -1,11 +1,11 @@
 ---
 title: 'Gemini CLI skills: run curated Agent Skills in Gemini CLI'
-description: "How to use Skills in Gemini CLI: where Gemini CLI reads them, how skilld installs them, and a curated list with authors. The same Skill runs in Claude Code, Codex, Cursor, and every other Agent skilld targets."
+description: "Find curated Gemini CLI Skills with readable sources. Learn where Skills load, how to run or install them, and how to check your own Skill across Agents."
 heading: Gemini CLI skills
 label: Agents
 command: npx skilld run owner/repo/skill
 publishedAt: 2026-09-01
-updatedAt: 2026-09-01
+updatedAt: 2026-10-05
 ---
 
 Gemini CLI is Google's coding Agent for the terminal. It reads Agent Skills from `.gemini/skills` in a project and from `~/.gemini/skills` for every project. skilld gives you a curated set of Skills, each written by a person in their own repository, and one command that puts a Skill in front of Gemini CLI.
@@ -15,7 +15,11 @@ Gemini CLI is Google's coding Agent for the terminal. It reads Agent Skills from
 - Project: `.gemini/skills/<skill>/SKILL.md`
 - Global: `~/.gemini/skills/<skill>/SKILL.md`
 
-Gemini CLI reads each Skill description at startup and loads the full file when a task matches.
+Gemini CLI reads each Skill description at startup.
+If a task matches, it requests consent before loading the full instructions.
+
+To write your own, follow [Create a portable Agent Skill](/learn/create-agent-skills).
+The example includes Gemini CLI's discovery paths and consent step.
 
 ### Install a Skill for Gemini CLI
 
@@ -34,4 +38,3 @@ npx skilld run owner/repo/skill
 ```
 
 `skilld run` prints the Skill and writes no file. Give the command to Gemini CLI. It reads the Skill and follows it for this session. Nothing lands in your repository, and no lockfile changes.
-

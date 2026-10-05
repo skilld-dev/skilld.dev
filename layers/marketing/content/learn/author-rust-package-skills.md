@@ -7,7 +7,7 @@ relatedPages:
   - path: /skills
     title: Browse skills
 createdAt: 2026-09-07
-updatedAt: 2026-09-07
+updatedAt: 2026-10-05
 ---
 
 ## 1. Draft your Skill
@@ -26,6 +26,7 @@ Explain ownership or lifetime constraints where they affect real usage.
 ## 2. Review the draft
 
 Compile the examples with their stated features.
+Use [the cross-Agent selection and task checks](/learn/create-agent-skills#check-selection-and-task-completion-separately) before publishing the Skill.
 Check that they use public APIs from the release you plan to publish.
 Remove generic Rust advice and cite your crate documentation for specific rules.
 Review the draft before committing it.
