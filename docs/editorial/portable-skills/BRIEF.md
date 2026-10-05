@@ -9,6 +9,7 @@ Keep its run command first. Link package-specific work to the existing authoring
 This page owns cross-Agent mechanics. The project guide links here instead of gaining a duplicate compatibility section.
 It does not create an agent-by-agent article series or a general guides expansion.
 Exclude: every-agent guarantees, hosted-chat uploads, new renderers and unrelated rewrites.
+Native figures and source-linked Skill cards use the existing article renderer.
 
 Foundations: [sources](SOURCES.md), [claims](VERIFIED-CLAIMS.md), [voice](../../../COPY.md), [figures](SCREENSHOTS.md).
 Claims: P01 through P08. Primary sources opened 2026-10-05.
@@ -86,3 +87,28 @@ The final article and its accepted digest are unchanged.
 Independent linking review: article_review accepted the placements and donor eligibility.
 Resolved findings: qualify donor compatibility claims, correct Claude's loaded-context claim,
 and require dated equal-length Search Console windows without causal attribution.
+
+## Visual enhancement brief, 2026-10-05
+
+User: the article feels weak and needs visuals, diagrams or Skill embeds.
+Keep the same route, primary command, complete example and existing review fragment.
+Add project discovery and four-stage check diagrams at their relevant steps.
+Add a worked expected-result figure beside the exact supplied diff and notes.
+Replace the final plain authoring links with source-linked project and package Skill cards.
+Reuse the existing native MDC renderer and copyable code blocks. Add no dependency or remote data request.
+The [figure plan](SCREENSHOTS.md) owns evidence boundaries and captions.
+No screenshot or chart is needed to imply stronger execution evidence than REPLAY.md supports.
+Review: an independent brief reviewer checks scope before drafting; an independent article reviewer checks the final rendered revision.
+Brief reviewer: brief_review accepted the scope at 95/100. Resolved before drafting: inline Gemini alias, complete-directory semantics, separate check outcomes, synthetic result label and package-version input.
+The project discovery columns and duplicated expected-result explanation became native figures. The home-directory table remains reference material.
+Factual pass: article_review accepted draft digest `3c19e4eca9d11f3e884371c91bf4a12bb39d92600938b67afe657e374117c856` at 95/100.
+Humanize pass: named the diff as the actor instead of “is exported”; retained the value and default caveat.
+Added a dated local-trial ledger from REPLAY.md so readers can separate observed results from prescribed checks.
+Final review must check the revised ledger and rendered digest; the earlier acceptance does not cover those additions.
+Acceptance: server-rendered figures, accurate paths, explicit expected-result label, usable commands and source links.
+Verify 390px mobile and 1440px desktop in both themes, captions, contrast, keyboard copying and no document overflow.
+Final independent acceptance: article_review checked digest `04a7e2606f7682be655571591ea4d5bd21863d0b5962e57ba772341b1c673e5b` at 98/100.
+It inspected the mobile trial ledger and desktop, mobile, light and dark figure captures. No remaining findings.
+Local verification: four figures and two authoring cards render in SSR. Widths 390, 768 and 1440 have no overflow.
+Article-scoped contrast, heading and accessible-name checks passed in both themes. Keyboard copies matched both run commands.
+Typecheck, build, published CLI grammar and 2,926 tests passed. Existing canonical, admission and inbound links remain valid.

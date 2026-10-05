@@ -61,18 +61,50 @@ A source directory such as `skills/review-release-notes/` keeps your authored fi
 It does not make them discoverable automatically.
 Expose the complete directory, including any supporting files, through the Agent's documented path:
 
-| Agent | Project discovery path | User discovery path |
-| --- | --- | --- |
-| [Claude Code](https://code.claude.com/docs/en/skills) | `.claude/skills/` | `~/.claude/skills/` |
-| [Codex](https://learn.chatgpt.com/docs/build-skills) | `.agents/skills/` | `~/.agents/skills/` |
-| [Gemini CLI](https://geminicli.com/docs/cli/skills/) | `.agents/skills/` or `.gemini/skills/` | `~/.agents/skills/` or `~/.gemini/skills/` |
+::::figure{.article-figure .skill-discovery}
+:::div{.skill-source}
+**Your reviewed source**
 
-For example, Claude Code's project copy belongs at `.claude/skills/review-release-notes/SKILL.md`.
-For Codex and Gemini CLI, use `.agents/skills/review-release-notes/SKILL.md`.
+`skills/review-release-notes/`
+
+`SKILL.md` and any supporting files
+:::
+
+:::div{.discovery-paths}
+::div{.discovery-path}
+**[Claude Code](https://code.claude.com/docs/en/skills)**
+
+`.claude/skills/review-release-notes/SKILL.md`
+::
+::div{.discovery-path}
+**[Codex](https://learn.chatgpt.com/docs/build-skills)**
+
+`.agents/skills/review-release-notes/SKILL.md`
+::
+::div{.discovery-path}
+**[Gemini CLI](https://geminicli.com/docs/cli/skills/)**
+
+`.gemini/skills/review-release-notes/SKILL.md`
+
+Also accepts `.agents/skills/`, which takes precedence within the same scope.
+::
+:::
+
+::figcaption
+Project discovery paths. Expose the complete Skill directory at each destination; these connections do not synchronize files or prove execution.
+::
+::::
+
 Keep their contents aligned with your source Skill when you update it.
+For a user-level Skill available across projects, use the corresponding home-directory path:
+
+| Agent | User discovery path |
+| --- | --- |
+| Claude Code | `~/.claude/skills/` |
+| Codex | `~/.agents/skills/` |
+| Gemini CLI | `~/.agents/skills/` or `~/.gemini/skills/` |
 
 Codex documents support for symlinked Skill folders.
-Gemini CLI gives `.agents/skills/` precedence over `.gemini/skills/` within the same scope.
 Check discovery before assuming a copied or linked directory loaded.
 If an Agent misses an update, follow its documented reload or restart procedure.
 
@@ -101,11 +133,37 @@ Run project commands from the project root, and state that working directory exp
 
 Use a fresh local session for each Agent you support.
 Give the same Skill and inputs to each session.
-First, check the Agent's Skill list or selector for `review-release-notes`.
-When running a request, inspect its activation message or trace to confirm it loaded this Skill.
+
+::::figure{.article-figure .skill-checks}
+:::ol{.check-stages}
+::li
+**1. Valid format**
+
+Check frontmatter, directory name and supporting paths. A parser checks structure.
+::
+::li
+**2. Discovered**
+
+Find `review-release-notes` in the Agent's Skill list or selector.
+::
+::li
+**3. Selected**
+
+Inspect the activation trace. For Gemini CLI, review and approve consent before the full instructions load.
+::
+::li
+**4. Completed**
+
+Check the answer against the supplied diff, including unsupported claims and missing input.
+::
+:::
+::figcaption
+Four separate checks, not a compatibility score. Passing one does not prove the next. A correct answer alone does not prove activation.
+::
+::::
+
 [Gemini CLI](https://geminicli.com/docs/cli/skills/#how-it-works) requests consent before loading the Skill's full instructions.
-Approve that request only after reviewing the Skill. A pending or denied request does not prove activation.
-A correct answer alone does not prove activation.
+A pending or denied request does not prove activation.
 Start with this explicit request:
 
 ```text
@@ -118,10 +176,28 @@ Draft release notes:
 The new timeout defaults to 10 seconds.
 ```
 
-Expect a finding that the notes contradict `config.ts`.
-Corrected notes should state 5 seconds, or 5000 milliseconds.
-The exported value does not establish a runtime default. The Agent should flag that unsupported claim too.
-This checks a small supplied diff, not a complete repository review.
+::::figure{.article-figure .skill-result}
+:::div{.result-pair}
+::div
+**The draft claim**
+
+“The new timeout defaults to **10 seconds**.”
+::
+::div
+**What the diff establishes**
+
+The diff exports `timeoutMs` as **5000 milliseconds**, or 5 seconds.
+::
+:::
+::div{.result-finding}
+**Expected review**
+
+Flag the incorrect value and the unsupported runtime-default claim. Suggested notes: “Exported `timeoutMs` with a value of 5000 milliseconds.”
+::
+::figcaption
+Synthetic example and expected result, not an Agent screenshot. The export does not establish a runtime default. This checks the supplied diff, not a complete repository.
+::
+::::
 
 In another fresh session, supply the same inputs with “Check these release notes against this diff.”
 Leave out the Skill name and check the activation trace again.
@@ -135,18 +211,54 @@ Check that task matching does not select the release-note procedure.
 If it does, narrow the description and repeat that input.
 
 Record the Agent version, model, request and observed output.
-Distinguish four results: valid format, discovered Skill, selected Skill and completed task.
-A parser can prove the first. It cannot prove the other three.
 The [Agent Skills quickstart](https://agentskills.io/skill-creation/quickstart) also notes that tool-use reliability varies across models.
 Treat these inputs as checks to run, rather than evidence that every Agent already passed.
 
+:::figure{.article-figure .skill-observations}
+**Local trials, 5 October 2026**
+
+| Agent and version | Observed result with this example |
+| --- | --- |
+| Codex 0.160.0 | Loaded the Skill for explicit and unnamed matching requests. Corrected the timeout value and flagged the unsupported default claim. |
+| Claude Code 2.1.288 | Listed the Skill. Its weekly usage limit prevented task execution. |
+| Gemini CLI 0.54.0 | An account-tier restriction prevented execution before discovery could be observed. |
+
+::figcaption
+The Codex trials used the configured gpt-6.1-sol model. Existing user configuration remained available. These observations establish local Codex behavior, not Claude or Gemini task completion.
+::
+:::
+
 ## Draft a Skill from your own project
 
-The run command above loads skilld's [generate-project-skill source](https://github.com/skilld-dev/skilld/blob/main/skills/generate-project-skill/SKILL.md).
-Give it your project directory and destination, then review the draft before committing.
-Follow [Author a Skill for your project](/learn/author-project-skills) for project-specific evidence and maintenance.
+Choose an authoring Skill for the source you maintain. Review its instructions before running it.
 
-If you maintain a package, use the [package authoring guides](/make-skill).
-They cover testing examples against the version consumers install.
-The [generate-package-skill source](https://github.com/skilld-dev/skilld/blob/main/skills/generate-package-skill/SKILL.md) stays readable in the same repository.
+::::div{.authoring-skills}
+:::section{.authoring-skill-card}
+### generate-project-skill
+
+Give the Agent your project directory and destination. Review the draft before committing.
+
+```sh
+npx skilld run skilld-dev/skilld/generate-project-skill
+```
+
+[Read the project Skill source](https://github.com/skilld-dev/skilld/blob/main/skills/generate-project-skill/SKILL.md)
+
+[Follow the project authoring guide](/learn/author-project-skills)
+:::
+:::section{.authoring-skill-card}
+### generate-package-skill
+
+Give the Agent your package and version. Check examples against the version consumers install.
+
+```sh
+npx skilld run skilld-dev/skilld/generate-package-skill
+```
+
+[Read the package Skill source](https://github.com/skilld-dev/skilld/blob/main/skills/generate-package-skill/SKILL.md)
+
+[Choose a package authoring guide](/make-skill)
+:::
+::::
+
 Keep one reviewed source for each Skill, and repeat the affected checks when its instructions change.
