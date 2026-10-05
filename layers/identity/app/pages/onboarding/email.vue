@@ -73,8 +73,7 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
           type="email"
           :aria-invalid="missingAddress"
           :aria-describedby="missingAddress ? 'email-error' : undefined"
-          autocomplete="email"
-          class="mt-1 min-h-11 w-full rounded border border-default bg-default px-3 py-2 font-mono text-sm"
+          class="mt-1 w-full rounded border border-default bg-default px-2 py-1 font-mono text-sm"
         >
         <p v-if="missingAddress" id="email-error" class="mt-1 text-xs text-error">
           Add an email address, or turn off both emails.
@@ -106,7 +105,6 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
         label="Back"
         leading-icon="i-lucide-arrow-left"
         size="sm"
-        class="min-h-11"
         color="neutral"
         variant="ghost"
       />
@@ -116,7 +114,6 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
         label="Finish"
         trailing-icon="i-lucide-check"
         size="sm"
-        class="min-h-11"
         @click="finish"
       />
     </div>

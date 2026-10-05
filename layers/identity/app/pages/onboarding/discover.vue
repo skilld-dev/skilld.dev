@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { IdentityMutationResponse } from '../../../shared/contracts/account'
 import type { StarsSyncResponse } from '../../utils/sync-starred-repos'
 import { syncStarredRepos } from '../../utils/sync-starred-repos'
 
@@ -83,26 +82,22 @@ onMounted(() => {
 
 const actionFailed = useActionFailure()
 
-const watchMutation = useNuxtMutation<Array<{ owner: string, repo: string }>, IdentityMutationResponse>({
-  mutation: repos => $fetch<IdentityMutationResponse>('/api/me/subscriptions', {
-    method: 'POST',
-    body: { source: 'star-import', repos },
-  }),
-  invalidates: ['identity:subscriptions'],
-  onError: actionFailed('start watching those repos'),
-})
-const submitting = watchMutation.pending
+const submitting = ref(false)
 async function watchSelected() {
   if (!selected.value.size) {
     await navigateTo('/onboarding/email')
     return
   }
-  const repos = selectableItems.value
-    .filter(item => selected.value.has(`${item.owner}/${item.repo}`))
-    .map(({ owner, repo }) => ({ owner, repo }))
-  const saved = await watchMutation.mutateSafe(repos)
-  if (saved._tag === 'err')
-    return
+  submitting.value = true
+  const repos = [...selected.value].map((k) => {
+    const [owner, repo] = k.split('/')
+    return { owner, repo }
+  })
+  await $fetch('/api/me/subscriptions', {
+    method: 'POST',
+    body: { source: 'star-import', repos },
+  }).catch(actionFailed('start watching those repos'))
+  submitting.value = false
   await navigateTo('/onboarding/email')
 }
 
@@ -169,7 +164,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         <button
           v-if="selectableItems.length"
           type="button"
-          class="min-h-11 text-xs text-muted hover:text-default underline"
+          class="text-xs text-muted hover:text-default underline"
           @click="toggleAll"
         >
           {{ allSelected ? 'Deselect all' : 'Select all' }}
@@ -216,7 +211,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
     </template>
 
     <div class="mt-8 flex items-center justify-between">
-      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 min-w-11 items-center text-sm text-muted hover:text-default underline">
+      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 min-w-11 items-center font-mono text-sm text-muted hover:text-default underline">
         Skip
       </NuxtLink>
       <UButton
