@@ -71,9 +71,9 @@ export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
   },
 }
 
-/** True when the audit covers the path. Every `/agents/*` page counts. */
+/** True when the audit covers the path. Agent and comparison pages always count. */
 function isAudited(path: string): boolean {
-  return FREEZE_AUDIT_PATHS.includes(path) || path.startsWith('/agents/')
+  return FREEZE_AUDIT_PATHS.includes(path) || path.startsWith('/agents/') || path === '/compare' || path.startsWith('/compare/')
 }
 
 /**

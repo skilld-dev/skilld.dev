@@ -21,6 +21,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | watch | `layers/identity` | account N—N Repository or collection | "watch" |
 | digest | `layers/identity` email | account 1—1 digest schedule | "digest" |
 | track | `/skills/<slug>`, `layers/registry` | track 1—N Skill | "track" |
+| comparison | `/compare/<slug>`, `layers/marketing` | comparison N—N Skill | "comparison" |
 | trending | `/skills/trending`, ADR-0004 | Repository 1—N social mention | "trending" |
 | registry | skilld.dev | one | "skilld" |
 | skilld token | `cli_tokens`, `layers/identity` | Author 1—N token | "skilld token" |
@@ -108,6 +109,16 @@ Collisions
 **Is:** a curated set of Skills assembled by a curator, with a reason per Skill, at `/@login/slug`.
 
 **Never:** preset, pack, bundle, kit, stack (in UI).
+
+### comparison
+
+**Is:** an editorial article comparing Skills for one concrete task, at `/compare/<slug>`.
+
+**Use for:** dated, source-backed tradeoffs and conditional recommendations.
+
+**Never:** versus page, alternatives page (as pillar names), ranking, benchmark (without measured output evidence).
+
+**Collides with:** track and collection. A comparison explains a choice; a track lists Skills; a collection belongs to a curator.
 
 ### watch
 
