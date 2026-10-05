@@ -1243,20 +1243,24 @@
 }
 
 /* The braille names texture: behind the hero, masked clear of the headline.
-   Phones stack the copy above the rail, so the names sit below the copy. */
+   Below 64rem the copy stacks above the rail, so the names sit behind the rail. */
 .home-hero-texture {
   position: absolute;
-  inset: 0;
+  inset-inline: 0;
+  bottom: 0;
   z-index: 0;
+  height: 22rem;
   pointer-events: none;
-  mask-image: linear-gradient(to bottom, transparent 45%, #000 85%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 45%, #000 85%);
+  mask-image: linear-gradient(to bottom, transparent, #000 40%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 40%);
 }
 
 @media (min-width: 64rem) {
   .home-hero-texture {
-    mask-image: linear-gradient(to right, transparent 38%, #000 80%);
-    -webkit-mask-image: linear-gradient(to right, transparent 38%, #000 80%);
+    top: 0;
+    height: auto;
+    mask-image: linear-gradient(to right, transparent 57%, #000 80%);
+    -webkit-mask-image: linear-gradient(to right, transparent 57%, #000 80%);
   }
 }
 
