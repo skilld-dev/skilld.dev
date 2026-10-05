@@ -9,6 +9,15 @@ const loggedIn = ref(true)
 /** False while the browser is still loading the session after hydration. */
 const sessionKnown = ref(true)
 const fetchMock = vi.hoisted(() => vi.fn())
+const activeToasts = vi.hoisted(() => new Map<string, { title: string }>())
+mockNuxtImport('useToast', () => () => ({
+  add: (input: { id?: string, title: string }) => {
+    const id = input.id ?? `toast-${activeToasts.size}`
+    activeToasts.set(id, input)
+    return { id }
+  },
+  remove: (id: string) => activeToasts.delete(id),
+}))
 
 mockNuxtImport('useAuth', () => () => ({
   state: computed(() => {
@@ -61,6 +70,7 @@ function resetLikeState() {
 }
 
 beforeEach(() => {
+  activeToasts.clear()
   likedItems = []
   mutation = { _tag: 'ok', likeCount: 0 }
   listGate = null
@@ -176,6 +186,20 @@ describe('likeButton toggle semantics', () => {
 })
 
 describe('useLikes hydration', () => {
+  it('clears the failed like after retry without dismissing another action', async () => {
+    const likes = useLikes()
+    mutation = { _tag: 'error' }
+    await likes.toggle(skill)
+    expect([...activeToasts.values()].map(toast => toast.title)).toContain('Could not save your like')
+    activeToasts.set('email', { title: 'Could not save your email settings' })
+
+    mutation = { _tag: 'ok', likeCount: 1 }
+    await likes.toggle(skill)
+
+    expect(likes.isLiked(skill)).toBe(true)
+    expect([...activeToasts.values()].map(toast => toast.title)).toEqual(['Could not save your email settings'])
+  })
+
   it('shares one in-flight request across every mounted heart', async () => {
     // A `loaded` boolean alone let the second LikeButton on a page return before
     // the data arrived and snapshot an empty like set, which double-counted the

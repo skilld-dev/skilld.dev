@@ -22,12 +22,14 @@ const saveEmailMutation = useNuxtMutation<IdentityEmailPatchBody, IdentityMutati
   mutation: body => rpc.execute(identityAccountQueries.saveEmail(), body),
   invalidates: ['identity:me'],
   onError: actionFailed('save your digest email'),
+  onMutate: () => actionFailed.clear('save your digest email'),
 })
 
 const finishOnboardingMutation = useNuxtMutation<void, IdentityMutationResponse>({
   mutation: () => rpc.execute(identityAccountQueries.finishOnboarding()),
   invalidates: ['identity:me'],
   onError: actionFailed('finish setting up your account'),
+  onMutate: () => actionFailed.clear('finish setting up your account'),
 })
 
 // Opting in needs somewhere to send the digest, so the address is required

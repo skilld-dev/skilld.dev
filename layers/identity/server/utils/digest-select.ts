@@ -71,7 +71,15 @@ export async function selectDigestForUser(
      FROM activity a
      JOIN skills s ON s.owner = a.owner AND s.repo = a.repo AND s.name = a.name
      JOIN repos r ON r.owner = s.owner AND r.repo = s.repo
-     JOIN skill_subscriptions sub ON sub.user_id = ?1 AND sub.owner = s.owner AND sub.repo = s.repo
+     JOIN (
+       SELECT owner COLLATE NOCASE AS owner, repo COLLATE NOCASE AS repo, source, muted_until
+       FROM (
+         SELECT *, ROW_NUMBER() OVER (
+           PARTITION BY owner COLLATE NOCASE, repo COLLATE NOCASE
+           ORDER BY source = 'like', created_at, source, owner, repo
+         ) AS watch_rank FROM skill_subscriptions WHERE user_id = ?1
+       ) WHERE watch_rank = 1
+     ) sub ON sub.owner = s.owner AND sub.repo = s.repo
      WHERE a.id > ?2 AND a.id <= ?3
        AND (sub.muted_until IS NULL OR sub.muted_until <= ?4)
        AND r.repo_kind != 'aggregator'

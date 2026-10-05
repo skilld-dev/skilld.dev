@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { likeSkill } from './likes'
+import { createRepositoryWatches } from './watches'
 
 // Post-OAuth side effects driven by ?action= query string. Anonymous "Like X"
 // and "Watch X" clicks bounce through OAuth with an action token; the callback
@@ -44,7 +45,6 @@ export async function handleWatchAction(
   returnTo: string,
 ): Promise<void> {
   const ctx = parseReturnTo(returnTo)
-  const now = Math.floor(Date.now() / 1000)
   const d = db(event)
 
   // likeSkill derives the repo subscription itself, so there is no separate
@@ -55,10 +55,7 @@ export async function handleWatchAction(
   }
 
   if (action === 'watch-skill' && ctx.skillOwner && ctx.skillRepo) {
-    await d.prepare(
-      `INSERT OR IGNORE INTO skill_subscriptions (user_id, owner, repo, source, created_at)
-       VALUES (?1, ?2, ?3, 'manual', ?4)`,
-    ).bind(userId, ctx.skillOwner, ctx.skillRepo, now).run()
+    await createRepositoryWatches(d, userId, [{ owner: ctx.skillOwner, repo: ctx.skillRepo }], 'manual')
     return
   }
 
@@ -71,11 +68,6 @@ export async function handleWatchAction(
        WHERE u.login = ?1 AND c.slug = ?2 AND c.deleted_at IS NULL`,
     ).bind(ctx.collectionLogin, ctx.collectionSlug).all<{ owner: string, repo: string }>()
     const source = `collection:${ctx.collectionSlug}`
-    const stmts = (skills.results ?? []).map(r => d.prepare(
-      `INSERT OR IGNORE INTO skill_subscriptions (user_id, owner, repo, source, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5)`,
-    ).bind(userId, r.owner, r.repo, source, now))
-    if (stmts.length)
-      await d.batch(stmts)
+    await createRepositoryWatches(d, userId, skills.results ?? [], source)
   }
 }

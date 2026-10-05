@@ -134,7 +134,7 @@ mockNuxtImport('useNuxtRpc', () => {
 })
 
 mockNuxtImport('useActionFailure', () => {
-  return () => () => vi.fn()
+  return () => Object.assign(() => vi.fn(), { clear: vi.fn() })
 })
 
 async function mountPage() {

@@ -108,6 +108,7 @@ export function useLikes() {
     await ensureLoaded()
     const key = likeKey(ref)
     const wasLiked = !!liked.value[key]
+    fail.clear('save your like', `like:${key}`)
     const previousCount = likeCounts.value[key]
 
     liked.value = applyLiked(liked.value, key, !wasLiked)
@@ -121,8 +122,8 @@ export function useLikes() {
 
     const path = `/api/me/likes/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${encodeURIComponent(ref.name)}`
     const res = wasLiked
-      ? await $fetch<LikeMutationResponse>(path, { method: 'DELETE' }).catch(fail('remove your like'))
-      : await $fetch<LikeMutationResponse>('/api/me/likes', { method: 'POST', body: ref }).catch(fail('save your like'))
+      ? await $fetch<LikeMutationResponse>(path, { method: 'DELETE' }).catch(fail('remove your like', `like:${key}`))
+      : await $fetch<LikeMutationResponse>('/api/me/likes', { method: 'POST', body: ref }).catch(fail('save your like', `like:${key}`))
 
     const { [key]: _dropped, ...restPending } = pending.value
     pending.value = restPending
@@ -151,6 +152,8 @@ export function useLikes() {
     if (existing)
       return existing
 
+    fail.clear('save your like', `like:${key}`)
+
     liked.value = applyLiked(liked.value, key, true)
     const previousCount = likeCounts.value[key]
     if (previousCount !== undefined)
@@ -162,7 +165,7 @@ export function useLikes() {
         likeCounts.value = { ...likeCounts.value, [key]: response.likeCount }
         return true
       })
-      .catch(fail('save your like'))
+      .catch(fail('save your like', `like:${key}`))
       .then((result) => {
         if (!result) {
           liked.value = applyLiked(liked.value, key, false)

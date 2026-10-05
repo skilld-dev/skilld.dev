@@ -12,7 +12,7 @@ mockNuxtImport('$fetch', () => mocks.fetch)
 mockNuxtImport('navigateTo', () => mocks.navigate)
 mockNuxtImport('useToast', () => () => ({ add: mocks.toast }))
 mockNuxtImport('removeNuxtQueries', () => mocks.remove)
-mockNuxtImport('useActionFailure', () => () => () => mocks.failure)
+mockNuxtImport('useActionFailure', () => () => Object.assign(() => mocks.failure, { clear: vi.fn() }))
 mockNuxtImport('useUserSession', () => () => ({
   ready: ref(true),
   loggedIn: ref(true),
