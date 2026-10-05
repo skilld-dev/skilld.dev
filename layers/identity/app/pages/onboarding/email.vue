@@ -93,14 +93,14 @@ useSeoMeta({ title: 'Email opt-in', robots: 'noindex' })
       </div>
 
       <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="weeklyOptIn" type="checkbox" class="mt-0.5">
+        <input v-model="weeklyOptIn" type="checkbox" class="mt-0.5 size-4 accent-primary">
         <span class="text-sm text-muted leading-relaxed">
           Send me distinct trending Skills each Monday.
         </span>
       </label>
 
       <label class="flex min-h-11 items-start gap-3 cursor-pointer">
-        <input v-model="optIn" type="checkbox" class="mt-0.5">
+        <input v-model="optIn" type="checkbox" class="mt-0.5 size-4 accent-primary">
         <span class="text-sm text-muted leading-relaxed">
           Send me watched changes once a month.
         </span>

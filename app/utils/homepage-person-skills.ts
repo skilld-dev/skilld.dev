@@ -59,10 +59,14 @@ export function uniqueByOwner(items: readonly SkillSourceItem[]): SkillSourceIte
  * the caller then loads the live person feed instead.
  */
 export function selectHomepageTrendingSkills(
-  trending: readonly SkillSourceItem[],
+  trending: readonly Omit<SkillSourceItem, 'maintainerName'>[],
   fallbacks: readonly SkillSourceItem[],
 ): HomepageTrendingSelection {
-  const unique = uniqueByOwner(trending)
+  const namesByOwner = new Map(fallbacks.map(item => [item.owner, item.maintainerName ?? item.owner]))
+  const unique = uniqueByOwner(trending.map(item => ({
+    ...item,
+    maintainerName: namesByOwner.get(item.owner) ?? item.owner,
+  })))
   if (unique.length < HOMEPAGE_TRENDING_MINIMUM)
     return { _tag: 'fallback' }
 

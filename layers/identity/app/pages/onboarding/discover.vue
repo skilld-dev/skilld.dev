@@ -126,6 +126,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
       <UButton
         :loading="syncing"
         size="sm"
+        class="min-h-11"
         color="neutral"
         variant="outline"
         icon="i-lucide-refresh-cw"
@@ -160,7 +161,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
       <template v-else>
         None of your starred repos with "skill" in the name are in the registry yet.
       </template>
-      <NuxtLink to="/onboarding/email" class="underline">
+      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 items-center underline">
         skip ahead
       </NuxtLink>.
     </div>
@@ -192,7 +193,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
               type="checkbox"
               :checked="r.watching || selected.has(`${r.owner}/${r.repo}`)"
               :disabled="r.watching"
-              class="mt-1"
+              class="mt-1 size-4 accent-primary"
               @change="toggle(`${r.owner}/${r.repo}`)"
             >
             <div class="min-w-0 flex-1">
@@ -219,7 +220,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
     </template>
 
     <div class="mt-8 flex items-center justify-between">
-      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 items-center font-mono text-sm text-muted hover:text-default underline">
+      <NuxtLink to="/onboarding/email" class="inline-flex min-h-11 min-w-11 items-center font-mono text-sm text-muted hover:text-default underline">
         Skip
       </NuxtLink>
       <UButton
@@ -228,6 +229,7 @@ useSeoMeta({ title: 'Discover skills', robots: 'noindex' })
         :label="selected.size ? `Watch ${selected.size}` : 'Continue'"
         trailing-icon="i-lucide-arrow-right"
         size="sm"
+        class="min-h-11"
         @click="watchSelected"
       />
     </div>

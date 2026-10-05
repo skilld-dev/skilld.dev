@@ -315,6 +315,17 @@ describe('account skill watchlist', () => {
     expect(disabledWhilePending).toBe(true)
   })
 
+  it('connects the email address label to its textbox', async () => {
+    const wrapper = await mountPage()
+    document.body.append(wrapper.element)
+    await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
+    const input = wrapper.get('input[type="email"]').element as HTMLInputElement
+
+    expect([...input.labels ?? []].map(label => label.textContent)).toContain('Email address')
+    wrapper.element.remove()
+    wrapper.unmount()
+  })
+
   it('saves the weekly email and monthly digest as separate choices', async () => {
     const wrapper = await mountPage()
     await wrapper.get('button[aria-controls="email-settings-form"]').trigger('click')
