@@ -131,10 +131,11 @@ watch(() => route.fullPath, () => {
           <div class="flex items-center justify-end gap-1.5 lg:flex-1">
             <SkillSearchTrigger v-if="$route.path !== '/'" />
             <!--
-            The braille spark makes Trending outweigh its siblings without an
-            emoji. It is decorative and hidden from screen readers; the label
-            carries the meaning. `gap-1.5` because the button's own layout
-            does not space sibling spans.
+            The braille mark makes Trending outweigh its siblings without an
+            emoji. Stone only: the logo dot is the header's one rose element.
+            It is decorative and hidden from screen readers; the label carries
+            the meaning. `gap-1.5` because the button's own layout does not
+            space sibling spans.
           -->
             <UButton
               to="/skills/trending"
@@ -143,7 +144,7 @@ watch(() => route.fullPath, () => {
               size="sm"
               class="hidden gap-1.5 whitespace-nowrap lg:inline-flex"
             >
-              <TrendingMark />
+              <TrendingMark :accent="false" />
               <span>Trending Skills</span>
             </UButton>
             <UButton
@@ -203,7 +204,7 @@ watch(() => route.fullPath, () => {
               block
               class="min-h-11 justify-start gap-1.5 whitespace-nowrap"
             >
-              <TrendingMark />
+              <TrendingMark :accent="false" />
               <span>Trending Skills</span>
             </UButton>
             <UButton

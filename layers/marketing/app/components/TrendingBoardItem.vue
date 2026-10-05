@@ -30,8 +30,16 @@ const posts = computed(() => (row.reason._tag === 'posts' ? row.reason.posts : [
  * a row with posts, so it gets the braille spark. Stars ranked a surge or a
  * filler row, so those keep the star line. Two charts on one line would ask the
  * reader which one put the row here.
+ *
+ * A month board ranks posts older than the spark's seven days. A week of
+ * blank cells draws nothing beside a bare zero, so that row shows no spark and
+ * its posts carry their own dates.
  */
-const mentions = computed(() => (row.reason._tag === 'posts' ? row.reason.mentionsByDay : null))
+const isSocial = computed(() => row.reason._tag === 'posts')
+const mentions = computed(() => {
+  const days = row.reason._tag === 'posts' ? row.reason.mentionsByDay : null
+  return days?.some(count => count > 0) ? days : null
+})
 </script>
 
 <template>
@@ -61,7 +69,7 @@ const mentions = computed(() => (row.reason._tag === 'posts' ? row.reason.mentio
         <span v-if="row.subtitle" class="truncate">{{ row.subtitle }}</span>
         <span v-if="row.stars" class="shrink-0 tabular-nums">{{ `${row.stars.toLocaleString()} ★` }}</span>
         <BrailleSpark v-if="mentions" :counts="mentions" unit="mentions in 7 days" />
-        <TrendingStarSpark v-else :points="row.starSeries" />
+        <TrendingStarSpark v-else-if="!isSocial" :points="row.starSeries" />
         <template v-if="row.reason._tag === 'reviewed'">
           <span class="shrink-0">{{ `${row.reason.skillCount.toLocaleString()} ${row.reason.skillCount === 1 ? 'skill' : 'skills'}` }}</span>
           <span v-if="row.reason.updated" class="shrink-0">Updated {{ row.reason.updated }}</span>
