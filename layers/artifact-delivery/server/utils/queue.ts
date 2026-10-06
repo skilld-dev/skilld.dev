@@ -26,6 +26,7 @@ import { createGithubSourceClient, createPublicGithubSourceClient } from './gith
 import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from './private-crypto'
 import { privateArtifactAccessEnabled } from './private-feature'
 import { putPrivateArtifact } from './private-storage'
+import { createRequesterGithubSource, forgetResolutionRequester } from './requester-github'
 import { getResolution } from './state'
 import { parseTrustedRoot } from './trusted-root'
 
@@ -70,6 +71,10 @@ export async function consumeArtifactBuildBatch(
       .then(value => ({ _tag: 'ok' as const, value }))
       .catch(error => ({ _tag: 'error' as const, error }))
     if (outcome._tag === 'ok') {
+      // A settled build never reads GitHub again, so it no longer needs to
+      // know who asked. A superseded one leaves that to the build that won.
+      if (outcome.value._tag !== 'superseded')
+        await forgetResolutionRequester(dependencies.db, parsed.data.resolutionId)
       message.ack()
       continue
     }
@@ -89,6 +94,7 @@ export async function consumeArtifactBuildBatch(
     const row = await getResolution(dependencies.db, parsed.data.resolutionId)
     if (row)
       await failResolution(dependencies, row, 'SERVICE_UNAVAILABLE', true)
+    await forgetResolutionRequester(dependencies.db, parsed.data.resolutionId)
     message.ack()
   }
 }
@@ -161,6 +167,18 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
   return {
     db: env.DB,
     github: createArtifactGithubSource(env),
+    requesterGithub: createRequesterGithubSource({
+      db: env.DB,
+      tokenKey: () => env.NUXT_TOKEN_KEY,
+      fetch: runtimeFetch,
+      now: () => Math.floor(Date.now() / 1000),
+      onReadFailure: reportGithubReadFailure,
+      onUnusableToken: reason => emitOperationalEvent(createWideEvent({
+        operation: 'artifact-github-credential',
+        outcome: 'requester-token-unusable',
+        reason,
+      })),
+    }),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
