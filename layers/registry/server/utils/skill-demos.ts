@@ -10,6 +10,8 @@ import manifest from '../data/skill-demos.json'
  * page in `server/demos/`, and writes the entry below. Merging the pull request
  * that adds an entry is the human approval: nothing records into production.
  *
+ * A video Skill's demo also carries the rendered video and a poster frame.
+ *
  * Cull path: delete the entry, its `public/demos/<owner>/<repo>/<name>/`
  * folder, and its `server/demos/<owner>/<repo>/<name>/` folder.
  */
@@ -23,6 +25,16 @@ const shotSchema = z.object({
   viewport: z.enum(['desktop', 'mobile']),
 })
 
+const videoSchema = z.object({
+  /** H.264 MP4 inside `public/demos/<owner>/<repo>/<name>/`, re-encoded small for the web. */
+  file: z.string().regex(/^[\w-]+\.mp4$/),
+  /** A JPG frame shown before the video plays. */
+  poster: z.string().regex(/^[\w-]+\.jpg$/),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  durationSeconds: z.number().positive(),
+})
+
 const demoSchema = z.object({
   owner: z.string().min(1),
   repo: z.string().min(1),
@@ -33,6 +45,8 @@ const demoSchema = z.object({
   sourceUrl: z.string().url().optional(),
   /** The exact text the Agent received after loading the Skill. */
   prompt: z.string().min(1),
+  /** What the folder held before the Agent started, when the recording seeded one. */
+  setup: z.string().min(1).optional(),
   agent: z.string().min(1),
   agentVersion: z.string().min(1),
   model: z.string().min(1),
@@ -40,8 +54,11 @@ const demoSchema = z.object({
   skillCommit: z.string().regex(/^[0-9a-f]{40}$/),
   recordedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   /** File name inside `server/demos/<owner>/<repo>/<name>/`, served sandboxed as the live demo. */
-  outputFile: z.string().regex(/^[\w-]+\.html$/),
+  outputFile: z.string().regex(/^[\w-]+\.html$/).optional(),
+  video: videoSchema.optional(),
   shots: z.array(shotSchema).min(1),
+}).refine(demo => demo.outputFile !== undefined || demo.video !== undefined, {
+  message: 'A demo needs an output page or a video.',
 })
 
 export type SkillDemoRecord = z.infer<typeof demoSchema>
@@ -74,6 +91,14 @@ export interface SkillDemoShot {
   viewport: 'desktop' | 'mobile'
 }
 
+export interface SkillDemoVideo {
+  src: string
+  poster: string
+  width: number
+  height: number
+  durationSeconds: number
+}
+
 /** What the Skill page and the homepage render for one demo. */
 export interface SkillDemoView {
   owner: string
@@ -83,14 +108,16 @@ export interface SkillDemoView {
   authorName: string | null
   sourceUrl: string | null
   prompt: string
+  setup: string | null
   agent: string
   model: string
   skillCommit: string
   recordedAt: string
   /** True when the Skill moved past the commit the demo recorded. */
   outdated: boolean
-  /** The sandboxed output page. */
-  liveUrl: string
+  /** The sandboxed output page, when the demo kept one. */
+  liveUrl: string | null
+  video: SkillDemoVideo | null
   shots: SkillDemoShot[]
 }
 
@@ -105,12 +132,22 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
     authorName: demo.authorName ?? null,
     sourceUrl: demo.sourceUrl ?? null,
     prompt: demo.prompt,
+    setup: demo.setup ?? null,
     agent: demo.agent,
     model: demo.model,
     skillCommit: demo.skillCommit,
     recordedAt: demo.recordedAt,
     outdated: currentCommit !== null && currentCommit !== demo.skillCommit,
-    liveUrl: `${base}/live`,
+    liveUrl: demo.outputFile ? `${base}/live` : null,
+    video: demo.video
+      ? {
+          src: `${base}/${demo.video.file}`,
+          poster: `${base}/${demo.video.poster}`,
+          width: demo.video.width,
+          height: demo.video.height,
+          durationSeconds: demo.video.durationSeconds,
+        }
+      : null,
     shots: demo.shots.map(shot => ({
       src: `${base}/${shot.file}`,
       width: shot.width,
@@ -121,7 +158,7 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
   }
 }
 
-/** The key of a demo's output page in the `skill-demos` server assets. */
-export function skillDemoOutputKey(demo: SkillDemoRecord): string {
-  return `${demo.owner}/${demo.repo}/${demo.name}/${demo.outputFile}`
+/** The key of a demo's output page in the `skill-demos` server assets, or null for a video-only demo. */
+export function skillDemoOutputKey(demo: SkillDemoRecord): string | null {
+  return demo.outputFile ? `${demo.owner}/${demo.repo}/${demo.name}/${demo.outputFile}` : null
 }

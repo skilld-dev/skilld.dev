@@ -15,6 +15,34 @@ const MAX_DEMOS = 6
 const demos = computed(() => items.slice(0, MAX_DEMOS))
 const show = computed(() => demos.value.length >= MIN_DEMOS_TO_SHOW)
 
+const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+const canHover = useMediaQuery('(hover: hover)')
+
+/** Plays a video card muted while the pointer or keyboard focus rests on it. */
+function playVideo(event: Event): void {
+  if (reducedMotion.value || !canHover.value)
+    return
+  const video = (event.currentTarget as HTMLElement).querySelector('video')
+  video?.play().catch((error: unknown) => {
+    // A pause during loading aborts play(); that is the pointer leaving, not a fault. Any other refusal keeps the poster.
+    if ((error as { name?: string } | null)?.name !== 'AbortError')
+      console.warn('[home-demos] Video did not play:', error)
+  })
+}
+
+function stopVideo(event: Event): void {
+  const video = (event.currentTarget as HTMLElement).querySelector('video')
+  if (!video)
+    return
+  video.pause()
+  video.currentTime = 0
+}
+
+function formatDuration(seconds: number): string {
+  const whole = Math.round(seconds)
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
+}
+
 function cover(demo: HomeDemoItem) {
   return demo.shots.find(shot => shot.viewport === 'desktop') ?? demo.shots[0]
 }
@@ -34,10 +62,36 @@ function cover(demo: HomeDemoItem) {
       </header>
       <ul class="home-demos__grid mt-8 list-none p-0">
         <li v-for="demo in demos" :key="`${demo.owner}/${demo.repo}/${demo.name}`" class="min-w-0">
-          <article class="home-demos__card">
+          <article
+            class="home-demos__card"
+            @mouseenter="playVideo"
+            @mouseleave="stopVideo"
+            @focusin="playVideo"
+            @focusout="stopVideo"
+          >
             <NuxtLink :to="`${demo.skillPath}#demo`" class="home-demos__link block">
+              <span v-if="demo.video" class="home-demos__media">
+                <video
+                  :poster="demo.video.poster"
+                  :width="demo.video.width"
+                  :height="demo.video.height"
+                  muted
+                  loop
+                  playsinline
+                  preload="none"
+                  aria-hidden="true"
+                  class="home-demos__shot"
+                >
+                  <source :src="demo.video.src" type="video/mp4">
+                </video>
+                <span class="home-demos__duration data-label">
+                  <UIcon name="i-lucide-play" class="size-3" aria-hidden="true" />
+                  {{ formatDuration(demo.video.durationSeconds) }}
+                  <span class="sr-only">video</span>
+                </span>
+              </span>
               <img
-                v-if="cover(demo)"
+                v-else-if="cover(demo)"
                 :src="cover(demo)!.src"
                 :width="cover(demo)!.width"
                 :height="cover(demo)!.height"
@@ -109,6 +163,24 @@ function cover(demo: HomeDemoItem) {
 .home-demos__card:hover,
 .home-demos__card:focus-within {
   border-color: var(--ui-border-accented);
+}
+
+.home-demos__media {
+  position: relative;
+  display: block;
+}
+
+.home-demos__duration {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  color: var(--ui-text-highlighted);
 }
 
 .home-demos__shot {

@@ -604,6 +604,7 @@ describe('accessibility: components', () => {
       sourceUrl: `https://github.com/anthropics/skills/blob/main/skills/${name}/SKILL.md`,
       prompt: 'Build a landing page for Tidepool.',
       shots: [shot],
+      video: null,
     }))
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -642,6 +643,10 @@ describe('accessibility: components', () => {
           name: 'frontend-design',
           skillPath: '/gh/anthropics/skills/frontend-design',
           prompt: 'Build a landing page for Tidepool. Save it as index.html.',
+          setup: null,
+          video: null,
+          authorName: 'Anthropic',
+          sourceUrl: 'https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md',
           agent: 'Claude Code',
           model: 'claude-opus-5-5',
           skillCommit: '41bbe19d1a1a7eaab5e7bb9050a417e5c6cffc8f',

@@ -1,0 +1,1044 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cogwhistle · How a delivery gets a rider</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f4f1ea;
+    --card: #fdfcfa;
+    --ink: #17191c;
+    --ink-2: #4f4e4a;
+    --muted: #85837c;
+    --line: #e4dfd4;
+    --street: #e9e4d8;
+    --block: #f7f4ee;
+    --brand: #e5484d;
+    --brand-soft: #fbe3e2;
+    --good: #0ca30c;
+    --good-ink: #0a6e0a;
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+    --s4: #eda100;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #111213;
+      --card: #1c1d1f;
+      --ink: #f1eee7;
+      --ink-2: #c3c2b7;
+      --muted: #8d8b84;
+      --line: #2e3033;
+      --street: #2a2c2f;
+      --block: #222326;
+      --brand: #ff6369;
+      --brand-soft: #3a1f21;
+      --good: #2fbf2f;
+      --good-ink: #5fd35f;
+      --s1: #3987e5;
+      --s2: #d95926;
+      --s3: #199e70;
+      --s4: #c98500;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 15px/1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; }
+
+  /* Header */
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+  .mark { width: 40px; height: 40px; flex: none; }
+  h1 { font-size: 22px; line-height: 1.2; margin: 0; letter-spacing: -0.01em; }
+  .sub { margin: 2px 0 0; color: var(--ink-2); font-size: 14px; }
+  .sub code { font-family: var(--mono); font-size: 13px; }
+
+  /* Step rail */
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(120px, 1fr));
+    gap: 6px;
+    list-style: none;
+    margin: 0 0 16px;
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    position: relative;
+  }
+  .rail button {
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-2);
+    border-radius: 10px;
+    padding: 8px 10px 9px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+  }
+  .rail button b { display: block; font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
+  .rail button::after {
+    content: "";
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 3px; width: 100%;
+    background: var(--brand);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 300ms var(--ease-out);
+  }
+  .rail button[data-state="done"] { color: var(--ink); }
+  .rail button[data-state="done"]::after { transform: scaleX(1); opacity: 0.35; }
+  .rail button[aria-current="step"] { color: var(--ink); border-color: var(--ink); }
+  .rail button[aria-current="step"]::after { transform: scaleX(1); }
+  .rail button:focus-visible, .ctrl button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) {
+    .rail button:hover { border-color: var(--muted); }
+  }
+
+  /* Layout */
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    grid-template-areas: "map panel" "map log";
+    grid-template-rows: auto 1fr;
+    gap: 16px;
+  }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+  .mapcard { grid-area: map; padding: 12px; display: flex; flex-direction: column; gap: 10px; align-self: start; }
+  .panel { grid-area: panel; padding: 18px 20px 20px; min-height: 380px; }
+  .log { grid-area: log; padding: 14px 16px; }
+
+  /* Map */
+  #map { width: 100%; height: auto; display: block; border-radius: 10px; background: var(--block); touch-action: manipulation; }
+  #map .street { stroke: var(--street); stroke-width: 14; stroke-linecap: square; }
+  #map .street-name { fill: var(--muted); font: 600 9px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; }
+  #map .blocks rect { fill: var(--card); opacity: 0.55; }
+  #map .radius { fill: var(--brand); fill-opacity: 0.05; stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; }
+  #map .radius-label { fill: var(--brand); font: 600 11px var(--sans); }
+  #map .route { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-dasharray: 2 6; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: 0.35; transition: opacity 300ms ease, stroke 300ms ease; }
+  #map .route.live { opacity: 1; stroke: var(--brand); stroke-dasharray: none; }
+  #map .tie { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; opacity: 0; transition: opacity 300ms ease; }
+  #map .tie.on { opacity: 0.5; }
+  #map .fence { fill: var(--good); fill-opacity: 0.08; stroke: var(--good); stroke-width: 1.5; vector-effect: non-scaling-stroke; opacity: 0; transition: opacity 300ms ease; }
+  #map .fence.on { opacity: 1; }
+  #map .fence-label { fill: var(--good-ink); font-family: var(--sans); font-weight: 600; opacity: 0; transition: opacity 300ms ease; }
+  #map .fence-label.on { opacity: 1; }
+
+  .fade { transition: opacity 400ms var(--ease-out); }
+  .rider .dot { fill: var(--ink); stroke: var(--card); stroke-width: 2; transition: fill 250ms ease; }
+  .rider .ini { fill: var(--card); font: 700 10px var(--sans); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .rider .name { fill: var(--ink); font: 600 11px var(--sans); paint-order: stroke; stroke: var(--block); stroke-width: 3px; stroke-linejoin: round; }
+  .rider .why { fill: var(--muted); font: 500 10px var(--sans); paint-order: stroke; stroke: var(--block); stroke-width: 3px; stroke-linejoin: round; opacity: 0; transition: opacity 250ms ease; }
+  .rider .badge rect { fill: var(--ink); }
+  .rider .badge text { fill: var(--card); font: 700 10px var(--mono); text-anchor: middle; dominant-baseline: central; }
+  .rider .badge { opacity: 0; transition: opacity 250ms ease; }
+  .rider .ring { fill: none; stroke: var(--brand); stroke-width: 2.5; opacity: 0; transform-box: fill-box; transform-origin: center; }
+  .rider .check { opacity: 0; transition: opacity 200ms ease; }
+  .rider .check circle { fill: var(--good); }
+  .rider .check path { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .rider .cross { opacity: 0; transition: opacity 200ms ease; }
+  .rider .cross circle { fill: var(--muted); }
+  .rider .cross path { fill: none; stroke: var(--card); stroke-width: 1.8; stroke-linecap: round; }
+
+  .rider[data-s="hidden"] { opacity: 0; }
+  .rider[data-s="out"] .dot, .rider[data-s="cut"] .dot { fill: var(--muted); }
+  .rider[data-s="out"], .rider[data-s="cut"] { opacity: 0.7; }
+  .rider[data-s="out"] .why, .rider[data-s="cut"] .why { opacity: 1; }
+  .rider[data-s="out"] .cross, .rider[data-s="cut"] .cross { opacity: 1; }
+  .rider[data-s="ranked"] .badge, .rider[data-s="offer"] .badge, .rider[data-s="missed"] .badge { opacity: 1; }
+  .rider[data-s="offer"] .ring { animation: ping 1.2s var(--ease-out) infinite; }
+  .rider[data-s="offer"] .dot { fill: var(--brand); }
+  .rider[data-s="missed"] { opacity: 0.55; }
+  .rider[data-s="missed"] .dot { fill: var(--muted); }
+  .rider[data-s="won"] .dot { fill: var(--brand); }
+  .rider[data-s="won"] .check { opacity: 1; }
+  .rider[data-s="dim"] { opacity: 0.18; }
+  @keyframes ping {
+    from { opacity: 0.9; transform: scale(1); }
+    to { opacity: 0; transform: scale(2.1); }
+  }
+  .pin .head { fill: var(--brand); }
+  .pin .core { fill: var(--card); }
+  .pin.drop .head { fill: var(--ink); }
+  .pin text { font: 700 11px var(--sans); fill: var(--ink); paint-order: stroke; stroke: var(--block); stroke-width: 3px; stroke-linejoin: round; }
+  .pin text.small { font: 500 10px var(--sans); fill: var(--ink-2); }
+  .pin .done { opacity: 0; transition: opacity 250ms ease; }
+  .pin .done circle { fill: var(--good); }
+  .pin .done path { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .pin.ok .done { opacity: 1; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-2); padding: 0 4px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .ctrl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 0 2px; }
+  .ctrl button {
+    font: inherit; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    border-radius: 999px; padding: 7px 14px; cursor: pointer;
+    transition: transform 120ms var(--ease-out), border-color 160ms ease, background-color 160ms ease;
+  }
+  .ctrl button:active { transform: scale(0.97); }
+  .ctrl button.primary { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .ctrl button:disabled { opacity: 0.4; cursor: default; }
+  .ctrl .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
+  @media (hover: hover) and (pointer: fine) {
+    .ctrl button:not(:disabled):hover { border-color: var(--muted); }
+  }
+
+  /* Panel */
+  .kicker { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; margin: 0; }
+  .panel h2 { font-size: 20px; line-height: 1.25; margin: 4px 0 6px; letter-spacing: -0.01em; }
+  .lede { color: var(--ink-2); margin: 0 0 14px; }
+  .rules { margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); list-style: none; display: grid; gap: 6px; font-size: 14px; color: var(--ink-2); }
+  .rules li { padding-left: 16px; position: relative; }
+  .rules li::before { content: ""; position: absolute; left: 2px; top: 0.6em; width: 6px; height: 6px; border-radius: 2px; background: var(--brand); }
+  .panel-body { animation: panelIn 260ms var(--ease-out); }
+  @keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .status { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 14px; font: 12px var(--mono); }
+  .status span { padding: 2px 7px; border-radius: 6px; color: var(--muted); border: 1px solid var(--line); transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease; }
+  .status span.past { color: var(--ink-2); }
+  .status span.now { background: var(--ink); color: var(--card); border-color: var(--ink); }
+
+  .ticket { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; }
+  .ticket .leg { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: start; }
+  .ticket .leg i { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--brand); }
+  .ticket .leg.drop i { background: var(--ink); }
+  .ticket .leg b { display: block; font-size: 14px; }
+  .ticket .leg small { color: var(--ink-2); font-size: 13px; }
+  .ticket .leg em { font-style: normal; font: 12px var(--mono); color: var(--ink-2); }
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .facts div { font-size: 12px; color: var(--muted); }
+  .facts strong { display: block; font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .filters { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .filters li { display: grid; grid-template-columns: 22px 64px 52px 1fr; gap: 8px; align-items: center; font-size: 14px; padding: 5px 8px; border-radius: 8px; opacity: 0; transform: translateY(4px); animation: rowIn 300ms var(--ease-out) forwards; }
+  .filters li.pass { background: var(--brand-soft); }
+  .filters .km { font: 12px var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .filters .why { color: var(--ink-2); font-size: 13px; }
+  .filters li.pass .why { color: var(--ink); font-weight: 600; }
+  .mk { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .mk.ok { background: var(--good); }
+  .mk.no { background: var(--muted); }
+  @keyframes rowIn { to { opacity: 1; transform: none; } }
+
+  .scores { display: grid; gap: 12px; }
+  .score-row { display: grid; grid-template-columns: 64px 1fr 34px; gap: 10px; align-items: center; opacity: 0; transform: translateY(4px); animation: rowIn 300ms var(--ease-out) forwards; }
+  .score-row .who { font-weight: 600; font-size: 14px; }
+  .score-row .who small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
+  .score-row .tot { font: 700 15px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { display: flex; gap: 2px; height: 18px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .bar .seg { height: 100%; transform-origin: left; transform: scaleX(0); animation: grow 600ms var(--ease-out) forwards; cursor: default; outline: none; }
+  .bar .seg:last-of-type { border-radius: 0 4px 4px 0; }
+  .bar .seg:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+  @keyframes grow { to { transform: scaleX(1); } }
+  .seg.c1 { background: var(--s1); } .seg.c2 { background: var(--s2); } .seg.c3 { background: var(--s3); } .seg.c4 { background: var(--s4); }
+  .keys { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-2); margin: 0 0 12px; }
+  .keys span { display: inline-flex; align-items: center; gap: 5px; }
+  .keys i { width: 10px; height: 10px; border-radius: 3px; }
+  .keys i.c1 { background: var(--s1); } .keys i.c2 { background: var(--s2); } .keys i.c3 { background: var(--s3); } .keys i.c4 { background: var(--s4); }
+  details.table { margin-top: 12px; font-size: 13px; }
+  details.table summary { cursor: pointer; color: var(--ink-2); }
+  details.table table { width: 100%; border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  details.table th, details.table td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  details.table th:first-child, details.table td:first-child { text-align: left; }
+  details.table th { font-weight: 600; color: var(--muted); font-size: 12px; }
+  .tip {
+    position: fixed; z-index: 10; pointer-events: none;
+    background: var(--ink); color: var(--card);
+    font-size: 12px; line-height: 1.4; padding: 6px 9px; border-radius: 8px;
+    max-width: 240px; opacity: 0; transform: translateY(4px);
+    transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
+  }
+  .tip.on { opacity: 1; transform: none; }
+  .tip b { font-family: var(--mono); }
+
+  .phone { border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: grid; grid-template-columns: 64px 1fr; gap: 14px; align-items: center; background: var(--page); }
+  .phone .to { grid-column: 1 / -1; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+  .phone .to b { color: var(--ink); }
+  .clock { position: relative; width: 64px; height: 64px; }
+  .clock svg { width: 64px; height: 64px; transform: rotate(-90deg); }
+  .clock .track { fill: none; stroke: var(--line); stroke-width: 5; }
+  .clock .left { fill: none; stroke: var(--brand); stroke-width: 5; stroke-linecap: round; }
+  .clock span { position: absolute; inset: 0; display: grid; place-items: center; font: 700 18px var(--mono); font-variant-numeric: tabular-nums; }
+  .offer b { font-size: 15px; display: block; }
+  .offer small { color: var(--ink-2); font-size: 13px; display: block; }
+  .offer .btns { display: flex; gap: 6px; margin-top: 8px; }
+  .offer .btns span { flex: 1; text-align: center; font-size: 13px; font-weight: 600; padding: 6px 0; border-radius: 8px; border: 1px solid var(--line); background: var(--card); transition: background-color 200ms ease, color 200ms ease, transform 120ms var(--ease-out); }
+  .offer .btns span.acc { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .offer .btns span.pressed { transform: scale(0.95); background: var(--good); border-color: var(--good); color: #fff; }
+  .verdict { grid-column: 1 / -1; font-size: 13px; font-weight: 600; min-height: 20px; }
+  .verdict.miss { color: var(--muted); }
+  .verdict.win { color: var(--good-ink); }
+  .queue { display: flex; gap: 6px; margin-top: 12px; font-size: 13px; flex-wrap: wrap; }
+  .queue span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; color: var(--ink-2); transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease; }
+  .queue span.now { border-color: var(--brand); color: var(--ink); background: var(--brand-soft); }
+  .queue span.gone { text-decoration: line-through; color: var(--muted); }
+  .queue span.yes { border-color: var(--good); color: var(--good-ink); }
+
+  .eta { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .eta-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; }
+  .eta-top b { font: 700 22px var(--mono); font-variant-numeric: tabular-nums; }
+  .eta-track { height: 6px; border-radius: 3px; background: var(--line); margin: 10px 0 6px; overflow: hidden; }
+  .eta-fill { height: 100%; background: var(--brand); transform-origin: left; transform: scaleX(0); }
+  .eta small { color: var(--muted); font-size: 12px; }
+
+  .handover { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .screen { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .screen small { color: var(--muted); font-size: 12px; display: block; margin-bottom: 6px; }
+  .code { display: flex; gap: 5px; }
+  .code span { width: 28px; height: 36px; border-radius: 7px; display: grid; place-items: center; font: 700 18px var(--mono); background: var(--page); border: 1px solid var(--line); }
+  .code.typed span { opacity: 0; transform: translateY(3px); animation: rowIn 200ms var(--ease-out) forwards; }
+  .match { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--good-ink); opacity: 0; transition: opacity 250ms ease; }
+  .match.on { opacity: 1; }
+
+  /* Log */
+  .log h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; display: flex; justify-content: space-between; }
+  .log ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font: 12px/1.5 var(--mono); max-height: 270px; overflow-y: auto; }
+  .log li { display: grid; grid-template-columns: 62px 1fr; gap: 8px; color: var(--ink-2); padding: 2px 4px; border-radius: 4px; animation: rowIn 250ms var(--ease-out) forwards; opacity: 0; }
+  .log li.fresh { background: var(--brand-soft); color: var(--ink); }
+  .log time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .log .ev { color: var(--ink); font-weight: 700; }
+
+  /* Fallback */
+  .fallback { margin-top: 16px; padding: 16px 20px 18px; }
+  .fallback h3 { margin: 0 0 4px; font-size: 16px; }
+  .fallback p { margin: 0 0 12px; color: var(--ink-2); font-size: 14px; }
+  .ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; counter-reset: rung; }
+  .ladder li { position: relative; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 13px; color: var(--ink-2); counter-increment: rung; }
+  .ladder li b { display: block; color: var(--ink); font-size: 14px; margin-bottom: 2px; }
+  .ladder li b::before { content: counter(rung) " · "; color: var(--brand); }
+  .ladder li:not(:last-child)::after { content: "→"; position: absolute; right: -17px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .ladder li:last-child { border-color: var(--brand); }
+  .ladder code { font: 12px var(--mono); }
+  footer { margin-top: 14px; font-size: 12px; color: var(--muted); }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "map" "panel" "log"; }
+    .panel { min-height: 0; }
+    .rail { grid-template-columns: repeat(6, minmax(112px, 1fr)); margin-left: -20px; margin-right: -20px; padding: 0 20px; }
+    .ladder { grid-template-columns: 1fr; gap: 18px; }
+    .ladder li:not(:last-child)::after { content: "↓"; right: auto; left: 18px; top: auto; bottom: -18px; transform: none; }
+  }
+  @media (max-width: 560px) {
+    #map .street-name, .rider .why { display: none; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 18px 14px 36px; }
+    h1 { font-size: 19px; }
+    .rail { margin-left: -14px; margin-right: -14px; padding: 0 14px; }
+    .facts { grid-template-columns: repeat(2, 1fr); }
+    .handover { grid-template-columns: 1fr; }
+    .ctrl .hint { display: none; }
+    .filters li { grid-template-columns: 22px 54px 48px 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rider[data-s="offer"] .ring { animation: none; opacity: 0.8; }
+    .panel-body, .filters li, .score-row, .log li, .code.typed span { animation: fadeOnly 200ms ease forwards; transform: none; }
+    .bar .seg { animation: none; transform: none; }
+    @keyframes fadeOnly { from { opacity: 0; } to { opacity: 1; } }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="19" fill="var(--brand)"/>
+      <g fill="var(--card)">
+        <circle cx="16" cy="22" r="8"/>
+        <rect x="16" y="14" width="15" height="7" rx="3.5"/>
+      </g>
+      <circle cx="16" cy="22" r="3" fill="var(--brand)"/>
+    </svg>
+    <div>
+      <h1>How Cogwhistle assigns a delivery to a rider</h1>
+      <p class="sub">One sample order, <code>CW-48213</code>, from placement to the moment the bag leaves the counter. 12:31 to 12:36.</p>
+    </div>
+  </header>
+
+  <ol class="rail" id="rail"></ol>
+
+  <div class="grid">
+    <section class="card mapcard" aria-label="Map of the pickup area">
+      <svg id="map" viewBox="0 0 600 430" role="img" aria-labelledby="mapTitle">
+        <title id="mapTitle">Map around Pho Kim Bakery with nearby riders</title>
+        <g id="world">
+          <g class="blocks" id="blocks"></g>
+          <g id="streets"></g>
+          <g id="radiusG" class="fade" style="opacity:0">
+            <circle id="radius" class="radius" cx="300" cy="210" r="180"/>
+            <text class="radius-label" x="300" y="22" text-anchor="middle">2.5 km search radius</text>
+          </g>
+          <path id="route" class="route" d="M300 210 H390 V120"/>
+          <g id="ties"></g>
+          <circle id="fence" class="fence" cx="300" cy="210" r="5.4"/>
+          <text id="fenceLabel" class="fence-label" x="300" y="200" text-anchor="middle">75 m geofence</text>
+          <g id="pins"></g>
+          <g id="riders"></g>
+        </g>
+      </svg>
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:var(--brand);border-radius:50% 50% 50% 0;transform:rotate(-45deg)"></i>Pickup</span>
+        <span><i style="background:var(--ink);border-radius:50% 50% 50% 0;transform:rotate(-45deg)"></i>Drop-off</span>
+        <span><i style="background:var(--ink)"></i>Rider</span>
+        <span><i style="background:var(--muted)"></i>Filtered out</span>
+        <span><i style="background:var(--brand)"></i>Has the offer</span>
+        <span><i style="background:var(--good)"></i>Accepted</span>
+      </div>
+      <div class="ctrl">
+        <button id="prev" type="button">◀ Back</button>
+        <button id="next" type="button" class="primary">Next ▶</button>
+        <button id="play" type="button">▶ Play all</button>
+        <button id="again" type="button">↺ Replay step</button>
+        <span class="hint">← → keys work too</span>
+      </div>
+    </section>
+
+    <section class="card panel" id="panel" aria-live="polite"></section>
+
+    <section class="card log" aria-label="Dispatch event log">
+      <h3><span>Dispatch log</span><span id="logCount"></span></h3>
+      <ol id="log"></ol>
+    </section>
+  </div>
+
+  <section class="card fallback" aria-labelledby="fbTitle">
+    <h3 id="fbTitle">If nobody accepts</h3>
+    <p>The happy path above took 42 seconds. When riders keep missing the offer, dispatch escalates in this order.</p>
+    <ol class="ladder">
+      <li><b>Next in rank</b>Each rider gets one 30 s offer. A miss passes it to the next rider.</li>
+      <li><b>Widen to 4 km</b>After 3 misses, the radius grows and the shortlist and rank run again.</li>
+      <li><b>Tell the merchant</b>At 3 min unassigned, the merchant sees <code>Finding a rider</code>.</li>
+      <li><b>Human dispatcher</b>At 4 min unassigned, a dispatcher picks a rider by hand.</li>
+    </ol>
+  </section>
+
+  <footer>Cogwhistle is a fictional app. Riders, places, and numbers are made up for this example. Rider distances on the map are to scale.</footer>
+</div>
+
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+const PX_PER_KM = 72
+const PICKUP = { x: 300, y: 210 }
+const DROP = { x: 390, y: 120 }
+const WEIGHTS = [
+  { key: 'eta', label: 'Pickup ETA', w: 0.5, c: 'c1', score: r => 100 - 5 * r.eta, raw: r => `${r.eta} min to pickup` },
+  { key: 'fit', label: 'Route fit', w: 0.2, c: 'c2', score: r => 100 - 7.5 * r.fit, raw: r => r.fit ? `adds ${r.fit} min to her current drop` : 'empty bag, no detour' },
+  { key: 'fair', label: 'Fairness', w: 0.2, c: 'c3', score: r => Math.min(100, 6 * r.idle), raw: r => `idle ${r.idle} min` },
+  { key: 'rel', label: 'Reliability', w: 0.1, c: 'c4', score: r => r.rel, raw: r => `answers ${r.rel}% of offers` },
+]
+
+const RIDERS = [
+  { id: 'priya', name: 'Priya', x: 300, y: 239, cut: 'On break until 12:45', lx: 19, ly: 4 },
+  { id: 'ama', name: 'Ama', x: 343, y: 210, eta: 3, fit: 4, idle: 0, rel: 92, lx: 14, ly: 4 },
+  { id: 'theo', name: 'Theo', x: 221, y: 210, eta: 5, fit: 0, idle: 14, rel: 88, lx: -14, ly: 4, anchor: 'end' },
+  { id: 'sol', name: 'Sol', x: 330, y: 300, cut: 'Bag full, 3 of 3', lx: -14, ly: 4, anchor: 'end' },
+  { id: 'jun', name: 'Jun', x: 390, y: 300, eta: 8, fit: 0, idle: 3, rel: 95, lx: 14, ly: 4 },
+  { id: 'lena', name: 'Lena', x: 180, y: 120, cut: 'Shift ends 12:40', lx: -14, ly: 4, anchor: 'end' },
+  { id: 'marek', name: 'Marek', x: 480, y: 30, cut: 'Outside 2.5 km', lx: -14, ly: 4, anchor: 'end' },
+].map(r => {
+  const km = Math.hypot(r.x - PICKUP.x, r.y - PICKUP.y) / PX_PER_KM
+  const parts = r.eta == null ? null : WEIGHTS.map(w => ({ ...w, value: w.score(r), points: w.w * w.score(r) }))
+  const total = parts ? parts.reduce((s, p) => s + p.points, 0) : null
+  return { ...r, km, parts, total }
+})
+const byId = Object.fromEntries(RIDERS.map(r => [r.id, r]))
+const RANKED = RIDERS.filter(r => r.total != null).sort((a, b) => b.total - a.total)
+const fmt = n => Math.round(n).toString()
+
+const STATUSES = ['queued', 'matching', 'offered', 'assigned', 'at_pickup', 'picked_up']
+
+// Each log entry belongs to a step and a beat inside that step.
+// The latest visible entry sets the order status.
+const LOG = [
+  { step: 0, beat: 0, t: '12:31:04', ev: 'order.created', text: 'CW-48213 by Pho Kim Bakery', status: 'queued' },
+  { step: 0, beat: 0, t: '12:31:05', ev: 'order.quoted', text: '2.5 km · $8.40 · drop by 13:05' },
+  { step: 0, beat: 0, t: '12:31:05', ev: 'order.queued', text: 'ready 12:36, under 8 min, match now' },
+  { step: 1, beat: 0, t: '12:31:05', ev: 'match.started', text: 'radius 2.5 km', status: 'matching' },
+  { step: 1, beat: 1, t: '12:31:06', ev: 'match.shortlist', text: '7 riders seen, 3 pass' },
+  { step: 2, beat: 0, t: '12:31:06', ev: 'match.ranked', text: RANKED.map(r => `${r.name} ${fmt(r.total)}`).join(' · ') },
+  { step: 3, beat: 0, t: '12:31:07', ev: 'offer.sent', text: 'Theo, expires 12:31:37', status: 'offered' },
+  { step: 3, beat: 1, t: '12:31:37', ev: 'offer.expired', text: 'Theo, no answer' },
+  { step: 3, beat: 2, t: '12:31:38', ev: 'offer.sent', text: 'Ama, expires 12:32:08' },
+  { step: 3, beat: 3, t: '12:31:46', ev: 'offer.accepted', text: 'Ama after 8 s' },
+  { step: 3, beat: 3, t: '12:31:46', ev: 'order.assigned', text: 'rider Ama', status: 'assigned' },
+  { step: 4, beat: 0, t: '12:31:46', ev: 'notify.merchant', text: '"Ama arrives 12:35"' },
+  { step: 4, beat: 1, t: '12:34:52', ev: 'rider.arrived', text: 'inside 75 m geofence', status: 'at_pickup' },
+  { step: 5, beat: 0, t: '12:36:10', ev: 'handover.code', text: '4719 matched' },
+  { step: 5, beat: 0, t: '12:36:10', ev: 'order.picked_up', text: 'drop ETA 12:45', status: 'picked_up' },
+  { step: 5, beat: 0, t: '12:36:11', ev: 'notify.customer', text: 'live tracking link sent' },
+]
+
+const STEPS = [
+  {
+    rail: 'Order placed',
+    title: 'The bakery places an order',
+    lede: 'Pho Kim Bakery books a courier for one lunch bag. Cogwhistle prices it and puts it in the zone queue.',
+    rules: [
+      'The price uses the street route from pickup to drop.',
+      'Matching starts 8 min before the kitchen ready time.',
+      'This bag is ready in 5 min, so matching starts at once.',
+    ],
+  },
+  {
+    rail: 'Shortlist',
+    title: 'Find riders who can take it',
+    lede: 'Dispatch looks at every online rider nearby. Four hard filters remove anyone who cannot do the job.',
+    rules: [
+      'A rider must be on shift and not on break.',
+      'A rider must be within 2.5 km and have a free bag slot.',
+      'The shift must last past the estimated drop time.',
+    ],
+  },
+  {
+    rail: 'Rank',
+    title: 'Score who should go first',
+    lede: 'Each rider who passed gets a score out of 100. Speed to the counter counts most.',
+    rules: [
+      'Ama is closest, but she already carries a bag. This job adds 4 min to her drop.',
+      'Theo has waited 14 min for work. Fairness lifts him to first place.',
+    ],
+  },
+  {
+    rail: 'Offer',
+    title: 'Offer it to one rider at a time',
+    lede: 'The top rider gets 30 s to answer. If the timer runs out, the next rider in rank gets the offer.',
+    rules: [
+      'Only one rider sees the offer at a time. Two riders never race for one bag.',
+      'A timeout lowers the reliability score. A decline does not.',
+    ],
+  },
+  {
+    rail: 'Ride to pickup',
+    title: 'Ama rides to the counter',
+    lede: 'The order is now Ama’s. The bakery sees her name and arrival time.',
+    rules: [
+      'The app updates her ETA from GPS every 15 s.',
+      'If she stops for 3 min, dispatch messages her.',
+      'If she does not reply in 2 min, the order goes back to Rank.',
+    ],
+  },
+  {
+    rail: 'Pickup',
+    title: 'Handover at the counter',
+    lede: 'Ama is inside the geofence, so the app marks her as arrived. A short code proves she is the right rider.',
+    rules: [
+      'The bakery tablet shows a 4-digit code. Ama types it in her app.',
+      'A match marks the bag picked up and starts the delivery clock.',
+      'The customer gets a live tracking link at this moment.',
+    ],
+  },
+]
+
+// ---------- DOM helpers ----------
+const $ = s => document.querySelector(s)
+const NS = 'http://www.w3.org/2000/svg'
+const svg = (tag, attrs = {}, parent) => {
+  const el = document.createElementNS(NS, tag)
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
+  if (parent) parent.appendChild(el)
+  return el
+}
+const html = (s) => {
+  const t = document.createElement('template')
+  t.innerHTML = s.trim()
+  return t.content
+}
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+const wait = ms => new Promise(r => setTimeout(r, reduced ? Math.min(ms, 120) : ms))
+const tween = (ms, fn, ease = t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)) => new Promise(done => {
+  if (reduced) { fn(1); return done() }
+  const t0 = performance.now()
+  const frame = now => {
+    // The first rAF timestamp can be earlier than t0, so clamp at 0.
+    const p = Math.min(1, Math.max(0, (now - t0) / ms))
+    fn(ease(p))
+    p < 1 ? requestAnimationFrame(frame) : done()
+  }
+  requestAnimationFrame(frame)
+})
+
+// ---------- Map ----------
+const STREET_X = [30, 120, 210, 300, 390, 480, 570]
+const STREET_Y = [30, 120, 210, 300, 390]
+const blocks = $('#blocks')
+for (let i = 0; i < STREET_X.length - 1; i++)
+  for (let j = 0; j < STREET_Y.length - 1; j++)
+    svg('rect', { x: STREET_X[i] + 9, y: STREET_Y[j] + 9, width: 72, height: 72, rx: 6 }, blocks)
+const streets = $('#streets')
+for (const x of STREET_X) svg('line', { class: 'street', x1: x, y1: -10, x2: x, y2: 440 }, streets)
+for (const y of STREET_Y) svg('line', { class: 'street', x1: -10, y1: y, x2: 610, y2: y }, streets)
+const names = [
+  { x: 303, y: 412, t: 'Larkspur Ave', rot: -90 },
+  { x: 528, y: 206, t: 'Mill St' },
+  { x: 393, y: 412, t: 'Fennel St', rot: -90 },
+]
+for (const n of names) {
+  const t = svg('text', { class: 'street-name', x: n.x, y: n.y }, streets)
+  if (n.rot) t.setAttribute('transform', `rotate(${n.rot} ${n.x} ${n.y})`)
+  t.textContent = n.t
+}
+
+const pins = $('#pins')
+const pinShape = 'M0 0 C-3 -6 -10 -10 -10 -17 A10 10 0 1 1 10 -17 C10 -10 3 -6 0 0 Z'
+const makePin = (p, cls, label, small, lx, ly, anchor) => {
+  const outer = svg('g', { transform: `translate(${p.x} ${p.y})` }, pins)
+  const g = svg('g', { class: `pin ${cls}` }, outer)
+  svg('path', { class: 'head', d: pinShape }, g)
+  svg('circle', { class: 'core', cx: 0, cy: -17, r: 4 }, g)
+  const done = svg('g', { class: 'done', transform: 'translate(9 -27)' }, g)
+  svg('circle', { r: 7 }, done)
+  svg('path', { d: 'M-3 0 L-1 2.5 L3.2 -2.5' }, done)
+  const a = svg('text', { x: lx, y: ly, 'text-anchor': anchor }, g); a.textContent = label
+  const b = svg('text', { class: 'small', x: lx, y: ly + 12, 'text-anchor': anchor }, g); b.textContent = small
+  return { outer, g }
+}
+const pickupPin = makePin(PICKUP, 'pick', 'Pho Kim Bakery', '512 Larkspur Ave', -12, 20, 'end')
+const dropPin = makePin(DROP, 'drop', 'Ines M.', '88 Fennel St', 14, -20, 'start')
+
+const riderLayer = $('#riders')
+const riderEls = {}
+for (const r of RIDERS) {
+  const outer = svg('g', { transform: `translate(${r.x} ${r.y})` }, riderLayer)
+  const g = svg('g', { class: 'rider fade', 'data-s': 'hidden' }, outer)
+  svg('circle', { class: 'ring', r: 11 }, g)
+  svg('circle', { class: 'dot', r: 10 }, g)
+  const ini = svg('text', { class: 'ini' }, g); ini.textContent = r.name[0]
+  const name = svg('text', { class: 'name', x: r.lx, y: r.ly - 6, 'text-anchor': r.anchor || 'start' }, g)
+  name.textContent = `${r.name} · ${r.km.toFixed(1)} km`
+  const why = svg('text', { class: 'why', x: r.lx, y: r.ly + 7, 'text-anchor': r.anchor || 'start' }, g)
+  why.textContent = r.cut || ''
+  const badge = svg('g', { class: 'badge', transform: 'translate(0 -22)' }, g)
+  svg('rect', { x: -13, y: -8, width: 26, height: 16, rx: 5 }, badge)
+  const bt = svg('text', {}, badge); bt.textContent = r.total != null ? fmt(r.total) : ''
+  const check = svg('g', { class: 'check', transform: 'translate(9 -9)' }, g)
+  svg('circle', { r: 6.5 }, check)
+  svg('path', { d: 'M-3 0 L-1 2.5 L3.2 -2.5' }, check)
+  const cross = svg('g', { class: 'cross', transform: 'translate(9 -9)' }, g)
+  svg('circle', { r: 6 }, cross)
+  svg('path', { d: 'M-2.3 -2.3 L2.3 2.3 M2.3 -2.3 L-2.3 2.3' }, cross)
+  riderEls[r.id] = { outer, g, name }
+}
+const setRiderName = (id, text) => { riderEls[id].name.textContent = text }
+
+const ties = $('#ties')
+const tieEls = {}
+for (const r of RANKED) tieEls[r.id] = svg('line', { class: 'tie', x1: r.x, y1: r.y, x2: PICKUP.x, y2: PICKUP.y }, ties)
+
+// Camera: zoom keeps markers the same screen size.
+// Narrow screens crop the empty edges and draw markers larger.
+const map = $('#map')
+const narrow = matchMedia('(max-width: 560px)')
+const cams = () => narrow.matches
+  ? { full: { x: 60, y: 0, w: 480, h: 430 }, zoom: { x: 255, y: 160, w: 120, h: 107.5 }, marker: 1.3 }
+  : { full: { x: 0, y: 0, w: 600, h: 430 }, zoom: { x: 240, y: 165, w: 150, h: 107.5 }, marker: 1 }
+const camera = { ...cams().full }
+const setCamera = c => {
+  Object.assign(camera, c)
+  map.setAttribute('viewBox', `${c.x} ${c.y} ${c.w} ${c.h}`)
+  const { full, marker } = cams()
+  const k = (c.w / full.w) * marker
+  for (const r of RIDERS) riderEls[r.id].g.setAttribute('transform', `scale(${k})`)
+  pickupPin.g.setAttribute('transform', `scale(${k})`)
+  dropPin.g.setAttribute('transform', `scale(${k})`)
+  // The fence label sits outside the marker groups, so size it to match them.
+  const fl = $('#fenceLabel')
+  fl.style.opacity = c.w < full.w / 2 ? '' : '0'
+  fl.style.fontSize = `${11 * k}px`
+  fl.setAttribute('y', PICKUP.y - 31 * k)
+}
+const moveCamera = (to, ms) => {
+  const from = { ...camera }
+  return tween(ms, p => setCamera({
+    x: from.x + (to.x - from.x) * p,
+    y: from.y + (to.y - from.y) * p,
+    w: from.w + (to.w - from.w) * p,
+    h: from.h + (to.h - from.h) * p,
+  }))
+}
+const placeRider = (id, x, y) => riderEls[id].outer.setAttribute('transform', `translate(${x} ${y})`)
+const setRider = (id, s) => riderEls[id].g.setAttribute('data-s', s)
+
+// ---------- Scenes ----------
+// paintScene draws the settled end state of a step, so Back and jumps are instant.
+const paintScene = step => {
+  setCamera(step === 4 ? cams().zoom : cams().full)
+  $('#radius').setAttribute('r', 180)
+  $('#radiusG').style.opacity = step >= 1 && step <= 3 ? '1' : '0'
+  setRiderName('ama', step >= 4 ? 'Ama' : `Ama · ${byId.ama.km.toFixed(1)} km`)
+  $('#route').classList.toggle('live', step >= 5)
+  $('#fence').classList.toggle('on', step >= 4)
+  $('#fenceLabel').classList.toggle('on', step >= 4)
+  pickupPin.g.classList.toggle('ok', step >= 5)
+  placeRider('ama', step >= 4 ? PICKUP.x + 4 : byId.ama.x, step >= 4 ? PICKUP.y + 4 : byId.ama.y)
+  for (const r of RIDERS) {
+    let s = 'hidden'
+    if (step === 1) s = r.cut ? (r.km > 2.5 ? 'out' : 'cut') : 'idle'
+    if (step === 2) s = r.cut ? 'dim' : 'ranked'
+    if (step === 3) s = r.cut ? 'dim' : r.id === 'ama' ? 'won' : r.id === 'theo' ? 'missed' : 'ranked'
+    if (step === 4) s = r.id === 'ama' ? 'won' : 'hidden'
+    if (step === 5) s = r.id === 'ama' ? 'idle' : 'hidden'
+    setRider(r.id, s)
+  }
+  for (const [id, el] of Object.entries(tieEls)) el.classList.toggle('on', step === 2 || (step === 3 && id === 'ama'))
+}
+
+// ---------- Panel views ----------
+const statusRow = status => {
+  const i = STATUSES.indexOf(status)
+  return `<div class="status" aria-label="Order status ${status}">${STATUSES.map((s, j) =>
+    `<span class="${j < i ? 'past' : j === i ? 'now' : ''}">${s}</span>`).join('')}</div>`
+}
+
+const views = [
+  () => `
+    <div class="ticket">
+      <div class="leg"><i></i><div><b>Pho Kim Bakery</b><small>512 Larkspur Ave · counter pickup</small></div><em>ready 12:36</em></div>
+      <div class="leg drop"><i></i><div><b>Ines Moreau</b><small>88 Fennel St · apt 3B</small></div><em>by 13:05</em></div>
+      <div class="facts">
+        <div><strong>S</strong>bag size</div>
+        <div><strong>2.1 kg</strong>weight</div>
+        <div><strong>2.5 km</strong>by street</div>
+        <div><strong>$8.40</strong>rider pay</div>
+      </div>
+    </div>`,
+  () => `
+    <ul class="filters">${[...RIDERS].sort((a, b) => a.km - b.km).map((r, i) => `
+      <li class="${r.cut ? '' : 'pass'}" style="animation-delay:${i * 50}ms">
+        <span class="mk ${r.cut ? 'no' : 'ok'}" aria-hidden="true">${r.cut ? '✕' : '✓'}</span>
+        <span>${r.name}</span>
+        <span class="km">${r.km.toFixed(1)} km</span>
+        <span class="why">${r.cut || 'Passes all filters'}</span>
+      </li>`).join('')}
+    </ul>`,
+  () => `
+    <div class="keys">${WEIGHTS.map(w => `<span><i class="${w.c}"></i>${w.label} ${w.w * 100}%</span>`).join('')}</div>
+    <div class="scores">${RANKED.map((r, i) => `
+      <div class="score-row" style="animation-delay:${i * 60}ms">
+        <div class="who">${i + 1}. ${r.name}<small>${r.km.toFixed(1)} km</small></div>
+        <div class="bar">${r.parts.map(p => `
+          <span class="seg ${p.c}" tabindex="0" aria-label="${p.label}: ${p.points.toFixed(1)} points" style="width:${p.points}%;animation-delay:${i * 60 + 80}ms"
+            data-tip="<b>${p.label}</b>: ${p.raw(r)}<br>${fmt(p.value)} × ${p.w} = <b>${p.points.toFixed(1)}</b> pts"></span>`).join('')}
+        </div>
+        <div class="tot">${fmt(r.total)}</div>
+      </div>`).join('')}
+    </div>
+    <details class="table"><summary>Show the numbers</summary>
+      <table>
+        <thead><tr><th>Rider</th><th>ETA</th><th>Detour</th><th>Idle</th><th>Answers</th><th>Score</th></tr></thead>
+        <tbody>${RANKED.map(r => `<tr><td>${r.name}</td><td>${r.eta} min</td><td>${r.fit} min</td><td>${r.idle} min</td><td>${r.rel}%</td><td><b>${r.total.toFixed(1)}</b></td></tr>`).join('')}</tbody>
+      </table>
+    </details>`,
+  () => `
+    <div class="phone">
+      <div class="to"><span>Rider app · offer to <b id="offerTo">Theo</b></span><span>1 of 3 in rank</span></div>
+      <div class="clock">
+        <svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="27"/><circle class="left" id="clockArc" cx="32" cy="32" r="27" pathLength="100" stroke-dasharray="100 100" stroke-dashoffset="0"/></svg>
+        <span id="clockNum">30</span>
+      </div>
+      <div class="offer">
+        <b>New pickup · $8.40</b>
+        <small>Pho Kim Bakery · <span id="offerKm">1.1</span> km away</small>
+        <small>Drop 88 Fennel St by 13:05</small>
+        <div class="btns"><span>Decline</span><span class="acc" id="acceptBtn">Accept</span></div>
+      </div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="queue" id="queue">${RANKED.map(r => `<span data-id="${r.id}">${r.name} ${fmt(r.total)}</span>`).join('')}</div>`,
+  () => `
+    <div class="eta">
+      <div class="eta-top"><span>Bakery tablet: <b id="etaHead" style="font:inherit;font-weight:600">Ama is on her way</b></span><b id="etaNum">3:06</b></div>
+      <div class="eta-track"><div class="eta-fill" id="etaFill"></div></div>
+      <small id="etaNote">Assigned 12:31:46 · arrives about 12:35</small>
+    </div>`,
+  () => `
+    <div class="handover">
+      <div class="screen"><small>Bakery tablet shows</small><div class="code"><span>4</span><span>7</span><span>1</span><span>9</span></div></div>
+      <div class="screen"><small>Ama types</small><div class="code typed" id="typed"></div></div>
+      <div class="match" id="match">✓ Code matches. Bag CW-48213 picked up at 12:36:10.</div>
+    </div>`,
+]
+
+// ---------- Log ----------
+const logEl = $('#log')
+// LOG is ordered, so the visible entries are always a prefix of it.
+// quiet=true syncs the list without entry animation or highlight.
+const renderLog = (step, beat, quiet = false) => {
+  const visible = LOG.filter(e => e.step < step || (e.step === step && e.beat <= beat))
+  if (visible.length < logEl.children.length) logEl.innerHTML = ''
+  const start = logEl.children.length
+  for (const li of logEl.children) li.classList.remove('fresh')
+  visible.slice(start).forEach((e, i) => {
+    const li = document.createElement('li')
+    li.innerHTML = `<time>${e.t}</time><span><span class="ev">${e.ev}</span> ${e.text}</span>`
+    if (quiet) li.style.cssText = 'animation:none;opacity:1'
+    else { li.style.animationDelay = `${i * 60}ms`; li.classList.add('fresh') }
+    logEl.appendChild(li)
+  })
+  logEl.scrollTop = logEl.scrollHeight
+  $('#logCount').textContent = `${visible.length} events`
+  const status = [...visible].reverse().find(e => e.status)?.status ?? 'queued'
+  const row = document.querySelector('#panel .status')
+  if (row) row.outerHTML = statusRow(status)
+  return status
+}
+
+// ---------- Step animations ----------
+// Each returns when the step has finished playing. `live()` turns false if the user moves on.
+const animations = [
+  async () => {},
+  async live => {
+    const c = $('#radius')
+    c.setAttribute('r', 0)
+    $('#radiusG').style.opacity = '1'
+    await tween(700, p => c.setAttribute('r', 180 * p), t => 1 - (1 - t) ** 3)
+    if (!live()) return
+    for (const r of [...RIDERS].sort((a, b) => a.km - b.km)) {
+      setRider(r.id, 'idle')
+      await wait(90); if (!live()) return
+    }
+    await wait(500); if (!live()) return
+    for (const r of RIDERS) if (r.cut) setRider(r.id, r.km > 2.5 ? 'out' : 'cut')
+    beat(1)
+  },
+  async live => {
+    for (const r of RIDERS) if (r.cut) setRider(r.id, 'dim')
+    for (const r of RANKED) {
+      setRider(r.id, 'ranked')
+      tieEls[r.id].classList.add('on')
+      await wait(160); if (!live()) return
+    }
+  },
+  async live => {
+    for (const r of RIDERS) setRider(r.id, r.cut ? 'dim' : 'ranked')
+    for (const el of Object.values(tieEls)) el.classList.remove('on')
+    const q = id => document.querySelector(`#queue [data-id="${id}"]`)
+    const arc = $('#clockArc'), num = $('#clockNum'), verdict = $('#verdict')
+    // 30 s offer timer plays at 15x speed.
+    const countdown = async (from, to) => {
+      const ms = (from - to) * 1000 / 15
+      await tween(ms, p => {
+        const left = from - (from - to) * p
+        num.textContent = Math.ceil(left)
+        arc.setAttribute('stroke-dashoffset', String(100 - (left / 30) * 100))
+      }, t => t)
+    }
+    const offerTo = id => {
+      $('#offerTo').textContent = byId[id].name
+      $('#offerKm').textContent = byId[id].km.toFixed(1)
+      document.querySelector('.phone .to span:last-child').textContent = `${RANKED.findIndex(r => r.id === id) + 1} of 3 in rank`
+      q(id).classList.add('now')
+      setRider(id, 'offer')
+      tieEls[id].classList.add('on')
+    }
+    offerTo('theo')
+    await countdown(30, 0); if (!live()) return
+    verdict.className = 'verdict miss'; verdict.textContent = 'No answer from Theo. The offer moves on.'
+    setRider('theo', 'missed'); tieEls.theo.classList.remove('on')
+    q('theo').classList.replace('now', 'gone')
+    beat(1)
+    await wait(1100); if (!live()) return
+    verdict.textContent = ''
+    num.textContent = '30'; arc.setAttribute('stroke-dashoffset', '0')
+    offerTo('ama'); beat(2)
+    await wait(300); if (!live()) return
+    await countdown(30, 22); if (!live()) return
+    $('#acceptBtn').classList.add('pressed')
+    verdict.className = 'verdict win'; verdict.textContent = 'Ama accepts with 22 s left.'
+    q('ama').classList.replace('now', 'yes')
+    setRider('ama', 'won')
+    beat(3)
+  },
+  async live => {
+    setCamera(cams().full)
+    for (const r of RIDERS) setRider(r.id, r.id === 'ama' ? 'won' : 'dim')
+    placeRider('ama', byId.ama.x, byId.ama.y)
+    setRiderName('ama', 'Ama')
+    $('#radiusG').style.opacity = '0'
+    $('#fence').classList.remove('on'); $('#fenceLabel').classList.remove('on')
+    await moveCamera(cams().zoom, 900); if (!live()) return
+    for (const r of RIDERS) if (r.id !== 'ama') setRider(r.id, 'hidden')
+    $('#fence').classList.add('on'); $('#fenceLabel').classList.add('on')
+    await wait(300); if (!live()) return
+    const from = byId.ama, to = { x: PICKUP.x + 4, y: PICKUP.y + 4 }
+    const total = 186 // seconds of ride, 3:06
+    const fill = $('#etaFill'), etaNum = $('#etaNum')
+    await tween(2600, p => {
+      placeRider('ama', from.x + (to.x - from.x) * p, from.y + (to.y - from.y) * p)
+      fill.style.transform = `scaleX(${p})`
+      const left = Math.round(total * (1 - p))
+      etaNum.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
+    })
+    if (!live()) return
+    $('#etaHead').textContent = 'Ama is at the counter'
+    $('#etaNote').textContent = 'Arrived 12:34:52 · inside the 75 m geofence'
+    beat(1)
+  },
+  async live => {
+    const typed = $('#typed')
+    for (const [i, d] of ['4', '7', '1', '9'].entries()) {
+      await wait(i ? 260 : 300); if (!live()) return
+      const s = document.createElement('span'); s.textContent = d; typed.appendChild(s)
+    }
+    await wait(300); if (!live()) return
+    $('#match').classList.add('on')
+    pickupPin.g.classList.add('ok')
+    setRider('ama', 'idle')
+    $('#route').classList.add('live')
+    beat(0)
+    await moveCamera(cams().full, 900)
+  },
+]
+
+// ---------- Controller ----------
+let current = 0
+let run = 0
+let playing = false
+let curBeat = 0
+const beat = b => { curBeat = b; renderLog(current, b) }
+
+const rail = $('#rail')
+STEPS.forEach((s, i) => {
+  const li = document.createElement('li')
+  li.innerHTML = `<button type="button"><b>STEP ${i + 1}</b>${s.rail}</button>`
+  li.firstChild.addEventListener('click', () => { stopPlay(); go(i, true) })
+  rail.appendChild(li)
+})
+
+const renderPanel = i => {
+  const s = STEPS[i]
+  $('#panel').innerHTML = `
+    <div class="panel-body">
+      <p class="kicker">Step ${i + 1} of ${STEPS.length}</p>
+      <h2>${s.title}</h2>
+      <p class="lede">${s.lede}</p>
+      ${statusRow('queued')}
+      ${views[i]()}
+      <ul class="rules">${s.rules.map(r => `<li>${r}</li>`).join('')}</ul>
+    </div>`
+}
+
+const settledPanel = i => {
+  // Fill the panel's dynamic parts with their end state.
+  if (i === 3) {
+    $('#offerTo').textContent = 'Ama'
+    $('#offerKm').textContent = byId.ama.km.toFixed(1)
+    document.querySelector('.phone .to span:last-child').textContent = '2 of 3 in rank'
+    $('#clockNum').textContent = '22'
+    $('#clockArc').setAttribute('stroke-dashoffset', String(100 - (22 / 30) * 100))
+    $('#acceptBtn').classList.add('pressed')
+    const v = $('#verdict'); v.className = 'verdict win'; v.textContent = 'Ama accepts with 22 s left.'
+    document.querySelector('#queue [data-id="theo"]').classList.add('gone')
+    document.querySelector('#queue [data-id="ama"]').classList.add('yes')
+  }
+  if (i === 4) {
+    $('#etaFill').style.transform = 'scaleX(1)'
+    $('#etaNum').textContent = '0:00'
+    $('#etaHead').textContent = 'Ama is at the counter'
+    $('#etaNote').textContent = 'Arrived 12:34:52 · inside the 75 m geofence'
+  }
+  if (i === 5) {
+    $('#typed').innerHTML = '<span>4</span><span>7</span><span>1</span><span>9</span>'
+    $('#match').classList.add('on')
+  }
+}
+
+const lastBeat = i => Math.max(...LOG.filter(e => e.step === i).map(e => e.beat))
+
+// animate=false paints the end state at once (used for Back).
+const go = async (i, animate) => {
+  current = Math.max(0, Math.min(STEPS.length - 1, i))
+  const my = ++run
+  const live = () => my === run
+  const buttons = [...rail.querySelectorAll('button')]
+  buttons.forEach((b, j) => {
+    j === current ? b.setAttribute('aria-current', 'step') : b.removeAttribute('aria-current')
+    b.dataset.state = j < current ? 'done' : ''
+  })
+  // Scroll the rail sideways only, so the page itself never jumps.
+  rail.scrollTo({ left: buttons[current].parentElement.offsetLeft - 20, behavior: reduced ? 'auto' : 'smooth' })
+  $('#prev').disabled = current === 0
+  $('#next').disabled = current === STEPS.length - 1
+  renderPanel(current)
+  if (!animate) {
+    paintScene(current)
+    settledPanel(current)
+    renderLog(current, lastBeat(current), true)
+    return
+  }
+  paintScene(Math.max(0, current - 1))
+  renderLog(current - 1, 99, true)
+  beat(0)
+  await animations[current](live)
+}
+// A resize across the breakpoint reframes the map and leaves playback alone.
+narrow.addEventListener('change', () => setCamera(current === 4 ? cams().zoom : cams().full))
+
+const stopPlay = () => { playing = false; $('#play').textContent = '▶ Play all' }
+const playAll = async () => {
+  playing = true
+  $('#play').textContent = '❚❚ Pause'
+  let i = current === STEPS.length - 1 ? 0 : current
+  while (playing) {
+    const my = run + 1
+    await go(i, true)
+    if (!playing || run !== my) return
+    await wait(2200)
+    if (!playing || run !== my) return
+    if (i === STEPS.length - 1) return stopPlay()
+    i++
+  }
+}
+
+$('#prev').addEventListener('click', () => { stopPlay(); go(current - 1, false) })
+$('#next').addEventListener('click', () => { stopPlay(); go(current + 1, true) })
+$('#again').addEventListener('click', () => { stopPlay(); go(current, true) })
+// Pause lets the current step finish, then stops before the next one.
+$('#play').addEventListener('click', () => (playing ? stopPlay() : playAll()))
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, select, summary')) return
+  if (e.key === 'ArrowRight') { stopPlay(); go(current + 1, true) }
+  if (e.key === 'ArrowLeft') { stopPlay(); go(current - 1, false) }
+})
+
+// Tooltip for score segments: hover or keyboard focus.
+const tip = $('#tip')
+const showTip = el => {
+  tip.innerHTML = el.dataset.tip
+  const b = el.getBoundingClientRect()
+  tip.classList.add('on')
+  const tw = tip.offsetWidth, th = tip.offsetHeight
+  tip.style.left = `${Math.max(8, Math.min(innerWidth - tw - 8, b.left + b.width / 2 - tw / 2))}px`
+  tip.style.top = `${b.top - th - 8 < 8 ? b.bottom + 8 : b.top - th - 8}px`
+}
+const hideTip = () => tip.classList.remove('on')
+document.addEventListener('pointerover', e => { const s = e.target.closest('[data-tip]'); s ? showTip(s) : hideTip() })
+document.addEventListener('focusin', e => { const s = e.target.closest('[data-tip]'); s ? showTip(s) : hideTip() })
+document.addEventListener('scroll', hideTip, { passive: true })
+
+go(0, true)
+</script>
+</body>
+</html>

@@ -84,6 +84,29 @@
       "sourceUrl": "https://github.com/emilkowalski/skills/blob/main/skills/emil-design-eng/SKILL.md"
     },
     {
+      "owner": "humanlayer",
+      "repo": "skills",
+      "name": "show-me",
+      "prompt": "Show me how Cogwhistle, a fictional bike-courier dispatch app, assigns a new delivery to a rider, from order to pickup. Write it as one focused HTML file named flow.html in this folder, with all CSS and JavaScript inline.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "bba9d13ab34f0a87f1cc33df4dd196372393ddfc",
+      "recordedAt": "2026-10-06",
+      "outputFile": "flow.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 1060,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Show me how Cogwhistle, a fictional bike-courier dispatch app, assigns a new delivery to a rider, from order to pickup. "
+        }
+      ],
+      "authorName": "HumanLayer",
+      "sourceUrl": "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
+    },
+    {
       "owner": "jakubkrehel",
       "repo": "make-interfaces-feel-better",
       "name": "make-interfaces-feel-better",

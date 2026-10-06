@@ -39,6 +39,18 @@ describe('presentSkillDemo', () => {
   })
 })
 
+describe('presentSkillDemo for a video Skill', () => {
+  it('serves the video and its poster, and offers no live page without one', () => {
+    const view = presentSkillDemo(demo({
+      outputFile: undefined,
+      video: { file: 'video.mp4', poster: 'poster.jpg', width: 1280, height: 720, durationSeconds: 14.2 },
+    }), null)
+    expect(view.liveUrl).toBeNull()
+    expect(view.video?.src).toBe('/demos/anthropics/skills/frontend-design/video.mp4')
+    expect(view.video?.poster).toBe('/demos/anthropics/skills/frontend-design/poster.jpg')
+  })
+})
+
 describe('findSkillDemo', () => {
   it('matches a Skill whatever the URL casing, as GitHub does', () => {
     expect(findSkillDemo('Anthropics', 'Skills', 'Frontend-Design', [demo()])?.name).toBe('frontend-design')

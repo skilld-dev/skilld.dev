@@ -2,27 +2,36 @@
  * Records one demo (GLOSSARY "demo") and writes it into the repository.
  *
  *   pnpm demo:record owner/repo/skill --prompt "Build ... Save it as index.html." --output index.html
+ *   pnpm demo:record owner/repo/skill --prompt "Make ... Render it as film.mp4." --output film.mp4
+ *   pnpm demo:record owner/repo/skill --prompt "..." --output launch.mp4 --seed ./site --setup "The folder held ..."
  *   pnpm demo:record owner/repo/skill --reshoot
  *
- * `--reshoot` retakes the screenshots of a recorded demo from its kept output
- * page, without running the Agent again.
- *
  * 1. Reads the Skill's current source commit from the public API.
- * 2. Runs Claude Code headless in an empty temp folder: it loads the Skill with
- *    `npx skilld run`, then gets the prompt word for word.
- * 3. Screenshots the whole output page at desktop width, and at phone width
- *    when the page fits a phone. The Skill page shows each in a scrolling frame.
- * 4. Copies the screenshots to `public/demos/`, the page to the registry's
+ * 2. Runs Claude Code headless in a fresh temp folder: it loads the Skill with
+ *    `npx skilld run`, then gets the prompt word for word. `--seed` copies a
+ *    folder in first, and `--setup` says so on the demo.
+ * 3. An HTML output gets full-page screenshots at desktop width, and at phone
+ *    width when the page fits a phone. An MP4 output is re-encoded small and
+ *    gets a poster frame.
+ * 4. Copies the media to `public/demos/`, an HTML page to the registry's
  *    `server/demos/`, and upserts the entry in `server/data/skill-demos.json`.
+ *
+ * A page Skill gets only Read, Write and Edit. A video Skill has to run its
+ * renderer, so its Bash runs in the Claude Code sandbox: writes stay in the temp
+ * folder, secrets stay unreadable, and the network reaches only package and
+ * code hosts. Third-party Skill text never gets an open shell on this machine.
+ *
+ * `--reshoot` retakes the screenshots of a page demo from its kept output,
+ * without running the Agent again.
  *
  * It writes nothing to production. Opening a pull request with the result is
  * the review step: a human approves each demo by merging it.
  */
 
 import { execFile } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
+import { extname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs, promisify } from 'node:util'
@@ -36,14 +45,41 @@ const OUTPUT_DIR = join(ROOT, 'layers/registry/server/demos')
 const SHOT_DIR = join(ROOT, 'public/demos')
 const API = 'https://skilld.dev/api/v1/skills'
 const RECORD_TIMEOUT_MS = 20 * 60 * 1000
+/** Rendering a film takes far longer than writing a page. */
+const VIDEO_RECORD_TIMEOUT_MS = 60 * 60 * 1000
 
 /** Taller pages are cut here, so one shot stays a few hundred kilobytes. */
 const MAX_SHOT_HEIGHT = 6000
+/** The web copy of a video: 720p, so a 15 second clip stays near a megabyte or two. */
+const VIDEO_MAX_HEIGHT = 720
+const VIDEO_WARN_BYTES = 8 * 1024 * 1024
 
 const VIEWPORTS = [
   { viewport: 'desktop', width: 1440, height: 900 },
   { viewport: 'mobile', width: 390, height: 844 },
 ] as const
+
+/** Hosts a video Skill may reach from its sandboxed shell: packages, code, fonts, browsers. */
+const SANDBOX_DOMAINS = [
+  'skilld.dev',
+  '*.skilld.dev',
+  'registry.npmjs.org',
+  '*.npmjs.org',
+  'github.com',
+  '*.github.com',
+  '*.githubusercontent.com',
+  'codeload.github.com',
+  'cdn.jsdelivr.net',
+  'unpkg.com',
+  'esm.sh',
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'storage.googleapis.com',
+  '*.googleapis.com',
+]
+
+/** Paths no Skill command may read, even inside the sandbox. */
+const SECRET_PATHS = ['~/.ssh', '~/.aws', '~/.config', '~/.gnupg', '~/.netrc', '~/.npmrc', '~/.docker', '~/.kube', '~/.local/share', '~/sites', '~/pkg']
 
 interface Shot {
   file: string
@@ -53,6 +89,14 @@ interface Shot {
   viewport: 'desktop' | 'mobile'
 }
 
+interface Video {
+  file: string
+  poster: string
+  width: number
+  height: number
+  durationSeconds: number
+}
+
 interface DemoEntry {
   owner: string
   repo: string
@@ -60,17 +104,21 @@ interface DemoEntry {
   authorName: string | null
   sourceUrl: string
   prompt: string
+  setup?: string
   agent: string
   agentVersion: string
   model: string
   skillCommit: string
   recordedAt: string
-  outputFile: string
+  outputFile?: string
+  video?: Video
   shots: Shot[]
 }
 
+type OutputKind = 'page' | 'video'
+
 type Parsed
-  = | { _tag: 'record', owner: string, repo: string, name: string, prompt: string, output: string }
+  = | { _tag: 'record', owner: string, repo: string, name: string, prompt: string, output: string, kind: OutputKind, seed: string | null, setup: string | null }
     | { _tag: 'reshoot', owner: string, repo: string, name: string }
     | { _tag: 'usage', message: string }
 
@@ -78,7 +126,13 @@ function parseInput(argv: string[]): Parsed {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
-    options: { prompt: { type: 'string' }, output: { type: 'string', default: 'index.html' }, reshoot: { type: 'boolean', default: false } },
+    options: {
+      prompt: { type: 'string' },
+      output: { type: 'string', default: 'index.html' },
+      seed: { type: 'string' },
+      setup: { type: 'string' },
+      reshoot: { type: 'boolean', default: false },
+    },
   })
   const [ref] = positionals
   const parts = ref?.split('/') ?? []
@@ -89,9 +143,12 @@ function parseInput(argv: string[]): Parsed {
     return { _tag: 'reshoot', owner, repo, name }
   if (!values.prompt)
     return { _tag: 'usage', message: 'Give the prompt with --prompt.' }
-  if (!/^[\w-]+\.html$/.test(values.output))
-    return { _tag: 'usage', message: 'The --output file must be one HTML file name, such as index.html.' }
-  return { _tag: 'record', owner, repo, name, prompt: values.prompt, output: values.output }
+  const kind: OutputKind | null = /^[\w-]+\.html$/.test(values.output) ? 'page' : /^[\w-]+\.mp4$/.test(values.output) ? 'video' : null
+  if (!kind)
+    return { _tag: 'usage', message: 'The --output file must be one HTML or MP4 file name, such as index.html or film.mp4.' }
+  if (values.seed && !values.setup)
+    return { _tag: 'usage', message: 'A --seed folder needs a --setup line that tells visitors what the folder held.' }
+  return { _tag: 'record', owner, repo, name, prompt: values.prompt, output: values.output, kind, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null }
 }
 
 interface SkillSource {
@@ -116,8 +173,32 @@ async function skillSource(owner: string, repo: string, name: string): Promise<S
   }
 }
 
-async function record(cwd: string, skillRef: string, prompt: string): Promise<{ model: string, version: string }> {
+function sandboxSettings(): string {
+  const home = homedir()
+  const expand = (path: string) => path.replace(/^~/, home)
+  return JSON.stringify({
+    sandbox: {
+      enabled: true,
+      autoAllowBashIfSandboxed: true,
+      allowUnsandboxedCommands: false,
+      filesystem: {
+        // The temp folder is the working directory; renderers cache browsers here too.
+        allowWrite: ['.', '~/.npm', '~/.cache/puppeteer', '~/.cache/ms-playwright'],
+        denyRead: SECRET_PATHS,
+      },
+      network: { allowedDomains: SANDBOX_DOMAINS },
+    },
+    permissions: {
+      deny: SECRET_PATHS.flatMap(path => [`Read(${expand(path)}/**)`, `Edit(${expand(path)}/**)`]),
+    },
+  })
+}
+
+async function record(cwd: string, skillRef: string, prompt: string, kind: OutputKind): Promise<{ model: string, version: string }> {
   const instruction = `First run \`npx skilld run ${skillRef}\` and follow the Skill it prints. Then do this task in the current folder:\n\n${prompt}`
+  const access = kind === 'video'
+    ? ['--settings', sandboxSettings(), '--allowedTools', 'Bash,Read,Write,Edit']
+    : ['--allowedTools', `Bash(npx skilld run ${skillRef}),Read,Write,Edit`]
   const { stdout } = await run('claude', [
     '-p',
     instruction,
@@ -125,9 +206,8 @@ async function record(cwd: string, skillRef: string, prompt: string): Promise<{ 
     'json',
     '--permission-mode',
     'acceptEdits',
-    '--allowedTools',
-    `Bash(npx skilld run ${skillRef}),Read,Write,Edit`,
-  ], { cwd, timeout: RECORD_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 })
+    ...access,
+  ], { cwd, timeout: kind === 'video' ? VIDEO_RECORD_TIMEOUT_MS : RECORD_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 })
   const result = JSON.parse(stdout) as { is_error?: boolean, result?: string, modelUsage?: Record<string, unknown> }
   if (result.is_error)
     throw new Error(`Claude Code reported an error: ${result.result ?? 'no message'}`)
@@ -181,7 +261,84 @@ async function screenshot(page: string, dir: string, prompt: string): Promise<Sh
   return shots
 }
 
+async function probe(file: string): Promise<{ width: number, height: number, durationSeconds: number }> {
+  const { stdout } = await run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height:format=duration', '-of', 'json', file])
+  const info = JSON.parse(stdout) as { streams?: { width?: number, height?: number }[], format?: { duration?: string } }
+  const stream = info.streams?.[0]
+  const durationSeconds = Number(info.format?.duration)
+  if (!stream?.width || !stream.height || !Number.isFinite(durationSeconds) || durationSeconds <= 0)
+    throw new Error(`ffprobe could not read the video at ${file}.`)
+  return { width: stream.width, height: stream.height, durationSeconds: Math.round(durationSeconds * 10) / 10 }
+}
+
+/** A small H.264 copy that starts playing before it downloads, plus a poster frame. */
+async function encodeVideo(source: string, dir: string, prompt: string): Promise<{ video: Video, shots: Shot[] }> {
+  const file = 'video.mp4'
+  const poster = 'poster.jpg'
+  await run('ffmpeg', ['-y', '-v', 'error', '-i', source, '-vf', `scale=-2:'min(${VIDEO_MAX_HEIGHT},ih)'`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '28', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '96k', join(dir, file)], { maxBuffer: 16 * 1024 * 1024 })
+  const encoded = await probe(join(dir, file))
+  // A frame a little way in: the first frame of a film is often black.
+  const at = Math.min(2, encoded.durationSeconds / 3).toFixed(2)
+  await run('ffmpeg', ['-y', '-v', 'error', '-ss', at, '-i', join(dir, file), '-frames:v', '1', '-q:v', '3', join(dir, poster)])
+  const size = (await stat(join(dir, file))).size
+  if (size > VIDEO_WARN_BYTES)
+    console.warn(`The web copy is ${(size / 1024 / 1024).toFixed(1)} MB. Trim the film or raise the CRF before you commit.`)
+  return {
+    video: { file, poster, ...encoded },
+    shots: [{ file: poster, width: encoded.width, height: encoded.height, viewport: 'desktop', alt: `A frame from the video the Agent rendered for: ${prompt.slice(0, 120)}` }],
+  }
+}
+
+/** The named file, or the newest file of the same type anywhere in the folder. */
+async function findOutput(cwd: string, output: string): Promise<string | null> {
+  const named = join(cwd, output)
+  const found = await stat(named).catch((error: NodeJS.ErrnoException) => {
+    // Missing is expected: the Agent may have saved it under another name or folder.
+    if (error.code === 'ENOENT')
+      return null
+    throw error
+  })
+  if (found?.isFile())
+    return named
+  const wanted = extname(output)
+  const entries = await readdir(cwd, { recursive: true, withFileTypes: true })
+  const matches = await Promise.all(entries
+    .filter(entry => entry.isFile() && extname(entry.name) === wanted && !entry.parentPath.includes('node_modules'))
+    .map(async (entry) => {
+      const path = join(entry.parentPath, entry.name)
+      return { path, mtime: (await stat(path)).mtimeMs }
+    }))
+  return matches.sort((a, b) => b.mtime - a.mtime)[0]?.path ?? null
+}
+
+/** Recordings run in parallel, so each manifest write holds a lock file for its read and write. */
+async function withManifestLock<T>(work: () => Promise<T>): Promise<T> {
+  const lock = `${MANIFEST}.lock`
+  for (let attempt = 0; ; attempt++) {
+    const held = await open(lock, 'wx').catch((error: NodeJS.ErrnoException) => {
+      // Another recording holds the lock; wait and try again.
+      if (error.code === 'EEXIST' && attempt < 100)
+        return null
+      throw error
+    })
+    if (held) {
+      await held.close()
+      try {
+        return await work()
+      }
+      finally {
+        await rm(lock, { force: true })
+      }
+    }
+    await new Promise(done => setTimeout(done, 200))
+  }
+}
+
 async function upsert(entry: DemoEntry): Promise<void> {
+  await withManifestLock(() => writeEntry(entry))
+}
+
+async function writeEntry(entry: DemoEntry): Promise<void> {
   const manifest = JSON.parse(await readFile(MANIFEST, 'utf8')) as { demos: DemoEntry[] }
   const key = (demo: DemoEntry) => `${demo.owner}/${demo.repo}/${demo.name}`.toLowerCase()
   const demos = manifest.demos.filter(demo => key(demo) !== key(entry))
@@ -196,6 +353,8 @@ async function reshoot(owner: string, repo: string, name: string): Promise<void>
   const entry = manifest.demos.find(demo => `${demo.owner}/${demo.repo}/${demo.name}`.toLowerCase() === ref)
   if (!entry)
     throw new Error(`No recorded demo for ${owner}/${repo}/${name}. Record it first.`)
+  if (!entry.outputFile)
+    throw new Error(`${owner}/${repo}/${name} is a video demo with no page to reshoot. Record it again instead.`)
   const shotDir = join(SHOT_DIR, entry.owner, entry.repo, entry.name)
   await rm(shotDir, { recursive: true, force: true })
   await mkdir(shotDir, { recursive: true })
@@ -210,7 +369,7 @@ async function reshoot(owner: string, repo: string, name: string): Promise<void>
 async function main(): Promise<void> {
   const input = parseInput(process.argv.slice(2))
   if (input._tag === 'usage') {
-    console.error(`${input.message}\nUsage: pnpm demo:record owner/repo/skill --prompt "..." [--output index.html]\n       pnpm demo:record owner/repo/skill --reshoot`)
+    console.error(`${input.message}\nUsage: pnpm demo:record owner/repo/skill --prompt "..." [--output index.html|film.mp4] [--seed dir --setup "..."]\n       pnpm demo:record owner/repo/skill --reshoot`)
     process.exitCode = 2
     return
   }
@@ -218,31 +377,32 @@ async function main(): Promise<void> {
     await reshoot(input.owner, input.repo, input.name)
     return
   }
-  const { owner, repo, name, prompt, output } = input
+  const { owner, repo, name, prompt, output, kind, seed, setup } = input
   const skillRef = `${owner}/${repo}/${name}`
   const source = await skillSource(owner, repo, name)
-  const commit = source.commit
 
   const cwd = await mkdtemp(join(tmpdir(), 'skilld-demo-'))
-  console.log(`Recording ${skillRef} at ${commit.slice(0, 7)} in ${cwd}`)
-  const agent = await record(cwd, skillRef, prompt)
+  if (seed)
+    await cp(seed, cwd, { recursive: true })
+  console.log(`Recording ${skillRef} at ${source.commit.slice(0, 7)} in ${cwd}`)
+  const agent = await record(cwd, skillRef, prompt, kind)
 
-  const page = join(cwd, output)
-  const written = await stat(page).catch((error: NodeJS.ErrnoException) => {
-    // A missing file is the failure this check exists for; the next line reports it with the folder.
-    if (error.code === 'ENOENT')
-      return null
-    throw error
-  })
-  if (!written?.isFile())
-    throw new Error(`The Agent did not write ${output}. Check ${cwd}.`)
+  const produced = await findOutput(cwd, output)
+  if (!produced)
+    throw new Error(`The Agent wrote no ${extname(output)} file. Check ${cwd}.`)
 
   const shotDir = join(SHOT_DIR, owner, repo, name)
-  const outputDir = join(OUTPUT_DIR, owner, repo, name)
+  await rm(shotDir, { recursive: true, force: true })
   await mkdir(shotDir, { recursive: true })
-  await mkdir(outputDir, { recursive: true })
-  const shots = await screenshot(page, shotDir, prompt)
-  await copyFile(page, join(outputDir, output))
+
+  const media: Pick<DemoEntry, 'outputFile' | 'video' | 'shots'> = kind === 'video'
+    ? await encodeVideo(produced, shotDir, prompt)
+    : await (async () => {
+        const outputDir = join(OUTPUT_DIR, owner, repo, name)
+        await mkdir(outputDir, { recursive: true })
+        await copyFile(produced, join(outputDir, output))
+        return { outputFile: output, shots: await screenshot(produced, shotDir, prompt) }
+      })()
 
   await upsert({
     owner,
@@ -251,15 +411,15 @@ async function main(): Promise<void> {
     authorName: source.authorName,
     sourceUrl: source.sourceUrl,
     prompt,
+    ...(setup ? { setup } : {}),
     agent: 'Claude Code',
     agentVersion: agent.version,
     model: agent.model,
-    skillCommit: commit,
+    skillCommit: source.commit,
     recordedAt: new Date().toISOString().slice(0, 10),
-    outputFile: output,
-    shots,
+    ...media,
   })
-  console.log(`Recorded ${skillRef} with ${agent.model}. Review the screenshots in ${shotDir} before you commit.`)
+  console.log(`Recorded ${skillRef} with ${agent.model}. Review ${shotDir} before you commit. The Agent's folder stays at ${cwd}.`)
 }
 
 await main()

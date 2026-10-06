@@ -40,8 +40,11 @@ const live = ref(false)
     <p class="skill-demo__prompt mt-3 text-sm leading-relaxed text-default">
       <span class="data-label mr-2">You say</span>{{ demo.prompt }}
     </p>
+    <p v-if="demo.setup" class="mt-2 text-xs leading-relaxed text-muted">
+      <span class="data-label mr-2">Folder</span>{{ demo.setup }}
+    </p>
 
-    <div v-if="live" class="mt-4">
+    <div v-if="live && demo.liveUrl" class="mt-4">
       <iframe
         :src="demo.liveUrl"
         sandbox="allow-scripts"
@@ -49,6 +52,21 @@ const live = ref(false)
         loading="lazy"
         class="skill-demo__frame"
       />
+    </div>
+    <!-- A video Skill's demo is its rendered video, with sound on request. -->
+    <div v-else-if="demo.video" class="mt-4">
+      <video
+        :poster="demo.video.poster"
+        :width="demo.video.width"
+        :height="demo.video.height"
+        controls
+        playsinline
+        preload="none"
+        class="skill-demo__video"
+        :aria-label="`Video the Agent rendered with ${demo.name}`"
+      >
+        <source :src="demo.video.src" type="video/mp4">
+      </video>
     </div>
     <!-- Each shot is the whole page, so it sits in a window the size of one screen and scrolls. -->
     <!-- One shot per device: the phone shot on phones when one exists, the desktop shot elsewhere. -->
@@ -93,6 +111,7 @@ const live = ref(false)
 
     <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
       <UButton
+        v-if="demo.liveUrl"
         :label="live ? 'Show screenshots' : 'Open live demo'"
         :icon="live ? 'i-lucide-image' : 'i-lucide-play'"
         color="neutral"
@@ -103,6 +122,7 @@ const live = ref(false)
         @click="() => { live = !live }"
       />
       <a
+        v-if="demo.liveUrl"
         :href="demo.liveUrl"
         target="_blank"
         rel="noopener"
@@ -123,6 +143,15 @@ const live = ref(false)
 </template>
 
 <style scoped>
+.skill-demo__video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-muted);
+}
+
 .skill-demo__prompt {
   padding: 0.75rem 1rem;
   border: 1px solid var(--ui-border);

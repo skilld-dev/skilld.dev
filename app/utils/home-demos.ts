@@ -12,4 +12,6 @@ export interface HomeDemoItem {
   sourceUrl: string | null
   prompt: string
   shots: { src: string, width: number, height: number, alt: string, viewport: 'desktop' | 'mobile' }[]
+  /** A video Skill's rendered video: the card plays it muted on hover or focus. */
+  video: { src: string, poster: string, width: number, height: number, durationSeconds: number } | null
 }

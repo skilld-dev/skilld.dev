@@ -10,10 +10,11 @@ import { findSkillDemo, skillDemoOutputKey } from '../../../../../utils/skill-de
 export default defineEventHandler(async (event) => {
   const { owner, repo, name } = getRouterParams(event)
   const demo = owner && repo && name ? findSkillDemo(owner, repo, name) : null
-  if (!demo)
-    throw createError({ statusCode: 404, statusMessage: 'No demo for this Skill' })
+  const key = demo ? skillDemoOutputKey(demo) : null
+  if (!key)
+    throw createError({ statusCode: 404, statusMessage: 'No demo page for this Skill' })
 
-  const html = await useStorage('assets:skill-demos').getItem<string>(skillDemoOutputKey(demo))
+  const html = await useStorage('assets:skill-demos').getItem<string>(key)
   if (typeof html !== 'string')
     throw createError({ statusCode: 404, statusMessage: 'Demo output missing' })
 
