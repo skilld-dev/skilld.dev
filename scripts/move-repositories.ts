@@ -24,14 +24,14 @@
  * anonymous one.
  */
 
-import type { RepositoryMove, RepositoryName } from '../layers/registry/server/utils/repository-move'
+import type { HeldRepositoryName, RepositoryMove, RepositoryName } from '../layers/registry/server/utils/repository-move'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { movedRegistryName, repositoryMoveSql, sameRepositoryName } from '../layers/registry/server/utils/repository-move'
+import { movedRegistryName, planRepositoryMove, repositoryMoveSql, sameRepositoryName } from '../layers/registry/server/utils/repository-move'
 
 interface KnownMove {
   /** The registry identity the rows carry now. */
@@ -121,13 +121,20 @@ async function confirmGithubName(move: KnownMove): Promise<RepositoryName> {
   return { owner, repo }
 }
 
-function heldName(target: Target, name: RepositoryName): RepositoryName | null {
-  const [row] = readRows<RepositoryName>(target, `
-    SELECT owner, repo FROM repos
+function heldName(target: Target, name: RepositoryName): HeldRepositoryName | null {
+  const [row] = readRows<HeldRepositoryName>(target, `
+    SELECT owner, repo, repository_id AS repositoryId FROM repos
     WHERE owner = ${literal(name.owner)} COLLATE NOCASE AND repo = ${literal(name.repo)} COLLATE NOCASE
     ORDER BY (owner = lower(${literal(name.owner)}) AND repo = lower(${literal(name.repo)})) DESC
     LIMIT 1`)
   return row ?? null
+}
+
+/** The move writes columns and a table that migration 0145 adds. */
+function assertMigrated(target: Target): void {
+  const [row] = readRows<{ migrated: number }>(target, `SELECT COUNT(*) AS migrated FROM pragma_table_info('repos') WHERE name = 'repository_id'`)
+  if (!row?.migrated)
+    throw new Error(`The ${target._tag} D1 lacks migration 0145_repository_moves.sql. Deploy first, then run this script.`)
 }
 
 function countRows(target: Target, name: RepositoryName): Record<string, number> {
@@ -141,8 +148,11 @@ async function planMove(target: Target, known: KnownMove, reverse: boolean, move
   const current = await confirmGithubName(known)
   const from = reverse ? movedRegistryName(current, heldName(target, current)) : known.from
   const name = reverse ? known.from : current
-  const to = movedRegistryName(name, heldName(target, name))
-  return { from, to, source: name, repositoryId: known.repositoryId, movedAt }
+  // The same check sync runs: never merge into a row another Repository holds.
+  const plan = planRepositoryMove(name, heldName(target, name), known.repositoryId)
+  if (plan._tag === 'held')
+    throw new Error(`The registry holds ${name.owner}/${name.repo} for Repository ${plan.heldBy}, not ${known.repositoryId}. Resolve that row first.`)
+  return { from, to: plan.to, source: name, repositoryId: known.repositoryId, movedAt }
 }
 
 function describeCounts(counts: Record<string, number>): string {
@@ -165,6 +175,7 @@ async function main(): Promise<void> {
   const movedAt = Math.floor(Date.now() / 1000)
 
   console.log(`${values.apply ? 'Apply' : 'Dry run'} against the ${target._tag} D1. SQL files go to ${outDir}.`)
+  assertMigrated(target)
   const files: string[] = []
   for (const [index, known] of KNOWN_MOVES.entries()) {
     const move = await planMove(target, known, values.reverse, movedAt)
