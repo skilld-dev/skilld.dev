@@ -81,7 +81,11 @@ When the archive would pass 64 MiB, the largest files other than SKILL.md become
 The signed statement lists each one:
 
 ```json
-"linkedFiles": [{ "path": "scripts/KimiXlsx", "mode": 420, "size": 77001601, "gitBlobSha": "…" }]
+{
+  "linkedFiles": [
+    { "path": "scripts/KimiXlsx", "mode": 420, "size": 77001601, "gitBlobSha": "<40 hex characters>" }
+  ]
+}
 ```
 
 The CLI verifies the attestation first.
