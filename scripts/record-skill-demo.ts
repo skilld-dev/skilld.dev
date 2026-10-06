@@ -39,6 +39,7 @@
 import type { DemoMakes } from '../shared/demo-groups'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { existsSync, readdirSync } from 'node:fs'
 import { copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { extname, join, relative, resolve, sep } from 'node:path'
@@ -91,7 +92,19 @@ const SANDBOX_DOMAINS = [
 ]
 
 /** Paths no Skill command may read, even inside the sandbox. */
-const SECRET_PATHS = ['~/.ssh', '~/.aws', '~/.config', '~/.gnupg', '~/.netrc', '~/.npmrc', '~/.docker', '~/.kube', '~/.local/share', '~/sites', '~/pkg']
+const SECRET_PATHS = ['~/.ssh', '~/.aws', '~/.config', '~/.gnupg', '~/.netrc', '~/.npmrc', '~/.docker', '~/.kube', '~/sites', '~/pkg']
+
+/** The folders in ~/.local/share a run needs: Node and npx live under pnpm, and renderers read fonts. */
+const SHARED_DATA_READABLE = new Set(['pnpm', 'fonts'])
+
+/** Every secret path, plus each other folder in ~/.local/share, where tools keep their tokens. */
+function deniedPaths(): string[] {
+  const shared = join(homedir(), '.local/share')
+  const sharedData = existsSync(shared)
+    ? readdirSync(shared).filter(entry => !SHARED_DATA_READABLE.has(entry)).map(entry => `~/.local/share/${entry}`)
+    : []
+  return [...SECRET_PATHS, ...sharedData]
+}
 
 interface Shot {
   file: string
@@ -196,32 +209,63 @@ async function skillSource(owner: string, repo: string, name: string): Promise<S
   }
 }
 
-function sandboxSettings(): string {
-  const home = homedir()
-  const expand = (path: string) => path.replace(/^~/, home)
+/**
+ * The sandbox every recorded run works in. A film Skill may run any command in
+ * it; a page Skill only its allowed one, since nothing else is auto-approved.
+ */
+function sandboxSettings(kind: OutputKind): string {
+  const denied = deniedPaths()
   return JSON.stringify({
     sandbox: {
       enabled: true,
-      autoAllowBashIfSandboxed: true,
+      autoAllowBashIfSandboxed: kind === 'video',
       allowUnsandboxedCommands: false,
       filesystem: {
         // The temp folder is the working directory; renderers cache browsers here too.
         allowWrite: ['.', '~/.npm', '~/.cache/puppeteer', '~/.cache/ms-playwright'],
-        denyRead: SECRET_PATHS,
+        denyRead: denied,
       },
       network: { allowedDomains: SANDBOX_DOMAINS },
     },
+    // A rule path starting `~/` is in the home folder; a bare `/home/...` path would be read as relative.
     permissions: {
-      deny: SECRET_PATHS.flatMap(path => [`Read(${expand(path)}/**)`, `Edit(${expand(path)}/**)`]),
+      deny: denied.flatMap(path => [`Read(${path}/**)`, `Edit(${path}/**)`]),
     },
   })
 }
 
-async function record(cwd: string, skillRef: string, prompt: string, kind: OutputKind): Promise<{ model: string, version: string }> {
-  const instruction = `First run \`npx skilld run ${skillRef}\` and follow the Skill it prints. Then do this task in the current folder:\n\n${prompt}`
-  const access = kind === 'video'
-    ? ['--settings', sandboxSettings(), '--allowedTools', 'Bash,Read,Write,Edit']
-    : ['--allowedTools', `Bash(npx skilld run ${skillRef}),Read,Write,Edit`]
+/**
+ * The exact ref `skilld run` loads right now, pinned to its commit. The Agent
+ * runs this pinned ref, so the demo records the commit that actually ran; the
+ * registry's own commit can lag the Repository. A Skill that does not run
+ * fails here, before any Agent time is spent.
+ */
+async function pinnedRun(skillRef: string): Promise<{ ref: string, commit: string }> {
+  const dir = await mkdtemp(join(tmpdir(), 'skilld-pin-'))
+  const { stdout, stderr } = await run('npx', ['-y', 'skilld', 'run', skillRef], { cwd: dir, timeout: 120_000, maxBuffer: 32 * 1024 * 1024 })
+  const match = /skilld install '([^']+#commit:([0-9a-f]{40}))'/.exec(`${stdout}\n${stderr}`)
+  if (!match?.[1] || !match[2])
+    throw new Error(`\`skilld run ${skillRef}\` printed no pinned commit, so the demo could not record what ran.`)
+  return { ref: match[1], commit: match[2] }
+}
+
+async function record(cwd: string, pinnedRef: string, prompt: string, kind: OutputKind): Promise<{ model: string, version: string }> {
+  const instruction = `First run \`npx skilld run '${pinnedRef}'\` and follow the Skill it prints. Then do this task in the current folder:\n\n${prompt}`
+  // A page Skill gets no shell beyond loading Skills; a film Skill gets a shell. Both run in the sandbox.
+  // No user or project settings: they would load this machine's CLAUDE.md, Skills and allow rules, and a
+  // global allow rule then reaches past --allowedTools, which only pre-approves. Only these four tools exist.
+  const allowed = kind === 'video' ? 'Bash,Read,Write,Edit' : 'Bash(npx skilld run:*),Read,Write,Edit'
+  const access = [
+    '--setting-sources',
+    '',
+    '--strict-mcp-config',
+    '--tools',
+    'Bash,Read,Write,Edit',
+    '--settings',
+    sandboxSettings(kind),
+    '--allowedTools',
+    allowed,
+  ]
   const { stdout } = await run('claude', [
     '-p',
     instruction,
@@ -243,7 +287,8 @@ async function screenshot(page: string, dir: string, prompt: string): Promise<Sh
   const browser = await chromium.launch()
   const shots: Shot[] = []
   for (const { viewport, width, height } of VIEWPORTS) {
-    const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 })
+    // A screenshot is a still, so the page draws its reduced motion state where it has one.
+    const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, reducedMotion: 'reduce' })
     const tab = await context.newPage()
     await tab.goto(pathToFileURL(page).href, { waitUntil: 'networkidle' })
     // A page wider than the phone only shows a clipped corner, so it gets no phone shot.
@@ -258,12 +303,13 @@ async function screenshot(page: string, dir: string, prompt: string): Promise<Sh
       continue
     }
     // Scroll to the end and back, so content that reveals on scroll is in the picture.
+    // Instant: a page with `scroll-behavior: smooth` would otherwise animate each step and never get far.
     await tab.evaluate(async () => {
       for (let y = 0; y < document.documentElement.scrollHeight; y += window.innerHeight) {
-        window.scrollTo(0, y)
+        window.scrollTo({ top: y, behavior: 'instant' })
         await new Promise(done => setTimeout(done, 150))
       }
-      window.scrollTo(0, 0)
+      window.scrollTo({ top: 0, behavior: 'instant' })
     })
     // Let entrance animations settle before the picture.
     await tab.waitForTimeout(1500)
@@ -450,15 +496,16 @@ async function main(): Promise<void> {
   const { owner, repo, name, makes, prompt, output, kind, seed, setup } = input
   const skillRef = `${owner}/${repo}/${name}`
   const source = await skillSource(owner, repo, name)
+  const pinned = await pinnedRun(skillRef)
 
   const resumed = input.resume
   const cwd = resumed ? resumed.dir : await mkdtemp(join(tmpdir(), 'skilld-demo-'))
   if (seed && !resumed)
     await cp(seed, cwd, { recursive: true })
-  console.log(`Recording ${skillRef} at ${source.commit.slice(0, 7)} in ${cwd}`)
+  console.log(`Recording ${skillRef} at ${pinned.commit.slice(0, 7)} in ${cwd}`)
   const agent = resumed
     ? { model: resumed.model, version: (await run('claude', ['--version'])).stdout.trim().split(' ')[0] ?? 'unknown' }
-    : await record(cwd, skillRef, prompt, kind)
+    : await record(cwd, pinned.ref, prompt, kind)
 
   const produced = await findOutput(cwd, output)
   if (!produced)
@@ -487,7 +534,7 @@ async function main(): Promise<void> {
     agent: 'Claude Code',
     agentVersion: agent.version,
     model: agent.model,
-    skillCommit: source.commit,
+    skillCommit: pinned.commit,
     recordedAt: new Date().toISOString().slice(0, 10),
     ...media,
   })
