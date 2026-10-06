@@ -38,6 +38,10 @@ These exact strings. Do not paraphrase them per page.
 | Agents way: prompt | Paste into any agent · Your agent reads the setup steps and picks the path that fits it. | guidance only: the first way in the homepage Agents section, over the setup prompt |
 | Agents way: terminal | From a terminal · Teaches your agent to search and run Skills in every project. | guidance only: the second way, over `npx skilld install skilld --global` |
 | Agents way: MCP | In ChatGPT, Claude, and other MCP apps · Add the server once. Then ask the chat to find a Skill. | guidance only: the third way, over the MCP server URL. Its link, "Setup steps for each app", opens `/developers?setup=mcp` |
+| Home section: demos | See what skills make. · Each demo is one recorded run: the prompt, and what the Agent built with the Skill. | guidance only: the homepage demo section heading and line. The section hides below three demos |
+| Demo panel | Demo · You say · Open live demo · Open in a new tab · Run it yourself | guidance only: the Skill page Demo panel. "Show screenshots" replaces "Open live demo" while the live output shows |
+| Demo provenance | Agent output, recorded with {agent} ({model}) on {date} from {commit} | guidance only: the line beside the Demo heading. A demo is the Agent output, never the Skill author work, so the line always opens with "Agent output" |
+| Demo outdated | Recorded on an older version of this Skill. | guidance only: under the Demo panel when the Skill moved past the recorded commit |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
 | Home section: authoring | Write a skill for your project. | guidance only: the homepage section heading for making a Skill |
 | Nav: developers | Developers | guidance only: the header menu trigger, and the group label in the mobile menu. The menu holds the four items below |

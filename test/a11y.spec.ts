@@ -593,6 +593,79 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('homeDemos has no violations and links each demo to its Skill page', async () => {
+    const shot = { src: '/demos/a/b/c/desktop.jpg', width: 1440, height: 900, alt: 'Desktop screenshot of the page', viewport: 'desktop' as const }
+    const demos = ['one', 'two', 'three'].map(name => ({
+      owner: 'anthropics',
+      repo: 'skills',
+      name,
+      skillPath: `/gh/anthropics/skills/${name}`,
+      prompt: 'Build a landing page for Tidepool.',
+      shots: [shot],
+    }))
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('HomeDemos'),
+      { attachTo: container, props: { demos } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect([...container.querySelectorAll('li > a')].map(link => link.getAttribute('href'))).toEqual([
+      '/gh/anthropics/skills/one#demo',
+      '/gh/anthropics/skills/two#demo',
+      '/gh/anthropics/skills/three#demo',
+    ])
+    wrapper.unmount()
+  })
+
+  it('homeDemos stays hidden with fewer than three demos', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('HomeDemos'),
+      { attachTo: container, props: { demos: [] } },
+    )
+    expect(container.querySelector('#demos')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('the Skill page demo panel has no violations and labels the output as recorded', async () => {
+    const SkillDemo = (await import('../layers/registry/app/components/_SkillDemo.vue')).default
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(SkillDemo, {
+      attachTo: container,
+      props: {
+        demo: {
+          owner: 'anthropics',
+          repo: 'skills',
+          name: 'frontend-design',
+          skillPath: '/gh/anthropics/skills/frontend-design',
+          prompt: 'Build a landing page for Tidepool. Save it as index.html.',
+          agent: 'Claude Code',
+          model: 'claude-opus-5-5',
+          skillCommit: '41bbe19d1a1a7eaab5e7bb9050a417e5c6cffc8f',
+          recordedAt: '2026-10-06',
+          outdated: true,
+          liveUrl: '/demos/anthropics/skills/frontend-design/live',
+          shots: [
+            { src: '/demos/anthropics/skills/frontend-design/desktop.jpg', width: 1440, height: 900, alt: 'Desktop screenshot', viewport: 'desktop' },
+            { src: '/demos/anthropics/skills/frontend-design/mobile.jpg', width: 390, height: 844, alt: 'Phone screenshot', viewport: 'mobile' },
+          ],
+        },
+      },
+    })
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.textContent).toContain('Agent output, recorded with Claude Code')
+    expect(container.textContent).toContain('Recorded on an older version of this Skill.')
+
+    await wrapper.get('button[aria-pressed="false"]').trigger('click')
+    await nextTick()
+    const frame = container.querySelector('iframe')
+    expect(frame?.getAttribute('sandbox')).toBe('allow-scripts')
+    expect(frame?.getAttribute('src')).toBe('/demos/anthropics/skills/frontend-design/live')
+    wrapper.unmount()
+  })
+
   it('skilldInstallChip has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SkillAudit } from '~~/app/utils/skill-audit-overview'
 import type { TrendingAward } from '#shared/trending-award'
+import type { SkillDemoView } from '../../server/utils/skill-demos'
 import type { ZipState } from '../utils/skill-zip'
 import type { SkillBehavior } from './_SkillBehaviors.vue'
 import { formatTimeAgo } from '@vueuse/core'
@@ -20,6 +21,7 @@ import { resolveViewerLink } from '../utils/skill-viewer-link'
 import { resolveSkillZipEntries } from '../utils/skill-zip'
 import SkillBehaviors from './_SkillBehaviors.vue'
 import SkillCommandPanel from './_SkillCommandPanel.vue'
+import SkillDemo from './_SkillDemo.vue'
 import SkillReceiptsPanel from './_SkillReceiptsPanel.vue'
 import SkillStarTrend from './_SkillStarTrend.vue'
 import SkillThirdPartyChecks from './_SkillThirdPartyChecks.vue'
@@ -198,6 +200,8 @@ const skillFetch = useFetch(
    * the file is deleted.
    */
   sourceGone: boolean
+  /** A recorded run of this Skill, when one is published. */
+  demo: SkillDemoView | null
   tier: 'official-org' | 'official-user' | 'community'
   sourceFacts: SourceFacts
   tags: SkillTag[]
@@ -1704,6 +1708,11 @@ useHead(computed(() => ({
 
     <template v-if="data && status !== 'pending'">
       <USeparator />
+
+      <!-- The header width, like Related: the demo answers the header question, not the file viewer one. -->
+      <div v-if="data.demo" class="mx-auto max-w-5xl px-4 pt-6 sm:px-6 md:pt-8">
+        <SkillDemo :demo="data.demo" />
+      </div>
 
       <!-- The two command blocks are breakpoint twins, so neither can hold the anchor. -->
       <div id="run" class="scroll-mt-24" />

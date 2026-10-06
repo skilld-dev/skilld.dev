@@ -1,0 +1,109 @@
+{
+  "demos": [
+    {
+      "owner": "anthropics",
+      "repo": "skills",
+      "name": "frontend-design",
+      "prompt": "Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as index.html.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "41bbe19d1a1a7eaab5e7bb9050a417e5c6cffc8f",
+      "recordedAt": "2026-10-06",
+      "outputFile": "index.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 4102,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
+        },
+        {
+          "file": "mobile.jpg",
+          "width": 390,
+          "height": 5091,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
+        }
+      ]
+    },
+    {
+      "owner": "cathrynlavery",
+      "repo": "diagram-design",
+      "name": "diagram-design",
+      "prompt": "Keep the default style guide. Draw an architecture diagram for Tidewhisk, a fictional ferry-booking service: web app, API gateway, booking service, seat cache, payments worker, database, and SMS notifier. Inline all CSS and JavaScript. Save it as diagram.html.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "da7cd27a37d8a78f99c30accbe40e0ab901a6840",
+      "recordedAt": "2026-10-06",
+      "outputFile": "diagram.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 927,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Keep the default style guide. Draw an architecture diagram for Tidewhisk, a fictional ferry-booking service: web app, AP"
+        }
+      ]
+    },
+    {
+      "owner": "emilkowalski",
+      "repo": "skills",
+      "name": "emil-design-eng",
+      "prompt": "Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show three stacked toasts on load that stay until dismissed, expand on hover, and dismiss on swipe. Inline all CSS and JavaScript.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "85e8e2363b713506e1d5b6e07a0eb2da66be1bc3",
+      "recordedAt": "2026-10-06",
+      "outputFile": "toast.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 900,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show"
+        },
+        {
+          "file": "mobile.jpg",
+          "width": 390,
+          "height": 844,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show"
+        }
+      ]
+    },
+    {
+      "owner": "jakubkrehel",
+      "repo": "make-interfaces-feel-better",
+      "name": "make-interfaces-feel-better",
+      "prompt": "Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a monthly and yearly toggle, and full hover and focus states. Inline all CSS and JavaScript.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "27355fc332ce3dee6af7107b9224152ad3812066",
+      "recordedAt": "2026-10-06",
+      "outputFile": "pricing.html",
+      "shots": [
+        {
+          "file": "desktop.jpg",
+          "width": 1440,
+          "height": 1164,
+          "viewport": "desktop",
+          "alt": "Desktop screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a"
+        },
+        {
+          "file": "mobile.jpg",
+          "width": 390,
+          "height": 2192,
+          "viewport": "mobile",
+          "alt": "Phone screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a"
+        }
+      ]
+    }
+  ]
+}

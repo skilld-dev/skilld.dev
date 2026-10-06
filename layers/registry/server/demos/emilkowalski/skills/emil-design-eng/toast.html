@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pebblequill notifications</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --paper: #f6f4ef;
+    --surface: #ffffff;
+    --ink: #1d1f24;
+    --muted: #6b6f78;
+    --line: rgba(29, 31, 36, 0.09);
+    --accent: #3d5a98;
+    --success: #2f8a5b;
+    --info: #3d5a98;
+    --warning: #b7791f;
+    --shadow: 0 1px 2px rgba(20, 22, 28, 0.04), 0 6px 16px rgba(20, 22, 28, 0.08);
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --toast-width: 356px;
+    --radius: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #15161a;
+      --surface: #212329;
+      --ink: #eceef2;
+      --muted: #9a9fa9;
+      --line: rgba(255, 255, 255, 0.08);
+      --accent: #8fa8e6;
+      --success: #5cc48d;
+      --info: #8fa8e6;
+      --warning: #e3a948;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 20px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--paper);
+    color: var(--ink);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Page */
+
+  .app-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .logo { width: 24px; height: 24px; }
+
+  main {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 40px 24px 200px;
+  }
+
+  .note {
+    padding: 28px 32px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(20, 22, 28, 0.04);
+  }
+
+  .note-meta, .note-status { margin: 0; color: var(--muted); font-size: 12px; }
+
+  .note h1 {
+    margin: 6px 0 12px;
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+  }
+
+  .note p { margin: 0 0 12px; }
+
+  .checklist { margin: 0 0 20px; padding: 0; list-style: none; }
+
+  .checklist li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+  }
+
+  .checklist li::before {
+    content: "";
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--muted);
+    border-radius: 50%;
+  }
+
+  .checklist li[data-done] { color: var(--muted); text-decoration: line-through; }
+  .checklist li[data-done]::before { border-color: var(--accent); background: var(--accent); }
+
+  .note-status { display: flex; align-items: center; gap: 6px; }
+
+  .note-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+
+  .demo-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .demo-controls p { margin: 0; max-width: 34ch; }
+
+  .button {
+    flex: none;
+    padding: 9px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--ink);
+    color: var(--paper);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), background-color 150ms ease;
+  }
+
+  .button:active { transform: scale(0.97); }
+
+  .button:focus-visible,
+  .toast button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Toasts */
+
+  .toaster {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 10;
+    width: var(--toast-width);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .toast {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    transform-origin: 50% 100%;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition:
+      transform 400ms var(--ease-drawer),
+      opacity 400ms var(--ease-drawer),
+      clip-path 400ms var(--ease-drawer);
+  }
+
+  /* Fills the gap below each expanded toast so the stack keeps its hover state. */
+  .toast::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 15px;
+  }
+
+  /* The toast follows the pointer 1:1 while dragging. */
+  .toast[data-dragging] { transition-property: opacity, clip-path; }
+
+  /* Exits run through the Web Animations API. */
+  .toast[data-exiting] { pointer-events: none; transition: none; }
+
+  .toast-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    transition: opacity 200ms ease;
+  }
+
+  /* Collapsed toasts behind the front one show only their edge. */
+  .toast[data-content="hidden"] .toast-body { opacity: 0; pointer-events: none; }
+
+  .toast-icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+  }
+
+  .toast-icon svg { width: 18px; height: 18px; }
+
+  .toast[data-type="success"] .toast-icon { color: var(--success); }
+  .toast[data-type="info"] .toast-icon { color: var(--info); }
+  .toast[data-type="warning"] .toast-icon { color: var(--warning); }
+
+  .toast-text { flex: 1; min-width: 0; }
+
+  .toast-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .toast-description {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .toast-action {
+    flex: none;
+    align-self: center;
+    padding: 5px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: var(--ink);
+    color: var(--surface);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out);
+  }
+
+  .toast-action:active { transform: scale(0.97); }
+
+  .toast-close {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    translate: -35% -35%;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 150ms ease, transform 160ms var(--ease-out);
+  }
+
+  /* Bigger hit area than the visible circle. */
+  .toast-close::before { content: ""; position: absolute; inset: -6px; }
+  .toast-close svg { width: 10px; height: 10px; }
+  .toast-close:active { transform: scale(0.95); }
+  .toast:focus-within .toast-close { opacity: 1; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .button:hover { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
+    .toast:hover .toast-close { opacity: 1; }
+    .toast-close:hover { color: var(--ink); }
+  }
+
+  @media (hover: none) {
+    .toast-close { opacity: 1; }
+  }
+
+  @media (max-width: 600px) {
+    .toaster { left: 16px; right: 16px; bottom: 16px; width: auto; }
+    .demo-controls { flex-direction: column; align-items: flex-start; }
+  }
+
+  /* Keep the fades, drop the movement. */
+  @media (prefers-reduced-motion: reduce) {
+    .toast,
+    .toast[data-dragging] { transition: opacity 200ms ease; }
+  }
+</style>
+</head>
+<body>
+  <header class="app-bar">
+    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.5 14.2C3.5 8.4 7.9 4 13.4 4c4.4 0 7.1 2.9 7.1 6.8 0 5.6-4.7 9.2-10.2 9.2-4 0-6.8-2.4-6.8-5.8Z" fill="var(--accent)" />
+      <path d="M8.6 16.4c2.8-1.3 5.6-4.1 7.2-7.8" fill="none" stroke="var(--surface)" stroke-width="1.6" stroke-linecap="round" />
+    </svg>
+    <span>Pebblequill</span>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="note-meta">Kitchen Experiments · Shared with Mara</p>
+      <h1>Brown butter miso cookies</h1>
+      <p>Rest the dough for a full day. The miso deepens and the edges caramelize.</p>
+      <ul class="checklist">
+        <li data-done>Brown 115 g butter until it smells nutty</li>
+        <li data-done>Whisk in 2 tbsp white miso</li>
+        <li>Chill overnight, then bake at 180 °C</li>
+      </ul>
+      <p class="note-status">Synced just now</p>
+    </article>
+
+    <div class="demo-controls">
+      <p>Hover or tap the stack to expand it. Swipe a toast right or down to dismiss it.</p>
+      <button type="button" class="button" data-add-toast>Add toast</button>
+    </div>
+  </main>
+
+  <section aria-label="Notifications" aria-live="polite" aria-relevant="additions">
+    <ol class="toaster"></ol>
+  </section>
+
+  <template id="toast-template">
+    <li class="toast">
+      <div class="toast-body">
+        <span class="toast-icon" aria-hidden="true"></span>
+        <div class="toast-text">
+          <p class="toast-title"></p>
+          <p class="toast-description"></p>
+        </div>
+        <button type="button" class="toast-close" aria-label="Dismiss notification">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </li>
+  </template>
+
+<script>
+  const VISIBLE_TOASTS = 3
+  const GAP = 14 // space between expanded toasts; .toast::after fills it
+  const PEEK = 12 // how far each collapsed toast shows above the one in front
+  const SCALE_STEP = 0.05
+  const RADIUS = 12
+  const BLEED = 40 // clip-path overflow that keeps shadows, the close button, and the gap filler visible
+  const AXIS_LOCK = 5
+  const SWIPE_DISTANCE = 45
+  const SWIPE_VELOCITY = 0.11 // px per ms; a quick flick dismisses at any distance
+  const MIN_FLICK = 10
+  const EXIT_MS = 200
+  const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
+
+  const ICONS = {
+    success: '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd"/></svg>',
+    info: '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clip-rule="evenodd"/></svg>',
+    warning: '<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/></svg>',
+  }
+
+  // Oldest first, so the last one lands in front.
+  const INITIAL_TOASTS = [
+    { type: 'warning', title: 'Conflict in “Trip to Lisbon”', description: 'Two devices changed this note. Pebblequill kept both versions.', action: 'Compare' },
+    { type: 'info', title: 'Kitchen Experiments updated', description: 'Mara added 4 notes to this shared notebook.' },
+    { type: 'success', title: 'All notes synced', description: '128 notes are up to date on 3 devices.' },
+  ]
+
+  const EXTRA_TOASTS = [
+    { type: 'success', title: 'Note restored', description: '“Weekly review” is back in your notebook.', action: 'Open' },
+    { type: 'info', title: 'Sync paused', description: 'You are offline. Pebblequill saves your edits on this device.' },
+    { type: 'success', title: 'Backup complete', description: 'A snapshot of 128 notes is kept for 30 days.' },
+    { type: 'warning', title: 'Storage almost full', description: 'Your plan has 120 MB left. Archive old attachments to free space.' },
+  ]
+
+  const toaster = document.querySelector('.toaster')
+  const template = document.querySelector('#toast-template')
+  const addButton = document.querySelector('[data-add-toast]')
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
+
+  let toasts = [] // newest first: { el, height, layout }
+  let expanded = false
+  let hovered = false
+  let pinned = false // touch devices expand on tap
+  let drag = null
+
+  // Pure: toast heights (newest first) in, stack positions out.
+  // Toasts transform from their bottom center, so `y` moves the bottom edge.
+  function computeLayout(heights, isExpanded) {
+    const front = heights[0] ?? 0
+    let offset = 0
+    return heights.map((height, i) => {
+      const visible = i < VISIBLE_TOASTS
+      if (isExpanded || i === 0) {
+        const y = -offset
+        offset += height + GAP
+        return { y, scale: 1, clipBottom: -BLEED, opacity: visible ? 1 : 0, showContent: visible }
+      }
+      const depth = Math.min(i, VISIBLE_TOASTS)
+      const scale = 1 - depth * SCALE_STEP
+      // Show the same sliver of every toast, whatever its height.
+      const y = -front - depth * PEEK + height * scale
+      // Cut anything that would poke out below the front toast's rounded corners.
+      const clipBottom = (y + RADIUS) / scale
+      return { y, scale, clipBottom, opacity: visible ? 1 : 0, showContent: false }
+    })
+  }
+
+  function render() {
+    const focusVisible = toaster.querySelector(':focus-visible') !== null
+    expanded = toasts.length > 1 && (hovered || pinned || focusVisible)
+    const layout = computeLayout(toasts.map(t => t.height), expanded)
+    toasts.forEach((toast, i) => {
+      toast.layout = layout[i]
+      toast.el.style.zIndex = String(toasts.length - i)
+      toast.el.dataset.content = layout[i].showContent ? 'shown' : 'hidden'
+      toast.el.inert = i >= VISIBLE_TOASTS
+      paint(toast)
+    })
+  }
+
+  // Write transform directly on the element: a CSS variable on the list would restyle every toast.
+  function paint(toast) {
+    const { y, scale, clipBottom, opacity } = toast.layout
+    const dragging = drag?.toast === toast
+    const dx = dragging && drag.axis === 'x' ? drag.offset : 0
+    const dy = dragging && drag.axis === 'y' ? drag.offset : 0
+    const { style } = toast.el
+    style.transform = `translate3d(${dx}px, ${y + dy}px, 0) scale(${scale})`
+    style.opacity = String(opacity)
+    style.clipPath = `inset(${-BLEED}px ${-BLEED}px ${clipBottom}px ${-BLEED}px)`
+  }
+
+  const resizeObserver = new ResizeObserver(entries => {
+    let changed = false
+    for (const { target } of entries) {
+      const toast = toasts.find(t => t.el === target)
+      if (toast && toast.height !== target.offsetHeight) {
+        toast.height = target.offsetHeight
+        changed = true
+      }
+    }
+    if (changed) render()
+  })
+
+  function createToastElement({ type, title, description, action }) {
+    const el = template.content.firstElementChild.cloneNode(true)
+    el.dataset.type = type
+    el.querySelector('.toast-icon').innerHTML = ICONS[type]
+    el.querySelector('.toast-title').textContent = title
+    el.querySelector('.toast-description').textContent = description
+    if (action) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'toast-action'
+      button.textContent = action
+      el.querySelector('.toast-close').before(button)
+    }
+    return el
+  }
+
+  function addToast(spec) {
+    const el = createToastElement(spec)
+    toaster.prepend(el) // newest first in Tab order too
+    const toast = { el, height: el.offsetHeight, layout: null }
+    // Enter from below, the same way a swipe down sends it out.
+    el.style.transform = `translate3d(0, ${reducedMotion.matches ? 0 : toast.height}px, 0) scale(1)`
+    el.style.opacity = '0'
+    el.style.clipPath = `inset(${-BLEED}px)`
+    el.style.zIndex = String(toasts.length + 1)
+    // Commit the start state so the next write transitions from it.
+    void getComputedStyle(el).transform
+    toasts.unshift(toast)
+    resizeObserver.observe(el)
+    render()
+  }
+
+  function exitTransform(toast, current, swipe) {
+    if (reducedMotion.matches) return current
+    const { y, scale } = toast.layout
+    if (swipe?.axis === 'x') return `translate3d(${swipe.offset + toast.el.offsetWidth}px, ${y}px, 0) scale(${scale})`
+    if (swipe?.axis === 'y') return `translate3d(0, ${y + swipe.offset + toast.height}px, 0) scale(${scale})`
+    return `translate3d(0, ${y + toast.height}px, 0) scale(${scale})`
+  }
+
+  function dismiss(el, swipe) {
+    const index = toasts.findIndex(t => t.el === el)
+    if (index === -1) return
+    const [toast] = toasts.splice(index, 1)
+    resizeObserver.unobserve(el)
+    const keyboardFocus = el.querySelector(':focus-visible') !== null
+    // Start from wherever the toast is right now, even mid-transition.
+    const current = getComputedStyle(el)
+    const keyframes = [
+      { transform: current.transform, opacity: current.opacity },
+      { transform: exitTransform(toast, current.transform, swipe), opacity: 0 },
+    ]
+    el.dataset.exiting = ''
+    el.inert = true
+    el.animate(keyframes, { duration: EXIT_MS, easing: EASE_OUT, fill: 'forwards' })
+      .finished.then(() => el.remove())
+    if (toasts.length < 2) pinned = false
+    // Keep keyboard users in place: focus the toast that slid into this slot.
+    const next = toasts[index] ?? toasts[index - 1]
+    if (keyboardFocus) (next?.el.querySelector('.toast-close') ?? addButton).focus()
+    render()
+  }
+
+  // Past the edge, the toast moves less the further you pull.
+  const dampen = delta => delta / (1.5 + Math.abs(delta) / 20)
+
+  function onPointerDown(event) {
+    const el = event.target.closest('.toast')
+    // One pointer at a time: a second finger must not take over the drag.
+    if (!el || drag || event.button !== 0 || event.target.closest('button')) return
+    const index = toasts.findIndex(t => t.el === el)
+    if (index === -1) return
+    el.setPointerCapture(event.pointerId)
+    drag = {
+      toast: toasts[index],
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startTime: performance.now(),
+      canSwipe: index === 0 || expanded,
+      axis: null,
+      raw: 0,
+      offset: 0,
+    }
+  }
+
+  function onPointerMove(event) {
+    if (!drag || event.pointerId !== drag.pointerId || !drag.canSwipe) return
+    const dx = event.clientX - drag.startX
+    const dy = event.clientY - drag.startY
+    if (!drag.axis) {
+      if (Math.hypot(dx, dy) < AXIS_LOCK) return
+      drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+      drag.toast.el.dataset.dragging = ''
+    }
+    // Right and down dismiss. Left and up meet friction.
+    drag.raw = drag.axis === 'x' ? dx : dy
+    drag.offset = drag.raw > 0 ? drag.raw : dampen(drag.raw)
+    paint(drag.toast)
+  }
+
+  function onPointerEnd(event) {
+    if (!drag || event.pointerId !== drag.pointerId) return
+    const { toast, axis, raw, offset, startTime } = drag
+    drag = null
+    delete toast.el.dataset.dragging
+    const velocity = Math.abs(raw) / (performance.now() - startTime)
+    const swiped = event.type === 'pointerup' && axis !== null && raw > 0
+      && (raw >= SWIPE_DISTANCE || (raw >= MIN_FLICK && velocity > SWIPE_VELOCITY))
+    if (swiped) return dismiss(toast.el, { axis, offset })
+    if (axis === null && event.type === 'pointerup' && event.pointerType !== 'mouse') pinned = !pinned
+    render() // snaps back
+  }
+
+  toaster.addEventListener('pointerdown', onPointerDown)
+  toaster.addEventListener('pointermove', onPointerMove)
+  toaster.addEventListener('pointerup', onPointerEnd)
+  toaster.addEventListener('pointercancel', onPointerEnd)
+
+  toaster.addEventListener('pointerenter', event => {
+    if (event.pointerType === 'touch') return
+    hovered = true
+    render()
+  })
+
+  toaster.addEventListener('pointerleave', event => {
+    if (event.pointerType === 'touch') return
+    hovered = false
+    render()
+  })
+
+  toaster.addEventListener('focusin', render)
+  toaster.addEventListener('focusout', render)
+
+  toaster.addEventListener('click', event => {
+    const button = event.target.closest('.toast-close, .toast-action')
+    if (button) dismiss(button.closest('.toast'))
+  })
+
+  document.addEventListener('pointerdown', event => {
+    if (!pinned || toaster.contains(event.target)) return
+    pinned = false
+    render()
+  })
+
+  let nextExtra = 0
+  addButton.addEventListener('click', () => {
+    addToast(EXTRA_TOASTS[nextExtra % EXTRA_TOASTS.length])
+    nextExtra++
+  })
+
+  INITIAL_TOASTS.forEach((spec, i) => setTimeout(() => addToast(spec), 150 + i * 80))
+</script>
+</body>
+</html>

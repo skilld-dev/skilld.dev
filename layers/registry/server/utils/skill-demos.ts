@@ -1,0 +1,119 @@
+import { z } from 'zod'
+import { repoSkillPath } from '#shared/skill-routes'
+import manifest from '../data/skill-demos.json'
+
+/**
+ * Demos: one recorded run of a Skill each (GLOSSARY "demo").
+ *
+ * `scripts/record-skill-demo.ts` runs a fixed prompt through an Agent with the
+ * Skill loaded, screenshots the output into `public/demos/`, keeps the output
+ * page in `server/demos/`, and writes the entry below. Merging the pull request
+ * that adds an entry is the human approval: nothing records into production.
+ *
+ * Cull path: delete the entry, its `public/demos/<owner>/<repo>/<name>/`
+ * folder, and its `server/demos/<owner>/<repo>/<name>/` folder.
+ */
+
+const shotSchema = z.object({
+  /** File name inside `public/demos/<owner>/<repo>/<name>/`. A raster image only: an SVG can carry script. */
+  file: z.string().regex(/^[\w-]+\.(?:png|jpg)$/),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  alt: z.string().min(1),
+  viewport: z.enum(['desktop', 'mobile']),
+})
+
+const demoSchema = z.object({
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  name: z.string().min(1),
+  /** The exact text the Agent received after loading the Skill. */
+  prompt: z.string().min(1),
+  agent: z.string().min(1),
+  agentVersion: z.string().min(1),
+  model: z.string().min(1),
+  /** The Skill's source commit when the demo was recorded. */
+  skillCommit: z.string().regex(/^[0-9a-f]{40}$/),
+  recordedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** File name inside `server/demos/<owner>/<repo>/<name>/`, served sandboxed as the live demo. */
+  outputFile: z.string().regex(/^[\w-]+\.html$/),
+  shots: z.array(shotSchema).min(1),
+})
+
+export type SkillDemoRecord = z.infer<typeof demoSchema>
+
+const SKILL_DEMOS: readonly SkillDemoRecord[] = z.object({ demos: z.array(demoSchema) }).parse(manifest).demos
+
+function sameSkill(demo: SkillDemoRecord, owner: string, repo: string, name: string): boolean {
+  return demo.owner.toLowerCase() === owner.toLowerCase()
+    && demo.repo.toLowerCase() === repo.toLowerCase()
+    && demo.name.toLowerCase() === name.toLowerCase()
+}
+
+export function findSkillDemo(owner: string, repo: string, name: string, demos: readonly SkillDemoRecord[] = SKILL_DEMOS): SkillDemoRecord | null {
+  return demos.find(demo => sameSkill(demo, owner, repo, name)) ?? null
+}
+
+export function listSkillDemos(demos: readonly SkillDemoRecord[] = SKILL_DEMOS): readonly SkillDemoRecord[] {
+  return [...demos].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
+}
+
+function demoBase(demo: SkillDemoRecord): string {
+  return `/demos/${demo.owner}/${demo.repo}/${demo.name}`
+}
+
+export interface SkillDemoShot {
+  src: string
+  width: number
+  height: number
+  alt: string
+  viewport: 'desktop' | 'mobile'
+}
+
+/** What the Skill page and the homepage render for one demo. */
+export interface SkillDemoView {
+  owner: string
+  repo: string
+  name: string
+  skillPath: string
+  prompt: string
+  agent: string
+  model: string
+  skillCommit: string
+  recordedAt: string
+  /** True when the Skill moved past the commit the demo recorded. */
+  outdated: boolean
+  /** The sandboxed output page. */
+  liveUrl: string
+  shots: SkillDemoShot[]
+}
+
+/** `currentCommit` is the Skill's source commit now, when known. Unknown never marks a demo outdated. */
+export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | null): SkillDemoView {
+  const base = demoBase(demo)
+  return {
+    owner: demo.owner,
+    repo: demo.repo,
+    name: demo.name,
+    skillPath: repoSkillPath(demo.owner, demo.repo, demo.name),
+    prompt: demo.prompt,
+    agent: demo.agent,
+    model: demo.model,
+    skillCommit: demo.skillCommit,
+    recordedAt: demo.recordedAt,
+    outdated: currentCommit !== null && currentCommit !== demo.skillCommit,
+    liveUrl: `${base}/live`,
+    shots: demo.shots.map(shot => ({
+      src: `${base}/${shot.file}`,
+      width: shot.width,
+      height: shot.height,
+      alt: shot.alt,
+      viewport: shot.viewport,
+    })),
+  }
+}
+
+/** The key of a demo's output page in the `skill-demos` server assets. */
+export function skillDemoOutputKey(demo: SkillDemoRecord): string {
+  return `${demo.owner}/${demo.repo}/${demo.name}/${demo.outputFile}`
+}

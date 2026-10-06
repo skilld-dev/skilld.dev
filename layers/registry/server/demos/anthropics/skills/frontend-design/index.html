@@ -1,0 +1,1031 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tidepool: tide charts for surfers</title>
+<meta name="description" content="Tidepool marks the hours when the tide sits right for your break. Check once, then go surf.">
+<meta name="theme-color" content="#E2ECE8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
+<style>
+@property --level {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 0%;
+}
+
+:root {
+  --mist: #E2ECE8;
+  --deep: #083640;
+  --pool: #0B4F5C;
+  --anemone: #63D9B5;
+  --coralline: #EE9DB8;
+  --night: #073D48;
+
+  --font: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --gutter: clamp(1.25rem, 4vw, 3.5rem);
+  --measure: 34rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--mist);
+  color: var(--deep);
+  font-family: var(--font);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  font-variation-settings: 'wdth' 100;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+
+:focus-visible {
+  outline: 3px solid var(--focus, var(--deep));
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.skip {
+  position: absolute;
+  left: var(--gutter);
+  top: -4rem;
+  z-index: 10;
+  padding: .6rem 1rem;
+  background: var(--deep);
+  color: var(--mist);
+}
+.skip:focus { top: 1rem; }
+
+.wet-zone { --focus: var(--anemone); }
+
+/* Shared type: condensed heavy for anything you read at a glance */
+.cond {
+  font-variation-settings: 'wdth' 62;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Header ---------- */
+
+.site-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.1rem var(--gutter);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  text-decoration: none;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.brand svg { width: 1.6rem; height: 1.6rem; flex: none; }
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 2.5vw, 2rem);
+}
+.site-nav a:not(.btn) {
+  text-decoration: none;
+  font-weight: 500;
+}
+.site-nav a:not(.btn):hover { text-decoration: underline; text-underline-offset: .25em; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.9rem;
+  padding: .7rem 1.35rem;
+  border-radius: 999px;
+  background: var(--coralline);
+  color: var(--deep);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color .15s ease;
+}
+.btn:hover { background: #F4B5CA; }
+.btn-small { min-height: 2.5rem; padding: .5rem 1.1rem; }
+
+/* ---------- Tank: the hero the water moves through ---------- */
+
+.tank {
+  --level: 0%;
+  position: relative;
+  display: grid;
+  min-height: clamp(26rem, 50svh, 40rem);
+  transition: --level .18s ease-out;
+}
+.tank.is-filling { transition: --level 1.8s cubic-bezier(.22, .8, .24, 1); }
+
+.tank-layer {
+  grid-area: 1 / 1;
+  display: grid;
+  align-content: center;
+  padding: 1.5rem var(--gutter) 2.5rem;
+}
+@media (min-width: 1180px) {
+  .tank-layer {
+    grid-template-columns: auto minmax(16rem, 24rem);
+    justify-content: space-between;
+    align-items: end;
+    column-gap: 3rem;
+  }
+  .tank-aside { padding-bottom: .4rem; }
+  .tank-aside .tank-lede { margin-top: 0; }
+}
+
+.tank-wet {
+  background: var(--pool);
+  color: var(--mist);
+  clip-path: inset(calc(100% - var(--level)) 0 0 0);
+  pointer-events: none;
+}
+
+.headline {
+  margin: 0;
+  font-size: clamp(4.6rem, 13.5vw, 13rem);
+  line-height: .9;
+  font-variation-settings: 'wdth' 62;
+  font-weight: 850;
+  letter-spacing: -.015em;
+  max-width: 11ch;
+}
+
+.tank-lede {
+  max-width: var(--measure);
+  margin: 1.6rem 0 0;
+  font-size: clamp(1.1rem, 1.6vw, 1.3rem);
+  line-height: 1.5;
+}
+
+.tank-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1.5rem;
+  margin-top: 1.6rem;
+}
+.tank-actions .quiet {
+  font-weight: 600;
+  text-underline-offset: .25em;
+}
+
+.waterline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--level);
+  height: 0;
+  border-top: 2px solid var(--deep);
+  pointer-events: none;
+}
+.waterline-tag {
+  position: absolute;
+  right: var(--gutter);
+  bottom: .35rem;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+/* ---------- Gauge: the chart under the water ---------- */
+
+.gauge {
+  position: relative;
+  margin-top: -1px;
+  background: var(--pool);
+  color: var(--mist);
+  padding: 1.5rem var(--gutter) 3rem;
+}
+
+.gauge-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem 3rem;
+}
+
+.breaks {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.breaks legend {
+  padding: 0;
+  margin-bottom: .6rem;
+  font-weight: 600;
+}
+.break-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.break-option { position: relative; }
+.break-option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.break-option label {
+  display: block;
+  padding: .55rem 1rem .6rem;
+  border: 2px solid rgba(226, 236, 232, .35);
+  border-radius: .6rem;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.break-option label strong { display: block; font-size: 1.05rem; }
+.break-option label span { font-size: .9rem; opacity: .8; }
+.break-option input:hover + label { border-color: rgba(226, 236, 232, .7); }
+.break-option input:checked + label {
+  border-color: var(--anemone);
+  background: rgba(99, 217, 181, .12);
+}
+.break-option input:focus-visible + label {
+  outline: 3px solid var(--anemone);
+  outline-offset: 3px;
+}
+
+.readout {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 0 1.75rem;
+  text-align: right;
+}
+.readout-time,
+.readout-height {
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
+  line-height: .95;
+}
+.readout-height { color: var(--anemone); }
+.readout-trend {
+  grid-column: 2;
+  font-size: .95rem;
+}
+
+.verdict {
+  max-width: 52rem;
+  margin: 1.25rem 0 .75rem;
+  font-size: clamp(1.15rem, 1.9vw, 1.45rem);
+  line-height: 1.4;
+  min-height: 2.8em;
+}
+.verdict strong { color: var(--coralline); font-weight: 700; }
+
+.chart {
+  position: relative;
+  touch-action: pan-y;
+  cursor: ew-resize;
+  border-radius: .4rem;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+.chart-help {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: .5rem 2rem;
+  margin: 1rem 0 0;
+  font-size: .9rem;
+  opacity: .8;
+}
+.legend-swatch {
+  display: inline-block;
+  width: 1.4rem;
+  height: .3rem;
+  margin-right: .4rem;
+  vertical-align: middle;
+  border-radius: 1px;
+  background: var(--coralline);
+}
+.legend-swatch.dark { background: var(--night); outline: 1px solid rgba(226,236,232,.25); height: .7rem; }
+
+/* SVG chart parts */
+.c-night { fill: var(--night); }
+.c-range { fill: rgba(226, 236, 232, .06); }
+.c-grid { stroke: rgba(226, 236, 232, .14); stroke-width: 1; }
+.c-curve { fill: none; stroke: var(--mist); stroke-width: 2.25; stroke-linejoin: round; }
+.c-window { fill: none; stroke: var(--coralline); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.c-axis { fill: rgba(226, 236, 232, .7); font-size: 13px; font-family: var(--font); }
+.c-ext { fill: var(--mist); font-size: 13px; font-family: var(--font); font-weight: 600; }
+.c-ext-dot { fill: var(--pool); stroke: var(--mist); stroke-width: 2; }
+.c-now { stroke: var(--anemone); stroke-width: 1.5; stroke-dasharray: 3 4; }
+.c-now-label { fill: var(--anemone); font-size: 12px; font-family: var(--font); font-weight: 600; }
+.c-scrub { stroke: var(--anemone); stroke-width: 2; }
+.c-scrub-dot { fill: var(--anemone); stroke: var(--pool); stroke-width: 3; }
+
+.draw-in .c-curve {
+  stroke-dasharray: var(--len);
+  stroke-dashoffset: var(--len);
+  animation: draw 1.6s cubic-bezier(.22, .8, .24, 1) forwards;
+}
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* ---------- Sections on dry land ---------- */
+
+.section {
+  padding: clamp(4rem, 9vw, 7.5rem) var(--gutter);
+}
+
+.section-title {
+  margin: 0;
+  font-size: clamp(2.6rem, 6.5vw, 5.2rem);
+  line-height: .92;
+  max-width: 14ch;
+}
+.section-title-wide { max-width: 24ch; }
+.section-lede {
+  max-width: var(--measure);
+  margin: 1.25rem 0 0;
+  font-size: 1.15rem;
+}
+
+/* Week table */
+
+.week-table {
+  width: 100%;
+  margin-top: clamp(2rem, 5vw, 3.5rem);
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.week-table caption {
+  text-align: left;
+  caption-side: bottom;
+  padding-top: 1rem;
+  font-size: .9rem;
+  opacity: .75;
+}
+.week-table th,
+.week-table td {
+  padding: 1rem 1rem 1rem 0;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(8, 54, 64, .16);
+}
+.week-table thead th {
+  padding-top: 0;
+  font-weight: 600;
+  font-size: .95rem;
+  border-bottom-width: 2px;
+  border-bottom-color: var(--deep);
+}
+.week-table tbody th {
+  font-weight: 800;
+  font-variation-settings: 'wdth' 62;
+  font-size: 1.6rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+.week-table tbody th small {
+  display: block;
+  margin-top: .3rem;
+  font-weight: 500;
+  font-size: .9rem;
+  font-variation-settings: 'wdth' 100;
+}
+.week-table .spark { width: 34%; min-width: 12rem; }
+.week-table .spark svg { display: block; width: 100%; height: 3.5rem; overflow: visible; }
+.s-night { fill: rgba(8, 54, 64, .09); }
+.s-curve { fill: none; stroke: var(--pool); stroke-width: 1.75; }
+.s-window { fill: none; stroke: var(--coralline); stroke-width: 5; stroke-linecap: round; }
+.s-window-dark { stroke: #C9567D; }
+
+.extremes { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, max-content)); gap: .15rem 1.5rem; font-size: .95rem; }
+.extremes b { font-weight: 700; }
+.window-cell { font-weight: 700; white-space: nowrap; }
+.window-cell .none { font-weight: 500; opacity: .7; white-space: normal; }
+
+.week-table tr.is-today th { color: var(--pool); }
+
+/* Questions */
+
+.questions {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: start;
+}
+.questions-head { position: sticky; top: 2rem; }
+.qa { margin: 0; }
+.qa dt {
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  line-height: 1;
+}
+.qa dd {
+  max-width: var(--measure);
+  margin: .7rem 0 0;
+  font-size: 1.1rem;
+}
+.qa dd + dt { margin-top: clamp(2.5rem, 5vw, 3.5rem); }
+
+/* Pricing: the deep end */
+
+.deep-end {
+  background: var(--deep);
+  color: var(--mist);
+  --focus: var(--anemone);
+}
+.plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(2rem, 5vw, 5rem);
+  max-width: 62rem;
+  margin-top: clamp(2.5rem, 5vw, 4rem);
+}
+.plan h3 { margin: 0; font-size: 2rem; line-height: 1; }
+.plan-price { margin: .6rem 0 0; font-size: 1.15rem; }
+.plan-price b { color: var(--anemone); font-weight: 700; }
+.plan ul { margin: 1.1rem 0 0; padding-left: 1.1rem; }
+.plan li + li { margin-top: .35rem; }
+.plan li::marker { color: var(--anemone); }
+
+.stores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--mist);
+  box-shadow: inset 0 0 0 2px rgba(226, 236, 232, .55);
+}
+.btn-ghost:hover { background: rgba(226, 236, 232, .08); }
+
+.site-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  padding: 2rem var(--gutter) 2.5rem;
+  background: var(--deep);
+  color: rgba(226, 236, 232, .75);
+  font-size: .9rem;
+}
+.site-foot p { margin: 0; max-width: 40rem; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 860px) {
+  .site-nav a:not(.btn) { display: none; }
+  .readout { text-align: left; }
+  .questions { grid-template-columns: 1fr; }
+  .questions-head { position: static; }
+  .plans { grid-template-columns: 1fr; }
+
+  .week-table thead { display: none; }
+  .week-table tbody tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: .5rem 1rem;
+    padding: 1.1rem 0;
+    border-bottom: 1px solid rgba(8, 54, 64, .16);
+  }
+  .week-table tbody th,
+  .week-table tbody td { padding: 0; border: 0; }
+  .week-table .spark { grid-column: 1 / -1; width: auto; min-width: 0; order: 3; }
+  .week-table .ext-cell { grid-column: 1 / -1; order: 4; }
+  .week-table .window-cell { text-align: right; align-self: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .tank, .tank.is-filling { transition: none; }
+  .draw-in .c-curve { animation: none; stroke-dashoffset: 0; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#gauge">Skip to the tide chart</a>
+
+<header class="site-head">
+  <a class="brand cond" href="#top" aria-label="Tidepool home">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="3"/>
+      <path d="M2 17.5h28A14 14 0 0 1 2 17.5Z" fill="#0B4F5C"/>
+    </svg>
+    Tidepool
+  </a>
+  <nav class="site-nav" aria-label="Main">
+    <a href="#week">This week</a>
+    <a href="#how">How it works</a>
+    <a href="#pricing">Pricing</a>
+    <a class="btn btn-small" href="#pricing">Get the app</a>
+  </nav>
+</header>
+
+<main id="top">
+  <section class="tank" id="tank" aria-labelledby="headline">
+    <div class="tank-layer tank-dry" id="tank-dry">
+      <h1 class="headline" id="headline">Every break has its tide.</h1>
+      <div class="tank-aside">
+        <p class="tank-lede">Tidepool marks the hours when the water sits right for your spot. Check once, then go surf.</p>
+        <div class="tank-actions">
+          <a class="btn" href="#pricing">Get Tidepool</a>
+          <a class="quiet" href="#week">See this week's tides</a>
+        </div>
+      </div>
+    </div>
+    <div class="waterline" aria-hidden="true">
+      <span class="waterline-tag cond" id="waterline-tag"></span>
+    </div>
+  </section>
+
+  <section class="gauge wet-zone" id="gauge" aria-labelledby="gauge-title">
+    <h2 class="sr-only" id="gauge-title">Today's tide chart</h2>
+    <div class="gauge-top">
+      <fieldset class="breaks">
+        <legend>Pick a break</legend>
+        <div class="break-options" id="break-options"></div>
+      </fieldset>
+      <div class="readout" aria-live="polite" aria-atomic="true">
+        <span class="readout-time cond" id="readout-time"></span>
+        <span class="readout-height cond" id="readout-height"></span>
+        <span class="readout-trend" id="readout-trend"></span>
+      </div>
+    </div>
+
+    <p class="verdict" id="verdict"></p>
+
+    <div class="chart" id="chart" tabindex="0" role="slider"
+         aria-label="Time of day on the tide chart"
+         aria-valuemin="0" aria-valuemax="1439" aria-valuenow="0">
+      <svg id="chart-svg" aria-hidden="true"></svg>
+    </div>
+    <p class="chart-help">
+      <span>Drag along the day, or use the arrow keys.</span>
+      <span><i class="legend-swatch"></i>Tide window <i class="legend-swatch dark" style="margin-left:1rem"></i>Dark</span>
+    </p>
+  </section>
+
+  <section class="section" id="week" aria-labelledby="week-title">
+    <h2 class="section-title section-title-wide cond" id="week-title">The week at North Reef</h2>
+    <p class="section-lede" id="week-lede"></p>
+    <table class="week-table">
+      <caption>Sample predictions in feet above mean lower low water. Windows count daylight hours only.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Day</th>
+          <th scope="col">Tide</th>
+          <th scope="col">Highs and lows</th>
+          <th scope="col">Window</th>
+        </tr>
+      </thead>
+      <tbody id="week-body"></tbody>
+    </table>
+  </section>
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="questions">
+      <div class="questions-head">
+        <h2 class="section-title cond" id="how-title">Tell it what your break needs.</h2>
+        <p class="section-lede">You know your spot. Tidepool does the tide math every day so you don't have to.</p>
+      </div>
+      <dl class="qa">
+        <dt class="cond">When is it in range?</dt>
+        <dd>Set the lowest and highest tide each break works on. Tidepool marks those hours on every chart, for every day of the year.</dd>
+        <dt class="cond">Is it pushing or draining?</dt>
+        <dd>Some sandbars only work on an incoming tide. Mark a break as rising only and Tidepool leaves the falling hours out of its window.</dd>
+        <dt class="cond">Can I surf it before work?</dt>
+        <dd>First light and sunset sit on the chart. A window that opens in the dark doesn't count, so you only see the hours you can use.</dd>
+        <dt class="cond">No signal at the car park?</dt>
+        <dd>A full year of tide tables downloads with each break. The charts work in airplane mode.</dd>
+        <dt class="cond">Can it tell me when to go?</dt>
+        <dd>Turn on alerts for a break and Tidepool tells you one hour before its window opens.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section deep-end" id="pricing" aria-labelledby="pricing-title">
+    <h2 class="section-title cond" id="pricing-title">Free for your home break.</h2>
+    <p class="section-lede">Add more breaks and alerts when you travel or chase a swell.</p>
+    <div class="plans">
+      <div class="plan">
+        <h3 class="cond">Tidepool</h3>
+        <p class="plan-price"><b>Free</b>, for good</p>
+        <ul>
+          <li>One break with its own tide window</li>
+          <li>Seven days of charts</li>
+          <li>First light and sunset on every chart</li>
+        </ul>
+      </div>
+      <div class="plan">
+        <h3 class="cond">Tidepool Plus</h3>
+        <p class="plan-price"><b>$2.99</b> a month, or $24 a year</p>
+        <ul>
+          <li>Every break you surf</li>
+          <li>Alerts one hour before a window opens</li>
+          <li>A full year of tables for offline use</li>
+        </ul>
+      </div>
+    </div>
+    <div class="stores">
+      <a class="btn" href="#">Download on the App Store</a>
+      <a class="btn btn-ghost" href="#">Get it on Google Play</a>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <p>Tidepool is a tide chart, not a navigation aid. Check local conditions before you paddle out.</p>
+  <p>© 2026 Tidepool</p>
+</footer>
+
+<script>
+(() => {
+  'use strict'
+
+  // ---------- Tide model ----------
+  // Four harmonic constituents give a realistic mixed tide: two highs and two lows of
+  // different size each day, drifting about 50 minutes later every day.
+  const CONSTITUENTS = [
+    { amp: 1.8, period: 12.4206, peak: 3.0 },   // M2, principal lunar
+    { amp: 0.42, period: 12.0, peak: 1.0 },     // S2, principal solar
+    { amp: 1.2, period: 23.9345, peak: 21.0 },  // K1, lunisolar diurnal
+    { amp: 0.75, period: 25.8193, peak: 19.0 }, // O1, lunar diurnal
+  ]
+  const MEAN = 3.1
+  const FIRST_LIGHT = 7 + 5 / 60
+  const SUNSET = 18 + 41 / 60
+  const STEP_MIN = 5
+  const DAYS = 7
+
+  // hours: hours since local midnight today
+  const tideAt = (hours) =>
+    CONSTITUENTS.reduce((sum, c) => sum + c.amp * Math.cos((2 * Math.PI * (hours - c.peak)) / c.period), MEAN)
+
+  const rateAt = (hours) => (tideAt(hours + 1 / 120) - tideAt(hours - 1 / 120)) * 60
+
+  const BREAKS = [
+    { id: 'north-reef', name: 'North Reef', hint: 'Low to mid', min: 0.6, max: 2.8, risingOnly: false },
+    { id: 'gull-bay', name: 'Gull Bay', hint: 'Mid, on the push', min: 1.8, max: 4.2, risingOnly: true },
+    { id: 'kelp-point', name: 'Kelp Point', hint: 'Mid to high', min: 3.6, max: 5.6, risingOnly: false },
+  ]
+
+  const isDaylight = (hourOfDay) => hourOfDay >= FIRST_LIGHT && hourOfDay <= SUNSET
+
+  const inRange = (brk, hours) => {
+    const h = tideAt(hours)
+    if (h < brk.min || h > brk.max) return false
+    return !brk.risingOnly || rateAt(hours) > 0
+  }
+
+  // Windows for one day, in hours of that day. Pure: break + day in, intervals out.
+  // A dip shorter than 20 minutes doesn't end a session, so it doesn't split a window.
+  const windowsFor = (brk, day) => {
+    const raw = []
+    let start = null
+    for (let m = 0; m <= 1440; m += STEP_MIN) {
+      const t = m / 60
+      const ok = m < 1440 && isDaylight(t) && inRange(brk, day * 24 + t)
+      if (ok && start === null) start = t
+      if (!ok && start !== null) {
+        raw.push({ start, end: t - STEP_MIN / 60 })
+        start = null
+      }
+    }
+    const merged = []
+    for (const w of raw) {
+      const prev = merged[merged.length - 1]
+      if (prev && w.start - prev.end <= 1 / 3) prev.end = w.end
+      else merged.push({ ...w })
+    }
+    return merged.filter((w) => w.end - w.start >= 1 / 3)
+  }
+
+  const extremesFor = (day) => {
+    const out = []
+    for (let m = 1; m < 1440; m++) {
+      const t = day * 24 + m / 60
+      const a = tideAt(t - 1 / 60)
+      const b = tideAt(t)
+      const c = tideAt(t + 1 / 60)
+      if (b > a && b >= c) out.push({ kind: 'High', t: m / 60, h: b })
+      if (b < a && b <= c) out.push({ kind: 'Low', t: m / 60, h: b })
+    }
+    return out
+  }
+
+  // Shared vertical scale across the week, so charts compare honestly.
+  const RANGE = (() => {
+    let lo = Infinity
+    let hi = -Infinity
+    for (let m = 0; m <= DAYS * 1440; m += 10) {
+      const h = tideAt(m / 60)
+      lo = Math.min(lo, h)
+      hi = Math.max(hi, h)
+    }
+    return { lo: lo - 0.4, hi: hi + 0.4 }
+  })()
+
+  // ---------- Formatting ----------
+  const clock = (hourOfDay) => {
+    const total = Math.round(hourOfDay * 60) % 1440
+    const h24 = Math.floor(total / 60)
+    const m = total % 60
+    const suffix = h24 < 12 ? 'am' : 'pm'
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+    return `${h12}:${String(m).padStart(2, '0')} ${suffix}`
+  }
+  const feet = (h) => `${h.toFixed(1).replace('-0.0', '0.0').replace('-', '−')} ft`
+  const span = (w) => {
+    const a = clock(w.start)
+    const b = clock(w.end)
+    const sameHalf = a.slice(-2) === b.slice(-2)
+    return `${sameHalf ? a.slice(0, -3) : a} to ${b}`
+  }
+
+  const today = new Date()
+  const dayDate = (d) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + d)
+  const weekday = (d) => dayDate(d).toLocaleDateString('en-US', { weekday: 'short' })
+  const monthDay = (d) => dayDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  // ---------- Verdict: pure text from break + time ----------
+  const verdictFor = (brk, t) => {
+    const name = `<strong>${brk.name}</strong>`
+    const todays = windowsFor(brk, 0)
+    const current = todays.find((w) => t >= w.start && t <= w.end)
+    if (current) return `${name} is in its window until ${clock(current.end)}.`
+
+    const next = todays.find((w) => w.start > t)
+    const h = tideAt(t)
+    const why = !isDaylight(t)
+      ? 'It is dark'
+      : h > brk.max
+        ? 'Too full'
+        : h < brk.min
+          ? 'Too low'
+          : 'The tide is falling'
+    if (next) return `${why} at ${name}. The window opens at ${clock(next.start)}.`
+
+    for (let d = 1; d < DAYS; d++) {
+      const later = windowsFor(brk, d)
+      if (later.length) {
+        const when = d === 1 ? 'tomorrow' : weekday(d)
+        return `${why} at ${name}, and no window is left today. The next one opens ${when} at ${clock(later[0].start)}.`
+      }
+    }
+    return `${why} at ${name}, and the tide misses its range all week.`
+  }
+
+  // ---------- DOM ----------
+  const $ = (id) => document.getElementById(id)
+  const tank = $('tank')
+  const chart = $('chart')
+  const svg = $('chart-svg')
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const SVG_NS = 'http://www.w3.org/2000/svg'
+
+  const state = {
+    breakId: BREAKS[0].id,
+    t: today.getHours() + today.getMinutes() / 60,
+  }
+  const nowT = state.t
+  const currentBreak = () => BREAKS.find((b) => b.id === state.breakId)
+
+  // The submerged copy of the hero: same markup, light on water, clipped by the waterline.
+  const wet = $('tank-dry').cloneNode(true)
+  wet.id = ''
+  wet.className = 'tank-layer tank-wet'
+  wet.setAttribute('aria-hidden', 'true')
+  wet.inert = true
+  wet.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'))
+  tank.insertBefore(wet, tank.querySelector('.waterline'))
+
+  // Lowest tide sits near the floor of the tank, highest near the top of the headline.
+  const levelFor = (h) => 6 + ((h - RANGE.lo) / (RANGE.hi - RANGE.lo)) * 84
+
+  const el = (name, attrs, parent) => {
+    const node = document.createElementNS(SVG_NS, name)
+    for (const k in attrs) node.setAttribute(k, attrs[k])
+    if (parent) parent.appendChild(node)
+    return node
+  }
+
+  const pathFor = (day, x, y, from = 0, to = 24) => {
+    let d = ''
+    const step = 5 / 60
+    for (let t = from; t <= to + 1e-9; t += step) {
+      d += `${d ? 'L' : 'M'}${x(t).toFixed(1)},${y(tideAt(day * 24 + t)).toFixed(1)}`
+    }
+    return d
+  }
+
+  let chartGeom = null
+
+  const renderChart = (animate) => {
+    const width = Math.max(300, chart.clientWidth)
+    const narrow = width < 640
+    const height = narrow ? 220 : 250
+    const pad = { top: 34, right: 8, bottom: 30, left: 8 }
+    const x = (t) => pad.left + (t / 24) * (width - pad.left - pad.right)
+    const y = (h) => pad.top + (1 - (h - RANGE.lo) / (RANGE.hi - RANGE.lo)) * (height - pad.top - pad.bottom)
+    chartGeom = { width, height, pad, x, y }
+
+    const brk = currentBreak()
+    svg.replaceChildren()
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
+    svg.classList.toggle('draw-in', animate)
+
+    const plotTop = pad.top
+    const plotH = height - pad.top - pad.bottom
+    el('rect', { class: 'c-night', x: x(0), y: plotTop, width: x(FIRST_LIGHT) - x(0), height: plotH }, svg)
+    el('rect', { class: 'c-night', x: x(SUNSET), y: plotTop, width: x(24) - x(SUNSET), height: plotH }, svg)
+    el('rect', { class: 'c-range', x: x(0), y: y(brk.max), width: x(24) - x(0), height: y(brk.min) - y(brk.max) }, svg)
+
+    const ticks = narrow ? [0, 6, 12, 18, 24] : [0, 3, 6, 9, 12, 15, 18, 21, 24]
+    for (const t of ticks) {
+      el('line', { class: 'c-grid', x1: x(t), x2: x(t), y1: plotTop, y2: plotTop + plotH }, svg)
+      const label = el('text', { class: 'c-axis', x: x(t), y: height - 8, 'text-anchor': t === 0 ? 'start' : t === 24 ? 'end' : 'middle' }, svg)
+      label.textContent = t === 12 ? 'noon' : t % 24 === 0 ? 'midnight' : clock(t).replace(':00', '')
+    }
+
+    const curve = el('path', { class: 'c-curve', d: pathFor(0, x, y) }, svg)
+    if (animate) curve.style.setProperty('--len', String(Math.ceil(curve.getTotalLength())))
+
+    for (const w of windowsFor(brk, 0)) {
+      el('path', { class: 'c-window', d: pathFor(0, x, y, w.start, w.end) }, svg)
+    }
+
+    for (const e of extremesFor(0)) {
+      const cx = x(e.t)
+      const cy = y(e.h)
+      el('circle', { class: 'c-ext-dot', cx, cy, r: 4 }, svg)
+      const anchor = e.t < 1.5 ? 'start' : e.t > 22.5 ? 'end' : 'middle'
+      const ty = e.kind === 'High' ? cy - 12 : cy + 22
+      const text = el('text', { class: 'c-ext', x: cx, y: ty, 'text-anchor': anchor }, svg)
+      text.textContent = `${e.kind} ${feet(e.h)}`
+    }
+
+    if (nowT >= 0 && nowT <= 24) {
+      el('line', { class: 'c-now', x1: x(nowT), x2: x(nowT), y1: plotTop - 18, y2: plotTop + plotH }, svg)
+      const nowLabel = el('text', { class: 'c-now-label', x: x(nowT), y: plotTop - 22, 'text-anchor': nowT < 1 ? 'start' : nowT > 23 ? 'end' : 'middle' }, svg)
+      nowLabel.textContent = 'Now'
+    }
+
+    chartGeom.scrubLine = el('line', { class: 'c-scrub', y1: plotTop, y2: plotTop + plotH }, svg)
+    chartGeom.scrubDot = el('circle', { class: 'c-scrub-dot', r: 8 }, svg)
+  }
+
+  const renderScrub = () => {
+    const brk = currentBreak()
+    const t = state.t
+    const h = tideAt(t)
+    const rate = rateAt(t)
+    const { x, y } = chartGeom
+
+    chartGeom.scrubLine.setAttribute('x1', x(t))
+    chartGeom.scrubLine.setAttribute('x2', x(t))
+    chartGeom.scrubDot.setAttribute('cx', x(t))
+    chartGeom.scrubDot.setAttribute('cy', y(h))
+
+    tank.style.setProperty('--level', `${levelFor(h).toFixed(2)}%`)
+    $('waterline-tag').textContent = feet(h)
+
+    $('readout-time').textContent = clock(t)
+    $('readout-height').textContent = feet(h)
+    const slack = Math.abs(rate) < 0.08
+    $('readout-trend').textContent = slack
+      ? 'Slack water'
+      : `${rate > 0 ? 'Rising' : 'Falling'} ${Math.abs(rate).toFixed(1)} ft an hour`
+    $('verdict').innerHTML = verdictFor(brk, t)
+
+    const minutes = Math.round(t * 60) % 1440
+    chart.setAttribute('aria-valuenow', String(minutes))
+    chart.setAttribute('aria-valuetext', `${clock(t)}, ${feet(h)}, ${slack ? 'slack' : rate > 0 ? 'rising' : 'falling'}`)
+  }
+
+  // ---------- Week table ----------
+  const renderWeek = () => {
+    const brk = currentBreak()
+    $('week-title').textContent = `The week at ${brk.name}`
+    $('week-lede').textContent = brk.risingOnly
+      ? `${brk.name} works from ${feet(brk.min)} to ${feet(brk.max)} on a rising tide. Pink marks the daylight hours it does.`
+      : `${brk.name} works from ${feet(brk.min)} to ${feet(brk.max)}. Pink marks the daylight hours the tide sits there.`
+
+    const W = 300
+    const H = 56
+    const x = (t) => (t / 24) * W
+    const y = (h) => 4 + (1 - (h - RANGE.lo) / (RANGE.hi - RANGE.lo)) * (H - 8)
+
+    const rows = []
+    for (let d = 0; d < DAYS; d++) {
+      const windows = windowsFor(brk, d)
+      const ext = extremesFor(d)
+      const paths = windows.map((w) => `<path class="s-window" d="${pathFor(d, x, y, w.start, w.end)}"/>`).join('')
+      const spark = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Tide curve for ${weekday(d)}">`
+        + `<rect class="s-night" x="0" y="0" width="${x(FIRST_LIGHT)}" height="${H}"/>`
+        + `<rect class="s-night" x="${x(SUNSET)}" y="0" width="${W - x(SUNSET)}" height="${H}"/>`
+        + `<path class="s-curve" vector-effect="non-scaling-stroke" d="${pathFor(d, x, y)}"/>`
+        + paths.replaceAll('class="s-window"', 'class="s-window" vector-effect="non-scaling-stroke"')
+        + `</svg>`
+      const extList = ext.map((e) => `<li><b>${e.kind}</b> ${clock(e.t)}, ${feet(e.h)}</li>`).join('')
+      const windowText = windows.length
+        ? windows.map(span).join('<br>')
+        : '<span class="none">No daylight window</span>'
+      rows.push(
+        `<tr class="${d === 0 ? 'is-today' : ''}">`
+        + `<th scope="row">${d === 0 ? 'Today' : weekday(d)}<small>${monthDay(d)}</small></th>`
+        + `<td class="spark">${spark}</td>`
+        + `<td class="ext-cell"><ul class="extremes">${extList}</ul></td>`
+        + `<td class="window-cell">${windowText}</td>`
+        + `</tr>`,
+      )
+    }
+    $('week-body').innerHTML = rows.join('')
+  }
+
+  // ---------- Break picker ----------
+  $('break-options').innerHTML = BREAKS.map((b, i) => `
+    <div class="break-option">
+      <input type="radio" name="break" id="break-${b.id}" value="${b.id}" ${i === 0 ? 'checked' : ''}>
+      <label for="break-${b.id}"><strong>${b.name}</strong><span>${b.hint}</span></label>
+    </div>`).join('')
+
+  $('break-options').addEventListener('change', (e) => {
+    state.breakId = e.target.value
+    renderChart(false)
+    renderScrub()
+    renderWeek()
+  })
+
+  // ---------- Scrubbing ----------
+  const setTimeFromPointer = (clientX) => {
+    const rect = chart.getBoundingClientRect()
+    const { width, pad } = chartGeom
+    const px = ((clientX - rect.left) / rect.width) * width
+    const t = ((px - pad.left) / (width - pad.left - pad.right)) * 24
+    state.t = Math.min(24 - 1 / 60, Math.max(0, Math.round(t * 12) / 12))
+    renderScrub()
+  }
+
+  chart.addEventListener('pointerdown', (e) => {
+    chart.setPointerCapture(e.pointerId)
+    tank.classList.remove('is-filling')
+    setTimeFromPointer(e.clientX)
+  })
+  chart.addEventListener('pointermove', (e) => {
+    if (chart.hasPointerCapture(e.pointerId)) setTimeFromPointer(e.clientX)
+  })
+
+  chart.addEventListener('keydown', (e) => {
+    const steps = { ArrowRight: 0.25, ArrowUp: 0.25, ArrowLeft: -0.25, ArrowDown: -0.25, PageUp: 1, PageDown: -1 }
+    let t = state.t
+    if (e.key in steps) t += steps[e.key]
+    else if (e.key === 'Home') t = 0
+    else if (e.key === 'End') t = 24 - 1 / 60
+    else return
+    e.preventDefault()
+    tank.classList.remove('is-filling')
+    state.t = Math.min(24 - 1 / 60, Math.max(0, t))
+    renderScrub()
+  })
+
+  let lastWidth = chart.clientWidth
+  new ResizeObserver(() => {
+    if (chart.clientWidth === lastWidth) return
+    lastWidth = chart.clientWidth
+    renderChart(false)
+    renderScrub()
+  }).observe(chart)
+
+  // ---------- First paint: the tide comes in once ----------
+  renderChart(!reduceMotion)
+  renderWeek()
+  tank.classList.add('is-filling')
+  requestAnimationFrame(() => requestAnimationFrame(renderScrub))
+  setTimeout(() => tank.classList.remove('is-filling'), 2000)
+})()
+</script>
+</body>
+</html>

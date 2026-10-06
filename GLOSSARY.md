@@ -14,6 +14,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | Artifact | skilld.dev API | Skill commit 1—1 Artifact | not shown |
 | source status | lockfile, skilld.dev API | Artifact 1—1 source status | "Verified", "Unverified", "Local" |
 | run | skilld CLI | Skill 1—1 run command | "run" |
+| demo | Skill page, homepage | Skill 1—N demo | "demo" |
 | install | skilld CLI | Skill 1—1 install command | "install" |
 | fork | Agent, Skill page | Skill 1—N local copy | "fork" |
 | lockfile | skilld CLI | project 1—1 lockfile | "lockfile" |
@@ -82,6 +83,16 @@ Collisions
 **Marketing phrase:** "run once off", in pitch copy such as "No more skill bloat: run once off, fork, or install". It names the same path. UI labels and commands keep "run".
 
 **Never:** try, preview, use once, ephemeral.
+
+### demo
+
+**Is:** one recorded run of a Skill: a fixed prompt, the output an Agent made with the Skill, and how it was recorded (Agent, model, Skill commit, date). A human approves each one before it ships.
+
+**Use for:** the Demo panel on the Skill page, the homepage demo section, and "live demo" for the sandboxed output page.
+
+**Never:** preview, example output, showcase, sample. "Preview" is already a banned synonym for run.
+
+**Rule:** a demo shows the Agent's output, never the Skill author's work. It always names how it was recorded.
 
 ### install
 
@@ -314,6 +325,7 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 | follow | watch | One Loop 2 verb |
 | sync (user-facing) | import (stars), "Checked GitHub {ago}" (freshness) | Internal jargon; say what happened |
 | use once, try, preview | run ("run once off" in pitch copy) | One name for the transient path |
+| showcase, sample, example output | demo | One name for a recorded run |
 | add (CLI verb) | run or install | v2 grammar |
 | popular, install count | starred, stars | Installs never rank or trust |
 | verified safe, secure, scanned | name the exact check | An attestation cannot guarantee safety |
