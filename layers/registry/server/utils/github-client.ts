@@ -347,9 +347,8 @@ export type RepoSummaryBatchOutcome
  * {@link REPO_SUMMARY_BATCH_SIZE}.
  *
  * The hourly sync used to send one summary query per repository from its own
- * queue job. About 87% of those found the tree unchanged (1,649 of 1,900 jobs
- * on 2026-10-06), so the job and its query did nothing but advance the
- * freshness cursor.
+ * queue job. On 2026-10-06, 1,649 of 1,900 such jobs wrote no Skill row, and
+ * a job that finds its tree unchanged only advances the freshness cursor.
  */
 export async function getRepoSummariesBatch(
   requests: RepoSummaryRequest[],

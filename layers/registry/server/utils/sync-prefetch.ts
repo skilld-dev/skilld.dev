@@ -56,9 +56,9 @@ interface PrefetchRow extends ExistingRepo {
  * the unchanged ones in place, and return the candidates that still need a job.
  *
  * Each candidate used to get a queue job whose first act was one GraphQL
- * summary read. 1,649 of 1,900 such jobs on 2026-10-06 found the tree
- * unchanged and only advanced the freshness cursor. The cursor writes here
- * are the same statements `syncRepo` runs on that path.
+ * summary read. On 2026-10-06, 1,649 of 1,900 such jobs wrote no Skill row.
+ * A job that finds its tree unchanged only advances the freshness cursor, and
+ * the writes here are the same statements `syncRepo` runs on that path.
  *
  * A discovery claim, a job still holding the repository's progress row, a
  * Skill-less repository and any repository GitHub gave no summary for keep
