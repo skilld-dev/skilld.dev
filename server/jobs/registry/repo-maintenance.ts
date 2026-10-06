@@ -190,6 +190,7 @@ async function applyRateGuard(
     repo: string
     now: number
     remaining?: number
+    resource?: string
     resetAt?: number
     rateLimited: boolean
     unauthorized: boolean
@@ -333,6 +334,7 @@ export async function handleRegistryRepoJob(
     repo: payload.repo,
     now,
     remaining: stats.rateLimitRemaining,
+    resource: stats.rateLimitResource,
     resetAt: stats.rateLimitResetAt,
     rateLimited: stats.status === 'rate-limited',
     unauthorized: stats.status === 'unauthorized',
