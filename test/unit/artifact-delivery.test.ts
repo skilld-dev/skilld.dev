@@ -173,7 +173,7 @@ describe('public Artifact delivery', () => {
   it('blocks failed checks before storage or signing', async () => {
     const harness = await createBuildHarness([{
       ...validFiles[0]!,
-      bytes: new TextEncoder().encode('No frontmatter'),
+      bytes: new TextEncoder().encode('---\nname: demo\ndescription: Demo.\n---\n-----BEGIN PRIVATE KEY-----\n'),
     }])
 
     const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
@@ -238,11 +238,14 @@ describe('public Artifact delivery', () => {
       error_retry_after: 2_842_800,
     })
     const failed = presentResolution((await getResolution(harness.dependencies.db, harness.resolutionId))!)
+    // skilld 3.2.0 and later read the wait, so a client can retry when the
+    // quota returns instead of guessing.
     expect(failed).toEqual({
       state: 'failed',
       resolutionId: harness.resolutionId,
       code: 'RATE_LIMITED',
       retryable: true,
+      retryAfterSeconds: 2_842_800,
     })
     harness.close()
   })
