@@ -156,6 +156,20 @@ interface GithubClientOptions {
   onReadFailure?: (failure: GithubReadFailure) => void
   sleep?: (milliseconds: number) => Promise<void>
   random?: () => number
+  /**
+   * Holds GitHub answers that never change: a commit and a tree, each read by
+   * its SHA. Pass it to a public client only, so private trees stay out.
+   */
+  cache?: GithubObjectCache
+}
+
+/**
+ * A store for immutable GitHub answers. `get` answers null for a miss. The
+ * caller parses every value again, so a stale or foreign value only misses.
+ */
+export interface GithubObjectCache {
+  get: (key: string) => Promise<unknown>
+  put: (key: string, value: unknown) => Promise<void>
 }
 
 export function createPublicGithubSourceClient(options: GithubClientOptions): PublicGithubSourceClient {
@@ -249,9 +263,27 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     throw new Error(`GitHub read failed at ${step} ${endpoint}: ${result.reason}`)
   }
 
-  const getTree = async (owner: string, repository: string, sha: string, recursive: boolean) => {
+  /**
+   * A read whose answer the SHA in its path fixes forever. The key names the
+   * Repository ID, so one Repository never answers for another.
+   */
+  const requestImmutableJson = async <T>(key: string, step: GithubReadStep, path: string, schema: z.ZodType<T>) => {
+    const cache = options.cache
+    if (cache) {
+      const cached = schema.safeParse(await cache.get(key))
+      if (cached.success)
+        return { _tag: 'ok' as const, value: cached.data }
+    }
+    const response = await requestJson(step, path, schema)
+    if (cache && response._tag === 'ok')
+      await cache.put(key, response.value)
+    return response
+  }
+
+  const getTree = async (repositoryId: number, owner: string, repository: string, sha: string, recursive: boolean) => {
     const suffix = recursive ? '?recursive=1' : ''
-    const response = await requestJson(
+    const response = await requestImmutableJson(
+      `${repositoryId}:tree:${sha}${recursive ? ':recursive' : ''}`,
       'tree',
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repository)}/git/trees/${sha}${suffix}`,
       treeResponseSchema,
@@ -307,11 +339,12 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
   }
 
   const listTreeBounded = async (
+    repositoryId: number,
     owner: string,
     repository: string,
     rootTreeSha: string,
   ): Promise<ListedTree | SourceRejection> => {
-    const recursive = await getTree(owner, repository, rootTreeSha, true)
+    const recursive = await getTree(repositoryId, owner, repository, rootTreeSha, true)
     if (recursive._tag !== 'ok')
       return readRejection(recursive)
     if (!recursive.value.truncated) {
@@ -327,7 +360,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       if (++requests > MAX_TREE_REQUESTS)
         return sourceLimitRejection(`The Skill folder needs more than ${MAX_TREE_REQUESTS} tree reads.`)
       const current = queue.shift()!
-      const response = await getTree(owner, repository, current.sha, false)
+      const response = await getTree(repositoryId, owner, repository, current.sha, false)
       if (response._tag !== 'ok')
         return readRejection(response)
       if (response.value.truncated)
@@ -346,6 +379,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
   }
 
   const findTreeAtPath = async (
+    repositoryId: number,
     owner: string,
     repository: string,
     rootTreeSha: string,
@@ -355,7 +389,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       return rootTreeSha
     let currentSha = rootTreeSha
     for (const segment of skillPath.split('/')) {
-      const response = await getTree(owner, repository, currentSha, false)
+      const response = await getTree(repositoryId, owner, repository, currentSha, false)
       if (response._tag !== 'ok')
         return readRejection(response)
       const entry = response.value.tree.find(candidate => candidate.path === segment)
@@ -383,12 +417,13 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
    * They used to fail as "More than one Skill matched".
    */
   const resolveNamedSkill = async (
+    repositoryId: number,
     owner: string,
     repository: string,
     treeSha: string,
     name: string,
   ): Promise<string | SourceRejection> => {
-    const tree = await getTree(owner, repository, treeSha, true)
+    const tree = await getTree(repositoryId, owner, repository, treeSha, true)
     if (tree._tag !== 'ok')
       return readRejection(tree)
     if (tree.value.truncated) {
@@ -444,7 +479,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         : request.ref.value
       if (typeof requestedCommit !== 'string')
         return requestedCommit
-      const commit = await requestJson(
+      const commit = await requestImmutableJson(
+        `${repository.value.id}:commit:${requestedCommit}`,
         'commit',
         `/repos/${encodeURIComponent(repository.value.owner.login)}/${encodeURIComponent(repository.value.name)}/commits/${requestedCommit}`,
         commitResponseSchema,
@@ -465,6 +501,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const skillPath = request.selector.type === 'path'
         ? normalizedPath!
         : await resolveNamedSkill(
+            repository.value.id,
             repository.value.owner.login,
             repository.value.name,
             commit.value.commit.tree.sha,
@@ -512,10 +549,10 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       ) {
         return reject('INVALID_SOURCE', 'The Repository identity changed during Artifact creation.', [])
       }
-      const skillTree = await findTreeAtPath(source.owner, source.repository, source.treeSha, source.skillPath)
+      const skillTree = await findTreeAtPath(source.repositoryId, source.owner, source.repository, source.treeSha, source.skillPath)
       if (typeof skillTree !== 'string')
         return skillTree
-      const listed = await listTreeBounded(source.owner, source.repository, skillTree)
+      const listed = await listTreeBounded(source.repositoryId, source.owner, source.repository, skillTree)
       if (listed._tag !== 'listed')
         return listed
       const selected = selectArtifactEntries(listed.entries, source.skillPath)
@@ -745,6 +782,22 @@ function selectArtifactEntries(entries: TreeEntry[], skillPath: string): { _tag:
     )
   }
   return { _tag: 'selected', entries: blobs.sort((a, b) => comparePath(a.path, b.path)) }
+}
+
+/**
+ * Whether files read back from a stored Artifact pass every rule a GitHub load
+ * applies today: paths, modes, the SKILL.md file and the size limits. A Skill
+ * checked again from its stored bytes is then one a load would accept.
+ */
+export function storedFilesPassLoadRules(files: ArtifactSourceFile[], skillPath: string): boolean {
+  const entries = files.map(file => ({
+    path: file.path,
+    mode: file.mode === 493 ? '100755' : '100644',
+    type: 'blob' as const,
+    sha: file.gitBlobSha,
+    size: file.bytes.byteLength,
+  }))
+  return selectArtifactEntries(entries, skillPath)._tag === 'selected'
 }
 
 function skillFolderLabel(skillPath: string): string {
