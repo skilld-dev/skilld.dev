@@ -1,11 +1,12 @@
 import type { H3Event } from 'h3'
 import type { TagPayload } from '../../jobs/generate-tags'
+import type { GithubBindings } from '../../utils/github-client'
 import type { RegistrySkill } from '../../utils/skills-registry'
 import { getDB } from '#server/utils/db'
 import { cached, readCache, writeCache } from '#shared/server/cache'
 import { officialRepos } from '../../data/official-repos'
 import { TAG_BY_SLUG } from '../../jobs/taxonomy'
-import { GITHUB_PAGE_READ_TIMEOUT_MS } from '../../utils/github-client'
+import { getGithubJson, GITHUB_PAGE_READ_TIMEOUT_MS, resolveGithubBindings } from '../../utils/github-client'
 import { resolveRepoSourceIdentitiesForOwner } from '../../utils/repo-source-identity'
 import { getGeneratedBatch } from '../../utils/skill-generated'
 import { querySkills } from '../../utils/skills-registry'
@@ -68,19 +69,27 @@ const ORG_PROFILE_CACHE_STALE_TTL = 60 * 5
 const officialOwners = new Set(officialRepos.map(r => r.owner))
 const kindByOwner = new Map(officialRepos.map(r => [r.owner, r.kind]))
 
-async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerRow | null> {
-  const res = await fetch(`https://api.github.com/users/${owner}`, {
-    signal: AbortSignal.timeout(GITHUB_PAGE_READ_TIMEOUT_MS),
-    headers: {
-      'User-Agent': 'skilld.dev',
-      'Accept': 'application/vnd.github+json',
-    },
-  }).catch(() => {
-    emitOperationalEvent(createWideEvent({ operation: 'org-profile-fetch', outcome: 'failed' }))
-    return null
-  })
+interface GithubOwnerResponse {
+  name?: string
+  bio?: string
+  blog?: string
+  location?: string
+  followers?: number
+  public_repos?: number
+  type?: string
+}
 
-  if (!res || !res.ok) {
+async function fetchAndStoreOwner(owner: string, db: D1Database, bindings: GithubBindings): Promise<OwnerRow | null> {
+  // Authenticated and conditional: an unchanged profile answers 304 from
+  // the ETag cache for free. Anonymous, this read shared the Worker IP's 60
+  // requests an hour with every other Cloudflare tenant, and failed.
+  const res = await getGithubJson<GithubOwnerResponse>(`/users/${encodeURIComponent(owner)}`, bindings, { timeoutMs: GITHUB_PAGE_READ_TIMEOUT_MS })
+    .catch(() => {
+      emitOperationalEvent(createWideEvent({ operation: 'org-profile-fetch', outcome: 'failed' }))
+      return null
+    })
+
+  if (!res?.data) {
     if (res?.status === 404) {
       await db
         .prepare(
@@ -93,16 +102,7 @@ async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerR
     return null
   }
 
-  const data = await res.json() as {
-    name?: string
-    bio?: string
-    blog?: string
-    location?: string
-    followers?: number
-    public_repos?: number
-    type?: string
-  }
-
+  const data = res.data
   const kind: 'user' | 'org' = data.type === 'Organization' ? 'org' : 'user'
   const row: OwnerRow = {
     kind,
@@ -130,7 +130,7 @@ async function fetchAndStoreOwner(owner: string, db: D1Database): Promise<OwnerR
   return row
 }
 
-async function loadOwner(owner: string, db: D1Database): Promise<OwnerRow | null> {
+async function loadOwner(owner: string, db: D1Database, bindings: GithubBindings): Promise<OwnerRow | null> {
   const cached = await db
     .prepare(
       `SELECT kind, name, bio, blog, location, followers, last_synced_at, sync_status
@@ -145,7 +145,7 @@ async function loadOwner(owner: string, db: D1Database): Promise<OwnerRow | null
   if (cached && fresh)
     return cached.sync_status === '404' ? null : cached
 
-  const fetched = await fetchAndStoreOwner(owner, db)
+  const fetched = await fetchAndStoreOwner(owner, db, bindings)
   return fetched ?? cached ?? null
 }
 
@@ -185,7 +185,7 @@ async function loadOrgProfile(event: H3Event, owner: string): Promise<OrgProfile
     throw createError({ statusCode: 404, message: `No skills found for @${owner}` })
   }
 
-  const ownerRow = await loadOwner(owner, db)
+  const ownerRow = await loadOwner(owner, db, resolveGithubBindings(event.context.platform.env))
 
   const manifestKind = kindByOwner.get(owner)
   const kind: OrgKind = manifestKind

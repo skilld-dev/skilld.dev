@@ -136,7 +136,7 @@ describe('syncRepo content acknowledgement', () => {
     const result = await syncRepo('steipete', 'clawdis', {}, db, { ownerVerified: true })
 
     expect(result).toMatchObject({ owner: 'steipete', repo: 'clawdis', status: 'indexed' })
-    expect(github.getTree).toHaveBeenCalledWith('openclaw', 'openclaw', 'main', {})
+    expect(github.getTree).toHaveBeenCalledWith('openclaw', 'openclaw', 'new-tree', {})
     expect(github.getBlobsBatch).toHaveBeenCalledWith(
       'openclaw',
       'openclaw',
