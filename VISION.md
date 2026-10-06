@@ -95,11 +95,11 @@ The filter for skilld-scoped work, precise enough to hold a proposal next to it 
 
 ### 1. Provenance is the quality signal
 
-A Skill is trustworthy because you can see who wrote it and read it before you run it. Every surface that shows a Skill names the author and links the exact source file in its repository. Registry identity is frozen at admission (ADR-0002) so provenance URLs never rot. Machine-generated metadata is labeled as such and never dressed as authorship.
+A Skill is trustworthy because you can see who wrote it and read it before you run it. Every surface that shows a Skill names the author. The Skill page links the exact source file in its repository; other surfaces link the Skill page, which is where a visitor inspects a Skill. Registry identity is frozen at admission (ADR-0002) so provenance URLs never rot. Machine-generated metadata is labeled as such and never dressed as authorship.
 
-**How to apply:** no Skill card, search result, or digest entry ships without author and source link. A layout that drops provenance to save space fails review. Trust signals (official repository, owner-verified) are earned facts, never editorial favors.
+**How to apply:** no Skill card, search result, or digest entry ships without its author and a link to its Skill page or its source. A layout that drops provenance to save space fails review. Trust signals (official repository, owner-verified) are earned facts, never editorial favors.
 
-**Test:** from any surface showing a Skill, can the user reach the exact SKILL.md in the author's repository in one click? If not, fail.
+**Test:** from any surface showing a Skill, can the user reach its Skill page in one click, and the exact SKILL.md in the author's repository from there? If not, fail.
 
 ### 2. Curation over coverage
 

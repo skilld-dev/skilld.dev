@@ -13,14 +13,14 @@
       "outputFile": "index.html",
       "shots": [
         {
-          "file": "desktop.jpg",
+          "file": "desktop-9954800c7c.jpg",
           "width": 1440,
           "height": 4102,
           "viewport": "desktop",
           "alt": "Desktop screenshot of the page the Agent built for: Build a single-file landing page for Tidepool, a tide-chart app for surfers. Inline all CSS and JavaScript. Save it as i"
         },
         {
-          "file": "mobile.jpg",
+          "file": "mobile-c67e258443.jpg",
           "width": 390,
           "height": 5091,
           "viewport": "mobile",
@@ -43,7 +43,7 @@
       "outputFile": "diagram.html",
       "shots": [
         {
-          "file": "desktop.jpg",
+          "file": "desktop-bb59621956.jpg",
           "width": 1440,
           "height": 927,
           "viewport": "desktop",
@@ -66,14 +66,14 @@
       "outputFile": "toast.html",
       "shots": [
         {
-          "file": "desktop.jpg",
+          "file": "desktop-9263d30c37.jpg",
           "width": 1440,
           "height": 900,
           "viewport": "desktop",
           "alt": "Desktop screenshot of the page the Agent built for: Build toast.html, a single-file HTML demo of a toast notification stack for Pebblequill, a fictional note-sync app. Show"
         },
         {
-          "file": "mobile.jpg",
+          "file": "mobile-578712c2dd.jpg",
           "width": 390,
           "height": 844,
           "viewport": "mobile",
@@ -96,15 +96,15 @@
       "skillCommit": "69a2169bde0c134f42979e1911755084b1c29962",
       "recordedAt": "2026-10-06",
       "video": {
-        "file": "video.mp4",
-        "poster": "poster.jpg",
+        "file": "video-77ba3f4e79.mp4",
+        "poster": "poster-9c7931fe85.jpg",
         "width": 1280,
         "height": 720,
         "durationSeconds": 12
       },
       "shots": [
         {
-          "file": "poster.jpg",
+          "file": "poster-9c7931fe85.jpg",
           "width": 1280,
           "height": 720,
           "viewport": "desktop",
@@ -125,7 +125,7 @@
       "outputFile": "flow.html",
       "shots": [
         {
-          "file": "desktop.jpg",
+          "file": "desktop-70a1bca51d.jpg",
           "width": 1440,
           "height": 1060,
           "viewport": "desktop",
@@ -148,14 +148,14 @@
       "outputFile": "pricing.html",
       "shots": [
         {
-          "file": "desktop.jpg",
+          "file": "desktop-4dce07cf5a.jpg",
           "width": 1440,
           "height": 1164,
           "viewport": "desktop",
           "alt": "Desktop screenshot of the page the Agent built for: Build pricing.html, a single-file HTML pricing section for Glintwork, a fictional photo-editing app: three plan cards, a"
         },
         {
-          "file": "mobile.jpg",
+          "file": "mobile-7180f99b12.jpg",
           "width": 390,
           "height": 2192,
           "viewport": "mobile",
@@ -179,15 +179,15 @@
       "skillCommit": "c893c5ed52aed84e3e2ee56787de869fccdae6b0",
       "recordedAt": "2026-10-06",
       "video": {
-        "file": "video.mp4",
-        "poster": "poster.jpg",
+        "file": "video-0683f0bd0b.mp4",
+        "poster": "poster-08e839d069.jpg",
         "width": 1280,
         "height": 720,
         "durationSeconds": 21
       },
       "shots": [
         {
-          "file": "poster.jpg",
+          "file": "poster-08e839d069.jpg",
           "width": 1280,
           "height": 720,
           "viewport": "desktop",
@@ -195,6 +195,35 @@
         }
       ],
       "pin": 1
+    },
+    {
+      "owner": "lemomo-ai",
+      "repo": "lemo-opuscar",
+      "name": "lemo-opuscar",
+      "authorName": "Lemomo",
+      "sourceUrl": "https://github.com/lemomo-ai/lemo-opuscar/blob/main/plugin/skills/lemo-opuscar/SKILL.md",
+      "prompt": "Make a 15-second film in the Chinese Ink Wash style about a lighthouse keeper on Wrenhollow, a fictional island, who rescues a paper boat from a storm. No narration. Render the final film as film.mp4 in this folder.",
+      "agent": "Claude Code",
+      "agentVersion": "2.1.291",
+      "model": "claude-opus-5-5",
+      "skillCommit": "02dce5b6ff6210622788c15319c082e9cb9e7217",
+      "recordedAt": "2026-10-06",
+      "video": {
+        "file": "video-b200a41390.mp4",
+        "poster": "poster-7f097c6c5c.jpg",
+        "width": 1280,
+        "height": 720,
+        "durationSeconds": 15
+      },
+      "shots": [
+        {
+          "file": "poster-7f097c6c5c.jpg",
+          "width": 1280,
+          "height": 720,
+          "viewport": "desktop",
+          "alt": "A frame from the video the Agent rendered for: Make a 15-second film in the Chinese Ink Wash style about a lighthouse keeper on Wrenhollow, a fictional island, who res"
+        }
+      ]
     }
   ]
 }
