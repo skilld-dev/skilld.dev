@@ -134,24 +134,51 @@ jobs:
       - name: Check the trending edge cache
         run: pnpm production:edge-cache
 
+  # The Harness Worker deploys on dispatch, and after a main push whose tested
+  # commit changed it, its dependencies, or this workflow. It runs after the site deploy,
+  # because the Worker calls site routes that the same merge may add. It skips
+  # unchanged merges: a new version restarts containers, and a Skillgen job may
+  # be running in one. The check diffs the tested commit against its first
+  # parent, which covers a squash or merge commit, the only way main changes.
   harness-proof:
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'harness-proof'
+    needs: deploy
+    if: >-
+      !cancelled() &&
+      ((github.event_name == 'workflow_dispatch' && inputs.target == 'harness-proof') ||
+      (needs.deploy.result == 'success' && github.event_name == 'workflow_run'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+      - name: Detect Harness changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ] || ! git diff --quiet HEAD^ HEAD -- workers/skill-harness pnpm-workspace.yaml pnpm-lock.yaml .github/workflows/deploy-cloudflare.yml; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo 'The Harness Worker did not change, so it keeps its current version.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        if: steps.changes.outputs.deploy == 'true'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.changes.outputs.deploy == 'true'
         with:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+        if: steps.changes.outputs.deploy == 'true'
       - name: Check the Harness Worker
+        if: steps.changes.outputs.deploy == 'true'
         run: |
           pnpm --filter @skilld/skill-harness-worker types:check
           pnpm --filter @skilld/skill-harness-worker typecheck
           pnpm --filter @skilld/skill-harness-worker test:run
       - name: Deploy the Harness proof
+        if: steps.changes.outputs.deploy == 'true'
         run: pnpm --filter @skilld/skill-harness-worker deploy:proof
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
