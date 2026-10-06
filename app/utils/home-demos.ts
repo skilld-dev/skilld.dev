@@ -7,6 +7,9 @@ export interface HomeDemoItem {
   repo: string
   name: string
   skillPath: string
+  /** The Skill author, and the SKILL.md in their Repository (VISION principle 1). */
+  authorName: string | null
+  sourceUrl: string | null
   prompt: string
   shots: { src: string, width: number, height: number, alt: string, viewport: 'desktop' | 'mobile' }[]
 }

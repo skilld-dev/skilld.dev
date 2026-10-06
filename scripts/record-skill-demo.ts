@@ -57,6 +57,8 @@ interface DemoEntry {
   owner: string
   repo: string
   name: string
+  authorName: string | null
+  sourceUrl: string
   prompt: string
   agent: string
   agentVersion: string
@@ -92,14 +94,26 @@ function parseInput(argv: string[]): Parsed {
   return { _tag: 'record', owner, repo, name, prompt: values.prompt, output: values.output }
 }
 
-async function skillCommit(owner: string, repo: string, name: string): Promise<string> {
+interface SkillSource {
+  commit: string
+  authorName: string | null
+  sourceUrl: string
+}
+
+async function skillSource(owner: string, repo: string, name: string): Promise<SkillSource> {
   const response = await fetch(`${API}/${owner}/${repo}/${name}`)
   if (!response.ok)
     throw new Error(`The API answered ${response.status} for ${owner}/${repo}/${name}. Is the Skill admitted?`)
-  const body = await response.json() as { sourceCommit?: unknown }
+  const body = await response.json() as { sourceCommit?: unknown, authorName?: unknown, sourceUrl?: unknown }
   if (typeof body.sourceCommit !== 'string' || !/^[0-9a-f]{40}$/.test(body.sourceCommit))
     throw new Error(`The API gave no source commit for ${owner}/${repo}/${name}.`)
-  return body.sourceCommit
+  if (typeof body.sourceUrl !== 'string')
+    throw new Error(`The API gave no source URL for ${owner}/${repo}/${name}.`)
+  return {
+    commit: body.sourceCommit,
+    authorName: typeof body.authorName === 'string' && body.authorName ? body.authorName : null,
+    sourceUrl: body.sourceUrl,
+  }
 }
 
 async function record(cwd: string, skillRef: string, prompt: string): Promise<{ model: string, version: string }> {
@@ -187,7 +201,9 @@ async function reshoot(owner: string, repo: string, name: string): Promise<void>
   await mkdir(shotDir, { recursive: true })
   const page = join(OUTPUT_DIR, entry.owner, entry.repo, entry.name, entry.outputFile)
   const shots = await screenshot(page, shotDir, entry.prompt)
-  await upsert({ ...entry, shots })
+  // The recorded commit stays; only the provenance fields refresh.
+  const source = await skillSource(entry.owner, entry.repo, entry.name)
+  await upsert({ ...entry, authorName: source.authorName, sourceUrl: source.sourceUrl, shots })
   console.log(`Retook ${shots.length} screenshots for ${owner}/${repo}/${name}.`)
 }
 
@@ -204,7 +220,8 @@ async function main(): Promise<void> {
   }
   const { owner, repo, name, prompt, output } = input
   const skillRef = `${owner}/${repo}/${name}`
-  const commit = await skillCommit(owner, repo, name)
+  const source = await skillSource(owner, repo, name)
+  const commit = source.commit
 
   const cwd = await mkdtemp(join(tmpdir(), 'skilld-demo-'))
   console.log(`Recording ${skillRef} at ${commit.slice(0, 7)} in ${cwd}`)
@@ -231,6 +248,8 @@ async function main(): Promise<void> {
     owner,
     repo,
     name,
+    authorName: source.authorName,
+    sourceUrl: source.sourceUrl,
     prompt,
     agent: 'Claude Code',
     agentVersion: agent.version,

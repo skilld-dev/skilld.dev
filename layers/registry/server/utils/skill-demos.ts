@@ -27,6 +27,10 @@ const demoSchema = z.object({
   owner: z.string().min(1),
   repo: z.string().min(1),
   name: z.string().min(1),
+  /** The Skill author's GitHub profile name when recorded. Provenance for cards (VISION principle 1). */
+  authorName: z.string().min(1).nullable().optional(),
+  /** The SKILL.md in the author's Repository. */
+  sourceUrl: z.string().url().optional(),
   /** The exact text the Agent received after loading the Skill. */
   prompt: z.string().min(1),
   agent: z.string().min(1),
@@ -76,6 +80,8 @@ export interface SkillDemoView {
   repo: string
   name: string
   skillPath: string
+  authorName: string | null
+  sourceUrl: string | null
   prompt: string
   agent: string
   model: string
@@ -96,6 +102,8 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
     repo: demo.repo,
     name: demo.name,
     skillPath: repoSkillPath(demo.owner, demo.repo, demo.name),
+    authorName: demo.authorName ?? null,
+    sourceUrl: demo.sourceUrl ?? null,
     prompt: demo.prompt,
     agent: demo.agent,
     model: demo.model,
