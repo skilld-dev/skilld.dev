@@ -173,12 +173,15 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
         <slot name="aside" />
       </div>
 
-      <!-- Always drawn on wide rows, so a row without a run pill still holds the column and its neighbours line up. -->
+      <!--
+        Drawn on every row, even empty: a wide row without a run pill still
+        holds the metric and control columns, so its neighbours line up.
+      -->
       <div class="skill-card__row-end" :class="{ 'skill-card__row-end--empty': view.metricKind === 'none' && !hasControls }">
         <span v-if="view.metricKind !== 'none'" class="skill-card__row-metric">
           <SkillCardMetricLabel v-if="view.metric" :metric="view.metric" short />
         </span>
-        <div v-if="hasControls" class="skill-card__controls">
+        <div class="skill-card__controls skill-card__row-controls">
           <slot name="actions" />
           <a
             v-if="view.sourceUrl"
@@ -500,9 +503,9 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   }
 
   /* Room for the run pill on every row, whether or not this one offers it. */
-  .skill-card__row-end {
-    min-inline-size: calc(var(--skill-card-metric) + 4.5rem);
+  .skill-card__row-controls {
     justify-content: flex-end;
+    min-inline-size: 4rem;
   }
 
   .skill-card__row-end--empty {
