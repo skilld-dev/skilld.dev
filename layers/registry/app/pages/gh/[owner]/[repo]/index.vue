@@ -475,12 +475,12 @@ useHead(computed(() => ({
                 <UIcon name="i-lucide-package" class="size-3.5" aria-hidden="true" />
                 Indexed skills
               </p>
-              <div class="mt-2 flex min-h-8 items-end justify-between gap-3">
+              <div class="mt-2 flex min-h-8 flex-wrap items-end justify-between gap-x-3 gap-y-1">
                 <USkeleton v-if="repoSkillsLoading" class="h-7 w-12" />
                 <p v-else class="font-mono text-xl font-medium tabular-nums">
                   {{ repoSkills.length.toLocaleString() }}
                 </p>
-                <div class="h-7 w-20 shrink-0 sm:w-24">
+                <div class="ms-auto h-7 w-20 shrink-0 sm:w-24">
                   <USkeleton
                     v-if="repoHistoryStatus === 'pending'"
                     class="h-full w-full"
@@ -509,11 +509,12 @@ useHead(computed(() => ({
                 <UIcon name="i-lucide-star" class="size-3.5" aria-hidden="true" />
                 GitHub stars
               </p>
-              <div class="mt-2 flex min-h-8 items-end justify-between gap-3">
+              <!-- A phone card is too narrow for a six digit count and the sparkline, so the sparkline wraps under it. -->
+              <div class="mt-2 flex min-h-8 flex-wrap items-end justify-between gap-x-3 gap-y-1">
                 <p class="font-mono text-xl font-medium tabular-nums">
                   {{ sourceStars.toLocaleString() }}
                 </p>
-                <div class="h-7 w-20 shrink-0 sm:w-24">
+                <div class="ms-auto h-7 w-20 shrink-0 sm:w-24">
                   <USkeleton
                     v-if="repoHistoryStatus === 'pending'"
                     class="h-full w-full"
