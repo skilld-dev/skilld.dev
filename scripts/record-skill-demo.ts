@@ -13,8 +13,10 @@
  * 3. An HTML output gets full-page screenshots at desktop width, and at phone
  *    width when the page fits a phone. An MP4 output is re-encoded small and
  *    gets a poster frame.
- * 4. Copies the media to `public/demos/`, an HTML page to the registry's
+ * 4. Uploads the media to the `skilld-demo-media` R2 bucket with `cf`, under
+ *    content-hashed names, copies an HTML page to the registry's
  *    `server/demos/`, and upserts the entry in `server/data/skill-demos.json`.
+ *    The account comes from `CLOUDFLARE_ACCOUNT_ID`, else `wrangler.jsonc`.
  *
  * A page Skill gets only Read, Write and Edit. A video Skill has to run its
  * renderer, so its Bash runs in the Claude Code sandbox: writes stay in the temp
@@ -29,6 +31,7 @@
  */
 
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { extname, join, relative, resolve, sep } from 'node:path'
@@ -42,7 +45,8 @@ const run = promisify(execFile)
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const MANIFEST = join(ROOT, 'layers/registry/server/data/skill-demos.json')
 const OUTPUT_DIR = join(ROOT, 'layers/registry/server/demos')
-const SHOT_DIR = join(ROOT, 'public/demos')
+const MEDIA_BUCKET = 'skilld-demo-media'
+const MEDIA_TYPES: Readonly<Record<string, string>> = { '.jpg': 'image/jpeg', '.png': 'image/png', '.mp4': 'video/mp4' }
 const API = 'https://skilld.dev/api/v1/skills'
 const RECORD_TIMEOUT_MS = 20 * 60 * 1000
 /** Rendering a film takes far longer than writing a page. */
@@ -354,6 +358,49 @@ async function writeEntry(entry: DemoEntry): Promise<void> {
   await writeFile(MANIFEST, `${JSON.stringify({ demos }, null, 2)}\n`)
 }
 
+async function cloudflareAccount(): Promise<string> {
+  if (process.env.CLOUDFLARE_ACCOUNT_ID)
+    return process.env.CLOUDFLARE_ACCOUNT_ID
+  const config = await readFile(join(ROOT, 'wrangler.jsonc'), 'utf8')
+  const account = /"account_id":\s*"([0-9a-f]{32})"/.exec(config)?.[1]
+  if (!account)
+    throw new Error('Set CLOUDFLARE_ACCOUNT_ID: wrangler.jsonc has no account_id.')
+  return account
+}
+
+/**
+ * Uploads each staged file under a content-hashed name, so a media URL never
+ * changes what it serves, and returns the old name to new name map.
+ */
+async function publishMedia(owner: string, repo: string, name: string, dir: string, files: string[]): Promise<Map<string, string>> {
+  const account = await cloudflareAccount()
+  const published = new Map<string, string>()
+  for (const file of files) {
+    const local = join(dir, file)
+    const ext = extname(file)
+    const hash = createHash('sha256').update(await readFile(local)).digest('hex').slice(0, 10)
+    const hashed = `${file.slice(0, -ext.length)}-${hash}${ext}`
+    const key = `demos/${owner}/${repo}/${name}/${hashed}`
+    await run('cf', ['r2', 'objects', 'put', key, '--bucket-name', MEDIA_BUCKET, '--file', local, '--content-type', MEDIA_TYPES[ext] ?? 'application/octet-stream', '--quiet'], {
+      env: { ...process.env, CLOUDFLARE_ACCOUNT_ID: account },
+      maxBuffer: 16 * 1024 * 1024,
+    })
+    published.set(file, hashed)
+  }
+  return published
+}
+
+/** Stages, uploads, and renames the media of one demo. */
+async function publishDemoMedia(owner: string, repo: string, name: string, dir: string, media: Pick<DemoEntry, 'video' | 'shots'>): Promise<Pick<DemoEntry, 'video' | 'shots'>> {
+  const files = [...new Set([...media.shots.map(shot => shot.file), ...(media.video ? [media.video.file, media.video.poster] : [])])]
+  const names = await publishMedia(owner, repo, name, dir, files)
+  const to = (file: string) => names.get(file) ?? file
+  return {
+    shots: media.shots.map(shot => ({ ...shot, file: to(shot.file) })),
+    ...(media.video ? { video: { ...media.video, file: to(media.video.file), poster: to(media.video.poster) } } : {}),
+  }
+}
+
 async function reshoot(owner: string, repo: string, name: string): Promise<void> {
   const manifest = JSON.parse(await readFile(MANIFEST, 'utf8')) as { demos: DemoEntry[] }
   const ref = `${owner}/${repo}/${name}`.toLowerCase()
@@ -362,11 +409,9 @@ async function reshoot(owner: string, repo: string, name: string): Promise<void>
     throw new Error(`No recorded demo for ${owner}/${repo}/${name}. Record it first.`)
   if (!entry.outputFile)
     throw new Error(`${owner}/${repo}/${name} is a video demo with no page to reshoot. Record it again instead.`)
-  const shotDir = join(SHOT_DIR, entry.owner, entry.repo, entry.name)
-  await rm(shotDir, { recursive: true, force: true })
-  await mkdir(shotDir, { recursive: true })
+  const stage = await mkdtemp(join(tmpdir(), 'skilld-demo-media-'))
   const page = join(OUTPUT_DIR, entry.owner, entry.repo, entry.name, entry.outputFile)
-  const shots = await screenshot(page, shotDir, entry.prompt)
+  const { shots } = await publishDemoMedia(entry.owner, entry.repo, entry.name, stage, { shots: await screenshot(page, stage, entry.prompt) })
   // The recorded commit stays; only the provenance fields refresh.
   const source = await skillSource(entry.owner, entry.repo, entry.name)
   await upsert({ ...entry, authorName: source.authorName, sourceUrl: source.sourceUrl, shots })
@@ -398,18 +443,16 @@ async function main(): Promise<void> {
   if (!produced)
     throw new Error(`The Agent wrote no ${extname(output)} file. Check ${cwd}.`)
 
-  const shotDir = join(SHOT_DIR, owner, repo, name)
-  await rm(shotDir, { recursive: true, force: true })
-  await mkdir(shotDir, { recursive: true })
-
-  const media: Pick<DemoEntry, 'outputFile' | 'video' | 'shots'> = kind === 'video'
-    ? await encodeVideo(produced, shotDir, prompt)
+  const stage = await mkdtemp(join(tmpdir(), 'skilld-demo-media-'))
+  const staged: Pick<DemoEntry, 'outputFile' | 'video' | 'shots'> = kind === 'video'
+    ? await encodeVideo(produced, stage, prompt)
     : await (async () => {
         const outputDir = join(OUTPUT_DIR, owner, repo, name)
         await mkdir(outputDir, { recursive: true })
         await copyFile(produced, join(outputDir, output))
-        return { outputFile: output, shots: await screenshot(produced, shotDir, prompt) }
+        return { outputFile: output, shots: await screenshot(produced, stage, prompt) }
       })()
+  const media = { ...staged, ...await publishDemoMedia(owner, repo, name, stage, staged) }
 
   await upsert({
     owner,
@@ -426,7 +469,7 @@ async function main(): Promise<void> {
     recordedAt: new Date().toISOString().slice(0, 10),
     ...media,
   })
-  console.log(`Recorded ${skillRef} with ${agent.model}. Review ${shotDir} before you commit. The Agent's folder stays at ${cwd}.`)
+  console.log(`Recorded ${skillRef} with ${agent.model}. Review the media in ${stage} before you commit. The Agent's folder stays at ${cwd}.`)
 }
 
 await main()

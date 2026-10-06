@@ -6,18 +6,20 @@ import manifest from '../data/skill-demos.json'
  * Demos: one recorded run of a Skill each (GLOSSARY "demo").
  *
  * `scripts/record-skill-demo.ts` runs a fixed prompt through an Agent with the
- * Skill loaded, screenshots the output into `public/demos/`, keeps the output
- * page in `server/demos/`, and writes the entry below. Merging the pull request
- * that adds an entry is the human approval: nothing records into production.
+ * Skill loaded, uploads the screenshots (or a video and its poster) to the
+ * `skilld-demo-media` R2 bucket, keeps the output page in `server/demos/`, and
+ * writes the entry below. Merging the pull request that adds an entry is the
+ * human approval: the media sits unreferenced until then.
  *
- * A video Skill's demo also carries the rendered video and a poster frame.
+ * Media lives at `DEMO_MEDIA_ORIGIN`, the bucket's custom domain, under
+ * content-hashed names, so a URL never changes what it serves.
  *
- * Cull path: delete the entry, its `public/demos/<owner>/<repo>/<name>/`
- * folder, and its `server/demos/<owner>/<repo>/<name>/` folder.
+ * Cull path: delete the entry, its `server/demos/<owner>/<repo>/<name>/`
+ * folder, and the bucket's `demos/<owner>/<repo>/<name>/` prefix.
  */
 
 const shotSchema = z.object({
-  /** File name inside `public/demos/<owner>/<repo>/<name>/`. A raster image only: an SVG can carry script. */
+  /** Content-hashed file name under the bucket's `demos/<owner>/<repo>/<name>/`. A raster image only: an SVG can carry script. */
   file: z.string().regex(/^[\w-]+\.(?:png|jpg)$/),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
@@ -26,7 +28,7 @@ const shotSchema = z.object({
 })
 
 const videoSchema = z.object({
-  /** H.264 MP4 inside `public/demos/<owner>/<repo>/<name>/`, re-encoded small for the web. */
+  /** Content-hashed H.264 MP4 under the bucket's `demos/<owner>/<repo>/<name>/`, re-encoded small for the web. */
   file: z.string().regex(/^[\w-]+\.mp4$/),
   /** A JPG frame shown before the video plays. */
   poster: z.string().regex(/^[\w-]+\.jpg$/),
@@ -83,7 +85,10 @@ export function listSkillDemos(demos: readonly SkillDemoRecord[] = SKILL_DEMOS):
     || b.recordedAt.localeCompare(a.recordedAt))
 }
 
-function demoBase(demo: SkillDemoRecord): string {
+/** The `skilld-demo-media` bucket's custom domain. */
+export const DEMO_MEDIA_ORIGIN = 'https://media.skilld.dev'
+
+function demoPath(demo: SkillDemoRecord): string {
   return `/demos/${demo.owner}/${demo.repo}/${demo.name}`
 }
 
@@ -126,8 +131,9 @@ export interface SkillDemoView {
 }
 
 /** `currentCommit` is the Skill's source commit now, when known. Unknown never marks a demo outdated. */
-export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | null): SkillDemoView {
-  const base = demoBase(demo)
+export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | null, mediaOrigin: string = DEMO_MEDIA_ORIGIN): SkillDemoView {
+  const path = demoPath(demo)
+  const media = `${mediaOrigin}${path}`
   return {
     owner: demo.owner,
     repo: demo.repo,
@@ -142,18 +148,18 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
     skillCommit: demo.skillCommit,
     recordedAt: demo.recordedAt,
     outdated: currentCommit !== null && currentCommit !== demo.skillCommit,
-    liveUrl: demo.outputFile ? `${base}/live` : null,
+    liveUrl: demo.outputFile ? `${path}/live` : null,
     video: demo.video
       ? {
-          src: `${base}/${demo.video.file}`,
-          poster: `${base}/${demo.video.poster}`,
+          src: `${media}/${demo.video.file}`,
+          poster: `${media}/${demo.video.poster}`,
           width: demo.video.width,
           height: demo.video.height,
           durationSeconds: demo.video.durationSeconds,
         }
       : null,
     shots: demo.shots.map(shot => ({
-      src: `${base}/${shot.file}`,
+      src: `${media}/${shot.file}`,
       width: shot.width,
       height: shot.height,
       alt: shot.alt,

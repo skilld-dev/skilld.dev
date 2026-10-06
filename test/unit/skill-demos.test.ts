@@ -31,9 +31,9 @@ describe('presentSkillDemo', () => {
     expect(presentSkillDemo(demo(), null).outdated).toBe(false)
   })
 
-  it('serves screenshots from public/demos and the output from the sandboxed live route', () => {
-    const view = presentSkillDemo(demo(), null)
-    expect(view.shots[0]?.src).toBe('/demos/anthropics/skills/frontend-design/desktop.jpg')
+  it('serves screenshots from the media bucket and the output from the sandboxed live route', () => {
+    const view = presentSkillDemo(demo(), null, 'https://media.example')
+    expect(view.shots[0]?.src).toBe('https://media.example/demos/anthropics/skills/frontend-design/desktop.jpg')
     expect(view.liveUrl).toBe('/demos/anthropics/skills/frontend-design/live')
     expect(view.skillPath).toBe('/gh/anthropics/skills/frontend-design')
   })
@@ -44,10 +44,10 @@ describe('presentSkillDemo for a video Skill', () => {
     const view = presentSkillDemo(demo({
       outputFile: undefined,
       video: { file: 'video.mp4', poster: 'poster.jpg', width: 1280, height: 720, durationSeconds: 14.2 },
-    }), null)
+    }), null, 'https://media.example')
     expect(view.liveUrl).toBeNull()
-    expect(view.video?.src).toBe('/demos/anthropics/skills/frontend-design/video.mp4')
-    expect(view.video?.poster).toBe('/demos/anthropics/skills/frontend-design/poster.jpg')
+    expect(view.video?.src).toBe('https://media.example/demos/anthropics/skills/frontend-design/video.mp4')
+    expect(view.video?.poster).toBe('https://media.example/demos/anthropics/skills/frontend-design/poster.jpg')
   })
 })
 
