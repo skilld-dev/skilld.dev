@@ -82,6 +82,7 @@ function filesBelow(root: string): string[] {
 
 function taskFiles(projectRoot: string): string[] {
   const roots = [
+    resolve(projectRoot, 'layers/artifact-delivery/server/tasks'),
     resolve(projectRoot, 'layers/identity/server/tasks'),
     resolve(projectRoot, 'layers/registry/server/tasks'),
     resolve(projectRoot, 'server/tasks'),

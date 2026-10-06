@@ -76,6 +76,9 @@ export const SCHEDULE_POLICY = [
   { _tag: 'observed', taskName: 'scheduled-cadence-watchdog', cron: '*/5 * * * *', maxSilenceSeconds: 20 * 60, maxRuntimeSeconds: 14 * 60 },
   { _tag: 'observed', taskName: 'send-digests', cron: '0 9 1 * *', maxSilenceSeconds: 35 * 24 * 60 * 60, maxRuntimeSeconds: 50 * 60 },
   { _tag: 'observed', taskName: 'send-weekly', cron: '0 9 * * MON', maxSilenceSeconds: 8 * 24 * 60 * 60, maxRuntimeSeconds: 50 * 60, activeFromSeconds: 1787097600 },
+  // A failed run means a Skill stopped running through `skilld run`. The task
+  // fails on purpose so this alert fires once per new failure.
+  { _tag: 'observed', taskName: 'sweep-skill-runs', cron: '7,22,37,52 * * * *', maxSilenceSeconds: 60 * 60, maxRuntimeSeconds: 10 * 60 },
   // Two-hourly, so six hours of silence is a real outage rather than a quiet
   // stretch. Runtime is generous because throttle backoff can stretch a run.
   { _tag: 'observed', taskName: 'sync-bsky-mentions', cron: '17 */2 * * *', maxSilenceSeconds: 6 * 60 * 60, maxRuntimeSeconds: 10 * 60 },
