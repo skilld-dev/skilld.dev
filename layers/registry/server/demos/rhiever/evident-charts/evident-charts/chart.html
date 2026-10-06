@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puddlebrae pool: did evening hours work?</title>
+<style>
+  body { margin: 0; padding: 24px 16px; background: #fff; color: #333; font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif; }
+  figure { margin: 0 auto; max-width: 800px; }
+  #chart svg { display: block; width: 100%; height: auto; }
+  details { margin-top: 12px; font-size: 15px; color: #595959; }
+  summary { cursor: pointer; }
+  table { border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 12px; text-align: right; border-bottom: 1px solid #E6E6E6; }
+  th:first-child, td:first-child { text-align: left; }
+</style>
+</head>
+<body>
+<figure>
+  <div id="chart"></div>
+  <details>
+    <summary>Data table</summary>
+    <table id="data-table"></table>
+  </details>
+</figure>
+
+<script>
+const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+const swims2025 = [1200, 1150, 1280, 1390, 1520, 1700];
+const swims2026 = [1240, 1180, 1310, 1950, 2080, 2240];
+const startIdx = 3; // evening hours began in April
+const pct = (a, b) => (b / a - 1) * 100;
+const fmt = (n) => n.toLocaleString("en-US");
+const signed = (p) => (p >= 0 ? "+" : "−") + Math.abs(Math.round(p)) + "%";
+
+const sum = (arr, i0, i1) => arr.slice(i0, i1).reduce((s, v) => s + v, 0);
+const before = pct(sum(swims2025, 0, startIdx), sum(swims2026, 0, startIdx));
+const after = pct(sum(swims2025, startIdx, 6), sum(swims2026, startIdx, 6));
+
+// House look (evident-charts, blog preset: 800 x 600 viewBox)
+const CSS = `
+.ev-chart { font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", "DejaVu Sans", sans-serif; background: #fff; }
+.ev-chart text { fill: #595959; font-size: 15.2px; font-variant-numeric: tabular-nums; }
+.ev-chart .ev-title { fill: #333333; font-weight: 700; font-size: 25.6px; }
+.ev-chart .ev-subtitle { fill: #767676; font-size: 17.6px; }
+.ev-chart .ev-source { fill: #767676; font-size: 12.8px; }
+.ev-chart .ev-annotation { fill: #595959; font-size: 16px; }
+.ev-chart .ev-annotation-line { stroke: #8C8C8C; fill: none; stroke-width: 1.1px; stroke-dasharray: 4 3; }
+.ev-chart .ev-band { fill: #F5F5F5; }
+.ev-chart .ev-grid { stroke: #E6E6E6; stroke-width: 1.1px; }
+.ev-chart .ev-context { stroke: #BDBDBD; fill: #BDBDBD; }
+.ev-chart .ev-accent { stroke: #D55E00; fill: #D55E00; }
+.ev-chart path.ev-series { fill: none; stroke-linejoin: round; stroke-linecap: butt; stroke-width: 2.2px; }
+.ev-chart path.ev-series.ev-accent { stroke-width: 4.4px; }
+.ev-chart text.ev-label { fill: #767676; stroke: none; }
+.ev-chart text.ev-label.ev-accent { fill: #C15500; font-weight: 700; }
+.ev-chart text.ev-label.ev-strong { font-size: 17.6px; }
+`;
+
+const W = 800, H = 600;
+const plot = { left: 92, right: 704, top: 176, bottom: 512 };
+const yMin = 1000, yMax = 2500;
+const x = (i) => plot.left + 24 + i * ((plot.right - plot.left - 48) / (months.length - 1));
+const y = (v) => plot.bottom - (v - yMin) / (yMax - yMin) * (plot.bottom - plot.top);
+
+const NS = "http://www.w3.org/2000/svg";
+function el(parent, tag, attrs = {}, text) {
+  const node = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (text != null) node.textContent = text;
+  parent.appendChild(node);
+  return node;
+}
+
+const altText = `Line chart of monthly swims at Puddlebrae pool, January to June. ` +
+  `In January to March 2026 swims ran 2 to 3% above 2025. From April, when evening hours began, ` +
+  `they ran 32 to 40% above 2025, reaching ${fmt(swims2026[5])} in June against ${fmt(swims2025[5])} a year earlier.`;
+
+const svg = el(document.getElementById("chart"), "svg", {
+  xmlns: NS, class: "ev-chart", viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-labelledby": "ev-alt",
+});
+el(svg, "title", { id: "ev-alt" }, altText);
+el(svg, "style", {}, CSS);
+el(svg, "rect", { x: 0, y: 0, width: W, height: H, fill: "#fff" });
+
+// Title block
+const title = el(svg, "text", { class: "ev-title", x: 40, y: 54 });
+el(title, "tspan", { x: 40, dy: 0 }, "Evening hours appear to have worked: swims ran");
+el(title, "tspan", { x: 40, dy: "1.2em" }, `${Math.round(after)}% above 2025 from April, up from ${Math.round(before)}% before`);
+const sub = el(svg, "text", { class: "ev-subtitle", x: 40, y: 124 });
+el(sub, "tspan", { x: 40, dy: 0 }, "Swims per month at Puddlebrae town pool, January to June. Labels");
+el(sub, "tspan", { x: 40, dy: "1.25em" }, "show the change from the same month in 2025");
+
+// Evening-hours period: shaded band and marker line
+const bandX0 = (x(startIdx - 1) + x(startIdx)) / 2;
+el(svg, "rect", { class: "ev-band", x: bandX0, y: plot.top, width: plot.right - bandX0, height: plot.bottom - plot.top });
+
+// Gridlines and value-axis labels
+for (let v = yMin; v <= yMax; v += 500) {
+  el(svg, "line", { class: "ev-grid", x1: plot.left, x2: plot.right, y1: y(v), y2: y(v) });
+  el(svg, "text", { x: plot.left - 10, y: y(v), "text-anchor": "end", "dominant-baseline": "middle" }, fmt(v));
+}
+el(svg, "line", { class: "ev-annotation-line", x1: bandX0, x2: bandX0, y1: plot.top, y2: plot.bottom });
+el(svg, "text", { class: "ev-annotation", x: bandX0 + 10, y: plot.top + 22 }, "Evening hours begin in April");
+
+// Month labels
+months.forEach((m, i) => el(svg, "text", { x: x(i), y: plot.bottom + 24, "text-anchor": "middle" }, m));
+
+// Series: 2025 context in gray, 2026 accent
+const linePath = (vals) => vals.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+el(svg, "path", { class: "ev-series ev-context", d: linePath(swims2025) });
+el(svg, "path", { class: "ev-series ev-accent", d: linePath(swims2026) });
+swims2025.forEach((v, i) => el(svg, "circle", { class: "ev-context", cx: x(i), cy: y(v), r: 4 }));
+swims2026.forEach((v, i) => el(svg, "circle", { class: "ev-accent", cx: x(i), cy: y(v), r: 5.5 }));
+
+// Year-over-year change above each 2026 point
+swims2026.forEach((v, i) => {
+  const big = i >= startIdx;
+  el(svg, "text", {
+    class: "ev-label ev-accent" + (big ? " ev-strong" : ""), x: x(i), y: y(v) - 17, "text-anchor": "middle",
+  }, signed(pct(swims2025[i], v)));
+});
+
+// Direct series labels at the line ends
+const last = months.length - 1;
+el(svg, "text", { class: "ev-label ev-accent", x: x(last) + 14, y: y(swims2026[last]), "dominant-baseline": "middle" }, "2026");
+el(svg, "text", { class: "ev-label", x: x(last) + 14, y: y(swims2025[last]), "dominant-baseline": "middle" }, "2025");
+
+// Source line
+el(svg, "text", { class: "ev-source", x: 40, y: 566 },
+  "Source: Puddlebrae town pool monthly swim counts (fictional data).");
+el(svg, "text", { class: "ev-source", x: 40, y: 584 },
+  "Before-and-after comparison: other April changes, such as weather or school terms, are not ruled out.");
+
+// Data table
+const table = document.getElementById("data-table");
+table.innerHTML = "<thead><tr><th>Month</th><th>2025</th><th>2026</th><th>Change</th></tr></thead><tbody>" +
+  months.map((m, i) => `<tr><td>${m}${i === startIdx ? " (evening hours begin)" : ""}</td><td>${fmt(swims2025[i])}</td>` +
+    `<td>${fmt(swims2026[i])}</td><td>${signed(pct(swims2025[i], swims2026[i]))}</td></tr>`).join("") +
+  "</tbody>";
+</script>
+</body>
+</html>
