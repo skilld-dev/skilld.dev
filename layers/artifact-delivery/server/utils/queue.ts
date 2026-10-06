@@ -98,6 +98,19 @@ export function reportGithubReadFailure(failure: GithubReadFailure): void {
   }))
 }
 
+/**
+ * The token public Artifact builds read GitHub with.
+ *
+ * GitHub counts a personal token's quota per account, and the registry sync
+ * spends `GITHUB_TOKEN` to zero before each hourly reset. Every run that needed
+ * GitHub in those minutes failed RATE_LIMITED. `ARTIFACT_GITHUB_TOKEN`, from
+ * another account, keeps a quota for runs. Until it is set, builds share
+ * `GITHUB_TOKEN`.
+ */
+export function artifactGithubToken(env: Partial<Pick<Cloudflare.Env, 'ARTIFACT_GITHUB_TOKEN' | 'GITHUB_TOKEN'>>): string | undefined {
+  return env.ARTIFACT_GITHUB_TOKEN || env.GITHUB_TOKEN
+}
+
 export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
   const runtimeFetch = globalThis.fetch.bind(globalThis)
   const privateDependencies = privateArtifactAccessEnabled(env)
@@ -105,7 +118,7 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
     : {}
   return {
     db: env.DB,
-    github: createPublicGithubSourceClient({ fetch: runtimeFetch, token: env.GITHUB_TOKEN, onReadFailure: reportGithubReadFailure }),
+    github: createPublicGithubSourceClient({ fetch: runtimeFetch, token: artifactGithubToken(env), onReadFailure: reportGithubReadFailure }),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),

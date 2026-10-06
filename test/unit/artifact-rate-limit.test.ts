@@ -9,7 +9,7 @@ import {
   createPublicGithubSourceClient,
   isRetryableProblem,
 } from '../../layers/artifact-delivery/server/utils/github-source'
-import { ARTIFACT_BUILD_QUEUE_NAME, consumeArtifactBuildBatch } from '../../layers/artifact-delivery/server/utils/queue'
+import { ARTIFACT_BUILD_QUEUE_NAME, artifactGithubToken, consumeArtifactBuildBatch } from '../../layers/artifact-delivery/server/utils/queue'
 import { createResolution, getResolution, presentResolution, resolutionRequestIdentity } from '../../layers/artifact-delivery/server/utils/state'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
@@ -213,6 +213,20 @@ describe('gitHub secondary rate limits as values', () => {
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'RATE_LIMITED', retryAfterSeconds: NOW + 60 })
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/git/blobs/'))).toBe(false)
+  })
+})
+
+// The hourly registry sync spends the site token to zero before each GitHub
+// reset. On 2026-10-06, 13 runs failed RATE_LIMITED in those minutes. A token
+// from another GitHub account carries its own quota, kept for runs.
+describe('the token Artifact builds read GitHub with', () => {
+  it('prefers the token kept for Artifact builds', () => {
+    expect(artifactGithubToken({ ARTIFACT_GITHUB_TOKEN: 'runs', GITHUB_TOKEN: 'site' })).toBe('runs')
+  })
+
+  it('uses the site token while no Artifact token is set', () => {
+    expect(artifactGithubToken({ ARTIFACT_GITHUB_TOKEN: '', GITHUB_TOKEN: 'site' })).toBe('site')
+    expect(artifactGithubToken({ GITHUB_TOKEN: 'site' })).toBe('site')
   })
 })
 
