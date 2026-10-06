@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TrendingPost } from '#shared/trending-range'
 import { avatarProxyUrl } from '#shared/image-proxy'
-import { postExcerpt } from '#shared/trending-post'
+import { postExcerpt, unstyled } from '#shared/trending-post'
 
 /**
  * One post, laid out the way people already read posts: who said it, when,
@@ -28,6 +28,8 @@ const LINES = 4
  * mention past this moves the excerpt to it; see `postExcerpt`.
  */
 const segments = computed(() => postExcerpt({ text: post.text, names, budget: LINES * 42 }))
+/** The name in the site's type, like the post under it. A name of emoji alone shows the handle only. */
+const authorName = computed(() => (post.authorName ? unstyled(post.authorName).trim() || null : null))
 const network = computed(() => (post.platform === 'bsky' ? 'Bluesky' : 'X'))
 
 function likesLabel(count: number): string {
@@ -54,7 +56,7 @@ function likesLabel(count: number): string {
         decoding="async"
       >
       <span class="trending-post__byline">
-        <span v-if="post.authorName" class="trending-post__name">{{ post.authorName }}</span>
+        <span v-if="authorName" class="trending-post__name">{{ authorName }}</span>
         <span class="trending-post__handle">@{{ post.handle }}</span>
       </span>
       <span class="trending-post__meta">{{ post.when }}</span>

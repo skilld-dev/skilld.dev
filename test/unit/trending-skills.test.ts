@@ -300,6 +300,33 @@ describe('loadTrendingSkills posts beyond the quote', () => {
     expect(skill?.morePosts.map(post => post.authorHandle)).toEqual(['fan', 'lister'])
   })
 
+  it('quotes a person over an automated account that outscored them', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'grok', likes: 400 })
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'person', likes: 2 })
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.evidence?.authorHandle).toBe('person')
+    expect(skill?.morePosts.map(post => post.authorHandle)).toEqual(['grok'])
+  })
+
+  it('puts automated accounts after every person, listicles included', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'quoted', likes: 90 })
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'Grok', likes: 300 })
+    const listicle = mention({ owner: 'a', repo: 'r', slug: 's', handle: 'lister', likes: 5 })
+    nameAlso(listicle, { owner: 'b', repo: 'r', slug: 'other' })
+
+    const skill = (await loadTrendingSkills({ db: db().db, now: NOW })).find(entry => entry.slug === 's')
+    expect(skill?.evidence?.authorHandle).toBe('quoted')
+    expect(skill?.morePosts.map(post => post.authorHandle)).toEqual(['lister', 'Grok'])
+  })
+
+  it('quotes an automated account when no person posted', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'grok', likes: 4 })
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.evidence?.authorHandle).toBe('grok')
+  })
+
   it('stops at the cap however many devs posted', async () => {
     for (let i = 0; i < MAX_MORE_POSTS + 3; i++)
       mention({ owner: 'a', repo: 'r', slug: 's', handle: `dev${i}`, likes: 100 - i })

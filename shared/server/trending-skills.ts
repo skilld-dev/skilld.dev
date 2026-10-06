@@ -21,6 +21,7 @@
  */
 
 import type { SkillTrendInput, SkillTrendScore } from '#shared/trending-skill-score'
+import { isAutomatedAuthor } from '#shared/automated-authors'
 import { mentionsByDay } from '#shared/mention-days'
 import { canonicalRepoSkillPath } from '#shared/skill-routes'
 import { rankSkillTrends } from '#shared/trending-skill-score'
@@ -202,6 +203,25 @@ function postUrl(row: MentionRow): string {
   return `https://x.com/${row.author_handle}/status/${row.post_id}`
 }
 
+/**
+ * How fit a post is to speak for a skill. A person beats an automated account
+ * at any breadth, then the narrower post wins.
+ */
+interface QuoteFit {
+  automated: boolean
+  breadth: number
+}
+
+function fitsBetter(a: QuoteFit, b: QuoteFit): boolean {
+  if (a.automated !== b.automated)
+    return !a.automated
+  return a.breadth < b.breadth
+}
+
+function compareFit(a: QuoteFit, b: QuoteFit): number {
+  return Number(a.automated) - Number(b.automated) || a.breadth - b.breadth
+}
+
 function toEvidence(row: MentionRow): TrendingSkillEvidence {
   return {
     postId: row.post_id,
@@ -297,14 +317,14 @@ async function loadSocialEvidence(
   const grouped = new Map<string, {
     input: SkillTrendInput
     evidence: TrendingSkillEvidence
-    /** Narrowest post seen for this skill, which is the fairest thing to quote. */
-    evidenceBreadth: number
+    /** Best fit seen for this skill: a person's post, then the narrowest. */
+    evidenceFit: QuoteFit
     authors: Map<string, number>
     countedPosts: Set<string>
     /** When each counted post went out, for the per-day spark. */
     countedAt: number[]
     /** Each author's narrowest post about the skill, for the posts beyond the quote. */
-    postsByAuthor: Map<string, { post: TrendingSkillEvidence, breadth: number }>
+    postsByAuthor: Map<string, { post: TrendingSkillEvidence, fit: QuoteFit }>
   }>()
 
   for (const row of rows) {
@@ -313,6 +333,8 @@ async function loadSocialEvidence(
     if (row.favourite_count < minLikes)
       continue
 
+    const breadth = breadthOf(row.post_id)
+    const fit: QuoteFit = { automated: isAutomatedAuthor({ platform: row.platform, handle: row.author_handle }), breadth }
     const key = skillKey(row)
     let entry = grouped.get(key)
     if (!entry) {
@@ -326,7 +348,7 @@ async function loadSocialEvidence(
           github: null,
         },
         evidence: toEvidence(row),
-        evidenceBreadth: breadthOf(row.post_id),
+        evidenceFit: fit,
         authors: new Map(),
         countedPosts: new Set(),
         countedAt: [],
@@ -335,21 +357,21 @@ async function loadSocialEvidence(
       grouped.set(key, entry)
     }
 
-    // Quote the narrowest post available. Rows arrive engagement-first, so
-    // without this a wide listicle can win the quote for many skills at once
-    // and the page prints the same paragraph under each of them.
-    const breadth = breadthOf(row.post_id)
-    if (breadth < entry.evidenceBreadth) {
-      entry.evidenceBreadth = breadth
+    // Quote a person before an automated account, then the narrowest post.
+    // Rows arrive engagement-first, so without the breadth rule a wide
+    // listicle can win the quote for many skills at once and the page prints
+    // the same paragraph under each of them. On a tie the first row wins,
+    // which is the more liked.
+    if (fitsBetter(fit, entry.evidenceFit)) {
+      entry.evidenceFit = fit
       entry.evidence = toEvidence(row)
     }
 
-    // Same rule per author: their narrowest post, and on a tie the one that
-    // arrived first, which is the more liked.
+    // Same rule per author: their narrowest post.
     const authorKey = authorKeyOf(row)
     const held = entry.postsByAuthor.get(authorKey)
-    if (!held || breadth < held.breadth)
-      entry.postsByAuthor.set(authorKey, { post: toEvidence(row), breadth })
+    if (!held || fitsBetter(fit, held.fit))
+      entry.postsByAuthor.set(authorKey, { post: toEvidence(row), fit })
 
     if (entry.countedPosts.has(row.post_id))
       continue
@@ -370,13 +392,14 @@ async function loadSocialEvidence(
   for (const [key, entry] of grouped) {
     entry.input.social!.authorCount = entry.authors.size
     entry.input.social!.authorWeight = [...entry.authors.values()].reduce((a, b) => a + b, 0)
-    // Everyone else who posted, dedicated posts before listicles. The sort is
-    // stable, so equal breadths keep their arrival order, which is by likes.
+    // Everyone else who posted: people before automated accounts, then
+    // dedicated posts before listicles. The sort is stable, so equal fits keep
+    // their arrival order, which is by likes.
     const quotedAuthor = `${entry.evidence.platform}:${entry.evidence.authorHandle.toLowerCase()}`
     const morePosts = [...entry.postsByAuthor]
       .filter(([author]) => author !== quotedAuthor)
       .map(([, held]) => held)
-      .sort((a, b) => a.breadth - b.breadth)
+      .sort((a, b) => compareFit(a.fit, b.fit))
       .slice(0, MAX_MORE_POSTS)
       .map(held => held.post)
     out.set(key, { input: entry.input, evidence: entry.evidence, morePosts, mentionsByDay: mentionsByDay(entry.countedAt, options.now) })
