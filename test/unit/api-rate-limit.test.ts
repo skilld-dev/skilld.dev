@@ -5,12 +5,14 @@ import { createApiRateLimitHandler } from '../../shared/server/api-rate-limit'
 
 const guest = vi.fn()
 const account = vi.fn()
+const poll = vi.fn()
 const resolveUser = vi.fn()
+const RESOLUTION_ID = '0d6f6c2e-5b1a-4c3e-9f1d-2a7b8c9d0e1f'
 
 function serve() {
   const app = createApp()
   app.use(eventHandler((event) => {
-    event.context.platform = { requestId: 'request-test', env: { API_GUEST_RATE_LIMIT: { limit: guest }, API_ACCOUNT_RATE_LIMIT: { limit: account } } } as never
+    event.context.platform = { requestId: 'request-test', env: { API_GUEST_RATE_LIMIT: { limit: guest }, API_ACCOUNT_RATE_LIMIT: { limit: account }, API_RESOLUTION_POLL_RATE_LIMIT: { limit: poll } } } as never
   }))
   app.use(createApiRateLimitHandler(resolveUser))
   app.use(eventHandler(() => ({ ok: true })))
@@ -22,6 +24,7 @@ describe('api rate limits', () => {
   beforeEach(() => {
     guest.mockReset().mockResolvedValue({ success: true })
     account.mockReset().mockResolvedValue({ success: true })
+    poll.mockReset().mockResolvedValue({ success: true })
     resolveUser.mockReset().mockResolvedValue(null)
   })
 
@@ -92,5 +95,36 @@ describe('api rate limits', () => {
     expect(response.status).toBe(429)
     expect(await response.json()).toMatchObject({ code: 'RATE_LIMITED' })
     expect(guest).not.toHaveBeenCalled()
+  })
+
+  // A run polls its Resolution once a second while it builds. Sixty polls used
+  // to spend the whole guest allowance, so one slow build failed the run with
+  // RATE_LIMITED, and so did a second run from the same network.
+  it('counts Resolution polls against their own allowance, not the shared one', async () => {
+    const fetch = serve()
+    for (let attempt = 0; attempt < 3; attempt++)
+      await fetch(`/api/v1/resolutions/${RESOLUTION_ID}`, { 'CF-Connecting-IP': '203.0.113.8' })
+    expect(poll.mock.calls).toEqual(Array.from({ length: 3 }, () => [{ key: 'guest:203.0.113.8' }]))
+    expect(guest).not.toHaveBeenCalled()
+  })
+
+  it('keys an account poll by the account', async () => {
+    resolveUser.mockResolvedValue({ id: 7, login: 'octo' })
+    await serve()(`/api/v1/resolutions/${RESOLUTION_ID}`, { Authorization: 'Bearer valid' })
+    expect(poll).toHaveBeenCalledWith({ key: 'account:7' })
+    expect(account).not.toHaveBeenCalled()
+  })
+
+  it('still counts the request that starts a Resolution against the shared allowance', async () => {
+    await serve()('/api/v1/resolutions', { 'CF-Connecting-IP': '203.0.113.8' }, 'POST')
+    expect(guest).toHaveBeenCalledWith({ key: 'guest:203.0.113.8' })
+    expect(poll).not.toHaveBeenCalled()
+  })
+
+  it('limits polls once their own allowance is spent', async () => {
+    poll.mockResolvedValue({ success: false })
+    const response = await serve()(`/api/v1/resolutions/${RESOLUTION_ID}`, { 'CF-Connecting-IP': '203.0.113.8' })
+    expect(response.status).toBe(429)
+    expect(await response.json()).toMatchObject({ code: 'RATE_LIMITED' })
   })
 })

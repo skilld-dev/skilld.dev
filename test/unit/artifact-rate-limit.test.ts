@@ -1,6 +1,7 @@
 import type { SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
 import type { ArtifactSigner } from '../../layers/artifact-delivery/server/utils/attestation'
 import type { ArtifactBuildDependencies } from '../../layers/artifact-delivery/server/utils/build'
+import type { PublicGithubSourceClient } from '../../layers/artifact-delivery/server/utils/github-source'
 import type { TrustedRoot } from '../../layers/artifact-delivery/server/utils/trusted-root'
 import { describe, expect, it, vi } from 'vitest'
 import { processArtifactBuild } from '../../layers/artifact-delivery/server/utils/build'
@@ -8,7 +9,8 @@ import {
   createPublicGithubSourceClient,
   isRetryableProblem,
 } from '../../layers/artifact-delivery/server/utils/github-source'
-import { createResolution, resolutionRequestIdentity } from '../../layers/artifact-delivery/server/utils/state'
+import { ARTIFACT_BUILD_QUEUE_NAME, artifactGithubToken, consumeArtifactBuildBatch } from '../../layers/artifact-delivery/server/utils/queue'
+import { createResolution, getResolution, presentResolution, resolutionRequestIdentity } from '../../layers/artifact-delivery/server/utils/state'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const commitSha = '0123456789abcdef0123456789abcdef01234567'
@@ -123,6 +125,111 @@ describe('gitHub rate limits as values', () => {
   })
 })
 
+// GitHub answers a secondary rate limit with 403 or 429 and a Retry-After
+// header, and a spent primary quota with 403 or 429 and no remaining requests.
+// A 403 with Retry-After used to fail the run as SOURCE_ACCESS_DENIED, which
+// nobody retries. A 429 used to throw, so the build sat through the queue
+// retry ladder and spent quota on every attempt.
+describe('gitHub secondary rate limits as values', () => {
+  const request: SourceRequest = {
+    provider: 'github',
+    owner: 'skilld-dev',
+    repository: 'skills',
+    selector: { type: 'path', path: 'skills/demo' },
+  }
+
+  it.each([403, 429])('rejects a %i with Retry-After as RATE_LIMITED after the named delay', async (status) => {
+    const client = createPublicGithubSourceClient({
+      fetch: vi.fn(async () => new Response('{}', {
+        status,
+        headers: { 'retry-after': '30', 'x-ratelimit-remaining': '4321', 'content-type': 'application/json' },
+      })) as unknown as typeof fetch,
+      now: () => NOW,
+    })
+
+    expect(await client.resolve(request)).toMatchObject({
+      _tag: 'rejected',
+      code: 'RATE_LIMITED',
+      retryAfterSeconds: NOW + 30,
+    })
+  })
+
+  it('rejects a 429 spent quota with its reset time', async () => {
+    const client = createPublicGithubSourceClient({
+      fetch: vi.fn(async () => new Response('{}', {
+        status: 429,
+        headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(RESET_AT), 'content-type': 'application/json' },
+      })) as unknown as typeof fetch,
+    })
+
+    expect(await client.resolve(request)).toMatchObject({
+      _tag: 'rejected',
+      code: 'RATE_LIMITED',
+      retryAfterSeconds: RESET_AT,
+    })
+  })
+
+  it('stops at a rate-limited tarball instead of reading every blob', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/tarball/')) {
+        return new Response('{}', {
+          status: 403,
+          headers: { 'retry-after': '60', 'content-type': 'application/json' },
+        })
+      }
+      if (url.includes('/git/blobs/'))
+        return json({ sha: 'd'.repeat(40), size: 12, encoding: 'base64', content: btoa('# Demo skill') })
+      if (url.endsWith('/repos/skilld-dev/skills'))
+        return json({ id: 123, name: 'skills', owner: { login: 'skilld-dev' }, private: false, default_branch: 'main' })
+      if (url.endsWith('/git/trees/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'))
+        return json({ sha: 'a'.repeat(40), tree: [{ path: 'skills', mode: '040000', type: 'tree', sha: 'b'.repeat(40) }] })
+      if (url.endsWith('/git/trees/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'))
+        return json({ sha: 'b'.repeat(40), tree: [{ path: 'demo', mode: '040000', type: 'tree', sha: 'c'.repeat(40) }] })
+      if (url.endsWith('/git/trees/cccccccccccccccccccccccccccccccccccccccc?recursive=1')) {
+        return json({
+          sha: 'c'.repeat(40),
+          truncated: false,
+          tree: [{ path: 'SKILL.md', mode: '100644', type: 'blob', sha: 'd'.repeat(40), size: 12 }],
+        })
+      }
+      return json({}, 404)
+    })
+    const client = createPublicGithubSourceClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      now: () => NOW,
+    })
+
+    const result = await client.load({
+      provider: 'github',
+      repositoryId: 123,
+      owner: 'skilld-dev',
+      repository: 'skills',
+      visibility: 'public',
+      commitSha,
+      treeSha: 'a'.repeat(40),
+      skillPath: 'skills/demo',
+    })
+
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'RATE_LIMITED', retryAfterSeconds: NOW + 60 })
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/git/blobs/'))).toBe(false)
+  })
+})
+
+// The hourly registry sync spends the site token to zero before each GitHub
+// reset. On 2026-10-06, 13 runs failed RATE_LIMITED in those minutes. A token
+// from another GitHub account carries its own quota, kept for runs.
+describe('the token Artifact builds read GitHub with', () => {
+  it('prefers the token kept for Artifact builds', () => {
+    expect(artifactGithubToken({ ARTIFACT_GITHUB_TOKEN: 'runs', GITHUB_TOKEN: 'site' })).toBe('runs')
+  })
+
+  it('uses the site token while no Artifact token is set', () => {
+    expect(artifactGithubToken({ ARTIFACT_GITHUB_TOKEN: '', GITHUB_TOKEN: 'site' })).toBe('site')
+    expect(artifactGithubToken({ GITHUB_TOKEN: 'site' })).toBe('site')
+  })
+})
+
 describe('which problems a caller may retry', () => {
   it.each([
     ['RATE_LIMITED', true],
@@ -169,6 +276,86 @@ describe('a spent quota persists a delay, not the reset epoch', () => {
     sqlite.close()
   })
 })
+
+describe('every retryable failure names its wait', () => {
+  it('names a wait when GitHub sent no reset', async () => {
+    const harness = await requestedResolution('rate-limit-no-reset-0001')
+    const dependencies = buildDependencies(harness.sqlite.db, createPublicGithubSourceClient({
+      fetch: vi.fn(async () => new Response('{}', { status: 429 })) as unknown as typeof fetch,
+    }))
+
+    await processArtifactBuild(dependencies, harness.id)
+
+    const row = await getResolution(harness.sqlite.db, harness.id)
+    expect(presentResolution(row!)).toMatchObject({ state: 'failed', code: 'RATE_LIMITED', retryable: true, retryAfterSeconds: 60 })
+    harness.sqlite.close()
+  })
+
+  it('names a wait when the build queue gives up', async () => {
+    const harness = await requestedResolution('queue-gives-up-0001')
+    const message = queueMessage(harness.id, 5)
+
+    await consumeArtifactBuildBatch({} as Cloudflare.Env, queueBatch([message]), () => buildDependencies(harness.sqlite.db, githubDown()))
+
+    const row = await getResolution(harness.sqlite.db, harness.id)
+    expect(presentResolution(row!)).toMatchObject({ state: 'failed', code: 'SERVICE_UNAVAILABLE', retryable: true, retryAfterSeconds: 60 })
+    harness.sqlite.close()
+  })
+})
+
+// The CLI waits 60 seconds for a Resolution. The first queue retry used to
+// wait 60 seconds too, so one transient GitHub or signer error failed every
+// run that met it, although the retry then built the Artifact.
+describe('a failed build attempt retries inside the run deadline', () => {
+  it('retries the first failed attempt within ten seconds', async () => {
+    const harness = await requestedResolution('queue-first-retry-0001')
+    const message = queueMessage(harness.id, 1)
+
+    await consumeArtifactBuildBatch({} as Cloudflare.Env, queueBatch([message]), () => buildDependencies(harness.sqlite.db, githubDown()))
+
+    expect(message.retry).toHaveBeenCalledOnce()
+    expect(message.retry.mock.calls[0]![0].delaySeconds).toBeLessThanOrEqual(10)
+    harness.sqlite.close()
+  })
+})
+
+async function requestedResolution(idempotencyKey: string) {
+  const sqlite = createSqliteD1(ARTIFACT_MIGRATIONS)
+  const identity = await resolutionRequestIdentity(resolutionRequest, idempotencyKey)
+  const created = await createResolution(sqlite.db, resolutionRequest, identity, NOW)
+  if (created._tag === 'idempotency-conflict')
+    throw new Error('Test Resolution conflicted')
+  return { sqlite, id: created.row.id }
+}
+
+function buildDependencies(db: D1Database, github: PublicGithubSourceClient): ArtifactBuildDependencies {
+  return {
+    db,
+    github,
+    bucket: {} as R2Bucket,
+    signer: {} as ArtifactSigner,
+    trustedRoot: {} as TrustedRoot,
+    now: () => NOW,
+  }
+}
+
+function githubDown(): PublicGithubSourceClient {
+  const fault = async () => Promise.reject(new Error('The operation was aborted due to timeout'))
+  return { resolve: vi.fn(fault), load: vi.fn(fault) }
+}
+
+function queueMessage(resolutionId: string, attempts: number) {
+  return {
+    body: { version: 1, resolutionId },
+    attempts,
+    ack: vi.fn(),
+    retry: vi.fn<(options: { delaySeconds: number }) => void>(),
+  }
+}
+
+function queueBatch(messages: Array<ReturnType<typeof queueMessage>>) {
+  return { queue: ARTIFACT_BUILD_QUEUE_NAME, messages } as unknown as Parameters<typeof consumeArtifactBuildBatch>[1]
+}
 
 function rateLimited(): Response {
   return rateLimitedAt(RESET_AT)

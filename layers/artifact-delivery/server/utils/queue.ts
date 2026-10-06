@@ -25,6 +25,17 @@ const artifactBuildMessageSchema = z.object({
   resolutionId: z.string().uuid(),
 }).strict()
 
+/**
+ * The wait before each retry of a build attempt that threw. A fifth failed
+ * attempt fails the Resolution as SERVICE_UNAVAILABLE.
+ *
+ * The CLI waits 60 seconds for a Resolution, so the first retry comes within
+ * that window: one transient GitHub or signer error no longer fails the run.
+ * It used to wait 60 seconds. The later waits still ride out a long GitHub
+ * network fault, such as the one on 2026-09-30.
+ */
+export const ARTIFACT_BUILD_RETRY_DELAYS_SECONDS: readonly number[] = [5, 30, 120, 480]
+
 export async function enqueueArtifactBuild(env: Cloudflare.Env, resolutionId: string): Promise<void> {
   await env.ARTIFACT_BUILD_QUEUE.send({ version: 1, resolutionId })
 }
@@ -59,8 +70,9 @@ export async function consumeArtifactBuildBatch(
       attempt: message.attempts,
       error: outcome.error instanceof Error ? outcome.error.message : String(outcome.error),
     }))
-    if (message.attempts < 5) {
-      message.retry({ delaySeconds: Math.min(3600, 60 * 2 ** Math.max(0, message.attempts - 1)) })
+    const delaySeconds = ARTIFACT_BUILD_RETRY_DELAYS_SECONDS[message.attempts - 1]
+    if (delaySeconds !== undefined) {
+      message.retry({ delaySeconds })
       continue
     }
     const row = await getResolution(dependencies.db, parsed.data.resolutionId)
@@ -86,6 +98,19 @@ export function reportGithubReadFailure(failure: GithubReadFailure): void {
   }))
 }
 
+/**
+ * The token public Artifact builds read GitHub with.
+ *
+ * GitHub counts a personal token's quota per account, and the registry sync
+ * spends `GITHUB_TOKEN` to zero before each hourly reset. Every run that needed
+ * GitHub in those minutes failed RATE_LIMITED. `ARTIFACT_GITHUB_TOKEN`, from
+ * another account, keeps a quota for runs. Until it is set, builds share
+ * `GITHUB_TOKEN`.
+ */
+export function artifactGithubToken(env: Partial<Pick<Cloudflare.Env, 'ARTIFACT_GITHUB_TOKEN' | 'GITHUB_TOKEN'>>): string | undefined {
+  return env.ARTIFACT_GITHUB_TOKEN || env.GITHUB_TOKEN
+}
+
 export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
   const runtimeFetch = globalThis.fetch.bind(globalThis)
   const privateDependencies = privateArtifactAccessEnabled(env)
@@ -93,7 +118,7 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
     : {}
   return {
     db: env.DB,
-    github: createPublicGithubSourceClient({ fetch: runtimeFetch, token: env.GITHUB_TOKEN, onReadFailure: reportGithubReadFailure }),
+    github: createPublicGithubSourceClient({ fetch: runtimeFetch, token: artifactGithubToken(env), onReadFailure: reportGithubReadFailure }),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),

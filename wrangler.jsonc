@@ -13,6 +13,10 @@
   "ratelimits": [
     { "name": "API_GUEST_RATE_LIMIT", "namespace_id": "2401001", "simple": { "limit": 60, "period": 60 } },
     { "name": "API_ACCOUNT_RATE_LIMIT", "namespace_id": "2401002", "simple": { "limit": 600, "period": 60 } },
+    // A run polls its Resolution once a second while it builds, at the rate the
+    // server names. Polls draw from this allowance, keyed like the two above,
+    // so ten runs from one network can wait out a one-minute build (ADR-0012).
+    { "name": "API_RESOLUTION_POLL_RATE_LIMIT", "namespace_id": "2401004", "simple": { "limit": 600, "period": 60 } },
     // Task search runs a paid model. The longest period a rate limit binding
     // takes is 60 seconds; the daily ceiling is the spend budget in
     // runtimeConfig.taskSearch, across every visitor.
