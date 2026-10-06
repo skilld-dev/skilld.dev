@@ -63,7 +63,7 @@ New Markdown at the repository root is an error. Identity and filters only.
   `deny_unknown_fields`, so one new field breaks every released `skilld search`. Add the field to
   `skills.get`.
 - **A comment carries its own reason.** Never cite a gitignored file, such as
-  `GOOGLE_RECOVERY.md`, or a local path, such as `~/scratch`, as the reason for a decision.
+  `GOOGLE_RECOVERY.md`, or a file on a personal machine as the reason for a decision.
   Nobody who clones this repository can read either one.
 
 ## Consumers
