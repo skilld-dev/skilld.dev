@@ -155,6 +155,15 @@ export function slugifySkillName(s: string): string {
     .replace(SLUGIFY_TRIM_DASH_RE, '')
 }
 
+/**
+ * The registry name of the Skill in a folder, with `.` for the Repository
+ * root. A root Skill takes the Repository name. {@link parseSkillFile} names a
+ * Skill the same way.
+ */
+export function registrySkillName(folder: string, repository: string): string {
+  return slugifySkillName(folder === '.' ? repository : folder.slice(folder.lastIndexOf('/') + 1))
+}
+
 export interface ParsedSkill {
   name: string
   displayName: string

@@ -62,6 +62,29 @@ export function canonicalSkillFolder(folders: readonly string[]): string | null 
   return ranked[0] ?? null
 }
 
+/**
+ * The canonical SKILL.md path of each Skill name, in input order.
+ *
+ * `paths` are SKILL.md paths from one Repository tree. `nameOf` names the
+ * Skill in a folder, with `.` for the root. Copies that share a name keep the
+ * one {@link canonicalSkillFolder} picks, the folder `skilld run` resolves by
+ * name, so the registry admits the same copy every sync.
+ */
+export function canonicalSkillPaths(paths: readonly string[], nameOf: (folder: string) => string): string[] {
+  const foldersByName = new Map<string, string[]>()
+  for (const path of paths) {
+    const folder = skillFolderOf(path)
+    const name = nameOf(folder)
+    foldersByName.set(name, [...(foldersByName.get(name) ?? []), folder])
+  }
+  const canonical = new Set([...foldersByName.values()].map(canonicalSkillFolder))
+  return paths.filter(path => canonical.has(skillFolderOf(path)))
+}
+
+function skillFolderOf(path: string): string {
+  return path === SKILL_FILE ? '.' : path.slice(0, -`/${SKILL_FILE}`.length)
+}
+
 function compareSkillFolders(left: string, right: string): number {
   const leftSegments = left === '.' ? [] : left.split('/')
   const rightSegments = right === '.' ? [] : right.split('/')
