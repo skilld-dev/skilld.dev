@@ -44,7 +44,7 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
   }
   if (url.pathname === `/setup/${state}`) {
     response.setHeader('Set-Cookie', `skilld_app_setup=${state}; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600`)
-    response.end(`<h1>Register skilld under skilld-dev</h1><p>This App reads package source and proposes draft Skill pull requests.</p><p>Other accounts can install it. The pilot processes only its configured repositories.</p><p>It requests Contents write and Pull requests write. Select one repository during installation.</p><form method="post" action="https://github.com/organizations/skilld-dev/settings/apps/new?state=${state}"><input type="hidden" name="manifest" value="${html(JSON.stringify(manifest))}"><button>Register GitHub App</button></form>`)
+    response.end(`<h1>Register skilld under skilld-dev</h1><p>This App reads package source and proposes draft Skill pull requests.</p><p>Other accounts can install it on their public package repositories.</p><p>It requests Contents write and Pull requests write. Select one repository during installation.</p><form method="post" action="https://github.com/organizations/skilld-dev/settings/apps/new?state=${state}"><input type="hidden" name="manifest" value="${html(JSON.stringify(manifest))}"><button>Register GitHub App</button></form>`)
     return
   }
   const supplied = Buffer.from(url.searchParams.get('state') ?? '')

@@ -22,7 +22,10 @@ const bars = SPARK_BARS.slice(1)
 </template>
 
 <style scoped>
-/* IBM Plex Mono has no braille, so the bars fall through to a face that does. */
+/* IBM Plex Mono has no braille, so the bars fall through to a face that does.
+   Muted, not dimmed: `--ui-text-dimmed` is stone 400 in light and stone 500
+   in dark, and both fail text contrast on the page surface. Muted is the
+   lightest stone token that passes AA in both modes. */
 .trending-mark {
   display: inline-block;
   flex: none;
@@ -30,7 +33,7 @@ const bars = SPARK_BARS.slice(1)
   font-size: 0.875rem;
   line-height: 1;
   letter-spacing: 0.04em;
-  color: var(--ui-text-dimmed);
+  color: var(--ui-text-muted);
 }
 
 .trending-mark__today {

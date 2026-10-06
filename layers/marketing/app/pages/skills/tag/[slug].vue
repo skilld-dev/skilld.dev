@@ -37,7 +37,8 @@ useSeoMeta({
   description,
   ogTitle: title,
   ogDescription: description,
-  // Tag pages are noindex by default sitewide (GOOGLE_RECOVERY.md, 2026-08-22).
+  // Tag pages are noindex by default sitewide since 2026-08-22. They were
+  // auto-generated lists with no editorial text, and 16% of the sitemap.
   // Indexable only for a vocab tag with an editorial keep=1 decision.
   robots: () => (data.value?.indexable ? 'index,follow' : 'noindex,follow'),
 })

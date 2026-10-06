@@ -11,7 +11,14 @@ import { useElementVisibility } from '@vueuse/core'
  * A plain block, not an `<aside>`: the board renders it twice, in the sidebar
  * and between the board's halves, and one of them is always hidden. Two
  * complementary landmarks with the same name failed HTML validation.
+ *
+ * `rail` is the sidebar copy: the heading and the button, with no preview and
+ * no card. In a 14rem column the email shrank past reading, and a framed box
+ * with a picture, a heading and a button outweighed the range links above it.
  */
+const { variant = 'card' } = defineProps<{
+  variant?: 'card' | 'rail'
+}>()
 
 /**
  * The email loads in the browser, and only for the copy a reader can see.
@@ -50,9 +57,9 @@ const previewDocument = computed(() => card.value
 </script>
 
 <template>
-  <div class="trending-weekly-cta">
+  <div class="trending-weekly-cta" :class="`trending-weekly-cta--${variant}`">
     <div
-      v-if="keepPreviewBox"
+      v-if="variant === 'card' && keepPreviewBox"
       ref="preview"
       class="trending-weekly-preview"
       inert
@@ -82,7 +89,8 @@ const previewDocument = computed(() => card.value
         to="/login"
         label="Sign in with GitHub"
         icon="i-lucide-github"
-        class="trending-weekly-action min-h-11 w-full justify-center"
+        :size="variant === 'rail' ? 'sm' : 'md'"
+        class="trending-weekly-action w-full justify-center"
       />
     </div>
   </div>
@@ -90,8 +98,10 @@ const previewDocument = computed(() => card.value
 
 <style scoped>
 .trending-weekly-cta {
-  container-type: inline-size;
   min-inline-size: 0;
+}
+
+.trending-weekly-cta--card {
   overflow: clip;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
@@ -117,45 +127,41 @@ const previewDocument = computed(() => card.value
   transform-origin: top left;
 }
 
-.trending-weekly-copy {
-  padding: 1rem;
-}
-
 .trending-weekly-heading {
   font-size: 1rem;
 }
 
+.trending-weekly-cta--card .trending-weekly-copy {
+  padding: 1rem;
+}
+
 .trending-weekly-action {
+  min-block-size: 2.75rem;
   margin-top: 1.25rem;
 }
 
 /*
- * The sidebar column is narrower than any phone. The copy tightens there so
- * the button keeps its whole label on one line rather than truncating it.
+ * Set like the sidebar's own headings, so the invitation reads as one more
+ * section of the rail. The button keeps its whole label in the 14rem column.
  */
-@container (max-width: 16rem) {
-  .trending-weekly-copy {
-    padding: 0.75rem;
-  }
+.trending-weekly-cta--rail .trending-weekly-heading {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
 
-  .trending-weekly-heading {
-    font-size: 0.9375rem;
-  }
+.trending-weekly-cta--rail .trending-weekly-action {
+  min-block-size: 2.25rem;
+  margin-top: 0.75rem;
+}
 
-  .trending-weekly-action {
-    gap: 0.375rem;
-    padding-inline: 0.5rem;
-    font-size: 0.75rem;
-  }
-
-  .trending-weekly-action :deep(.iconify) {
-    inline-size: 1rem;
-    block-size: 1rem;
+@media (pointer: coarse) {
+  .trending-weekly-cta--rail .trending-weekly-action {
+    min-block-size: 2.75rem;
   }
 }
 
 @media (forced-colors: active) {
-  .trending-weekly-cta {
+  .trending-weekly-cta--card {
     border-color: CanvasText;
   }
 }

@@ -11,7 +11,7 @@ import { getDB } from '#server/utils/db'
 import { CLUSTERS } from '../../data/clusters'
 import { findClusterIndexRows } from '../../utils/cluster-index-rows'
 import { clusterMembersSql } from '../../utils/cluster-membership'
-import { curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
+import { clusterSkillKey, curateClusterSkills, parseClusterSkillKeys } from '../../utils/cluster-skill-curation'
 
 interface SkillRow {
   owner: string
@@ -70,7 +70,7 @@ export default defineCachedEventHandler(async (event) => {
   const items: ClusterCard[] = CLUSTERS.map((c: Cluster) => {
     const pinned = new Set(c.pinnedExamples)
     const inCluster = rows
-      .filter(r => (r.category !== null && c.categories.includes(r.category)) || pinned.has(`${r.owner}/${r.name}`))
+      .filter(r => (r.category !== null && c.categories.includes(r.category)) || pinned.has(clusterSkillKey(r)))
       // Abstract skills lead the card: they are the classified curation signal,
       // and the backfill exists so the track has depth under them.
       .sort((a, b) => b.is_abstract - a.is_abstract || b.stars - a.stars || a.name.localeCompare(b.name))
@@ -120,5 +120,6 @@ export default defineCachedEventHandler(async (event) => {
   maxAge: 60 * 10,
   staleMaxAge: 60 * 60,
   swr: true,
-  name: 'clusters-index-origin-v5',
+  // v6: a pin matches `owner/repo/name`.
+  name: 'clusters-index-origin-v6',
 })

@@ -3,6 +3,7 @@ import {
   collectionInstallCmd,
   curatorInstallCmd,
   gitInstallCmd,
+  tokenizeInstallCmd,
 } from '../../app/utils/install-cmd'
 
 describe('install commands', () => {
@@ -23,5 +24,15 @@ describe('install commands', () => {
       collectionInstallCmd('harlan-zw', 'nuxt'),
     ])
       expect(command.startsWith('npx skilld add ')).toBe(true)
+  })
+})
+
+describe('tokenizeInstallCmd', () => {
+  it.each([
+    ['npx skilld search vue', 'search'],
+    ['npx skilld outdated', 'outdated'],
+  ])('dims the subcommand in %s, so the query or Skill name carries the weight', (command, sub) => {
+    const tokens = tokenizeInstallCmd(command)
+    expect(tokens.find(token => token.text === sub)?.role).toBe('sub')
   })
 })

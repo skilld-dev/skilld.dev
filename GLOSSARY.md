@@ -24,11 +24,13 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | track | `/skills/<slug>`, `layers/registry` | track 1—N Skill | "track" |
 | comparison | `/compare/<slug>`, `layers/marketing` | comparison N—N Skill | "comparison" |
 | trending | `/skills/trending`, ADR-0004 | Repository 1—N social mention | "trending" |
-| trending award | `skill_trending_awards`, ADR-0010 | Skill 1—N trending award | "#3 trending" |
+| trending award | `skill_trending_awards`, ADR-0011 | Skill 1—N trending award | "#3 trending" |
 | registry | skilld.dev | one | "skilld" |
 | skilld token | `cli_tokens`, `layers/identity` | Author 1—N token | "skilld token" |
 | provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
 | behavior | `skilld-protocol/behaviors`, Skill page | Skill 1—N behavior | "Skill behaviors" |
+| Skillgen | `workers/skill-harness`, `/skillgen` | Repository 1—N draft pull request | "Skillgen" |
+| task search | search box, `layers/registry` | sentence 1—N Skill | "Find skills for this task" |
 
 Collisions
 
@@ -115,6 +117,8 @@ Collisions
 
 **Is:** a page of Skills for one kind of work, at `/skills/<slug>`. A person writes its label, its second-person line and its pinned Skills; a classifier category fills in the depth beneath them.
 
+**Use for:** "hand-picked" names a track's pinned Skills in UI copy. "Pinned" stays in the code.
+
 **Never:** cluster, category, outcome, topic, use case (in UI). `CLUSTERS` and `abstractness_category` are the internal names and stay in the code.
 
 **Collides with:** collection. A track is ours, permanent, and one per kind of work. A collection belongs to a curator, at `/@login/slug`, and any number can exist.
@@ -151,13 +155,13 @@ Collisions
 
 **Is:** Skills ranked by devs talking about them on X and Bluesky (ADR-0004). Never by installs.
 
-**Marketing phrase:** "hyped", as in the homepage H1 and the "Stay hyped" tile. It names the same social signal.
+**Marketing phrase:** "hyped", as in the "Stay hyped" step. It names the same social signal.
 
 **Never:** popular, hot, top, leaderboard.
 
 ### trending award
 
-**Is:** the best rank a Skill reached on the `week` or `month` trending board in one calendar period (ADR-0010). It stays after the Skill leaves the board. Only a row with a post or a star surge earns one.
+**Is:** the best rank a Skill reached on the `week` or `month` trending board in one calendar period (ADR-0011). It stays after the Skill leaves the board. Only a row with a post or a star surge earns one.
 
 **Format:** `#3 trending · Sep 2026` on a chip or a README badge. `#3 trending, week of 29 Sep 2026` in full.
 
@@ -247,6 +251,16 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 
 **Casing:** lowercase in prose and UI.
 
+### Skillgen
+
+**Is:** the `skilld-skillgen` GitHub App. After each release tag, it opens a draft pull request that updates a package skill. The maintainer reviews it and decides what merges.
+
+**Use for:** the App and its per-repository switch. A maintainer turns Skillgen on for each repository on their account page, and it runs nowhere else. It supports npm packages only.
+
+**Never:** bot (in UI copy), skill generator, auto-update.
+
+**Casing:** `Skillgen` in prose and UI. `skilld-skillgen` only where GitHub shows the App's name.
+
 ### guide skill
 
 **Is:** a curation tag for a Skill not tied to a package. Distributed as a git Skill, tagged for filtering in browse views.
@@ -278,6 +292,14 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 **Use for:** "the weekly", lowercase. It sits beside **digest**, which is the separate watched-Repository email. They are not the same send.
 
 **Never:** newsletter, roundup, trending digest.
+
+### task search
+
+**Is:** the search box action for a sentence. A language model runs a few registry searches for the task and keeps the Skills that fit. It only filters and orders search results; it never adds a Skill. It runs only when a visitor selects "Find skills for this task".
+
+**Use for:** that action, its status messages in the search panel, and the privacy page. The route is `POST /api/skills/task-search`.
+
+**Never:** AI search, smart search, deep search, agent search, ask skilld. Those sell the model as the product, and VISION.md says skilld is not AI-powered.
 
 ## Naming new things
 

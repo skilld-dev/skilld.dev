@@ -74,9 +74,49 @@ export interface LoadTrendingSkillsOptions {
   minLikes?: number
   /** Keep these familiar repositories eligible, but place discoveries first. */
   deprioritizeRepositories?: ReadonlySet<string>
+  /** Which Skills may rank. Defaults to the whole trending board. */
+  scope?: TrendingScope
 }
 
+/** One Skill, as the social half keys it. */
+export interface TrendingSkillRef {
+  owner: string
+  repo: string
+  slug: string
+}
+
+/**
+ * Which Skills may rank.
+ *
+ * `board` is `/skills/trending`: every Skill, by posts and by star surges.
+ * `members` is a track board (ADR-0010): only the Skills `keep` admits, ranked
+ * by posts alone. A star surge says a repository moved. A track heading that
+ * reads "devs talked about" cannot stand over a row no dev posted about.
+ *
+ * `keep` answers with {@link trendingSkillKey} keys. It narrows the window
+ * after it loads, never in SQL, because breadth belongs to the post: a post
+ * naming thirty Skills stays a thirtieth of an author when one of the thirty
+ * is in the track.
+ */
+export type TrendingScope
+  = | { _tag: 'board' }
+    | { _tag: 'members', keep: (candidates: readonly TrendingSkillRef[]) => Promise<ReadonlySet<string>> }
+
 export const DEFAULT_WINDOW_HOURS = 24 * 7
+
+/**
+ * Longest post text a board ships.
+ *
+ * X stores up to a thousand characters. A card shows four lines, about two
+ * hundred, and a board of thirty Skills with six posts each pays for every
+ * character in its payload twice: once in the HTML, once for hydration.
+ */
+export const MAX_POST_TEXT = 480
+
+/** Post text cut to {@link MAX_POST_TEXT}, with an ellipsis where it was cut. */
+export function clipPostText(text: string): string {
+  return text.length > MAX_POST_TEXT ? `${text.slice(0, MAX_POST_TEXT - 1)}…` : text
+}
 
 /**
  * Posts a skill carries beyond its quoted one.
@@ -141,9 +181,12 @@ interface SurgeRow {
   observed_day: number
 }
 
-function skillKey(row: { owner: string, repo: string, slug: string }): string {
+/** `owner/repo/slug`, the key a {@link TrendingScope} answers with. */
+export function trendingSkillKey(row: TrendingSkillRef): string {
   return `${row.owner}/${row.repo}/${row.slug}`
 }
+
+const skillKey = trendingSkillKey
 
 /**
  * Permalink for the post that carried a mention.
@@ -414,10 +457,16 @@ export async function loadTrendingSkills(
   const limit = options.limit ?? 24
   const cutoff = options.now - windowHours * 3600
 
+  const scope: TrendingScope = options.scope ?? { _tag: 'board' }
   const [social, github] = await Promise.all([
     loadSocialEvidence(options, cutoff, minLikes),
-    loadGithubEvidence(options, cutoff),
+    scope._tag === 'board'
+      ? loadGithubEvidence(options, cutoff)
+      : Promise.resolve(new Map<string, SkillTrendInput>()),
   ])
+  const admitted = scope._tag === 'members'
+    ? await scope.keep([...social.values()].map(entry => entry.input))
+    : null
 
   const merged = new Map<string, {
     input: SkillTrendInput
@@ -426,8 +475,10 @@ export async function loadTrendingSkills(
     mentionsByDay: number[] | null
   }>()
 
-  for (const [key, entry] of social)
-    merged.set(key, entry)
+  for (const [key, entry] of social) {
+    if (!admitted || admitted.has(key))
+      merged.set(key, entry)
+  }
 
   for (const [key, input] of github) {
     const held = merged.get(key)

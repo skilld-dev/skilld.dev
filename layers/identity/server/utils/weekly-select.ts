@@ -206,6 +206,7 @@ function reasonFor(entry: {
   attribution: 'social' | 'github' | 'both'
   social: { authorCount: number, mentionCount: number, latestMentionAt: number } | null
   github: { latestGain: number, observedDay: number } | null
+  mentionsByDay: number[] | null
 }): WeeklyReason {
   const authorCount = entry.social?.authorCount ?? 0
   const mentionCount = entry.social?.mentionCount ?? 0
@@ -214,10 +215,11 @@ function reasonFor(entry: {
   const latestAt = entry.social?.latestMentionAt ?? 0
   const gain = entry.github?.latestGain ?? 0
   const day = entry.github?.observedDay ?? 0
+  const mentionsByDay = entry.mentionsByDay
 
   if (entry.attribution === 'both' && entry.social && entry.github)
-    return { _tag: 'named-and-stars', authorCount, mentionCount, latestAt, gain, day }
+    return { _tag: 'named-and-stars', authorCount, mentionCount, latestAt, mentionsByDay, gain, day }
   if (entry.attribution === 'github' && entry.github)
     return { _tag: 'stars', gain, day }
-  return { _tag: 'named', authorCount, mentionCount, latestAt }
+  return { _tag: 'named', authorCount, mentionCount, latestAt, mentionsByDay }
 }

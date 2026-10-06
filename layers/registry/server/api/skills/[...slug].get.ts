@@ -431,7 +431,7 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     // Deliberately top-level, not under `seo`: likes are displayed and back
     // ?sort=likes, but never feed indexability or trust (ADR-0003).
     likeCount: row.like_count ?? 0,
-    // Best rank first. Display only, like likes: never trust or indexability (ADR-0010).
+    // Best rank first. Display only, like likes: never trust or indexability (ADR-0011).
     trendingAwards: parseSkillTrendingAwards(row.trending_awards),
     faqs: faqRow?.payload.faqs ?? [],
     summary: summaryRow?.payload?.text

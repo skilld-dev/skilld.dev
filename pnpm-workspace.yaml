@@ -178,6 +178,7 @@ pipelines:
 patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
   hookable@6.1.1: patches/hookable@6.1.1.patch
+  skilld-protocol@2.5.0: patches/skilld-protocol@2.5.0.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
   '@cloudflare/sandbox': 1.0.0
@@ -237,6 +238,9 @@ catalog:
   nuxt-og-image: ^6.9.1
   nuxt-skew-protection: ^1.5.4
   rangi: ^2.2.0
+  # The header menu imports reka-ui directly. Keep it equal to the version
+  # @nuxt/ui pins, or the client ships two copies.
+  reka-ui: 2.10.4
   skilld-protocol: ^2.5.0
   skilld-sdk: 0.1.2
   tailwindcss: ^4.3.3

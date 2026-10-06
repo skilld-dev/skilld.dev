@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import type { DuplicateCandidate, DuplicateGroupReason } from './skill-duplicate-canonical'
-import type { AlternateSource, HybridSearchResult, SearchMode } from './skill-search'
+import type { AlternateSource, HybridSearchResult, SearchMode, SearchRankSignals } from './skill-search'
 import { getDB } from '#server/utils/db'
 import { cached } from '#shared/server/cache'
 import { skillCardLinks } from '#shared/server/skill-cards'
@@ -169,10 +169,22 @@ function rowsToSkills(rows: SkillRow[], includeDependencies: boolean): RegistryS
   }))
 }
 
+/** What query understanding adds to one search. See search-intent.ts. */
+export interface SkillsQueryIntent {
+  expansion: string | null
+  boostCategories: readonly string[]
+  boostTerm: string | null
+  nameTerms: string | null
+}
+
 export interface SkillsQuery {
   search?: string
   retrieval?: 'hybrid' | 'lexical'
+  /** Query understanding for a natural-language search. Absent for every other caller. */
+  intent?: SkillsQueryIntent
   owner?: string
+  /** One repository of `owner`. Ignored without `owner`. */
+  repo?: string
   official?: boolean
   excludeOfficial?: boolean
   supportedOnly?: boolean
@@ -261,7 +273,7 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   // used to describe a 60-row sample instead of the real match set.
   let searchHits: HybridSearchResult | null = null
   if (search) {
-    searchHits = await hybridSkillSearch(event, search, opts.retrieval)
+    searchHits = await hybridSkillSearch(event, search, opts.retrieval, opts.intent?.expansion ?? null)
     if (!searchHits.keys.length)
       return { items: [], total: 0, page, pages: 0, facets: [], mode: searchHits.mode }
     conditions.push(`(s.owner || '/' || s.repo || '/' || s.name) IN (SELECT value FROM json_each(?))`)
@@ -273,6 +285,10 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   if (owner) {
     conditions.push('s.owner = ?')
     params.push(owner)
+    if (opts.repo) {
+      conditions.push('s.repo = ?')
+      params.push(opts.repo)
+    }
   }
 
   if (official && officialOwners?.size) {
@@ -328,11 +344,20 @@ export async function querySkills(event: H3Event, opts: SkillsQuery): Promise<Sk
   // candidates, so we fetch it whole and rank, collapse and page in JS.
   if (searchHits) {
     const rows = await db
-      .prepare(`SELECT ${selectSkillRow} ${FROM_SKILLS_JOIN_REPOS} ${where}`)
+      .prepare(`SELECT ${selectSkillRow}, s.abstractness_category ${FROM_SKILLS_JOIN_REPOS} ${where}`)
       .bind(...params)
-      .all<SkillRow>()
+      .all<SkillRow & { abstractness_category: string | null }>()
 
-    const ranked = rankSearchResults(rowsToSkills(rows.results ?? [], includeDependencies), searchHits.scoreByKey, search!)
+    const signals: SearchRankSignals = opts.intent
+      ? {
+          expansion: opts.intent.expansion,
+          boostCategories: opts.intent.boostCategories,
+          boostTerm: opts.intent.boostTerm,
+          nameTerms: opts.intent.nameTerms,
+          categoryByKey: new Map((rows.results ?? []).map(row => [`${row.owner}/${row.repo}/${row.name}`, row.abstractness_category])),
+        }
+      : {}
+    const ranked = rankSearchResults(rowsToSkills(rows.results ?? [], includeDependencies), searchHits.scoreByKey, search!, signals)
     // Forked skill collections mirror the same SKILL.md under several owners.
     // Collapsing after ranking keeps each group at its best member's position.
     const collapsed = collapseSearchDuplicates(ranked, search!)

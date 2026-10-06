@@ -465,6 +465,17 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('brailleSpark says one mention in the singular, on the page and to a screen reader', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('BrailleSpark'),
+      { attachTo: container, props: { counts: [0, 0, 0, 1, 0, 0, 0], period: 'in 7 days' } },
+    )
+    expect(container.querySelector('.braille-spark__total')?.textContent).toBe('1 mention in 7 days')
+    expect(container.querySelector('[role="img"]')?.getAttribute('aria-label')).toMatch(/^1 mention in 7 days\. /)
+    wrapper.unmount()
+  })
+
   it('trendingMark has no violations and stays out of the accessibility tree', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -511,6 +522,68 @@ describe('accessibility: components', () => {
     wrapper.unmount()
   })
 
+  it('homeLifecycle has no violations and links the six steps in order', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('HomeLifecycle'),
+      { attachTo: container },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+
+    const links = [...container.querySelectorAll('ol > li > a')]
+    expect(links.map(link => link.getAttribute('href'))).toEqual([
+      '/skills/trending',
+      '/cli#run',
+      '/cli#install',
+      '/cli#update',
+      '/make-skill',
+      '/developers',
+    ])
+    // Run is the default, so it alone carries the rose dot.
+    const picked = container.querySelectorAll('.home-lifecycle__node--picked')
+    expect(picked).toHaveLength(1)
+    expect(picked[0]!.closest('a')?.getAttribute('href')).toBe('/cli#run')
+    expect(container.querySelector('code')?.textContent).toBe('npx skilld outdated')
+    wrapper.unmount()
+  })
+
+  it('headerNavigation opens the Developers panel with no violations', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('_HeaderNavigation'),
+      { attachTo: container },
+    )
+    const trigger = wrapper.get('#header-developers-trigger')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+
+    await trigger.trigger('click')
+    await nextTick()
+
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    // reka-ui renders an aria-hidden focus proxy after an open trigger. It
+    // moves focus into the panel as soon as it gets focus, and Shift+Tab skips
+    // it, so focus never rests there. Only that span leaves the scan.
+    const results = await axe.run(
+      { include: [container], exclude: [['[data-navigation-menu-trigger] + span[aria-hidden="true"]']] },
+      AXE_OPTIONS,
+    )
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+
+    // The panel's label points at the fixed trigger id that replaces reka-ui's.
+    const panel = container.querySelector('[aria-labelledby]')!
+    expect(container.querySelector(`#${panel.getAttribute('aria-labelledby')}`)).toBe(trigger.element)
+    expect([...panel.querySelectorAll('a')].map(link => link.getAttribute('href'))).toEqual([
+      '/cli',
+      '/developers?setup=mcp',
+      '/developers?setup=api',
+      '/make-skill',
+      '/skillgen',
+      '/developers',
+    ])
+    wrapper.unmount()
+  })
+
   it('runChip compact has no violations', async () => {
     const container = createIsolatedContainer()
     const wrapper = await mountSuspended(
@@ -531,6 +604,29 @@ describe('accessibility: components', () => {
     const results = await runAxe(container)
     expect(results.violations, formatViolations(results)).toHaveLength(0)
     expect(container.querySelector('code')?.textContent).toBe('npx skilld install skilld --global')
+    wrapper.unmount()
+  })
+
+  it('cliInstallChip has no violations, leads with the native install, and switches platform', async () => {
+    const container = createIsolatedContainer()
+    const wrapper = await mountSuspended(
+      await loadComponent('CliInstallChip'),
+      { attachTo: container, props: { surface: 'test' } },
+    )
+    const results = await runAxe(container)
+    expect(results.violations, formatViolations(results)).toHaveLength(0)
+    expect(container.querySelector('code')?.textContent).toBe('curl -fsSL https://skilld.dev/install.sh | sh')
+    expect(container.querySelector('button[aria-label]')?.getAttribute('aria-label')).toBe('Copy CLI install command')
+
+    const option = (label: string) => wrapper.findAll('button[aria-pressed]').find(button => button.text() === label)!
+    await option('Windows').trigger('click')
+    await nextTick()
+    expect(container.querySelector('code')?.textContent).toBe('irm https://skilld.dev/install.ps1 | iex')
+
+    await option('npm').trigger('click')
+    await nextTick()
+    expect(container.querySelector('code')?.textContent).toBe('npm install --global skilld')
+    expect(container.textContent).toContain('Needs Node.js.')
     wrapper.unmount()
   })
 
@@ -586,12 +682,14 @@ describe('accessibility: component coverage', () => {
     'TextureFileMinimap.client', // Decorative client-only canvas, hidden from screen readers
     'OgBrand', // OG image component, rendered server-side only
     'OgLayout', // OG image layout component, rendered server-side only
+    'OgLines', // OG image text component, rendered server-side only
     'SkillCard', // Tested at page level
     'SkillReceiptsBadge', // Tested at page level
     'StatsBars', // Decorative chart, tested at page level
     'StatsHBar', // Decorative chart, tested at page level
     'StatsLeaderboard', // Tested at page level
     'UiTooltip', // Wrapper around UTooltip, exercised by parent components
+    '_ChipSwitch', // The switch above RunChip and CliInstallChip, axe-scanned and clicked through both
   ]
 
   /**

@@ -1,8 +1,8 @@
 ---
 title: Privacy
 description: What skilld.dev stores, why it needs the data, how long it keeps it, and how you delete your account.
-label: Last updated 1 October 2026
-updatedAt: 2026-10-01
+label: Last updated 6 October 2026
+updatedAt: 2026-10-06
 ---
 
 ## In short
@@ -64,6 +64,16 @@ Your browser keeps your color mode and your 5 most recent searches in local stor
 ### Search
 
 Search sends your query to Workers AI on Cloudflare to find matching Skills. skilld stores no copy of the query text. It caches the query's embedding, a list of numbers, for up to one day. The cache entry holds nothing that identifies you.
+
+### Task search
+
+When you search with a sentence, the search panel offers "Find skills for this task". The search box sends nothing more until you select it.
+
+When you select it, skilld sends your search text to the GPT-6 Luna model from [OpenAI](https://openai.com), through Cloudflare. The model writes a few searches, skilld runs them on its own registry, and the model picks Skills from those results. OpenAI receives your search text and those results. It receives no IP address, cookie, or account details.
+
+skilld caches the answer, a list of Skills, for up to 7 days. The cache key is a hash of your search text. skilld logs how long each answer took, how many tokens it used, and what it cost. The log holds no search text.
+
+Each task search costs money, so Cloudflare counts task searches per IP address over one minute. skilld stores no IP address.
 
 ### Images
 
@@ -130,6 +140,7 @@ skilld uses [Sentry](https://sentry.io) to find and fix errors.
 - Cloudflare hosts skilld.dev and runs its database, cache, email delivery, image proxy, Web Analytics, usage counts, Workers AI search, and request logs. It handles requests, account data, email addresses, analytics reports, and search queries.
 - GitHub handles sign-in and holds the source of every Skill. It handles your GitHub profile and tokens.
 - Sentry receives error reports, with the data listed above removed.
+- OpenAI runs the model behind task search. Through Cloudflare, it receives the search text of a task search and the registry results, and nothing that identifies you.
 
 ## How long skilld keeps data
 

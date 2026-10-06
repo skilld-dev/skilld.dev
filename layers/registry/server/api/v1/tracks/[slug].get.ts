@@ -7,8 +7,9 @@ import { findSkillsByKeys, registrySkillKey } from '../../../utils/skills-regist
 
 /**
  * Reads the track page's own route in process, page by page at the page's own
- * size, so v1 lists Skills in the order the page shows and shares its cache.
- * Page 1 has no query string because the page requests it that way.
+ * size, so v1 lists the same members in the route's order and shares its
+ * cache. The page regroups them into a board (ADR-0010); v1 keeps the route
+ * order. Page 1 has no query string because the page requests it that way.
  */
 export default defineApiOperation({
   operation: tracksV1.operations.get,

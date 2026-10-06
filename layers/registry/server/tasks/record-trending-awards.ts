@@ -10,7 +10,7 @@ const CRON = '0 * * * *'
 
 /**
  * Scheduled task: record each evidenced trending row as a trending award
- * (ADR-0010). The rule lives in `#shared/trending-award`.
+ * (ADR-0011). The rule lives in `#shared/trending-award`.
  *
  * Hourly, so a rank held for one hour still counts. It never removes a row and
  * never worsens a rank: an award is a record of what the board said.

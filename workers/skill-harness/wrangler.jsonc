@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  "vars": { "PROVIDER": "anthropic", "MODEL": "claude-sonnet-4-6", "GITHUB_PILOT_REPOSITORIES": "harlan-zw/nuxt-skew-protection" },
+  "vars": { "PROVIDER": "anthropic", "MODEL": "claude-sonnet-4-6", "SKILLD_SITE_URL": "https://skilld.dev" },
   "containers": [{
     "class_name": "SkillSandbox",
     "scheduling_policy": "durable_object",

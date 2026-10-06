@@ -177,6 +177,7 @@ function seedAccount(raw: DatabaseSync, account: Account, githubToken: string | 
     NOW,
     NOW,
   )
+  run(`INSERT INTO skillgen_repositories (owner, repo, user_id, opted_in_at) VALUES (?, 'package', ?, ?)`, login, id, NOW)
   run(
     `INSERT INTO artifact_resolutions (
        id, request_fingerprint, state, requested_owner, requested_repository, selector_type,

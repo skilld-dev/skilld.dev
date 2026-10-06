@@ -1,4 +1,4 @@
-# ADR-0010: Trending awards
+# ADR-0011: Trending awards
 
 **Status:** Accepted
 **Date:** 2026-10-06

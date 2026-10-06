@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
-// 2026-08-22 agent lane (GOOGLE_RECOVERY.md): an agent-only sitemap listing
+// 2026-08-22 agent lane: an agent-only sitemap listing
 // every AI-ready page, including pages that are noindex for Google. Referenced
 // from llms.txt only, never robots.txt, so it cannot couple agent discovery to
 // the Google recovery surface. Google officially ignores llms.txt, and even if

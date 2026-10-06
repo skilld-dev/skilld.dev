@@ -8,9 +8,14 @@ import HomeSearch from '../../app/components/HomeSearch.vue'
 const navigate = vi.hoisted(() => vi.fn())
 mockNuxtImport('navigateTo', () => navigate)
 
-const query = ref('vue testing')
+const query = ref('vue')
 const open = ref(true)
-const activeIndex = ref(0)
+const activeIndex = ref(-1)
+const activeColumn = ref<0 | 1>(0)
+const repositoryRow: SearchRow = {
+  _tag: 'repository',
+  repository: { owner: 'vercel-labs', repo: 'agent-skills', stars: 32000, skillCount: 7, registryPath: '/gh/vercel-labs/agent-skills' },
+}
 const rows = ref<SearchRow[]>([
   { _tag: 'skill', provisional: false, skill: { owner: 'antfu', repo: 'skills', name: 'vue-testing', slug: 'antfu/vue-testing', registryPath: '/gh/antfu/skills/vue-testing' } },
   { _tag: 'skill', provisional: false, skill: { owner: 'hyf0', repo: 'skills', name: 'vue-debug', slug: 'hyf0/vue-debug', registryPath: '/gh/hyf0/skills/vue-debug' } },
@@ -19,29 +24,36 @@ const rows = ref<SearchRow[]>([
 const initialRows = rows.value
 const stateOverride = ref<SearchState | null>(null)
 const submitRepository = vi.fn()
+const copied = vi.fn()
 
 mockNuxtImport('useSkillSearch', () => () => ({
   query,
   trimmedQuery: computed(() => query.value.trim()),
   open,
   activeIndex,
+  activeColumn,
   rows,
   activeRow: computed(() => rows.value[activeIndex.value] ?? null),
-  state: computed<SearchState>(() => stateOverride.value ?? ({ _tag: 'ready', rows: rows.value, total: 2, mode: 'hybrid' })),
-  move: (delta: number) => { activeIndex.value = (activeIndex.value + delta + rows.value.length) % rows.value.length },
+  state: computed<SearchState>(() => stateOverride.value ?? ({ _tag: 'ready', rows: rows.value, total: 2, mode: 'hybrid', repository: null })),
   close: () => { open.value = false },
   reset: () => {
     query.value = ''
-    activeIndex.value = 0
+    activeIndex.value = -1
   },
   rememberQuery: vi.fn(),
   loadTypeaheadIndex: vi.fn(),
   submitRepository,
 }))
 
+// The real panel draws the same ids; this stub keeps the test on the box.
 const panel = defineComponent({
-  setup: () => () => h('div', { id: 'skill-search-listbox', role: 'listbox' }, rows.value.map((row, index) =>
-    h('div', { id: `skill-search-row-${index}`, role: 'option' }, row._tag === 'skill' ? row.skill.name : 'All results'))),
+  setup: () => () => h('div', { id: 'skill-search-grid', role: 'grid' }, rows.value.map((row, index) =>
+    h('div', { role: 'row' }, [
+      h('div', { id: `skill-search-row-${index}`, role: 'gridcell' }, row._tag === 'skill' ? row.skill.name : row._tag),
+      row._tag === 'skill'
+        ? h('div', { id: `skill-search-row-${index}-run`, role: 'gridcell' }, [h('button', { type: 'button', onClick: () => copied(row.skill.name) }, 'copy')])
+        : null,
+    ]))),
 })
 
 const wrappers: Awaited<ReturnType<typeof mountSuspended>>[] = []
@@ -54,13 +66,21 @@ async function mountSearch() {
   return wrapper
 }
 
+async function press(wrapper: Awaited<ReturnType<typeof mountSearch>>, ...keys: string[]) {
+  for (const key of keys)
+    await wrapper.get('input').trigger('keydown', { key })
+  await flushPromises()
+}
+
 beforeEach(() => {
   navigate.mockReset()
   submitRepository.mockReset()
+  copied.mockReset()
   stateOverride.value = null
-  query.value = 'vue testing'
+  query.value = 'vue'
   open.value = true
-  activeIndex.value = 0
+  activeIndex.value = -1
+  activeColumn.value = 0
   rows.value = initialRows
 })
 afterEach(() => {
@@ -69,11 +89,17 @@ afterEach(() => {
 })
 
 describe('homepage search interactions', () => {
-  it('submits the query on Enter when results are present but none was selected', async () => {
+  it('submits a name to the results page on Enter when nothing was selected', async () => {
     const wrapper = await mountSearch()
-    await wrapper.get('input').trigger('keydown', { key: 'Enter' })
-    await flushPromises()
-    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue testing' } })
+    await press(wrapper, 'Enter')
+    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue' } })
+  })
+
+  it('submits a sentence to the results page with the semantic lane on', async () => {
+    query.value = 'test a vue app'
+    const wrapper = await mountSearch()
+    await press(wrapper, 'Enter')
+    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'test a vue app', ai: '1' } })
   })
 
   it.each([
@@ -81,20 +107,48 @@ describe('homepage search interactions', () => {
     ['ArrowUp', '/gh/hyf0/skills/vue-debug'],
   ])('selects with %s before Enter opens the Skill', async (key, path) => {
     const wrapper = await mountSearch()
-    await wrapper.get('input').trigger('keydown', { key })
-    await wrapper.get('input').trigger('keydown', { key: 'Enter' })
-    await flushPromises()
+    await press(wrapper, key, 'Enter')
     expect(navigate).toHaveBeenCalledWith(path)
   })
 
-  it('uses the Search button for the full result page even after arrow selection', async () => {
+  it('moves to the run chip with ArrowRight, and Enter copies instead of opening', async () => {
     const wrapper = await mountSearch()
-    await wrapper.get('input').trigger('keydown', { key: 'ArrowDown' })
-    const button = wrapper.findAll('button').find(button => button.text().trim() === 'Search')
-    expect(button, 'Search button must submit the full query').toBeDefined()
-    await button!.trigger('click')
+    await press(wrapper, 'ArrowDown', 'ArrowRight')
+    expect(wrapper.get('input').attributes('aria-activedescendant')).toBe('skill-search-row-0-run')
+    await press(wrapper, 'Enter')
+    expect(copied).toHaveBeenCalledExactlyOnceWith('vue-testing')
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('leaves ArrowRight to the caret until a row is selected', async () => {
+    const wrapper = await mountSearch()
+    const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+    wrapper.get('input').element.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(wrapper.get('input').attributes('aria-activedescendant')).toBeUndefined()
+  })
+
+  it('opens a Repository row on its Repository page', async () => {
+    query.value = 'vercel-labs/agent-skills'
+    rows.value = [repositoryRow, ...initialRows]
+    stateOverride.value = { _tag: 'ready', rows: rows.value, total: 7, repository: repositoryRow.repository }
+    const wrapper = await mountSearch()
+    await press(wrapper, 'Enter')
+    expect(navigate).toHaveBeenCalledWith('/gh/vercel-labs/agent-skills')
+  })
+
+  it('uses the submit control for the full result page even after arrow selection', async () => {
+    const wrapper = await mountSearch()
+    await press(wrapper, 'ArrowDown')
+    await wrapper.get('button[aria-label="Search"]').trigger('click')
     await flushPromises()
-    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue testing' } })
+    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue' } })
+  })
+
+  it('offers no submit control until there is a query', async () => {
+    query.value = '   '
+    const wrapper = await mountSearch()
+    expect(wrapper.get('button[type="submit"]').isVisible()).toBe(false)
   })
 
   it('reopens the panel when the already focused input is clicked', async () => {
@@ -105,21 +159,20 @@ describe('homepage search interactions', () => {
     open.value = false
     await flushPromises()
     await input.trigger('click')
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(true)
+    expect(wrapper.find('[role="grid"]').exists()).toBe(true)
   })
 
-  it('connects the combobox to the rendered listbox', async () => {
+  it('connects the combobox to the rendered grid', async () => {
     const wrapper = await mountSearch()
     const id = wrapper.get('input').attributes('aria-controls')
     expect(id).toBeTruthy()
-    expect(wrapper.find(`[id="${id}"][role="listbox"]`).exists()).toBe(true)
+    expect(wrapper.find(`[id="${id}"][role="grid"]`).exists()).toBe(true)
   })
 
   it('closes on Escape without navigation', async () => {
     const wrapper = await mountSearch()
-    await wrapper.get('input').trigger('keydown', { key: 'Escape' })
-    await flushPromises()
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false)
+    await press(wrapper, 'Escape')
+    expect(wrapper.find('[role="grid"]').exists()).toBe(false)
     expect(navigate).not.toHaveBeenCalled()
   })
 
@@ -127,13 +180,13 @@ describe('homepage search interactions', () => {
     const wrapper = await mountSearch()
     await wrapper.get('input').trigger('focusout', { relatedTarget: document.body })
     await flushPromises()
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false)
+    expect(wrapper.find('[role="grid"]').exists()).toBe(false)
     expect(navigate).not.toHaveBeenCalled()
   })
 
   it('clears keyboard selection when fresh results replace the displayed results', async () => {
     const wrapper = await mountSearch()
-    await wrapper.get('input').trigger('keydown', { key: 'ArrowDown' })
+    await press(wrapper, 'ArrowDown')
     rows.value = [{ _tag: 'skill', provisional: false, skill: {
       owner: 'new-author',
       repo: 'skills',
@@ -142,35 +195,31 @@ describe('homepage search interactions', () => {
       registryPath: '/gh/new-author/skills/replacement',
     } }, ...initialRows]
     await flushPromises()
-    await wrapper.get('input').trigger('keydown', { key: 'Enter' })
-    await flushPromises()
-    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue testing' } })
+    await press(wrapper, 'Enter')
+    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue' } })
   })
 
   it('clears keyboard selection when the query changes', async () => {
     const wrapper = await mountSearch()
-    await wrapper.get('input').trigger('keydown', { key: 'ArrowDown' })
+    await press(wrapper, 'ArrowDown')
     await wrapper.get('input').setValue('pdf')
-    await wrapper.get('input').trigger('keydown', { key: 'Enter' })
-    await flushPromises()
+    await press(wrapper, 'Enter')
     expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'pdf' } })
   })
 
   it.each(['button', 'Enter'])('indexes an idle repository using %s', async (action) => {
     const repository = { _tag: 'repository' as const, owner: 'antfu', repo: 'skills', url: 'https://github.com/antfu/skills' }
     query.value = repository.url
-    rows.value = [{ _tag: 'repository', repository }]
+    rows.value = [{ _tag: 'index', repository }]
     stateOverride.value = { _tag: 'repository', repository, status: { _tag: 'idle' }, rows: rows.value }
     const wrapper = await mountSearch()
     if (action === 'Enter') {
-      await wrapper.get('input').trigger('keydown', { key: 'Enter' })
+      await press(wrapper, 'Enter')
     }
     else {
-      const button = wrapper.findAll('button').find(button => button.text().trim() === 'Index repository')
-      expect(button).toBeDefined()
-      await button!.trigger('click')
+      await wrapper.get('button[aria-label="Index repository"]').trigger('click')
+      await flushPromises()
     }
-    await flushPromises()
     expect(submitRepository).toHaveBeenCalledExactlyOnceWith(repository)
     expect(navigate).not.toHaveBeenCalled()
   })
@@ -178,32 +227,26 @@ describe('homepage search interactions', () => {
   it('blocks duplicate submission while repository indexing is pending', async () => {
     const repository = { _tag: 'repository' as const, owner: 'antfu', repo: 'skills', url: 'https://github.com/antfu/skills' }
     query.value = repository.url
-    rows.value = [{ _tag: 'repository', repository }]
-    stateOverride.value = { _tag: 'repository', repository, status: { _tag: 'pending', progress: { _tag: 'queued' } }, rows: rows.value }
+    rows.value = []
+    stateOverride.value = { _tag: 'repository', repository, status: { _tag: 'pending', progress: { _tag: 'queued' } }, rows: [] }
     const wrapper = await mountSearch()
-    const button = wrapper.findAll('button').find(button => button.text().trim() === 'Index repository')
-    expect(button).toBeDefined()
-    expect(button!.attributes('disabled')).toBeDefined()
-    await button!.trigger('click')
-    await wrapper.get('input').trigger('keydown', { key: 'Enter' })
-    await flushPromises()
+    const button = wrapper.get('button[aria-label="Index repository"]')
+    expect(button.attributes('disabled')).toBeDefined()
+    await button.trigger('click')
+    await press(wrapper, 'Enter')
     expect(submitRepository).not.toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
   })
 
   it('does not restore keyboard selection when a shortcut reopens the panel', async () => {
     const wrapper = await mountSearch()
-    const input = wrapper.get('input')
-    await input.trigger('keydown', { key: 'ArrowDown' })
-    await input.trigger('keydown', { key: 'Escape' })
-    await flushPromises()
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(false)
+    await press(wrapper, 'ArrowDown', 'Escape')
+    expect(wrapper.find('[role="grid"]').exists()).toBe(false)
     // The global shortcut opens shared state before it focuses the input.
     open.value = true
-    await input.trigger('focus')
-    await input.trigger('keydown', { key: 'Enter' })
-    await flushPromises()
-    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue testing' } })
+    await wrapper.get('input').trigger('focus')
+    await press(wrapper, 'Enter')
+    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue' } })
   })
 
   it.each(['ArrowDown', 'ArrowUp'])('leaves composing %s to the IME', async (key) => {
@@ -214,9 +257,8 @@ describe('homepage search interactions', () => {
     await flushPromises()
     expect(event.defaultPrevented).toBe(false)
     expect(input.attributes('aria-activedescendant')).toBeUndefined()
-    await input.trigger('keydown', { key: 'Enter' })
-    await flushPromises()
-    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue testing' } })
+    await press(wrapper, 'Enter')
+    expect(navigate).toHaveBeenCalledWith({ path: '/skills', query: { q: 'vue' } })
   })
 
   it('ignores Enter while an IME composition is active', async () => {
@@ -224,6 +266,6 @@ describe('homepage search interactions', () => {
     await wrapper.get('input').trigger('keydown', { key: 'Enter', isComposing: true })
     await flushPromises()
     expect(navigate).not.toHaveBeenCalled()
-    expect(wrapper.find('[role="listbox"]').exists()).toBe(true)
+    expect(wrapper.find('[role="grid"]').exists()).toBe(true)
   })
 })

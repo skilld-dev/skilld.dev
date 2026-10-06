@@ -2,23 +2,13 @@
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 import type { TrendingFeedItem, TrendingFeedResponse } from '~~/server/api/feed/trending.get'
-import type { SkillSourceItem } from '../types/skill-source'
-import type { FeaturedPersonSection } from '../utils/homepage-person-skills'
 import { WRITING_COMPARISON_LINK } from '#shared/comparison-navigation'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { TRENDING_RANGES } from '#shared/trending-range'
-import { AGENT_LOGOS } from '~/utils/agent-logos'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
-import { homepagePersonSkillFallbacks } from '../data/homepage-person-skills'
-import {
-  HOMEPAGE_PERSON_MINIMUM,
-  selectHomepagePersonSkills,
-  selectHomepageTrendingSkills,
-  uniqueByOwner,
-} from '../utils/homepage-person-skills'
 
-const title = 'Taste-tested agent skills ecosystem · skilld'
-const description = 'Agent skills written by their maintainers and read by a person before they go in. See what devs are sharing this week, find what your agent needs, and keep up when it changes.'
+const title = 'Agent skills for you and your agent · skilld'
+const description = 'Try any agent skill before you install it, and let your agent search for its own. Open-source CLI, no telemetry. A skills.sh alternative.'
 
 useSeoMeta({
   title,
@@ -32,7 +22,12 @@ useHead({
   templateParams: { separator: '·' },
 })
 
-defineOgImage('Splash.takumi', {}, { alt: 'skilld, curated agent skills by humans' })
+// The card repeats the hero: the H1 and the caption from COPY.md, with the
+// H1 broken where the page breaks it.
+defineOgImage('Page.takumi', {
+  title: 'Agent skills for you\nand your agent',
+  description: 'Try any skill before you install it. Your agent can search for its own.',
+}, { alt: 'skilld, agent skills for you and your agent' })
 
 const serverTimingHeader = useResponseHeader('Server-Timing')
 const homeDataStartedAt = performance.now()
@@ -77,8 +72,8 @@ const [
   // the edge for 5 minutes, so it costs a cache read rather than a query.
   withHomeDataTiming('home-trending', useFetch<TrendingFeedResponse>('/api/feed/trending', {
     key: 'home-trending-v2',
-    // The hero rail shows one skill per author, so it needs more repos than
-    // the six-card section below it.
+    // The hero texture prints Skill names from every repo it gets, so it asks
+    // for more repos than the six-card section below it.
     query: { limit: 24 },
     // Repositories only. The named Skills, with their posts and star series,
     // serve `/skills/trending` and would ride in this page's payload unread.
@@ -95,7 +90,7 @@ const recentUpdates = computed(() => updatesData.value?.items ?? [])
 const recentPublishes = computed(() => publishesData.value?.items ?? [])
 
 const trendingRepos = computed(() => trendingData.value?.items ?? [])
-/** The section below the fold stays a six-card grid whatever the rail uses. */
+/** The section below the fold stays a six-card grid whatever the texture uses. */
 const trendingSectionRepos = computed(() => trendingRepos.value.slice(0, 6))
 
 /**
@@ -128,73 +123,16 @@ const heroTextureNames = computed(() =>
   trendingRepos.value.flatMap(repo => repo.skills.map(skill => `${repo.owner}/${repo.repo}/${skill.name}`)),
 )
 
-interface FeaturedPeopleResponse {
-  devSections: FeaturedPersonSection[]
-}
-
-// The hero rail is decoration on top of the headline, so it loads after
-// hydration and falls back to a hand-picked set when the live data is thin.
-const { data: peopleSkillsData, execute: loadPeopleSkills } = await useFetch<FeaturedPeopleResponse>('/api/skills/featured', {
-  key: 'home-person-skills-v1',
-  query: { orgs: 0, perOrg: 1, devs: 24, perDev: 3 },
-  server: false,
-  lazy: true,
-  immediate: false,
-})
-
-const fallbackPersonNamesByOwner = new Map<string, string>(
-  homepagePersonSkillFallbacks.map(skill => [skill.owner, skill.maintainerName ?? skill.owner]),
-)
-
-const heroSkillCards = computed<readonly SkillSourceItem[]>(() => {
-  const liveSkills = selectHomepagePersonSkills(
-    peopleSkillsData.value?.devSections ?? [],
-    fallbackPersonNamesByOwner,
-  )
-
-  return liveSkills.length >= HOMEPAGE_PERSON_MINIMUM
-    ? liveSkills
-    : uniqueByOwner(homepagePersonSkillFallbacks)
-})
-
 /**
- * Hero rail contents: one skill per author from this week's trending repos,
- * padded with the evergreen set so the stream stays deep enough to scroll.
- *
- * Flattened from repos to skills because the rail shows one skill per card,
- * while the section further down shows repos with their quoted evidence. The
- * two are different granularities of the same signal rather than a duplicate.
- *
- * Falls back to the curated person-authored rail when trending is too thin.
- * The hero is the first thing anyone sees, so an empty or one-card rail there
- * is worse than showing the evergreen set.
+ * The CLI's own line, "Search, run, install, and keep them current", as doors
+ * into the sections of the /cli page.
  */
-const homepageTrendingSelection = computed(() => selectHomepageTrendingSkills(
-  trendingRepos.value.flatMap(repo =>
-    repo.skills.map(skill => ({
-      owner: repo.owner,
-      repo: repo.repo,
-      name: skill.name,
-      displayName: skill.displayName,
-      registryPath: skill.registryPath,
-      description: skill.description,
-      context: trendingShareLabel(repo.authorCount),
-    })),
-  ),
-  homepagePersonSkillFallbacks,
-))
-
-const heroTrendingCards = computed<readonly SkillSourceItem[]>(() => {
-  const selection = homepageTrendingSelection.value
-  return selection._tag === 'trending' ? selection.items : heroSkillCards.value
-})
-
-const heroShowsTrending = computed(() => homepageTrendingSelection.value._tag === 'trending')
-
-onMounted(() => {
-  if (homepageTrendingSelection.value._tag === 'fallback')
-    void loadPeopleSkills()
-})
+const heroVerbs = [
+  { label: 'search', to: '/cli#search' },
+  { label: 'run', to: '/cli#run' },
+  { label: 'install', to: '/cli#install' },
+  { label: 'keep current', to: '/cli#update' },
+] as const
 
 /**
  * Track order, measured 2026-09-04 rather than assumed.
@@ -209,8 +147,8 @@ onMounted(() => {
  * `diagrams` was added and `research` was un-retired, both on these numbers.
  * See the header of clusters.ts.
  *
- * Re-measure before trusting this order past October. Method and numbers:
- * ~/scratch/notes/skilld-track-demand-2026-09-04.md
+ * Re-measure before trusting this order past October. The percentages
+ * below are each track's share of the weighted demand.
  */
 const TRACK_DEMAND_ORDER = [
   'design', // 16.5%
@@ -239,16 +177,6 @@ const authoringEcosystems = [
   { id: 'go', label: 'Go', icon: 'i-simple-icons-go' },
   { id: 'rubygems', label: 'RubyGems', icon: 'i-simple-icons-rubygems' },
 ] as const
-
-/**
- * The trending band hides itself below MIN_TRENDING_TO_SHOW, so the door has
- * to fall back to the page that always exists. An anchor to a section that did
- * not render is a link that does nothing.
- */
-const trendingDoorTarget = computed(() => (showTrending.value ? '#trending' : '/skills/trending'))
-
-// Named agent row under the search: proof of "every agent".
-const heroAgentLogos = AGENT_LOGOS
 
 const renderNow = useState('render:now', () => Number(new Date()))
 
@@ -298,99 +226,72 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 
 <template>
   <div class="home-page overflow-clip">
-    <section
-      class="editorial-band home-band--hero"
-      aria-labelledby="hero-heading"
-    >
-      <!-- The band's one atmosphere and its one moving region. The mask keeps
-           the names clear of the headline. -->
-      <div class="home-hero-texture" aria-hidden="true">
+    <section class="home-hero" aria-labelledby="hero-heading">
+      <!-- The signature, at low strength. Stone only: the H1 full stop is the
+           band's one rose dot, so the texture's pick draws in stone. The mask
+           keeps a clear column behind the copy. -->
+      <div class="home-hero__texture" aria-hidden="true">
         <TextureBrailleNames :names="heroTextureNames" />
       </div>
 
-      <!-- The hero runs wider than the editorial bands below it so the proof
-           rail sits beside the headline instead of compressing it. -->
-      <div class="editorial-band__content mx-auto max-w-6xl px-4 py-10 sm:px-6 md:py-14">
-        <div class="home-hero-grid">
-          <div class="home-hero-copy min-w-0">
-            <!-- The rose dot is the full stop. Screen readers get a typed one. -->
-            <h1 id="hero-heading" class="home-hero-title font-semibold tracking-[-0.045em]">
-              Hyped agent skills,<br>
-              no bloat<span class="sr-only">.</span><span class="home-hero-dot" aria-hidden="true" />
-            </h1>
-            <p class="mt-6 max-w-xl text-base leading-relaxed text-muted text-pretty sm:text-lg">
-              Run a skill once and nothing lands on disk. Fork or install the ones you keep.
-              Every skill comes from its maintainer's repo, and a person reads it before it's listed.
-            </p>
-            <p class="home-hero-claims data-label mt-4">
-              <a href="https://github.com/skilld-dev/skilld" target="_blank" rel="noopener">Open-source CLI</a>
-              <span aria-hidden="true"> · </span>
-              <span>Analytics without cookies or IPs</span>
-              <span aria-hidden="true"> · </span>
-              <NuxtLink to="/vs/skills-sh">
-                A skills.sh alternative
+      <div class="home-hero__content mx-auto max-w-4xl px-4 text-center sm:px-6">
+        <!-- The rose dot is the full stop. Screen readers get a typed one. -->
+        <h1 id="hero-heading" class="home-hero-title font-semibold tracking-[-0.045em] text-highlighted text-balance">
+          Agent skills for you<br class="hidden sm:inline">
+          and your agent<span class="sr-only">.</span><span class="home-hero-dot" aria-hidden="true" />
+        </h1>
+        <!-- The product map: the CLI's own four verbs, each a door into /cli,
+             then the one quiet link to the whole CLI page. -->
+        <nav class="home-hero__verbs mt-5 font-mono text-sm" aria-label="What skilld does">
+          <ul class="home-hero__verb-list list-none p-0">
+            <li v-for="verb in heroVerbs" :key="verb.to">
+              <NuxtLink :to="verb.to" class="home-hero__verb">
+                {{ verb.label }}
               </NuxtLink>
-            </p>
+            </li>
+          </ul>
+          <span class="home-hero__verbs-rule" aria-hidden="true" />
+          <NuxtLink to="/cli" class="home-hero__cli">
+            The skilld CLI<UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
+          </NuxtLink>
+        </nav>
+        <!-- What sets skilld apart, so the caption assumes the reader knows
+             what a Skill is. Run comes before install, and the skilld Skill
+             behind the promo below lets the agent search on its own. -->
+        <p class="home-hero__caption mx-auto mt-3 text-base leading-relaxed text-muted text-balance">
+          Try any skill before you install it. Your agent can search for its own.
+        </p>
 
-            <div class="home-hero-promo mt-6">
-              <span class="font-mono text-xs text-muted">Teach your agent skilld</span>
-              <SkilldInstallChip surface="home-hero-promo" />
-            </div>
+        <HomeSearch class="mx-auto mt-8 max-w-xl text-left" />
 
-            <div class="home-hero-slots mt-8">
-              <div class="home-hero-slot">
-                <div class="home-hero-search">
-                  <HomeSearch />
+        <ul class="home-hero__claims home-hero-claims data-label mx-auto mt-5 list-none p-0" aria-label="About skilld">
+          <li>
+            <a href="https://github.com/skilld-dev/skilld" target="_blank" rel="noopener">Open-source CLI, no telemetry</a>
+          </li>
+          <li>Analytics without cookies or IPs</li>
+          <li>
+            <NuxtLink to="/vs/skills-sh">
+              A skills.sh alternative
+            </NuxtLink>
+          </li>
+          <li>
+            <UPopover :content="{ side: 'bottom', align: 'center', sideOffset: 8 }">
+              <button type="button" class="home-hero__promo">
+                Teach your agent skilld
+                <UIcon name="i-lucide-chevron-down" class="size-3 shrink-0" aria-hidden="true" />
+              </button>
+              <template #content>
+                <div class="p-2">
+                  <SkilldInstallChip surface="home-hero-promo" />
                 </div>
-              </div>
-
-              <div class="home-hero-slot">
-                <ul class="home-hero-agents mt-2 list-none p-0" aria-label="Agents skilld works with">
-                  <li v-for="agent in heroAgentLogos" :key="agent.id" class="home-hero-agent">
-                    <UIcon :name="agent.icon" class="size-4 shrink-0" aria-hidden="true" />
-                    <span>{{ agent.label }}</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div class="home-hero-proof home-hero-rail min-w-0">
-            <!-- No auto scroll: the texture is the band's one moving region. -->
-            <SkillSourceList
-              :items="heroTrendingCards"
-              variant="stream"
-              :aria-label="heroShowsTrending ? 'Trending skills this week' : 'Person-authored skills'"
-            />
-          </div>
-        </div>
+              </template>
+            </UPopover>
+          </li>
+        </ul>
       </div>
     </section>
 
-    <nav class="home-doors" aria-label="What you can do here">
-      <div class="mx-auto grid max-w-6xl gap-px px-4 sm:px-6 md:grid-cols-4">
-        <NuxtLink to="/docs/cli#skilld-run" class="home-door">
-          <UIcon name="i-lucide-terminal" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">No more skill bloat<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
-          <span class="home-door-text">Run skills once off, fork, or install.</span>
-        </NuxtLink>
-        <NuxtLink :to="trendingDoorTarget" class="home-door">
-          <UIcon name="i-lucide-trending-up" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Stay hyped<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
-          <span class="home-door-text">What devs talk about on X and Bluesky, weekly and monthly.</span>
-        </NuxtLink>
-        <NuxtLink to="#freshness" class="home-door">
-          <UIcon name="i-lucide-eye" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Keep updated<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
-          <span class="home-door-text">Watch repos and get a digest when their skills change.</span>
-        </NuxtLink>
-        <NuxtLink to="/developers" class="home-door">
-          <UIcon name="i-lucide-blocks" class="home-door-mark" aria-hidden="true" />
-          <span class="home-door-title">Built to be built on<UIcon name="i-lucide-arrow-right" class="home-door-arrow" aria-hidden="true" /></span>
-          <span class="home-door-text">CLI, API, SDK and MCP.</span>
-        </NuxtLink>
-      </div>
-    </nav>
+    <HomeLifecycle />
 
     <section
       v-if="showTrending || trendingStatus === 'pending'"
@@ -781,3 +682,191 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
     </section>
   </div>
 </template>
+
+<style scoped>
+/* Above the lifecycle band, so the search panel overlays it instead of sliding under. */
+.home-hero {
+  position: relative;
+  z-index: 10;
+  isolation: isolate;
+}
+
+.home-hero__content {
+  position: relative;
+  z-index: 1;
+  padding-top: 2.5rem;
+  /* Phones and tablets: the names run in a strip under the copy. */
+  padding-bottom: 7rem;
+}
+
+/* Phones and tablets: a strip under the copy, clear of every line of text. */
+.home-hero__texture {
+  --brand-dot: var(--ui-text-muted);
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 0;
+  height: 6.5rem;
+  pointer-events: none;
+  opacity: 0.6;
+  mask-image: linear-gradient(to bottom, transparent, #000 35%, #000 70%, transparent);
+}
+
+/* Desktop: full width behind the band, with a clear column behind the copy
+   and soft top and bottom edges. */
+@media (min-width: 64rem) {
+  .home-hero__content {
+    padding-top: 4.25rem;
+    padding-bottom: 3.5rem;
+  }
+
+  .home-hero__texture {
+    top: 0;
+    height: auto;
+    opacity: 0.55;
+    mask-image:
+      linear-gradient(
+        to right,
+        #000 0,
+        #000 calc(50% - 32rem),
+        transparent calc(50% - 22rem),
+        transparent calc(50% + 22rem),
+        #000 calc(50% + 32rem),
+        #000 100%
+      ),
+      linear-gradient(to bottom, transparent, #000 18%, #000 82%, transparent);
+    mask-composite: intersect;
+  }
+}
+
+/* The verb line: four ink verbs on stone dots, a hairline, then the CLI door. */
+.home-hero__verbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem 1rem;
+}
+
+.home-hero__verb-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.home-hero__verb-list > li + li::before {
+  content: '·';
+  padding-inline: 0.55em;
+  color: var(--ui-text-dimmed);
+}
+
+/* Inline-block drops the space the template formatter leaves inside a link,
+   so the underline starts on the first letter. */
+.home-hero__verb,
+.home-hero__claims a {
+  display: inline-block;
+}
+
+.home-hero__verb,
+.home-hero__cli {
+  color: var(--ui-text);
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.25em;
+  transition: text-decoration-color 200ms ease-out, color 200ms ease-out;
+}
+
+.home-hero__verb:hover,
+.home-hero__cli:hover {
+  text-decoration-color: currentColor;
+}
+
+.home-hero__cli {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--ui-text-muted);
+}
+
+.home-hero__cli:hover {
+  color: var(--ui-text);
+}
+
+.home-hero__verbs-rule {
+  display: none;
+  width: 1px;
+  height: 0.9rem;
+  background: var(--ui-border-accented);
+}
+
+@media (min-width: 40rem) {
+  .home-hero__verbs-rule {
+    display: block;
+  }
+}
+
+.home-hero__caption {
+  max-width: 34rem;
+}
+
+@media (min-width: 64rem) {
+  .home-hero__caption {
+    max-width: 42rem;
+  }
+}
+
+/* One mono line. Phones and tablets wrap it without separators, so no line starts on a dot. */
+.home-hero__claims {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem 1rem;
+  max-width: 48rem;
+}
+
+/* A claim wraps as a whole, never mid phrase. */
+.home-hero__claims > li {
+  white-space: nowrap;
+}
+
+/* Separators only where the line fits on one row. At 12px the four claims
+   measure about 830px, inside the 848px hero column. */
+@media (min-width: 64rem) {
+  .home-hero__claims {
+    flex-wrap: nowrap;
+    column-gap: 0;
+    max-width: none;
+  }
+
+  .home-hero__claims > li + li::before {
+    content: '·';
+    padding-inline: 0.6em;
+    color: var(--ui-text-dimmed);
+  }
+}
+
+.home-hero__promo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--ui-text);
+  text-decoration-line: underline;
+  text-decoration-color: var(--ui-border-accented);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  transition: text-decoration-color 200ms ease-out;
+}
+
+.home-hero__promo:hover,
+.home-hero__promo[data-state='open'] {
+  text-decoration-color: currentColor;
+}
+
+.home-hero__promo:focus-visible,
+.home-hero__verb:focus-visible,
+.home-hero__cli:focus-visible {
+  outline: 2px solid var(--ui-border-inverted);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+</style>

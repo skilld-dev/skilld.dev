@@ -1,5 +1,6 @@
 interface ClusterSkillIdentity {
   owner: string
+  repo: string
   name: string
 }
 
@@ -9,17 +10,22 @@ export interface ParsedClusterSkillKey extends ClusterSkillIdentity {
 
 const LEADING_SKILL_COUNT = 3
 
-function skillKey(skill: ClusterSkillIdentity): string {
-  return `${skill.owner}/${skill.name}`
+/**
+ * The `owner/repo/name` key a pin is written in. A Skill name repeats across
+ * repositories, even under one owner, so a key without the repository can
+ * match two Skills.
+ */
+export function clusterSkillKey(skill: ClusterSkillIdentity): string {
+  return `${skill.owner}/${skill.repo}/${skill.name}`
 }
 
 export function parseClusterSkillKeys(keys: string[]): ParsedClusterSkillKey[] {
   return keys.map((key) => {
     const parts = key.split('/')
-    if (parts.length !== 2 || !parts[0] || !parts[1])
-      throw new Error(`Invalid cluster skill key: ${key}`)
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2])
+      throw new Error(`Invalid cluster skill key, expected owner/repo/name: ${key}`)
 
-    return { key, owner: parts[0], name: parts[1] }
+    return { key, owner: parts[0], repo: parts[1], name: parts[2] }
   })
 }
 
@@ -29,7 +35,7 @@ export function curateClusterSkills<T extends ClusterSkillIdentity>(
 ): T[] {
   const pinRank = new Map(pinnedExamples.map((key, index) => [key, index]))
   const ranked = skills
-    .map((skill, index) => ({ skill, index, pinRank: pinRank.get(skillKey(skill)) ?? Number.MAX_SAFE_INTEGER }))
+    .map((skill, index) => ({ skill, index, pinRank: pinRank.get(clusterSkillKey(skill)) ?? Number.MAX_SAFE_INTEGER }))
     .sort((a, b) => a.pinRank - b.pinRank || a.index - b.index)
     .map(entry => entry.skill)
 

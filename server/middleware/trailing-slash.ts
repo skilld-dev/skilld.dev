@@ -1,5 +1,4 @@
-// 2026-08-22: canonical trailing-slash policy (GOOGLE_RECOVERY.md technical
-// audit). Nuxt served 200 on both `/gh/x/y` and `/gh/x/y/`, and canonicals
+// 2026-08-22: canonical trailing-slash policy, from a technical SEO audit. Nuxt served 200 on both `/gh/x/y` and `/gh/x/y/`, and canonicals
 // point at the no-slash form, so Google registered duplicate URLs (37 pages
 // in "Duplicate, Google chose different canonical"). One URL per page:
 // strip the trailing slash with a 301.

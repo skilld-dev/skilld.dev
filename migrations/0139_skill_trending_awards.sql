@@ -1,4 +1,4 @@
--- Trending awards (ADR-0010). One row is the best rank a Skill reached on one
+-- Trending awards (ADR-0011). One row is the best rank a Skill reached on one
 -- trending board in one period. A row stays after the Skill leaves the board.
 --
 -- Only an evidenced board row earns one: a post that named the Skill, or a

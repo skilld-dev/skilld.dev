@@ -135,7 +135,7 @@ describe('printed CLI commands', () => {
     expect(cliRequirement().misprinted).toEqual([])
   })
 
-  it('gates the account commands the developers page prints', () => {
-    expect(cliRequirement().commands).toEqual(['add', 'auth', 'changes', 'install', 'like', 'run', 'watch'])
+  it('gates the account commands the developers page prints and the verbs the CLI page prints', () => {
+    expect(cliRequirement().commands).toEqual(['add', 'auth', 'changes', 'install', 'like', 'outdated', 'remove', 'run', 'search', 'update', 'watch'])
   })
 })

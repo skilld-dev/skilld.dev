@@ -1,5 +1,5 @@
 /**
- * Trending awards (ADR-0010). The rule and the labels live in
+ * Trending awards (ADR-0011). The rule and the labels live in
  * `#shared/trending-award`. This file reads the boards and writes the table.
  *
  * Separate from `trending-admission.ts` on purpose. Admission is an SEO

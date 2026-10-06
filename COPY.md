@@ -19,21 +19,41 @@ These exact strings. Do not paraphrase them per page.
 | Asset | String | Where it goes |
 | --- | --- | --- |
 | Name | `skilld` lowercase by default, `Skilld` only at a sentence start, `skilld.dev` for the domain. Never SKILLD, Skill'd, Skill-d, SkillD. | guidance only (applies everywhere, not one placement) |
-| Tagline | Curated agent skills by humans. | index OG image alt |
+| Tagline | Curated agent skills by humans. | guidance only: the five-word product summary. The homepage and its OG card use the Home H1 instead |
 | Site description | Curated agent skills by humans, written by real maintainers in their own GitHub repos | `nuxt.config.ts` site description (feeds every page's meta description) |
 | Elevator pitch | Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes. | guidance only: no page ships it yet (use it where two sentences fit) |
-| Home H1 | Hyped agent skills, no bloat | guidance only: the homepage H1. The page draws the rose brand dot as its full stop, so never type a period |
-| Home intro | Run a skill once and nothing lands on disk. Fork or install the ones you keep. Every skill comes from its maintainer's repo, and a person reads it before it's listed. | guidance only: the homepage intro under the H1 |
-| Home claims line | Open-source CLI · Analytics without cookies or IPs · A skills.sh alternative | guidance only: the homepage claims line. The last item links to `/vs/skills-sh` |
-| Promo label | Teach your agent skilld | guidance only: the homepage promo chip beside `npx skilld install skilld --global` |
-| Tile: run | No more skill bloat: Run skills once off, fork, or install. | guidance only: a homepage tile, with the title before the colon. The run chip motif pairs with it |
-| Tile: trending | Stay hyped: What devs talk about on X and Bluesky, weekly and monthly. | guidance only: a homepage tile. The braille spark motif pairs with it |
-| Tile: changes | Keep updated: Watch repos and get a digest when their skills change. | guidance only: a homepage tile. The change grid motif pairs with it |
-| Tile: platform | Built to be built on: CLI, API, SDK and MCP. | guidance only: a homepage tile |
+| Home H1 | Agent skills for you and your agent | guidance only: the homepage H1, and the title of the homepage OG card. The page draws the rose brand dot as its full stop, so never type a period. The card types no full stop either, because its lockup dot is its one rose element. It breaks the line after "for you", as the page does. Its alt text is "skilld, agent skills for you and your agent" |
+| Home verb line | search · run · install · keep current | guidance only: the homepage line under the H1. Each verb links to its `/cli` section: `#search`, `#run`, `#install`, `#update` |
+| Home CLI link | The skilld CLI → | guidance only: the homepage link to `/cli` at the end of the verb line. The arrow is an icon |
+| Home caption | Try any skill before you install it. Your agent can search for its own. | guidance only: the homepage caption under the verb line. It assumes the reader knows what a Skill is, so it names only what sets skilld apart. "Search for its own" is the skilld Skill behind the promo label. The homepage OG card uses it as its description |
+| Home claims line | Open-source CLI, no telemetry · Analytics without cookies or IPs · A skills.sh alternative | guidance only: the homepage claims line under the search. The third item links to `/vs/skills-sh`, and the promo label closes the line |
+| Promo label | Teach your agent skilld | guidance only: the last item of the homepage claims line. It opens a popover with `npx skilld install skilld --global` |
+| Step 01: find | Find · Stay hyped. A curated registry, plus what devs talk about on X and Bluesky. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then the pitch line, then the description. Links `/skills/trending`. The braille spark motif pairs with the pitch line |
+| Step 02: run | Run · No more skill bloat. Your Agent reads the Skill now. Nothing lands on disk. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default. The run chip motif pairs with the pitch line |
+| Step 03: install | Install or fork · One install writes to 19 Agents, pinned to a commit and checked before files land. Fork for an editable copy. | guidance only: a homepage lifecycle step. Links `/cli#install`. 19 is `AGENT_TARGETS` in the CLI's `crates/skilld-core/src/target.rs`. If that count changes, change this string |
+| Step 04: update | Keep current · Keep updated. Watch repos and get a digest when their Skills change, or run `npx skilld outdated`. | guidance only: a homepage lifecycle step. Links `/cli#update`. The page prints the command through `skillOutdatedCmd`. The change grid motif pairs with the pitch line |
+| Step 05: make | Make · Guides and three authoring Skills to write and review your own. | guidance only: a homepage lifecycle step. Links `/make-skill`. The three are `generate-package-skill`, `generate-project-skill` and `review-skill` |
+| Step 06: build | Build on · Built to be built on. CLI, API, SDK, MCP and the Claude Code plugin. | guidance only: a homepage lifecycle step. Links `/developers` |
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
 | Home section: authoring | Write a skill for your project. | guidance only: the homepage section heading for making a Skill |
+| Nav: developers | Developers | guidance only: the header menu trigger, and the group label in the mobile menu. The menu holds the five cards below |
+| Nav: CLI | CLI · Search, run, install, and keep Skills current. · Install the CLI | guidance only: the first card in the Developers menu: name, line, action. Links `/cli`. The mobile menu shows the name only. The line is the CLI line and the action is the CLI install label, so change those first |
+| Nav: MCP server | MCP server · For ChatGPT, Claude, and any app that speaks MCP. · Add the MCP server | guidance only: a Developers menu card. Links `/developers?setup=mcp`. The line is the MCP setup card on `/developers`, and the action is its section heading |
+| Nav: SDK | SDK · For your own code, with the TypeScript SDK or plain HTTP. · Call the skilld API | guidance only: a Developers menu card. Links `/developers?setup=api`. The line is the API setup card on `/developers`, and the action is its section heading |
+| Nav: make | Make a skill · Guides and three authoring Skills to write and review your own. · Get the steps | guidance only: a Developers menu card. Links `/make-skill`. The line is the Step 05 description |
+| Nav: Skillgen | Skillgen · Keeps your package skill current with a draft pull request after each release. · Set up Skillgen | guidance only: the last Developers menu card. Links `/skillgen` |
+| Nav: setup guides | All setup guides | guidance only: the link under the Developers menu cards. Links `/developers` |
+| Skillgen lead | Keep your package skill current. After each release tag, Skillgen opens a draft pull request that updates the Skill in your repository. You review it and decide what merges. | guidance only: the `/skillgen` line under the H1. Its first two sentences are the page's meta description |
+| Skillgen opt-in | Skillgen opens a draft pull request after each release tag. It runs only on the repositories you turn on here. | guidance only: the intro of the Skillgen view on `/me?view=skillgen`. The `/skillgen` step 02 says the same in its own words: Skillgen never runs on a repository you did not turn on |
+| CLI H1 | The skilld CLI | guidance only: the `/cli` H1 and its OG title |
+| CLI line | Search, run, install, and keep Skills current. | guidance only: the `/cli` line under the H1. It is the CLI's own `--help` line, so change it in the CLI first |
+| CLI intro | Give your Agent Skills that real maintainers write. A run reads the current source every time, and one command updates the Skills you install. Install the skilld Skill once, and your Agent searches and loads Skills on its own. | guidance only: the `/cli` intro under the line |
+| CLI claims line | Open-source CLI · No telemetry · 19 Agent targets | guidance only: the `/cli` claims line. The page counts the `--agent` values of `skilld install --help` |
+| CLI install label | Install the CLI | guidance only: the label beside the CLI install chip on `/cli`. A switch above the chip picks `macOS / Linux`, `Windows`, or `npm`, and `macOS / Linux` is preselected |
+| CLI install consequence | One native binary. It upgrades itself from signed releases. · Needs Node.js. npm handles upgrades. | guidance only: the line under the CLI install chip on `/cli`. The first is for `macOS / Linux` and `Windows`, the second for `npm`. `crates/skilld-command/src/upgrade.rs` in the CLI decides both. If it changes, change these strings |
 | Claim: open source | open-source CLI | guidance only: the CLI. Never call skilld.dev or its site open source |
+| Claim: telemetry | no telemetry | guidance only: the CLI. Its README states that it sends no telemetry or analytics. Never say it of the site, which keeps anonymous analytics |
 | Claim: privacy | analytics without cookies or IPs | guidance only: analytics and privacy copy. Never the bare "privacy-friendly" |
 | Claim: comparison | skills.sh alternative | guidance only: always a link to `/vs/skills-sh` |
 
@@ -73,6 +93,43 @@ Check existing files before fetching. Keep licence and provenance checks.
 The watch promotion says: `Watch a repo. Each month the digest lists what changed. If nothing changed, we send nothing.`
 The link to `/weekly/preview` says: `Preview the weekly`.
 The comparison table says: `Watch for changes, monthly digest`.
+
+### Ranked boards
+
+Every ranked section says what orders it. ADR-0004 and ADR-0010 set the rules.
+
+| Surface | String |
+| --- | --- |
+| Trending header | `Ranked by how many separate devs talked about each one. Skills from the 20 most-starred repositories rank lower, so lesser-known skills lead.` |
+| Trending header, with star rows | `Ranked by how many separate devs talked about each one. GitHub stars rank the rest of the board. Skills from the 20 most-starred repositories rank lower, so lesser-known skills lead.` |
+| Trending star row label | `Ranked by GitHub stars` |
+| Track talked heading | `{Noun} skills devs talked about this week`, or `this month` on the month board |
+| Track talked line | `Ranked by how many separate devs talked about each one.` Track pages skip the demotion (ADR-0010), so the line never states it |
+| Track pinned heading | `Hand-picked {noun} skills` |
+| Track stars heading | `More {noun} skills, ranked by GitHub stars`, or `{Noun} skills, ranked by GitHub stars` when no section comes before it |
+| Track quiet line | `Devs talked about {n} of these skills this week. A list ranked by devs starts at 5.` |
+
+`{noun}` is the track's `noun` field in `clusters.ts`, such as `design` or `SEO`.
+The 20 in the trending header is `DEMOTED_STARRED_REPOSITORIES` in `shared/trending-range.ts`. The page and the ranking read that one constant.
+Never call a ranked section top, popular, hot, best, or a leaderboard.
+
+### Task search
+
+The search panel offers task search for a sentence, in a row at its foot. GLOSSARY.md defines the term.
+Name the model's part plainly, as a language model. Never call the action AI search or smart search.
+The strings live in `taskRowCopy` in `app/components/SkillSearchPanel.vue`.
+
+Each status shows a title, then a detail line:
+
+- Offer: `Find skills for this task`. `A language model runs a few searches and keeps the skills that fit. Takes about 5 seconds.`
+- Running: `Finding skills for this task…`. `This takes about 5 seconds.`
+- Nothing fits: `No skill fits this task`. `The search results are the closest matches.`
+- Visitor limit: `Too many task searches in a row`. `Try again in a minute.`
+- Daily limit: `Task search reached today's limit`. `Try again tomorrow.`
+- Off: `Task search is off right now`. `The search results still work.`
+- Failed: `Couldn't finish the task search`. `Select to try again.`
+
+Found Skills replace the search results under the heading `Skills for this task`, with the line `A language model picked these from a few searches of the registry.`
 
 ## Discord digest
 
@@ -163,9 +220,8 @@ above is about naming our audience, not about the provenance claim.
 technical sense: npm, PyPI, crates, RubyGems. That names a category, not a community size, so
 the scoped ban above does not cover it.
 
-**Exception, "hyped".** Harlan approved "hyped" for the homepage H1 and "Stay hyped" for the
-trending tile. Both name what devs talk about on X and Bluesky, which we measure and show. Use
-them only for social trending. "Hot", "popular" and "top" stay banned.
+**Exception, "hyped".** Harlan approved "Stay hyped" for the find step of the homepage
+lifecycle band. It names what devs talk about on X and Bluesky, which we measure and show. Use "hyped" only for social trending. "Hot", "popular" and "top" stay banned.
 
 ## Open questions
 

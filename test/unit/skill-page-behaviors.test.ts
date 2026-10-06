@@ -34,4 +34,13 @@ describe('skillPageBehaviors', () => {
 
     expect(scripts?.locations[0]?.url).toBeNull()
   })
+
+  // 2026-10-05: the bundled rules failed their own parse, and every Skill page answered 503.
+  it('returns no behaviors, and keeps the page up, when the rules fail', () => {
+    const failing = () => {
+      throw new Error('patterns are lowercase')
+    }
+
+    expect(skillPageBehaviors({ raw: '---\nname: setup\n---\n', assetPaths: ['run.py'], source }, failing)).toEqual([])
+  })
 })

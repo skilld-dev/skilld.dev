@@ -17,6 +17,7 @@ const {
   surface,
   target,
   size = 'md',
+  quiet = false,
   copyLabel,
   describedBy,
 } = defineProps<{
@@ -27,6 +28,8 @@ const {
   surface: string
   target: InstallTarget
   size?: 'md' | 'sm'
+  /** Ink the dot instead of rose, where another element already spends the band's rose. */
+  quiet?: boolean
   copyLabel?: string
   /** The id of the text that says what the command does. */
   describedBy?: string
@@ -89,6 +92,7 @@ async function onCopy() {
     :class="[
       `command-chip--${mode}`,
       `command-chip--${size}`,
+      quiet && 'command-chip--quiet',
       marching && 'command-chip--march',
     ]"
   >
@@ -213,6 +217,14 @@ async function onCopy() {
 
 .command-chip--install .command-chip__dot {
   background-color: var(--brand-dot);
+}
+
+.command-chip--quiet .command-chip__dot {
+  border-color: var(--ui-text-muted);
+}
+
+.command-chip--quiet.command-chip--install .command-chip__dot {
+  background-color: var(--ui-text-muted);
 }
 
 .command-chip__command {

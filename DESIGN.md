@@ -78,7 +78,7 @@ Practically:
 - One accent color used sparingly (10% of surface area, max)
 - UI chrome in monospace at small sizes; content in the sans-serif
 - Borders, not shadows, define boundaries
-- No glow, no gradient, no blur, no decorative flourish in UI chrome. The textures in "Brand System" are the only decoration, and each has one job
+- No glow, no gradient, no blur, no decorative flourish in UI chrome. The textures in "Brand System" are the only decoration, and each has one job. The cards in the header's Developers menu are the one exception: each carries one atmosphere layer
 - Compact components: tight padding, defined shapes, minimal radius
 - Whitespace is intentional structure, not generous filler
 
@@ -321,7 +321,7 @@ Three textures replace the noise field. Each has one job, and none appears outsi
 | --- | --- | --- |
 | **Braille names** | Hero, OG cards, CLI | Rows of real Skill names in braille. Far from the rose dot they thin to sparse dots. Near it they resolve into letters. Each hop of the pick sends three rings outward, half a second apart. Every cell is a real character, so the same field prints in a terminal |
 | **Converge** | Dividers and loading | Scattered dots fall into one line and end on a rose dot. Many Skills in, one out. It reads as progress |
-| **File minimap** | Skill pages and per-Skill OG cards | Each Skill as its own `SKILL.md`: frontmatter, headings, lists and code drawn as rows of dots. The rose dot is the cursor on the last changed line |
+| **File minimap** | Skill pages | Each Skill as its own `SKILL.md`: frontmatter, headings, lists and code drawn as rows of dots. The rose dot is the cursor on the last changed line |
 
 Rules for every texture:
 
@@ -332,14 +332,14 @@ Rules for every texture:
 5. **One per region.** No other motion runs in the same viewport region as a moving texture.
 6. **Converge is the loader.** At small sizes the file minimap looks like a skeleton loader. Do not use it as one.
 
-**On OG cards.** An OG card is one still frame, drawn server side as SVG dots. The OG renderer has only Plus Jakarta Sans and IBM Plex Mono, and neither has braille glyphs, so a card never relies on a glyph or a canvas. The lockup's dot is the card's one rose element. Textures on a card draw stone only, or use the lockup's dot as their focal point. `app/utils/og-texture.ts` draws them.
+**On OG cards.** An OG card is the homepage hero as one still frame, drawn server side. The OG renderer has only Plus Jakarta Sans and IBM Plex Mono, and neither has braille glyphs, so the texture is SVG dots, never a glyph or a canvas. `OgLayout` draws the frame for every card: the lockup centred at the top, the content centred under it, and Braille names in the margins. The field resolves toward the lockup's dot, which is the card's one rose element. The title takes the hero H1's face, Plus Jakarta Sans 600 at −0.045em. A Skill name has no space to wrap at, so it shrinks to fit one line. Text that needs two lines breaks into two of even length, since the renderer's `text-wrap: balance` pushes the lines off centre. `app/utils/og-texture.ts` draws the dots, `app/utils/og-style.ts` holds the type, and `OgLines` draws the even lines.
 
-| Card | Texture |
+| Card | Content |
 | --- | --- |
-| Splash (`/`) | Braille names. The focal point is the lockup's dot, so the noise resolves into the wordmark |
-| Skill | File minimap down the right edge, faded in from the left. Each Skill seeds its own files from its owner, repository and name |
-| Make a skill | One `SKILL.md` drawn large from its frontmatter down |
-| Page, Collection, Curator | None |
+| Page | Title and description. `/` uses it with the hero H1 and caption |
+| Skill | Name, then owner, then the curator note or the curator count |
+| Collection | Name, description, curator, then the curator note or the first Skills |
+| Curator | Avatar, name, handle with counts, description, then the first Skills |
 
 ### Motifs
 
@@ -347,7 +347,7 @@ Motifs carry data. Each answers one pitch line from `COPY.md` and spends one ros
 
 **Run chip.** It pairs with "No more skill bloat". Run and install sit side by side, and run is preselected. Run has a dashed border and a hollow rose dot, because nothing stays. Install has a solid border and a filled dot, because files land. A consequence line under the chip says what each choice leaves on disk.
 
-**Braille spark.** It pairs with "Stay hyped". Seven braille bars (`⣀⣤⣶⣿`) show seven days of social mentions, with today in rose. The mention count sits beside it. The spark is made of characters, so the same line works on the site, in the weekly email, in Discord and in a terminal. It replaces the trending flame emoji.
+**Braille spark.** It pairs with "Stay hyped". Seven braille bars (`⣀⣤⣶⣿`) show seven days of social mentions, with today in rose. The mention count sits beside it, with its noun from `sparkCount`, so one mention reads "1 mention". On the site, a day with no mentions draws the lowest bar at 40% opacity as a track, so a lone bar still reads as one day of seven. Plain text keeps the blank cell. The spark is made of characters, so the same line works on the site, in the weekly email, in Discord and in a terminal. It replaces the trending flame emoji.
 
 **Change grid.** It pairs with "Keep updated". A 13-week grid of days, today at the bottom right. Each change is a stone dot, and the newest change is rose. A ring around a dot shows the size of the version bump, only where a version is known.
 
@@ -434,12 +434,11 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **Unknown install counts stay hidden**: an install value of zero can represent missing ingestion data, so cards omit the metric visually and semantically until a positive count is known.
 - **Task-first homepage**: orientation and outcome discovery precede editorial inventory. Confirmed in the 2026-07 homepage rethink.
 - **Frontend is a rotatable editorial focus**: it may dominate the current feature band but must not redefine skilld as a frontend-only registry.
-- **One composition per homepage band**: split hero opening, work-track index, lead-and-supporting editorial pick, activity ledger, and contribution ledger. Repeating equal card grids weakens the page narrative.
+- **One composition per homepage band**: centered hero opening, work-track index, lead-and-supporting editorial pick, activity ledger, and contribution ledger. Repeating equal card grids weakens the page narrative.
 - **Evidence before freshness**: show provenance, editorial rationale, and a real install command before recent activity.
 - **Section atmosphere**: low-chroma warm-stone and rose gradients may distinguish homepage bands. They stay masked to edges, use mode-specific opacity, and never sit behind data as a full-strength fill.
 - **Collections remain primary curation**: directory links may be quiet, but Collections retain stronger hierarchy than publisher taxonomy.
-- **Split hero with proof rail**: the hero pairs an H1, one explanatory paragraph, and two directional CTAs with a live rail of person-authored skills. The rail is the provenance claim in evidence; inline install and search stay out of the hero.
-- **The hero runs wider than the bands below it**: hero content sits in `max-w-7xl` while editorial bands stay at `max-w-5xl`, so the headline and rail get room without widening the reading measure of the page.
+- **Centered quiet hero**: the hero stacks a centered H1, the CLI verb line, one caption, one calm search field, and one mono claims line. The H1 full stop is the band's only rose dot. The Braille names texture sits at the sides in stone at low strength, with a clear column behind the copy. Chosen 2026-10-06 as take C of the hero lab.
 - **Self-selecting work tracks**: the discovery grid asks what the visitor works on, not what the agent should do. Each track carries author avatars and a skill/author count, and empty tracks never render.
 - **Homepage patterns are journey primitives**: atmosphere, outcome indexes, evidence ledgers, provenance lines, and lead/supporting picks now form the reusable editorial layer. Reuse their rules on discovery routes while preserving a distinct composition for each page.
 - **Compact registry openings**: `/community`, `/skills`, and `/skills/trending` use `CompactPageHeader` with nothing but a page name and orientation copy; controls belong with the results they filter. Outcome pages retain plain-language mastheads. Skill detail remains dense and unchanged.
@@ -456,6 +455,10 @@ These are editorial sets, not necessarily database collections yet. If a set has
 - **One geometry feeds every placement**: `shared/brand-mark.ts` holds the coordinates and the outlined wordmark. `AppLogo`, the OG lockup and every file in `public/` come from it, and `pnpm brand:assets` writes the files. The old chevron lived in hand-written copies, and their rose shades and wordmark weights had drifted apart. Confirmed 2026-10-06.
 - **Three textures replace the noise field**: Braille names for the hero, OG cards and the CLI; Converge for dividers and loading; File minimap for Skill pages and per-Skill OG cards. One job each, so no texture becomes wallpaper. Confirmed 2026-10-06.
 - **The lockup dot is an OG card's one rose element**: the 4px rose top bar, the rose quote rails and the rose avatar ring went stone. On the Splash card, the braille field radiates from the lockup's dot, so the texture spends no second rose. Confirmed 2026-10-06.
+- **OG cards repeat the homepage hero**: every card centres the lockup, a Plus Jakarta Sans title and its detail, with Braille names in the margins. Harlan chose this over a left-aligned editorial card and a card that leads with the run command. It supersedes the per-card textures above: the Skill card's file minimap, the Make a skill card's large `SKILL.md`, and the separate Splash and Make a skill templates are gone. Confirmed 2026-10-06.
 - **The braille spark replaces the trending flame**: seven braille bars for seven days of mentions, today in rose. The emoji exception for Trending is retired. The spark keeps the sourced mention count beside it, which the flame never carried. Confirmed 2026-10-06.
 - **Run and install read as different materials**: run is a dashed border with a hollow dot, because nothing stays; install is a solid border with a filled dot, because files land. Run is preselected. Confirmed 2026-10-06.
 - **Trending shares the /skills shell**: `/skills/trending` uses the full-width layout from `/skills`. Its heading replaces `CompactPageHeader` and lines up with the results column. A sticky 14rem sidebar holds the range links, then the weekly CTA and the skilld install. Nothing sits right of the board, so the board takes every column the sidebar leaves. Rows switch on their own width, and the post carousel shows two cards where it has room. On narrow screens the ranges are a compact row above the board, and the CTA stays after the fifth row. Harlan asked for this on 2026-10-06. It supersedes the 2026-10-01 call that dropped the 9/3 sidebar for taking a quarter of the board's width: that sidebar sat right of a 64rem board, and this one sits left of a board that runs the full page width.
+- **Trending rows scan in one pass**: the rank is a plain mono number, and the first three are a step darker. Each metadata line runs source, stars, then the signal that ranked the row, and an empty slot renders nothing. Descriptions stop at two lines, the run chip is as wide as its command, and the post carousel shows whole cards only. The sidebar invitation drops the email preview and the card. Its button is the rail's one solid rose element, so the install chip beside it inks its dot. Harlan asked for this polish on 2026-10-06.
+- **A six-step lifecycle band replaces the four tiles**: under the hero, one band maps the whole product in its real order: find, run, install or fork, keep current, make, build on. The site and the CLI share one line. Each step is one link: a mono `01` marker and step name, then one sans line that opens with its pitch line where COPY.md has one. A line of stone dots joins the steps. Run, the default, carries the band's one rose dot, so no step lights rose on hover. Six columns from 1024px; below that a vertical list with the dots down the left. Keep the band no taller than the tiles it replaced: the hero and the band must fit a 1440×900 viewport. Harlan approved it on 2026-10-06.
+- **A Developers menu groups the build surfaces**: the desktop header keeps Trending Skills and Find Skills as links, and folds CLI, MCP server, SDK, Make a skill and Skillgen into one Developers menu, as nuxtseo.com does. The trigger is a button, so a keyboard opens the panel without leaving the page; the panel's last link reaches `/developers`. Each item is a card with a lucide icon tile and one `.editorial-atmosphere` layer. The three ways to connect share the top row, and the two authoring cards share the row below. CLI takes rose because it is the recommended path; the others take ember or stone. The mobile menu lists the same five items as a plain group. Harlan asked for this on 2026-10-06.

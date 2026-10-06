@@ -1,5 +1,5 @@
 /**
- * Trending awards (ADR-0010): the best rank a Skill reached on one trending
+ * Trending awards (ADR-0011): the best rank a Skill reached on one trending
  * board in one period, kept after the Skill leaves the board.
  *
  * The award repeats a claim the board already made in public, so it inherits

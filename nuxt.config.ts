@@ -10,6 +10,7 @@ import { externalCheckin } from './shared/checkin-external'
 import { iconifyCollections } from './shared/icon-collections'
 import { SENTRY_DSN, sentryRelease, sentryReportingEnabled } from './shared/sentry'
 import { SESSION_NAME } from './shared/server/session-access'
+import { CLI_INSTALL_SCRIPTS } from './shared/skill-commands'
 
 /** Every `/agents/*` page file, so the sitemap reads the admission decision for a page nobody listed. */
 function discoveredAgentRoutes(): string[] {
@@ -46,8 +47,8 @@ export default defineNuxtConfig({
         '/_nuxt/v2/',
       )
     },
-    // 2026-08-22 agent lane (GOOGLE_RECOVERY.md): list the agent-only sitemap
-    // in llms.txt. The module's `notes` config exists but never renders, so
+    // 2026-08-22 agent lane, where agents discover pages without Google's
+    // sitemap: list the agent-only sitemap in llms.txt. The module's `notes` config exists but never renders, so
     // this pushes a link into the first section instead.
     'ai-ready:llms-txt': (payload: { sections?: { links?: { title: string, href: string, description?: string }[] }[], notes: string[] }) => {
       const section = payload.sections?.[0]
@@ -67,7 +68,12 @@ export default defineNuxtConfig({
   nuxtDx: {
     report: true,
     sizeBudget: {
-      overridesKb: { 'server/plugins/sentry.ts': 328 },
+      overridesKb: {
+        'server/plugins/sentry.ts': 328,
+        // The middleware reads track slugs from `clusters.ts`, which also holds
+        // every pin. Pins became `owner/repo/name` keys, about 1.3 kB more.
+        'layers/registry/server/middleware/skills-to-gh-redirect.ts': 22,
+      },
     },
   },
 
@@ -139,6 +145,20 @@ export default defineNuxtConfig({
       'github.endpoint',
       'github.step',
       'item.count',
+      // `search-intent`: how long the query model took, so the latency
+      // budget can be checked against production instead of guessed.
+      'model.durationMs',
+      // `task-search`: what one model answer cost, so the daily budget and
+      // the eval's per-question figures can be checked against production.
+      // The question text is never a field.
+      'model.cachedTokens',
+      'model.costMicros',
+      'model.droppedRefs',
+      'model.errorCode',
+      'model.inputTokens',
+      'model.outputTokens',
+      'model.searches',
+      'model.turns',
       'operation',
       'outcome',
       'processed.count',
@@ -290,7 +310,6 @@ export default defineNuxtConfig({
     runtimeSync: true,
     // llms.txt is an index, not a dump: each entry links the page's .md.
     // The 28.5 MB llms-full.txt inline dump is retired below (routeRules).
-    // GOOGLE_RECOVERY.md, agent lane rework.
     llmsTxt: {
       markdownLinks: true,
     },
@@ -390,7 +409,17 @@ export default defineNuxtConfig({
     adminSecret: '',
     tokenKey: '',
     checkinToken: '',
+    // Shared with the skill-harness Worker as SKILLGEN_SITE_TOKEN. It reads Skillgen opt-ins.
+    skillgenToken: '',
     publicSiteUrl: 'https://skilld.dev',
+    // Task search, the search box's opt-in model answer. Set the Worker
+    // variable NUXT_TASK_SEARCH_ENABLED=false to switch it off without a
+    // deploy. The budget is micro-dollars per UTC day across every visitor:
+    // 1,000,000 is $1, about 1,400 questions at the measured $0.0007.
+    taskSearch: {
+      enabled: true,
+      dailyBudgetMicros: 1_000_000,
+    },
     oauth: {
       github: {
         clientId: '',
@@ -609,6 +638,9 @@ export default defineNuxtConfig({
     // .md (aiReady.llmsTxt.markdownLinks), so the dump redirects there. 302 so
     // this reverses the moment per-section splitting is worth building.
     '/llms-full.txt': { redirect: { to: '/llms.txt', statusCode: 302 } } as any,
+    // The printed native install commands. `CLI_INSTALL_SCRIPTS` says why each is a 302.
+    '/install.sh': { redirect: { to: CLI_INSTALL_SCRIPTS['/install.sh'], statusCode: 302 } } as any,
+    '/install.ps1': { redirect: { to: CLI_INSTALL_SCRIPTS['/install.ps1'], statusCode: 302 } } as any,
     // `/gh` has no index page: owner hubs live at `/gh/<owner>`. It 404'd while
     // `/orgs` 301'd straight into it, so every legacy orgs-index link dead-ended
     // on a redirect chain. `/community` is the browsable owner surface.
@@ -803,9 +835,9 @@ export default defineNuxtConfig({
   },
 
   sitemap: {
-    // `/learn` index is a 55-word card list, noindex since 2026-08-22
-    // (GOOGLE_RECOVERY.md). Articles stay indexable and sitemap-listed; only
-    // the bare index leaves. Global so no child sitemap can re-adopt it.
+    // `/learn` index is a 55-word card list, noindex since 2026-08-22 as a
+    // thin page. Articles stay indexable and sitemap-listed; only the bare
+    // index leaves. Global so no child sitemap can re-adopt it.
     exclude: ['/learn'],
     sitemaps: {
       pages: {

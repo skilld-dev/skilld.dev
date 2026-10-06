@@ -1,16 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import {
   skillInstallCmd,
+  skillOutdatedCmd,
   skillPageUrl,
   skillRawUrl,
+  skillRemoveCmd,
   skillRunCmd,
   skillRunPrompt,
+  skillSearchCmd,
+  skillUpdateCmd,
 } from '../../shared/skill-commands'
 
 describe('skill commands', () => {
   it.each([
     [skillRunCmd('nuxt', 'nuxt', 'seo'), 'npx skilld run nuxt/nuxt/seo'],
     [skillInstallCmd('nuxt', 'nuxt', 'seo'), 'npx skilld install nuxt/nuxt/seo'],
+    [skillSearchCmd('vue'), 'npx skilld search vue'],
+    [skillOutdatedCmd(), 'npx skilld outdated'],
+    [skillUpdateCmd('vue'), 'npx skilld update vue'],
+    [skillRemoveCmd('vue'), 'npx skilld remove vue'],
   ])('returns %s', (command, expected) => {
     expect(command).toBe(expected)
   })

@@ -124,21 +124,77 @@ function trustRank(skill: RegistrySkill): number {
   return duplicateRankingSignals(toDuplicateCandidate(skill)).trustTierRank
 }
 
+/**
+ * Evidence from query understanding. Each signal can only lift a Skill a
+ * little, never filter one out: only about a third of Skills carry a
+ * classifier category, and the model can be wrong.
+ */
+export interface SearchRankSignals {
+  /** The model's search terms. A phrase match against them counts at half weight. */
+  expansion?: string | null
+  /** Classifier categories of the track the query asks for. */
+  boostCategories?: readonly string[]
+  categoryByKey?: ReadonlyMap<string, string | null>
+  /** A library or platform the query names. */
+  boostTerm?: string | null
+  /** Expansion words grounded in the typed query. They may decide the name tier. */
+  nameTerms?: string | null
+}
+
+/**
+ * A quarter of an extra first place: it orders near ties and cannot outrank a
+ * Skill the retrieval lanes clearly prefer. Measured on "stop memory leaks in
+ * node": at half a first place, every Skill that says "nodes" outranked the
+ * memory leak Skills.
+ */
+export const SIGNAL_BOOST_SCALE = NAME_BOOST_SCALE / 4
+
+const SIGNAL_WORD_RE = /[\p{L}\p{N}]+(?:[.#+][\p{L}\p{N}]+)*[#+]*/gu
+const REGEX_SPECIAL_RE = /[.*+?^${}()|[\]\\]/g
+
+/** `vue` matches vue, vuejs, vue.js and vue3. It does not match `vuetify` or `nodes`. */
+function mentionsTerm(skill: RegistrySkill, term: string): boolean {
+  const words = new Set(`${skill.name} ${skill.displayName} ${skill.repo} ${skill.description ?? ''}`.toLowerCase().match(SIGNAL_WORD_RE) ?? [])
+  return term.split(' ').every((word) => {
+    const variant = new RegExp(`^${word.replace(REGEX_SPECIAL_RE, '\\$&')}(?:\\.?js|\\d+)?$`)
+    return [...words].some(candidate => variant.test(candidate))
+  })
+}
+
+function signalBoost(skill: RegistrySkill, signals: SearchRankSignals): number {
+  let boost = 0
+  if (signals.boostCategories?.length) {
+    const category = signals.categoryByKey?.get(skillKey(skill))
+    if (category && signals.boostCategories.includes(category))
+      boost += SIGNAL_BOOST_SCALE
+  }
+  if (signals.boostTerm && mentionsTerm(skill, signals.boostTerm))
+    boost += SIGNAL_BOOST_SCALE
+  return boost
+}
+
 /** Order by exact identity, complete name words, relevance, then provenance. */
 export function rankSearchResults(
   skills: RegistrySkill[],
   scoreByKey: Map<string, number>,
   search: string,
+  signals: SearchRankSignals = {},
 ): RegistrySkill[] {
+  const expansion = signals.expansion ?? null
   return skills
     .map(skill => ({
       skill,
       exact: Number(isExactIdentity(skill, search)),
-      nameMatch: Number(searchNameMatch(skill, search)),
+      // The model's terms decide the name tier only where the typed query
+      // grounds them. A paraphrase such as "ui design" fully names every
+      // generic ui-design Skill, which would bury what "make my UI less
+      // generic" asked for. See groundedTerms in search-intent.ts.
+      nameMatch: Number(searchNameMatch(skill, search) || (signals.nameTerms ? searchNameMatch(skill, signals.nameTerms) : false)),
       trust: trustRank(skill),
       score: (scoreByKey.get(skillKey(skill)) ?? 0)
         + nameMatchBoost(skill, search) * NAME_BOOST_SCALE
-        + searchPhraseBoost(skill, search) * NAME_BOOST_SCALE,
+        + Math.max(searchPhraseBoost(skill, search), expansion === null ? 0 : searchPhraseBoost(skill, expansion) / 2) * NAME_BOOST_SCALE
+        + signalBoost(skill, signals),
     }))
     .sort((a, b) =>
       b.exact - a.exact
@@ -292,29 +348,52 @@ async function lexicalSkillSearch(event: H3Event, search: string): Promise<strin
 }
 
 /**
+ * Lane weights. Lexical is weighted slightly higher: an FTS hit means the
+ * query terms are genuinely present, whereas the semantic lane always returns
+ * its nearest neighbours regardless of how far away they are. The expansion's
+ * own semantic lane counts a little less than the typed query's, because the
+ * model's terms are a paraphrase and the typed words are the request.
+ */
+export const LEXICAL_WEIGHT = 1.2
+export const SEMANTIC_WEIGHT = 1
+export const EXPANSION_SEMANTIC_WEIGHT = 0.8
+
+/**
  * Retrieve skill candidates from both the lexical and semantic lanes and fuse
  * them. Lexical retrieval keeps Skills awaiting an embedding reachable.
  * Semantic retrieval finds relevant Skills without matching query words.
+ *
+ * With an `expansion` (the query model's search terms), the lexical lane runs
+ * on the expansion instead of the sentence, since FTS matches words and a
+ * sentence is mostly filler, and a second semantic lane embeds the expansion.
+ * The typed sentence keeps its own semantic lane, so a wrong expansion can add
+ * candidates but cannot remove the ones the sentence finds.
  */
-export async function hybridSkillSearch(event: H3Event, search: string, retrieval: 'hybrid' | 'lexical' = 'hybrid'): Promise<HybridSearchResult> {
-  const [lexicalKeys, semanticHits] = await Promise.all([
-    lexicalSkillSearch(event, search),
-    retrieval === 'hybrid' ? semanticSkillSearch(event, search, SEMANTIC_TOP_K) : Promise.resolve(null),
+export async function hybridSkillSearch(
+  event: H3Event,
+  search: string,
+  retrieval: 'hybrid' | 'lexical' = 'hybrid',
+  expansion: string | null = null,
+): Promise<HybridSearchResult> {
+  const semantic = retrieval === 'hybrid'
+  const [lexicalKeys, semanticHits, expansionHits] = await Promise.all([
+    lexicalSkillSearch(event, expansion ?? search),
+    semantic ? semanticSkillSearch(event, search, SEMANTIC_TOP_K) : Promise.resolve(null),
+    semantic && expansion ? semanticSkillSearch(event, expansion, SEMANTIC_TOP_K) : Promise.resolve(null),
   ])
 
-  if (lexicalKeys === null && semanticHits === null)
+  if (lexicalKeys === null && semanticHits === null && expansionHits === null)
     throw createError({ statusCode: 503, statusMessage: 'Search is temporarily unavailable.' })
 
   const semanticKeys = semanticHits?.map(skillKey) ?? []
+  const expansionKeys = expansionHits?.map(skillKey) ?? []
   const hasLexical = Boolean(lexicalKeys?.length)
-  const hasSemantic = semanticKeys.length > 0
+  const hasSemantic = semanticKeys.length > 0 || expansionKeys.length > 0
 
-  // Lexical is weighted slightly higher: an FTS hit means the query terms are
-  // genuinely present, whereas the semantic lane always returns its nearest
-  // neighbours regardless of how far away they are.
   const scoreByKey = fuseRankings([
-    { keys: lexicalKeys ?? [], weight: 1.2 },
-    { keys: semanticKeys, weight: 1 },
+    { keys: lexicalKeys ?? [], weight: LEXICAL_WEIGHT },
+    { keys: semanticKeys, weight: SEMANTIC_WEIGHT },
+    { keys: expansionKeys, weight: EXPANSION_SEMANTIC_WEIGHT },
   ])
 
   const keys = [...scoreByKey.entries()]

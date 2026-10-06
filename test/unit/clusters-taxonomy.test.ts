@@ -66,9 +66,9 @@ describe('cluster taxonomy', () => {
     const backend = CLUSTERS.find(cluster => cluster.slug === 'backend-data')
     expect(backend?.categories).toEqual(['data-modeling', 'security', 'auth'])
     expect(backend?.pinnedExamples).toEqual(expect.arrayContaining([
-      'supabase/supabase-postgres-best-practices',
-      'wshobson/stride-analysis-patterns',
-      'better-auth/best-practices',
+      'supabase/agent-skills/supabase-postgres-best-practices',
+      'wshobson/agents/stride-analysis-patterns',
+      'better-auth/skills/best-practices',
     ]))
   })
 
@@ -139,15 +139,6 @@ describe('cluster taxonomy', () => {
       if (!target.startsWith('/skills/'))
         continue // framework pages are real routes, not categories
       expect(categories.has(target.slice('/skills/'.length)), `${tag} -> ${target}`).toBe(true)
-    }
-  })
-
-  it('pins examples as owner/name keys, never owner/repo/name', () => {
-    // The detail query matches `s.owner || '/' || s.name`, so a three-segment
-    // key silently pins nothing.
-    for (const cluster of CLUSTERS) {
-      for (const key of cluster.pinnedExamples)
-        expect(key.split('/'), `${cluster.slug}: ${key}`).toHaveLength(2)
     }
   })
 })

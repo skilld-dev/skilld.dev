@@ -38,13 +38,13 @@ describe('d1 read query plans', () => {
     expect(detail).not.toMatch(/SCAN (s|r)\b/)
   })
 
-  it('finds pinned skills through the owner and name expression index', () => {
+  it('finds pinned skills through the owner, repo and name expression index', () => {
     h = createSqliteD1(allMigrations())
-    const { sql, params } = clusterMembersSql(COLUMNS, [], ['acme/deploy', 'acme/review'])
+    const { sql, params } = clusterMembersSql(COLUMNS, [], ['acme/skills/deploy', 'acme/skills/review'])
 
     const detail = plan(sql, params)
 
-    expect(detail).toContain('idx_skills_owner_name_key')
+    expect(detail).toContain('idx_skills_owner_repo_name_key')
     expect(detail).not.toMatch(/SCAN s\b/)
   })
 

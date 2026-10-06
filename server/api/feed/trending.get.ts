@@ -15,7 +15,7 @@ import { getDB } from '#server/utils/db'
 import { cachedFeed } from '#server/utils/feed-cache'
 import { loadStarSeries, starSeriesKey } from '#shared/server/star-series'
 import { loadTrendingBoard } from '#shared/server/trending-board'
-import { DEFAULT_WINDOW_HOURS } from '#shared/server/trending-skills'
+import { clipPostText, DEFAULT_WINDOW_HOURS } from '#shared/server/trending-skills'
 
 export interface TrendingFeedItem {
   owner: string
@@ -187,22 +187,13 @@ function toSkillItem(entry: TrendingSkill, starSeries: StarPoint[]): TrendingSki
   }
 }
 
-/**
- * Longest post text the feed ships.
- *
- * X stores up to a thousand characters. A card shows four lines, about two
- * hundred, and a board of thirty Skills with six posts each pays for every
- * character in its payload twice: once in the HTML, once for hydration.
- */
-const MAX_POST_TEXT = 480
-
 function toPostItem(post: TrendingSkillEvidence): TrendingPostFeedItem {
   return {
     url: post.url,
     authorHandle: post.authorHandle,
     authorName: post.authorName,
     authorAvatar: post.authorAvatar,
-    text: post.text.length > MAX_POST_TEXT ? `${post.text.slice(0, MAX_POST_TEXT - 1)}…` : post.text,
+    text: clipPostText(post.text),
     postedAt: post.postedAt,
     platform: post.platform,
     favouriteCount: post.favouriteCount,
