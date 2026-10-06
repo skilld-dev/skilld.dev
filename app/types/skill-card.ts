@@ -1,3 +1,5 @@
+import type { InstallCopyResult } from '~/composables/useInstallCopy'
+
 /**
  * One Skill as every embed reads it. A registry row, a search hit, a feed
  * item or a presenter answer maps onto this before it renders, so the card
@@ -91,7 +93,8 @@ export interface SkillCardView {
   note: string | null
   trending: boolean
   official: boolean
-  run: { command: string, copied: boolean, copy: () => void } | null
+  /** `copy` reports a refused clipboard, so the pill can hand over the command by hand. */
+  run: { command: string, copied: boolean, copy: () => Promise<InstallCopyResult> } | null
   like: { count: number } | null
   /** SKILL.md on GitHub, when the `source` action is on and the link is known. */
   sourceUrl: string | null

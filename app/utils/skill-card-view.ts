@@ -1,3 +1,4 @@
+import type { InstallCopyResult } from '~/composables/useInstallCopy'
 import type {
   SkillCardAction,
   SkillCardByline,
@@ -29,7 +30,7 @@ export interface SkillCardOptions {
 /** The run copy state, which lives in the component that owns the clipboard. */
 export interface SkillCardRunState {
   copied: boolean
-  copy: () => void
+  copy: () => Promise<InstallCopyResult>
 }
 
 /**

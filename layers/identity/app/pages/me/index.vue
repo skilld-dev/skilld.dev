@@ -316,7 +316,6 @@ async function deleteAccount() {
                 :skill
                 layout="row"
                 metric="none"
-                :actions="['run', 'source']"
                 surface="account-watching"
               >
                 <template #meta>

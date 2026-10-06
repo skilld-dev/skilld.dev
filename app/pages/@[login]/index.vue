@@ -126,34 +126,6 @@ function cleanDescription(description: string | null): string {
   return description?.replace(/^>\s*-\s*/, '').trim() ?? ''
 }
 
-function githubSegment(value: string): string {
-  return encodeURIComponent(value)
-}
-
-function githubPath(value: string): string {
-  return value
-    .split('/')
-    .filter(Boolean)
-    .map(githubSegment)
-    .join('/')
-}
-
-function skillSourceUrl(skill: {
-  owner: string
-  repo: string
-  skill_path: string | null
-  source_owner: string | null
-  source_repo: string | null
-  default_branch: string | null
-}): string | null {
-  if (!skill.skill_path)
-    return null
-  const owner = githubSegment(skill.source_owner || skill.owner)
-  const repo = githubSegment(skill.source_repo || skill.repo)
-  const branch = githubSegment(skill.default_branch || 'main')
-  return `https://github.com/${owner}/${repo}/blob/${branch}/${githubPath(skill.skill_path)}`
-}
-
 function profileSkill(skill: AuthorSkill): SkillCardSkill {
   return {
     owner: skill.owner,
@@ -163,7 +135,6 @@ function profileSkill(skill: AuthorSkill): SkillCardSkill {
     description: cleanDescription(skill.description),
     likeCount: skill.likeCount,
     modifiedAt: skill.modified_at,
-    skillFileUrl: skillSourceUrl(skill),
   }
 }
 

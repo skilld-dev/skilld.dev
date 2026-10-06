@@ -80,7 +80,7 @@ const { copy, copied } = useInstallCopy(
 const view = computed(() => buildSkillCardView(
   skill,
   { layout, byline, metric, actions, description, rank, note, trending, surface },
-  { copied: copied.value, copy: () => { void copy(runCommand.value) } },
+  { copied: copied.value, copy: () => copy(runCommand.value) },
 ))
 
 const rankText = computed(() => view.value.rank == null ? null : String(view.value.rank).padStart(2, '0'))
