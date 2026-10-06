@@ -9,7 +9,7 @@ Amends [ADR-0013](0013-artifact-size-limits-and-linked-files.md).
 A build refused every Skill folder that held a symbolic link, with `INVALID_SOURCE: The Skill source layout was rejected.`
 The 2026-10-07 sweep found 108 such Skills, the largest class still refused.
 
-- 103 are `simota/agent-skills/*`. Each Skill folder links the shared `_common` and `_templates` folders at the Repository root.
+- 103 are `simota/agent-skills/*`. Each Skill folder links the shared `_common` folder at the Repository root, and some link `_templates` too.
 - `austintgriffith/ethskills` links `AGENTS.md`, `CLAUDE.md`, and `llms.txt` to `SKILL.md`.
 - `garrytan/gstack` links `connect-chrome` to `open-gstack-browser`.
 - The two `twostraws` Skills link `skills/<name>/references` to the Skill's own `references`.
