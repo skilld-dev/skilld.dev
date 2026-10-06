@@ -29,7 +29,7 @@ These exact strings. Do not paraphrase them per page.
 | Step 1: find | Find Skills · Curated, plus what devs talk about. | guidance only: the first step of the homepage lifecycle band. The step name comes first, then one line. Links `/skills` |
 | Step 2: run | Run, Fork or Install · Run leaves nothing on disk. Fork or install to keep it. | guidance only: a homepage lifecycle step. Links `/cli#run`. It carries the band's one rose dot, because run is the default |
 | Step 3: update | Keep up to date · Watch repos and get a digest when Skills change. | guidance only: a homepage lifecycle step. Links `/cli#update` |
-| Pitch lines | Stay hyped. · No more skill bloat. · Keep updated. · Built to be built on. | guidance only: approved pitch lines for find, run, update and build on. No page prints them since the band went to three steps. The DESIGN.md motifs pair with them |
+| Pitch lines | Stay hyped. · No more skill bloat. · Keep updated. · Built to be built on. | guidance only: approved pitch lines for find, run, update and build on. The DESIGN.md motifs pair with them |
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
 | Home section: authoring | Write a skill for your project. | guidance only: the homepage section heading for making a Skill |
