@@ -15,7 +15,6 @@ back a payload row, no I/O beyond the storage helpers.
 
 ## Runners
 
-- `scripts/prototype-*.ts`: tsx entrypoints for local one-off runs against D1
-  (`wrangler d1 execute`). Useful to eyeball quality before wiring a cron.
-- Future: a [Cloudflare](https://cloudflare.com) cron-triggered Worker will iterate the `skills` table
-  and dispatch to generators in chunks. Not built yet; prototype phase.
+Current generation schedules belong to [the cron reference](../../../../docs/arch/cron.md).
+Read `../tasks/ai-generate-submit.ts` for batch submission and `../tasks/ai-generate-poll.ts` for collection.
+Local prototype scripts remain in Git history.

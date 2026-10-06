@@ -225,8 +225,8 @@ packages:
 
 patchedDependencies:
   hookable@5.5.3: patches/hookable@5.5.3.patch
-  hookable@6.1.1: patches/hookable@6.1.1.patch
-  hookable@6.1.2: patches/hookable@6.1.2.patch
+  hookable@6.1.1: patches/hookable@6.patch
+  hookable@6.1.2: patches/hookable@6.patch
   skilld-protocol@2.5.0: patches/skilld-protocol@2.5.0.patch
 catalog:
   '@antfu/eslint-config': ^9.3.0
