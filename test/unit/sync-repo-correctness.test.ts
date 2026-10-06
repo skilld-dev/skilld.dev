@@ -564,6 +564,36 @@ describe('syncRepo content acknowledgement', () => {
     })).toBe('/gh/acme/skills')
   })
 
+  // Repositories copy one Skill into Agent folders and plugin mirrors. Each
+  // sync used to write every copy over the one row, so the stored path moved
+  // to whichever copy was written last, and the next push moved it again.
+  it('stores the canonical copy of a Skill copied into Agent folders, push after push', async () => {
+    const copies = [
+      '.claude/skills/modern-web-design/SKILL.md',
+      'plugins/web/skills/modern-web-design/SKILL.md',
+      'skills/modern-web-design/SKILL.md',
+    ]
+    insertRepo(sqlite, 'old-tree')
+    github.getBlobsBatch.mockImplementation(async (_owner, _repo, _branch, paths: string[]) => ({
+      status: 200,
+      data: new Map(paths.map(path => [path, rawSkill('modern-web-design')])),
+      unreadable: new Set(),
+      rateLimit: null,
+      notModified: false,
+    }))
+
+    const storedPaths: unknown[] = []
+    for (const pushedAt of ['2026-07-12T12:00:00Z', '2026-07-12T13:00:00Z']) {
+      const summary = repoSummary(`tree-at-${pushedAt}`)
+      github.getTree.mockResolvedValue(tree(copies.map((path, index) => ({ path, sha: `copy-${index}` })), `tree-at-${pushedAt}`))
+      github.getRepoSummary.mockResolvedValue({ ...summary, data: { ...summary.data, meta: { ...summary.data.meta, pushed_at: pushedAt } } })
+      await syncRepo('acme', 'skills', {}, db, { ownerVerified: true })
+      storedPaths.push(sqlite.prepare(`SELECT rendered_skill_path FROM skills WHERE name = 'modern-web-design'`).pluck().get())
+    }
+
+    expect(storedPaths).toEqual(['skills/modern-web-design/SKILL.md', 'skills/modern-web-design/SKILL.md'])
+  })
+
   it('refreshes the repository description when its skill tree is unchanged', async () => {
     insertRepo(sqlite, 'new-tree')
     insertSkill(sqlite, 'one', 'one-old')
