@@ -2,10 +2,9 @@
 import { pageRobots } from '../utils/page-admissions'
 
 /**
- * Setup for the skilld-skillgen GitHub App. Every requirement below mirrors a
- * check in `workers/skill-harness/src/github-client.ts`. While the Worker
- * reads `GITHUB_PILOT_REPOSITORIES`, the page says so and offers the issue
- * route to join.
+ * Setup for the skilld-skillgen GitHub App. The requirements mirror the checks
+ * in `workers/skill-harness/src`. The pilot note stays while the Worker reads
+ * `GITHUB_PILOT_REPOSITORIES`, which drops installs from other repositories.
  */
 const INSTALL_URL = 'https://github.com/apps/skilld-skillgen/installations/new'
 const PILOT_ISSUE_URL = 'https://github.com/skilld-dev/skilld/issues/new?title=Skillgen%20pilot%3A%20owner%2Frepository'
@@ -44,9 +43,9 @@ const codeClass = 'font-mono text-xs text-default'
     <div class="mt-8 flex gap-3 rounded-lg border border-default bg-muted p-4 text-sm leading-relaxed">
       <UIcon name="i-lucide-info" class="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
       <p class="text-muted">
-        Skillgen is in a pilot. It runs only on repositories in the pilot. Install it, then
-        <a :href="PILOT_ISSUE_URL" target="_blank" rel="noopener" class="text-default underline underline-offset-2">open an issue with your repository</a>
-        to join.
+        Skillgen is in a pilot. It runs only on repositories in the pilot.
+        <a :href="PILOT_ISSUE_URL" target="_blank" rel="noopener" class="text-default underline underline-offset-2">Open an issue with your repository</a>
+        to join. Install the App after we add your repository, so its first run starts.
       </p>
     </div>
 
@@ -67,7 +66,7 @@ const codeClass = 'font-mono text-xs text-default'
                 A Skill at <code :class="codeClass">skills/&lt;package&gt;/SKILL.md</code>, or a <code :class="codeClass">SKILL.md</code> at the root. Leave the scope out of the package name.
               </li>
               <li>
-                Up to 8 files and 64 KiB in total: <code :class="codeClass">SKILL.md</code> and Markdown files under <code :class="codeClass">references/</code>.
+                Up to 9 files and 64 KiB in total: <code :class="codeClass">SKILL.md</code> and Markdown files under <code :class="codeClass">references/</code>.
               </li>
               <li>
                 Release tags that match the package version, such as <code :class="codeClass">1.4.0</code> or <code :class="codeClass">v1.4.0</code>.

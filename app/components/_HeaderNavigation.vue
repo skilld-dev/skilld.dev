@@ -26,11 +26,8 @@ watch(() => route.fullPath, () => {
     <NavigationMenuList class="flex items-center gap-1.5">
       <NavigationMenuItem>
         <!--
-          The braille mark makes Trending outweigh its siblings without an
-          emoji. Stone only: the logo dot is the header's one rose element.
-          It is decorative and hidden from screen readers; the label carries
-          the meaning. `gap-1.5` because the button's own layout does not
-          space sibling spans.
+          The braille mark lifts Trending without an emoji. Stone only: the logo
+          dot is the header's one rose element. `gap-1.5` spaces sibling spans.
         -->
         <NavigationMenuLink as-child>
           <UButton
@@ -58,10 +55,8 @@ watch(() => route.fullPath, () => {
       </NavigationMenuItem>
       <NavigationMenuItem value="developers">
         <!--
-          reka-ui sets the trigger id only after mount, so the server would
-          render an empty `id`. This fixed id replaces it, and the panel names
-          it as its label. reka-ui finds the open trigger by an id that
-          contains the item value, so the id keeps `developers`.
+          reka-ui sets the trigger id after mount, so SSR rendered an empty one.
+          The fixed id labels the panel and keeps `developers`, the item value reka-ui matches.
         -->
         <NavigationMenuTrigger
           id="header-developers-trigger"
@@ -78,13 +73,12 @@ watch(() => route.fullPath, () => {
           />
         </NavigationMenuTrigger>
         <!--
-          Positioned against the list. The top lands 0.5rem under the header's
-          bottom edge, and the bridge spans that gap, so the pointer can travel
-          from the trigger to the panel without closing it.
+          The top lands 0.5rem under the header. The 1.5rem bridge spans the gap
+          below the trigger, so the pointer reaches the panel without closing it.
         -->
         <NavigationMenuContent
           aria-labelledby="header-developers-trigger"
-          class="developers-panel absolute right-0 top-[calc(50%+var(--ui-header-height)/2+0.5rem)] w-[44rem] rounded-lg bg-default p-2 shadow-lg ring ring-default before:absolute before:inset-x-0 before:bottom-full before:h-8 before:content-['']"
+          class="developers-panel absolute right-0 top-[calc(50%+var(--ui-header-height)/2+0.5rem)] w-[44rem] rounded-lg bg-default p-2 shadow-lg ring ring-default before:absolute before:inset-x-0 before:bottom-full before:h-6 before:content-['']"
         >
           <!-- Six columns: three connect cards fill the top row, two author cards the row below. -->
           <ul class="grid grid-cols-6 gap-2">
@@ -138,14 +132,14 @@ watch(() => route.fullPath, () => {
 </template>
 
 <style scoped>
-/* DESIGN.md motion: 200ms, a 4px move, 60ms between rows, all under 400ms.
-   The global reduced-motion rule cuts each duration to nothing; the cards also
-   drop their delay, or they would hold invisible before they appear. */
-.developers-panel[data-state='open'] {
+/* DESIGN.md motion: 200ms, a 4px move, 60ms between rows. The panel renders
+   through a Teleport and carries no scope attribute, so its rules are global.
+   Under reduced motion the cards drop their delay too. */
+:global(.developers-panel[data-state='open']) {
   animation: developers-panel-in 200ms ease-out;
 }
 
-.developers-panel[data-state='closed'] {
+:global(.developers-panel[data-state='closed']) {
   animation: developers-panel-out 150ms ease-in;
 }
 
@@ -160,10 +154,8 @@ watch(() => route.fullPath, () => {
   }
 }
 
-/* Ambient strength suits a full-width band. On a card this small it vanishes
-   in dark mode, so the cards double it there. Scoping marks only the last
-   compound, so `.dark` still matches the root. Never wrap it in `:global()`:
-   Vue then drops the rest and emits a bare `.dark` rule. */
+/* Ambient strength vanishes on a card this small in dark mode, so it doubles.
+   Keep `.dark` outside `:global()`: Vue would emit a bare `.dark` rule. */
 .dark .developers-card .editorial-atmosphere {
   --editorial-atmosphere-opacity: 0.56;
 }

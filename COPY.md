@@ -37,7 +37,7 @@ These exact strings. Do not paraphrase them per page.
 | Home section: trending | Trending skills this week. | guidance only: the homepage trending section heading |
 | Home section: changes | Keep up with skill changes. | guidance only: the homepage section heading for watching and the digest |
 | Home section: authoring | Write a skill for your project. | guidance only: the homepage section heading for making a Skill |
-| Nav: developers | Developers | guidance only: the header menu trigger, and the group label in the mobile menu. The menu holds the four cards below |
+| Nav: developers | Developers | guidance only: the header menu trigger, and the group label in the mobile menu. The menu holds the five cards below |
 | Nav: CLI | CLI · Search, run, install, and keep Skills current. · Install the CLI | guidance only: the first card in the Developers menu: name, line, action. Links `/cli`. The mobile menu shows the name only. The line is the CLI line and the action is the CLI install label, so change those first |
 | Nav: MCP server | MCP server · For ChatGPT, Claude, and any app that speaks MCP. · Add the MCP server | guidance only: a Developers menu card. Links `/developers?setup=mcp`. The line is the MCP setup card on `/developers`, and the action is its section heading |
 | Nav: SDK | SDK · For your own code, with the TypeScript SDK or plain HTTP. · Call the skilld API | guidance only: a Developers menu card. Links `/developers?setup=api`. The line is the API setup card on `/developers`, and the action is its section heading |
@@ -45,7 +45,7 @@ These exact strings. Do not paraphrase them per page.
 | Nav: Skillgen | Skillgen · Keeps your package skill current with a draft pull request after each release. · Set up Skillgen | guidance only: the last Developers menu card. Links `/skillgen` |
 | Nav: setup guides | All setup guides | guidance only: the link under the Developers menu cards. Links `/developers` |
 | Skillgen lead | Keep your package skill current. After each release tag, Skillgen opens a draft pull request that updates the Skill in your repository. You review it and decide what merges. | guidance only: the `/skillgen` line under the H1. Its first two sentences are the page's meta description |
-| Skillgen pilot | Skillgen is in a pilot. It runs only on repositories in the pilot. | guidance only: the `/skillgen` note while the Worker reads `GITHUB_PILOT_REPOSITORIES`. Remove it when the pilot opens |
+| Skillgen pilot | Skillgen is in a pilot. It runs only on repositories in the pilot. Open an issue with your repository to join. Install the App after we add your repository, so its first run starts. | guidance only: the `/skillgen` note while the Worker reads `GITHUB_PILOT_REPOSITORIES`. Remove it when the pilot opens |
 | CLI H1 | The skilld CLI | guidance only: the `/cli` H1 and its OG title |
 | CLI line | Search, run, install, and keep Skills current. | guidance only: the `/cli` line under the H1. It is the CLI's own `--help` line, so change it in the CLI first |
 | CLI intro | Give your Agent Skills that real maintainers write. A run reads the current source every time, and one command updates the Skills you install. Install the skilld Skill once, and your Agent searches and loads Skills on its own. | guidance only: the `/cli` intro under the line |
