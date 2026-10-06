@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { ogEvenLines } from '../../app/utils/og-style'
 

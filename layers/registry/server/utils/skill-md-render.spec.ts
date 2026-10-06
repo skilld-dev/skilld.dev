@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import type { SkillImagePolicy } from './skill-md-render'
 import { describe, expect, it } from 'vitest'
 import { importImageProxyKey, signImageProxyUrl } from '#server/utils/image-proxy'

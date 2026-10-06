@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { ArtifactBuildDependencies } from '../../layers/artifact-delivery/server/utils/build'
 import type { PublicGithubSourceClient, SourceRejection } from '../../layers/artifact-delivery/server/utils/github-source'
 import type { RunnableSkill, SkillRunSweepDependencies } from '../../layers/artifact-delivery/server/utils/run-sweep'

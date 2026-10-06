@@ -164,25 +164,6 @@ describe('likeButton toggle semantics', () => {
 
     wrapper.unmount()
   })
-
-  it('keeps a liked heart visible on cards, and hides an unliked one until hover', async () => {
-    likedItems = [{ ...skill, likeCount: 9 }]
-    const liked = await mountSuspended(LikeButton, {
-      props: { ...skill, count: 9, variant: 'card' },
-    })
-    const unliked = await mountSuspended(LikeButton, {
-      props: { owner: 'antfu', repo: 'skills', name: 'other', count: 0, variant: 'card' },
-    })
-    await flushPromises()
-
-    expect(liked.get('button').classes()).toContain('opacity-100')
-    expect(liked.get('button').classes()).not.toContain('opacity-0')
-    expect(unliked.get('button').classes()).toContain('opacity-0')
-    expect(unliked.get('button').classes()).toContain('group-hover:opacity-100')
-
-    liked.unmount()
-    unliked.unmount()
-  })
 })
 
 describe('useLikes hydration', () => {

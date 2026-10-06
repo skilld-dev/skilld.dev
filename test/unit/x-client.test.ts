@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { createXClient, X_LOOKUP_BATCH_SIZE } from '../../shared/server/x-client'
 

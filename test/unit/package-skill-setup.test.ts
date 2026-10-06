@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { packageSkillGuide, parsePackageSkillSetup } from '../../layers/marketing/app/utils/package-skill-setup'
 
 describe('package ecosystem setup', () => {

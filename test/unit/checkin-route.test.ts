@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { createApp, toWebHandler } from 'h3'
 import { beforeEach, expect, it, vi } from 'vitest'
 import handler from '../../layers/identity/server/api/internal/checkin.get'

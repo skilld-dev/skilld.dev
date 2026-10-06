@@ -1,5 +1,4 @@
 import type { SqliteD1 } from './helpers/d1-sqlite'
-// @vitest-environment node
 import { IncomingMessage, ServerResponse } from 'node:http'
 import { Socket } from 'node:net'
 import { createEvent, fetchWithEvent, getResponseHeader } from 'h3'

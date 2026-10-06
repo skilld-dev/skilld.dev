@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

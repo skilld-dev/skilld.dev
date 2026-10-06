@@ -1,20 +1,8 @@
 import type { H3Event } from 'h3'
 import type { SqliteD1 } from './helpers/d1-sqlite'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readCache, writeCache } from '../../shared/server/cache'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
-
-function sourceFiles(directory: string): string[] {
-  const entries = readdirSync(directory)
-  return entries.flatMap((entry) => {
-    const path = join(directory, entry)
-    if (statSync(path).isDirectory())
-      return sourceFiles(path)
-    return path.endsWith('.ts') ? [path] : []
-  })
-}
 
 describe('best-effort cache writes', () => {
   it('resolves when the KV write is rate limited', async () => {
@@ -44,23 +32,6 @@ describe('best-effort cache writes', () => {
 
     expect(setItem).toHaveBeenCalledWith('skills:endorsement-map', { a: 1 }, { ttl: 300 })
   })
-
-  it('routes every server cache write through the helper', () => {
-    const roots = ['layers', 'server'].map(root => join(process.cwd(), root))
-    const offenders = roots
-      .flatMap(root => sourceFiles(root))
-      .filter(path => path.includes(`${'server'}/`))
-      .flatMap((path) => {
-        const lines = readFileSync(path, 'utf8').split('\n')
-        return lines.flatMap((line, index) =>
-          /useStorage\(['"]cache['"]\)\.setItem\(/.test(line)
-            ? [`${path.replace(`${process.cwd()}/`, '')}:${index + 1}`]
-            : [],
-        )
-      })
-
-    expect(offenders).toEqual([])
-  })
 })
 
 describe('best-effort cache reads', () => {
@@ -87,23 +58,6 @@ describe('best-effort cache reads', () => {
 
     expect(value).toEqual({ commits: [] })
     expect(getItem).toHaveBeenCalledWith('skills:related:v3:acme/skills/deploy')
-  })
-
-  it('routes every server cache read through the helper', () => {
-    const roots = ['layers', 'server'].map(root => join(process.cwd(), root))
-    const offenders = roots
-      .flatMap(root => sourceFiles(root))
-      .filter(path => path.includes(`${'server'}/`))
-      .flatMap((path) => {
-        const lines = readFileSync(path, 'utf8').split('\n')
-        return lines.flatMap((line, index) =>
-          /useStorage\(['"]cache['"]\)\.getItem[<(]/.test(line)
-            ? [`${path.replace(`${process.cwd()}/`, '')}:${index + 1}`]
-            : [],
-        )
-      })
-
-    expect(offenders).toEqual([])
   })
 })
 

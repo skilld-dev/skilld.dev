@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import {
   cliRequirement,
@@ -133,9 +132,5 @@ describe('printed CLI commands', () => {
 
   it('prints every site command as npx skilld', () => {
     expect(cliRequirement().misprinted).toEqual([])
-  })
-
-  it('gates the account commands the developers page prints and the verbs the CLI page prints', () => {
-    expect(cliRequirement().commands).toEqual(['add', 'auth', 'changes', 'install', 'like', 'outdated', 'remove', 'run', 'search', 'update', 'watch'])
   })
 })

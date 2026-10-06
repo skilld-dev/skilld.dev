@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSqliteD1 } from './helpers/d1-sqlite'

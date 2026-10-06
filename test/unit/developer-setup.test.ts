@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { SkilldV1OperationDefinition } from 'skilld-sdk/contract'
 import type { ApiSampleCall } from '../../layers/marketing/app/utils/developer-setup'
 import { createSkilldClient } from 'skilld-sdk'

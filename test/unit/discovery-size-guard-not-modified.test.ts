@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { GithubBindings } from '#layers/registry/server/utils/github-client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createGithubRepoSizer } from '../../shared/server/discovery-size-guard'

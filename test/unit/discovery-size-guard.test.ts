@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { MeasureRepoSize } from '../../shared/server/discovery-size-guard'
 import type { SqliteD1 } from './helpers/d1-sqlite'
 import { readFileSync } from 'node:fs'

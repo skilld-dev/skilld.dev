@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { ElementNode, MarkdownDocument, Node } from 'comark'
 import { describe, expect, it } from 'vitest'
 import { splitVirtualPages } from '../src/runtime/utils/virtual-pages'
