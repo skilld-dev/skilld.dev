@@ -7,11 +7,13 @@ import {
   problemCodeSchema,
 } from '../../../schemas/contracts'
 import { withArtifactProblems } from '../../../utils/artifact-problem'
+import { failResolution } from '../../../utils/build'
 import { findPrivateRepositoryAccess } from '../../../utils/private-access'
 import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
 import { enqueueArtifactBuild } from '../../../utils/queue'
-import { fetchAdmittedSkillIdentity, requestResolution } from '../../../utils/request-resolution'
+import { enqueueAfterResponse, fetchAdmittedSkillIdentity, requestResolution } from '../../../utils/request-resolution'
 import { setSkillPageUrlHeader } from '../../../utils/skill-page'
+import { getResolution } from '../../../utils/state'
 
 export default withArtifactProblems(defineApiHandler({
   schema: createResolutionRequestSchema,
@@ -36,7 +38,21 @@ export default withArtifactProblems(defineApiHandler({
     const result = await requestResolution({
       db: platform.db,
       lookupAdmitted: fetchAdmittedSkillIdentity(event.context),
-      enqueue: resolutionId => enqueueArtifactBuild(platform.env, resolutionId),
+      enqueue: enqueueAfterResponse({
+        schedule: work => event.waitUntil(work),
+        enqueue: resolutionId => enqueueArtifactBuild(platform.env, resolutionId),
+        failUnqueued: async (resolutionId, error) => {
+          console.error(JSON.stringify({
+            operation: 'artifact-build',
+            outcome: 'enqueue-failed',
+            resolutionId,
+            error: error instanceof Error ? error.message : String(error),
+          }))
+          const row = await getResolution(platform.db, resolutionId)
+          if (row)
+            await failResolution({ db: platform.db, now: () => Math.floor(Date.now() / 1000) }, row, 'SERVICE_UNAVAILABLE', true)
+        },
+      }),
       now: () => Math.floor(Date.now() / 1000),
     }, {
       source: body.source,

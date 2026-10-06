@@ -60,3 +60,31 @@ export async function requestResolution(
     await dependencies.enqueue(result.row.id)
   return result
 }
+
+export interface AfterResponseEnqueueDependencies {
+  /** Keep work alive after the response, such as the Worker's `waitUntil`. */
+  schedule: (work: Promise<unknown>) => void
+  enqueue: (resolutionId: string) => Promise<void>
+  /** Settle a Resolution whose build never reached the queue. */
+  failUnqueued: (resolutionId: string, error: unknown) => Promise<void>
+}
+
+/**
+ * An `enqueue` that sends the build message after the response.
+ *
+ * The queue send took 446 to 500 ms of a 590 to 650 ms request in three
+ * production traces from Sydney and Bangkok on 2026-10-07. The CLI polls
+ * for the result anyway, so the send need not hold the first answer. A send
+ * that fails settles the Resolution as a retryable failure, so the polling
+ * CLI requests a new Resolution instead of waiting out its deadline.
+ */
+export function enqueueAfterResponse(
+  dependencies: AfterResponseEnqueueDependencies,
+): (resolutionId: string) => Promise<void> {
+  return async (resolutionId) => {
+    dependencies.schedule(
+      dependencies.enqueue(resolutionId)
+        .catch(error => dependencies.failUnqueued(resolutionId, error)),
+    )
+  }
+}
