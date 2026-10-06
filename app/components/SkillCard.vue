@@ -30,6 +30,7 @@ const {
   actions,
   // Vue casts an absent boolean to false; an explicit undefined keeps the layout default.
   description = undefined,
+  descriptionLines = 2,
   rank,
   note,
   trending = false,
@@ -43,6 +44,12 @@ const {
   actions?: readonly SkillCardAction[]
   /** Defaults to on, except in compact entries. */
   description?: boolean
+  /**
+   * Cards and rows only: lines of description before the clamp. One where
+   * the entry spends its second line on something else, such as the posts
+   * that put a trending Skill on the board.
+   */
+  descriptionLines?: 1 | 2
   /** One-based position in a ranked list. */
   rank?: number
   /** Why the Skill is here, in a curator's or editor's words. */
@@ -58,6 +65,8 @@ const emit = defineEmits<{
 }>()
 
 const slots = defineSlots<{
+  /** A small mark beside the name, such as a braille spark. */
+  flag?: () => unknown
   /** Inline facts beside the metric, such as "Watching for changes" or a braille spark. */
   meta?: () => unknown
   /** A block under the description, such as dependencies. */
@@ -87,8 +96,10 @@ const rankText = computed(() => view.value.rank == null ? null : String(view.val
 const rankLead = computed(() => (view.value.rank ?? 99) <= 3)
 const hasControls = computed(() => Boolean(view.value.run || view.value.like || view.value.sourceUrl || slots.actions))
 const hasFacts = computed(() => Boolean(view.value.metric || slots.meta))
-/** A braille spark in the meta slot already spends the entry's rose. */
-const markAccent = computed(() => !slots.meta)
+/** A braille spark in the meta or flag slot already spends the entry's rose. */
+const markAccent = computed(() => !slots.meta && !slots.flag)
+/** The description clamp, unless a note above it takes the second line. */
+const descriptionClamp = computed(() => descriptionLines === 1 ? 'line-clamp-1' : 'line-clamp-2')
 
 /**
  * Rows in one list share their metric column, so its width comes from what
@@ -102,13 +113,17 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   <article v-if="view.layout === 'card'" class="skill-card skill-card--card">
     <div class="flex min-w-0 items-start gap-3">
       <span v-if="rankText" class="skill-card__rank" :class="{ 'skill-card__rank--lead': rankLead }" aria-hidden="true">{{ rankText }}</span>
-      <SkillCardIdentity :view :size="32" :accent="markAccent" wrap class="min-w-0 flex-1" @avatar-error="emit('avatarError', view.owner)" />
+      <SkillCardIdentity :view :size="32" :accent="markAccent" wrap class="min-w-0 flex-1" @avatar-error="emit('avatarError', view.owner)">
+        <template v-if="$slots.flag" #flag>
+          <slot name="flag" />
+        </template>
+      </SkillCardIdentity>
     </div>
 
     <p v-if="view.note" class="skill-card__note mt-3 line-clamp-2">
       {{ view.note }}
     </p>
-    <p v-if="view.description" class="skill-card__description" :class="view.note ? 'mt-1 line-clamp-1' : 'mt-3 line-clamp-2'">
+    <p v-if="view.description" class="skill-card__description" :class="view.note ? 'mt-1 line-clamp-1' : ['mt-3', descriptionClamp]">
       {{ view.description }}
     </p>
 
@@ -151,13 +166,17 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   <div v-else-if="view.layout === 'row'" class="skill-card skill-card--row-shell">
     <div class="skill-card--row" :class="{ 'skill-card--ranked': rankText }" :style="{ '--skill-card-metric': metricWidth }">
       <span v-if="rankText" class="skill-card__rank skill-card__row-rank" :class="{ 'skill-card__rank--lead': rankLead }" aria-hidden="true">{{ rankText }}</span>
-      <SkillCardIdentity :view :size="36" :accent="markAccent" wrap class="skill-card__row-id" @avatar-error="emit('avatarError', view.owner)" />
+      <SkillCardIdentity :view :size="36" :accent="markAccent" wrap class="skill-card__row-id" @avatar-error="emit('avatarError', view.owner)">
+        <template v-if="$slots.flag" #flag>
+          <slot name="flag" />
+        </template>
+      </SkillCardIdentity>
 
       <div v-if="view.note || view.description || $slots.footer" class="skill-card__row-body">
         <p v-if="view.note" class="skill-card__note line-clamp-2">
           {{ view.note }}
         </p>
-        <p v-if="view.description" class="skill-card__description" :class="view.note ? 'mt-0.5 line-clamp-1' : 'line-clamp-2'">
+        <p v-if="view.description" class="skill-card__description" :class="view.note ? 'mt-0.5 line-clamp-1' : descriptionClamp">
           {{ view.description }}
         </p>
         <div v-if="$slots.footer" class="skill-card__raise mt-2">
@@ -432,6 +451,11 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   grid-area: aside;
   min-inline-size: 0;
   margin-block-start: 0.875rem;
+}
+
+/* An aside whose one block is hidden, such as posts behind a toggle, takes no space. */
+.skill-card__row-aside:has(> [hidden]:only-child) {
+  display: none;
 }
 
 .skill-card__row-end {

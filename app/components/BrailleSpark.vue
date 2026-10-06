@@ -17,6 +17,7 @@ const {
   unit = SPARK_MENTIONS,
   period,
   showUnit = true,
+  showTotal = true,
 } = defineProps<{
   /** Seven daily counts, oldest first, today last. */
   counts: readonly number[]
@@ -28,6 +29,12 @@ const {
   period?: string
   /** Show the unit after the count. Hide it only where a column heading names it. */
   showUnit?: boolean
+  /**
+   * Show the count beside the bars. Hide it only where something beside the
+   * spark already counts, such as the poster faces on a trending row. The
+   * screen reader label keeps the count either way.
+   */
+  showTotal?: boolean
 }>()
 
 const week = computed(() => sparkWeek(counts))
@@ -44,7 +51,7 @@ const label = computed(() => `${counted.value}. Per day, oldest first: ${week.va
 <template>
   <span class="braille-spark" role="img" :aria-label="label">
     <span class="braille-spark__bars" aria-hidden="true"><span v-for="(cell, index) in cells" :key="index" :class="cell.empty ? 'braille-spark__track' : index === cells.length - 1 && 'braille-spark__today'">{{ cell.glyph }}</span></span>
-    <span class="braille-spark__total" aria-hidden="true">{{ totalText }}</span>
+    <span v-if="showTotal" class="braille-spark__total" aria-hidden="true">{{ totalText }}</span>
   </span>
 </template>
 

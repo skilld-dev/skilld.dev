@@ -1,6 +1,7 @@
-import type { LeaderboardRowInput } from '#shared/trending-range'
+import type { FeedFallbackInput, FeedSkillInput, LeaderboardRowInput } from '#shared/trending-range'
 import { describe, expect, it } from 'vitest'
 import {
+  feedBoardRows,
   isEvidenced,
   leaderboardBoardRows,
   resolveTrendingPage,
@@ -194,6 +195,92 @@ describe('leaderboard rows on the trending board', () => {
 
   it('gives no run command target when the skill was picked from several', () => {
     expect(leaderboardBoardRows([leaderboardRow({ skillCount: 9 })])[0]!.skill).toBeNull()
+  })
+})
+
+const FEED_CLOCK = 1_790_000_000
+
+function namedSkill(overrides: Partial<FeedSkillInput> = {}): FeedSkillInput {
+  return {
+    owner: 'pbakaus',
+    repo: 'impeccable',
+    name: 'impeccable',
+    canonicalName: 'impeccable',
+    registryPath: '/gh/pbakaus/impeccable/impeccable',
+    description: 'Design taste for agents.',
+    stars: 3_200,
+    starGain: null,
+    starGainDay: null,
+    evidence: null,
+    ...overrides,
+  }
+}
+
+function fallbackSkill(overrides: Partial<FeedFallbackInput> = {}): FeedFallbackInput {
+  return {
+    owner: 'mattpocock',
+    repo: 'skills',
+    name: 'tdd',
+    canonicalName: 'tdd',
+    registryPath: '/gh/mattpocock/skills/tdd',
+    description: 'Test first.',
+    stars: 40_000,
+    repoSkillCount: 12,
+    ...overrides,
+  }
+}
+
+describe('feed rows on the week and month boards', () => {
+  it('ranks every named skill above the star filler, whatever the stars', () => {
+    const rows = feedBoardRows({
+      namedSkills: [namedSkill({ stars: 10 })],
+      fallback: [fallbackSkill({ stars: 200_000 })],
+      computedAt: FEED_CLOCK,
+    })
+
+    expect(rows.map(row => row.key)).toEqual(['/gh/pbakaus/impeccable/impeccable', '/gh/mattpocock/skills/tdd'])
+  })
+
+  it('drops filler that repeats a named skill', () => {
+    const rows = feedBoardRows({
+      namedSkills: [namedSkill()],
+      fallback: [fallbackSkill({ registryPath: '/gh/pbakaus/impeccable/impeccable' }), fallbackSkill()],
+      computedAt: FEED_CLOCK,
+    })
+
+    expect(rows.map(row => row.key)).toEqual(['/gh/pbakaus/impeccable/impeccable', '/gh/mattpocock/skills/tdd'])
+  })
+
+  it('quotes the post that named a skill, dated against the feed clock', () => {
+    const post = {
+      url: 'https://x.com/someone/status/1',
+      text: 'impeccable fixed my landing page',
+      platform: 'x' as const,
+      authorHandle: 'someone',
+      authorAvatar: null,
+      favouriteCount: 4,
+      postedAt: FEED_CLOCK - 86_400,
+    }
+    const [row] = feedBoardRows({ namedSkills: [namedSkill({ evidence: post })], fallback: [], computedAt: FEED_CLOCK })
+
+    expect(row!.reason).toMatchObject({ _tag: 'posts', posts: [{ handle: 'someone', when: '1d ago' }] })
+    expect(isEvidenced(row!)).toBe(true)
+  })
+
+  it('states the surge when stars, not posts, named the skill', () => {
+    const [row] = feedBoardRows({ namedSkills: [namedSkill({ starGain: 865 })], fallback: [], computedAt: FEED_CLOCK })
+
+    expect(row!.reason).toMatchObject({ _tag: 'surge', gain: 865 })
+  })
+
+  it('gives filler a run command target only when its repository holds one skill', () => {
+    const rows = feedBoardRows({
+      namedSkills: [],
+      fallback: [fallbackSkill(), fallbackSkill({ repo: 'solo', registryPath: '/gh/mattpocock/solo/tdd', repoSkillCount: 1 })],
+      computedAt: FEED_CLOCK,
+    })
+
+    expect(rows.map(row => row.skill)).toEqual([null, { owner: 'mattpocock', repo: 'solo', name: 'tdd' }])
   })
 })
 
