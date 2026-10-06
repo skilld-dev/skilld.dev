@@ -206,7 +206,7 @@ export async function publishSkill(context: PreparedTag, files: ProofInput['curr
   const title = (context.packageDir ? `docs(skills): update ${packageName} for ${context.tag}` : `docs(skills): update for ${context.tag}`).slice(0, 69)
   const generated = commit.parse(await api(`${prefix}/git/commits`, 'POST', { message: title, tree: tree.sha, parents: [context.baseSha] }))
   await api(`${prefix}/git/refs`, 'POST', { ref: `refs/heads/${branch}`, sha: generated.sha })
-  const body = `🤖 This draft was written by the skilld GitHub App.\n\nUpdates the existing Skill for ${context.input.spec}.\nSource tag: ${context.tag}. Source commit: ${context.targetSha}.\n\nThe Harness generated these files and a separate review accepted them.\nA maintainer must check the examples before merging.\n\n> 🤖 AI disclosure: [Harlan Agent Kit](https://github.com/harlan-zw/harlan-agent-kit) modified this description. [My AI open-source policy](https://harlanzw.com/blog/ai-in-open-source).`
-  const published = pull.parse(await api(`${prefix}/pulls`, 'POST', { title, head: branch, base: context.baseBranch, body, draft: true }))
+  const body = `🤖 This pull request was written by the skilld GitHub App.\n\nUpdates the existing Skill for ${context.input.spec}.\nSource tag: ${context.tag}. Source commit: ${context.targetSha}.\n\nThe Harness generated these files and a separate review accepted them.\nA maintainer must check the examples before merging.\n\n> 🤖 AI disclosure: [Harlan Agent Kit](https://github.com/harlan-zw/harlan-agent-kit) modified this description. [My AI open-source policy](https://harlanzw.com/blog/ai-in-open-source).`
+  const published = pull.parse(await api(`${prefix}/pulls`, 'POST', { title, head: branch, base: context.baseBranch, body, draft: false }))
   return { _tag: 'Published', url: published.html_url }
 }

@@ -5,7 +5,7 @@ import { pageRobots } from '../utils/page-admissions'
 const INSTALL_URL = 'https://github.com/apps/skilld-skillgen/installations/new'
 
 const title = 'Skillgen'
-const description = 'Keep your package skill current. After each release tag, Skillgen opens a draft pull request that updates the Skill in your repository.'
+const description = 'Keep your package skill current. After each release tag, Skillgen opens a pull request that updates the Skill in your repository.'
 const canonicalUrl = 'https://skilld.dev/skillgen'
 
 useSeoMeta({
@@ -40,7 +40,7 @@ const codeClass = 'font-mono text-xs text-default'
         Skillgen
       </h1>
       <p class="mt-4 text-base leading-relaxed text-muted">
-        Keep your package skill current. After each release tag, Skillgen opens a draft pull request that updates the Skill in your repository. You review it and decide what merges.
+        Keep your package skill current. After each release tag, Skillgen opens a pull request that updates the Skill in your repository. You review it and decide what merges.
       </p>
     </header>
 
@@ -66,7 +66,7 @@ const codeClass = 'font-mono text-xs text-default'
                 Up to 9 files and 64 KiB in total: <code :class="codeClass">SKILL.md</code> and Markdown files under <code :class="codeClass">references/</code>.
               </li>
               <li>
-                Release tags that match the package version, such as <code :class="codeClass">1.4.0</code>, <code :class="codeClass">v1.4.0</code> or <code :class="codeClass">name@1.4.0</code>. If one tag releases several packages with Skills, each gets its own draft.
+                Release tags that match the package version, such as <code :class="codeClass">1.4.0</code>, <code :class="codeClass">v1.4.0</code> or <code :class="codeClass">name@1.4.0</code>. If one tag releases several packages with Skills, each gets its own pull request.
               </li>
               <li>
                 npm links each version to its tag commit, through provenance or <code :class="codeClass">gitHead</code>.
@@ -117,7 +117,7 @@ const codeClass = 'font-mono text-xs text-default'
             />
             <ul class="mt-4 list-disc space-y-2 pl-5 text-sm leading-relaxed text-muted">
               <li><strong class="font-medium text-default">Contents: write.</strong> Skillgen pushes one branch for each release.</li>
-              <li><strong class="font-medium text-default">Pull requests: write.</strong> Skillgen opens the draft.</li>
+              <li><strong class="font-medium text-default">Pull requests: write.</strong> Skillgen opens the pull request.</li>
               <li>It asks for no Actions, administration, or issues access.</li>
             </ul>
           </div>
@@ -126,7 +126,7 @@ const codeClass = 'font-mono text-xs text-default'
           <span :class="indexClass" aria-hidden="true">04</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
-              Review the draft
+              Review the pull request
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
               Skillgen starts with your latest tag when you install the App. If you turned the repository on after the install, it starts at your next tag. Each new tag starts another run. If npm has not published the version yet, the run waits. Each run must finish within 30 minutes.
@@ -135,7 +135,7 @@ const codeClass = 'font-mono text-xs text-default'
               A model drafts the update from the tagged source with the skilld Harness. A separate review must accept it before anything reaches your repository. If the Skill needs no change, Skillgen opens nothing.
             </p>
             <p class="mt-3 text-sm leading-relaxed text-muted">
-              Look for a draft pull request titled <code :class="codeClass">docs(skills): update for v1.4.0</code>. It changes only your Skill's folder. Skillgen never overwrites a branch that already exists. You decide what merges.
+              Look for a pull request titled <code :class="codeClass">docs(skills): update for v1.4.0</code>. It changes only your Skill's folder. Skillgen never overwrites a branch that already exists. You decide what merges.
             </p>
           </div>
         </li>

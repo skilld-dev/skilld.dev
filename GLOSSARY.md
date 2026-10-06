@@ -30,7 +30,7 @@ Shared terms match the skilld CLI glossary (`skilld-dev/skilld/GLOSSARY.md`). Th
 | skilld token | `cli_tokens`, `layers/identity` | Author 1—N token | "skilld token" |
 | provenance | Skill detail, cards | Skill 1—1 author and source link | "written by", "source" |
 | behavior | `skilld-protocol/behaviors`, Skill page | Skill 1—N behavior | "Skill behaviors" |
-| Skillgen | `workers/skill-harness`, `/skillgen` | Repository 1—N draft pull request | "Skillgen" |
+| Skillgen | `workers/skill-harness`, `/skillgen` | Repository 1—N pull request | "Skillgen" |
 | task search | search box, `layers/registry` | sentence 1—N Skill | "Find skills for this task" |
 
 Collisions
@@ -264,7 +264,7 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 
 ### Skillgen
 
-**Is:** the `skilld-skillgen` GitHub App. After each release tag, it opens a draft pull request that updates a package skill. The maintainer reviews it and decides what merges.
+**Is:** the `skilld-skillgen` GitHub App. After each release tag, it opens a pull request that updates a package skill. The maintainer reviews it and decides what merges.
 
 **Use for:** the App and its per-repository switch. A maintainer turns Skillgen on for each repository on their account page, and it runs nowhere else. It supports npm packages only.
 

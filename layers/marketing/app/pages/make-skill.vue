@@ -139,7 +139,7 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
             <span id="skillgen-label" class="text-base font-medium">Keep it current with Skillgen</span>
             <UBadge label="GitHub App" color="neutral" variant="outline" size="sm" class="font-mono" />
           </span>
-          <span class="mt-1 block text-sm font-normal text-muted">After each release tag, Skillgen opens a draft pull request that updates your Skill. npm packages only.</span>
+          <span class="mt-1 block text-sm font-normal text-muted">After each release tag, Skillgen opens a pull request that updates your Skill. npm packages only.</span>
         </span>
         <UIcon name="i-lucide-arrow-right" class="size-4 shrink-0 text-muted" aria-hidden="true" />
       </UButton>
@@ -252,7 +252,7 @@ useHead({ link: [{ rel: 'canonical', href: 'https://skilld.dev/make-skill' }] })
       <div v-if="ecosystem === 'npm'" class="mt-8 flex items-start gap-3 border-t border-default pt-6">
         <UIcon name="i-lucide-git-pull-request-draft" class="mt-0.5 size-5 shrink-0 text-muted" aria-hidden="true" />
         <p class="text-sm leading-relaxed text-muted">
-          Once the Skill ships, Skillgen can keep it current. After each release tag, it opens a draft pull request that updates the Skill.
+          Once the Skill ships, Skillgen can keep it current. After each release tag, it opens a pull request that updates the Skill.
           <NuxtLink to="/skillgen" class="text-default underline underline-offset-2 hover:text-primary">
             Set up Skillgen
           </NuxtLink>

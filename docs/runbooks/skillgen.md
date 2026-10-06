@@ -3,7 +3,7 @@
 <!-- eslint-disable harlanzw/ai-deslop-buzzwords -- GLOSSARY.md defines Harness as a product noun. -->
 
 Skillgen is the `skilld-skillgen` GitHub App.
-It maintains an existing package skill through draft pull requests.
+It maintains an existing package skill through pull requests.
 It runs only on a public repository whose maintainer turned it on at `/me?view=skillgen`.
 Maintainers set it up from [/skillgen](https://skilld.dev/skillgen).
 
@@ -58,7 +58,7 @@ Each job lists the packages with a Skill on the default branch.
 It reads each one's `package.json` from the exact tag commit, and skips private packages.
 The tag must equal a package version, as `1.2.3`, `v1.2.3`, or `name@1.2.3`.
 If several packages match one tag, the job splits into one job per package.
-Each split job opens its own draft on a branch named after the package directory.
+Each split job opens its own pull request on a branch named after the package directory.
 If the package publication follows the tag, the job waits for it.
 The whole job has a thirty minute deadline.
 

@@ -80,7 +80,7 @@ const signInAgain = computed(() => error.value?.statusCode === 401)
       Skillgen repositories
     </h2>
     <p class="max-w-2xl text-sm leading-relaxed text-muted">
-      Skillgen opens a draft pull request after each release tag. It runs only on the repositories you turn on here. Then
+      Skillgen opens a pull request after each release tag. It runs only on the repositories you turn on here. Then
       <a :href="INSTALL_URL" target="_blank" rel="noopener" class="text-default underline underline-offset-2 hover:text-primary">install the App</a>
       on the same repositories.
       <NuxtLink to="/skillgen" class="text-default underline underline-offset-2 hover:text-primary">
