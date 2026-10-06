@@ -32,6 +32,7 @@ function mention(input: {
   canonical?: string
   avatar?: string
   name?: string
+  text?: string
 }): string {
   db().raw.prepare(
     `INSERT OR IGNORE INTO repos (owner, repo) VALUES (?, ?)`,
@@ -57,7 +58,7 @@ function mention(input: {
     `a-${input.handle}`,
     input.handle,
     input.name ?? null,
-    `post about /${input.slug}`,
+    input.text ?? `post about /${input.slug}`,
     postedAt,
     postedAt,
     input.likes ?? 1,
@@ -273,6 +274,30 @@ describe('loadTrendingSkills presentation', () => {
     const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
     expect(skill?.evidence?.authorHandle).toBe('faced')
     expect(skill?.evidence?.authorAvatar).toBe('https://pbs.twimg.com/profile_images/1/faced_normal.jpg')
+  })
+})
+
+describe('loadTrendingSkills post text', () => {
+  it('ships post text and author names as plain letters without emoji', async () => {
+    mention({
+      owner: 'a',
+      repo: 'r',
+      slug: 's',
+      handle: 'styled',
+      name: '𝗔𝗹𝗶 ⚡️',
+      text: '🎉 Celebrating 🎉 /s\n1️⃣ 𝘀𝗵𝗼𝘄 it ⭐️ 👨‍👩‍👧 🇦🇺',
+    })
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.evidence?.text).toBe('Celebrating /s\n1 show it')
+    expect(skill?.evidence?.authorName).toBe('Ali')
+  })
+
+  it('drops a name made of emoji alone', async () => {
+    mention({ owner: 'a', repo: 'r', slug: 's', handle: 'sparkles', name: '✨✨' })
+
+    const [skill] = await loadTrendingSkills({ db: db().db, now: NOW })
+    expect(skill?.evidence?.authorName).toBeNull()
   })
 })
 
