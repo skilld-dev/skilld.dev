@@ -45,6 +45,31 @@ describe('a Repository tree larger than one GitHub response', () => {
     })
   })
 
+  it('stops before it spends reads the search cannot finish', async () => {
+    // posthog/posthog splits into more folders than one search may read.
+    const folders = Array.from({ length: 80 }, (_, index) => tree(`product-${index}`, index.toString(16).padStart(40, '5')))
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === `${API}/repos/skilld-dev/skills`)
+        return json(repository('skilld-dev', 'skills'))
+      if (url.endsWith('/git/ref/heads/main'))
+        return json({ ref: 'refs/heads/main', object: { type: 'commit', sha: commitSha } })
+      if (url.endsWith(`/commits/${commitSha}`))
+        return json({ sha: commitSha, commit: { tree: { sha: rootTreeSha } } })
+      if (url.endsWith(`/git/trees/${rootTreeSha}?recursive=1`))
+        return oversized()
+      if (url.endsWith(`/git/trees/${rootTreeSha}`))
+        return json({ sha: rootTreeSha, tree: folders })
+      return json({}, 404)
+    })
+    const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
+
+    const result = await client.resolve(namedRequest('demo'))
+
+    expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
+    expect(fetchMock.mock.calls.filter(call => String(call[0]).includes('/git/trees/'))).toHaveLength(2)
+  })
+
   it('loads a small Skill folder whose recursive listing exceeds the read limit', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)

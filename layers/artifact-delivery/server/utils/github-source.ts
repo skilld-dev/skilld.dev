@@ -22,6 +22,13 @@ const GITHUB_API_VERSION = '2026-03-10'
 const MAX_GITHUB_JSON_BYTES = 8 * 1024 * 1024
 const MAX_TREE_ENTRIES = 2000
 const MAX_TREE_REQUESTS = 128
+/**
+ * The tree reads one search by name may spend. Every read comes out of the
+ * site's GitHub quota, and anyone can send a name. Measured 2026-10-07 on the
+ * split walk: n8n-io/n8n needs 27, vercel/next.js 37, openshift/hypershift 45.
+ * posthog/posthog needs more than 128 and stops after about 40.
+ */
+const MAX_NAME_SEARCH_TREE_READS = 64
 // One tree read can hold 8 MiB of JSON and the tree parsed from it. Two at a
 // time keep a split walk well inside a Worker's 128 MiB.
 const TREE_WALK_CONCURRENCY = 2
@@ -431,8 +438,11 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
    * read limit: posthog/posthog, n8n-io/n8n, vercel/next.js. Each failed the
    * search outright, whatever the Skill size. A tree that one response cannot
    * hold now splits: one read lists its own level, and each folder in it gets
-   * its own recursive read, which can split again. `MAX_TREE_REQUESTS` bounds
-   * the walk.
+   * its own recursive read, which can split again.
+   *
+   * `MAX_NAME_SEARCH_TREE_READS` bounds the walk. Each folder still to visit
+   * costs at least one read, so the walk stops as soon as the folders it
+   * knows about cannot fit, before it spends reads it cannot finish.
    */
   const listSkillFolders = async (
     owner: string,
@@ -471,10 +481,10 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     const folders: string[] = []
     const pending = [{ sha: rootTreeSha, prefix: '' }]
     while (pending.length > 0) {
-      // A split folder costs two reads, so a wave can need twice its size.
-      const wave = pending.splice(0, TREE_WALK_CONCURRENCY)
-      if (requests + wave.length * 2 > MAX_TREE_REQUESTS)
+      // A split folder costs a second read, so the wave adds its own size once more.
+      if (requests + pending.length + Math.min(pending.length, TREE_WALK_CONCURRENCY) > MAX_NAME_SEARCH_TREE_READS)
         return { _tag: 'unlistable' }
+      const wave = pending.splice(0, TREE_WALK_CONCURRENCY)
       const visited = await Promise.all(wave.map(visit))
       for (const result of visited) {
         if (result._tag !== 'listed')
