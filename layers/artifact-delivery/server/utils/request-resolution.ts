@@ -88,7 +88,7 @@ export interface AfterResponseBuildDependencies {
  * at worst, in 20 production runs on 2026-10-07. Its consumer ran in US
  * colos, where each D1 call to the Sydney primary took 158 to 244 ms. A
  * request runs where the client reached Cloudflare, and from Sydney the same
- * calls took 8 to 21 ms. Queue placement cannot move a consumer.
+ * calls took 8 to 36 ms. Queue placement cannot move a consumer.
  *
  * A delayed message goes out first, so a build the runtime stops resumes on
  * the queue. A build that throws goes to the queue at once, for its retry
