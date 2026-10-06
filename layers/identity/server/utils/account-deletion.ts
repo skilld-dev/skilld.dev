@@ -27,6 +27,7 @@ const ACCOUNT_ROW_DELETES = [
   `DELETE FROM digest_runs WHERE user_id = ?1`,
   `DELETE FROM weekly_runs WHERE user_id = ?1`,
   `DELETE FROM email_preference_events WHERE user_id = ?1`,
+  `DELETE FROM artifact_resolution_requesters WHERE account_id = ?1`,
   `DELETE FROM artifact_download_grants WHERE account_id = ?1`,
   `DELETE FROM private_artifact_attestations WHERE account_id = ?1`,
   `DELETE FROM private_artifacts WHERE account_id = ?1`,

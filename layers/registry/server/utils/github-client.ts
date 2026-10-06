@@ -101,6 +101,12 @@ export interface RateLimitInfo {
   remaining: number
   limit: number
   reset: number
+  /**
+   * The bucket GitHub counted the request against: `core` for REST and
+   * `graphql` for GraphQL. The two are separate quotas. A pause reason that
+   * said only "163 requests remaining" could not tell which one ran out.
+   */
+  resource: string | null
 }
 
 export interface FetchOutcome<T> {
@@ -149,6 +155,7 @@ function parseRateLimit(headers: Headers): RateLimitInfo | null {
     remaining: Number(remaining),
     limit: Number(headers.get('x-ratelimit-limit') ?? 0),
     reset: Number(headers.get('x-ratelimit-reset') ?? 0),
+    resource: headers.get('x-ratelimit-resource'),
   }
 }
 
@@ -197,6 +204,26 @@ async function ghRequest<T>(
   return { status: res.status, data: body, rateLimit, notModified: false }
 }
 
+/**
+ * One authenticated, conditional GET of an API path, such as
+ * `/users/nuxt`. A 304 answers from the KV ETag cache and costs no quota.
+ */
+export async function getGithubJson<T>(
+  path: `/${string}`,
+  bindings: GithubBindings,
+  options?: GithubReadOptions,
+): Promise<FetchOutcome<T>> {
+  return ghRequest<T>(`${API_BASE}${path}`, bindings, readInit(options))
+}
+
+/**
+ * Whether GitHub refused a read for want of quota or capacity, as opposed to
+ * answering it. A timeout or dropped connection reads as status 0.
+ */
+export function githubRefused(outcome: Pick<FetchOutcome<unknown>, 'status'>): boolean {
+  return outcome.status === 0 || outcome.status === 403 || outcome.status === 429 || outcome.status >= 500
+}
+
 export async function getRepo(
   owner: string,
   repo: string,
@@ -206,29 +233,50 @@ export async function getRepo(
   return ghRequest<RepoMeta>(`${API_BASE}/repos/${owner}/${repo}`, bindings, readInit(options))
 }
 
-interface RepoSummaryGqlResponse {
-  repository: {
+interface RepoSummaryGql {
+  name: string
+  nameWithOwner: string
+  url: string
+  owner: { login: string }
+  description: string | null
+  stargazerCount: number
+  forkCount: number
+  pushedAt: string
+  createdAt: string
+  isArchived: boolean
+  isFork: boolean
+  defaultBranchRef: {
     name: string
-    nameWithOwner: string
-    url: string
-    owner: { login: string }
-    description: string | null
-    stargazerCount: number
-    forkCount: number
-    pushedAt: string
-    createdAt: string
-    isArchived: boolean
-    isFork: boolean
-    defaultBranchRef: {
-      name: string
-      target: { oid: string, tree: { oid: string } } | null
-    } | null
+    target: { oid: string, tree: { oid: string } } | null
   } | null
 }
+
+const REPO_SUMMARY_FIELDS = `name nameWithOwner url owner{login}
+      description stargazerCount forkCount pushedAt createdAt isArchived isFork
+      defaultBranchRef{name target{... on Commit{oid tree{oid}}}}`
 
 export interface RepoSummary {
   meta: RepoMeta
   headTreeSha: string | null
+}
+
+function repoSummaryFromGql(r: RepoSummaryGql): RepoSummary {
+  const branch = r.defaultBranchRef?.name || 'main'
+  const meta: RepoMeta = {
+    name: r.name,
+    full_name: r.nameWithOwner,
+    html_url: r.url,
+    owner: { login: r.owner.login },
+    default_branch: branch,
+    description: r.description,
+    stargazers_count: r.stargazerCount,
+    forks_count: r.forkCount,
+    pushed_at: r.pushedAt,
+    created_at: r.createdAt,
+    archived: r.isArchived,
+    fork: r.isFork,
+  }
+  return { meta, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null }
 }
 
 /**
@@ -248,59 +296,91 @@ export async function getRepoSummary(
 ): Promise<FetchOutcome<RepoSummary>> {
   const query = `query($owner:String!,$repo:String!){
     repository(owner:$owner,name:$repo){
-      name nameWithOwner url owner{login}
-      description stargazerCount forkCount pushedAt createdAt isArchived isFork
-      defaultBranchRef{name target{... on Commit{oid tree{oid}}}}
+      ${REPO_SUMMARY_FIELDS}
     }
   }`
-  const headers = new Headers()
-  headers.set('Accept', 'application/vnd.github+json')
-  headers.set('Content-Type', 'application/json')
-  headers.set('User-Agent', 'skilld.dev')
-  if (bindings.GITHUB_TOKEN)
-    headers.set('Authorization', `Bearer ${bindings.GITHUB_TOKEN}`)
-
-  const res = await fetch(GRAPHQL_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ query, variables: { owner, repo } }),
-  })
-  const rateLimit = parseRateLimit(res.headers)
-  if (!res.ok)
-    return { status: res.status, data: null, rateLimit, notModified: false }
-
-  const body = await res.json() as { data?: RepoSummaryGqlResponse, errors?: Array<{ type?: string, message?: string }> }
+  const out = await gqlRequest<{ repository: RepoSummaryGql | null }>(query, { owner, repo }, bindings)
+  if (out._tag === 'failed')
+    return { status: out.status, data: null, rateLimit: out.rateLimit, notModified: false }
   // GraphQL surfaces NOT_FOUND in errors with HTTP 200. Map it to 404 so
   // callers preserve their existing rate-limit / broken-repo branching.
-  if (body.errors?.length) {
-    const notFound = body.errors.some(e => e.type === 'NOT_FOUND')
-    return { status: notFound ? 404 : 502, data: null, rateLimit, notModified: false }
+  if (out.errors.length) {
+    const notFound = out.errors.some(e => e.type === 'NOT_FOUND')
+    return { status: notFound ? 404 : 502, data: null, rateLimit: out.rateLimit, notModified: false }
   }
-  const r = body.data?.repository
+  const r = out.data?.repository
   if (!r)
-    return { status: 404, data: null, rateLimit, notModified: false }
+    return { status: 404, data: null, rateLimit: out.rateLimit, notModified: false }
+  return { status: 200, data: repoSummaryFromGql(r), rateLimit: out.rateLimit, notModified: false }
+}
 
-  const branch = r.defaultBranchRef?.name || 'main'
-  const meta: RepoMeta = {
-    name: r.name,
-    full_name: r.nameWithOwner,
-    html_url: r.url,
-    owner: { login: r.owner.login },
-    default_branch: branch,
-    description: r.description,
-    stargazers_count: r.stargazerCount,
-    forks_count: r.forkCount,
-    pushed_at: r.pushedAt,
-    created_at: r.createdAt,
-    archived: r.isArchived,
-    fork: r.isFork,
+/**
+ * Repositories one batched summary query reads. GitHub prices a query by the
+ * connections it asks for, and a summary asks for none, so one query of 100
+ * costs the same single point as one query of 1. 100 is GitHub's ceiling for
+ * nodes per connection, and keeps the query under 15 KB.
+ */
+export const REPO_SUMMARY_BATCH_SIZE = 100
+
+export interface RepoSummaryRequest {
+  owner: string
+  repo: string
+}
+
+export type RepoSummaryBatchOutcome
+  = | {
+    _tag: 'read'
+    /**
+     * One entry per request, in request order. Null means GitHub gave no
+     * summary for that alias, such as NOT_FOUND. The caller leaves those to
+     * the per-repository sync, which owns the missing and renamed verdicts.
+     */
+    summaries: Array<RepoSummary | null>
+    rateLimit: RateLimitInfo | null
+    /** GraphQL requests sent. */
+    requests: number
   }
-  return {
-    status: 200,
-    data: { meta, headTreeSha: r.defaultBranchRef?.target?.tree.oid ?? null },
-    rateLimit,
-    notModified: false,
+  | { _tag: 'failed', status: number, rateLimit: RateLimitInfo | null, requests: number }
+
+/**
+ * The summary of many repositories in aliased GraphQL queries of up to
+ * {@link REPO_SUMMARY_BATCH_SIZE}.
+ *
+ * The hourly sync used to send one summary query per repository from its own
+ * queue job. On 2026-10-06, 1,649 of 1,900 such jobs wrote no Skill row, and
+ * a job that finds its tree unchanged only advances the freshness cursor.
+ */
+export async function getRepoSummariesBatch(
+  requests: RepoSummaryRequest[],
+  bindings: GithubBindings,
+): Promise<RepoSummaryBatchOutcome> {
+  const summaries: Array<RepoSummary | null> = []
+  let rateLimit: RateLimitInfo | null = null
+  let sent = 0
+  for (const batch of chunk(requests, REPO_SUMMARY_BATCH_SIZE)) {
+    const varDecls = batch.flatMap((_, i) => [`$o${i}:String!`, `$n${i}:String!`])
+    const aliases = batch.map((_, i) => `r${i}:repository(owner:$o${i},name:$n${i}){${REPO_SUMMARY_FIELDS}}`).join(' ')
+    const variables: Record<string, string> = {}
+    batch.forEach((request, i) => {
+      variables[`o${i}`] = request.owner
+      variables[`n${i}`] = request.repo
+    })
+    sent++
+    const out = await gqlRequest<Record<string, RepoSummaryGql | null>>(`query(${varDecls.join(',')}){${aliases}}`, variables, bindings)
+    rateLimit = out.rateLimit ?? rateLimit
+    if (out._tag === 'failed')
+      return { _tag: 'failed', status: out.status, rateLimit, requests: sent }
+    // A NOT_FOUND names one alias and leaves the others whole. Any other
+    // error type, such as RATE_LIMITED, says nothing trustworthy about the
+    // batch, so it fails as a whole and the per-repository sync takes over.
+    if (out.errors.some(error => error.type !== 'NOT_FOUND'))
+      return { _tag: 'failed', status: 502, rateLimit, requests: sent }
+    for (let i = 0; i < batch.length; i++) {
+      const r = out.data?.[`r${i}`]
+      summaries.push(r ? repoSummaryFromGql(r) : null)
+    }
   }
+  return { _tag: 'read', summaries, rateLimit, requests: sent }
 }
 
 export async function getTree(
@@ -341,11 +421,18 @@ export async function getCommits(
   )
 }
 
-async function gqlPost<T>(
+interface GqlError { type?: string, message?: string }
+
+type GqlRequestOutcome<T>
+  = | { _tag: 'answered', data: T | null, errors: GqlError[], rateLimit: RateLimitInfo | null }
+    | { _tag: 'failed', status: number, rateLimit: RateLimitInfo | null }
+
+/** One GraphQL POST. Partial data and per-alias errors come back together. */
+async function gqlRequest<T>(
   query: string,
   variables: Record<string, unknown>,
   bindings: GithubBindings,
-): Promise<{ status: number, data: T | null, rateLimit: RateLimitInfo | null }> {
+): Promise<GqlRequestOutcome<T>> {
   const headers = new Headers()
   headers.set('Accept', 'application/vnd.github+json')
   headers.set('Content-Type', 'application/json')
@@ -359,21 +446,32 @@ async function gqlPost<T>(
   })
   const rateLimit = parseRateLimit(res.headers)
   if (!res.ok)
-    return { status: res.status, data: null, rateLimit }
+    return { _tag: 'failed', status: res.status, rateLimit }
   // A gateway can answer 200 with a truncated or non-JSON body. Parsing that
   // eagerly threw `Unexpected end of JSON input` out of the client and reached
   // the sync summary as an opaque reason with no status attached.
   const body = await res.json().catch(() => {
     emitOperationalEvent(createWideEvent({ operation: 'github-graphql-parse', outcome: 'invalid-response' }))
     return null
-  }) as { data?: T, errors?: Array<{ type?: string, message?: string }> } | null
+  }) as { data?: T, errors?: GqlError[] } | null
   if (!body)
-    return { status: 502, data: null, rateLimit }
-  if (body.errors?.length) {
-    const notFound = body.errors.some(e => e.type === 'NOT_FOUND')
-    return { status: notFound ? 404 : 502, data: null, rateLimit }
+    return { _tag: 'failed', status: 502, rateLimit }
+  return { _tag: 'answered', data: body.data ?? null, errors: body.errors ?? [], rateLimit }
+}
+
+async function gqlPost<T>(
+  query: string,
+  variables: Record<string, unknown>,
+  bindings: GithubBindings,
+): Promise<{ status: number, data: T | null, rateLimit: RateLimitInfo | null }> {
+  const out = await gqlRequest<T>(query, variables, bindings)
+  if (out._tag === 'failed')
+    return { status: out.status, data: null, rateLimit: out.rateLimit }
+  if (out.errors.length) {
+    const notFound = out.errors.some(e => e.type === 'NOT_FOUND')
+    return { status: notFound ? 404 : 502, data: null, rateLimit: out.rateLimit }
   }
-  return { status: 200, data: body.data ?? null, rateLimit }
+  return { status: 200, data: out.data, rateLimit: out.rateLimit }
 }
 
 export interface BlobBatchOutcome extends FetchOutcome<Map<string, string>> {

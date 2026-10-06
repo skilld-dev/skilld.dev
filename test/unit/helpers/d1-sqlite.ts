@@ -122,10 +122,15 @@ export function createSqliteD1(
       try {
         const out = statements.map((s) => {
           // `querySkills` batches three SELECTs and reads `.results` off each;
-          // reads carry results, writes carry the change count.
+          // reads carry results, writes carry the change count. A write with
+          // RETURNING carries both, as it does on D1.
           if (/^\s*(?:SELECT|WITH)/i.test(s._sql)) {
             const results = raw.prepare(s._sql).all(...s._values)
             return { results, meta: { changes: 0, last_row_id: 0 } }
+          }
+          if (/\bRETURNING\b/i.test(s._sql)) {
+            const results = raw.prepare(s._sql).all(...s._values)
+            return { results, meta: { changes: results.length, last_row_id: 0 } }
           }
           const result = raw.prepare(s._sql).run(...s._values)
           return { meta: { changes: Number(result.changes), last_row_id: Number(result.lastInsertRowid) } }

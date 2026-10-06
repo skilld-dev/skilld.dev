@@ -7,6 +7,15 @@ import { checksBlockArtifact } from './checks'
 
 const PUBLIC_GRANT_SECONDS = 5 * 60
 
+interface ArtifactCheckRow {
+  name: string
+  version: string
+  outcome: string
+  required: number
+  summary: string | null
+  findings_json: string
+}
+
 interface ArtifactGrantRow {
   id: string
   content_sha256: string
@@ -48,7 +57,7 @@ export async function createPublicArtifactGrant(
   artifactId: string,
   resolutionId?: string,
 ): Promise<PublicGrantResult> {
-  const row = await dependencies.db.prepare(
+  const rowStatement = dependencies.db.prepare(
     `SELECT
        a.id, a.content_sha256, a.content_bytes, a.r2_key, a.delivery_status,
        aa.resolution_id, aa.attestation_json,
@@ -60,7 +69,25 @@ export async function createPublicArtifactGrant(
        AND (?2 IS NULL OR aa.resolution_id = ?2)
      ORDER BY aa.created_at DESC, aa.resolution_id DESC
      LIMIT 1`,
-  ).bind(artifactId, resolutionId ?? null).first<ArtifactGrantRow>()
+  ).bind(artifactId, resolutionId ?? null)
+  const checksStatement = (id: string) => dependencies.db.prepare(
+    `SELECT name, version, outcome, required, summary, findings_json
+     FROM artifact_check_results
+     WHERE resolution_id = ?1
+     ORDER BY name`,
+  ).bind(id)
+  // A client that names its Resolution gets both reads in one D1 round trip.
+  // Without the name, the check read needs the row's Resolution first.
+  const [row, checkRows] = resolutionId
+    ? await dependencies.db.batch([rowStatement, checksStatement(resolutionId)])
+        .then(([rows, checks]) => [
+          (rows?.results[0] as ArtifactGrantRow | undefined) ?? null,
+          (checks?.results ?? []) as ArtifactCheckRow[],
+        ] as const)
+    : await rowStatement.first<ArtifactGrantRow>().then(async found => [
+        found,
+        found ? (await checksStatement(found.resolution_id).all<ArtifactCheckRow>()).results : [],
+      ] as const)
   if (!row)
     return { _tag: 'not-found' }
   if (row.delivery_status === 'revoked' || row.resolution_state === 'revoked')
@@ -68,20 +95,7 @@ export async function createPublicArtifactGrant(
   if (row.delivery_status !== 'available' || row.resolution_state !== 'ready')
     return { _tag: 'denied', code: 'CHECK_BLOCKED' }
 
-  const checkRows = await dependencies.db.prepare(
-    `SELECT name, version, outcome, required, summary, findings_json
-     FROM artifact_check_results
-     WHERE resolution_id = ?1
-     ORDER BY name`,
-  ).bind(row.resolution_id).all<{
-    name: string
-    version: string
-    outcome: string
-    required: number
-    summary: string | null
-    findings_json: string
-  }>()
-  const checks = checkRows.results.map(check => checkResultSchema.parse({
+  const checks = checkRows.map(check => checkResultSchema.parse({
     name: check.name,
     version: check.version,
     outcome: check.outcome,
