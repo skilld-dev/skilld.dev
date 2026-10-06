@@ -198,7 +198,7 @@ function showMore() {
 
         <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 list-none p-0">
           <li v-for="skill in visibleSkills" :key="skill.slug">
-            <SkillCard :skill show-owner-path />
+            <SkillCard :skill />
           </li>
         </ul>
 

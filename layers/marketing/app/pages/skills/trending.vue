@@ -4,7 +4,6 @@ import type { AdmittedSkillsResponse } from '#layers/registry/server/api/skills/
 import type { SkillsLeaderboardResponse } from '#layers/registry/server/api/skills/leaderboard.get'
 import type { TrendingBoardRow } from '#shared/trending-range'
 import { setResponseHeaders } from 'h3'
-import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { relativeDay } from '#shared/trending-post'
 import {
   boardPost,
@@ -192,6 +191,8 @@ const board = computed<TrendingBoardRow[]>(() => {
         ...namedSkills.value.map((s): TrendingBoardRow => ({
           key: s.registryPath,
           owner: s.owner,
+          repo: s.repo,
+          name: s.name,
           title: s.canonicalName,
           to: s.registryPath,
           subtitle: `${s.owner}/${s.repo}`,
@@ -215,6 +216,8 @@ const board = computed<TrendingBoardRow[]>(() => {
         ...fallback.value.map((s): TrendingBoardRow => ({
           key: s.registryPath,
           owner: s.owner,
+          repo: s.repo,
+          name: s.name,
           title: s.canonicalName,
           to: s.registryPath,
           subtitle: `${s.owner}/${s.repo}`,
@@ -476,25 +479,7 @@ function formatDay(timestamp: number | null): string | null {
       </p>
       <ul class="earlier-index mt-6 list-none p-0">
         <li v-for="item in earlierRows" :key="item.registryPath">
-          <NuxtLink :to="item.registryPath" class="earlier-entry">
-            <span class="earlier-entry__name">
-              <img
-                :src="githubAvatarProxyUrl(item.owner, 32)"
-                alt=""
-                width="16"
-                height="16"
-                class="size-4 shrink-0 rounded-full bg-muted"
-                loading="lazy"
-                decoding="async"
-              >
-              <span class="truncate">{{ item.name }}</span>
-            </span>
-            <span class="earlier-entry__meta">
-              <span class="truncate">{{ item.owner }}/{{ item.repo }}</span>
-              <span v-if="item.stars" class="shrink-0 tabular-nums">{{ `${item.stars.toLocaleString()} ★` }}</span>
-            </span>
-            <span v-if="item.description" class="earlier-entry__description">{{ item.description }}</span>
-          </NuxtLink>
+          <SkillCard :skill="item" layout="compact" surface="trending-archive" />
         </li>
       </ul>
       <nav
@@ -555,50 +540,6 @@ function formatDay(timestamp: number | null): string | null {
 .earlier-index > li {
   min-inline-size: 0;
   border-top: 1px solid var(--ui-border);
-}
-
-.earlier-entry {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-block-size: 2.75rem;
-  padding-block: 0.75rem;
-}
-
-.earlier-entry__name {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-inline-size: 0;
-  font-weight: 500;
-  color: var(--ui-text-highlighted);
-  transition: opacity 200ms;
-}
-
-@media (hover: hover) {
-  .earlier-entry:hover .earlier-entry__name {
-    opacity: 0.7;
-  }
-}
-
-.earlier-entry__meta {
-  display: flex;
-  gap: 0.625rem;
-  min-inline-size: 0;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--ui-text-muted);
-}
-
-.earlier-entry__description {
-  display: -webkit-box;
-  overflow: hidden;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: var(--ui-text-muted);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
 }
 
 .page-link {

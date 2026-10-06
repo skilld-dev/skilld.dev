@@ -200,22 +200,10 @@ function recentUpdateKey(item: RecentUpdateCard): string {
     : `skill:${item.owner}/${item.repo}/${item.name}`
 }
 
-function recentUpdatePath(item: RecentUpdateCard): string {
-  return item.kind === 'repo'
-    ? repoHubPath(item.owner, item.repo)
-    : item.registryPath
-}
+type RecentRepoUpdate = Extract<RecentUpdateCard, { kind: 'repo' }>
 
-function recentUpdateTitle(item: RecentUpdateCard): string {
-  return item.kind === 'repo'
-    ? `${item.owner}/${item.repo}`
-    : item.displayName
-}
-
-function recentUpdateDescription(item: RecentUpdateCard): string {
-  if (item.kind === 'skill')
-    return item.changeSummary ?? item.description ?? `${item.owner}/${item.repo}`
-
+/** What changed across a Repository: its commit summary, or the Skills it touched. */
+function recentRepoDescription(item: RecentRepoUpdate): string {
   if (item.changeSummary)
     return item.changeSummary
 
@@ -522,8 +510,19 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             </div>
             <ul v-else-if="recentUpdates.length" class="home-freshness-ledger list-none p-0">
               <li v-for="item in recentUpdates.slice(0, 5)" :key="recentUpdateKey(item)">
+                <SkillCard
+                  v-if="item.kind === 'skill'"
+                  :skill="{ owner: item.owner, repo: item.repo, name: item.name, registryPath: item.registryPath, description: item.description, modifiedAt: item.occurredAt }"
+                  layout="compact"
+                  metric="updated"
+                  :note="item.changeSummary"
+                  :description="!item.changeSummary"
+                  surface="home-recent-updates"
+                />
+                <!-- A whole Repository changed, not one Skill, so it keeps its own line. -->
                 <NuxtLink
-                  :to="recentUpdatePath(item)"
+                  v-else
+                  :to="repoHubPath(item.owner, item.repo)"
                   class="home-freshness-row home-freshness-row--primary group"
                 >
                   <img
@@ -536,8 +535,8 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
                     decoding="async"
                   >
                   <span class="min-w-0 flex-1">
-                    <span class="home-freshness-row-title">{{ recentUpdateTitle(item) }}</span>
-                    <span class="home-freshness-row-description">{{ recentUpdateDescription(item) }}</span>
+                    <span class="home-freshness-row-title">{{ item.owner }}/{{ item.repo }}</span>
+                    <span class="home-freshness-row-description">{{ recentRepoDescription(item) }}</span>
                   </span>
                   <span class="home-freshness-time">{{ formatRelative(item.occurredAt) }}</span>
                   <UIcon name="i-lucide-arrow-up-right" class="home-freshness-arrow size-4 shrink-0" aria-hidden="true" />
@@ -597,26 +596,16 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
             </div>
             <ul v-else-if="recentPublishes.length" class="home-freshness-ledger home-freshness-ledger--secondary list-none p-0">
               <li v-for="item in recentPublishes.slice(0, 5)" :key="`${item.owner}/${item.repo}/${item.name}`">
-                <NuxtLink
-                  :to="item.registryPath"
-                  class="home-freshness-row home-freshness-row--secondary group"
+                <SkillCard
+                  :skill="item"
+                  layout="compact"
+                  metric="none"
+                  surface="home-recent-publishes"
                 >
-                  <img
-                    :src="githubAvatarProxyUrl(item.owner, 64)"
-                    alt=""
-                    width="32"
-                    height="32"
-                    class="home-freshness-avatar home-freshness-avatar--secondary"
-                    loading="lazy"
-                    decoding="async"
-                  >
-                  <span class="min-w-0 flex-1">
-                    <span class="home-freshness-row-title">{{ item.displayName }}</span>
-                    <span class="home-freshness-row-description">{{ item.owner }}/{{ item.repo }}</span>
-                  </span>
-                  <span class="home-freshness-time">{{ formatRelative(item.occurredAt) }}</span>
-                  <UIcon name="i-lucide-arrow-up-right" class="home-freshness-arrow size-4 shrink-0" aria-hidden="true" />
-                </NuxtLink>
+                  <template #meta>
+                    {{ formatRelative(item.occurredAt) }}
+                  </template>
+                </SkillCard>
               </li>
             </ul>
             <div v-else class="home-freshness-state home-freshness-state--secondary" role="status">
@@ -684,6 +673,17 @@ function recentUpdateDescription(item: RecentUpdateCard): string {
 </template>
 
 <style scoped>
+/*
+ * A compact SkillCard fills its ledger line, inset like the Repository rows
+ * beside it. Scoped here, because a global rule loses to the card's own
+ * scoped styles and the card would bleed past the ledger's edges.
+ */
+.home-freshness-ledger :deep(.skill-card--compact) {
+  margin-inline: 0;
+  border-radius: 0;
+  padding: 0.875rem 0.75rem;
+}
+
 /* Above the lifecycle band, so the search panel overlays it instead of sliding under. */
 .home-hero {
   position: relative;

@@ -36,7 +36,10 @@ export function skillPageBehaviors(input: {
       skillPath: directory ? `${directory}/${location.path}` : location.path,
       branch: input.source.branch,
     })
-    return file && location.line !== null ? `${file}#L${location.line}` : file
+    if (!file || location.line === null)
+      return file
+    // GitHub renders Markdown, and a line anchor only works on its source view.
+    return /\.(?:md|mdx|markdown)$/i.test(location.path) ? `${file}?plain=1#L${location.line}` : `${file}#L${location.line}`
   }
   let detected: Behavior[]
   try {

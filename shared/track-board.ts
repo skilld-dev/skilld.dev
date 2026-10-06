@@ -145,6 +145,8 @@ function talkedRow(skill: TrackTalkedInput, clockSeconds: number): TrendingBoard
   return {
     key: skill.registryPath,
     owner: skill.owner,
+    repo: skill.repo,
+    name: skill.name,
     title: skill.canonicalName,
     to: skill.registryPath,
     subtitle: `${skill.owner}/${skill.repo}`,
@@ -166,6 +168,8 @@ function memberRow(member: TrackMemberInput): TrendingBoardRow {
   return {
     key: member.registryPath,
     owner: member.owner,
+    repo: member.repo,
+    name: member.name,
     title: member.displayName || member.name,
     to: member.registryPath,
     subtitle: `${member.owner}/${member.repo}`,

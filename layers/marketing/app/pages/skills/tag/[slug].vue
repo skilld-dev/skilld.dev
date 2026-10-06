@@ -111,12 +111,7 @@ defineOgImage('Page.takumi', {
         v-for="s in skills"
         :key="`${s.owner}/${s.name}`"
       >
-        <SkillCard
-          :skill="s"
-          variant="grid"
-          signal="stars"
-          show-owner-path
-        />
+        <SkillCard :skill="s" />
       </li>
     </ul>
 

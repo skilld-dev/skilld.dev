@@ -50,15 +50,14 @@ describe('install copy', () => {
       await import('../../app/components/SkillCard.vue').then(module => module.default),
       {
         props: {
-          skill: { owner: 'antfu', repo: 'skills', name: 'vite', slug: 'antfu/vite', stars: 12 },
-          showLike: false,
+          skill: { owner: 'antfu', repo: 'skills', name: 'vite', registryPath: '/gh/antfu/skills/vite', stars: 12 },
         },
       },
     )
 
     const copyButton = wrapper.findAll('button')
-      .find(button => button.attributes('aria-label')?.includes('Copy run command'))
-    expect(copyButton, 'skill card copy button missing its run-command label').toBeTruthy()
+      .find(button => button.text().includes('Copy run command for /vite'))
+    expect(copyButton, 'skill card run pill missing its accessible name').toBeTruthy()
 
     await copyButton!.trigger('click')
     await flushPromises()

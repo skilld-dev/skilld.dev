@@ -17,13 +17,6 @@ const contributionSummary = computed(() => [
     ? `${creator.skillCount} ${creator.skillCount === 1 ? 'skill' : 'skills'}`
     : null,
 ].filter(Boolean).join(' · '))
-
-function formatStars(stars: number): string {
-  return new Intl.NumberFormat('en', {
-    notation: stars >= 1000 ? 'compact' : 'standard',
-    maximumFractionDigits: 1,
-  }).format(stars)
-}
 </script>
 
 <template>
@@ -113,38 +106,19 @@ function formatStars(stars: number): string {
         </span>
       </NuxtLink>
 
-      <NuxtLink
-        v-if="creator.topSkill"
-        :to="creator.topSkill.registryPath"
-        class="community-contribution group"
-      >
-        <span class="flex items-center justify-between gap-4">
-          <span class="font-mono text-sm uppercase tracking-widest text-muted">
-            Most starred skill
-          </span>
-          <UIcon
-            name="i-lucide-arrow-up-right"
-            class="size-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-            aria-hidden="true"
-          />
-        </span>
-        <span class="mt-4 block text-xl font-semibold leading-tight tracking-tight">
-          {{ creator.topSkill.displayName || creator.topSkill.name }}
-        </span>
-        <span class="mt-2 block font-mono text-sm text-muted">
-          {{ creator.topSkill.owner }}/{{ creator.topSkill.repo }}
-        </span>
-        <span
-          v-if="creator.topSkill.description"
-          class="mt-3 line-clamp-3 text-base leading-relaxed text-muted text-pretty"
-        >
-          {{ creator.topSkill.description }}
-        </span>
-        <span class="mt-auto flex items-center gap-2 pt-5 font-mono text-sm text-muted">
-          <UIcon name="i-lucide-star" class="size-4" aria-hidden="true" />
-          {{ formatStars(creator.topSkill.stars) }} GitHub {{ creator.topSkill.stars === 1 ? 'star' : 'stars' }}
-        </span>
-      </NuxtLink>
+      <section v-if="creator.topSkill" class="community-contribution community-contribution--skill" :aria-label="`Most starred skill by ${displayName}`">
+        <h3 class="font-mono text-sm uppercase tracking-widest text-muted">
+          Most starred skill
+        </h3>
+        <SkillCard
+          :skill="creator.topSkill"
+          layout="compact"
+          byline="repo"
+          description
+          surface="community-top-skill"
+          class="mt-4"
+        />
+      </section>
     </div>
   </article>
 </template>
@@ -249,7 +223,7 @@ function formatStars(stars: number): string {
 }
 
 @media (hover: hover) {
-  .community-contribution:hover {
+  .community-contribution:not(.community-contribution--skill):hover {
     background: var(--ui-bg-muted);
   }
 }

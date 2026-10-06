@@ -61,23 +61,6 @@ defineOgImage('Collection.takumi', {
 }, {
   alt: () => `${collectionOgProps.value?.name ?? 'Collection'} by @${login.value} on skilld`,
 })
-
-function collectionSkillPath(skill: { registryPath: string }) {
-  return skill.registryPath
-}
-
-function collectionSkillLabel(skill: { repo: string, name?: string | null }) {
-  return skill.name ? `/${skill.name}` : skill.repo
-}
-
-function collectionSkillTitle(skill: { repo: string, name?: string | null, displayName?: string | null }) {
-  return skill.displayName || collectionSkillLabel(skill)
-}
-
-function collectionSkillMeta(skill: { owner: string, repo: string, name?: string | null }) {
-  const source = `${skill.owner}/${skill.repo}`
-  return skill.name ? `${collectionSkillLabel(skill)} · ${source}` : source
-}
 </script>
 
 <template>
@@ -232,41 +215,55 @@ function collectionSkillMeta(skill: { owner: string, repo: string, name?: string
           <li
             v-for="(skill, index) in collection.skills"
             :key="`${skill.owner}/${skill.repo}/${skill.position}`"
-            class="group -mx-3 flex gap-3 px-3 py-5 transition-colors duration-200 hover:bg-elevated focus-within:bg-elevated sm:gap-4"
           >
-            <span class="data-label w-6 shrink-0 pt-3 text-right" aria-hidden="true">
-              {{ String(index + 1).padStart(2, '0') }}
-            </span>
-            <img
-              :src="githubAvatarProxyUrl(skill.owner, 64)"
-              alt=""
-              width="32"
-              height="32"
-              class="mt-1.5 size-8 shrink-0 rounded-md border border-default bg-muted"
-              loading="lazy"
-              decoding="async"
+            <SkillCard
+              v-if="skill.name"
+              :skill="{ ...skill, name: skill.name }"
+              layout="row"
+              :rank="index + 1"
+              :note="skill.reason"
+              metric="none"
+              surface="collection"
+            />
+            <!-- A whole Repository, not one Skill, so it keeps its own line. -->
+            <div
+              v-else
+              class="group -mx-3 flex gap-3 px-3 py-5 transition-colors duration-200 hover:bg-elevated focus-within:bg-elevated sm:gap-4"
             >
-            <div class="min-w-0 flex-1">
-              <NuxtLink
-                :to="collectionSkillPath(skill)"
-                class="inline-flex min-h-11 max-w-full items-center gap-2 font-mono text-sm font-medium transition-colors duration-200 hover:text-muted"
+              <span class="data-label w-6 shrink-0 pt-3 text-right" aria-hidden="true">
+                {{ String(index + 1).padStart(2, '0') }}
+              </span>
+              <img
+                :src="githubAvatarProxyUrl(skill.owner, 64)"
+                alt=""
+                width="32"
+                height="32"
+                class="mt-1.5 size-8 shrink-0 rounded-md border border-default bg-muted"
+                loading="lazy"
+                decoding="async"
               >
-                <span class="truncate">{{ collectionSkillTitle(skill) }}</span>
-                <UIcon
-                  name="i-lucide-arrow-right"
-                  class="size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-1 group-focus-within:translate-x-1"
-                  aria-hidden="true"
-                />
-              </NuxtLink>
-              <p class="data-label -mt-1 truncate">
-                {{ collectionSkillMeta(skill) }}
-              </p>
-              <p
-                v-if="skill.reason"
-                class="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base"
-              >
-                {{ skill.reason }}
-              </p>
+              <div class="min-w-0 flex-1">
+                <NuxtLink
+                  :to="skill.registryPath"
+                  class="inline-flex min-h-11 max-w-full items-center gap-2 font-mono text-sm font-medium transition-colors duration-200 hover:text-muted"
+                >
+                  <span class="truncate">{{ skill.displayName || skill.repo }}</span>
+                  <UIcon
+                    name="i-lucide-arrow-right"
+                    class="size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-1 group-focus-within:translate-x-1"
+                    aria-hidden="true"
+                  />
+                </NuxtLink>
+                <p class="data-label -mt-1 truncate">
+                  {{ skill.owner }}/{{ skill.repo }}
+                </p>
+                <p
+                  v-if="skill.reason"
+                  class="mt-3 max-w-2xl text-sm leading-relaxed text-muted sm:text-base"
+                >
+                  {{ skill.reason }}
+                </p>
+              </div>
             </div>
           </li>
         </ol>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrgProfile } from '#layers/registry/server/api/orgs/[owner].get'
+import type { SkillCardSkill } from '~/types/skill-card'
 import { entityRobots } from '#shared/entity-robots'
 import { avatarProxyUrl } from '#shared/image-proxy'
 import { authorBadgeInput } from '../../utils/author-badge'
@@ -151,6 +152,19 @@ function skillSourceUrl(skill: {
   const repo = githubSegment(skill.source_repo || skill.repo)
   const branch = githubSegment(skill.default_branch || 'main')
   return `https://github.com/${owner}/${repo}/blob/${branch}/${githubPath(skill.skill_path)}`
+}
+
+function profileSkill(skill: AuthorSkill): SkillCardSkill {
+  return {
+    owner: skill.owner,
+    repo: skill.repo,
+    name: skill.name,
+    registryPath: skill.registryPath,
+    description: cleanDescription(skill.description),
+    likeCount: skill.likeCount,
+    modifiedAt: skill.modified_at,
+    skillFileUrl: skillSourceUrl(skill),
+  }
 }
 
 function timestampDate(timestamp: number): Date {
@@ -395,66 +409,19 @@ defineOgImage('Curator.takumi', {
             <li
               v-for="s in visibleRepositorySkills(group)"
               :key="s.name"
-              class="border-b border-default py-4"
+              class="border-b border-default"
             >
-              <article class="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-                <div class="min-w-0">
-                  <NuxtLink
-                    :to="s.registryPath"
-                    class="group inline-flex min-h-11 max-w-full items-center gap-2 font-mono text-base font-medium transition-colors hover:text-muted"
-                  >
-                    <span class="truncate">{{ s.display_name || s.name }}</span>
-                    <UIcon
-                      name="i-lucide-arrow-up-right"
-                      class="size-4 shrink-0 text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                      aria-hidden="true"
-                    />
-                  </NuxtLink>
-                  <p
-                    v-if="cleanDescription(s.description)"
-                    class="mt-2 max-w-3xl text-base leading-relaxed text-muted text-pretty line-clamp-2"
-                  >
-                    {{ cleanDescription(s.description) }}
-                  </p>
-                  <p v-if="s.modified_at" class="mt-3 data-label">
-                    Updated
-                    <NuxtTime
-                      :datetime="timestampDate(s.modified_at)"
-                      locale="en"
-                      relative
-                      numeric="auto"
-                      relative-style="long"
-                      :title="true"
-                    />
-                  </p>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-1 md:justify-end">
-                  <LikeButton
-                    :owner="s.owner"
-                    :repo="s.repo"
-                    :name="s.name"
-                    :count="s.likeCount"
-                    variant="inline"
-                  />
-                  <BadgeEmbedControl
-                    v-bind="skillBadgeInput(group, s)"
-                  />
-                  <UButton
-                    v-if="skillSourceUrl(s)"
-                    :to="skillSourceUrl(s)!"
-                    target="_blank"
-                    rel="noopener"
-                    label="Read source"
-                    icon="i-lucide-file-code-2"
-                    color="neutral"
-                    variant="ghost"
-                    size="sm"
-                    class="min-h-11"
-                    :aria-label="`Read ${s.display_name || s.name} SKILL.md on GitHub (opens in new tab)`"
-                  />
-                </div>
-              </article>
+              <SkillCard
+                :skill="profileSkill(s)"
+                layout="row"
+                byline="none"
+                metric="updated"
+                surface="curator-profile"
+              >
+                <template #actions>
+                  <BadgeEmbedControl v-bind="skillBadgeInput(group, s)" />
+                </template>
+              </SkillCard>
             </li>
           </ul>
 

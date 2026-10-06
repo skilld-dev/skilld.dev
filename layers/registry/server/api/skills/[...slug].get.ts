@@ -20,6 +20,7 @@ import { parseSkillMd } from '../../utils/skill-md-render'
 import { findDuplicateGroupForSkill, findSkillWithRow } from '../../utils/skills-registry'
 import { tagLinkPath } from '../../utils/tag-quality'
 import { isSkillIndexable, noteAdmissionFallback, SKILL_INDEX_INPUT_COLUMNS_SQL } from '../../utils/trending-admission'
+import { parseSkillTrendingAwards, SKILL_TRENDING_AWARDS_SQL } from '../../utils/trending-awards'
 import { fetchUpstreamText } from '../../utils/upstream-text'
 
 interface FaqPayload { faqs: { question: string, answer: string }[] }
@@ -146,7 +147,8 @@ const DETAIL_COLUMNS_SQL = `r.forks, r.repo_created_at,
   s.rendered_status, s.rendered_raw, s.rendered_frontmatter, s.rendered_html,
   (SELECT sr.sha FROM skill_revisions sr
     WHERE sr.owner = s.owner AND sr.repo = s.repo AND sr.name = s.name
-    ORDER BY sr.modified_at DESC LIMIT 1) AS latest_revision_sha`
+    ORDER BY sr.modified_at DESC LIMIT 1) AS latest_revision_sha,
+  ${SKILL_TRENDING_AWARDS_SQL}`
 
 interface SkillDetailRow {
   // repo meta
@@ -177,6 +179,7 @@ interface SkillDetailRow {
   probe_exception: number | null
   admissions_populated: number | null
   repo_kind: string | null
+  trending_awards: string | null
   seo_index_reasons: string | null
   seo_index_synced_at: number | null
   curator_count: number | null
@@ -214,7 +217,7 @@ const skillDetailHandler = defineApiHandler({
 
     return cached({
       storage: useStorage('edge-cache'),
-      key: `skills:detail:v3:${slug.toLowerCase()}`,
+      key: `skills:detail:v4:${slug.toLowerCase()}`,
       ttlSeconds: DETAIL_CACHE_TTL,
       staleSeconds: DETAIL_CACHE_STALE_TTL,
       compute: () => loadSkillDetail(event, platform, slug),
@@ -328,11 +331,6 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
   }
   const allowedTools = parseAllowedTools(rendered.frontmatter)
   const capability = classifyAllowedTools(allowedTools)
-  const behaviors = skillPageBehaviors({
-    raw: rendered.raw,
-    assetPaths: assets.map(asset => asset.path),
-    source: { owner: source.owner, repo: source.repo, branch, skillPath: rendered.skillPath },
-  })
   const selectedAssets = selectSkillFiles(assets)
   // `rendered.*` describes the cached copy, which survives the file being
   // deleted upstream, so it can only ever say "we can still render this". The
@@ -346,6 +344,12 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     raw: rendered.raw,
   })
   const sourceGone = !sourceResolved && row.source_resolved === 0
+  const behaviors = skillPageBehaviors({
+    raw: rendered.raw,
+    assetPaths: assets.map(asset => asset.path),
+    // A deleted upstream file has nothing to link to.
+    source: { owner: source.owner, repo: source.repo, branch, skillPath: sourceGone ? null : rendered.skillPath },
+  })
   // `current_sha` is the blob sha of SKILL.md, not a commit, so it cannot pin a link.
   const sourceCommitSha = row.latest_revision_sha ?? null
   const pushedAtIso = epochToIso(row.pushed_at)
@@ -428,6 +432,8 @@ async function loadSkillDetail(event: H3Event, platform: Platform, slug: string)
     // Deliberately top-level, not under `seo`: likes are displayed and back
     // ?sort=likes, but never feed indexability or trust (ADR-0003).
     likeCount: row.like_count ?? 0,
+    // Best rank first. Display only, like likes: never trust or indexability (ADR-0011).
+    trendingAwards: parseSkillTrendingAwards(row.trending_awards),
     faqs: faqRow?.payload.faqs ?? [],
     summary: summaryRow?.payload?.text
       ? { text: summaryRow.payload.text }
