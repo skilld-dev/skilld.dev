@@ -10,11 +10,8 @@ import { withArtifactProblems } from '../../../utils/artifact-problem'
 import { findPrivateRepositoryAccess } from '../../../utils/private-access'
 import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
 import { enqueueArtifactBuild } from '../../../utils/queue'
+import { fetchAdmittedSkillIdentity, requestResolution } from '../../../utils/request-resolution'
 import { setSkillPageUrlHeader } from '../../../utils/skill-page'
-import {
-  createResolution,
-  resolutionRequestIdentity,
-} from '../../../utils/state'
 
 export default withArtifactProblems(defineApiHandler({
   schema: createResolutionRequestSchema,
@@ -36,14 +33,15 @@ export default withArtifactProblems(defineApiHandler({
           body.source.repository,
         )
       : { _tag: 'not-found' as const }
-    const accountId = privateAccess._tag === 'allowed' ? user!.id : undefined
-    const identity = await resolutionRequestIdentity(body.source, idempotencyKey, accountId)
-    const result = await createResolution(
-      platform.db,
-      body.source,
-      identity,
-      Math.floor(Date.now() / 1000),
-      privateAccess._tag === 'allowed'
+    const result = await requestResolution({
+      db: platform.db,
+      lookupAdmitted: fetchAdmittedSkillIdentity(event.context),
+      enqueue: resolutionId => enqueueArtifactBuild(platform.env, resolutionId),
+      now: () => Math.floor(Date.now() / 1000),
+    }, {
+      source: body.source,
+      idempotencyKey,
+      access: privateAccess._tag === 'allowed'
         ? {
             visibility: 'private',
             accountId: privateAccess.accountId,
@@ -51,7 +49,7 @@ export default withArtifactProblems(defineApiHandler({
             repositoryId: privateAccess.repositoryId,
           }
         : { visibility: 'public' },
-    )
+    })
     if (result._tag === 'idempotency-conflict') {
       throw createError({
         statusCode: 409,
@@ -80,9 +78,6 @@ export default withArtifactProblems(defineApiHandler({
         data: { code: problemCodeSchema.parse(result.row.error_code) },
       })
     }
-    if (result.row.state === 'requested')
-      await enqueueArtifactBuild(platform.env, result.row.id)
-
     const response = presentArtifactResolution(result.row)
     setResponseStatus(event, response.state === 'pending' ? 202 : 200)
     setHeader(event, 'cache-control', 'private, no-store')
