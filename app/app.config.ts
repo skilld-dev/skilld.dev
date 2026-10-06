@@ -41,5 +41,13 @@ export default {
         variant: 'outline',
       },
     },
+    prose: {
+      pre: {
+        slots: {
+          // The copy button sits over the first line, so long commands that wrap keep clear of it.
+          base: 'pe-12',
+        },
+      },
+    },
   },
 }
