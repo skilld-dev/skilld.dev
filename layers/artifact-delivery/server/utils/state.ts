@@ -26,7 +26,7 @@ import { canonicalJson, digestHex } from './encoding'
  * The signer also signs the policy before this one, so a deploy window fails
  * no run. Update `SIGNABLE_ARTIFACT_POLICIES` in `checks.ts` with each bump.
  */
-export const ARTIFACT_POLICY_VERSION = '2026-10-07.1'
+export const ARTIFACT_POLICY_VERSION = '2026-10-07.2'
 
 export const ACTIVE_BUILD_STATES = [
   'requested',

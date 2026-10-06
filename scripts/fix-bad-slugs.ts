@@ -18,7 +18,7 @@
 
 import { execFileSync } from 'node:child_process'
 import process from 'node:process'
-import { slugifySkillName } from '../server/utils/skill-frontmatter'
+import { slugifySkillName } from '../shared/skill-path'
 
 interface BadRow {
   owner: string

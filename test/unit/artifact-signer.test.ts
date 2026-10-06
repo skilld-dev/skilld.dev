@@ -289,8 +289,9 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
   const checks: CheckResult[] = options.checks ?? [
     { name: 'path-policy', version: '1', outcome: options.checkOutcome ?? 'pass', required: true },
     { name: 'agent-skills-spec', version: '2026-10-07', outcome: 'pass', required: false },
-    { name: 'credential-material', version: '1', outcome: 'pass', required: true },
+    { name: 'credential-material', version: '2', outcome: 'pass', required: true },
     { name: 'executable-files', version: '1', outcome: 'pass', required: false },
+    { name: 'omitted-files', version: '1', outcome: 'pass', required: false },
   ]
   const statement = encodeAttestationStatement({
     ...createAttestationStatement({
