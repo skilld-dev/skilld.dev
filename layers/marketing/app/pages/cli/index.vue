@@ -28,34 +28,8 @@ import SetupSnippet from '../../components/_SetupSnippet.vue'
 import { setupSnippets } from '../../utils/developer-setup'
 import { pageRobots } from '../../utils/page-admissions'
 
-/**
- * Every `--agent` value, copied from `skilld install --help` in skilld 3.6.0.
- * The CLI defines them in `crates/skilld-core/src/target.rs`. The site's
- * `AGENT_TARGETS` carries a confirm step for only some of them, so the count
- * comes from this list.
- */
-const CLI_AGENT_TARGETS = [
-  'claude-code',
-  'cursor',
-  'windsurf',
-  'cline',
-  'codex',
-  'github-copilot',
-  'gemini-cli',
-  'goose',
-  'amp',
-  'opencode',
-  'roo',
-  'antigravity',
-  'openclaw',
-  'hermes',
-  'kiro',
-  'kilo',
-  'droid',
-  'trae',
-  'zed',
-] as const
-const targetCount = CLI_AGENT_TARGETS.length
+/** Every `--agent` value of `skilld install --help`, mirrored in `AGENT_TARGETS`. */
+const targetCount = AGENT_TARGETS.length
 
 /** The README's example Skill. Its installed name is the last segment. */
 const EXAMPLE = { owner: 'antfu', repo: 'skills', skill: 'vue' } as const
@@ -320,11 +294,11 @@ const codeClass = 'font-mono text-xs text-default'
               </p>
               <ul class="mt-3 flex list-none flex-wrap gap-1.5 p-0" aria-label="Agent target values">
                 <li
-                  v-for="agent in CLI_AGENT_TARGETS"
-                  :key="agent"
+                  v-for="agent in AGENT_TARGETS"
+                  :key="agent.id"
                   class="rounded-sm border border-default px-1.5 py-0.5 font-mono text-xs text-toned"
                 >
-                  {{ agent }}
+                  {{ agent.id }}
                 </li>
               </ul>
               <AgentTargets class="mt-4" />
