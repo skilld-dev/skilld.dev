@@ -123,9 +123,17 @@ async function pinToCommit(
 }
 
 function emitServedEvent(report: ServedResolutionReport): void {
+  if (report._tag === 'hit') {
+    emitOperationalEvent(createWideEvent({
+      'operation': 'artifact-resolution-served',
+      'outcome': 'hit',
+      'artifact.reusedFrom': report.reusedFrom,
+    }), 'info')
+    return
+  }
   emitOperationalEvent(createWideEvent({
     operation: 'artifact-resolution-served',
-    outcome: report._tag,
-    ...(report._tag === 'hit' ? { 'artifact.reusedFrom': report.reusedFrom } : { reason: report.reason }),
+    outcome: 'miss',
+    reason: report.reason,
   }), 'info')
 }
