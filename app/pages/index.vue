@@ -519,27 +519,29 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
                   :description="!item.changeSummary"
                   surface="home-recent-updates"
                 />
-                <!-- A whole Repository changed, not one Skill, so it keeps its own line. -->
+                <!-- A whole Repository changed, not one Skill, so it gets its own line, drawn like the compact card beside it. -->
                 <NuxtLink
                   v-else
                   :to="repoHubPath(item.owner, item.repo)"
-                  class="home-freshness-row home-freshness-row--primary group"
+                  class="home-repo-row"
                 >
                   <img
                     :src="avatarProxyUrl(item.avatarUrl)"
                     alt=""
-                    width="36"
-                    height="36"
-                    class="home-freshness-avatar home-freshness-avatar--primary"
+                    width="28"
+                    height="28"
+                    class="home-repo-row__avatar"
                     loading="lazy"
                     decoding="async"
                   >
                   <span class="min-w-0 flex-1">
-                    <span class="home-freshness-row-title">{{ item.owner }}/{{ item.repo }}</span>
-                    <span class="home-freshness-row-description">{{ recentRepoDescription(item) }}</span>
+                    <span class="home-repo-row__name">{{ item.owner }}/{{ item.repo }}</span>
+                    <span class="home-repo-row__by">
+                      <span>{{ `${item.skillCount} ${item.skillCount === 1 ? 'skill' : 'skills'} changed` }}</span>
+                      <NuxtTime :datetime="item.occurredAt * 1000" locale="en" relative numeric="auto" relative-style="short" class="font-mono" />
+                    </span>
+                    <span class="home-repo-row__note">{{ recentRepoDescription(item) }}</span>
                   </span>
-                  <span class="home-freshness-time">{{ formatRelative(item.occurredAt) }}</span>
-                  <UIcon name="i-lucide-arrow-up-right" class="home-freshness-arrow size-4 shrink-0" aria-hidden="true" />
                 </NuxtLink>
               </li>
             </ul>
@@ -682,6 +684,78 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   margin-inline: 0;
   border-radius: 0;
   padding: 0.875rem 0.75rem;
+}
+
+/* A Repository line in the same feed, on the compact card's measures. */
+.home-repo-row {
+  display: flex;
+  min-inline-size: 0;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.875rem 0.75rem;
+  transition: background-color 200ms ease-out;
+}
+
+.home-repo-row:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .home-repo-row:hover {
+    background: var(--ui-bg-elevated);
+  }
+}
+
+.home-repo-row__avatar {
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 1px solid var(--ui-border);
+  border-radius: 9999px;
+  background: var(--ui-bg-muted);
+}
+
+.home-repo-row__name {
+  display: block;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-highlighted);
+}
+
+.home-repo-row__by {
+  display: flex;
+  min-inline-size: 0;
+  gap: 0.375rem;
+  margin-block-start: 0.0625rem;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  white-space: nowrap;
+  color: var(--ui-text-muted);
+}
+
+.home-repo-row__note {
+  display: -webkit-box;
+  margin-block-start: 0.375rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  color: var(--ui-text);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-repo-row {
+    transition: none;
+  }
 }
 
 /* Above the lifecycle band, so the search panel overlays it instead of sliding under. */

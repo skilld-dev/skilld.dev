@@ -9,6 +9,9 @@ import type { SkillCardView } from '~/types/skill-card'
  *
  * The dot stays stone until a visitor reaches for it, so a grid of cards
  * spends no rose at rest.
+ *
+ * If the clipboard refuses, the command appears beside the pill, selected,
+ * as the run chip does, so a visitor can still copy it with the keyboard.
  */
 const { run, title } = defineProps<{
   run: NonNullable<SkillCardView['run']>
@@ -17,9 +20,27 @@ const { run, title } = defineProps<{
 }>()
 
 const marching = ref(false)
+const refused = ref(false)
+const status = ref('')
+const commandRef = useTemplateRef<HTMLElement>('command')
+
+function selectCommand() {
+  const el = commandRef.value
+  const selection = window.getSelection()
+  if (el && selection)
+    selection.selectAllChildren(el)
+}
 
 async function onCopy() {
-  run.copy()
+  const result = await run.copy()
+  if (result._tag === 'error') {
+    refused.value = true
+    status.value = 'Selected. Copy it with your keyboard.'
+    await nextTick()
+    selectCommand()
+    return
+  }
+  status.value = 'Copied.'
   // Restart the march if a second copy lands before the first one ends.
   marching.value = false
   await nextTick()
@@ -30,24 +51,58 @@ async function onCopy() {
 </script>
 
 <template>
-  <button
-    type="button"
-    class="skill-run"
-    :class="[run.copied && 'skill-run--copied', marching && 'skill-run--march']"
-    :title="run.command"
-    @click.stop.prevent="onCopy"
-  >
-    <svg class="skill-run__edge" aria-hidden="true" focusable="false">
-      <rect width="100%" height="100%" rx="7.5" ry="7.5" @animationend="marching = false" />
-    </svg>
-    <span class="skill-run__dot" aria-hidden="true" />
-    <span aria-hidden="true">{{ run.copied ? 'copied' : 'run' }}</span>
-    <span class="sr-only">Copy run command for {{ title }}</span>
-    <span class="sr-only" aria-live="polite">{{ run.copied ? 'Copied.' : '' }}</span>
-  </button>
+  <span class="skill-run-wrap">
+    <button
+      type="button"
+      class="skill-run"
+      :class="[run.copied && 'skill-run--copied', marching && 'skill-run--march']"
+      :title="run.command"
+      @click.stop.prevent="onCopy"
+    >
+      <svg class="skill-run__edge" aria-hidden="true" focusable="false">
+        <rect width="100%" height="100%" rx="7.5" ry="7.5" @animationend="marching = false" />
+      </svg>
+      <span class="skill-run__dot" aria-hidden="true" />
+      <span aria-hidden="true">{{ run.copied ? 'copied' : 'run' }}</span>
+      <span class="sr-only">Copy run command for {{ title }}</span>
+    </button>
+    <code v-if="refused" ref="command" class="skill-run__manual">{{ run.command }}</code>
+    <span class="skill-run__status" :class="{ 'sr-only': !refused }" aria-live="polite">{{ status }}</span>
+  </span>
 </template>
 
 <style scoped>
+.skill-run-wrap {
+  position: relative;
+  display: inline-flex;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem 0.5rem;
+}
+
+/* Selected on a refused copy, so the keyboard can take it. */
+.skill-run__manual {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--ui-text);
+  user-select: all;
+}
+
+.skill-run__status {
+  flex-basis: 100%;
+  text-align: end;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--ui-text-muted);
+}
+
 .skill-run {
   --skill-run-dot: var(--ui-text-dimmed);
 

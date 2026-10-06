@@ -590,86 +590,6 @@
   border-bottom: 1px solid var(--ui-border);
 }
 
-.home-freshness-row {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0.75rem;
-  padding-inline: 0.75rem;
-  transition: background-color 200ms ease-out;
-}
-
-.home-freshness-row--primary {
-  min-block-size: 5rem;
-}
-
-.home-freshness-row--secondary {
-  min-block-size: 4.5rem;
-  padding-inline: 0.5rem;
-}
-
-.home-freshness-row:focus-visible {
-  z-index: 1;
-  outline: 2px solid var(--ui-color-primary-500) !important;
-  outline-offset: -3px !important;
-}
-
-.home-freshness-avatar {
-  flex: none;
-  border: 2px solid var(--ui-bg);
-  border-radius: 9999px;
-  outline: 1px solid var(--ui-border);
-  background: var(--ui-bg-muted);
-  object-fit: cover;
-}
-
-.home-freshness-avatar--primary {
-  width: 2.25rem;
-  height: 2.25rem;
-}
-
-.home-freshness-avatar--secondary {
-  width: 2rem;
-  height: 2rem;
-}
-
-.home-freshness-row-title,
-.home-freshness-row-description {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-freshness-row-title {
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.25rem;
-}
-
-.home-freshness-row-description {
-  margin-top: 0.125rem;
-  font-size: 0.8125rem;
-  line-height: 1.25rem;
-  color: var(--ui-text-muted);
-}
-
-.home-freshness-time {
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  line-height: 1rem;
-  color: var(--ui-text-muted);
-}
-
-.home-freshness-arrow {
-  color: var(--ui-text-muted);
-  transition: color 200ms ease-out;
-}
-
 .home-freshness-state {
   display: flex;
   min-width: 0;
@@ -715,16 +635,6 @@
   .home-freshness-secondary {
     border-inline-start: 1px solid var(--ui-border);
     padding-inline-start: 2rem;
-  }
-}
-
-@media (hover: hover) {
-  .home-freshness-row:hover {
-    background: var(--ui-bg-muted);
-  }
-
-  .home-freshness-row:hover .home-freshness-arrow {
-    color: var(--ui-text);
   }
 }
 
