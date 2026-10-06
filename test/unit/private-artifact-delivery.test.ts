@@ -556,7 +556,7 @@ function insertUser(db: import('better-sqlite3').Database, id: number, githubId:
 function requiredChecks() {
   return [
     { name: 'path-policy', version: '1', outcome: 'pass' as const, required: true },
-    { name: 'agent-skills-spec', version: '2026-08-20', outcome: 'pass' as const, required: true },
+    { name: 'agent-skills-spec', version: '2026-10-07', outcome: 'pass' as const, required: false },
     { name: 'credential-material', version: '1', outcome: 'pass' as const, required: true },
     { name: 'executable-files', version: '1', outcome: 'pass' as const, required: false },
   ]

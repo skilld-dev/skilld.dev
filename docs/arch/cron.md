@@ -2,7 +2,7 @@
 
 Generated from literal `defineScheduledTask` declarations. Run `pnpm cron:docs` after schedule changes.
 
-Tasks: 22. Unique Cloudflare triggers: 14.
+Tasks: 23. Unique Cloudflare triggers: 15.
 
 | Task | Cron | Source |
 | --- | --- | --- |
@@ -23,6 +23,7 @@ Tasks: 22. Unique Cloudflare triggers: 14.
 | `scheduled-cadence-watchdog` | `*/5 * * * *` | `server/tasks/scheduled-cadence-watchdog.ts` |
 | `send-digests` | `0 9 1 * *` | `layers/identity/server/tasks/send-digests.ts` |
 | `send-weekly` | `0 9 * * MON` | `layers/identity/server/tasks/send-weekly.ts` |
+| `sweep-skill-runs` | `7,22,37,52 * * * *` | `layers/artifact-delivery/server/tasks/sweep-skill-runs.ts` |
 | `sync-bsky-mentions` | `17 */2 * * *` | `layers/registry/server/tasks/sync-bsky-mentions.ts` |
 | `sync-github-skills` | `0 * * * *` | `layers/registry/server/tasks/sync-github-skills.ts` |
 | `sync-reviewed-skill-repos` | `*/5 * * * *` | `layers/registry/server/tasks/sync-reviewed-skill-repos.ts` |

@@ -42,6 +42,42 @@ export function isRegistrySkillPath(path: string): boolean {
 }
 
 /**
+ * The canonical copy among Skill folders that share one name, or null for none.
+ *
+ * Repositories copy one Skill into many places: Agent folders such as
+ * `.claude/skills/x` and `.cursor/skills/x`, and plugin mirrors such as
+ * `plugins/x/skills/x`. Measured 2026-10-07: pbakaus/impeccable has 20 copies,
+ * freshtechbro/claudedesignskills has 4. Each copy is the same Skill to its
+ * author, so a name must pick one copy, the same one every time.
+ *
+ * Folders are directories relative to the Repository root, with `.` for the
+ * root. The order is a total order, so the input order never matters:
+ *
+ * 1. A folder with no hidden segment wins. Hidden folders are Agent targets.
+ * 2. Fewer segments win. The root has none.
+ * 3. Code unit order decides the rest.
+ */
+export function canonicalSkillFolder(folders: readonly string[]): string | null {
+  const ranked = [...new Set(folders)].sort(compareSkillFolders)
+  return ranked[0] ?? null
+}
+
+function compareSkillFolders(left: string, right: string): number {
+  const leftSegments = left === '.' ? [] : left.split('/')
+  const rightSegments = right === '.' ? [] : right.split('/')
+  const hidden = Number(leftSegments.some(isHiddenSegment)) - Number(rightSegments.some(isHiddenSegment))
+  if (hidden !== 0)
+    return hidden
+  if (leftSegments.length !== rightSegments.length)
+    return leftSegments.length - rightSegments.length
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
+function isHiddenSegment(segment: string): boolean {
+  return segment.startsWith('.')
+}
+
+/**
  * A Markdown link into `.skilld/`, the local cache folder skilld v2 made.
  *
  * `./.skilld/` is the form the CLI wrote. A bare `.skilld/` link is the same

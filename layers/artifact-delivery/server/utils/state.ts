@@ -23,7 +23,7 @@ import { canonicalJson, digestHex } from './encoding'
  * commit produces. A ready build signed under another version is never reused,
  * so the bump also makes every commit load from GitHub once more.
  */
-export const ARTIFACT_POLICY_VERSION = '2026-08-20.1'
+export const ARTIFACT_POLICY_VERSION = '2026-10-07.1'
 
 export const ACTIVE_BUILD_STATES = [
   'requested',
@@ -79,6 +79,7 @@ const resolutionRowSchema = z.object({
   encryption_key_id: z.string().nullable(),
   error_code: z.string().nullable(),
   error_retryable: z.union([z.literal(0), z.literal(1)]).nullable(),
+  error_retry_after: z.number().int().positive().nullable().optional(),
   created_at: z.number().int(),
   updated_at: z.number().int(),
 })
@@ -268,8 +269,8 @@ export async function transitionResolution(
  * - `pinned`: the request names a commit, and no GitHub read has happened. It
  *   matches the commit, the owner and Repository name that GitHub reported for
  *   the ready build, and the Skill path. A Skill name matches only a build
- *   requested by that same name, because only a resolve by name proved that
- *   exactly one Skill in the commit has it.
+ *   requested by that same name, because a resolve by name picks one
+ *   canonical folder of that name in the commit, the same one every time.
  */
 export type ReadyBuildLookup
   = { _tag: 'resolved', source: ResolvedSource }
@@ -416,6 +417,7 @@ export function presentResolution(row: ResolutionRow): ResolutionResponse {
       resolutionId: row.id,
       code: problemCodeSchema.parse(row.error_code),
       retryable: row.error_retryable === 1,
+      ...(row.error_retryable === 1 && row.error_retry_after ? { retryAfterSeconds: row.error_retry_after } : {}),
     }
   }
   if (row.state === 'revoked') {

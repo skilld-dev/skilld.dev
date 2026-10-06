@@ -2,14 +2,21 @@ import type { ArtifactFile, CheckResult, ResolvedSource } from '../schemas/contr
 import type { ArtifactSourceFile } from './github-source'
 import { digestHex } from './encoding'
 
-const AGENT_SKILLS_CHECK_VERSION = '2026-08-20'
+/**
+ * 2026-10-07: the check became advisory. It still reports every finding, but
+ * no finding blocks delivery. The registry admits a Skill by its folder, so a
+ * frontmatter name, a long description or a missing field never changes which
+ * Skill runs. Safety checks stay required.
+ */
+const AGENT_SKILLS_CHECK_VERSION = '2026-10-07'
+const MAX_DESCRIPTION_CHARACTERS = 1024
 const PATH_POLICY_VERSION = '1'
 const CREDENTIAL_MATERIAL_VERSION = '1'
 const EXECUTABLE_FILES_VERSION = '1'
 
 const CURRENT_ARTIFACT_CHECKS = new Map([
   ['path-policy', { version: PATH_POLICY_VERSION, required: true }],
-  ['agent-skills-spec', { version: AGENT_SKILLS_CHECK_VERSION, required: true }],
+  ['agent-skills-spec', { version: AGENT_SKILLS_CHECK_VERSION, required: false }],
   ['credential-material', { version: CREDENTIAL_MATERIAL_VERSION, required: true }],
   ['executable-files', { version: EXECUTABLE_FILES_VERSION, required: false }],
 ])
@@ -68,12 +75,16 @@ export async function checkArtifactSource(
         const directoryName = source.skillPath === '.'
           ? source.repository
           : source.skillPath.split('/').at(-1)!
-        if (!frontmatter.name || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(frontmatter.name) || frontmatter.name.length > 64)
-          specFindings.push('The Skill name must use 1 to 64 lowercase letters, numbers, or single hyphens.')
+        if (!frontmatter.name)
+          specFindings.push('The frontmatter has no name.')
+        else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(frontmatter.name) || frontmatter.name.length > 64)
+          specFindings.push(`The frontmatter name \`${frontmatter.name.slice(0, 100)}\` must use 1 to 64 lowercase letters, numbers, or single hyphens.`)
         else if (frontmatter.name !== directoryName)
-          specFindings.push('The Skill name must match its directory name.')
-        if (!frontmatter.description || frontmatter.description.length > 1024)
-          specFindings.push('The Skill description must contain 1 to 1024 characters.')
+          specFindings.push(`The frontmatter name \`${frontmatter.name}\` does not match the folder \`${directoryName}\`.`)
+        if (!frontmatter.description)
+          specFindings.push('The frontmatter has no description.')
+        else if (frontmatter.description.length > MAX_DESCRIPTION_CHARACTERS)
+          specFindings.push(`The description has ${frontmatter.description.length.toLocaleString('en-US')} characters. The limit is ${MAX_DESCRIPTION_CHARACTERS.toLocaleString('en-US')}.`)
       }
     }
   }
@@ -81,8 +92,8 @@ export async function checkArtifactSource(
     ? {
         name: 'agent-skills-spec',
         version: AGENT_SKILLS_CHECK_VERSION,
-        outcome: 'fail',
-        required: true,
+        outcome: 'warn',
+        required: false,
         summary: 'The Skill does not match the Agent Skills specification.',
         findings: specFindings,
       }
@@ -90,7 +101,7 @@ export async function checkArtifactSource(
         name: 'agent-skills-spec',
         version: AGENT_SKILLS_CHECK_VERSION,
         outcome: 'pass',
-        required: true,
+        required: false,
       }
 
   const credentialFindings: string[] = []
@@ -190,11 +201,14 @@ function readSkillFrontmatter(raw: string): { name?: string, description?: strin
     if (key !== 'name' && key !== 'description')
       continue
     const value = line.slice(separator + 1).trim()
-    if (value === '>' || value === '|') {
-      const block: string[] = []
+    // A block scalar (`>`, `|-`, `>+2`) or a plain scalar that continues on
+    // indented lines. Reading `>-` as the value reported a two-character
+    // description for Skills whose description is over a thousand.
+    if (/^[>|][+-]?\d*$/.test(value) || value === '') {
+      const continued: string[] = []
       while (index + 1 < lines.length && /^\s+/.test(lines[index + 1]!))
-        block.push(lines[++index]!.trim())
-      values[key] = value === '>' ? block.join(' ').trim() : block.join('\n').trim()
+        continued.push(lines[++index]!.trim())
+      values[key] = continued.join(value.startsWith('|') ? '\n' : ' ').trim()
     }
     else {
       values[key] = value.replace(/^(['"])([\s\S]*)\1$/, '$2').trim()

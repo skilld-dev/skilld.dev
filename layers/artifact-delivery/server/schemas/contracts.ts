@@ -140,6 +140,8 @@ export const resolutionFailedSchema = z.object({
   resolutionId: resolutionIdSchema,
   code: problemCodeSchema,
   retryable: z.boolean(),
+  /** Seconds until the same request can work. skilld 3.2.0 and later read it. */
+  retryAfterSeconds: z.number().int().positive().optional(),
 }).strict()
 
 export const resolutionRevokedSchema = z.object({
