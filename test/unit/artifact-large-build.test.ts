@@ -31,7 +31,7 @@ const MIGRATIONS = [
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
   'migrations/0131_artifact_build_reuse.sql',
-  'migrations/0144_artifact_resolution_linked_files.sql',
+  'migrations/0145_artifact_resolution_linked_files.sql',
 ]
 const REPOSITORY_ID = 987654321
 const COMMIT = '0123456789abcdef0123456789abcdef01234567'

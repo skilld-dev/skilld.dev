@@ -194,7 +194,7 @@ describe('public GitHub Artifact source', () => {
     expect(resolution._tag).toBe('resolved')
     if (resolution._tag !== 'resolved')
       return
-    const loaded = await client.load(resolution.source)
+    const loaded = await client.load(resolution.source, { linkedFiles: false })
 
     expect(resolution.source).toMatchObject({ commitSha, treeSha: rootTreeSha })
     expect(loaded).toMatchObject({
@@ -242,7 +242,7 @@ describe('public GitHub Artifact source', () => {
     const fetchMock = sourceTreeFetch([blob('SKILL.md', skillBlobSha, skillText.length), unsafe])
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
     expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/git/blobs/'))).toBe(false)
@@ -264,7 +264,7 @@ describe('public GitHub Artifact source', () => {
     })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch, token: 'private-token' })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'SOURCE_ACCESS_DENIED' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -278,7 +278,7 @@ describe('public GitHub Artifact source', () => {
     ])
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({
       _tag: 'rejected',
@@ -332,7 +332,7 @@ describe('public GitHub Artifact source', () => {
     })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result._tag).toBe('loaded')
     if (result._tag === 'loaded')
@@ -347,7 +347,7 @@ describe('public GitHub Artifact source', () => {
     )
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
     expect(fetchMock.mock.calls.some(call => String(call[0]).includes('/git/blobs/'))).toBe(false)
@@ -370,7 +370,7 @@ describe('public GitHub Artifact source', () => {
     })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
   })
@@ -383,7 +383,7 @@ describe('public GitHub Artifact source', () => {
     ])
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const result = await client.load(resolvedSource())
+    const result = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(result).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
     if (result._tag === 'rejected')
@@ -395,7 +395,7 @@ describe('public GitHub Artifact source', () => {
     const fetchMock = sourceTreeFetch([blob('SKILL.md', skillBlobSha, changed.length)], undefined, false, changed)
     const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })
 
-    const loaded = await client.load(resolvedSource())
+    const loaded = await client.load(resolvedSource(), { linkedFiles: false })
     if (loaded._tag !== 'loaded')
       throw new Error('The load reads no bytes')
     const result = await readLoadedFiles(loaded.value)

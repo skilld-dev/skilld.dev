@@ -41,7 +41,7 @@ const MIGRATIONS = [
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
-  'migrations/0144_artifact_resolution_linked_files.sql',
+  'migrations/0145_artifact_resolution_linked_files.sql',
   'migrations/0131_artifact_build_reuse.sql',
 ]
 const REPOSITORY_ID = 123456789

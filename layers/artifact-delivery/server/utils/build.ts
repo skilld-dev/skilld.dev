@@ -32,6 +32,7 @@ import {
 import { checkArtifactSource, checksBlockArtifact, checksPermitSigning } from './checks'
 import { canonicalJson, digestHex } from './encoding'
 import { isRetryableProblem, storedFilesPassLoadRules } from './github-source'
+import { withRequesterFallback } from './requester-github'
 import {
   ARTIFACT_POLICY_VERSION,
   BYTE_COMPATIBLE_POLICY_VERSIONS,
@@ -49,6 +50,12 @@ export interface ArtifactBuildDependencies {
   db: D1Database
   github: PublicGithubSourceClient
   privateGithub?: (row: ResolutionRow) => Promise<PublicGithubSourceClient | SourceRejection>
+  /**
+   * The GitHub client of the signed-in account that asked for a public
+   * Resolution, or null. A build uses it only for a read the shared
+   * credential's quota refused, and only for that account's own Resolution.
+   */
+  requesterGithub?: (row: ResolutionRow) => Promise<PublicGithubSourceClient | null>
   bucket: R2Bucket
   privateArtifacts?: {
     put: (input: {
@@ -938,8 +945,12 @@ async function githubForResolution(
   dependencies: ArtifactBuildDependencies,
   row: ResolutionRow,
 ): Promise<PublicGithubSourceClient | SourceRejection> {
-  if (row.visibility === 'public')
-    return dependencies.github
+  if (row.visibility === 'public') {
+    const requesterGithub = dependencies.requesterGithub
+    return requesterGithub
+      ? withRequesterFallback(dependencies.github, () => requesterGithub(row))
+      : dependencies.github
+  }
   if (!dependencies.privateGithub) {
     return {
       _tag: 'rejected',

@@ -215,6 +215,7 @@ describe('syncRepo freshness cursor', () => {
       FROM repos WHERE owner = 'acme' AND repo = 'skills'
     `).get()
 
+    expect(github.getTree).toHaveBeenCalledWith('acme', 'skills', 'moved-tree', {})
     expect(result.status).toBe('failed')
     expect(result.reason).toBe('tree_truncated')
     expect(row).toEqual({

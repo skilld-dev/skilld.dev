@@ -23,7 +23,8 @@ const ARTIFACT_MIGRATIONS = [
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
-  'migrations/0144_artifact_resolution_linked_files.sql',
+  'migrations/0144_artifact_resolution_requesters.sql',
+  'migrations/0145_artifact_resolution_linked_files.sql',
 ]
 const resolutionRequest: SourceRequest = {
   provider: 'github',
@@ -86,7 +87,7 @@ describe('gitHub rate limits as values', () => {
       commitSha,
       treeSha: 'a'.repeat(40),
       skillPath: 'skills/demo',
-    })
+    }, { linkedFiles: false })
     if (loaded._tag !== 'loaded')
       throw new Error('The load needs no file bytes')
 
@@ -215,7 +216,7 @@ describe('gitHub secondary rate limits as values', () => {
       commitSha,
       treeSha: 'a'.repeat(40),
       skillPath: 'skills/demo',
-    })
+    }, { linkedFiles: false })
 
     if (loaded._tag !== 'loaded')
       throw new Error('The load needs no file bytes')

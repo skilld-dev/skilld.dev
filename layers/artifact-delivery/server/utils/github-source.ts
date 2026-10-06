@@ -229,7 +229,11 @@ export type LoadSourceResult
 
 export interface PublicGithubSourceClient {
   resolve: (request: SourceRequest) => Promise<ResolveSourceResult>
-  load: (source: ResolvedSource, options?: LoadOptions) => Promise<LoadSourceResult>
+  /**
+   * `options` is required, so a client that wraps another cannot drop it:
+   * #495's fallback once did, and no CLI got a linked file.
+   */
+  load: (source: ResolvedSource, options: LoadOptions) => Promise<LoadSourceResult>
 }
 
 /** One failed GitHub REST read. It never carries a token or a query string. */
@@ -748,7 +752,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         return listed
       const limits = expectedVisibility === 'private'
         ? PRIVATE_ARTIFACT_LIMITS
-        : { ...PUBLIC_ARTIFACT_LIMITS, maxLinkedBytes: loadOptions?.linkedFiles ? MAX_LINKED_BYTES : null }
+        : { ...PUBLIC_ARTIFACT_LIMITS, maxLinkedBytes: loadOptions.linkedFiles ? MAX_LINKED_BYTES : null }
       const selected = selectArtifactEntries(listed.entries, source.skillPath, limits)
       if (selected._tag === 'rejected')
         return selected

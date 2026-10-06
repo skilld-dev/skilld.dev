@@ -109,7 +109,7 @@ describe('loading a public Skill from the Repository archive', () => {
       visibility: 'private',
     })
 
-    const loaded = await client.load({ ...resolvedSource(), visibility: 'private' })
+    const loaded = await client.load({ ...resolvedSource(), visibility: 'private' }, { linkedFiles: false })
     if (loaded._tag !== 'loaded')
       throw new Error('The private load failed')
     const read = await readLoadedFiles(loaded.value)
@@ -123,7 +123,7 @@ describe('loading a public Skill from the Repository archive', () => {
     const fetchMock = sourceFetch({ submodule: true })
     const client = createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch })
 
-    const loaded = await client.load(resolvedSource())
+    const loaded = await client.load(resolvedSource(), { linkedFiles: false })
 
     expect(loaded).toMatchObject({
       _tag: 'rejected',
@@ -135,7 +135,7 @@ describe('loading a public Skill from the Repository archive', () => {
 })
 
 async function loadAndRead(fetchMock: ReturnType<typeof sourceFetch>) {
-  const loaded = await createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch }).load(resolvedSource())
+  const loaded = await createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch }).load(resolvedSource(), { linkedFiles: false })
   if (loaded._tag !== 'loaded')
     throw new Error(`The load failed: ${loaded.summary}`)
   return await readLoadedFiles(loaded.value)

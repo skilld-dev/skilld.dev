@@ -56,6 +56,7 @@ const liveUrl = computed(() => live && !demo.video ? demo.liveUrl : null)
         :src="liveUrl"
         sandbox="allow-scripts"
         :title="`Live output of /${demo.name}`"
+        loading="lazy"
         class="demo-stage__frame"
       />
       <DemoMedia v-else :demo :eager play="visible" />

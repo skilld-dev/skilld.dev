@@ -41,4 +41,20 @@ describe('github sync pause decision', () => {
       remaining: 200,
     })).toEqual({ _tag: 'continue' })
   })
+
+  it('names the GitHub bucket that ran low', () => {
+    expect(githubSyncPauseDecision({
+      now: 1_000,
+      owner: 'nuxt',
+      repo: 'ui',
+      unauthorized: false,
+      rateLimited: false,
+      remaining: 163,
+      resource: 'graphql',
+      resetAt: 2_000,
+    })).toMatchObject({
+      _tag: 'pause',
+      reason: 'nuxt/ui: 163 graphql requests remaining',
+    })
+  })
 })
