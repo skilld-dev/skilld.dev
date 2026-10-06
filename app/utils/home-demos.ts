@@ -111,7 +111,6 @@ export function demoCardSkill(demo: HomeDemoItem): SkillCardSkill {
   }
 }
 
-
 export interface DemoRecordingView {
   /** The Agent's logo, or a generic one for an Agent the site has no logo for. */
   icon: string
