@@ -1,7 +1,7 @@
 // @vitest-environment node
 import type { PostSegment } from '../../shared/trending-post'
 import { describe, expect, it } from 'vitest'
-import { postExcerpt, relativeDay, unstyled } from '../../shared/trending-post'
+import { postExcerpt, relativeDay } from '../../shared/trending-post'
 
 function plain(segments: PostSegment[]): string {
   return segments.map(s => s.value).join('')
@@ -86,39 +86,14 @@ describe('postExcerpt', () => {
     expect(text.length).toBeLessThan(80)
   })
 
-  it('drops emoji and keeps the words around them', () => {
-    const excerpt = postExcerpt({
-      text: '🎉 Celebrating 🎉 (500+ new stars) 📦 blader / humanizer ⭐️ 👨‍👩‍👧 🇦🇺',
-      names: [],
-      budget: 200,
-    })
-    expect(plain(excerpt)).toBe('Celebrating (500+ new stars) blader / humanizer')
-  })
-
-  it('keeps the digit of a keycap emoji', () => {
-    const excerpt = postExcerpt({ text: '1️⃣ Install\n2️⃣ Prompt', names: [], budget: 200 })
-    expect(plain(excerpt)).toBe('1 Install\n2 Prompt')
-  })
-
-  it('reads Unicode bold and italic letters as plain text', () => {
-    const excerpt = postExcerpt({
-      text: 'as long as you 𝘀𝗵𝗼𝘄 𝗶𝘁 𝘁𝗼𝗽-𝘁𝗶𝗲𝗿 design with 𝙝𝙪𝙢𝙖𝙣𝙞𝙯𝙚𝙧',
-      names: ['humanizer'],
-      budget: 200,
-    })
-    expect(plain(excerpt)).toBe('as long as you show it top-tier design with humanizer')
-    expect(mentions(excerpt)).toEqual(['humanizer'])
+  it('keeps every character it is given, so the server and the browser cut the same text', () => {
+    const text = '33.5k★ 🎉 𝘀𝗵𝗼𝘄 ☆☆'
+    expect(plain(postExcerpt({ text, names: [], budget: 200 }))).toBe(text)
   })
 
   it('returns the tidied text as one segment when no name matches', () => {
     expect(postExcerpt({ text: '  hello\n\nworld  ', names: ['absent-skill'], budget: 200 }))
       .toEqual([{ _tag: 'text', value: 'hello\nworld' }])
-  })
-})
-
-describe('unstyled', () => {
-  it('returns a display name as plain letters without emoji', () => {
-    expect(unstyled('𝗝𝗼𝗵𝗻 ⚡️').trim()).toBe('John')
   })
 })
 

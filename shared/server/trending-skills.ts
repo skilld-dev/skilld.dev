@@ -222,14 +222,44 @@ function compareFit(a: QuoteFit, b: QuoteFit): number {
   return Number(a.automated) - Number(b.automated) || a.breadth - b.breadth
 }
 
+/**
+ * Emoji, with the joiners, variation selectors, skin tones, flag letters and
+ * keycap marks that build them. A keycap keeps its digit.
+ */
+const EMOJI = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\p{Variation_Selector}\p{Enclosing_Mark}\u200D]/gu
+
+/**
+ * Post text as plain letters, without emoji, before it leaves the server.
+ *
+ * A quote is testimony set in the site's type, and emoji rows such as
+ * `🎉 Celebrating 🎉` were the loudest thing in a muted line. `NFKC` folds
+ * the letter styles posts use for emphasis, such as mathematical bold, back
+ * to plain letters.
+ *
+ * Done here, once, and never in the page. Which characters count as emoji
+ * depends on the engine's Unicode tables: Node 24 and Chrome 145 disagree
+ * about `★`. Stripping on both sides rendered different quote text on the
+ * server and in the browser, and every board failed hydration.
+ */
+function plainText(text: string): string {
+  return text
+    .normalize('NFKC')
+    .replace(EMOJI, '')
+    .split('\n')
+    .map(line => line.replace(/[ \t\xA0]+/g, ' ').trim())
+    .join('\n')
+    .trim()
+}
+
 function toEvidence(row: MentionRow): TrendingSkillEvidence {
   return {
     postId: row.post_id,
     url: postUrl(row),
     authorHandle: row.author_handle,
-    authorName: row.author_name ?? null,
+    // A name of emoji alone becomes no name, and the card shows the handle.
+    authorName: (row.author_name && plainText(row.author_name)) || null,
     authorAvatar: row.author_avatar ?? null,
-    text: row.text_extract,
+    text: plainText(row.text_extract),
     postedAt: row.posted_at,
     favouriteCount: row.favourite_count,
     platform: row.platform,

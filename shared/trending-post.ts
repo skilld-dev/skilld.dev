@@ -40,34 +40,17 @@ const SHORT_LINK = /\s*\(\s*https?:\/\/t\.co\/\w+\s*\)|\s*(?:[-–—:]\s*)?http
 /** Scheme and `www.` on any other link. The host and path are the useful part. */
 const LINK_PREFIX = /https?:\/\/(?:www\.)?/g
 
-/**
- * Emoji, with the joiners, variation selectors, skin tones, flag letters and
- * keycap marks that build them. A keycap keeps its digit.
- *
- * A quote is testimony set in the site's type. Emoji rows such as
- * `🎉 Celebrating 🎉 📦` read as the poster's styling, and they were the
- * loudest thing in a muted line.
- */
-const EMOJI = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\p{Variation_Selector}\p{Enclosing_Mark}\u200D]/gu
-
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
- * Text as plain letters, without emoji.
- *
- * `NFKC` folds the Unicode letter styles posts use for emphasis, such as
- * mathematical bold `𝘀𝗵𝗼𝘄`, back to plain letters. Those rendered as bold text
- * in the quote, and a Skill name written in them never matched. Spacing is
- * left to the caller.
+ * No Unicode property escapes or normalization here. Their tables differ
+ * between engines, and this runs on the server and in the browser; emoji
+ * and letter styles leave the post on the server, in `trending-skills.ts`.
  */
-export function unstyled(text: string): string {
-  return text.normalize('NFKC').replace(EMOJI, '')
-}
-
 function tidy(text: string): string {
-  return unstyled(text)
+  return text
     .replace(/\r\n?/g, '\n')
     .replace(SHORT_LINK, '')
     .replace(LINK_PREFIX, '')
