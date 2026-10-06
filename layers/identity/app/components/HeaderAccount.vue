@@ -44,7 +44,6 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
       v-else-if="state._tag === 'anonymous'"
       :to="signInTo"
       label="Sign in"
-      icon="i-lucide-github"
       color="neutral"
       variant="ghost"
       size="sm"
@@ -94,7 +93,6 @@ const accountItems = computed<DropdownMenuItem[]>(() => {
       v-else-if="state._tag === 'anonymous'"
       :to="signInTo"
       label="Sign in"
-      icon="i-lucide-github"
       color="neutral"
       variant="ghost"
       block

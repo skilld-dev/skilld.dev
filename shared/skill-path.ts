@@ -25,6 +25,28 @@ const NON_SKILL_FOLDERS: ReadonlySet<string> = new Set([
   'tests',
 ])
 
+const SLUGIFY_STRIP_RE = /[^a-z0-9-]+/g
+const SLUGIFY_DEDUPE_DASH_RE = /-+/g
+const SLUGIFY_TRIM_DASH_RE = /^-+|-+$/g
+
+/**
+ * The registry Skill name for a folder name, or for the Repository name when
+ * the Skill sits at the root.
+ *
+ * The registry admits a Skill under this name, and delivery finds a Skill by
+ * it, so both read it from this one function. Delivery used to compare the raw
+ * folder name: `better-auth/emailAndPassword` was listed as `emailandpassword`
+ * and no run could find it.
+ */
+export function slugifySkillName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(SLUGIFY_STRIP_RE, '')
+    .replace(SLUGIFY_DEDUPE_DASH_RE, '-')
+    .replace(SLUGIFY_TRIM_DASH_RE, '')
+}
+
 /**
  * True when a Git tree path is a SKILL.md the registry indexes.
  *
