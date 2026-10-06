@@ -22,7 +22,7 @@ These exact strings. Do not paraphrase them per page.
 | Tagline | Curated agent skills by humans. | guidance only: the five-word product summary. The homepage and its OG card use the Home H1 instead |
 | Site description | Curated agent skills by humans, written by real maintainers in their own GitHub repos | `nuxt.config.ts` site description (feeds every page's meta description) |
 | Elevator pitch | Skilld is a curated registry of agent skills written by real people in the GitHub repos you already depend on. One install command, every agent; watch your stack and get a digest when it changes. | guidance only: no page ships it yet (use it where two sentences fit) |
-| Home H1 | Agent skills for you and your agent | guidance only: the homepage H1, and the title of the homepage OG card. The page draws the rose brand dot as its full stop, so never type a period. The card types no full stop either, because its lockup dot is its one rose element. It breaks the line after "for you", as the page does. Its alt text is "skilld, agent skills for you and your agent" |
+| Home H1 | Agent skills for you and your agent | index H1, index OG image alt |
 | Home verb line | search · run · install · keep current | guidance only: the homepage line under the H1. Each verb links to its `/cli` section: `#search`, `#run`, `#install`, `#update` |
 | Home CLI link | The skilld CLI → | guidance only: the homepage link to `/cli` at the end of the verb line. The arrow is an icon |
 | Home caption | Try any skill before you install it. Your agent can search for its own. | guidance only: the homepage caption under the verb line. It assumes the reader knows what a Skill is, so it names only what sets skilld apart. "Search for its own" is the skilld Skill behind the promo label. The homepage OG card uses it as its description |
@@ -56,6 +56,8 @@ These exact strings. Do not paraphrase them per page.
 | Claim: telemetry | no telemetry | guidance only: the CLI. Its README states that it sends no telemetry or analytics. Never say it of the site, which keeps anonymous analytics |
 | Claim: privacy | analytics without cookies or IPs | guidance only: analytics and privacy copy. Never the bare "privacy-friendly" |
 | Claim: comparison | skills.sh alternative | guidance only: always a link to `/vs/skills-sh` |
+
+The homepage H1 is also the title of the homepage OG card. The page draws the rose brand dot as its full stop, so never type a period. The card types no full stop either, because its lockup dot is its one rose element. Both break the line after "for you".
 
 The homepage deck has no collection section. Its old heading, "Install a collection in one command.", is retired.
 

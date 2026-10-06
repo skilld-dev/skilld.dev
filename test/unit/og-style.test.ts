@@ -15,6 +15,11 @@ describe('ogEvenLines', () => {
       .toEqual(['Agent skills for you', 'and your agent'])
   })
 
+  it('collapses the line breaks body text brings with it', () => {
+    expect(ogEvenLines('Para one about the collection.\r\n\r\nPara two  goes here.', { fontSize: 28, face: 'body', lines: 2 }))
+      .toEqual(['Para one about the collection. Para two goes here.'])
+  })
+
   it('leaves text whole when it fits one line', () => {
     expect(ogEvenLines('The skilld CLI', { fontSize: 84, face: 'title', lines: 2 })).toEqual(['The skilld CLI'])
   })

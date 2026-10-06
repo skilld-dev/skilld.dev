@@ -35,18 +35,21 @@ export function ogTitleSize(text: string, options: { max: number, min: number, l
  * Splits text that needs two lines at the space that makes them closest in
  * length, so centred text never leaves one word alone. The renderer's own
  * `text-wrap: balance` shifts balanced lines off centre, so the card breaks
- * them itself. A line break in the text wins, for a title that should break
- * where its page breaks it. Text that fits one line, or needs more than
- * `lines`, comes back whole to wrap and clamp on its own.
+ * them itself. A line break in a title wins, for a title that should break
+ * where its page breaks it. Body text comes from bios, notes and textareas
+ * with line breaks of its own, so it collapses to one paragraph first. Text
+ * that fits one line, or needs more than `lines`, comes back whole to wrap
+ * and clamp on its own.
  */
 export function ogEvenLines(text: string, options: { fontSize: number, face: OgFace, lines: number }): string[] {
   const { fontSize, face, lines } = options
-  if (text.includes('\n'))
-    return text.split('\n').slice(0, lines)
-  const words = text.split(' ')
-  const needed = Math.ceil((text.length * FACE_EM[face] * fontSize) / OG_COLUMN_WIDTH)
+  if (face === 'title' && text.includes('\n'))
+    return text.split('\n').map(line => line.trim()).filter(Boolean).slice(0, lines)
+  const flat = text.replace(/\s+/g, ' ').trim()
+  const words = flat.split(' ')
+  const needed = Math.ceil((flat.length * FACE_EM[face] * fontSize) / OG_COLUMN_WIDTH)
   if (lines < 2 || needed !== 2 || words.length < 2)
-    return [text]
+    return [flat]
   let split = 1
   let longest = Number.POSITIVE_INFINITY
   for (let k = 1; k < words.length; k++) {
