@@ -142,8 +142,8 @@ const heroVerbs = [
  * `diagrams` was added and `research` was un-retired, both on these numbers.
  * See the header of clusters.ts.
  *
- * Re-measure before trusting this order past October. Method and numbers:
- * ~/scratch/notes/skilld-track-demand-2026-09-04.md
+ * Re-measure before trusting this order past October. The percentages
+ * below are each track's share of the weighted demand.
  */
 const TRACK_DEMAND_ORDER = [
   'design', // 16.5%

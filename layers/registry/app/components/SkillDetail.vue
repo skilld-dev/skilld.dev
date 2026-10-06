@@ -1045,9 +1045,8 @@ if (import.meta.server && pageState.value.status) {
 
 // 2026-08-22: the shared "A Claude Code skill for Cursor, Codex, and other
 // agents." suffix is gone. Identical boilerplate across 1,300+ meta
-// descriptions was the last scaled-content signature in Google snippets
-// (GOOGLE_RECOVERY.md). Provenance stays: "From owner/repo." carries the
-// unique part.
+// descriptions was the last scaled-content signature in Google snippets.
+// Provenance stays: "From owner/repo." carries the unique part.
 function withSeoContext(text: string, owner: string, repo: string, max = 200): string {
   const suffix = ` From ${owner}/${repo}.`
   const collapsed = text.replace(/\s+/g, ' ').trim()

@@ -46,8 +46,8 @@ export default defineNuxtConfig({
         '/_nuxt/v2/',
       )
     },
-    // 2026-08-22 agent lane (GOOGLE_RECOVERY.md): list the agent-only sitemap
-    // in llms.txt. The module's `notes` config exists but never renders, so
+    // 2026-08-22 agent lane, where agents discover pages without Google's
+    // sitemap: list the agent-only sitemap in llms.txt. The module's `notes` config exists but never renders, so
     // this pushes a link into the first section instead.
     'ai-ready:llms-txt': (payload: { sections?: { links?: { title: string, href: string, description?: string }[] }[], notes: string[] }) => {
       const section = payload.sections?.[0]
@@ -298,7 +298,6 @@ export default defineNuxtConfig({
     runtimeSync: true,
     // llms.txt is an index, not a dump: each entry links the page's .md.
     // The 28.5 MB llms-full.txt inline dump is retired below (routeRules).
-    // GOOGLE_RECOVERY.md, agent lane rework.
     llmsTxt: {
       markdownLinks: true,
     },
@@ -811,9 +810,9 @@ export default defineNuxtConfig({
   },
 
   sitemap: {
-    // `/learn` index is a 55-word card list, noindex since 2026-08-22
-    // (GOOGLE_RECOVERY.md). Articles stay indexable and sitemap-listed; only
-    // the bare index leaves. Global so no child sitemap can re-adopt it.
+    // `/learn` index is a 55-word card list, noindex since 2026-08-22 as a
+    // thin page. Articles stay indexable and sitemap-listed; only the bare
+    // index leaves. Global so no child sitemap can re-adopt it.
     exclude: ['/learn'],
     sitemaps: {
       pages: {
