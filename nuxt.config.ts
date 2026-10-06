@@ -738,6 +738,12 @@ export default defineNuxtConfig({
     viteEnvironmentApi: false,
   },
 
+  features: {
+    // Nuxt 4.6 emits unresolved inline-style chunks with this Rolldown graph.
+    // Load emitted CSS stylesheets instead.
+    inlineStyles: false,
+  },
+
   vite: {
     plugins: [dependencyPluginCompat()],
     $client: {

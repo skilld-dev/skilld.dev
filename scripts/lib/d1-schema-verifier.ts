@@ -129,8 +129,8 @@ export type CfJobsPackageVerificationResult
     | { _tag: 'fail', issues: PackageContractIssue[] }
 
 export const CF_JOBS_SCHEMA_CONTRACT = {
-  // The 0.2.6 distributed schema preserves these five indexes and predicates.
-  version: '0.2.6',
+  // The 0.3.0 distributed schema preserves these five indexes and predicates.
+  version: '0.3.0',
   indexes: [
     {
       name: 'idx_jobs_dispatchable',
