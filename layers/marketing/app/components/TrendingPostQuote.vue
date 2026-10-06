@@ -32,7 +32,15 @@ const segments = computed(() => postExcerpt({ text: post.text, names, budget: BU
 </template>
 
 <style scoped>
-/* Basis zero, so in a wrapping line it shrinks beside the faces rather than dropping below them. */
+/*
+ * Basis zero, so in a wrapping line it shrinks beside the faces rather than
+ * dropping below them.
+ *
+ * One step under the description above it: a size smaller, and nothing in
+ * it brighter than the muted ink but the Skill's own name. The handle in body
+ * ink and the mention in bold were the loudest things in the row, so the eye
+ * met a stranger's handle before it met what the Skill does.
+ */
 .post-quote {
   display: flex;
   flex: 1 1 0;
@@ -40,7 +48,7 @@ const segments = computed(() => postExcerpt({ text: post.text, names, budget: BU
   align-items: baseline;
   gap: 0.5rem;
   font-family: var(--font-sans);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   line-height: 1.25rem;
   color: var(--ui-text-muted);
 }
@@ -48,8 +56,7 @@ const segments = computed(() => postExcerpt({ text: post.text, names, budget: BU
 .post-quote__by {
   flex: none;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--ui-text);
+  font-size: 0.6875rem;
 }
 
 .post-quote__text {
@@ -68,8 +75,8 @@ const segments = computed(() => postExcerpt({ text: post.text, names, budget: BU
 
 .post-quote__mention {
   background: none;
-  font-weight: 600;
-  color: var(--ui-text);
+  font-weight: 500;
+  color: var(--ui-text-toned);
 }
 
 @media (prefers-reduced-motion: reduce) {

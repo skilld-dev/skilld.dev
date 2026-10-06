@@ -37,7 +37,10 @@ defineOgImage('Page.takumi', {
 }, { alt: 'skilld, agent skills for you and your agent' })
 
 /** Skills the trending section shows: the head of the week board. */
-const HOME_BOARD_ROWS = 3
+const HOME_BOARD_ROWS = 5
+
+/** Fewest Skills the section shows at all. */
+const HOME_BOARD_MIN_ROWS = 3
 
 const serverTimingHeader = useResponseHeader('Server-Timing')
 const homeDataStartedAt = performance.now()
@@ -124,7 +127,7 @@ const trendingBoard = computed(() =>
  * the homepage costs more attention than it returns. Counted from what the
  * server sent, so a dead avatar never hides the section after it rendered.
  */
-const showTrending = computed(() => (trendingData.value?.board.length ?? 0) >= HOME_BOARD_ROWS)
+const showTrending = computed(() => (trendingData.value?.board.length ?? 0) >= HOME_BOARD_MIN_ROWS)
 
 const weekBoardPath = trendingRangeMeta('week').path
 

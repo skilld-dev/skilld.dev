@@ -167,7 +167,7 @@ const legend = [
         Braille spark
       </h2>
       <p class="data-label mt-2">
-        Seven days as seven braille bars. Today is rose.
+        Seven days, one column of dots each. Today is rose.
       </p>
       <div class="mt-6 grid gap-6 md:grid-cols-2">
         <div>

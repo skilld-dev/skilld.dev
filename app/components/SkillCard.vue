@@ -166,7 +166,7 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   <div v-else-if="view.layout === 'row'" class="skill-card skill-card--row-shell">
     <div class="skill-card--row" :class="{ 'skill-card--ranked': rankText }" :style="{ '--skill-card-metric': metricWidth }">
       <span v-if="rankText" class="skill-card__rank skill-card__row-rank" :class="{ 'skill-card__rank--lead': rankLead }" aria-hidden="true">{{ rankText }}</span>
-      <SkillCardIdentity :view :size="36" :accent="markAccent" wrap class="skill-card__row-id" @avatar-error="emit('avatarError', view.owner)">
+      <SkillCardIdentity :view :size="36" :accent="markAccent" class="skill-card__row-id" @avatar-error="emit('avatarError', view.owner)">
         <template v-if="$slots.flag" #flag>
           <slot name="flag" />
         </template>
@@ -481,12 +481,15 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
 }
 
 /*
- * Wide: three zones, who, what and the facts. The facts column has fixed
- * parts, so every row in a list lines up.
+ * Wide: three zones, who, what and the facts. The who column stops at a
+ * fixed width and truncates the name: as a fraction of the row it grew with
+ * the screen, and on a wide board most of it was empty space between a short
+ * name and the words. The facts column has fixed parts, so every row in a
+ * list lines up.
  */
 @container skill-card-row (min-width: 40rem) {
   .skill-card--row {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.5fr) auto;
+    grid-template-columns: minmax(0, 17rem) minmax(12rem, 1fr) auto;
     grid-template-areas:
       'id body end'
       'id meta end'
@@ -497,7 +500,7 @@ const metricWidth = computed(() => view.value.metricKind === 'none' ? '0rem' : v
   }
 
   .skill-card--ranked {
-    grid-template-columns: 1.25rem minmax(0, 1.1fr) minmax(0, 1.5fr) auto;
+    grid-template-columns: 1.25rem minmax(0, 17rem) minmax(12rem, 1fr) auto;
     grid-template-areas:
       'rank id body end'
       'rank id meta end'
