@@ -1,8 +1,10 @@
-import type { ProblemCode, ResolvedSource, SourceRequest } from '../schemas/contracts'
+import type { LinkedArtifactFile, ProblemCode, ResolvedSource, SourceRequest } from '../schemas/contracts'
+import type { ArchiveReport } from './archive-reader'
+import type { PackedFile, SkillFileReader } from './artifact-pack'
 import type { GithubReadTry } from './github-read'
-import type { TarballExtraction } from './tarball-source'
 import { z } from 'zod'
 import { canonicalSkillFolder, isRegistrySkillPath, slugifySkillName } from '#shared/skill-path'
+import { createGithubArchiveReader } from './archive-reader'
 import { base64ToBytes, gitBlobShaHex } from './encoding'
 import { fetchNoRedirect } from './fetch-no-redirect'
 import {
@@ -14,13 +16,18 @@ import {
   isTruncatedBody,
   readGithubWithRetry,
 } from './github-read'
-import { extractSkillFilesFromTarball } from './tarball-source'
-import { projectedUstarBytes } from './ustar'
+import { compareArtifactPaths, projectedUstarBytes } from './ustar'
 
 const GITHUB_API = 'https://api.github.com'
 const GITHUB_API_VERSION = '2026-03-10'
 const MAX_GITHUB_JSON_BYTES = 8 * 1024 * 1024
-const MAX_TREE_ENTRIES = 2000
+/**
+ * Entries one Skill folder listing may hold, files and folders together. The
+ * recursive tree read answers up to 100,000 entries in one request, and the
+ * file limit below decides what a Skill may pack. It matches the skilld CLI's
+ * own ceiling for a direct GitHub read.
+ */
+const MAX_TREE_ENTRIES = 20_000
 const MAX_TREE_REQUESTS = 128
 /**
  * The tree reads one search by name may spend. Every read comes out of the
@@ -33,34 +40,82 @@ const MAX_NAME_SEARCH_TREE_READS = 64
 // time keep a split walk well inside a Worker's 128 MiB.
 const TREE_WALK_CONCURRENCY = 2
 const MAX_SKILL_PATH_SEGMENTS = 64
-// One invocation loads every blob once. With one repository read per load and
-// resolve, a handful of tree reads, the D1 state transitions and the R2 write,
-// 900 files is the largest ceiling that keeps the worst build inside the
-// Worker's 1000-subrequest budget.
-const MAX_ARTIFACT_FILES = 900
-const MAX_FILE_BYTES = 2 * 1024 * 1024
-const MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
-// A Repository tarball is one request that costs no REST quota, and it carries
-// every file of the Skill. Measured 2026-09-22 on a 33-Skill Repository: 3
-// counted requests and 0.45 s, against 6,525 requests and about 377 s per
-// blob. See notes/skilld-tarball-delivery-spike-2026-09-22.
-const TARBALL_REQUEST_TIMEOUT_MS = 60_000
+
 /**
- * The largest Git tree the tarball path will read for, in source bytes.
+ * The limits one Artifact build applies. ADR-0013 measures the constraint
+ * behind each one.
+ */
+export interface ArtifactLimits {
+  /** The packed archive. */
+  maxArchiveBytes: number
+  /** One file, or null when only the archive limit applies. */
+  maxFileBytes: number | null
+  /** Files the attestation lists, packed and linked together. */
+  maxFiles: number
+  /** Bytes the skilld CLI may read from GitHub as linked files, or null when it cannot. */
+  maxLinkedBytes: number | null
+}
+
+const MIB = 1024 * 1024
+
+/**
+ * A public build streams the Repository archive, so neither the Worker's
+ * memory nor its subrequests depend on the Skill size.
  *
- * The extracted files stay in the isolate until the Artifact is packaged, and
- * a Worker has 128 MiB. `MAX_ARTIFACT_BYTES` binds first for every Skill built
- * today; this ceiling states the memory budget the byte source itself has to
- * respect.
+ * - 64 MiB: the largest Artifact the skilld CLI downloads, from 3.0 on.
+ * - 2,000 files: the most files the skilld CLI accepts in an attestation.
  */
-export const TARBALL_MAX_TREE_BYTES = 128 * 1024 * 1024
+export const PUBLIC_ARTIFACT_LIMITS: ArtifactLimits = {
+  maxArchiveBytes: 64 * MIB,
+  maxFileBytes: null,
+  maxFiles: 2000,
+  maxLinkedBytes: null,
+}
+
 /**
- * The archive is the whole Repository, whose size no cheap request reveals:
- * codeload sends no `content-length` until that exact commit is cached, so the
- * only reliable guard is a running count with a hard stop. Measured: the stop
- * cancelled a 1.5 GiB archive after 64 MiB, 2.9 s and 390 ms of CPU.
+ * Linked files a skilld CLI that reads them may fetch from GitHub. It holds
+ * every Skill file in memory before it writes one, and GitHub refuses a file
+ * over 100 MiB in a Repository.
  */
-export const TARBALL_MAX_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
+export const MAX_LINKED_BYTES = 256 * MIB
+
+/**
+ * A private build reads one blob per request through the REST API and
+ * encrypts the archive in memory, so its limits are unchanged:
+ *
+ * - 900 files: one blob read each, inside the 1,000 subrequest budget.
+ * - 2 MiB a file and 10 MiB in all: the blob JSON and the in-memory archive.
+ */
+export const PRIVATE_ARTIFACT_LIMITS: ArtifactLimits = {
+  maxArchiveBytes: 10 * MIB,
+  maxFileBytes: 2 * MIB,
+  maxFiles: 900,
+  maxLinkedBytes: null,
+}
+
+/**
+ * The file list a statement may carry, estimated at 128 bytes a file plus its
+ * path. D1 stores a row of at most 2,000,000 bytes, and the Resolution row
+ * holds the check results, the statement, and the attestation, which repeats
+ * the statement and adds it again as base64. 384 KiB of files keeps that row
+ * under 1.9 MB with 100 KB of check results.
+ */
+const MAX_FILE_LIST_BYTES = 384 * 1024
+const FILE_LIST_ENTRY_BYTES = 128
+
+/**
+ * Uncompressed archive bytes one pass reads before it stops. Measured
+ * 2026-10-07: inflating and walking a GitHub archive costs 4 to 5 ms of CPU
+ * per MiB, so a full gigabyte is about 5 seconds against the consumer's 300.
+ * A pass stops after the last Skill file, so most read far less.
+ */
+export const ARCHIVE_MAX_UNCOMPRESSED_BYTES = 1024 * MIB
+
+/**
+ * Files one build may read from GitHub one by one: those the archive left
+ * out or changed. Each is a subrequest, and a store reads them again.
+ */
+const MAX_GITHUB_FILE_READS = 400
 
 const shaSchema = z.string().regex(/^[a-f0-9]{40}$/)
 const repositoryResponseSchema = z.object({
@@ -137,8 +192,18 @@ export interface OmittedArtifactFile {
 
 export interface LoadedArtifactSource {
   source: ResolvedSource
-  files: ArtifactSourceFile[]
+  /** The files the Artifact packs, in Artifact order. */
+  files: PackedFile[]
   omitted: OmittedArtifactFile[]
+  /** Files the attestation lists for the skilld CLI to read from GitHub. */
+  linked: LinkedArtifactFile[]
+  /** Streams the packed files' bytes. Each call reads them again. */
+  read: SkillFileReader
+}
+
+export interface LoadOptions {
+  /** The skilld CLI that asked reads linked files. */
+  linkedFiles: boolean
 }
 
 export interface SourceRejection {
@@ -160,7 +225,7 @@ export type LoadSourceResult
 
 export interface PublicGithubSourceClient {
   resolve: (request: SourceRequest) => Promise<ResolveSourceResult>
-  load: (source: ResolvedSource) => Promise<LoadSourceResult>
+  load: (source: ResolvedSource, options?: LoadOptions) => Promise<LoadSourceResult>
 }
 
 /** One failed GitHub REST read. It never carries a token or a query string. */
@@ -189,6 +254,8 @@ interface GithubClientOptions {
    * its SHA. Pass it to a public client only, so private trees stay out.
    */
   cache?: GithubObjectCache
+  /** Inflates the Repository archive. Workers use `DecompressionStream`. */
+  gunzip?: (body: ReadableStream<Uint8Array>) => ReadableStream<Uint8Array>
 }
 
 /**
@@ -643,7 +710,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       }
     },
 
-    async load(source) {
+    async load(source, loadOptions) {
       const repository = await requestJson(
         'repository',
         `/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}`,
@@ -675,91 +742,44 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const listed = await listTreeBounded(at.owner, at.repository, skillTree)
       if (listed._tag !== 'listed')
         return listed
-      const selected = selectArtifactEntries(listed.entries, source.skillPath)
+      const limits = expectedVisibility === 'private'
+        ? PRIVATE_ARTIFACT_LIMITS
+        : { ...PUBLIC_ARTIFACT_LIMITS, maxLinkedBytes: loadOptions?.linkedFiles ? MAX_LINKED_BYTES : null }
+      const selected = selectArtifactEntries(listed.entries, source.skillPath, limits)
       if (selected._tag === 'rejected')
         return selected
+      const files = selected.entries.map(packedFile)
       const omitted = selected.omitted.map(entry => ({
         path: entry.path,
         bytes: entry.size,
         url: githubBlobUrl(source, entry.path),
       }))
+      const linked = selected.linked.map(packedFile)
 
-      const choice = chooseArtifactByteSource({
-        visibility: source.visibility,
-        treeTruncated: listed.truncated,
-        totalBlobBytes: selected.entries.reduce((total, entry) => total + entry.size, 0),
-      })
-      if (choice._tag === 'tarball') {
-        const extracted = await loadFromTarball(source, at, selected.entries)
-        if (extracted._tag === 'extracted')
-          return { _tag: 'loaded', value: { source, files: extracted.files, omitted } }
-        // The blobs API reads one file per request against the same limit.
-        // Falling back would spend the most quota exactly when none is left.
-        if (extracted._tag === 'rate-limited')
-          return rateLimitRejection(extracted.resetAt)
-        // The tarball is an optimisation, never an authority. Anything it got
-        // wrong, including a file `.gitattributes export-ignore` removed from
-        // the archive, falls through to the blobs API, which serves every blob
-        // the tree names whatever the Repository's export attributes say.
-        console.warn('Artifact tarball source unusable, reading blobs', {
-          owner: source.owner,
-          repository: source.repository,
-          commitSha: source.commitSha,
-          skillPath: source.skillPath,
-          reason: extracted.reason,
-          findings: extracted.findings.slice(0, 20),
-        })
+      if (expectedVisibility === 'private') {
+        const fromBlobs = await loadFromBlobs(source, at, selected.entries)
+        if (fromBlobs._tag !== 'loaded')
+          return fromBlobs
+        return { _tag: 'loaded', value: { source, files, omitted, linked, read: bufferedReader(fromBlobs.files) } }
       }
-      const fromBlobs = await loadFromBlobs(source, at, selected.entries)
-      return fromBlobs._tag === 'loaded' ? { _tag: 'loaded', value: { source, files: fromBlobs.files, omitted } } : fromBlobs
+      // A public build reads the Repository archive from codeload and any file
+      // it lacks from raw.githubusercontent.com. Neither spends REST quota, and
+      // each file is checked against the blob digest the tree names.
+      const read = createGithubArchiveReader({
+        fetch: options.fetch,
+        owner: at.owner,
+        repository: at.repository,
+        commitSha: source.commitSha,
+        skillPath: source.skillPath,
+        files,
+        maxArchiveBytes: ARCHIVE_MAX_UNCOMPRESSED_BYTES,
+        budget: { githubReads: MAX_GITHUB_FILE_READS },
+        gunzip: options.gunzip,
+        report: report => reportArchive(source, report),
+        now,
+      })
+      return { _tag: 'loaded', value: { source, files, omitted, linked, read } }
     },
-  }
-
-  async function loadFromTarball(
-    source: ResolvedSource,
-    at: RepositoryName,
-    entries: Array<TreeEntry & { size: number }>,
-  ): Promise<TarballExtraction | GithubRateLimit> {
-    const headers = new Headers({
-      'Accept': 'application/vnd.github+json',
-      'User-Agent': 'skilld.dev',
-      'X-GitHub-Api-Version': GITHUB_API_VERSION,
-    })
-    if (options.token)
-      headers.set('Authorization', `Bearer ${options.token}`)
-    // This request redirects to codeload, so unlike every JSON read it follows
-    // redirects. The bytes it returns are verified against the tree digests,
-    // which is what makes an unauthenticated byte host acceptable.
-    const response = await options.fetch(
-      `${GITHUB_API}/repos/${encodeURIComponent(at.owner)}/${encodeURIComponent(at.repository)}/tarball/${source.commitSha}`,
-      { headers, redirect: 'follow', signal: AbortSignal.timeout(TARBALL_REQUEST_TIMEOUT_MS) },
-    ).catch((thrown: unknown) => {
-      // A refused connection or the request timeout lands here. The build has
-      // a complete second source, so it reports the reason and reads blobs.
-      return { _tag: 'threw' as const, message: String(thrown) }
-    })
-    if ('_tag' in response)
-      return { _tag: 'unusable', reason: 'unavailable', findings: [response.message] }
-    const limited = githubRateLimit(response, now())
-    if (limited) {
-      await response.body?.cancel()
-      return limited
-    }
-    if (!response.ok || !response.body) {
-      await response.body?.cancel()
-      return { _tag: 'unusable', reason: 'unavailable', findings: [`GitHub returned ${response.status}`] }
-    }
-    return await extractSkillFilesFromTarball({
-      body: response.body,
-      skillPath: source.skillPath,
-      entries: entries.map(entry => ({
-        path: entry.path,
-        gitBlobSha: entry.sha,
-        size: entry.size,
-        mode: artifactFileMode(entry.mode),
-      })),
-      maxUncompressedBytes: TARBALL_MAX_UNCOMPRESSED_BYTES,
-    })
   }
 
   async function loadFromBlobs(
@@ -801,37 +821,36 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
   }
 }
 
-export type ArtifactByteSource
-  = { _tag: 'tarball' }
-    | { _tag: 'per-blob', reason: 'private-repository' | 'tree-truncated' | 'tree-too-large' }
+/** The packed form of one tree entry. */
+function packedFile(entry: SizedEntry): PackedFile {
+  return { path: entry.path, mode: artifactFileMode(entry.mode), size: entry.size, gitBlobSha: entry.sha }
+}
 
-/**
- * Chooses the byte source from the one tree read the build already makes.
- *
- * A private Repository keeps the per-blob path. Its archive URL is a
- * pre-signed codeload link that expires five minutes after it is issued, and
- * GitHub does not document whether credentials belong on the redirected host.
- * Workers `fetch` follows that cross-host redirect itself, so neither question
- * has an answer we control or have observed. Public delivery is measured;
- * private delivery waits for a real test.
- *
- * A truncated tree means the Repository is large enough that GitHub would not
- * list it in one response, which is the same Repository whose archive is
- * expensive to stream. Nothing here reads `content-length`: codeload omits it
- * whenever the archive is generated cold, so it cannot gate anything.
- */
-export function chooseArtifactByteSource(input: {
-  visibility: 'public' | 'private'
-  treeTruncated: boolean
-  totalBlobBytes: number
-}): ArtifactByteSource {
-  if (input.visibility !== 'public')
-    return { _tag: 'per-blob', reason: 'private-repository' }
-  if (input.treeTruncated)
-    return { _tag: 'per-blob', reason: 'tree-truncated' }
-  if (input.totalBlobBytes > TARBALL_MAX_TREE_BYTES)
-    return { _tag: 'per-blob', reason: 'tree-too-large' }
-  return { _tag: 'tarball' }
+/** Serves files already in memory, in Artifact order. */
+function bufferedReader(files: ArtifactSourceFile[]): SkillFileReader {
+  const ordered = [...files].sort((left, right) => compareArtifactPaths(left.path, right.path))
+  return async (sink) => {
+    for (const file of ordered) {
+      await sink.begin({ path: file.path, mode: file.mode, size: file.bytes.byteLength, gitBlobSha: file.gitBlobSha }, 'github')
+      await sink.chunk(file.bytes)
+      const ended = await sink.end()
+      if (ended._tag === 'mismatch')
+        return ended
+    }
+    return { _tag: 'read' }
+  }
+}
+
+/** A Repository archive the build could not use for every file. The build still completes from GitHub. */
+function reportArchive(source: ResolvedSource, report: ArchiveReport): void {
+  console.warn('Artifact archive read stopped early', {
+    owner: source.owner,
+    repository: source.repository,
+    commitSha: source.commitSha,
+    skillPath: source.skillPath,
+    reason: report.reason,
+    detail: report.detail,
+  })
 }
 
 /**
@@ -870,22 +889,34 @@ function normalizeRequestedSkillPath(input: string): string | null {
 
 type SizedEntry = TreeEntry & { size: number }
 
+interface SelectedEntries {
+  _tag: 'selected'
+  /** Packed, in Artifact order. */
+  entries: SizedEntry[]
+  omitted: SizedEntry[]
+  linked: SizedEntry[]
+}
+
 /**
- * The blobs one Skill folder packs, the files it leaves out, or the rule that
+ * The blobs one Skill folder packs, links, and leaves out, or the rule that
  * refuses them.
  *
- * Every limit counts the Skill folder only. A file the Skill does not read,
- * such as music, video, an image, a binary, or a file in an example or test
- * folder, is left out when it is over a limit, and the rest of the Skill is
- * delivered: first each such file over the one-file limit, then the largest of
- * them until the folder fits. Only the files a Skill reads decide a refusal. A
- * Skill at the Repository root has the whole Repository as its folder, so its
- * README images are left out rather than counted against it.
+ * Every limit counts the Skill folder only. When a limit binds, files leave
+ * the archive largest first, so the fewest go:
+ *
+ * - A skilld CLI that reads linked files gets the largest files, other than
+ *   SKILL.md, as linked files. It reads each one from GitHub at the commit.
+ * - Any other CLI gets a file the Skill does not read left out: music, video,
+ *   an image, a binary, or a file in an example or test folder. Only the files
+ *   a Skill reads decide a refusal.
+ *
+ * A Skill at the Repository root has the whole Repository as its folder, so
+ * its README images leave rather than count against it.
  */
-function selectArtifactEntries(entries: TreeEntry[], skillPath: string): { _tag: 'selected', entries: SizedEntry[], omitted: SizedEntry[] } | SourceRejection {
+export function selectArtifactEntries(entries: TreeEntry[], skillPath: string, limits: ArtifactLimits): SelectedEntries | SourceRejection {
   const findings: string[] = []
   const identities = new Map<string, string>()
-  const blobs: Array<TreeEntry & { size: number }> = []
+  const blobs: SizedEntry[] = []
   for (const entry of entries) {
     if (!isSafeArtifactPath(entry.path))
       findings.push(entry.path)
@@ -916,24 +947,63 @@ function selectArtifactEntries(entries: TreeEntry[], skillPath: string): { _tag:
   const rootNote = skillPath === '.'
     ? ' The Skill folder is the Repository root, so every file in the Repository counts.'
     : ''
-  if (blobs.length > MAX_ARTIFACT_FILES)
-    return sourceLimitRejection(`${skillFolderLabel(skillPath)} has ${blobs.length} files. The limit is ${MAX_ARTIFACT_FILES}.`)
-  const oversizedText = blobs.filter(entry => entry.size > MAX_FILE_BYTES && isReadBySkill(entry.path))
-  if (oversizedText.length > 0) {
-    return sourceLimitRejection(
-      `The file \`${oversizedText[0]!.path}\` is ${mebibytes(oversizedText[0]!.size)}. The limit for one file is ${mebibytes(MAX_FILE_BYTES)}.${rootNote}`,
-      oversizedText.map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
-    )
+  const omitted: SizedEntry[] = []
+  const linked: SizedEntry[] = []
+  let kept = blobs
+
+  // One file over its own limit. Only a private build has one.
+  if (limits.maxFileBytes !== null) {
+    const maxFileBytes = limits.maxFileBytes
+    const oversizedText = kept.filter(entry => entry.size > maxFileBytes && isReadBySkill(entry.path))
+    if (oversizedText.length > 0) {
+      return sourceLimitRejection(
+        `The file \`${oversizedText[0]!.path}\` is ${mebibytes(oversizedText[0]!.size)}. The limit for one file is ${mebibytes(maxFileBytes)}.${rootNote}`,
+        oversizedText.map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
+      )
+    }
+    omitted.push(...kept.filter(entry => entry.size > maxFileBytes))
+    kept = kept.filter(entry => entry.size <= maxFileBytes)
   }
-  const omitted = blobs.filter(entry => entry.size > MAX_FILE_BYTES)
-  const kept = blobs.filter(entry => entry.size <= MAX_FILE_BYTES)
-  // Largest first, so the fewest files go. The path breaks ties, so one
-  // commit always omits the same files.
-  for (const media of largestFirst(kept.filter(entry => !isReadBySkill(entry.path)))) {
-    if (projectedUstarBytes(kept.map(entry => entry.size)) <= MAX_ARTIFACT_BYTES)
-      break
-    kept.splice(kept.indexOf(media), 1)
-    omitted.push(media)
+
+  // Too many files. A linked file still counts, so linking cannot help.
+  if (kept.length > limits.maxFiles) {
+    const unread = largestFirst(kept.filter(entry => !isReadBySkill(entry.path)))
+    const leaving = new Set(unread.slice(0, kept.length - limits.maxFiles))
+    omitted.push(...leaving)
+    kept = kept.filter(entry => !leaving.has(entry))
+    if (kept.length > limits.maxFiles) {
+      return sourceLimitRejection(
+        `${skillFolderLabel(skillPath)} has ${kept.length.toLocaleString('en-US')} files the Skill reads. The limit is ${limits.maxFiles.toLocaleString('en-US')}.${rootNote}`,
+      )
+    }
+  }
+
+  // Too many bytes for one archive.
+  const maxLinkedBytes = limits.maxLinkedBytes
+  if (projectedUstarBytes(kept.map(entry => entry.size)) > limits.maxArchiveBytes) {
+    const candidates = maxLinkedBytes === null
+      ? largestFirst(kept.filter(entry => !isReadBySkill(entry.path)))
+      : largestFirst(kept.filter(entry => entry.path !== 'SKILL.md'))
+    let packedBytes = projectedUstarBytes(kept.map(entry => entry.size))
+    let linkedBytes = 0
+    const leaving = new Set<SizedEntry>()
+    for (const entry of candidates) {
+      if (packedBytes <= limits.maxArchiveBytes)
+        break
+      if (maxLinkedBytes !== null && linkedBytes + entry.size <= maxLinkedBytes) {
+        linked.push(entry)
+        linkedBytes += entry.size
+      }
+      else if (!isReadBySkill(entry.path)) {
+        omitted.push(entry)
+      }
+      else {
+        continue
+      }
+      leaving.add(entry)
+      packedBytes -= projectedUstarBytes([entry.size]) - projectedUstarBytes([])
+    }
+    kept = kept.filter(entry => !leaving.has(entry))
   }
   // The signer checks `content_bytes` against this same ceiling, and
   // `content_bytes` is the packed archive rather than the sum of the blobs. A
@@ -941,16 +1011,24 @@ function selectArtifactEntries(entries: TreeEntry[], skillPath: string): { _tag:
   // the R2 write, with the signer's error instead of a named rejection. Guard
   // the number the signer will actually see.
   const projectedBytes = projectedUstarBytes(kept.map(entry => entry.size))
-  if (projectedBytes > MAX_ARTIFACT_BYTES) {
+  if (projectedBytes > limits.maxArchiveBytes) {
     return sourceLimitRejection(
-      `The files the Skill reads in ${skillFolderLabel(skillPath).replace(/^The /, 'the ')} pack to ${mebibytes(projectedBytes)}. The limit is ${mebibytes(MAX_ARTIFACT_BYTES)}.${rootNote}`,
+      `The files the Skill reads in ${skillFolderLabel(skillPath).replace(/^The /, 'the ')} pack to ${mebibytes(projectedBytes)}. The limit is ${mebibytes(limits.maxArchiveBytes)}.${rootNote}`,
       largestFirst(kept).map(entry => `${entry.path}: ${entry.size.toLocaleString('en-US')} bytes`),
+    )
+  }
+  const fileListBytes = [...kept, ...linked]
+    .reduce((total, entry) => total + FILE_LIST_ENTRY_BYTES + new TextEncoder().encode(entry.path).byteLength, 0)
+  if (fileListBytes > MAX_FILE_LIST_BYTES) {
+    return sourceLimitRejection(
+      `The file list of ${skillFolderLabel(skillPath).replace(/^The /, 'the ')} is too long to sign: ${(kept.length + linked.length).toLocaleString('en-US')} files with long paths.${rootNote}`,
     )
   }
   return {
     _tag: 'selected',
-    entries: kept.sort((a, b) => comparePath(a.path, b.path)),
-    omitted: omitted.sort((a, b) => comparePath(a.path, b.path)),
+    entries: kept.sort((a, b) => compareArtifactPaths(a.path, b.path)),
+    omitted: omitted.sort((a, b) => compareArtifactPaths(a.path, b.path)),
+    linked: linked.sort((a, b) => compareArtifactPaths(a.path, b.path)),
   }
 }
 
@@ -1088,8 +1166,8 @@ export function storedFilesPassLoadRules(files: ArtifactSourceFile[], skillPath:
     sha: file.gitBlobSha,
     size: file.bytes.byteLength,
   }))
-  const selected = selectArtifactEntries(entries, skillPath)
-  return selected._tag === 'selected' && selected.omitted.length === 0
+  const selected = selectArtifactEntries(entries, skillPath, PUBLIC_ARTIFACT_LIMITS)
+  return selected._tag === 'selected' && selected.omitted.length === 0 && selected.linked.length === 0
 }
 
 function skillFolderLabel(skillPath: string): string {

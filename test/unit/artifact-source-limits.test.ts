@@ -1,75 +1,191 @@
 import type { ArtifactSourceFile } from '../../layers/artifact-delivery/server/utils/github-source'
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { createPublicGithubSourceClient } from '../../layers/artifact-delivery/server/utils/github-source'
+import {
+  createPublicGithubSourceClient,
+  MAX_LINKED_BYTES,
+  PRIVATE_ARTIFACT_LIMITS,
+  PUBLIC_ARTIFACT_LIMITS,
+  selectArtifactEntries,
+} from '../../layers/artifact-delivery/server/utils/github-source'
 import { createDeterministicUstar, projectedUstarBytes } from '../../layers/artifact-delivery/server/utils/ustar'
 
+const MIB = 1024 * 1024
 const commitSha = '0123456789abcdef0123456789abcdef01234567'
 const rootTreeSha = '89abcdef0123456789abcdef0123456789abcdef'
 const skillsTreeSha = '1111111111111111111111111111111111111111'
 const skillTreeSha = '2222222222222222222222222222222222222222'
 const skillText = '---\nname: demo\ndescription: Use this Skill for demo work.\n---\n'
 const skillBlobSha = gitBlobSha(skillText)
+const linking = { ...PUBLIC_ARTIFACT_LIMITS, maxLinkedBytes: MAX_LINKED_BYTES }
 
-describe('artifact source size guards', () => {
-  it('accepts a Skill with more files than the old 256 ceiling', async () => {
-    const client = createPublicGithubSourceClient({
-      fetch: skillTreeFetch(skillEntries(300)) as unknown as typeof fetch,
-    })
+describe('public Artifact limits', () => {
+  it('packs music over the old 2 MiB file limit, as latent-spaces/brag needs for its films', async () => {
+    const loaded = await load([
+      ['assets/music/track-1.mp3', 2_107_000],
+      ['assets/music/track-2.mp3', 3_936_384],
+      ['scripts/render.ts', 4_000],
+    ])
 
-    const loaded = await client.load(resolvedSource())
-
-    expect(loaded._tag).toBe('loaded')
+    expect(loaded).toMatchObject({ _tag: 'loaded', value: { omitted: [], linked: [] } })
     if (loaded._tag !== 'loaded')
       return
-    expect(loaded.value.files).toHaveLength(300)
+    expect(loaded.value.files.map(file => file.path)).toEqual([
+      'SKILL.md',
+      'assets/music/track-1.mp3',
+      'assets/music/track-2.mp3',
+      'scripts/render.ts',
+    ])
   })
 
-  it('rejects a Skill past the file ceiling by name', async () => {
-    const client = createPublicGithubSourceClient({
-      fetch: skillTreeFetch(skillEntries(901)) as unknown as typeof fetch,
-    })
+  it('packs a Skill that fills the 64 MiB archive', () => {
+    // 63 files of 1 MiB and SKILL.md pack to 63 MiB and 33 KiB.
+    const selected = selectArtifactEntries(skillWith(Array.from({ length: 63 }, (_, index) => [`assets/clip-${index}.mp4`, MIB])), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
 
-    const loaded = await client.load(resolvedSource())
+    expect(selected).toMatchObject({ _tag: 'selected', omitted: [], linked: [] })
+  })
 
-    expect(loaded).toMatchObject({
+  it('packs 2,000 files, over the old 900', () => {
+    const selected = selectArtifactEntries(skillWith(Array.from({ length: 1999 }, (_, index) => [`references/entry-${index}.md`, 100])), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
+
+    expect(selected).toMatchObject({ _tag: 'selected', omitted: [] })
+    if (selected._tag === 'selected')
+      expect(selected.entries).toHaveLength(2000)
+  })
+
+  it('leaves files the Skill does not read out, largest first, until 2,000 files remain', () => {
+    const selected = selectArtifactEntries(skillWith([
+      ...Array.from({ length: 1990 }, (_, index) => [`references/entry-${index}.md`, 100] as const),
+      ...Array.from({ length: 20 }, (_, index) => [`assets/frame-${index}.png`, 1_000 + index] as const),
+    ]), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
+
+    expect(selected._tag).toBe('selected')
+    if (selected._tag !== 'selected')
+      return
+    expect(selected.entries).toHaveLength(2000)
+    expect(selected.omitted.map(entry => entry.path).sort()).toEqual(
+      Array.from({ length: 11 }, (_, index) => `assets/frame-${19 - index}.png`).sort(),
+    )
+  })
+
+  it('refuses more files the Skill reads than the CLI accepts', () => {
+    const selected = selectArtifactEntries(skillWith(Array.from({ length: 2000 }, (_, index) => [`references/entry-${index}.md`, 100])), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
+
+    expect(selected).toMatchObject({
       _tag: 'rejected',
       code: 'INVALID_SOURCE',
-      summary: 'The Skill folder `skills/demo` has 901 files. The limit is 900.',
+      summary: 'The Skill folder `skills/demo` has 2,001 files the Skill reads. The limit is 2,000.',
     })
   })
 
-  it('rejects a Skill whose packaged archive would exceed the ceiling, though its files do not', async () => {
-    // 900 files of 11,000 bytes is 9,900,000 source bytes, inside the 10 MiB
-    // ceiling. Each file costs a 512-byte header plus padding to the next
-    // 512-byte block, so the archive lands at 10,599,424 bytes, outside it.
-    const entries = Array.from({ length: 900 }, (_, index) =>
-      blob(index === 0 ? 'SKILL.md' : `references/entry-${index}.md`, skillBlobSha, 11_000))
-    const client = createPublicGithubSourceClient({
-      fetch: skillTreeFetch(entries) as unknown as typeof fetch,
+  it('leaves the largest media out until the archive fits 64 MiB, for a CLI without linked files', () => {
+    // thvroyal/kimi-skills/kimi-xlsx: one 73 MiB binary beside its scripts.
+    const selected = selectArtifactEntries(skillWith([
+      ['scripts/KimiXlsx', 77_001_601],
+      ['scripts/run.py', 4_000],
+    ]), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
+
+    expect(selected).toMatchObject({
+      _tag: 'selected',
+      omitted: [{ path: 'scripts/KimiXlsx', size: 77_001_601 }],
+      linked: [],
     })
+  })
 
-    const loaded = await client.load(resolvedSource())
+  it('refuses text the Skill reads that packs over 64 MiB', () => {
+    const selected = selectArtifactEntries(skillWith(Array.from({ length: 5 }, (_, index) => [`references/part-${index}.md`, 14 * MIB])), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
 
-    expect(loaded).toMatchObject({
+    expect(selected).toMatchObject({
       _tag: 'rejected',
       code: 'INVALID_SOURCE',
-      summary: 'The files the Skill reads in the Skill folder `skills/demo` pack to 10.11 MiB. The limit is 10 MiB.',
+      summary: 'The files the Skill reads in the Skill folder `skills/demo` pack to 70.01 MiB. The limit is 64 MiB.',
     })
   })
 
-  it('names the text file over the one-file limit and its size', async () => {
-    const entries = [
-      blob('SKILL.md', skillBlobSha, skillText.length),
-      blob('references/api.md', skillBlobSha, 2_153_066),
-    ]
-    const client = createPublicGithubSourceClient({
-      fetch: skillTreeFetch(entries) as unknown as typeof fetch,
-    })
+  it('refuses a file list too long to sign in one D1 row', () => {
+    const longName = 'a'.repeat(400)
+    const selected = selectArtifactEntries(skillWith(Array.from({ length: 1500 }, (_, index) => [`references/${longName}-${index}.md`, 10])), 'skills/demo', PUBLIC_ARTIFACT_LIMITS)
 
-    const loaded = await client.load(resolvedSource())
+    expect(selected).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
+    if (selected._tag === 'rejected')
+      expect(selected.summary).toMatch(/too long to sign/)
+  })
+
+  it('leaves media out of a root Skill, so the README images never block it', async () => {
+    const loaded = await load([['docs/assets/interactive-motion.gif', 70 * MIB]], 'root')
 
     expect(loaded).toMatchObject({
+      _tag: 'loaded',
+      value: {
+        omitted: [{
+          path: 'docs/assets/interactive-motion.gif',
+          bytes: 70 * MIB,
+          url: `https://github.com/skilld-dev/skills/blob/${commitSha}/docs/assets/interactive-motion.gif`,
+        }],
+      },
+    })
+  })
+})
+
+describe('linked files', () => {
+  it('links the largest files instead of leaving them out, for a CLI that reads them', async () => {
+    const loaded = await load([
+      ['scripts/KimiXlsx', 77_001_601],
+      ['scripts/run.py', 4_000],
+    ], 'skills/demo', true)
+
+    expect(loaded).toMatchObject({
+      _tag: 'loaded',
+      value: {
+        omitted: [],
+        linked: [{ path: 'scripts/KimiXlsx', mode: 420, size: 77_001_601 }],
+      },
+    })
+    if (loaded._tag === 'loaded')
+      expect(loaded.value.files.map(file => file.path)).toEqual(['SKILL.md', 'scripts/run.py'])
+  })
+
+  it('links text the Skill reads when that is what keeps the archive over 64 MiB', () => {
+    const selected = selectArtifactEntries(skillWith(Array.from({ length: 5 }, (_, index) => [`references/part-${index}.md`, 14 * MIB])), 'skills/demo', linking)
+
+    expect(selected._tag).toBe('selected')
+    // Equal sizes leave in path order, so one commit always links the same file.
+    if (selected._tag === 'selected')
+      expect(selected.linked.map(entry => entry.path)).toEqual(['references/part-0.md'])
+  })
+
+  it('never links SKILL.md', () => {
+    const selected = selectArtifactEntries([blob('SKILL.md', skillBlobSha, 70 * MIB)], 'skills/demo', linking)
+
+    expect(selected).toMatchObject({ _tag: 'rejected', code: 'INVALID_SOURCE' })
+  })
+
+  it('leaves media out once the linked bytes reach their limit', () => {
+    const selected = selectArtifactEntries(skillWith([
+      ...Array.from({ length: 3 }, (_, index) => [`assets/film-${index}.mp4`, 95 * MIB] as const),
+      ['assets/poster.png', 30 * MIB],
+    ]), 'skills/demo', linking)
+
+    expect(selected._tag).toBe('selected')
+    if (selected._tag !== 'selected')
+      return
+    expect(selected.linked.map(entry => entry.path)).toEqual(['assets/film-0.mp4', 'assets/film-1.mp4'])
+    expect(selected.omitted.map(entry => entry.path)).toEqual(['assets/film-2.mp4'])
+    expect(selected.entries.map(entry => entry.path)).toEqual(['SKILL.md', 'assets/poster.png'])
+  })
+
+  it('links nothing when the Skill fits, so every CLI gets the same Artifact', () => {
+    const selected = selectArtifactEntries(skillWith([['assets/track.mp3', 4 * MIB]]), 'skills/demo', linking)
+
+    expect(selected).toMatchObject({ _tag: 'selected', linked: [], omitted: [] })
+  })
+})
+
+describe('private Artifact limits', () => {
+  it('names the text file over the one-file limit and its size', () => {
+    const selected = selectArtifactEntries(skillWith([['references/api.md', 2_153_066]]), 'skills/demo', PRIVATE_ARTIFACT_LIMITS)
+
+    expect(selected).toMatchObject({
       _tag: 'rejected',
       code: 'INVALID_SOURCE',
       summary: 'The file `references/api.md` is 2.06 MiB. The limit for one file is 2 MiB.',
@@ -77,125 +193,35 @@ describe('artifact source size guards', () => {
     })
   })
 
-  it('says that a root Skill counts every file in the Repository', async () => {
-    const entries = [
-      blob('SKILL.md', skillBlobSha, skillText.length),
-      blob('docs/data/catalog.json', skillBlobSha, 2_479_001),
-    ]
-    const client = createPublicGithubSourceClient({
-      fetch: rootTreeFetch(entries) as unknown as typeof fetch,
-    })
+  it('says that a root Skill counts every file in the Repository', () => {
+    const selected = selectArtifactEntries(skillWith([['docs/data/catalog.json', 2_479_001]]), '.', PRIVATE_ARTIFACT_LIMITS)
 
-    const loaded = await client.load({ ...resolvedSource(), skillPath: '.' })
-
-    expect(loaded).toMatchObject({
+    expect(selected).toMatchObject({
       _tag: 'rejected',
-      code: 'INVALID_SOURCE',
       summary: 'The file `docs/data/catalog.json` is 2.37 MiB. The limit for one file is 2 MiB. The Skill folder is the Repository root, so every file in the Repository counts.',
     })
   })
-})
 
-describe('a Skill with media over the size limits', () => {
-  it('leaves each media file over the one-file limit out and delivers the rest', async () => {
-    // latent-spaces/brag/brag: its films use four music files of 2.01 to 3.76 MiB.
-    const served = servedSkill([
-      ['assets/music/track-1.mp3', 2_107_000],
-      ['assets/music/track-2.mp3', 3_936_384],
-      ['scripts/render.ts', 4_000],
-      ['scripts/KimiXlsx', 2_200_000],
-    ])
-
-    const loaded = await createPublicGithubSourceClient({ fetch: served as unknown as typeof fetch }).load(resolvedSource())
-
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
-      return
-    expect(loaded.value.files.map(file => file.path)).toEqual(['SKILL.md', 'scripts/render.ts'])
-    expect(loaded.value.omitted).toEqual([
-      omission('assets/music/track-1.mp3', 2_107_000),
-      omission('assets/music/track-2.mp3', 3_936_384),
-      omission('scripts/KimiXlsx', 2_200_000),
-    ])
-  })
-
-  it('leaves the largest media out until the folder fits', async () => {
-    // tt-a1i/archify packs to 10.36 MiB with its example renders.
-    const served = servedSkill([
+  it('leaves media over 2 MiB out and keeps the 10 MiB archive limit', () => {
+    const selected = selectArtifactEntries(skillWith([
+      ['assets/music/track.mp3', 3_936_384],
       ['references/guide.md', 1_500_000],
       ...Array.from({ length: 6 }, (_, index) => [`examples/render-${index}.png`, 1_600_000 + index * 1_000] as const),
-    ])
+    ]), 'skills/demo', PRIVATE_ARTIFACT_LIMITS)
 
-    const loaded = await createPublicGithubSourceClient({ fetch: served as unknown as typeof fetch }).load(resolvedSource())
-
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
-      return
-    expect(loaded.value.omitted).toEqual([omission('examples/render-5.png', 1_605_000)])
-    expect(loaded.value.files.map(file => file.path)).toContain('references/guide.md')
-    expect(loaded.value.files).toHaveLength(7)
+    expect(selected._tag).toBe('selected')
+    if (selected._tag === 'selected')
+      expect(selected.omitted.map(entry => entry.path)).toEqual(['assets/music/track.mp3', 'examples/render-5.png'])
   })
 
-  it('leaves example and test files out before it refuses the text a Skill reads', async () => {
-    // tt-a1i/archify packs to 10.36 MiB, all text: five rendered examples of
-    // about 760 KB each and its test suite sit beside the scripts it runs.
-    const served = servedSkill([
-      ['assets/template.html', 727_976],
-      ...Array.from({ length: 5 }, (_, index) => [`scripts/module-${index}.mjs`, 1_200_000] as const),
-      ...Array.from({ length: 5 }, (_, index) => [`examples/render-${index}.html`, 760_000 + index] as const),
-      ['test/cli.test.mjs', 201_323],
-    ])
+  it('keeps the 900 file limit', () => {
+    const selected = selectArtifactEntries(skillWith(Array.from({ length: 900 }, (_, index) => [`references/entry-${index}.md`, 100])), 'skills/demo', PRIVATE_ARTIFACT_LIMITS)
 
-    const loaded = await createPublicGithubSourceClient({ fetch: served as unknown as typeof fetch }).load(resolvedSource())
-
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
-      return
-    expect(loaded.value.omitted.map(file => file.path)).toEqual(['examples/render-4.html'])
-    expect(loaded.value.files.map(file => file.path)).toContain('assets/template.html')
-  })
-
-  it('leaves media out of a root Skill, so the README images never block it', async () => {
-    const served = servedSkill([['docs/assets/interactive-motion.gif', 2_479_001]], 'root')
-
-    const loaded = await createPublicGithubSourceClient({ fetch: served as unknown as typeof fetch })
-      .load({ ...resolvedSource(), skillPath: '.' })
-
-    expect(loaded).toMatchObject({
-      _tag: 'loaded',
-      value: {
-        omitted: [{
-          path: 'docs/assets/interactive-motion.gif',
-          bytes: 2_479_001,
-          url: `https://github.com/skilld-dev/skills/blob/${commitSha}/docs/assets/interactive-motion.gif`,
-        }],
-      },
+    expect(selected).toMatchObject({
+      _tag: 'rejected',
+      summary: 'The Skill folder `skills/demo` has 901 files the Skill reads. The limit is 900.',
     })
   })
-
-  function omission(path: string, bytes: number) {
-    return { path, bytes, url: `https://github.com/skilld-dev/skills/blob/${commitSha}/skills/demo/${path}` }
-  }
-
-  /** A Skill folder whose blobs exist, so a load that keeps a file can read it. */
-  function servedSkill(files: ReadonlyArray<readonly [string, number]>, at: 'skills/demo' | 'root' = 'skills/demo') {
-    const contents = new Map<string, Buffer>([[skillBlobSha, Buffer.from(skillText)]])
-    const entries = [blob('SKILL.md', skillBlobSha, skillText.length)]
-    for (const [index, [path, size]] of files.entries()) {
-      const bytes = Buffer.alloc(size, index + 1)
-      const sha = createHash('sha1').update(`blob ${size}\0`).update(bytes).digest('hex')
-      contents.set(sha, bytes)
-      entries.push(blob(path, sha, size))
-    }
-    const tree = at === 'root' ? rootTreeFetch(entries) : skillTreeFetch(entries)
-    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const sha = String(input).match(/\/git\/blobs\/([a-f0-9]{40})$/)?.[1]
-      const bytes = sha ? contents.get(sha) : undefined
-      if (!sha || !bytes)
-        return await tree(input, init)
-      return json({ sha, size: bytes.byteLength, encoding: 'base64', content: bytes.toString('base64') })
-    })
-  }
 })
 
 describe('projected archive size', () => {
@@ -220,9 +246,19 @@ describe('projected archive size', () => {
   })
 })
 
-function skillEntries(count: number) {
-  return Array.from({ length: count }, (_, index) =>
-    blob(index === 0 ? 'SKILL.md' : `references/entry-${index}.md`, skillBlobSha, skillText.length))
+/** Loads a public Skill folder of these sizes. A load reads the tree only. */
+async function load(files: ReadonlyArray<readonly [string, number]>, at: 'skills/demo' | 'root' = 'skills/demo', linkedFiles = false) {
+  const entries = skillWith(files)
+  const fetch = at === 'root' ? rootTreeFetch(entries) : skillTreeFetch(entries)
+  const client = createPublicGithubSourceClient({ fetch: fetch as unknown as typeof globalThis.fetch })
+  return await client.load(at === 'root' ? { ...resolvedSource(), skillPath: '.' } : resolvedSource(), { linkedFiles })
+}
+
+function skillWith(files: ReadonlyArray<readonly [string, number]>) {
+  return [
+    blob('SKILL.md', skillBlobSha, skillText.length),
+    ...files.map(([path, size], index) => blob(path, createHash('sha1').update(`${path}\0${index}`).digest('hex'), size)),
+  ]
 }
 
 function skillTreeFetch(entries: object[]) {
@@ -236,8 +272,6 @@ function skillTreeFetch(entries: object[]) {
       return json({ sha: skillsTreeSha, tree: [tree('demo', skillTreeSha)] })
     if (url.endsWith(`/git/trees/${skillTreeSha}?recursive=1`))
       return json({ sha: skillTreeSha, tree: entries, truncated: false })
-    if (url.includes(`/git/blobs/${skillBlobSha}`))
-      return json({ sha: skillBlobSha, size: skillText.length, encoding: 'base64', content: btoa(skillText) })
     return json({}, 404)
   })
 }
@@ -267,11 +301,11 @@ function resolvedSource() {
 }
 
 function tree(path: string, sha: string) {
-  return { path, mode: '040000', type: 'tree', sha }
+  return { path, mode: '040000', type: 'tree' as const, sha }
 }
 
 function blob(path: string, sha: string, size: number) {
-  return { path, mode: '100644', type: 'blob', sha, size }
+  return { path, mode: '100644', type: 'blob' as const, sha, size }
 }
 
 function publicRepository() {

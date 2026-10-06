@@ -1,12 +1,11 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  chooseArtifactByteSource,
   createGithubSourceClient,
   createPublicGithubSourceClient,
-  TARBALL_MAX_TREE_BYTES,
 } from '../../layers/artifact-delivery/server/utils/github-source'
 import { createDeterministicUstar } from '../../layers/artifact-delivery/server/utils/ustar'
+import { readLoadedFiles } from '../fixtures/loaded-source'
 import { tarGzFixture } from '../fixtures/tar-archive'
 
 const commitSha = '0123456789abcdef0123456789abcdef01234567'
@@ -19,141 +18,90 @@ const guideText = 'Read this first.\n'
 const scriptText = '#!/usr/bin/env bash\necho demo\n'
 const topLevel = 'skilld-dev-skills-0123456'
 const encoder = new TextEncoder()
+const archiveUrl = `https://codeload.github.com/skilld-dev/skills/tar.gz/${commitSha}`
+const rawBase = `https://raw.githubusercontent.com/skilld-dev/skills/${commitSha}/`
 
-describe('artifact byte source choice', () => {
-  it('reads the tarball when the tree is complete and inside the byte ceiling', () => {
-    expect(chooseArtifactByteSource({
-      visibility: 'public',
-      treeTruncated: false,
-      totalBlobBytes: TARBALL_MAX_TREE_BYTES,
-    })).toEqual({ _tag: 'tarball' })
-  })
-
-  it('reads blobs when the tree total passes the byte ceiling by one byte', () => {
-    expect(chooseArtifactByteSource({
-      visibility: 'public',
-      treeTruncated: false,
-      totalBlobBytes: TARBALL_MAX_TREE_BYTES + 1,
-    })).toEqual({ _tag: 'per-blob', reason: 'tree-too-large' })
-  })
-
-  it('reads blobs when the Repository tree came back truncated', () => {
-    expect(chooseArtifactByteSource({
-      visibility: 'public',
-      treeTruncated: true,
-      totalBlobBytes: 1024,
-    })).toEqual({ _tag: 'per-blob', reason: 'tree-truncated' })
-  })
-
-  it('reads blobs for a private Repository, whatever its tree looks like', () => {
-    expect(chooseArtifactByteSource({
-      visibility: 'private',
-      treeTruncated: false,
-      totalBlobBytes: 1024,
-    })).toEqual({ _tag: 'per-blob', reason: 'private-repository' })
-  })
-})
-
-describe('loading a Skill from the Repository tarball', () => {
-  it('loads every file from one tarball request and asks for no blobs', async () => {
+describe('loading a public Skill from the Repository archive', () => {
+  it('reads every file from one archive request and asks for no blobs', async () => {
     const fetchMock = sourceFetch({})
-    const client = createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch })
 
-    const loaded = await client.load(resolvedSource())
+    const read = await loadAndRead(fetchMock)
 
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
+    expect(read._tag).toBe('read')
+    if (read._tag !== 'read')
       return
-    expect(loaded.value.files.map(file => file.path)).toEqual(['SKILL.md', 'references/guide.md', 'run.sh'])
-    expect(new TextDecoder().decode(loaded.value.files[0]!.bytes)).toBe(skillText)
+    expect(read.files.map(file => file.path)).toEqual(['SKILL.md', 'references/guide.md', 'run.sh'])
+    expect(new TextDecoder().decode(read.files[0]!.bytes)).toBe(skillText)
     expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toEqual([])
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/tarball/'))).toHaveLength(1)
+    expect(requestedPaths(fetchMock).filter(url => url.includes('codeload.github.com'))).toEqual([archiveUrl])
   })
 
-  it('takes the executable mode from the tree entry, not the tarball header', async () => {
-    const client = createPublicGithubSourceClient({ fetch: sourceFetch({}) as unknown as typeof fetch })
+  it('takes the executable mode from the tree entry, not the archive header', async () => {
+    const read = await loadAndRead(sourceFetch({}))
 
-    const loaded = await client.load(resolvedSource())
-
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
+    expect(read._tag).toBe('read')
+    if (read._tag !== 'read')
       return
-    expect(loaded.value.files.map(file => [file.path, file.mode])).toEqual([
+    expect(read.files.map(file => [file.path, file.mode])).toEqual([
       ['SKILL.md', 420],
       ['references/guide.md', 420],
       ['run.sh', 493],
     ])
   })
 
-  it('falls back to blobs when the tree came back truncated', async () => {
+  it('reads the archive when the tree came back truncated', async () => {
     const fetchMock = sourceFetch({ truncated: true })
-    const client = createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch })
 
-    const loaded = await client.load(resolvedSource())
+    const read = await loadAndRead(fetchMock)
 
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
-      return
-    expect(loaded.value.files.map(file => file.path)).toEqual(['SKILL.md', 'references/guide.md', 'run.sh'])
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/tarball/'))).toEqual([])
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toHaveLength(3)
+    expect(read._tag).toBe('read')
+    expect(requestedPaths(fetchMock).filter(url => url.includes('codeload.github.com'))).toHaveLength(1)
+    expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toEqual([])
   })
 
-  it('falls back to blobs when export-ignore left a tree file out of the tarball', async () => {
+  it('reads a file export-ignore left out of the archive from GitHub at the commit', async () => {
     const fetchMock = sourceFetch({ omitFromTarball: ['skills/demo/references/guide.md'] })
-    const client = createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch })
 
-    const loaded = await client.load(resolvedSource())
+    const read = await loadAndRead(fetchMock)
 
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
-      return
-    expect(loaded.value.files.map(file => file.path)).toEqual(['SKILL.md', 'references/guide.md', 'run.sh'])
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toHaveLength(3)
+    expect(read._tag).toBe('read')
+    expect(requestedPaths(fetchMock).filter(url => url.startsWith(rawBase))).toEqual([`${rawBase}skills/demo/references/guide.md`])
   })
 
-  it('falls back to blobs when a tarball file fails its Git digest check', async () => {
-    const fetchMock = sourceFetch({ rewriteInTarball: { 'skills/demo/references/guide.md': 'tampered\n' } })
-    const client = createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch })
+  it('reads a file from GitHub when its archive bytes fail the Git digest check', async () => {
+    // `export-subst` can rewrite a file in the archive and keep its length.
+    const fetchMock = sourceFetch({ rewriteInTarball: { 'skills/demo/references/guide.md': 'Read this frst!\n' } })
 
-    const loaded = await client.load(resolvedSource())
+    const read = await loadAndRead(fetchMock)
 
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
+    expect(read._tag).toBe('read')
+    if (read._tag !== 'read')
       return
-    expect(new TextDecoder().decode(loaded.value.files[1]!.bytes)).toBe(guideText)
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toHaveLength(3)
+    expect(new TextDecoder().decode(read.files[1]!.bytes)).toBe(guideText)
+    expect(requestedPaths(fetchMock).filter(url => url.startsWith(rawBase))).toEqual([`${rawBase}skills/demo/references/guide.md`])
   })
 
-  it('falls back to blobs when GitHub refuses the tarball request', async () => {
+  it('reads every file from GitHub when codeload refuses the archive', async () => {
     const fetchMock = sourceFetch({ tarballStatus: 404 })
-    const client = createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch })
 
-    const loaded = await client.load(resolvedSource())
+    const read = await loadAndRead(fetchMock)
 
-    expect(loaded._tag).toBe('loaded')
-    if (loaded._tag !== 'loaded')
-      return
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toHaveLength(3)
+    expect(read._tag).toBe('read')
+    expect(requestedPaths(fetchMock).filter(url => url.startsWith(rawBase))).toHaveLength(3)
   })
 
-  it('packages identical bytes whichever source the files came from', async () => {
-    const fromTarball = await createPublicGithubSourceClient({
-      fetch: sourceFetch({}) as unknown as typeof fetch,
-    }).load(resolvedSource())
-    const fromBlobs = await createPublicGithubSourceClient({
-      fetch: sourceFetch({ tarballStatus: 404 }) as unknown as typeof fetch,
-    }).load(resolvedSource())
+  it('packs identical bytes whichever host served the files', async () => {
+    const fromArchive = await loadAndRead(sourceFetch({}))
+    const fromGithub = await loadAndRead(sourceFetch({ tarballStatus: 404 }))
 
-    expect(fromTarball._tag).toBe('loaded')
-    expect(fromBlobs._tag).toBe('loaded')
-    if (fromTarball._tag !== 'loaded' || fromBlobs._tag !== 'loaded')
+    expect(fromArchive._tag).toBe('read')
+    expect(fromGithub._tag).toBe('read')
+    if (fromArchive._tag !== 'read' || fromGithub._tag !== 'read')
       return
-    expect(createDeterministicUstar(fromTarball.value.files))
-      .toEqual(createDeterministicUstar(fromBlobs.value.files))
+    expect(createDeterministicUstar(fromArchive.files)).toEqual(createDeterministicUstar(fromGithub.files))
   })
 
-  it('asks for no tarball when the Repository is private', async () => {
+  it('reads blobs and no archive when the Repository is private', async () => {
     const fetchMock = sourceFetch({ visibility: 'private' })
     const client = createGithubSourceClient({
       fetch: fetchMock as unknown as typeof fetch,
@@ -162,12 +110,12 @@ describe('loading a Skill from the Repository tarball', () => {
     })
 
     const loaded = await client.load({ ...resolvedSource(), visibility: 'private' })
-
-    expect(loaded._tag).toBe('loaded')
     if (loaded._tag !== 'loaded')
-      return
-    expect(loaded.value.files.map(file => file.path)).toEqual(['SKILL.md', 'references/guide.md', 'run.sh'])
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/tarball/'))).toEqual([])
+      throw new Error('The private load failed')
+    const read = await readLoadedFiles(loaded.value)
+
+    expect(read._tag).toBe('read')
+    expect(requestedPaths(fetchMock).filter(url => url.includes('codeload') || url.startsWith(rawBase))).toEqual([])
     expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toHaveLength(3)
   })
 
@@ -182,10 +130,16 @@ describe('loading a Skill from the Repository tarball', () => {
       code: 'INVALID_SOURCE',
       findings: ['vendor/library is a Git submodule'],
     })
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/tarball/'))).toEqual([])
-    expect(requestedPaths(fetchMock).filter(url => url.includes('/git/blobs/'))).toEqual([])
+    expect(requestedPaths(fetchMock).filter(url => url.includes('codeload') || url.includes('/git/blobs/'))).toEqual([])
   })
 })
+
+async function loadAndRead(fetchMock: ReturnType<typeof sourceFetch>) {
+  const loaded = await createPublicGithubSourceClient({ fetch: fetchMock as unknown as typeof fetch }).load(resolvedSource())
+  if (loaded._tag !== 'loaded')
+    throw new Error(`The load failed: ${loaded.summary}`)
+  return await readLoadedFiles(loaded.value)
+}
 
 interface FetchOptions {
   visibility?: 'public' | 'private'
@@ -255,10 +209,14 @@ function sourceFetch(options: FetchOptions) {
           .map(entry => ({ ...entry, path: entry.path.slice('references/'.length) })),
       })
     }
-    if (url.includes('/tarball/')) {
+    if (url === archiveUrl) {
       if (options.tarballStatus)
         return new Response('no', { status: options.tarballStatus })
       return new Response(archive, { status: 200, headers: { 'content-type': 'application/x-gzip' } })
+    }
+    if (url.startsWith(rawBase)) {
+      const entry = files.find(([path]) => url === `${rawBase}skills/demo/${path}`)
+      return entry ? new Response(entry[1], { status: 200 }) : new Response(null, { status: 404 })
     }
     const blobMatch = /\/git\/blobs\/([a-f0-9]{40})$/.exec(url)
     if (blobMatch) {

@@ -31,7 +31,9 @@ import {
   resolutionRequestIdentity,
   transitionResolution,
 } from '../../layers/artifact-delivery/server/utils/state'
-import { createDeterministicUstar } from '../../layers/artifact-delivery/server/utils/ustar'
+import { compareArtifactPaths, createDeterministicUstar } from '../../layers/artifact-delivery/server/utils/ustar'
+import { loadedFromFiles } from '../fixtures/loaded-source'
+import { tarGzFixture } from '../fixtures/tar-archive'
 import { createSqliteD1 } from './helpers/d1-sqlite'
 
 const NOW = 1_787_227_200
@@ -41,6 +43,7 @@ const ARTIFACT_MIGRATIONS = [
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
+  'migrations/0144_artifact_resolution_linked_files.sql',
 ]
 const sourceRequest: SourceRequest = {
   provider: 'github',
@@ -145,10 +148,10 @@ describe('public Artifact delivery', () => {
     harness.close()
   })
 
-  it('keeps a 627-file build inside the Worker subrequest budget', async () => {
+  it('builds 1,500 files from one archive read, with no read per file', async () => {
     const files: ArtifactSourceFile[] = [
       validFiles[0]!,
-      ...Array.from({ length: 626 }, (_, index) => ({
+      ...Array.from({ length: 1499 }, (_, index) => ({
         path: `references/entry-${index}.md`,
         mode: 420 as const,
         bytes: new TextEncoder().encode(`entry ${index}\n`),
@@ -166,7 +169,9 @@ describe('public Artifact delivery', () => {
     const result = await processArtifactBuild(harness.dependencies, harness.resolutionId)
 
     expect(result).toEqual({ _tag: 'ready', resolutionId: harness.resolutionId })
-    expect(fetch.mock.calls.length).toBeLessThanOrEqual(1000)
+    // The Repository, three tree reads, and one archive.
+    expect(fetch.mock.calls.map(([input]) => String(input)).filter(url => url.includes('codeload.github.com'))).toHaveLength(1)
+    expect(fetch.mock.calls.length).toBeLessThanOrEqual(10)
     harness.close()
   })
 
@@ -777,7 +782,7 @@ async function createBuildHarness(
     : resolvedSource
   const github: PublicGithubSourceClient = githubOverride ?? {
     resolve: vi.fn(async () => ({ _tag: 'resolved', source: buildSource })),
-    load: vi.fn(async () => ({ _tag: 'loaded', value: { source: buildSource, files } })),
+    load: vi.fn(async () => ({ _tag: 'loaded', value: loadedFromFiles(buildSource, files) })),
   }
   const put = vi.fn(async () => ({}) as R2Object)
   const bucket = {
@@ -923,16 +928,8 @@ function countingGithubFetch(files: ArtifactSourceFile[]) {
         })),
       })
     }
-    const blobSha = url.match(/\/git\/blobs\/([0-9a-f]{40})$/)?.[1]
-    const blob = blobSha ? blobs.get(blobSha) : undefined
-    if (blob && blobSha) {
-      return json({
-        sha: blobSha,
-        size: blob.bytes.byteLength,
-        encoding: 'base64',
-        content: Buffer.from(blob.bytes).toString('base64'),
-      })
-    }
+    if (url === codeloadUrl())
+      return new Response(archiveOf(files), { status: 200 })
     return json({ message: 'Not Found' }, 404)
   })
 }
@@ -980,16 +977,23 @@ function workerdLikeGithubFetch(file: ArtifactSourceFile) {
         tree: [{ path: file.path, mode: '100644', type: 'blob', sha: blobSha, size: file.bytes.byteLength }],
       })
     }
-    if (path === `${repo}/git/blobs/${blobSha}`) {
-      return json({
-        sha: blobSha,
-        size: file.bytes.byteLength,
-        encoding: 'base64',
-        content: Buffer.from(file.bytes).toString('base64'),
-      })
-    }
+    if (String(input) === codeloadUrl())
+      return new Response(archiveOf([file]), { status: 200 })
     return json({ message: 'Not Found' }, 404)
   })
+}
+
+function codeloadUrl(): string {
+  return `https://codeload.github.com/${resolvedSource.owner}/${resolvedSource.repository}/tar.gz/${resolvedSource.commitSha}`
+}
+
+/** The Repository archive codeload serves for these Skill files, in Git order. */
+function archiveOf(files: ArtifactSourceFile[]): Uint8Array {
+  const ordered = [...files].sort((left, right) => compareArtifactPaths(left.path, right.path))
+  return tarGzFixture(`${resolvedSource.repository}-${resolvedSource.commitSha}`, ordered.map(file => ({
+    path: `${resolvedSource.skillPath}/${file.path}`,
+    bytes: file.bytes,
+  })), { globalComment: resolvedSource.commitSha })
 }
 
 function artifactQueueBatch(resolutionId: string, attempts: number) {

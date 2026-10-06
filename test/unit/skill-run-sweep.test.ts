@@ -15,6 +15,7 @@ const MIGRATIONS = [
   'migrations/0111_github_app_delivery.sql',
   'migrations/0112_private_artifact_keys.sql',
   'migrations/0122_artifact_resolution_retry_after.sql',
+  'migrations/0144_artifact_resolution_linked_files.sql',
   'migrations/0142_artifact_run_checks.sql',
   'migrations/0143_artifact_run_check_streak.sql',
 ]
