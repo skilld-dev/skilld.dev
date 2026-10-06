@@ -3,6 +3,7 @@ import type { SourceRequest } from '../schemas/contracts'
 import type { FetchAdmittedSkillIdentity } from './admitted-identity'
 import type { CreateResolutionResult } from './state'
 import { admittedSourceRequest } from './admitted-identity'
+import { recordResolutionRequester } from './requester-github'
 import { createResolution, resolutionRequestIdentity } from './state'
 
 export interface ResolutionRequestDependencies {
@@ -48,7 +49,16 @@ export function fetchAdmittedSkillIdentity(context?: H3EventContext): FetchAdmit
  */
 export async function requestResolution(
   dependencies: ResolutionRequestDependencies,
-  input: { source: SourceRequest, idempotencyKey: string, access: ResolutionAccess },
+  input: {
+    source: SourceRequest
+    idempotencyKey: string
+    access: ResolutionAccess
+    /**
+     * The signed-in account that sent a public request, or null. Its build may
+     * read GitHub with that account's own token once the shared quota is spent.
+     */
+    requesterAccountId?: number | null
+  },
 ): Promise<CreateResolutionResult> {
   const accountId = input.access.visibility === 'private' ? input.access.accountId : undefined
   const identity = await resolutionRequestIdentity(input.source, input.idempotencyKey, accountId)
@@ -56,6 +66,13 @@ export async function requestResolution(
     ? input.source
     : await admittedSourceRequest(input.source, dependencies.lookupAdmitted)
   const result = await createResolution(dependencies.db, source, identity, dependencies.now(), input.access)
+  if (result._tag === 'created' && input.access.visibility === 'public' && input.requesterAccountId) {
+    await recordResolutionRequester(dependencies.db, {
+      resolutionId: result.row.id,
+      accountId: input.requesterAccountId,
+      now: dependencies.now(),
+    })
+  }
   if (result._tag !== 'idempotency-conflict' && result.row.state === 'requested')
     await dependencies.enqueue(result.row.id)
   return result

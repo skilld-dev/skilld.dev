@@ -236,17 +236,17 @@ describe('findSkill', () => {
 describe('uncached skill related render', () => {
   it('reads D1 at most three times and keeps the commit source', async () => {
     seed({ maximumQueries: 3 })
-    upstreamFetch.mockImplementationOnce(async () => [{
+    rawFetch.mockImplementationOnce(async () => new Response(JSON.stringify([{
       sha: 'abcdef1234567',
       html_url: 'https://github.com/c/abcdef1',
       commit: { message: 'edit alpha', author: { name: 'Eric', date: '2026-09-01T00:00:00Z' } },
       author: null,
-    }] as never)
+    }])))
     const handler = (await import('../../layers/registry/server/api/skill-related/[...slug].get')).default as (event: H3Event) => Promise<Record<string, any>>
 
     const body = await handler({ context: { platform: { db: harness.db, env: {} } }, node: { req: { headers: {} } } } as unknown as H3Event)
 
-    expect(upstreamFetch).toHaveBeenCalledWith(`https://api.github.com/repos/${OWNER}/${REPO}/commits`, expect.objectContaining({ query: { path: 'skills/alpha/SKILL.md', per_page: 5 } }))
+    expect(String(rawFetch.mock.calls[0]?.[0])).toBe(`https://api.github.com/repos/${OWNER}/${REPO}/commits?path=skills%2Falpha%2FSKILL.md&per_page=5`)
     expect(body.commits.map((commit: { shortSha: string }) => commit.shortSha)).toEqual(['abcdef1'])
     expect(body.relatedRepoSkills.map((skill: { name: string }) => skill.name)).toEqual(['beta'])
   })

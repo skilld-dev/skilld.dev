@@ -1,16 +1,19 @@
 import type { H3Event } from 'h3'
+import { createStorage } from 'unstorage'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { allMigrations, createSqliteD1 } from './helpers/d1-sqlite'
 
 vi.stubGlobal('defineCachedEventHandler', (handler: unknown) => handler)
 vi.stubGlobal('createError', (input: Record<string, unknown>) => Object.assign(new Error(String(input.message)), input))
 vi.stubGlobal('getRouterParam', (_event: unknown, key: string) => (key === 'owner' ? 'skilld-dev' : 'skills'))
+vi.stubGlobal('useStorage', () => createStorage())
 
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.stubGlobal('defineCachedEventHandler', (handler: unknown) => handler)
   vi.stubGlobal('createError', (input: Record<string, unknown>) => Object.assign(new Error(String(input.message)), input))
   vi.stubGlobal('getRouterParam', (_event: unknown, key: string) => (key === 'owner' ? 'skilld-dev' : 'skills'))
+  vi.stubGlobal('useStorage', () => createStorage())
 })
 
 async function profile() {

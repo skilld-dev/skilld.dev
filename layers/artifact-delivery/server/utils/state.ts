@@ -165,13 +165,8 @@ export async function createResolution(
     repositoryId: number
   } | { visibility: 'public' } = { visibility: 'public' },
 ): Promise<CreateResolutionResult> {
-  const existing = await findResolutionByRequestKey(db, identity.keyHash)
-  if (existing) {
-    return existing.request_fingerprint === identity.fingerprint
-      ? { _tag: 'existing', row: existing }
-      : { _tag: 'idempotency-conflict' }
-  }
-
+  // A new request key inserts and returns its row in one round trip. A
+  // replayed key inserts nothing, and the lookup below finds its row.
   const resolutionId = crypto.randomUUID()
   const selectorValue = source.selector.type === 'path' ? source.selector.path : source.selector.name
   const insert = await db.prepare(
@@ -183,7 +178,8 @@ export async function createResolution(
      ) VALUES (
        ?1, ?2, ?3, 'requested', 0, ?4, ?5, ?6, ?7, ?8, ?9,
        ?10, ?11, ?12, ?13, ?14, ?14
-     )`,
+     )
+     RETURNING *`,
   ).bind(
     resolutionId,
     identity.keyHash,
@@ -199,20 +195,15 @@ export async function createResolution(
     access.visibility === 'private' ? access.accountId : null,
     access.visibility === 'private' ? access.installationId : null,
     now,
-  ).run()
+  ).first<Record<string, unknown>>()
+  if (insert)
+    return { _tag: 'created', row: resolutionRowSchema.parse(insert) }
 
-  if (Number(insert.meta.changes) === 1) {
-    const row = await getResolution(db, resolutionId)
-    if (!row)
-      throw new Error('Created Resolution could not be loaded')
-    return { _tag: 'created', row }
-  }
-
-  const raced = await findResolutionByRequestKey(db, identity.keyHash)
-  if (!raced)
+  const existing = await findResolutionByRequestKey(db, identity.keyHash)
+  if (!existing)
     throw new Error('Resolution idempotency race could not be loaded')
-  return raced.request_fingerprint === identity.fingerprint
-    ? { _tag: 'existing', row: raced }
+  return existing.request_fingerprint === identity.fingerprint
+    ? { _tag: 'existing', row: existing }
     : { _tag: 'idempotency-conflict' }
 }
 
@@ -269,14 +260,16 @@ export async function transitionResolution(
     'UPDATE artifact_resolutions',
     `SET state = ?1, state_version = state_version + 1, updated_at = ?2${assignments.length ? `, ${assignments.join(', ')}` : ''}`,
     'WHERE id = ?3 AND state = ?4 AND state_version = ?5',
+    // The advanced row comes back with the write, so a transition costs one
+    // D1 round trip. The queue consumer runs far from the D1 primary.
+    'RETURNING *',
   ].join(' ')
-  const result = await db.prepare(sql).bind(next, now, row.id, row.state, row.state_version, ...values).run()
-  if (Number(result.meta.changes) !== 1)
-    return { _tag: 'superseded' }
-  const advanced = await getResolution(db, row.id)
+  const advanced = await db.prepare(sql)
+    .bind(next, now, row.id, row.state, row.state_version, ...values)
+    .first<Record<string, unknown>>()
   if (!advanced)
-    throw new Error('Advanced Resolution could not be loaded')
-  return { _tag: 'advanced', row: advanced }
+    return { _tag: 'superseded' }
+  return { _tag: 'advanced', row: resolutionRowSchema.parse(advanced) }
 }
 
 /**
@@ -557,16 +550,15 @@ export async function publishArtifactRecord(
     db.prepare(
       `UPDATE artifact_resolutions
        SET state = 'ready', state_version = state_version + 1, updated_at = ?1
-       WHERE id = ?2 AND state = 'publishing' AND state_version = ?3`,
+       WHERE id = ?2 AND state = 'publishing' AND state_version = ?3
+       RETURNING *`,
     ).bind(now, row.id, row.state_version),
   ]
-  const results = await db.batch(statements)
-  if (Number(results.at(-1)?.meta.changes) !== 1)
-    return { _tag: 'superseded' }
-  const published = await getResolution(db, row.id)
+  const results = await db.batch<Record<string, unknown>>(statements)
+  const published = results.at(-1)?.results?.[0]
   if (!published)
-    throw new Error('Published Resolution could not be loaded')
-  return { _tag: 'published', row: published }
+    return { _tag: 'superseded' }
+  return { _tag: 'published', row: resolutionRowSchema.parse(published) }
 }
 
 function publicArtifactPublishStatements(

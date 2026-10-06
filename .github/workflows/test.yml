@@ -18,42 +18,31 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
-# Every job runs on Harlan's workstation. A pull request from a fork must never
-# reach it, because that would run untrusted code on the host. Each job
-# therefore runs only for a push or for a pull request from a branch in this
-# repository. A maintainer pushes a fork's change to a branch here to test it.
-#
-# Every job skipped still concludes the run as `success`. Deploy to Cloudflare
-# guards on the triggering event and repository for that reason.
+# All checks run on GitHub-hosted runners. Forks can change workflow files,
+# so a workflow condition cannot protect a registered workstation runner.
 
 jobs:
   harness-proof:
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
       - run: |
           pnpm --filter @skilld/skill-harness-worker types:check
           pnpm --filter @skilld/skill-harness-worker typecheck
           pnpm --filter @skilld/skill-harness-worker test:run
 
-  harlan-desktop:
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@main
+  site:
+    uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@575a348edd78a65c6b28104a86d6a3401301c913
     with:
-      # Ephemeral containers on the workstation. Safe here because the
-      # repository is private; a self-hosted runner on a public repository would
-      # let a fork pull request run code on that host.
-      runs-on: '["self-hosted", "linux", "x64", "harlan-desktop-ci"]'
-      # Each check runs through `pnpm pipeline`, so an unchanged task restores
-      # from the pool's shared cache volume instead of re-running. The graph
-      # lives in pnpm-workspace.yaml: vitest still gets its `.nuxt/tsconfig.json`
-      # because every pipeline runs `dev:prepare` as a cacheable task.
-      task-cache: true
+      runs-on: '["ubuntu-latest"]'
+      # Hosted runners have no workstation task cache. Prepare Nuxt before
+      # typecheck and tests through the reusable workflow's direct commands.
+      task-cache: false
+      prepare-command: pnpm dev:prepare
       timeout-minutes: 30
 
   # The only gate between a merge and production. `Deploy to Cloudflare` fires on
@@ -66,31 +55,25 @@ jobs:
   # `Deploy to Cloudflare` by hand.
   published-cli-grammar:
     if: github.event_name == 'push'
-    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
-    # The desktop pool re-downloads the Node tarball in every ephemeral
-    # container, and a saturated shared uplink has measured 9.5 minutes for
-    # that one step. The check itself takes seconds; give the setup the same
-    # 30-minute budget as every other job on this pool.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
       - run: pnpm cli:grammar
 
   build:
     # Main builds in the deploy workflow. Keep the build check on pull requests.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@main
-      # The desktop runner sends SIGHUP after 45 seconds without output.
-      # Nitro can bundle longer than that, so the wrapper emits a heartbeat.
-      - run: pnpm exec tsx scripts/run-with-heartbeat.ts pnpm build
+      - uses: harlan-zw/harlan-nuxt/.github/actions/harlan-desktop-setup@575a348edd78a65c6b28104a86d6a3401301c913
+      - run: pnpm build
         env:
           NODE_OPTIONS: --max-old-space-size=8192

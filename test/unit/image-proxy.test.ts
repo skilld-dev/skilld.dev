@@ -69,7 +69,7 @@ describe('avatar proxy addresses', () => {
     ['a GitHub avatar', 'https://avatars.githubusercontent.com/u/1?v=4'],
     ['a GitHub login avatar', 'https://github.com/harlan-zw.png'],
     ['an X avatar', 'https://pbs.twimg.com/profile_images/1/a_normal.jpg'],
-    ['a Bluesky avatar', 'https://cdn.bsky.app/img/avatar/plain/did:plc:abc/bafk@jpeg'],
+    ['a Bluesky avatar thumbnail', 'https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:abc/bafk@jpeg'],
   ])('proxies %s', (_label, src) => {
     const path = avatarProxyUrl(src)!
     expect(path.startsWith('/_img/avatar?')).toBe(true)
@@ -83,6 +83,14 @@ describe('avatar proxy addresses', () => {
   ])('gives no address for %s, so the page loads nothing third party', (_label, src) => {
     expect(avatarProxyUrl(src)).toBeUndefined()
     expect(parseImageProxyRequest('avatar', { url: src })).toEqual({ _tag: 'NotFound', reason: 'not-avatar' })
+  })
+
+  it('proxies a full-size Bluesky avatar as its thumbnail', () => {
+    const path = avatarProxyUrl('https://cdn.bsky.app/img/avatar/plain/did:plc:abc/bafk@jpeg')!
+    expect(parseImageProxyRequest('avatar', queryOf(path))).toEqual({
+      _tag: 'Ok',
+      request: avatar('https://cdn.bsky.app/img/avatar_thumbnail/plain/did:plc:abc/bafk@jpeg'),
+    })
   })
 
   it('builds a GitHub login avatar address the route accepts', () => {

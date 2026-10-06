@@ -49,6 +49,7 @@ export default withArtifactProblems(defineApiHandler({
             repositoryId: privateAccess.repositoryId,
           }
         : { visibility: 'public' },
+      requesterAccountId: user?.id ?? null,
     })
     if (result._tag === 'idempotency-conflict') {
       throw createError({

@@ -1,8 +1,8 @@
 import { checkEdgeCache } from './lib/edge-cache-check'
 
 /**
- * Prove the homepage, a Skill page with its hubs, and the trending pages are
- * cached at the edge and safe to cache.
+ * Prove the homepage, a Skill page with its hubs, the trending and demo pages,
+ * and the CLI and developer pages are cached at the edge and safe to cache.
  *
  *   pnpm production:edge-cache
  *   EDGE_CACHE_BASE_URL=https://skilld.dev pnpm production:edge-cache

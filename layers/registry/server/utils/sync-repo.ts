@@ -27,6 +27,8 @@ export interface SyncRepoStats {
   revisionsInserted: number
   activityEmitted: number
   rateLimitRemaining?: number
+  /** The GitHub bucket `rateLimitRemaining` counts: `core` or `graphql`. */
+  rateLimitResource?: string
   rateLimitResetAt?: number
   continuation?: SyncRepoContinuation
   /**
@@ -59,7 +61,7 @@ interface ExistingSkillAssets {
   assets: string
 }
 
-interface ExistingRepo {
+export interface ExistingRepo {
   last_tree_sha: string | null
   pushed_at: number | null
   source_owner: string | null
@@ -365,7 +367,7 @@ export async function refreshRepoAssets(
     SET source_owner = ?, source_repo = ?
     WHERE owner = ? AND repo = ?
   `).bind(sourceOwner, sourceRepo, owner, repo).run()
-  const treeRes = await getTree(sourceOwner, sourceRepo, branch, bindings)
+  const treeRes = await getTree(sourceOwner, sourceRepo, repoRes.data.headTreeSha ?? branch, bindings)
   logRateLimit(`asset-backfill tree ${owner}/${repo}`, treeRes.rateLimit)
   const rateLimitRemaining = Math.min(
     rate.rateLimitRemaining ?? Number.POSITIVE_INFINITY,
@@ -541,19 +543,63 @@ async function repoHasAdmittedSkills(db: D1Database, owner: string, repo: string
   return row?.admitted === 1
 }
 
-async function markUnchangedOwnerVerified(
+/**
+ * Why a repository needs no content sync this hour, or null when it does.
+ *
+ * Only a repository with admitted Skills qualifies: a Skill-less candidate is
+ * still being discovered, so its tree must be read whatever the cursor says.
+ */
+export function unchangedRepoStatus(input: {
+  existing: ExistingRepo | null
+  hasAdmittedSkills: boolean
+  headTreeSha: string | null
+  repoPushedAt: number | null
+}): 'skipped-tree-sha' | 'skipped-pushed-at' | null {
+  const { existing, hasAdmittedSkills, headTreeSha, repoPushedAt } = input
+  if (!hasAdmittedSkills || !existing?.last_tree_sha)
+    return null
+  if (headTreeSha && existing.last_tree_sha === headTreeSha)
+    return 'skipped-tree-sha'
+  if (existing.pushed_at != null && repoPushedAt != null && existing.pushed_at >= repoPushedAt)
+    return 'skipped-pushed-at'
+  return null
+}
+
+/**
+ * The writes that record an unchanged repository: fresh metadata, the
+ * freshness cursor, the day's star count and, for an owner-verified repository,
+ * the verified flag on every Skill.
+ */
+export function repoUnchangedStatements(
   db: D1Database,
-  owner: string,
-  repo: string,
-  meta: RepoMeta,
-  repositoryId: number,
-  pushedAt: number | null,
-  checkedAt: number,
-): Promise<void> {
-  await db.batch([
+  input: {
+    owner: string
+    repo: string
+    meta: RepoMeta
+    repositoryId: number
+    checkedAt: number
+    ownerVerified: boolean
+  },
+): D1PreparedStatement[] {
+  const { owner, repo, meta, repositoryId, checkedAt } = input
+  const pushedAt = epoch(meta.pushed_at)
+  const statements = [
     markRepoSummaryCheckedStatement(db, owner, repo, meta, repositoryId, pushedAt, checkedAt),
     clearRepoMissingSkillsStatement(db, owner, repo, checkedAt),
     ...repoStarObservationStatements(db, owner, repo, meta.stargazers_count ?? 0, checkedAt),
+  ]
+  return input.ownerVerified
+    ? [...statements, ...ownerVerifiedStatements(db, owner, repo, checkedAt)]
+    : statements
+}
+
+function ownerVerifiedStatements(
+  db: D1Database,
+  owner: string,
+  repo: string,
+  checkedAt: number,
+): D1PreparedStatement[] {
+  return [
     db.prepare(
       `UPDATE skills
        SET owner_verified = 1
@@ -568,7 +614,7 @@ async function markUnchangedOwnerVerified(
          queued_at = excluded.queued_at,
          attempts = 0`,
     ).bind(checkedAt, owner, repo),
-  ])
+  ]
 }
 
 /**
@@ -753,12 +799,13 @@ export async function syncRepo(
     revisionsInserted: 0,
     activityEmitted: 0,
   }
-  const trackRateLimit = (rateLimit: { remaining: number, reset: number } | null): void => {
+  const trackRateLimit = (rateLimit: { remaining: number, reset: number, resource: string | null } | null): void => {
     if (!rateLimit)
       return
-    stats.rateLimitRemaining = stats.rateLimitRemaining == null
-      ? rateLimit.remaining
-      : Math.min(stats.rateLimitRemaining, rateLimit.remaining)
+    if (stats.rateLimitRemaining == null || rateLimit.remaining < stats.rateLimitRemaining) {
+      stats.rateLimitRemaining = rateLimit.remaining
+      stats.rateLimitResource = rateLimit.resource ?? undefined
+    }
     stats.rateLimitResetAt = Math.max(stats.rateLimitResetAt ?? 0, rateLimit.reset)
   }
 
@@ -815,39 +862,24 @@ export async function syncRepo(
   const hasAdmittedSkills = await repoHasAdmittedSkills(db, owner, repo)
 
   const markUnchanged = async (status: 'skipped-tree-sha' | 'skipped-pushed-at'): Promise<SyncRepoStats> => {
-    if (opts.ownerVerified) {
-      await markUnchangedOwnerVerified(db, owner, repo, meta, repositoryId, repoPushedAt, checkedAt)
-      stats.status = 'verified-only'
-      return stats
-    }
-    await db.batch([
-      markRepoSummaryCheckedStatement(db, owner, repo, meta, repositoryId, repoPushedAt, checkedAt),
-      clearRepoMissingSkillsStatement(db, owner, repo, checkedAt),
-      ...repoStarObservationStatements(db, owner, repo, meta.stargazers_count ?? 0, checkedAt),
-    ])
-    stats.status = status
+    await db.batch(repoUnchangedStatements(db, { owner, repo, meta, repositoryId, checkedAt, ownerVerified: opts.ownerVerified === true }))
+    stats.status = opts.ownerVerified ? 'verified-only' : status
     return stats
   }
 
   // GraphQL gave us the head tree SHA in the same request. If it matches
   // our cached value, the repo is unchanged and we skip the REST getTree
   // call entirely. Skill-less candidates deliberately bypass this cursor.
-  if (!opts.continuation && !opts.forceContent && hasAdmittedSkills && existingRepo?.last_tree_sha && headTreeSha && existingRepo.last_tree_sha === headTreeSha)
-    return markUnchanged('skipped-tree-sha')
+  const unchanged = opts.continuation || opts.forceContent
+    ? null
+    : unchangedRepoStatus({ existing: existingRepo, hasAdmittedSkills, headTreeSha, repoPushedAt })
+  if (unchanged)
+    return markUnchanged(unchanged)
 
-  if (
-    !opts.continuation
-    && !opts.forceContent
-    && hasAdmittedSkills
-    && existingRepo?.pushed_at != null
-    && existingRepo.last_tree_sha != null
-    && repoPushedAt != null
-    && existingRepo.pushed_at >= repoPushedAt
-  ) {
-    return markUnchanged('skipped-pushed-at')
-  }
-
-  const treeRes = await getTree(sourceOwner, sourceRepo, branch, bindings)
+  // The head tree SHA names the exact tree the summary saw. A branch name
+  // can move between the two reads, and a SHA URL is immutable, so its ETag
+  // cache entry answers 304 for as long as the tree stands.
+  const treeRes = await getTree(sourceOwner, sourceRepo, headTreeSha ?? branch, bindings)
   logRateLimit(`tree ${owner}/${repo}`, treeRes.rateLimit)
   trackRateLimit(treeRes.rateLimit)
 
