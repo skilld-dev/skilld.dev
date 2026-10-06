@@ -7,11 +7,11 @@ import {
   problemCodeSchema,
 } from '../../../schemas/contracts'
 import { withArtifactProblems } from '../../../utils/artifact-problem'
-import { failResolution } from '../../../utils/build'
+import { failResolution, processArtifactBuild } from '../../../utils/build'
 import { findPrivateRepositoryAccess } from '../../../utils/private-access'
 import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
-import { enqueueArtifactBuild } from '../../../utils/queue'
-import { enqueueAfterResponse, fetchAdmittedSkillIdentity, requestResolution } from '../../../utils/request-resolution'
+import { createArtifactBuildDependencies, enqueueArtifactBuild } from '../../../utils/queue'
+import { buildAfterResponse, fetchAdmittedSkillIdentity, requestResolution } from '../../../utils/request-resolution'
 import { setSkillPageUrlHeader } from '../../../utils/skill-page'
 import { getResolution } from '../../../utils/state'
 
@@ -38,9 +38,16 @@ export default withArtifactProblems(defineApiHandler({
     const result = await requestResolution({
       db: platform.db,
       lookupAdmitted: fetchAdmittedSkillIdentity(event.context),
-      enqueue: enqueueAfterResponse({
+      enqueue: buildAfterResponse({
         schedule: work => event.waitUntil(work),
-        enqueue: resolutionId => enqueueArtifactBuild(platform.env, resolutionId),
+        build: resolutionId => processArtifactBuild(createArtifactBuildDependencies(platform.env), resolutionId),
+        enqueue: (resolutionId, delaySeconds) => enqueueArtifactBuild(platform.env, resolutionId, delaySeconds),
+        reportBuildError: (resolutionId, error) => console.error(JSON.stringify({
+          operation: 'artifact-build',
+          outcome: 'failed-in-request',
+          resolutionId,
+          error: error instanceof Error ? error.message : String(error),
+        })),
         failUnqueued: async (resolutionId, error) => {
           console.error(JSON.stringify({
             operation: 'artifact-build',

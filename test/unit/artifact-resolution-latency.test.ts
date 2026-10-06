@@ -1,8 +1,9 @@
 import type { SourceRequest } from '../../layers/artifact-delivery/server/schemas/contracts'
+import type { ArtifactBuildOutcome } from '../../layers/artifact-delivery/server/utils/build'
 import type { ResolutionRow } from '../../layers/artifact-delivery/server/utils/state'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { failResolution } from '../../layers/artifact-delivery/server/utils/build'
-import { enqueueAfterResponse } from '../../layers/artifact-delivery/server/utils/request-resolution'
+import { buildAfterResponse, IN_REQUEST_BUILD_FALLBACK_SECONDS } from '../../layers/artifact-delivery/server/utils/request-resolution'
 import {
   RESOLUTION_CHECK_MS,
   RESOLUTION_WAIT_MS,
@@ -111,35 +112,89 @@ describe('waiting for a Resolution to move', () => {
   })
 })
 
-describe('queueing a build after the response', () => {
-  it('answers before the queue send finishes', async () => {
+describe('building in the request after the response', () => {
+  const ID = '6d3c8f1e-8d5f-4a43-9f0e-2a5e1d4b7c11'
+
+  function harness(options: {
+    build?: (resolutionId: string) => Promise<ArtifactBuildOutcome>
+    enqueue?: (resolutionId: string, delaySeconds?: number) => Promise<void>
+  } = {}) {
     const scheduled: Array<Promise<unknown>> = []
+    const enqueue = vi.fn(options.enqueue ?? (async () => {}))
+    const failUnqueued = vi.fn(async () => {})
+    const reportBuildError = vi.fn()
+    const start = buildAfterResponse({
+      schedule: work => scheduled.push(work),
+      build: options.build ?? (async resolutionId => ({ _tag: 'ready', resolutionId })),
+      enqueue,
+      failUnqueued,
+      reportBuildError,
+    })
+    return { start, enqueue, failUnqueued, reportBuildError, settle: () => Promise.all(scheduled), scheduled }
+  }
+
+  it('answers before the build runs', async () => {
     let release = () => {}
-    const sent = new Promise<void>((resolve) => {
+    const built = new Promise<void>((resolve) => {
       release = resolve
     })
-    const enqueue = enqueueAfterResponse({
-      schedule: work => scheduled.push(work),
-      enqueue: async () => await sent,
-      failUnqueued: async () => expect.fail('the send did not fail'),
-    })
+    const run = harness({ build: async (resolutionId) => {
+      await built
+      return { _tag: 'ready', resolutionId }
+    } })
 
-    await enqueue('6d3c8f1e-8d5f-4a43-9f0e-2a5e1d4b7c11')
+    await run.start(ID)
 
-    expect(scheduled).toHaveLength(1)
+    expect(run.scheduled).toHaveLength(1)
     release()
-    await Promise.all(scheduled)
+    await run.settle()
   })
 
-  it('fails the Resolution as retryable when the send fails', async () => {
+  it('builds in the request and leaves only the delayed fallback on the queue', async () => {
+    const build = vi.fn(async (resolutionId: string) => ({ _tag: 'ready' as const, resolutionId }))
+    const run = harness({ build })
+
+    await run.start(ID)
+    await run.settle()
+
+    expect(build).toHaveBeenCalledWith(ID)
+    expect(run.enqueue.mock.calls).toEqual([[ID, IN_REQUEST_BUILD_FALLBACK_SECONDS]])
+  })
+
+  it('sends a build that throws to the queue at once', async () => {
+    const run = harness({ build: async () => {
+      throw new Error('GitHub read failed at tree: The operation was aborted due to timeout')
+    } })
+
+    await run.start(ID)
+    await run.settle()
+
+    expect(run.enqueue.mock.calls).toEqual([[ID, IN_REQUEST_BUILD_FALLBACK_SECONDS], [ID, undefined]])
+    expect(run.reportBuildError).toHaveBeenCalledOnce()
+    expect(run.failUnqueued).not.toHaveBeenCalled()
+  })
+
+  it('puts a build that follows an earlier one back on the queue after the wait it names', async () => {
+    const run = harness({ build: async resolutionId => ({ _tag: 'deferred', resolutionId, delaySeconds: 2 }) })
+
+    await run.start(ID)
+    await run.settle()
+
+    expect(run.enqueue.mock.calls).toEqual([[ID, IN_REQUEST_BUILD_FALLBACK_SECONDS], [ID, 2]])
+  })
+
+  it('fails the Resolution as retryable when neither the request nor the queue can build it', async () => {
     const sqlite = createSqliteD1(MIGRATIONS)
-    const identity = await resolutionRequestIdentity(request, 'resolution-enqueue-test-key')
+    const identity = await resolutionRequestIdentity(request, 'resolution-build-test-key')
     const created = await createResolution(sqlite.db, request, identity, NOW)
     if (created._tag === 'idempotency-conflict')
       throw new Error('Test Resolution conflicted')
     const scheduled: Array<Promise<unknown>> = []
-    const enqueue = enqueueAfterResponse({
+    const start = buildAfterResponse({
       schedule: work => scheduled.push(work),
+      build: async () => {
+        throw new Error('D1_ERROR: Network connection lost.')
+      },
       enqueue: async () => {
         throw new Error('Queue send failed: 503')
       },
@@ -148,9 +203,10 @@ describe('queueing a build after the response', () => {
         if (row)
           await failResolution({ db: sqlite.db, now: () => NOW }, row, 'SERVICE_UNAVAILABLE', true)
       },
+      reportBuildError: () => {},
     })
 
-    await enqueue(created.row.id)
+    await start(created.row.id)
     await Promise.all(scheduled)
 
     const settled = await getResolution(sqlite.db, created.row.id)
@@ -160,5 +216,24 @@ describe('queueing a build after the response', () => {
       retryable: true,
     })
     sqlite.close()
+  })
+
+  it('keeps a build that threw on the delayed fallback when the second send fails', async () => {
+    let sends = 0
+    const run = harness({
+      build: async () => {
+        throw new Error('The operation was aborted due to timeout')
+      },
+      enqueue: async () => {
+        sends += 1
+        if (sends > 1)
+          throw new Error('Queue send failed: 503')
+      },
+    })
+
+    await run.start(ID)
+    await run.settle()
+
+    expect(run.failUnqueued).not.toHaveBeenCalled()
   })
 })
