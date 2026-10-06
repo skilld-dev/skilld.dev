@@ -608,6 +608,7 @@ describe('accessibility: components', () => {
       model: 'claude-opus-5-5',
       recordedAt: '2026-10-06',
       shots: [shot],
+      liveUrl: null,
       video: null,
     }))
     const container = createIsolatedContainer()
@@ -647,6 +648,7 @@ describe('accessibility: components', () => {
       model: 'claude-opus-5-5',
       recordedAt: '2026-10-06',
       shots: [shot],
+      liveUrl: null,
       video: null,
     }))
     const container = createIsolatedContainer()

@@ -24,6 +24,8 @@ export interface HomeDemoItem {
   recordedAt: string
   shots: { src: string, width: number, height: number, alt: string, viewport: 'desktop' | 'mobile' }[]
   /** A Skill whose output is a film. The poster is a JPG frame; `src` is a muted H.264 MP4. */
+  /** The sandboxed output page of a page demo; null for a film. */
+  liveUrl: string | null
   video: HomeDemoVideo | null
 }
 
