@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { repoSkillPath } from '#shared/skill-routes'
+
 definePageMeta({ layout: 'admin' })
 
 useSeoMeta({
@@ -171,10 +173,11 @@ const severityColor: Record<Severity, 'error' | 'warning' | 'neutral'> = {
   info: 'neutral',
 }
 
+// The /gh addresses, so a click skips the legacy /skills redirect.
 function issuePath(issue: CheckIssue) {
   if (issue.owner && issue.repo && issue.name)
-    return `/skills/${issue.owner}/${issue.repo}/${issue.name}`
-  return issue.slug ? `/skills/${issue.slug}` : null
+    return repoSkillPath(issue.owner, issue.repo, issue.name)
+  return issue.slug ? `/gh/${issue.slug}` : null
 }
 
 const filters = [
@@ -420,7 +423,7 @@ const recoveryCards = computed(() => [
               class="flex items-center justify-between gap-3"
             >
               <NuxtLink
-                :to="`/skills/${row.owner}/${row.repo}/${row.name}`"
+                :to="repoSkillPath(row.owner, row.repo, row.name)"
                 class="font-mono text-primary hover:underline"
               >
                 {{ row.owner }}/{{ row.repo }}/{{ row.name }}
