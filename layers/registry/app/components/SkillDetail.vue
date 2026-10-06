@@ -312,7 +312,7 @@ const runFlagFetch = useFetch<RunCheckFlagsResponse>('/api/run-checks/flags', {
   watch: [slug],
   default: () => ({ items: [] }),
 })
-const runFlag = computed(() => runFlagFetch.data.value.items[0] ?? null)
+const runFlag = computed(() => runFlagFetch.data.value?.items[0] ?? null)
 
 const liveSkillFetch = useAsyncData<LiveSkill | null>(
   () => `skill-live:${slug.value}`,
