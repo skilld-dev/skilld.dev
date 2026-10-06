@@ -636,6 +636,7 @@ describe('accessibility: component coverage', () => {
     'TextureFileMinimap.client', // Decorative client-only canvas, hidden from screen readers
     'OgBrand', // OG image component, rendered server-side only
     'OgLayout', // OG image layout component, rendered server-side only
+    'OgLines', // OG image text component, rendered server-side only
     'SkillCard', // Tested at page level
     'SkillReceiptsBadge', // Tested at page level
     'StatsBars', // Decorative chart, tested at page level
