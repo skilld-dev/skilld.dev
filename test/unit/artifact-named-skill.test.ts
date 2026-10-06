@@ -57,19 +57,9 @@ describe('named Skill resolution', () => {
 
     expect(result).toMatchObject({ _tag: 'resolved', source: { skillPath: '.claude/skills/demo' } })
   })
-
-  it('asks for a path when GitHub cannot list the whole Repository', async () => {
-    const result = await resolveNamed('demo', [blob('skills/demo/SKILL.md')], true)
-
-    expect(result).toMatchObject({
-      _tag: 'rejected',
-      code: 'INVALID_SOURCE',
-      summary: 'The Repository is too large to find a Skill by name. Name the Skill by its path.',
-    })
-  })
 })
 
-async function resolveNamed(name: string, entries: object[], truncated = false) {
+async function resolveNamed(name: string, entries: object[]) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.endsWith('/repos/skilld-dev/skills'))
@@ -79,7 +69,7 @@ async function resolveNamed(name: string, entries: object[], truncated = false) 
     if (url.endsWith(`/commits/${commitSha}`))
       return json({ sha: commitSha, commit: { tree: { sha: rootTreeSha } } })
     if (url.endsWith(`/git/trees/${rootTreeSha}?recursive=1`))
-      return json({ sha: rootTreeSha, tree: entries, truncated })
+      return json({ sha: rootTreeSha, tree: entries, truncated: false })
     return json({}, 404)
   })
   const client = createPublicGithubSourceClient({ fetch: fetchMock as typeof fetch })

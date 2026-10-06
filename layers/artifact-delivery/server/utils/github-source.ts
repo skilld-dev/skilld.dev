@@ -22,6 +22,9 @@ const GITHUB_API_VERSION = '2026-03-10'
 const MAX_GITHUB_JSON_BYTES = 8 * 1024 * 1024
 const MAX_TREE_ENTRIES = 2000
 const MAX_TREE_REQUESTS = 128
+// One tree read can hold 8 MiB of JSON and the tree parsed from it. Two at a
+// time keep a split walk well inside a Worker's 128 MiB.
+const TREE_WALK_CONCURRENCY = 2
 const MAX_SKILL_PATH_SEGMENTS = 64
 // One invocation loads every blob once. With one repository read per load and
 // resolve, a handful of tree reads, the D1 state transitions and the R2 write,
@@ -97,6 +100,12 @@ const blobResponseSchema = z.object({
 
 type TreeEntry = z.infer<typeof treeEntrySchema>
 
+/** Where the GitHub API serves a Repository now. */
+interface RepositoryName {
+  owner: string
+  repository: string
+}
+
 interface ListedTree {
   _tag: 'listed'
   entries: TreeEntry[]
@@ -168,17 +177,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     outcome._tag === 'rate-limited'
       ? rateLimitRejection(outcome.resetAt)
       : sourceReadRejection(outcome._tag, expectedVisibility)
-  const requestJson = async <T>(step: GithubReadStep, path: string, schema: z.ZodType<T>): Promise<
-    { _tag: 'ok', value: T }
-    | { _tag: 'not-found' }
-    | { _tag: 'access-denied' }
-    | { _tag: 'rate-limited', resetAt: number | null }
-  > => {
-    type Outcome
-      = | { _tag: 'ok', value: T }
-        | { _tag: 'not-found' }
-        | { _tag: 'access-denied' }
-        | { _tag: 'rate-limited', resetAt: number | null }
+  const requestJson = async <T>(step: GithubReadStep, path: string, schema: z.ZodType<T>): Promise<ReadOutcome<T>> => {
+    type Outcome = ReadOutcome<T>
     const headers = new Headers({
       'Accept': 'application/vnd.github+json',
       'User-Agent': 'skilld.dev',
@@ -188,11 +188,22 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       headers.set('Authorization', `Bearer ${options.token}`)
     // Every try requests this same URL, so a retry can never read another ref.
     const url = `${GITHUB_API}${path}`
+    const fetchOnce = (target: string) => fetchNoRedirect(options.fetch, target, {
+      headers,
+      signal: AbortSignal.timeout(GITHUB_READ_TRY_TIMEOUT_MS),
+    })
+    // A renamed or transferred Repository answers its old name with a 301 to
+    // `/repositories/<id>`. The read follows that one hop, so a run of the old
+    // name keeps working. Every other redirect stays fatal.
+    const fetchFollowingMove = async () => {
+      const fetched = await fetchOnce(url)
+      if (fetched._tag !== 'unexpected-redirect')
+        return fetched
+      const moved = movedRepositoryUrl(fetched.location)
+      return moved ? await fetchOnce(moved) : fetched
+    }
     const tryOnce = async (): Promise<GithubReadTry<Outcome>> => {
-      const sent = await fetchNoRedirect(options.fetch, url, {
-        headers,
-        signal: AbortSignal.timeout(GITHUB_READ_TRY_TIMEOUT_MS),
-      }).then(
+      const sent = await fetchFollowingMove().then(
         fetched => ({ _tag: 'sent' as const, fetched }),
         (error: unknown) => ({ _tag: 'threw' as const, error }),
       )
@@ -223,10 +234,13 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
           status: response.status,
         }
       }
-      const body = await readBoundedJson(response, MAX_GITHUB_JSON_BYTES).then(
-        value => ({ _tag: 'json' as const, value }),
-        (error: unknown) => ({ _tag: 'unreadable' as const, error }),
-      )
+      const body = await readBoundedJson(response, MAX_GITHUB_JSON_BYTES)
+        .catch((error: unknown) => ({ _tag: 'unreadable' as const, error }))
+      // A body over the limit is a fact about the Git object, so it settles
+      // as a value each caller can answer. It used to throw, which spent the
+      // whole queue retry ladder and then failed as SERVICE_UNAVAILABLE.
+      if (body._tag === 'too-large')
+        return { _tag: 'settled', value: { _tag: 'too-large' } }
       if (body._tag === 'unreadable') {
         const transient = !isBodyLimitError(body.error)
         return {
@@ -312,14 +326,16 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     rootTreeSha: string,
   ): Promise<ListedTree | SourceRejection> => {
     const recursive = await getTree(owner, repository, rootTreeSha, true)
-    if (recursive._tag !== 'ok')
+    if (recursive._tag !== 'ok' && recursive._tag !== 'too-large')
       return readRejection(recursive)
-    if (!recursive.value.truncated) {
+    if (recursive._tag === 'ok' && !recursive.value.truncated) {
       if (recursive.value.tree.length > MAX_TREE_ENTRIES)
         return sourceLimitRejection(`The Skill folder has more than ${MAX_TREE_ENTRIES} entries.`)
       return { _tag: 'listed', entries: recursive.value.tree, truncated: false }
     }
 
+    // GitHub truncated the listing, or it passed the read limit. Both mean
+    // one response could not hold it, so walk one tree per directory.
     const entries: TreeEntry[] = []
     const queue: Array<{ sha: string, prefix: string }> = [{ sha: rootTreeSha, prefix: '' }]
     let requests = 0
@@ -328,10 +344,10 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         return sourceLimitRejection(`The Skill folder needs more than ${MAX_TREE_REQUESTS} tree reads.`)
       const current = queue.shift()!
       const response = await getTree(owner, repository, current.sha, false)
+      if (response._tag === 'too-large' || (response._tag === 'ok' && response.value.truncated))
+        return sourceLimitRejection('GitHub returned an incomplete Skill tree.')
       if (response._tag !== 'ok')
         return readRejection(response)
-      if (response.value.truncated)
-        return sourceLimitRejection('GitHub returned an incomplete Skill tree.')
       for (const entry of response.value.tree) {
         const path = current.prefix ? `${current.prefix}/${entry.path}` : entry.path
         const nested = { ...entry, path }
@@ -381,6 +397,9 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
    *
    * Copies of one Skill in several folders resolve to the canonical copy.
    * They used to fail as "More than one Skill matched".
+   *
+   * The registry answers a name it admitted before this search runs, so the
+   * search serves names it does not hold, such as a private Skill.
    */
   const resolveNamedSkill = async (
     owner: string,
@@ -388,22 +407,83 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     treeSha: string,
     name: string,
   ): Promise<string | SourceRejection> => {
-    const tree = await getTree(owner, repository, treeSha, true)
-    if (tree._tag !== 'ok')
-      return readRejection(tree)
-    if (tree.value.truncated) {
+    const folders = await listSkillFolders(owner, repository, treeSha)
+    if (folders._tag === 'unlistable') {
       return reject(
         'INVALID_SOURCE',
         'The Repository is too large to find a Skill by name. Name the Skill by its path.',
         [name],
       )
     }
-    const matches = tree.value.tree
-      .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
-      .map(entry => entry.path === 'SKILL.md' ? '.' : entry.path.slice(0, -'/SKILL.md'.length))
+    if (folders._tag === 'rejected')
+      return folders
+    const matches = folders.folders
       .filter(path => (path === '.' ? repository : path.split('/').at(-1)) === name)
     return canonicalSkillFolder(matches)
       ?? reject('SOURCE_NOT_FOUND', 'No Skill matched the requested name.', [name])
+  }
+
+  /**
+   * Every registry Skill folder in a tree, in as few reads as GitHub allows.
+   *
+   * One recursive read lists most Repositories. GitHub truncates a recursive
+   * listing past 100,000 entries or 7 MB, and a large one can pass the 8 MiB
+   * read limit: posthog/posthog, n8n-io/n8n, vercel/next.js. Each failed the
+   * search outright, whatever the Skill size. A tree that one response cannot
+   * hold now splits: one read lists its own level, and each folder in it gets
+   * its own recursive read, which can split again. `MAX_TREE_REQUESTS` bounds
+   * the walk.
+   */
+  const listSkillFolders = async (
+    owner: string,
+    repository: string,
+    rootTreeSha: string,
+  ): Promise<{ _tag: 'listed', folders: string[] } | { _tag: 'unlistable' } | SourceRejection> => {
+    type Visit
+      = | { _tag: 'listed', folders: string[], children: Array<{ sha: string, prefix: string }> }
+        | { _tag: 'unlistable' }
+        | SourceRejection
+    let requests = 0
+    const read = (sha: string, recursive: boolean) => {
+      requests++
+      return getTree(owner, repository, sha, recursive)
+    }
+    const visit = async ({ sha, prefix }: { sha: string, prefix: string }): Promise<Visit> => {
+      const join = (path: string) => prefix ? `${prefix}/${path}` : path
+      const whole = await read(sha, true)
+      if (whole._tag === 'ok' && !whole.value.truncated)
+        return { _tag: 'listed', folders: skillFolders(whole.value.tree.map(entry => ({ ...entry, path: join(entry.path) }))), children: [] }
+      if (whole._tag !== 'ok' && whole._tag !== 'too-large')
+        return readRejection(whole)
+      const level = await read(sha, false)
+      if (level._tag === 'too-large' || (level._tag === 'ok' && level.value.truncated))
+        return { _tag: 'unlistable' }
+      if (level._tag !== 'ok')
+        return readRejection(level)
+      const entries = level.value.tree.map(entry => ({ ...entry, path: join(entry.path) }))
+      return {
+        _tag: 'listed',
+        folders: skillFolders(entries),
+        children: entries.filter(entry => entry.type === 'tree').map(entry => ({ sha: entry.sha, prefix: entry.path })),
+      }
+    }
+
+    const folders: string[] = []
+    const pending = [{ sha: rootTreeSha, prefix: '' }]
+    while (pending.length > 0) {
+      // A split folder costs two reads, so a wave can need twice its size.
+      const wave = pending.splice(0, TREE_WALK_CONCURRENCY)
+      if (requests + wave.length * 2 > MAX_TREE_REQUESTS)
+        return { _tag: 'unlistable' }
+      const visited = await Promise.all(wave.map(visit))
+      for (const result of visited) {
+        if (result._tag !== 'listed')
+          return result
+        folders.push(...result.folders)
+        pending.push(...result.children)
+      }
+    }
+    return { _tag: 'listed', folders }
   }
 
   return {
@@ -428,6 +508,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
           ? reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
           : reject('SOURCE_ACCESS_DENIED', 'GitHub denied access to the Repository.', [])
       }
+      if (repository._tag === 'too-large')
+        return readRejection(repository)
       if (repository.value.private !== (expectedVisibility === 'private')) {
         return expectedVisibility === 'private'
           ? reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
@@ -455,6 +537,8 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         return reject('SOURCE_NOT_FOUND', 'The requested Git reference was not found.', [request.ref?.value ?? repository.value.default_branch])
       if (commit._tag === 'access-denied')
         return reject('SOURCE_ACCESS_DENIED', 'GitHub denied access to the requested Git reference.', [])
+      if (commit._tag === 'too-large')
+        return readRejection(commit)
       if (commit.value.sha !== requestedCommit) {
         return reject('INVALID_SOURCE', 'GitHub returned another commit identity.', [
           requestedCommit,
@@ -473,13 +557,18 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       if (typeof skillPath !== 'string')
         return skillPath
 
+      // A moved Repository keeps the name the request used. GitHub confirmed
+      // that the name leads to this Repository ID, and the released CLI
+      // checks the attested name against its own request.
+      const moved = !sameGithubName(request.owner, repository.value.owner.login)
+        || !sameGithubName(request.repository, repository.value.name)
       return {
         _tag: 'resolved',
         source: {
           provider: 'github',
           repositoryId: repository.value.id,
-          owner: repository.value.owner.login,
-          repository: repository.value.name,
+          owner: moved ? request.owner : repository.value.owner.login,
+          repository: moved ? request.repository : repository.value.name,
           visibility: expectedVisibility,
           commitSha: commit.value.sha,
           treeSha: commit.value.commit.tree.sha,
@@ -503,19 +592,21 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
           ? reject('SOURCE_NOT_FOUND', 'The Repository was not found.', [])
           : reject('SOURCE_ACCESS_DENIED', 'This Artifact source is no longer public.', [])
       }
+      if (repository._tag === 'too-large')
+        return readRejection(repository)
       if (repository.value.private !== (expectedVisibility === 'private'))
         return reject('SOURCE_ACCESS_DENIED', 'The Repository visibility changed.', [])
-      if (
-        repository.value.id !== source.repositoryId
-        || repository.value.owner.login !== source.owner
-        || repository.value.name !== source.repository
-      ) {
+      // The Repository ID is the identity. A name can move while the build
+      // runs, or after a reused build recorded it, and the commit and tree
+      // digests still pin every byte.
+      if (repository.value.id !== source.repositoryId)
         return reject('INVALID_SOURCE', 'The Repository identity changed during Artifact creation.', [])
-      }
-      const skillTree = await findTreeAtPath(source.owner, source.repository, source.treeSha, source.skillPath)
+      // Every later read uses the current name, so none of them redirects.
+      const at: RepositoryName = { owner: repository.value.owner.login, repository: repository.value.name }
+      const skillTree = await findTreeAtPath(at.owner, at.repository, source.treeSha, source.skillPath)
       if (typeof skillTree !== 'string')
         return skillTree
-      const listed = await listTreeBounded(source.owner, source.repository, skillTree)
+      const listed = await listTreeBounded(at.owner, at.repository, skillTree)
       if (listed._tag !== 'listed')
         return listed
       const selected = selectArtifactEntries(listed.entries, source.skillPath)
@@ -528,7 +619,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         totalBlobBytes: selected.entries.reduce((total, entry) => total + entry.size, 0),
       })
       if (choice._tag === 'tarball') {
-        const extracted = await loadFromTarball(source, selected.entries)
+        const extracted = await loadFromTarball(source, at, selected.entries)
         if (extracted._tag === 'extracted')
           return { _tag: 'loaded', value: { source, files: extracted.files } }
         // The tarball is an optimisation, never an authority. Anything it got
@@ -544,12 +635,13 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
           findings: extracted.findings.slice(0, 20),
         })
       }
-      return await loadFromBlobs(source, selected.entries)
+      return await loadFromBlobs(source, at, selected.entries)
     },
   }
 
   async function loadFromTarball(
     source: ResolvedSource,
+    at: RepositoryName,
     entries: Array<TreeEntry & { size: number }>,
   ): Promise<TarballExtraction> {
     const headers = new Headers({
@@ -563,7 +655,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     // redirects. The bytes it returns are verified against the tree digests,
     // which is what makes an unauthenticated byte host acceptable.
     const response = await options.fetch(
-      `${GITHUB_API}/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/tarball/${source.commitSha}`,
+      `${GITHUB_API}/repos/${encodeURIComponent(at.owner)}/${encodeURIComponent(at.repository)}/tarball/${source.commitSha}`,
       { headers, redirect: 'follow', signal: AbortSignal.timeout(TARBALL_REQUEST_TIMEOUT_MS) },
     ).catch((thrown: unknown) => {
       // A refused connection or the request timeout lands here. The build has
@@ -591,6 +683,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
 
   async function loadFromBlobs(
     source: ResolvedSource,
+    at: RepositoryName,
     entries: Array<TreeEntry & { size: number }>,
   ): Promise<LoadSourceResult> {
     const files: ArtifactSourceFile[] = []
@@ -599,7 +692,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const loaded = await Promise.all(batch.map(async (entry): Promise<ArtifactSourceFile | SourceRejection> => {
         const response = await requestJson(
           'blob',
-          `/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/git/blobs/${entry.sha}`,
+          `/repos/${encodeURIComponent(at.owner)}/${encodeURIComponent(at.repository)}/git/blobs/${entry.sha}`,
           blobResponseSchema,
         )
         if (response._tag !== 'ok')
@@ -668,6 +761,18 @@ export function chooseArtifactByteSource(input: {
  */
 function artifactFileMode(treeMode: string): 420 | 493 {
   return treeMode === '100755' ? 493 : 420
+}
+
+/** The folder of every registry SKILL.md among tree entries, with `.` for the root. */
+function skillFolders(entries: TreeEntry[]): string[] {
+  return entries
+    .filter(entry => entry.type === 'blob' && isRegistrySkillPath(entry.path))
+    .map(entry => entry.path === 'SKILL.md' ? '.' : entry.path.slice(0, -'/SKILL.md'.length))
+}
+
+/** GitHub owner and Repository names match without case. */
+function sameGithubName(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase()
 }
 
 function normalizeRequestedSkillPath(input: string): string | null {
@@ -789,10 +894,17 @@ function comparePath(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
-async function readBoundedJson(response: Response, maximumBytes: number): Promise<unknown> {
+async function readBoundedJson(
+  response: Response,
+  maximumBytes: number,
+): Promise<{ _tag: 'json', value: unknown } | { _tag: 'too-large' }> {
   const declared = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declared) && declared > maximumBytes)
-    throw new Error('GitHub response exceeded the byte limit')
+  if (Number.isFinite(declared) && declared > maximumBytes) {
+    await response.body?.cancel().catch(() => {
+      // The declared size already decided the outcome. A body that will not close changes nothing.
+    })
+    return { _tag: 'too-large' }
+  }
   if (!response.body)
     throw new Error('GitHub returned an empty response')
   const reader = response.body.getReader()
@@ -805,7 +917,7 @@ async function readBoundedJson(response: Response, maximumBytes: number): Promis
     size += next.value.byteLength
     if (size > maximumBytes) {
       await reader.cancel('response too large')
-      throw new Error('GitHub response exceeded the byte limit')
+      return { _tag: 'too-large' }
     }
     chunks.push(next.value)
   }
@@ -815,11 +927,26 @@ async function readBoundedJson(response: Response, maximumBytes: number): Promis
     bytes.set(chunk, offset)
     offset += chunk.byteLength
   }
-  return JSON.parse(new TextDecoder().decode(bytes)) as unknown
+  return { _tag: 'json', value: JSON.parse(new TextDecoder().decode(bytes)) as unknown }
+}
+
+/**
+ * The API URL a moved Repository answers with, or null for any other redirect.
+ *
+ * Only `/repositories/<id>` on the API origin passes, so the token never
+ * leaves api.github.com and no redirect reads an arbitrary path.
+ */
+function movedRepositoryUrl(location: string | null): string | null {
+  if (!location)
+    return null
+  const url = URL.parse(location, GITHUB_API)
+  if (!url || url.origin !== GITHUB_API || url.username || url.password)
+    return null
+  return /^\/repositories\/[1-9]\d*(?:\/|$)/.test(url.pathname) ? url.href : null
 }
 
 function sourceReadRejection(
-  reason: 'not-found' | 'access-denied' | 'identity-mismatch',
+  reason: 'not-found' | 'access-denied' | 'identity-mismatch' | 'too-large',
   visibility: 'public' | 'private',
 ): SourceRejection {
   if (visibility === 'private' && (reason === 'not-found' || reason === 'access-denied'))
@@ -828,6 +955,8 @@ function sourceReadRejection(
     return reject('SOURCE_NOT_FOUND', 'The Git object was not found.', [])
   if (reason === 'access-denied')
     return reject('SOURCE_ACCESS_DENIED', 'GitHub denied access to the Git object.', [])
+  if (reason === 'too-large')
+    return reject('INVALID_SOURCE', 'The GitHub response is larger than the read limit.', [])
   return reject('INVALID_SOURCE', 'GitHub returned another Git object identity.', [])
 }
 
@@ -836,8 +965,17 @@ function sourceLimitRejection(summary: string, findings: string[] = []): SourceR
 }
 
 type FailedReadOutcome
-  = { _tag: 'not-found' | 'access-denied' | 'identity-mismatch' }
+  = { _tag: 'not-found' | 'access-denied' | 'identity-mismatch' | 'too-large' }
     | { _tag: 'rate-limited', resetAt: number | null }
+
+/** One GitHub JSON read that reached an answer. A failed path to GitHub throws instead. */
+type ReadOutcome<T>
+  = | { _tag: 'ok', value: T }
+    | { _tag: 'not-found' }
+    | { _tag: 'access-denied' }
+    | { _tag: 'rate-limited', resetAt: number | null }
+    /** The body passed `MAX_GITHUB_JSON_BYTES`. A retry gets the same body. */
+    | { _tag: 'too-large' }
 
 function epochHeader(headers: Headers, name: string): number | null {
   const raw = headers.get(name)
