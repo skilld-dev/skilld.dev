@@ -77,7 +77,9 @@ describe('named Skill resolution', () => {
     expect(result).toMatchObject({ _tag: 'resolved', source: { skillPath: '.' } })
   })
 
-  it('asks for a path when GitHub cannot list the whole Repository', async () => {
+  // A truncated recursive tree is split level by level; only a level GitHub
+  // also truncates leaves the name search nothing to read.
+  it('asks for a path when GitHub truncates even one tree level', async () => {
     const result = await resolveNamed('demo', [blob('skills/demo/SKILL.md')], true)
 
     expect(result).toMatchObject({
@@ -98,6 +100,8 @@ async function resolveNamed(name: string, entries: object[], truncated = false, 
     if (url.endsWith(`/commits/${commitSha}`))
       return json({ sha: commitSha, commit: { tree: { sha: rootTreeSha } } })
     if (url.endsWith(`/git/trees/${rootTreeSha}?recursive=1`))
+      return json({ sha: rootTreeSha, tree: entries, truncated })
+    if (url.endsWith(`/git/trees/${rootTreeSha}`))
       return json({ sha: rootTreeSha, tree: entries, truncated })
     return json({}, 404)
   })
