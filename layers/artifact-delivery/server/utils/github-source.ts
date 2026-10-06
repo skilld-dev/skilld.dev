@@ -156,6 +156,8 @@ interface GithubClientOptions {
   onReadFailure?: (failure: GithubReadFailure) => void
   sleep?: (milliseconds: number) => Promise<void>
   random?: () => number
+  /** Unix seconds. A Retry-After delay becomes an absolute retry time against it. */
+  now?: () => number
 }
 
 export function createPublicGithubSourceClient(options: GithubClientOptions): PublicGithubSourceClient {
@@ -164,6 +166,7 @@ export function createPublicGithubSourceClient(options: GithubClientOptions): Pu
 
 export function createGithubSourceClient(options: GithubClientOptions): PublicGithubSourceClient {
   const expectedVisibility = options.visibility ?? 'public'
+  const now = options.now ?? (() => Math.floor(Date.now() / 1000))
   const readRejection = (outcome: FailedReadOutcome) =>
     outcome._tag === 'rate-limited'
       ? rateLimitRejection(outcome.resetAt)
@@ -204,15 +207,15 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const response = fetched.response
       if (response.status === 404)
         return { _tag: 'settled', value: { _tag: 'not-found' } }
-      if (response.status === 401 || response.status === 403) {
-        // A spent quota is a fact about this minute, not about the Repository.
-        // It used to throw, which wrote nothing: the Resolution sat in its
-        // current state through the 60, 120, 240, 480 second delivery ladder and
-        // then failed as SERVICE_UNAVAILABLE with no reason on it.
-        if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0')
-          return { _tag: 'settled', value: { _tag: 'rate-limited', resetAt: epochHeader(response.headers, 'x-ratelimit-reset') } }
+      // A spent quota is a fact about this minute, not about the Repository.
+      // It used to throw, which wrote nothing: the Resolution sat in its
+      // current state through the delivery retry ladder and then failed as
+      // SERVICE_UNAVAILABLE with no reason on it.
+      const limited = githubRateLimit(response, now())
+      if (limited)
+        return { _tag: 'settled', value: limited }
+      if (response.status === 401 || response.status === 403)
         return { _tag: 'settled', value: { _tag: 'access-denied' } }
-      }
       if (!response.ok) {
         await response.body?.cancel().catch(() => {
           // The status already decided the outcome. A body that will not close changes nothing.
@@ -531,6 +534,10 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         const extracted = await loadFromTarball(source, selected.entries)
         if (extracted._tag === 'extracted')
           return { _tag: 'loaded', value: { source, files: extracted.files } }
+        // The blobs API reads one file per request against the same limit.
+        // Falling back would spend the most quota exactly when none is left.
+        if (extracted._tag === 'rate-limited')
+          return rateLimitRejection(extracted.resetAt)
         // The tarball is an optimisation, never an authority. Anything it got
         // wrong, including a file `.gitattributes export-ignore` removed from
         // the archive, falls through to the blobs API, which serves every blob
@@ -551,7 +558,7 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
   async function loadFromTarball(
     source: ResolvedSource,
     entries: Array<TreeEntry & { size: number }>,
-  ): Promise<TarballExtraction> {
+  ): Promise<TarballExtraction | GithubRateLimit> {
     const headers = new Headers({
       'Accept': 'application/vnd.github+json',
       'User-Agent': 'skilld.dev',
@@ -572,6 +579,11 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
     })
     if ('_tag' in response)
       return { _tag: 'unusable', reason: 'unavailable', findings: [response.message] }
+    const limited = githubRateLimit(response, now())
+    if (limited) {
+      await response.body?.cancel()
+      return limited
+    }
     if (!response.ok || !response.body) {
       await response.body?.cancel()
       return { _tag: 'unusable', reason: 'unavailable', findings: [`GitHub returned ${response.status}`] }
@@ -845,6 +857,31 @@ function epochHeader(headers: Headers, name: string): number | null {
     return null
   const value = Number(raw)
   return Number.isSafeInteger(value) && value > 0 ? value : null
+}
+
+interface GithubRateLimit {
+  _tag: 'rate-limited'
+  /** Unix seconds GitHub allows the next request, when it said so. */
+  resetAt: number | null
+}
+
+/**
+ * GitHub's rate limit answer, or null for any other response.
+ *
+ * GitHub answers a spent primary quota with 403 or 429 and no remaining
+ * requests, and a secondary limit with 403 or 429 and Retry-After. A 429 is
+ * always a limit. A 403 with neither header denies access.
+ * https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+ */
+export function githubRateLimit(response: Pick<Response, 'status' | 'headers'>, now: number): GithubRateLimit | null {
+  if (response.status !== 403 && response.status !== 429)
+    return null
+  const retryAfter = epochHeader(response.headers, 'retry-after')
+  if (retryAfter !== null)
+    return { _tag: 'rate-limited', resetAt: now + retryAfter }
+  if (response.headers.get('x-ratelimit-remaining') === '0')
+    return { _tag: 'rate-limited', resetAt: epochHeader(response.headers, 'x-ratelimit-reset') }
+  return response.status === 429 ? { _tag: 'rate-limited', resetAt: null } : null
 }
 
 function rateLimitRejection(resetAt: number | null): SourceRejection {

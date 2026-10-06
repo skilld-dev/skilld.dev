@@ -25,6 +25,17 @@ const artifactBuildMessageSchema = z.object({
   resolutionId: z.string().uuid(),
 }).strict()
 
+/**
+ * The wait before each retry of a build attempt that threw. A fifth failed
+ * attempt fails the Resolution as SERVICE_UNAVAILABLE.
+ *
+ * The CLI waits 60 seconds for a Resolution, so the first retry comes within
+ * that window: one transient GitHub or signer error no longer fails the run.
+ * It used to wait 60 seconds. The later waits still ride out a long GitHub
+ * network fault, such as the one on 2026-09-30.
+ */
+export const ARTIFACT_BUILD_RETRY_DELAYS_SECONDS: readonly number[] = [5, 30, 120, 480]
+
 export async function enqueueArtifactBuild(env: Cloudflare.Env, resolutionId: string): Promise<void> {
   await env.ARTIFACT_BUILD_QUEUE.send({ version: 1, resolutionId })
 }
@@ -59,8 +70,9 @@ export async function consumeArtifactBuildBatch(
       attempt: message.attempts,
       error: outcome.error instanceof Error ? outcome.error.message : String(outcome.error),
     }))
-    if (message.attempts < 5) {
-      message.retry({ delaySeconds: Math.min(3600, 60 * 2 ** Math.max(0, message.attempts - 1)) })
+    const delaySeconds = ARTIFACT_BUILD_RETRY_DELAYS_SECONDS[message.attempts - 1]
+    if (delaySeconds !== undefined) {
+      message.retry({ delaySeconds })
       continue
     }
     const row = await getResolution(dependencies.db, parsed.data.resolutionId)
