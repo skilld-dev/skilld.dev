@@ -113,7 +113,16 @@ Preserve these existing values:
 - `NUXT_TOKEN_KEY`
 - `GITHUB_TOKEN`
 
-The existing `GITHUB_TOKEN` reads public [GitHub](https://github.com) sources.
+The existing `GITHUB_TOKEN` reads public [GitHub](https://github.com) sources for the registry sync and `/gh` pages.
+
+Public Artifact builds read GitHub with a credential of their own, in this order:
+
+1. The read App `skilld-dev-registry-reads`: `SKILLD_READ_APP_ID`, `SKILLD_READ_APP_INSTALLATION_ID` and `SKILLD_READ_APP_PRIVATE_KEY_PKCS8` (a PKCS #8 PEM). It has metadata read permission only, and its installation has its own quota.
+2. `ARTIFACT_GITHUB_TOKEN`.
+3. `GITHUB_TOKEN`.
+
+If the App secrets are set but unusable, builds read with the next credential and emit an `artifact-github-credential` event with the reason.
+Keep the read App apart from the `GITHUB_APP_*` secrets below. Those belong to private delivery.
 
 Changing `NUXT_TOKEN_KEY` breaks stored GitHub credentials.
 

@@ -1,6 +1,11 @@
 import type { QueueBatch } from '#cf-jobs/server'
 import type { ArtifactBuildDependencies } from './build'
-import type { GithubReadFailure } from './github-source'
+import type {
+  ArtifactGithubCredentialEnv,
+  ArtifactGithubCredentialReport,
+  ArtifactGithubCredentialRuntime,
+} from './github-read-credential'
+import type { GithubReadFailure, PublicGithubSourceClient } from './github-source'
 import { createWideEvent } from '@harlan-zw/nuxt-wide-events/standalone'
 import { z } from 'zod'
 import { emitOperationalEvent } from '#server/utils/operational-event'
@@ -11,6 +16,12 @@ import {
   githubAppUserTokenDependenciesFromEnv,
   loadAccountGithubAppUserToken,
 } from './github-app'
+import {
+  createArtifactGithubCredential,
+  createInstallationTokenCache,
+  parseArtifactGithubCredentialConfig,
+  withGithubCredential,
+} from './github-read-credential'
 import { createGithubSourceClient, createPublicGithubSourceClient } from './github-source'
 import { createD1PrivateArtifactKeyProvider, privateArtifactWrappingKeysFromEnv } from './private-crypto'
 import { privateArtifactAccessEnabled } from './private-feature'
@@ -99,16 +110,47 @@ export function reportGithubReadFailure(failure: GithubReadFailure): void {
 }
 
 /**
- * The token public Artifact builds read GitHub with.
+ * One installation token cache per isolate. A token lives an hour, so it
+ * outlives the queue batch that minted it.
+ */
+const installationTokens = createInstallationTokenCache()
+
+/**
+ * The GitHub source public Artifact builds read with.
  *
  * GitHub counts a personal token's quota per account, and the registry sync
- * spends `GITHUB_TOKEN` to zero before each hourly reset. Every run that needed
- * GitHub in those minutes failed RATE_LIMITED. `ARTIFACT_GITHUB_TOKEN`, from
- * another account, keeps a quota for runs. Until it is set, builds share
- * `GITHUB_TOKEN`.
+ * and `/gh` page views spend `GITHUB_TOKEN` to zero before each hourly
+ * reset. Every run that needed GitHub in those minutes failed RATE_LIMITED.
+ * Builds read with the read App's installation token, whose bucket nothing
+ * else spends, then `ARTIFACT_GITHUB_TOKEN`, then `GITHUB_TOKEN`.
  */
-export function artifactGithubToken(env: Partial<Pick<Cloudflare.Env, 'ARTIFACT_GITHUB_TOKEN' | 'GITHUB_TOKEN'>>): string | undefined {
-  return env.ARTIFACT_GITHUB_TOKEN || env.GITHUB_TOKEN
+export function createArtifactGithubSource(
+  env: ArtifactGithubCredentialEnv,
+  runtime: ArtifactGithubCredentialRuntime = defaultGithubSourceRuntime(),
+): PublicGithubSourceClient {
+  const credential = createArtifactGithubCredential(parseArtifactGithubCredentialConfig(env), runtime)
+  return withGithubCredential(
+    credential,
+    token => createPublicGithubSourceClient({ fetch: runtime.fetch, token, onReadFailure: reportGithubReadFailure }),
+  )
+}
+
+function defaultGithubSourceRuntime(): ArtifactGithubCredentialRuntime {
+  return {
+    fetch: globalThis.fetch.bind(globalThis),
+    now: () => Math.floor(Date.now() / 1000),
+    tokenCache: installationTokens,
+    report: reportGithubCredential,
+  }
+}
+
+function reportGithubCredential(event: ArtifactGithubCredentialReport): void {
+  emitOperationalEvent(createWideEvent({
+    'operation': 'artifact-github-credential',
+    'outcome': event.outcome,
+    'reason': event.reason,
+    'github.credential': event.fallback,
+  }))
 }
 
 export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBuildDependencies {
@@ -118,7 +160,7 @@ export function createArtifactBuildDependencies(env: Cloudflare.Env): ArtifactBu
     : {}
   return {
     db: env.DB,
-    github: createPublicGithubSourceClient({ fetch: runtimeFetch, token: artifactGithubToken(env), onReadFailure: reportGithubReadFailure }),
+    github: createArtifactGithubSource(env),
     bucket: env.PUBLIC_ARTIFACTS,
     signer: createArtifactSigner(env.ARTIFACT_SIGNER),
     trustedRoot: parseTrustedRoot(env.ARTIFACT_TRUSTED_ROOT_JSON, Math.floor(Date.now() / 1000)),
