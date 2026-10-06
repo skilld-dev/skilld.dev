@@ -715,7 +715,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   z-index: 1;
   padding-top: 2.5rem;
   /* Phones and tablets: the names run in a strip under the copy. */
-  padding-bottom: 7rem;
+  padding-bottom: 4.5rem;
 }
 
 /* Phones and tablets: a strip under the copy, clear of every line of text. */
@@ -725,7 +725,7 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   inset-inline: 0;
   bottom: 0;
   z-index: 0;
-  height: 6.5rem;
+  height: 4rem;
   pointer-events: none;
   opacity: 0.6;
   mask-image: linear-gradient(to bottom, transparent, #000 35%, #000 70%, transparent);
