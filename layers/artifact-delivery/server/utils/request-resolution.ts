@@ -1,6 +1,7 @@
 import type { H3EventContext } from 'h3'
 import type { SourceRequest } from '../schemas/contracts'
 import type { FetchAdmittedSkillIdentity } from './admitted-identity'
+import type { ServedResolution } from './served-resolution'
 import type { CreateResolutionResult } from './state'
 import { admittedSourceRequest } from './admitted-identity'
 import { recordResolutionRequester } from './requester-github'
@@ -12,6 +13,12 @@ export interface ResolutionRequestDependencies {
   lookupAdmitted: FetchAdmittedSkillIdentity
   enqueue: (resolutionId: string) => Promise<void>
   now: () => number
+  /**
+   * Answer a public request from a ready build, or name the source to build.
+   * `POST /api/v1/resolutions` passes it. The run sweep does not, so every
+   * sweep check still runs the build.
+   */
+  serveReady?: (source: SourceRequest) => Promise<ServedResolution>
 }
 
 export type ResolutionAccess
@@ -62,10 +69,15 @@ export async function requestResolution(
 ): Promise<CreateResolutionResult> {
   const accountId = input.access.visibility === 'private' ? input.access.accountId : undefined
   const identity = await resolutionRequestIdentity(input.source, input.idempotencyKey, accountId)
-  const source = input.access.visibility === 'private'
+  const admitted = input.access.visibility === 'private'
     ? input.source
     : await admittedSourceRequest(input.source, dependencies.lookupAdmitted)
-  const result = await createResolution(dependencies.db, source, identity, dependencies.now(), input.access)
+  const served: ServedResolution = input.access.visibility === 'public' && dependencies.serveReady
+    ? await dependencies.serveReady(admitted)
+    : { _tag: 'build', source: admitted }
+  if (served._tag === 'served')
+    return served
+  const result = await createResolution(dependencies.db, served.source, identity, dependencies.now(), input.access)
   if (result._tag === 'created' && input.access.visibility === 'public' && input.requesterAccountId) {
     await recordResolutionRequester(dependencies.db, {
       resolutionId: result.row.id,

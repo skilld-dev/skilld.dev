@@ -9,8 +9,9 @@ import {
 import { withArtifactProblems } from '../../../utils/artifact-problem'
 import { findPrivateRepositoryAccess } from '../../../utils/private-access'
 import { privateArtifactAccessEnabled } from '../../../utils/private-feature'
-import { enqueueArtifactBuild } from '../../../utils/queue'
+import { createArtifactBuildDependencies, enqueueArtifactBuild } from '../../../utils/queue'
 import { fetchAdmittedSkillIdentity, requestResolution } from '../../../utils/request-resolution'
+import { serveReadyResolution } from '../../../utils/served-resolution'
 import { setSkillPageUrlHeader } from '../../../utils/skill-page'
 
 export default withArtifactProblems(defineApiHandler({
@@ -33,11 +34,21 @@ export default withArtifactProblems(defineApiHandler({
           body.source.repository,
         )
       : { _tag: 'not-found' as const }
+    const build = createArtifactBuildDependencies(platform.env)
     const result = await requestResolution({
       db: platform.db,
       lookupAdmitted: fetchAdmittedSkillIdentity(event.context),
       enqueue: resolutionId => enqueueArtifactBuild(platform.env, resolutionId),
       now: () => Math.floor(Date.now() / 1000),
+      // A warm run takes the ready Resolution of its commit and skips the
+      // queue and the build.
+      serveReady: serveReadyResolution({
+        db: platform.db,
+        bucket: build.bucket,
+        trustedRoot: build.trustedRoot,
+        now: build.now,
+        resolveOnGithub: source => build.github.resolve(source),
+      }),
     }, {
       source: body.source,
       idempotencyKey,

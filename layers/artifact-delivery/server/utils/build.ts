@@ -108,7 +108,7 @@ export const LEADING_BUILD_WAIT_SECONDS = 2
  * root and still stored in R2. Its files and check results come from its signed
  * attestation, never from unsigned columns.
  */
-interface ReusableBuild {
+export interface ReusableBuild {
   resolutionId: string
   source: ResolvedSource
   artifactId: string
@@ -118,7 +118,7 @@ interface ReusableBuild {
   checkResults: CheckResult[]
 }
 
-type ReuseDecision
+export type ReuseDecision
   = { _tag: 'hit', build: ReusableBuild }
     | { _tag: 'miss', reason: ReuseMissReason }
 
@@ -592,8 +592,8 @@ async function decideReuse(
  * - the statement matches the stored row;
  * - R2 still holds the exact bytes.
  */
-async function findReusableBuild(
-  dependencies: ArtifactBuildDependencies,
+export async function findReusableBuild(
+  dependencies: Pick<ArtifactBuildDependencies, 'db' | 'bucket' | 'trustedRoot' | 'now'>,
   lookup: ReadyBuildLookup,
 ): Promise<ReuseDecision> {
   const ready = await findReadyPublicBuild(dependencies.db, lookup)
