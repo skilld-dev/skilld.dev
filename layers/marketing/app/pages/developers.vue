@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { REGISTRY_MCP_URL } from '#shared/agent-setup'
 import ApiTokenSetup from '../components/_ApiTokenSetup.vue'
 import SetupSnippet from '../components/_SetupSnippet.vue'
 import {
@@ -9,7 +10,6 @@ import {
   cursorInstallUrl,
   mcpApps,
   mcpAppSchema,
-  REGISTRY_MCP_URL,
   setupModes,
   setupModeSchema,
   setupSnippets,

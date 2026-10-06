@@ -2,9 +2,15 @@
 import type { RecentPublishesResponse } from '~~/server/api/feed/recent-publishes.get'
 import type { RecentUpdateCard, RecentUpdatesResponse } from '~~/server/api/feed/recent-updates.get'
 import type { TrendingFeedResponse } from '~~/server/api/feed/trending.get'
+import { agentSetupPrompt } from '#shared/agent-setup'
 import { WRITING_COMPARISON_LINK } from '#shared/comparison-navigation'
 import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
+import { AGENT_LOGOS } from '../utils/agent-logos'
+import { MORE_AGENT_COUNT } from '../utils/agent-reach'
+
+const setupPrompt = agentSetupPrompt()
+const heroAgentsLabel = `Works with ${AGENT_LOGOS.map(agent => agent.label).join(', ')}, and ${MORE_AGENT_COUNT} more Agents`
 
 const title = 'Agent skills for you and your agent · skilld'
 const description = 'Try any agent skill before you install it, and let your agent search for its own. Open-source CLI, no telemetry. A skills.sh alternative.'
@@ -229,13 +235,23 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
                 <UIcon name="i-lucide-chevron-down" class="size-3 shrink-0" aria-hidden="true" />
               </button>
               <template #content>
-                <div class="p-2">
+                <div class="home-hero__promo-panel space-y-3 p-3">
                   <SkilldInstallChip surface="home-hero-promo" />
+                  <p class="text-xs leading-relaxed text-muted">
+                    No terminal? Paste this into your agent.
+                  </p>
+                  <CopyText :text="setupPrompt" label="setup prompt" />
                 </div>
               </template>
             </UPopover>
           </li>
         </ul>
+
+        <!-- Quiet proof under the claims line. The section it links to names each Agent and the way in. -->
+        <NuxtLink to="#agents" class="home-hero__agents mx-auto mt-5" :aria-label="heroAgentsLabel">
+          <UIcon v-for="agent in AGENT_LOGOS" :key="agent.id" :name="agent.icon" class="size-4 shrink-0" aria-hidden="true" />
+          <span class="data-label" aria-hidden="true">+{{ MORE_AGENT_COUNT }}</span>
+        </NuxtLink>
       </div>
     </section>
 
@@ -318,6 +334,8 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
         </template>
       </div>
     </section>
+
+    <HomeAgents />
 
     <section
       id="outcomes"
@@ -800,6 +818,26 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
     padding-inline: 0.6em;
     color: var(--ui-text-dimmed);
   }
+}
+
+.home-hero__agents {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding-inline: 0.5rem;
+  color: var(--ui-text-dimmed);
+  transition: color 150ms ease;
+}
+
+.home-hero__agents:hover,
+.home-hero__agents:focus-visible {
+  color: var(--ui-text-muted);
+}
+
+.home-hero__promo-panel {
+  width: min(22rem, calc(100vw - 2rem));
 }
 
 .home-hero__promo {
