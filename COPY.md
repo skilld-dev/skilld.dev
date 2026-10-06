@@ -45,6 +45,7 @@ These exact strings. Do not paraphrase them per page.
 | Nav: Skillgen | Skillgen · Keeps your package skill current with a draft pull request after each release. · Set up Skillgen | guidance only: the last Developers menu card. Links `/skillgen` |
 | Nav: setup guides | All setup guides | guidance only: the link under the Developers menu cards. Links `/developers` |
 | Skillgen lead | Keep your package skill current. After each release tag, Skillgen opens a draft pull request that updates the Skill in your repository. You review it and decide what merges. | guidance only: the `/skillgen` line under the H1. Its first two sentences are the page's meta description |
+| Skillgen opt-in | Skillgen opens a draft pull request after each release tag. It runs only on the repositories you turn on here. | guidance only: the intro of the Skillgen view on `/me?view=skillgen`. The `/skillgen` step 02 says the same in its own words: Skillgen never runs on a repository you did not turn on |
 | CLI H1 | The skilld CLI | guidance only: the `/cli` H1 and its OG title |
 | CLI line | Search, run, install, and keep Skills current. | guidance only: the `/cli` line under the H1. It is the CLI's own `--help` line, so change it in the CLI first |
 | CLI intro | Give your Agent Skills that real maintainers write. A run reads the current source every time, and one command updates the Skills you install. Install the skilld Skill once, and your Agent searches and loads Skills on its own. | guidance only: the `/cli` intro under the line |

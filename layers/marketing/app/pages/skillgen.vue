@@ -47,7 +47,7 @@ const codeClass = 'font-mono text-xs text-default'
               Check your repository
             </h3>
             <ul class="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed text-muted">
-              <li>A public GitHub repository with the npm package's <code :class="codeClass">package.json</code> at its root.</li>
+              <li>A public GitHub repository with the npm package's <code :class="codeClass">package.json</code> at its root. Skillgen supports npm packages only.</li>
               <li>
                 A Skill at <code :class="codeClass">skills/&lt;package&gt;/SKILL.md</code>, or a <code :class="codeClass">SKILL.md</code> at the root. Leave the scope out of the package name.
               </li>
@@ -74,10 +74,28 @@ const codeClass = 'font-mono text-xs text-default'
           <span :class="indexClass" aria-hidden="true">02</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
+              Turn it on for each repository
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">
+              Sign in to skilld with GitHub. Your account lists the public repositories you maintain that have a Skill. Turn Skillgen on for each one it should update. Skillgen never runs on a repository you did not turn on.
+            </p>
+            <UButton
+              to="/me?view=skillgen"
+              label="Choose repositories"
+              color="neutral"
+              variant="outline"
+              class="mt-4 min-h-11"
+            />
+          </div>
+        </li>
+        <li :class="stepClass">
+          <span :class="indexClass" aria-hidden="true">03</span>
+          <div class="min-w-0">
+            <h3 class="text-base font-medium">
               Install the App
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
-              On GitHub, choose <strong class="font-medium text-default">Only select repositories</strong>, then pick your package repository.
+              On GitHub, choose <strong class="font-medium text-default">Only select repositories</strong>, then pick the repositories you turned on.
             </p>
             <UButton
               :to="INSTALL_URL"
@@ -94,13 +112,13 @@ const codeClass = 'font-mono text-xs text-default'
           </div>
         </li>
         <li :class="stepClass">
-          <span :class="indexClass" aria-hidden="true">03</span>
+          <span :class="indexClass" aria-hidden="true">04</span>
           <div class="min-w-0">
             <h3 class="text-base font-medium">
               Review the draft
             </h3>
             <p class="mt-2 text-sm leading-relaxed text-muted">
-              Skillgen starts with your latest tag. Each new tag starts another run. If npm has not published the version yet, the run waits. Each run must finish within 30 minutes.
+              Skillgen starts with your latest tag when you install the App. If you turned the repository on after the install, it starts at your next tag. Each new tag starts another run. If npm has not published the version yet, the run waits. Each run must finish within 30 minutes.
             </p>
             <p class="mt-3 text-sm leading-relaxed text-muted">
               A model drafts the update from the tagged source with the skilld Harness. A separate review must accept it before anything reaches your repository. If the Skill needs no change, Skillgen opens nothing.

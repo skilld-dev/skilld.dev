@@ -12,10 +12,11 @@ function restoreNavigationFocus(event: Event) {
 }
 
 const navigation = computed<NavigationMenuItem[]>(() => [
-  { label: 'Your skills', icon: 'i-lucide-heart', to: '/me', active: route.path === '/me' && !['email', 'repositories', 'account'].includes(String(route.query.view)) },
+  { label: 'Your skills', icon: 'i-lucide-heart', to: '/me', active: route.path === '/me' && !['email', 'repositories', 'skillgen', 'account'].includes(String(route.query.view)) },
   { label: 'Repository coverage', icon: 'i-lucide-git-fork', to: '/me?view=repositories', active: route.path === '/me' && route.query.view === 'repositories' },
   { label: 'Email updates', icon: 'i-lucide-mail', to: '/me?view=email', active: route.path === '/me' && route.query.view === 'email' },
   { label: 'Set up your agent', icon: 'i-lucide-plug', to: '/developers', active: route.path === '/developers' },
+  { label: 'Skillgen', icon: 'i-lucide-git-pull-request-draft', to: '/me?view=skillgen', active: route.path === '/me' && route.query.view === 'skillgen' },
   { label: 'Devices and tokens', icon: 'i-lucide-terminal', to: '/me/devices', active: route.path.startsWith('/me/devices') || route.path.startsWith('/me/cli-tokens') },
   { label: 'Account', icon: 'i-lucide-settings', to: '/me?view=account', active: route.path === '/me' && route.query.view === 'account' },
 ])

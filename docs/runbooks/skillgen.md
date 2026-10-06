@@ -4,8 +4,21 @@
 
 Skillgen is the `skilld-skillgen` GitHub App.
 It maintains an existing package skill through draft pull requests.
-It accepts every public repository that installs it.
+It runs only on a public repository whose maintainer turned it on at `/me?view=skillgen`.
 Maintainers set it up from [/skillgen](https://skilld.dev/skillgen).
+
+## Opt-in
+
+Installing the App alone queues nothing.
+A signed-in maintainer turns Skillgen on for each repository, and `skillgen_repositories` records it.
+Turning it on needs admin or maintain access, a public repository, a root `package.json`, and the Skill where the Worker reads it.
+Skillgen supports npm packages only.
+
+Before the Worker queues a job, it asks `POST /api/internal/skillgen/opt-ins` which repositories in the event opted in.
+If the site does not answer, the webhook returns 503 and queues nothing. Redeliver the event from the App settings.
+
+The site and the Worker share one secret.
+Set `NUXT_SKILLGEN_TOKEN` on the site Worker and `SKILLGEN_SITE_TOKEN` on `skilld-harness-proof` to the same value.
 
 ## Register the App
 

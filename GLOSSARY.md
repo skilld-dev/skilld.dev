@@ -245,6 +245,8 @@ Existing route paths, table names, and protocol fields keep their identifiers.
 
 **Is:** the `skilld-skillgen` GitHub App. After each release tag, it opens a draft pull request that updates a package skill. The maintainer reviews it and decides what merges.
 
+**Use for:** the App and its per-repository switch. A maintainer turns Skillgen on for each repository on their account page, and it runs nowhere else. It supports npm packages only.
+
 **Never:** bot (in UI copy), skill generator, auto-update.
 
 **Casing:** `Skillgen` in prose and UI. `skilld-skillgen` only where GitHub shows the App's name.

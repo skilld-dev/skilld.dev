@@ -1,8 +1,9 @@
 import { MAX_REQUEST_BYTES, parseJson, readBoundedBody } from './contracts'
 import { parseGithubEvent, verifyGithubSignature } from './github-events'
+import { readSkillgenOptIns } from './skillgen-opt-ins'
 
-export async function githubWebhook(request: Request, env: HarnessEnv): Promise<Response> {
-  if (!env.GITHUB_APP_WEBHOOK_SECRET || !env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY_PKCS8)
+export async function githubWebhook(request: Request, env: HarnessEnv, fetcher: typeof fetch = fetch): Promise<Response> {
+  if (!env.GITHUB_APP_WEBHOOK_SECRET || !env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY_PKCS8 || !env.SKILLGEN_SITE_TOKEN)
     return Response.json({ code: 'APP_UNCONFIGURED' }, { status: 503 })
   const body = await readBoundedBody(request, MAX_REQUEST_BYTES)
   if (body === undefined)
@@ -17,8 +18,18 @@ export async function githubWebhook(request: Request, env: HarnessEnv): Promise<
     return Response.json({ code: 'INVALID_EVENT' }, { status: 400 })
   if (event._tag === 'Ignored')
     return Response.json({ accepted: true, jobs: [] }, { status: 202 })
+  const optIns = await readSkillgenOptIns({
+    siteUrl: env.SKILLD_SITE_URL,
+    token: env.SKILLGEN_SITE_TOKEN,
+    repositories: event.tags.map(tag => `${tag.owner}/${tag.name}`),
+    fetch: fetcher,
+  })
+  if (optIns._tag === 'Unavailable')
+    return Response.json({ code: 'OPT_IN_UNAVAILABLE' }, { status: 503 })
   const jobs = []
   for (const tag of event.tags) {
+    if (!optIns.repositories.has(`${tag.owner}/${tag.name}`.toLowerCase()))
+      continue
     const job = await env.GITHUB_JOBS.getByName('github-app').enqueue(tag)
     if (job._tag === 'Busy')
       return Response.json({ code: 'APP_QUEUE_FULL' }, { status: 503 })

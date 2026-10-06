@@ -398,6 +398,8 @@ export default defineNuxtConfig({
     adminSecret: '',
     tokenKey: '',
     checkinToken: '',
+    // Shared with the skill-harness Worker as SKILLGEN_SITE_TOKEN. It reads Skillgen opt-ins.
+    skillgenToken: '',
     publicSiteUrl: 'https://skilld.dev',
     oauth: {
       github: {
