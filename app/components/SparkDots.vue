@@ -3,9 +3,9 @@
  * Columns of braille dots, one column per value, filled from the bottom.
  *
  * The braille spark and the trending mark draw with it. As braille text, each
- * bar was a full two-column cell in a fallback font, so seven days ran about
- * 60px wide with a gap inside every bar, and the width changed per system.
- * One column of dots per day draws the same levels at a third of the width.
+ * bar was a full two-column cell in a fallback font, with a gap inside every
+ * bar. Seven days measured 70px in headless Chrome on Linux, and the width
+ * changed per system. One column of dots per day draws them in 20px.
  * Plain-text surfaces keep the braille characters; see `braille-spark.ts`.
  */
 const { levels, accent = true } = defineProps<{
