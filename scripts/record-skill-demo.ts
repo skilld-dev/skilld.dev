@@ -1,9 +1,12 @@
 /**
  * Records one demo (GLOSSARY "demo") and writes it into the repository.
  *
- *   pnpm demo:record owner/repo/skill --prompt "Build ... Save it as index.html." --output index.html
- *   pnpm demo:record owner/repo/skill --prompt "Make ... Render it as film.mp4." --output film.mp4
- *   pnpm demo:record owner/repo/skill --prompt "..." --output launch.mp4 --seed ./site --setup "The folder held ..."
+ *   pnpm demo:record owner/repo/skill --makes landing-page --prompt "Build ... Save it as index.html." --output index.html
+ *   pnpm demo:record owner/repo/skill --makes film --prompt "Make ... Render it as film.mp4." --output film.mp4
+ *   pnpm demo:record owner/repo/skill --makes film --prompt "..." --output launch.mp4 --seed ./site --setup "The folder held ..."
+ *
+ * `--makes` is the demo's group on /skills/demos: one of DEMO_MAKES in
+ * shared/demo-groups.ts.
  *   pnpm demo:record owner/repo/skill --reshoot
  *
  * 1. Reads the Skill's current source commit from the public API.
@@ -30,6 +33,7 @@
  * the review step: a human approves each demo by merging it.
  */
 
+import type { DemoMakes } from '../shared/demo-groups'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyFile, cp, mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
@@ -39,6 +43,7 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs, promisify } from 'node:util'
 import { chromium } from '@playwright/test'
+import { DEMO_MAKES } from '../shared/demo-groups'
 
 const run = promisify(execFile)
 
@@ -105,6 +110,7 @@ interface DemoEntry {
   owner: string
   repo: string
   name: string
+  makes: DemoMakes
   authorName: string | null
   sourceUrl: string
   prompt: string
@@ -123,7 +129,7 @@ interface DemoEntry {
 type OutputKind = 'page' | 'video'
 
 type Parsed
-  = | { _tag: 'record', owner: string, repo: string, name: string, prompt: string, output: string, kind: OutputKind, seed: string | null, setup: string | null }
+  = | { _tag: 'record', owner: string, repo: string, name: string, makes: DemoMakes, prompt: string, output: string, kind: OutputKind, seed: string | null, setup: string | null }
     | { _tag: 'reshoot', owner: string, repo: string, name: string }
     | { _tag: 'usage', message: string }
 
@@ -133,6 +139,7 @@ function parseInput(argv: string[]): Parsed {
     allowPositionals: true,
     options: {
       prompt: { type: 'string' },
+      makes: { type: 'string' },
       output: { type: 'string', default: 'index.html' },
       seed: { type: 'string' },
       setup: { type: 'string' },
@@ -148,12 +155,15 @@ function parseInput(argv: string[]): Parsed {
     return { _tag: 'reshoot', owner, repo, name }
   if (!values.prompt)
     return { _tag: 'usage', message: 'Give the prompt with --prompt.' }
+  const makes = DEMO_MAKES.find(value => value === values.makes)
+  if (!makes)
+    return { _tag: 'usage', message: `Give the demo's group with --makes: one of ${DEMO_MAKES.join(', ')}.` }
   const kind: OutputKind | null = /^[\w-]+\.html$/.test(values.output) ? 'page' : /^[\w-]+\.mp4$/.test(values.output) ? 'video' : null
   if (!kind)
     return { _tag: 'usage', message: 'The --output file must be one HTML or MP4 file name, such as index.html or film.mp4.' }
   if (values.seed && !values.setup)
     return { _tag: 'usage', message: 'A --seed folder needs a --setup line that tells visitors what the folder held.' }
-  return { _tag: 'record', owner, repo, name, prompt: values.prompt, output: values.output, kind, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null }
+  return { _tag: 'record', owner, repo, name, makes, prompt: values.prompt, output: values.output, kind, seed: values.seed ? resolve(values.seed) : null, setup: values.setup ?? null }
 }
 
 interface SkillSource {
@@ -421,7 +431,7 @@ async function reshoot(owner: string, repo: string, name: string): Promise<void>
 async function main(): Promise<void> {
   const input = parseInput(process.argv.slice(2))
   if (input._tag === 'usage') {
-    console.error(`${input.message}\nUsage: pnpm demo:record owner/repo/skill --prompt "..." [--output index.html|film.mp4] [--seed dir --setup "..."]\n       pnpm demo:record owner/repo/skill --reshoot`)
+    console.error(`${input.message}\nUsage: pnpm demo:record owner/repo/skill --makes <group> --prompt "..." [--output index.html|film.mp4] [--seed dir --setup "..."]\n       pnpm demo:record owner/repo/skill --reshoot`)
     process.exitCode = 2
     return
   }
@@ -429,7 +439,7 @@ async function main(): Promise<void> {
     await reshoot(input.owner, input.repo, input.name)
     return
   }
-  const { owner, repo, name, prompt, output, kind, seed, setup } = input
+  const { owner, repo, name, makes, prompt, output, kind, seed, setup } = input
   const skillRef = `${owner}/${repo}/${name}`
   const source = await skillSource(owner, repo, name)
 
@@ -458,6 +468,7 @@ async function main(): Promise<void> {
     owner,
     repo,
     name,
+    makes,
     authorName: source.authorName,
     sourceUrl: source.sourceUrl,
     prompt,

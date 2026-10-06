@@ -1,3 +1,4 @@
+import type { DemoMakes } from '#shared/demo-groups'
 import type { SkillCardSkill } from '~/types/skill-card'
 import { demoAgentIcon, demoModelLabel } from '#shared/demo-recording'
 
@@ -10,6 +11,8 @@ export interface HomeDemoItem {
   repo: string
   name: string
   skillPath: string
+  /** What the Skill made: the demo's group on `/skills/demos`. */
+  makes: DemoMakes
   /** The Skill author, and the SKILL.md in their Repository (VISION principle 1). */
   authorName: string | null
   sourceUrl: string | null

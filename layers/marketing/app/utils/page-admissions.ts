@@ -53,9 +53,14 @@ export const FREEZE_AUDIT_PATHS: readonly string[] = [
   '/learn/author-ruby-package-skills',
   '/learn/author-rust-package-skills',
   '/learn/author-go-package-skills',
+  '/skills/demos',
 ]
 
 export const PAGE_ADMISSIONS: Readonly<Record<string, PageAdmission>> = {
+  '/skills/demos': {
+    targetQuery: 'claude skills examples',
+    admissionBar: '720 searches a month, KD 32. NuxtSEO research keywords, 2026-10-06. Holds only demos a human approved by merging, and renders noindex below six. Review at the 2026-11-11 gate.',
+  },
   '/compare/humanize-writing-skills': {
     targetQuery: 'best humanizer skill for claude',
     admissionBar: 'Experiment F, owner-approved 2026-10-05: one original source comparison with contextual internal links. Query estimate: 30 US searches a month, below the volume bar. Retain admission at the 2026-11-11 gate only if indexed with relevant query impressions.',

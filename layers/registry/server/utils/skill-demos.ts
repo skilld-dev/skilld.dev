@@ -1,4 +1,6 @@
+import type { DemoMakes } from '#shared/demo-groups'
 import { z } from 'zod'
+import { DEMO_MAKES } from '#shared/demo-groups'
 import { repoSkillPath } from '#shared/skill-routes'
 import manifest from '../data/skill-demos.json'
 
@@ -45,6 +47,8 @@ const demoSchema = z.object({
   authorName: z.string().min(1).nullable().optional(),
   /** The SKILL.md in the author's Repository. */
   sourceUrl: z.string().url().optional(),
+  /** What the Skill made, which groups the demo on `/skills/demos`. */
+  makes: z.enum(DEMO_MAKES),
   /** The exact text the Agent received after loading the Skill. */
   prompt: z.string().min(1),
   /** What the folder held before the Agent started, when the recording seeded one. */
@@ -114,6 +118,7 @@ export interface SkillDemoView {
   repo: string
   name: string
   skillPath: string
+  makes: DemoMakes
   authorName: string | null
   sourceUrl: string | null
   prompt: string
@@ -139,6 +144,7 @@ export function presentSkillDemo(demo: SkillDemoRecord, currentCommit: string | 
     repo: demo.repo,
     name: demo.name,
     skillPath: repoSkillPath(demo.owner, demo.repo, demo.name),
+    makes: demo.makes,
     authorName: demo.authorName ?? null,
     sourceUrl: demo.sourceUrl ?? null,
     prompt: demo.prompt,
