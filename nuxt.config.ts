@@ -580,6 +580,13 @@ export default defineNuxtConfig({
     // takes two failed checks, so a day of stale serving on a quiet colo is
     // within the time the checks themselves take.
     '/skills/demos': edgeCache({ maxAge: 300, staleWhileRevalidate: 86400 }),
+    // The CLI and developer pages read no data and no session, so they change
+    // only on deploy, and a deploy starts a new cache key. Uncached, each view
+    // rendered in the Worker: 110 to 250 ms to first byte from Sydney on
+    // 2026-10-07, against about 65 ms for a cached page. The 36000s total
+    // matches the window nuxt-skew-protection keeps old chunks for.
+    '/cli': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
+    '/developers': edgeCache({ maxAge: 3600, staleWhileRevalidate: 32400 }),
     // The homepage is the same shape as the board: rendered signed out, no
     // cookie read, and fed by the same feeds, so the same lifetimes hold. A
     // render measured 300 to 480 ms to first byte from Sydney on 2026-10-01.
