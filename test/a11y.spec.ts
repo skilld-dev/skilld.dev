@@ -620,7 +620,7 @@ describe('accessibility: components', () => {
     const picks = [...container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')]
     expect(picks).toHaveLength(3)
     expect(picks[0]?.getAttribute('aria-pressed')).toBe('true')
-    const stage = () => container.querySelector('.demo-index__stage .demo-index__open')?.getAttribute('href')
+    const stage = () => container.querySelector('.demo-index__stage .demo-stage__open')?.getAttribute('href')
     expect(stage()).toBe('/gh/anthropics/skills/one#demo')
 
     picks[1]!.click()
@@ -852,6 +852,7 @@ describe('accessibility: component coverage', () => {
     'StatsLeaderboard', // Tested at page level
     'UiTooltip', // Wrapper around UTooltip, exercised by parent components
     '_ChipSwitch', // The switch above RunChip and CliInstallChip, axe-scanned and clicked through both
+    'DemoStage', // The stage DemoIndex and /skills/demos render, scanned inside the HomeDemos and DemoIndex tests
     'home-demos/_DemoMedia', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoPicture', // A part of HomeDemos, scanned inside the HomeDemos tests
     'home-demos/_DemoRecording', // A part of HomeDemos, scanned inside the HomeDemos tests

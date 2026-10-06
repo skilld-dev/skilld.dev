@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~~/app/utils/home-demos'
 import { demoKey } from '~~/app/utils/home-demos'
+import { resolveAuthorName } from '~~/app/utils/skill-byline'
 import { groupDemos } from '#shared/demo-groups'
+import { githubAvatarProxyUrl } from '#shared/image-proxy'
 import { pageRobots } from '../../utils/page-admissions'
 
 /**
- * Every demo, grouped by what the Skill makes. Each group is a prompt index:
- * pick a prompt and the stage shows the output. A picked demo lands in the URL
+ * Every demo, in the board shell `/skills/trending` uses. The rail lists the
+ * demos under what each Skill makes; the stage shows the picked one in full:
+ * its prompt, its output, and the Skill's run command. A pick lands in the URL
  * as `?demo=owner/repo/name`, so a shared link opens on it.
  *
  * Indexable surface (VISION principle 2): the target query and admission bar
@@ -20,14 +23,30 @@ const { data } = await useFetch<{ items: HomeDemoItem[] }>('/api/skill-demos', {
 
 const demos = computed(() => data.value?.items ?? [])
 const groups = computed(() => groupDemos(demos.value))
-const filmCount = computed(() => demos.value.filter(demo => demo.video).length)
 
 const route = useRoute()
 const sharedKey = typeof route.query.demo === 'string' ? route.query.demo : undefined
 
-/** Keeps the picked demo in the URL without adding history or moving the page. */
-function rememberPick(demo: HomeDemoItem) {
+// The rail's first demo leads unless a shared link names another.
+const firstDemo = computed(() => groups.value[0]?.demos[0])
+const picked = ref(sharedKey ?? (firstDemo.value ? demoKey(firstDemo.value) : ''))
+const current = computed(() => demos.value.find(demo => demoKey(demo) === picked.value) ?? firstDemo.value)
+const currentKey = computed(() => current.value ? demoKey(current.value) : '')
+
+const stage = useTemplateRef<HTMLElement>('stage')
+const wide = useMediaQuery('(min-width: 64rem)')
+const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+
+/** Shows the demo, keeps it in the URL, and on narrow screens brings the stage into view. */
+function pick(demo: HomeDemoItem) {
+  picked.value = demoKey(demo)
+  if (!wide.value)
+    stage.value?.scrollIntoView({ block: 'start', behavior: reducedMotion.value ? 'auto' : 'smooth' })
   return navigateTo({ query: { ...route.query, demo: demoKey(demo) }, hash: route.hash }, { replace: true })
+}
+
+function author(demo: HomeDemoItem): string {
+  return resolveAuthorName(demo.owner, demo.authorName) ?? demo.owner
 }
 
 /** Below this many demos the page is too thin to index. */
@@ -54,109 +73,171 @@ defineOgImage('Page.takumi', {
   title: 'See what skills make',
   description: 'Recorded runs of agent skills: the prompt, and what the Agent made.',
 }, { alt: 'Skill demos on skilld' })
-
-function groupId(makes: string): string {
-  return `demos-${makes}`
-}
-
-// A shared link scrolls to its demo's group once the page has painted.
-onMounted(() => {
-  const demo = sharedKey ? demos.value.find(item => demoKey(item) === sharedKey) : undefined
-  if (demo)
-    document.getElementById(groupId(demo.makes))?.scrollIntoView({ block: 'start' })
-})
 </script>
 
 <template>
-  <div>
-    <CompactPageHeader
-      title="See what skills make"
-      description="Each demo is one recorded run: the prompt, and what the Agent built with the Skill. Pick a prompt to see the output, or open it live."
-      heading-id="demos-heading"
-    >
-      <template #aside>
-        <dl class="flex flex-wrap gap-x-6 gap-y-3 md:justify-end">
-          <div>
-            <dt class="data-label">
-              Demos
-            </dt>
-            <dd class="mt-1 font-mono text-sm tabular-nums">
-              {{ demos.length }}
-            </dd>
-          </div>
-          <div>
-            <dt class="data-label">
-              Films
-            </dt>
-            <dd class="mt-1 font-mono text-sm tabular-nums">
-              {{ filmCount }}
-            </dd>
-          </div>
-        </dl>
-      </template>
-      <nav v-if="groups.length > 1" aria-label="Demo groups">
-        <ul class="flex list-none flex-wrap gap-2 p-0">
-          <li v-for="group in groups" :key="group.makes">
-            <a :href="`#${groupId(group.makes)}`" class="demos-page__jump">
-              {{ group.label }}
-              <span class="font-mono text-xs text-muted tabular-nums">{{ group.demos.length }}</span>
-            </a>
-          </li>
-        </ul>
+  <BoardShell heading-id="demos-heading" surface="demos" :show-weekly-cta="false" :cta-pending="false">
+    <template #header>
+      <h1 id="demos-heading" class="text-3xl font-semibold tracking-tight text-balance">
+        See what skills make
+      </h1>
+      <p class="mt-2 text-sm text-muted">
+        Each demo is one recorded run: the prompt, and what the Agent built with the Skill.
+      </p>
+    </template>
+
+    <template #sidebar>
+      <nav aria-label="Demos" class="demos-rail">
+        <section v-for="group in groups" :key="group.makes" :aria-labelledby="`demos-${group.makes}`">
+          <h2 :id="`demos-${group.makes}`" class="demos-rail__heading">
+            {{ group.label }}
+          </h2>
+          <ul class="list-none p-0">
+            <li v-for="demo in group.demos" :key="demoKey(demo)">
+              <button
+                type="button"
+                class="demos-rail__pick"
+                :aria-pressed="demoKey(demo) === currentKey"
+                aria-controls="demos-stage"
+                @click="() => pick(demo)"
+              >
+                <span class="demos-rail__dot" aria-hidden="true" />
+                <img
+                  :src="githubAvatarProxyUrl(demo.owner, 40)"
+                  alt=""
+                  width="20"
+                  height="20"
+                  loading="lazy"
+                  decoding="async"
+                  class="demos-rail__avatar"
+                >
+                <span class="min-w-0">
+                  <span class="demos-rail__name">/{{ demo.name }}</span>
+                  <span class="demos-rail__by">{{ author(demo) }}</span>
+                </span>
+              </button>
+            </li>
+          </ul>
+        </section>
       </nav>
-    </CompactPageHeader>
+    </template>
 
-    <div class="mx-auto max-w-6xl space-y-14 px-4 py-10 sm:px-6 md:py-14">
-      <section
-        v-for="group in groups"
-        :id="groupId(group.makes)"
-        :key="group.makes"
-        class="scroll-mt-24"
-        :aria-labelledby="`${groupId(group.makes)}-heading`"
-      >
-        <h2 :id="`${groupId(group.makes)}-heading`" class="text-xl font-semibold tracking-tight text-highlighted">
-          {{ group.label }}
-        </h2>
-        <p class="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
-          {{ group.line }}
-        </p>
-        <DemoIndex
-          :demos="group.demos"
-          :initial-key="sharedKey"
-          surface="demos-page"
-          class="mt-6"
-          @pick="rememberPick"
-        />
-      </section>
-
-      <p v-if="!groups.length" class="text-sm text-muted">
+    <div id="demos-stage" ref="stage" class="demos-stage scroll-mt-24">
+      <Transition name="demos-swap" mode="out-in">
+        <DemoStage v-if="current" :key="currentKey" :demo="current" show-prompt eager surface="demos-page" />
+      </Transition>
+      <p v-if="!current" class="text-sm text-muted">
         No demos are published yet.
       </p>
     </div>
-  </div>
+  </BoardShell>
 </template>
 
 <style scoped>
-.demos-page__jump {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0 0.875rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  font-size: 0.875rem;
-  color: var(--ui-text);
-  transition: border-color 150ms ease;
+.demos-rail {
+  display: grid;
+  gap: 1.25rem;
 }
 
-.demos-page__jump:hover,
-.demos-page__jump:focus-visible {
-  border-color: var(--ui-border-accented);
+.demos-rail__heading {
+  margin-block-end: 0.375rem;
+  padding-inline: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+
+.demos-rail__pick {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--ui-radius);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+@media (hover: hover) {
+  .demos-rail__pick:hover {
+    background: var(--ui-bg-elevated);
+  }
+}
+
+.demos-rail__pick:focus-visible {
+  outline: 2px solid var(--ui-border-accented);
+  outline-offset: 2px;
+}
+
+.demos-rail__pick[aria-pressed='true'] {
+  background: var(--ui-bg-muted);
+}
+
+/* Stone dots, and one rose dot for the demo on the stage. */
+.demos-rail__dot {
+  inline-size: 0.375rem;
+  block-size: 0.375rem;
+  border-radius: 9999px;
+  background: var(--ui-border-accented);
+}
+
+.demos-rail__pick[aria-pressed='true'] .demos-rail__dot {
+  background: var(--ui-primary);
+}
+
+.demos-rail__avatar {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg-muted);
+}
+
+.demos-rail__name {
+  display: block;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: var(--ui-text-highlighted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demos-rail__by {
+  display: block;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ui-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 64rem) {
+  .demos-stage {
+    position: sticky;
+    inset-block-start: 5rem;
+  }
+}
+
+.demos-swap-enter-active,
+.demos-swap-leave-active {
+  transition: opacity 150ms ease-out;
+}
+
+.demos-swap-enter-from,
+.demos-swap-leave-to {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .demos-page__jump {
+  .demos-rail__pick,
+  .demos-swap-enter-active,
+  .demos-swap-leave-active {
     transition: none;
   }
 }

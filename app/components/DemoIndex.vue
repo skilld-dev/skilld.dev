@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import type { HomeDemoItem } from '~/utils/home-demos'
-import { createReusableTemplate } from '@vueuse/core'
 import { githubAvatarProxyUrl } from '#shared/image-proxy'
-import { demoCardSkill, demoHasPhoneFrame, demoHref, demoKey, demoPhoneRatio } from '~/utils/home-demos'
+import { demoKey } from '~/utils/home-demos'
 import { resolveAuthorName } from '~/utils/skill-byline'
-import DemoMedia from './home-demos/_DemoMedia.vue'
-import DemoRecording from './home-demos/_DemoRecording.vue'
-import SkillCard from './SkillCard.vue'
+import DemoStage from './DemoStage.vue'
 
 /**
  * Demos as a prompt index. The prompts are the menu: pick one and the stage
@@ -39,45 +36,11 @@ function pick(index: number): void {
 function author(demo: HomeDemoItem): string {
   return resolveAuthorName(demo.owner, demo.authorName) ?? demo.owner
 }
-
-const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, eager?: boolean }>()
 </script>
 
 <template>
   <!-- One root, so a parent's class lands on it. -->
   <div class="demo-index">
-    <DefineStage v-slot="{ demo, eager }">
-      <div class="demo-index__stage-head">
-        <DemoRecording :demo />
-        <NuxtLink :to="demoHref(demo)" class="demo-index__open">
-          Open the demo<span class="sr-only"> of /{{ demo.name }}</span>
-          <UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
-        </NuxtLink>
-      </div>
-      <!-- The whole page, in a window one screen tall. A film fills the window and plays on focus. -->
-      <div
-        class="demo-index__window"
-        :data-phone="demoHasPhoneFrame(demo) ? '' : undefined"
-        :style="{ '--phone-ratio': demoPhoneRatio(demo) }"
-        :data-film="demo.video ? '' : undefined"
-        tabindex="0"
-        role="group"
-        :aria-label="demo.video ? `The film the Agent made with /${demo.name}.` : `What the Agent made with /${demo.name}. Scroll to see the whole page.`"
-      >
-        <DemoMedia :demo :eager play="visible" />
-      </div>
-      <div class="demo-index__id">
-        <SkillCard
-          :skill="demoCardSkill(demo)"
-          layout="row"
-          metric="none"
-          :description="false"
-          :actions="['run']"
-          :surface
-        />
-      </div>
-    </DefineStage>
-
     <div v-if="current" class="demo-index__grid">
       <!-- Wide screens: the list scrolls inside the stage's height. -->
       <div class="demo-index__rail">
@@ -110,7 +73,7 @@ const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, e
             </button>
             <!-- Phones: the stage opens under the picked prompt. -->
             <div v-if="index === picked" class="demo-index__inline">
-              <ReuseStage :demo />
+              <DemoStage :demo :surface />
             </div>
           </li>
         </ol>
@@ -119,7 +82,7 @@ const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, e
       <div :id="stageId" class="demo-index__stage">
         <Transition name="demo-index-swap" mode="out-in">
           <div :key="demoKey(current)">
-            <ReuseStage :demo="current" />
+            <DemoStage :demo="current" :surface />
           </div>
         </Transition>
       </div>
@@ -275,67 +238,6 @@ const [DefineStage, ReuseStage] = createReusableTemplate<{ demo: HomeDemoItem, e
     position: sticky;
     inset-block-start: 6rem;
   }
-}
-
-.demo-index__stage-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 0.75rem;
-  margin-block-end: 0.5rem;
-}
-
-.demo-index__open {
-  display: inline-flex;
-  min-block-size: 2.75rem;
-  align-items: center;
-  gap: 0.25rem;
-  margin-inline-start: auto;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--ui-text);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-.demo-index__open:hover {
-  color: var(--ui-text-highlighted);
-}
-
-/* The page scrolls inside one screen, as on the Skill page. */
-.demo-index__window {
-  aspect-ratio: 16 / 10;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: var(--ui-bg-muted);
-  scrollbar-width: thin;
-  --demo-height: auto;
-}
-
-.demo-index__window[data-film] {
-  overflow: hidden;
-  --demo-height: 100%;
-}
-
-@media (max-width: 39.99rem) {
-  .demo-index__window[data-phone] {
-    aspect-ratio: var(--phone-ratio, 4 / 5);
-  }
-}
-
-.demo-index__window:focus-visible {
-  outline: 2px solid var(--ui-border-accented);
-  outline-offset: 2px;
-}
-
-/* The Skill row's hover fill follows the rounded corners of everything around it. */
-.demo-index__id {
-  margin-block-start: 0.25rem;
-  overflow: hidden;
-  border-radius: var(--ui-radius);
 }
 
 .demo-index-swap-enter-active,

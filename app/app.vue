@@ -178,6 +178,14 @@ watch(() => route.fullPath, () => {
               <span>Trending Skills</span>
             </UButton>
             <UButton
+              to="/skills/demos"
+              label="Skill Demos"
+              color="neutral"
+              variant="ghost"
+              block
+              class="min-h-11 justify-start"
+            />
+            <UButton
               to="/skills"
               label="Find Skills"
               color="neutral"
