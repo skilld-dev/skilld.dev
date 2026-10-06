@@ -23,6 +23,7 @@ import {
 } from '../../layers/artifact-delivery/server/utils/attestation'
 import { processArtifactBuild } from '../../layers/artifact-delivery/server/utils/build'
 import { bytesToBase64Url } from '../../layers/artifact-delivery/server/utils/encoding'
+import { createPublicArtifactGrant } from '../../layers/artifact-delivery/server/utils/grant'
 import { ARTIFACT_BUILD_QUEUE_NAME, consumeArtifactBuildBatch } from '../../layers/artifact-delivery/server/utils/queue'
 import { resolveSkillPageUrl } from '../../layers/artifact-delivery/server/utils/skill-page'
 import {
@@ -601,4 +602,145 @@ function memoryBucket() {
     put,
     remove: (key: string) => objects.delete(key),
   }
+}
+
+describe('round trips to D1 for one build', () => {
+  // The queue consumer runs far from the D1 primary: each round trip cost
+  // about 170 ms in production traces on 2026-10-07, so the count is latency.
+  it('a fresh build reaches ready in 14 round trips', async () => {
+    const harness = await createReuseHarness()
+    const resolutionId = await harness.request(pinned)
+    const counted = countRoundTrips(harness.db)
+
+    const outcome = await processArtifactBuild({ ...harness.dependencies(githubServing(source)), db: counted.db }, resolutionId)
+
+    expect(outcome._tag).toBe('ready')
+    expect(counted.roundTrips()).toBe(14)
+    harness.close()
+  })
+
+  it('a reused build reaches ready in 11 round trips', async () => {
+    const harness = await createReuseHarness()
+    await harness.build(pinned, githubServing(source))
+    const resolutionId = await harness.request(pinned)
+    const counted = countRoundTrips(harness.db)
+
+    const outcome = await processArtifactBuild({ ...harness.dependencies(githubDown()), db: counted.db }, resolutionId)
+
+    expect(outcome._tag).toBe('ready')
+    expect(counted.roundTrips()).toBe(11)
+    harness.close()
+  })
+})
+
+describe('round trips to D1 for one Resolution request', () => {
+  it('a new request key stores its Resolution in one round trip', async () => {
+    const harness = await createReuseHarness()
+    const counted = countRoundTrips(harness.db)
+    const identity = await resolutionRequestIdentity(pinned, 'round-trip-request-key')
+
+    const created = await createResolution(counted.db, pinned, identity, harness.now())
+
+    expect(created._tag).toBe('created')
+    expect(counted.roundTrips()).toBe(1)
+    harness.close()
+  })
+
+  it('a replayed request key answers its first Resolution', async () => {
+    const harness = await createReuseHarness()
+    const identity = await resolutionRequestIdentity(pinned, 'round-trip-request-key')
+    const first = await createResolution(harness.db, pinned, identity, harness.now())
+    const counted = countRoundTrips(harness.db)
+
+    const replay = await createResolution(counted.db, pinned, identity, harness.now())
+
+    expect(replay).toEqual({ _tag: 'existing', row: first._tag === 'created' ? first.row : undefined })
+    expect(counted.roundTrips()).toBe(2)
+    harness.close()
+  })
+})
+
+describe('round trips to D1 for one grant', () => {
+  it('a grant for a named Resolution reads D1 once', async () => {
+    const harness = await createReuseHarness()
+    const built = await harness.build(pinned, githubServing(source))
+    const counted = countRoundTrips(harness.db)
+
+    const grant = await createPublicArtifactGrant({
+      db: counted.db,
+      trustedRoot: harness.trustedRoot(),
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: harness.now(),
+    }, built.row.artifact_id!, built.row.id)
+
+    expect(grant._tag).toBe('granted')
+    expect(counted.roundTrips()).toBe(1)
+    harness.close()
+  })
+
+  it('a grant without a named Resolution still checks the newest one', async () => {
+    const harness = await createReuseHarness()
+    const built = await harness.build(pinned, githubServing(source))
+    const counted = countRoundTrips(harness.db)
+
+    const grant = await createPublicArtifactGrant({
+      db: counted.db,
+      trustedRoot: harness.trustedRoot(),
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: harness.now(),
+    }, built.row.artifact_id!)
+
+    expect(grant._tag).toBe('granted')
+    expect(counted.roundTrips()).toBe(2)
+    harness.close()
+  })
+
+  it('a grant for a named Resolution that blocks delivery is denied', async () => {
+    const harness = await createReuseHarness()
+    const built = await harness.build(pinned, githubServing(source))
+    harness.raw.prepare(`UPDATE artifact_check_results SET outcome = 'fail', required = 1 WHERE resolution_id = ?`).run(built.row.id)
+
+    const grant = await createPublicArtifactGrant({
+      db: harness.db,
+      trustedRoot: harness.trustedRoot(),
+      publicBaseUrl: 'https://artifacts.skilld.dev',
+      now: harness.now(),
+    }, built.row.artifact_id!, built.row.id)
+
+    expect(grant).toEqual({ _tag: 'denied', code: 'CHECK_BLOCKED' })
+    harness.close()
+  })
+})
+
+/** Counts D1 network round trips: one per statement call, one per batch. */
+function countRoundTrips(db: D1Database) {
+  let count = 0
+  const wrap = (statement: D1PreparedStatement): D1PreparedStatement => new Proxy(statement, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver)
+      if (property === 'bind')
+        return (...values: unknown[]) => wrap(target.bind(...values))
+      if (property === 'first' || property === 'all' || property === 'run' || property === 'raw') {
+        return (...args: unknown[]) => {
+          count += 1
+          return (value as (...inner: unknown[]) => unknown).apply(target, args)
+        }
+      }
+      return value
+    },
+  })
+  const counted = new Proxy(db, {
+    get(target, property, receiver) {
+      if (property === 'prepare')
+        return (sql: string) => wrap(target.prepare(sql))
+      if (property === 'batch') {
+        return async (statements: D1PreparedStatement[]) => {
+          count += 1
+          return await target.batch(statements)
+        }
+      }
+      return Reflect.get(target, property, receiver)
+    },
+  })
+  return { db: counted, roundTrips: () => count }
 }
