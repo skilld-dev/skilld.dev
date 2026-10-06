@@ -58,6 +58,25 @@ describe('named Skill resolution', () => {
     expect(result).toMatchObject({ _tag: 'resolved', source: { skillPath: '.claude/skills/demo' } })
   })
 
+  // The registry names a Skill by its folder name made into a slug. Each case
+  // is a registry Skill the 2026-10-07 sweep could not find by that name.
+  it.each([
+    ['emailandpassword', 'better-auth/emailAndPassword'],
+    ['071-dotnet-legacy-api-controllers', 'skills/07.1-dotnet-legacy-api-controllers'],
+    ['skill-development', '.agents/skills/Skill Development'],
+    ['ib0dte', '.claude/skills/ib_0dte'],
+  ])('finds the registry name %s in the folder %s', async (name, folder) => {
+    const result = await resolveNamed(name, [blob(`${folder}/SKILL.md`)])
+
+    expect(result).toMatchObject({ _tag: 'resolved', source: { skillPath: folder } })
+  })
+
+  it('finds a root Skill by the registry name of a mixed-case Repository', async () => {
+    const result = await resolveNamed('agent-skills', [blob('SKILL.md')], false, 'Agent-Skills')
+
+    expect(result).toMatchObject({ _tag: 'resolved', source: { skillPath: '.' } })
+  })
+
   it('asks for a path when GitHub cannot list the whole Repository', async () => {
     const result = await resolveNamed('demo', [blob('skills/demo/SKILL.md')], true)
 
@@ -69,11 +88,11 @@ describe('named Skill resolution', () => {
   })
 })
 
-async function resolveNamed(name: string, entries: object[], truncated = false) {
+async function resolveNamed(name: string, entries: object[], truncated = false, repositoryName = 'skills') {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.endsWith('/repos/skilld-dev/skills'))
-      return json({ id: 123, name: 'skills', owner: { login: 'skilld-dev' }, private: false, default_branch: 'main' })
+      return json({ id: 123, name: repositoryName, owner: { login: 'skilld-dev' }, private: false, default_branch: 'main' })
     if (url.endsWith('/git/ref/heads/main'))
       return json({ ref: 'refs/heads/main', object: { type: 'commit', sha: commitSha } })
     if (url.endsWith(`/commits/${commitSha}`))

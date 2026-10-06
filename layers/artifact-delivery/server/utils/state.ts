@@ -23,7 +23,7 @@ import { canonicalJson, digestHex } from './encoding'
  * commit produces. A ready build signed under another version is never reused,
  * so the bump also makes every commit load from GitHub once more.
  */
-export const ARTIFACT_POLICY_VERSION = '2026-10-07.1'
+export const ARTIFACT_POLICY_VERSION = '2026-10-07.2'
 
 export const ACTIVE_BUILD_STATES = [
   'requested',
