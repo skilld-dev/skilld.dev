@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import { pageRobots } from '../utils/page-admissions'
 
-/**
- * Setup for the skilld-skillgen GitHub App. The requirements mirror the checks
- * in `workers/skill-harness/src`. The pilot note stays while the Worker reads
- * `GITHUB_PILOT_REPOSITORIES`, which drops installs from other repositories.
- */
+/** Setup for the skilld-skillgen GitHub App. The requirements mirror the checks in `workers/skill-harness/src`. */
 const INSTALL_URL = 'https://github.com/apps/skilld-skillgen/installations/new'
-const PILOT_ISSUE_URL = 'https://github.com/skilld-dev/skilld/issues/new?title=Skillgen%20pilot%3A%20owner%2Frepository'
 
 const title = 'Skillgen'
 const description = 'Keep your package skill current. After each release tag, Skillgen opens a draft pull request that updates the Skill in your repository.'
@@ -39,15 +34,6 @@ const codeClass = 'font-mono text-xs text-default'
         Keep your package skill current. After each release tag, Skillgen opens a draft pull request that updates the Skill in your repository. You review it and decide what merges.
       </p>
     </header>
-
-    <div class="mt-8 flex gap-3 rounded-lg border border-default bg-muted p-4 text-sm leading-relaxed">
-      <UIcon name="i-lucide-info" class="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
-      <p class="text-muted">
-        Skillgen is in a pilot. It runs only on repositories in the pilot.
-        <a :href="PILOT_ISSUE_URL" target="_blank" rel="noopener" class="text-default underline underline-offset-2">Open an issue with your repository</a>
-        to join. Install the App after we add your repository, so its first run starts.
-      </p>
-    </div>
 
     <section aria-labelledby="setup-heading" class="mt-12">
       <h2 id="setup-heading" class="text-xl font-semibold">

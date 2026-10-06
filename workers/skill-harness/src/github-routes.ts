@@ -17,11 +17,8 @@ export async function githubWebhook(request: Request, env: HarnessEnv): Promise<
     return Response.json({ code: 'INVALID_EVENT' }, { status: 400 })
   if (event._tag === 'Ignored')
     return Response.json({ accepted: true, jobs: [] }, { status: 202 })
-  const allowed = new Set(env.GITHUB_PILOT_REPOSITORIES.split(',').map(value => value.trim().toLowerCase()))
   const jobs = []
   for (const tag of event.tags) {
-    if (!allowed.has(`${tag.owner}/${tag.name}`.toLowerCase()))
-      continue
     const job = await env.GITHUB_JOBS.getByName('github-app').enqueue(tag)
     if (job._tag === 'Busy')
       return Response.json({ code: 'APP_QUEUE_FULL' }, { status: 503 })

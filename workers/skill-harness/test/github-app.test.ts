@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { githubInstallationClient, prepareTag, publishSkill } from '../src/github-client'
 import { parseGithubEvent, verifyGithubSignature } from '../src/github-events'
+import { githubWebhook } from '../src/github-routes'
 
 const repository = { id: 10, name: 'package', private: false, owner: { login: 'harlan-zw' } }
 const installation = { id: 20 }
@@ -151,5 +152,35 @@ describe('tag preparation', () => {
   it('rejects a package built from a different commit', async () => {
     const fetcher = async () => Response.json({ name: 'package', version: '1.0.0', gitHead: 'd'.repeat(40), dist: { integrity: 'unused' } })
     expect(await prepareTag(request, api, fetcher)).toEqual({ _tag: 'Skipped', reason: 'PACKAGE_TAG_PROVENANCE_MISMATCH' })
+  })
+})
+
+describe('gitHub webhook', () => {
+  async function sign(secret: string, body: string): Promise<string> {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const digest = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body)))
+    return `sha256=${Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('')}`
+  }
+
+  it('queues a signed tag from any public repository', async () => {
+    const enqueued: unknown[] = []
+    const env = {
+      GITHUB_APP_ID: '123',
+      GITHUB_APP_PRIVATE_KEY_PKCS8: 'key',
+      GITHUB_APP_WEBHOOK_SECRET: 'secret',
+      GITHUB_JOBS: { getByName: () => ({ enqueue: async (tag: unknown) => {
+        enqueued.push(tag)
+        return { _tag: 'Accepted', id: 'job-1' }
+      } }) },
+    } as unknown as HarnessEnv
+    const body = JSON.stringify({ ref_type: 'tag', ref: 'v2.0.0', repository: { ...repository, owner: { login: 'someone-else' } }, installation })
+    const response = await githubWebhook(new Request('https://example.com/github/webhook', {
+      method: 'POST',
+      body,
+      headers: { 'x-github-event': 'create', 'x-hub-signature-256': await sign('secret', body) },
+    }), env)
+    expect(response.status).toBe(202)
+    expect(await response.json()).toEqual({ accepted: true, jobs: ['job-1'] })
+    expect(enqueued).toEqual([{ owner: 'someone-else', name: 'package', repositoryId: 10, installationId: 20, tag: 'v2.0.0' }])
   })
 })
