@@ -14,6 +14,7 @@ import { execFile } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 import process from 'node:process'
 import { promisify } from 'node:util'
+import { cliGlobalInstallCmd, cliNativeInstallCmd, cliWindowsInstallCmd } from '../shared/skill-commands'
 
 const run = promisify(execFile)
 const PACKAGE = 'skilld'
@@ -74,12 +75,12 @@ export function renderCliDocs(version: string, root: string, commands: readonly 
     `description: Every skilld command with its help text. Generated from the CLI help for skilld ${version}.`,
     'label: Reference',
     'author: Harlan Wilton',
-    'command: npm install --global skilld',
+    `command: ${cliNativeInstallCmd()}`,
     'publishedAt: 2026-09-01',
     `updatedAt: ${today}`,
     '---',
     '',
-    `Generated from \`skilld --help\` for skilld \`${version}\`. Run \`npx skilld <command>\` or install the CLI once with \`npm install --global skilld\`.`,
+    `Generated from \`skilld --help\` for skilld \`${version}\`. Run \`npx skilld <command>\`, or install the CLI once. On macOS and Linux, run \`${cliNativeInstallCmd()}\`. On Windows, run \`${cliWindowsInstallCmd()}\` in PowerShell. With Node.js, run \`${cliGlobalInstallCmd()}\`.`,
     '',
     'The npm package selects a native executable for your system. It has no JavaScript engine or fallback.',
     '',

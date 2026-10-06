@@ -1,6 +1,7 @@
 import type { WeeklyRenderInput, WeeklyTrendingSkill } from '../../layers/identity/server/utils/weekly-template'
 import { describe, expect, it } from 'vitest'
 import { formatWindow, renderWeekly } from '../../layers/identity/server/utils/weekly-template'
+import { SPARK_BARS } from '../../shared/braille-spark'
 
 const WINDOW_END = 1_755_648_000
 const WINDOW_START = WINDOW_END - 7 * 86_400
@@ -587,5 +588,53 @@ describe('weekly theme', () => {
 
     expect(html).toContain('Trending this week')
     expect(html).not.toContain('\u{1F525}')
+  })
+})
+
+describe('weekly trending spark', () => {
+  // Every glyph a spark can print, the blank cell included.
+  const BRAILLE = new RegExp(`[${SPARK_BARS.join('')}]`)
+  const week = [0, 1, 0, 2, 0, 3, 6]
+
+  it('draws a week of mentions as a braille spark beside its count', () => {
+    const { html, text } = renderWeekly(input({
+      trending: [trending({ reason: { _tag: 'named', authorCount: 3, mentionCount: 12, latestAt: WINDOW_END, mentionsByDay: week } })],
+    }))
+
+    expect(text).toContain('⠀⣀⠀⣀⠀⣤⣿ 12 mentions')
+    expect(html).toContain('aria-label="12 mentions in 7 days. Per day, oldest first: 0, 1, 0, 2, 0, 3, 6."')
+    expect(html).toMatch(BRAILLE)
+  })
+
+  it('draws the spark on a row that was named and surged', () => {
+    const { text } = renderWeekly(input({
+      trending: [trending({
+        reason: { _tag: 'named-and-stars', authorCount: 1, mentionCount: 1, latestAt: WINDOW_END, gain: 40, day: WINDOW_END, mentionsByDay: [0, 0, 0, 0, 0, 0, 1] },
+      })],
+    }))
+
+    expect(text).toContain('⠀⠀⠀⠀⠀⠀⣿ 1 mention')
+  })
+
+  it.each([
+    { name: 'a star surge', reason: { _tag: 'stars' as const, gain: 865, day: WINDOW_END } },
+    { name: 'a popular filler row', reason: { _tag: 'popular' as const, stars: 46_712 } },
+    { name: 'a named row with no counted days', reason: { _tag: 'named' as const, authorCount: 1, mentionCount: 1, latestAt: 0, mentionsByDay: null } },
+    { name: 'a named row whose mentions are older than the spark', reason: { _tag: 'named' as const, authorCount: 1, mentionCount: 1, latestAt: 0, mentionsByDay: [0, 0, 0, 0, 0, 0, 0] } },
+  ])('draws no spark for $name', ({ reason }) => {
+    const { html, text } = renderWeekly(input({ trending: [trending({ reason })] }))
+
+    expect(html).not.toMatch(BRAILLE)
+    expect(text).not.toMatch(BRAILLE)
+  })
+
+  it('keeps the spark out of the rose budget', () => {
+    const { card } = renderWeekly(input({
+      edition: 'weekly',
+      trending: [trending({ reason: { _tag: 'named', authorCount: 3, mentionCount: 12, latestAt: WINDOW_END, mentionsByDay: week } })],
+    }))
+    const plain = renderWeekly(input({ edition: 'weekly', trending: [trending()] })).card
+
+    expect(card.match(/#e11d48|#be123c|#fb7185/gi)?.length ?? 0).toBe(plain.match(/#e11d48|#be123c|#fb7185/gi)?.length ?? 0)
   })
 })

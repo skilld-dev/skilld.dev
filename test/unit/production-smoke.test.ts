@@ -8,11 +8,39 @@ import {
 } from '../../scripts/lib/production-smoke'
 
 describe('production smoke contract', () => {
+  it.each([
+    [500, '<h1>Server error</h1>', 'status_mismatch'],
+    [200, '<h1>Skill unavailable</h1>', 'content_missing'],
+    [200, '<script>{"name":"skill-creator"}</script>', 'content_missing'],
+  ])('rejects a broken Skill page with status %s', async (status, body, reason) => {
+    const path = '/gh/anthropics/skills/skill-creator'
+    const result = await runProductionSmoke({
+      baseUrl: 'https://skilld.dev',
+      attempts: 1,
+      wait: async () => {},
+      fetch: async (input) => {
+        const url = new URL(input)
+        if (url.pathname === path)
+          return new Response(body, { status })
+        const expectation = PRODUCTION_SMOKE_EXPECTATIONS.find(item => item.path === `${url.pathname}${url.search}`)
+        const content = expectation?.bodyContains?.join('') ?? ''
+        return new Response(`${content}${url.pathname === ASSET_COHERENCE_PATH ? '<script src="/_nuxt/v2/app.js"></script>' : ''}`, {
+          status: expectation?.status ?? 200,
+          headers: { 'content-type': 'text/html', ...(expectation?.location ? { location: expectation.location } : {}) },
+        })
+      },
+    })
+    expect(result).toEqual({
+      _tag: 'failed',
+      failures: [expect.objectContaining({ path, result: expect.objectContaining({ reason }) })],
+    })
+  })
+
   it('covers the public routes implicated by the closed incidents', () => {
     expect(PRODUCTION_SMOKE_EXPECTATIONS).toEqual(expect.arrayContaining([
       // The homepage asserts its own hero words, because the page's error
       // branch renders an h1 too.
-      { path: '/', status: 200, bodyContains: ['<h1', 'Hyped agent skills'] },
+      { path: '/', status: 200, bodyContains: ['<h1', 'Agent skills for you'] },
       { path: '/alt', status: 301, location: '/' },
       { path: '/skills', status: 200, bodyContains: ['<h1'] },
       { path: '/community', status: 200, bodyContains: ['<h1'] },

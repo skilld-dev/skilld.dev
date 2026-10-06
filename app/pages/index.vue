@@ -7,8 +7,8 @@ import { avatarProxyUrl, githubAvatarProxyUrl } from '#shared/image-proxy'
 import { TRENDING_RANGES } from '#shared/trending-range'
 import OutcomeClusterGrid from '../components/OutcomeClusterGrid.vue'
 
-const title = 'Taste-tested agent skills ecosystem · skilld'
-const description = 'Agent skills written by their maintainers and read by a person before they go in. See what devs are sharing this week, find what your agent needs, and keep up when it changes.'
+const title = 'Agent skills for you and your agent · skilld'
+const description = 'Try any agent skill before you install it, and let your agent search for its own. Open-source CLI, no telemetry. A skills.sh alternative.'
 
 useSeoMeta({
   title,
@@ -22,7 +22,12 @@ useHead({
   templateParams: { separator: '·' },
 })
 
-defineOgImage('Splash.takumi', {}, { alt: 'skilld, curated agent skills by humans' })
+// The card repeats the hero: the H1 and the caption from COPY.md, with the
+// H1 broken where the page breaks it.
+defineOgImage('Page.takumi', {
+  title: 'Agent skills for you\nand your agent',
+  description: 'Try any skill before you install it. Your agent can search for its own.',
+}, { alt: 'skilld, agent skills for you and your agent' })
 
 const serverTimingHeader = useResponseHeader('Server-Timing')
 const homeDataStartedAt = performance.now()
@@ -142,8 +147,8 @@ const heroVerbs = [
  * `diagrams` was added and `research` was un-retired, both on these numbers.
  * See the header of clusters.ts.
  *
- * Re-measure before trusting this order past October. Method and numbers:
- * ~/scratch/notes/skilld-track-demand-2026-09-04.md
+ * Re-measure before trusting this order past October. The percentages
+ * below are each track's share of the weighted demand.
  */
 const TRACK_DEMAND_ORDER = [
   'design', // 16.5%
@@ -220,8 +225,8 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
       <div class="home-hero__content mx-auto max-w-4xl px-4 text-center sm:px-6">
         <!-- The rose dot is the full stop. Screen readers get a typed one. -->
         <h1 id="hero-heading" class="home-hero-title font-semibold tracking-[-0.045em] text-highlighted text-balance">
-          Hyped agent skills,<br class="hidden sm:inline">
-          no bloat<span class="sr-only">.</span><span class="home-hero-dot" aria-hidden="true" />
+          Agent skills for you<br class="hidden sm:inline">
+          and your agent<span class="sr-only">.</span><span class="home-hero-dot" aria-hidden="true" />
         </h1>
         <!-- The product map: the CLI's own four verbs, each a door into /cli,
              then the one quiet link to the whole CLI page. -->
@@ -238,18 +243,18 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
             The skilld CLI<UIcon name="i-lucide-arrow-right" class="size-3.5 shrink-0" aria-hidden="true" />
           </NuxtLink>
         </nav>
-        <!-- Both halves in one caption: the site finds and tracks, the CLI runs
-             and installs. 19 is AGENT_TARGETS in the CLI's
-             crates/skilld-core/src/target.rs. -->
+        <!-- What sets skilld apart, so the caption assumes the reader knows
+             what a Skill is. Run comes before install, and the skilld Skill
+             behind the promo below lets the agent search on its own. -->
         <p class="home-hero__caption mx-auto mt-3 text-base leading-relaxed text-muted text-balance">
-          skilld.dev finds and tracks skills. The CLI runs or installs them in 19 agents.
+          Try any skill before you install it. Your agent can search for its own.
         </p>
 
         <HomeSearch class="mx-auto mt-8 max-w-xl text-left" />
 
         <ul class="home-hero__claims home-hero-claims data-label mx-auto mt-5 list-none p-0" aria-label="About skilld">
           <li>
-            <a href="https://github.com/skilld-dev/skilld" target="_blank" rel="noopener">Open-source CLI</a>
+            <a href="https://github.com/skilld-dev/skilld" target="_blank" rel="noopener">Open-source CLI, no telemetry</a>
           </li>
           <li>Analytics without cookies or IPs</li>
           <li>
@@ -819,11 +824,18 @@ function recentRepoDescription(item: RecentRepoUpdate): string {
   max-width: 48rem;
 }
 
-/* Separators only where the line fits on one row. */
+/* A claim wraps as a whole, never mid phrase. */
+.home-hero__claims > li {
+  white-space: nowrap;
+}
+
+/* Separators only where the line fits on one row. At 12px the four claims
+   measure about 830px, inside the 848px hero column. */
 @media (min-width: 64rem) {
   .home-hero__claims {
     flex-wrap: nowrap;
     column-gap: 0;
+    max-width: none;
   }
 
   .home-hero__claims > li + li::before {

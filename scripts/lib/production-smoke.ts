@@ -1,4 +1,5 @@
 import { CLUSTER_BY_SLUG } from '../../layers/registry/server/data/clusters'
+import { CLI_INSTALL_SCRIPTS } from '../../shared/skill-commands'
 
 export interface SmokeExpectation {
   path: string
@@ -94,9 +95,16 @@ export const ASSET_COHERENCE_PATH = '/skills/trending'
 export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   // The hero words are asserted, not just an h1: the error branch renders an
   // h1 too, so a homepage that lost its data would otherwise pass.
-  { path: '/', status: 200, bodyContains: ['<h1', 'Hyped agent skills'] },
+  { path: '/', status: 200, bodyContains: ['<h1', 'Agent skills for you'] },
   { path: '/alt', status: 301, location: '/' },
   { path: '/skills', status: 200, bodyContains: ['<h1'] },
+  // Exercise Skill data and behavior rules, which category pages do not read.
+  // The heading marker and text must render, even when an error page answers 200.
+  {
+    path: '/gh/anthropics/skills/skill-creator',
+    status: 200,
+    bodyContains: ['<h1 id="skill-heading"', '/skill-creator</h1>'],
+  },
   { path: '/community', status: 200, bodyContains: ['<h1'] },
   { path: '/collections', status: 301, location: '/community' },
   { path: '/guides', status: 410 },
@@ -112,6 +120,9 @@ export const PRODUCTION_SMOKE_EXPECTATIONS: SmokeExpectation[] = [
   // The leaderboard is now the `all` range of the trending board. This checks
   // the 301 that carries its ~4,100/mo repository cluster across.
   { path: '/skills/leaderboard', status: 301, location: '/skills/trending?range=all' },
+  // Every native install command fetches one of these, so a lost redirect
+  // breaks the install for each person who copies it.
+  ...Object.entries(CLI_INSTALL_SCRIPTS).map(([path, location]) => ({ path, status: 302, location })),
   // The category surface is the reason the rework exists, so it is checked for
   // rendered content, not just a 200.
   //

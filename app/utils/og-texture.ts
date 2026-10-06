@@ -1,7 +1,7 @@
-// Static brand textures for OG cards. The site draws the live versions on a
+// The static Braille names texture for OG cards. The site draws the live one on a
 // canvas; an OG card is one still frame, drawn server side as SVG dots,
 // because the OG renderer has only Plus Jakarta Sans and IBM Plex Mono and
-// neither has braille glyphs. Every texture is stone: on a card, the lockup's
+// neither has braille glyphs. The texture is stone: on a card, the lockup's
 // trailing dot is the one rose element. DESIGN.md "Texture system" has the jobs.
 
 export interface TextureDot {
@@ -23,14 +23,6 @@ function hash(x: number, y: number, s: number): number {
   let n = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041)) | 0
   n = Math.imul(n ^ (n >>> 13), 1274126177)
   return ((n ^ (n >>> 16)) >>> 0) / 4294967295
-}
-
-/** A stable seed for a string, such as a Skill's owner, repository and name. */
-export function textureSeed(text: string): number {
-  let h = 2166136261
-  for (let i = 0; i < text.length; i++)
-    h = Math.imul(h ^ text.charCodeAt(i), 16777619)
-  return (h >>> 0) % 1_000_000_007
 }
 
 /** Whether a box touches any of the rects. */
@@ -139,124 +131,6 @@ export function brailleNamesField(input: {
     }
   }
   return dots
-}
-
-/**
- * File minimap: columns of SKILL.md files drawn as rows of dots. Each file has
- * frontmatter, a title, an intro, then sections of prose, lists or code. One
- * dot is one character cell. The same seed always draws the same files.
- */
-export function fileMinimap(input: {
-  region: TextureRect
-  seed: number
-  /** Distance in px over which the left edge fades in. */
-  fade?: number
-  /** Cell pitch in px. Rows sit at twice the pitch. */
-  pitch?: number
-  /** Start each column at the top of a file, instead of partway down the stream. */
-  fromStart?: boolean
-}): TextureDot[] {
-  const { region, seed, fade = 0, pitch = 5.6, fromStart = false } = input
-  const rowPitch = pitch * 2
-  const lineCells = 20
-  const columnCells = 25
-  const levels = [0.12, 0.2, 0.3, 0.42, 0.56]
-  const rowCount = Math.ceil(region.height / rowPitch)
-
-  const dots: TextureDot[] = []
-  for (let c = 0; c * columnCells * pitch < region.width; c++) {
-    const lines: Array<number[] | null> = []
-    const offset = fromStart ? 0 : Math.floor(hash(seed, c, 41) * 30)
-    for (let f = 0; lines.length < offset + rowCount; f++)
-      skillFileLines(Math.floor(hash(seed + c, f, 43) * 1e9), lineCells, lines)
-    const x0 = region.x + c * columnCells * pitch
-    for (let r = 0; r < rowCount; r++) {
-      const runs = lines[offset + r]
-      if (!runs)
-        continue
-      const y = region.y + (r + 0.5) * rowPitch
-      for (let i = 0; i < runs.length; i += 3) {
-        for (let k = 0; k < runs[i + 1]!; k++) {
-          const x = x0 + (runs[i]! + k + 0.5) * pitch
-          if (x > region.x + region.width)
-            continue
-          const edge = fade > 0 ? Math.min(1, (x - region.x) / fade) : 1
-          if (edge > 0)
-            dots.push({ x, y, alpha: levels[runs[i + 2]!]! * edge * edge })
-        }
-      }
-    }
-  }
-  return dots
-}
-
-/** Appends one SKILL.md's lines. A line is a flat list of runs: start cell, length, level 0 to 4. A blank line is null. */
-function skillFileLines(seed: number, width: number, out: Array<number[] | null>): void {
-  let n = 0
-  const rnd = (): number => hash(seed, n++, 23)
-  const ri = (k: number): number => Math.floor(rnd() * k)
-  const words = (from: number, to: number, level: number, runs: number[] = [], minLen = 2, spread = 6): number[] => {
-    const wordSeed = ri(1e9)
-    let x = from
-    for (let i = 0; i < 40; i++) {
-      const len = minLen + Math.floor(hash(wordSeed, i, 11) * spread)
-      if (x + len > to)
-        break
-      runs.push(x, len, level)
-      x += len + 1
-    }
-    return runs
-  }
-  const line = (runs: number[]): void => {
-    out.push(runs)
-  }
-  const gap = (): void => {
-    out.push(null)
-  }
-  const para = (count: number): void => {
-    for (let j = 0; j < count; j++)
-      line(words(0, j === count - 1 ? 6 + ri(11) : width - ri(3), 1))
-  }
-  // Frontmatter fences, name, description.
-  line([0, 3, 0])
-  line(words(6, 9 + ri(7), 1, [0, 4, 2]))
-  line(words(9, width, 1, [0, 7, 2]))
-  if (rnd() < 0.6)
-    line(words(2, width - ri(5), 1))
-  line([0, 3, 0])
-  gap()
-  // Title, intro.
-  line(words(2, 8 + ri(10), 4, [0, 1, 4]))
-  gap()
-  para(2 + ri(2))
-  const sections = 2 + ri(3)
-  for (let i = 0; i < sections; i++) {
-    gap()
-    line(words(3, 8 + ri(9), 3, [0, 2, 3]))
-    gap()
-    const kind = rnd()
-    if (kind < 0.36) {
-      para(2 + ri(3))
-    }
-    else if (kind < 0.72) {
-      const items = 2 + ri(3)
-      for (let j = 0; j < items; j++) {
-        line(words(2, width - ri(7), 1, [0, 1, 3]))
-        if (rnd() < 0.3)
-          line(words(2, 7 + ri(10), 1))
-      }
-    }
-    else {
-      line([0, 3, 0])
-      const count = 2 + ri(4)
-      for (let j = 0; j < count; j++)
-        line(words(ri(3) * 2, width - ri(6), 0, [], 1, 5))
-      line([0, 3, 0])
-    }
-  }
-  gap()
-  gap()
-  gap()
 }
 
 /**

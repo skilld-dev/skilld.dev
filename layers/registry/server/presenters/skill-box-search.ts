@@ -39,7 +39,7 @@ export interface SkillBoxSearchAnswer {
   mode: SearchMode | null
 }
 
-function presentItem(skill: RegistrySkill, officialOwners: Set<string>): SkillBoxSearchItem {
+export function presentSkillBoxItem(skill: RegistrySkill, officialOwners: Set<string>): SkillBoxSearchItem {
   return {
     name: skill.name,
     owner: skill.owner,
@@ -65,7 +65,7 @@ export function makeSkillBoxSearchPresenter(officialOwners: Set<string>) {
       : result.repository,
     owner: result.owner,
     understood: result.intent?._tag === 'understood' ? result.intent.understanding : null,
-    items: result.items.map(skill => presentItem(skill, officialOwners)),
+    items: result.items.map(skill => presentSkillBoxItem(skill, officialOwners)),
     total: result.total,
     mode: result.mode ?? null,
   })

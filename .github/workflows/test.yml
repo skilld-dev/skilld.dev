@@ -18,8 +18,17 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job runs on Harlan's workstation. A pull request from a fork must never
+# reach it, because that would run untrusted code on the host. Each job
+# therefore runs only for a push or for a pull request from a branch in this
+# repository. A maintainer pushes a fork's change to a branch here to test it.
+#
+# Every job skipped still concludes the run as `success`. Deploy to Cloudflare
+# guards on the triggering event and repository for that reason.
+
 jobs:
   harness-proof:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
     timeout-minutes: 15
     steps:
@@ -33,6 +42,7 @@ jobs:
           pnpm --filter @skilld/skill-harness-worker test:run
 
   harlan-desktop:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     uses: harlan-zw/harlan-nuxt/.github/workflows/harlan-desktop-site-ci.yml@main
     with:
       # Ephemeral containers on the workstation. Safe here because the
@@ -71,7 +81,7 @@ jobs:
 
   build:
     # Main builds in the deploy workflow. Keep the build check on pull requests.
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64, harlan-desktop-ci]
     timeout-minutes: 30
     steps:

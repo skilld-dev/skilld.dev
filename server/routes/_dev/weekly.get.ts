@@ -101,7 +101,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
         canonicalName: 'ship',
         description: 'Take a change from branch to merged without babysitting it.',
         stars: 12_400,
-        reason: { _tag: 'named', authorCount: 4, mentionCount: 9, latestAt: WINDOW_END - 2 * 86_400 },
+        reason: { _tag: 'named', authorCount: 4, mentionCount: 9, latestAt: WINDOW_END - 2 * 86_400, mentionsByDay: [0, 1, 1, 0, 2, 5, 0] },
         evidence: {
           url: 'https://x.com/garrytan/status/1',
           authorHandle: 'garrytan',
@@ -116,7 +116,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
         canonicalName: 'swiftui-liquid-glass',
         description: 'Build the new material effects without fighting the layout system.',
         stars: 865,
-        reason: { _tag: 'named-and-stars', authorCount: 2, mentionCount: 3, latestAt: WINDOW_END - 86_400, gain: 412, day: WINDOW_END - 2 * 86_400 },
+        reason: { _tag: 'named-and-stars', authorCount: 2, mentionCount: 3, latestAt: WINDOW_END - 86_400, mentionsByDay: [0, 0, 0, 0, 1, 2, 0], gain: 412, day: WINDOW_END - 2 * 86_400 },
         evidence: {
           url: 'https://bsky.app/profile/dimillian/post/1',
           authorHandle: 'dimillian.bsky.social',
@@ -141,7 +141,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
         canonicalName: 'vue-debug-guides',
         description: null,
         stars: 210,
-        reason: { _tag: 'named', authorCount: 1, mentionCount: 1, latestAt: WINDOW_END - 5 * 86_400 },
+        reason: { _tag: 'named', authorCount: 1, mentionCount: 1, latestAt: WINDOW_END - 5 * 86_400, mentionsByDay: [0, 1, 0, 0, 0, 0, 0] },
         evidence: null,
       },
       {
@@ -161,7 +161,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
         canonicalName: 'web-interface-guidelines',
         description: 'Review interface code against practical usability rules.',
         stars: 19_200,
-        reason: { _tag: 'named', authorCount: 3, mentionCount: 4, latestAt: WINDOW_END - 3 * 86_400 },
+        reason: { _tag: 'named', authorCount: 3, mentionCount: 4, latestAt: WINDOW_END - 3 * 86_400, mentionsByDay: [1, 0, 0, 2, 1, 0, 0] },
         evidence: null,
       },
       {
@@ -214,7 +214,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
       canonicalName: 'nuxt-seo',
       description: null,
       stars: null,
-      reason: { _tag: 'named', authorCount: 1, mentionCount: 1, latestAt: 0 },
+      reason: { _tag: 'named', authorCount: 1, mentionCount: 1, latestAt: 0, mentionsByDay: null },
       evidence: null,
     }],
   }),
@@ -254,7 +254,7 @@ const SCENARIOS: Record<string, () => WeeklyRenderInput> = {
       canonicalName: 'a-skill-with-an-unusually-long-canonical-name',
       description: 'Unicode and entities: quotes "like this", ampersands & angle brackets <div>, emoji dashes, and accented names such as Renée Müller.',
       stars: 1_284_000,
-      reason: { _tag: 'named-and-stars', authorCount: 17, mentionCount: 42, latestAt: WINDOW_END - 3600, gain: 9_814, day: WINDOW_END - 3 * 86_400 },
+      reason: { _tag: 'named-and-stars', authorCount: 17, mentionCount: 42, latestAt: WINDOW_END - 3600, mentionsByDay: [2, 3, 5, 4, 8, 9, 11], gain: 9_814, day: WINDOW_END - 3 * 86_400 },
       evidence: {
         url: 'https://x.com/someone/status/2',
         authorHandle: 'a_very_long_handle_indeed',
@@ -287,6 +287,7 @@ export async function liveScenario(): Promise<WeeklyRenderInput> {
       starGain: number | null
       starGainDay: number | null
       evidence: { url: string, authorHandle: string, text: string, platform: 'x' | 'bsky' } | null
+      mentionsByDay: number[] | null
     }>
   }>('https://skilld.dev/api/feed/trending', { query: { limit: MAX_TRENDING, window: 24 * 7 } })
 
@@ -303,10 +304,10 @@ export async function liveScenario(): Promise<WeeklyRenderInput> {
       description: skill.description,
       stars: skill.stars,
       reason: skill.attribution === 'both' && skill.starGain !== null && skill.starGainDay !== null
-        ? { _tag: 'named-and-stars' as const, authorCount: skill.authorCount, mentionCount: skill.mentionCount, latestAt: 0, gain: skill.starGain, day: skill.starGainDay }
+        ? { _tag: 'named-and-stars' as const, authorCount: skill.authorCount, mentionCount: skill.mentionCount, latestAt: 0, mentionsByDay: skill.mentionsByDay, gain: skill.starGain, day: skill.starGainDay }
         : skill.attribution === 'github' && skill.starGain !== null && skill.starGainDay !== null
           ? { _tag: 'stars' as const, gain: skill.starGain, day: skill.starGainDay }
-          : { _tag: 'named' as const, authorCount: skill.authorCount, mentionCount: skill.mentionCount, latestAt: 0 },
+          : { _tag: 'named' as const, authorCount: skill.authorCount, mentionCount: skill.mentionCount, latestAt: 0, mentionsByDay: skill.mentionsByDay },
       evidence: skill.evidence,
     })),
   }
