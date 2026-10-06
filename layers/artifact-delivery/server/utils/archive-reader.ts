@@ -17,6 +17,12 @@ const GITHUB_FILE_BASE_TIMEOUT_MS = 30_000
 /** A pax record or GNU long name holds one path. Anything longer is not an archive GitHub wrote. */
 const MAX_HEADER_RECORD_BYTES = 1024 * 1024
 const BLOCK_SIZE = 512
+/**
+ * Archive bytes one pass holds in memory for files whose turn has not come.
+ * Only symbolic links put files out of archive order. simota/agent-skills
+ * links a shared folder of 1.2 MB from each Skill, twice in most of them.
+ */
+const MAX_HELD_BYTES = 8 * 1024 * 1024
 
 /**
  * Files a build may still read from GitHub one by one. Each costs one Worker
@@ -36,13 +42,20 @@ export interface ArchiveReport {
  * Reads the packed files of one Skill from the Repository archive at the
  * exact commit, as codeload streams it.
  *
- * Nothing is buffered beyond one network chunk: entries outside the Skill
- * folder are skipped as they pass, each Skill file goes to the sink chunk by
- * chunk, and the request is cancelled after the last Skill file. A file the
+ * Without symbolic links, nothing is buffered beyond one network chunk:
+ * entries outside the Skill folder are skipped as they pass, each Skill file
+ * goes to the sink chunk by chunk, and the request is cancelled after the
+ * last Skill file. A file the
  * archive leaves out, or holds with another size, is read from GitHub at the
  * same commit in its place, so the sink still receives Artifact order. The
  * sink checks every file against its Git blob digest, so neither host is
  * trusted for content.
+ *
+ * A file a symbolic link put in the Skill reads the bytes of its target,
+ * which sit elsewhere in the archive. An entry that passes before its turn
+ * stays in memory, up to `MAX_HELD_BYTES` in all. A link file whose target
+ * comes later waits for it when the files it holds back fit in that memory.
+ * Any other file reads its bytes from GitHub.
  */
 export function createGithubArchiveReader(input: {
   fetch: typeof globalThis.fetch
@@ -52,6 +65,11 @@ export function createGithubArchiveReader(input: {
   skillPath: string
   /** In Artifact order. */
   files: readonly PackedFile[]
+  /**
+   * The files a symbolic link put in the Skill, each with the Repository path
+   * of its bytes. Every caller passes it, so none reads the link path instead.
+   */
+  linkSources: ReadonlyMap<string, string>
   /** Uncompressed archive bytes one pass reads at most. */
   maxArchiveBytes: number
   budget: GithubReadBudget
@@ -64,6 +82,7 @@ export function createGithubArchiveReader(input: {
   const gunzip = input.gunzip ?? gunzipStream
   const repositoryPath = (path: string) => input.skillPath === '.' ? path : `${input.skillPath}/${path}`
   const encodedRepository = `${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repository)}`
+  const sourceOf = (file: PackedFile) => input.linkSources.get(file.path) ?? repositoryPath(file.path)
 
   const readFromGithub = async (file: PackedFile, sink: FileSink): Promise<ReadOutcome | null> => {
     if (input.budget.githubReads <= 0) {
@@ -74,7 +93,7 @@ export function createGithubArchiveReader(input: {
       )
     }
     input.budget.githubReads--
-    const url = `${FILE_HOST}/${encodedRepository}/${input.commitSha}/${repositoryPath(file.path).split('/').map(encodeURIComponent).join('/')}`
+    const url = `${FILE_HOST}/${encodedRepository}/${input.commitSha}/${sourceOf(file).split('/').map(encodeURIComponent).join('/')}`
     const sent = await fetchNoRedirect(input.fetch, url, {
       headers: { 'User-Agent': 'skilld.dev' },
       signal: AbortSignal.timeout(GITHUB_FILE_BASE_TIMEOUT_MS + Math.ceil(file.size / 1024)),
@@ -121,13 +140,90 @@ export function createGithubArchiveReader(input: {
 
   return async (sink, githubFiles) => {
     let next = 0
-    /** Reads from GitHub every file that sorts before `path`, or every file left when it is null. */
-    const readMissingBefore = async (path: string | null): Promise<ReadOutcome | null> => {
+    // The archive entries the files still to pass read, counted by Repository path.
+    const needed = new Map<string, number>()
+    const sizeAt = new Map<string, number>()
+    for (const file of input.files) {
+      if (githubFiles.has(file.path))
+        continue
+      const position = sourceOf(file)
+      needed.set(position, (needed.get(position) ?? 0) + 1)
+      sizeAt.set(position, file.size)
+    }
+    // Entries that passed before their turn, by Repository path.
+    const held = new Map<string, Uint8Array>()
+    let heldBytes = 0
+    // The link file that chose to wait for its target, by index.
+    let waiting = -1
+
+    const passedOne = (position: string) => {
+      const left = (needed.get(position) ?? 1) - 1
+      if (left > 0) {
+        needed.set(position, left)
+        return
+      }
+      needed.delete(position)
+      const bytes = held.get(position)
+      if (bytes) {
+        held.delete(position)
+        heldBytes -= bytes.byteLength
+      }
+    }
+    const fromMemory = async (file: PackedFile, bytes: Uint8Array): Promise<ReadOutcome | null> => {
+      await sink.begin(file, 'archive')
+      await sink.chunk(bytes)
+      const ended = await sink.end()
+      return ended._tag === 'mismatch' ? ended : null
+    }
+    const fromGithub = async (file: PackedFile): Promise<ReadOutcome | null> => {
+      if (!githubFiles.has(file.path))
+        passedOne(sourceOf(file))
+      return await readFromGithub(file, sink)
+    }
+    /** Bytes the files after `index` would hold while the archive moves from the entry at `from` to `to`. */
+    const holdCost = (index: number, from: string, to: string): number => {
+      const counted = new Set<string>()
+      let total = 0
+      for (let later = index + 1; later < input.files.length; later++) {
+        const file = input.files[later]!
+        const position = sourceOf(file)
+        if (githubFiles.has(file.path) || held.has(position) || counted.has(position))
+          continue
+        if (compareArtifactPaths(position, from) >= 0 && compareArtifactPaths(position, to) < 0) {
+          counted.add(position)
+          total += file.size
+        }
+      }
+      return total
+    }
+
+    /**
+     * Passes every file whose bytes are ready before the archive entry at
+     * `position`, or every file left when it is null. A file whose entry
+     * passed without being held is read from GitHub. A link file whose target
+     * is still ahead waits for it when the files it holds back fit in
+     * memory, and reads it from GitHub otherwise.
+     */
+    const drain = async (position: string | null): Promise<ReadOutcome | null> => {
       for (; next < input.files.length; next++) {
         const file = input.files[next]!
-        if (path !== null && compareArtifactPaths(repositoryPath(file.path), path) >= 0)
-          break
-        const outcome = await readFromGithub(file, sink)
+        const at = sourceOf(file)
+        const bytes = githubFiles.has(file.path) ? undefined : held.get(at)
+        if (bytes) {
+          const outcome = await fromMemory(file, bytes)
+          passedOne(at)
+          if (outcome)
+            return outcome
+          continue
+        }
+        const ahead = position !== null && !githubFiles.has(file.path) && compareArtifactPaths(at, position) >= 0
+        if (ahead && (compareArtifactPaths(at, position) === 0 || !input.linkSources.has(file.path) || waiting === next))
+          return null
+        if (ahead && heldBytes + holdCost(next, position, at) <= MAX_HELD_BYTES) {
+          waiting = next
+          return null
+        }
+        const outcome = await fromGithub(file)
         if (outcome)
           return outcome
       }
@@ -143,6 +239,12 @@ export function createGithubArchiveReader(input: {
     }
     else {
       const entries = archive.entries
+      const stopped = (read: BodyRead): boolean => {
+        if (read._tag === 'ok')
+          return false
+        input.report?.({ reason: read._tag === 'too-large' ? 'too-large' : 'malformed', detail: read.detail })
+        return true
+      }
       try {
         while (next < input.files.length) {
           const entry = await entries.next()
@@ -152,58 +254,62 @@ export function createGithubArchiveReader(input: {
             input.report?.({ reason: entry.reason, detail: entry.detail })
             break
           }
-          if (entry.type !== 'file') {
-            const skipped = await entries.skip(entry.size)
-            if (skipped._tag !== 'ok') {
-              input.report?.({ reason: skipped._tag === 'too-large' ? 'too-large' : 'malformed', detail: skipped.detail })
+          if (entry.type === 'file') {
+            const missing = await drain(entry.path)
+            if (missing)
+              return missing
+          }
+          // An entry no file reads, or one that holds another size, passes.
+          // Each file that reads it then reads from GitHub.
+          if (entry.type !== 'file' || !needed.has(entry.path) || entry.size !== sizeAt.get(entry.path)) {
+            if (stopped(await entries.skip(entry.size)))
               break
-            }
             continue
           }
-          const missing = await readMissingBefore(entry.path)
-          if (missing)
-            return missing
           const file = input.files[next]
-          if (!file || repositoryPath(file.path) !== entry.path) {
-            const skipped = await entries.skip(entry.size)
-            if (skipped._tag !== 'ok') {
-              input.report?.({ reason: skipped._tag === 'too-large' ? 'too-large' : 'malformed', detail: skipped.detail })
-              break
+          if (file && !githubFiles.has(file.path) && sourceOf(file) === entry.path && needed.get(entry.path) === 1) {
+            // The common case: the next file, and no other reads it.
+            await sink.begin(file, 'archive')
+            const forwarded = await entries.forward(entry.size, async bytes => await sink.chunk(bytes))
+            const ended = await sink.end()
+            if (forwarded._tag !== 'ok') {
+              input.report?.({ reason: forwarded._tag === 'too-large' ? 'too-large' : 'malformed', detail: forwarded.detail })
+              // The file arrived short. The next pass reads it from GitHub.
+              return ended._tag === 'mismatch'
+                ? ended
+                : { _tag: 'mismatch', path: file.path, origin: 'archive', reason: forwarded.detail }
             }
-            continue
-          }
-          if (githubFiles.has(file.path) || entry.size !== file.size) {
-            const skipped = await entries.skip(entry.size)
-            const outcome = await readFromGithub(file, sink)
-            if (outcome)
-              return outcome
+            if (ended._tag === 'mismatch')
+              return ended
+            passedOne(entry.path)
             next++
-            if (skipped._tag !== 'ok') {
-              input.report?.({ reason: skipped._tag === 'too-large' ? 'too-large' : 'malformed', detail: skipped.detail })
-              break
-            }
             continue
           }
-          await sink.begin(file, 'archive')
-          const forwarded = await entries.forward(entry.size, async bytes => await sink.chunk(bytes))
-          const ended = await sink.end()
-          if (forwarded._tag !== 'ok') {
-            input.report?.({ reason: forwarded._tag === 'too-large' ? 'too-large' : 'malformed', detail: forwarded.detail })
-            // The file arrived short. The next pass reads it from GitHub.
-            return ended._tag === 'mismatch'
-              ? ended
-              : { _tag: 'mismatch', path: file.path, origin: 'archive', reason: forwarded.detail }
+          if (heldBytes + entry.size > MAX_HELD_BYTES) {
+            if (stopped(await entries.skip(entry.size)))
+              break
+            continue
           }
-          if (ended._tag === 'mismatch')
-            return ended
-          next++
+          const bytes = new Uint8Array(entry.size)
+          let offset = 0
+          const collected = await entries.forward(entry.size, async (piece) => {
+            bytes.set(piece, offset)
+            offset += piece.byteLength
+          })
+          if (stopped(collected))
+            break
+          held.set(entry.path, bytes)
+          heldBytes += bytes.byteLength
+          const ready = await drain(entry.path)
+          if (ready)
+            return ready
         }
       }
       finally {
         await entries.cancel()
       }
     }
-    const rest = await readMissingBefore(null)
+    const rest = await drain(null)
     return rest ?? { _tag: 'read' }
   }
 }

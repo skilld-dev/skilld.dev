@@ -2,6 +2,7 @@ import type { Hash } from 'node:crypto'
 import type { ResolvedSource } from '../schemas/contracts'
 import type { ArtifactFileObserver, CheckedArtifactSource } from './checks'
 import type { OmittedArtifactFile, SourceRejection } from './github-source'
+import type { SymbolicLinkNote } from './symbolic-links'
 import { createHash } from 'node:crypto'
 import { createArtifactCheckScanner } from './checks'
 import { projectedUstarBytes, USTAR_END_BYTES, ustarHeader, ustarPadding } from './ustar'
@@ -152,6 +153,8 @@ export async function scanArtifact(input: {
   files: readonly PackedFile[]
   read: SkillFileReader
   omitted: OmittedArtifactFile[]
+  /** The symbolic links the load followed or left out. The `symbolic-links` check lists them. */
+  symbolicLinks: SymbolicLinkNote[]
   spoolBytes: number
 }): Promise<ScannedArtifact | SourceRejection> {
   const contentBytes = projectedUstarBytes(input.files.map(file => file.size))
@@ -186,7 +189,7 @@ export async function scanArtifact(input: {
       _tag: 'scanned',
       contentSha256: digest.digest('hex'),
       contentBytes,
-      checked: scanner.finish(input.omitted),
+      checked: scanner.finish(input.omitted, input.symbolicLinks),
       spool,
       readFromGithub,
     }

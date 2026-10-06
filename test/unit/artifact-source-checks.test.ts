@@ -150,7 +150,7 @@ function streamedCheck(extra: ArtifactSourceFile, chunkSize: number) {
       scanner.chunk(entry.bytes.subarray(offset, offset + chunkSize))
     scanner.end()
   }
-  return scanner.finish([]).checkResults
+  return scanner.finish([], []).checkResults
 }
 
 function credentialResult(results: Awaited<ReturnType<typeof check>>) {

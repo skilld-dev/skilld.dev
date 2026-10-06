@@ -22,6 +22,7 @@ export function loadedFromFiles(
     source,
     files: ordered.map(file => ({ path: file.path, mode: file.mode, size: file.bytes.byteLength, gitBlobSha: file.gitBlobSha })),
     omitted: extra.omitted ?? [],
+    symbolicLinks: [],
     linked: extra.linked ?? [],
     read: async (sink) => {
       for (const file of ordered) {
@@ -46,6 +47,7 @@ export async function readLoadedFiles(loaded: LoadedArtifactSource): Promise<{ _
     files: loaded.files,
     read: loaded.read,
     omitted: loaded.omitted,
+    symbolicLinks: loaded.symbolicLinks,
     spoolBytes: Number.POSITIVE_INFINITY,
   })
   if (scanned._tag === 'rejected')

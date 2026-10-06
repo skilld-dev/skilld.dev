@@ -2,6 +2,7 @@ import type { LinkedArtifactFile, ProblemCode, ResolvedSource, SourceRequest } f
 import type { ArchiveReport } from './archive-reader'
 import type { PackedFile, SkillFileReader } from './artifact-pack'
 import type { GithubReadTry } from './github-read'
+import type { GitTreeEntry, LinkSourceReader, LinkText, SkillEntry, SymbolicLinkNote } from './symbolic-links'
 import { z } from 'zod'
 import { canonicalSkillFolder, isRegistrySkillPath, slugifySkillName } from '#shared/skill-path'
 import { createGithubArchiveReader } from './archive-reader'
@@ -17,6 +18,7 @@ import {
   isTruncatedBody,
   readGithubWithRetry,
 } from './github-read'
+import { followSymbolicLinks, isSymbolicLink, MAX_LINK_TARGET_BYTES } from './symbolic-links'
 import { compareArtifactPaths, projectedUstarBytes } from './ustar'
 
 const GITHUB_API = 'https://api.github.com'
@@ -164,7 +166,7 @@ const blobResponseSchema = z.object({
   content: z.string(),
 })
 
-type TreeEntry = z.infer<typeof treeEntrySchema>
+type TreeEntry = z.infer<typeof treeEntrySchema> & GitTreeEntry
 
 /** Where the GitHub API serves a Repository now. */
 interface RepositoryName {
@@ -201,6 +203,8 @@ export interface LoadedArtifactSource {
   omitted: OmittedArtifactFile[]
   /** Files the attestation lists for the skilld CLI to read from GitHub. */
   linked: LinkedArtifactFile[]
+  /** The symbolic links in the Skill folder, followed or left out. */
+  symbolicLinks: SymbolicLinkNote[]
   /** Streams the packed files' bytes. Each call reads them again. */
   read: SkillFileReader
 }
@@ -750,25 +754,36 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
       const listed = await listTreeBounded(at.owner, at.repository, skillTree)
       if (listed._tag !== 'listed')
         return listed
+      // A private build follows links by the same rules. It reads one blob
+      // per file, so the reads the links cost come out of its file limit.
+      const followed = await followSymbolicLinks({
+        entries: listed.entries,
+        skillPath: source.skillPath,
+        rootTreeSha: source.treeSha,
+        read: linkSourceReader(at),
+      })
+      if (followed._tag === 'rejected')
+        return followed
       const limits = expectedVisibility === 'private'
-        ? PRIVATE_ARTIFACT_LIMITS
+        ? { ...PRIVATE_ARTIFACT_LIMITS, maxFiles: PRIVATE_ARTIFACT_LIMITS.maxFiles - followed.reads }
         : { ...PUBLIC_ARTIFACT_LIMITS, maxLinkedBytes: loadOptions.linkedFiles ? MAX_LINKED_BYTES : null }
-      const selected = selectArtifactEntries(listed.entries, source.skillPath, limits)
+      const selected = selectArtifactEntries(followed.entries, source.skillPath, limits)
       if (selected._tag === 'rejected')
         return selected
       const files = selected.entries.map(packedFile)
       const omitted = selected.omitted.map(entry => ({
         path: entry.path,
         bytes: entry.size,
-        url: githubBlobUrl(source, entry.path),
+        url: githubBlobUrl(source, entry.from ?? repositoryPathOf(source.skillPath, entry.path)),
       }))
       const linked = selected.linked.map(packedFile)
+      const symbolicLinks = followed.notes
 
       if (expectedVisibility === 'private') {
         const fromBlobs = await loadFromBlobs(source, at, selected.entries)
         if (fromBlobs._tag !== 'loaded')
           return fromBlobs
-        return { _tag: 'loaded', value: { source, files, omitted, linked, read: bufferedReader(fromBlobs.files) } }
+        return { _tag: 'loaded', value: { source, files, omitted, linked, symbolicLinks, read: bufferedReader(fromBlobs.files) } }
       }
       // A public build reads the Repository archive from codeload and any file
       // it lacks from raw.githubusercontent.com. Neither spends REST quota, and
@@ -780,14 +795,49 @@ export function createGithubSourceClient(options: GithubClientOptions): PublicGi
         commitSha: source.commitSha,
         skillPath: source.skillPath,
         files,
+        linkSources: new Map(selected.entries.flatMap(entry => entry.from === undefined ? [] : [[entry.path, entry.from] as const])),
         maxArchiveBytes: ARCHIVE_MAX_UNCOMPRESSED_BYTES,
         budget: { githubReads: MAX_GITHUB_FILE_READS },
         gunzip: options.gunzip,
         report: report => reportArchive(source, report),
         now,
       })
-      return { _tag: 'loaded', value: { source, files, omitted, linked, read } }
+      return { _tag: 'loaded', value: { source, files, omitted, linked, symbolicLinks, read } }
     },
+  }
+
+  /**
+   * The reads that follow symbolic links: trees by their SHA, and each link
+   * blob through the REST API. Both are immutable, so a public build reads
+   * each one from GitHub once. simota/agent-skills links the same `_common`
+   * folder from 103 Skills.
+   */
+  function linkSourceReader(at: RepositoryName): LinkSourceReader {
+    const repositoryPath = `/repos/${encodeURIComponent(at.owner)}/${encodeURIComponent(at.repository)}`
+    return {
+      async level(sha) {
+        const response = await getTree(at.owner, at.repository, sha, false)
+        if (response._tag === 'too-large' || (response._tag === 'ok' && response.value.truncated))
+          return sourceLimitRejection('GitHub returned an incomplete tree for a symbolic link target.')
+        return response._tag === 'ok' ? response.value.tree : readRejection(response)
+      },
+      async all(sha) {
+        const listed = await listTreeBounded(at.owner, at.repository, sha)
+        return listed._tag === 'listed' ? listed.entries : listed
+      },
+      async linkText(sha): Promise<LinkText | SourceRejection> {
+        const response = await requestImmutableJson(`blob:${sha}`, 'blob', `${repositoryPath}/git/blobs/${sha}`, blobResponseSchema)
+        if (response._tag !== 'ok')
+          return readRejection(response)
+        const content = base64ToBytes(response.value.content.replaceAll('\n', ''))
+        if (response.value.sha !== sha || await gitBlobShaHex(content) !== sha)
+          return reject('INVALID_SOURCE', 'A Git blob failed its Git digest check.', [sha])
+        if (content.byteLength > MAX_LINK_TARGET_BYTES || content.includes(0))
+          return { _tag: 'invalid' }
+        const text = decodeUtf8(content)
+        return text === null ? { _tag: 'invalid' } : { _tag: 'text', value: text }
+      },
+    }
   }
 
   async function loadFromBlobs(
@@ -895,7 +945,7 @@ function normalizeRequestedSkillPath(input: string): string | null {
   return path
 }
 
-type SizedEntry = TreeEntry & { size: number }
+type SizedEntry = SkillEntry & { size: number }
 
 interface SelectedEntries {
   _tag: 'selected'
@@ -920,8 +970,11 @@ interface SelectedEntries {
  *
  * A Skill at the Repository root has the whole Repository as its folder, so
  * its README images leave rather than count against it.
+ *
+ * A file a symbolic link put in the Skill is never a linked file. The skilld
+ * CLI reads a linked file at its own path, and GitHub serves no file there.
  */
-export function selectArtifactEntries(entries: TreeEntry[], skillPath: string, limits: ArtifactLimits): SelectedEntries | SourceRejection {
+export function selectArtifactEntries(entries: SkillEntry[], skillPath: string, limits: ArtifactLimits): SelectedEntries | SourceRejection {
   const findings: string[] = []
   const identities = new Map<string, string>()
   const blobs: SizedEntry[] = []
@@ -937,7 +990,8 @@ export function selectArtifactEntries(entries: TreeEntry[], skillPath: string, l
 
     if (entry.type === 'commit' || entry.mode === '160000')
       findings.push(`${entry.path} is a Git submodule`)
-    if (entry.type === 'blob' && entry.mode === '120000')
+    // `followSymbolicLinks` replaces every link first. One that reaches here was never followed.
+    if (isSymbolicLink(entry))
       findings.push(`${entry.path} is a symbolic link`)
     if (entry.type === 'blob' && entry.mode !== '100644' && entry.mode !== '100755' && entry.mode !== '120000')
       findings.push(`${entry.path} has unsupported mode ${entry.mode}`)
@@ -998,7 +1052,7 @@ export function selectArtifactEntries(entries: TreeEntry[], skillPath: string, l
     for (const entry of candidates) {
       if (packedBytes <= limits.maxArchiveBytes)
         break
-      if (maxLinkedBytes !== null && linkedBytes + entry.size <= maxLinkedBytes) {
+      if (maxLinkedBytes !== null && entry.from === undefined && linkedBytes + entry.size <= maxLinkedBytes) {
         linked.push(entry)
         linkedBytes += entry.size
       }
@@ -1160,9 +1214,8 @@ function isReadBySkill(path: string): boolean {
   return dot > 0 && TEXT_EXTENSIONS.has(name.slice(dot + 1))
 }
 
-/** The GitHub page of one Skill file at the Artifact's commit. */
-function githubBlobUrl(source: ResolvedSource, path: string): string {
-  const repositoryPath = source.skillPath === '.' ? path : `${source.skillPath}/${path}`
+/** The GitHub page of one Repository file at the Artifact's commit. */
+function githubBlobUrl(source: ResolvedSource, repositoryPath: string): string {
   return `https://github.com/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repository)}/blob/${source.commitSha}/${repositoryPath.split('/').map(encodeURIComponent).join('/')}`
 }
 
@@ -1181,6 +1234,23 @@ export function storedFilesPassLoadRules(files: ArtifactSourceFile[], skillPath:
   }))
   const selected = selectArtifactEntries(entries, skillPath, PUBLIC_ARTIFACT_LIMITS)
   return selected._tag === 'selected' && selected.omitted.length === 0 && selected.linked.length === 0
+}
+
+/** The Repository path of a path inside the Skill folder. */
+function repositoryPathOf(skillPath: string, path: string): string {
+  return skillPath === '.' ? path : `${skillPath}/${path}`
+}
+
+/** UTF-8 text, or null for bytes that are not. */
+function decodeUtf8(bytes: Uint8Array): string | null {
+  try {
+    // A byte order mark is part of a POSIX path, so it stays.
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)
+  }
+  catch {
+    // Invalid UTF-8 is an answer here: the bytes hold no path.
+    return null
+  }
 }
 
 function skillFolderLabel(skillPath: string): string {

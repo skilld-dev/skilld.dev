@@ -561,5 +561,6 @@ function requiredChecks() {
     { name: 'credential-material', version: '2', outcome: 'pass' as const, required: true },
     { name: 'executable-files', version: '1', outcome: 'pass' as const, required: false },
     { name: 'omitted-files', version: '1', outcome: 'pass' as const, required: false },
+    { name: 'symbolic-links', version: '1', outcome: 'pass' as const, required: false },
   ]
 }

@@ -300,6 +300,7 @@ async function createSignerFixture(options: SignerFixtureOptions = {}) {
     { name: 'credential-material', version: '2', outcome: 'pass', required: true },
     { name: 'executable-files', version: '1', outcome: 'pass', required: false },
     { name: 'omitted-files', version: '1', outcome: 'pass', required: false },
+    { name: 'symbolic-links', version: '1', outcome: 'pass', required: false },
   ]
   const statement = encodeAttestationStatement({
     ...createAttestationStatement({
