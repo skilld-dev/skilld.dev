@@ -950,8 +950,8 @@ function githubBlobUrl(source: ResolvedSource, path: string): string {
 
 /**
  * Whether files read back from a stored Artifact pass every rule a GitHub load
- * applies today: paths, modes, the SKILL.md file and the size limits. A Skill
- * checked again from its stored bytes is then one a load would accept.
+ * applies today, and the load would leave none of them out. A Skill checked
+ * again from its stored bytes then packs exactly what a load would pack.
  */
 export function storedFilesPassLoadRules(files: ArtifactSourceFile[], skillPath: string): boolean {
   const entries = files.map(file => ({
@@ -961,7 +961,8 @@ export function storedFilesPassLoadRules(files: ArtifactSourceFile[], skillPath:
     sha: file.gitBlobSha,
     size: file.bytes.byteLength,
   }))
-  return selectArtifactEntries(entries, skillPath)._tag === 'selected'
+  const selected = selectArtifactEntries(entries, skillPath)
+  return selected._tag === 'selected' && selected.omitted.length === 0
 }
 
 function skillFolderLabel(skillPath: string): string {

@@ -123,6 +123,25 @@ describe('a policy bump that changes only checks', () => {
     harness.close()
   })
 
+  it('loads from GitHub when the stored build left a file out', async () => {
+    const harness = await createHarness()
+    const first = await harness.run(pinned)
+    await harness.resign(first.row.id, statement => ({
+      ...statement,
+      policyVersion: '2026-10-07.1',
+      checkResults: statement.checkResults.map(check => check.name === 'omitted-files'
+        ? { ...check, outcome: 'warn' as const, summary: '1 file over the size limits was left out of the Artifact.' }
+        : check),
+    }))
+    harness.github.reset()
+
+    const repeat = await harness.run(pinned)
+
+    expect(repeat.row.state).toBe('ready')
+    expect(harness.github.paths()).toContain(`/repos/skilld-dev/skills/tarball/${COMMIT}`)
+    harness.close()
+  })
+
   it('loads from GitHub again after a bump that changed the bytes', async () => {
     const harness = await createHarness()
     const first = await harness.run(pinned)

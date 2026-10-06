@@ -29,16 +29,18 @@ import { canonicalJson, digestHex } from './encoding'
 export const ARTIFACT_POLICY_VERSION = '2026-10-07.2'
 
 /**
- * Earlier policies whose loading and packaging match this one, so a commit
- * packed to the same Artifact bytes under each. A ready build under one of
- * them is checked again from its stored bytes, with no GitHub read.
+ * Earlier policies under which every ready build packed the bytes this policy
+ * packs for the same commit and folder. A ready build under one of them is
+ * checked again from its stored bytes, with no GitHub read.
  *
  * A bump that changes only checks adds the version it replaces. A bump that
- * changes loading or packaging empties this set.
+ * changes the bytes of a folder an earlier policy accepted empties this set.
  *
+ * - `2026-10-07.1`: #487 leaves large media out of a folder that policy
+ *   refused. Every folder it accepted packs the same files.
  * - `2026-08-20.1`: #481 changed checks and Skill name resolution only.
  */
-export const BYTE_COMPATIBLE_POLICY_VERSIONS: ReadonlySet<string> = new Set(['2026-08-20.1'])
+export const BYTE_COMPATIBLE_POLICY_VERSIONS: ReadonlySet<string> = new Set(['2026-10-07.1', '2026-08-20.1'])
 
 export const ACTIVE_BUILD_STATES = [
   'requested',

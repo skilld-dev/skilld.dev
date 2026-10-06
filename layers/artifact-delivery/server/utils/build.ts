@@ -493,6 +493,7 @@ async function loadStoredBuild(
   if (
     !attestation
     || (attestation.policyVersion !== ARTIFACT_POLICY_VERSION && !BYTE_COMPATIBLE_POLICY_VERSIONS.has(attestation.policyVersion))
+    || !omittedNothing(attestation)
     || !attestationMatchesRecord(attestation, ready)
     || !await verifyArtifactAttestation(attestation, dependencies.trustedRoot, dependencies.now())
   ) {
@@ -518,8 +519,18 @@ async function loadStoredBuild(
     _tag: 'loaded',
     source: ready.source,
     files,
-    checked: await checkArtifactSource(ready.source, files),
+    checked: await checkArtifactSource(ready.source, files, []),
   }
+}
+
+/**
+ * Whether a stored build left no file out. R2 holds only the files it packed,
+ * so a build that left some out cannot be checked again from its bytes.
+ * Policies before the `omitted-files` check never left a file out.
+ */
+function omittedNothing(attestation: ArtifactAttestation): boolean {
+  const omitted = attestation.checkResults.find(check => check.name === 'omitted-files')
+  return omitted === undefined || omitted.outcome === 'pass'
 }
 
 /**
